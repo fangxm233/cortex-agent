@@ -11,15 +11,13 @@ function GroupSection({
   title,
   groups,
   pendingId,
-  onClaim,
-  onComplete,
+  onUnblock,
   onOpen,
 }: {
   title: string;
   groups: TaskGroup[];
   pendingId: string | null;
-  onClaim: (t: TaskInfo) => void;
-  onComplete: (t: TaskInfo) => void;
+  onUnblock: (t: TaskInfo) => void;
   onOpen: (t: TaskInfo) => void;
 }) {
   const count = groups.reduce((n, g) => n + g.tasks.length, 0);
@@ -42,8 +40,7 @@ function GroupSection({
                   key={task.id}
                   task={task}
                   pending={pendingId === task.id}
-                  onClaim={onClaim}
-                  onComplete={onComplete}
+                  onUnblock={onUnblock}
                   onOpen={onOpen}
                 />
               ))}
@@ -81,14 +78,6 @@ export function TasksPanel({ lifecycle, projectId }: TasksPanelProps) {
 
   const invalidate = () => queryClient.invalidateQueries(trpc.tasks.list.queryFilter());
 
-  const claim = useMutation(
-    trpc.tasks.claim.mutationOptions({
-      onSettled: () => {
-        setPendingId(null);
-        invalidate();
-      },
-    }),
-  );
   const complete = useMutation(
     trpc.tasks.complete.mutationOptions({
       onSettled: () => {
@@ -107,10 +96,6 @@ export function TasksPanel({ lifecycle, projectId }: TasksPanelProps) {
     }),
   );
 
-  const onClaim = (t: TaskInfo) => {
-    setPendingId(t.id);
-    claim.mutate({ projectId: t.project, taskId: t.id });
-  };
   const onComplete = (t: TaskInfo) => {
     setPendingId(t.id);
     complete.mutate({ projectId: t.project, taskId: t.id, note: 'completed via Web UI' });
@@ -149,8 +134,7 @@ export function TasksPanel({ lifecycle, projectId }: TasksPanelProps) {
           title="Open"
           groups={grouped.open}
           pendingId={pendingId}
-          onClaim={onClaim}
-          onComplete={onComplete}
+          onUnblock={onUnblock}
           onOpen={onOpen}
         />
       )}
@@ -159,8 +143,7 @@ export function TasksPanel({ lifecycle, projectId }: TasksPanelProps) {
           title="Done"
           groups={grouped.done}
           pendingId={pendingId}
-          onClaim={onClaim}
-          onComplete={onComplete}
+          onUnblock={onUnblock}
           onOpen={onOpen}
         />
       )}
