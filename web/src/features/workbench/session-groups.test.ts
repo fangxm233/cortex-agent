@@ -15,6 +15,7 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
     lastUsedAt: p.lastUsedAt ?? created,
     resumable: p.resumable ?? true,
     label: p.label ?? null,
+    profileName: p.profileName ?? null,
   };
 }
 

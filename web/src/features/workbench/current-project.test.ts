@@ -13,6 +13,7 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   lastUsedAt,
   resumable: true,
   label: null,
+  profileName: null,
 });
 
 const project = (id: string): ProjectConduitInfo => ({

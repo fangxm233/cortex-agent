@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react';
-import { DEFAULT_CHAT_PROFILE } from './chat-content';
-import { buildProfileOptions } from './profile-menu';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTRPC } from '@/lib/trpc';
+import { buildProfileOptions, currentBackendOf } from './profile-menu';
 import { ProfileMenu } from './ProfileMenu';
 
 // Chat header — 1:1 from prototype.dc.html L107–130: session title · profile chip · running/idle
 // status pill · ⌘K affordance. `title` is the REAL active session name (task aba0); `running` is
-// derived from live `session.message` activity. Profile-chip dropdown (L109–121, task c3ce): GAP —
-// no profiles tRPC scope → static verbatim option set; onPick updates the local chip label only.
+// derived from live `session.message` activity. Profile-chip dropdown (L109–121): now bound to the
+// REAL configured profiles (config.get) and the session's active profile; picking a profile calls
+// the real `sessions.setProfile` mutation. Cross-backend options are disabled once the session has
+// conversation history (the shared switch rule — a live conversation can only move between same-
+// backend profiles).
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -14,15 +18,45 @@ export function ChatHeader({
   title,
   running,
   onCmdK,
+  sessionId,
+  currentProfile,
+  hasHistory,
 }: {
   title: string;
   running: boolean;
   onCmdK: () => void;
+  sessionId: string;
+  currentProfile: string | null;
+  hasHistory: boolean;
 }): JSX.Element {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const configQuery = useQuery(trpc.config.get.queryOptions({}));
+  const profiles = configQuery.data?.profiles?.profiles ?? [];
+  const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
+
+  // The chip reflects the session's active profile, falling back to the config default.
+  const effectiveProfile = currentProfile ?? defaultProfile ?? (profiles[0]?.name ?? '—');
+  const currentBackend = useMemo(
+    () => currentBackendOf(profiles, effectiveProfile),
+    [profiles, effectiveProfile],
+  );
+  const options = useMemo(
+    () => buildProfileOptions(profiles, effectiveProfile, { currentBackend, hasHistory }),
+    [profiles, effectiveProfile, currentBackend, hasHistory],
+  );
+
+  const setProfile = useMutation(
+    trpc.sessions.setProfile.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+      },
+    }),
+  );
+
   const [chipHover, setChipHover] = useState(false);
   const [cmdkHover, setCmdkHover] = useState(false);
   const [profMenuOpen, setProfMenuOpen] = useState(false);
-  const [chatProfile, setChatProfile] = useState(DEFAULT_CHAT_PROFILE);
   useEffect(() => {
     if (!profMenuOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -83,16 +117,19 @@ export function ChatHeader({
             gap: 5,
           }}
         >
-          profile · {chatProfile}
+          profile · {effectiveProfile}
           <span style={{ fontSize: 8, color: '#B6BDC9' }}>▾</span>
         </span>
         {profMenuOpen && (
           <span onClick={(e) => e.stopPropagation()}>
             <ProfileMenu
-              options={buildProfileOptions(chatProfile)}
+              options={options}
               onPick={(name) => {
-                setChatProfile(name);
                 setProfMenuOpen(false);
+                if (!sessionId || name === effectiveProfile) return;
+                const opt = options.find((o) => o.name === name);
+                if (!opt || opt.disabled) return; // cross-backend on a live session — not allowed
+                setProfile.mutate({ sessionId, profileName: name });
               }}
             />
           </span>

@@ -1,22 +1,47 @@
-// Profile-chip dropdown options (prototype.dc.html L109–121 + support.js L1904–1908, task c3ce).
-// GAP: no `profiles` tRPC scope exists → the option set is the prototype's verbatim static list
-// (matches the prototype, whose picker is also client-only). onPick updates the local chip label.
+import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
+
+// Profile-picker options, built from the REAL configured profiles (config.get → ConfigProfiles).
+// Replaces the former hardcoded prototype list. `active` marks the session's current profile. The
+// switch rule is shared with the backend (domain/agents/switchChannelProfile): a session that
+// already has conversation history may only move BETWEEN same-backend profiles, so cross-backend
+// options are `disabled` for a live session (the backend enforces the same rule as a backstop).
 
 export interface ProfileOption {
   name: string;
+  /** Sub-label: the profile's model (falls back to backend). */
   sub: string;
   active: boolean;
+  /** The profile's backend (claude / codex / pi). */
+  backend: string;
+  /** True when this option can't be selected for the current (live) session — a cross-backend move. */
+  disabled: boolean;
 }
 
-const PROFILE_DEFS: readonly { name: string; sub: string }[] = [
-  { name: 'research', sub: 'session default' },
-  { name: 'plan', sub: 'claude-sonnet-4' },
-  { name: 'execute', sub: 'claude-sonnet-4' },
-  { name: 'claude-haiku', sub: 'claude-haiku-4' },
-];
+function profileSub(p: ConfigProfileEntry): string {
+  return p.model ?? p.backend ?? '';
+}
 
-export const PROFILE_NAMES: readonly string[] = PROFILE_DEFS.map((p) => p.name);
+function backendOf(p: ConfigProfileEntry): string {
+  return p.backend ?? 'claude';
+}
 
-export function buildProfileOptions(active: string): ProfileOption[] {
-  return PROFILE_DEFS.map((p) => ({ name: p.name, sub: p.sub, active: p.name === active }));
+/** The backend of the currently-active profile — the reference for the same-backend disable rule.
+ *  Null when the active profile is not found in the list (unknown). */
+export function currentBackendOf(profiles: ConfigProfileEntry[], active: string): string | null {
+  const p = profiles.find((x) => x.name === active);
+  return p ? backendOf(p) : null;
+}
+
+export function buildProfileOptions(
+  profiles: ConfigProfileEntry[],
+  active: string,
+  opts: { currentBackend: string | null; hasHistory: boolean },
+): ProfileOption[] {
+  return profiles.map((p) => ({
+    name: p.name,
+    sub: profileSub(p),
+    active: p.name === active,
+    backend: backendOf(p),
+    disabled: opts.hasHistory && opts.currentBackend !== null && backendOf(p) !== opts.currentBackend,
+  }));
 }

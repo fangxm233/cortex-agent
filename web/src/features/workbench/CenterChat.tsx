@@ -6,6 +6,8 @@ import { MessageStream } from './MessageStream';
 import { Composer } from './Composer';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
 import { buildTranscriptRows, turnCount, sessionElapsedMs, formatElapsed } from './transcript-vm';
+import { useCurrentProject } from './CurrentProjectProvider';
+import { useSelectedSession } from './SelectedSessionProvider';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -23,15 +25,22 @@ const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
 export function CenterChat(): JSX.Element {
   const trpc = useTRPC();
-  const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({}));
+  const { currentProjectId } = useCurrentProject();
+  const { selectedSessionId } = useSelectedSession();
+  // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
+  // is resolved from the same list the rail shows.
+  const sessionsQuery = useQuery(
+    trpc.sessions.list.queryOptions({ origin: 'direct', projectId: currentProjectId ?? undefined }),
+  );
 
+  // The active session is the shared cross-pane selection (a LeftRail click), resolved against the
+  // scoped list. No local most-recent computation — selection is the single source of truth.
   const active = useMemo(() => {
     const list = sessionsQuery.data ?? [];
-    if (list.length === 0) return null;
-    return [...list].sort((a, b) => (a.lastUsedAt < b.lastUsedAt ? 1 : -1))[0];
-  }, [sessionsQuery.data]);
+    return list.find((s) => s.sessionId === selectedSessionId) ?? null;
+  }, [sessionsQuery.data, selectedSessionId]);
 
-  const sessionId = active?.sessionId ?? '';
+  const sessionId = active?.sessionId ?? selectedSessionId ?? '';
   const title = active ? (active.label ?? active.name) : 'No session';
 
   const transcriptQuery = useQuery({
@@ -49,6 +58,9 @@ export function CenterChat(): JSX.Element {
   const turns = turnCount(transcriptQuery.data);
   const elapsed = useMemo(() => formatElapsed(sessionElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
   const running = streaming;
+  // A session "has history" once it carries at least one turn — the switch rule uses this to allow
+  // only same-backend profile switches on a live conversation. Live streaming counts too.
+  const hasHistory = turns > 0 || liveTail.length > 0;
 
   const onCmdK = () => {
     // Trigger the global ⌘K command palette (AppShell mounts it via a window keydown hook).
@@ -67,7 +79,14 @@ export function CenterChat(): JSX.Element {
         minHeight: 0,
       }}
     >
-      <ChatHeader title={title} running={running} onCmdK={onCmdK} />
+      <ChatHeader
+        title={title}
+        running={running}
+        onCmdK={onCmdK}
+        sessionId={sessionId}
+        currentProfile={active?.profileName ?? null}
+        hasHistory={hasHistory}
+      />
       <MessageStream rows={rows} loading={!!sessionId && transcriptQuery.isPending} />
       <Composer sessionId={sessionId} running={running} turns={turns} elapsed={elapsed} />
     </div>

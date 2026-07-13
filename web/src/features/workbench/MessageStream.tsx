@@ -4,6 +4,7 @@ import type { ChatRow } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
 import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { ApprovalCard } from './ApprovalCard';
+import { ChatMarkdown } from './ChatMarkdown';
 
 // Message stream — 1:1 from prototype.dc.html L131–357. The transcript body (divider / user bubble /
 // tool-call row / assistant text) is now driven by REAL data (task aba0): the `rows` are built from
@@ -37,6 +38,7 @@ function UserBubble({ text }: { text: string }): JSX.Element {
         fontSize: 13.5,
         lineHeight: 1.55,
         color: '#191C22',
+        whiteSpace: 'pre-wrap',
       }}
     >
       {text}
@@ -47,7 +49,7 @@ function UserBubble({ text }: { text: string }): JSX.Element {
 function AssistantBlock({ text, streaming }: { text: string; streaming: boolean }): JSX.Element {
   return (
     <div style={{ animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: '#22262E' }}>
-      {text}
+      <ChatMarkdown text={text} />
       {streaming && (
         <span
           style={{

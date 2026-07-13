@@ -14,6 +14,7 @@ function session(over: Partial<SessionInfo> = {}): SessionInfo {
     lastUsedAt: '2026-07-06T07:42:00Z',
     resumable: true,
     label: null,
+    profileName: null,
     ...over,
   };
 }

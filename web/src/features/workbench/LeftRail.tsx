@@ -9,6 +9,7 @@ import { ProjectMenu } from './ProjectMenu';
 import { NewProjectModal } from './NewProjectModal';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useCurrentProject } from './CurrentProjectProvider';
+import { useSelectedSession } from './SelectedSessionProvider';
 
 // LEFT RAIL — 1:1 from prototype.dc.html L42–100 (Stage-R RB, task f528). Exact inline styles /
 // px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (projects.list /
@@ -21,17 +22,21 @@ export function LeftRail(): JSX.Element {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
-  // Only user-initiated conversations belong in the left rail. Thread-agent sessions and
-  // scheduled-job sessions are surfaced through the Thread and Schedule views, not here.
-  const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' }));
-
-  const projects = projectsQuery.data ?? [];
-  const sessions = sessionsQuery.data ?? [];
 
   // Active project = the shared cross-pane current project (task 569c): the switcher's explicit
   // selection, else the derived default (most-recent session's project, else first listed project).
   // The provider owns the derivation; the same value scopes the RightPanel cost bar.
   const { currentProjectId: activeProjectId, setCurrentProject } = useCurrentProject();
+
+  // Only user-initiated conversations belong in the left rail. Thread-agent sessions and
+  // scheduled-job sessions are surfaced through the Thread and Schedule views, not here. Scoped to the
+  // current project so switching project switches the session list (backend filters by projectId).
+  const sessionsQuery = useQuery(
+    trpc.sessions.list.queryOptions({ origin: 'direct', projectId: activeProjectId ?? undefined }),
+  );
+
+  const projects = projectsQuery.data ?? [];
+  const sessions = sessionsQuery.data ?? [];
 
   const costQuery = useQuery({
     ...trpc.cost.summary.queryOptions({ projectId: activeProjectId ?? undefined }),
@@ -86,12 +91,10 @@ export function LeftRail(): JSX.Element {
 
   const groups = useMemo(() => groupSessions(sessions, Date.now()), [sessions]);
 
-  // Local selection drives only the row highlight (center chat is the Stage-R sibling-B stub).
-  // Default to the most-recent session so the rail matches the proto-shot's one active row.
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const effectiveSelected =
-    selectedId ??
-    (groups[0]?.items[0]?.sessionId ?? null);
+  // Selection is the shared cross-pane state: clicking a row re-points the center chat to that
+  // session (CenterChat reads the same `selectedSessionId`). The provider derives the default
+  // (most-recent session in the current project) and re-derives on project switch.
+  const { selectedSessionId: effectiveSelected, setSelectedSession } = useSelectedSession();
 
   // Approval center (Stage-R3): real `approvals.list` pending count drives the banner;
   // clicking it opens the approval center overlay (mounted globally in AppShell).
@@ -110,7 +113,7 @@ export function LeftRail(): JSX.Element {
     trpc.sessions.create.mutationOptions({
       onSuccess: (data) => {
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-        setSelectedId(data.sessionId);
+        setSelectedSession(data.sessionId);
       },
     }),
   );
@@ -297,7 +300,7 @@ export function LeftRail(): JSX.Element {
                   {...hp(rowKey)}
                   className="sess-row"
                   data-session-id={s.sessionId}
-                  onClick={() => setSelectedId(s.sessionId)}
+                  onClick={() => setSelectedSession(s.sessionId)}
                   style={{ borderRadius: 8, padding: '8px 10px', cursor: 'pointer', background: bg, position: 'relative' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>

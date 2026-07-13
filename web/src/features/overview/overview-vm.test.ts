@@ -79,6 +79,7 @@ describe('deriveActiveProjectId', () => {
     lastUsedAt,
     resumable: true,
     label: null,
+    profileName: null,
   });
   it('picks the most-recently-used session project', () => {
     const sessions = [

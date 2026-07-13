@@ -2,6 +2,7 @@ import { LeftRail } from './LeftRail';
 import { CenterChat } from './CenterChat';
 import { RightPanel } from './RightPanel';
 import { CurrentProjectProvider } from './CurrentProjectProvider';
+import { SelectedSessionProvider } from './SelectedSessionProvider';
 
 // Workbench app-shell frame — 1:1 from prototype.dc.html L39 (Stage-R RB, task f528). The outer
 // flex row is the load-bearing seam every workbench pane composes into: 240px LeftRail (flex:none)
@@ -12,20 +13,22 @@ import { CurrentProjectProvider } from './CurrentProjectProvider';
 export function WorkbenchPage(): JSX.Element {
   return (
     <CurrentProjectProvider>
-      <div
-        style={{
-          height: '100vh',
-          minHeight: 640,
-          minWidth: 1180,
-          display: 'flex',
-          background: '#fff',
-          overflow: 'hidden',
-        }}
-      >
-        <LeftRail />
-        <CenterChat />
-        <RightPanel />
-      </div>
+      <SelectedSessionProvider>
+        <div
+          style={{
+            height: '100vh',
+            minHeight: 640,
+            minWidth: 1180,
+            display: 'flex',
+            background: '#fff',
+            overflow: 'hidden',
+          }}
+        >
+          <LeftRail />
+          <CenterChat />
+          <RightPanel />
+        </div>
+      </SelectedSessionProvider>
     </CurrentProjectProvider>
   );
 }
