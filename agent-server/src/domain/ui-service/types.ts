@@ -48,6 +48,7 @@ export type MutateOp =
   | 'sessions.create'
   | 'sessions.send'
   | 'sessions.cancel'
+  | 'sessions.setProfile'
   | 'threads.cancel'
   | 'executions.cancel'
   | 'schedules.pause'
@@ -181,6 +182,12 @@ export interface SessionsCancelArgs {
   sessionId: string;
 }
 
+export interface SessionsSetProfileArgs {
+  sessionId: string;
+  /** The profile to switch the session to. Must exist in profiles.json. */
+  profileName: string;
+}
+
 export interface ThreadsCancelArgs {
   threadId: string;
 }
@@ -284,6 +291,9 @@ export interface SessionInfo {
   lastUsedAt: string;
   resumable: boolean;
   label: string | null;
+  /** The session's active agent profile (registry record). Null when never explicitly set — the
+   *  client falls back to the config default. Kept in sync by the shared profile-switch rule. */
+  profileName: string | null;
 }
 
 // ── sessions.transcript DTO (S4 chat) ─────────────────────────────
@@ -775,6 +785,13 @@ export interface SessionsCancelReturn {
   count: number;
 }
 
+export interface SessionsSetProfileReturn {
+  /** The profile now active on the session. */
+  profileName: string;
+  /** True when the switch moved to a different backend (only possible on a session with no history). */
+  backendChanged: boolean;
+}
+
 export interface ThreadsCancelReturn {
   cancelled: boolean;
 }
@@ -848,6 +865,7 @@ export interface MutateArgsMap {
   'sessions.create': SessionsCreateArgs;
   'sessions.send': SessionsSendArgs;
   'sessions.cancel': SessionsCancelArgs;
+  'sessions.setProfile': SessionsSetProfileArgs;
   'threads.cancel': ThreadsCancelArgs;
   'executions.cancel': ExecutionsCancelArgs;
   'schedules.pause': ScheduleActionArgs;
@@ -870,6 +888,7 @@ export interface MutateReturnMap {
   'sessions.create': SessionsCreateReturn;
   'sessions.send': SessionsSendReturn;
   'sessions.cancel': SessionsCancelReturn;
+  'sessions.setProfile': SessionsSetProfileReturn;
   'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
   'schedules.pause': void;
@@ -947,6 +966,21 @@ export interface UiServiceDeps {
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
   createDirectSession: (opts: { projectId: string }) => Promise<{ sessionId: string; sessionName: string }>;
+  /**
+   * Switch the active agent profile for a session's channel under the shared profile-switch rule
+   * (same `switchChannelProfile` the Slack/Feishu `!profile` command uses). Wired in the entry layer
+   * (app.ts) so the ui-service domain never imports domain/agents. Returns a structured outcome:
+   * `ok:false` with `reason` when the profile is unknown or a cross-backend switch is attempted on a
+   * session that already has conversation history.
+   */
+  switchSessionProfile: (opts: { channel: string; name: string }) => Promise<{
+    ok: boolean;
+    name: string;
+    currentBackend: string;
+    targetBackend: string;
+    backendChanged: boolean;
+    reason?: 'unknown-profile' | 'cross-backend-live-session';
+  }>;
   threadStore: {
     getAll(): any[];
     get(id: string): any | null;

@@ -14,6 +14,7 @@ export {
   sessionsTranscriptInput,
   sessionsCreateInput,
   sessionsSendInput,
+  sessionsSetProfileInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,

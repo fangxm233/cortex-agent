@@ -14,6 +14,7 @@ import type {
   sessionsTranscriptInput,
   sessionsCreateInput,
   sessionsSendInput,
+  sessionsSetProfileInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,
@@ -78,6 +79,7 @@ const _threadTemplatesGet: QueryParity<'threadTemplates.get', typeof threadTempl
 const _projectsCreate: MutateParity<'projects.create', typeof projectsCreateInput> = true;
 const _sessionsCreate: MutateParity<'sessions.create', typeof sessionsCreateInput> = true;
 const _sessionsSend: MutateParity<'sessions.send', typeof sessionsSendInput> = true;
+const _sessionsSetProfile: MutateParity<'sessions.setProfile', typeof sessionsSetProfileInput> = true;
 const _threadsCancel: MutateParity<'threads.cancel', typeof threadsCancelInput> = true;
 const _executionsCancel: MutateParity<'executions.cancel', typeof executionsCancelInput> = true;
 const _schedulesPause: MutateParity<'schedules.pause', typeof scheduleActionInput> = true;
@@ -105,7 +107,7 @@ export const _contractParityChecked = [
   _projectsList, _sessionsList, _sessionsTranscript, _threadsList, _threadsGet, _tasksList, _schedulesList,
   _executionsList, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _costSummary, _configGet,
   _machinesList, _skillsList, _threadTemplatesGet,
-  _projectsCreate, _sessionsCreate, _sessionsSend, _threadsCancel, _executionsCancel,
+  _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsSetProfile, _threadsCancel, _executionsCancel,
   _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _tasksClaim,
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _configSet, _executionsLog,

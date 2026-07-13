@@ -113,6 +113,11 @@ export const sessionsCancelInput = z.object({
   sessionId: z.string(),
 });
 
+export const sessionsSetProfileInput = z.object({
+  sessionId: z.string(),
+  profileName: z.string().min(1),
+});
+
 export const threadsCancelInput = z.object({
   threadId: z.string(),
 });
@@ -256,6 +261,7 @@ export const mutateInputSchemas = {
   'sessions.create': sessionsCreateInput,
   'sessions.send': sessionsSendInput,
   'sessions.cancel': sessionsCancelInput,
+  'sessions.setProfile': sessionsSetProfileInput,
   'threads.cancel': threadsCancelInput,
   'executions.cancel': executionsCancelInput,
   'schedules.pause': scheduleActionInput,

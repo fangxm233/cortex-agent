@@ -3,7 +3,7 @@ import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
-import { switchMode, getActiveBackend, setActiveBackend, getClaudeModel, setClaudeModel, getActiveProfile, setActiveProfile, clearChannelProfile, getDefaultAgent, setDefaultAgent } from '@domain/agents/index.js';
+import { switchMode, getActiveBackend, setActiveBackend, getClaudeModel, setClaudeModel, getActiveProfile, setActiveProfile, clearChannelProfile, getDefaultAgent, setDefaultAgent, switchChannelProfile } from '@domain/agents/index.js';
 import { getDefaultProfileName, listProfiles, resolveProfile } from '@domain/agents/profile-manager.js';
 import { getDisplaySkillGroups } from '@domain/memory/skill-scanner.js';
 import { getAgent, listAgents } from '@domain/threads/index.js';
@@ -59,6 +59,21 @@ export async function handleModelCmd(channel: string, adapter: PlatformAdapter, 
 
 const MAX_PROFILE_BUTTONS = 10;
 
+// Apply the shared per-channel profile-switch rule and build the reply text. Used by both the
+// `!profile <name>` command and the interactive buttons so Slack + Feishu share ONE code path (the
+// same `switchChannelProfile` the Web UI calls). A same-backend switch keeps the session (no reset);
+// a cross-backend switch on a live conversation is blocked with an explanatory message.
+async function switchChannelProfileReply(channel: string, name: string): Promise<string> {
+  const res = await switchChannelProfile({ channel, name });
+  if (res.ok) {
+    return `${Icons.ok} ${t('cmd.profile.channelSet', { name })}\n${formatProfileList(channel)}`;
+  }
+  if (res.reason === 'cross-backend-live-session') {
+    return `${Icons.error} ${t('cmd.profile.crossBackendBlocked', { name, target: res.targetBackend, current: res.currentBackend })}`;
+  }
+  return `${Icons.error} Unknown profile: ${name}`;
+}
+
 function buildProfileText(channel?: string): string {
   const effective = getActiveProfile(channel) || getDefaultProfileName();
   const globalProfile = getActiveProfile() || getDefaultProfileName();
@@ -86,9 +101,7 @@ export function createProfileHandler(router?: CommandActionRouter) {
       if (!adapter) return;
       try {
         const { name, channel } = JSON.parse(ctx.value) as { name: string; channel: string };
-        resolveProfile(name);
-        setActiveProfile(name, channel);
-        const text = `${Icons.ok} ${t('cmd.profile.channelSet', { name })}\n${formatProfileList(channel)}`;
+        const text = await switchChannelProfileReply(channel, name);
         if (ctx.messageRef) {
           await adapter.updateMessage(ctx.messageRef, {
             text,
@@ -98,7 +111,6 @@ export function createProfileHandler(router?: CommandActionRouter) {
             ],
           }).catch(() => {});
         }
-        await handleNewCmd(channel, adapter, { skipHook: true });
       } catch (error) {
         if (ctx.messageRef) {
           await adapter.updateMessage(ctx.messageRef, {
@@ -149,10 +161,8 @@ export function createProfileHandler(router?: CommandActionRouter) {
 
       const profileName = args[0];
       try {
-        resolveProfile(profileName);
-        setActiveProfile(profileName, channel);
-        await adapter.postMessage(dest, { text: `${Icons.ok} ${t('cmd.profile.channelSet', { name: profileName })}\n${formatProfileList(channel)}` });
-        await handleNewCmd(channel, adapter, { skipHook: true });
+        const text = await switchChannelProfileReply(channel, profileName);
+        await adapter.postMessage(dest, { text });
       } catch (error) {
         await adapter.postMessage(dest, { text: `${Icons.error} ${(error as Error).message}` });
       }

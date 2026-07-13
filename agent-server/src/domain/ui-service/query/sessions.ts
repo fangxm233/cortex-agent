@@ -49,6 +49,7 @@ export async function handleSessionsList(
     lastUsedAt: s.lastUsedAt,
     resumable: s.kind !== 'scheduled',
     label: s.label ?? null,
+    profileName: s.profileName ?? null,
   }));
 }
 

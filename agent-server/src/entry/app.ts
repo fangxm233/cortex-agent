@@ -74,7 +74,7 @@ import { sessionStore } from '@store/session-registry-repo.js';
 import { cleanupAllBackups } from '@domain/sessions/session-backup.js';
 import { createDirectSession } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
-import { resolveBackendForChannel } from '@domain/agents/index.js';
+import { resolveBackendForChannel, switchChannelProfile } from '@domain/agents/index.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
 import { EventBus, createEventLogger } from '@events/index.js';
@@ -370,6 +370,9 @@ process.on('SIGTERM', async () => {
       initConversation: async (channel, a) => { await conversationLedger.initConversation(channel, a); },
       resolveBackend: resolveBackendForChannel,
     }, opts),
+    // Web profile switch: apply the shared per-channel profile-switch rule (same one the Slack/Feishu
+    // `!profile` command uses). Wired here so the ui-service domain never imports domain/agents.
+    switchSessionProfile: (opts) => switchChannelProfile(opts),
     bus,
     adapter,
   });

@@ -3,3 +3,4 @@
 
 export * from './config.js';
 export * from './facade.js';
+export * from './profile-switch.js';

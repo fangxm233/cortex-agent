@@ -26,6 +26,7 @@ function makeDeps(createProject: UiServiceDeps['projectStore']['createProject'])
     bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
     createDirectSession: async () => ({ sessionId: '', sessionName: '' }),
     cancelSessionRun: async () => 0,
+    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
     clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
     adapter: {} as any,
   };

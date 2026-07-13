@@ -16,6 +16,8 @@ import type {
   SessionsSendReturn,
   SessionsCancelArgs,
   SessionsCancelReturn,
+  SessionsSetProfileArgs,
+  SessionsSetProfileReturn,
 } from '../types.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
@@ -56,4 +58,32 @@ export async function handleCancelSession(
   }
   const count = await deps.cancelSessionRun({ channel: session.channel });
   return { ok: true, data: { cancelled: count > 0, count } };
+}
+
+// Switch the session's active profile under the shared profile-switch rule (the same
+// `switchChannelProfile` the Slack/Feishu `!profile` command uses, injected as `switchSessionProfile`).
+// Resolves the session→channel, delegates to the rule, and maps its structured outcome to a Result:
+//   • unknown-profile            → invalid-args
+//   • cross-backend-live-session → conflict (the conversation can't swap backends; start a new session)
+// A same-backend switch keeps the conversation (no reset) — only the model changes on the next turn.
+export async function handleSetProfile(
+  deps: UiServiceDeps,
+  args: SessionsSetProfileArgs,
+): Promise<Result<SessionsSetProfileReturn>> {
+  const session = await deps.sessionStore.getById(args.sessionId);
+  if (!session) {
+    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  }
+  const res = await deps.switchSessionProfile({ channel: session.channel, name: args.profileName });
+  if (!res.ok) {
+    if (res.reason === 'unknown-profile') {
+      return { ok: false, code: 'invalid-args', message: `Unknown profile: ${args.profileName}` };
+    }
+    return {
+      ok: false,
+      code: 'backend-locked', // maps to CONFLICT in the tRPC layer
+      message: `Can't switch to "${res.name}" (${res.targetBackend}) — this conversation runs on ${res.currentBackend}. Start a new session to change backend.`,
+    };
+  }
+  return { ok: true, data: { profileName: res.name, backendChanged: res.backendChanged } };
 }

@@ -21,6 +21,7 @@ import {
   sessionsCreateInput,
   sessionsSendInput,
   sessionsCancelInput,
+  sessionsSetProfileInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,
@@ -76,6 +77,7 @@ const ERR_CODE_MAP: Record<string, TRPCError['code']> = {
   'invalid-name': 'BAD_REQUEST',
   'already-terminal': 'CONFLICT',
   'already-exists': 'CONFLICT',
+  'backend-locked': 'CONFLICT',
   'task-lock-busy': 'CONFLICT',
   'internal': 'INTERNAL_SERVER_ERROR',
 };
@@ -136,6 +138,7 @@ export function createAppRouter(uiService: UiService) {
       create: makeMutation(uiService, 'sessions.create', sessionsCreateInput),
       send: makeMutation(uiService, 'sessions.send', sessionsSendInput),
       cancel: makeMutation(uiService, 'sessions.cancel', sessionsCancelInput),
+      setProfile: makeMutation(uiService, 'sessions.setProfile', sessionsSetProfileInput),
     }),
     threads: router({
       list: makeQuery(uiService, 'threads.list', threadsListInput),

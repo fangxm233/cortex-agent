@@ -34,6 +34,7 @@ function makeDeps(bus: EventBus, tailer: ExecutionLogTailer, records: Record<str
     bus,
     createDirectSession: async () => ({ sessionId: '', sessionName: '' }),
     cancelSessionRun: async () => 0,
+    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
     clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
     adapter: { getProjectConduits: async () => ({}) } as any,
   };

@@ -20,6 +20,7 @@ test('executions.cancel returns not-found when execution does not exist', async 
     bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
     createDirectSession: async () => ({ sessionId: '', sessionName: '' }),
     cancelSessionRun: async () => 0,
+    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
     clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
     adapter: {} as any,
   };
@@ -50,6 +51,7 @@ test('executions.cancel returns ok when cancellation succeeds', async () => {
     bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
     createDirectSession: async () => ({ sessionId: '', sessionName: '' }),
     cancelSessionRun: async () => 0,
+    switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
     clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },
     adapter: {} as any,
   };

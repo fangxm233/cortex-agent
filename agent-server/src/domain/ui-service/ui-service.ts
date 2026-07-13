@@ -19,7 +19,7 @@ import { handleSkillsList } from './query/skills.js';
 import { handleThreadTemplatesGet } from './query/thread-templates.js';
 import { handleConfigSet } from './mutate/config.js';
 import { handleCreateProject } from './mutate/projects.js';
-import { handleCreateSession, handleSendSession, handleCancelSession } from './mutate/sessions.js';
+import { handleCreateSession, handleSendSession, handleCancelSession, handleSetProfile } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
 import { handleCancelExecution } from './mutate/executions.js';
 import {
@@ -68,6 +68,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'sessions.create': (deps, args) => handleCreateSession(deps, args),
   'sessions.send': (deps, args) => handleSendSession(deps, args),
   'sessions.cancel': (deps, args) => handleCancelSession(deps, args),
+  'sessions.setProfile': (deps, args) => handleSetProfile(deps, args),
   'threads.cancel': (deps, args) => handleCancelThread(deps, args),
   'executions.cancel': (deps, args) => handleCancelExecution(deps, args),
   'schedules.pause': (deps, args) => handlePauseSchedule(deps, args),
