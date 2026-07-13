@@ -944,6 +944,9 @@ export interface UiServiceDeps {
   /** Backend-independent conversation history — read source for `sessions.transcript` (S4 chat). */
   conversationHistory: {
     getHistory(sessionId: string): Promise<SessionHistory | null>;
+    /** First user message text — used to title a label-less session in `sessions.list`. Optional so
+     *  facade/test fixtures need not provide it (the handler skips titling when absent). */
+    getFirstUserText?(sessionId: string): Promise<string | null>;
   };
   /**
    * Inject a genuine user turn into a session and route it through the agent (S4 chat send).

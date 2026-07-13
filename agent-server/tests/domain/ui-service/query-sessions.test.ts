@@ -107,3 +107,17 @@ test('sessions.list with origin + projectId scopes to both', async () => {
   const none = await handleSessionsList(makeDeps(), { origin: 'direct', projectId: 'proj2' });
   assert.equal(none.length, 0);
 });
+
+test('sessions.list titles a label-less session from its first user message, keeping existing labels', async () => {
+  const deps = makeDeps({
+    conversationHistory: {
+      getHistory: async () => null,
+      getFirstUserText: async (id: string) => (id === 's2' ? 'help me set up the ablation sweep' : null),
+    },
+  });
+  const result = await handleSessionsList(deps, {});
+  // s2 had no label → titled from its first user message
+  assert.equal(result.find((s) => s.sessionId === 's2')!.label, 'help me set up the ablation sweep');
+  // s1 already had a label → not overwritten
+  assert.equal(result.find((s) => s.sessionId === 's1')!.label, 'dev');
+});

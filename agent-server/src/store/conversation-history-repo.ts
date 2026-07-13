@@ -159,6 +159,30 @@ export class ConversationHistoryRepo {
     return { sessionId, events };
   }
 
+  /**
+   * The first user message's text for a session, or null when there is none. Used to title a session
+   * from its opening message (the left-rail display name for label-less sessions). Reads the JSONL and
+   * stops at the first `user` line, so it does not parse the whole history.
+   */
+  async getFirstUserText(sessionId: string): Promise<string | null> {
+    let raw: string;
+    try {
+      raw = await fs.readFile(sessionFile(sessionId), 'utf8');
+    } catch {
+      return null;
+    }
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      let ev: RawEvent;
+      try { ev = JSON.parse(line) as RawEvent; } catch { continue; }
+      if (ev.type === 'user') {
+        const text = (ev.text ?? '').trim();
+        return text.length ? text : null;
+      }
+    }
+    return null;
+  }
+
   async clear(sessionId: string): Promise<void> {
     // Wait for any in-flight append to this session, then remove the file.
     await (this.writeChains.get(sessionId) ?? Promise.resolve()).catch(() => {});

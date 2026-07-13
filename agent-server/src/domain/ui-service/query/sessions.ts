@@ -38,7 +38,7 @@ export async function handleSessionsList(
     sessions = results;
   }
 
-  return sessions.map((s: any): SessionInfo => ({
+  const infos = sessions.map((s: any): SessionInfo => ({
     sessionId: s.sessionId,
     name: s.name,
     projectId: s.projectId,
@@ -51,6 +51,25 @@ export async function handleSessionsList(
     label: s.label ?? null,
     profileName: s.profileName ?? null,
   }));
+
+  // Title label-less sessions from their first user message so the left rail shows the conversation's
+  // opening text instead of the opaque `cortex-XXXX` name. Read-only + bounded (only for sessions
+  // with no persisted label, capped) so a large unscoped list stays cheap; new sessions already get a
+  // persisted label at their first turn (agent-runner.ensureSessionLabel).
+  const getFirstUserText = deps.conversationHistory.getFirstUserText;
+  if (getFirstUserText) {
+    const LABEL_DERIVE_CAP = 80;
+    let derived = 0;
+    for (const info of infos) {
+      if (derived >= LABEL_DERIVE_CAP) break;
+      if (info.label && info.label.trim()) continue;
+      derived++;
+      const first = await getFirstUserText(info.sessionId).catch(() => null);
+      if (first) info.label = first.length > 60 ? first.slice(0, 60) : first;
+    }
+  }
+
+  return infos;
 }
 
 // ── sessions.transcript (S4 chat) ─────────────────────────────────
