@@ -56,6 +56,9 @@ export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
               // Turn ended — collapse the heuristic immediately so idle is instant, not a 2.5s tail.
               setStreaming(false);
               if (idleTimer.current) clearTimeout(idleTimer.current);
+              // Refresh the session list so a freshly-titled session (label set from its first
+              // message) and updated ordering show in the left rail without waiting for a focus refetch.
+              queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
             }
             return;
           }
