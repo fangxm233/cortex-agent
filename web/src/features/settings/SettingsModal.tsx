@@ -3,6 +3,7 @@ import { useState, type CSSProperties } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
+import { useVocab } from '@/i18n';
 import { SETTINGS_NAV, sectionMeta, type SettingsSectionKey } from './settings-nav';
 import {
   PlatformPanel,
@@ -66,6 +67,7 @@ export interface SettingsModalProps {
 }
 
 export function SettingsModal({ open, onClose }: SettingsModalProps) {
+  const L = useVocab();
   return (
     <RadixDialog.Root
       open={open}
@@ -80,7 +82,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
           style={MODAL_STYLE}
           className="animate-cxmodal focus:outline-none motion-reduce:animate-none"
         >
-          <RadixDialog.Title style={SR_ONLY}>Settings</RadixDialog.Title>
+          <RadixDialog.Title style={SR_ONLY}>{L.settings}</RadixDialog.Title>
           {open ? <SettingsBody onClose={onClose} /> : null}
         </RadixDialog.Content>
       </RadixDialog.Portal>
@@ -89,6 +91,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
 }
 
 function SettingsBody({ onClose }: { onClose: () => void }) {
+  const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -143,7 +146,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
           background: '#fff',
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: 650, color: '#191C22' }}>Settings</span>
+        <span style={{ fontSize: 13, fontWeight: 650, color: '#191C22' }}>{L.settings}</span>
         <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0', marginLeft: 4 }}>~/.cortex/config/</span>
         <span
           onClick={onClose}
@@ -229,10 +232,10 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
           <div style={{ fontSize: 15, fontWeight: 650, color: '#191C22' }}>{meta.title}</div>
           <div style={{ fontSize: 11, color: '#8A93A2', marginTop: 2 }}>{meta.sub}</div>
           {configQuery.isLoading ? (
-            <div style={{ marginTop: 16, fontSize: 12, color: '#98A1B0' }}>Loading config…</div>
+            <div style={{ marginTop: 16, fontSize: 12, color: '#98A1B0' }}>{L.stLoadingConfig}</div>
           ) : configQuery.isError ? (
             <div style={{ marginTop: 16, fontSize: 12, color: '#C03D33' }}>
-              Failed to load config: {configQuery.error.message}
+              {L.stFailedLoadConfig} {configQuery.error.message}
             </div>
           ) : snapshot ? (
             <PanelBody

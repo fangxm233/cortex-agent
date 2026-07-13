@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import { SLASH_COMMANDS } from './chat-content';
 import { slashItemDispatch } from './composer-slash';
 
@@ -35,6 +36,7 @@ export function Composer({
   elapsed: string;
 }): JSX.Element {
   const trpc = useTRPC();
+  const L = useVocab();
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const [composer, setComposer] = useState('');
@@ -51,7 +53,7 @@ export function Composer({
   const [btnHover, setBtnHover] = useState(false);
 
   const composerBorder = slashOpen ? '#4655D4' : '#D9DCE3';
-  const composerHint = running ? 'running · esc to stop' : '⏎ send · ⇧⏎ newline';
+  const composerHint = running ? `${L.pillRunning} · ${L.wbEscToStop}` : `⏎ ${L.wbSend} · ⇧⏎ ${L.wbNewline}`;
   const canSend = !!composer.trim() && !!sessionId && !sendMut.isPending;
   const sendBg = canSend ? '#191C22' : '#D9DCE3';
 
@@ -134,7 +136,7 @@ export function Composer({
                 background: '#FBFBFC',
               }}
             >
-              <span style={{ font: `400 10px ${mono}`, color: '#B6BDC9' }}>↑↓ navigate · ⏎ run · esc dismiss</span>
+              <span style={{ font: `400 10px ${mono}`, color: '#B6BDC9' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
             </div>
           </div>
         )}
@@ -159,7 +161,7 @@ export function Composer({
               }}
             />
             <span>
-              running · {elapsed} · {turns} turns · {DASH}
+              {L.pillRunning} · {elapsed} · {turns} {L.wbTurnsUnit} · {DASH}
             </span>
           </div>
         ) : (
@@ -175,7 +177,7 @@ export function Composer({
           >
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D9DCE3' }} />
             <span>
-              idle · {turns} turns · {DASH}
+              {L.wbIdle} · {turns} {L.wbTurnsUnit} · {DASH}
             </span>
           </div>
         )}
@@ -202,7 +204,7 @@ export function Composer({
                   autoGrow(e.target);
                 }}
                 onKeyDown={onKey}
-                placeholder="Message Cortex — type / for commands"
+                placeholder={L.composerPh}
                 style={{
                   width: '100%',
                   fontSize: 13.5,
@@ -235,14 +237,14 @@ export function Composer({
                     cursor: 'pointer',
                   }}
                 >
-                  / commands
+                  / {L.commands}
                 </span>
                 <span style={{ marginLeft: 'auto', font: `400 10.5px ${mono}`, color: '#B6BDC9' }}>{composerHint}</span>
               </div>
             </div>
             {running ? (
               <div
-                title="Stop · esc"
+                title={`${L.stop} · esc`}
                 onClick={doStop}
                 onMouseEnter={() => setBtnHover(true)}
                 onMouseLeave={() => setBtnHover(false)}

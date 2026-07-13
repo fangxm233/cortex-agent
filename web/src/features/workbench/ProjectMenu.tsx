@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { SwitchProjectRow } from './project-menu';
+import { useVocab } from '@/i18n';
 
 // Project-card dropdown — 1:1 from prototype.dc.html L1565–1607 (task c3ce). Raw inline styles /
 // px / hex / font / weight / EN copy reproduced verbatim; real projects.list substituted into the
@@ -32,6 +33,7 @@ export function ProjectMenu({
   onSwitch: (id: string) => void;
   onNewProject: () => void;
 }): JSX.Element {
+  const L = useVocab();
   const [hover, setHover] = useState<string | null>(null);
   const hp = (key: string) => ({
     onMouseEnter: () => setHover(key),
@@ -119,7 +121,7 @@ export function ProjectMenu({
             }}
           >
             <span style={{ fontSize: 11.5, fontWeight: 600, color: '#4655D4' }}>
-              Open project overview →
+              {L.openOverview} →
             </span>
           </div>
         </div>
@@ -134,7 +136,7 @@ export function ProjectMenu({
             color: '#B6BDC9',
           }}
         >
-          SWITCH PROJECT
+          {L.switchProject}
         </div>
         {/* maxHeight+scroll bounds the popover for real project volume (the prototype's mock had 3
             projects; real ~/.cortex has 20) so "+ New project" stays reachable. Row styling is
@@ -193,7 +195,7 @@ export function ProjectMenu({
             background: hover === 'newproj' ? '#FBFBFC' : 'transparent',
           }}
         >
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: '#4655D4' }}>+ New project</span>
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: '#4655D4' }}>+ {L.newProject}</span>
         </div>
       </div>
     </>

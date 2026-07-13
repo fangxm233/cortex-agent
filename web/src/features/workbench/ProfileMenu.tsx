@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useVocab } from '@/i18n';
 import type { ProfileOption } from './profile-menu';
 
 // Profile-chip dropdown — 1:1 from prototype.dc.html L112–120 (task c3ce). Rendered inside the
@@ -16,6 +17,7 @@ export function ProfileMenu({
   options: ProfileOption[];
   onPick: (name: string) => void;
 }): JSX.Element {
+  const L = useVocab();
   const [hover, setHover] = useState<string | null>(null);
 
   return (
@@ -42,7 +44,7 @@ export function ProfileMenu({
           onClick={() => { if (!po.disabled) onPick(po.name); }}
           data-profile={po.name}
           data-disabled={po.disabled ? 'true' : undefined}
-          title={po.disabled ? `Switch to ${po.backend} needs a new session (this conversation runs on a different backend)` : undefined}
+          title={po.disabled ? `${L.wbSwitchTo} ${po.backend} ${L.wbNeedsNewSession}` : undefined}
           style={{
             display: 'flex',
             alignItems: 'center',

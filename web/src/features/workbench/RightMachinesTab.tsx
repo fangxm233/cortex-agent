@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import { machinePill } from './right-panel-vm';
 
 // Machines tab — 1:1 from prototype.dc.html L1237–1274. Replaces the GAP-M structural stub with
@@ -18,13 +19,14 @@ const MACHINE_ICON = (
 );
 
 function MachineCard({ machine }: { machine: MachineInfo }) {
+  const L = useVocab();
   const pill = machinePill(machine.online);
   const iconColor = machine.online ? '#4655D4' : '#8A93A2';
 
   const subParts: string[] = [];
-  if (machine.gpuCount != null) subParts.push(`GPU ×${machine.gpuCount}`);
+  if (machine.gpuCount != null) subParts.push(`${L.mGpu} ×${machine.gpuCount}`);
   subParts.push(machine.os);
-  if (machine.liveRuns > 0) subParts.push(`${machine.liveRuns} live run${machine.liveRuns !== 1 ? 's' : ''}`);
+  if (machine.liveRuns > 0) subParts.push(`${machine.liveRuns} ${L.mLiveRuns}`);
 
   return (
     <div
@@ -80,6 +82,7 @@ function MachineCard({ machine }: { machine: MachineInfo }) {
 }
 
 export function RightMachinesTab() {
+  const L = useVocab();
   const trpc = useTRPC();
   const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
   const machines = machinesQuery.data ?? [];
@@ -98,7 +101,7 @@ export function RightMachinesTab() {
           flex: 'none',
         }}
       >
-        <span style={{ fontSize: 10.5, color: '#5B6472' }}>Machines</span>
+        <span style={{ fontSize: 10.5, color: '#5B6472' }}>{L.machines}</span>
         <span style={{ marginLeft: 'auto', font: "500 10.5px 'IBM Plex Mono',monospace", color: '#5B6472' }}>
           {countLabel}
         </span>
@@ -130,22 +133,22 @@ export function RightMachinesTab() {
               borderRadius: 10,
             }}
           >
-            <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8A93A2' }}>No machines connected</div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8A93A2' }}>{L.mNoMachines}</div>
             <div style={{ fontSize: 10.5, color: '#B6BDC9', marginTop: 4, lineHeight: 1.6 }}>
-              Connected machines (atlas, nimbus…) appear here once registered in machines.json.
+              {L.rpNoMachinesHint}
             </div>
           </div>
         )}
 
         {machinesQuery.isPending && (
           <div style={{ textAlign: 'center', fontSize: 11, color: '#98A1B0', padding: '24px 0' }}>
-            Loading machines…
+            {L.rpLoadingMachines}
           </div>
         )}
 
         {machinesQuery.isError && (
           <div style={{ textAlign: 'center', fontSize: 11, color: '#C03D33', padding: '24px 0' }}>
-            Failed to load machines.
+            {L.rpFailedLoadMachines}
           </div>
         )}
       </div>

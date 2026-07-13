@@ -1,4 +1,5 @@
 import type { TaskInfo } from '@cortex-agent/ui-contract';
+import { useVocab } from '@/i18n';
 
 export interface TaskRowProps {
   task: TaskInfo;
@@ -17,6 +18,7 @@ const ACTION_BTN =
 // Deliberately NOT shown: priority, the "open" status, Claim, Complete (those live in the modal).
 // The row opens the task detail modal (10a); the Unblock button stopPropagation so it doesn't also open it.
 export function TaskRow({ task, pending, onUnblock, onOpen }: TaskRowProps) {
+  const L = useVocab();
   const blocked = !!task.blockedBy;
   const stop =
     (fn: (t: TaskInfo) => void) => (e: React.MouseEvent) => {
@@ -37,7 +39,7 @@ export function TaskRow({ task, pending, onUnblock, onOpen }: TaskRowProps) {
         </span>
         {blocked && (
           <button className={ACTION_BTN} disabled={pending} onClick={stop(onUnblock)}>
-            Unblock
+            {L.mUnblock}
           </button>
         )}
       </div>
@@ -46,7 +48,7 @@ export function TaskRow({ task, pending, onUnblock, onOpen }: TaskRowProps) {
         <span>{task.id}</span>
         {task.template && <span>{task.template}</span>}
         {task.claimedBy && <span>@{task.claimedBy}</span>}
-        {blocked && <span className="text-pill-failed-fg">blocked</span>}
+        {blocked && <span className="text-pill-failed-fg">{L.mBlockedPill}</span>}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import { buildProfileOptions, currentBackendOf } from './profile-menu';
 import { ProfileMenu } from './ProfileMenu';
 
@@ -30,6 +31,7 @@ export function ChatHeader({
   hasHistory: boolean;
 }): JSX.Element {
   const trpc = useTRPC();
+  const L = useVocab();
   const queryClient = useQueryClient();
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const profiles = configQuery.data?.profiles?.profiles ?? [];
@@ -117,7 +119,7 @@ export function ChatHeader({
             gap: 5,
           }}
         >
-          profile · {effectiveProfile}
+          {L.wbProfile} · {effectiveProfile}
           <span style={{ fontSize: 8, color: '#B6BDC9' }}>▾</span>
         </span>
         {profMenuOpen && (
@@ -157,7 +159,7 @@ export function ChatHeader({
               animation: 'cxpulse 1.6s ease-in-out infinite',
             }}
           />
-          running
+          {L.pillRunning}
         </span>
       ) : (
         <span
@@ -170,7 +172,7 @@ export function ChatHeader({
             color: '#8A93A2',
           }}
         >
-          idle
+          {L.wbIdle}
         </span>
       )}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14, color: '#8A93A2' }}>

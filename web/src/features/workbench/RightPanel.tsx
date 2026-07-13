@@ -8,6 +8,7 @@ import { actionableCount, formatCost } from './right-panel-vm';
 import { threadScopeFilter, taskScopeFilter, type Scope } from './scope';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
 import { useCurrentProject } from './CurrentProjectProvider';
+import { useVocab } from '@/i18n';
 
 // RIGHT PANEL — 1:1 from prototype.dc.html L1091–1276 (Stage-R RB sibling C, task 1e96). Exact inline
 // styles / px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (cost.summary /
@@ -59,6 +60,7 @@ function TabButton({
 }
 
 export function RightPanel(): JSX.Element {
+  const L = useVocab();
   const trpc = useTRPC();
   const [tab, setTab] = useState<Tab>('threads');
   const [filter, setFilter] = useState<Scope>('active');
@@ -110,21 +112,21 @@ export function RightPanel(): JSX.Element {
       {/* tab bar */}
       <div style={{ display: 'flex', gap: 16, padding: '0 18px', borderBottom: '1px solid #E7E9EE', flex: 'none' }}>
         <TabButton
-          label="Threads"
+          label={L.threads}
           count={String(activeThreadCount)}
           countColor="#4655D4"
           active={tab === 'threads'}
           onClick={() => setTab('threads')}
         />
         <TabButton
-          label="Tasks"
+          label={L.tasks}
           count={String(actionable)}
           countColor="#8A93A2"
           active={tab === 'tasks'}
           onClick={() => setTab('tasks')}
         />
         <TabButton
-          label="Machines"
+          label={L.machines}
           count={String(machineCount)}
           countColor="#8A93A2"
           active={tab === 'machines'}
@@ -144,7 +146,7 @@ export function RightPanel(): JSX.Element {
           flex: 'none',
         }}
       >
-        <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A93A2' }}>Today</span>
+        <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A93A2' }}>{L.today}</span>
         <div style={{ flex: 1, height: 4, borderRadius: 999, background: '#EFF1F5', overflow: 'hidden' }}>
           <div style={{ width: '0%', height: '100%', borderRadius: 999, background: '#4655D4' }} />
         </div>
@@ -171,7 +173,7 @@ export function RightPanel(): JSX.Element {
                   boxShadow: filter === 'active' ? '0 1px 2px rgba(16,24,40,.08)' : 'none',
                 }}
               >
-                Active {activeThreadCount}
+                {L.active} {activeThreadCount}
               </span>
               <span
                 onClick={() => setFilter('history')}
@@ -186,7 +188,7 @@ export function RightPanel(): JSX.Element {
                   boxShadow: filter === 'history' ? '0 1px 2px rgba(16,24,40,.08)' : 'none',
                 }}
               >
-                History
+                {L.history}
               </span>
             </div>
           </div>
@@ -206,15 +208,15 @@ export function RightPanel(): JSX.Element {
             ))}
             {threadsQuery.isSuccess && threads.length === 0 && filter === 'active' && (
               <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed #E7E9EE', borderRadius: 10 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8A93A2' }}>No active threads</div>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8A93A2' }}>{L.rpNoActiveThreads}</div>
                 <div style={{ fontSize: 10.5, color: '#B6BDC9', marginTop: 4, lineHeight: 1.6 }}>
-                  Running and waiting threads will appear here.
+                  {L.rpNoActiveThreadsHint}
                 </div>
               </div>
             )}
             {threadsQuery.isSuccess && threads.length === 0 && filter === 'history' && (
               <div style={{ textAlign: 'center', fontSize: 11.5, color: '#B6BDC9', padding: '24px 0' }}>
-                No finished threads yet.
+                {L.rpNoFinishedThreads}
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useVocab } from '@/i18n';
 import type { ChatRow } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
 import { ChatMarkdown } from './ChatMarkdown';
@@ -67,15 +68,16 @@ function AssistantBlock({ text, streaming }: { text: string; streaming: boolean 
 
 // Empty session — 1:1 from prototype.dc.html L133–143 (chatEmpty). EN copy verbatim from support.js.
 function EmptyChat(): JSX.Element {
+  const L = useVocab();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13, padding: '88px 20px 40px', textAlign: 'center' }}>
       <div style={{ width: 40, height: 40, borderRadius: 12, background: '#191C22', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `600 15px ${mono}` }}>cx</div>
-      <div style={{ fontSize: 15, fontWeight: 650, color: '#191C22' }}>Start with one message</div>
+      <div style={{ fontSize: 15, fontWeight: 650, color: '#191C22' }}>{L.wbEmptyTitle}</div>
       <div style={{ fontSize: 12, color: '#8A93A2', lineHeight: 1.7, maxWidth: 420 }}>
-        This project is empty. Just chat — describe the mission and the agent runs project_init (mission.md · TASKS.yaml · memory scaffold · git).
+        {L.wbEmptyBody}
       </div>
       <div style={{ fontSize: 10.5, color: '#B6BDC9', lineHeight: 1.7, maxWidth: 430 }}>
-        Everything else — tasks, threads, cross-machine runs — starts from this chat
+        {L.wbEmptyHint}
       </div>
     </div>
   );

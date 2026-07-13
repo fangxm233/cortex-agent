@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement, type ReactElement } from 'react';
+import { renderToStaticMarkup as renderRaw } from 'react-dom/server';
+import { LangProvider } from '@/i18n';
 import type { ConfigSnapshot, ThreadTemplateEntry } from '@cortex-agent/ui-contract';
+
+// The panels now consume useVocab() → wrap every render in LangProvider (defaults to the en vocab,
+// matching the English assertions below).
+function renderToStaticMarkup(el: ReactElement): string {
+  return renderRaw(createElement(LangProvider, null, el));
+}
 import {
   PlatformPanel,
   ProfilesPanel,
@@ -129,7 +137,7 @@ describe('settings panels — real data render', () => {
   it('Notifications: toggles reflect env presence; approval note fixed-on', () => {
     const html = renderToStaticMarkup(<NotificationsPanel snapshot={snap} />);
     expect(html).toContain('CORTEX_TURN_NOTIFY');
-    expect(html).toContain('审批提醒固定开启');
+    expect(html).toContain('Approval reminders are always on');
   });
 
   it('Notifications: channel routing shows SLACK_ADMIN_CHANNEL key presence when Slack configured', () => {

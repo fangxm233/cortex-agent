@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { ConfigSnapshot, ThreadTemplateEntry } from '@cortex-agent/ui-contract';
+import { useVocab } from '@/i18n';
 import { SCard, SCardHeader, MonoKV, Toggle } from './settings-ui';
 import {
   indexEnv,
@@ -24,6 +25,7 @@ const MONO = "'IBM Plex Mono',monospace";
 // A green/gray "configured" pill derived HONESTLY from env presence (the prototype's
 // "connected · socket mode" is live runtime state the contract does not expose).
 function PresencePill({ present }: { present: boolean }) {
+  const L = useVocab();
   return (
     <span
       style={{
@@ -35,7 +37,7 @@ function PresencePill({ present }: { present: boolean }) {
         color: present ? '#23854F' : '#8A93A2',
       }}
     >
-      {present ? 'configured' : 'not configured'}
+      {present ? L.stConfigured : L.stNotConfigured}
     </span>
   );
 }
@@ -72,6 +74,7 @@ function ReconnectAction({
   platform: 'slack' | 'feishu';
   onReconnect?: (platform: 'slack' | 'feishu') => void;
 }) {
+  const L = useVocab();
   const active = !!onReconnect;
   return (
     <span
@@ -91,7 +94,7 @@ function ReconnectAction({
         cursor: active ? 'pointer' : 'not-allowed',
       }}
     >
-      Reconnect
+      {L.stReconnect}
     </span>
   );
 }
@@ -129,6 +132,7 @@ export function PlatformPanel({
   snapshot: ConfigSnapshot;
   onReconnect?: (platform: 'slack' | 'feishu') => void;
 }) {
+  const L = useVocab();
   const idx = indexEnv(snapshot.env);
   const slackPresent = hasAnyKey(snapshot.env, 'SLACK_');
   const feishuPresent = hasAnyKey(snapshot.env, 'FEISHU_');
@@ -145,7 +149,7 @@ export function PlatformPanel({
       }}
     >
       <SCard>
-        <SCardHeader title="Messaging platforms" right="CORTEX_PLATFORM" />
+        <SCardHeader title={L.stMessagingPlatforms} right="CORTEX_PLATFORM" />
         <div style={{ padding: '11px 14px', borderBottom: '1px solid #F7F8FA' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <PlatformAvatar glyph="S" />
@@ -167,9 +171,9 @@ export function PlatformPanel({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
           <Toggle on={tuiPresent} inert />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>TUI gateway</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>{L.stTuiGateway}</div>
             <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 1 }}>
-              adds a local terminal gateway on top of the platforms
+              {L.tuiDesc}
             </div>
           </div>
           <span style={{ font: `400 9px ${MONO}`, color: '#B6BDC9', flex: 'none' }}>CORTEX_TUI</span>
@@ -177,7 +181,7 @@ export function PlatformPanel({
       </SCard>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <SCard>
-          <SCardHeader title="API" />
+          <SCardHeader title={L.stApi} />
           <div style={{ padding: '8px 14px', font: `400 10px/2.1 ${MONO}`, color: '#5B6472' }}>
             {API_KEYS.map((k) => {
               const r = envRow(idx, k);
@@ -201,7 +205,7 @@ export function PlatformPanel({
           </div>
         </SCard>
         <SCard>
-          <SCardHeader title="Daemon &amp; network" />
+          <SCardHeader title={L.stDaemonNetwork} />
           <div style={{ padding: '8px 14px', font: `400 10px/2.1 ${MONO}`, color: '#5B6472' }}>
             {DAEMON_KEYS.map((k) => {
               const r = envRow(idx, k);
@@ -235,6 +239,7 @@ export function ProfilesPanel({
   snapshot: ConfigSnapshot;
   onSetDefaultProfile?: (name: string) => void;
 }) {
+  const L = useVocab();
   const p = snapshot.profiles;
   const rows = p?.profiles ?? [];
   const grid = '84px 1fr 74px 52px';
@@ -254,7 +259,7 @@ export function ProfilesPanel({
           flexWrap: 'wrap',
         }}
       >
-        <span style={{ fontSize: 11, color: '#5B6472' }}>default profile</span>
+        <span style={{ fontSize: 11, color: '#5B6472' }}>{L.stDefaultProfile}</span>
         {canWrite ? (
           <select
             data-default-profile-select
@@ -293,7 +298,7 @@ export function ProfilesPanel({
           </span>
         )}
         <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: '#B6BDC9' }}>
-          读取于每次 agent 启动 — 免重启
+          {L.stProfReadNote}
         </span>
       </SCard>
       <SCard style={{ marginTop: 12, overflow: 'hidden' }}>
@@ -306,14 +311,14 @@ export function ProfilesPanel({
             ...TH,
           }}
         >
-          <span>NAME</span>
-          <span>MODEL</span>
-          <span>BACKEND</span>
-          <span>MODE</span>
+          <span>{L.stColName}</span>
+          <span>{L.stColModel}</span>
+          <span>{L.stColBackend}</span>
+          <span>{L.stColMode}</span>
         </div>
         {rows.length === 0 ? (
           <div style={{ padding: '12px 14px', fontSize: 11, color: '#98A1B0' }}>
-            No profiles in profiles.json
+            {L.stNoProfiles}
           </div>
         ) : (
           rows.map((r, i) => (
@@ -340,7 +345,7 @@ export function ProfilesPanel({
                       color: '#4655D4',
                     }}
                   >
-                    default
+                    {L.default}
                   </span>
                 ) : null}
               </span>
@@ -368,8 +373,7 @@ export function ProfilesPanel({
       </SCard>
       <SCard style={{ marginTop: 12, padding: '10px 14px' }}>
         <div style={{ fontSize: 10.5, color: '#8A93A2' }}>
-          Per-profile fallback is not in the config.get contract — the FALLBACK column is omitted (no
-          fabricated data). BACKEND / MODE come straight from profiles.json.
+          {L.stProfFallbackNote}
         </div>
       </SCard>
     </>
@@ -383,6 +387,7 @@ export function MachinesPanel({
   snapshot: ConfigSnapshot;
   onAddMachine?: (machineName: string) => void;
 }) {
+  const L = useVocab();
   const machines = snapshot.machines;
   const grid = '110px 1fr 44px 120px 90px 96px';
   const canAdd = !!onAddMachine;
@@ -398,16 +403,16 @@ export function MachinesPanel({
             ...TH,
           }}
         >
-          <span>NAME</span>
-          <span>CORTEX PATH</span>
-          <span>GPU</span>
-          <span>SSH</span>
-          <span>OS</span>
+          <span>{L.stColName}</span>
+          <span>{L.stColCortexPath}</span>
+          <span>{L.mGpu}</span>
+          <span>{L.stColSsh}</span>
+          <span>{L.stColOs}</span>
           <span></span>
         </div>
         {machines.length === 0 ? (
           <div style={{ padding: '12px 14px', fontSize: 11, color: '#98A1B0' }}>
-            No machines in machines.json
+            {L.stNoMachinesFile}
           </div>
         ) : (
           machines.map((m) => (
@@ -436,7 +441,7 @@ export function MachinesPanel({
               </span>
               <span style={{ font: `400 10px ${MONO}`, color: '#22262E' }}>{m.gpuCount ?? '—'}</span>
               <span style={{ font: `400 9.5px ${MONO}`, color: m.ssh ? '#5B6472' : '#B6BDC9' }}>
-                {m.ssh ? 'configured' : '— local'}
+                {m.ssh ? L.stConfigured : L.stMachineLocal}
               </span>
               <span style={{ font: `400 9.5px ${MONO}`, color: '#5B6472' }}>
                 {m.win ? 'windows' : 'unix'}
@@ -445,7 +450,7 @@ export function MachinesPanel({
                 title="No machine logs/registry backend op — inert"
                 style={{ fontSize: 10, fontWeight: 600, color: '#B6BDC9', textAlign: 'right', cursor: 'not-allowed' }}
               >
-                Logs
+                {L.stLogs}
               </span>
             </div>
           ))
@@ -480,7 +485,7 @@ export function MachinesPanel({
           }}
         >
           <span style={{ fontSize: 11, fontWeight: 600, color: canAdd ? '#4655D4' : '#B6BDC9' }}>
-            + Add machine
+            {L.stAddMachine}
           </span>
           <span style={{ font: `400 9px ${MONO}`, color: '#B6BDC9' }}>
             name · cortexPath · gpuCount · ssh · win · clientCommand
@@ -497,29 +502,27 @@ export function MachinesPanel({
         }}
       >
         <SCard>
-          <SCardHeader title="Client lifecycle" right="client-manager" />
+          <SCardHeader title={L.stClientLifecycle} right="client-manager" />
           <div style={{ padding: '8px 14px', fontSize: 10.5, lineHeight: 2, color: '#5B6472' }}>
-            <MonoInfoRow k="heartbeat" v="5s · 15s timeout" />
-            <MonoInfoRow k="recovery" v="SSH restart · 60s backoff" />
+            <MonoInfoRow k={L.mHeartbeat} v="5s · 15s timeout" />
+            <MonoInfoRow k={L.mRecover} v="SSH restart · 60s backoff" />
             <MonoInfoRow k="PID" v="data/client-pids.json" />
             <MonoInfoRow k="WebSocket" v=":3002 · CORTEX_CLIENT_TOKEN" />
           </div>
         </SCard>
         <SCard>
-          <SCardHeader title="Connectivity" right="cortex-client.json" />
+          <SCardHeader title={L.stConnectivity} right="cortex-client.json" />
           <div style={{ padding: '8px 14px', fontSize: 10.5, lineHeight: 2, color: '#5B6472' }}>
             <MonoInfoRow k="LAN" v="serverHost = LAN IP" />
             <MonoInfoRow k="Tailscale" v="100.x.y.z" />
             <MonoInfoRow k="CF Tunnel" v="serverUrl = wss://…" />
-            <MonoInfoRow k="strict firewall" v="STCP" />
+            <MonoInfoRow k={L.mFirewall} v="STCP" />
           </div>
         </SCard>
       </div>
       <SCard style={{ marginTop: 12, padding: '10px 14px' }}>
         <div style={{ fontSize: 10.5, color: '#8A93A2' }}>
-          SSH is a presence flag only (the raw user@host is never returned). Live CLIENT version /
-          STATUS / heartbeat are runtime state the config.get contract does not carry — omitted rather
-          than fabricated. The two cards above are static architecture notes.
+          {L.stMachinesFootNote}
         </div>
       </SCard>
     </div>
@@ -571,6 +574,7 @@ export function TemplatesPanel({
   snapshot: ConfigSnapshot;
   entries?: ThreadTemplateEntry[];
 }) {
+  const L = useVocab();
   if (entries) {
     const grid = '76px 140px 1fr 52px';
     return (
@@ -583,17 +587,17 @@ export function TemplatesPanel({
             borderBottom: '1px solid #EFF1F5',
           }}
         >
-          <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>Templates</span>
+          <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>{L.tplList}</span>
           <span
             style={{ marginLeft: 10, font: `400 9.5px ${MONO}`, color: '#B6BDC9' }}
           >
-            {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+            {entries.length} {entries.length === 1 ? L.stEntry : L.stEntries}
           </span>
           <span
             title="Template editor out of scope — inert"
             style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#B6BDC9', cursor: 'not-allowed' }}
           >
-            Open editor ↗
+            {L.stOpenEditor}
           </span>
         </div>
         <div
@@ -605,14 +609,14 @@ export function TemplatesPanel({
             ...TH,
           }}
         >
-          <span>KIND</span>
-          <span>NAME</span>
-          <span>DESCRIPTION</span>
-          <span style={{ textAlign: 'right' }}>KEYS</span>
+          <span>{L.stColKind}</span>
+          <span>{L.stColName}</span>
+          <span>{L.stColDescription}</span>
+          <span style={{ textAlign: 'right' }}>{L.stColKeys}</span>
         </div>
         {entries.length === 0 ? (
           <div style={{ padding: '12px 14px', fontSize: 11, color: '#98A1B0' }}>
-            No templates in thread-templates/
+            {L.stNoTemplates}
           </div>
         ) : (
           entries.map((e, i) => {
@@ -656,8 +660,7 @@ export function TemplatesPanel({
           })
         )}
         <div style={{ borderTop: '1px solid #EFF1F5', padding: '8px 14px', fontSize: 10, color: '#B6BDC9' }}>
-          Real content from thread-templates/. KEYS = top-level body keys. Template body shown as-read; no
-          fabricated structure.
+          {L.stTemplatesFootNote1}
         </div>
       </SCard>
     );
@@ -666,9 +669,9 @@ export function TemplatesPanel({
   // Fallback: basename list from config.get snapshot (no entries loaded yet)
   const tt = snapshot.threadTemplates;
   const groups: { label: string; items: string[] }[] = [
-    { label: 'templates', items: tt.templates },
-    { label: 'agents', items: tt.agents },
-    { label: 'shells', items: tt.shells },
+    { label: L.stGrpTemplates, items: tt.templates },
+    { label: L.stGrpAgents, items: tt.agents },
+    { label: L.stGrpShells, items: tt.shells },
   ];
   return (
     <SCard style={{ marginTop: 12, maxWidth: 760 }}>
@@ -680,19 +683,19 @@ export function TemplatesPanel({
           borderBottom: '1px solid #EFF1F5',
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>Templates</span>
+        <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>{L.tplList}</span>
         <span
           title="Template editor out of scope — inert"
           style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#B6BDC9', cursor: 'not-allowed' }}
         >
-          Open editor ↗
+          {L.stOpenEditor}
         </span>
       </div>
       {groups.map((g) => (
         <div key={g.label} style={{ borderBottom: '1px solid #F7F8FA', padding: '8px 14px 10px' }}>
           <div style={{ ...TH, marginBottom: 6 }}>{g.label.toUpperCase()}</div>
           {g.items.length === 0 ? (
-            <div style={{ fontSize: 10.5, color: '#B6BDC9' }}>none</div>
+            <div style={{ fontSize: 10.5, color: '#B6BDC9' }}>{L.stNone}</div>
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {g.items.map((name) => (
@@ -715,14 +718,14 @@ export function TemplatesPanel({
         </div>
       ))}
       <div style={{ padding: '9px 14px', fontSize: 10, color: '#B6BDC9' }}>
-        Names are the real thread-templates/ basenames. Per-template step chips / hook bindings are not
-        in the config.get contract (no fabricated metadata).
+        {L.stTemplatesFootNote2}
       </div>
     </SCard>
   );
 }
 
 export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
+  const L = useVocab();
   const servers = snapshot.mcp?.servers ?? [];
   return (
     <SCard style={{ marginTop: 12, maxWidth: 760 }}>
@@ -734,7 +737,7 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
           borderBottom: '1px solid #EFF1F5',
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>Servers</span>
+        <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>{L.stServers}</span>
         <div
           title="full / core / tui variant is a runtime-mode selection — no config.set for it (inert)"
           style={{ marginLeft: 'auto', display: 'flex', background: '#EFF1F5', borderRadius: 7, padding: 2 }}
@@ -759,7 +762,7 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       </div>
       {servers.length === 0 ? (
         <div style={{ padding: '12px 14px', fontSize: 11, color: '#98A1B0' }}>
-          No servers in mcp-config.json
+          {L.stNoServers}
         </div>
       ) : (
         servers.map((name, i) => (
@@ -778,14 +781,14 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
         ))
       )}
       <div style={{ borderTop: '1px solid #EFF1F5', padding: '8px 14px', fontSize: 10, color: '#B6BDC9' }}>
-        core variant keeps only remote_* tools; tui variant serves terminal-gateway sessions. Per-server
-        tool lists are not in the config.get contract (server names are the real mcp-config.json keys).
+        {L.stMcpFootNote}
       </div>
     </SCard>
   );
 }
 
 export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
+  const L = useVocab();
   const idx = indexEnv(snapshot.env);
   const slackPresent = hasAnyKey(snapshot.env, 'SLACK_');
   const feishuPresent = hasAnyKey(snapshot.env, 'FEISHU_');
@@ -796,20 +799,20 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
   const toggles: { key: string; title: string; desc: string; env: string }[] = [
     {
       key: NOTIFY_KEYS.turn,
-      title: '长任务完成后发新消息',
-      desc: '短回合保持安静 · CORTEX_TURN_NOTIFY_THRESHOLD_S',
+      title: L.stNotifyTurnTitle,
+      desc: L.stNotifyTurnDesc,
       env: 'CORTEX_TURN_NOTIFY',
     },
     {
       key: NOTIFY_KEYS.resume,
-      title: '限额窗口重置后自动续跑并通知',
-      desc: '中断的会话与线程自动接着跑',
+      title: L.stNotifyResumeTitle,
+      desc: L.stNotifyResumeDesc,
       env: 'CORTEX_AUTO_RESUME',
     },
     {
       key: NOTIFY_KEYS.compaction,
-      title: '上下文压缩（compaction）提示',
-      desc: '压缩时在对话里发一条说明',
+      title: L.stNotifyCompactionTitle,
+      desc: L.stNotifyCompactionDesc,
       env: 'CORTEX_NOTIFY_COMPACTION',
     },
   ];
@@ -842,7 +845,7 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       {/* Platform routing — REAL data: shows SLACK_ADMIN_CHANNEL / FEISHU_ADMIN_CHANNEL key
           presence (masked ••••••••; value never returned by config.get contract). */}
       <SCard style={{ marginTop: 12 }}>
-        <SCardHeader title="系统通知去向" right="多平台逐个分发" />
+        <SCardHeader title={L.stNotifyRoutingTitle} right={L.stNotifyRoutingRight} />
         <div
           style={{
             display: 'flex',
@@ -896,7 +899,7 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       >
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C99A2E', flex: 'none' }} />
         <span style={{ fontSize: 10.5, color: '#6B5A1E' }}>
-          审批提醒固定开启 — 阻塞线程时每 30 分钟重新提醒
+          {L.stApprovalReminderNote}
         </span>
       </div>
 
@@ -906,7 +909,7 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
           No notification history is available in the web UI.
           Fabricating a count or list is explicitly prohibited. */}
       <SCard style={{ marginTop: 12, maxWidth: 760 }}>
-        <SCardHeader title="Recent notifications" right="runtime only · no history scope" />
+        <SCardHeader title={L.stRecentNotifications} right={L.stRecentNotifRight} />
         <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <span
             style={{
@@ -919,9 +922,7 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
             }}
           />
           <span style={{ fontSize: 10.5, color: '#98A1B0', lineHeight: 1.6 }}>
-            Notification activity is held in the TUI client&apos;s in-memory ring buffer (cap 50,
-            no file persistence) — not exposed via any tRPC read scope. Real-time history is not
-            available in the web UI; use the TUI terminal interface to view live notifications.
+            {L.stRecentNotifNote}
           </span>
         </div>
       </SCard>
@@ -930,6 +931,7 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
 }
 
 export function HooksPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
+  const L = useVocab();
   const hooks = snapshot.hooks;
   return (
     <div
@@ -943,11 +945,11 @@ export function HooksPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       }}
     >
       <SCard>
-        <SCardHeader title="Agent hooks" right="hooks/*.mjs" />
+        <SCardHeader title={L.stAgentHooks} right="hooks/*.mjs" />
         <div style={{ padding: '4px 14px 10px' }}>
           {hooks.length === 0 ? (
             <div style={{ padding: '8px 0', fontSize: 10.5, color: '#B6BDC9' }}>
-              No hook files in hooks/
+              {L.stNoHooks}
             </div>
           ) : (
             hooks.map((f) => (
@@ -966,7 +968,7 @@ export function HooksPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
                   title="Hook source viewer out of scope — inert"
                   style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: '#B6BDC9', flex: 'none', cursor: 'not-allowed' }}
                 >
-                  view ↗
+                  {L.stView}
                 </span>
               </div>
             ))
@@ -975,18 +977,18 @@ export function HooksPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       </SCard>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <SCard>
-          <SCardHeader title="Thread lifecycle" right="thread-templates" />
+          <SCardHeader title={L.stThreadLifecycle} right="thread-templates" />
           <div style={{ padding: '7px 14px 9px', fontSize: 10.5, lineHeight: 1.6, color: '#5B6472' }}>
-            <ThreadHookRow k="onStart" d="before the first step — preflight / workspace" />
-            <ThreadHookRow k="onTransition" d="between steps — validation / routing" />
-            <ThreadHookRow k="onEnd" d="after the loop — cleanup / notify / artifacts" />
+            <ThreadHookRow k="onStart" d={L.stHookOnStartDesc} />
+            <ThreadHookRow k="onTransition" d={L.stHookOnTransitionDesc} />
+            <ThreadHookRow k="onEnd" d={L.stHookOnEndDesc} />
           </div>
         </SCard>
         <SCard>
-          <SCardHeader title="Session hooks" right="session-hooks.json" />
+          <SCardHeader title={L.stSessionHooks} right="session-hooks.json" />
           <div style={{ padding: '7px 14px 9px', fontSize: 10.5, lineHeight: 1.6, color: '#5B6472' }}>
             <ThreadHookRow k="onNew" d="new-session-hook.mjs · 60s" />
-            <ThreadHookRow k="onMessageEnd" d="not configured (pipeline supports it)" muted />
+            <ThreadHookRow k="onMessageEnd" d={L.stHookNotConfigured} muted />
           </div>
         </SCard>
         <div
@@ -1000,8 +1002,7 @@ export function HooksPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
             color: '#8A93A2',
           }}
         >
-          Filenames are the real hooks/ contents. Per-hook matcher / phase grouping is not in the
-          config.get contract; the lifecycle notes are static architecture info.
+          {L.stHooksFootNote}
         </div>
       </div>
     </div>
@@ -1020,6 +1021,7 @@ function ThreadHookRow({ k, d, muted }: { k: string; d: string; muted?: boolean 
 }
 
 export function AdvancedPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
+  const L = useVocab();
   const idx = indexEnv(snapshot.env);
   return (
     <SCard style={{ marginTop: 12, maxWidth: 760 }}>
@@ -1052,9 +1054,9 @@ export function AdvancedPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>Task dispatch concurrency</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>{L.advConc}</div>
           <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 1 }}>
-            auto = max(4, cpus − 2) · resolved once at startup
+            {L.stAdvConcNote}
           </div>
         </div>
         <span
@@ -1066,7 +1068,7 @@ export function AdvancedPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
             padding: '4px 11px',
           }}
         >
-          {idx['TASK_DISPATCH_MAX_CONCURRENT']?.present ? 'set' : 'auto'}
+          {idx['TASK_DISPATCH_MAX_CONCURRENT']?.present ? L.stSet : L.stAuto}
         </span>
         <span style={{ font: `400 9px ${MONO}`, color: '#B6BDC9', flex: 'none' }}>
           TASK_DISPATCH_MAX_CONCURRENT
@@ -1074,9 +1076,9 @@ export function AdvancedPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>GPU mock</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>{L.stGpuMock}</div>
           <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 1 }}>
-            test-only mock JSON, overrides nvidia-smi
+            {L.advMock}
           </div>
         </div>
         <span
@@ -1088,7 +1090,7 @@ export function AdvancedPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
             padding: '4px 11px',
           }}
         >
-          {idx['CORTEX_GPU_MONITOR_MOCK']?.present ? 'set' : '—'}
+          {idx['CORTEX_GPU_MONITOR_MOCK']?.present ? L.stSet : '—'}
         </span>
         <span style={{ font: `400 9px ${MONO}`, color: '#B6BDC9', flex: 'none' }}>
           CORTEX_GPU_MONITOR_MOCK

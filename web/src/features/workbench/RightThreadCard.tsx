@@ -9,6 +9,7 @@ import type {
   ThreadDispatchInfo,
 } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
 import { dispatchesForStep } from '@/features/thread/thread-steps';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
@@ -90,6 +91,7 @@ function StepDot({ kind, hasTail }: { kind: 'done' | 'running' | 'pending'; hasT
 
 // A sub-thread child row (prototype L1158–1166): the inner "▸ name Lx ● meta" rows under a sub-card.
 function ChildRow({ node }: { node: ThreadChildNode }) {
+  const L = useVocab();
   const navigate = useNavigate();
   return (
     <div
@@ -127,7 +129,7 @@ function ChildRow({ node }: { node: ThreadChildNode }) {
         onClick={() => navigate(`/threads/${node.id}`)}
         style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
       >
-        Open ›
+        {L.rpOpen} ›
       </span>
     </div>
   );
@@ -230,6 +232,7 @@ function StepRow({
   isLast: boolean;
   detail: ThreadDetail;
 }) {
+  const L = useVocab();
   const kind = stepDotKind(step);
   const active = kind === 'running';
   const dispatches = active ? dispatchesForStep(detail, step) : [];
@@ -248,7 +251,7 @@ function StepRow({
               color: active ? '#191C22' : kind === 'done' ? '#5B6472' : '#B6BDC9',
             }}
           >
-            {step.stage ?? `step ${step.stepIndex + 1}`}
+            {step.stage ?? `${L.rpStep} ${step.stepIndex + 1}`}
           </span>
           <span
             style={{
@@ -276,6 +279,7 @@ function StepRow({
 }
 
 function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string }) {
+  const L = useVocab();
   const trpc = useTRPC();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -318,20 +322,20 @@ function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string
           title="Pause has no backend mutate op yet"
           style={{ fontSize: 11.5, fontWeight: 600, color: '#5B6472', cursor: 'not-allowed', opacity: 0.6 }}
         >
-          Pause
+          {L.pause}
         </span>
         <span
           data-cancel-thread-id={threadId}
           onClick={() => cancel.mutate({ threadId })}
           style={{ fontSize: 11.5, fontWeight: 600, color: '#C03D33', cursor: 'pointer' }}
         >
-          Cancel
+          {L.cancel}
         </span>
         <span
           onClick={() => navigate(`/threads/${threadId}`)}
           style={{ fontSize: 11.5, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
         >
-          Detail
+          {L.detailPage}
         </span>
         <span style={{ marginLeft: 'auto', font: "500 10px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
           Σ {formatCost(detail.totalCostUsd)}
@@ -349,6 +353,7 @@ export interface RightThreadCardProps {
 export function RightThreadCard({ thread, now }: RightThreadCardProps) {
   // Running threads default-open (matches the proto-shot's expanded experiment-pipeline); others
   // collapse to header-only and lazy-fetch threads.get on open.
+  const L = useVocab();
   const [open, setOpen] = useState(thread.status === 'running');
   const trpc = useTRPC();
   const detailQuery = useQuery({
@@ -405,7 +410,7 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
           {hasDots && dots && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
               <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: '#98A1B0', marginRight: 2 }}>
-                depth
+                {L.rpDepth}
               </span>
               {Array.from({ length: dots.total }).map((_, i) => (
                 <span
@@ -426,11 +431,11 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
         </div>
       </div>
       {open && detailQuery.isPending && (
-        <div style={{ padding: '10px 14px', fontSize: 11, color: '#98A1B0' }}>Loading thread…</div>
+        <div style={{ padding: '10px 14px', fontSize: 11, color: '#98A1B0' }}>{L.rpLoadingThread}</div>
       )}
       {open && detailQuery.isError && (
         <div style={{ padding: '10px 14px', fontSize: 11, color: '#C03D33' }}>
-          Failed to load thread.
+          {L.rpFailedLoadThread}
         </div>
       )}
       {open && detail && <CardBody detail={detail} threadId={thread.id} />}

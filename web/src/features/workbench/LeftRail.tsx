@@ -10,7 +10,7 @@ import { NewProjectModal } from './NewProjectModal';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
-import { useLang, useSetLang } from '@/i18n';
+import { useLang, useSetLang, useVocab } from '@/i18n';
 
 // LEFT RAIL — 1:1 from prototype.dc.html L42–100 (Stage-R RB, task f528). Exact inline styles /
 // px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (projects.list /
@@ -24,6 +24,7 @@ export function LeftRail(): JSX.Element {
   const queryClient = useQueryClient();
   const lang = useLang();
   const setLang = useSetLang();
+  const L = useVocab();
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
 
   // Active project = the shared cross-pane current project (task 569c): the switcher's explicit
@@ -55,7 +56,7 @@ export function LeftRail(): JSX.Element {
   const projName = activeProjectId ?? '—';
   const projInitials = activeProjectId ? projectInitials(activeProjectId) : '··';
   const todayCost = costQuery.data?.today;
-  const projSub = typeof todayCost === 'number' ? '$' + todayCost.toFixed(2) + ' today' : '';
+  const projSub = typeof todayCost === 'number' ? '$' + todayCost.toFixed(2) + ' ' + L.wbToday : '';
 
   // Project-card dropdown (prototype L1565–1607, task c3ce).
   const [projMenuOpen, setProjMenuOpen] = useState(false);
@@ -106,7 +107,7 @@ export function LeftRail(): JSX.Element {
   const pendingCount = approvalsQuery.data?.length ?? 0;
   const hasPendingApprovals = pendingCount > 0;
   const pendingLabel =
-    pendingCount + ' ' + (pendingCount > 1 ? 'approvals pending' : 'approval pending');
+    pendingCount + ' ' + (pendingCount > 1 ? L.approvalsPending : L.approvalPending);
 
   // + New session / ⌘N — creates a REAL direct session via the sessions.create mutation, then
   // invalidates sessions.list (the fresh session is most-recent → the center chat resolves to it)
@@ -189,7 +190,7 @@ export function LeftRail(): JSX.Element {
           }}
         >
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#23854F' }} />
-          daemon
+          {L.wbDaemon}
         </div>
       </div>
 
@@ -273,7 +274,7 @@ export function LeftRail(): JSX.Element {
           flex: 'none',
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>+ New session</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>+ {L.newSession}</span>
         <span style={{ marginLeft: 'auto', font: "500 10px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>⌘N</span>
       </div>
 
@@ -428,7 +429,7 @@ export function LeftRail(): JSX.Element {
           onClick={() => navigate('/settings')}
           style={{ marginLeft: 'auto', fontSize: 11.5, color: isHover('settings') ? '#191C22' : '#8A93A2', cursor: 'pointer' }}
         >
-          Settings
+          {L.settings}
         </span>
       </div>
 

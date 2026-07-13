@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import { groupTasks, type TaskGroup } from './group-tasks';
 import { TaskRow } from './TaskRow';
 import { TaskModal } from './TaskModal';
@@ -20,6 +21,7 @@ function GroupSection({
   onUnblock: (t: TaskInfo) => void;
   onOpen: (t: TaskInfo) => void;
 }) {
+  const L = useVocab();
   const count = groups.reduce((n, g) => n + g.tasks.length, 0);
   return (
     <section className="mb-3g">
@@ -28,7 +30,7 @@ function GroupSection({
       </h2>
       {count === 0 ? (
         <div className="rounded-card border border-card bg-surface-card px-1.5g py-1g text-ui text-state-ink/40 shadow-card">
-          None
+          {L.tkNone}
         </div>
       ) : (
         groups.map((group) => (
@@ -63,6 +65,7 @@ export interface TasksPanelProps {
 // live-refresh via useTasksLiveSync, Claim/Complete mutations. Consumed by the /tasks page
 // (both lifecycles) and the workbench right-panel Tasks tab (one lifecycle via `lifecycle`).
 export function TasksPanel({ lifecycle, projectId }: TasksPanelProps) {
+  const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const tasksQuery = useQuery(
@@ -107,19 +110,19 @@ export function TasksPanel({ lifecycle, projectId }: TasksPanelProps) {
   const onOpen = (t: TaskInfo) => setOpenTaskId(t.id);
 
   if (tasksQuery.isPending) {
-    return <div className="text-ui text-state-ink/40">Loading tasks…</div>;
+    return <div className="text-ui text-state-ink/40">{L.tkLoading}</div>;
   }
 
   if (tasksQuery.isError) {
     return (
       <div className="rounded-card border border-card bg-pill-failed-bg px-1.5g py-1g text-ui text-pill-failed-fg shadow-card">
-        Failed to load tasks: {tasksQuery.error.message}
+        {L.tkLoadFailed}: {tasksQuery.error.message}
       </div>
     );
   }
 
   if (tasksQuery.data.length === 0) {
-    return <div className="text-ui text-state-ink/40">No tasks.</div>;
+    return <div className="text-ui text-state-ink/40">{L.mNoTasks}</div>;
   }
 
   const grouped = groupTasks(tasksQuery.data);
@@ -131,7 +134,7 @@ export function TasksPanel({ lifecycle, projectId }: TasksPanelProps) {
     <div className="min-h-0 flex-1 overflow-auto">
       {showOpen && (
         <GroupSection
-          title="Open"
+          title={L.open}
           groups={grouped.open}
           pendingId={pendingId}
           onUnblock={onUnblock}
@@ -140,7 +143,7 @@ export function TasksPanel({ lifecycle, projectId }: TasksPanelProps) {
       )}
       {showDone && (
         <GroupSection
-          title="Done"
+          title={L.tkDone}
           groups={grouped.done}
           pendingId={pendingId}
           onUnblock={onUnblock}

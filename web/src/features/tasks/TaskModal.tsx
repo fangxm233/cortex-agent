@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import { buildTaskModalVm } from './task-modal-vm';
 import { buildTaskVerificationVm, type TaskVerificationVm } from './task-verification-vm';
 
@@ -56,35 +57,36 @@ const EVIDENCE_LABEL: React.CSSProperties = {
 // Card B body — real done-when achievement evidence (completed-note / completed-at / completing
 // execution output). Honest placeholder when the task is not yet completed.
 function VerificationBody({ vv }: { vv: TaskVerificationVm }) {
+  const L = useVocab();
   if (!vv.completed) {
     return (
       <GapNote>
-        — not completed yet; done-when evidence appears once the task reaches done
+        — {L.tkGapNotCompleted}
       </GapNote>
     );
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9, color: '#22262E' }}>
       <div>
-        <span style={EVIDENCE_LABEL}>COMPLETED AT</span>
+        <span style={EVIDENCE_LABEL}>{L.tkCompletedAt}</span>
         {vv.completedAt != null ? (
           <span style={{ font: "400 10.5px 'IBM Plex Mono',monospace", color: '#5B6472' }}>
             {vv.completedAt}
           </span>
         ) : (
-          <GapNote>— not recorded</GapNote>
+          <GapNote>— {L.tkNotRecorded}</GapNote>
         )}
       </div>
       <div>
-        <span style={EVIDENCE_LABEL}>COMPLETION NOTE</span>
+        <span style={EVIDENCE_LABEL}>{L.tkCompletionNote}</span>
         {vv.completedNote != null ? (
           <span>{vv.completedNote}</span>
         ) : (
-          <GapNote>— no completion note recorded</GapNote>
+          <GapNote>— {L.tkNoCompletionNote}</GapNote>
         )}
       </div>
       <div>
-        <span style={EVIDENCE_LABEL}>COMPLETING RUN</span>
+        <span style={EVIDENCE_LABEL}>{L.tkCompletingRun}</span>
         {vv.completingExecutionId != null ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ font: "600 10.5px 'IBM Plex Mono',monospace", color: '#4655D4' }}>
@@ -105,11 +107,11 @@ function VerificationBody({ vv }: { vv: TaskVerificationVm }) {
                 {vv.completingOutput}
               </span>
             ) : (
-              <GapNote>— run recorded no final output</GapNote>
+              <GapNote>— {L.tkNoFinalOutput}</GapNote>
             )}
           </div>
         ) : (
-          <GapNote>— no execution linked to this completion</GapNote>
+          <GapNote>— {L.tkNoExecLinked}</GapNote>
         )}
       </div>
     </div>
@@ -166,6 +168,7 @@ export interface TaskModalProps {
 }
 
 export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnblock }: TaskModalProps) {
+  const L = useVocab();
   const tm = buildTaskModalVm(task, allTasks);
   const trpc = useTRPC();
   // The modal mounts only when a task is opened, so this per-task query fires on open only.
@@ -307,12 +310,12 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     marginRight: 7,
                   }}
                 >
-                  WHY
+                  {L.tkWhy}
                 </span>
                 {task.why != null ? (
                   <span>{task.why}</span>
                 ) : (
-                  <GapNote>— no `why` recorded on this task</GapNote>
+                  <GapNote>— {L.tkNoWhy}</GapNote>
                 )}
               </div>
               <div
@@ -324,7 +327,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   margin: '11px 0 5px',
                 }}
               >
-                DONE-WHEN
+                {L.tkDoneWhen}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 {/* Real `doneWhen` (single done-when string from the task store) rendered in the
@@ -357,7 +360,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   {task.doneWhen != null ? (
                     <span>{task.doneWhen}</span>
                   ) : (
-                    <GapNote>— no done-when recorded on this task</GapNote>
+                    <GapNote>— {L.tkNoDoneWhen}</GapNote>
                   )}
                 </div>
               </div>
@@ -366,7 +369,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             {/* Card B — Done-when verification (prototype L1483-1492). Real evidence via tasks.verification. */}
             <div style={CARD}>
               <div style={CARD_HEADER}>
-                <span style={CARD_TITLE}>Done-when verification</span>
+                <span style={CARD_TITLE}>{L.tkVerification}</span>
                 {vv && (
                   <span
                     style={{
@@ -379,15 +382,15 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                       color: vv.completed ? '#23854F' : '#8A93A2',
                     }}
                   >
-                    {vv.completed ? '✓ completed' : 'not completed'}
+                    {vv.completed ? `✓ ${L.tkCompleted}` : L.tkNotCompleted}
                   </span>
                 )}
               </div>
               <div style={{ padding: '10px 15px', fontSize: 11, lineHeight: 1.55 }}>
                 {verifyQuery.isPending ? (
-                  <GapNote>— loading verification…</GapNote>
+                  <GapNote>— {L.tkLoadingVerification}</GapNote>
                 ) : verifyQuery.isError || !vv ? (
-                  <GapNote>— failed to load verification evidence</GapNote>
+                  <GapNote>— {L.tkVerificationFailed}</GapNote>
                 ) : (
                   <VerificationBody vv={vv} />
                 )}
@@ -397,7 +400,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             {/* Card C — Dispatch history (prototype L1493-1506). Real per-task execution/dispatch join. */}
             <div style={CARD}>
               <div style={CARD_HEADER}>
-                <span style={CARD_TITLE}>Dispatch history</span>
+                <span style={CARD_TITLE}>{L.tkDispatchHistory}</span>
                 {vv && vv.hasDispatches && (
                   <span
                     style={{
@@ -412,11 +415,11 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
               </div>
               <div style={{ padding: '10px 15px', fontSize: 11, lineHeight: 1.55 }}>
                 {verifyQuery.isPending ? (
-                  <GapNote>— loading dispatch history…</GapNote>
+                  <GapNote>— {L.tkLoadingDispatch}</GapNote>
                 ) : verifyQuery.isError || !vv ? (
-                  <GapNote>— failed to load dispatch history</GapNote>
+                  <GapNote>— {L.tkDispatchFailed}</GapNote>
                 ) : !vv.hasDispatches ? (
-                  <GapNote>— no dispatches recorded for this task</GapNote>
+                  <GapNote>— {L.tkNoDispatches}</GapNote>
                 ) : (
                   <DispatchHistoryBody vv={vv} />
                 )}
@@ -429,7 +432,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             {/* Fields (prototype L1510-1517) */}
             <div style={CARD}>
               <div style={CARD_HEADER}>
-                <span style={CARD_TITLE}>Fields</span>
+                <span style={CARD_TITLE}>{L.tkFields}</span>
               </div>
               <div
                 style={{
@@ -452,7 +455,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             {/* Dependencies (prototype L1518-1530) */}
             <div style={CARD}>
               <div style={CARD_HEADER}>
-                <span style={CARD_TITLE}>Dependencies</span>
+                <span style={CARD_TITLE}>{L.tkDependencies}</span>
               </div>
               <div
                 style={{ padding: '10px 15px', display: 'flex', flexDirection: 'column', gap: 5 }}
@@ -526,7 +529,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     opacity: pending ? 0.5 : 1,
                   }}
                 >
-                  Unblock
+                  {L.mUnblock}
                 </span>
               )}
               <span

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
+import { useVocab, type Vocab } from '@/i18n';
 import { SCard, SCardHeader, RadioDot } from './settings-ui';
 import {
   DAILY_CHIPS,
@@ -33,14 +34,10 @@ function chipStyle(active: boolean): CSSProperties {
   };
 }
 
-const POLICY_ROWS = [
-  {
-    title: 'Pause & request approval',
-    desc: 'over-estimate → approval (class: over-budget compute); continues once approved',
-    def: true,
-  },
-  { title: 'Warn only, keep going', desc: 'posts a warning to the admin channel, never blocks', def: false },
-  { title: 'Hard stop', desc: 'no new dispatches today; running work unaffected', def: false },
+const POLICY_ROWS: { titleKey: keyof Vocab; descKey: keyof Vocab; def: boolean }[] = [
+  { titleKey: 'stPolicyPauseTitle', descKey: 'stPolicyPauseDesc', def: true },
+  { titleKey: 'stPolicyWarnTitle', descKey: 'stPolicyWarnDesc', def: false },
+  { titleKey: 'stPolicyStopTitle', descKey: 'stPolicyStopDesc', def: false },
 ];
 
 export function BudgetPanel({
@@ -50,6 +47,7 @@ export function BudgetPanel({
   snapshot: ConfigSnapshot;
   cost: CostSummary | undefined;
 }) {
+  const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -101,7 +99,7 @@ export function BudgetPanel({
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <SCard>
-          <SCardHeader title="Limits" />
+          <SCardHeader title={L.stLimits} />
           {/* DAILY — the live-write row */}
           <div
             style={{
@@ -114,7 +112,7 @@ export function BudgetPanel({
           >
             <div style={{ width: 104, flex: 'none' }}>
               <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', color: '#98A1B0' }}>
-                DAILY
+                {L.stDaily}
               </div>
               <div
                 style={{
@@ -146,7 +144,7 @@ export function BudgetPanel({
           <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 104, flex: 'none' }}>
               <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', color: '#98A1B0' }}>
-                WARN AT
+                {L.stWarnAt}
               </div>
               <div style={{ font: `600 19px ${MONO}`, color: '#B6BDC9', letterSpacing: '-.02em', marginTop: 2 }}>
                 —
@@ -164,16 +162,16 @@ export function BudgetPanel({
               ))}
             </div>
             <span style={{ marginLeft: 'auto', fontSize: 10.5, color: '#8A93A2' }}>
-              one warning to the admin channel
+              {L.warnNote}
             </span>
           </div>
         </SCard>
         <SCard>
-          <SCardHeader title="Over-budget behavior" right="checked against the estimate before dispatch" />
+          <SCardHeader title={L.stOverBudgetBehavior} right={L.obNote} />
           <div style={{ padding: '4px 14px 8px' }}>
             {POLICY_ROWS.map((r, i) => (
               <div
-                key={r.title}
+                key={r.titleKey}
                 title="No over-budget-policy field in budget.json — inert"
                 style={{
                   display: 'flex',
@@ -187,7 +185,7 @@ export function BudgetPanel({
                 <RadioDot selected={false} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#5B6472' }}>
-                    {r.title}
+                    {L[r.titleKey]}
                     {r.def ? (
                       <span
                         style={{
@@ -200,11 +198,11 @@ export function BudgetPanel({
                           marginLeft: 4,
                         }}
                       >
-                        default
+                        {L.default}
                       </span>
                     ) : null}
                   </div>
-                  <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 2 }}>{r.desc}</div>
+                  <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 2 }}>{L[r.descKey]}</div>
                 </div>
               </div>
             ))}
@@ -212,7 +210,7 @@ export function BudgetPanel({
         </SCard>
       </div>
       <SCard>
-        <SCardHeader title="Current spend" right="costs.jsonl · 90d" />
+        <SCardHeader title={L.stCurrentSpend} right="costs.jsonl · 90d" />
         <div style={{ padding: '12px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span style={{ font: `600 21px ${MONO}`, color: '#191C22', letterSpacing: '-.02em' }}>
@@ -235,7 +233,7 @@ export function BudgetPanel({
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 14 }}>
             <span style={{ font: `600 14px ${MONO}`, color: '#22262E' }}>{formatBudgetUsd(month)}</span>
             <span style={{ fontSize: 10.5, color: '#98A1B0' }}>
-              this month / {formatBudgetUsd(monthly)}
+              {L.month} / {formatBudgetUsd(monthly)}
             </span>
           </div>
           <div style={{ height: 5, borderRadius: 999, background: '#EFF1F5', overflow: 'hidden', marginTop: 7 }}>
@@ -255,12 +253,11 @@ export function BudgetPanel({
           >
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C99A2E', flex: 'none' }} />
             <span style={{ fontSize: 10.5, color: '#8A5B06' }}>
-              Over-estimate → approval card in chat &amp; approval center
+              {L.stObNote}
             </span>
           </div>
           <div style={{ fontSize: 10, color: '#B6BDC9', marginTop: 10 }}>
-            today / month are real (cost.summary); the daily/monthly denominators are real (budget.json).
-            Forecast is not in the contract — omitted.
+            {L.stBudgetFootNote}
           </div>
         </div>
       </SCard>
