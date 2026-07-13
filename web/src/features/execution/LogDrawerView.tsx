@@ -1,4 +1,5 @@
 import type { CSSProperties, Ref } from 'react';
+import { useVocab } from '@/i18n';
 
 // Pure presentational chrome for the execution log drawer (design 09-exec-logs, prototype.dc.html
 // L1544–1560) — hooks-free so it is render-testable and screenshottable in isolation. Exact inline
@@ -71,6 +72,7 @@ export function LogDrawerView({
   scrollRef,
   onScroll,
 }: LogDrawerViewProps) {
+  const L = useVocab();
   return (
     <>
       {/* Header (prototype L1545) */}
@@ -98,7 +100,7 @@ export function LogDrawerView({
         {notice ? <div style={{ color: '#5B6472' }}>{notice}</div> : null}
         {dropped > 0 ? (
           <div style={{ color: '#C79A3E' }}>
-            … {dropped} line{dropped === 1 ? '' : 's'} dropped
+            … {dropped} {L.exLinesDropped}
           </div>
         ) : null}
         {lines.map((line, i) => (
@@ -125,7 +127,7 @@ export function LogDrawerView({
       {/* Footer (prototype L1557) */}
       <div style={FOOTER_STYLE}>
         <span style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: '#5B6472' }}>
-          heartbeat 30s · missed 0 · → costs.jsonl
+          {L.exFooterHeartbeat}
         </span>
         <button
           type="button"
@@ -144,7 +146,7 @@ export function LogDrawerView({
             background: 'transparent',
           }}
         >
-          Kill run
+          {L.exKillRun}
         </button>
       </div>
     </>

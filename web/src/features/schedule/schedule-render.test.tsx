@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement, type ReactElement } from 'react';
+import { renderToStaticMarkup as renderRaw } from 'react-dom/server';
+import { LangProvider } from '@/i18n';
+// Components consume useVocab() → wrap every render in LangProvider (defaults to en vocab).
+function renderToStaticMarkup(el: ReactElement): string {
+  return renderRaw(createElement(LangProvider, null, el));
+}
 import { ScheduleModal } from './ScheduleModal';
 import { defaultScheduleForm, type ScheduleForm } from './schedule-modal-vm';
 

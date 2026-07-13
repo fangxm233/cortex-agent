@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import {
   canCreate,
   createBg,
   createErrorMessage,
-  NP_TITLE,
   NP_BREADCRUMB,
-  NP_LABEL,
   NP_PLACEHOLDER,
-  NP_HINT,
-  NP_CREATE_LABEL,
-  NP_CANCEL,
 } from './new-project';
 
 // NEW PROJECT MODAL — 1:1 from prototype.dc.html L1407-1429 (+ backdrop L1291), task c551. Raw inline
@@ -29,6 +25,7 @@ const mono = "'IBM Plex Mono',monospace";
 
 export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Element {
   const trpc = useTRPC();
+  const L = useVocab();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +91,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
       >
         {/* header (L1410-1414) */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#191C22' }}>{NP_TITLE}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#191C22' }}>{L.newProject}</span>
           <span style={{ font: `400 10px ${mono}`, color: '#98A1B0', marginLeft: 10 }}>
             {NP_BREADCRUMB}
           </span>
@@ -125,7 +122,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               marginBottom: 6,
             }}
           >
-            {NP_LABEL}
+            {L.npProjectName}
           </div>
           <div
             style={{
@@ -160,7 +157,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               lineHeight: 1.6,
             }}
           >
-            {error ?? NP_HINT}
+            {error ?? L.npHint}
           </div>
         </div>
 
@@ -189,7 +186,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               background: cancelHover ? '#F7F8FA' : 'transparent',
             }}
           >
-            {NP_CANCEL}
+            {L.cancel}
           </span>
           <span
             onClick={submit}
@@ -203,7 +200,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               cursor: creatable && !create.isPending ? 'pointer' : 'default',
             }}
           >
-            {NP_CREATE_LABEL}
+            {L.npCreate}
           </span>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
+import { useVocab } from '@/i18n';
 import {
   defaultSelectedId,
   pendingLabel,
@@ -31,8 +32,6 @@ import {
 // queuedAt has date-only (no clock), so the "age" and "queued" slots show the date.
 
 const mono = "'IBM Plex Mono',monospace";
-const FOOT_NOTE = 'On decision → PENDING_APPROVALS.md flips · the chat card stays in sync';
-const FB_PLACEHOLDER = 'Reason — sent back to the agent…';
 
 // ── pure presentational view (render-testable without the tRPC provider) ──────────────────────
 
@@ -53,6 +52,7 @@ export interface ApprovalCenterViewProps {
 }
 
 export function ApprovalCenterView(props: ApprovalCenterViewProps) {
+  const L = useVocab();
   const { entries, selectedId, armed, feedback, pending } = props;
   const count = entries.length;
   const hasItems = count > 0;
@@ -108,7 +108,7 @@ export function ApprovalCenterView(props: ApprovalCenterViewProps) {
             borderBottom: '1px solid #E7E9EE',
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 650, color: '#191C22' }}>Approvals</span>
+          <span style={{ fontSize: 13, fontWeight: 650, color: '#191C22' }}>{L.approvals}</span>
           {hasItems && (
             <span
               style={{
@@ -191,6 +191,7 @@ export function ApprovalCenterView(props: ApprovalCenterViewProps) {
 // ── empty state (prototype L1329-1335) ────────────────────────────────────────────────────────
 
 function EmptyState() {
+  const L = useVocab();
   return (
     <div
       style={{
@@ -219,9 +220,9 @@ function EmptyState() {
       >
         ✓
       </span>
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#191C22' }}>All clear</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#191C22' }}>{L.aprEmptyTitle}</div>
       <div style={{ fontSize: 11, color: '#8A93A2' }}>
-        New approvals appear here and as cards in chat
+        {L.aprEmptyDesc}
       </div>
     </div>
   );
@@ -240,6 +241,7 @@ function PendingList({
   count: number;
   onSelect: (id: string) => void;
 }) {
+  const L = useVocab();
   return (
     <div
       style={{
@@ -261,7 +263,7 @@ function PendingList({
           color: '#98A1B0',
         }}
       >
-        PENDING · {count}
+        {L.apPending} · {count}
       </div>
       <div style={{ padding: '0 12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {entries.map((e) => {
@@ -365,6 +367,7 @@ function DetailPane({
   onReject: (id: string) => void;
   onFeedback: (value: string) => void;
 }) {
+  const L = useVocab();
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '16px 22px 0' }}>
@@ -405,12 +408,12 @@ function DetailPane({
           {detail.queued && <span>{detail.queued}</span>}
           {detail.origin && (
             <span>
-              from <span style={{ color: '#4655D4' }}>{detail.origin}</span>
+              {L.apFrom} <span style={{ color: '#4655D4' }}>{detail.origin}</span>
             </span>
           )}
           {detail.task && (
             <span>
-              task <span style={{ color: '#4655D4' }}>{detail.task}</span>
+              {L.apTask} <span style={{ color: '#4655D4' }}>{detail.task}</span>
             </span>
           )}
         </div>
@@ -427,11 +430,11 @@ function DetailPane({
             lineHeight: 1.55,
           }}
         >
-          <span style={GRID_LABEL}>OPERATION</span>
+          <span style={GRID_LABEL}>{L.apOperation}</span>
           <span style={{ color: '#22262E' }}>{detail.operation}</span>
-          <span style={GRID_LABEL}>REASON</span>
+          <span style={GRID_LABEL}>{L.apReason}</span>
           <span style={{ color: '#22262E' }}>{detail.reason}</span>
-          <span style={GRID_LABEL}>IMPACT</span>
+          <span style={GRID_LABEL}>{L.apImpact}</span>
           <span style={{ color: '#22262E' }}>{detail.impact}</span>
         </div>
 
@@ -447,7 +450,7 @@ function DetailPane({
                 marginBottom: 6,
               }}
             >
-              COMMAND
+              {L.apCommand}
             </div>
             <div
               style={{
@@ -480,7 +483,7 @@ function DetailPane({
               color: '#8A3B33',
             }}
           >
-            <b style={{ color: '#C03D33' }}>Feedback</b> — {detail.feedback}
+            <b style={{ color: '#C03D33' }}>{L.apFeedbackLabel}</b> — {detail.feedback}
           </div>
         )}
       </div>
@@ -503,7 +506,7 @@ function DetailPane({
               data-approval-feedback=""
               value={feedback}
               onChange={(e) => onFeedback(e.target.value)}
-              placeholder={FB_PLACEHOLDER}
+              placeholder={L.apFeedbackPh}
               style={{ flex: 1, fontSize: 12, color: '#191C22', fontFamily: 'inherit' }}
             />
           </div>
@@ -522,7 +525,7 @@ function DetailPane({
         }}
       >
         <span style={{ font: `400 10px ${mono}`, color: '#B6BDC9', lineHeight: 1.6 }}>
-          {FOOT_NOTE}
+          {L.apFootNote}
         </span>
         {!armed && (
           <>
@@ -544,7 +547,7 @@ function DetailPane({
               }}
               hover={{ background: '#FBEDEB' }}
             >
-              Reject — feedback
+              {L.rejectFeedback}
             </HoverButton>
             <HoverButton
               data-action="approve"
@@ -562,7 +565,7 @@ function DetailPane({
               }}
               hover={{ background: '#3A48B8' }}
             >
-              Approve
+              {L.approve}
             </HoverButton>
           </>
         )}
@@ -586,7 +589,7 @@ function DetailPane({
               }}
               hover={{ background: '#F7F8FA' }}
             >
-              Cancel
+              {L.cancel}
             </HoverButton>
             <HoverButton
               data-action="reject"
@@ -604,7 +607,7 @@ function DetailPane({
               }}
               hover={{ opacity: 0.88 }}
             >
-              Confirm reject
+              {L.denyConfirm}
             </HoverButton>
           </>
         )}
@@ -642,6 +645,7 @@ function HoverButton({
 // ── container: binds real tRPC data + mutations ───────────────────────────────────────────────
 
 export function ApprovalCenterModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -665,7 +669,7 @@ export function ApprovalCenterModal({ open, onClose }: { open: boolean; onClose:
 
   const approve = useMutation(
     trpc.approvals.approve.mutationOptions({
-      onSuccess: () => toast({ title: 'Approved — PENDING_APPROVALS.md updated', tone: 'done' }),
+      onSuccess: () => toast({ title: L.apToastApproved, tone: 'done' }),
       onSettled: () => {
         resetDeny();
         invalidate();
@@ -674,7 +678,7 @@ export function ApprovalCenterModal({ open, onClose }: { open: boolean; onClose:
   );
   const reject = useMutation(
     trpc.approvals.reject.mutationOptions({
-      onSuccess: () => toast({ title: 'Rejected — reason sent back to the agent', tone: 'failed' }),
+      onSuccess: () => toast({ title: L.apToastRejected, tone: 'failed' }),
       onSettled: () => {
         resetDeny();
         invalidate();

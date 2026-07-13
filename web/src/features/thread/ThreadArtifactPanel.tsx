@@ -1,3 +1,4 @@
+import { useVocab } from '@/i18n';
 import type { DetailArtifact } from './thread-detail-vm';
 
 // THREAD ARTIFACT column — 1:1 card chrome from prototype.dc.html L488–520. Header (doc icon · path ·
@@ -7,8 +8,6 @@ import type { DetailArtifact } from './thread-detail-vm';
 // is rendered from the artifact FILE CONTENT, which needs the fs-read tRPC scope (plan §2.1). Until
 // then the header refs + written-by are REAL (from threads.get); the body honestly shows the artifact
 // references instead of fabricated metrics, and a muted note points at the Memory viewer (Stage 6).
-
-const ARTIFACT_HINT = 'created with thread · shared by all steps';
 
 const DOC_ICON = (
   <svg width="11" height="13" viewBox="0 0 11 13" fill="none" stroke="#8A93A2" strokeWidth="1.4">
@@ -42,19 +41,20 @@ export interface ThreadArtifactPanelProps {
 }
 
 export function ThreadArtifactPanel({ artifact, onOpen }: ThreadArtifactPanelProps): JSX.Element {
+  const L = useVocab();
   const refs: Array<{ k: string; v: string }> = [];
-  if (artifact.workspacePath) refs.push({ k: 'workspace', v: artifact.workspacePath });
-  if (artifact.taskId) refs.push({ k: 'task', v: artifact.taskId });
-  if (artifact.taskProject) refs.push({ k: 'project', v: artifact.taskProject });
+  if (artifact.workspacePath) refs.push({ k: L.thWorkspace, v: artifact.workspacePath });
+  if (artifact.taskId) refs.push({ k: L.thTask, v: artifact.taskId });
+  if (artifact.taskProject) refs.push({ k: L.thProject, v: artifact.taskProject });
 
   return (
     <div style={{ width: 440, flex: 'none', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 8px' }}>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: '#98A1B0' }}>
-          THREAD ARTIFACT
+          {L.thArtifact}
         </span>
         <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>
-          {ARTIFACT_HINT}
+          {L.thArtifactHint}
         </span>
       </div>
       <div
@@ -118,7 +118,7 @@ export function ThreadArtifactPanel({ artifact, onOpen }: ThreadArtifactPanelPro
                   animation: 'cxpulse 1.6s ease-in-out infinite',
                 }}
               />
-              live
+              {L.thLive}
             </span>
           )}
           <span
@@ -136,22 +136,22 @@ export function ThreadArtifactPanel({ artifact, onOpen }: ThreadArtifactPanelPro
             title="Opens in the Memory viewer — Stage 6"
             style={{ fontSize: 10.5, fontWeight: 600, color: '#4655D4', cursor: 'pointer', flex: 'none' }}
           >
-            Open ↗
+            {L.open} ↗
           </span>
         </div>
 
         {/* body — real refs (content body is a Stage-6 fs-read gap) */}
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '13px 16px' }}>
           <div style={{ fontSize: 14, fontWeight: 650, color: '#191C22', letterSpacing: '-.01em' }}>
-            {artifact.path ? artifact.path.split('/').pop() : 'No artifact'}
+            {artifact.path ? artifact.path.split('/').pop() : L.thNoArtifact}
           </div>
           <div style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: '#8A93A2', marginTop: 4 }}>
-            owner: {artifact.taskId ? artifact.taskId : '—'}
+            {L.thOwner}: {artifact.taskId ? artifact.taskId : '—'}
           </div>
           <div style={{ height: 1, background: '#EFF1F5', margin: '10px 0' }} />
 
           <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.06em', color: '#B6BDC9' }}>
-            REFERENCES
+            {L.thReferences}
           </div>
           {refs.length > 0 ? (
             <div
@@ -183,8 +183,7 @@ export function ThreadArtifactPanel({ artifact, onOpen }: ThreadArtifactPanelPro
                 color: '#8A93A2',
               }}
             >
-              Rendered content (result · metrics · diff) opens in the Memory viewer — filesystem read
-              scope lands in Stage&nbsp;6.
+              {L.thContentGap}
             </div>
           )}
         </div>
@@ -203,7 +202,7 @@ export function ThreadArtifactPanel({ artifact, onOpen }: ThreadArtifactPanelPro
             }}
           >
             <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.06em', color: '#B6BDC9', marginRight: 2 }}>
-              WRITTEN BY
+              {L.thWrittenBy}
             </span>
             {artifact.writtenBy.map((w, i) => (
               <span

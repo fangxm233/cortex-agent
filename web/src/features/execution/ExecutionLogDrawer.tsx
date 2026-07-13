@@ -1,6 +1,7 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { LogDrawerView } from './LogDrawerView';
@@ -53,6 +54,7 @@ export interface ExecutionLogDrawerProps {
 }
 
 export function ExecutionLogDrawer({ executionId, onClose }: ExecutionLogDrawerProps) {
+  const L = useVocab();
   const open = executionId != null;
   return (
     <RadixDialog.Root
@@ -72,7 +74,7 @@ export function ExecutionLogDrawer({ executionId, onClose }: ExecutionLogDrawerP
           className="animate-cxdrawer focus:outline-none motion-reduce:animate-none"
         >
           <RadixDialog.Title style={SR_ONLY}>
-            {executionId ? `Execution log ${executionId}` : 'Execution log'}
+            {executionId ? `${L.exLogTitle} ${executionId}` : L.exLogTitle}
           </RadixDialog.Title>
           {open ? <DrawerBody executionId={executionId} onClose={onClose} /> : null}
         </RadixDialog.Content>
@@ -83,6 +85,7 @@ export function ExecutionLogDrawer({ executionId, onClose }: ExecutionLogDrawerP
 
 function DrawerBody({ executionId, onClose }: { executionId: string; onClose: () => void }) {
   const trpc = useTRPC();
+  const L = useVocab();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -108,14 +111,14 @@ function DrawerBody({ executionId, onClose }: { executionId: string; onClose: ()
 
   const onKill = () => {
     if (!detail || !isStoppable(detail.status)) {
-      toast({ title: `${executionId} already finished`, tone: 'cancelled' });
+      toast({ title: `${executionId} ${L.exAlreadyFinished}`, tone: 'cancelled' });
       return;
     }
     cancel.mutate(
       { executionId },
       {
         onSuccess: (res) => {
-          if (res.cancelled) toast({ title: `${executionId} killed`, tone: 'failed' });
+          if (res.cancelled) toast({ title: `${executionId} ${L.exKilled}`, tone: 'failed' });
         },
       },
     );
@@ -139,11 +142,11 @@ function DrawerBody({ executionId, onClose }: { executionId: string; onClose: ()
       ? null
       : !enabled
         ? running
-          ? 'waiting for output…'
-          : 'no live log — this execution is not a cortex-run launch'
+          ? L.exWaitingOutput
+          : L.exNoLiveLog
         : running
-          ? 'waiting for output…'
-          : 'no log output';
+          ? L.exWaitingOutput
+          : L.exNoLogOutput;
 
   return (
     <LogDrawerView

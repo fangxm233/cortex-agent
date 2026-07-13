@@ -1,4 +1,5 @@
 import { useEffect, type CSSProperties } from 'react';
+import { useVocab } from '@/i18n';
 import {
   visibleFields,
   nextRunParts,
@@ -65,6 +66,7 @@ export interface ScheduleModalProps {
 }
 
 export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
+  const L = useVocab();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onCancel();
@@ -72,6 +74,24 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
+
+  // Display labels for enum values sourced from the VM (values stay unchanged; only the rendered
+  // text is localized at this call site).
+  const TYPE_LABELS: Record<SchedType, string> = {
+    interval: L.scTypeInterval,
+    daily: L.scTypeDaily,
+    weekly: L.scTypeWeekly,
+    once: L.scTypeOnce,
+  };
+  const DAY_LABELS: Record<number, string> = {
+    0: L.scDaySun,
+    1: L.scDayMon,
+    2: L.scDayTue,
+    3: L.scDayWed,
+    4: L.scDayThu,
+    5: L.scDayFri,
+    6: L.scDaySat,
+  };
 
   const vis = visibleFields(form.type);
   const { clock, delta } = nextRunParts(form, now ?? new Date());
@@ -108,7 +128,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
       >
         {/* header (prototype L1434) */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#191C22' }}>New schedule</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#191C22' }}>{L.scNewSchedule}</span>
           <span
             onClick={onCancel}
             style={{
@@ -128,7 +148,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
         {/* body (prototype L1435) */}
         <div style={{ padding: '0 20px' }}>
           {/* TYPE (prototype L1436-1442) */}
-          <div style={{ ...LABEL, margin: '13px 0 5px' }}>TYPE</div>
+          <div style={{ ...LABEL, margin: '13px 0 5px' }}>{L.scType}</div>
           <div style={{ display: 'flex', border: '1px solid #E7E9EE', borderRadius: 8, overflow: 'hidden' }}>
             {SCHED_TYPES.map((t: SchedType, i) => {
               const selected = form.type === t;
@@ -150,7 +170,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
                     cursor: 'pointer',
                   }}
                 >
-                  {t}
+                  {TYPE_LABELS[t]}
                 </span>
               );
             })}
@@ -162,7 +182,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
             <div>
               {vis.time && (
                 <>
-                  <div style={{ ...LABEL, marginBottom: 5 }}>TIME</div>
+                  <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTime}</div>
                   <div style={CELL_BOX}>
                     <input
                       value={form.time}
@@ -184,7 +204,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
               )}
               {vis.interval && (
                 <>
-                  <div style={{ ...LABEL, marginBottom: 5 }}>EVERY</div>
+                  <div style={{ ...LABEL, marginBottom: 5 }}>{L.scEvery}</div>
                   <div style={CELL_BOX}>
                     <input
                       type="number"
@@ -215,7 +235,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
               )}
               {vis.delay && (
                 <>
-                  <div style={{ ...LABEL, marginBottom: 5 }}>IN</div>
+                  <div style={{ ...LABEL, marginBottom: 5 }}>{L.scIn}</div>
                   <div style={CELL_BOX}>
                     <input
                       type="number"
@@ -249,7 +269,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
             {/* DAY (weekly only) */}
             {vis.dayOfWeek && (
               <div>
-                <div style={{ ...LABEL, marginBottom: 5 }}>DAY</div>
+                <div style={{ ...LABEL, marginBottom: 5 }}>{L.scDay}</div>
                 <div style={CELL_BOX}>
                   <select
                     value={form.dayOfWeek}
@@ -257,7 +277,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
                     style={bareSelectStyle("500 11.5px 'IBM Plex Mono',monospace")}
                   >
                     {DAY_OPTIONS.map((d) => (
-                      <option key={d.value} value={d.value}>{d.label}</option>
+                      <option key={d.value} value={d.value}>{DAY_LABELS[d.value] ?? d.label}</option>
                     ))}
                   </select>
                   <span style={CARET}>▾</span>
@@ -267,7 +287,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
 
             {/* PROFILE (prototype L1445) */}
             <div>
-              <div style={{ ...LABEL, marginBottom: 5 }}>PROFILE</div>
+              <div style={{ ...LABEL, marginBottom: 5 }}>{L.scProfile}</div>
               <div style={CELL_BOX}>
                 <select
                   value={form.profile}
@@ -284,12 +304,12 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
           </div>
 
           {/* MESSAGE (prototype L1447-1448) */}
-          <div style={{ ...LABEL, margin: '12px 0 5px' }}>MESSAGE</div>
+          <div style={{ ...LABEL, margin: '12px 0 5px' }}>{L.scMessage}</div>
           <div style={{ border: '1px solid #E7E9EE', borderRadius: 8, padding: '8px 11px', minHeight: 38 }}>
             <textarea
               value={form.message}
               onChange={(e) => onChange({ message: e.target.value })}
-              placeholder="Check GPU status on all machines and post a one-line summary."
+              placeholder={L.scMessagePh}
               rows={2}
               style={{
                 width: '100%',
@@ -308,7 +328,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
           {/* TARGET + FALLBACK (prototype L1449-1452) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <div>
-              <div style={{ ...LABEL, marginBottom: 5 }}>TARGET</div>
+              <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTarget}</div>
               <div style={CELL_BOX}>
                 <select
                   value={form.target}
@@ -323,7 +343,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
               </div>
             </div>
             <div>
-              <div style={{ ...LABEL, marginBottom: 5 }}>FALLBACK</div>
+              <div style={{ ...LABEL, marginBottom: 5 }}>{L.scFallback}</div>
               <div style={CELL_BOX}>
                 <select
                   value={form.fallback}
@@ -343,7 +363,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
         {/* footer (prototype L1454-1458) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px 16px' }}>
           <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: '#5B6472' }}>
-            next run <b style={{ color: '#4655D4' }}>{clock}</b> · in {delta}
+            {L.scNextRun} <b style={{ color: '#4655D4' }}>{clock}</b> · {L.scFooterIn} {delta}
           </span>
           <span
             onClick={onCancel}
@@ -358,7 +378,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
               cursor: 'pointer',
             }}
           >
-            Cancel
+            {L.cancel}
           </span>
           <span
             data-action="create-schedule"
@@ -374,7 +394,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
               opacity: canCreate ? 1 : 0.55,
             }}
           >
-            Create schedule
+            {L.scCreateSchedule}
           </span>
         </div>
       </div>

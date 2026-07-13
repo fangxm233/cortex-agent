@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { deriveActiveProjectId } from '@/features/overview/overview-vm';
 import {
@@ -131,6 +132,7 @@ const CENTER: CSSProperties = {
 export function MemoryView(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
+  const L = useVocab();
   const now = Date.now();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [diffOn, setDiffOn] = useState(true);
@@ -192,10 +194,10 @@ export function MemoryView(): JSX.Element {
           {projName}
         </span>
         <span style={{ color: '#D9DCE3' }}>/</span>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: '#191C22' }}>Memory</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: '#191C22' }}>{L.memMemory}</span>
         <span style={{ color: '#D9DCE3' }}>/</span>
         <span style={{ font: `500 12px ${MONO}`, color: '#5B6472' }}>{effectivePath ?? '—'}</span>
-        <span style={{ marginLeft: 'auto', font: `400 10px ${MONO}`, color: '#98A1B0' }}>git-backed</span>
+        <span style={{ marginLeft: 'auto', font: `400 10px ${MONO}`, color: '#98A1B0' }}>{L.ovGitBacked}</span>
       </div>
 
       {/* body: 200px tree + fluid rendered pane (prototype L667) */}
@@ -211,10 +213,10 @@ export function MemoryView(): JSX.Element {
           }}
         >
           {treeQuery.isLoading && (
-            <div style={{ fontSize: 10.5, color: '#B6BDC9', padding: '6px 8px' }}>Loading…</div>
+            <div style={{ fontSize: 10.5, color: '#B6BDC9', padding: '6px 8px' }}>{L.memLoading}</div>
           )}
           {!treeQuery.isLoading && rows.length === 0 && (
-            <div style={{ fontSize: 10.5, color: '#B6BDC9', padding: '6px 8px' }}>No memory files.</div>
+            <div style={{ fontSize: 10.5, color: '#B6BDC9', padding: '6px 8px' }}>{L.memNoFiles}</div>
           )}
           {rows.map((r) => (
             <TreeRowView key={r.name} row={r} onPick={setSelectedPath} />
@@ -245,7 +247,7 @@ export function MemoryView(): JSX.Element {
                 <span style={{ font: `600 10px ${MONO}`, color: '#C03D33' }}>{lineDiff.removed}</span>
               </>
             ) : (
-              <span style={{ font: `400 9.5px ${MONO}`, color: '#98A1B0' }}>diff metadata unavailable</span>
+              <span style={{ font: `400 9.5px ${MONO}`, color: '#98A1B0' }}>{L.memDiffUnavailable}</span>
             )}
             <span
               onClick={() => setDiffOn((v) => !v)}
@@ -282,22 +284,17 @@ export function MemoryView(): JSX.Element {
               >
                 {blameRows ? (
                   <>
-                    {lineDiff ? `${lineDiff.added} / ${lineDiff.removed} lines changed vs HEAD (git numstat). ` : ''}
-                    Each line below is annotated with its real last-touch commit hash and task ref (git
-                    blame); a task ref is blank when that commit carries no task tag.
+                    {lineDiff ? `${lineDiff.added} / ${lineDiff.removed} ${L.memLinesChanged} ` : ''}
+                    {L.memBlameNote}
                   </>
                 ) : (
-                  <>
-                    Per-line blame is unavailable — this project directory is not a git work tree (or git is
-                    unavailable), so commit hashes / task refs are not shown. The file below is the current
-                    content.
-                  </>
+                  <>{L.memBlameUnavailable}</>
                 )}
               </div>
             )}
-            {fileQuery.isLoading && <div style={{ fontSize: 11.5, color: '#B6BDC9' }}>Loading file…</div>}
+            {fileQuery.isLoading && <div style={{ fontSize: 11.5, color: '#B6BDC9' }}>{L.memLoadingFile}</div>}
             {fileQuery.isError && (
-              <div style={{ fontSize: 11.5, color: '#C03D33' }}>Could not read this file.</div>
+              <div style={{ fontSize: 11.5, color: '#C03D33' }}>{L.memReadError}</div>
             )}
             {file && diffOn && blameRows ? (
               <BlamePane rows={blameRows} />
@@ -305,7 +302,7 @@ export function MemoryView(): JSX.Element {
               file && <MarkdownView content={file.content} />
             )}
             {!fileQuery.isLoading && !fileQuery.isError && !file && (
-              <div style={{ fontSize: 11.5, color: '#B6BDC9' }}>Select a file to view.</div>
+              <div style={{ fontSize: 11.5, color: '#B6BDC9' }}>{L.memSelectFile}</div>
             )}
           </div>
         </div>

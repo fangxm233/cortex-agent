@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import type { SkillGroup } from '@cortex-agent/ui-contract';
 
 // SKILLS BROWSER (plan §12 A item 2 / 8a) — CENTER-pane view mounted in the workbench frame
@@ -32,7 +33,8 @@ function SkillChip({ name }: { name: string }): JSX.Element {
 }
 
 function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
-  const label = group.plugin ?? 'user skills';
+  const L = useVocab();
+  const label = group.plugin ?? L.skUserSkills;
   return (
     <div style={{ marginBottom: 28 }}>
       <div
@@ -71,6 +73,7 @@ function GroupSection({ group }: { group: SkillGroup }): JSX.Element {
 
 export function SkillsView(): JSX.Element {
   const trpc = useTRPC();
+  const L = useVocab();
   const { data, isLoading, isError } = useQuery(trpc.skills.list.queryOptions({}));
 
   const groups = data ?? [];
@@ -97,13 +100,13 @@ export function SkillsView(): JSX.Element {
         }}
       >
         <div style={{ fontSize: 16, fontWeight: 700, color: '#191C22', letterSpacing: -0.3 }}>
-          Skills
+          {L.skTitle}
         </div>
         <div style={{ fontSize: 11.5, color: '#8A93A2', marginTop: 3 }}>
           {isLoading
-            ? 'Scanning…'
+            ? L.skScanning
             : isError
-              ? 'Could not load skills'
+              ? L.skLoadError
               : `${totalSkills} skill${totalSkills !== 1 ? 's' : ''} across ${groups.length} group${groups.length !== 1 ? 's' : ''}`}
         </div>
       </div>
@@ -111,17 +114,13 @@ export function SkillsView(): JSX.Element {
       {/* Body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
         {isLoading && (
-          <div style={{ fontSize: 12, color: '#C2C8D2', fontFamily: MONO }}>Loading skills…</div>
+          <div style={{ fontSize: 12, color: '#C2C8D2', fontFamily: MONO }}>{L.skLoadingBody}</div>
         )}
         {isError && (
-          <div style={{ fontSize: 12, color: '#C07070', fontFamily: MONO }}>
-            Failed to load skills. Is agent-server running?
-          </div>
+          <div style={{ fontSize: 12, color: '#C07070', fontFamily: MONO }}>{L.skFailedBody}</div>
         )}
         {!isLoading && !isError && groups.length === 0 && (
-          <div style={{ fontSize: 12, color: '#C2C8D2', fontFamily: MONO }}>
-            No skills found. Add skill directories under DATA_DIR/.claude/skills/ or plugins/.
-          </div>
+          <div style={{ fontSize: 12, color: '#C2C8D2', fontFamily: MONO }}>{L.skEmpty}</div>
         )}
         {groups.map((g) => (
           <GroupSection key={g.plugin ?? '__user__'} group={g} />

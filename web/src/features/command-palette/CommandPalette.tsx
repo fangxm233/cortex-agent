@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
 
 // ⌘K command palette — 1:1 rebuild from prototype.dc.html L1295–1315 (task c967). The overlay
@@ -112,11 +113,15 @@ export interface CommandPaletteProps {
 // `data-[selected=true]` on the arrow-selected (or mouse-hovered) row; the prototype highlight
 // (#F5F6FD bg, #4655D4 label) is applied there via `.cmdk-row` CSS in index.css.
 function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
+  const L = useVocab();
+  // Nav rows carry vocab keys → localized; entity rows carry real data in label/sub.
+  const label = row.labelKey ? L[row.labelKey] : row.label;
+  const sub = row.subKey ? L[row.subKey] : row.sub;
   return (
     <Command.Item value={row.id} onSelect={onSelect} className="cmdk-row" style={ROW_STYLE}>
       <span style={GLYPH_STYLE}>{row.glyph}</span>
-      <span className="cmdk-row-label">{row.label}</span>
-      <span style={SUB_STYLE}>{row.sub}</span>
+      <span className="cmdk-row-label">{label}</span>
+      <span style={SUB_STYLE}>{sub}</span>
       <span style={KBD_STYLE}>{row.kbd}</span>
     </Command.Item>
   );
@@ -125,6 +130,7 @@ function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const trpc = useTRPC();
   const navigate = useNavigate();
+  const L = useVocab();
   const [query, setQuery] = useState('');
 
   // Reset the query each time the palette opens (fresh search).
@@ -184,7 +190,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           autoFocus
           value={query}
           onValueChange={setQuery}
-          placeholder="Jump to session / thread / task / file…"
+          placeholder={L.cmdkPh}
           style={INPUT_STYLE}
         />
         <span style={ESC_STYLE} onClick={() => onOpenChange(false)}>
@@ -193,14 +199,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       </div>
 
       <Command.List style={BODY_STYLE}>
-        <Command.Empty style={EMPTY_STYLE}>No results.</Command.Empty>
+        <Command.Empty style={EMPTY_STYLE}>{L.cpNoResults}</Command.Empty>
         {rows.map((row) => (
           <Row key={row.id} row={row} onSelect={() => go(row.route, row.focusId)} />
         ))}
       </Command.List>
 
       <div style={FOOTER_STYLE}>
-        <span style={FOOTER_TEXT_STYLE}>↑↓ navigate · ⏎ open · esc dismiss</span>
+        <span style={FOOTER_TEXT_STYLE}>{L.cpFooterHint}</span>
       </div>
     </Command.Dialog>
   );

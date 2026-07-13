@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
+import { useVocab } from '@/i18n';
 import { ScheduleModal } from './ScheduleModal';
 import {
   defaultScheduleForm,
@@ -28,6 +29,7 @@ interface ScheduleModalContextValue {
 const ScheduleModalContext = createContext<ScheduleModalContextValue | null>(null);
 
 export function ScheduleModalProvider({ children }: { children: ReactNode }) {
+  const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -46,11 +48,11 @@ export function ScheduleModalProvider({ children }: { children: ReactNode }) {
     trpc.schedules.add.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(trpc.schedules.list.queryFilter());
-        toast({ title: 'Schedule created', tone: 'done' });
+        toast({ title: L.scToastCreated, tone: 'done' });
         close();
       },
       onError: (err) => {
-        toast({ title: 'Could not create schedule', description: err.message, tone: 'failed' });
+        toast({ title: L.scToastCreateFailed, description: err.message, tone: 'failed' });
       },
     }),
   );

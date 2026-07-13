@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement, type ReactElement } from 'react';
+import { renderToStaticMarkup as renderRaw } from 'react-dom/server';
+import { LangProvider } from '@/i18n';
+// Components consume useVocab() → wrap every render in LangProvider (defaults to en vocab).
+function renderToStaticMarkup(el: ReactElement): string {
+  return renderRaw(createElement(LangProvider, null, el));
+}
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { ApprovalCenterView } from './ApprovalCenterModal';
 

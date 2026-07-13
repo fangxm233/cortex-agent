@@ -1,4 +1,5 @@
 import { type CSSProperties, type ReactNode, Fragment } from 'react';
+import { useVocab } from '@/i18n';
 import { splitFrontmatter, parseBlocks, type InlineNode, type Block } from './markdown';
 
 // Presentational Markdown renderer for the memory viewer 7b. Maps the pure markdown.ts
@@ -150,6 +151,7 @@ function renderBlock(b: Block, i: number): ReactNode {
 }
 
 export function MarkdownView({ content }: { content: string }): JSX.Element {
+  const L = useVocab();
   const { frontmatter, body } = splitFrontmatter(content);
   const blocks = parseBlocks(body);
   return (
@@ -165,7 +167,7 @@ export function MarkdownView({ content }: { content: string }): JSX.Element {
           </div>
           {frontmatter.summary && (
             <div style={{ fontSize: 11, color: '#22262E', marginTop: 6 }}>
-              <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0' }}>summary</span>&nbsp; {frontmatter.summary}
+              <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0' }}>{L.memSummary}</span>&nbsp; {frontmatter.summary}
             </div>
           )}
         </div>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
+import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { buildThreadDetailVm, type TrailCrumb, type DetailStepSub } from './thread-detail-vm';
 import { ThreadPipeline } from './ThreadPipeline';
@@ -22,6 +23,7 @@ export interface ThreadDetailViewProps {
 
 export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps): JSX.Element {
   const vm = buildThreadDetailVm(detail, trail, now);
+  const L = useVocab();
   const navigate = useNavigate();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -134,7 +136,7 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
                 opacity: 0.6,
               }}
             >
-              Pause
+              {L.pause}
             </span>
             <span
               {...hp('cancel')}
@@ -151,7 +153,7 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
                 cursor: 'pointer',
               }}
             >
-              Cancel
+              {L.cancel}
             </span>
           </div>
         )}
@@ -169,14 +171,14 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
           padding: '12px 20px 14px',
         }}
       >
-        <MetaField label="template" value={vm.template} />
-        <MetaField label="started" value={vm.started} />
-        <MetaField label="elapsed" value={vm.elapsed} accent />
-        <MetaField label="cost incl. children" value={vm.cost} />
-        <MetaField label="task" value={vm.task} accent={vm.task !== '—'} />
+        <MetaField label={L.thTemplate} value={vm.template} />
+        <MetaField label={L.thStarted} value={vm.started} />
+        <MetaField label={L.thElapsed} value={vm.elapsed} accent />
+        <MetaField label={L.thCostInclChildren} value={vm.cost} />
+        <MetaField label={L.thTask} value={vm.task} accent={vm.task !== '—'} />
         <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
           <span style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: '#98A1B0', marginRight: 3 }}>
-            depth
+            {L.depth}
           </span>
           {vm.depthDots.map((d, i) => (
             <span

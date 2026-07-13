@@ -1,4 +1,5 @@
 import type { SessionInfo, ThreadInfo, TaskInfo } from '@cortex-agent/ui-contract';
+import type { Vocab } from '@/i18n';
 
 // Pure mapping from the three real tRPC query results (sessions.list / threads.list /
 // tasks.list) into the prototype's ⌘K flat-row item model (prototype.dc.html L1304–1311 +
@@ -38,9 +39,15 @@ export interface CmdkCommand {
   kbd: string;
   route: string;
   keywords: string[];
+  /** Vocab key resolved to the localized label at the render site (nav rows only). */
+  labelKey: keyof Vocab;
+  /** Vocab key resolved to the localized sub at the render site (nav rows only). */
+  subKey: keyof Vocab;
 }
 
 // A rendered palette row — nav command or entity, unified for display + selection.
+// `label`/`sub` carry the English fallback (also used for the substring filter); when
+// `labelKey`/`subKey` are present (nav rows) the render site shows the localized string.
 export interface PaletteRow {
   id: string;
   glyph: string;
@@ -50,6 +57,8 @@ export interface PaletteRow {
   route: string;
   focusId?: string;
   keywords: string[];
+  labelKey?: keyof Vocab;
+  subKey?: keyof Vocab;
 }
 
 export interface SelectOptions {
@@ -110,7 +119,9 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
     id: 'nav:overview',
     glyph: 'OV',
     label: 'Overview',
+    labelKey: 'overview',
     sub: 'project dashboard',
+    subKey: 'cpSubOverview',
     kbd: 'page',
     route: '/overview',
     keywords: ['dashboard'],
@@ -119,7 +130,9 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
     id: 'nav:workbench',
     glyph: 'WB',
     label: 'Workbench',
+    labelKey: 'workbench',
     sub: 'session chat',
+    subKey: 'cpSubWorkbench',
     kbd: 'page',
     route: '/workbench',
     keywords: ['home', 'chat'],
@@ -128,7 +141,9 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
     id: 'nav:tasks',
     glyph: 'TK',
     label: 'Tasks',
+    labelKey: 'tasks',
     sub: 'task queue',
+    subKey: 'cpSubTasks',
     kbd: 'page',
     route: '/tasks',
     keywords: ['queue'],
@@ -137,7 +152,9 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
     id: 'nav:threads',
     glyph: 'TH',
     label: 'Threads',
+    labelKey: 'threads',
     sub: 'thread runs',
+    subKey: 'cpSubThreads',
     kbd: 'page',
     route: '/threads',
     keywords: ['runs'],
@@ -146,7 +163,9 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
     id: 'nav:settings',
     glyph: 'ST',
     label: 'Settings',
+    labelKey: 'settings',
     sub: 'platform · profiles · budget · machines…',
+    subKey: 'cpSubSettings',
     kbd: 'modal',
     route: '/settings',
     keywords: ['config'],
@@ -154,7 +173,17 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
 ];
 
 function commandToRow(c: CmdkCommand): PaletteRow {
-  return { id: c.id, glyph: c.glyph, label: c.label, sub: c.sub, kbd: c.kbd, route: c.route, keywords: c.keywords };
+  return {
+    id: c.id,
+    glyph: c.glyph,
+    label: c.label,
+    sub: c.sub,
+    kbd: c.kbd,
+    route: c.route,
+    keywords: c.keywords,
+    labelKey: c.labelKey,
+    subKey: c.subKey,
+  };
 }
 
 // Prototype substring filter (prototype.dc.html L2498: `(label+' '+sub).indexOf(q)`), extended to

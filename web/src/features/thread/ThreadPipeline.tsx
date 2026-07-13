@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useVocab } from '@/i18n';
 import type { DetailStep, DetailStepSub, ThreadDetailVm } from './thread-detail-vm';
 
 // PIPELINE column — 1:1 from prototype.dc.html L425–487. Single-column vertical step list: completed
@@ -7,8 +8,6 @@ import type { DetailStep, DetailStepSub, ThreadDetailVm } from './thread-detail-
 //
 // Flagged gaps: the AGENT feed is `agentFlow.lastOutput` only — the DTO has no per-agent tool-call
 // trace, so the prototype's tool-chip feed rows are omitted (execution-log surface, Stage 4).
-
-const PIPELINE_HINT = 'auto-follows active step · ▸ to peek';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -99,6 +98,7 @@ function CompactStep({ step }: { step: DetailStep }) {
 }
 
 function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
+  const L = useVocab();
   const running = sub.pill.text === 'Running';
   return (
     <div
@@ -136,7 +136,7 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
               onClick={onOpen}
               style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
             >
-              open ›
+              {L.thOpenSub} ›
             </span>
           )}
         </div>
@@ -146,6 +146,7 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
 }
 
 function RunningStep({ step, onOpenSub }: { step: DetailStep; onOpenSub: (s: DetailStepSub) => void }) {
+  const L = useVocab();
   const agent = step.agent;
   return (
     <div
@@ -182,7 +183,7 @@ function RunningStep({ step, onOpenSub }: { step: DetailStep; onOpenSub: (s: Det
               borderRadius: 5,
             }}
           >
-            agent: {agent.profile}
+            {L.thAgentLabel}: {agent.profile}
           </span>
         )}
         {agent?.execInfo && (
@@ -197,7 +198,7 @@ function RunningStep({ step, onOpenSub }: { step: DetailStep; onOpenSub: (s: Det
       {agent && (
         <div style={{ borderTop: '1px solid #EFF1F5', padding: '10px 13px 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <SectionLabel>AGENT</SectionLabel>
+            <SectionLabel>{L.thAgentSection}</SectionLabel>
             {agent.live && (
               <span
                 style={{
@@ -236,7 +237,7 @@ function RunningStep({ step, onOpenSub }: { step: DetailStep; onOpenSub: (s: Det
       {step.subCount > 0 && (
         <div style={{ borderTop: '1px solid #EFF1F5', padding: '10px 13px 12px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: '#98A1B0', marginBottom: 7 }}>
-            SUB-THREADS · {step.subCount}
+            {L.thSubThreads} · {step.subCount}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {step.subs.map((sub) => (
@@ -255,12 +256,13 @@ export interface ThreadPipelineProps {
 }
 
 export function ThreadPipeline({ vm, onOpenSub }: ThreadPipelineProps): JSX.Element {
+  const L = useVocab();
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }} data-pipeline="true">
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 8px' }}>
-        <SectionLabel>PIPELINE</SectionLabel>
+        <SectionLabel>{L.thPipeline}</SectionLabel>
         <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>
-          {PIPELINE_HINT}
+          {L.thPipelineHint}
         </span>
       </div>
       {vm.steps.map((step, i) => (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useVocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
 import { LeftRail } from '@/features/workbench/LeftRail';
 import { ThreadDetailView } from './ThreadDetailView';
@@ -26,6 +27,7 @@ function useNowTick(active: boolean): number {
 
 export function ThreadDetailRoute(): JSX.Element {
   const { threadId = '' } = useParams();
+  const L = useVocab();
   const location = useLocation();
   const trail = ((location.state as { trail?: TrailCrumb[] } | null)?.trail ?? []).filter(
     (t) => t.id !== threadId,
@@ -48,7 +50,7 @@ export function ThreadDetailRoute(): JSX.Element {
     >
       <LeftRail />
       {threadQuery.isPending ? (
-        <div style={{ flex: 1, padding: 20, fontSize: 13, color: '#98A1B0' }}>Loading thread…</div>
+        <div style={{ flex: 1, padding: 20, fontSize: 13, color: '#98A1B0' }}>{L.rpLoadingThread}</div>
       ) : threadQuery.isError ? (
         <div style={{ flex: 1, padding: 20 }}>
           <div
@@ -61,7 +63,7 @@ export function ThreadDetailRoute(): JSX.Element {
               color: '#C03D33',
             }}
           >
-            Failed to load thread {threadId}: {threadQuery.error.message}
+            {L.thFailedLoadThread} {threadId}: {threadQuery.error.message}
           </div>
         </div>
       ) : (

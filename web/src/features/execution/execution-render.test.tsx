@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { createElement, type ReactElement } from 'react';
+import { renderToStaticMarkup as renderRaw } from 'react-dom/server';
+import { LangProvider } from '@/i18n';
+// Components consume useVocab() → wrap every render in LangProvider (defaults to en vocab).
+function renderToStaticMarkup(el: ReactElement): string {
+  return renderRaw(createElement(LangProvider, null, el));
+}
 import { LogDrawerView } from './LogDrawerView';
 
 // react-dom/server render checks for the pure drawer chrome (browser E2E is environment-blocked —
@@ -52,8 +58,9 @@ describe('LogDrawerView', () => {
   });
 
   it('shows the dropped-lines marker', () => {
+    // Unit is not pluralized (flat i18n vocab has no plural mechanism; moot for zh).
     expect(view({ dropped: 5 })).toContain('… 5 lines dropped');
-    expect(view({ dropped: 1 })).toContain('… 1 line dropped');
+    expect(view({ dropped: 1 })).toContain('… 1 lines dropped');
   });
 
   it('hides the pill when null (detail not yet loaded)', () => {
