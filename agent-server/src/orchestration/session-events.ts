@@ -26,3 +26,17 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.toolInput !== undefined ? { toolInput: p.toolInput } : {}),
   });
 }
+
+/** Emit the REAL running state of a session's turn (S4 chat running indicator). Published by the
+ *  agent-runner at the start (running:true) and end (running:false, in a finally) of each interactive
+ *  turn — the single seam covering every channel (web / Slack / Feishu). The Web chat subscribes to
+ *  this (scoped by sessionId) so its running/idle state reflects the real turn, not a client-side
+ *  heuristic. No-op when no bus is wired. */
+export function publishSessionStatus(p: { sessionId: string; channel: string; running: boolean }): void {
+  jobCtx.bus?.publish({
+    type: 'session.status',
+    sessionId: p.sessionId,
+    channel: p.channel,
+    running: p.running,
+  });
+}

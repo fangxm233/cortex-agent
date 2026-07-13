@@ -27,7 +27,7 @@ import { buildDurableHooks } from './durable-helpers.js';
 const log = createLogger('agent-runner');
 import { createToolTrace } from '@platform/index.js';
 import { setStreamingCallback, clearStreamingCallback, publishPlanSubmitted, publishAskUserRequested } from './routing/hook-bridge.js';
-import { publishSessionMessage } from './session-events.js';
+import { publishSessionMessage, publishSessionStatus } from './session-events.js';
 import { maybeNotifyCodexLowUsage } from '@domain/costs/codex-usage-monitor.js';
 import { recordResume } from '@domain/costs/resume-registry.js';
 import { getAgent } from '@domain/threads/index.js';
@@ -136,6 +136,9 @@ export class AgentRunner {
     if (sessionId) {
       recordHistory(conversationHistory.appendUser(sessionId, { text: userMessage || '' }));
       publishSessionMessage({ sessionId, channel, role: 'user', text: userMessage || '' });
+      // Give an unlabeled session a human-readable title from its first user message (web sessions are
+      // pre-registered without a label; this is the single unified place a session gets titled).
+      void ensureSessionLabel(sessionName, userMessage || '');
     }
     const onMessagePosted = (ref: MessageRef) => void conversationLedger.addResponseTs(channel, messageTs, ref.messageId).catch((e) => log.error(e));
     // 2. Build agent callbacks (streaming, fallback, progress)
@@ -147,6 +150,8 @@ export class AgentRunner {
 
     // 4. Run the conversation turn directly (no thread). The Cancel button is attached once the
     //    execution record exists (execution-scoped cancel), via onExecutionStarted.
+    // Emit the REAL running state for the S4 chat indicator: true now, false in the finally below.
+    if (sessionId) publishSessionStatus({ sessionId, channel, running: true });
     let capturedExecutionId: string | null = null;
     try {
       const convResult = await runConversation({
@@ -209,6 +214,8 @@ export class AgentRunner {
         executionId: capturedExecutionId,
         sessionName, sessionId, threadAnchorId, userMessageTs: messageTs, userMessage,
       });
+    } finally {
+      if (sessionId) publishSessionStatus({ sessionId, channel, running: false });
     }
   }
 }
@@ -254,6 +261,21 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     return;
   }
   await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: callbacks.onToolUse, registerContinuationSink });
+}
+
+/** Set a session's display label from its first user message when it has none yet (best-effort,
+ *  fire-and-forget). New Slack/inbound sessions already get a label at registration; web sessions are
+ *  created label-less (before any message), so this titles them on the first turn — the LeftRail then
+ *  shows the message text instead of the opaque `cortex-XXXX` name. */
+async function ensureSessionLabel(sessionName: string, userMessage: string): Promise<void> {
+  const text = userMessage.trim();
+  if (!text) return;
+  try {
+    const rec = await sessionStore.lookupSession(sessionName);
+    if (rec && (!rec.label || rec.label.trim() === '')) {
+      await sessionStore.updateSession(sessionName, { label: text.slice(0, 60) });
+    }
+  } catch { /* best-effort — the label is cosmetic */ }
 }
 
 export async function resolveSessionName(sessionId: string | null, channel: string, userMessage: string, adapter: PlatformAdapter): Promise<string> {

@@ -58,16 +58,21 @@ function GroupSection({
 export interface TasksPanelProps {
   // Restrict the panel to one lifecycle (workbench Active/History filter). Omit → both.
   lifecycle?: 'open' | 'done';
+  // Restrict the panel to one project (workbench right panel scopes to the current project). Omit → all.
+  projectId?: string;
 }
 
 // Reusable Tasks body (design 4a): real tasks.list via tRPC, grouped by lifecycle · priority,
 // live-refresh via useTasksLiveSync, Claim/Complete mutations. Consumed by the /tasks page
 // (both lifecycles) and the workbench right-panel Tasks tab (one lifecycle via `lifecycle`).
-export function TasksPanel({ lifecycle }: TasksPanelProps) {
+export function TasksPanel({ lifecycle, projectId }: TasksPanelProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const tasksQuery = useQuery(
-    trpc.tasks.list.queryOptions(lifecycle ? { status: lifecycle } : {}),
+    trpc.tasks.list.queryOptions({
+      ...(lifecycle ? { status: lifecycle } : {}),
+      ...(projectId ? { projectId } : {}),
+    }),
   );
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);

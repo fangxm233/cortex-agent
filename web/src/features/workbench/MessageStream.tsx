@@ -1,17 +1,14 @@
-import { Fragment } from 'react';
-import { REPRESENTATIVE_APPROVAL } from './chat-content';
+import { useEffect, useRef } from 'react';
 import type { ChatRow } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
-import { InlineThreadCardProto } from './InlineThreadCardProto';
-import { ApprovalCard } from './ApprovalCard';
 import { ChatMarkdown } from './ChatMarkdown';
 
 // Message stream — 1:1 from prototype.dc.html L131–357. The transcript body (divider / user bubble /
-// tool-call row / assistant text) is now driven by REAL data (task aba0): the `rows` are built from
-// the real `sessions.transcript` query + live `session.message` stream by the pure transcript-vm; the
-// last assistant row streams a caret while output is live. Real data is the only variable — every
-// px/hex/font/copy is the prototype's. Kept 1:1 surfaces: the live inline thread card (threads.get)
-// and the representative approval card (Stage-5 GAP-B, no approvals scope — flagged).
+// tool-call row / assistant text) is driven by REAL data (task aba0): the `rows` are built from the
+// real `sessions.transcript` query + live `session.message` stream by the pure transcript-vm; the
+// last assistant row streams a caret while output is live. Assistant text renders as Markdown.
+// The stream sticks to the bottom while new content lands, but releases when the user scrolls up
+// (and re-pins once they scroll back to the bottom).
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -101,19 +98,31 @@ function Row({ row }: { row: ChatRow }): JSX.Element | null {
 
 export function MessageStream({ rows, loading }: { rows: ChatRow[]; loading: boolean }): JSX.Element {
   const populated = rows.length > 0;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Whether the view is currently pinned to the bottom. Starts pinned; a user scroll-up releases it,
+  // scrolling back to the bottom re-pins it.
+  const stickRef = useRef(true);
+
+  const onScroll = (): void => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickRef.current = distanceFromBottom < 40;
+  };
+
+  // After every content change, keep the view pinned to the bottom IF the user hasn't scrolled up.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
+  }, [rows, loading]);
+
   return (
-    <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+    <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '22px 32px 12px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {!populated && !loading && <EmptyChat />}
         {rows.map((row, i) => (
           <Row key={i} row={row} />
         ))}
-        {populated && (
-          <Fragment>
-            <InlineThreadCardProto />
-            <ApprovalCard approval={REPRESENTATIVE_APPROVAL} />
-          </Fragment>
-        )}
       </div>
     </div>
   );

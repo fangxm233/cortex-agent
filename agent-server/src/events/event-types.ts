@@ -11,6 +11,7 @@ export type CortexEvent =
   | { type: 'message.received';       ts: string; channel: string; user: string; text: string }
   | { type: 'message.edited';         ts: string; channel: string; user: string; text: string }
   | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string }
+  | { type: 'session.status';         ts: string; sessionId: string; channel: string; running: boolean }
   | { type: 'plan.submitted';         ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; planContent: string; toolInput: any; dryRun?: boolean; extensionUiId?: string }
   | { type: 'plan.approved';          ts: string; channel: string; executionId: string }
   | { type: 'ask-user.requested';     ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; questions: any[]; dryRun?: boolean; extensionUiId?: string }

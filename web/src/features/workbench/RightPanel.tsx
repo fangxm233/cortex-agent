@@ -74,16 +74,18 @@ export function RightPanel(): JSX.Element {
     enabled: !!activeProjectId,
   });
 
-  // Tab counts: real threads.list (Active) length; real tasks.list (open) actionable count; real machines.list length.
-  const activeThreadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter('active') }));
-  const openTasksQuery = useQuery(trpc.tasks.list.queryOptions({ status: 'open' }));
+  // Tab counts + lists are scoped to the shared cross-pane current project (threads/tasks both accept
+  // projectId) so the panel shows only THIS project's threads and tasks. Machines are cross-project.
+  const projectId = activeProjectId ?? undefined;
+  const activeThreadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter('active'), projectId }));
+  const openTasksQuery = useQuery(trpc.tasks.list.queryOptions({ status: 'open', projectId }));
   const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
   const activeThreadCount = activeThreadsQuery.data?.length ?? 0;
   const actionable = openTasksQuery.data ? actionableCount(openTasksQuery.data) : 0;
   const machineCount = machinesQuery.data?.length ?? 0;
 
-  // Threads list for the current Active/History filter.
-  const threadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter(filter) }));
+  // Threads list for the current Active/History filter (project-scoped).
+  const threadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter(filter), projectId }));
   const threads = threadsQuery.data ?? [];
   const now = Date.now();
 
@@ -232,7 +234,7 @@ export function RightPanel(): JSX.Element {
             minHeight: 0,
           }}
         >
-          <TasksPanel lifecycle={taskScopeFilter(filter)} />
+          <TasksPanel lifecycle={taskScopeFilter(filter)} projectId={projectId} />
         </div>
       )}
 

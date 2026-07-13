@@ -20,6 +20,10 @@ const STREAM_IDLE_MS = 2500; // treat the session as streaming until this quiet 
 export interface SessionLiveState {
   liveTail: LiveSessionMessage[];
   streaming: boolean;
+  /** The session's REAL running state: true from the authoritative `session.status` event
+   *  (agent-runner turn start/finally), OR the message-stream heuristic as a fallback when no status
+   *  has been received. This is what the chat's running/idle indicator should use. */
+  running: boolean;
 }
 
 export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
@@ -28,17 +32,33 @@ export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
   const queryClient = useQueryClient();
   const [liveTail, setLiveTail] = useState<LiveSessionMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
+  // Authoritative running from the backend `session.status` event (real turn lifecycle). Null until
+  // the first status event arrives for this session — until then we fall back to the stream heuristic.
+  const [statusRunning, setStatusRunning] = useState<boolean | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setLiveTail([]);
     setStreaming(false);
+    setStatusRunning(null);
     if (!sessionId) return;
 
     const sub = client.subscribe.subscribe(
-      { events: ['session.message'], sessionId },
+      { events: ['session.message', 'session.status'], sessionId },
       {
-        onData: (event: { payload?: unknown }) => {
+        onData: (event: { type?: string; payload?: unknown }) => {
+          // Authoritative running signal — real turn start/end from the agent-runner.
+          if (event.type === 'session.status') {
+            const s = event.payload as { running?: boolean } | undefined;
+            const r = !!s?.running;
+            setStatusRunning(r);
+            if (!r) {
+              // Turn ended — collapse the heuristic immediately so idle is instant, not a 2.5s tail.
+              setStreaming(false);
+              if (idleTimer.current) clearTimeout(idleTimer.current);
+            }
+            return;
+          }
           const p = event.payload as
             | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string }
             | undefined;
@@ -70,5 +90,7 @@ export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
     };
   }, [client, queryClient, trpc, sessionId]);
 
-  return { liveTail, streaming };
+  // Prefer the authoritative status; fall back to the stream heuristic only before any status arrives.
+  const running = statusRunning ?? streaming;
+  return { liveTail, streaming, running };
 }

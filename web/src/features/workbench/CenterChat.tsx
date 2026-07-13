@@ -48,7 +48,7 @@ export function CenterChat(): JSX.Element {
     enabled: !!sessionId,
   });
 
-  const { liveTail, streaming } = useSessionMessageLiveSync(sessionId);
+  const { liveTail, streaming, running } = useSessionMessageLiveSync(sessionId);
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
@@ -57,7 +57,6 @@ export function CenterChat(): JSX.Element {
   );
   const turns = turnCount(transcriptQuery.data);
   const elapsed = useMemo(() => formatElapsed(sessionElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
-  const running = streaming;
   // A session "has history" once it carries at least one turn — the switch rule uses this to allow
   // only same-backend profile switches on a live conversation. Live streaming counts too.
   const hasHistory = turns > 0 || liveTail.length > 0;
