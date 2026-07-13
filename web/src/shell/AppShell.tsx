@@ -4,6 +4,8 @@ import { useCommandPalette } from '@/features/command-palette/useCommandPalette'
 import { ExecutionLogDrawerProvider } from '@/features/execution/ExecutionLogDrawerProvider';
 import { ScheduleModalProvider } from '@/features/schedule/ScheduleModalProvider';
 import { ApprovalsProvider } from '@/features/approvals/ApprovalsProvider';
+import { CurrentProjectProvider } from '@/features/workbench/CurrentProjectProvider';
+import { SelectedSessionProvider } from '@/features/workbench/SelectedSessionProvider';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
 // frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
@@ -15,13 +17,17 @@ import { ApprovalsProvider } from '@/features/approvals/ApprovalsProvider';
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
-    <ExecutionLogDrawerProvider>
-      <ScheduleModalProvider>
-        <ApprovalsProvider>
-          <Outlet />
-          <CommandPalette open={open} onOpenChange={setOpen} />
-        </ApprovalsProvider>
-      </ScheduleModalProvider>
-    </ExecutionLogDrawerProvider>
+    <CurrentProjectProvider>
+      <SelectedSessionProvider>
+        <ExecutionLogDrawerProvider>
+          <ScheduleModalProvider>
+            <ApprovalsProvider>
+              <Outlet />
+              <CommandPalette open={open} onOpenChange={setOpen} />
+            </ApprovalsProvider>
+          </ScheduleModalProvider>
+        </ExecutionLogDrawerProvider>
+      </SelectedSessionProvider>
+    </CurrentProjectProvider>
   );
 }

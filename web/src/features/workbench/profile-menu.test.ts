@@ -13,7 +13,7 @@ describe('buildProfileOptions', () => {
   it('builds options from the real profiles with model sub-labels and marks the active one', () => {
     const opts = buildProfileOptions(profiles, 'plan', { currentBackend: 'claude', hasHistory: false });
     expect(opts.map((o) => o.name)).toEqual(['plan', 'execute', 'codex', 'deepseek-pro']);
-    expect(opts.find((o) => o.name === 'plan')).toMatchObject({ active: true, sub: 'claude-opus-4-8', backend: 'claude' });
+    expect(opts.find((o) => o.name === 'plan')).toMatchObject({ active: true, sub: 'claude-opus-4-8 · claude', backend: 'claude' });
     expect(opts.filter((o) => o.active).map((o) => o.name)).toEqual(['plan']);
   });
 

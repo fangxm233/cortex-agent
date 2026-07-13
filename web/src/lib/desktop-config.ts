@@ -37,3 +37,13 @@ export function readDesktopConfig(): RemoteConfig | undefined {
 export function isDesktopShell(): boolean {
   return (globalThis as unknown as { __CORTEX_DESKTOP__?: boolean }).__CORTEX_DESKTOP__ === true;
 }
+
+/**
+ * True when running inside the dedicated mobile client shell. The mobile shell sets
+ * `window.__CORTEX_MOBILE__ = true` synchronously before the bundle executes (mirrors
+ * `__CORTEX_DESKTOP__`). This is the ONLY thing that selects the mobile UI — a narrow browser
+ * window is NOT mobile. Browser / desktop / ui-http all return false → the desktop UI.
+ */
+export function isMobileShell(): boolean {
+  return (globalThis as unknown as { __CORTEX_MOBILE__?: boolean }).__CORTEX_MOBILE__ === true;
+}

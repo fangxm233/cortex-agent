@@ -10,6 +10,7 @@ import { NewProjectModal } from './NewProjectModal';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
+import { useLang, useSetLang } from '@/i18n';
 
 // LEFT RAIL — 1:1 from prototype.dc.html L42–100 (Stage-R RB, task f528). Exact inline styles /
 // px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (projects.list /
@@ -21,6 +22,8 @@ export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const lang = useLang();
+  const setLang = useSetLang();
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
 
   // Active project = the shared cross-pane current project (task 569c): the switcher's explicit
@@ -407,10 +410,16 @@ export function LeftRail(): JSX.Element {
         }}
       >
         <div style={{ display: 'flex', border: '1px solid #E7E9EE', borderRadius: 6, overflow: 'hidden' }}>
-          <span style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: '#191C22', color: '#fff' }}>
+          <span
+            onClick={() => setLang('en')}
+            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: lang === 'en' ? '#191C22' : 'transparent', color: lang === 'en' ? '#fff' : '#8A93A2' }}
+          >
             EN
           </span>
-          <span style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: 'transparent', color: '#8A93A2' }}>
+          <span
+            onClick={() => setLang('zh')}
+            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: lang === 'zh' ? '#191C22' : 'transparent', color: lang === 'zh' ? '#fff' : '#8A93A2' }}
+          >
             中
           </span>
         </div>

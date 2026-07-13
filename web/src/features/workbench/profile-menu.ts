@@ -17,12 +17,15 @@ export interface ProfileOption {
   disabled: boolean;
 }
 
-function profileSub(p: ConfigProfileEntry): string {
-  return p.model ?? p.backend ?? '';
-}
-
 function backendOf(p: ConfigProfileEntry): string {
   return p.backend ?? 'claude';
+}
+
+// Sub-label shows both the model and the backend, e.g. "claude-opus-4-8 · claude".
+function profileSub(p: ConfigProfileEntry): string {
+  const model = p.model ?? '';
+  const backend = backendOf(p);
+  return model ? `${model} · ${backend}` : backend;
 }
 
 /** The backend of the currently-active profile — the reference for the same-backend disable rule.

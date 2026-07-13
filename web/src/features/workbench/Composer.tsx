@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { SLASH_COMMANDS } from './chat-content';
@@ -38,6 +38,13 @@ export function Composer({
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const [composer, setComposer] = useState('');
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Auto-grow the textarea up to a cap; collapse back when cleared.
+  const autoGrow = (el: HTMLTextAreaElement | null): void => {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  };
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashHover, setSlashHover] = useState<number | null>(null);
   const [chipHover, setChipHover] = useState(false);
@@ -58,6 +65,7 @@ export function Composer({
     sendMut.mutate({ sessionId, text });
     setComposer('');
     setSlashOpen(false);
+    if (inputRef.current) inputRef.current.style.height = 'auto';
   };
 
   const doSend = (): void => doSendText(composer);
@@ -67,8 +75,9 @@ export function Composer({
     cancelMut.mutate({ sessionId });
   };
 
-  const onKey = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+  const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      // ⏎ sends; ⇧⏎ inserts a newline (textarea default).
       e.preventDefault();
       doSend();
     } else if (e.key === 'Escape') {
@@ -181,17 +190,33 @@ export function Composer({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <input
+              <textarea
+                ref={inputRef}
                 data-composer-input
+                rows={1}
                 value={composer}
                 onChange={(e) => {
                   const v = e.target.value;
                   setComposer(v);
                   setSlashOpen(v.startsWith('/'));
+                  autoGrow(e.target);
                 }}
                 onKeyDown={onKey}
                 placeholder="Message Cortex — type / for commands"
-                style={{ width: '100%', fontSize: 13.5, color: '#191C22', fontFamily: 'inherit', padding: '2px 0' }}
+                style={{
+                  width: '100%',
+                  fontSize: 13.5,
+                  lineHeight: 1.5,
+                  color: '#191C22',
+                  fontFamily: 'inherit',
+                  padding: '2px 0',
+                  border: 'none',
+                  outline: 'none',
+                  resize: 'none',
+                  background: 'transparent',
+                  maxHeight: 160,
+                  overflowY: 'auto',
+                }}
               />
               <div style={{ display: 'flex', alignItems: 'center', marginTop: 13 }}>
                 <span
