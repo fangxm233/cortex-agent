@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
-import { SETTINGS_NAV, getSectionMeta, type SettingsSectionKey } from './settings-nav';
+import { getSettingsNav, getSectionMeta, type SettingsSectionKey } from './settings-nav';
 import {
   PlatformPanel,
   ProfilesPanel,
@@ -176,7 +176,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             overflow: 'auto',
           }}
         >
-          {SETTINGS_NAV.map((n) => {
+          {getSettingsNav(L).map((n) => {
             const active = n.key === section;
             return (
               <div
