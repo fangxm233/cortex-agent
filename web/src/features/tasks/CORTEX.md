@@ -17,7 +17,7 @@ routed through the daemon. Proves the full stack end-to-end.
 | `TaskModal.tsx` | **Task detail modal (10a), 1:1 from prototype.dc.html L1462-1540** (+ shared backdrop L1292). Exact inline styles / px / hex / font / EN copy from the source; real `tasks.list` data. Backdrop / esc-chip / Escape close. Complete → `tasks.complete`, Unblock (when `blockedBy`) → `tasks.unblock` (owned by `TasksPanel`). Opened from `TaskRow`; consumed via `TasksPanel`. |
 | `task-modal-vm.ts` | **Pure** VM builder `buildTaskModalVm(task, all)` (TDD): status-pill derivation (real `status`/`actionable`/`claimedBy`/`blockedBy` → prototype's 5 tones), priority→color, Fields rows, and the **real dependency join**. Framework-free. |
 | `task-modal-vm.test.ts` | vitest for `task-modal-vm.ts` (22 tests, TDD — written first). |
-| `task-verification-vm.ts` | **Pure** VM builder `buildTaskVerificationVm(info)` (TDD) for Card B/C over the real `tasks.verification` scope. Framework-free. |
+| `task-verification-vm.ts` | **Pure** VM builder `buildTaskVerificationVm(info)` (TDD) for the Dispatch-history card over the real `tasks.verification` scope. Framework-free. |
 | `task-verification-vm.test.ts` | vitest for `task-verification-vm.ts` (11 tests, TDD — written first). |
 
 ## Task detail modal (10a) — real data + honest placeholders
@@ -27,20 +27,17 @@ The modal is built 1:1 from the prototype. Card A's WHY line + DONE-WHEN row bin
 not a checklist array — the store has no array field). When a task genuinely records neither, the
 italic-muted placeholder shows (null-safe, no fabrication).
 
-**Card B (Done-when verification)** + **Card C (Dispatch history)** now consume the **real**
-`tasks.verification` scope via `useQuery` inside the modal (fires on open only):
+**Card C (Dispatch history)** consumes the **real** `tasks.verification` scope via `useQuery` inside
+the modal (fires on open only). (The former Card B "Done-when verification" evidence card was removed
+per user request — done-when itself still shows in Card A.)
 
-- **Card B** renders the done-when achievement EVIDENCE — real `completed-at` + `completed-note` +
-  the completing execution's id/`finalOutput`. Honest placeholders when the task is not completed,
-  has no note, or has no linked execution (never fabricated). A `✓ completed` / `not completed` pill
-  reflects real status.
 - **Card C** renders the real per-task execution/dispatch rows (newest first: id · machine · when ·
   duration · cost; the completing run is highlighted). Honest "no dispatches recorded" when empty.
 - **GAP-GPU** — no `gpu` on `TaskInfo` → Fields `gpu` renders `—` (matches the T-046 proto-shot).
 
 **Real** in the modal: id · title (`text`) · derived status pill · priority color · template ·
-claimed-by · **why · doneWhen** · **Dependencies** (real `dependsOn` + reverse join) · **done-when
-evidence + dispatch history** (`tasks.verification`) · Complete/Unblock mutations.
+claimed-by · **why · doneWhen** · **Dependencies** (real `dependsOn` + reverse join) · **dispatch
+history** (`tasks.verification`) · Complete/Unblock mutations.
 
 ## Notes
 

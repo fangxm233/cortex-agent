@@ -14,10 +14,8 @@ import { buildTaskVerificationVm, type TaskVerificationVm } from './task-verific
 // REAL centerpiece: WHY + DONE-WHEN in Card A now bind the real `TaskInfo.why` / `TaskInfo.doneWhen`
 // (task store `why` / `done-when`); when a task genuinely has neither, the honest placeholder shows
 // (null-safe — no fabrication).
-// Card B (Done-when verification) + Card C (Dispatch history) now consume the REAL `tasks.verification`
-// scope: done-when achievement evidence (completed-note / completed-at / the completing
-// execution's output) + the per-task execution/dispatch join. Where the scope returns null / [] (task
-// not completed, no note, no completing execution, never dispatched) the card shows an honest
+// Card C (Dispatch history) consumes the REAL `tasks.verification` scope: the per-task
+// execution/dispatch join. Where the scope returns [] (never dispatched) the card shows an honest
 // placeholder — never fabricated evidence.
 // DATA GAP still flagged:
 //   • GAP-GPU          : no gpu on TaskInfo → Fields gpu renders "—" (matches the T-046 proto-shot).
@@ -42,79 +40,6 @@ const CARD_TITLE: React.CSSProperties = { fontSize: 11.5, fontWeight: 650, color
 function GapNote({ children }: { children: React.ReactNode }) {
   return (
     <span style={{ fontStyle: 'italic', color: '#B6BDC9' }}>{children}</span>
-  );
-}
-
-const EVIDENCE_LABEL: React.CSSProperties = {
-  fontSize: 9.5,
-  fontWeight: 700,
-  letterSpacing: '.05em',
-  color: '#98A1B0',
-  display: 'block',
-  marginBottom: 3,
-};
-
-// Card B body — real done-when achievement evidence (completed-note / completed-at / completing
-// execution output). Honest placeholder when the task is not yet completed.
-function VerificationBody({ vv }: { vv: TaskVerificationVm }) {
-  const L = useVocab();
-  if (!vv.completed) {
-    return (
-      <GapNote>
-        — {L.tkGapNotCompleted}
-      </GapNote>
-    );
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 9, color: '#22262E' }}>
-      <div>
-        <span style={EVIDENCE_LABEL}>{L.tkCompletedAt}</span>
-        {vv.completedAt != null ? (
-          <span style={{ font: "400 10.5px 'IBM Plex Mono',monospace", color: '#5B6472' }}>
-            {vv.completedAt}
-          </span>
-        ) : (
-          <GapNote>— {L.tkNotRecorded}</GapNote>
-        )}
-      </div>
-      <div>
-        <span style={EVIDENCE_LABEL}>{L.tkCompletionNote}</span>
-        {vv.completedNote != null ? (
-          <span>{vv.completedNote}</span>
-        ) : (
-          <GapNote>— {L.tkNoCompletionNote}</GapNote>
-        )}
-      </div>
-      <div>
-        <span style={EVIDENCE_LABEL}>{L.tkCompletingRun}</span>
-        {vv.completingExecutionId != null ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ font: "600 10.5px 'IBM Plex Mono',monospace", color: '#4655D4' }}>
-              {vv.completingExecutionId}
-            </span>
-            {vv.completingOutput != null ? (
-              <span
-                style={{
-                  fontSize: 10.5,
-                  color: '#5B6472',
-                  background: '#FBFBFC',
-                  border: '1px solid #EFF1F5',
-                  borderRadius: 7,
-                  padding: '6px 10px',
-                  whiteSpace: 'pre-wrap',
-                }}
-              >
-                {vv.completingOutput}
-              </span>
-            ) : (
-              <GapNote>— {L.tkNoFinalOutput}</GapNote>
-            )}
-          </div>
-        ) : (
-          <GapNote>— {L.tkNoExecLinked}</GapNote>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -363,37 +288,6 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     <GapNote>— {L.tkNoDoneWhen}</GapNote>
                   )}
                 </div>
-              </div>
-            </div>
-
-            {/* Card B — Done-when verification (prototype L1483-1492). Real evidence via tasks.verification. */}
-            <div style={CARD}>
-              <div style={CARD_HEADER}>
-                <span style={CARD_TITLE}>{L.tkVerification}</span>
-                {vv && (
-                  <span
-                    style={{
-                      marginLeft: 'auto',
-                      fontSize: 9.5,
-                      fontWeight: 600,
-                      padding: '1px 7px',
-                      borderRadius: 999,
-                      background: vv.completed ? '#E9F4EE' : '#F1F2F5',
-                      color: vv.completed ? '#23854F' : '#8A93A2',
-                    }}
-                  >
-                    {vv.completed ? `✓ ${L.tkCompleted}` : L.tkNotCompleted}
-                  </span>
-                )}
-              </div>
-              <div style={{ padding: '10px 15px', fontSize: 11, lineHeight: 1.55 }}>
-                {verifyQuery.isPending ? (
-                  <GapNote>— {L.tkLoadingVerification}</GapNote>
-                ) : verifyQuery.isError || !vv ? (
-                  <GapNote>— {L.tkVerificationFailed}</GapNote>
-                ) : (
-                  <VerificationBody vv={vv} />
-                )}
               </div>
             </div>
 
