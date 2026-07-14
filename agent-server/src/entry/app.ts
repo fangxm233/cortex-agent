@@ -350,7 +350,7 @@ process.on('SIGTERM', async () => {
     conversationHistory,
     // S4 chat send: inject a genuine user turn into a session via the orchestration send path.
     // Injected here (entry layer) so the ui-service domain never imports orchestration.
-    sendSessionMessage: ({ channel, text }) => sendWebUserMessage({ channel, text, adapter }),
+    sendSessionMessage: ({ channel, text, attachments }) => sendWebUserMessage({ channel, text, attachments, adapter }),
     // Machines screen: join static config (getMachineRegistry) + live WebSocket state (getOnlineDevices/
     // isDeviceOnline). Injected here (entry layer) so the ui-service domain never imports remote/.
     clientRegistry: {

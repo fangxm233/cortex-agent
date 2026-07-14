@@ -114,6 +114,16 @@ export class AgentRunner {
   private async _executeReal(ctx: AgentRunnerCtx): Promise<void> {
     const { message, channel, adapter, threadAnchorId, hasFiles, userMessage, agentMessage } = ctx;
     const downloadedFiles = await downloadFiles(message.files, hasFiles, adapter);
+    // Web-uploaded attachments are already on disk — map to DownloadedFile shape.
+    // The `path` field from upload is relative (workspace/attachments/...); resolve to absolute.
+    const allFiles = [
+      ...downloadedFiles,
+      ...(message.webAttachments ?? []).map((a) => ({
+        localPath: path.join(WORKSPACE_DIR, '..', a.path),
+        mimetype: a.mimeType,
+        name: a.name,
+      })),
+    ];
     const startTime = Date.now();
     const sessionId = await getSessionAsync(channel, resolveBackendForChannel(channel));
     const sessionName = await resolveSessionName(sessionId, channel, userMessage, adapter);
@@ -134,8 +144,17 @@ export class AgentRunner {
     // Record the user message now; assistant messages + tool calls are appended via the
     // callbacks below as they stream. Only when we have a sessionId to key by.
     if (sessionId) {
-      recordHistory(conversationHistory.appendUser(sessionId, { text: userMessage || '' }));
-      publishSessionMessage({ sessionId, channel, role: 'user', text: userMessage || '' });
+      recordHistory(conversationHistory.appendUser(sessionId, {
+        text: userMessage || '',
+        attachments: message.webAttachments,
+      }));
+      publishSessionMessage({
+        sessionId,
+        channel,
+        role: 'user',
+        text: userMessage || '',
+        attachments: message.webAttachments,
+      });
       // Give an unlabeled session a human-readable title from its first user message (web sessions are
       // pre-registered without a label; this is the single unified place a session gets titled).
       void ensureSessionLabel(sessionName, userMessage || '');
@@ -159,7 +178,7 @@ export class AgentRunner {
         userMessage: agentMessage,
         existingSessionId: sessionId,
         sessionName,
-        files: downloadedFiles,
+        files: allFiles,
         startTime,
         trigger: 'user',
         onExecutionStarted: async (executionId) => {

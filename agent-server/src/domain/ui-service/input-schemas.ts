@@ -106,7 +106,14 @@ export const sessionsCreateInput = z.object({
 
 export const sessionsSendInput = z.object({
   sessionId: z.string(),
-  text: z.string().min(1),
+  text: z.string(),
+  attachments: z.array(z.object({
+    name: z.string(),
+    path: z.string(),
+    size: z.number(),
+    mimeType: z.string(),
+    type: z.enum(['image', 'video', 'file']),
+  })).optional(),
 });
 
 export const sessionsCancelInput = z.object({

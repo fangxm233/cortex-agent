@@ -22,14 +22,18 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { pipeline } from 'node:stream/promises';
+import { createWriteStream } from 'node:fs';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createAppRouter } from '@domain/ui-service/app-router.js';
 import { createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
-import type { UiHttpServer } from '@platform/ui-http/ui-http-server.js';
+import type { UiHttpServer, CustomRouteHandler } from '@platform/ui-http/ui-http-server.js';
 import { accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
 import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
+import { WORKSPACE_DIR } from '@core/paths.js';
 
 const log = createLogger('ui-http');
 
@@ -105,6 +109,107 @@ function parseCorsOrigins(raw: string | undefined): string[] | undefined {
   return origins.length > 0 ? origins : undefined;
 }
 
+// ── File upload route (15a attachments) ───────────────────────────────────────
+
+const ATTACHMENTS_DIR = path.join(WORKSPACE_DIR, 'attachments');
+const UPLOAD_PATH = '/api/attachments/upload';
+
+/** Max upload size: 100 MB. */
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+
+/** Classify a MIME type into the AttachmentMeta `type` bucket. */
+function classifyMime(mimeType: string): 'image' | 'video' | 'file' {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  return 'file';
+}
+
+/** Sanitize a filename: keep alphanumeric, dot, hyphen, underscore; replace rest with underscore. */
+function sanitizeFilename(name: string): string {
+  return name.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^_+/, '').substring(0, 200) || 'file';
+}
+
+/** Find an available filename in `dir`: if `name` exists, try `name_1`, `name_2`, …
+ *  Returns the first non-existing path and the final basename. */
+async function resolveAvailablePath(dir: string, base: string): Promise<{ destPath: string; finalName: string }> {
+  const extIdx = base.lastIndexOf('.');
+  const stem = extIdx > 0 ? base.slice(0, extIdx) : base;
+  const ext = extIdx > 0 ? base.slice(extIdx) : '';
+  let candidate = base;
+  let counter = 0;
+  while (true) {
+    const p = path.join(dir, candidate);
+    try {
+      await fs.promises.access(p, fs.constants.F_OK);
+      // Exists — try next suffix
+      counter++;
+      candidate = `${stem}_${counter}${ext}`;
+    } catch {
+      return { destPath: p, finalName: candidate };
+    }
+  }
+}
+
+function jsonReply(res: ServerResponse, status: number, body: unknown): void {
+  if (!res.headersSent) {
+    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(body));
+  }
+}
+
+/** File upload handler: reads raw file bytes from the body, saves to
+ *  tmp/attachments/<sessionId>/<filename>, returns AttachmentMeta.
+ *  Auto-renames on name collision (file.png → file_1.png, file_2.png, …). */
+async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const sessionId = (req.headers['x-session-id'] as string | undefined)?.trim();
+  const rawName = (req.headers['x-file-name'] as string | undefined)?.trim();
+  const mimeType = (req.headers['content-type'] || 'application/octet-stream').split(';')[0].trim();
+
+  if (!sessionId) {
+    jsonReply(res, 400, { ok: false, code: 'missing-session', message: 'X-Session-Id header required' });
+    return;
+  }
+  if (!rawName) {
+    jsonReply(res, 400, { ok: false, code: 'missing-name', message: 'X-File-Name header required' });
+    return;
+  }
+
+  const baseName = sanitizeFilename(rawName);
+  const dir = path.join(ATTACHMENTS_DIR, sessionId);
+  await fs.promises.mkdir(dir, { recursive: true });
+
+  const { destPath, finalName } = await resolveAvailablePath(dir, baseName);
+  const writeStream = createWriteStream(destPath, { flags: 'wx' });
+
+  let size = 0;
+  req.on('data', (chunk: Buffer) => {
+    size += chunk.length;
+    if (size > MAX_UPLOAD_BYTES) {
+      writeStream.destroy(new Error('File too large'));
+      req.destroy();
+    }
+  });
+
+  try {
+    await pipeline(req, writeStream);
+    const relPath = `workspace/attachments/${sessionId}/${finalName}`;
+    jsonReply(res, 200, {
+      ok: true,
+      data: { name: finalName, path: relPath, size, mimeType, type: classifyMime(mimeType) },
+    });
+  } catch (err: any) {
+    // Clean up partial file on error (e.g. size exceeded).
+    try { await fs.promises.unlink(destPath); } catch {}
+    if (!res.headersSent) {
+      if (size > MAX_UPLOAD_BYTES) {
+        jsonReply(res, 413, { ok: false, code: 'too-large', message: `File exceeds ${MAX_UPLOAD_BYTES / 1024 / 1024}MB limit` });
+      } else {
+        jsonReply(res, 500, { ok: false, code: 'upload-failed', message: err.message });
+      }
+    }
+  }
+}
+
 /**
  * Build the AppRouter from the injected UiService and start the Web UI HTTP+SSE transport-host
  * on CORTEX_UI_PORT (default 3004), bound 127.0.0.1, behind the x-cortex-token gate, serving the
@@ -136,5 +241,8 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
     spaDir,
     corsOrigins,
     verifyAccessJwt,
+    customRoutes: {
+      [UPLOAD_PATH]: handleUpload,
+    },
   });
 }

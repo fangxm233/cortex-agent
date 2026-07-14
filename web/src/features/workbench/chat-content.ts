@@ -14,6 +14,15 @@ export interface ToolCall {
   input: string;
 }
 
+/** Attachment metadata shared between composer and message display (15a). */
+export interface AttachmentMeta {
+  name: string;
+  path: string;
+  size: number;
+  mimeType: string;
+  type: 'image' | 'video' | 'file';
+}
+
 export interface ApprovalContent {
   id: string;
   tagText: string;

@@ -41,7 +41,15 @@ export async function handleSendSession(
   if (!session) {
     return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
   }
-  deps.sendSessionMessage({ sessionId: args.sessionId, channel: session.channel, text: args.text });
+  if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
+    return { ok: false, code: 'invalid-args', message: 'Either text or attachments required' };
+  }
+  deps.sendSessionMessage({
+    sessionId: args.sessionId,
+    channel: session.channel,
+    text: args.text,
+    attachments: args.attachments,
+  });
   return { ok: true, data: { accepted: true } };
 }
 

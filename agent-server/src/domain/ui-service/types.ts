@@ -173,9 +173,24 @@ export interface SessionsCreateArgs {
   projectId?: string;
 }
 
+// ── Attachment metadata (S4 chat file attachments, 15a) ──────────────────
+// Describes a file uploaded through the web composer's "+ attach" / paste / drop.
+// Files are stored under DATA_DIR/tmp/attachments/<sessionId>/ on the server;
+// the message carries paths so the agent can read them directly.
+
+export interface AttachmentMeta {
+  name: string;
+  path: string;
+  size: number;
+  mimeType: string;
+  type: 'image' | 'video' | 'file';
+}
+
 export interface SessionsSendArgs {
   sessionId: string;
   text: string;
+  /** Optional file attachments already uploaded to the server. */
+  attachments?: AttachmentMeta[];
 }
 
 export interface SessionsCancelArgs {
@@ -309,6 +324,8 @@ export interface TranscriptMessage {
   toolName: string | null;
   /** compact tool input summary (tool events only). */
   toolInput: string | null;
+  /** File attachments uploaded via the web composer (user messages only). */
+  attachments?: AttachmentMeta[];
   ts: string;
   /**
    * Real elapsed since the previous message in the session's chronological stream, in ms
@@ -954,7 +971,7 @@ export interface UiServiceDeps {
    * Wired in the entry layer (app.ts) to the orchestration send path — kept as an injected
    * callback so the ui-service domain never imports orchestration (layer safety / depcruise).
    */
-  sendSessionMessage: (opts: { sessionId: string; channel: string; text: string }) => void;
+  sendSessionMessage: (opts: { sessionId: string; channel: string; text: string; attachments?: AttachmentMeta[] }) => void;
   /**
    * Cancel every live execution running on a session's channel (S4 chat Stop). Wired in the entry
    * layer (app.ts) to the orchestration channel-cancel path (`cancelChannelRuns`), which kills the

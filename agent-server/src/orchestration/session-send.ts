@@ -6,13 +6,18 @@
 //         keeping the ui-service domain free of any orchestration import (layer safety).
 
 import type { IncomingMessage, PlatformAdapter } from '@platform/index.js';
+import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import { agentRunner, type AgentRunnerCtx } from './agent-runner.js';
 
 /** Sender id for web-originated user turns. Distinct from SYNTHETIC_CALLBACK_SENDER so the message
  *  flows through route as a real user message (not a self-consumed callback). */
 export const WEB_UI_SENDER = 'cortex-web-ui';
 
-export function buildWebUserMessage(channel: string, text: string): IncomingMessage {
+export function buildWebUserMessage(
+  channel: string,
+  text: string,
+  attachments?: AttachmentMeta[],
+): IncomingMessage {
   return {
     ref: { conduit: channel, messageId: `web_${Date.now()}` },
     text,
@@ -20,6 +25,7 @@ export function buildWebUserMessage(channel: string, text: string): IncomingMess
     isBot: false,
     kind: 'user',
     raw: { source: 'web-ui' },
+    webAttachments: attachments,
   };
 }
 
@@ -31,10 +37,11 @@ export function buildWebUserMessage(channel: string, text: string): IncomingMess
 export function sendWebUserMessage(opts: {
   channel: string;
   text: string;
+  attachments?: AttachmentMeta[];
   adapter: PlatformAdapter;
   route?: (ctx: AgentRunnerCtx) => Promise<void>;
 }): void {
-  const message = buildWebUserMessage(opts.channel, opts.text);
+  const message = buildWebUserMessage(opts.channel, opts.text, opts.attachments);
   const route = opts.route ?? ((ctx: AgentRunnerCtx) => agentRunner.route(ctx));
   void route({
     message,

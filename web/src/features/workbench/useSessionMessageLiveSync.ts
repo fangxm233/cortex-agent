@@ -63,7 +63,7 @@ export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
             return;
           }
           const p = event.payload as
-            | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string }
+            | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; attachments?: LiveSessionMessage['attachments'] }
             | undefined;
           if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
           const msg: LiveSessionMessage = {
@@ -73,6 +73,7 @@ export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
             toolName: p.toolName,
             toolInput: p.toolInput,
             ts: p.ts ?? new Date().toISOString(),
+            attachments: p.attachments,
           };
           setLiveTail((prev) => {
             const next = [...prev, msg];

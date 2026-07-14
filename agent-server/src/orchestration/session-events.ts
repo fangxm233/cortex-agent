@@ -5,6 +5,7 @@
 //         bus-free (L1) and the publish lives in the orchestration layer. No-op if no bus is wired.
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
+import type { AttachmentMeta } from '@domain/ui-service/types.js';
 
 export interface SessionMessagePayload {
   sessionId: string;
@@ -13,6 +14,7 @@ export interface SessionMessagePayload {
   text: string;
   toolName?: string;
   toolInput?: string;
+  attachments?: AttachmentMeta[];
 }
 
 export function publishSessionMessage(p: SessionMessagePayload): void {
@@ -24,6 +26,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     text: p.text,
     ...(p.toolName !== undefined ? { toolName: p.toolName } : {}),
     ...(p.toolInput !== undefined ? { toolInput: p.toolInput } : {}),
+    ...(p.attachments !== undefined ? { attachments: p.attachments } : {}),
   });
 }
 

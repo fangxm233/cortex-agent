@@ -65,7 +65,17 @@ export interface UiHttpServerOptions {
    * unconfigured Access deployment degrades to token-only rather than admitting requests.
    */
   verifyAccessJwt?: AccessJwtVerifier;
+  /**
+   * Optional map of custom API route paths to handlers (for non-tRPC endpoints like
+   * file upload). Auth-gated with the same dual-path check as tRPC paths.
+   */
+  customRoutes?: Record<string, CustomRouteHandler>;
 }
+
+/** Handler for a custom API route mounted on the HTTP server. Receives the raw request
+ *  and response after the auth gate passes; responsible for the full lifecycle
+ *  (parse, respond, error-handle). */
+export type CustomRouteHandler = (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>;
 
 export interface UiHttpServer {
   server: http.Server;
@@ -220,9 +230,34 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
       // The browser sends the preflight BEFORE attaching x-cortex-token to learn
       // whether the server allows it — requiring the token on the preflight itself
       // would create a bootstrapping impossibility.
-      if (req.method === 'OPTIONS' && url.startsWith(TRPC_BASE_PATH)) {
+      const isCustomRoute = !!(opts.customRoutes && url in opts.customRoutes);
+      if (req.method === 'OPTIONS' && (url.startsWith(TRPC_BASE_PATH) || isCustomRoute)) {
         res.writeHead(204);
         res.end();
+        return;
+      }
+
+      // ── Custom API routes ─────────────────────────────────────────────────────
+      // Auth-gated non-tRPC endpoints (e.g. file upload). Handled BEFORE tRPC so
+      // custom routes can shadow tRPC base-path prefixes if needed.
+      if (isCustomRoute) {
+        const authorized =
+          isAuthorized(req, opts.getToken) || (await isAccessAuthorized(req, opts.verifyAccessJwt));
+        if (!authorized) {
+          log.warn(`ui-http auth rejected (custom route): ${req.method} ${url}`);
+          res.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('Unauthorized');
+          return;
+        }
+        try {
+          await opts.customRoutes![url](req, res);
+        } catch (e) {
+          log.error(`Custom route ${url} error:`, (e as Error).message);
+          if (!res.headersSent) {
+            res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ ok: false, code: 'internal', message: 'Internal server error' }));
+          }
+        }
         return;
       }
 

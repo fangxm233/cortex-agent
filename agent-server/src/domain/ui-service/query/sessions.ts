@@ -104,6 +104,7 @@ export async function handleSessionsTranscript(
       toolInput: ev.type === 'tool' ? (ev.toolInput ?? '') : null,
       ts: ev.ts,
       elapsedMs,
+      attachments: ev.type === 'user' ? ev.attachments : undefined,
     });
     prevMs = curValid ? curMs : null;
   }

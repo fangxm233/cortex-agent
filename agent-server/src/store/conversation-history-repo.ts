@@ -33,6 +33,8 @@ export interface HistoryEvent {
   ts: string;
   /** Groups events under the user turn that triggered them. */
   turnIndex: number;
+  /** Optional file attachments (user events from web composer). */
+  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
 }
 
 /** Raw line as persisted (no turnIndex — derived on read). */
@@ -42,6 +44,8 @@ interface RawEvent {
   toolName?: string;
   toolInput?: string;
   ts: string;
+  /** Optional file attachments (user events from web composer). */
+  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
 }
 
 export interface SessionHistory {
@@ -104,8 +108,13 @@ export class ConversationHistoryRepo {
   }
 
   /** Append a user message — starts a new turn (turn boundaries are derived on read). */
-  appendUser(sessionId: string, opts: { text: string }): Promise<void> {
-    return this.append(sessionId, { type: 'user', text: opts.text, ts: nowIso() });
+  appendUser(sessionId: string, opts: { text: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }): Promise<void> {
+    return this.append(sessionId, {
+      type: 'user',
+      text: opts.text,
+      ts: nowIso(),
+      attachments: opts.attachments,
+    });
   }
 
   /** Append an assistant message. Streaming partials are collapsed at read time. */
@@ -140,7 +149,7 @@ export class ConversationHistoryRepo {
 
       if (ev.type === 'user') {
         turnIndex++;
-        events.push({ type: 'user', text: ev.text ?? '', ts: ev.ts, turnIndex });
+        events.push({ type: 'user', text: ev.text ?? '', ts: ev.ts, turnIndex, attachments: ev.attachments });
       } else if (ev.type === 'assistant') {
         const tIdx = Math.max(0, turnIndex);
         const last = events[events.length - 1];

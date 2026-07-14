@@ -32,6 +32,15 @@ export default defineConfig({
           });
         },
       },
+      '/api': {
+        target: 'http://127.0.0.1:3004',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            if (CLIENT_TOKEN) proxyReq.setHeader('x-cortex-token', CLIENT_TOKEN);
+          });
+        },
+      },
     },
   },
 });

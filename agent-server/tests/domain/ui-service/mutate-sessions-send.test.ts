@@ -4,12 +4,12 @@ import { handleSendSession } from '../../../src/domain/ui-service/mutate/session
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 import type { Session } from '../../../src/store/session-registry-repo.js';
 
-interface SendCall { sessionId: string; channel: string; text: string }
+interface SendCall { sessionId: string; channel: string; text: string; attachments?: unknown }
 
 function makeDeps(session: Session | null, sink: SendCall[]): UiServiceDeps {
   return {
     sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => session },
-    sendSessionMessage: (opts) => { sink.push(opts); },
+    sendSessionMessage: (opts) => { sink.push({ sessionId: opts.sessionId, channel: opts.channel, text: opts.text, attachments: opts.attachments }); },
   } as unknown as UiServiceDeps;
 }
 
@@ -32,5 +32,8 @@ test('sessions.send accepts + routes to the session channel, fire-and-forget', a
   assert.equal(res.ok, true);
   if (res.ok) assert.deepEqual(res.data, { accepted: true });
   assert.equal(sink.length, 1);
-  assert.deepEqual(sink[0], { sessionId: 'sess-1', channel: 'C123', text: 'run it' });
+  assert.equal(sink[0].sessionId, 'sess-1');
+  assert.equal(sink[0].channel, 'C123');
+  assert.equal(sink[0].text, 'run it');
+  assert.equal(sink[0].attachments, undefined);
 });
