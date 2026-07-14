@@ -86,6 +86,9 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
 
   useTasksLiveSync();
 
+  // Call ALL hooks before any early return (React rule: hooks must be in same order every render)
+  const allTasks = tasksQuery.data ?? [];
+  const grouped = useMemo(() => groupTasks(allTasks), [allTasks]);
   const invalidate = () => queryClient.invalidateQueries(trpc.tasks.list.queryFilter());
 
   const complete = useMutation(
@@ -130,9 +133,6 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
       </div>
     );
   }
-
-  const allTasks = tasksQuery.data;
-  const grouped = useMemo(() => groupTasks(allTasks), [allTasks]);
 
   // When scope === 'actionable', hide the "done" group
   const visible = scope === 'actionable'
