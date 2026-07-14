@@ -22,8 +22,41 @@
 //   stale/dead saved server is always recoverable.
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Manager, State};
+
+mod frontend;
+
+// ─── Frontend source (OTA) ──────────────────────────────────────────────────
+/// The custom URI scheme the SPA is served under. A single origin for the SPA's whole life
+/// (seed and OTA-downloaded versions alike) so browser-origin state stays stable across updates.
+const FRONTEND_SCHEME: &str = "cortexui";
+
+/// Resolve the directory the frontend is currently served from, newest wins:
+///   1. `CORTEX_FRONTEND_DIR` env override (dev/testing — point straight at web/dist).
+///   2. The OTA-downloaded current version: `<appDataDir>/ui/current` (populated by the updater).
+///   3. The bundled seed shipped with the app: `<resourceDir>/frontend-seed` (first-run / offline).
+/// A candidate counts only when it contains index.html, so a half-populated dir never wins.
+fn active_frontend_dir(app: &tauri::AppHandle) -> PathBuf {
+    if let Ok(dir) = std::env::var("CORTEX_FRONTEND_DIR") {
+        let p = PathBuf::from(dir);
+        if p.join("index.html").is_file() {
+            return p;
+        }
+    }
+    if let Ok(data) = app.path().app_data_dir() {
+        let current = data.join("ui").join("current");
+        if current.join("index.html").is_file() {
+            return current;
+        }
+    }
+    if let Ok(res) = app.path().resource_dir() {
+        return res.join("frontend-seed");
+    }
+    // Last resort: a path that won't exist → the resolver 404s cleanly instead of panicking.
+    PathBuf::from("frontend-seed")
+}
 
 // ─── Keychain constants ────────────────────────────────────────────────────
 const KEYCHAIN_SERVICE: &str = "dev.cortex.desktop";
@@ -234,6 +267,10 @@ pub fn run() {
         "connect.html"
     };
 
+    // Load the SPA over the custom `cortexui://` scheme (served by the OTA-aware handler below)
+    // instead of the built-in App asset protocol, so the frontend can be swapped by the updater.
+    let initial_scheme_url = format!("{FRONTEND_SCHEME}://localhost/{initial_url}");
+
     tauri::Builder::default()
         .manage(AppState {
             config: Mutex::new(initial_config),
@@ -244,11 +281,25 @@ pub fn run() {
             connect,
             disconnect,
         ])
+        // OTA frontend transport: serve the SPA from the active frontend directory (env override →
+        // OTA-downloaded current → bundled seed). resolve_asset applies the SPA fallback + traversal
+        // guard + MIME. Native std::fs read — no JS fs-plugin capability needed.
+        .register_uri_scheme_protocol(FRONTEND_SCHEME, |ctx, request| {
+            let root = active_frontend_dir(ctx.app_handle());
+            let asset = frontend::resolve_asset(&root, &request.uri().to_string());
+            tauri::http::Response::builder()
+                .status(asset.status)
+                .header(tauri::http::header::CONTENT_TYPE, asset.mime)
+                .body(asset.body)
+                .expect("build custom-scheme response")
+        })
         .setup(move |app| {
             tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
-                tauri::WebviewUrl::App(initial_url.into()),
+                tauri::WebviewUrl::CustomProtocol(
+                    initial_scheme_url.parse().expect("valid cortexui:// url"),
+                ),
             )
             .title("Cortex")
             .inner_size(1400.0, 900.0)

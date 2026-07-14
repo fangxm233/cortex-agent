@@ -1,10 +1,34 @@
 Please update me when files in this folder change
 
 Cortex Desktop — Tauri v2 shell that wraps the built web SPA in a native window.
-Loads `web/dist` via Tauri's asset protocol (no proxy, no sidecar). The SPA talks
-directly to the remote Cortex server using absolute URLs — token injection is handled
-by `web/src/lib/trpc.ts` (conditional transport) and wired up by `web/src/providers.tsx`
-reading `window.__CORTEX_DESKTOP_CONFIG`.
+Serves the SPA over a custom `cortexui://` URI scheme from a swappable frontend directory
+(so the frontend can self-update — see "Frontend OTA" below) instead of the built-in read-only
+asset protocol. The SPA talks directly to the remote Cortex server using absolute URLs — token
+injection is handled by `web/src/lib/trpc.ts` (conditional transport) and wired up by
+`web/src/providers.tsx` reading `window.__CORTEX_DESKTOP_CONFIG`.
+
+## Frontend OTA (self-updating SPA)
+
+The window loads `cortexui://localhost/<index|connect>.html`. A registered URI-scheme handler
+(`register_uri_scheme_protocol("cortexui", …)`) serves each request from the **active frontend
+directory**, resolved newest-first by `active_frontend_dir`:
+1. `CORTEX_FRONTEND_DIR` env override (dev/testing — point straight at `web/dist`).
+2. OTA-downloaded current version: `<appDataDir>/ui/current` (populated by the updater — unit C, not yet built).
+3. Bundled seed shipped with the app: `<resourceDir>/frontend-seed` (first-run / offline fallback),
+   staged by `bundle.resources` mapping `../../web/dist/` → `frontend-seed/` in tauri.conf.json.
+
+`frontend.rs` holds the pure resolver (`resolve_asset`): percent-decode + path-traversal guard +
+MIME + SPA fallback to index.html, mirroring the server's `serveSpaStub`. Native `std::fs` read —
+no JS fs-plugin capability needed. A single origin (`cortexui://`) is kept for the SPA's whole
+life so browser-origin state is stable across seed→OTA swaps.
+
+The server side (agent-server `platform/ui-http/ui-ota.ts`) exposes the matching
+`/api/ui-ota/manifest.json` + `/api/ui-ota/bundle.zip` (token-gated).
+
+⚠️ **CORS origin change**: the webview Origin is now `cortexui://localhost` (Linux/macOS) or
+`http://cortexui.localhost` (Windows), not `tauri://localhost`. The remote server's
+`CORTEX_UI_CORS_ORIGINS` must list these new origins or the SPA's cross-origin tRPC calls are
+blocked by the browser.
 
 ## First-run / connection flow
 
@@ -40,8 +64,9 @@ desktop/
 │   ├── icons/                Placeholder icons
 │   └── src/
 │       ├── main.rs           Rust entry point (calls lib::run)
-│       └── lib.rs            AppState + keychain helpers + 4 Tauri commands +
-│                             initialization_script constant + run()
+│       ├── lib.rs            AppState + keychain helpers + 4 Tauri commands +
+│       │                     initialization_script + active_frontend_dir + cortexui:// scheme + run()
+│       └── frontend.rs       Pure OTA asset resolver (resolve_asset: sanitize/traversal/MIME/SPA-fallback)
 └── src-tauri/target/         Rust build output (gitignored)
 ```
 
@@ -69,7 +94,8 @@ desktop/
 | filename | role | function |
 |---|---|---|
 | `ui/connect.html` | connect screen | Standalone HTML/CSS/JS — serverUrl+token inputs, Test probe, Connect (keychain), Switch link |
-| `src-tauri/src/lib.rs` | core | `AppState`, `ConnectionConfig`, keychain helpers, 4 Tauri commands, `INIT_SCRIPT`, `run()` |
+| `src-tauri/src/lib.rs` | core | `AppState`, `ConnectionConfig`, keychain helpers, 4 Tauri commands, `INIT_SCRIPT`, `active_frontend_dir`, `cortexui://` scheme registration, `run()` |
+| `src-tauri/src/frontend.rs` | OTA resolver | Pure `resolve_asset`/`sanitize_request_path`/`content_type` (traversal guard + MIME + SPA fallback); unit-tested |
 | `src-tauri/src/main.rs` | entry | `#[cfg_attr windows_subsystem]` + `lib::run()` |
 | `src-tauri/Cargo.toml` | manifest | `cortex-desktop` crate; tauri v2 + serde + keyring v3 |
 | `src-tauri/build.rs` | build | `tauri_build::build()` |
@@ -83,6 +109,7 @@ desktop/
 |---|---|
 | `CORTEX_SERVER_URL` | Pre-seed serverUrl at startup (bypasses keychain, skips connect screen) |
 | `CORTEX_TOKEN` | Pre-seed token at startup (bypasses keychain) |
+| `CORTEX_FRONTEND_DIR` | Serve the SPA from this directory (highest priority in `active_frontend_dir`) — dev/testing without bundling a seed or downloading an OTA version |
 
 ## Scripts (from `desktop/` directory)
 
