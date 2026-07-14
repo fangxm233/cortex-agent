@@ -20,9 +20,20 @@ export function deriveMostRecentSessionId(sessions: SessionInfo[]): string | nul
 
 /** Effective selected session: an explicit override wins ONLY while it is still in the list,
  *  otherwise the derived most-recent. The DRAFT_SENTINEL always passes through (it is never in
- *  the list — that's the point). */
-export function resolveSelectedSessionId(override: string | null, sessions: SessionInfo[]): string | null {
+ *  the list — that's the point).
+ *
+ *  `pendingCreatedId` is a just-created session whose row has not yet landed in the (still
+ *  refetching) `sessions.list`. Without it, the freshly created id — set as the override on
+ *  createAndSend success — would fail the list-membership check and briefly fall back to the
+ *  PREVIOUS most-recent session, flipping the chat to the old session and then back to the new one
+ *  once the refetch lands. Passing it through keeps the chat on the new session across that gap. */
+export function resolveSelectedSessionId(
+  override: string | null,
+  sessions: SessionInfo[],
+  pendingCreatedId: string | null = null,
+): string | null {
   if (override === DRAFT_SENTINEL) return DRAFT_SENTINEL;
+  if (pendingCreatedId && override === pendingCreatedId) return pendingCreatedId;
   if (override && sessions.some((s) => s.sessionId === override)) return override;
   return deriveMostRecentSessionId(sessions);
 }

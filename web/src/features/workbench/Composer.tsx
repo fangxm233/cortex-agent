@@ -113,7 +113,7 @@ export function Composer({
   const trpc = useTRPC();
   const L = useVocab();
   const queryClient = useQueryClient();
-  const { setSelectedSession } = useSelectedSession();
+  const { selectCreatedSession } = useSelectedSession();
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
   const createAndSendMut = useMutation(
@@ -121,8 +121,11 @@ export function Composer({
       onSuccess: (data) => {
         // Transition from draft to the real session: invalidate the session list so
         // the new session appears, then select it (triggers transcript + live sync).
+        // selectCreatedSession marks the id as pending so the chat stays on the new session
+        // across the gap before the refetched list contains its row (no flip to the previous
+        // most-recent session).
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-        setSelectedSession(data.sessionId);
+        selectCreatedSession(data.sessionId);
       },
     }),
   );

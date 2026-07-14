@@ -34,4 +34,14 @@ describe('resolveSelectedSessionId', () => {
   it('falls back to most-recent when there is no override', () => {
     expect(resolveSelectedSessionId(null, sessions)).toBe('b');
   });
+  it('keeps a just-created override selected before its row lands in the list (no flip to previous)', () => {
+    // The new session id is the override but not yet in the (still refetching) list.
+    expect(resolveSelectedSessionId('new', sessions, 'new')).toBe('new');
+  });
+  it('a pending id only forces selection while it equals the override', () => {
+    expect(resolveSelectedSessionId('a', sessions, 'new')).toBe('a');
+  });
+  it('DRAFT_SENTINEL still passes through even with a pending id', () => {
+    expect(resolveSelectedSessionId('__draft__', sessions, 'new')).toBe('__draft__');
+  });
 });

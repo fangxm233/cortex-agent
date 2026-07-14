@@ -15,6 +15,10 @@ import { resolveSelectedSessionId, DRAFT_SENTINEL } from './selected-session';
 interface SelectedSessionContextValue {
   selectedSessionId: string | null;
   setSelectedSession: (id: string) => void;
+  /** Select a session that was JUST created (createAndSend). Same as setSelectedSession but marks
+   *  the id as "pending" so it stays selected across the gap before the refetched sessions.list
+   *  contains its row — avoiding a flip to the previous most-recent session. */
+  selectCreatedSession: (id: string) => void;
   /** True when the user is in a "New Conversation" draft (no session created yet). */
   isDraft: boolean;
   /** The user-chosen profile for the draft session (null = use system default). */
@@ -35,9 +39,26 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const [override, setOverride] = useState<string | null>(null);
   const [draftProfile, setDraftProfile] = useState<string | null>(null);
+  // A just-created session (createAndSend) whose row hasn't landed in the refetched list yet.
+  const [pendingCreatedId, setPendingCreatedId] = useState<string | null>(null);
 
-  const selectedSessionId = resolveSelectedSessionId(override, sessionsQuery.data ?? []);
+  const sessions = sessionsQuery.data ?? [];
+  const selectedSessionId = resolveSelectedSessionId(override, sessions, pendingCreatedId);
   const isDraft = selectedSessionId === DRAFT_SENTINEL;
+
+  // Once the freshly created session appears in the list, drop the pending marker — the plain
+  // override now resolves it via the normal list-membership path.
+  useEffect(() => {
+    if (pendingCreatedId && sessions.some((s) => s.sessionId === pendingCreatedId)) {
+      setPendingCreatedId(null);
+    }
+  }, [pendingCreatedId, sessions]);
+
+  // A project switch invalidates any pending marker (the new session belongs to the previous
+  // project's list); the override then falls back to the new project's most-recent session.
+  useEffect(() => {
+    setPendingCreatedId(null);
+  }, [currentProjectId]);
 
   // When entering draft mode, pick up the system default profile if none chosen yet.
   useEffect(() => {
@@ -50,16 +71,22 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   }, [isDraft, draftProfile, configQuery.data]);
 
   const setSelectedSession = useCallback((id: string) => {
+    setPendingCreatedId(null);
+    setOverride(id);
+  }, []);
+  const selectCreatedSession = useCallback((id: string) => {
+    setPendingCreatedId(id);
     setOverride(id);
   }, []);
   const clearDraft = useCallback(() => {
+    setPendingCreatedId(null);
     setOverride(null);
     setDraftProfile(null);
   }, []);
 
   const value = useMemo(
-    () => ({ selectedSessionId, setSelectedSession, isDraft, draftProfile, setDraftProfile, clearDraft }),
-    [selectedSessionId, setSelectedSession, isDraft, draftProfile, clearDraft],
+    () => ({ selectedSessionId, setSelectedSession, selectCreatedSession, isDraft, draftProfile, setDraftProfile, clearDraft }),
+    [selectedSessionId, setSelectedSession, selectCreatedSession, isDraft, draftProfile, clearDraft],
   );
 
   return <SelectedSessionContext.Provider value={value}>{children}</SelectedSessionContext.Provider>;
