@@ -100,6 +100,11 @@ export type {
   SkillGroup,
   ThreadTemplateEntry,
   ThreadTemplatesGetParams,
+  SystemDaemonStatusParams,
+  SystemDaemonStatus,
+  DaemonProcessInfo,
+  SystemRestartArgs,
+  SystemRestartReturn,
   // Mapped contract
   QueryParamMap,
   QueryReturnMap,

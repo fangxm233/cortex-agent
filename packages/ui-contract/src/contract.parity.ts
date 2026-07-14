@@ -42,6 +42,8 @@ import type {
   machinesListInput,
   skillsListInput,
   threadTemplatesGetInput,
+  systemDaemonStatusInput,
+  systemRestartInput,
 } from './schemas.js';
 
 // Mutual assignability: true only when A and B are structurally equivalent.
@@ -74,6 +76,7 @@ const _configGet: QueryParity<'config.get', typeof configGetInput> = true;
 const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = true;
 const _skillsList: QueryParity<'skills.list', typeof skillsListInput> = true;
 const _threadTemplatesGet: QueryParity<'threadTemplates.get', typeof threadTemplatesGetInput> = true;
+const _systemDaemonStatus: QueryParity<'system.daemonStatus', typeof systemDaemonStatusInput> = true;
 
 // ── Mutate ops ────────────────────────────────────────────────────
 const _projectsCreate: MutateParity<'projects.create', typeof projectsCreateInput> = true;
@@ -95,6 +98,7 @@ const _configSet: MutateParity<'config.set', typeof configSetInput> = true;
 const _approvalsApprove: MutateParity<'approvals.approve', typeof approvalsApproveInput> = true;
 const _approvalsReject: MutateParity<'approvals.reject', typeof approvalsRejectInput> = true;
 const _approvalsRequest: MutateParity<'approvals.request', typeof approvalsRequestInput> = true;
+const _systemRestart: MutateParity<'system.restart', typeof systemRestartInput> = true;
 
 // ── Subscriptions ─────────────────────────────────────────────────
 // Subscriptions have no query/mutate map entry; guard the input schema against its backend
@@ -111,4 +115,5 @@ export const _contractParityChecked = [
   _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _tasksClaim,
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _configSet, _executionsLog,
+  _systemDaemonStatus, _systemRestart,
 ] as const;

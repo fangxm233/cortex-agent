@@ -42,6 +42,8 @@ export {
   machinesListInput,
   skillsListInput,
   threadTemplatesGetInput,
+  systemDaemonStatusInput,
+  systemRestartInput,
   queryInputSchemas,
   mutateInputSchemas,
 } from '@cortex-agent/server/dist/domain/ui-service/input-schemas.js';

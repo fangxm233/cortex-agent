@@ -39,7 +39,8 @@ export type QueryScope =
   | 'config.get'
   | 'machines.list'
   | 'skills.list'
-  | 'threadTemplates.get';
+  | 'threadTemplates.get'
+  | 'system.daemonStatus';
 
 // ── Mutate ops ────────────────────────────────────────────────────
 
@@ -63,7 +64,8 @@ export type MutateOp =
   | 'approvals.approve'
   | 'approvals.reject'
   | 'approvals.request'
-  | 'config.set';
+  | 'config.set'
+  | 'system.restart';
 
 // ── Subscribe ─────────────────────────────────────────────────────
 
@@ -161,6 +163,8 @@ export type MachinesListParams = Record<string, never>;
 export type SkillsListParams = Record<string, never>;
 
 export type ThreadTemplatesGetParams = Record<string, never>;
+
+export type SystemDaemonStatusParams = Record<string, never>;
 
 // ── Mutate args ───────────────────────────────────────────────────
 
@@ -777,6 +781,37 @@ export interface ApprovalInfo {
   taskRef: string | null;
 }
 
+// ── system.daemonStatus DTO ───────────────────────────────────────
+// Daemon + child (app.js) process status. Read from daemon.pid / daemon-child.pid
+// under STORE_DIR; liveness checked via process.kill(pid, 0); uptime from /proc.
+// All nullable fields are honest (no /proc on non-Linux, stale PID, etc.).
+
+export interface DaemonProcessInfo {
+  name: string;
+  label: string;
+  status: 'running' | 'stopped' | 'unknown';
+  pid: number | null;
+  uptime: string | null;
+  port: number | null;
+  extras: Record<string, string | number> | null;
+}
+
+export interface SystemDaemonStatus {
+  processes: DaemonProcessInfo[];
+  lastRestart: { at: string | null; reason: string | null };
+}
+
+// ── system.restart DTO ────────────────────────────────────────────
+
+export interface SystemRestartArgs {
+  kind: 'soft' | 'hard' | 'force';
+}
+
+export interface SystemRestartReturn {
+  ok: boolean;
+  message: string;
+}
+
 // ── Mutate return types ───────────────────────────────────────────
 
 export interface ProjectCreateReturn {
@@ -854,6 +889,7 @@ export interface QueryParamMap {
   'machines.list': MachinesListParams;
   'skills.list': SkillsListParams;
   'threadTemplates.get': ThreadTemplatesGetParams;
+  'system.daemonStatus': SystemDaemonStatusParams;
 }
 
 export interface QueryReturnMap {
@@ -875,6 +911,7 @@ export interface QueryReturnMap {
   'machines.list': MachineInfo[];
   'skills.list': SkillGroup[];
   'threadTemplates.get': ThreadTemplateEntry[];
+  'system.daemonStatus': SystemDaemonStatus;
 }
 
 export interface MutateArgsMap {
@@ -898,6 +935,7 @@ export interface MutateArgsMap {
   'approvals.reject': ApprovalsRejectArgs;
   'approvals.request': ApprovalsRequestArgs;
   'config.set': ConfigSetArgs;
+  'system.restart': SystemRestartArgs;
 }
 
 export interface MutateReturnMap {
@@ -921,6 +959,7 @@ export interface MutateReturnMap {
   'approvals.reject': ApprovalMutateReturn;
   'approvals.request': ApprovalsRequestReturn;
   'config.set': ConfigSetReturn;
+  'system.restart': SystemRestartReturn;
 }
 
 export type QueryParams<S extends QueryScope> = S extends keyof QueryParamMap ? QueryParamMap[S] : never;

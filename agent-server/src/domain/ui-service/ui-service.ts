@@ -17,6 +17,7 @@ import { handleConfigGet } from './query/config.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleSkillsList } from './query/skills.js';
 import { handleThreadTemplatesGet } from './query/thread-templates.js';
+import { handleSystemDaemonStatus } from './query/system.js';
 import { handleConfigSet } from './mutate/config.js';
 import { handleCreateProject } from './mutate/projects.js';
 import { handleCreateSession, handleSendSession, handleCancelSession, handleSetProfile } from './mutate/sessions.js';
@@ -36,6 +37,7 @@ import {
   handleUnblockTask,
 } from './mutate/tasks.js';
 import { handleApproveApproval, handleRejectApproval, handleRequestApproval } from './mutate/approvals.js';
+import { handleSystemRestart } from './mutate/system.js';
 import { createSubscription } from './subscribe.js';
 import { resolveExecutionLogLocation } from '@domain/executions/log-tailer.js';
 
@@ -61,6 +63,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'machines.list': (deps, params) => handleMachinesList(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),
   'threadTemplates.get': (deps, params) => handleThreadTemplatesGet(deps, params),
+  'system.daemonStatus': (_deps, params) => handleSystemDaemonStatus(params),
 };
 
 const mutateHandlers: Record<string, MutateHandler> = {
@@ -84,6 +87,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'approvals.reject': (deps, args) => handleRejectApproval(deps, args),
   'approvals.request': (deps, args) => handleRequestApproval(deps, args),
   'config.set': (deps, args) => handleConfigSet(deps, args),
+  'system.restart': (_deps, args) => handleSystemRestart(args),
 };
 
 export function createUiService(deps: UiServiceDeps): UiService {

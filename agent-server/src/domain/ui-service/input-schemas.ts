@@ -84,6 +84,8 @@ export const skillsListInput = z.object({});
 
 export const threadTemplatesGetInput = z.object({});
 
+export const systemDaemonStatusInput = z.object({});
+
 // ── Subscription input schemas ────────────────────────────────────
 // Subscriptions are not part of the query/mutate keyed maps; their input schemas live here too so
 // the AppRouter and the browser (@cortex-agent/ui-contract) share one source of truth (B2-C).
@@ -225,6 +227,10 @@ export const approvalsRejectInput = z.object({
 // CLOSED enum; the per-kind required field is enforced by superRefine so the router rejects
 // malformed input before the handler runs. The handler constructs the entry's prose — the browser
 // supplies only the enum + a machine name (sanitized handler-side), never raw markdown.
+export const systemRestartInput = z.object({
+  kind: z.enum(['soft', 'hard', 'force']),
+});
+
 export const approvalsRequestInput = z
   .object({
     kind: z.enum(['reconnect-platform', 'add-machine']),
@@ -261,6 +267,7 @@ export const queryInputSchemas = {
   'machines.list': machinesListInput,
   'skills.list': skillsListInput,
   'threadTemplates.get': threadTemplatesGetInput,
+  'system.daemonStatus': systemDaemonStatusInput,
 } satisfies Record<QueryScope, z.ZodType>;
 
 export const mutateInputSchemas = {
@@ -284,4 +291,5 @@ export const mutateInputSchemas = {
   'approvals.reject': approvalsRejectInput,
   'approvals.request': approvalsRequestInput,
   'config.set': configSetInput,
+  'system.restart': systemRestartInput,
 } satisfies Record<MutateOp, z.ZodType>;

@@ -49,6 +49,8 @@ import {
   machinesListInput,
   skillsListInput,
   threadTemplatesGetInput,
+  systemDaemonStatusInput,
+  systemRestartInput,
 } from './input-schemas.js';
 import type {
   UiService,
@@ -206,6 +208,10 @@ export function createAppRouter(uiService: UiService) {
     }),
     threadTemplates: router({
       get: makeQuery(uiService, 'threadTemplates.get', threadTemplatesGetInput),
+    }),
+    system: router({
+      daemonStatus: makeQuery(uiService, 'system.daemonStatus', systemDaemonStatusInput),
+      restart: makeMutation(uiService, 'system.restart', systemRestartInput),
     }),
     subscribe: publicProcedure
       .input(subscribeFilterInput)

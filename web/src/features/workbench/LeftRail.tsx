@@ -11,6 +11,7 @@ import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useLang, useSetLang, useVocab } from '@/i18n';
+import { DaemonStatusModal } from './DaemonStatusModal';
 
 // LEFT RAIL — 1:1 from prototype.dc.html L42–100 (Stage-R RB, task f528). Exact inline styles /
 // px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (projects.list /
@@ -141,6 +142,7 @@ export function LeftRail(): JSX.Element {
   }, []);
 
   const [hover, setHover] = useState<string | null>(null);
+  const [daemonOpen, setDaemonOpen] = useState(false);
   const hp = (key: string) => ({
     onMouseEnter: () => setHover(key),
     onMouseLeave: () => setHover((h) => (h === key ? null : h)),
@@ -179,6 +181,7 @@ export function LeftRail(): JSX.Element {
         </div>
         <div style={{ fontWeight: 650, fontSize: 14, color: '#191C22', letterSpacing: '-.01em' }}>Cortex</div>
         <div
+          onClick={() => setDaemonOpen(true)}
           style={{
             marginLeft: 'auto',
             display: 'flex',
@@ -187,6 +190,7 @@ export function LeftRail(): JSX.Element {
             fontSize: 10,
             color: '#23854F',
             fontWeight: 600,
+            cursor: 'pointer',
           }}
         >
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#23854F' }} />
@@ -447,6 +451,8 @@ export function LeftRail(): JSX.Element {
       )}
 
       {newProjOpen && <NewProjectModal onClose={() => setNewProjOpen(false)} />}
+
+      <DaemonStatusModal open={daemonOpen} onClose={() => setDaemonOpen(false)} />
     </div>
   );
 }
