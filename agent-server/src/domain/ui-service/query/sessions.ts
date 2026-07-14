@@ -58,6 +58,9 @@ export async function handleSessionsList(
     label: s.label ?? null,
     profileName: s.profileName ?? null,
     running: isChannelInTurn(s.channel),
+    // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view
+    // (sessions.markRead → lastReadAt). Legacy records without lastReadAt → read.
+    unread: !!s.lastReadAt && s.lastUsedAt > s.lastReadAt,
   }));
 
   // Title label-less sessions from their first user message so the left rail shows the conversation's

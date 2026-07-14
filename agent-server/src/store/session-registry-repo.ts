@@ -55,6 +55,9 @@ export interface Session {
   label: string | null;
   /** Profile name active when the session was created. Restored on !resume. */
   profileName: string | null;
+  /** When the user last VIEWED this session in a client (web workbench sessions.markRead).
+   *  Unread = lastUsedAt > lastReadAt. Absent on legacy records → treated as read. */
+  lastReadAt?: string | null;
 }
 
 export type SessionRegistryData = Record<string, Session>;  // keyed by sessionId (UUID)
@@ -279,6 +282,17 @@ export class SessionRegistryRepo {
     await this._repo.mutate((registry) => {
       const record = registry[sessionId];
       if (record) record.lastUsedAt = now;
+      return { next: registry, result: undefined };
+    });
+  }
+
+  /** Stamp lastReadAt to now — the user viewed this session (unread tracking, web markRead).
+   *  No-op if sessionId not found. */
+  async markRead(sessionId: string): Promise<void> {
+    const now = new Date().toISOString();
+    await this._repo.mutate((registry) => {
+      const record = registry[sessionId];
+      if (record) record.lastReadAt = now;
       return { next: registry, result: undefined };
     });
   }

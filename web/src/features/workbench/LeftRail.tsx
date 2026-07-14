@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { groupSessions, sessionMeta, groupLabel, projectInitials } from './session-groups';
-import { buildSwitchList, projMenuSubLabel, runningCountByProject } from './project-menu';
+import { buildSwitchList, projMenuSubLabel, runningCountByProject, unreadCountByProject } from './project-menu';
 import { ProjectMenu } from './ProjectMenu';
 import { NewProjectModal } from './NewProjectModal';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
@@ -57,6 +57,14 @@ export function LeftRail(): JSX.Element {
   const threads = threadsQuery.data ?? [];
   const runningCounts = useMemo(() => runningCountByProject(threads), [threads]);
 
+  // UNSCOPED direct-session list (all projects) → per-project unread counts for the switcher
+  // badge + unread-first project ordering. Kept fresh by the same useSessionsLiveSync invalidation.
+  const allSessionsQuery = useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' }));
+  const unreadCounts = useMemo(
+    () => unreadCountByProject(allSessionsQuery.data ?? []),
+    [allSessionsQuery.data],
+  );
+
   const projName = activeProjectId ?? '—';
   const projInitials = activeProjectId ? projectInitials(activeProjectId) : '··';
   const todayCost = costQuery.data?.today;
@@ -69,8 +77,8 @@ export function LeftRail(): JSX.Element {
   const activeRunning = activeProjectId ? runningCounts[activeProjectId] ?? 0 : 0;
   const projMenuSub = projMenuSubLabel(activeRunning, todayCost);
   const switchRows = useMemo(
-    () => buildSwitchList(projects, activeProjectId, runningCounts),
-    [projects, activeProjectId, runningCounts],
+    () => buildSwitchList(projects, activeProjectId, runningCounts, unreadCounts),
+    [projects, activeProjectId, runningCounts, unreadCounts],
   );
   useEffect(() => {
     if (!projMenuOpen) return;
@@ -327,8 +335,10 @@ export function LeftRail(): JSX.Element {
                         flex: 1,
                         minWidth: 0,
                         fontSize: 12.5,
-                        fontWeight: active ? 600 : 400,
-                        color: '#191C22',
+                        // Unread emphasis (honest addition): unread rows keep the full ink +
+                        // semibold; read rows soften so unread reads darker at a glance.
+                        fontWeight: active || s.unread ? 600 : 400,
+                        color: s.unread || active ? '#191C22' : '#454C59',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',

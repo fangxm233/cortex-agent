@@ -18,6 +18,7 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
     label: p.label ?? null,
     profileName: p.profileName ?? null,
     running: p.running ?? false,
+    unread: p.unread ?? false,
   };
 }
 
@@ -93,5 +94,38 @@ describe('projectInitials', () => {
 
   it('handles empty / degenerate ids', () => {
     expect(projectInitials('')).toBe('?');
+  });
+});
+
+describe('groupSessions unread ordering', () => {
+  it('floats unread sessions to the top of their group, keeping recency order within each half', () => {
+    const now = new Date('2026-07-06T12:00:00.000Z');
+    const groups = groupSessions(
+      [
+        mk({ sessionId: 'read-new', lastUsedAt: '2026-07-06T11:00:00.000Z' }),
+        mk({ sessionId: 'unread-old', lastUsedAt: '2026-07-06T08:00:00.000Z', unread: true }),
+        mk({ sessionId: 'unread-new', lastUsedAt: '2026-07-06T10:00:00.000Z', unread: true }),
+        mk({ sessionId: 'read-old', lastUsedAt: '2026-07-06T07:00:00.000Z' }),
+      ],
+      now,
+    );
+    expect(groups[0].label).toBe('TODAY');
+    expect(groups[0].items.map((s) => s.sessionId)).toEqual([
+      'unread-new', 'unread-old', 'read-new', 'read-old',
+    ]);
+  });
+
+  it('unread ordering stays inside each day group (no cross-group hoisting)', () => {
+    const now = new Date('2026-07-06T12:00:00.000Z');
+    const groups = groupSessions(
+      [
+        mk({ sessionId: 'today-read', lastUsedAt: '2026-07-06T09:00:00.000Z' }),
+        mk({ sessionId: 'yesterday-unread', lastUsedAt: '2026-07-05T09:00:00.000Z', unread: true }),
+      ],
+      now,
+    );
+    expect(groups.map((g) => g.label)).toEqual(['TODAY', 'YESTERDAY']);
+    expect(groups[0].items[0].sessionId).toBe('today-read');
+    expect(groups[1].items[0].sessionId).toBe('yesterday-unread');
   });
 });

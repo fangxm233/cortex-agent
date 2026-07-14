@@ -38,11 +38,15 @@ export function groupSessions(sessions: SessionInfo[], now: Date | number): Sess
     buckets[label].push(s);
   }
 
+  // Within each day group, UNREAD sessions float to the top (both halves stay recency-sorted).
+  // Grouping stays day-based — an unread YESTERDAY session does not hoist into TODAY.
   const order: SessionGroupLabel[] = ['TODAY', 'YESTERDAY', 'EARLIER'];
   return order
     .map((label) => ({
       label,
-      items: buckets[label].sort((a, b) => effectiveMs(b) - effectiveMs(a)),
+      items: buckets[label].sort(
+        (a, b) => Number(!!b.unread) - Number(!!a.unread) || effectiveMs(b) - effectiveMs(a),
+      ),
     }))
     .filter((g) => g.items.length > 0);
 }

@@ -51,6 +51,7 @@ export type MutateOp =
   | 'sessions.cancel'
   | 'sessions.setProfile'
   | 'sessions.createAndSend'
+  | 'sessions.markRead'
   | 'threads.cancel'
   | 'executions.cancel'
   | 'schedules.pause'
@@ -202,6 +203,10 @@ export interface SessionsCancelArgs {
   sessionId: string;
 }
 
+export interface SessionsMarkReadArgs {
+  sessionId: string;
+}
+
 export interface SessionsSetProfileArgs {
   sessionId: string;
   /** The profile to switch the session to. Must exist in profiles.json. */
@@ -333,6 +338,10 @@ export interface SessionInfo {
    *  `session.status` event stream as the delta (snapshot + delta), so running state survives
    *  session switches, page reloads, and SSE reconnects. */
   running: boolean;
+  /** Unread: the session had activity (lastUsedAt, bumped at turn end) AFTER the user last viewed
+   *  it (`sessions.markRead` → registry lastReadAt). Legacy records with no lastReadAt are treated
+   *  as read (no unread flood on first deploy). */
+  unread: boolean;
 }
 
 // ── sessions.transcript DTO (S4 chat) ─────────────────────────────
@@ -946,6 +955,7 @@ export interface MutateArgsMap {
   'sessions.cancel': SessionsCancelArgs;
   'sessions.setProfile': SessionsSetProfileArgs;
   'sessions.createAndSend': SessionsCreateAndSendArgs;
+  'sessions.markRead': SessionsMarkReadArgs;
   'threads.cancel': ThreadsCancelArgs;
   'executions.cancel': ExecutionsCancelArgs;
   'schedules.pause': ScheduleActionArgs;
@@ -971,6 +981,7 @@ export interface MutateReturnMap {
   'sessions.cancel': SessionsCancelReturn;
   'sessions.setProfile': SessionsSetProfileReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
+  'sessions.markRead': void;
   'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
   'schedules.pause': void;
@@ -1023,6 +1034,9 @@ export interface UiServiceDeps {
     listByOrigin(origin: 'direct' | 'thread' | 'scheduled', projectId?: string): Promise<Session[]>;
     listResumable(projectId?: string): Promise<Session[]>;
     getById(sessionId: string): Promise<Session | null>;
+    /** Stamp lastReadAt=now (unread tracking; backs `sessions.markRead`). Optional so existing
+     *  facade/test fixtures need not provide it (the handler no-ops when absent). */
+    markRead?(sessionId: string): Promise<void>;
   };
   /** Backend-independent conversation history — read source for `sessions.transcript` (S4 chat). */
   conversationHistory: {

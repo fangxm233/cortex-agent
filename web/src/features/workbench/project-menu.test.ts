@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ProjectConduitInfo, ThreadInfo } from '@cortex-agent/ui-contract';
 import {
   runningCountByProject,
+  unreadCountByProject,
   buildSwitchList,
   switchRowMeta,
   projMenuSubLabel,
@@ -60,8 +61,8 @@ describe('buildSwitchList', () => {
       { nimbus: 2 },
     );
     expect(rows).toEqual([
-      { id: 'nimbus', running: 2, isRunning: true, meta: '2 running' },
-      { id: 'beacon', running: 0, isRunning: false, meta: 'idle' },
+      { id: 'nimbus', running: 2, isRunning: true, meta: '2 running', unread: 0 },
+      { id: 'beacon', running: 0, isRunning: false, meta: 'idle', unread: 0 },
     ]);
   });
 
@@ -82,5 +83,39 @@ describe('projMenuSubLabel', () => {
 
   it('omits cost when unknown', () => {
     expect(projMenuSubLabel(0, undefined)).toBe('0 threads running');
+  });
+});
+
+describe('unreadCountByProject', () => {
+  it('counts unread sessions per project', () => {
+    const s = (projectId: string, unread: boolean) => ({ projectId, unread }) as never;
+    expect(
+      unreadCountByProject([s('p1', true), s('p1', true), s('p2', false), s('p3', true)]),
+    ).toEqual({ p1: 2, p3: 1 });
+  });
+
+  it('empty input → empty map', () => {
+    expect(unreadCountByProject([])).toEqual({});
+  });
+});
+
+describe('buildSwitchList unread ordering', () => {
+  const proj = (id: string) => ({ id }) as never;
+
+  it('sorts projects with unread sessions first (stable within halves) and carries the count', () => {
+    const rows = buildSwitchList(
+      [proj('a'), proj('b'), proj('c'), proj('d')],
+      null,
+      {},
+      { b: 2, d: 1 },
+    );
+    expect(rows.map((r) => r.id)).toEqual(['b', 'd', 'a', 'c']);
+    expect(rows.map((r) => r.unread)).toEqual([2, 1, 0, 0]);
+  });
+
+  it('without unread counts the projects.list order is preserved (back-compat)', () => {
+    const rows = buildSwitchList([proj('a'), proj('b')], null, { b: 1 });
+    expect(rows.map((r) => r.id)).toEqual(['a', 'b']);
+    expect(rows.map((r) => r.unread)).toEqual([0, 0]);
   });
 });

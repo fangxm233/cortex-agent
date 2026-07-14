@@ -6,6 +6,7 @@ import { ChatHeader } from './ChatHeader';
 import { MessageStream } from './MessageStream';
 import { Composer } from './Composer';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
+import { useMarkSessionRead } from './useMarkSessionRead';
 import { buildTranscriptRows, turnCount, sessionElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
@@ -52,6 +53,9 @@ export function CenterChat(): JSX.Element {
   });
 
   const { liveTail, streaming, running } = useSessionMessageLiveSync(sessionId, active?.running);
+  // Unread write side: the OPEN session is being read — stamp markRead on select, on live
+  // activity while viewing, and on tab re-focus (only while the document is visible).
+  useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(

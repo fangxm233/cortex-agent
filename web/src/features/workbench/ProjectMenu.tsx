@@ -172,7 +172,35 @@ export function ProjectMenu({
                       : {}),
                   }}
                 />
-                <span style={{ font: `500 11.5px ${mono}`, color: '#22262E' }}>{row.id}</span>
+                <span
+                  style={{
+                    font: `${row.unread > 0 ? 600 : 500} 11.5px ${mono}`,
+                    color: row.unread > 0 ? '#191C22' : '#22262E',
+                  }}
+                >
+                  {row.id}
+                </span>
+                {/* unread-session count badge (honest addition — sessions.list unread aggregate) */}
+                {row.unread > 0 && (
+                  <span
+                    data-unread-badge={row.id}
+                    style={{
+                      flex: 'none',
+                      minWidth: 14,
+                      height: 14,
+                      padding: '0 4px',
+                      borderRadius: 7,
+                      background: '#4655D4',
+                      color: '#fff',
+                      font: `600 9px ${mono}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {row.unread}
+                  </span>
+                )}
                 <span style={{ marginLeft: 'auto', font: `400 9px ${mono}`, color: '#B6BDC9' }}>
                   {row.meta}
                 </span>

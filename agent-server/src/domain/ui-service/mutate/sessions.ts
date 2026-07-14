@@ -15,6 +15,7 @@ import type {
   SessionsSendArgs,
   SessionsSendReturn,
   SessionsCancelArgs,
+  SessionsMarkReadArgs,
   SessionsCancelReturn,
   SessionsSetProfileArgs,
   SessionsSetProfileReturn,
@@ -68,6 +69,20 @@ export async function handleCancelSession(
   }
   const count = await deps.cancelSessionRun({ channel: session.channel });
   return { ok: true, data: { cancelled: count > 0, count } };
+}
+
+// Unread tracking: stamp the session's registry lastReadAt=now — the user viewed this session in
+// the workbench. `sessions.list` computes `unread = lastUsedAt > lastReadAt` against this stamp.
+export async function handleMarkReadSession(
+  deps: UiServiceDeps,
+  args: SessionsMarkReadArgs,
+): Promise<Result<void>> {
+  const session = await deps.sessionStore.getById(args.sessionId);
+  if (!session) {
+    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  }
+  await deps.sessionStore.markRead?.(args.sessionId);
+  return { ok: true, data: undefined };
 }
 
 // Create a fresh session AND send the first message in one atomic operation. Used by the workbench

@@ -15,6 +15,7 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   label: null,
   profileName: null,
   running: false,
+  unread: false,
 });
 
 const project = (id: string): ProjectConduitInfo => ({

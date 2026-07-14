@@ -438,3 +438,28 @@ test('SessionRegistryRepo - name index survives invalidate', async () => {
   assert.ok(r);
   assert.equal(r!.sessionId, 'sess-persist');
 });
+
+// ── markRead (unread tracking) ─────────────────────────────────
+
+test('SessionRegistryRepo - markRead stamps lastReadAt on the target session only', async () => {
+  const { repo } = createRepoWithPath();
+  await repo.registerSession('cortex-read01', makeOpts('sess-read-1'));
+  await repo.registerSession('cortex-read02', makeOpts('sess-read-2'));
+
+  const before = new Date().toISOString();
+  await repo.markRead('sess-read-1');
+
+  const s1 = await repo.getById('sess-read-1');
+  const s2 = await repo.getById('sess-read-2');
+  assert.ok(s1?.lastReadAt, 'target session has lastReadAt');
+  assert.ok(s1!.lastReadAt! >= before, 'lastReadAt is stamped now');
+  assert.equal(s2?.lastReadAt ?? null, null, 'other session untouched');
+});
+
+test('SessionRegistryRepo - markRead is a no-op for an unknown sessionId', async () => {
+  const { repo } = createRepoWithPath();
+  await repo.registerSession('cortex-read03', makeOpts('sess-read-3'));
+  await repo.markRead('sess-missing');
+  const s = await repo.getById('sess-read-3');
+  assert.equal(s?.lastReadAt ?? null, null);
+});

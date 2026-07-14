@@ -145,6 +145,30 @@ test('sessions.list running snapshot: no live executions → running false every
   assert.ok(result.every(s => s.running === false));
 });
 
+test('sessions.list unread: activity after lastReadAt → unread; read/never-tracked → false', async () => {
+  const withRead = [
+    // s1: read AFTER last activity → not unread
+    { ...mockSessions[0], lastReadAt: '2026-05-02T00:00:00Z' },
+    // s2: activity (lastUsedAt 2026-04-01) AFTER lastReadAt → unread
+    { ...mockSessions[1], lastReadAt: '2026-03-01T00:00:00Z' },
+    // s3: lastReadAt never set (legacy record) → grandfathered as read
+    { ...mockSessions[2] },
+  ];
+  const deps = makeDeps({
+    sessionStore: {
+      listByProject: async () => withRead,
+      listByOrigin: async () => withRead,
+      listResumable: async () => withRead,
+      getById: async () => null,
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  const byId = Object.fromEntries(result.map(s => [s.sessionId, s.unread]));
+  assert.equal(byId['s1'], false, 'read after activity');
+  assert.equal(byId['s2'], true, 'activity after read');
+  assert.equal(byId['s3'], false, 'no lastReadAt → grandfathered read');
+});
+
 test('sessions.list titles a label-less session from its first user message, keeping existing labels', async () => {
   const deps = makeDeps({
     conversationHistory: {
