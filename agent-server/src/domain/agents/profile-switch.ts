@@ -95,9 +95,12 @@ export async function switchChannelProfile(opts: { channel: string; name: string
   setActiveProfile(name, channel);
 
   // Keep the session-registry record's profileName in lock-step (best-effort). The active session is
-  // keyed by (channel, effective backend); after the switch that backend is the target's backend.
+  // keyed by (channel, effective backend) in sessions.json. After setActiveProfile,
+  // resolveBackendForChannel returns the TARGET backend — but when the backend changed, the session
+  // is still stored under the CURRENT backend. Use the correct backend for the lookup.
   try {
-    const sessionName = await sessionStore.getActiveSessionName(channel, resolveBackendForChannel(channel));
+    const lookupBackend = decision.backendChanged ? currentBackend : targetBackend;
+    const sessionName = await sessionStore.getActiveSessionName(channel, lookupBackend);
     if (sessionName) await sessionStore.updateSession(sessionName, { profileName: name });
   } catch {
     // record sync is non-fatal — the channel profile (the runtime source of truth) is already set
