@@ -16,7 +16,8 @@
 //         else the monorepo repo-root — see defaultSpaDir).
 //         CORS: resolves the transport-host's allow-list from opts.corsOrigins else the
 //         CORTEX_UI_CORS_ORIGINS env var (comma-separated) — lets the Tauri desktop webview reach
-//         tRPC directly.
+//         tRPC directly. Also mounts the frontend-OTA custom routes (createOtaRoutes(spaDir)) so the
+//         desktop shell can self-update its SPA; disabled cleanly when the SPA is not built.
 // >>> If I am updated, update CORTEX.md <<<
 
 import * as path from 'node:path';
@@ -28,6 +29,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createAppRouter } from '@domain/ui-service/app-router.js';
 import { createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
 import type { UiHttpServer, CustomRouteHandler } from '@platform/ui-http/ui-http-server.js';
+import { createOtaRoutes } from '@platform/ui-http/ui-ota.js';
 import { accessVerifierFromEnv } from '@platform/ui-http/access-jwt.js';
 import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
@@ -243,6 +245,9 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
     verifyAccessJwt,
     customRoutes: {
       [UPLOAD_PATH]: handleUpload,
+      // Frontend OTA: serves the built SPA as a manifest + ZIP bundle so the desktop shell can
+      // self-update its frontend. Empty (disabled) when the SPA is not built. Same auth gate as tRPC.
+      ...createOtaRoutes(spaDir),
     },
   });
 }

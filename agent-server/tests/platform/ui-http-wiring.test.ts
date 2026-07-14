@@ -14,7 +14,11 @@ import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { startUiHttpServer } from '@entry/start-ui-http.js';
+import { UI_OTA_MANIFEST_PATH, UI_OTA_BUNDLE_PATH } from '@platform/ui-http/ui-ota.js';
 import type { UiService, UiEvent } from '@domain/ui-service/types.js';
 
 const TOKEN = 'test-wiring-token';
@@ -242,4 +246,64 @@ test('cors env: unset CORTEX_UI_CORS_ORIGINS → no CORS headers (backward-compa
   );
   assert.equal(headers['access-control-allow-origin'], undefined,
     'no env var → transport-host keeps its no-CORS default');
+});
+
+// ── Frontend OTA wiring (desktop OTA, unit A) ─────────────────────────────────
+// startUiHttpServer must mount the OTA manifest + bundle routes when a SPA dir is present, gated by
+// the same x-cortex-token check as tRPC.
+const otaTmpDirs: string[] = [];
+after(() => { for (const d of otaTmpDirs) rmSync(d, { recursive: true, force: true }); });
+
+function makeSpaDir(): string {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'cortex-ota-wire-'));
+  otaTmpDirs.push(dir);
+  writeFileSync(path.join(dir, 'index.html'), '<html><body>OTA</body></html>');
+  writeFileSync(path.join(dir, 'app.js'), 'console.log(1)');
+  return dir;
+}
+
+async function bootWithSpa(spaDir: string) {
+  const inst = startUiHttpServer({
+    uiService: makeFakeUiService(),
+    getToken: () => TOKEN,
+    env: { CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' },
+    spaDir,
+  });
+  assert.ok(inst, 'expected a server');
+  servers.push(inst);
+  if (!inst.server.listening) {
+    await new Promise<void>((resolve, reject) => {
+      inst.server.once('listening', () => resolve());
+      inst.server.once('error', reject);
+    });
+  }
+  return inst;
+}
+
+test('ota: manifest without a token is rejected 401', async () => {
+  const inst = await bootWithSpa(makeSpaDir());
+  const { statusCode } = await req(portOf(inst), 'GET', UI_OTA_MANIFEST_PATH);
+  assert.equal(statusCode, 401);
+});
+
+test('ota: manifest with the token returns 200 + a valid manifest pointing at the bundle', async () => {
+  const inst = await bootWithSpa(makeSpaDir());
+  const { statusCode, body, headers } = await req(
+    portOf(inst), 'GET', UI_OTA_MANIFEST_PATH, { 'x-cortex-token': TOKEN },
+  );
+  assert.equal(statusCode, 200);
+  assert.match(String(headers['content-type']), /application\/json/);
+  const m = JSON.parse(body);
+  assert.match(m.sha256, /^[0-9a-f]{64}$/);
+  assert.ok(m.size > 0);
+  assert.equal(m.url, UI_OTA_BUNDLE_PATH);
+});
+
+test('ota: bundle with the token returns 200 application/zip', async () => {
+  const inst = await bootWithSpa(makeSpaDir());
+  const { statusCode, headers } = await req(
+    portOf(inst), 'GET', UI_OTA_BUNDLE_PATH, { 'x-cortex-token': TOKEN },
+  );
+  assert.equal(statusCode, 200);
+  assert.match(String(headers['content-type']), /application\/zip/);
 });

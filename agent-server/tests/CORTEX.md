@@ -112,7 +112,9 @@ How to run tests without tripping it:
 | `platform/ui-http-app-router.test.ts` | Test | tRPC AppRouter routing (every query/mutation → correct scope/op, Result unwrap) + Err→TRPCError mapping + subscription passthrough over a FAKE UiService (migrated from the ui-server package) |
 | `platform/ui-http-server.test.ts` | Test | Transport-host: 127.0.0.1 bind, x-cortex-token 401 gate, HTTP query roundtrip, SSE one-event, SPA stub (present/absent/traversal/malformed-URL→400), clean close(), CORS allow-list — FAKE tRPC router, ephemeral port |
 | `platform/ui-http-access-jwt.test.ts` | Test | Dual-path auth gate: valid x-cortex-token; valid RS256 + ES256 Cloudflare Access JWT; bad-sig/wrong-aud/wrong-iss/expired/no-creds → 401; `accessVerifierFromEnv` secure-degrade — synthetic jose keypairs + local JWKS |
-| `platform/ui-http-wiring.test.ts` | Test | `startUiHttpServer` wiring: env gate (null when off), default port 3004, token 401, HTTP query/mutate roundtrip, SSE, close, CORS via `CORTEX_UI_CORS_ORIGINS` — FAKE UiService |
+| `platform/ui-http-wiring.test.ts` | Test | `startUiHttpServer` wiring: env gate (null when off), default port 3004, token 401, HTTP query/mutate roundtrip, SSE, close, CORS via `CORTEX_UI_CORS_ORIGINS`, frontend OTA routes mounted (manifest/bundle reachable + token-gated 401) — FAKE UiService |
+| `platform/zip-writer.test.ts` | Test | Dependency-free ZIP encoder (desktop OTA unit A): crc32 known-answer vectors, LFH/CDH/EOCD signatures, per-entry DEFLATE round-trip, entry count, determinism, name-sort, empty-file/nested-path |
+| `platform/ui-ota.test.ts` | Test | `createOtaRoutes` (desktop OTA unit A): no-SPA→no routes, manifest shape (version/sha256/size/url) + content-type, bundle application/zip matching manifest size+sha256, content-addressed version (stable/changes), 405 method guard |
 | `platform/ui-http-same-origin-spa.test.ts` | Test | Single port serves index.html (from `CORTEX_UI_SPA_DIR` default-spaDir resolution) AND the token-gated `/trpc` — FAKE UiService |
 | `message-router.test.ts` | Test | Message routing branches |
 | `session.test.ts` | Test | session.ts backend:channel CRUD |
