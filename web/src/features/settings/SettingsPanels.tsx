@@ -83,8 +83,8 @@ function ReconnectAction({
       data-reconnect={platform}
       title={
         active
-          ? 'Queues a reconnect request for approval — never runs directly from the browser'
-          : 'No reconnect backend op — inert'
+          ? L.stReconnectApprovalTitle
+          : L.stReconnectInertTitle
       }
       style={{
         marginLeft: 'auto',
@@ -444,7 +444,7 @@ export function MachinesPanel({
                 {m.ssh ? L.stConfigured : L.stMachineLocal}
               </span>
               <span style={{ font: `400 9.5px ${MONO}`, color: '#5B6472' }}>
-                {m.win ? 'windows' : 'unix'}
+                {m.win ? L.stWinOs : L.stUnixOs}
               </span>
               <span
                 title="No machine logs/registry backend op — inert"
@@ -463,7 +463,7 @@ export function MachinesPanel({
           onClick={
             canAdd
               ? () => {
-                  const name = window.prompt('Machine name to request (queued for approval, not added directly):');
+                  const name = window.prompt(L.stAddMachinePrompt);
                   const trimmed = name?.trim();
                   if (trimmed) onAddMachine!(trimmed);
                 }
@@ -473,8 +473,8 @@ export function MachinesPanel({
           data-add-machine={canAdd ? '' : undefined}
           title={
             canAdd
-              ? 'Queues an add-machine request for approval — never writes machines.json directly'
-              : 'Writes machines.json — no add-machine backend op (form out of scope)'
+              ? L.stAddMachineApprovalTitle
+              : L.stAddMachineInertTitle
           }
           style={{
             display: 'flex',
@@ -488,7 +488,7 @@ export function MachinesPanel({
             {L.stAddMachine}
           </span>
           <span style={{ font: `400 9px ${MONO}`, color: '#B6BDC9' }}>
-            name · cortexPath · gpuCount · ssh · win · clientCommand
+            {L.stMachineFieldsHint}
           </span>
         </div>
       </SCard>
@@ -594,7 +594,7 @@ export function TemplatesPanel({
             {entries.length} {entries.length === 1 ? L.stEntry : L.stEntries}
           </span>
           <span
-            title="Template editor out of scope — inert"
+            title={L.stTemplateEditorInertTitle}
             style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#B6BDC9', cursor: 'not-allowed' }}
           >
             {L.stOpenEditor}
@@ -685,7 +685,7 @@ export function TemplatesPanel({
       >
         <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>{L.tplList}</span>
         <span
-          title="Template editor out of scope — inert"
+          title={L.stTemplateEditorInertTitle}
           style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#B6BDC9', cursor: 'not-allowed' }}
         >
           {L.stOpenEditor}
@@ -965,7 +965,7 @@ export function HooksPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
               >
                 <span style={{ font: `500 10px ${MONO}`, color: '#22262E', flex: 'none' }}>{f}</span>
                 <span
-                  title="Hook source viewer out of scope — inert"
+                  title={L.stHookViewerInertTitle}
                   style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: '#B6BDC9', flex: 'none', cursor: 'not-allowed' }}
                 >
                   {L.stView}
@@ -1038,8 +1038,8 @@ export function AdvancedPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
         >
           <Toggle on={idx[f.env]?.present === true} inert />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>{f.title}</div>
-            <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 1 }}>{f.desc}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>{L[f.titleKey]}</div>
+            <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 1 }}>{L[f.descKey]}</div>
           </div>
           <span style={{ font: `400 9px ${MONO}`, color: '#B6BDC9', flex: 'none' }}>{f.env}</span>
         </div>

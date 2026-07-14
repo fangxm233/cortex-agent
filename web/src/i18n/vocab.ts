@@ -89,6 +89,7 @@ export const en = {
 
   // ── Group E: mobile session screen 5a (scheme.dc.html L2932-3003, task c880) ──
   toolCallsUnit: 'tool calls',
+  toolCallUnit: 'tool call',
   needsApproval: 'Approval required',
   subthreads: 'subthreads',
   dayToday: 'Today',
@@ -152,6 +153,19 @@ export const en = {
   wbEmptyTitle: 'Start with one message',
   wbEmptyBody: 'This project is empty. Just chat — describe the mission and the agent runs project_init (mission.md · TASKS.yaml · memory scaffold · git).',
   wbEmptyHint: 'Everything else — tasks, threads, cross-machine runs — starts from this chat',
+  wbAttach: '＋ attach',
+  wbAttachPlaceholder: 'Add a message or drop more files',
+  wbAttachHint: 'paste or drop files',
+  wbDropFilesSingular: 'Drop file to attach',
+  wbDropFilesPlural: 'Drop {n} files to attach',
+  wbAttachPath: '→ workspace/attachments/',
+  wbDragOverCount: '{n} → {m} attachments',
+  wbDropAddMore: 'Drop to add more',
+  wbDropAddMoreN: 'Drop to add {n} more',
+  wbSessionToday: 'TODAY',
+  wbSessionYesterday: 'YESTERDAY',
+  wbSessionEarlier: 'EARLIER',
+  wbFromSchedule: 'from schedule',
   rpNoActiveThreads: 'No active threads',
   rpNoActiveThreadsHint: 'Running and waiting threads will appear here.',
   rpNoFinishedThreads: 'No finished threads yet.',
@@ -292,6 +306,67 @@ export const en = {
   stCurrentSpend: 'Current spend',
   stObNote: 'Over-estimate → approval card in chat & approval center',
   stBudgetFootNote: 'today / month are real (cost.summary); the daily/monthly denominators are real (budget.json). Forecast is not in the contract — omitted.',
+
+  // ── Settings nav labels (also used as section meta titles) ──
+  stNavPlatform: 'Platform',
+  stNavProfiles: 'Profiles',
+  stNavBudget: 'Budget',
+  stNavMachines: 'Machines',
+  stNavTemplates: 'Thread templates',
+  stNavMcp: 'MCP servers',
+  stNavNotifications: 'Notifications',
+  stNavHooks: 'Hooks',
+  stNavAdvanced: 'Advanced',
+
+  // ── Settings section meta subs ──
+  stMetaPlatformSub: 'config/.env — loaded once at daemon startup; the only restart-required config',
+  stMetaProfilesSub: 'config/profiles.json — read on every agent spawn, no restart needed',
+  stMetaBudgetSub: 'config/budget.json — hot-read, applies immediately; upgrades never overwrite (only --force)',
+  stMetaMachinesSub: 'config/machines.json — fs.watch hot-reload; clients auto-launched over SSH at startup',
+  stMetaTemplatesSub: 'config/thread-templates.json — read fresh on every thread launch',
+  stMetaMcpSub: 'config/mcp-config.json — full / core / tui variants picked per runtime mode',
+  stMetaNotificationsSub: '.env notification flags + system notice routing (fans out per platform)',
+  stMetaHooksSub: 'three layers: in-agent · thread lifecycle · session — .mjs read fresh per invocation',
+  stMetaAdvancedSub: 'feature flags — written to .env, restart to apply',
+
+  // ── Budget panel extras ──
+  stBudgetWriteError: 'Cannot write budget — monthly_usd must be set (positive) in budget.json first',
+  stCostsJsonlLabel: 'costs.jsonl · 90d',
+
+  // ── Settings modal chrome ──
+  stConfigRoot: '~/.cortex/config/',
+  stEsc: 'esc',
+
+  // ── Settings panels misc ──
+  stWinOs: 'windows',
+  stUnixOs: 'unix',
+  stAddMachinePrompt: 'Machine name to request (queued for approval, not added directly):',
+  stMachineFieldsHint: 'name · cortexPath · gpuCount · ssh · win · clientCommand',
+
+  // ── Toasts & tooltips ──
+  stToastQueuedApproval: 'Queued for approval — review in the Approval Center',
+  stToastWriteFailed: 'Write failed',
+  stToastCouldNotQueue: 'Could not queue request',
+  stToastBudgetWritten: 'budget.json written',
+  stToastDefaultProfile: 'profiles.json written',
+  stReconnectApprovalTitle: 'Queues a reconnect request for approval — never runs directly from the browser',
+  stReconnectInertTitle: 'No reconnect backend op — inert',
+  stAddMachineApprovalTitle: 'Queues an add-machine request for approval — never writes machines.json directly',
+  stAddMachineInertTitle: 'Writes machines.json — no add-machine backend op (form out of scope)',
+  stTemplateEditorInertTitle: 'Template editor out of scope — inert',
+  stHookViewerInertTitle: 'Hook source viewer out of scope — inert',
+
+  // ── Advanced flags titles & descriptions ──
+  stAdvDebugTitle: 'Debug logging',
+  stAdvDebugDesc: 'verbose output to daemon.log',
+  stAdvEventLogTitle: 'Event-bus log',
+  stAdvEventLogDesc: 'records every event-bus message',
+  stAdvToolCallsTitle: 'Inline tool-call rendering',
+  stAdvToolCallsDesc: 'renders tool calls in message tails',
+  stAdvDisableUserTitle: 'Disable USER.md injection',
+  stAdvDisableUserDesc: 'direct turns inject by default; thread steps never do',
+  stAdvDisableUpdateTitle: 'Disable auto-update check',
+  stAdvDisableUpdateDesc: 'update check is on by default',
 
   // ── Group K: secondary views i18n ──
   npProjectName: 'PROJECT NAME',
@@ -480,6 +555,7 @@ export const zh: Record<keyof Vocab, string> = {
 
   // ── Group E: mobile session screen 5a (scheme.dc.html L2932-3003, task c880) ──
   toolCallsUnit: '次工具调用',
+  toolCallUnit: '次工具调用',
   needsApproval: '需要审批',
   subthreads: '子线程',
   dayToday: '今天',
@@ -543,6 +619,19 @@ export const zh: Record<keyof Vocab, string> = {
   wbEmptyTitle: '从一条消息开始',
   wbEmptyBody: '这个项目还是空的。直接聊——描述目标，agent 会运行 project_init（mission.md · TASKS.yaml · 记忆脚手架 · git）。',
   wbEmptyHint: '其余的一切——任务、线程、跨机运行——都从这个对话开始',
+  wbAttach: '＋ 附件',
+  wbAttachPlaceholder: '输入消息或拖入更多文件',
+  wbAttachHint: '粘贴或拖入文件',
+  wbDropFilesSingular: '拖入文件以添加附件',
+  wbDropFilesPlural: '拖入 {n} 个文件以添加附件',
+  wbAttachPath: '→ workspace/attachments/',
+  wbDragOverCount: '{n} → {m} 个附件',
+  wbDropAddMore: '拖入以添加更多',
+  wbDropAddMoreN: '拖入以添加 {n} 个更多',
+  wbSessionToday: '今天',
+  wbSessionYesterday: '昨天',
+  wbSessionEarlier: '更早',
+  wbFromSchedule: '来自调度',
   rpNoActiveThreads: '暂无活跃线程',
   rpNoActiveThreadsHint: '运行中和等待中的线程将显示在此处。',
   rpNoFinishedThreads: '暂无已完成的线程。',
@@ -683,6 +772,67 @@ export const zh: Record<keyof Vocab, string> = {
   stCurrentSpend: '当前支出',
   stObNote: '预估超限 → chat 审批卡 + 审批中心',
   stBudgetFootNote: '今日 / 本月为真实值（cost.summary）；每日/每月的分母为真实值（budget.json）。预测不在契约中——已省略。',
+
+  // ── Settings nav labels (also used as section meta titles) ──
+  stNavPlatform: '平台',
+  stNavProfiles: '配置',
+  stNavBudget: '预算',
+  stNavMachines: '机器',
+  stNavTemplates: '线程模板',
+  stNavMcp: 'MCP 服务器',
+  stNavNotifications: '通知',
+  stNavHooks: '钩子',
+  stNavAdvanced: '高级',
+
+  // ── Settings section meta subs ──
+  stMetaPlatformSub: 'config/.env — 守护进程启动时加载一次；唯一需要重启的配置',
+  stMetaProfilesSub: 'config/profiles.json — 每次 agent 启动时读取，无需重启',
+  stMetaBudgetSub: 'config/budget.json — 热读取，即时生效；升级永不覆盖（仅 --force）',
+  stMetaMachinesSub: 'config/machines.json — fs.watch 热重载；启动时通过 SSH 自动拉起客户端',
+  stMetaTemplatesSub: 'config/thread-templates.json — 每次线程启动时重新读取',
+  stMetaMcpSub: 'config/mcp-config.json — 根据运行时模式选择 full / core / tui 变体',
+  stMetaNotificationsSub: '.env 通知标志 + 系统通知路由（多平台分发）',
+  stMetaHooksSub: '三层：agent 内 · 线程生命周期 · 会话 — .mjs 每次调用时重新读取',
+  stMetaAdvancedSub: '功能开关 — 写入 .env，重启生效',
+
+  // ── Budget panel extras ──
+  stBudgetWriteError: '无法写入预算 — 必须先在 budget.json 中设置 monthly_usd（正数）',
+  stCostsJsonlLabel: 'costs.jsonl · 90天',
+
+  // ── Settings modal chrome ──
+  stConfigRoot: '~/.cortex/config/',
+  stEsc: 'esc',
+
+  // ── Settings panels misc ──
+  stWinOs: 'windows',
+  stUnixOs: 'unix',
+  stAddMachinePrompt: '要请求添加的机器名称（排队审批，不会直接添加）：',
+  stMachineFieldsHint: 'name · cortexPath · gpuCount · ssh · win · clientCommand',
+
+  // ── Toasts & tooltips ──
+  stToastQueuedApproval: '已排队等待审批 — 请在审批中心查看',
+  stToastWriteFailed: '写入失败',
+  stToastCouldNotQueue: '无法排队请求',
+  stToastBudgetWritten: 'budget.json 已写入',
+  stToastDefaultProfile: 'profiles.json 已写入',
+  stReconnectApprovalTitle: '将重连请求排队等待审批 — 绝不直接从浏览器执行',
+  stReconnectInertTitle: '无重连后端操作 — 占位',
+  stAddMachineApprovalTitle: '将添加机器请求排队等待审批 — 绝不直接写入 machines.json',
+  stAddMachineInertTitle: '写入 machines.json — 无 add-machine 后端操作（表单不在范围内）',
+  stTemplateEditorInertTitle: '模板编辑器不在范围内 — 占位',
+  stHookViewerInertTitle: '钩子源码查看器不在范围内 — 占位',
+
+  // ── Advanced flags titles & descriptions ──
+  stAdvDebugTitle: '调试日志',
+  stAdvDebugDesc: '详细输出写入 daemon.log',
+  stAdvEventLogTitle: '事件总线日志',
+  stAdvEventLogDesc: '记录每条事件总线消息',
+  stAdvToolCallsTitle: '内联工具调用渲染',
+  stAdvToolCallsDesc: '在消息尾部渲染工具调用',
+  stAdvDisableUserTitle: '禁用 USER.md 注入',
+  stAdvDisableUserDesc: '直接对话默认注入；线程步骤始终不注入',
+  stAdvDisableUpdateTitle: '禁用自动更新检查',
+  stAdvDisableUpdateDesc: '更新检查默认开启',
 
   // ── Group K: secondary views i18n ──
   npProjectName: '项目名称',

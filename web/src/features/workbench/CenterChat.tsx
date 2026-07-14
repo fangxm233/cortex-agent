@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
+import { useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
 import { MessageStream } from './MessageStream';
 import { Composer } from './Composer';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
-import { buildTranscriptRows, turnCount, sessionElapsedMs, formatElapsed } from './transcript-vm';
+import { buildTranscriptRows, turnCount, sessionElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 
@@ -24,6 +25,7 @@ import { useSelectedSession } from './SelectedSessionProvider';
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
 export function CenterChat(): JSX.Element {
+  const L = useVocab();
   const trpc = useTRPC();
   const { currentProjectId } = useCurrentProject();
   const { selectedSessionId } = useSelectedSession();
@@ -52,8 +54,8 @@ export function CenterChat(): JSX.Element {
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
-    () => buildTranscriptRows(transcript, liveTail, { streaming }),
-    [transcript, liveTail, streaming],
+    () => buildTranscriptRows(transcript, liveTail, { streaming, formatDivider: formatDividerFromVocab(L) }),
+    [transcript, liveTail, streaming, L],
   );
   const turns = turnCount(transcriptQuery.data);
   const elapsed = useMemo(() => formatElapsed(sessionElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);

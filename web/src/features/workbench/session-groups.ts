@@ -1,4 +1,5 @@
 import type { SessionInfo } from '@cortex-agent/ui-contract';
+import type { Vocab } from '@/i18n';
 
 // Pure structural helpers for the left-rail session list (prototype L60–85). The design groups
 // sessions under TODAY / YESTERDAY headers; real `sessions.list` can carry older sessions, so an
@@ -46,16 +47,25 @@ export function groupSessions(sessions: SessionInfo[], now: Date | number): Sess
     .filter((g) => g.items.length > 0);
 }
 
+/** Display label for a session group (i18n-aware). */
+export function groupLabel(L: Vocab, label: SessionGroupLabel): string {
+  switch (label) {
+    case 'TODAY': return L.wbSessionToday;
+    case 'YESTERDAY': return L.wbSessionYesterday;
+    case 'EARLIER': return L.wbSessionEarlier;
+  }
+}
+
 function pad2(n: number): string {
   return n < 10 ? '0' + n : '' + n;
 }
 
 // Meta line: local HH:MM of the effective timestamp, plus a "from schedule" marker for scheduled
 // sessions. SessionInfo carries no turns/cost/running fields (GAP-2) so the meta is time + kind only.
-export function sessionMeta(s: SessionInfo): string {
+export function sessionMeta(L: Vocab, s: SessionInfo): string {
   const d = new Date(effectiveMs(s));
   const clock = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
-  return s.kind === 'scheduled' ? clock + ' · from schedule' : clock;
+  return s.kind === 'scheduled' ? clock + ' · ' + L.wbFromSchedule : clock;
 }
 
 // Avatar initials from a project id: first letter of the first two `-`/`_`-split segments, else the

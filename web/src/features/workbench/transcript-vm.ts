@@ -1,4 +1,5 @@
 import type { SessionTranscript, TranscriptMessage } from '@cortex-agent/ui-contract';
+import type { Vocab } from '@/i18n';
 
 // Pure view-model for the workbench center-chat transcript (S4 chat, task aba0). Maps the real
 // `sessions.transcript` DTO (+ a live `session.message` tail) into the prototype's exact message-row
@@ -13,11 +14,13 @@ export interface LiveSessionMessage {
   toolName?: string;
   toolInput?: string;
   ts: string;
+  /** Optional file attachments on user messages (15a). */
+  attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
 }
 
 export type ChatRow =
   | { kind: 'divider'; text: string }
-  | { kind: 'user'; text: string }
+  | { kind: 'user'; text: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }
   | { kind: 'tools'; count: number; calls: { kind: string; input: string }[] }
   | { kind: 'assistant'; text: string; streaming: boolean };
 
@@ -45,6 +48,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessage {
     toolInput: isTool ? (m.toolInput ?? '') : null,
     ts: m.ts,
     elapsedMs: null,
+    attachments: m.attachments,
   };
 }
 
@@ -102,6 +106,22 @@ function dividerLabel(ts: string, now: Date): string {
   return `${mon} ${d.getDate()} ${time}`;
 }
 
+/** Returns a formatDivider callback that uses the given vocab for TODAY / YESTERDAY labels. */
+export function formatDividerFromVocab(L: Vocab): (ts: string, now: Date) => string {
+  return (ts: string, now: Date) => {
+    const d = new Date(ts);
+    const startOf = (x: Date): number => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const dayDelta = Math.round((startOf(now) - startOf(d)) / 86400000);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const time = `${hh}:${mm}`;
+    if (dayDelta <= 0) return `${L.wbSessionToday} ${time}`;
+    if (dayDelta === 1) return `${L.wbSessionYesterday} ${time}`;
+    const mon = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+    return `${mon} ${d.getDate()} ${time}`;
+  };
+}
+
 function dayStamp(ts: string): string {
   const d = new Date(ts);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -154,7 +174,7 @@ export function buildTranscriptRows(
       continue;
     }
     flushTools();
-    if (m.type === 'user') rows.push({ kind: 'user', text: m.text ?? '' });
+    if (m.type === 'user') rows.push({ kind: 'user', text: m.text ?? '', attachments: (m as any).attachments });
     else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false });
   }
   flushTools();

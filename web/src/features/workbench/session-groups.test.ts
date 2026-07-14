@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
+import { en } from '@/i18n';
 import { groupSessions, sessionMeta, projectInitials } from './session-groups';
 
 function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
@@ -69,13 +70,13 @@ describe('groupSessions', () => {
 
 describe('sessionMeta', () => {
   it('renders HH:MM of the effective timestamp (local)', () => {
-    expect(sessionMeta(mk({ sessionId: 'a', lastUsedAt: todayMorning.toISOString() }))).toBe('07:05');
-    expect(sessionMeta(mk({ sessionId: 'b', lastUsedAt: yesterday.toISOString() }))).toBe('21:38');
+    expect(sessionMeta(en, mk({ sessionId: 'a', lastUsedAt: todayMorning.toISOString() }))).toBe('07:05');
+    expect(sessionMeta(en, mk({ sessionId: 'b', lastUsedAt: yesterday.toISOString() }))).toBe('21:38');
   });
 
   it('appends "· from schedule" for scheduled sessions', () => {
     const s = mk({ sessionId: 's', kind: 'scheduled', lastUsedAt: new Date(2026, 6, 6, 7, 31).toISOString() });
-    expect(sessionMeta(s)).toBe('07:31 · from schedule');
+    expect(sessionMeta(en, s)).toBe('07:31 · from schedule');
   });
 });
 

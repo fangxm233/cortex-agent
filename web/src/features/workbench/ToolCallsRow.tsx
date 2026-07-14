@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { toolCallsLabel, type ToolCall } from './chat-content';
+import { useVocab } from '@/i18n';
+import type { ToolCall } from './chat-content';
 
 // Collapsed/expanded tool-call row — 1:1 from prototype.dc.html L152–172. Default collapsed: a
 // one-line "N tool calls" + tool-label chips; click expands to per-call kind + input rows. Static
@@ -8,9 +9,12 @@ import { toolCallsLabel, type ToolCall } from './chat-content';
 const mono = "'IBM Plex Mono',monospace";
 
 export function ToolCallsRow({ calls }: { calls: ToolCall[] }): JSX.Element {
+  const L = useVocab();
   const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(false);
-  const text = toolCallsLabel(calls.length);
+  const text = calls.length > 1
+    ? `${calls.length} ${L.toolCallsUnit}`
+    : `1 ${L.toolCallUnit}`;
 
   if (!expanded) {
     return (

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { groupSessions, sessionMeta, projectInitials } from './session-groups';
+import { groupSessions, sessionMeta, groupLabel, projectInitials } from './session-groups';
 import { buildSwitchList, projMenuSubLabel, runningCountByProject } from './project-menu';
 import { ProjectMenu } from './ProjectMenu';
 import { NewProjectModal } from './NewProjectModal';
@@ -291,7 +291,7 @@ export function LeftRail(): JSX.Element {
                 padding: '6px 4px 6px',
               }}
             >
-              {g.label}
+              {groupLabel(L, g.label)}
             </div>
             {g.items.map((s: SessionInfo) => {
               const active = s.sessionId === effectiveSelected;
@@ -357,7 +357,7 @@ export function LeftRail(): JSX.Element {
                       paddingLeft: running ? 14 : 0,
                     }}
                   >
-                    {sessionMeta(s)}
+                    {sessionMeta(L, s)}
                   </div>
                 </div>
               );

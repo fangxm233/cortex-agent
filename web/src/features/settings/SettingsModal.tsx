@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
-import { SETTINGS_NAV, sectionMeta, type SettingsSectionKey } from './settings-nav';
+import { SETTINGS_NAV, getSectionMeta, type SettingsSectionKey } from './settings-nav';
 import {
   PlatformPanel,
   ProfilesPanel,
@@ -101,7 +101,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
   const costQuery = useQuery(trpc.cost.summary.queryOptions({}));
   const templateEntriesQuery = useQuery(trpc.threadTemplates.get.queryOptions({}));
   const snapshot = configQuery.data;
-  const meta = sectionMeta(section);
+  const meta = getSectionMeta(L, section);
 
   // profiles: a REAL config.set write — re-point defaultProfile, then read back (invalidate).
   const setProfile = useMutation(
@@ -109,9 +109,9 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
       onSuccess: (_d, vars) => {
         queryClient.invalidateQueries(trpc.config.get.queryFilter({}));
         const name = vars.section === 'profiles' ? vars.value.defaultProfile : '';
-        toast({ title: `Default profile → ${name} · profiles.json written`, tone: 'done' });
+        toast({ title: `Default profile → ${name} · ${L.stToastDefaultProfile}`, tone: 'done' });
       },
-      onError: (e) => toast({ title: `Write failed: ${e.message}`, tone: 'failed' }),
+      onError: (e) => toast({ title: `${L.stToastWriteFailed}: ${e.message}`, tone: 'failed' }),
     }),
   );
 
@@ -119,8 +119,8 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
   const requestApproval = useMutation(
     trpc.approvals.request.mutationOptions({
       onSuccess: () =>
-        toast({ title: 'Queued for approval — review in the Approval Center', tone: 'waiting' }),
-      onError: (e) => toast({ title: `Could not queue: ${e.message}`, tone: 'failed' }),
+        toast({ title: L.stToastQueuedApproval, tone: 'waiting' }),
+      onError: (e) => toast({ title: `${L.stToastCouldNotQueue}: ${e.message}`, tone: 'failed' }),
     }),
   );
 
@@ -147,7 +147,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
         }}
       >
         <span style={{ fontSize: 13, fontWeight: 650, color: '#191C22' }}>{L.settings}</span>
-        <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0', marginLeft: 4 }}>~/.cortex/config/</span>
+        <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0', marginLeft: 4 }}>{L.stConfigRoot}</span>
         <span
           onClick={onClose}
           role="button"
@@ -161,7 +161,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             cursor: 'pointer',
           }}
         >
-          esc
+          {L.stEsc}
         </span>
       </div>
       {/* body: 210px nav + content (prototype L732) */}

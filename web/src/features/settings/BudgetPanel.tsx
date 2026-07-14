@@ -70,7 +70,7 @@ export function BudgetPanel({
     const value = buildBudgetValue(budget, v);
     if (!value) {
       toast({
-        title: 'Cannot write budget — monthly_usd must be set (positive) in budget.json first',
+        title: L.stBudgetWriteError,
         tone: 'waiting',
       });
       return;
@@ -79,8 +79,8 @@ export function BudgetPanel({
       { section: 'budget', value },
       {
         onSuccess: () =>
-          toast({ title: `Daily budget → ${formatBudgetUsd(v)} · budget.json written`, tone: 'done' }),
-        onError: (e) => toast({ title: `Write failed: ${e.message}`, tone: 'failed' }),
+          toast({ title: `Daily budget → ${formatBudgetUsd(v)} · ${L.stToastBudgetWritten}`, tone: 'done' }),
+        onError: (e) => toast({ title: `${L.stToastWriteFailed}: ${e.message}`, tone: 'failed' }),
       },
     );
   };
@@ -210,7 +210,7 @@ export function BudgetPanel({
         </SCard>
       </div>
       <SCard>
-        <SCardHeader title={L.stCurrentSpend} right="costs.jsonl · 90d" />
+        <SCardHeader title={L.stCurrentSpend} right={L.stCostsJsonlLabel} />
         <div style={{ padding: '12px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span style={{ font: `600 21px ${MONO}`, color: '#191C22', letterSpacing: '-.02em' }}>
