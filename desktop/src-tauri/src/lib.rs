@@ -27,6 +27,7 @@ use std::sync::Mutex;
 use tauri::{Manager, State};
 
 mod frontend;
+mod ota;
 
 // ─── Frontend source (OTA) ──────────────────────────────────────────────────
 /// The custom URI scheme the SPA is served under. A single origin for the SPA's whole life
@@ -294,6 +295,16 @@ pub fn run() {
                 .expect("build custom-scheme response")
         })
         .setup(move |app| {
+            // Apply any frontend update downloaded in a previous session BEFORE the window loads,
+            // so this launch serves the new version and the running SPA is never swapped underneath.
+            if let Ok(data) = app.path().app_data_dir() {
+                match ota::UiStore::new(&data).promote_staged() {
+                    Ok(Some(v)) => eprintln!("[cortex-desktop] applied staged frontend update: {v}"),
+                    Ok(None) => {}
+                    Err(e) => eprintln!("[cortex-desktop] promote staged frontend failed: {e}"),
+                }
+            }
+
             tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
@@ -308,6 +319,25 @@ pub fn run() {
             // via async IPC and attaches the Switch-server button.
             .initialization_script(INIT_SCRIPT)
             .build()?;
+
+            // Background OTA check: fetch the manifest, download + verify a newer bundle, and stage
+            // it for the next launch. Non-blocking and offline-safe — any failure is a logged no-op,
+            // and the current version keeps serving.
+            if let Ok(data) = app.path().app_data_dir() {
+                let cfg = app.state::<AppState>().config.lock().unwrap().clone();
+                if let (Some(url), Some(token)) = (cfg.server_url, cfg.token) {
+                    std::thread::spawn(move || {
+                        let store = ota::UiStore::new(&data);
+                        match ota::check_and_stage(&url, &token, &store) {
+                            Ok(Some(v)) => eprintln!(
+                                "[cortex-desktop] staged frontend update {v} (applies next launch)"
+                            ),
+                            Ok(None) => {}
+                            Err(e) => eprintln!("[cortex-desktop] ota check skipped: {e}"),
+                        }
+                    });
+                }
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
