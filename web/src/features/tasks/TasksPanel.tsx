@@ -8,17 +8,9 @@ import { TaskRow } from './TaskRow';
 import { TaskModal } from './TaskModal';
 import { useTasksLiveSync } from './useTasksLiveSync';
 
-// Design 4a (scheme.dc.html L624-745): lifecycle groups in a fixed order with section headers
-// styled as uppercase mono labels. Each group has a coloured dot + label + count. Cards show
-// one-line task text (ellipsis), an ID, status metadata. No done-when display, no "+ Task" button.
-
-const SECTION_STYLE: Record<TaskGroupKind, { dot: string }> = {
-  'in-progress': { dot: '#C03D33' },
-  actionable: { dot: '#C99A2E' },
-  'waiting-deps': { dot: '#B6BDC9' },
-  blocked: { dot: '#C99A2E' },
-  done: { dot: '#23854F' },
-};
+// Design 4a (scheme.dc.html L624-745): lifecycle groups in a fixed order with section headers.
+// Cards show one-line task text (ellipsis), an ID, status metadata.
+// No done-when display, no "+ Task" button. Footer is fixed at the bottom.
 
 function GroupSection({
   kind,
@@ -38,20 +30,18 @@ function GroupSection({
     done: L.tkDone,
   };
   const label = i18nLabels[kind];
-  const styles = SECTION_STYLE[kind];
 
   return (
     <section>
       <div
         style={{
-          fontSize: 9.5,
+          fontSize: 10.5,
           fontWeight: 700,
-          letterSpacing: '.07em',
-          color: '#B6BDC9',
+          letterSpacing: '.05em',
+          color: '#5B6472',
           padding: '8px 2px 2px',
         }}
       >
-        <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: styles.dot, marginRight: 6 }} />
         {label} · {tasks.length}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -144,7 +134,9 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
   const openTask = openTaskId ? allTasks.find((t) => t.id === openTaskId) : undefined;
 
   return (
-    <div style={{ minHeight: 0, flex: 1, overflow: 'auto' }}>
+    <div style={{ minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* Filter row + task groups — scrollable */}
+      <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
       {/* Filter row: Actionable / All toggle — no "+ Task" button per the spec */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '0 0 8px', flex: 'none' }}>
         <div style={{ display: 'flex', background: '#EFF1F5', borderRadius: 7, padding: 2 }}>
@@ -181,26 +173,27 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
         </div>
       </div>
 
-      {/* Task cards by lifecycle group */}
-      {visible.length === 0 ? (
-        <div style={{ fontSize: 12, color: '#8A93A2', padding: '24px 0', textAlign: 'center' }}>
-          {L.mNoTasks}
-        </div>
-      ) : (
-        visible.map((group) => (
-          <GroupSection
-            key={group.kind}
-            kind={group.kind}
-            tasks={group.tasks}
-            onOpen={onOpen}
-          />
-        ))
-      )}
+        {/* Task cards by lifecycle group */}
+        {visible.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#8A93A2', padding: '24px 0', textAlign: 'center' }}>
+            {L.mNoTasks}
+          </div>
+        ) : (
+          visible.map((group) => (
+            <GroupSection
+              key={group.kind}
+              kind={group.kind}
+              tasks={group.tasks}
+              onOpen={onOpen}
+            />
+          ))
+        )}
+      </div>
 
-      {/* Footer */}
+      {/* Footer — fixed at bottom */}
       <div
         style={{
-          marginTop: 'auto',
+          flex: 'none',
           display: 'flex',
           alignItems: 'center',
           padding: '8px 2px 0',
