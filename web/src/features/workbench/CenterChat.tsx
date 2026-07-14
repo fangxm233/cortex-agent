@@ -28,7 +28,7 @@ export function CenterChat(): JSX.Element {
   const L = useVocab();
   const trpc = useTRPC();
   const { currentProjectId } = useCurrentProject();
-  const { selectedSessionId } = useSelectedSession();
+  const { selectedSessionId, isDraft, draftProfile } = useSelectedSession();
   // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
   // is resolved from the same list the rail shows.
   const sessionsQuery = useQuery(
@@ -42,8 +42,8 @@ export function CenterChat(): JSX.Element {
     return list.find((s) => s.sessionId === selectedSessionId) ?? null;
   }, [sessionsQuery.data, selectedSessionId]);
 
-  const sessionId = active?.sessionId ?? selectedSessionId ?? '';
-  const title = active ? (active.label ?? active.name) : 'No session';
+  const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
+  const title = isDraft ? L.wbNewConversation : active ? (active.label ?? active.name) : 'No session';
 
   const transcriptQuery = useQuery({
     ...trpc.sessions.transcript.queryOptions({ sessionId }),
@@ -87,9 +87,18 @@ export function CenterChat(): JSX.Element {
         sessionId={sessionId}
         currentProfile={active?.profileName ?? null}
         hasHistory={hasHistory}
+        isDraft={isDraft}
       />
       <MessageStream rows={rows} loading={!!sessionId && transcriptQuery.isPending} />
-      <Composer sessionId={sessionId} running={running} turns={turns} elapsed={elapsed} />
+      <Composer
+        sessionId={sessionId}
+        running={running}
+        turns={turns}
+        elapsed={elapsed}
+        isDraft={isDraft}
+        draftProfile={draftProfile}
+        projectId={currentProjectId ?? 'general'}
+      />
     </div>
   );
 }

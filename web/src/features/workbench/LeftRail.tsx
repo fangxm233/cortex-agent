@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { groupSessions, sessionMeta, groupLabel, projectInitials } from './session-groups';
@@ -22,7 +22,6 @@ import { DaemonStatusModal } from './DaemonStatusModal';
 export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
-  const queryClient = useQueryClient();
   const lang = useLang();
   const setLang = useSetLang();
   const L = useVocab();
@@ -114,17 +113,10 @@ export function LeftRail(): JSX.Element {
   // invalidates sessions.list (the fresh session is most-recent → the center chat resolves to it)
   // and selects its row. There is no dedicated per-session route, so selection + most-recent
   // resolution IS the navigation to the new session.
-  const createSession = useMutation(
-    trpc.sessions.create.mutationOptions({
-      onSuccess: (data) => {
-        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-        setSelectedSession(data.sessionId);
-      },
-    }),
-  );
+  // "+ New session" enters draft mode (no server call) — the session is created lazily
+  // when the user sends their first message (task 15b).
   const onNewSession = () => {
-    if (createSession.isPending) return;
-    createSession.mutate({ projectId: activeProjectId ?? undefined });
+    setSelectedSession('__draft__');
   };
   // Keep a ref to the latest handler so the ⌘N listener (registered once) always calls the current
   // closure without re-binding the window listener on every render.

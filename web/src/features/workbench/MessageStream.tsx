@@ -202,6 +202,7 @@ function UserBubble({ text, attachments }: { text: string; attachments?: Attachm
             color: '#191C22',
             whiteSpace: 'pre-wrap',
             overflowWrap: 'break-word',
+            wordBreak: 'break-word',
           }}
         >
           {text}

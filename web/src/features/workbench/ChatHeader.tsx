@@ -4,6 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { buildProfileOptions, currentBackendOf } from './profile-menu';
 import { ProfileMenu } from './ProfileMenu';
+import { useSelectedSession } from './SelectedSessionProvider';
 
 // Chat header — 1:1 from prototype.dc.html L107–130: session title · profile chip · running/idle
 // status pill · ⌘K affordance. `title` is the REAL active session name (task aba0); `running` is
@@ -11,7 +12,8 @@ import { ProfileMenu } from './ProfileMenu';
 // REAL configured profiles (config.get) and the session's active profile; picking a profile calls
 // the real `sessions.setProfile` mutation. Cross-backend options are disabled once the session has
 // conversation history (the shared switch rule — a live conversation can only move between same-
-// backend profiles).
+// backend profiles). In draft mode (isDraft), the profile chip updates local draft state instead
+// of calling the server (task 15b).
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -22,6 +24,7 @@ export function ChatHeader({
   sessionId,
   currentProfile,
   hasHistory,
+  isDraft = false,
 }: {
   title: string;
   running: boolean;
@@ -29,6 +32,7 @@ export function ChatHeader({
   sessionId: string;
   currentProfile: string | null;
   hasHistory: boolean;
+  isDraft?: boolean;
 }): JSX.Element {
   const trpc = useTRPC();
   const L = useVocab();
@@ -36,16 +40,22 @@ export function ChatHeader({
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const profiles = configQuery.data?.profiles?.profiles ?? [];
   const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
+  const { draftProfile, setDraftProfile } = useSelectedSession();
 
   // The chip reflects the session's active profile, falling back to the config default.
-  const effectiveProfile = currentProfile ?? defaultProfile ?? (profiles[0]?.name ?? '—');
+  // In draft mode, the effective profile is the client-side draft state (no server session).
+  const effectiveProfile = isDraft
+    ? (draftProfile ?? defaultProfile ?? (profiles[0]?.name ?? '—'))
+    : (currentProfile ?? defaultProfile ?? (profiles[0]?.name ?? '—'));
+
   const currentBackend = useMemo(
     () => currentBackendOf(profiles, effectiveProfile),
     [profiles, effectiveProfile],
   );
+  // In draft mode there's no history → all profiles are selectable.
   const options = useMemo(
-    () => buildProfileOptions(profiles, effectiveProfile, { currentBackend, hasHistory }),
-    [profiles, effectiveProfile, currentBackend, hasHistory],
+    () => buildProfileOptions(profiles, effectiveProfile, { currentBackend, hasHistory: isDraft ? false : hasHistory }),
+    [profiles, effectiveProfile, currentBackend, hasHistory, isDraft],
   );
 
   const setProfile = useMutation(
@@ -128,10 +138,16 @@ export function ChatHeader({
               options={options}
               onPick={(name) => {
                 setProfMenuOpen(false);
-                if (!sessionId || name === effectiveProfile) return;
+                if (name === effectiveProfile) return;
                 const opt = options.find((o) => o.name === name);
                 if (!opt || opt.disabled) return; // cross-backend on a live session — not allowed
-                setProfile.mutate({ sessionId, profileName: name });
+                if (isDraft) {
+                  // Draft mode: no server session exists yet — just update local state.
+                  setDraftProfile(name);
+                } else {
+                  if (!sessionId) return;
+                  setProfile.mutate({ sessionId, profileName: name });
+                }
               }}
             />
           </span>

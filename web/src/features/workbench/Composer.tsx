@@ -1,9 +1,10 @@
 import { useRef, useState, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { SLASH_COMMANDS } from './chat-content';
 import { slashItemDispatch } from './composer-slash';
+import { useSelectedSession } from './SelectedSessionProvider';
 import type { AttachmentMeta } from './chat-content';
 
 // Composer — extended with file attachment support (15a 附件输入与消息).
@@ -97,20 +98,45 @@ export function Composer({
   running,
   turns,
   elapsed,
+  isDraft = false,
+  draftProfile = null,
+  projectId = 'general',
 }: {
   sessionId: string;
   running: boolean;
   turns: number;
   elapsed: string;
+  isDraft?: boolean;
+  draftProfile?: string | null;
+  projectId?: string;
 }): JSX.Element {
   const trpc = useTRPC();
   const L = useVocab();
+  const queryClient = useQueryClient();
+  const { setSelectedSession } = useSelectedSession();
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
+  const createAndSendMut = useMutation(
+    trpc.sessions.createAndSend.mutationOptions({
+      onSuccess: (data) => {
+        // Transition from draft to the real session: invalidate the session list so
+        // the new session appears, then select it (triggers transcript + live sync).
+        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        setSelectedSession(data.sessionId);
+      },
+    }),
+  );
   const [composer, setComposer] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
+  // In draft mode, there's no real sessionId for uploads. Generate a temp UUID once
+  // so files have somewhere to land; handleCreateAndSend moves them to the real session dir.
+  const draftUploadId = useRef<string | null>(null);
+  if (isDraft && !draftUploadId.current) {
+    draftUploadId.current = crypto.randomUUID();
+  }
+  const uploadSessionId = isDraft ? (draftUploadId.current ?? '') : sessionId;
 
   // Auto-grow the textarea up to a cap.
   const autoGrow = (el: HTMLTextAreaElement | null): void => {
@@ -138,7 +164,7 @@ export function Composer({
   const hasAttachments = attachments.length > 0;
   const doneAttachments = attachments.filter((a) => a.status === 'done');
   const hasText = !!composer.trim();
-  const canSend = (hasText || doneAttachments.length > 0) && !!sessionId && !sendMut.isPending;
+  const canSend = (hasText || doneAttachments.length > 0) && (!!sessionId || isDraft) && !sendMut.isPending && !createAndSendMut.isPending;
   const composerBorder = slashOpen ? '#4655D4' : dragOver ? '#4655D4' : '#D9DCE3';
   const composerHint = running ? `${L.pillRunning} · ${L.wbEscToStop}` : `⏎ ${L.wbSend} · ⇧⏎ ${L.wbNewline}`;
   const sendBg = canSend ? '#191C22' : '#D9DCE3';
@@ -156,7 +182,7 @@ export function Composer({
 
     uploadFile(
       pending.file,
-      sessionId,
+      uploadSessionId,
       (pct) => setAttachments((prev) => prev.map((a) => (a.id === pending.id ? { ...a, progress: pct } : a))),
       ctrl.signal,
     )
@@ -169,7 +195,7 @@ export function Composer({
         setAttachments((prev) => prev.map((a) => (a.id === pending.id ? { ...a, status: 'error' as const, errorMsg: err.message } : a)));
         abortControllers.current.delete(pending.id);
       });
-  }, [sessionId]);
+  }, [uploadSessionId]);
 
   // ── Add files ──
   const addFiles = useCallback((files: FileList | File[]): void => {
@@ -261,12 +287,25 @@ export function Composer({
   const doSendText = (raw: string): void => {
     const text = raw.trim();
     const metas = doneAttachments.map((a) => a.meta!);
-    if ((!text && metas.length === 0) || !sessionId) return;
-    sendMut.mutate({
-      sessionId,
-      text,
-      ...(metas.length > 0 ? { attachments: metas } : {}),
-    } as any);
+    if (!text && metas.length === 0) return;
+
+    if (isDraft) {
+      // Draft mode: create session + send first message atomically.
+      createAndSendMut.mutate({
+        projectId,
+        profileName: draftProfile ?? undefined,
+        text,
+        draftUploadId: draftUploadId.current ?? undefined,
+        ...(metas.length > 0 ? { attachments: metas } : {}),
+      } as any);
+    } else {
+      if (!sessionId) return;
+      sendMut.mutate({
+        sessionId,
+        text,
+        ...(metas.length > 0 ? { attachments: metas } : {}),
+      } as any);
+    }
     setComposer('');
     setAttachments([]);
     setSlashOpen(false);

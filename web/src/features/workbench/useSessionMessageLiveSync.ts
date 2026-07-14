@@ -46,11 +46,18 @@ export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
     const sub = client.subscribe.subscribe(
       { events: ['session.message', 'session.status'], sessionId },
       {
-        onData: (event: { type?: string; payload?: unknown }) => {
+        onData: (raw: { type?: string; payload?: unknown }) => {
+          // DEBUG: log every incoming SSE event for session.status investigation
+          console.log('[liveSync] onData raw type:', raw.type, 'payload keys:', raw.payload ? Object.keys(raw.payload as object) : 'null');
+          if (raw.type === 'session.status') {
+            const s = raw.payload as { running?: boolean; sessionId?: string } | undefined;
+            console.log('[liveSync] session.status received:', { running: s?.running, sid: s?.sessionId });
+          }
           // Authoritative running signal — real turn start/end from the agent-runner.
-          if (event.type === 'session.status') {
-            const s = event.payload as { running?: boolean } | undefined;
+          if (raw.type === 'session.status') {
+            const s = raw.payload as { running?: boolean } | undefined;
             const r = !!s?.running;
+            console.log('[liveSync] setStatusRunning:', r);
             setStatusRunning(r);
             if (!r) {
               // Turn ended — collapse the heuristic immediately so idle is instant, not a 2.5s tail.
@@ -62,7 +69,7 @@ export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
             }
             return;
           }
-          const p = event.payload as
+          const p = raw.payload as
             | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; attachments?: LiveSessionMessage['attachments'] }
             | undefined;
           if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
