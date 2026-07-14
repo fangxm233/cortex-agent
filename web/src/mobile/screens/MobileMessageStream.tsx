@@ -83,20 +83,6 @@ function AssistantBlock({ text, streaming }: { text: string; streaming: boolean 
   return (
     <div style={{ fontSize: 13.5, lineHeight: 1.65, color: '#22262E' }}>
       {text}
-      {streaming && (
-        <span
-          style={{
-            display: 'inline-block',
-            width: 6,
-            height: 14,
-            background: '#4655D4',
-            borderRadius: 1.5,
-            marginLeft: 3,
-            verticalAlign: -2,
-            animation: 'cxblink 1.1s steps(1) infinite',
-          }}
-        />
-      )}
     </div>
   );
 }

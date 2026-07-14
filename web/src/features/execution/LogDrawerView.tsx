@@ -108,19 +108,9 @@ export function LogDrawerView({
             {line}
           </div>
         ))}
-        {/* Trailing live-clock + blinking caret (prototype L1555) */}
+        {/* Trailing live-clock (prototype L1555) */}
         <div>
-          <span style={{ color: '#5B6472' }}>{now}</span>{' '}
-          <span
-            style={{
-              display: 'inline-block',
-              width: 7,
-              height: 12,
-              background: '#9AA3E8',
-              verticalAlign: -2,
-              animation: 'cxblink 1.1s steps(1) infinite',
-            }}
-          />
+          <span style={{ color: '#5B6472' }}>{now}</span>
         </div>
       </div>
 

@@ -214,20 +214,6 @@ function RunningStep({ step, onOpenSub }: { step: DetailStep; onOpenSub: (s: Det
           {agent.lastOutput && (
             <div style={{ fontSize: 12.5, lineHeight: 1.6, color: '#22262E', maxWidth: 640 }}>
               {agent.lastOutput}
-              {agent.streaming && (
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: 6,
-                    height: 13,
-                    background: '#4655D4',
-                    borderRadius: 1,
-                    verticalAlign: -2,
-                    marginLeft: 2,
-                    animation: 'cxblink 1.1s steps(1) infinite',
-                  }}
-                />
-              )}
             </div>
           )}
         </div>

@@ -214,20 +214,6 @@ function AssistantBlock({ text, streaming }: { text: string; streaming: boolean 
   return (
     <div style={{ animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: '#22262E' }}>
       <ChatMarkdown text={text} />
-      {streaming && (
-        <span
-          style={{
-            display: 'inline-block',
-            width: 7,
-            height: 15,
-            background: '#4655D4',
-            borderRadius: 1.5,
-            marginLeft: 3,
-            verticalAlign: -2,
-            animation: 'cxblink 1.1s steps(1) infinite',
-          }}
-        />
-      )}
     </div>
   );
 }
