@@ -338,6 +338,12 @@ export interface SessionInfo {
    *  `session.status` event stream as the delta (snapshot + delta), so running state survives
    *  session switches, page reloads, and SSE reconnects. */
   running: boolean;
+  /** Real agent-turn count for the composer (NOT the number of user-message rounds). While running,
+   *  the live count of the in-flight turn (from the running execution); while idle, the last run's
+   *  final turn count (from the most recent non-thread execution on the session's channel). Null when
+   *  unknown (a running turn before its first progress event, or a session that never ran). The client
+   *  uses this as the snapshot and the `session.turn` event stream as the delta (snapshot + delta). */
+  numTurns: number | null;
   /** Unread: the session had activity (lastUsedAt, bumped at turn end) AFTER the user last viewed
    *  it (`sessions.markRead` → registry lastReadAt). Legacy records with no lastReadAt are treated
    *  as read (no unread flood on first deploy). */

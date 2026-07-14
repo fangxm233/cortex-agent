@@ -45,23 +45,54 @@ export async function handleSessionsList(
   const isChannelInTurn = (channel: string | undefined): boolean =>
     !!channel && deps.runningExecutions.getByChannel(channel).some((e) => !e.threadId);
 
-  const infos = sessions.map((s: any): SessionInfo => ({
-    sessionId: s.sessionId,
-    name: s.name,
-    projectId: s.projectId,
-    backend: s.backend,
-    kind: s.kind,
-    origin: s.origin ?? 'direct',
-    createdAt: s.createdAt,
-    lastUsedAt: s.lastUsedAt,
-    resumable: s.kind !== 'scheduled',
-    label: s.label ?? null,
-    profileName: s.profileName ?? null,
-    running: isChannelInTurn(s.channel),
-    // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view
-    // (sessions.markRead → lastReadAt). Legacy records without lastReadAt → read.
-    unread: !!s.lastReadAt && s.lastUsedAt > s.lastReadAt,
-  }));
+  // Live agent-turn count of the in-flight interactive turn (the running snapshot): the non-thread
+  // execution on the channel carries its own live numTurns, updated in-memory on each turn_progress.
+  const liveTurnsForChannel = (channel: string | undefined): number | null => {
+    if (!channel) return null;
+    const exec = deps.runningExecutions.getByChannel(channel).find((e) => !e.threadId);
+    return exec && typeof (exec as any).numTurns === 'number' ? (exec as any).numTurns : null;
+  };
+
+  // Idle snapshot: the last COMPLETED interactive run's turn count. One pass over the execution
+  // registry builds channel → latest non-thread execution's numTurns (by startedAt). A running turn
+  // never falls back to this (avoids showing the previous run's count during a fresh turn).
+  const lastTurnsByChannel = new Map<string, { startedAt: string; numTurns: number }>();
+  for (const e of deps.executionRegistry.getAll()) {
+    const channel: string | undefined = e?.channel ?? undefined;
+    const numTurns: unknown = e?.metrics?.numTurns;
+    if (!channel || e?.thread?.threadId || typeof numTurns !== 'number') continue;
+    const startedAt: string = e?.runtime?.startedAt ?? '';
+    const prev = lastTurnsByChannel.get(channel);
+    if (!prev || startedAt.localeCompare(prev.startedAt) >= 0) {
+      lastTurnsByChannel.set(channel, { startedAt, numTurns });
+    }
+  }
+  const resolveNumTurns = (channel: string | undefined, running: boolean): number | null => {
+    if (running) return liveTurnsForChannel(channel);
+    return channel ? (lastTurnsByChannel.get(channel)?.numTurns ?? null) : null;
+  };
+
+  const infos = sessions.map((s: any): SessionInfo => {
+    const running = isChannelInTurn(s.channel);
+    return {
+      sessionId: s.sessionId,
+      name: s.name,
+      projectId: s.projectId,
+      backend: s.backend,
+      kind: s.kind,
+      origin: s.origin ?? 'direct',
+      createdAt: s.createdAt,
+      lastUsedAt: s.lastUsedAt,
+      resumable: s.kind !== 'scheduled',
+      label: s.label ?? null,
+      profileName: s.profileName ?? null,
+      running,
+      numTurns: resolveNumTurns(s.channel, running),
+      // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view
+      // (sessions.markRead → lastReadAt). Legacy records without lastReadAt → read.
+      unread: !!s.lastReadAt && s.lastUsedAt > s.lastReadAt,
+    };
+  });
 
   // Title label-less sessions from their first user message so the left rail shows the conversation's
   // opening text instead of the opaque `cortex-XXXX` name. Read-only + bounded (only for sessions

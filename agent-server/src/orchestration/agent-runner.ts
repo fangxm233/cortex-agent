@@ -27,7 +27,8 @@ import { buildDurableHooks } from './durable-helpers.js';
 const log = createLogger('agent-runner');
 import { createToolTrace } from '@platform/index.js';
 import { setStreamingCallback, clearStreamingCallback, publishPlanSubmitted, publishAskUserRequested } from './routing/hook-bridge.js';
-import { publishSessionMessage, publishSessionStatus } from './session-events.js';
+import { publishSessionMessage, publishSessionStatus, publishSessionTurn } from './session-events.js';
+import { runningExecutions } from '@core/running-executions.js';
 import { maybeNotifyCodexLowUsage } from '@domain/costs/codex-usage-monitor.js';
 import { recordResume } from '@domain/costs/resume-registry.js';
 import { getAgent } from '@domain/threads/index.js';
@@ -204,7 +205,21 @@ export class AgentRunner {
             publishSessionMessage({ sessionId, channel, role: 'assistant', text, ts });
           }
         },
-        onProgress: callbacks.onProgress,
+        onProgress: (progress: any) => {
+          callbacks.onProgress(progress);
+          // S4 chat: surface the REAL agent-turn count live (snapshot on the running execution +
+          // `session.turn` delta) so the Web composer shows turns that grow as the agent works.
+          emitTurnProgress(
+            {
+              sessionId,
+              channel,
+              executionId: capturedExecutionId,
+              setNumTurns: (n) => { if (capturedExecutionId) runningExecutions.setNumTurns(capturedExecutionId, n); },
+              publish: (n) => { if (sessionId) publishSessionTurn({ sessionId, channel, numTurns: n }); },
+            },
+            progress,
+          );
+        },
         onFallback: callbacks.onFallback,
         onToolUse: composeToolUse(
           composeToolUse(callbacks.onToolUse, interactiveCallbacks.onToolUse),
@@ -250,6 +265,30 @@ export class AgentRunner {
 export const agentRunner = new AgentRunner();
 
 // --- Helpers ---
+
+/** Dependencies for {@link emitTurnProgress} — side effects injected for testability. */
+export interface TurnProgressDeps {
+  sessionId: string | null;
+  channel: string;
+  executionId: string | null;
+  /** Update the live agent-turn count on the running execution (snapshot for sessions.list). */
+  setNumTurns: (numTurns: number) => void;
+  /** Publish the `session.turn` delta for the live composer. */
+  publish: (numTurns: number) => void;
+}
+
+/**
+ * Translate an adapter `turn_progress`/`turn_complete` payload into the S4 chat's live agent-turn
+ * signals: update the running execution's numTurns snapshot (when an executionId is known) and
+ * publish a `session.turn` delta (when a sessionId is known). No-op unless `num_turns` is a finite
+ * number — a progress event without a turn count carries nothing to show. Exposed for unit testing.
+ */
+export function emitTurnProgress(deps: TurnProgressDeps, progress: { num_turns?: unknown } | null | undefined): void {
+  const n = progress?.num_turns;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return;
+  if (deps.executionId) deps.setNumTurns(n);
+  if (deps.sessionId) deps.publish(n);
+}
 
 /** Exposed for unit testing. */
 export function resolveDefaultAgent(agentMessage: string, channel?: string): AgentConfig {

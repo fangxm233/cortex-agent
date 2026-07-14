@@ -6,6 +6,7 @@ import {
   sessionElapsedMs,
   formatElapsed,
   resolveRunning,
+  resolveTurns,
   type LiveSessionMessage,
 } from './transcript-vm';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
@@ -225,5 +226,23 @@ describe('resolveRunning', () => {
   it('uses the stream heuristic only when neither event nor snapshot exists', () => {
     expect(resolveRunning(null, undefined, true)).toBe(true);
     expect(resolveRunning(null, undefined, false)).toBe(false);
+  });
+});
+
+describe('resolveTurns', () => {
+  it('prefers the live session.turn delta over the snapshot', () => {
+    expect(resolveTurns(3, 8)).toBe(3);
+    expect(resolveTurns(1, null)).toBe(1);
+    expect(resolveTurns(0, 5)).toBe(0); // a real 0 delta still wins
+  });
+
+  it('falls back to the sessions.list numTurns snapshot before any delta', () => {
+    expect(resolveTurns(null, 8)).toBe(8);
+    expect(resolveTurns(null, 0)).toBe(0);
+  });
+
+  it('is null when neither a delta nor a snapshot exists', () => {
+    expect(resolveTurns(null, null)).toBe(null);
+    expect(resolveTurns(null, undefined)).toBe(null);
   });
 });

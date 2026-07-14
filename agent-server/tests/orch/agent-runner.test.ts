@@ -7,7 +7,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AgentRunner, agentRunner, resolveDefaultAgent } from '../../src/orchestration/agent-runner.js';
+import { AgentRunner, agentRunner, resolveDefaultAgent, emitTurnProgress } from '../../src/orchestration/agent-runner.js';
 import { conduitQueues, enqueue } from '../../src/orchestration/conduit-queue.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import { loadConfig } from '../../src/domain/threads/template-loader.js';
@@ -31,6 +31,40 @@ function makeCtx(overrides: Record<string, any> = {}) {
     ...overrides,
   };
 }
+
+// ── emitTurnProgress: real agent-turn delta for the S4 chat composer ─────────
+
+test('emitTurnProgress publishes numTurns + updates the live execution on a numeric num_turns', () => {
+  const calls: { setNumTurns: number[]; publish: number[] } = { setNumTurns: [], publish: [] };
+  emitTurnProgress(
+    { sessionId: 's1', channel: 'C1', executionId: 'E1', setNumTurns: (n) => calls.setNumTurns.push(n), publish: (n) => calls.publish.push(n) },
+    { num_turns: 4 },
+  );
+  assert.deepEqual(calls.setNumTurns, [4]);
+  assert.deepEqual(calls.publish, [4]);
+});
+
+test('emitTurnProgress is a no-op when num_turns is missing / non-numeric', () => {
+  const calls: number[] = [];
+  const deps = { sessionId: 's1', channel: 'C1', executionId: 'E1', setNumTurns: (n: number) => calls.push(n), publish: (n: number) => calls.push(n) };
+  emitTurnProgress(deps, {});
+  emitTurnProgress(deps, { num_turns: null });
+  emitTurnProgress(deps, { num_turns: 'x' as any });
+  assert.deepEqual(calls, []);
+});
+
+test('emitTurnProgress skips publish when there is no sessionId, and skips setNumTurns when no executionId', () => {
+  const set: number[] = []; const pub: number[] = [];
+  // No sessionId → nothing published, but the live execution can still be updated.
+  emitTurnProgress({ sessionId: null, channel: 'C1', executionId: 'E1', setNumTurns: (n) => set.push(n), publish: (n) => pub.push(n) }, { num_turns: 2 });
+  assert.deepEqual(set, [2]);
+  assert.deepEqual(pub, []);
+  // No executionId → nothing to update on the live registry, but still published.
+  set.length = 0; pub.length = 0;
+  emitTurnProgress({ sessionId: 's1', channel: 'C1', executionId: null, setNumTurns: (n) => set.push(n), publish: (n) => pub.push(n) }, { num_turns: 2 });
+  assert.deepEqual(set, []);
+  assert.deepEqual(pub, [2]);
+});
 
 // ── (a) hourglass reaction when channel already has a queue ──────────────────
 

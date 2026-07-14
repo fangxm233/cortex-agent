@@ -57,6 +57,28 @@ test('register returns the primary key (executionId)', () => {
   assert.equal(key, 'E1');
 });
 
+// ── Live numTurns (S4 chat: real agent-turn snapshot on the running execution) ──
+
+test('numTurns: defaults to null on register; setNumTurns updates the live entry', () => {
+  const exec = new RunningExecutions();
+  exec.register(makeInput({ executionId: 'E1', channel: 'C1' }));
+  assert.equal(exec.getById('E1')!.numTurns, null);
+
+  exec.setNumTurns('E1', 3);
+  assert.equal(exec.getById('E1')!.numTurns, 3);
+  // Visible through the channel index too (the sessions.list snapshot reads it there).
+  assert.equal(exec.getByChannel('C1')[0]!.numTurns, 3);
+
+  exec.setNumTurns('E1', 5);
+  assert.equal(exec.getById('E1')!.numTurns, 5);
+});
+
+test('setNumTurns: no-op for an unknown key', () => {
+  const exec = new RunningExecutions();
+  // Must not throw when the execution is already gone / never registered.
+  assert.doesNotThrow(() => exec.setNumTurns('missing', 2));
+});
+
 test('register with threadId: appears in byThreadId and byChannel; remove(id) cleans all', () => {
   const exec = new RunningExecutions();
   exec.register(makeInput({ executionId: 'E1', threadId: 'T1', channel: 'C123' }));

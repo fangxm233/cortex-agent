@@ -7,7 +7,7 @@ import { MessageStream } from './MessageStream';
 import { Composer } from './Composer';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
 import { useMarkSessionRead } from './useMarkSessionRead';
-import { buildTranscriptRows, turnCount, sessionElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
+import { buildTranscriptRows, turnCount, resolveTurns, sessionElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 
@@ -52,7 +52,7 @@ export function CenterChat(): JSX.Element {
     enabled: !!sessionId,
   });
 
-  const { liveTail, streaming, running } = useSessionMessageLiveSync(sessionId, active?.running);
+  const { liveTail, streaming, running, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
   // Unread write side: the OPEN session is being read — stamp markRead on select, on live
   // activity while viewing, and on tab re-focus (only while the document is visible).
   useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
@@ -63,6 +63,10 @@ export function CenterChat(): JSX.Element {
     [transcript, liveTail, streaming, L],
   );
   const turns = turnCount(transcriptQuery.data);
+  // The composer status line shows the REAL agent-turn count (the number that grows as the agent
+  // works), NOT the number of user-message rounds (`turns`). Snapshot + delta: the live `session.turn`
+  // event wins, else the `SessionInfo.numTurns` snapshot from sessions.list (restored on mount/reload).
+  const agentTurns = resolveTurns(liveTurns, active?.numTurns ?? null);
   const elapsed = useMemo(() => formatElapsed(sessionElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
   // A session "has history" once it carries at least one turn — the switch rule uses this to allow
   // only same-backend profile switches on a live conversation. Live streaming counts too.
@@ -98,7 +102,7 @@ export function CenterChat(): JSX.Element {
       <Composer
         sessionId={sessionId}
         running={running}
-        turns={turns}
+        turns={agentTurns}
         elapsed={elapsed}
         isDraft={isDraft}
         draftProfile={draftProfile}

@@ -35,6 +35,21 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
   });
 }
 
+/** Emit the REAL agent-turn count of a session's in-flight turn (S4 chat composer). Published by the
+ *  agent-runner on each `turn_progress` (and the terminal `turn_complete`) during an interactive turn,
+ *  so the Web composer shows the live agent turn count that grows as the agent works — not the count of
+ *  user-message rounds. `numTurns` is the adapter's cumulative turn count within the current run. The
+ *  Web chat subscribes to this (scoped by sessionId) as the delta over the `SessionInfo.numTurns`
+ *  snapshot (snapshot + delta, mirroring `session.status`). No-op when no bus is wired. */
+export function publishSessionTurn(p: { sessionId: string; channel: string; numTurns: number }): void {
+  jobCtx.bus?.publish({
+    type: 'session.turn',
+    sessionId: p.sessionId,
+    channel: p.channel,
+    numTurns: p.numTurns,
+  });
+}
+
 /** Emit the REAL running state of a session's turn (S4 chat running indicator). Published by the
  *  agent-runner at the start (running:true) and end (running:false, in a finally) of each interactive
  *  turn — the single seam covering every channel (web / Slack / Feishu). The Web chat subscribes to

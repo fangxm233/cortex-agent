@@ -30,6 +30,9 @@ export interface SessionLiveState {
    *  sessions.list snapshot (`snapshotRunning`), else the message-stream heuristic. This is what
    *  the chat's running/idle indicator should use. */
   running: boolean;
+  /** The live agent-turn count from the `session.turn` delta (null until the first event for this
+   *  session). The caller resolves it against the `SessionInfo.numTurns` snapshot via `resolveTurns`. */
+  liveTurns: number | null;
 }
 
 export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: boolean): SessionLiveState {
@@ -41,12 +44,15 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
   // Delta from the backend `session.status` event (real turn lifecycle). Null until the first status
   // event arrives for this session — until then the snapshot (then the stream heuristic) governs.
   const [statusRunning, setStatusRunning] = useState<boolean | null>(null);
+  // Live agent-turn count from the `session.turn` delta. Null until the first event for this session.
+  const [liveTurns, setLiveTurns] = useState<number | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setLiveTail([]);
     setStreaming(false);
     setStatusRunning(null);
+    setLiveTurns(null);
     if (!sessionId) return;
 
     // Reconnect recovery: after an SSE drop (sleep, network blip) events are lost for good — on
@@ -54,7 +60,7 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
     let wasConnected = false;
 
     const sub = client.subscribe.subscribe(
-      { events: ['session.message', 'session.status'], sessionId },
+      { events: ['session.message', 'session.status', 'session.turn'], sessionId },
       {
         onConnectionStateChange: (state: { state: string }) => {
           if (state.state !== 'pending') return;
@@ -70,7 +76,11 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
             const s = raw.payload as { running?: boolean } | undefined;
             const r = !!s?.running;
             setStatusRunning(r);
-            if (!r) {
+            if (r) {
+              // A fresh turn starts its own turn count — drop the previous run's live value so the
+              // composer doesn't flash the last count before this run's first progress event lands.
+              setLiveTurns(null);
+            } else {
               // Turn ended — collapse the heuristic immediately so idle is instant, not a 2.5s tail.
               setStreaming(false);
               if (idleTimer.current) clearTimeout(idleTimer.current);
@@ -78,6 +88,12 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
             // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
             // edges so the left rail reflects the turn without waiting for a focus refetch.
             queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+            return;
+          }
+          // Live agent-turn delta — the real turn count that grows as the agent works.
+          if (raw.type === 'session.turn') {
+            const s = raw.payload as { numTurns?: number } | undefined;
+            if (typeof s?.numTurns === 'number') setLiveTurns(s.numTurns);
             return;
           }
           const p = raw.payload as
@@ -114,5 +130,5 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
 
   // Snapshot + delta: event wins once received; snapshot restores state before that; heuristic last.
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
-  return { liveTail, streaming, running };
+  return { liveTail, streaming, running, liveTurns };
 }

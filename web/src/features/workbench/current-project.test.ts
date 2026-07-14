@@ -15,6 +15,7 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   label: null,
   profileName: null,
   running: false,
+  numTurns: null,
   unread: false,
 });
 

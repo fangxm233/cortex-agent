@@ -24,6 +24,10 @@ export interface RunningExecution {
   agentProcess?: unknown;
   /** Claude session ID — saved on cancel so the next message can resume the same session. */
   sessionId?: string | null;
+  /** Live agent-turn count of the in-flight run (adapter `turn_progress`/`turn_complete`), updated
+   *  in-memory via setNumTurns. Null until the first progress event. Read by sessions.list as the
+   *  running-turn snapshot (snapshot + delta with the `session.turn` event) for the Web composer. */
+  numTurns?: number | null;
 }
 
 /** Input accepted by register(). registryKey/startTime are assigned internally; kind defaults to null. */
@@ -73,6 +77,7 @@ export class RunningExecutions {
       backend: exec.backend,
       agentProcess: exec.agentProcess,
       sessionId: exec.sessionId,
+      numTurns: exec.numTurns ?? null,
     };
 
     this.byKey.set(key, entry);
@@ -97,6 +102,15 @@ export class RunningExecutions {
   /** Look up an execution by its primary key (executionId or ad-hoc registryKey). */
   getById(id: string): RunningExecution | null {
     return this.byKey.get(id) ?? null;
+  }
+
+  /** Update the live agent-turn count of a running execution (in-memory only, no disk write).
+   *  No-op if the id is not registered (the turn may have already terminated). The entry is shared
+   *  by reference with the byChannel index, so the sessions.list snapshot sees the update. */
+  setNumTurns(id: string, numTurns: number): void {
+    const entry = this.byKey.get(id);
+    if (!entry) return;
+    entry.numTurns = numTurns;
   }
 
   /** Returns true if an execution is registered under the given id/key. */

@@ -145,6 +145,65 @@ test('sessions.list running snapshot: no live executions → running false every
   assert.ok(result.every(s => s.running === false));
 });
 
+test('sessions.list numTurns: running session → live running execution numTurns', async () => {
+  const deps = makeDeps({
+    runningExecutions: {
+      getAll: () => [],
+      // s1's channel C1 has a live interactive (non-thread) execution mid-run at 6 turns.
+      getByChannel: (channel: string) =>
+        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1', numTurns: 6 }] : [],
+    } as any,
+  });
+  const result = await handleSessionsList(deps, {});
+  const byId = Object.fromEntries(result.map(s => [s.sessionId, s.numTurns]));
+  assert.equal(byId['s1'], 6, 'running session shows the live turn count');
+  assert.equal(byId['s2'], null);
+  assert.equal(byId['s3'], null);
+});
+
+test('sessions.list numTurns: running session but no progress yet → null (no stale fallback)', async () => {
+  const deps = makeDeps({
+    runningExecutions: {
+      getAll: () => [],
+      getByChannel: (channel: string) =>
+        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1', numTurns: null }] : [],
+    } as any,
+    // A previous completed run on C1 exists — must NOT leak into the fresh running turn.
+    executionRegistry: {
+      getExecution: () => null, cancelExecution: () => null,
+      getAll: () => [
+        { channel: 'C1', thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 9 } },
+      ],
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(result.find(s => s.sessionId === 's1')!.numTurns, null);
+});
+
+test('sessions.list numTurns: idle session → last non-thread execution numTurns (latest by startedAt)', async () => {
+  const deps = makeDeps({
+    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
+    executionRegistry: {
+      getExecution: () => null, cancelExecution: () => null,
+      getAll: () => [
+        { channel: 'C1', thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 2 } },
+        { channel: 'C1', thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7 } },
+        // A thread execution on the same channel must be ignored.
+        { channel: 'C1', thread: { threadId: 'thr_x' }, runtime: { startedAt: '2026-06-01T00:00:00Z' }, metrics: { numTurns: 99 } },
+      ],
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(result.find(s => s.sessionId === 's1')!.numTurns, 7, 'latest non-thread run');
+  // s3 (channel C3) has no executions → null.
+  assert.equal(result.find(s => s.sessionId === 's3')!.numTurns, null);
+});
+
+test('sessions.list numTurns: no execution data anywhere → null', async () => {
+  const result = await handleSessionsList(makeDeps(), {});
+  assert.ok(result.every(s => s.numTurns === null));
+});
+
 test('sessions.list unread: activity after lastReadAt → unread; read/never-tracked → false', async () => {
   const withRead = [
     // s1: read AFTER last activity → not unread

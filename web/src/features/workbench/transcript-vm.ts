@@ -92,6 +92,17 @@ export function resolveRunning(
   return statusRunning ?? snapshotRunning ?? streaming;
 }
 
+/**
+ * Snapshot + delta resolution for the composer's REAL agent-turn count. Precedence:
+ *   1. `liveTurns` — the live `session.turn` event (delta), authoritative once received (a real 0 wins);
+ *   2. `snapshotTurns` — the sessions.list `numTurns` snapshot, restores the count on mount / session
+ *      switch / reload before any event arrives;
+ *   3. `null` — unknown (a running turn before its first progress event, or a session that never ran).
+ */
+export function resolveTurns(liveTurns: number | null, snapshotTurns: number | null | undefined): number | null {
+  return liveTurns ?? snapshotTurns ?? null;
+}
+
 /** Compact human-readable duration for the composer status line; `—` for null (never fabricated). */
 export function formatElapsed(ms: number | null): string {
   if (ms == null) return '—';

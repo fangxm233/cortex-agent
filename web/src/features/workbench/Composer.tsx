@@ -104,7 +104,8 @@ export function Composer({
 }: {
   sessionId: string;
   running: boolean;
-  turns: number;
+  /** Real agent-turn count (snapshot + `session.turn` delta); null when unknown → rendered as —. */
+  turns: number | null;
   elapsed: string;
   isDraft?: boolean;
   draftProfile?: string | null;
@@ -171,6 +172,8 @@ export function Composer({
   const composerBorder = slashOpen ? '#4655D4' : dragOver ? '#4655D4' : '#D9DCE3';
   const composerHint = running ? `${L.pillRunning} · ${L.wbEscToStop}` : `⏎ ${L.wbSend} · ⇧⏎ ${L.wbNewline}`;
   const sendBg = canSend ? '#191C22' : '#D9DCE3';
+  // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
+  const turnsText = turns == null ? DASH : `${turns} ${L.wbTurnsUnit}`;
 
   const q = composer.startsWith('/') ? composer.slice(1).toLowerCase() : '';
   const filtered = SLASH_COMMANDS.filter((c) => c.cmd.slice(1).startsWith(q));
@@ -636,7 +639,7 @@ export function Composer({
               }}
             />
             <span>
-              {L.pillRunning} · {elapsed} · {turns} {L.wbTurnsUnit} · {DASH}
+              {L.pillRunning} · {elapsed} · {turnsText} · {DASH}
             </span>
           </div>
         ) : (
@@ -652,7 +655,7 @@ export function Composer({
           >
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D9DCE3' }} />
             <span>
-              {L.wbIdle} · {turns} {L.wbTurnsUnit} · {DASH}
+              {L.wbIdle} · {turnsText} · {DASH}
             </span>
           </div>
         )}
