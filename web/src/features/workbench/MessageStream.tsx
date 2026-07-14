@@ -213,7 +213,7 @@ function UserBubble({ text, attachments }: { text: string; attachments?: Attachm
 
 function AssistantBlock({ text, streaming: _streaming }: { text: string; streaming: boolean }): JSX.Element {
   return (
-    <div style={{ animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: '#22262E' }}>
+    <div style={{ animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: '#22262E', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
       <ChatMarkdown text={text} />
     </div>
   );

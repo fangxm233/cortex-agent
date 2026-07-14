@@ -28,6 +28,9 @@ function UserBubble({ text }: { text: string }): JSX.Element {
         padding: '9px 13px',
         fontSize: 13.5,
         lineHeight: 1.55,
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'break-word',
+        wordBreak: 'break-word',
       }}
     >
       {text}
@@ -81,7 +84,7 @@ function ToolCallsRow({
 
 function AssistantBlock({ text, streaming: _streaming }: { text: string; streaming: boolean }): JSX.Element {
   return (
-    <div style={{ fontSize: 13.5, lineHeight: 1.65, color: '#22262E' }}>
+    <div style={{ fontSize: 13.5, lineHeight: 1.65, color: '#22262E', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
       {text}
     </div>
   );
