@@ -5,7 +5,7 @@ import { TasksPanel } from '@/features/tasks/TasksPanel';
 import { RightThreadCard } from './RightThreadCard';
 import { RightMachinesTab } from './RightMachinesTab';
 import { actionableCount, formatCost } from './right-panel-vm';
-import { threadScopeFilter, taskScopeFilter, type Scope } from './scope';
+import { threadScopeFilter, type Scope } from './scope';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useVocab } from '@/i18n';
@@ -223,7 +223,7 @@ export function RightPanel(): JSX.Element {
         </>
       )}
 
-      {/* tasks tab — REUSE the real tasks.list panel (features/tasks/TasksPanel) */}
+      {/* tasks tab — design 4a: lifecycle groups with built-in Actionable/All filter */}
       {tab === 'tasks' && (
         <div
           style={{
@@ -236,7 +236,7 @@ export function RightPanel(): JSX.Element {
             minHeight: 0,
           }}
         >
-          <TasksPanel lifecycle={taskScopeFilter(filter)} projectId={projectId} />
+          <TasksPanel projectId={projectId} />
         </div>
       )}
 

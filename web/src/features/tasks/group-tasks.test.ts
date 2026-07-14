@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { groupTasks, PRIORITY_ORDER } from './group-tasks';
+import { groupTasks, LIFECYCLE_ORDER } from './group-tasks';
 
-function task(partial: Partial<TaskInfo> & Pick<TaskInfo, 'id' | 'status' | 'priority'>): TaskInfo {
+function t(partial: Partial<TaskInfo> & Pick<TaskInfo, 'id'>): TaskInfo {
   return {
     text: `task ${partial.id}`,
     project: 'p',
-    actionable: partial.status === 'open',
+    status: 'open',
+    priority: 'medium',
+    actionable: false,
     claimedBy: null,
     blockedBy: null,
     dependsOn: [],
@@ -18,56 +20,94 @@ function task(partial: Partial<TaskInfo> & Pick<TaskInfo, 'id' | 'status' | 'pri
   };
 }
 
-describe('groupTasks', () => {
-  it('returns empty open/done groups for empty input', () => {
+describe('groupTasks — design 4a lifecycle grouping', () => {
+  it('returns empty groups for empty input', () => {
     const g = groupTasks([]);
-    expect(g.open).toEqual([]);
-    expect(g.done).toEqual([]);
+    expect(g).toEqual([]);
   });
 
-  it('splits by lifecycle: open before done', () => {
+  it('classifies an active claimed task as in-progress', () => {
+    const g = groupTasks([t({ id: 'a', claimedBy: 'agent' })]);
+    expect(g[0].kind).toBe('in-progress');
+    expect(g[0].tasks.map((x) => x.id)).toEqual(['a']);
+  });
+
+  it('classifies an actionable task as actionable', () => {
+    const g = groupTasks([t({ id: 'a', actionable: true })]);
+    expect(g[0].kind).toBe('actionable');
+  });
+
+  it('classifies a blocked task as blocked', () => {
+    const g = groupTasks([t({ id: 'a', blockedBy: 'external' })]);
+    expect(g[0].kind).toBe('blocked');
+  });
+
+  it('classifies a non-actionable open task (pending deps) as waiting-deps', () => {
     const g = groupTasks([
-      task({ id: 'a', status: 'done', priority: 'high' }),
-      task({ id: 'b', status: 'open', priority: 'high' }),
+      t({ id: 'a', actionable: false, dependsOn: ['b'] }),
     ]);
-    expect(g.open.flatMap((grp) => grp.tasks.map((t) => t.id))).toEqual(['b']);
-    expect(g.done.flatMap((grp) => grp.tasks.map((t) => t.id))).toEqual(['a']);
+    expect(g[0].kind).toBe('waiting-deps');
   });
 
-  it('orders priority groups high → medium → low within a lifecycle', () => {
+  it('classifies a done task as done', () => {
+    const g = groupTasks([t({ id: 'a', status: 'done' })]);
+    expect(g[0].kind).toBe('done');
+  });
+
+  it('groups multiple tasks into their correct lifecycle buckets', () => {
     const g = groupTasks([
-      task({ id: 'lo', status: 'open', priority: 'low' }),
-      task({ id: 'hi', status: 'open', priority: 'high' }),
-      task({ id: 'md', status: 'open', priority: 'medium' }),
+      t({ id: 'in-progress', claimedBy: 'agent' }),
+      t({ id: 'actionable', actionable: true }),
+      t({ id: 'blocked', blockedBy: 'ssh down' }),
+      t({ id: 'waiting', actionable: false, dependsOn: ['x'] }),
+      t({ id: 'done', status: 'done' }),
     ]);
-    expect(g.open.map((grp) => grp.priority)).toEqual(['high', 'medium', 'low']);
-    expect(g.open.map((grp) => grp.tasks.map((t) => t.id))).toEqual([['hi'], ['md'], ['lo']]);
+    expect(g.map((grp) => grp.kind)).toEqual(['in-progress', 'actionable', 'waiting-deps', 'blocked', 'done']);
+    expect(g[0].tasks.map((x) => x.id)).toEqual(['in-progress']);
+    expect(g[1].tasks.map((x) => x.id)).toEqual(['actionable']);
+    expect(g[2].tasks.map((x) => x.id)).toEqual(['waiting']);
+    expect(g[3].tasks.map((x) => x.id)).toEqual(['blocked']);
+    expect(g[4].tasks.map((x) => x.id)).toEqual(['done']);
   });
 
-  it('omits empty priority groups', () => {
-    const g = groupTasks([task({ id: 'x', status: 'open', priority: 'medium' })]);
-    expect(g.open.map((grp) => grp.priority)).toEqual(['medium']);
+  it('omits empty groups', () => {
+    const g = groupTasks([t({ id: 'a', actionable: true })]);
+    expect(g.map((grp) => grp.kind)).toEqual(['actionable']);
   });
 
-  it('preserves input order (stable) within a priority group', () => {
+  it('keeps input order within a group (stable)', () => {
     const g = groupTasks([
-      task({ id: 'first', status: 'open', priority: 'high' }),
-      task({ id: 'second', status: 'open', priority: 'high' }),
-      task({ id: 'third', status: 'open', priority: 'high' }),
+      t({ id: 'first', actionable: true }),
+      t({ id: 'second', actionable: true }),
+      t({ id: 'third', actionable: true }),
     ]);
-    expect(g.open[0].tasks.map((t) => t.id)).toEqual(['first', 'second', 'third']);
+    expect(g[0].tasks.map((x) => x.id)).toEqual(['first', 'second', 'third']);
   });
 
-  it('groups done tasks by priority too', () => {
+  it('places in-progress before actionable (consistent order)', () => {
     const g = groupTasks([
-      task({ id: 'd1', status: 'done', priority: 'low' }),
-      task({ id: 'd2', status: 'done', priority: 'high' }),
+      t({ id: 'b', actionable: true }),
+      t({ id: 'a', claimedBy: 'agent' }),
     ]);
-    expect(g.done.map((grp) => grp.priority)).toEqual(['high', 'low']);
-    expect(g.done.map((grp) => grp.tasks.map((t) => t.id))).toEqual([['d2'], ['d1']]);
+    expect(g.map((grp) => grp.kind)).toEqual(['in-progress', 'actionable']);
   });
 
-  it('exposes the canonical priority order', () => {
-    expect(PRIORITY_ORDER).toEqual(['high', 'medium', 'low']);
+  it('counts correctly: actionable filter excludes done', () => {
+    const all = [
+      t({ id: 'a', claimedBy: 'agent' }),
+      t({ id: 'b', actionable: true }),
+      t({ id: 'c', status: 'done' }),
+    ];
+    const g = groupTasks(all);
+    // All groups present
+    expect(g).toHaveLength(3);
+    const actionableOnly = g.filter((grp) => grp.kind !== 'done');
+    const n = actionableOnly.reduce((sum, grp) => sum + grp.tasks.length, 0);
+    expect(n).toBe(2);
+    expect(actionableOnly.map((grp) => grp.kind)).toEqual(['in-progress', 'actionable']);
+  });
+
+  it('exposes the canonical lifecycle order', () => {
+    expect(LIFECYCLE_ORDER).toEqual(['in-progress', 'actionable', 'waiting-deps', 'blocked', 'done']);
   });
 });
