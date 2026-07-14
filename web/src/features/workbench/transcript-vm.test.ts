@@ -5,6 +5,7 @@ import {
   turnCount,
   sessionElapsedMs,
   formatElapsed,
+  resolveRunning,
   type LiveSessionMessage,
 } from './transcript-vm';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
@@ -204,5 +205,25 @@ describe('turnCount', () => {
   it('counts real turns', () => {
     expect(turnCount(tx([{ turnIndex: 0, messages: [] }, { turnIndex: 1, messages: [] }]))).toBe(2);
     expect(turnCount(undefined)).toBe(0);
+  });
+});
+
+// snapshot + delta running resolution: the live `session.status` event (delta) wins once received;
+// before any event, the authoritative sessions.list snapshot governs; the message-stream heuristic
+// is the last resort (old servers with no `running` snapshot field).
+describe('resolveRunning', () => {
+  it('prefers the live status event over everything', () => {
+    expect(resolveRunning(true, false, false)).toBe(true);
+    expect(resolveRunning(false, true, true)).toBe(false);
+  });
+
+  it('falls back to the sessions.list snapshot before any status event', () => {
+    expect(resolveRunning(null, true, false)).toBe(true);
+    expect(resolveRunning(null, false, true)).toBe(false);
+  });
+
+  it('uses the stream heuristic only when neither event nor snapshot exists', () => {
+    expect(resolveRunning(null, undefined, true)).toBe(true);
+    expect(resolveRunning(null, undefined, false)).toBe(false);
   });
 });

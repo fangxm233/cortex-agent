@@ -328,6 +328,11 @@ export interface SessionInfo {
   /** The session's active agent profile (registry record). Null when never explicitly set — the
    *  client falls back to the config default. Kept in sync by the shared profile-switch rule. */
   profileName: string | null;
+  /** Live running snapshot: true while an interactive turn (a non-thread execution) is live on the
+   *  session's channel. Authoritative at query time — the client uses this as the snapshot and the
+   *  `session.status` event stream as the delta (snapshot + delta), so running state survives
+   *  session switches, page reloads, and SSE reconnects. */
+  running: boolean;
 }
 
 // ── sessions.transcript DTO (S4 chat) ─────────────────────────────

@@ -15,6 +15,7 @@ function session(over: Partial<SessionInfo> = {}): SessionInfo {
     resumable: true,
     label: null,
     profileName: null,
+    running: false,
     ...over,
   };
 }

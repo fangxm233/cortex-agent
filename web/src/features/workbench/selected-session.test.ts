@@ -5,7 +5,7 @@ import { deriveMostRecentSessionId, resolveSelectedSessionId } from './selected-
 function sess(id: string, lastUsedAt: string, projectId = 'p1'): SessionInfo {
   return {
     sessionId: id, name: id, projectId, backend: 'claude', kind: 'local', origin: 'direct',
-    createdAt: lastUsedAt, lastUsedAt, resumable: true, label: null, profileName: null,
+    createdAt: lastUsedAt, lastUsedAt, resumable: true, label: null, profileName: null, running: false,
   };
 }
 

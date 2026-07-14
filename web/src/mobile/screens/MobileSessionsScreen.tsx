@@ -38,7 +38,9 @@ export function MobileSessionsScreen(): JSX.Element {
     ...trpc.sessions.transcript.queryOptions({ sessionId }),
     enabled: !!sessionId,
   });
-  const { liveTail, streaming } = useSessionMessageLiveSync(sessionId);
+  // Running is snapshot + delta (SessionInfo.running restores state on mount/reload; the live
+  // session.status event overrides once received) — same rule as the desktop CenterChat.
+  const { liveTail, streaming, running } = useSessionMessageLiveSync(sessionId, active?.running);
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
@@ -46,7 +48,6 @@ export function MobileSessionsScreen(): JSX.Element {
     [transcript, liveTail, streaming],
   );
   const turns = turnCount(transcriptQuery.data);
-  const running = streaming;
 
   const initials = active ? sessionInitials(active) : DASH;
   const title = active ? (active.label ?? active.name) : vocab.sessions;

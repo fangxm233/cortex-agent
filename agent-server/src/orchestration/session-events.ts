@@ -6,9 +6,6 @@
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
-import { createLogger } from '@core/log.js';
-
-const log = createLogger('session-events');
 
 export interface SessionMessagePayload {
   sessionId: string;
@@ -25,9 +22,6 @@ export interface SessionMessagePayload {
 }
 
 export function publishSessionMessage(p: SessionMessagePayload): void {
-  // DEBUG: log publish calls for session.status investigation
-  const hasBus = !!jobCtx.bus;
-  log.info(`publishSessionMessage: sid=${p.sessionId} role=${p.role} hasBus=${hasBus} textLen=${p.text.length}`);
   jobCtx.bus?.publish({
     type: 'session.message',
     sessionId: p.sessionId,
@@ -47,9 +41,6 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
  *  this (scoped by sessionId) so its running/idle state reflects the real turn, not a client-side
  *  heuristic. No-op when no bus is wired. */
 export function publishSessionStatus(p: { sessionId: string; channel: string; running: boolean }): void {
-  // DEBUG: log publish calls for session.status investigation
-  const hasBus = !!jobCtx.bus;
-  log.info(`publishSessionStatus: sid=${p.sessionId} channel=${p.channel} running=${p.running} hasBus=${hasBus}`);
   jobCtx.bus?.publish({
     type: 'session.status',
     sessionId: p.sessionId,

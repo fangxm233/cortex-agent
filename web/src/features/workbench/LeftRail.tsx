@@ -12,13 +12,15 @@ import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useLang, useSetLang, useVocab } from '@/i18n';
 import { DaemonStatusModal } from './DaemonStatusModal';
+import { useSessionsLiveSync } from './useSessionsLiveSync';
 
 // LEFT RAIL — 1:1 from prototype.dc.html L42–100 (Stage-R RB, task f528). Exact inline styles /
 // px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (projects.list /
 // sessions.list / cost.summary) substituted into the design's exact structure. Data gaps rendered
 // structurally + flagged (see the completion note): approvals banner has no tRPC scope (Stage 5);
-// SessionInfo carries no turns/cost/running fields (session meta = time+kind, no pulse dot);
-// ProjectConduitInfo has no phase/milestone field (project sub-line is cost-only).
+// SessionInfo carries no turns/cost fields (session meta = time+kind); GAP-2 running RESOLVED —
+// SessionInfo.running (live snapshot) drives the prototype pulse dot, kept fresh by
+// useSessionsLiveSync; ProjectConduitInfo has no phase/milestone field (project sub-line cost-only).
 export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const trpc = useTRPC();
@@ -38,6 +40,8 @@ export function LeftRail(): JSX.Element {
   const sessionsQuery = useQuery(
     trpc.sessions.list.queryOptions({ origin: 'direct', projectId: activeProjectId ?? undefined }),
   );
+  // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
+  useSessionsLiveSync();
 
   const projects = projectsQuery.data ?? [];
   const sessions = sessionsQuery.data ?? [];
@@ -291,7 +295,9 @@ export function LeftRail(): JSX.Element {
             </div>
             {g.items.map((s: SessionInfo) => {
               const active = s.sessionId === effectiveSelected;
-              const running = false; // GAP-2: SessionInfo has no running field
+              // Real running snapshot (SessionInfo.running, sessions.list) — a live interactive
+              // turn on the session's channel; kept fresh by useSessionsLiveSync (session.status).
+              const running = s.running;
               const rowKey = 'sess:' + s.sessionId;
               const bg = active ? '#EFF1F5' : isHover(rowKey) ? '#F1F2F5' : 'transparent';
               return (

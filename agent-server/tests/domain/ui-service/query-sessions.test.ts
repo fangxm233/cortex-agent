@@ -34,7 +34,7 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
     conversationHistory: { getHistory: async () => null },
     sendSessionMessage: () => {},
     approvalsPath: '/tmp/nonexistent-approvals.md',
-    runningExecutions: { getAll: () => [] } as any,
+    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
     costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
     bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
     createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
@@ -106,6 +106,43 @@ test('sessions.list with origin + projectId scopes to both', async () => {
 
   const none = await handleSessionsList(makeDeps(), { origin: 'direct', projectId: 'proj2' });
   assert.equal(none.length, 0);
+});
+
+test('sessions.list running snapshot: true when a live interactive turn is on the session channel', async () => {
+  const deps = makeDeps({
+    runningExecutions: {
+      getAll: () => [],
+      // s1's channel C1 has a live interactive (non-thread) execution.
+      getByChannel: (channel: string) =>
+        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1' }] : [],
+    } as any,
+  });
+  const result = await handleSessionsList(deps, {});
+  const byId = Object.fromEntries(result.map(s => [s.sessionId, s.running]));
+  assert.equal(byId['s1'], true);
+  assert.equal(byId['s2'], false);
+  assert.equal(byId['s3'], false);
+});
+
+test('sessions.list running snapshot: a thread execution on the channel does NOT mark the session running', async () => {
+  const deps = makeDeps({
+    runningExecutions: {
+      getAll: () => [],
+      // C1 only has a THREAD execution — the session itself is not in a turn.
+      getByChannel: (channel: string) =>
+        channel === 'C1' ? [{ threadId: 'thr_x', channel: 'C1', executionId: 'exec_t' }] : [],
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.ok(result.every(s => s.running === false));
+});
+
+test('sessions.list running snapshot: no live executions → running false everywhere', async () => {
+  const deps = makeDeps({
+    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
+  });
+  const result = await handleSessionsList(deps, {});
+  assert.ok(result.every(s => s.running === false));
 });
 
 test('sessions.list titles a label-less session from its first user message, keeping existing labels', async () => {

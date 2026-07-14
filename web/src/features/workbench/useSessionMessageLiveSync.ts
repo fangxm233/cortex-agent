@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
 import type { LiveSessionMessage } from './transcript-vm';
+import { resolveRunning } from './transcript-vm';
 
 // Live `session.message` stream for the center chat (S4 chat, task aba0). Opens one SSE subscription
 // scoped to `sessionId` and accumulates each event into a bounded live-tail buffer so the assistant
@@ -10,6 +11,11 @@ import type { LiveSessionMessage } from './transcript-vm';
 // tail against it). Mirrors features/thread/useThreadGetLiveSync + features/execution/
 // useExecutionLogStream — all buffer/row logic lives in the pure transcript-vm (unit-tested); this is
 // the thin React/SSE glue.
+//
+// Running state is snapshot + delta (fix: running was lost on session switch / reload / reconnect):
+//   snapshot — the caller passes SessionInfo.running from sessions.list (authoritative at query time);
+//   delta    — the `session.status` event (agent-runner turn start/finally) overrides once received.
+// Precedence lives in the pure `resolveRunning` (transcript-vm, unit-tested).
 //
 // Each event arrives as a UiEvent wrapper { type:'session.message', ts, payload:{ sessionId, channel,
 // role, text, toolName?, toolInput? } } (subscribe.ts wraps the bus event under `payload`).
@@ -20,20 +26,20 @@ const STREAM_IDLE_MS = 2500; // treat the session as streaming until this quiet 
 export interface SessionLiveState {
   liveTail: LiveSessionMessage[];
   streaming: boolean;
-  /** The session's REAL running state: true from the authoritative `session.status` event
-   *  (agent-runner turn start/finally), OR the message-stream heuristic as a fallback when no status
-   *  has been received. This is what the chat's running/idle indicator should use. */
+  /** The session's REAL running state: the live `session.status` event once received, else the
+   *  sessions.list snapshot (`snapshotRunning`), else the message-stream heuristic. This is what
+   *  the chat's running/idle indicator should use. */
   running: boolean;
 }
 
-export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
+export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: boolean): SessionLiveState {
   const trpc = useTRPC();
   const client = useTRPCClient();
   const queryClient = useQueryClient();
   const [liveTail, setLiveTail] = useState<LiveSessionMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
-  // Authoritative running from the backend `session.status` event (real turn lifecycle). Null until
-  // the first status event arrives for this session — until then we fall back to the stream heuristic.
+  // Delta from the backend `session.status` event (real turn lifecycle). Null until the first status
+  // event arrives for this session — until then the snapshot (then the stream heuristic) governs.
   const [statusRunning, setStatusRunning] = useState<boolean | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -43,30 +49,35 @@ export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
     setStatusRunning(null);
     if (!sessionId) return;
 
+    // Reconnect recovery: after an SSE drop (sleep, network blip) events are lost for good — on
+    // re-entering the 'pending' (connected) state, refetch the authoritative snapshot + transcript.
+    let wasConnected = false;
+
     const sub = client.subscribe.subscribe(
       { events: ['session.message', 'session.status'], sessionId },
       {
-        onData: (raw: { type?: string; payload?: unknown }) => {
-          // DEBUG: log every incoming SSE event for session.status investigation
-          console.log('[liveSync] onData raw type:', raw.type, 'payload keys:', raw.payload ? Object.keys(raw.payload as object) : 'null');
-          if (raw.type === 'session.status') {
-            const s = raw.payload as { running?: boolean; sessionId?: string } | undefined;
-            console.log('[liveSync] session.status received:', { running: s?.running, sid: s?.sessionId });
+        onConnectionStateChange: (state: { state: string }) => {
+          if (state.state !== 'pending') return;
+          if (wasConnected) {
+            queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+            queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
           }
-          // Authoritative running signal — real turn start/end from the agent-runner.
+          wasConnected = true;
+        },
+        onData: (raw: { type?: string; payload?: unknown }) => {
+          // Delta running signal — real turn start/end from the agent-runner.
           if (raw.type === 'session.status') {
             const s = raw.payload as { running?: boolean } | undefined;
             const r = !!s?.running;
-            console.log('[liveSync] setStatusRunning:', r);
             setStatusRunning(r);
             if (!r) {
               // Turn ended — collapse the heuristic immediately so idle is instant, not a 2.5s tail.
               setStreaming(false);
               if (idleTimer.current) clearTimeout(idleTimer.current);
-              // Refresh the session list so a freshly-titled session (label set from its first
-              // message) and updated ordering show in the left rail without waiting for a focus refetch.
-              queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
             }
+            // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
+            // edges so the left rail reflects the turn without waiting for a focus refetch.
+            queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
             return;
           }
           const p = raw.payload as
@@ -101,7 +112,7 @@ export function useSessionMessageLiveSync(sessionId: string): SessionLiveState {
     };
   }, [client, queryClient, trpc, sessionId]);
 
-  // Prefer the authoritative status; fall back to the stream heuristic only before any status arrives.
-  const running = statusRunning ?? streaming;
+  // Snapshot + delta: event wins once received; snapshot restores state before that; heuristic last.
+  const running = resolveRunning(statusRunning, snapshotRunning, streaming);
   return { liveTail, streaming, running };
 }

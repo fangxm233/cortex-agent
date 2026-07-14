@@ -38,6 +38,13 @@ export async function handleSessionsList(
     sessions = results;
   }
 
+  // Live running snapshot: an interactive turn = a non-thread execution registered on the
+  // session's channel (threads run their own executions on the same channel and must not
+  // mark the session itself running). Snapshot + delta: this field is the queryable snapshot;
+  // the `session.status` event stream is the delta.
+  const isChannelInTurn = (channel: string | undefined): boolean =>
+    !!channel && deps.runningExecutions.getByChannel(channel).some((e) => !e.threadId);
+
   const infos = sessions.map((s: any): SessionInfo => ({
     sessionId: s.sessionId,
     name: s.name,
@@ -50,6 +57,7 @@ export async function handleSessionsList(
     resumable: s.kind !== 'scheduled',
     label: s.label ?? null,
     profileName: s.profileName ?? null,
+    running: isChannelInTurn(s.channel),
   }));
 
   // Title label-less sessions from their first user message so the left rail shows the conversation's
@@ -104,7 +112,9 @@ export async function handleSessionsTranscript(
       toolInput: ev.type === 'tool' ? (ev.toolInput ?? '') : null,
       ts: ev.ts,
       elapsedMs,
-      attachments: ev.type === 'user' ? ev.attachments : undefined,
+      // Only materialize the key when present — an explicit `attachments: undefined` breaks
+      // deep-equality with the DTO shape (pre-existing red test, fixed in passing).
+      ...(ev.type === 'user' && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
     });
     prevMs = curValid ? curMs : null;
   }

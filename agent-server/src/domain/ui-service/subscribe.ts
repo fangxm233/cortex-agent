@@ -4,9 +4,6 @@
 
 import type { EventBus } from '@events/index.js';
 import type { SubscribeFilter, UiEvent } from './types.js';
-import { createLogger } from '@core/log.js';
-
-const log = createLogger('subscribe');
 
 const QUEUE_CAP = 256;
 
@@ -117,16 +114,7 @@ export function createSubscription(
 
       // Post-filter by sessionId — scopes session.message to a single session (S4 chat).
       if (sessionId && event.sessionId && event.sessionId !== sessionId) {
-        // DEBUG: log filtered-out session.status events
-        if (event.type === 'session.status') {
-          log.info(`[FILTERED] session.status sid=${event.sessionId} filterSid=${sessionId} running=${(event as any).running}`);
-        }
         return;
-      }
-
-      // DEBUG: log every event reaching the queue
-      if (event.type === 'session.status') {
-        log.info(`[QUEUED] session.status sid=${(event as any).sessionId} filterSid=${sessionId} running=${(event as any).running}`);
       }
 
       const uiEvent: UiEvent = {

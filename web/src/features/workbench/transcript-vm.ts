@@ -76,6 +76,22 @@ export function sessionElapsedMs(transcript: SessionTranscript | undefined | nul
   return seen ? total : null;
 }
 
+/**
+ * Snapshot + delta running resolution. Precedence:
+ *   1. `statusRunning` — the live `session.status` event (delta), authoritative once received;
+ *   2. `snapshotRunning` — the sessions.list `running` snapshot, restores state on mount /
+ *      session switch / page reload / SSE reconnect before any event arrives;
+ *   3. `streaming` — the message-stream idle heuristic, last resort for servers whose
+ *      sessions.list carries no `running` field yet.
+ */
+export function resolveRunning(
+  statusRunning: boolean | null,
+  snapshotRunning: boolean | undefined,
+  streaming: boolean,
+): boolean {
+  return statusRunning ?? snapshotRunning ?? streaming;
+}
+
 /** Compact human-readable duration for the composer status line; `—` for null (never fabricated). */
 export function formatElapsed(ms: number | null): string {
   if (ms == null) return '—';

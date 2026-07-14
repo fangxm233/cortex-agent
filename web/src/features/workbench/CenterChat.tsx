@@ -18,9 +18,10 @@ import { useSelectedSession } from './SelectedSessionProvider';
 //     invalidates the transcript so the finalized history reconciles (buildTranscriptRows de-dups)
 //   • send: the composer routes each message through the real `sessions.send` mutate; the reply echoes
 //     back over the same live stream (fire-and-forget)
-// Active session = the most-recently-used session (sessions.list, sorted by lastUsedAt) — the contract
-// has no cross-pane selected-session state; running is DERIVED from live-stream activity (SessionInfo
-// carries no running field). The one other live surface (inline thread card, threads.get) is kept.
+// Running is snapshot + delta: SessionInfo.running (sessions.list) restores the true state on
+// mount / session switch / reload, and the live `session.status` event overrides once received —
+// so a mid-turn session never shows idle after switching away and back. The one other live surface
+// (inline thread card, threads.get) is kept.
 
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
@@ -50,7 +51,7 @@ export function CenterChat(): JSX.Element {
     enabled: !!sessionId,
   });
 
-  const { liveTail, streaming, running } = useSessionMessageLiveSync(sessionId);
+  const { liveTail, streaming, running } = useSessionMessageLiveSync(sessionId, active?.running);
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
