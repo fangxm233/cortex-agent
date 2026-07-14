@@ -35,11 +35,12 @@ function GroupSection({
     <section>
       <div
         style={{
-          fontSize: 10.5,
+          fontSize: 11.5,
           fontWeight: 700,
-          letterSpacing: '.05em',
+          letterSpacing: '.06em',
+          textTransform: 'uppercase',
           color: '#5B6472',
-          padding: '8px 2px 2px',
+          padding: '8px 2px 4px',
         }}
       >
         {label} · {tasks.length}
