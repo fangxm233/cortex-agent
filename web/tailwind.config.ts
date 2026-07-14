@@ -122,6 +122,11 @@ const config: Config = {
       boxShadow: {
         card: '0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06)',
         overlay: '0 10px 38px rgba(0,0,0,0.20), 0 6px 12px rgba(0,0,0,0.12)',
+        // Notification toast (design 18a): 二级投影 — lighter than modal, heavier than card. Verbatim
+        // from scheme.dc.html #18a bubble shadow.
+        toast: '0 8px 28px rgba(16,24,40,0.13), 0 2px 6px rgba(16,24,40,0.05)',
+        // The collapsed "+N" overflow pill (design 18a) — a lighter one-level shadow.
+        'toast-pill': '0 4px 14px rgba(16,24,40,0.10)',
       },
       // Overlay enter/exit motion (design §5, task 970d). Driven off Radix
       // `data-[state=open|closed]` attributes; kept token-side (no extra dep).
@@ -149,6 +154,11 @@ const config: Config = {
           from: { opacity: '1', transform: 'translateX(0)' },
           to: { opacity: '0', transform: 'translateX(calc(100% + 16px))' },
         },
+        // Notification auto-dismiss progress line (design 18a: 底部 2px 进度线 = 自动消失倒计时).
+        // Shrinks the 2px bar left-to-right over the dwell; onAnimationEnd fires the dismiss so
+        // the visual countdown and the removal stay in perfect sync, and `paused` on hover pauses
+        // both at once (scheme 18a: hover 暂停倒计时).
+        toastbar: { from: { width: '100%' }, to: { width: '0%' } },
         'popover-in': {
           from: { opacity: '0', transform: 'scale(0.96)' },
           to: { opacity: '1', transform: 'scale(1)' },
@@ -219,6 +229,9 @@ const config: Config = {
         'slide-out-left': 'slide-out-left 160ms ease-in',
         'toast-in': 'toast-in 180ms cubic-bezier(0.16, 1, 0.3, 1)',
         'toast-out': 'toast-out 120ms ease-in',
+        // 6s dwell (design 18a: info 6s 自动消失). Duration matches AUTO_DISMISS_MS in
+        // features/notifications/notification-vm.ts.
+        toastbar: 'toastbar 6000ms linear forwards',
         'popover-in': 'popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1)',
         'popover-out': 'popover-out 100ms ease-in',
         // Prototype animation defaults (durations/easings as used in the source).

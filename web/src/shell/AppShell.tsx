@@ -6,6 +6,7 @@ import { ScheduleModalProvider } from '@/features/schedule/ScheduleModalProvider
 import { ApprovalsProvider } from '@/features/approvals/ApprovalsProvider';
 import { CurrentProjectProvider } from '@/features/workbench/CurrentProjectProvider';
 import { SelectedSessionProvider } from '@/features/workbench/SelectedSessionProvider';
+import { NotificationProvider } from '@/features/notifications/NotificationProvider';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
 // frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
@@ -24,6 +25,7 @@ export function AppShell() {
             <ApprovalsProvider>
               <Outlet />
               <CommandPalette open={open} onOpenChange={setOpen} />
+              <NotificationProvider />
             </ApprovalsProvider>
           </ScheduleModalProvider>
         </ExecutionLogDrawerProvider>
