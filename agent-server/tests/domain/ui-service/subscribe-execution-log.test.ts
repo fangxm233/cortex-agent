@@ -32,7 +32,7 @@ function makeDeps(bus: EventBus, tailer: ExecutionLogTailer, records: Record<str
     conversationHistory: { getHistory: async () => null },
     sendSessionMessage: () => {},
     bus,
-    createDirectSession: async () => ({ sessionId: '', sessionName: '' }),
+    createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
     cancelSessionRun: async () => 0,
     switchSessionProfile: async () => ({ ok: true, name: '', currentBackend: '', targetBackend: '', backendChanged: false }),
     clientRegistry: { getOnlineDevices: () => [], isDeviceOnline: () => false, getMachineRegistry: () => ({}) },

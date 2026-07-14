@@ -10,7 +10,7 @@ function makeDeps(sink: CreateCall[], sessionId = 'sess-new'): UiServiceDeps {
     projectStore: { getDefault: () => ({ id: 'general', name: 'general', kind: 'general', contextDir: '/g' }) },
     createDirectSession: async (opts: { projectId: string }) => {
       sink.push(opts);
-      return { sessionId, sessionName: 'cortex-new' };
+      return { sessionId, sessionName: 'cortex-new', channel: `web:${sessionId}` };
     },
   } as unknown as UiServiceDeps;
 }
