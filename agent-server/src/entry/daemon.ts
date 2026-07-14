@@ -1,8 +1,9 @@
 // input:  ${CORTEX_REPO}/src/**/*.ts changes (auto rebuild + install + app.js restart),
-//         .restart trigger file (manual hot-reload of app.js),
+//         .restart trigger file (manual restart; in dev mode: rebuild pipeline; in prod: hot-reload app.js),
 //         CONFIG_DIR/.env changes
 // output: process supervisor — fork(app.js) with hot-restart, crash recovery, graceful shutdown;
-//         on src change: spawn npm run build → npm pack → npm install -g <tgz> → restart() app.js
+//         on src change: spawn npm run build (server+web) → npm pack → npm install -g <tgz> → restart() app.js;
+//         on .restart in dev mode (CORTEX_REPO set): same rebuild pipeline
 // pos:    system entry point, top-level process in daemon mode (node dist/entry/daemon.js);
 //         logs/PID persisted to DATA_DIR
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -21,7 +22,7 @@
  *
  * Source-watch rebuild loop:
  *   When CORTEX_REPO is set and ${CORTEX_REPO}/src exists, daemon watches
- *   src/**\/*.ts and on change runs: npm run build → npm pack → npm install -g
+ *   src/**\/*.ts and on change runs: npm run build (server+web) → npm pack → npm install -g
  *   → restart() the app.js child from the freshly installed dist. The daemon
  *   process itself does NOT reload — if you edit daemon.ts you must manually
  *   `cortex daemon` restart to pick up the new daemon code.
@@ -33,7 +34,8 @@
  * Manual upgrade workflow (still supported):
  *   npm run build && npm pack && npm install -g ./cortex-agent-server-X.Y.Z.tgz   (package: @cortex-agent/server)
  *   The postinstall-restart-trigger.mjs touches .restart, which the .restart
- *   watcher below picks up and uses to respawn app.js.
+ *   watcher below picks up. In dev mode (CORTEX_REPO set) this triggers the full
+ *   rebuild pipeline; in production mode it just respawns app.js.
  */
 
 import * as dotenv from 'dotenv';
@@ -63,6 +65,10 @@ const RESTART_TRIGGER = path.join(STORE_DIR, '.restart');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 const CORTEX_REPO = process.env.CORTEX_REPO ?? '';
 const SRC_WATCH_PATH = CORTEX_REPO ? path.join(CORTEX_REPO, 'src') : '';
+// Monorepo root is the parent of the agent-server repo (e.g. /home/fangxin/Cortex).
+// Web SPA lives under MONOREPO_ROOT/web/ and must be built before packing.
+const MONOREPO_ROOT = CORTEX_REPO ? path.dirname(CORTEX_REPO) : '';
+const WEB_DIR = MONOREPO_ROOT ? path.join(MONOREPO_ROOT, 'web') : '';
 const DEBOUNCE_MS = 800;          // .restart / .env — fast
 const BUILD_DEBOUNCE_MS = 2500;   // src/*.ts — slower, build takes seconds anyway
 const BACKOFF_INITIAL = 1000;
@@ -318,7 +324,11 @@ function setupWatchers() {
   const triggerWatcher = watch(triggerDir, (eventType, filename) => {
     if (filename === triggerName && existsSync(RESTART_TRIGGER)) {
       try { unlinkSync(RESTART_TRIGGER); } catch {}
-      debouncedRestart('manual trigger (.restart file)');
+      if (CORTEX_REPO) {
+        debouncedRebuild('manual trigger (.restart file)');
+      } else {
+        debouncedRestart('manual trigger (.restart file)');
+      }
     }
   });
   watchers.push(triggerWatcher);
@@ -407,14 +417,25 @@ async function runRebuildPipeline(reason: string) {
   try {
     log.info(`Rebuild pipeline starting: ${reason}`);
 
-    // Step 1: build
+    // Step 1: build agent-server (tsc)
     const buildCode = await spawnAsync('npm', ['run', 'build'], { cwd: CORTEX_REPO });
     if (buildCode !== 0) {
-      log.error(`Rebuild aborted: npm run build exited ${buildCode}`);
+      log.error(`Rebuild aborted: npm run build (server) exited ${buildCode}`);
       return;
     }
 
-    // Step 2: pack (clean old tgz first, otherwise readdir picks up a stale one)
+    // Step 2: build web SPA (vite) — needed by npm pack's prepack copy-web-dist step
+    if (WEB_DIR && existsSync(WEB_DIR)) {
+      const webBuildCode = await spawnAsync('npm', ['run', 'build'], { cwd: WEB_DIR });
+      if (webBuildCode !== 0) {
+        log.error(`Rebuild aborted: npm run build (web) exited ${webBuildCode}`);
+        return;
+      }
+    } else {
+      log.warn('WEB_DIR not found — skipping web build, pack will use stale web/dist if present');
+    }
+
+    // Step 3: pack (clean old tgz first, otherwise readdir picks up a stale one)
     const cleanCode = await spawnAsync('bash', ['-c', 'rm -f cortex-agent-server-*.tgz'], { cwd: CORTEX_REPO });
     if (cleanCode !== 0) {
       log.error(`Rebuild aborted: tgz cleanup exited ${cleanCode}`);
@@ -444,7 +465,7 @@ async function runRebuildPipeline(reason: string) {
     }
     log.info(`Packed tarball: ${tgzPath}`);
 
-    // Step 3: install -g. Run from /tmp so npm doesn't choke if its CWD lives inside the package
+    // Step 4: install -g. Run from /tmp so npm doesn't choke if its CWD lives inside the package
     // currently being unlinked.
     const installCode = await spawnAsync('npm', ['install', '-g', tgzPath], { cwd: '/tmp' });
     if (installCode !== 0) {
@@ -452,7 +473,7 @@ async function runRebuildPipeline(reason: string) {
       return;
     }
 
-    // Step 4: restart app.ts. This reuses the busy/idle gate inside restart() —
+    // Step 5: restart app.ts. This reuses the busy/idle gate inside restart() —
     // if a request snuck in between the busy-check above and now, restart() will
     // re-defer to pendingRestart. Either way, the new app.js boots from the freshly
     // installed dist/.
