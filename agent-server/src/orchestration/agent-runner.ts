@@ -144,8 +144,13 @@ export class AgentRunner {
     // Record the user message now; assistant messages + tool calls are appended via the
     // callbacks below as they stream. Only when we have a sessionId to key by.
     if (sessionId) {
+      // Share a single timestamp between the conversation-history entry and the EventBus
+      // event so the web UI's content-based de-dup (transcript query vs SSE live-tail)
+      // produces identical msgKeys for the same message.
+      const userTs = new Date().toISOString();
       recordHistory(conversationHistory.appendUser(sessionId, {
         text: userMessage || '',
+        ts: userTs,
         attachments: message.webAttachments,
       }));
       publishSessionMessage({
@@ -153,6 +158,7 @@ export class AgentRunner {
         channel,
         role: 'user',
         text: userMessage || '',
+        ts: userTs,
         attachments: message.webAttachments,
       });
       // Give an unlabeled session a human-readable title from its first user message (web sessions are
@@ -193,8 +199,9 @@ export class AgentRunner {
         onAssistantMessage: (text: string) => {
           callbacks.onAssistantMsg(text);
           if (sessionId && text) {
-            recordHistory(conversationHistory.appendAssistant(sessionId, { text }));
-            publishSessionMessage({ sessionId, channel, role: 'assistant', text });
+            const ts = new Date().toISOString();
+            recordHistory(conversationHistory.appendAssistant(sessionId, { text, ts }));
+            publishSessionMessage({ sessionId, channel, role: 'assistant', text, ts });
           }
         },
         onProgress: callbacks.onProgress,
@@ -203,8 +210,9 @@ export class AgentRunner {
           composeToolUse(callbacks.onToolUse, interactiveCallbacks.onToolUse),
           sessionId ? (name: string, input: any) => {
             const toolInput = summarizeToolInputForHistory(input);
-            recordHistory(conversationHistory.appendTool(sessionId, { toolName: name, toolInput }));
-            publishSessionMessage({ sessionId, channel, role: 'tool', text: '', toolName: name, toolInput });
+            const ts = new Date().toISOString();
+            recordHistory(conversationHistory.appendTool(sessionId, { toolName: name, toolInput, ts }));
+            publishSessionMessage({ sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts });
           } : null,
         ),
         onPlanWritten: interactiveCallbacks.onPlanWritten,

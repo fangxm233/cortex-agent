@@ -52,7 +52,10 @@ export class EventBus {
   }
 
   /**
-   * Publish an event.  `ts` is injected here; callers omit it.
+   * Publish an event.  `ts` defaults to `new Date().toISOString()` when the caller
+   * omits it; a caller-provided `ts` is preserved (allows two subsystems to share
+   * a single timestamp for the same logical moment — e.g. conversation-history +
+   * session.message event used for client-side de-dup).
    *
    * Fan-out is synchronous: all matching handlers are called in subscription order
    * before publish() returns.  If a handler returns a Promise it is fire-and-forget
@@ -60,8 +63,8 @@ export class EventBus {
    * logged and an `event-bus.handler-failed` meta-event is published; the remaining
    * handlers continue to run.
    */
-  publish(e: CortexEventInput): void {
-    const event = { ...e, ts: new Date().toISOString() } as CortexEvent;
+  publish(e: CortexEventInput & { ts?: string }): void {
+    const event = { ts: new Date().toISOString(), ...e } as CortexEvent;
 
     // Snapshot to avoid mutation during iteration (unsubscribe inside a handler is safe)
     const entries = this._entries.slice();

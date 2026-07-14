@@ -107,24 +107,28 @@ export class ConversationHistoryRepo {
     return next;
   }
 
-  /** Append a user message — starts a new turn (turn boundaries are derived on read). */
-  appendUser(sessionId: string, opts: { text: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }): Promise<void> {
+  /** Append a user message — starts a new turn (turn boundaries are derived on read).
+   *  An optional `ts` override lets the caller share a single timestamp with the
+   *  EventBus event so the web UI's content-based de-dup produces identical keys. */
+  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }): Promise<void> {
     return this.append(sessionId, {
       type: 'user',
       text: opts.text,
-      ts: nowIso(),
+      ts: opts.ts ?? nowIso(),
       attachments: opts.attachments,
     });
   }
 
-  /** Append an assistant message. Streaming partials are collapsed at read time. */
-  appendAssistant(sessionId: string, opts: { text: string }): Promise<void> {
-    return this.append(sessionId, { type: 'assistant', text: opts.text, ts: nowIso() });
+  /** Append an assistant message. Streaming partials are collapsed at read time.
+   *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string }): Promise<void> {
+    return this.append(sessionId, { type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso() });
   }
 
-  /** Append a tool call. */
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string }): Promise<void> {
-    return this.append(sessionId, { type: 'tool', toolName: opts.toolName, toolInput: opts.toolInput ?? '', ts: nowIso() });
+  /** Append a tool call.
+   *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string }): Promise<void> {
+    return this.append(sessionId, { type: 'tool', toolName: opts.toolName, toolInput: opts.toolInput ?? '', ts: opts.ts ?? nowIso() });
   }
 
   /**
