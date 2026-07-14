@@ -127,6 +127,19 @@ export const sessionsSetProfileInput = z.object({
   profileName: z.string().min(1),
 });
 
+export const sessionsCreateAndSendInput = z.object({
+  projectId: z.string(),
+  profileName: z.string().optional(),
+  text: z.string(),
+  attachments: z.array(z.object({
+    name: z.string(),
+    path: z.string(),
+    size: z.number(),
+    mimeType: z.string(),
+    type: z.enum(['image', 'video', 'file']),
+  })).optional(),
+});
+
 export const threadsCancelInput = z.object({
   threadId: z.string(),
 });
@@ -276,6 +289,7 @@ export const mutateInputSchemas = {
   'sessions.send': sessionsSendInput,
   'sessions.cancel': sessionsCancelInput,
   'sessions.setProfile': sessionsSetProfileInput,
+  'sessions.createAndSend': sessionsCreateAndSendInput,
   'threads.cancel': threadsCancelInput,
   'executions.cancel': executionsCancelInput,
   'schedules.pause': scheduleActionInput,

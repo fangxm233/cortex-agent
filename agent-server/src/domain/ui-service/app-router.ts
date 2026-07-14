@@ -22,6 +22,7 @@ import {
   sessionsSendInput,
   sessionsCancelInput,
   sessionsSetProfileInput,
+  sessionsCreateAndSendInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,
@@ -141,6 +142,7 @@ export function createAppRouter(uiService: UiService) {
       send: makeMutation(uiService, 'sessions.send', sessionsSendInput),
       cancel: makeMutation(uiService, 'sessions.cancel', sessionsCancelInput),
       setProfile: makeMutation(uiService, 'sessions.setProfile', sessionsSetProfileInput),
+      createAndSend: makeMutation(uiService, 'sessions.createAndSend', sessionsCreateAndSendInput),
     }),
     threads: router({
       list: makeQuery(uiService, 'threads.list', threadsListInput),

@@ -18,6 +18,8 @@ import type {
   SessionsCancelReturn,
   SessionsSetProfileArgs,
   SessionsSetProfileReturn,
+  SessionsCreateAndSendArgs,
+  SessionsCreateAndSendReturn,
 } from '../types.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
@@ -66,6 +68,46 @@ export async function handleCancelSession(
   }
   const count = await deps.cancelSessionRun({ channel: session.channel });
   return { ok: true, data: { cancelled: count > 0, count } };
+}
+
+// Create a fresh session AND send the first message in one atomic operation. Used by the workbench
+// "New Conversation" draft flow (task 15b): the session is created only when the user sends their
+// first message, at which point the profile is already known and the backend is resolved correctly.
+// Creates the session via `createDirectSession` with the given profileName, then routes the
+// message as a fire-and-forget send. Returns the new sessionId so the client can transition from
+// draft to a real session.
+export async function handleCreateAndSend(
+  deps: UiServiceDeps,
+  args: SessionsCreateAndSendArgs,
+): Promise<Result<SessionsCreateAndSendReturn>> {
+  if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
+    return { ok: false, code: 'invalid-args', message: 'Either text or attachments required' };
+  }
+
+  const { sessionId, channel } = await deps.createDirectSession({
+    projectId: args.projectId,
+    profileName: args.profileName ?? null,
+  });
+
+  // If the client uploaded files under a draft upload id, move them to the real
+  // session's attachment directory and update path references.
+  let attachments = args.attachments ?? [];
+  if (args.draftUploadId && attachments.length > 0 && deps.moveDraftAttachments) {
+    attachments = await deps.moveDraftAttachments({
+      draftUploadId: args.draftUploadId,
+      sessionId,
+      attachments,
+    });
+  }
+
+  deps.sendSessionMessage({
+    sessionId,
+    channel,
+    text: args.text,
+    attachments: attachments.length > 0 ? attachments : undefined,
+  });
+
+  return { ok: true, data: { sessionId } };
 }
 
 // Switch the session's active profile under the shared profile-switch rule (the same

@@ -50,6 +50,7 @@ export type MutateOp =
   | 'sessions.send'
   | 'sessions.cancel'
   | 'sessions.setProfile'
+  | 'sessions.createAndSend'
   | 'threads.cancel'
   | 'executions.cancel'
   | 'schedules.pause'
@@ -205,6 +206,20 @@ export interface SessionsSetProfileArgs {
   sessionId: string;
   /** The profile to switch the session to. Must exist in profiles.json. */
   profileName: string;
+}
+
+export interface SessionsCreateAndSendArgs {
+  /** Project the new session belongs to. */
+  projectId: string;
+  /** The profile to create the session with. Omitted → system default. */
+  profileName?: string;
+  /** First user message text. */
+  text: string;
+  /** Optional file attachments. */
+  attachments?: AttachmentMeta[];
+  /** Temporary upload directory id (draft mode). Attachments were uploaded under this id
+   *  rather than a real sessionId. The handler moves them to the new session's dir. */
+  draftUploadId?: string;
 }
 
 export interface ThreadsCancelArgs {
@@ -844,6 +859,11 @@ export interface SessionsSetProfileReturn {
   backendChanged: boolean;
 }
 
+export interface SessionsCreateAndSendReturn {
+  /** The id of the newly created session (the client transitions from draft to this session). */
+  sessionId: string;
+}
+
 export interface ThreadsCancelReturn {
   cancelled: boolean;
 }
@@ -920,6 +940,7 @@ export interface MutateArgsMap {
   'sessions.send': SessionsSendArgs;
   'sessions.cancel': SessionsCancelArgs;
   'sessions.setProfile': SessionsSetProfileArgs;
+  'sessions.createAndSend': SessionsCreateAndSendArgs;
   'threads.cancel': ThreadsCancelArgs;
   'executions.cancel': ExecutionsCancelArgs;
   'schedules.pause': ScheduleActionArgs;
@@ -944,6 +965,7 @@ export interface MutateReturnMap {
   'sessions.send': SessionsSendReturn;
   'sessions.cancel': SessionsCancelReturn;
   'sessions.setProfile': SessionsSetProfileReturn;
+  'sessions.createAndSend': SessionsCreateAndSendReturn;
   'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
   'schedules.pause': void;
@@ -1024,7 +1046,13 @@ export interface UiServiceDeps {
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the
    * real session/ledger singletons, so the ui-service domain never imports store internals.
    */
-  createDirectSession: (opts: { projectId: string }) => Promise<{ sessionId: string; sessionName: string }>;
+  createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
+  /**
+   * Move files uploaded under a draft upload id to the real session's attachment directory
+   * and return updated AttachmentMeta with corrected paths. No-op when draftUploadId is null.
+   * Optional — only needed by sessions.createAndSend; absent in test fixtures.
+   */
+  moveDraftAttachments?: (opts: { draftUploadId: string | null; sessionId: string; attachments: AttachmentMeta[] }) => Promise<AttachmentMeta[]>;
   /**
    * Switch the active agent profile for a session's channel under the shared profile-switch rule
    * (same `switchChannelProfile` the Slack/Feishu `!profile` command uses). Wired in the entry layer

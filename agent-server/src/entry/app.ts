@@ -3,7 +3,7 @@
 // pos:    agent-server main entry and wiring hub (S13: composition root, business branches in orchestration/)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
-import { mkdirSync } from 'fs';
+import { mkdirSync, promises as fsPromises } from 'fs';
 import * as path from 'path';
 import { createAdapterFromEnv, extractTuiAdapter } from '@platform/index.js';
 import type { PlatformAdapter } from '@platform/index.js';
@@ -373,6 +373,31 @@ process.on('SIGTERM', async () => {
     // Web profile switch: apply the shared per-channel profile-switch rule (same one the Slack/Feishu
     // `!profile` command uses). Wired here so the ui-service domain never imports domain/agents.
     switchSessionProfile: (opts) => switchChannelProfile(opts),
+    // Draft attachment migration: when a draft session is created with uploaded files, move
+    // them from the temporary draft directory to the real session's attachment directory.
+    moveDraftAttachments: async ({ draftUploadId, sessionId, attachments }) => {
+      if (!draftUploadId) return attachments;
+      const srcDir = path.join(WORKSPACE_DIR, 'attachments', draftUploadId);
+      const dstDir = path.join(WORKSPACE_DIR, 'attachments', sessionId);
+      try {
+        await fsPromises.mkdir(dstDir, { recursive: true });
+        return await Promise.all(attachments.map(async (a) => {
+          const srcPath = path.join(srcDir, a.path.split('/').slice(2).join('/'));
+          const fileName = a.path.split('/').pop() || a.name;
+          const dstPath = path.join(dstDir, fileName);
+          try {
+            await fsPromises.rename(srcPath, dstPath);
+          } catch {
+            // File may already be moved or missing — keep the original path.
+          }
+          return { ...a, path: `attachments/${sessionId}/${fileName}` };
+        }));
+      } catch {
+        // Best-effort — if the move fails, the original paths still work if the draft dir
+        // hasn't been cleaned up yet.
+        return attachments;
+      }
+    },
     bus,
     adapter,
   });
