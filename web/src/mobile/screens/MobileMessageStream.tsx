@@ -79,7 +79,7 @@ function ToolCallsRow({
   );
 }
 
-function AssistantBlock({ text, streaming }: { text: string; streaming: boolean }): JSX.Element {
+function AssistantBlock({ text, streaming: _streaming }: { text: string; streaming: boolean }): JSX.Element {
   return (
     <div style={{ fontSize: 13.5, lineHeight: 1.65, color: '#22262E' }}>
       {text}
