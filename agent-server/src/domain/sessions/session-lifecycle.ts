@@ -6,6 +6,7 @@ import * as crypto from 'node:crypto';
 import { setSessionAsync, deleteSessionAsync } from './session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { setActiveProfile } from '@domain/agents/index.js';
+import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
 
@@ -63,26 +64,40 @@ export interface CreateDirectSessionDeps {
 
 /** Create a fresh, live user-initiated (origin='direct') session for a web/UI conversation: mint a
  *  sessionId, derive its own `web:<sessionId>` conduit channel, register the named session, bind the
- *  channel→session mapping and conversation ledger. Returns the sessionId + generated name. Because
- *  the channel is bound with the same backend the send path resolves, a subsequent send resumes THIS
- *  session rather than spawning a new one. */
+ *  channel→session mapping and conversation ledger. Returns the sessionId + generated name + channel.
+ *
+ *  When `profileName` is provided, the backend is resolved directly from the profile config (not
+ *  from the channel's profile state) so the session is bound to the correct backend even before any
+ *  channel profile is set. The channel profile is then set so subsequent sends resolve correctly.
+ *
+ *  Because the channel is bound with the same backend the send path resolves, a subsequent send
+ *  resumes THIS session rather than spawning a new one. */
 export async function createDirectSession(
   deps: CreateDirectSessionDeps,
-  opts: { projectId: string },
-): Promise<{ sessionId: string; sessionName: string }> {
-  const sessionId = crypto.randomUUID();
+  opts: { projectId: string; sessionId?: string; profileName?: string | null },
+): Promise<{ sessionId: string; sessionName: string; channel: string }> {
+  const sessionId = opts.sessionId ?? crypto.randomUUID();
   const channel = `web:${sessionId}`;
-  const backend = deps.resolveBackend(channel);
+
+  let backend: string;
+  if (opts.profileName) {
+    backend = resolveProfileConfig(opts.profileName).backend;
+    setActiveProfile(opts.profileName, channel);
+  } else {
+    backend = deps.resolveBackend(channel);
+  }
+
   const sessionName = await registerNamedSession(deps.sessionStore, {
     sessionId,
     channel,
     backend,
     projectId: opts.projectId,
     origin: 'direct',
+    profileName: opts.profileName ?? null,
   });
   await deps.setChannelSession(channel, sessionId, backend);
   await deps.initConversation(channel, { sessionId, sessionName, backend });
-  return { sessionId, sessionName };
+  return { sessionId, sessionName, channel };
 }
 
 export interface AttachExistingSessionOpts {
