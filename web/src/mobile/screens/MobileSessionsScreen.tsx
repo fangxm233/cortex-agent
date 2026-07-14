@@ -8,7 +8,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { buildTranscriptRows, turnCount } from '@/features/workbench/transcript-vm';
+import { buildTranscriptRows, resolveTurns } from '@/features/workbench/transcript-vm';
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { sessionInitials, headerStatus, zhDivider, DASH } from './mobile-session-vm';
 import { MobileSessionHeader } from './MobileSessionHeader';
@@ -40,14 +40,16 @@ export function MobileSessionsScreen(): JSX.Element {
   });
   // Running is snapshot + delta (SessionInfo.running restores state on mount/reload; the live
   // session.status event overrides once received) — same rule as the desktop CenterChat.
-  const { liveTail, streaming, running } = useSessionMessageLiveSync(sessionId, active?.running);
+  const { liveTail, streaming, running, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
     () => buildTranscriptRows(transcript, liveTail, { streaming, formatDivider: zhDivider }),
     [transcript, liveTail, streaming],
   );
-  const turns = turnCount(transcriptQuery.data);
+  // Header shows the REAL agent-turn count (grows as the agent works), not user-message rounds:
+  // snapshot + delta (session.turn delta > SessionInfo.numTurns snapshot > null), same as desktop.
+  const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
 
   const initials = active ? sessionInitials(active) : DASH;
   const title = active ? (active.label ?? active.name) : vocab.sessions;

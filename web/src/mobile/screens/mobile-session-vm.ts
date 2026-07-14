@@ -24,8 +24,10 @@ export interface HeaderStatus {
   cost: string;
 }
 
-export function headerStatus({ running, turns }: { running: boolean; turns: number }): HeaderStatus {
-  return { word: running ? 'running' : 'idle', turnsLabel: `${turns} turns`, cost: DASH };
+export function headerStatus({ running, turns }: { running: boolean; turns: number | null }): HeaderStatus {
+  // The REAL agent-turn count (snapshot + session.turn delta), not user-message rounds. DASH when
+  // unknown — a running turn before its first progress event, or a session that never ran.
+  return { word: running ? 'running' : 'idle', turnsLabel: turns == null ? DASH : `${turns} turns`, cost: DASH };
 }
 
 function hhmm(d: Date): string {

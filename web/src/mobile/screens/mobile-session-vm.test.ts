@@ -40,6 +40,9 @@ describe('headerStatus', () => {
   it('idle when not streaming', () => {
     expect(headerStatus({ running: false, turns: 0 }).word).toBe('idle');
   });
+  it('renders a dash when the agent-turn count is unknown (null)', () => {
+    expect(headerStatus({ running: true, turns: null }).turnsLabel).toBe(DASH);
+  });
 });
 
 describe('zhDivider', () => {
