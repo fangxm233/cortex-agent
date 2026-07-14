@@ -50,7 +50,7 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
     }
     case 'paragraph':
       return (
-        <div style={{ whiteSpace: 'pre-wrap' }}>
+        <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
           <Inline nodes={block.inline} />
         </div>
       );
