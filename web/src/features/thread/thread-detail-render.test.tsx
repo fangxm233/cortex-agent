@@ -29,13 +29,17 @@ const runningVm: ThreadDetailVm = {
   depthText: '2/5',
   live: true,
   steps: [
-    { kind: 'done', title: '1 · Plan', note: 'plan.md', meta: '3m · $0.04', hasConnector: false, subs: [], subCount: 0 },
+    { kind: 'done', title: '1 · Plan', note: 'plan.md', meta: '3m · $0.04', hasConnector: false, subs: [], subCount: 0, stepIndex: 0, sessionId: 'cortex-plan', sessionName: 'cortex-plan', profile: 'planner' },
     {
       kind: 'running',
       title: '3 · Review',
       note: '',
       meta: '04:12',
       hasConnector: true,
+      stepIndex: 2,
+      sessionId: 'cortex-review',
+      sessionName: 'cortex-review',
+      profile: 'reviewer',
       agent: {
         profile: 'reviewer',
         execInfo: 'exec_31b0 · local',
@@ -53,16 +57,24 @@ const runningVm: ThreadDetailVm = {
         { id: 'thr_cc', name: 'check-claims', level: 'L2', pill: { bg: '#E9F4EE', fg: '#23854F', text: 'Done' }, hasLine: false, line: '', isMax: false, drillable: false },
       ],
     },
-    { kind: 'pending', title: '4 · Commit', note: 'safety class: repo write', meta: 'gated', hasConnector: true, subs: [], subCount: 0 },
+    { kind: 'pending', title: '4 · Commit', note: 'safety class: repo write', meta: 'gated', hasConnector: true, subs: [], subCount: 0, stepIndex: 3, sessionId: null, sessionName: null, profile: 'slot-3' },
   ],
   artifact: {} as DetailArtifact,
 };
 
 describe('ThreadPipeline', () => {
-  const html = renderToStaticMarkup(<ThreadPipeline vm={runningVm} onOpenSub={() => {}} />);
+  // The step chat is data-bound (tRPC/query); inject a static stub so the presentational pipeline can
+  // be asserted in a node static render. It echoes the sessionId + live flag it was handed.
+  const html = renderToStaticMarkup(
+    <ThreadPipeline
+      vm={runningVm}
+      onOpenSub={() => {}}
+      renderStepChat={(sessionId, live) => `CHAT[${sessionId ?? 'none'}|${live ? 'live' : 'static'}]`}
+    />,
+  );
   it('renders the PIPELINE header + hint', () => {
     expect(html).toContain('PIPELINE');
-    expect(html).toContain('auto-follows active step');
+    expect(html).toContain('click a step to expand');
   });
   it('renders each step title and the collapsed metas', () => {
     expect(html).toContain('1 · Plan');
@@ -70,10 +82,11 @@ describe('ThreadPipeline', () => {
     expect(html).toContain('4 · Commit');
     expect(html).toContain('gated');
   });
-  it('expands the running step into the agent flow + sub-thread cards', () => {
+  it('expands the running step into the agent chat + sub-thread cards', () => {
     expect(html).toContain('agent: reviewer');
     expect(html).toContain('exec_31b0 · local');
-    expect(html).toContain('Now checking the headline claim.');
+    // the running step is expanded by default → its chat renders live off its own session
+    expect(html).toContain('CHAT[cortex-review|live]');
     expect(html).toContain('SUB-THREADS · 3');
     expect(html).toContain('verify-metrics');
     expect(html).toContain('sub-audit');

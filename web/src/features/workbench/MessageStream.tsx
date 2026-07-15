@@ -386,6 +386,19 @@ function Row({ row }: { row: ChatRow }): JSX.Element | null {
   }
 }
 
+/** Presentational transcript column — the ordered chat rows (divider / user / tools / assistant) laid
+ *  out vertically. Framework-free of the scroll/stick behavior so it can be embedded wherever a
+ *  transcript needs rendering (the workbench center chat, the thread-detail step chat). */
+export function ChatRows({ rows }: { rows: ChatRow[] }): JSX.Element {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {rows.map((row, i) => (
+        <Row key={i} row={row} />
+      ))}
+    </div>
+  );
+}
+
 export function MessageStream({ rows, loading }: { rows: ChatRow[]; loading: boolean }): JSX.Element {
   const populated = rows.length > 0;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -408,11 +421,9 @@ export function MessageStream({ rows, loading }: { rows: ChatRow[]; loading: boo
 
   return (
     <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-      <div style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px' }}>
         {!populated && !loading && <EmptyChat />}
-        {rows.map((row, i) => (
-          <Row key={i} row={row} />
-        ))}
+        <ChatRows rows={rows} />
       </div>
     </div>
   );

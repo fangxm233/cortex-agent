@@ -120,6 +120,15 @@ export interface DetailStep {
   agent?: DetailStepAgent;
   subs: DetailStepSub[];
   subCount: number;
+  /** Zero-based step index (from the DTO), used as a stable selection key. */
+  stepIndex: number;
+  /** The agent session backing this step — its transcript (assistant markdown + tool calls) is the
+   *  step's expandable chat. Null for a pending step that has not started (no session yet). */
+  sessionId: string | null;
+  /** Human session name (`cortex-XXXX`) for the step header; null when the session is unresolved. */
+  sessionName: string | null;
+  /** The agent profile/slot label shown in the expanded header. Falls back to the slot id. */
+  profile: string | null;
 }
 
 export interface WrittenByChip {
@@ -241,6 +250,9 @@ export function buildThreadDetailVm(
         }
       : undefined;
     const subs = running ? detail.children.map(mapSub) : [];
+    const profile = running
+      ? (detail.agentFlow?.profile ?? detail.activeAgent ?? step.agentSlotId)
+      : step.agentSlotId;
     return {
       kind,
       title: stepTitle(step),
@@ -250,6 +262,10 @@ export function buildThreadDetailVm(
       agent,
       subs,
       subCount: subs.length,
+      stepIndex: step.stepIndex,
+      sessionId: step.sessionId,
+      sessionName: step.sessionName,
+      profile,
     };
   });
 

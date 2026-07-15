@@ -126,9 +126,9 @@ describe('buildThreadDetailVm', () => {
       lastOutput: 'Now checking the headline claim.',
     },
     steps: [
-      step({ stepIndex: 0, stage: 'Plan', status: 'completed', costUsd: 0.04, durationS: 180, outputSummary: 'plan.md' }),
+      step({ stepIndex: 0, stage: 'Plan', status: 'completed', costUsd: 0.04, durationS: 180, outputSummary: 'plan.md', sessionId: 'cortex-plan', sessionName: 'cortex-plan' }),
       step({ stepIndex: 1, stage: 'Execute', status: 'completed', costUsd: 2.1, durationS: 2340 }),
-      step({ stepIndex: 2, stage: 'Review', status: 'running', agentSlotId: 'slot-2', executionId: 'exec_31b0', costUsd: 0.38, durationS: 252 }),
+      step({ stepIndex: 2, stage: 'Review', status: 'running', agentSlotId: 'slot-2', executionId: 'exec_31b0', costUsd: 0.38, durationS: 252, sessionId: 'cortex-review', sessionName: 'cortex-review' }),
       step({ stepIndex: 3, stage: 'Commit', status: 'pending' }),
     ],
     dispatches: [dispatch({ executionId: 'exec_31b0', agentSlotId: 'slot-2', machine: 'local', type: 'local' })],
@@ -183,6 +183,20 @@ describe('buildThreadDetailVm', () => {
     expect(vm.steps[0].title).toBe('1 · Plan');
     expect(vm.steps[0].meta).toBe('3m · $0.04');
     expect(vm.steps[3].meta).toBe('gated');
+  });
+
+  it('carries the per-step session id / name / index for the expandable chat', () => {
+    const vm = buildThreadDetailVm(expDetail, [], NOW);
+    // every step exposes its own session so any step (not just the running one) can render its chat
+    expect(vm.steps.map((s) => s.stepIndex)).toEqual([0, 1, 2, 3]);
+    expect(vm.steps[0].sessionId).toBe('cortex-plan');
+    expect(vm.steps[0].sessionName).toBe('cortex-plan');
+    expect(vm.steps[2].sessionId).toBe('cortex-review');
+    // a pending step that never started has no session
+    expect(vm.steps[3].sessionId).toBeNull();
+    // running step surfaces the live agent-flow profile; a completed step falls back to its slot id
+    expect(vm.steps[2].profile).toBe('reviewer');
+    expect(vm.steps[0].profile).toBe('slot-0');
   });
 
   it('expands only the running step: agent flow + sub-thread cards', () => {
