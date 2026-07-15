@@ -188,9 +188,41 @@ npx tauri android build --debug --apk --target aarch64
 # → src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
 ```
 
-Drop `--target aarch64` to build all ABIs; drop `--debug` for a release build (needs a signing
-keystore configured in `gen/android` — debug builds are auto-signed with the debug keystore and
-are installable for testing). `tauri android dev` runs on a connected device / emulator.
+Drop `--target aarch64` to build all ABIs. Debug builds are auto-signed with the debug keystore
+and installable for testing, but **keep native-lib debug symbols** (`keepDebugSymbols` in the
+generated `build.gradle.kts`), so a universal debug APK is hundreds of MB. For anything you hand
+out, build a signed release APK for a single ABI instead (see below). `tauri android dev` runs on
+a connected device / emulator.
+
+### Release build (signed APK)
+
+Release APKs must be signed or Android refuses to install them (the release build type has no
+signing config out of the box). A single-ABI release APK is also ~7 MB vs the ~450 MB universal
+debug APK, because release strips + optimizes the Rust `.so` and one ABI ships instead of four.
+
+`gen/android/` is **gitignored** — `tauri android init` regenerates it, wiping any signing wiring —
+so the signing setup below must be re-applied after each init (or scripted). Steps:
+
+1. Generate a keystore once (kept **outside** the repo; never commit it):
+   ```bash
+   keytool -genkeypair -v -keystore <path>/release.keystore \
+     -alias <alias> -keyalg RSA -keysize 2048 -validity 10000 \
+     -storepass <pass> -keypass <pass> -dname "CN=Cortex, O=Cortex, C=US"
+   ```
+2. Write `gen/android/app/keystore.properties` (also gitignored) with
+   `storeFile` / `storePassword` / `keyAlias` / `keyPassword`.
+3. In `gen/android/app/build.gradle.kts`: load `keystore.properties`, add a `signingConfigs`
+   `release {}` block reading those four keys, and set `signingConfig = signingConfigs.getByName("release")`
+   inside `buildTypes.getByName("release")`.
+4. Build (same env exports as above), no `--debug`:
+   ```bash
+   npx tauri android build --apk --target aarch64
+   # → src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+   ```
+5. Verify the signature: `$ANDROID_HOME/build-tools/<ver>/apksigner verify --print-certs <apk>`.
+
+Concrete machine paths, the keystore location, and its password are recorded in `~/.cortex`
+(machine config) — not here, since this is a public repo.
 
 ## Keychain notes
 
