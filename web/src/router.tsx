@@ -1,5 +1,5 @@
 import { createBrowserRouter, createHashRouter, Navigate } from 'react-router-dom';
-import { isDesktopShell } from '@/lib/desktop-config';
+import { isNativeShell } from '@/lib/desktop-config';
 import { AppShell } from '@/shell/AppShell';
 import { EmptyPane } from '@/shell/EmptyPane';
 import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
@@ -12,10 +12,10 @@ import { MemoryPage } from '@/features/memory/MemoryPage';
 import { SkillsPage } from '@/features/skills/SkillsPage';
 import { SettingsRoute } from '@/features/settings/SettingsRoute';
 
-// Desktop shell loads the SPA via the Tauri asset protocol at `/index.html`, which a
-// BrowserRouter cannot match (→ "404 Not Found"). Use a path-independent HashRouter there;
-// browser / ui-http mode keeps clean-URL BrowserRouter.
-const createRouter = isDesktopShell() ? createHashRouter : createBrowserRouter;
+// Any native Tauri shell (desktop OR Android) loads the SPA via an asset protocol at
+// `/index.html`, which a BrowserRouter cannot match (→ "404 Not Found"). Use a
+// path-independent HashRouter there; browser / ui-http mode keeps clean-URL BrowserRouter.
+const createRouter = isNativeShell() ? createHashRouter : createBrowserRouter;
 
 export const router = createRouter([
   {

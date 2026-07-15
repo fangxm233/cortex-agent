@@ -19,9 +19,15 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# ── Desktop-only dependencies ──
+# keyring: the OS keychain has NO Android backend (Android uses an app-private file store in
+#   creds.rs instead), so the crate is only pulled in for desktop targets.
+# reqwest/sha2/zip: the frontend OTA updater. reqwest's native-TLS (openssl) is painful to
+#   cross-compile for Android and unneeded there (the APK ships the frontend embedded), so the
+#   OTA module + its deps are desktop-only (see `#[cfg(not(target_os = "android"))] mod ota` in lib.rs).
+[target.'cfg(not(target_os = "android"))'.dependencies]
 keyring = { version = "3", features = [] }
-# Frontend OTA updater: HTTP fetch (blocking, in a background thread), integrity + archive extract.
-# reqwest + sha2 are already in the tree via tauri; zip is the only genuinely new crate.
 reqwest = { version = "0.13", features = ["blocking", "json"] }
 sha2 = "0.10"
 zip = { version = "2", default-features = false, features = ["deflate"] }

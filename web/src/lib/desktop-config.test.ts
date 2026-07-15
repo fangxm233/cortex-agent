@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { readDesktopConfig, isDesktopShell } from './desktop-config';
+import { readDesktopConfig, isDesktopShell, isMobileShell, isNativeShell } from './desktop-config';
 
 // Tests run in the vitest Node environment (no jsdom). readDesktopConfig() reads
 // from globalThis (≡ window in browsers), so we can mock the global directly here.
@@ -7,6 +7,7 @@ import { readDesktopConfig, isDesktopShell } from './desktop-config';
 type MockGlobal = typeof globalThis & {
   __CORTEX_DESKTOP_CONFIG?: { serverUrl?: string | null; token?: string | null };
   __CORTEX_DESKTOP__?: boolean;
+  __CORTEX_MOBILE__?: boolean;
 };
 
 describe('isDesktopShell', () => {
@@ -21,6 +22,28 @@ describe('isDesktopShell', () => {
 
   it('returns false in browser / ui-http mode (flag absent)', () => {
     expect(isDesktopShell()).toBe(false);
+  });
+});
+
+describe('isNativeShell', () => {
+  afterEach(() => {
+    delete (globalThis as MockGlobal).__CORTEX_DESKTOP__;
+    delete (globalThis as MockGlobal).__CORTEX_MOBILE__;
+  });
+
+  it('returns true in the desktop shell (only __CORTEX_DESKTOP__ set)', () => {
+    (globalThis as MockGlobal).__CORTEX_DESKTOP__ = true;
+    expect(isNativeShell()).toBe(true);
+  });
+
+  it('returns true in the Android/mobile shell (only __CORTEX_MOBILE__ set)', () => {
+    (globalThis as MockGlobal).__CORTEX_MOBILE__ = true;
+    expect(isMobileShell()).toBe(true);
+    expect(isNativeShell()).toBe(true);
+  });
+
+  it('returns false in browser / ui-http mode (neither flag set)', () => {
+    expect(isNativeShell()).toBe(false);
   });
 });
 

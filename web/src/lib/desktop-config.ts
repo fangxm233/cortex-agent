@@ -47,3 +47,16 @@ export function isDesktopShell(): boolean {
 export function isMobileShell(): boolean {
   return (globalThis as unknown as { __CORTEX_MOBILE__?: boolean }).__CORTEX_MOBILE__ === true;
 }
+
+/**
+ * True when running inside ANY native Tauri shell (desktop OR mobile/Android).
+ *
+ * Both shells load the SPA over an asset-style protocol at a real file path
+ * (`cortexui://localhost/index.html` on desktop, `http://tauri.localhost/index.html`
+ * on Android) which a BrowserRouter cannot match. This is the single predicate the
+ * router configs use to pick a path-independent HashRouter — so it stays correct on
+ * Android, where only `__CORTEX_MOBILE__` (not `__CORTEX_DESKTOP__`) is set.
+ */
+export function isNativeShell(): boolean {
+  return isDesktopShell() || isMobileShell();
+}

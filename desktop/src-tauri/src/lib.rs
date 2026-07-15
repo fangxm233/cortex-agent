@@ -22,11 +22,17 @@
 //   stale/dead saved server is always recoverable.
 
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_os = "android"))]
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
+mod creds;
 mod frontend;
+// The OTA frontend updater pulls in reqwest/zip/sha2 (native-TLS / openssl), which are painful to
+// cross-compile for Android and unnecessary there (Android ships the frontend embedded in the APK
+// and updates via the store / a rebuild). Desktop keeps the self-updating SPA.
+#[cfg(not(target_os = "android"))]
 mod ota;
 
 // ─── Frontend source (OTA) ──────────────────────────────────────────────────
@@ -39,6 +45,10 @@ const FRONTEND_SCHEME: &str = "cortexui";
 ///   2. The OTA-downloaded current version: `<appDataDir>/ui/current` (populated by the updater).
 ///   3. The bundled seed shipped with the app: `<resourceDir>/frontend-seed` (first-run / offline).
 /// A candidate counts only when it contains index.html, so a half-populated dir never wins.
+///
+/// Desktop-only: Android serves the embedded frontend over Tauri's built-in asset protocol
+/// (no on-disk custom-scheme serving), so this resolver is not compiled there.
+#[cfg(not(target_os = "android"))]
 fn active_frontend_dir(app: &tauri::AppHandle) -> PathBuf {
     if let Ok(dir) = std::env::var("CORTEX_FRONTEND_DIR") {
         let p = PathBuf::from(dir);
@@ -59,10 +69,6 @@ fn active_frontend_dir(app: &tauri::AppHandle) -> PathBuf {
     PathBuf::from("frontend-seed")
 }
 
-// ─── Keychain constants ────────────────────────────────────────────────────
-const KEYCHAIN_SERVICE: &str = "dev.cortex.desktop";
-const KEYCHAIN_ACCOUNT: &str = "connection";
-
 // ─── Types ────────────────────────────────────────────────────────────────
 
 /// Connection credentials shared between Rust AppState and the JS global
@@ -79,37 +85,6 @@ pub struct ConnectionConfig {
 
 pub struct AppState {
     pub config: Mutex<ConnectionConfig>,
-}
-
-// ─── Keychain helpers ──────────────────────────────────────────────────────
-
-/// Load credentials from the OS keychain. Returns None if the keychain is
-/// unavailable or no entry exists.
-fn load_from_keychain() -> Option<ConnectionConfig> {
-    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-        .ok()
-        .and_then(|e| e.get_password().ok())
-        .and_then(|s| serde_json::from_str::<ConnectionConfig>(&s).ok())
-        .filter(|c| c.server_url.is_some() && c.token.is_some())
-}
-
-/// Persist credentials to the OS keychain. Returns Err if the keychain is
-/// unavailable; callers log this and continue (credentials kept in AppState).
-fn save_to_keychain(config: &ConnectionConfig) -> Result<(), String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-        .map_err(|e| format!("keychain open: {e}"))?;
-    let data = serde_json::to_string(config)
-        .map_err(|e| format!("serialize: {e}"))?;
-    entry
-        .set_password(&data)
-        .map_err(|e| format!("keychain write: {e}"))
-}
-
-/// Delete credentials from the OS keychain (best-effort; errors are ignored).
-fn clear_keychain() {
-    if let Ok(entry) = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
-        let _ = entry.delete_credential();
-    }
 }
 
 // ─── Tauri commands ────────────────────────────────────────────────────────
@@ -135,14 +110,17 @@ fn set_connection_config(
     config.token = token;
 }
 
-/// Persist credentials to the OS keychain and update AppState.
+/// Persist credentials to the platform credential store and update AppState.
 ///
 /// Called by the connect screen after the user's test-connection probe
-/// succeeds. Always returns Ok — a keychain failure is logged to stderr but
-/// the session continues (credentials are in AppState; lost on restart if no
-/// keychain, e.g. headless Linux without a secret-service daemon).
+/// succeeds. Always returns Ok — a store failure is logged to stderr but
+/// the session continues (credentials are in AppState; lost on restart if the
+/// store is unavailable, e.g. headless Linux without a secret-service daemon).
+/// Backend is platform-branched (OS keychain on desktop, app-private file on
+/// Android) — see `creds.rs`.
 #[tauri::command]
 fn connect(
+    app: tauri::AppHandle,
     state: State<AppState>,
     server_url: String,
     token: String,
@@ -151,9 +129,9 @@ fn connect(
         server_url: Some(server_url),
         token: Some(token),
     };
-    if let Err(e) = save_to_keychain(&config) {
+    if let Err(e) = creds::save(&app, &config) {
         eprintln!(
-            "[cortex-desktop] keychain save failed ({e}); \
+            "[cortex-desktop] credential store save failed ({e}); \
              credentials are session-only (lost on restart)"
         );
     }
@@ -161,31 +139,47 @@ fn connect(
     Ok(())
 }
 
-/// Clear credentials from keychain and AppState.
+/// Clear credentials from the platform store and AppState.
 ///
 /// Called by the always-visible "Switch server" button. After this returns the
 /// JS navigates to connect.html.
 #[tauri::command]
-fn disconnect(state: State<AppState>) -> Result<(), String> {
-    clear_keychain();
+fn disconnect(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
+    creds::clear(&app);
     *state.config.lock().unwrap() = ConnectionConfig::default();
     Ok(())
 }
 
 // ─── Initialization script ─────────────────────────────────────────────────
-// Injected into EVERY page load (connect.html and index.html).
+// Injected into EVERY page load (connect.html and index.html). A per-platform
+// PREFIX (see `init_script()`) sets the shell-detection flag first:
+//   desktop → window.__CORTEX_DESKTOP__ = true   (desktop three-pane workbench)
+//   Android → window.__CORTEX_MOBILE__  = true   (mobile bottom-Tab shell)
+// then this shared body runs:
 //
-// 1. Sets window.__CORTEX_DESKTOP__ = true (desktop detection flag).
-// 2. Async-fetches credentials from AppState via IPC and writes to
-//    window.__CORTEX_DESKTOP_CONFIG. The IPC round-trip is ~microseconds;
-//    the React bundle takes tens of milliseconds to download + parse, so
-//    the global is set before providers.tsx reads it.
-// 3. After DOMContentLoaded, injects an always-visible "Switch server" button
+// 1. Async-fetches credentials from AppState via IPC and writes to
+//    window.__CORTEX_DESKTOP_CONFIG (read by providers.tsx to switch the tRPC
+//    client to absolute-URL + token-bearer mode). The IPC round-trip is
+//    ~microseconds; the React bundle takes tens of milliseconds to download +
+//    parse, so the global is set before providers.tsx reads it. Shared by both
+//    platforms — the mobile shell reaches the same remote server the same way.
+// 2. After DOMContentLoaded, injects an always-visible "Switch server" button
 //    (low-contrast, bottom-right) into the workbench. Suppressed on the connect
-//    screen (identified by body id).
+//    screen (body id) AND on mobile (the bottom-Tab shell owns its own nav, and
+//    a fixed bottom-right button would overlap the Tab bar).
+
+/// Per-platform flag prefix prepended to `INIT_SCRIPT`.
+#[cfg(target_os = "android")]
+const SHELL_FLAG: &str = "window.__CORTEX_MOBILE__ = true;\n";
+#[cfg(not(target_os = "android"))]
+const SHELL_FLAG: &str = "window.__CORTEX_DESKTOP__ = true;\n";
+
+/// The full initialization script: platform flag + shared body.
+fn init_script() -> String {
+    format!("{SHELL_FLAG}{INIT_SCRIPT}")
+}
 
 const INIT_SCRIPT: &str = r#"
-window.__CORTEX_DESKTOP__ = true;
 window.__CORTEX_DESKTOP_CONFIG = { serverUrl: null, token: null };
 
 // Timing assumption: this IPC call resolves in ~microseconds (in-process Rust handler,
@@ -207,6 +201,8 @@ window.__CORTEX_DESKTOP_CONFIG = { serverUrl: null, token: null };
 document.addEventListener('DOMContentLoaded', function () {
   // connect.html has id="cortex-connect-screen" on <body> — skip there.
   if (document.getElementById('cortex-connect-screen')) return;
+  // Mobile shell owns its own navigation (bottom Tab bar) — no desktop switch button.
+  if (window.__CORTEX_MOBILE__) return;
   var tauri = window.__TAURI__;
   if (!tauri || !tauri.core || !tauri.core.invoke) return;
 
@@ -241,51 +237,50 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 "#;
 
-// ─── App entry point ───────────────────────────────────────────────────────
+/// A credential counts as PRESENT only when it is Some AND non-empty after trimming.
+/// `Option::is_some()` is true for `Some("")` / `Some("   ")`, so blank or whitespace-only
+/// saved creds (e.g. a half-filled store entry or `CORTEX_SERVER_URL=`) would wrongly route
+/// to index.html and leave the user stranded with a dead tRPC client. Requiring a non-empty
+/// trimmed value makes garbage creds fall through to connect.html.
+fn has_credentials(config: &ConnectionConfig) -> bool {
+    let non_blank = |v: &Option<String>| v.as_deref().map(str::trim).is_some_and(|s| !s.is_empty());
+    non_blank(&config.server_url) && non_blank(&config.token)
+}
 
-pub fn run() {
-    // Load credentials from the OS keychain synchronously before the window
-    // opens. Fall back to env vars (dev convenience) if keychain is empty.
-    let initial_config = load_from_keychain().unwrap_or_else(|| ConnectionConfig {
+/// Load initial credentials: platform credential store first, then env-var fallback
+/// (`CORTEX_SERVER_URL` / `CORTEX_TOKEN`, dev convenience). Loaded inside `setup` because the
+/// Android store backend needs the `AppHandle` to resolve the app-private data dir.
+fn load_initial_config(app: &tauri::AppHandle) -> ConnectionConfig {
+    creds::load(app).unwrap_or_else(|| ConnectionConfig {
         server_url: std::env::var("CORTEX_SERVER_URL").ok(),
         token: std::env::var("CORTEX_TOKEN").ok(),
-    });
+    })
+}
 
-    // A credential counts as PRESENT only when it is Some AND non-empty after trimming.
-    // `Option::is_some()` is true for `Some("")` / `Some("   ")`, so blank or whitespace-only
-    // saved creds (e.g. a half-filled keychain entry or `CORTEX_SERVER_URL=`) would wrongly
-    // route to index.html and leave the user stranded with a dead tRPC client. Requiring a
-    // non-empty trimmed value makes garbage creds fall through to connect.html.
-    let non_blank = |v: &Option<String>| v.as_deref().map(str::trim).is_some_and(|s| !s.is_empty());
-    let has_credentials =
-        non_blank(&initial_config.server_url) && non_blank(&initial_config.token);
+// ─── App entry point ───────────────────────────────────────────────────────
 
-    // Open the workbench directly when credentials are available; otherwise
-    // show the connection config screen.
-    let initial_url: &str = if has_credentials {
-        "index.html"
-    } else {
-        "connect.html"
-    };
-
-    // Load the SPA over the custom `cortexui://` scheme (served by the OTA-aware handler below)
-    // instead of the built-in App asset protocol, so the frontend can be swapped by the updater.
-    let initial_scheme_url = format!("{FRONTEND_SCHEME}://localhost/{initial_url}");
-
-    tauri::Builder::default()
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
         .manage(AppState {
-            config: Mutex::new(initial_config),
+            config: Mutex::new(ConnectionConfig::default()),
         })
         .invoke_handler(tauri::generate_handler![
             get_connection_config,
             set_connection_config,
             connect,
             disconnect,
-        ])
-        // OTA frontend transport: serve the SPA from the active frontend directory (env override →
-        // OTA-downloaded current → bundled seed). resolve_asset applies the SPA fallback + traversal
-        // guard + MIME. Native std::fs read — no JS fs-plugin capability needed.
-        .register_uri_scheme_protocol(FRONTEND_SCHEME, |ctx, request| {
+        ]);
+
+    // Desktop only: serve the SPA over the custom `cortexui://` scheme from the active frontend
+    // directory (env override → OTA-downloaded current → bundled seed), so the frontend can be
+    // swapped by the updater. resolve_asset applies the SPA fallback + traversal guard + MIME.
+    // Android serves the embedded frontend over Tauri's built-in asset protocol instead (no
+    // on-disk serving; the APK is read-only), so the scheme is not registered there.
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.register_uri_scheme_protocol(FRONTEND_SCHEME, |ctx, request| {
             let root = active_frontend_dir(ctx.app_handle());
             let asset = frontend::resolve_asset(&root, &request.uri().to_string());
             tauri::http::Response::builder()
@@ -293,51 +288,76 @@ pub fn run() {
                 .header(tauri::http::header::CONTENT_TYPE, asset.mime)
                 .body(asset.body)
                 .expect("build custom-scheme response")
-        })
+        });
+    }
+
+    builder
         .setup(move |app| {
-            // Apply any frontend update downloaded in a previous session BEFORE the window loads,
-            // so this launch serves the new version and the running SPA is never swapped underneath.
-            if let Ok(data) = app.path().app_data_dir() {
-                match ota::UiStore::new(&data).promote_staged() {
-                    Ok(Some(v)) => eprintln!("[cortex-desktop] applied staged frontend update: {v}"),
-                    Ok(None) => {}
-                    Err(e) => eprintln!("[cortex-desktop] promote staged frontend failed: {e}"),
+            // Load credentials (platform store → env fallback) and seed AppState.
+            let initial_config = load_initial_config(&app.handle());
+            let open_workbench = has_credentials(&initial_config);
+            *app.state::<AppState>().config.lock().unwrap() = initial_config;
+
+            // Open the workbench directly when credentials are available; otherwise the connect screen.
+            let initial_file = if open_workbench { "index.html" } else { "connect.html" };
+
+            // ── Desktop: custom cortexui:// scheme + frontend OTA ──
+            #[cfg(not(target_os = "android"))]
+            {
+                // Apply any frontend update downloaded in a previous session BEFORE the window loads,
+                // so this launch serves the new version and the running SPA is never swapped underneath.
+                if let Ok(data) = app.path().app_data_dir() {
+                    match ota::UiStore::new(&data).promote_staged() {
+                        Ok(Some(v)) => eprintln!("[cortex-desktop] applied staged frontend update: {v}"),
+                        Ok(None) => {}
+                        Err(e) => eprintln!("[cortex-desktop] promote staged frontend failed: {e}"),
+                    }
+                }
+
+                let url = format!("{FRONTEND_SCHEME}://localhost/{initial_file}");
+                tauri::WebviewWindowBuilder::new(
+                    app,
+                    "main",
+                    tauri::WebviewUrl::CustomProtocol(url.parse().expect("valid cortexui:// url")),
+                )
+                .title("Cortex")
+                .inner_size(1400.0, 900.0)
+                .resizable(true)
+                .initialization_script(&init_script())
+                .build()?;
+
+                // Background OTA check: fetch the manifest, download + verify a newer bundle, and
+                // stage it for the next launch. Non-blocking and offline-safe — any failure is a
+                // logged no-op, and the current version keeps serving.
+                if let Ok(data) = app.path().app_data_dir() {
+                    let cfg = app.state::<AppState>().config.lock().unwrap().clone();
+                    if let (Some(url), Some(token)) = (cfg.server_url, cfg.token) {
+                        std::thread::spawn(move || {
+                            let store = ota::UiStore::new(&data);
+                            match ota::check_and_stage(&url, &token, &store) {
+                                Ok(Some(v)) => eprintln!(
+                                    "[cortex-desktop] staged frontend update {v} (applies next launch)"
+                                ),
+                                Ok(None) => {}
+                                Err(e) => eprintln!("[cortex-desktop] ota check skipped: {e}"),
+                            }
+                        });
+                    }
                 }
             }
 
-            tauri::WebviewWindowBuilder::new(
-                app,
-                "main",
-                tauri::WebviewUrl::CustomProtocol(
-                    initial_scheme_url.parse().expect("valid cortexui:// url"),
-                ),
-            )
-            .title("Cortex")
-            .inner_size(1400.0, 900.0)
-            .resizable(true)
-            // Runs on every page load — seeds window.__CORTEX_DESKTOP_CONFIG
-            // via async IPC and attaches the Switch-server button.
-            .initialization_script(INIT_SCRIPT)
-            .build()?;
-
-            // Background OTA check: fetch the manifest, download + verify a newer bundle, and stage
-            // it for the next launch. Non-blocking and offline-safe — any failure is a logged no-op,
-            // and the current version keeps serving.
-            if let Ok(data) = app.path().app_data_dir() {
-                let cfg = app.state::<AppState>().config.lock().unwrap().clone();
-                if let (Some(url), Some(token)) = (cfg.server_url, cfg.token) {
-                    std::thread::spawn(move || {
-                        let store = ota::UiStore::new(&data);
-                        match ota::check_and_stage(&url, &token, &store) {
-                            Ok(Some(v)) => eprintln!(
-                                "[cortex-desktop] staged frontend update {v} (applies next launch)"
-                            ),
-                            Ok(None) => {}
-                            Err(e) => eprintln!("[cortex-desktop] ota check skipped: {e}"),
-                        }
-                    });
-                }
+            // ── Android: embedded frontend over Tauri's built-in asset protocol ──
+            #[cfg(target_os = "android")]
+            {
+                tauri::WebviewWindowBuilder::new(
+                    app,
+                    "main",
+                    tauri::WebviewUrl::App(initial_file.into()),
+                )
+                .initialization_script(&init_script())
+                .build()?;
             }
+
             Ok(())
         })
         .run(tauri::generate_context!())
