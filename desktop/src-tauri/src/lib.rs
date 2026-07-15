@@ -22,25 +22,26 @@
 //   stale/dead saved server is always recoverable.
 
 use serde::{Deserialize, Serialize};
-#[cfg(not(target_os = "android"))]
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
 mod creds;
-// frontend (custom-scheme asset resolver) + ota (self-updating SPA) are desktop-only: Android
-// serves the embedded frontend over Tauri's built-in asset protocol (the APK is read-only), and
-// the OTA updater pulls in reqwest/zip/sha2 (native-TLS / openssl) which are painful to
-// cross-compile for Android and unneeded there (updates ship via the store / a rebuild).
-#[cfg(not(target_os = "android"))]
+// frontend (custom-scheme asset resolver) + ota (self-updating SPA) now run on BOTH desktop and
+// Android: the SPA is served over the `cortexui://` scheme from an on-disk frontend directory, and
+// the OTA updater (reqwest[rustls]/sha2/zip — all cross-compile cleanly for Android) stages new
+// bundles for the next launch. The one platform seam is the first-run seed (see `seed` below):
+// desktop reads it from `resource_dir/frontend-seed`, Android from an `include_dir!`-embedded copy.
 mod frontend;
-#[cfg(not(target_os = "android"))]
 mod ota;
+// Android-only: the embedded SPA seed materialized onto disk on first run (desktop uses the real
+// files under resource_dir/frontend-seed instead, so this module is not compiled there).
+#[cfg(target_os = "android")]
+mod seed;
 
 // ─── Frontend source (OTA) ──────────────────────────────────────────────────
 /// The custom URI scheme the SPA is served under. A single origin for the SPA's whole life
 /// (seed and OTA-downloaded versions alike) so browser-origin state stays stable across updates.
-#[cfg(not(target_os = "android"))]
 const FRONTEND_SCHEME: &str = "cortexui";
 
 /// Resolve the directory the frontend is currently served from, newest wins:
@@ -49,9 +50,9 @@ const FRONTEND_SCHEME: &str = "cortexui";
 ///   3. The bundled seed shipped with the app: `<resourceDir>/frontend-seed` (first-run / offline).
 /// A candidate counts only when it contains index.html, so a half-populated dir never wins.
 ///
-/// Desktop-only: Android serves the embedded frontend over Tauri's built-in asset protocol
-/// (no on-disk custom-scheme serving), so this resolver is not compiled there.
-#[cfg(not(target_os = "android"))]
+/// Both platforms serve over `cortexui://` from disk. On Android the `resource_dir/frontend-seed`
+/// fallback is never actually reached because the embedded seed is materialized into `ui/current`
+/// before the window opens (see `seed::ensure_seed`); it stays here only as a harmless last resort.
 fn active_frontend_dir(app: &tauri::AppHandle) -> PathBuf {
     if let Ok(dir) = std::env::var("CORTEX_FRONTEND_DIR") {
         let p = PathBuf::from(dir);
@@ -276,23 +277,19 @@ pub fn run() {
             disconnect,
         ]);
 
-    // Desktop only: serve the SPA over the custom `cortexui://` scheme from the active frontend
+    // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend
     // directory (env override → OTA-downloaded current → bundled seed), so the frontend can be
-    // swapped by the updater. resolve_asset applies the SPA fallback + traversal guard + MIME.
-    // Android serves the embedded frontend over Tauri's built-in asset protocol instead (no
-    // on-disk serving; the APK is read-only), so the scheme is not registered there.
-    #[cfg(not(target_os = "android"))]
-    {
-        builder = builder.register_uri_scheme_protocol(FRONTEND_SCHEME, |ctx, request| {
-            let root = active_frontend_dir(ctx.app_handle());
-            let asset = frontend::resolve_asset(&root, &request.uri().to_string());
-            tauri::http::Response::builder()
-                .status(asset.status)
-                .header(tauri::http::header::CONTENT_TYPE, asset.mime)
-                .body(asset.body)
-                .expect("build custom-scheme response")
-        });
-    }
+    // swapped by the updater. resolve_asset applies the SPA fallback + traversal guard + MIME. On
+    // Android `ui/current` is seeded from the embedded copy before the window opens (see setup).
+    builder = builder.register_uri_scheme_protocol(FRONTEND_SCHEME, |ctx, request| {
+        let root = active_frontend_dir(ctx.app_handle());
+        let asset = frontend::resolve_asset(&root, &request.uri().to_string());
+        tauri::http::Response::builder()
+            .status(asset.status)
+            .header(tauri::http::header::CONTENT_TYPE, asset.mime)
+            .body(asset.body)
+            .expect("build custom-scheme response")
+    });
 
     builder
         .setup(move |app| {
@@ -304,61 +301,62 @@ pub fn run() {
             // Open the workbench directly when credentials are available; otherwise the connect screen.
             let initial_file = if open_workbench { "index.html" } else { "connect.html" };
 
-            // ── Desktop: custom cortexui:// scheme + frontend OTA ──
-            #[cfg(not(target_os = "android"))]
-            {
-                // Apply any frontend update downloaded in a previous session BEFORE the window loads,
-                // so this launch serves the new version and the running SPA is never swapped underneath.
-                if let Ok(data) = app.path().app_data_dir() {
-                    match ota::UiStore::new(&data).promote_staged() {
-                        Ok(Some(v)) => eprintln!("[cortex-desktop] applied staged frontend update: {v}"),
-                        Ok(None) => {}
-                        Err(e) => eprintln!("[cortex-desktop] promote staged frontend failed: {e}"),
-                    }
+            // ── Pre-window: apply any staged update, then guarantee a servable frontend on disk ──
+            // Promote first so this launch serves a bundle downloaded in a previous session, and the
+            // running SPA is never swapped underneath itself. On Android, if `ui/current` is still
+            // empty afterwards (first run / offline), materialize the embedded seed into it so the
+            // cortexui:// resolver has something to serve (desktop falls back to resource_dir instead).
+            if let Ok(data) = app.path().app_data_dir() {
+                let store = ota::UiStore::new(&data);
+                match store.promote_staged() {
+                    Ok(Some(v)) => eprintln!("[cortex-desktop] applied staged frontend update: {v}"),
+                    Ok(None) => {}
+                    Err(e) => eprintln!("[cortex-desktop] promote staged frontend failed: {e}"),
                 }
-
-                let url = format!("{FRONTEND_SCHEME}://localhost/{initial_file}");
-                tauri::WebviewWindowBuilder::new(
-                    app,
-                    "main",
-                    tauri::WebviewUrl::CustomProtocol(url.parse().expect("valid cortexui:// url")),
-                )
-                .title("Cortex")
-                .inner_size(1400.0, 900.0)
-                .resizable(true)
-                .initialization_script(&init_script())
-                .build()?;
-
-                // Background OTA check: fetch the manifest, download + verify a newer bundle, and
-                // stage it for the next launch. Non-blocking and offline-safe — any failure is a
-                // logged no-op, and the current version keeps serving.
-                if let Ok(data) = app.path().app_data_dir() {
-                    let cfg = app.state::<AppState>().config.lock().unwrap().clone();
-                    if let (Some(url), Some(token)) = (cfg.server_url, cfg.token) {
-                        std::thread::spawn(move || {
-                            let store = ota::UiStore::new(&data);
-                            match ota::check_and_stage(&url, &token, &store) {
-                                Ok(Some(v)) => eprintln!(
-                                    "[cortex-desktop] staged frontend update {v} (applies next launch)"
-                                ),
-                                Ok(None) => {}
-                                Err(e) => eprintln!("[cortex-desktop] ota check skipped: {e}"),
-                            }
-                        });
+                #[cfg(target_os = "android")]
+                {
+                    match seed::ensure_seed(&store.current_dir()) {
+                        Ok(true) => eprintln!("[cortex-desktop] extracted embedded frontend seed"),
+                        Ok(false) => {}
+                        Err(e) => eprintln!("[cortex-desktop] seed extract failed: {e}"),
                     }
                 }
             }
 
-            // ── Android: embedded frontend over Tauri's built-in asset protocol ──
-            #[cfg(target_os = "android")]
+            // ── Open the window against the cortexui:// scheme (both platforms) ──
+            let url = format!("{FRONTEND_SCHEME}://localhost/{initial_file}");
+            #[allow(unused_mut)]
+            let mut win = tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                tauri::WebviewUrl::CustomProtocol(url.parse().expect("valid cortexui:// url")),
+            )
+            .initialization_script(&init_script());
+            // Desktop-only window chrome (Android manages its own full-screen activity).
+            #[cfg(not(target_os = "android"))]
             {
-                tauri::WebviewWindowBuilder::new(
-                    app,
-                    "main",
-                    tauri::WebviewUrl::App(initial_file.into()),
-                )
-                .initialization_script(&init_script())
-                .build()?;
+                win = win.title("Cortex").inner_size(1400.0, 900.0).resizable(true);
+            }
+            win.build()?;
+
+            // ── Background OTA check (both platforms) ──
+            // Fetch the manifest, download + verify a newer bundle, and stage it for the next launch.
+            // Non-blocking and offline-safe — any failure is a logged no-op and the current version
+            // keeps serving.
+            if let Ok(data) = app.path().app_data_dir() {
+                let cfg = app.state::<AppState>().config.lock().unwrap().clone();
+                if let (Some(url), Some(token)) = (cfg.server_url, cfg.token) {
+                    std::thread::spawn(move || {
+                        let store = ota::UiStore::new(&data);
+                        match ota::check_and_stage(&url, &token, &store) {
+                            Ok(Some(v)) => eprintln!(
+                                "[cortex-desktop] staged frontend update {v} (applies next launch)"
+                            ),
+                            Ok(None) => {}
+                            Err(e) => eprintln!("[cortex-desktop] ota check skipped: {e}"),
+                        }
+                    });
+                }
             }
 
             Ok(())

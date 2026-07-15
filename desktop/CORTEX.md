@@ -16,14 +16,18 @@ The window loads `cortexui://localhost/<index|connect>.html`. A registered URI-s
 (`register_uri_scheme_protocol("cortexui", …)`) serves each request from the **active frontend
 directory**, resolved newest-first by `active_frontend_dir`:
 1. `CORTEX_FRONTEND_DIR` env override (dev/testing — point straight at `web/dist`).
-2. OTA-downloaded current version: `<appDataDir>/ui/current` (populated by the updater — unit C, not yet built).
-3. Bundled seed shipped with the app: `<resourceDir>/frontend-seed` (first-run / offline fallback),
-   staged by `bundle.resources` mapping `../../web/dist/` → `frontend-seed/` in tauri.conf.json.
+2. OTA-downloaded current version: `<appDataDir>/ui/current` (populated by the updater, `ota.rs`).
+3. Bundled seed shipped with the app (first-run / offline fallback): desktop reads it from
+   `<resourceDir>/frontend-seed` (real files staged by `bundle.resources` mapping `../../web/dist/`
+   → `frontend-seed/` in tauri.conf.json); **Android** has no std::fs-readable resource seed, so it
+   embeds `web/dist` with `include_dir!` (`seed.rs`) and materializes it into `ui/current` on first
+   run — after which the same disk resolver + OTA path apply.
 
-`frontend.rs` holds the pure resolver (`resolve_asset`): percent-decode + path-traversal guard +
-MIME + SPA fallback to index.html, mirroring the server's `serveSpaStub`. Native `std::fs` read —
-no JS fs-plugin capability needed. A single origin (`cortexui://`) is kept for the SPA's whole
-life so browser-origin state is stable across seed→OTA swaps.
+This runs on **both desktop and Android**. `frontend.rs` holds the pure resolver (`resolve_asset`):
+percent-decode + path-traversal guard + MIME + SPA fallback to index.html, mirroring the server's
+`serveSpaStub`. Native `std::fs` read — no JS fs-plugin capability needed. A single origin
+(`cortexui://`) is kept for the SPA's whole life so browser-origin state is stable across seed→OTA
+swaps. OTA hot-updates only the SPA; changes to the Rust shell still require an APK/app rebuild.
 
 The server side (agent-server `platform/ui-http/ui-ota.ts`) exposes the matching
 `/api/ui-ota/manifest.json` + `/api/ui-ota/bundle.zip` (token-gated).
@@ -59,7 +63,7 @@ desktop/
 │                             IBM Plex Mono, #191C22/#4655D4/#23854F, settings-card).
 │                             Copied to web/dist/connect.html by `npm run copy-connect`.
 ├── src-tauri/
-│   ├── Cargo.toml            cortex-desktop crate (tauri v2 + serde + keyring v3)
+│   ├── Cargo.toml            cortex-desktop crate (tauri v2 + serde + reqwest[rustls]/sha2/zip; keyring v3 desktop-only, include_dir android-only)
 │   ├── build.rs              tauri-build entry point
 │   ├── tauri.conf.json       Tauri config: frontendDist=../../web/dist, withGlobalTauri
 │   ├── capabilities/
@@ -68,10 +72,11 @@ desktop/
 │   └── src/
 │       ├── main.rs           Rust entry point (calls lib::run)
 │       ├── lib.rs            AppState + 4 Tauri commands + init_script (SHELL_FLAG per platform) +
-│       │                     active_frontend_dir + cortexui:// scheme (desktop) / App protocol (android) + run()
+│       │                     active_frontend_dir + cortexui:// scheme (both platforms) + run()
 │       ├── creds.rs          Platform-branched credential store: OS keychain (desktop) / app-private file (android)
-│       ├── frontend.rs       Pure OTA asset resolver (desktop-only; resolve_asset: sanitize/traversal/MIME/SPA-fallback)
-│       └── ota.rs            Frontend OTA updater (desktop-only; reqwest/sha2/zip)
+│       ├── frontend.rs       Pure OTA asset resolver (both platforms; resolve_asset: sanitize/traversal/MIME/SPA-fallback)
+│       ├── ota.rs            Frontend OTA updater (both platforms; reqwest[rustls]/sha2/zip)
+│       └── seed.rs           Android-only: include_dir!-embedded web/dist seed → ui/current on first run
 ├── src-tauri/gen/android/    Generated Android Gradle project (gitignored; `tauri android init`)
 └── src-tauri/target/         Rust build output (gitignored)
 ```
@@ -100,9 +105,11 @@ desktop/
 | filename | role | function |
 |---|---|---|
 | `ui/connect.html` | connect screen | Standalone HTML/CSS/JS — serverUrl+token inputs, Test probe, Connect (keychain), Switch link |
-| `src-tauri/src/lib.rs` | core | `AppState`, `ConnectionConfig`, 4 Tauri commands, `init_script()` + `SHELL_FLAG` (per-platform), `active_frontend_dir` (desktop), `cortexui://` scheme (desktop) / `App` protocol (android), `run()` |
+| `src-tauri/src/lib.rs` | core | `AppState`, `ConnectionConfig`, 4 Tauri commands, `init_script()` + `SHELL_FLAG` (per-platform), `active_frontend_dir`, `cortexui://` scheme (both platforms), `run()` |
 | `src-tauri/src/creds.rs` | credential store | Platform-branched `load`/`save`/`clear` — OS keychain (desktop) / app-private JSON in `app_data_dir` (android) |
-| `src-tauri/src/frontend.rs` | OTA resolver (desktop) | Pure `resolve_asset`/`sanitize_request_path`/`content_type` (traversal guard + MIME + SPA fallback); unit-tested |
+| `src-tauri/src/frontend.rs` | OTA resolver | Pure `resolve_asset`/`sanitize_request_path`/`content_type` (traversal guard + MIME + SPA fallback); unit-tested |
+| `src-tauri/src/ota.rs` | OTA updater | `UiStore` (current/staged promote), `check_and_stage`, sha256 verify, zip extract; reqwest[rustls]; unit-tested |
+| `src-tauri/src/seed.rs` | android seed | `ensure_seed` — `include_dir!`-embedded `web/dist`, extracted into `ui/current` on first run (Android only) |
 | `src-tauri/src/main.rs` | entry | `#[cfg_attr windows_subsystem]` + `lib::run()` |
 | `src-tauri/Cargo.toml` | manifest | `cortex-desktop` crate; tauri v2 + serde + keyring v3 |
 | `src-tauri/build.rs` | build | `tauri_build::build()` |
@@ -137,27 +144,31 @@ The `copy-connect` step runs automatically as part of `dev`/`build`.
 
 ## Android platform
 
-The same crate builds an Android app. Only the platform-specific seams differ, all `cfg`-gated
+The same crate builds an Android app. The frontend transport + OTA are now shared (both platforms
+serve over `cortexui://` from disk and self-update); only a few platform seams differ, `cfg`-gated
 in `lib.rs` on `target_os = "android"`:
 
 | Concern | Desktop | Android |
 |---|---|---|
-| Frontend transport | custom `cortexui://` scheme reading from disk (`frontend.rs` + OTA) | Tauri built-in asset protocol serving the embedded `frontendDist` — `WebviewUrl::App("index.html")`. The APK is read-only, so no on-disk serving / OTA. |
-| Frontend OTA | on (reqwest/sha2/zip) | **off** — `mod ota` + `mod frontend` + `FRONTEND_SCHEME` and the reqwest/sha2/zip deps are `cfg(not(target_os="android"))`. Updates ship via a rebuild / store. |
+| Frontend transport | custom `cortexui://` scheme reading from disk (`frontend.rs` + OTA) | same custom `cortexui://` scheme + `frontend.rs` resolver reading from disk. `app_data_dir()` is a real writable dir on Android (as `creds.rs` already proves), so `ui/current` + `ui/staged` work identically. |
+| Frontend OTA | on (reqwest/sha2/zip) | **on** — same updater. reqwest uses the rustls (aws-lc-rs) backend + bundled webpki roots so it cross-compiles without OpenSSL / the OS trust store. Only the **first-run seed** differs (see next row). OTA hot-updates the SPA only; native-shell changes still need an APK rebuild + reinstall. |
+| First-run seed | `resource_dir/frontend-seed` — real files staged by `bundle.resources` | `include_dir!`-embedded copy of `web/dist`, materialized into `ui/current` before the window opens (`seed::ensure_seed`). Android's APK assets are NOT std::fs-readable, so the desktop resource-dir seed can't be used; embedding sidesteps it and keeps a single stable `cortexui://` origin for the app's whole life. |
 | Shell flag | `window.__CORTEX_DESKTOP__ = true` → desktop 3-pane workbench | `window.__CORTEX_MOBILE__ = true` → mobile bottom-Tab shell (`web/src/mobile/`). Set by `SHELL_FLAG` in `init_script()`. |
 | Credential store | OS keychain (`keyring` v3) | app-private JSON file in `app_data_dir()` (keyring has no Android backend) — see `creds.rs`. |
 | Switch button | injected bottom-right | suppressed (mobile shell owns its own nav) |
-| Web router | `HashRouter` (via `isNativeShell()`) | `HashRouter` (same predicate — asset protocol loads `/index.html`) |
+| Web router | `HashRouter` (via `isNativeShell()`) | `HashRouter` (same predicate — the `cortexui://` resolver loads `/index.html`) |
 
 `creds.rs` holds the platform-branched credential store (`load`/`save`/`clear`, each taking the
 `AppHandle`). `web/src/lib/desktop-config.ts` `isNativeShell()` (= desktop OR mobile) is what both
 `router.tsx` and `mobile/mobile-router.tsx` use to pick `HashRouter` — Android sets only
 `__CORTEX_MOBILE__`, so keying off `isDesktopShell()` alone would wrongly pick `BrowserRouter`.
 
-⚠️ **CORS origin**: the Android webview Origin is `http://tauri.localhost`. The remote server's
-`CORTEX_UI_CORS_ORIGINS` must list it (alongside the desktop `cortexui://localhost`) or the SPA's
-cross-origin tRPC calls are blocked. The app talks to the server over absolute HTTPS URLs
-(e.g. `https://cortex.fangxm.me`), so no cleartext-traffic policy is involved.
+⚠️ **CORS origin**: now that Android serves over `cortexui://`, its webview Origin is
+`http://cortexui.localhost` (Android/Windows custom-scheme form), NOT the old `http://tauri.localhost`.
+The remote server's `CORTEX_UI_CORS_ORIGINS` must list `http://cortexui.localhost` (alongside the
+desktop `cortexui://localhost`) or the SPA's cross-origin tRPC calls are blocked. The app talks to
+the server over absolute HTTPS URLs (e.g. `https://cortex.fangxm.me`), so no cleartext-traffic policy
+is involved.
 
 ### Android toolchain (installed under `~/android-tools/`, user-space, no root)
 
