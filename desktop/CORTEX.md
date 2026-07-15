@@ -1,6 +1,9 @@
 Please update me when files in this folder change
 
-Cortex Desktop — Tauri v2 shell that wraps the built web SPA in a native window.
+Cortex Desktop / Mobile — Tauri v2 shell that wraps the built web SPA in a native app.
+Targets **desktop** (Linux/macOS/Windows, native window) and **Android** (mobile bottom-Tab shell)
+from one Rust crate + one `web/dist`. Platform differences are `cfg`-gated in `src/lib.rs`
+(see "## Android platform" below).
 Serves the SPA over a custom `cortexui://` URI scheme from a swappable frontend directory
 (so the frontend can self-update — see "Frontend OTA" below) instead of the built-in read-only
 asset protocol. The SPA talks directly to the remote Cortex server using absolute URLs — token
@@ -64,9 +67,12 @@ desktop/
 │   ├── icons/                Placeholder icons
 │   └── src/
 │       ├── main.rs           Rust entry point (calls lib::run)
-│       ├── lib.rs            AppState + keychain helpers + 4 Tauri commands +
-│       │                     initialization_script + active_frontend_dir + cortexui:// scheme + run()
-│       └── frontend.rs       Pure OTA asset resolver (resolve_asset: sanitize/traversal/MIME/SPA-fallback)
+│       ├── lib.rs            AppState + 4 Tauri commands + init_script (SHELL_FLAG per platform) +
+│       │                     active_frontend_dir + cortexui:// scheme (desktop) / App protocol (android) + run()
+│       ├── creds.rs          Platform-branched credential store: OS keychain (desktop) / app-private file (android)
+│       ├── frontend.rs       Pure OTA asset resolver (desktop-only; resolve_asset: sanitize/traversal/MIME/SPA-fallback)
+│       └── ota.rs            Frontend OTA updater (desktop-only; reqwest/sha2/zip)
+├── src-tauri/gen/android/    Generated Android Gradle project (gitignored; `tauri android init`)
 └── src-tauri/target/         Rust build output (gitignored)
 ```
 
@@ -94,8 +100,9 @@ desktop/
 | filename | role | function |
 |---|---|---|
 | `ui/connect.html` | connect screen | Standalone HTML/CSS/JS — serverUrl+token inputs, Test probe, Connect (keychain), Switch link |
-| `src-tauri/src/lib.rs` | core | `AppState`, `ConnectionConfig`, keychain helpers, 4 Tauri commands, `INIT_SCRIPT`, `active_frontend_dir`, `cortexui://` scheme registration, `run()` |
-| `src-tauri/src/frontend.rs` | OTA resolver | Pure `resolve_asset`/`sanitize_request_path`/`content_type` (traversal guard + MIME + SPA fallback); unit-tested |
+| `src-tauri/src/lib.rs` | core | `AppState`, `ConnectionConfig`, 4 Tauri commands, `init_script()` + `SHELL_FLAG` (per-platform), `active_frontend_dir` (desktop), `cortexui://` scheme (desktop) / `App` protocol (android), `run()` |
+| `src-tauri/src/creds.rs` | credential store | Platform-branched `load`/`save`/`clear` — OS keychain (desktop) / app-private JSON in `app_data_dir` (android) |
+| `src-tauri/src/frontend.rs` | OTA resolver (desktop) | Pure `resolve_asset`/`sanitize_request_path`/`content_type` (traversal guard + MIME + SPA fallback); unit-tested |
 | `src-tauri/src/main.rs` | entry | `#[cfg_attr windows_subsystem]` + `lib::run()` |
 | `src-tauri/Cargo.toml` | manifest | `cortex-desktop` crate; tauri v2 + serde + keyring v3 |
 | `src-tauri/build.rs` | build | `tauri_build::build()` |
@@ -127,6 +134,63 @@ sudo apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3
 
 **Build order:** `pnpm --filter web build` → `pnpm --filter desktop build` (or `dev`).
 The `copy-connect` step runs automatically as part of `dev`/`build`.
+
+## Android platform
+
+The same crate builds an Android app. Only the platform-specific seams differ, all `cfg`-gated
+in `lib.rs` on `target_os = "android"`:
+
+| Concern | Desktop | Android |
+|---|---|---|
+| Frontend transport | custom `cortexui://` scheme reading from disk (`frontend.rs` + OTA) | Tauri built-in asset protocol serving the embedded `frontendDist` — `WebviewUrl::App("index.html")`. The APK is read-only, so no on-disk serving / OTA. |
+| Frontend OTA | on (reqwest/sha2/zip) | **off** — `mod ota` + `mod frontend` + `FRONTEND_SCHEME` and the reqwest/sha2/zip deps are `cfg(not(target_os="android"))`. Updates ship via a rebuild / store. |
+| Shell flag | `window.__CORTEX_DESKTOP__ = true` → desktop 3-pane workbench | `window.__CORTEX_MOBILE__ = true` → mobile bottom-Tab shell (`web/src/mobile/`). Set by `SHELL_FLAG` in `init_script()`. |
+| Credential store | OS keychain (`keyring` v3) | app-private JSON file in `app_data_dir()` (keyring has no Android backend) — see `creds.rs`. |
+| Switch button | injected bottom-right | suppressed (mobile shell owns its own nav) |
+| Web router | `HashRouter` (via `isNativeShell()`) | `HashRouter` (same predicate — asset protocol loads `/index.html`) |
+
+`creds.rs` holds the platform-branched credential store (`load`/`save`/`clear`, each taking the
+`AppHandle`). `web/src/lib/desktop-config.ts` `isNativeShell()` (= desktop OR mobile) is what both
+`router.tsx` and `mobile/mobile-router.tsx` use to pick `HashRouter` — Android sets only
+`__CORTEX_MOBILE__`, so keying off `isDesktopShell()` alone would wrongly pick `BrowserRouter`.
+
+⚠️ **CORS origin**: the Android webview Origin is `http://tauri.localhost`. The remote server's
+`CORTEX_UI_CORS_ORIGINS` must list it (alongside the desktop `cortexui://localhost`) or the SPA's
+cross-origin tRPC calls are blocked. The app talks to the server over absolute HTTPS URLs
+(e.g. `https://cortex.fangxm.me`), so no cleartext-traffic policy is involved.
+
+### Android toolchain (installed under `~/android-tools/`, user-space, no root)
+
+| Component | Version / path |
+|---|---|
+| JDK | Temurin 17 → `~/android-tools/jdk-17.0.13+11` (AGP needs JDK 17+; system JDK 11 is too old) |
+| Android SDK | `~/android-tools/sdk` (`ANDROID_HOME`) — platform-tools, `platforms;android-34`, `build-tools;34.0.0`, `cmake;3.22.1` |
+| NDK | `27.1.12297006` → `~/android-tools/sdk/ndk/27.1.12297006` (`NDK_HOME`) |
+| Rust targets | `aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android` |
+
+The generated Android Gradle project lives at `src-tauri/gen/android/` and is **gitignored**
+(root `.gitignore` ignores `desktop/src-tauri/gen/`), like the desktop `gen/schemas`. Regenerate
+it with `tauri android init` on a fresh checkout — it is derived from `tauri.conf.json`
+(applicationId = `identifier` = `dev.cortex.desktop`).
+
+### Build (from `desktop/`)
+
+```bash
+export JAVA_HOME=~/android-tools/jdk-17.0.13+11
+export ANDROID_HOME=~/android-tools/sdk
+export NDK_HOME=~/android-tools/sdk/ndk/27.1.12297006
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+pnpm --filter web build          # build web/dist
+npm run copy-connect             # stage connect.html into web/dist
+npx tauri android init           # first time only (gen/ is gitignored)
+npx tauri android build --debug --apk --target aarch64
+# → src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+```
+
+Drop `--target aarch64` to build all ABIs; drop `--debug` for a release build (needs a signing
+keystore configured in `gen/android` — debug builds are auto-signed with the debug keystore and
+are installable for testing). `tauri android dev` runs on a connected device / emulator.
 
 ## Keychain notes
 
