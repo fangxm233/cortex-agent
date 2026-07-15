@@ -206,18 +206,15 @@ function OpenBtn({ onClick, children }: { onClick: () => void; children: React.R
 /** 20a default/hover file card — white bordered; hover reveals download / copy-path / open. */
 function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
   const L = useVocab();
-  const [hover, setHover] = useState(false);
   const colors = typeColor(a.type);
   const ext = fileExt(a.name);
   return (
     <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
-        border: `1px solid ${hover ? '#D9DCE3' : '#E7E9EE'}`, background: '#fff',
+        border: '1px solid #E7E9EE', background: '#fff',
         borderRadius: 10, padding: '9px 10px',
-        boxShadow: hover ? '0 2px 6px rgba(16,24,40,.07)' : '0 1px 2px rgba(16,24,40,.03)',
+        boxShadow: '0 1px 2px rgba(16,24,40,.03)',
         boxSizing: 'border-box', maxWidth: '100%',
       }}
     >
@@ -226,13 +223,12 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
         <span style={{ font: `500 11.5px ${mono}`, color: '#191C22', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
         <span style={{ font: `400 9px ${mono}`, color: '#98A1B0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatSize(a.size)} · {dirOf(a.path)}</span>
       </span>
-      {hover && (
-        <span style={{ display: 'flex', gap: 5, flex: 'none' }}>
-          <ActionBtn title={L.wbFileDownload} onClick={() => void downloadFile(a.path, a.name)}>↓</ActionBtn>
-          <ActionBtn title={L.wbFileCopyPath} onClick={() => void copyFilePath(a.path)}>⧉</ActionBtn>
-          <OpenBtn onClick={() => void openFile(a.path)}>{L.wbFileOpen}</OpenBtn>
-        </span>
-      )}
+      {/* Actions are always visible (no hover toggle) so download / copy-path / open are one click away. */}
+      <span style={{ display: 'flex', gap: 5, flex: 'none' }}>
+        <ActionBtn title={L.wbFileDownload} onClick={() => void downloadFile(a.path, a.name)}>↓</ActionBtn>
+        <ActionBtn title={L.wbFileCopyPath} onClick={() => void copyFilePath(a.path)}>⧉</ActionBtn>
+        <OpenBtn onClick={() => void openFile(a.path)}>{L.wbFileOpen}</OpenBtn>
+      </span>
     </div>
   );
 }
