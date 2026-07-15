@@ -6,8 +6,10 @@ import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider
 import { useCurrentProject } from '@/features/workbench/CurrentProjectProvider';
 import { NotificationToaster } from './NotificationToaster';
 import { useDmNotifications, type DmAssistantMessage } from './useDmNotifications';
+import { useSystemNotices, type SystemNoticeMessage } from './useSystemNotices';
 import { addNotification, removeNotification } from './notification-store';
-import { buildNotification, type NotificationItem } from './notification-vm';
+import { recordTurnMessage, takeTurnMessage, type BufferedTurnMessage } from './turn-buffer';
+import { buildNotification, buildSystemNotice, type NotificationItem } from './notification-vm';
 
 // Wires the global assistant `session.message` stream into scheme-18a notification toasts:
 //   · gates to DIRECT chat sessions (origin='direct') — thread/scheduled agent chatter never toasts;
@@ -53,32 +55,66 @@ export function NotificationProvider() {
     pathRef.current = location.pathname;
   }, [location.pathname]);
 
+  // Buffer the turn's latest assistant message per session; the toast is emitted ONCE at turn end
+  // (onTurnEnd) so a turn with several assistant messages produces one toast, not a burst.
+  const turnBufferRef = useRef<Map<string, BufferedTurnMessage>>(new Map());
+
   const onMessage = useCallback((msg: DmAssistantMessage) => {
-    const entry = directMapRef.current.get(msg.sessionId);
+    recordTurnMessage(turnBufferRef.current, msg.sessionId, {
+      text: msg.text,
+      ts: msg.ts ?? new Date().toISOString(),
+    });
+  }, []);
+
+  // Turn end (`session.status` running:false): flush ONE toast for the session's final assistant
+  // message, applying the DM gates (direct-session membership + suppress-currently-open).
+  const onTurnEnd = useCallback((sessionId: string) => {
+    const buffered = takeTurnMessage(turnBufferRef.current, sessionId);
+    if (!buffered) return; // no assistant text this turn (tool-only / errored) — nothing to toast
+    const entry = directMapRef.current.get(sessionId);
     if (!entry) return; // not a direct DM session (thread/scheduled/unknown) — do not toast
-    // Suppress when the message's session is the one open in the workbench chat.
-    if (pathRef.current.startsWith('/workbench') && selectedRef.current === msg.sessionId) return;
+    // Suppress when the session is the one open in the workbench chat.
+    if (pathRef.current.startsWith('/workbench') && selectedRef.current === sessionId) return;
     const id = `dmn-${counter.current++}`;
     const item = buildNotification({
       id,
-      sessionId: msg.sessionId,
+      sessionId,
       sessionName: entry.name,
       projectId: entry.projectId,
+      text: buffered.text,
+      ts: buffered.ts,
+    });
+    setItems((list) => addNotification(list, item));
+  }, []);
+
+  useDmNotifications({ onMessage, onTurnEnd });
+
+  // Server-classified system broadcasts (restart, hot-reload, disk, rate-limit): no membership gate,
+  // no session — every `system.notice` surfaces as a toast at its declared level.
+  const onSystemNotice = useCallback((msg: SystemNoticeMessage) => {
+    const id = `sysn-${counter.current++}`;
+    const item = buildSystemNotice({
+      id,
+      level: msg.level,
       text: msg.text,
+      title: msg.title ?? undefined,
       ts: msg.ts ?? undefined,
     });
     setItems((list) => addNotification(list, item));
   }, []);
 
-  useDmNotifications(onMessage);
+  useSystemNotices(onSystemNotice);
 
   const dismiss = useCallback((id: string) => setItems((list) => removeNotification(list, id)), []);
 
   const activate = useCallback(
     (item: NotificationItem) => {
-      if (item.projectId) setCurrentProject(item.projectId);
-      setSelectedSession(item.sessionId);
-      navigate('/workbench');
+      // System notices carry no session — clicking only dismisses (no navigation target).
+      if (item.sessionId) {
+        if (item.projectId) setCurrentProject(item.projectId);
+        setSelectedSession(item.sessionId);
+        navigate('/workbench');
+      }
       setItems((list) => removeNotification(list, item.id));
     },
     [navigate, setCurrentProject, setSelectedSession],

@@ -5,7 +5,7 @@ Currently only has threads/ subdirectory; subsequent S8-S11 will gradually add a
 
 | subdirectory | status | function |
 |---|---|---|
-| `system/` | [DR-0013] DONE | Server auto-update: UpdatePrompt interface, update state persistence |
+| `system/` | [DR-0013] DONE | Server auto-update: UpdatePrompt interface, update state persistence. `system-notice.ts` = the encapsulated admin/system broadcast seam: `emitSystemNotice(adapter, {text,level?,title?})` posts to the platform admin channel AND publishes a `system.notice` EventBus event (Web toast source); `publishSystemNotice` is the bus-only half. Routed from startup/restart (entry/startup-notify), profile/config/machine + client hot-reload (entry/app), disk-monitor, rate-limit-throttle, codex-usage-monitor |
 | `threads/` | [S7] DONE | Thread lifecycle, prompt building, config loading, artifact I/O |
 | `agents/` | [S11] DONE | Agent execution facade (config.ts + facade.ts) + bridge export, replaces claude-bridge/codex-bridge shim. `profile-switch.ts` = the SHARED "switch the active profile for a channel/session" rule (`decideProfileSwitch` pure policy + `switchChannelProfile`): a live session (has conversation history) may only move between same-backend profiles (no session reset); a fresh session switches freely. Consumed by the Slack/Feishu `!profile` command AND the Web `sessions.setProfile` op |
 | `tasks/` | [S2] DONE | Task system: parser (read path, core in core/task-parser.ts), mutator (write path, 17 mutations), dispatcher, archiver, recommendation |

@@ -63,6 +63,33 @@ export function buildNotification(input: BuildNotificationInput): NotificationIt
   };
 }
 
+export interface BuildSystemNoticeInput {
+  id: string;
+  /** The notice body (from the `system.notice` event `text`). */
+  text: string;
+  /** Severity — server-classified; defaults to 'info'. */
+  level?: NotificationLevel;
+  /** Optional short title (e.g. "Disk"); falls back to a generic label when blank. */
+  title?: string;
+  ts?: string;
+}
+
+/** Shape a `system.notice` event (server broadcasts: restart, hot-reload, disk, rate-limit) into a
+ *  NotificationItem. Unlike a DM reply these carry a server-classified level and are not tied to a
+ *  conversation, so `sessionId` is empty (no click-through target) and `projectId` is null. */
+export function buildSystemNotice(input: BuildSystemNoticeInput): NotificationItem {
+  const title = (input.title ?? '').trim();
+  return {
+    id: input.id,
+    level: input.level ?? 'info',
+    title: title || 'System notice',
+    meta: previewText(input.text),
+    ts: input.ts ?? new Date().toISOString(),
+    sessionId: '',
+    projectId: null,
+  };
+}
+
 /** Whether a level auto-dismisses (info) or stays resident until dismissed (warning/error).
  *  Scheme 18a 两级停留: info 6s auto; warning/error 常驻. */
 export function isTransient(level: NotificationLevel): boolean {

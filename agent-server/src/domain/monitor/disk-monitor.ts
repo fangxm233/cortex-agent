@@ -5,6 +5,7 @@
 
 import { promises as fsp } from 'fs';
 import type { PlatformAdapter } from '@platform/index.js';
+import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 
@@ -61,9 +62,7 @@ async function getFreeBytes(path: string): Promise<number> {
 
 function sendDM(text: string): void {
   if (!_adapter) return;
-  _adapter.postMessage({ type: 'system-notice' }, { text }).catch(e => {
-    log.error(`DM failed: ${(e as Error).message}`);
-  });
+  void emitSystemNotice(_adapter, { text, level: 'warning', title: 'Disk' });
 }
 
 async function checkDiskOnce(): Promise<void> {

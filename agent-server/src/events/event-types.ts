@@ -42,6 +42,7 @@ export type CortexEvent =
   | { type: 'task.unblocked';         ts: string; taskId: string }
 
   // System
+  | { type: 'system.notice';          ts: string; level: 'info' | 'warning' | 'error'; text: string; title?: string }
   | { type: 'llm.active-count-delta'; ts: string; delta: number }
   | { type: 'scheduler.tick';         ts: string; jobKey: string }
   | { type: 'rate-limit.breach';      ts: string; provider: string; percent: number }

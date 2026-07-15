@@ -3,6 +3,7 @@ import {
   AUTO_DISMISS_MS,
   PREVIEW_MAX,
   buildNotification,
+  buildSystemNotice,
   isTransient,
   previewText,
 } from './notification-vm';
@@ -64,6 +65,36 @@ describe('buildNotification', () => {
 
   it('honors an explicit level (future server-classified notifications)', () => {
     expect(buildNotification({ id: 'n', sessionId: 's', sessionName: 'x', projectId: null, text: 'boom', level: 'error' }).level).toBe('error');
+  });
+});
+
+describe('buildSystemNotice', () => {
+  it('maps a system.notice event to a toast, defaulting to info', () => {
+    const item = buildSystemNotice({ id: 's1', text: 'Cortex restarted' });
+    expect(item.id).toBe('s1');
+    expect(item.level).toBe('info');
+    expect(item.title).toBe('System notice');
+    expect(item.meta).toBe('Cortex restarted');
+    // System notices are not tied to a conversation — no click-through target.
+    expect(item.sessionId).toBe('');
+    expect(item.projectId).toBeNull();
+  });
+
+  it('carries an explicit level and title', () => {
+    const item = buildSystemNotice({ id: 's2', text: 'Disk low', level: 'warning', title: 'Disk' });
+    expect(item.level).toBe('warning');
+    expect(item.title).toBe('Disk');
+  });
+
+  it('clips a long body to the mono preview', () => {
+    const long = 'x'.repeat(200);
+    const item = buildSystemNotice({ id: 's3', text: long });
+    expect(item.meta).toBe(previewText(long));
+  });
+
+  it('falls back to the generic title when title is blank', () => {
+    const item = buildSystemNotice({ id: 's4', text: 'hi', title: '   ' });
+    expect(item.title).toBe('System notice');
   });
 });
 

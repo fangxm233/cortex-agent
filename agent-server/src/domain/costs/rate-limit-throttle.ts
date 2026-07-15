@@ -6,6 +6,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter } from '@platform/index.js';
+import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 
@@ -41,9 +42,7 @@ export interface ThrottlePersistence {
 // --- Admin DM (fire-and-forget) ---
 function sendDM(text: string) {
   if (!_adapter) return;
-  _adapter.postMessage({ type: 'system-notice' }, { text }).catch(e => {
-    log.error(`DM failed: ${(e as Error).message}`);
-  });
+  void emitSystemNotice(_adapter, { text, level: 'warning', title: 'Rate limit' });
 }
 
 function formatResetTime(epochSec: number): string {

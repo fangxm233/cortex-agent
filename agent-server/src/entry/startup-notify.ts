@@ -5,6 +5,7 @@
 
 import type { PlatformAdapter } from '@platform/index.js';
 import { CORTEX_VERSION } from '@core/version.js';
+import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { t } from '../core/i18n.js';
 
 function buildStartupMessage({ machine, restartReason }: { machine?: string; restartReason?: string }) {
@@ -20,14 +21,10 @@ async function sendStartupDmIfConfigured(
   adapter: PlatformAdapter,
   { machine, restartReason }: { machine?: string; restartReason?: string } = {},
 ) {
-  try {
-    await adapter.postMessage({ type: 'system-notice' }, {
-      text: buildStartupMessage({ machine, restartReason }),
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  return emitSystemNotice(adapter, {
+    text: buildStartupMessage({ machine, restartReason }),
+    title: 'Cortex',
+  });
 }
 
 export { buildStartupMessage, sendStartupDmIfConfigured };

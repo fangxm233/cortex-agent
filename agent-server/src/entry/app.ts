@@ -32,6 +32,7 @@ import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
 import { startClientManager, stopClientManager, startAllRemoteClients, getOnlineDevices, isDeviceOnline } from '@domain/remote/client-manager.js';
 import { checkAndUpdateClients, formatUpdateSlackMessage } from '@domain/remote/client-hot-reload.js';
 import { checkServerUpdate } from '@domain/system/server-update-check.js';
+import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { threadStore } from '@store/thread-repo.js';
 import { sessionRepo, registerConduitProvider } from '@store/session-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -195,7 +196,7 @@ if (tuiGateway) {
 
 // --- Wire hot-reload admin notifiers ---
 const notifyAdmin = (text: string) => {
-  adapter.postMessage({ type: 'system-notice' }, { text }).catch(() => {});
+  void emitSystemNotice(adapter, { text });
 };
 setProfileNotifier(notifyAdmin);
 setConfigNotifier(notifyAdmin);
@@ -502,7 +503,7 @@ process.on('SIGTERM', async () => {
       const updateResult = await checkAndUpdateClients();
       if (updateResult) {
         log.info(`Client hot-reload: ${updateResult.devices.length} devices updated in ${updateResult.duration}ms`);
-        await adapter.postMessage({ type: 'system-notice' }, { text: formatUpdateSlackMessage(updateResult) }).catch((e: any) => log.warn(`Hot-reload DM failed: ${e.message}`));
+        await emitSystemNotice(adapter, { text: formatUpdateSlackMessage(updateResult) });
       }
     } catch (e) {
       log.error(`Client hot-reload check failed: ${(e as Error).message}`);

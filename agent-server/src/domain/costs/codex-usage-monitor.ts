@@ -4,6 +4,7 @@
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type { PlatformAdapter } from '@platform/adapter.js';
+import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 
@@ -68,11 +69,7 @@ async function maybeNotifyCodexLowUsage({ adapter, result }: { adapter: Platform
   const logHint = result?.codexRawLogPath ? `\nlog: \`${result.codexRawLogPath}\`` : '';
   const text = [`${Icons.warning} Codex usage low (threshold: ${THRESHOLD_PERCENT}%)`, ...lines].join('\n') + logHint;
 
-  try {
-    await adapter.postMessage({ type: 'system-notice' }, { text });
-  } catch (error) {
-    log.error('Failed to send low-usage alert:', (error as Error).message);
-  }
+  await emitSystemNotice(adapter, { text, level: 'warning', title: 'Codex usage' });
 }
 
 export { maybeNotifyCodexLowUsage };
