@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn as defaultSpawn, execSync, type ChildProcess, type SpawnOptions } from 'child_process';
-import { mkdirSync } from 'fs';
+import { mkdirSync, readdirSync, openSync, readSync, closeSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR, INSTALL_ROOT } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -54,6 +54,43 @@ function discoverPIProviders(): string[] {
     log.info(`pi --list-models failed at spawn: ${(err as Error).message ?? 'unknown'}`);
     return [];
   }
+}
+
+/**
+ * Does a PI session file matching `sessionId` exist under `sessionDir`? PI names session files
+ * `<timestamp>_<piId>.jsonl` (the full backend id is embedded in the filename), so the filename
+ * check is the reliable fast path. As a fallback (naming drift / partial ids) it reads a bounded
+ * prefix of each `.jsonl` and matches the header line's `id` field. Any FS error → false (treat as
+ * absent, i.e. start fresh — the safe default this guard exists to enforce).
+ */
+function piSessionFileExists(sessionDir: string, sessionId: string): boolean {
+  if (!sessionId) return false;
+  let files: string[];
+  try {
+    files = readdirSync(sessionDir).filter((f) => f.endsWith('.jsonl'));
+  } catch {
+    return false;
+  }
+  // Fast path: the backend id is embedded in PI's filename.
+  if (files.some((f) => f.includes(sessionId))) return true;
+  // Fallback: match the header line's `id` field via a bounded prefix read (avoids loading a
+  // potentially large transcript just to inspect the first line).
+  for (const f of files) {
+    let fd: number | null = null;
+    try {
+      fd = openSync(path.join(sessionDir, f), 'r');
+      const buf = Buffer.alloc(8192);
+      const n = readSync(fd, buf, 0, buf.length, 0);
+      const firstLine = buf.toString('utf8', 0, n).split('\n', 1)[0];
+      const obj = JSON.parse(firstLine) as Record<string, unknown>;
+      if (obj && (obj.id === sessionId || obj.sessionId === sessionId)) return true;
+    } catch {
+      /* ignore unreadable / non-JSON header */
+    } finally {
+      if (fd !== null) { try { closeSync(fd); } catch { /* ignore */ } }
+    }
+  }
+  return false;
 }
 
 const DEFAULT_PI_BINARY = 'pi';
@@ -575,7 +612,22 @@ export class PIAdapter implements AgentAdapter {
     // The sessionPathRegistry is populated below from the bootstrap session_started
     // event for switchSession / sendTurn path lookups — it is NOT used for the
     // --session CLI flag here.
-    const sessionIdForSpawn = (config.resume && config.sessionId) ? config.sessionId : null;
+    //
+    // Guard (mirrors Claude's resolveResumeForPrint): PI's `--session <id>` can only RESUME an
+    // existing session — unlike Claude it cannot create/force a session under an externally-supplied
+    // id. If the requested id has no matching session (a fresh session, or a stale backendSessionId
+    // whose file was pruned), passing --session makes PI exit with "No session found matching <id>".
+    // So only resume when the session is known: either bootstrapped in THIS adapter instance (path
+    // registry) or present on disk (a prior process / persisted backendSessionId). Otherwise start
+    // fresh and let PI bootstrap its own id (captured back as backendSessionId by the caller).
+    const wantResume = !!(config.resume && config.sessionId);
+    const sessionKnown =
+      wantResume &&
+      (this.sessionPathRegistry.has(config.sessionId!) || piSessionFileExists(sessionDir, config.sessionId!));
+    const sessionIdForSpawn = sessionKnown ? config.sessionId! : null;
+    if (wantResume && sessionIdForSpawn === null) {
+      log.info(`PI resume target '${config.sessionId}' not found (no live session or file in ${sessionDir}); starting fresh`);
+    }
 
     const cliArgs = buildSpawnArgs({
       sessionDir,

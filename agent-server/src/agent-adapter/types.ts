@@ -87,6 +87,10 @@ export interface AgentSpawnConfig {
     profile?: string | null;
     project?: string | null;
     sessionName?: string | null;
+    /** Stable Cortex tracking id (decoupled from the backend `sessionId`). Surfaced as
+     *  CORTEX_SESSION_ID so session-activity logs + MCP context tools key on the stable UI-facing
+     *  identity rather than the backend CLI's self-assigned id. Falls back to `sessionId` when unset. */
+    trackSessionId?: string | null;
     /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
     executionId?: string | null;
     /** When true, load only core MCP server (remote_* tools). Used by template thread sessions. */

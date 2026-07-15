@@ -1,5 +1,5 @@
 // input:  session-registry.json + JsonRepository
-// output: SessionRegistryRepo (async generateSessionName / registerSession / updateSession / lookupSession / lookupBySessionId / getById / listRecentSessions / listByProject / listByOrigin / listResumable / markUsed / pruneStale / getActiveSessionName) + deriveSessionOrigin + SessionOrigin type
+// output: SessionRegistryRepo (async generateSessionName / registerSession / updateSession / lookupSession / lookupBySessionId / getById / listRecentSessions / listByProject / listByOrigin / listResumable / markUsed / pruneStale / getActiveSessionName) + deriveSessionOrigin + effectiveBackendSessionId + SessionOrigin type
 // pos:    cortex-XXXX short name ↔ session UUID registry persistence layer (Pattern A, JsonRepository)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -41,8 +41,19 @@ export function deriveSessionOrigin(kind: 'local' | 'scheduled', label: string |
   return 'direct';
 }
 
+/** Resolve a record's backend-resume id (Claude `--resume` / PI `--session` target, backup file name)
+ *  with legacy fallback. A record that predates the field (`backendSessionId === undefined`) had its
+ *  tracking `sessionId` doubling as the backend id, so fall back to it; a fresh record explicitly
+ *  carries `null` (backend self-generates on the next turn) and must NOT fall back. */
+export function effectiveBackendSessionId(rec: Pick<Session, 'sessionId' | 'backendSessionId'>): string | null {
+  return rec.backendSessionId === undefined ? rec.sessionId : rec.backendSessionId;
+}
+
 export interface Session {
   name: string;
+  /** Stable tracking id — the UI-facing identity, minted by Cortex, never changes. Registry key,
+   *  sessions.json channel binding, session.* events, conversation-history and transcript all key on
+   *  this. Decoupled from the backend CLI's own session id (see backendSessionId). */
   sessionId: string;
   projectId: string;
   channel: string;
@@ -55,6 +66,15 @@ export interface Session {
   label: string | null;
   /** Profile name active when the session was created. Restored on !resume. */
   profileName: string | null;
+  /** Backend CLI's own session id — the resume target (Claude `--resume`, PI `--session`) and the
+   *  session-backup jsonl file name. Distinct from the tracking `sessionId`: each backend self-assigns
+   *  it (Claude generates a UUID for `--session-id`; PI assigns one at bootstrap), captured from the
+   *  turn result and stored here. Semantics:
+   *   - `undefined` (legacy record, field absent) → fall back to `sessionId` (old conflated id).
+   *   - `null` → not assigned yet (fresh session) → the backend self-generates on the next turn.
+   *   - string → the resolved backend id to resume.
+   *  Use {@link effectiveBackendSessionId} to read it (handles the legacy fallback). */
+  backendSessionId?: string | null;
   /** When the user last VIEWED this session in a client (web workbench sessions.markRead).
    *  Unread = lastUsedAt > lastReadAt. Absent on legacy records → treated as read. */
   lastReadAt?: string | null;
@@ -179,7 +199,7 @@ export class SessionRegistryRepo {
     return `cortex-${crypto.randomBytes(4).toString('hex')}`;
   }
 
-  async registerSession(name: string, opts: { sessionId: string; channel: string; backend: string; kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId?: string; label?: string | null; profileName?: string | null }): Promise<void> {
+  async registerSession(name: string, opts: { sessionId: string; channel: string; backend: string; kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId?: string; label?: string | null; profileName?: string | null; backendSessionId?: string | null }): Promise<void> {
     const now = new Date().toISOString();
     const label = opts.label?.substring(0, 60) || null;
     await this._repo.mutate((registry) => {
@@ -195,13 +215,16 @@ export class SessionRegistryRepo {
         lastUsedAt: now,
         label,
         profileName: opts.profileName ?? null,
+        // Explicit null on a new record = "backend id not yet assigned" (self-generate on the next
+        // turn). Distinct from `undefined` on legacy records, which fall back to sessionId.
+        backendSessionId: opts.backendSessionId ?? null,
       };
       this._nameIndex.set(name, opts.sessionId);
       return { next: registry, result: undefined };
     });
   }
 
-  async updateSession(name: string, updates: Partial<Pick<Session, 'sessionId' | 'lastUsedAt' | 'label' | 'profileName'>>): Promise<void> {
+  async updateSession(name: string, updates: Partial<Pick<Session, 'sessionId' | 'lastUsedAt' | 'label' | 'profileName' | 'backendSessionId'>>): Promise<void> {
     await this._repo.mutate((registry) => {
       // Records are keyed by sessionId; find the target by name.
       for (const record of Object.values(registry)) {
@@ -210,6 +233,7 @@ export class SessionRegistryRepo {
           if (updates.lastUsedAt !== undefined) record.lastUsedAt = updates.lastUsedAt;
           if (updates.label !== undefined) record.label = updates.label?.substring(0, 60) || null;
           if (updates.profileName !== undefined) record.profileName = updates.profileName;
+          if (updates.backendSessionId !== undefined) record.backendSessionId = updates.backendSessionId;
           break;
         }
       }

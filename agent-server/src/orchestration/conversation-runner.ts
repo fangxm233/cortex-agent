@@ -15,7 +15,7 @@
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile } from '@platform/index.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import {
-  runAgent, getClaudeMode, getActiveBackend, getActiveProfile, getDefaultAgent,
+  runAgent, getClaudeMode, getActiveProfile, getDefaultAgent, resolveBackendForChannel,
 } from '@domain/agents/index.js';
 import { resolveAgentSlotConfigByName, resolveSystemVars, buildConversationPrompt } from '@domain/threads/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
@@ -27,8 +27,11 @@ export interface RunConversationOptions {
   channel: string;
   /** The raw user message (without the default agent's directive). */
   userMessage: string;
-  /** Channel-level session to resume, or null for a fresh session. */
-  existingSessionId: string | null;
+  /** Stable Cortex tracking id for this session (UI identity, execution-record + publish key). */
+  trackSessionId: string;
+  /** Backend resume target (the backend CLI's own session id), or null for a fresh session where the
+   *  backend self-assigns its id. Decoupled from {@link trackSessionId}. */
+  backendSessionId: string | null;
   /** Resolved session name for this turn. */
   sessionName: string;
   files: DownloadedFile[];
@@ -73,9 +76,9 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
   const agentConfig = resolveAgentSlotConfigByName(defaultAgentName);
   if (!agentConfig) throw new Error(`Unknown default agent: ${defaultAgentName}`);
 
-  // USER.md profile is injected only on a session's FIRST turn (existingSessionId === null).
+  // USER.md profile is injected only on a session's FIRST turn (no backend session yet).
   // Session resume keeps it in history thereafter, so re-sending it every turn just wastes tokens.
-  const isFreshSession = opts.existingSessionId === null;
+  const isFreshSession = opts.backendSessionId === null;
   const prompt = buildConversationPrompt(agentConfig, opts.userMessage, { includeUserContext: isFreshSession });
   const project = projectStore.resolveFromMessage(opts.userMessage)?.id ?? 'general';
 
@@ -86,14 +89,17 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     : agentConfig.profile;
 
   const trigger = opts.trigger || 'user';
+  // Execution record's backend must reflect the channel's active profile (e.g. 'pi' for deepseek),
+  // not the global default — otherwise a pi turn is mislabeled 'claude'.
+  const channelBackend = resolveBackendForChannel(opts.channel);
   const execution = executionRegistry.startLocalExecution({
     kind: trigger === 'scheduled' ? 'scheduled' : 'local',
     channel: opts.channel,
     project,
     trigger,
-    backend: getActiveBackend(),
+    backend: channelBackend,
     billingMode: getClaudeMode(),
-    sessionId: opts.existingSessionId,
+    sessionId: opts.trackSessionId,
     label: prompt.substring(0, 60),
     scheduleTaskId: opts.scheduleTaskId || null,
     threadId: null,
@@ -105,7 +111,8 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
   const handle = runAgent(prompt, {
     channel: opts.channel,
     executionId: execution.id,
-    sessionId: opts.existingSessionId,
+    sessionId: opts.backendSessionId,   // backend resume target (null → backend self-assigns)
+    trackSessionId: opts.trackSessionId, // stable Cortex id → CORTEX_SESSION_ID
     sessionKey: null, // falls back to channel key in the adapter
     files: opts.files || [],
     profileName,
@@ -137,7 +144,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     executionId: execution.id,
     kind: execution.kind,
     kill: () => handle.kill(),
-    backend: getActiveBackend(),
+    backend: channelBackend,
     agentProcess: handle.agentProcess,
     sessionId: handle.sessionId,
   });

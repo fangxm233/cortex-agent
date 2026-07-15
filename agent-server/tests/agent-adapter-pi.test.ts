@@ -612,18 +612,19 @@ test('G-7: spawn with resume=true + known sessionId passes --session flag', asyn
   stub.children[1].emit('close', 0, null);
 });
 
-test('G-8: spawn with resume=true + sessionId always passes --session <uuid>', () => {
+test('G-8: spawn with resume=true but UNKNOWN sessionId omits --session (starts fresh)', () => {
   const stub = makeStubSpawner();
   const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
 
-  // With resume=true, --session <uuid> is always passed so PI can look it up
-  // in --session-dir (or create a new one if not found).
+  // PI can only RESUME an existing session (unlike Claude it cannot create one under an external
+  // id). When the id is unknown — not bootstrapped in this adapter instance and no matching file in
+  // --session-dir — the guard omits --session so PI bootstraps a fresh session instead of exiting
+  // with "No session found matching <id>". (Regression: web/pi sessions minted a Cortex UUID and
+  // forced resume, which PI rejected.)
   adapter.spawn({ sessionId: 'unknown-id', sessionKey: 'kR', resume: true });
 
   const { args } = stub.calls[0];
-  const sessionIdx = args.indexOf('--session');
-  assert.ok(sessionIdx !== -1, '--session flag present');
-  assert.equal(args[sessionIdx + 1], 'unknown-id', '--session receives UUID');
+  assert.equal(args.indexOf('--session'), -1, '--session omitted for an unknown resume target');
 
   stub.children[0].emit('close', 0, null);
 });

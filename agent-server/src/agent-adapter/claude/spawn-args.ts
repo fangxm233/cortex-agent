@@ -122,6 +122,8 @@ export interface CortexAgentContext {
   profile?: string | null;
   project?: string | null;
   sessionName?: string | null;
+  /** Stable Cortex tracking id (decoupled from the backend session id) → CORTEX_SESSION_ID. */
+  trackSessionId?: string | null;
   /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
   executionId?: string | null;
   /** When true, load only core MCP server (remote_* tools). */
@@ -165,7 +167,9 @@ export function buildClaudeEnv(
   env.SLACK_CHANNEL = channel;
   env.FEISHU_CHANNEL = channel;
   env.SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
-  env.CORTEX_SESSION_ID = sessionId;
+  // CORTEX_SESSION_ID is the stable Cortex tracking id (session-activity log routing + MCP context),
+  // NOT the backend CLI's self-assigned session id. Falls back to the backend id when unset (threads).
+  env.CORTEX_SESSION_ID = context?.trackSessionId ?? sessionId;
   if (callbackSource) env.CORTEX_CALLBACK_SOURCE = callbackSource;
   if (scheduleTaskId) env.CORTEX_SCHEDULE_TASK_ID = scheduleTaskId;
   if (anthropicBaseUrl) env.ANTHROPIC_BASE_URL = anthropicBaseUrl;

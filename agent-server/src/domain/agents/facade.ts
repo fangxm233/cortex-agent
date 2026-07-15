@@ -34,7 +34,12 @@ export interface AgentConfig {
 
 export interface RunAgentOptions {
   profileName?: string | null;
+  /** Backend resume target (Claude `--resume` / PI `--session`). null → fresh (backend self-assigns
+   *  its own id). Decoupled from {@link trackSessionId}. */
   sessionId?: string | null;
+  /** Stable Cortex tracking id (UI-facing identity) — surfaced as CORTEX_SESSION_ID only; does NOT
+   *  drive backend resume. Defaults to `sessionId` when unset (threads / legacy callers). */
+  trackSessionId?: string | null;
   sessionKey?: string | null;
   channel?: string;
   files?: unknown[];
@@ -126,13 +131,15 @@ function buildSpawnConfig(
     profile: options.profileName ?? null,
     project: options.project ?? null,
     sessionName: options.sessionName ?? null,
+    // Stable Cortex tracking id for CORTEX_SESSION_ID; falls back to the backend id (threads/legacy).
+    trackSessionId: options.trackSessionId ?? options.sessionId ?? null,
     executionId: options.executionId ?? null,
     useCoreMcp: options.useCoreMcp ?? undefined,
     threadDepth: options.threadDepth ?? null,
     taskId: options.taskId ?? null,
     taskProject: options.taskProject ?? null,
   };
-  const hasContext = !!(ctx.threadId || ctx.profile || ctx.project || ctx.sessionName || ctx.executionId || ctx.useCoreMcp || ctx.threadDepth != null || ctx.taskId || ctx.taskProject);
+  const hasContext = !!(ctx.threadId || ctx.profile || ctx.project || ctx.sessionName || ctx.trackSessionId || ctx.executionId || ctx.useCoreMcp || ctx.threadDepth != null || ctx.taskId || ctx.taskProject);
 
   // Load global rules (no paths frontmatter) and inject as appendSystemPrompt.
   // Scoped rules (with paths) are handled by the Read/Grep PostToolUse hook.

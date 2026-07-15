@@ -27,7 +27,7 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `codex/adapter.ts` | adapter | CodexAdapter + RouteRuntime pool |
 | `codex/event-parser.ts` | parser | codexEventToNormalized translation |
 | `pi/agent-dir.ts` | config | PI agent directory constants (data/pi/models.json + logs/sessions-pi/) + multi-provider models.json writer (writeProvidersConfig; re-asserts gateway-lost PI compat via PROVIDER_COMPAT_OVERRIDES, e.g. deepseek supportsDeveloperRole=false) + auth.json symlink/copy mirror (ensureAuthVisible) |
-| `pi/adapter.ts` | adapter | PIAdapter + PISession + switch_session; forwards agent tool allowlist to subprocess via CORTEX_PI_ALLOWED_TOOLS env (from rawTools/canonical tools) |
+| `pi/adapter.ts` | adapter | PIAdapter + PISession + switch_session; forwards agent tool allowlist to subprocess via CORTEX_PI_ALLOWED_TOOLS env (from rawTools/canonical tools). Resume guard (`piSessionFileExists` + sessionPathRegistry): `--session <id>` is passed only when the id is KNOWN (bootstrapped this instance or a matching file on disk) — PI can only resume an existing session, not create one under an external id (unlike Claude's `--session-id`), so an unknown id starts fresh instead of exiting "No session found matching <id>" |
 | `pi/event-parser.ts` | parser | piRpcLineToNormalized translation |
 | `pi/framing.ts` | framing | LF-only NDJSON encoding and splitter |
 | `pi/spawn-args.ts` | args | buildSpawnArgs constructs pi CLI args |

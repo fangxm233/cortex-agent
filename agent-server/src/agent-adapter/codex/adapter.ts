@@ -123,6 +123,8 @@ interface CortexAgentContext {
   profile?: string | null;
   project?: string | null;
   sessionName?: string | null;
+  /** Stable Cortex tracking id (decoupled from the backend session id) → CORTEX_SESSION_ID. */
+  trackSessionId?: string | null;
   /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
   executionId?: string | null;
 }
@@ -163,7 +165,8 @@ function buildMcpBlock(channel: string, sessionId: string | null, callbackSource
   const extServerPath = path.join(INSTALL_ROOT, 'dist', 'domain', 'mcp', 'server.js');
   const escapedPath = (p: string) => p.replace(/\\/g, '/');
 
-  const baseEnv: Record<string, string> = { CORTEX_SESSION_ID: sessionId || '', CORTEX_BACKEND: 'codex', CORTEX_ROUTE_CONTEXT_FILE: routeContextPath };
+  // CORTEX_SESSION_ID = stable Cortex tracking id (falls back to the backend id when unset).
+  const baseEnv: Record<string, string> = { CORTEX_SESSION_ID: context?.trackSessionId ?? sessionId ?? '', CORTEX_BACKEND: 'codex', CORTEX_ROUTE_CONTEXT_FILE: routeContextPath };
   if (callbackSource) baseEnv.CORTEX_CALLBACK_SOURCE = callbackSource;
   if (context?.threadId) baseEnv.CORTEX_THREAD_ID = context.threadId;
   if (context?.profile) baseEnv.CORTEX_PROFILE = context.profile;

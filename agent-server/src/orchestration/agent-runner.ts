@@ -9,8 +9,9 @@ import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/
 import type { AgentResult } from '@core/types/agent-types.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
-import { getSessionAsync } from '@domain/sessions/session.js';
-import { sessionStore } from '@store/session-registry-repo.js';
+import * as crypto from 'node:crypto';
+import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
+import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
@@ -126,9 +127,31 @@ export class AgentRunner {
       })),
     ];
     const startTime = Date.now();
-    const sessionId = await getSessionAsync(channel, resolveBackendForChannel(channel));
-    const sessionName = await resolveSessionName(sessionId, channel, userMessage, adapter);
-    const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: sessionId ?? '' };
+    const backend = resolveBackendForChannel(channel);
+    // `sessionId` here is the STABLE tracking id — sessions.json now binds channel → track id (not the
+    // backend id). Everything below (publish/history/status/Destination) keys on it. The backend
+    // resume target is resolved separately as `backendSessionId`. A channel with no bound session yet
+    // (fresh Slack/Feishu/etc.) mints + registers + binds a track id up front, unifying it with the
+    // web path (createDirectSession pre-registers) so publish/history always have a stable key.
+    let sessionId = await getSessionAsync(channel, backend);
+    let sessionName: string;
+    let backendSessionId: string | null;
+    if (sessionId) {
+      sessionName = await resolveSessionName(sessionId, channel, userMessage, adapter);
+      const rec = await sessionStore.getById(sessionId);
+      backendSessionId = rec ? effectiveBackendSessionId(rec) : null;
+    } else {
+      sessionId = crypto.randomUUID();
+      const projectId = (await adapter.resolveInboundProject(channel)) ?? 'general';
+      sessionName = await registerNamedSession(sessionStore, {
+        sessionId, channel, backend,
+        label: userMessage?.substring(0, 60) ?? null,
+        profileName: getActiveProfile(channel), projectId,
+      });
+      await setSessionAsync(channel, sessionId, backend); // bind channel → track id
+      backendSessionId = null; // fresh: the backend self-assigns its id on this first turn
+    }
+    const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId };
 
     // 1. Orchestration side effects (keep — ledger, status, hook-bridge)
     const statusText = buildUserProcessingMessage({ startTime, profileName: getActiveProfile(channel), sessionName, sessionId });
@@ -140,7 +163,7 @@ export class AgentRunner {
       richBlocks: buildSealedStatusActionBlocks(statusText, blocksTemplate),
     }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
     const messageTs = message.ref.messageId;
-    await initTurnTracking(channel, sessionId, sessionName, messageTs, userMessage || '', statusMsg.messageId);
+    await initTurnTracking(channel, sessionId, backendSessionId, sessionName, messageTs, userMessage || '', statusMsg.messageId);
     // Backend-independent conversation history (keyed by sessionId, the TUI display source).
     // Record the user message now; assistant messages + tool calls are appended via the
     // callbacks below as they stream. Only when we have a sessionId to key by.
@@ -183,7 +206,8 @@ export class AgentRunner {
       const convResult = await runConversation({
         adapter, channel,
         userMessage: agentMessage,
-        existingSessionId: sessionId,
+        trackSessionId: sessionId,
+        backendSessionId,
         sessionName,
         files: allFiles,
         startTime,
