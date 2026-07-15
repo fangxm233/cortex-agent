@@ -17,8 +17,10 @@ import * as http from 'node:http';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { startUiHttpServer } from '@entry/start-ui-http.js';
+import { startUiHttpServer, resolveWorkspacePath } from '@entry/start-ui-http.js';
 import { UI_OTA_MANIFEST_PATH, UI_OTA_BUNDLE_PATH } from '@platform/ui-http/ui-ota.js';
+import { WORKSPACE_DIR } from '@core/paths.js';
+import { mkdirSync } from 'node:fs';
 import type { UiService, UiEvent } from '@domain/ui-service/types.js';
 
 const TOKEN = 'test-wiring-token';
@@ -306,4 +308,68 @@ test('ota: bundle with the token returns 200 application/zip', async () => {
   );
   assert.equal(statusCode, 200);
   assert.match(String(headers['content-type']), /application\/zip/);
+});
+
+// ── File download route (15a uploads + 20a agent-sent files) ──────────────────
+// Serves a file stored under WORKSPACE_DIR by its UI-relative `workspace/…` path, auth-gated,
+// confined to the workspace root by a traversal guard.
+
+test('resolveWorkspacePath: confines to WORKSPACE_DIR and rejects traversal / wrong prefix', () => {
+  const ok = resolveWorkspacePath('workspace/outputs/s1/a.txt');
+  assert.ok(ok && ok.startsWith(path.resolve(WORKSPACE_DIR) + path.sep));
+  assert.equal(resolveWorkspacePath('workspace/../../etc/passwd'), null, 'traversal escapes → null');
+  assert.equal(resolveWorkspacePath('outputs/s1/a.txt'), null, 'missing workspace/ prefix → null');
+  assert.equal(resolveWorkspacePath('/etc/passwd'), null, 'absolute path → null');
+});
+
+test('download: without a token is rejected 401', async () => {
+  const inst = await boot({ CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' });
+  const { statusCode } = await req(portOf(inst!), 'GET', `${'/api/files/download'}?path=workspace/outputs/x/a.txt`);
+  assert.equal(statusCode, 401);
+});
+
+test('download: with the token streams a real workspace file with its content type', async () => {
+  const dir = path.join(WORKSPACE_DIR, 'outputs', 'dl-sess');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, 'hello.txt'), 'hello world');
+  const inst = await boot({ CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' });
+  const { statusCode, body, headers } = await req(
+    portOf(inst!), 'GET', `/api/files/download?path=${encodeURIComponent('workspace/outputs/dl-sess/hello.txt')}`,
+    { 'x-cortex-token': TOKEN },
+  );
+  assert.equal(statusCode, 200);
+  assert.equal(body, 'hello world');
+  assert.match(String(headers['content-type']), /text\/plain/);
+  assert.match(String(headers['content-disposition']), /attachment; filename="hello\.txt"/);
+});
+
+test('download: inline disposition is honored (for image preview)', async () => {
+  const dir = path.join(WORKSPACE_DIR, 'outputs', 'dl-img');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, 'p.png'), 'PNGDATA');
+  const inst = await boot({ CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' });
+  const { headers } = await req(
+    portOf(inst!), 'GET', `/api/files/download?path=${encodeURIComponent('workspace/outputs/dl-img/p.png')}&disposition=inline`,
+    { 'x-cortex-token': TOKEN },
+  );
+  assert.match(String(headers['content-type']), /image\/png/);
+  assert.match(String(headers['content-disposition']), /^inline;/);
+});
+
+test('download: a traversal path is rejected 403', async () => {
+  const inst = await boot({ CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' });
+  const { statusCode } = await req(
+    portOf(inst!), 'GET', `/api/files/download?path=${encodeURIComponent('workspace/../../etc/passwd')}`,
+    { 'x-cortex-token': TOKEN },
+  );
+  assert.equal(statusCode, 403);
+});
+
+test('download: a missing file returns 404', async () => {
+  const inst = await boot({ CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' });
+  const { statusCode } = await req(
+    portOf(inst!), 'GET', `/api/files/download?path=${encodeURIComponent('workspace/outputs/nope/ghost.txt')}`,
+    { 'x-cortex-token': TOKEN },
+  );
+  assert.equal(statusCode, 404);
 });

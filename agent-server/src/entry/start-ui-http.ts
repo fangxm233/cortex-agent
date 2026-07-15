@@ -24,7 +24,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, createReadStream } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createAppRouter } from '@domain/ui-service/app-router.js';
 import { createUiHttpServer } from '@platform/ui-http/ui-http-server.js';
@@ -212,6 +212,82 @@ async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<
   }
 }
 
+// ── File download route (15a user uploads + 20a agent-sent files) ─────────────
+// Serves a file stored under WORKSPACE_DIR by its UI-relative `workspace/…` path. Used by both the
+// agent-sent file cards (workspace/outputs/…) and, going forward, the user-upload cards
+// (workspace/attachments/…). Auth-gated by the same dual-path check as every custom route. The path
+// is confined to WORKSPACE_DIR with a single-root traversal guard, so no filesystem location outside
+// the workspace is ever reachable.
+
+const DOWNLOAD_PATH = '/api/files/download';
+
+/** Content types for inline preview / correct download naming. Unknown → octet-stream. */
+const DOWNLOAD_CONTENT_TYPES: Record<string, string> = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp',
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+  '.pdf': 'application/pdf', '.json': 'application/json', '.csv': 'text/csv',
+  '.txt': 'text/plain; charset=utf-8', '.md': 'text/markdown; charset=utf-8', '.log': 'text/plain; charset=utf-8',
+  '.html': 'text/html; charset=utf-8', '.zip': 'application/zip',
+};
+
+/** Resolve a UI-relative `workspace/…` path to an absolute path strictly inside WORKSPACE_DIR.
+ *  Returns null when the prefix is wrong or the resolved target escapes the workspace root.
+ *  Exported for unit testing the traversal guard. */
+export function resolveWorkspacePath(rel: string): string | null {
+  const PREFIX = 'workspace/';
+  if (!rel.startsWith(PREFIX)) return null;
+  const sub = rel.slice(PREFIX.length);
+  const root = path.resolve(WORKSPACE_DIR);
+  const target = path.resolve(root, sub);
+  if (target !== root && !target.startsWith(root + path.sep)) return null;
+  return target;
+}
+
+/** GET /api/files/download?path=workspace/…&disposition=inline|attachment — streams the file. */
+async function handleDownload(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  let url: URL;
+  try {
+    url = new URL(req.url ?? '', 'http://localhost');
+  } catch {
+    jsonReply(res, 400, { ok: false, code: 'bad-request', message: 'Malformed URL' });
+    return;
+  }
+  const rel = (url.searchParams.get('path') ?? '').trim();
+  const disposition = url.searchParams.get('disposition') === 'inline' ? 'inline' : 'attachment';
+  if (!rel) {
+    jsonReply(res, 400, { ok: false, code: 'missing-path', message: 'path query param required' });
+    return;
+  }
+  const target = resolveWorkspacePath(rel);
+  if (!target) {
+    jsonReply(res, 403, { ok: false, code: 'forbidden', message: 'Path escapes the workspace root' });
+    return;
+  }
+
+  let size: number;
+  try {
+    const stat = await fs.promises.stat(target);
+    if (!stat.isFile()) throw new Error('not a file');
+    size = stat.size;
+  } catch {
+    jsonReply(res, 404, { ok: false, code: 'not-found', message: 'File not found' });
+    return;
+  }
+
+  const ext = path.extname(target).toLowerCase();
+  const name = path.basename(target);
+  res.writeHead(200, {
+    'Content-Type': DOWNLOAD_CONTENT_TYPES[ext] ?? 'application/octet-stream',
+    'Content-Length': String(size),
+    'Content-Disposition': `${disposition}; filename="${name.replace(/"/g, '')}"`,
+    'Cache-Control': 'private, max-age=3600',
+  });
+  const stream = createReadStream(target);
+  stream.on('error', () => { if (!res.headersSent) res.writeHead(500); res.end(); });
+  stream.pipe(res);
+}
+
 /**
  * Build the AppRouter from the injected UiService and start the Web UI HTTP+SSE transport-host
  * on CORTEX_UI_PORT (default 3004), bound 127.0.0.1, behind the x-cortex-token gate, serving the
@@ -245,6 +321,7 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
     verifyAccessJwt,
     customRoutes: {
       [UPLOAD_PATH]: handleUpload,
+      [DOWNLOAD_PATH]: handleDownload,
       // Frontend OTA: serves the built SPA as a manifest + ZIP bundle so the desktop shell can
       // self-update its frontend. Empty (disabled) when the SPA is not built. Same auth gate as tRPC.
       ...createOtaRoutes(spaDir),

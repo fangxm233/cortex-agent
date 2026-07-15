@@ -230,7 +230,11 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
       // The browser sends the preflight BEFORE attaching x-cortex-token to learn
       // whether the server allows it — requiring the token on the preflight itself
       // would create a bootstrapping impossibility.
-      const isCustomRoute = !!(opts.customRoutes && url in opts.customRoutes);
+      // Match custom routes on the PATHNAME (query string stripped) so routes that take query
+      // params (e.g. /api/files/download?path=…) still resolve. Exact-path routes (upload, OTA)
+      // are unaffected — they carry no query.
+      const pathname = url.split('?')[0];
+      const isCustomRoute = !!(opts.customRoutes && pathname in opts.customRoutes);
       if (req.method === 'OPTIONS' && (url.startsWith(TRPC_BASE_PATH) || isCustomRoute)) {
         res.writeHead(204);
         res.end();
@@ -250,7 +254,7 @@ export function createUiHttpServer(opts: UiHttpServerOptions): UiHttpServer {
           return;
         }
         try {
-          await opts.customRoutes![url](req, res);
+          await opts.customRoutes![pathname](req, res);
         } catch (e) {
           log.error(`Custom route ${url} error:`, (e as Error).message);
           if (!res.headersSent) {
