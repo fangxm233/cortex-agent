@@ -43,7 +43,7 @@ export function MobileMachinesView({ cards, vocab, now }: MobileMachinesViewProp
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        paddingTop: 62,
+        paddingTop: 'env(safe-area-inset-top)',
         boxSizing: 'border-box',
         background: '#F2F2F7',
       }}

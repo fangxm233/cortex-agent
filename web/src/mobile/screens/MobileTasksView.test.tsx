@@ -55,7 +55,7 @@ describe('MobileTasksView', () => {
   it('renders the 5c slot marker and reserves the status-bar gutter', () => {
     const html = view();
     expect(html).toContain('data-screen-label="5c"');
-    expect(html).toContain('padding-top:62px');
+    expect(html).toContain('padding-top:env(safe-area-inset-top)');
   });
 
   it('renders the 任务 title and the 可执行/全部 segmented control with counts', () => {

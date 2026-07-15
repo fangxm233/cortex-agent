@@ -37,6 +37,28 @@ export interface BuildOpts {
    * the EN `dividerLabel` (TODAY / YESTERDAY / "MON D"). Receives the first message ts of the day.
    */
   formatDivider?: (ts: string, now: Date) => string;
+  /**
+   * Drop assistant messages that are the `need-approval` skill's approval-request template
+   * (see `isApprovalNarration`). These duplicate the real approval card (approvals.list) rendered
+   * alongside the chat, so the mobile 5a screen opts in to hide the raw template text.
+   */
+  dropApprovalNarration?: boolean;
+}
+
+/**
+ * Heuristic: does this assistant text look like the `need-approval` skill's approval-request
+ * template? Cortex, running that skill, appends a `## <ts> / - **Operation** / - **Reason** /
+ * - **Status**: pending` block to `PENDING_APPROVALS.md` and narrates a `Queued for approval: …`
+ * summary in the same turn — both land in conversation history as ordinary assistant text with NO
+ * structured marker, duplicating the real approval card. We match the skill's mandated literal
+ * output (`SKILL.md` need-approval Step 2): the summary phrase, or the Operation+Status template.
+ */
+export function isApprovalNarration(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (/queued for approval/i.test(t)) return true;
+  if (/(^|\n)\s*[-*]\s*\*\*Operation\*\*/i.test(t) && /\*\*Status\*\*\s*:\s*pending/i.test(t)) return true;
+  return false;
 }
 
 /** Map a live `session.message` event into a `TranscriptMessage` (same shape the fetched DTO uses).
@@ -207,8 +229,13 @@ export function buildTranscriptRows(
       continue;
     }
     flushTools();
-    if (m.type === 'user') rows.push({ kind: 'user', text: m.text ?? '', attachments: (m as any).attachments });
-    else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
+    if (m.type === 'user') {
+      rows.push({ kind: 'user', text: m.text ?? '', attachments: (m as any).attachments });
+    } else {
+      const text = m.text ?? '';
+      if (opts.dropApprovalNarration && isApprovalNarration(text)) continue;
+      rows.push({ kind: 'assistant', text, streaming: false, attachments: (m as any).attachments });
+    }
   }
   flushTools();
 

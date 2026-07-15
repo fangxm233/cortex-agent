@@ -1,15 +1,18 @@
 # mobile/ — mobile shell base (web-only, design 5a–5c bottom Tab)
 
-The viewport-driven mobile shell: on a mobile viewport (≤ `MOBILE_MAX_WIDTH`, i18n) the SPA renders
-the ported iOS device frame + a bottom 4-Tab nav with the active screen swapped through `<Outlet/>`.
-Desktop is unaffected (a separate router; see `RootRouter`). Ported 1:1 from `design/ref/ios-frame.jsx`
-(device frame) + `scheme.dc.html` L2995-3000 / L3188-3191 (bottom Tab). Each screen is a **STUB slot**
-a later pass replaces behind its own export (RB f528 frame-owner precedent). Raw px/hex/svg by design
-(§8.3) — the mobile palette is not in the light `proto.*` token set.
+The mobile client shell (`isMobileShell` = `window.__CORTEX_MOBILE__`): the SPA renders a **full-bleed,
+edge-to-edge** viewport + a bottom 4-Tab nav with the active screen swapped through `<Outlet/>`.
+Desktop is unaffected (a separate router; see `RootRouter`). **The OS draws its own status bar, dynamic
+island, home indicator and screen corners — we do NOT paint a mock device frame.** We only RESERVE the
+OS chrome via `env(safe-area-inset-*)` (needs `viewport-fit=cover` in `index.html`): each screen pads
+its header by the top inset; the Tab bar / composer / non-Tab bottom gutters pad by the bottom inset.
+Bottom Tab from `scheme.dc.html` L2995-3000 / L3188-3191. Each screen is a **STUB slot** a later pass
+replaces behind its own export (RB f528 frame-owner precedent). Raw px/hex/svg by design (§8.3) — the
+mobile palette is not in the light `proto.*` token set.
 
 | path | role |
 |---|---|
-| `IOSDevice.tsx` | Ported iOS 26 device frame (`IOSDevice` + `IOSStatusBar`): 402×874 bezel r48, dynamic island (126×37), status bar (9:41 + signal/wifi/battery glyphs), home indicator (139×5). Verbatim from `design/ref/ios-frame.jsx`. The source's `IOSNavBar`/`IOSKeyboard`/`IOSList` are not ported (screens own their headers). |
+| `IOSDevice.tsx` | **Design-preview only** (NOT used by the live shell). Ported iOS 26 device frame (`IOSDevice` + `IOSStatusBar`): 402×874 bezel r48, dynamic island, status bar, home indicator. Verbatim from `design/ref/ios-frame.jsx`. `MobileShell` no longer wraps in it — the real mobile client runs full-bleed and lets the OS draw the chrome — but the component + its test are kept for isolated design specimens. |
 | `IOSDevice.test.tsx` | `react-dom/server` render checks (frame/island/home-indicator/time). |
 | `mobile-tabs.ts` | **Pure** Tab model: `MOBILE_TABS` (sessions/threads/tasks/machines → `/m/*` + vocab label key), `activeTabId(pathname)`, `isTabRoute(pathname)` (true only for the 4 tab paths → the shell hides the bar for non-Tab sub-screens 10e/10f), `tabBadge(id, {activeThreadCount, hasPendingApproval})` (线程 count badge / 会话 amber dot). |
 | `mobile-tabs.test.ts` | vitest units for the pure Tab logic (TDD, written first). |
@@ -17,13 +20,13 @@ a later pass replaces behind its own export (RB f528 frame-owner precedent). Raw
 | `mobile-tasks.test.ts` | vitest units for the 5c grouping/counts (TDD, written first). |
 | `BottomTabBar.tsx` | Presentational bottom Tab bar (props-driven; MobileShell binds real counts). Exact scheme chrome: 4 tabs with SVG icons, active `#191C22`/inactive `#98A1B0`, `#4655D4` active-thread badge, `#C99A2E` amber approval dot, ≥44px touch targets, zh labels from `useVocab`. |
 | `BottomTabBar.test.tsx` | `react-dom/server` render checks (labels/active/badge/dot/touch). |
-| `MobileShell.tsx` | Frame owner: `IOSDevice` + `BottomTabBar` (rendered only when `isTabRoute` — non-Tab 10e/10f hide it) + scroll `<Outlet/>`. Fetches real `threads.list` (active filter, reuses `features/workbench/scope`) → 线程 badge and `approvals.list` (pending) → 会话 amber dot. |
+| `MobileShell.tsx` | Frame owner: **full-bleed `100dvh` flex column** (no mock device frame) + `BottomTabBar` (rendered only when `isTabRoute` — non-Tab 10e/10f hide it) + scroll `<Outlet/>`. Fetches real `threads.list` (active filter, reuses `features/workbench/scope`) → 线程 badge and `approvals.list` (pending) → 会话 amber dot. |
 | `mobile-routes.tsx` | Pure route config `mobileRoutes` (MobileShell layout + the 6 screen slots + index/`*` redirect to `/m/sessions`). Separate from the router instance so it is inspectable without a browser history. |
 | `mobile-router.tsx` | The concrete `mobileRouter` (browser/hash by shell mode). |
 | `mobile-router.test.ts` | Structural test of `mobileRoutes` (path set, 5 STUB routes navigable, index + catch-all). |
 | `screens/` | Screen slots: **all 6 slots are now live** — 5a/5b/5c/10e/10f and **机器 (12c, task 5e62)**. No remaining STUB slots. See below for each screen. |
 | `screens/MobileSessionsScreen.tsx` | **Session screen 5a** (task c880) — 1:1 rebuild from `scheme.dc.html` L2932-3003: session header (QN avatar/title/`running·turns·$`) + chat stream (dark user bubble / collapsed tool chips / assistant + inline experiment-pipeline stepper card / over-budget approval card) + composer (input + running status line + send). `running` is snapshot + delta (2026-07-14 fix): `SessionInfo.running` + the live `session.status` event via the shared `useSessionMessageLiveSync`, same rule as desktop CenterChat (was the streaming heuristic only). The header `turns` is the **REAL agent-turn count** (grows as the agent works, not user-message rounds): `resolveTurns(liveTurns, SessionInfo.numTurns)` — `session.turn` delta > snapshot > `—`, same as desktop. Real tRPC: `sessions.transcript` (chat) · `threads.get` (inline card) · `approvals.list`+`approve`/`reject` (approval card) · `sessions.send` (send). Missing fields (session cost/elapsed) → explicit `—`, never fabricated. The bottom Tab is the shell's (not re-rendered). |
-| `screens/{MobileSessionHeader,MobileMessageStream,MobileThreadStepper,MobileApprovalCard,MobileComposer}.tsx` | 5a presentational + wired parts (`MobileInlineThreadCard`/`MobileApprovalCardContainer` bind real tRPC). Pure `mobile-session-vm.ts` maps DTOs → the scheme slot model (initials/status-line/ZH divider/horizontal stepper/approval desc/tool chips). |
+| `screens/{MobileSessionHeader,MobileMessageStream,MobileThreadStepper,MobileApprovalCard,MobileComposer}.tsx` | 5a presentational + wired parts (`MobileInlineThreadCard`/`MobileApprovalCardContainer` bind real tRPC). Pure `mobile-session-vm.ts` maps DTOs → the scheme slot model (initials/status-line/ZH divider/horizontal stepper/approval desc/tool chips). `MobileMessageStream`: assistant text renders **rich Markdown** via the shared `features/workbench/ChatMarkdown` (+ a `cxblink` streaming caret); the tool-calls row is **tap-to-expand** (collapsed chips → per-call kind+input, mirrors desktop `ToolCallsRow`); the raw approval-request template text is filtered out of the stream (`dropApprovalNarration`, see workbench `transcript-vm`) so only the real approval card shows. |
 | `screens/mobile-session-vm.test.ts` · `screens/mobile-session-render.test.tsx` | 5a pure-logic units + `react-dom/server` render checks (neutral props, 守则11). |
 | `screens/MobileApprovalsScreen.tsx` | **Mobile approval screen 10e** — 1:1 from `scheme.dc.html` L3200-3247. `MobileApprovalsView` (pure, render-tested: ‹back header + `N 待处理` badge + `PENDING_APPROVALS.md` + first-card expanded decision + collapsed queue rows + 本周已处理 divider + ✓/✕ processed rows + Slack footer + 28px gutter) and the container binding real `approvals.list` + `approvals.approve`/`approvals.reject` (invalidate-after-mutate; back → `/m/sessions`). Honest placeholders (851f precedent): operation→tier pill, impact→判定 box; from-thread / per-type metric OMITTED; no fabrication. |
 | `screens/mobile-approvals-vm.ts` | **Pure** VM `buildMobileApprovalsVm(entries, now?)` → `{ pendingCount, firstCard, queueRows, processedRows }` (851f honest field mapping + 7-day this-week window). |

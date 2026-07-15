@@ -363,7 +363,7 @@ export function MobileTasksView({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        paddingTop: 62,
+        paddingTop: 'env(safe-area-inset-top)',
         boxSizing: 'border-box',
       }}
     >

@@ -66,7 +66,9 @@ export function BottomTabBar({
         borderTop: '1px solid #E7E9EE',
         background: '#FBFBFC',
         display: 'flex',
-        padding: '8px 6px 30px',
+        // Reserve the OS home-indicator gutter (env bottom inset) below the 8px base padding.
+        padding: '8px 6px',
+        paddingBottom: 'calc(8px + env(safe-area-inset-bottom))',
       }}
     >
       {MOBILE_TABS.map((tab) => {

@@ -1,6 +1,6 @@
-// Neutral placeholder body shared by the mobile STUB screen slots. Reserves the iOS status-bar
-// gutter (padding-top:62px, matching the scheme mobile screens) and shows the screen title + a
-// neutral "slot" note. Sibling threads replace each screen behind its own export (RB f528 pattern).
+// Neutral placeholder body shared by the mobile STUB screen slots. Reserves the OS status-bar
+// gutter (env(safe-area-inset-top), matching the scheme mobile screens) and shows the screen title +
+// a neutral "slot" note. Sibling threads replace each screen behind its own export (RB f528 pattern).
 import { type ReactNode } from 'react';
 
 export function StubScreen({
@@ -19,7 +19,7 @@ export function StubScreen({
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        paddingTop: 62,
+        paddingTop: 'env(safe-area-inset-top)',
         boxSizing: 'border-box',
         background: '#F2F2F7',
       }}

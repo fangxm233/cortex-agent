@@ -47,7 +47,7 @@ export function MobileApprovalsView(props: MobileApprovalsViewProps) {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        paddingTop: 62,
+        paddingTop: 'env(safe-area-inset-top)',
         boxSizing: 'border-box',
         background: '#F2F2F7',
       }}
@@ -142,8 +142,8 @@ export function MobileApprovalsView(props: MobileApprovalsViewProps) {
         </div>
       </div>
 
-      {/* home-indicator gutter (scheme L3244) */}
-      <div style={{ flex: 'none', height: 28, background: '#F2F2F7' }} />
+      {/* home-indicator gutter (scheme L3244) — non-Tab page owns its own bottom OS inset */}
+      <div style={{ flex: 'none', height: 'calc(8px + env(safe-area-inset-bottom))', background: '#F2F2F7' }} />
     </div>
   );
 }

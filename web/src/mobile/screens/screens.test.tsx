@@ -15,7 +15,7 @@ describe('mobile screens structural contract', () => {
       <MobileMachinesView cards={[]} vocab={en} now={0} />,
     );
     expect(html).toContain('data-screen-label="machines"');
-    expect(html).toContain('padding-top:62px');
+    expect(html).toContain('padding-top:env(safe-area-inset-top)');
   });
 
   it('machines: renders the title from vocab (en)', () => {

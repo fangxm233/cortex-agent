@@ -131,7 +131,7 @@ export function MobileOverviewScreen(): JSX.Element {
   return (
     <div
       data-screen-label="10f 移动端项目 Overview"
-      style={{ height: '100%', display: 'flex', flexDirection: 'column', paddingTop: 62, boxSizing: 'border-box' }}
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', boxSizing: 'border-box' }}
     >
       {/* header (scheme L3254–3262) */}
       <div
@@ -419,8 +419,8 @@ export function MobileOverviewScreen(): JSX.Element {
         </div>
       </div>
 
-      {/* home-indicator safe-area spacer (scheme L3295) */}
-      <div style={{ flex: 'none', height: 28, background: '#F2F2F7' }} />
+      {/* home-indicator safe-area spacer (scheme L3295) — non-Tab page owns its own bottom OS inset */}
+      <div style={{ flex: 'none', height: 'calc(8px + env(safe-area-inset-bottom))', background: '#F2F2F7' }} />
     </div>
   );
 }

@@ -56,7 +56,7 @@ describe('MobileApprovalsView (10e)', () => {
   it('renders the screen marker + status-bar gutter + header (back / title / badge / md path)', () => {
     const html = view(seed);
     expect(html).toContain('data-screen-label="10e"');
-    expect(html).toContain('padding-top:62px');
+    expect(html).toContain('padding-top:env(safe-area-inset-top)');
     expect(html).toContain('‹');
     expect(html).toContain(en.approvals); // vocab.approvals title
   });

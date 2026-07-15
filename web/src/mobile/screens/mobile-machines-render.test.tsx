@@ -47,7 +47,7 @@ describe('MobileMachinesView', () => {
   it('renders screen marker and reserves the status-bar gutter', () => {
     const html = view(seed);
     expect(html).toContain('data-screen-label="machines"');
-    expect(html).toContain('padding-top:62px');
+    expect(html).toContain('padding-top:env(safe-area-inset-top)');
   });
 
   it('renders the title from vocab (en)', () => {

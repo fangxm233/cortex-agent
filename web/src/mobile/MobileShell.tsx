@@ -1,13 +1,17 @@
-// Mobile app-shell frame (design 5a–5c). Owns the ported iOS device frame + the bottom Tab bar (shown
+// Mobile app-shell frame (design 5a–5c). Owns the full-bleed viewport + the bottom Tab bar (shown
 // only on Tab routes), with the active screen swapped through <Outlet/>. Mirrors the RB f528
 // frame-owner precedent: the shell owns the load-bearing chrome; each screen is a slot a later pass
 // fills. Non-Tab drill-in pages (10e/10f) hide the Tab bar — the scheme draws none there (`非 Tab 页`).
+//
+// Runs inside the real mobile client shell (isMobileShell), so the OS already draws the status bar,
+// dynamic island, home indicator and screen corners — we DON'T paint a mock device frame. We render
+// edge-to-edge and only RESERVE the OS chrome via `env(safe-area-inset-*)`: the top inset is padded
+// by each screen's own header; the bottom inset is padded by the Tab bar / composer.
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { threadScopeFilter } from '@/features/workbench/scope';
-import { IOSDevice } from './IOSDevice';
 import { BottomTabBar } from './BottomTabBar';
 import { activeTabId, isTabRoute } from './mobile-tabs';
 
@@ -34,29 +38,29 @@ export function MobileShell() {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        // Full-bleed edge-to-edge viewport (`100dvh` tracks the mobile browser's dynamic chrome).
+        // No mock bezel / radius / status bar / island / home indicator — the OS draws those. The
+        // status-bar (top) inset is reserved by each screen's header; the home-indicator (bottom)
+        // inset by the Tab bar / composer.
+        height: '100dvh',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#E9E7E2',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        background: '#F2F2F7',
       }}
     >
-      <IOSDevice>
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            <Outlet />
-          </div>
-          {showTabBar && (
-            <BottomTabBar
-              vocab={vocab}
-              activeId={activeTabId(location.pathname)}
-              activeThreadCount={activeThreadCount}
-              hasPendingApproval={hasPendingApproval}
-              onNavigate={navigate}
-            />
-          )}
-        </div>
-      </IOSDevice>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        <Outlet />
+      </div>
+      {showTabBar && (
+        <BottomTabBar
+          vocab={vocab}
+          activeId={activeTabId(location.pathname)}
+          activeThreadCount={activeThreadCount}
+          hasPendingApproval={hasPendingApproval}
+          onNavigate={navigate}
+        />
+      )}
     </div>
   );
 }

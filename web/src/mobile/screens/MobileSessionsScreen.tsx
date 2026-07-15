@@ -44,7 +44,13 @@ export function MobileSessionsScreen(): JSX.Element {
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
-    () => buildTranscriptRows(transcript, liveTail, { streaming, formatDivider: zhDivider }),
+    () =>
+      buildTranscriptRows(transcript, liveTail, {
+        streaming,
+        formatDivider: zhDivider,
+        // Hide the raw need-approval template text — the real approval card renders it instead.
+        dropApprovalNarration: true,
+      }),
     [transcript, liveTail, streaming],
   );
   // Header shows the REAL agent-turn count (grows as the agent works), not user-message rounds:
@@ -61,7 +67,7 @@ export function MobileSessionsScreen(): JSX.Element {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        paddingTop: 62,
+        paddingTop: 'env(safe-area-inset-top)',
         boxSizing: 'border-box',
         background: '#F2F2F7',
       }}

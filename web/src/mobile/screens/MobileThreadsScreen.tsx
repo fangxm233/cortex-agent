@@ -109,7 +109,7 @@ export function MobileThreadsScreen() {
     <div
       data-screen-label="5b"
       data-mobile-threads=""
-      style={{ height: '100%', display: 'flex', flexDirection: 'column', paddingTop: 62, boxSizing: 'border-box', background: '#F2F2F7' }}
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', boxSizing: 'border-box', background: '#F2F2F7' }}
     >
       {trail.length > 0 ? (
         <MobileThreadDrillView entry={trail[trail.length - 1]} onBack={popDrill} onDrill={pushDrill} />
