@@ -265,6 +265,11 @@ fn load_initial_config(app: &tauri::AppHandle) -> ConnectionConfig {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Install ring as the process-wide rustls crypto provider before any OTA request builds a TLS
+    // client (reqwest is compiled with `rustls-no-provider`, so it relies on this default). Idempotent
+    // — a second call would Err, which we ignore. Must run before the background OTA thread starts.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .manage(AppState {

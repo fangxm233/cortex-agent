@@ -21,11 +21,15 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 # ── Frontend OTA updater (all platforms) ──
-# reqwest/sha2/zip power the self-updating SPA on both desktop and Android. reqwest uses the
-# rustls-TLS backend with bundled Mozilla (webpki) roots instead of native-TLS/openssl and the OS
-# cert store — the latter is painful to cross-compile for Android, the former builds cleanly for
-# every target and needs no system trust store. sha2 and zip are already pure-Rust.
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls", "webpki-roots"] }
+# reqwest/sha2/zip power the self-updating SPA on both desktop and Android. TLS = rustls with the
+# **ring** crypto provider + bundled Mozilla (webpki) roots. ring (not aws-lc-rs) is deliberate:
+# aws-lc-rs compiles + links but SIGABRTs at runtime on Android (crashing the whole process under
+# the release profile's panic=abort), whereas ring is the battle-tested Android backend. reqwest
+# uses `rustls-no-provider` so it does NOT pull aws-lc-rs; `run()` installs ring as the process
+# default CryptoProvider before any request. webpki-roots avoids needing the OS trust store.
+# sha2 and zip are already pure-Rust.
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls-no-provider", "webpki-roots"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 sha2 = "0.10"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
