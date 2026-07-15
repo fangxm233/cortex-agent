@@ -28,16 +28,19 @@ use std::sync::Mutex;
 use tauri::{Manager, State};
 
 mod creds;
+// frontend (custom-scheme asset resolver) + ota (self-updating SPA) are desktop-only: Android
+// serves the embedded frontend over Tauri's built-in asset protocol (the APK is read-only), and
+// the OTA updater pulls in reqwest/zip/sha2 (native-TLS / openssl) which are painful to
+// cross-compile for Android and unneeded there (updates ship via the store / a rebuild).
+#[cfg(not(target_os = "android"))]
 mod frontend;
-// The OTA frontend updater pulls in reqwest/zip/sha2 (native-TLS / openssl), which are painful to
-// cross-compile for Android and unnecessary there (Android ships the frontend embedded in the APK
-// and updates via the store / a rebuild). Desktop keeps the self-updating SPA.
 #[cfg(not(target_os = "android"))]
 mod ota;
 
 // ─── Frontend source (OTA) ──────────────────────────────────────────────────
 /// The custom URI scheme the SPA is served under. A single origin for the SPA's whole life
 /// (seed and OTA-downloaded versions alike) so browser-origin state stays stable across updates.
+#[cfg(not(target_os = "android"))]
 const FRONTEND_SCHEME: &str = "cortexui";
 
 /// Resolve the directory the frontend is currently served from, newest wins:
