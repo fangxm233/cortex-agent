@@ -22,6 +22,7 @@ import { buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlock
 import { threadStore } from '@store/thread-repo.js';
 import { fireThreadCallback } from '../thread-callback.js';
 import { askManager, getAnswer, submitAnswer } from '../manager-qa.js';
+import { sendAgentFile } from '../agent-file-send.js';
 import type { Destination, MessageRef } from '@platform/index.js';
 import type { RunThreadOptions } from '@core/types/thread-types.js';
 
@@ -182,6 +183,31 @@ function createWebhookHandler(_options: {
         } catch (e) {
           log.error(`task-op error: ${e.message}`);
           res.writeHead(500); res.end(JSON.stringify({ success: false, message: e.message }));
+        }
+      });
+      return;
+    }
+
+    // --- Agent-sent file (from the web-only cortex-web MCP `send_file` tool) ---
+    // The MCP server runs as a separate subprocess with no access to the daemon's conversation
+    // history or EventBus, so it proxies the file here. The daemon copies the file into the
+    // session's workspace/outputs area, records it on the transcript, and publishes the live event.
+    if (req.method === 'POST' && req.url === '/webhook/ui-file') {
+      readJsonBody(req, async (error, _body, data) => {
+        if (error) { res.writeHead(400); res.end('Bad JSON'); return; }
+        const { sessionId, filePath, fileName, caption } = data || {};
+        if (!sessionId || !filePath) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: 'sessionId and filePath required' }));
+          return;
+        }
+        try {
+          const meta = await sendAgentFile({ sessionId, filePath, fileName, caption });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, data: meta }));
+        } catch (e) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: (e as Error).message }));
         }
       });
       return;
