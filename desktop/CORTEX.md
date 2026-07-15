@@ -207,33 +207,36 @@ a connected device / emulator.
 
 ### Release build (signed APK)
 
-Release APKs must be signed or Android refuses to install them (the release build type has no
-signing config out of the box). A single-ABI release APK is also ~7 MB vs the ~450 MB universal
-debug APK, because release strips + optimizes the Rust `.so` and one ABI ships instead of four.
+Release APKs must be signed or Android refuses to install them. A single-ABI release APK is also
+~7-10 MB vs the ~450 MB universal debug APK, because release strips + optimizes the Rust `.so` and
+one ABI ships instead of four.
 
-`gen/android/` is **gitignored** — `tauri android init` regenerates it, wiping any signing wiring —
-so the signing setup below must be re-applied after each init (or scripted). Steps:
+**Scripted path (preferred):** `scripts/android-release.sh` does the whole thing — builds the SPA,
+stages `connect.html`, runs `tauri android init` only when `gen/android` is missing, writes
+`gen/android/app/keystore.properties`, verifies the release signing wiring is present, then builds
++ verifies the signed APK. It reads machine-specific toolchain paths and the keystore
+(path/alias/passwords) from a file OUTSIDE the repo — `~/.cortex/config/android-release.env` by
+default (override with `CORTEX_ANDROID_ENV`) — so no secrets live in the repo.
 
-1. Generate a keystore once (kept **outside** the repo; never commit it):
-   ```bash
-   keytool -genkeypair -v -keystore <path>/release.keystore \
-     -alias <alias> -keyalg RSA -keysize 2048 -validity 10000 \
-     -storepass <pass> -keypass <pass> -dname "CN=Cortex, O=Cortex, C=US"
-   ```
-2. Write `gen/android/app/keystore.properties` (also gitignored) with
-   `storeFile` / `storePassword` / `keyAlias` / `keyPassword`.
-3. In `gen/android/app/build.gradle.kts`: load `keystore.properties`, add a `signingConfigs`
-   `release {}` block reading those four keys, and set `signingConfig = signingConfigs.getByName("release")`
-   inside `buildTypes.getByName("release")`.
-4. Build (same env exports as above), no `--debug`:
-   ```bash
-   npx tauri android build --apk --target aarch64
-   # → src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
-   ```
-5. Verify the signature: `$ANDROID_HOME/build-tools/<ver>/apksigner verify --print-certs <apk>`.
+```bash
+desktop/scripts/android-release.sh                # signed arm64 release APK
+desktop/scripts/android-release.sh --init         # force re-init (after a tauri.conf change)
+desktop/scripts/android-release.sh --target all   # all ABIs
+```
+
+Notes on the wiring it manages:
+- `gen/android/` is **gitignored** — `tauri android init` regenerates it and wipes any signing
+  setup, so `keystore.properties` is (re)written on every run. The current Tauri CLI template
+  already emits the `signingConfigs { create("release") { …keystoreProperties… } }` block + the
+  `signingConfig = signingConfigs.getByName("release")` line in `buildTypes.release`; the script
+  only asserts they are present (fails loudly if a CLI upgrade drops them) rather than patching.
+- `keystore.properties` keys: `storeFile` (absolute) / `storePassword` / `keyAlias` / `keyPassword`.
+- Generate a keystore once (outside the repo; never commit):
+  `keytool -genkeypair -v -keystore <path>/release.keystore -alias <alias> -keyalg RSA -keysize 2048 -validity 10000 -storepass <pass> -keypass <pass> -dname "CN=Cortex, O=Cortex, C=US"`.
+- Output: `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`.
 
 Concrete machine paths, the keystore location, and its password are recorded in `~/.cortex`
-(machine config) — not here, since this is a public repo.
+(machine config + `config/android-release.env`) — not here, since this is a public repo.
 
 ## Keychain notes
 
