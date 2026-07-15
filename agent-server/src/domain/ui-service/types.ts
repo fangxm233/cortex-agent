@@ -363,7 +363,8 @@ export interface TranscriptMessage {
   toolName: string | null;
   /** compact tool input summary (tool events only). */
   toolInput: string | null;
-  /** File attachments uploaded via the web composer (user messages only). */
+  /** File attachments: user uploads via the web composer (15a, user messages) OR agent-sent
+   *  files via the `send_file` MCP tool (20a, assistant messages). */
   attachments?: AttachmentMeta[];
   ts: string;
   /**

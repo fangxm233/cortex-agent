@@ -147,8 +147,9 @@ export async function handleSessionsTranscript(
       ts: ev.ts,
       elapsedMs,
       // Only materialize the key when present — an explicit `attachments: undefined` breaks
-      // deep-equality with the DTO shape (pre-existing red test, fixed in passing).
-      ...(ev.type === 'user' && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
+      // deep-equality with the DTO shape (pre-existing red test, fixed in passing). Both user
+      // uploads (15a) and agent-sent files (20a, assistant events) carry attachments.
+      ...((ev.type === 'user' || ev.type === 'assistant') && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
     });
     prevMs = curValid ? curMs : null;
   }

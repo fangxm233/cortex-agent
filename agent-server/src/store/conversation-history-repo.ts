@@ -120,9 +120,11 @@ export class ConversationHistoryRepo {
   }
 
   /** Append an assistant message. Streaming partials are collapsed at read time.
-   *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string }): Promise<void> {
-    return this.append(sessionId, { type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso() });
+   *  An optional `ts` override lets the caller share a single timestamp with the EventBus event.
+   *  Optional `attachments` carry agent-sent files (20a) — the assistant-side mirror of the user
+   *  composer's uploads. Present only for the file-send path; ordinary assistant text omits it. */
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }): Promise<void> {
+    return this.append(sessionId, { type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso(), attachments: opts.attachments });
   }
 
   /** Append a tool call.
@@ -158,10 +160,22 @@ export class ConversationHistoryRepo {
         const tIdx = Math.max(0, turnIndex);
         const last = events[events.length - 1];
         const text = ev.text ?? '';
-        if (last && last.type === 'assistant' && last.turnIndex === tIdx && typeof last.text === 'string' && isPrefixRelated(last.text, text)) {
-          if (text.length >= last.text.length) { last.text = text; last.ts = ev.ts; }
+        // An assistant event carrying file attachments (agent-sent file, 20a) is a distinct card —
+        // never fold it into a preceding streamed text block, and never fold a later text block into
+        // it (the empty-caption case is prefix-related to any text and would otherwise swallow it).
+        const hasAttachments = ev.attachments !== undefined;
+        const canCollapse =
+          !hasAttachments &&
+          !!last &&
+          last.type === 'assistant' &&
+          last.turnIndex === tIdx &&
+          last.attachments === undefined &&
+          typeof last.text === 'string' &&
+          isPrefixRelated(last.text, text);
+        if (canCollapse) {
+          if (text.length >= last!.text!.length) { last!.text = text; last!.ts = ev.ts; }
         } else {
-          events.push({ type: 'assistant', text, ts: ev.ts, turnIndex: tIdx });
+          events.push({ type: 'assistant', text, ts: ev.ts, turnIndex: tIdx, ...(hasAttachments ? { attachments: ev.attachments } : {}) });
         }
       } else if (ev.type === 'tool') {
         events.push({ type: 'tool', toolName: ev.toolName ?? '', toolInput: ev.toolInput ?? '', ts: ev.ts, turnIndex: Math.max(0, turnIndex) });

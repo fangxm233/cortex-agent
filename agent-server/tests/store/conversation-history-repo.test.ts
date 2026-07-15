@@ -24,6 +24,27 @@ test('records user + assistant + tool events grouped by turn (derived on read)',
   assert.equal(h!.events[2].text, 'hi there');
 });
 
+test('assistant message can carry file attachments (agent-sent files, 20a)', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-att';
+  const attachments = [{ name: 'report.pdf', path: 'workspace/outputs/sess-att/report.pdf', size: 2100, mimeType: 'application/pdf', type: 'file' as const }];
+  await repo.appendUser(sid, { text: 'send me the report' });
+  await repo.appendAssistant(sid, { text: 'here it is', attachments });
+
+  const h = await repo.getHistory(sid);
+  const assistant = h!.events.find(e => e.type === 'assistant');
+  assert.deepEqual(assistant!.attachments, attachments, 'assistant attachments survive round-trip');
+});
+
+test('assistant messages without attachments have undefined attachments (no empty-array pollution)', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-noatt';
+  await repo.appendUser(sid, { text: 'q' });
+  await repo.appendAssistant(sid, { text: 'a' });
+  const h = await repo.getHistory(sid);
+  assert.equal(h!.events.find(e => e.type === 'assistant')!.attachments, undefined);
+});
+
 test('streaming growth collapses into a single assistant message on read', async () => {
   const repo = new ConversationHistoryRepo();
   const sid = 'sess-B';

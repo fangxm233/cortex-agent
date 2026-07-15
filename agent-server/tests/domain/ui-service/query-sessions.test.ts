@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleSessionsList } from '../../../src/domain/ui-service/query/sessions.js';
+import { handleSessionsList, handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const mockSessions = [
@@ -240,4 +240,25 @@ test('sessions.list titles a label-less session from its first user message, kee
   assert.equal(result.find((s) => s.sessionId === 's2')!.label, 'help me set up the ablation sweep');
   // s1 already had a label → not overwritten
   assert.equal(result.find((s) => s.sessionId === 's1')!.label, 'dev');
+});
+
+test('sessions.transcript maps agent-sent file attachments onto assistant messages (20a)', async () => {
+  const attachments = [{ name: 'ablation.pdf', path: 'workspace/outputs/s1/ablation.pdf', size: 2100, mimeType: 'application/pdf', type: 'file' as const }];
+  const deps = makeDeps({
+    conversationHistory: {
+      getHistory: async () => ({
+        sessionId: 's1',
+        events: [
+          { type: 'user' as const, text: 'send me the report', ts: '2026-05-01T00:00:00.000Z', turnIndex: 0 },
+          { type: 'assistant' as const, text: 'here it is', ts: '2026-05-01T00:00:01.000Z', turnIndex: 0, attachments },
+        ],
+      }),
+    },
+  });
+  const result = await handleSessionsTranscript(deps, { sessionId: 's1' });
+  const assistantMsg = result.turns[0].messages.find((m) => m.type === 'assistant')!;
+  assert.deepEqual(assistantMsg.attachments, attachments);
+  // user message with no attachments must not gain an attachments key
+  const userMsg = result.turns[0].messages.find((m) => m.type === 'user')!;
+  assert.equal(userMsg.attachments, undefined);
 });
