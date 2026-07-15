@@ -1,9 +1,14 @@
 // Mobile session screen 5a — 1:1 rebuild from scheme.dc.html L2932-3003 (task c880). The mobile
-// shell owns the iOS frame + bottom Tab; this screen fills the 会话 slot with the session header +
-// chat stream + inline thread card + over-budget approval card + composer. Real tRPC data is the
-// only variable (sessions.transcript / threads.get / approvals.list / sessions.send); missing
-// fields (session cost/elapsed) render an explicit `—`, never fabricated. ZH copy routes through
-// useVocab. The bottom Tab (scheme L2995-3000) is the shell's — not re-rendered here.
+// shell owns the viewport + bottom Tab; this screen fills the 会话 slot with the session header +
+// chat stream + inline thread card + composer. Real tRPC data is the only variable
+// (sessions.transcript / threads.get / sessions.send); missing fields (session cost/elapsed) render
+// an explicit `—`, never fabricated. ZH copy routes through useVocab. The bottom Tab (scheme
+// L2995-3000) is the shell's — not re-rendered here.
+//
+// Approvals are NOT shown inline: an ApprovalInfo carries no session link, so any inline card would
+// show the first GLOBAL pending approval in EVERY session (looking like a fixed template for an
+// approval this session never raised). Approvals live on the dedicated 审批 surface (10e) + the 会话
+// Tab amber dot — mirrors the desktop decision to drop the always-on chat ApprovalCard.
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -14,7 +19,6 @@ import { sessionInitials, headerStatus, zhDivider, DASH } from './mobile-session
 import { MobileSessionHeader } from './MobileSessionHeader';
 import { MobileMessageStream } from './MobileMessageStream';
 import { MobileInlineThreadCard } from './MobileInlineThreadCard';
-import { MobileApprovalCardContainer } from './MobileApprovalCardContainer';
 import { MobileComposer } from './MobileComposer';
 
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
@@ -44,13 +48,7 @@ export function MobileSessionsScreen(): JSX.Element {
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
-    () =>
-      buildTranscriptRows(transcript, liveTail, {
-        streaming,
-        formatDivider: zhDivider,
-        // Hide the raw need-approval template text — the real approval card renders it instead.
-        dropApprovalNarration: true,
-      }),
+    () => buildTranscriptRows(transcript, liveTail, { streaming, formatDivider: zhDivider }),
     [transcript, liveTail, streaming],
   );
   // Header shows the REAL agent-turn count (grows as the agent works), not user-message rounds:
@@ -92,7 +90,6 @@ export function MobileSessionsScreen(): JSX.Element {
       >
         <MobileMessageStream rows={rows} toolCallsUnit={vocab.toolCallsUnit} />
         <MobileInlineThreadCard />
-        <MobileApprovalCardContainer />
       </div>
       <MobileComposer sessionId={sessionId} running={running} />
     </div>

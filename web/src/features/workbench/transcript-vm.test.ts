@@ -7,7 +7,6 @@ import {
   formatElapsed,
   resolveRunning,
   resolveTurns,
-  isApprovalNarration,
   type LiveSessionMessage,
 } from './transcript-vm';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
@@ -278,47 +277,5 @@ describe('agent-sent file attachments (20a)', () => {
     const m = liveToMessage({ sessionId: 's1', role: 'assistant', text: '', ts: T, attachments: ATT } as LiveSessionMessage);
     expect(m.type).toBe('assistant');
     expect(m.attachments).toEqual(ATT);
-  });
-});
-
-describe('isApprovalNarration', () => {
-  it('matches the skill "Queued for approval" summary line', () => {
-    expect(isApprovalNarration('Queued for approval: over-budget dispatch\nUse /approval to review.')).toBe(true);
-    expect(isApprovalNarration('queued for APPROVAL: x')).toBe(true);
-  });
-  it('matches the Operation + Status:pending template block', () => {
-    const block = '## 2026-07-15\n- **Operation**: dispatch\n- **Reason**: over budget\n- **Status**: pending';
-    expect(isApprovalNarration(block)).toBe(true);
-  });
-  it('does not match ordinary assistant text', () => {
-    expect(isApprovalNarration('已提交到 main, commit 73749eca.')).toBe(false);
-    expect(isApprovalNarration('The status is pending review of the operation.')).toBe(false);
-    expect(isApprovalNarration('')).toBe(false);
-  });
-});
-
-describe('buildTranscriptRows dropApprovalNarration', () => {
-  const withNarration = tx([
-    {
-      turnIndex: 0,
-      messages: [
-        { type: 'user', text: 'commit it', toolName: null, toolInput: null, ts: T, elapsedMs: null },
-        { type: 'assistant', text: 'Done. Queued for approval: over-budget dispatch', toolName: null, toolInput: null, ts: T, elapsedMs: 0 },
-        { type: 'assistant', text: 'plain follow-up', toolName: null, toolInput: null, ts: T, elapsedMs: 0 },
-      ],
-    },
-  ]);
-
-  it('keeps approval-narration rows by default', () => {
-    const rows = buildTranscriptRows(withNarration, [], { now: new Date(T) });
-    const assistants = rows.filter((r) => r.kind === 'assistant');
-    expect(assistants).toHaveLength(2);
-  });
-
-  it('drops approval-narration rows when opted in, keeping the rest', () => {
-    const rows = buildTranscriptRows(withNarration, [], { now: new Date(T), dropApprovalNarration: true });
-    const assistants = rows.filter((r) => r.kind === 'assistant') as { text: string }[];
-    expect(assistants).toHaveLength(1);
-    expect(assistants[0].text).toBe('plain follow-up');
   });
 });
