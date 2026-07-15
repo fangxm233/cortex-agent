@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildFullConfig, buildCoreConfig, buildTuiConfig, buildFeishuConfig } from '../../src/core/config-generator.js';
+import { buildFullConfig, buildCoreConfig, buildTuiConfig, buildFeishuConfig, buildWebConfig } from '../../src/core/config-generator.js';
 
 // ─── buildFullConfig ────────────────────────────────────────────
 
@@ -89,4 +89,23 @@ test('buildFeishuConfig points to feishu-server.js (absolute path)', () => {
   assert.equal(config.mcpServers['cortex-feishu'].command, 'node');
   assert.deepEqual(config.mcpServers['cortex-feishu'].args, ['/test/dist/domain/mcp/feishu-server.js']);
   assert.equal(config.mcpServers['cortex-feishu'].cwd, '/test');
+});
+
+// ─── buildWebConfig (Web-UI-originated sessions) ─────────────
+
+test('buildWebConfig returns only the cortex-web server', () => {
+  const config = buildWebConfig('/test/server') as any;
+  assert.ok(config.mcpServers);
+  const keys = Object.keys(config.mcpServers);
+  assert.equal(keys.length, 1, 'web config must isolate to a single server (layered on top of the base config)');
+  assert.ok(keys.includes('cortex-web'));
+  assert.ok(!keys.includes('cortex-core'), 'web config must not include cortex-core');
+  assert.ok(!keys.includes('cortex-ext'), 'web config must not include cortex-ext');
+});
+
+test('buildWebConfig points to web-server.js (absolute path)', () => {
+  const config = buildWebConfig('/test') as any;
+  assert.equal(config.mcpServers['cortex-web'].command, 'node');
+  assert.deepEqual(config.mcpServers['cortex-web'].args, ['/test/dist/domain/mcp/web-server.js']);
+  assert.equal(config.mcpServers['cortex-web'].cwd, '/test');
 });

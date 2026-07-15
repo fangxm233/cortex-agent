@@ -38,6 +38,17 @@ test('slack-server (slack-server.ts) registers 1 platform-specific tool name', a
   assert.equal(new Set(names).size, 1, 'no duplicate tool names');
 });
 
+test('web-server (web-server.ts) registers 1 Web-UI-specific tool name', async () => {
+  const mod = await import('../../../src/domain/mcp/web-server.js');
+  const names: readonly string[] = mod.TOOL_NAMES;
+
+  const expected = ['send_file'];
+
+  assert.deepEqual([...names].sort(), [...expected].sort());
+  assert.equal(names.length, 1);
+  assert.equal(new Set(names).size, 1, 'no duplicate tool names');
+});
+
 test('core-server (core-server.ts) registers 6 remote_* tools, current_time, 3 thread control tools, 3 task-monitor tools, and 2 manager-Q&A tools', async () => {
   const mod = await import('../../../src/domain/mcp/core-server.js');
   const names: readonly string[] = mod.TOOL_NAMES;

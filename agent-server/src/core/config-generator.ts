@@ -14,6 +14,7 @@ const CORE_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-core.json');
 const TUI_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tui.json');
 const SLACK_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-slack.json');
 const FEISHU_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-feishu.json');
+const WEB_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-web.json');
 
 /**
  * Build a MCP server entry. Uses absolute path in args as a workaround for
@@ -82,6 +83,18 @@ export function buildFeishuConfig(serverRoot: string): object {
   };
 }
 
+/** Web MCP config — layered ON TOP of the full config (via the variadic `--mcp-config`) only for
+ *  sessions that originate from the Web UI (channel carries the `web:` prefix). Isolated to the single
+ *  cortex-web server (send_file tool) so it can be added/removed independently of the base config; the
+ *  Claude adapter decides whether to load it based on the session's source channel. */
+export function buildWebConfig(serverRoot: string): object {
+  return {
+    mcpServers: {
+      'cortex-web': serverEntry('dist/domain/mcp/web-server.js', serverRoot),
+    },
+  };
+}
+
 export function generateMcpConfig(): void {
   writeFileSync(MCP_CONFIG_PATH, JSON.stringify(buildFullConfig(SERVER_ROOT), null, 2));
   log.info(`Generated full MCP config at ${MCP_CONFIG_PATH}`);
@@ -97,4 +110,7 @@ export function generateMcpConfig(): void {
 
   writeFileSync(FEISHU_MCP_CONFIG_PATH, JSON.stringify(buildFeishuConfig(SERVER_ROOT), null, 2));
   log.info(`Generated Feishu MCP config at ${FEISHU_MCP_CONFIG_PATH}`);
+
+  writeFileSync(WEB_MCP_CONFIG_PATH, JSON.stringify(buildWebConfig(SERVER_ROOT), null, 2));
+  log.info(`Generated Web MCP config at ${WEB_MCP_CONFIG_PATH}`);
 }
