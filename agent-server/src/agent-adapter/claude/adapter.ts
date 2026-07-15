@@ -263,6 +263,10 @@ class ClaudeSession {
     // cortex-feishu MCP server so the agent can read/write Feishu documents. buildSpawnArgs suppresses
     // it for thread/core sessions (CORE_MCP_CONFIG) regardless of this flag.
     spawnOptions.loadFeishuMcp = this.channel.startsWith('feishu:');
+    // Sessions that originate from the Web UI (channel carries the `web:` prefix) load the cortex-web
+    // MCP server so the agent can send files into the chat via send_file. buildSpawnArgs suppresses
+    // it for thread/core sessions (CORE_MCP_CONFIG) regardless of this flag.
+    spawnOptions.loadWebMcp = this.channel.startsWith('web:');
     const args = buildSpawnArgs(spawnOptions);
     log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? '(resume)' : '(new)'}`);
 

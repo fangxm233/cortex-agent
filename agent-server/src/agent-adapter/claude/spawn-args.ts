@@ -3,7 +3,7 @@
 // pos:    Construct Claude CLI argv and process environment variables
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_MCP_CONFIG, SLACK_MCP_CONFIG, FEISHU_MCP_CONFIG, TUI_TOOLS, TUI_STRIP_TOOLS } from './defaults.js';
+import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_MCP_CONFIG, SLACK_MCP_CONFIG, FEISHU_MCP_CONFIG, WEB_MCP_CONFIG, TUI_TOOLS, TUI_STRIP_TOOLS } from './defaults.js';
 // CORE_MCP_CONFIG is the thread/core marker: callers set mcpConfigPath to it for template thread
 // sessions (remote_* only). buildSpawnArgs uses identity against it to decide whether to layer the
 // TUI bridge server on top.
@@ -35,6 +35,10 @@ export interface ClaudeSpawnOptions {
    *  that originate from Feishu (channel carries the `feishu:` prefix). Ignored for thread/core
    *  sessions (CORE_MCP_CONFIG), which must stay on the core server set only. */
   loadFeishuMcp?: boolean;
+  /** Layer the cortex-web MCP server on top of the base config. Set by the adapter for sessions that
+   *  originate from the Web UI (channel carries the `web:` prefix), enabling the send_file tool.
+   *  Ignored for thread/core sessions (CORE_MCP_CONFIG), which must stay on the core server set only. */
+  loadWebMcp?: boolean;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string> | null;
   /** DR-0012: select adapter mode. Default 'print' preserves -p stream-json behavior. */
@@ -59,6 +63,9 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   // Feishu-originated sessions additionally layer the cortex-feishu server (Feishu document tools).
   // Suppressed for thread/core sessions, which run no document work and stay on the core set only.
   if (options.loadFeishuMcp && !isCoreOnly) mcpConfigs.push(FEISHU_MCP_CONFIG);
+  // Web-UI-originated sessions additionally layer the cortex-web server (send_file tool).
+  // Suppressed for thread/core sessions, which stay on the core set only.
+  if (options.loadWebMcp && !isCoreOnly) mcpConfigs.push(WEB_MCP_CONFIG);
   // TUI tool whitelist swaps the three native interaction tools for their MCP bridge equivalents;
   // thread/core TUI sessions have no bridge server, so they fall back to the standard tool set.
   const toolsDefault = (mode === 'tui' && !isCoreOnly) ? TUI_TOOLS : DEFAULT_TOOLS;

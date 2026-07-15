@@ -46,6 +46,9 @@ export const SLACK_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-slack.json');
 /** Feishu document tools (cortex-feishu server). Layered on top of the full config via the variadic
  *  `--mcp-config` only for sessions that originate from Feishu (channel carries the `feishu:` prefix). */
 export const FEISHU_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-feishu.json');
+/** Web UI tools (cortex-web server, send_file). Layered on top of the full config via the variadic
+ *  `--mcp-config` only for sessions that originate from the Web UI (channel carries the `web:` prefix). */
+export const WEB_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-web.json');
 // User-customizable Claude settings live under DATA_DIR (init copies the seed from
 // defaults/.claude/settings.json on first run). The installed package's defaults/.claude/
 // is read-only and used only as the init source.

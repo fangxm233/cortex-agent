@@ -13,7 +13,7 @@ import {
   SESSION_START_HOOKS,
 } from '../src/agent-adapter/claude/hooks-builder.js';
 import { summarizeToolInput } from '../src/agent-adapter/claude/tool-summarizers.js';
-import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_TOOLS, TUI_MCP_CONFIG, FEISHU_MCP_CONFIG } from '../src/agent-adapter/claude/defaults.js';
+import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_TOOLS, TUI_MCP_CONFIG, FEISHU_MCP_CONFIG, WEB_MCP_CONFIG } from '../src/agent-adapter/claude/defaults.js';
 import {
   extractAskUserQuestions,
   setActivePlanFile,
@@ -119,6 +119,57 @@ test('buildSpawnArgs without loadFeishuMcp — does NOT load the cortex-feishu c
     sessionId: 'uuid-noFeishu',
   });
   assert.ok(!args.includes(FEISHU_MCP_CONFIG), 'non-feishu session must NOT load the cortex-feishu server');
+});
+
+test('buildSpawnArgs loadWebMcp — layers cortex-web config on top of the full MCP set', () => {
+  const args = buildSpawnArgs({
+    tools: null,
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    needsResume: false,
+    sessionId: 'uuid-web',
+    loadWebMcp: true,
+  });
+  const i = args.indexOf('--mcp-config');
+  assert.ok(i >= 0, '--mcp-config present');
+  assert.equal(args[i + 1], MCP_CONFIG, 'base full config first');
+  assert.equal(args[i + 2], WEB_MCP_CONFIG, 'web config layered second');
+});
+
+test('buildSpawnArgs without loadWebMcp — does NOT load the cortex-web config', () => {
+  const args = buildSpawnArgs({
+    tools: null,
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    needsResume: false,
+    sessionId: 'uuid-noWeb',
+  });
+  assert.ok(!args.includes(WEB_MCP_CONFIG), 'non-web session must NOT load the cortex-web server');
+});
+
+test('buildSpawnArgs loadWebMcp — thread/core session (CORE_MCP_CONFIG) suppresses the web layer', () => {
+  const args = buildSpawnArgs({
+    tools: null,
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    needsResume: false,
+    sessionId: 'uuid-web-thread',
+    mcpConfigPath: CORE_MCP_CONFIG,
+    loadWebMcp: true,
+  });
+  assert.ok(!args.includes(WEB_MCP_CONFIG), 'core/thread sessions must stay on the core server set only');
 });
 
 test('buildSpawnArgs loadFeishuMcp — thread/core session (CORE_MCP_CONFIG) suppresses the feishu layer', () => {
