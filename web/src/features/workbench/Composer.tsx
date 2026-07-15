@@ -563,7 +563,7 @@ export function Composer({
         onDragLeave={onDragLeave}
         onDragOver={onDragOver}
         onDrop={onDrop}
-        style={{ maxWidth: 720, margin: '0 auto', padding: '0 32px 18px', position: 'relative' }}
+        style={{ maxWidth: 756, margin: '0 auto', padding: '0 32px 18px', position: 'relative' }}
       >
         {/* Slash palette */}
         {slashOpen && (

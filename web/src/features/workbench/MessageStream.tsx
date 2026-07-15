@@ -274,7 +274,7 @@ export function MessageStream({ rows, loading }: { rows: ChatRow[]; loading: boo
 
   return (
     <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-      <div style={{ width: '100%', maxWidth: 720, margin: '0 auto', padding: '22px 32px 12px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {!populated && !loading && <EmptyChat />}
         {rows.map((row, i) => (
           <Row key={i} row={row} />
