@@ -246,3 +246,26 @@ describe('resolveTurns', () => {
     expect(resolveTurns(null, undefined)).toBe(null);
   });
 });
+
+describe('agent-sent file attachments (20a)', () => {
+  const ATT = [{ name: 'r.pdf', path: 'workspace/outputs/s1/r.pdf', size: 2100, mimeType: 'application/pdf', type: 'file' as const }];
+
+  it('carries attachments onto an assistant row', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        { type: 'user', text: 'send it', toolName: null, toolInput: null, ts: T, elapsedMs: null },
+        { type: 'assistant', text: 'here', toolName: null, toolInput: null, ts: T, elapsedMs: 0, attachments: ATT },
+      ] }]),
+      [],
+      { now: new Date(T) },
+    );
+    const assistant = rows.find((r) => r.kind === 'assistant') as { attachments?: unknown };
+    expect(assistant.attachments).toEqual(ATT);
+  });
+
+  it('liveToMessage passes assistant attachments through the live tail', () => {
+    const m = liveToMessage({ sessionId: 's1', role: 'assistant', text: '', ts: T, attachments: ATT } as LiveSessionMessage);
+    expect(m.type).toBe('assistant');
+    expect(m.attachments).toEqual(ATT);
+  });
+});

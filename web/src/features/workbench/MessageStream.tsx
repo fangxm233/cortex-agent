@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useVocab } from '@/i18n';
-import type { ChatRow } from './transcript-vm';
+import type { ChatRow, Attachment } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { AttachmentMeta } from './chat-content';
+import { downloadFile, openFile, copyFilePath, fetchFileObjectUrl } from '@/lib/files';
 
 // Message stream — 1:1 from prototype.dc.html L131–357. The transcript body (divider / user bubble /
 // tool-call row / assistant text) is driven by REAL data (task aba0): the `rows` are built from the
@@ -168,6 +169,141 @@ function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
   );
 }
 
+// ── Agent-sent files (20a) — left-aligned white-bordered cards, mirror of the user's gray cards ──
+
+function dirOf(p: string): string {
+  const i = p.lastIndexOf('/');
+  return i >= 0 ? p.slice(0, i + 1) : p;
+}
+
+/** Small square hover-action button (download / copy path). */
+function ActionBtn({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }): JSX.Element {
+  return (
+    <span
+      role="button"
+      title={title}
+      onClick={onClick}
+      style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #E7E9EE', background: '#FBFBFC', color: '#5B6472', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer', flex: 'none' }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** "open ↗" hover-action pill. */
+function OpenBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }): JSX.Element {
+  return (
+    <span
+      role="button"
+      onClick={onClick}
+      style={{ height: 26, borderRadius: 7, border: '1px solid #C9CFF2', background: '#FBFBFE', color: '#4655D4', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `500 9.5px ${mono}`, padding: '0 9px', cursor: 'pointer', flex: 'none' }}
+    >
+      {children} ↗
+    </span>
+  );
+}
+
+/** 20a default/hover file card — white bordered; hover reveals download / copy-path / open. */
+function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
+  const L = useVocab();
+  const [hover, setHover] = useState(false);
+  const colors = typeColor(a.type);
+  const ext = fileExt(a.name);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        border: `1px solid ${hover ? '#D9DCE3' : '#E7E9EE'}`, background: '#fff',
+        borderRadius: 10, padding: '9px 10px',
+        boxShadow: hover ? '0 2px 6px rgba(16,24,40,.07)' : '0 1px 2px rgba(16,24,40,.03)',
+        boxSizing: 'border-box', maxWidth: '100%',
+      }}
+    >
+      <span style={{ width: 28, height: 34, borderRadius: 5, background: colors.bg, color: colors.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 8px ${mono}`, flex: 'none' }}>{ext}</span>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+        <span style={{ font: `500 11.5px ${mono}`, color: '#191C22', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+        <span style={{ font: `400 9px ${mono}`, color: '#98A1B0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatSize(a.size)} · {dirOf(a.path)}</span>
+      </span>
+      {hover && (
+        <span style={{ display: 'flex', gap: 5, flex: 'none' }}>
+          <ActionBtn title={L.wbFileDownload} onClick={() => void downloadFile(a.path, a.name)}>↓</ActionBtn>
+          <ActionBtn title={L.wbFileCopyPath} onClick={() => void copyFilePath(a.path)}>⧉</ActionBtn>
+          <OpenBtn onClick={() => void openFile(a.path)}>{L.wbFileOpen}</OpenBtn>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** 20a image — real inline preview (≤320px) fetched with auth into an object URL; hover download. */
+function AgentImagePreview({ a }: { a: Attachment }): JSX.Element {
+  const L = useVocab();
+  const [url, setUrl] = useState<string | null>(null);
+  const [hover, setHover] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    let created: string | null = null;
+    fetchFileObjectUrl(a.path, 'inline').then((u) => { if (alive) { created = u; setUrl(u); } }).catch(() => {});
+    return () => { alive = false; if (created) URL.revokeObjectURL(created); };
+  }, [a.path]);
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: 'relative', maxWidth: 320, borderRadius: 12, border: '1px solid #E7E9EE',
+        overflow: 'hidden', boxSizing: 'border-box',
+        background: url ? '#fff' : 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
+      }}
+    >
+      {url ? (
+        <img src={url} alt={a.name} style={{ display: 'block', maxWidth: 320, maxHeight: 240, width: 'auto', height: 'auto' }} />
+      ) : (
+        <div style={{ width: 320, height: 180 }} />
+      )}
+      <span style={{ position: 'absolute', left: 8, bottom: 7, font: `500 8.5px ${mono}`, color: '#8A93A2', background: 'rgba(255,255,255,.88)', padding: '1.5px 5px', borderRadius: 4 }}>{a.name}</span>
+      {hover && (
+        <span
+          role="button"
+          title={L.wbFileDownload}
+          onClick={() => void downloadFile(a.path, a.name)}
+          style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 7, background: 'rgba(25,28,34,.78)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}
+        >
+          ↓
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** 20a file group — hung under the agent text, left-aligned, ≤75% width. Images inline first, then
+ *  file cards; a "download all" affordance appears for groups of ≥3. */
+function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Element {
+  const L = useVocab();
+  const images = attachments.filter((a) => a.type === 'image');
+  const files = attachments.filter((a) => a.type !== 'image');
+  return (
+    <div style={{ maxWidth: '75%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 }}>
+      {images.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {images.map((a, i) => <AgentImagePreview key={`img-${i}`} a={a} />)}
+        </div>
+      )}
+      {files.map((a, i) => <AgentFileCard key={`file-${i}`} a={a} />)}
+      {attachments.length >= 3 && (
+        <div style={{ font: `400 9.5px ${mono}`, color: '#B6BDC9', padding: '2px 2px 0' }}>
+          {attachments.length} {L.wbFileFiles} ·{' '}
+          <span style={{ color: '#8A93A2', cursor: 'pointer' }} onClick={() => attachments.forEach((a) => void downloadFile(a.path, a.name))}>
+            {L.wbFileDownloadAll} ↓
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UserBubble({ text, attachments }: { text: string; attachments?: AttachmentMeta[] }): JSX.Element {
   const hasAttachments = attachments && attachments.length > 0;
   return (
@@ -212,10 +348,12 @@ function UserBubble({ text, attachments }: { text: string; attachments?: Attachm
   );
 }
 
-function AssistantBlock({ text, streaming: _streaming }: { text: string; streaming: boolean }): JSX.Element {
+function AssistantBlock({ text, streaming: _streaming, attachments }: { text: string; streaming: boolean; attachments?: Attachment[] }): JSX.Element {
+  const hasAttachments = !!attachments && attachments.length > 0;
   return (
     <div style={{ animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: '#22262E', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-      <ChatMarkdown text={text} />
+      {text.trim() && <ChatMarkdown text={text} />}
+      {hasAttachments && <AgentFileGroup attachments={attachments!} />}
     </div>
   );
 }
@@ -246,7 +384,7 @@ function Row({ row }: { row: ChatRow }): JSX.Element | null {
     case 'tools':
       return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input }))} />;
     case 'assistant':
-      return <AssistantBlock text={row.text} streaming={row.streaming} />;
+      return <AssistantBlock text={row.text} streaming={row.streaming} attachments={row.attachments} />;
     default:
       return null;
   }

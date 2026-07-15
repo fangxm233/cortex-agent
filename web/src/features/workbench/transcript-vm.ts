@@ -18,11 +18,14 @@ export interface LiveSessionMessage {
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
 }
 
+export type Attachment = { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' };
+
 export type ChatRow =
   | { kind: 'divider'; text: string }
-  | { kind: 'user'; text: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }
+  | { kind: 'user'; text: string; attachments?: Attachment[] }
   | { kind: 'tools'; count: number; calls: { kind: string; input: string }[] }
-  | { kind: 'assistant'; text: string; streaming: boolean };
+  // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
+  | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[] };
 
 export interface BuildOpts {
   /** True while the session is actively producing output — marks the last assistant row's caret. */
@@ -202,7 +205,7 @@ export function buildTranscriptRows(
     }
     flushTools();
     if (m.type === 'user') rows.push({ kind: 'user', text: m.text ?? '', attachments: (m as any).attachments });
-    else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false });
+    else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
   }
   flushTools();
 
