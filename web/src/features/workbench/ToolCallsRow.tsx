@@ -18,8 +18,8 @@ export function ToolCallsRow({ calls }: { calls: ToolCall[] }): JSX.Element {
 
   if (!expanded) {
     return (
-      // Collapsed row: pull in the surrounding flex `gap:16` by ~1/3 (−5px top/bottom → ~11px effective).
-      <div style={{ margin: '-5px 0' }}>
+      // Collapsed row: halve the surrounding flex `gap:16` (−8px top/bottom → 8px effective).
+      <div style={{ margin: '-8px 0' }}>
         <div
           onClick={() => setExpanded(true)}
           onMouseEnter={() => setHover(true)}
