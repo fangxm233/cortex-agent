@@ -3,7 +3,7 @@ import {
   buildTranscriptRows,
   liveToMessage,
   turnCount,
-  sessionElapsedMs,
+  currentTurnElapsedMs,
   formatElapsed,
   resolveRunning,
   resolveTurns,
@@ -168,23 +168,33 @@ describe('liveToMessage', () => {
   });
 });
 
-describe('sessionElapsedMs', () => {
+describe('currentTurnElapsedMs', () => {
   const mk = (ts: string, elapsedMs: number | null): SessionTranscript['turns'][number]['messages'][number] => ({
     type: 'assistant', text: 'x', toolName: null, toolInput: null, ts, elapsedMs,
   });
 
-  it('sums the real per-message elapsedMs across all turns (null contributes 0)', () => {
+  it('sums only the LAST turn intra-turn deltas, excluding its opening message gap', () => {
     const t = tx([
       { turnIndex: 0, messages: [mk(T, null), mk(T, 2500)] },
-      { turnIndex: 1, messages: [mk(T, 7500), mk(T, 1000)] },
+      // Last turn: index 0 (7500) is the cross-turn idle gap → excluded; 1000 + 500 counted.
+      { turnIndex: 1, messages: [mk(T, 7500), mk(T, 1000), mk(T, 500)] },
     ]);
-    expect(sessionElapsedMs(t)).toBe(11000);
+    expect(currentTurnElapsedMs(t)).toBe(1500);
   });
 
-  it('returns null when there is no elapsed signal (single message / all null)', () => {
-    expect(sessionElapsedMs(tx([{ turnIndex: 0, messages: [mk(T, null)] }]))).toBeNull();
-    expect(sessionElapsedMs(tx([]))).toBeNull();
-    expect(sessionElapsedMs(undefined)).toBeNull();
+  it('does not carry earlier turns into the current-turn clock', () => {
+    const t = tx([
+      { turnIndex: 0, messages: [mk(T, null), mk(T, 9999)] },
+      { turnIndex: 1, messages: [mk(T, 3000), mk(T, 400)] },
+    ]);
+    expect(currentTurnElapsedMs(t)).toBe(400);
+  });
+
+  it('returns null when the last turn has no intra-turn signal (single message / all null)', () => {
+    expect(currentTurnElapsedMs(tx([{ turnIndex: 0, messages: [mk(T, null)] }]))).toBeNull();
+    expect(currentTurnElapsedMs(tx([{ turnIndex: 0, messages: [mk(T, 5000), mk(T, null)] }]))).toBeNull();
+    expect(currentTurnElapsedMs(tx([]))).toBeNull();
+    expect(currentTurnElapsedMs(undefined)).toBeNull();
   });
 });
 
