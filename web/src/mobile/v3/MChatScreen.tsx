@@ -325,10 +325,12 @@ export function MChatScreen(): JSX.Element {
         onMoreToggle={() => setMoreOpen((o) => !o)}
         onMoreClose={() => setMoreOpen(false)}
         inlineThreadCard={
-          <InlineThreadCard
-            subthreadsLabel={lang === 'zh' ? '子线程' : 'sub-threads'}
-            openLabel={lang === 'zh' ? '打开' : 'Open'}
-          />
+          isDraft ? undefined : (
+            <InlineThreadCard
+              subthreadsLabel={lang === 'zh' ? '子线程' : 'sub-threads'}
+              openLabel={lang === 'zh' ? '打开' : 'Open'}
+            />
+          )
         }
         systemLines={systemLines}
         composerValue={text}
