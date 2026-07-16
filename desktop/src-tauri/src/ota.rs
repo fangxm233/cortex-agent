@@ -16,7 +16,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// Same-origin manifest path served by agent-server `platform/ui-http/ui-ota.ts`.
@@ -29,8 +29,26 @@ pub struct Manifest {
     pub version: String,
     /// SHA-256 (hex) of the zip bytes — the download is verified against this.
     pub sha256: String,
-    /// Same-origin path to fetch the bundle from. (The manifest also carries `size`, ignored here.)
+    /// Zip byte length — surfaced to the hot-update prompt ("… · 8.4 MB · 已下载").
+    /// `#[serde(default)]` so an older/partial manifest without it still parses (size → 0).
+    #[serde(default)]
+    pub size: u64,
+    /// Same-origin path to fetch the bundle from.
     pub url: String,
+}
+
+/// A frontend update that has been downloaded + staged for the next launch. Emitted to the SPA
+/// (`frontend-update-staged` event) so it can raise the hot-update prompt, and returned by the
+/// `get_staged_update` command as a backstop for a missed event.
+#[derive(Debug, Clone, Serialize)]
+pub struct StagedUpdate {
+    /// Content-addressed id of the newly staged version.
+    pub version: String,
+    /// The version currently installed (staged replaces it on next launch). None on first install.
+    #[serde(rename = "fromVersion")]
+    pub from_version: Option<String>,
+    /// Zip byte length (0 when unknown, e.g. reconstructed from disk without the manifest).
+    pub size: u64,
 }
 
 /// Whether the manifest version differs from what is installed.
@@ -202,9 +220,14 @@ fn build_http_client() -> Result<reqwest::blocking::Client, String> {
 }
 
 /// Fetch the manifest, and if a new version is available (and not already staged), download the
-/// bundle, verify its sha256, and stage it for next launch. Returns the staged version on success,
-/// None when already up to date. Errors are surfaced for logging but are non-fatal to the caller.
-pub fn check_and_stage(server_url: &str, token: &str, store: &UiStore) -> Result<Option<String>, String> {
+/// bundle, verify its sha256, and stage it for next launch. Returns the staged update (new version +
+/// the version it replaces + size) on success, None when already up to date. Errors are surfaced for
+/// logging but are non-fatal to the caller.
+pub fn check_and_stage(
+    server_url: &str,
+    token: &str,
+    store: &UiStore,
+) -> Result<Option<StagedUpdate>, String> {
     let base = server_url.trim_end_matches('/');
     let client = build_http_client()?;
 
@@ -244,7 +267,11 @@ pub fn check_and_stage(server_url: &str, token: &str, store: &UiStore) -> Result
     store
         .stage_bundle(&manifest.version, &bytes)
         .map_err(|e| e.to_string())?;
-    Ok(Some(manifest.version))
+    Ok(Some(StagedUpdate {
+        version: manifest.version,
+        from_version: installed,
+        size: manifest.size,
+    }))
 }
 
 #[cfg(test)]
@@ -297,12 +324,34 @@ mod tests {
 
     #[test]
     fn manifest_parses_from_json() {
-        // `size` is present in the wire manifest but intentionally ignored by the client.
         let json = r#"{"version":"v1","sha256":"deadbeef","size":123,"url":"/api/ui-ota/bundle.zip"}"#;
         let m: Manifest = serde_json::from_str(json).unwrap();
         assert_eq!(m.version, "v1");
         assert_eq!(m.sha256, "deadbeef");
+        assert_eq!(m.size, 123);
         assert_eq!(m.url, "/api/ui-ota/bundle.zip");
+    }
+
+    #[test]
+    fn manifest_size_defaults_when_absent() {
+        // An older/partial manifest without `size` must still parse (size → 0), not error.
+        let json = r#"{"version":"v1","sha256":"deadbeef","url":"/api/ui-ota/bundle.zip"}"#;
+        let m: Manifest = serde_json::from_str(json).unwrap();
+        assert_eq!(m.size, 0);
+    }
+
+    #[test]
+    fn staged_update_serializes_with_from_version_key() {
+        let s = StagedUpdate {
+            version: "b7e2".to_string(),
+            from_version: Some("a3f9".to_string()),
+            size: 8_400_000,
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        // The SPA reads `fromVersion` (camelCase) off the event payload.
+        assert!(json.contains(r#""version":"b7e2""#));
+        assert!(json.contains(r#""fromVersion":"a3f9""#));
+        assert!(json.contains(r#""size":8400000"#));
     }
 
     #[test]

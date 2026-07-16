@@ -48,6 +48,11 @@ mod backend {
             let _ = entry.delete_credential();
         }
     }
+
+    /// One-line diagnostic of the credential store state (logged at startup).
+    pub fn diagnostics(_app: &AppHandle) -> String {
+        "creds backend=os-keychain".to_string()
+    }
 }
 
 #[cfg(target_os = "android")]
@@ -86,6 +91,30 @@ mod backend {
             let _ = std::fs::remove_file(path);
         }
     }
+
+    /// One-line diagnostic of the credential file state (logged at startup) — used to tell apart
+    /// "creds never saved / file missing" from "file present but unreadable/unparseable" when the
+    /// OTA thread reports `no credentials`.
+    pub fn diagnostics(app: &AppHandle) -> String {
+        match creds_path(app) {
+            None => "creds backend=android path=unavailable(no app_data_dir)".to_string(),
+            Some(p) => {
+                let exists = p.exists();
+                let len = std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0);
+                let parses = std::fs::read_to_string(&p)
+                    .ok()
+                    .and_then(|s| serde_json::from_str::<ConnectionConfig>(&s).ok())
+                    .is_some();
+                format!(
+                    "creds backend=android path={} exists={} len={} parses={}",
+                    p.display(),
+                    exists,
+                    len,
+                    parses
+                )
+            }
+        }
+    }
 }
 
-pub use backend::{clear, load, save};
+pub use backend::{clear, diagnostics, load, save};

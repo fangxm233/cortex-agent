@@ -24,7 +24,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
 /// Emit a diagnostic line from the native shell.
 ///
@@ -167,6 +167,49 @@ fn disconnect(app: tauri::AppHandle, state: State<AppState>) -> Result<(), Strin
     creds::clear(&app);
     *state.config.lock().unwrap() = ConnectionConfig::default();
     Ok(())
+}
+
+/// Tauri event raised (to the SPA) when a newer frontend has been downloaded and staged for the next
+/// launch — the SPA listens for it to raise the hot-update prompt (design 21a / mobile 3a). Payload is
+/// a serialized `ota::StagedUpdate` (`{ version, fromVersion, size }`).
+const FRONTEND_UPDATE_STAGED_EVENT: &str = "frontend-update-staged";
+
+/// Apply a staged frontend update by relaunching the app so startup `promote_staged()` swaps the new
+/// version in. Called from the hot-update prompt's primary button.
+///
+/// Desktop relaunches in place (`app.restart()` — never returns). Android has no reliable in-process
+/// relaunch, so it exits (design 3a "退出 App"): the process ends and the user / system reopens it,
+/// at which point `promote_staged()` applies the update. Either way the running work is untouched —
+/// threads execute server-side, not in the app.
+#[tauri::command]
+fn apply_frontend_update(app: tauri::AppHandle) {
+    #[cfg(target_os = "android")]
+    {
+        app.exit(0);
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        app.restart();
+    }
+}
+
+/// Return the currently staged frontend update, if any, as a backstop for a missed
+/// `frontend-update-staged` event (e.g. the SPA mounted its listener after the event fired). Size is
+/// not persisted on disk, so it is reported as 0 here; the live event carries the real size.
+#[tauri::command]
+fn get_staged_update(app: tauri::AppHandle) -> Option<ota::StagedUpdate> {
+    let data = app.path().app_data_dir().ok()?;
+    let store = ota::UiStore::new(&data);
+    let staged = store.staged_version()?;
+    // Only a staged version that actually differs from what is installed is a pending update.
+    if store.installed_version().as_deref() == Some(staged.as_str()) {
+        return None;
+    }
+    Some(ota::StagedUpdate {
+        version: staged,
+        from_version: store.installed_version(),
+        size: 0,
+    })
 }
 
 // ─── Initialization script ─────────────────────────────────────────────────
@@ -328,6 +371,8 @@ pub fn run() {
             set_connection_config,
             connect,
             disconnect,
+            apply_frontend_update,
+            get_staged_update,
         ]);
 
     // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend
@@ -347,8 +392,10 @@ pub fn run() {
     builder
         .setup(move |app| {
             // Load credentials (platform store → env fallback) and seed AppState.
+            shell_log!("[cortex-desktop] {}", creds::diagnostics(&app.handle()));
             let initial_config = load_initial_config(&app.handle());
             let open_workbench = has_credentials(&initial_config);
+            shell_log!("[cortex-desktop] initial credentials present={open_workbench}");
             // Keep a copy to bake synchronously into the window's initialization_script (below), so
             // the SPA sees the credentials before any bundle code runs (no async-IPC race).
             let baked_config = initial_config.clone();
@@ -406,13 +453,27 @@ pub fn run() {
             if let Ok(data) = app.path().app_data_dir() {
                 let cfg = app.state::<AppState>().config.lock().unwrap().clone();
                 if let (Some(url), Some(token)) = (cfg.server_url, cfg.token) {
+                    // Clone the handle so the background thread can emit the staged-update event to the
+                    // SPA (raises the hot-update prompt, design 21a / mobile 3a).
+                    let handle = app.handle().clone();
                     std::thread::spawn(move || {
                         shell_log!("[cortex-desktop] ota check starting: {url}");
                         let store = ota::UiStore::new(&data);
                         match ota::check_and_stage(&url, &token, &store) {
-                            Ok(Some(v)) => shell_log!(
-                                "[cortex-desktop] staged frontend update {v} (applies next launch)"
-                            ),
+                            Ok(Some(update)) => {
+                                shell_log!(
+                                    "[cortex-desktop] staged frontend update {} (applies next launch)",
+                                    update.version
+                                );
+                                // Tell the SPA a new version is ready so it can prompt the user to
+                                // restart. Non-fatal if no window is listening yet — the
+                                // `get_staged_update` command is the backstop.
+                                if let Err(e) = handle.emit(FRONTEND_UPDATE_STAGED_EVENT, &update) {
+                                    shell_log!(
+                                        "[cortex-desktop] emit {FRONTEND_UPDATE_STAGED_EVENT} failed: {e}"
+                                    );
+                                }
+                            }
                             Ok(None) => shell_log!("[cortex-desktop] ota: already up to date"),
                             Err(e) => shell_log!("[cortex-desktop] ota check skipped: {e}"),
                         }

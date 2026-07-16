@@ -122,6 +122,9 @@ const config: Config = {
       boxShadow: {
         card: '0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06)',
         overlay: '0 10px 38px rgba(0,0,0,0.20), 0 6px 12px rgba(0,0,0,0.12)',
+        // Hot-update modal (design 21a): heavier drop shadow than the generic overlay. Verbatim from
+        // scheme.dc.html #21a modal (`0 24px 64px rgba(16,24,40,.32)`).
+        'overlay-strong': '0 24px 64px rgba(16,24,40,0.32)',
         // Notification toast (design 18a): 二级投影 — lighter than modal, heavier than card. Verbatim
         // from scheme.dc.html #18a bubble shadow.
         toast: '0 8px 28px rgba(16,24,40,0.13), 0 2px 6px rgba(16,24,40,0.05)',

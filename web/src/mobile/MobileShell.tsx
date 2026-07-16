@@ -16,6 +16,7 @@ import { BottomTabBar } from './BottomTabBar';
 import { activeTabId, isTabRoute } from './mobile-tabs';
 import { MobileProjectProvider } from './current-project';
 import { MNotificationProvider } from './v3/MNotificationProvider';
+import { MHotUpdateProvider } from './v3/MHotUpdateProvider';
 import { useViewportHeight } from './use-viewport-height';
 
 export function MobileShell() {
@@ -69,6 +70,8 @@ export function MobileShell() {
       </div>
       {/* 1q: global notification banner (real session.message / system.notice stream). */}
       <MNotificationProvider />
+      {/* 3a: hot-update prompt — raised when the shell stages a new frontend (OTA). */}
+      <MHotUpdateProvider />
     </MobileProjectProvider>
   );
 }

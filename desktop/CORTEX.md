@@ -32,6 +32,14 @@ swaps. OTA hot-updates only the SPA; changes to the Rust shell still require an 
 The server side (agent-server `platform/ui-http/ui-ota.ts`) exposes the matching
 `/api/ui-ota/manifest.json` + `/api/ui-ota/bundle.zip` (token-gated).
 
+**Hot-update prompt (design 21a / mobile 3a):** when the background `check_and_stage` stages a bundle,
+the shell emits the `frontend-update-staged` event to the SPA (payload = `ota::StagedUpdate`
+`{version, fromVersion, size}`) so it can raise the "新版本已就绪" prompt (`web/src/features/hot-update`).
+The prompt's primary button invokes `apply_frontend_update` — **desktop `app.restart()`** (relaunch →
+startup `promote_staged` applies), **Android `app.exit(0)`** (system relaunch applies). `get_staged_update`
+returns any currently-staged update as a backstop for a missed event (size not persisted → 0). Applying
+never interrupts work: threads execute server-side, not in the app.
+
 ⚠️ **CORS origin change**: the webview Origin is now `cortexui://localhost` (Linux/macOS) or
 `http://cortexui.localhost` (Windows), not `tauri://localhost`. The remote server's
 `CORTEX_UI_CORS_ORIGINS` must list these new origins or the SPA's cross-origin tRPC calls are
@@ -109,6 +117,8 @@ desktop/
 | `set_connection_config` | `(serverUrl?, token?) → void` | In-memory update (legacy; prefer `connect`) |
 | `connect` | `(serverUrl, token) → Result<()>` | Save to OS keychain + update AppState |
 | `disconnect` | `() → Result<()>` | Clear keychain + AppState |
+| `apply_frontend_update` | `() → ()` | Apply a staged frontend update — desktop `app.restart()`, Android `app.exit(0)` (hot-update prompt primary button) |
+| `get_staged_update` | `() → Option<StagedUpdate>` | Currently-staged update (`{version, fromVersion, size:0}`) as a backstop for a missed `frontend-update-staged` event |
 
 ## Injection mechanism
 
