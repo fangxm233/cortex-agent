@@ -267,6 +267,9 @@ class ClaudeSession {
     // MCP server so the agent can send files into the chat via send_file. buildSpawnArgs suppresses
     // it for thread/core sessions (CORE_MCP_CONFIG) regardless of this flag.
     spawnOptions.loadWebMcp = this.channel.startsWith('web:');
+    // User-message-initiated (non-thread) print sessions get the cortex-tui-bridge interaction
+    // tools; buildSpawnArgs suppresses them for thread/core sessions (CORE_MCP_CONFIG).
+    spawnOptions.isUserInitiated = this.isUserInitiated;
     const args = buildSpawnArgs(spawnOptions);
     log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? '(resume)' : '(new)'}`);
 
@@ -845,6 +848,7 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     needsResume: opts.needsResume,
     sessionId: opts.sessionIdEffective,
   });
+  spawnOptions.isUserInitiated = config.isUserInitiated;
   return buildSpawnArgs(spawnOptions);
 }
 

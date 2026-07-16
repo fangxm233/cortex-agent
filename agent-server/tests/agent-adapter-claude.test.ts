@@ -13,7 +13,7 @@ import {
   SESSION_START_HOOKS,
 } from '../src/agent-adapter/claude/hooks-builder.js';
 import { summarizeToolInput } from '../src/agent-adapter/claude/tool-summarizers.js';
-import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_TOOLS, TUI_MCP_CONFIG, FEISHU_MCP_CONFIG, WEB_MCP_CONFIG } from '../src/agent-adapter/claude/defaults.js';
+import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_TOOLS, TUI_BRIDGE_TOOLS, TUI_MCP_CONFIG, FEISHU_MCP_CONFIG, WEB_MCP_CONFIG } from '../src/agent-adapter/claude/defaults.js';
 import {
   extractAskUserQuestions,
   setActivePlanFile,
@@ -365,6 +365,109 @@ test("buildSpawnArgs mode='print' (default) — behavior unchanged from existing
   // And the legacy expected sequence is preserved
   assert.ok(explicitPrint[0] === '-p');
   assert.ok(explicitPrint.includes('--input-format'));
+});
+
+// --- buildSpawnArgs: print-mode interaction-bridge tools (user-initiated sessions) ---
+// The native EnterPlanMode/ExitPlanMode/AskUserQuestion tools are filtered out by headless -p
+// mode. For user-message-initiated (non-thread) sessions we layer the cortex-tui-bridge MCP
+// server + its 3 tools so plan/ask still works over the channel. Thread/core sessions never get it.
+
+test('buildSpawnArgs print + isUserInitiated — layers TUI bridge MCP config and appends the 3 bridge tools', () => {
+  const args = buildSpawnArgs({
+    tools: null,
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    needsResume: false,
+    sessionId: 'uuid-print-user',
+    isUserInitiated: true,
+  });
+  // Still print mode (-p) and still loads the full base MCP set
+  assert.ok(args.includes('-p'), 'print mode preserved');
+  const i = args.indexOf('--mcp-config');
+  assert.equal(args[i + 1], MCP_CONFIG, 'base full config first');
+  assert.ok(args.includes(TUI_MCP_CONFIG), 'user-initiated print session also loads the cortex-tui-bridge server');
+  // Tools: base DEFAULT_TOOLS retained + the 3 bridge tools appended
+  const tools = args[args.indexOf('--tools') + 1].split(',');
+  assert.ok(tools.includes('Bash'), 'base tools retained');
+  for (const t of TUI_BRIDGE_TOOLS) {
+    assert.ok(tools.includes(t), `bridge tool ${t} appended`);
+  }
+});
+
+test('buildSpawnArgs print + isUserInitiated + core (CORE_MCP_CONFIG) — thread session gets NO bridge', () => {
+  const args = buildSpawnArgs({
+    tools: null,
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    needsResume: false,
+    sessionId: 'uuid-print-thread',
+    mcpConfigPath: CORE_MCP_CONFIG,
+    isUserInitiated: true,
+  });
+  assert.ok(!args.includes(TUI_MCP_CONFIG), 'thread/core sessions must NOT load the tui bridge');
+  const tools = args[args.indexOf('--tools') + 1].split(',');
+  for (const t of TUI_BRIDGE_TOOLS) {
+    assert.ok(!tools.includes(t), `thread session must NOT get bridge tool ${t}`);
+  }
+});
+
+test('buildSpawnArgs print WITHOUT isUserInitiated — no bridge (baseline unchanged)', () => {
+  const args = buildSpawnArgs({
+    tools: null,
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    needsResume: false,
+    sessionId: 'uuid-print-nonuser',
+  });
+  assert.ok(!args.includes(TUI_MCP_CONFIG), 'non-user-initiated print session must NOT load the tui bridge');
+  const tools = args[args.indexOf('--tools') + 1].split(',');
+  for (const t of TUI_BRIDGE_TOOLS) {
+    assert.ok(!tools.includes(t), `non-user-initiated session must NOT get bridge tool ${t}`);
+  }
+});
+
+test('buildSpawnArgs print + isUserInitiated with explicit tools — bridge tools appended to the explicit list', () => {
+  const args = buildSpawnArgs({
+    tools: 'Bash,Read,Write',
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    needsResume: false,
+    sessionId: 'uuid-print-user-explicit',
+    isUserInitiated: true,
+  });
+  const tools = args[args.indexOf('--tools') + 1].split(',');
+  assert.ok(tools.includes('Bash') && tools.includes('Read') && tools.includes('Write'), 'explicit tools retained');
+  for (const t of TUI_BRIDGE_TOOLS) {
+    assert.ok(tools.includes(t), `bridge tool ${t} appended to explicit list`);
+  }
+});
+
+test('TUI_BRIDGE_TOOLS — the 3 mcp bridge tool names, also contained in TUI_TOOLS', () => {
+  assert.deepEqual([...TUI_BRIDGE_TOOLS].sort(), [
+    'mcp__cortex-tui-bridge__cortex_ask_user',
+    'mcp__cortex-tui-bridge__cortex_plan_enter',
+    'mcp__cortex-tui-bridge__cortex_plan_exit',
+  ]);
+  const tuiTools = TUI_TOOLS.split(',');
+  for (const t of TUI_BRIDGE_TOOLS) {
+    assert.ok(tuiTools.includes(t), `TUI_TOOLS must still contain ${t}`);
+  }
 });
 
 // --- selectClaudeMode (DR-0012 routing) ---

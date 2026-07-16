@@ -3,7 +3,7 @@
 // pos:    Construct Claude CLI argv and process environment variables
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_MCP_CONFIG, SLACK_MCP_CONFIG, FEISHU_MCP_CONFIG, WEB_MCP_CONFIG, TUI_TOOLS, TUI_STRIP_TOOLS } from './defaults.js';
+import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_MCP_CONFIG, SLACK_MCP_CONFIG, FEISHU_MCP_CONFIG, WEB_MCP_CONFIG, TUI_TOOLS, TUI_BRIDGE_TOOLS, TUI_STRIP_TOOLS } from './defaults.js';
 // CORE_MCP_CONFIG is the thread/core marker: callers set mcpConfigPath to it for template thread
 // sessions (remote_* only). buildSpawnArgs uses identity against it to decide whether to layer the
 // TUI bridge server on top.
@@ -43,20 +43,29 @@ export interface ClaudeSpawnOptions {
   extraOption?: Record<string, string> | null;
   /** DR-0012: select adapter mode. Default 'print' preserves -p stream-json behavior. */
   mode?: ClaudeSpawnMode;
+  /** True for user-message-initiated sessions (not thread/scheduled pipeline workers). In print
+   *  mode, such sessions additionally get the cortex-tui-bridge MCP interaction tools
+   *  (cortex_plan_enter/exit, cortex_ask_user) because the native EnterPlanMode/ExitPlanMode/
+   *  AskUserQuestion are filtered out by headless `-p`. Thread/core sessions never get them. */
+  isUserInitiated?: boolean;
 }
 
 export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   const mode: ClaudeSpawnMode = options.mode ?? 'print';
   // MCP server selection is identical to print mode: the base config follows the caller's
   // mcpConfigPath (CORE_MCP_CONFIG for thread/core sessions) and otherwise the full MCP_CONFIG
-  // (cortex-core + cortex-ext). TUI mode additionally layers the cortex-tui-bridge server on top
-  // (its cortex_plan_*/cortex_ask_user tools replace the native EnterPlanMode/ExitPlanMode/
-  // AskUserQuestion), EXCEPT for thread/core sessions — threads run no plan/ask interactions and
-  // must stay on the core server set only. `--mcp-config` is variadic, so we pass both files.
+  // (cortex-core + cortex-ext). The cortex-tui-bridge server (its cortex_plan_*/cortex_ask_user
+  // tools replace the native EnterPlanMode/ExitPlanMode/AskUserQuestion) is layered on top for
+  // interactive TUI sessions AND for user-message-initiated print sessions — in headless `-p` the
+  // native interaction tools are filtered out by the CLI, so plan/ask must go through the bridge.
+  // EXCEPT for thread/core sessions: pipeline workers run no plan/ask interactions and stay on the
+  // core server set only. `--mcp-config` is variadic, so we pass both files.
   const isCoreOnly = options.mcpConfigPath === CORE_MCP_CONFIG;
+  const wantsInteractionBridge = !isCoreOnly
+    && (mode === 'tui' || (mode === 'print' && !!options.isUserInitiated));
   const baseMcpConfig = options.mcpConfigPath || MCP_CONFIG;
   const mcpConfigs: string[] = [baseMcpConfig];
-  if (mode === 'tui' && !isCoreOnly) mcpConfigs.push(TUI_MCP_CONFIG);
+  if (wantsInteractionBridge) mcpConfigs.push(TUI_MCP_CONFIG);
   // Slack-originated sessions additionally layer the cortex-slack server (slack_send_file tool).
   // Suppressed for thread/core sessions, which run no file-sending work and stay on the core set only.
   if (options.loadSlackMcp && !isCoreOnly) mcpConfigs.push(SLACK_MCP_CONFIG);
@@ -87,6 +96,13 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   let effectiveTools = options.tools || toolsDefault;
   if (mode === 'tui' && options.tools) {
     effectiveTools = options.tools.split(',').filter(t => !TUI_STRIP_TOOLS.has(t)).join(',');
+  }
+  // Print mode, user-initiated non-thread sessions: append the cortex-tui-bridge interaction tools.
+  // The native EnterPlanMode/ExitPlanMode/AskUserQuestion are dropped by headless -p regardless of
+  // the allowlist, so these MCP equivalents are the only way plan/ask reaches the user. TUI mode
+  // already carries them via TUI_TOOLS, so only the print branch needs the append.
+  if (mode === 'print' && wantsInteractionBridge) {
+    effectiveTools = [effectiveTools, ...TUI_BRIDGE_TOOLS].filter(Boolean).join(',');
   }
 
   // Both modes: permission bypass + MCP + tools
