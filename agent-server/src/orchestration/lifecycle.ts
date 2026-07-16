@@ -22,7 +22,6 @@ import { isOnMessageEndHookConfigured, runMessageEndSessionHook } from '@domain/
 import * as executionRegistry from '@domain/executions/registry.js';
 import * as askUserQuestion from './interactions/ask-user-question.js';
 import { runAgent, getClaudeMode, getActiveProfile, resolveBackendForChannel } from '@domain/agents/index.js';
-import { projectStore } from '@domain/projects/index.js';
 
 import { setStreamingCallback, clearStreamingCallback } from './routing/hook-bridge.js';
 import { maybeNotifyTurnComplete } from './turn-notify.js';
@@ -43,7 +42,7 @@ const log = createLogger('lifecycle');
 
 // --- Agent success handler ---
 
-export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger = 'user', sessionName = null, threadAnchorId = null, userMessageTs = null, onAssistantMessage = null, onToolUse = null, registerContinuationSink = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; userMessage: string; executionId: string | null; trigger?: string; sessionName?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; onAssistantMessage?: ((text: string) => void) | null; onToolUse?: ((name: string, input: any) => void) | null; registerContinuationSink?: ((sink: ContinuationSink) => void) | null }): Promise<void> {
+export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger = 'user', sessionName = null, threadAnchorId = null, userMessageTs = null, projectId = 'general', onAssistantMessage = null, onToolUse = null, registerContinuationSink = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; userMessage: string; executionId: string | null; trigger?: string; sessionName?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; projectId?: string; onAssistantMessage?: ((text: string) => void) | null; onToolUse?: ((name: string, input: any) => void) | null; registerContinuationSink?: ((sink: ContinuationSink) => void) | null }): Promise<void> {
   // Decoupling: `result.sessionId` is the BACKEND's own session id (Claude self-generated / PI
   // bootstrap id), not the tracking id. Store it as the resume target on the STABLE track record
   // (keyed by sessionName) — do NOT rebind the channel or the registry key to it. The channel stays
@@ -73,7 +72,8 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
   const pendingBg = result?.pendingBackgroundTasks ?? 0;
   const undeliveredBg = result?.undeliveredBackgroundTasks ?? 0;
   if (registerContinuationSink && stream && askCount === 0 && pendingBg + undeliveredBg > 0) {
-    const projectId = projectStore.resolveFromMessage(userMessage)?.id ?? 'general';
+    // Continuation cost is attributed to the session's bound project (threaded from the caller),
+    // NOT re-derived from the message text.
     const backend = resolveBackendForChannel(channel);
     const waitingText = (remaining: number) =>
       `${Icons.waiting} ${sessionTag}${t('status.backgroundRunning')} (${remaining}) (${elapsedStr}${metrics})`;
@@ -318,9 +318,16 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
   let handle;
   try {
     const askBackend = resolveBackendForChannel(group.channel);
+    // group.sessionId is the stable track id; resolve the backend resume target + name + project
+    // from its registry record. Cost/execution attribution uses the session's bound project, NOT a
+    // re-derivation from the response text.
+    const askRec = await sessionStore.getById(group.sessionId);
+    const askBackendSessionId = askRec ? effectiveBackendSessionId(askRec) : null;
+    const askSessionName = askRec?.name ?? null;
+    const askProjectId = askRec?.projectId ?? 'general';
     const execution = executionRegistry.startLocalExecution({
       kind: 'local', channel: group.channel,
-      project: projectStore.resolveFromMessage(responseText)?.id ?? 'general',
+      project: askProjectId,
       trigger: 'ask-user-question',
       backend: askBackend, billingMode: getClaudeMode(),
       sessionId: group.sessionId, label: responseText,
@@ -329,16 +336,12 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
     const askQueue = getOutboundQueue();
     const askDurable = askQueue ? buildDurableHooks(askQueue) : null;
     const onAssistantMsg = makeStreamingMessageCallback(adapter, askDest, null, null, askDurable);
-    // group.sessionId is the stable track id; resolve the backend resume target + name from its record.
-    const askRec = await sessionStore.getById(group.sessionId);
-    const askBackendSessionId = askRec ? effectiveBackendSessionId(askRec) : null;
-    const askSessionName = askRec?.name ?? null;
-    handle = runAgent(responseText, { channel: group.channel, sessionId: askBackendSessionId, trackSessionId: group.sessionId, files: [], project: projectStore.resolveFromMessage(responseText)?.id ?? 'general', trigger: 'ask-user-question', onAssistantMessage: onAssistantMsg });
+    handle = runAgent(responseText, { channel: group.channel, sessionId: askBackendSessionId, trackSessionId: group.sessionId, files: [], project: askProjectId, trigger: 'ask-user-question', onAssistantMessage: onAssistantMsg });
     runningExecutions.register({ threadId: group.threadId ?? null, channel: group.channel, agentSlotId: null, executionId, kill: () => handle.kill(), backend: askBackend });
     const result = await handle.promise;
     runningExecutions.complete(executionId, result?.total_cost_usd ?? 0);
     await maybeNotifyCodexLowUsage({ adapter, result });
-    await handleAgentSuccess({ result, channel: group.channel, adapter, statusMsg, startTime, userMessage: responseText, executionId, trigger: 'ask-user-question', sessionName: askSessionName, onAssistantMessage: onAssistantMsg });
+    await handleAgentSuccess({ result, channel: group.channel, adapter, statusMsg, startTime, userMessage: responseText, executionId, trigger: 'ask-user-question', sessionName: askSessionName, projectId: askProjectId, onAssistantMessage: onAssistantMsg });
   } catch (error) {
     await handleAgentError({ error: error as { message: string; cancelled?: boolean }, channel: group.channel, adapter, statusMsg, startTime, executionId, effectiveSessionId: handle?.sessionId });
   } finally {
@@ -365,6 +368,7 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
   const sessionId = opts.sessionId ?? await getSessionAsync(channel, resolveBackendForChannel(channel));
   const retryRec = sessionId ? await sessionStore.getById(sessionId) : null;
   const backendSessionId = retryRec ? effectiveBackendSessionId(retryRec) : null;
+  const projectId = retryRec?.projectId ?? 'general';
   const sessionName = opts.sessionName || await sessionStore.generateSessionName();
   const userMessageTs = opts.originalTs;
   const retryDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: sessionId ?? '' };
@@ -381,17 +385,17 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
   updateRetryPermalinks(adapter, channel, userMessageTs, statusMsg, opts.supersededStatusTimestamps, retryPrefix, startTime, sessionName, sessionId);
   await initTurnTracking(channel, sessionId, backendSessionId, sessionName, userMessageTs, text, statusMsg.messageId);
   const onMessagePosted = (ref: MessageRef) => void conversationLedger.addResponseTs(channel, userMessageTs, ref.messageId).catch((e) => log.error(e));
-  await runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, userMessageTs, retryPrefix, onMessagePosted, retryDest });
+  await runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest });
 }
 
-async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, userMessageTs, retryPrefix, onMessagePosted, retryDest }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination }): Promise<void> {
+async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination }): Promise<void> {
   const agentMessage = normalizeSkillCommandPrefix(text || '');
   let executionId = null;
   let handle;
   try {
     const retryBackend = resolveBackendForChannel(channel);
     executionId = executionRegistry.startLocalExecution({
-      kind: 'local', channel, project: projectStore.resolveFromMessage(text || '')?.id ?? 'general',
+      kind: 'local', channel, project: projectId,
       trigger: 'edit-retry', backend: retryBackend, billingMode: getClaudeMode(), sessionId, label: agentMessage,
     }).id;
     const retryQueue = getOutboundQueue();
@@ -400,7 +404,7 @@ async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, ses
     setStreamingCallback(channel, onAssistantMsg);
     handle = runAgent(agentMessage, {
       channel, sessionId: backendSessionId, trackSessionId: sessionId, files: [], profileName: getActiveProfile(channel),
-      project: projectStore.resolveFromMessage(text || '')?.id ?? 'general', trigger: 'edit-retry',
+      project: projectId, trigger: 'edit-retry',
       onFallback: makeFallbackNotifier(channel, statusMsg, adapter),
       isUserInitiated: true, onAssistantMessage: onAssistantMsg,
       onProgress: buildRetryProgressUpdater(adapter, channel, statusMsg, retryPrefix, startTime, sessionName, sessionId),
@@ -418,7 +422,7 @@ async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, ses
       const rateLimitText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
       await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     } else {
-      await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage: text, executionId, trigger: 'edit-retry', sessionName, userMessageTs, onAssistantMessage: onAssistantMsg });
+      await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage: text, executionId, trigger: 'edit-retry', sessionName, projectId, userMessageTs, onAssistantMessage: onAssistantMsg });
     }
   } catch (error) {
     clearStreamingCallback(channel);

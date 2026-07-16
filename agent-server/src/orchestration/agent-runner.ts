@@ -137,13 +137,15 @@ export class AgentRunner {
     let sessionId = await getSessionAsync(channel, backend);
     let sessionName: string;
     let backendSessionId: string | null;
+    let projectId: string;
     if (sessionId) {
       sessionName = await resolveSessionName(sessionId, channel, userMessage, adapter);
       const rec = await sessionStore.getById(sessionId);
       backendSessionId = rec ? effectiveBackendSessionId(rec) : null;
+      projectId = rec?.projectId ?? 'general';
     } else {
       sessionId = crypto.randomUUID();
-      const projectId = (await adapter.resolveInboundProject(channel)) ?? 'general';
+      projectId = (await adapter.resolveInboundProject(channel)) ?? 'general';
       sessionName = await registerNamedSession(sessionStore, {
         sessionId, channel, backend,
         label: userMessage?.substring(0, 60) ?? null,
@@ -212,6 +214,7 @@ export class AgentRunner {
         adapter, channel,
         userMessage: agentMessage,
         trackSessionId: sessionId,
+        projectId,
         backendSessionId,
         sessionName,
         files: allFiles,
@@ -275,7 +278,7 @@ export class AgentRunner {
       await handleDefaultAgentResult({
         result: convResult.result, channel, adapter, statusMsg, startTime, userMessage,
         executionId: convResult.executionId,
-        sessionName, sessionId, threadAnchorId, messageTs, callbacks,
+        sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId,
         registerContinuationSink: holdForBg ? (sink: ContinuationSink) => proc!.setContinuationSink!(sink) : null,
       });
       // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
@@ -367,10 +370,10 @@ export function resolveDefaultAgent(agentMessage: string, channel?: string): Age
   };
 }
 
-async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, registerContinuationSink = null }: {
+async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId, registerContinuationSink = null }: {
   result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
   userMessage: string; executionId: string | null; sessionName: string; sessionId: string | null;
-  threadAnchorId: string | null; messageTs: string; callbacks: AgentCallbacks;
+  threadAnchorId: string | null; messageTs: string; callbacks: AgentCallbacks; projectId: string;
   registerContinuationSink?: ((sink: ContinuationSink) => void) | null;
 }): Promise<void> {
   if (result?.rateLimited) {
@@ -382,7 +385,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     await sealStatus(adapter, statusMsg, fallbackText, buildSealedStatusActionBlocks(fallbackText, { channel, sessionName, isDm: true }));
     return;
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: callbacks.onToolUse, registerContinuationSink });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: callbacks.onToolUse, registerContinuationSink });
 }
 
 /** Set a session's display label from its first user message when it has none yet (best-effort,

@@ -19,7 +19,6 @@ import {
 } from '@domain/agents/index.js';
 import { resolveAgentSlotConfigByName, resolveSystemVars, buildConversationPrompt } from '@domain/threads/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
-import { projectStore } from '@domain/projects/index.js';
 import { runningExecutions } from '../core/running-executions.js';
 
 export interface RunConversationOptions {
@@ -29,6 +28,9 @@ export interface RunConversationOptions {
   userMessage: string;
   /** Stable Cortex tracking id for this session (UI identity, execution-record + publish key). */
   trackSessionId: string;
+  /** The project this session is bound to (from the session registry record). Cost + execution
+   *  records are attributed to this project verbatim — no message-text re-derivation. */
+  projectId: string;
   /** Backend resume target (the backend CLI's own session id), or null for a fresh session where the
    *  backend self-assigns its id. Decoupled from {@link trackSessionId}. */
   backendSessionId: string | null;
@@ -80,7 +82,10 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
   // Session resume keeps it in history thereafter, so re-sending it every turn just wastes tokens.
   const isFreshSession = opts.backendSessionId === null;
   const prompt = buildConversationPrompt(agentConfig, opts.userMessage, { includeUserContext: isFreshSession });
-  const project = projectStore.resolveFromMessage(opts.userMessage)?.id ?? 'general';
+  // Attribute cost/execution to the session's bound project (from the registry record), NOT a
+  // re-derivation from the message text. A session created under project X stays project X even if
+  // no message ever mentions X literally (that mismatch previously dumped everything into 'general').
+  const project = opts.projectId;
 
   // Resolve profile: hardcoded agent profiles win; __active__ honors the optional override
   // (scheduler) then the channel's active profile.
