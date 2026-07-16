@@ -315,6 +315,11 @@ pub fn run() {
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
+        // Native OS/system notifications for the SPA (design 1q). The JS side
+        // (@tauri-apps/plugin-notification via web/src/features/notifications/os-notify.ts) invokes
+        // this plugin's commands; it is the only path to a real OS notification inside the Android
+        // WebView, which has no web Notifications API.
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState {
             config: Mutex::new(ConnectionConfig::default()),
         })

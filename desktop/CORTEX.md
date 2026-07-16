@@ -92,6 +92,15 @@ desktop/
 └── src-tauri/target/         Rust build output (gitignored)
 ```
 
+## Plugins
+
+- `tauri-plugin-notification` (Cargo.toml + `.plugin(tauri_plugin_notification::init())` in `lib.rs`;
+  `notification:default` in `capabilities/default.json`): native OS/system notifications for the SPA
+  (design 1q). The Android System WebView has no web Notifications API, so the mobile shell's
+  notifications go through this plugin. JS side: `@tauri-apps/plugin-notification`, called from
+  `web/src/features/notifications/os-notify.ts`. Android's `POST_NOTIFICATIONS` runtime permission is
+  requested by the SPA on mount (`MNotificationProvider`) via the plugin's `requestPermission`.
+
 ## Tauri commands
 
 | command | signature | purpose |

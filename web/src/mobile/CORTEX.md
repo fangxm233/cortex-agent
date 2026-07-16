@@ -49,7 +49,7 @@ the contract does not carry (never fabricated; flagged `// GAP`).
 | 1k 机器 | `MMachinesScreen/View`, `m-machines-vm` | `machines.list` (reuses `screens/mobile-machines-vm`) |
 | 1l 设置 | `MSettingsScreen/View`, `m-settings-vm` | `config.get`+`cost.summary`; budget; desktop-only editing marked 桌面编辑 |
 | 1r Daemon | `MDaemonScreen/View`, `m-daemon-vm` | `system.daemonStatus`+`threads.list`+`schedules.list`+`executions.list`+`system.restart` |
-| 1q 通知 | `MNotificationProvider`, `MNotificationToaster` | global banner over real `session.message`/`system.notice` (reuses desktop notification store/vm/hooks) |
+| 1q 通知 | `MNotificationProvider`, `MNotificationToaster` | **native OS/system notifications** over real `session.message`/`system.notice` via `features/notifications/os-notify` (Tauri notification plugin); reuses desktop notification store/vm/hooks. **Tap → deep-link**: the `{sessionId, projectId}` payload rides in the notification `extra`; `onOsNotificationAction` reads it back and re-points project + drills into `/m/session/:id` (design 1q "轻点直达对应会话"). Falls back to the in-app banner (`MNotificationToaster`, same tap-to-open) only when the OS path can't deliver (plain browser / permission denied). |
 
 ## Notes
 

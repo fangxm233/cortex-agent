@@ -16,16 +16,17 @@
   },
   "dependencies": {
     "@cortex-agent/ui-contract": "workspace:*",
-    "eventsource": "^3.0.0",
     "@radix-ui/react-dialog": "^1.1.18",
     "@radix-ui/react-popover": "^1.1.18",
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-toast": "^1.2.18",
     "@radix-ui/react-tooltip": "^1.1.6",
     "@tanstack/react-query": "^5.59.16",
+    "@tauri-apps/plugin-notification": "^2.3.3",
     "@trpc/client": "^11.0.0",
     "@trpc/tanstack-react-query": "^11.0.0",
     "cmdk": "^1.1.1",
+    "eventsource": "^3.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0"

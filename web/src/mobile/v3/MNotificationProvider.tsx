@@ -12,6 +12,12 @@ import { useSystemNotices, type SystemNoticeMessage } from '@/features/notificat
 import { addNotification, removeNotification, splitVisible } from '@/features/notifications/notification-store';
 import { recordTurnMessage, takeTurnMessage, type BufferedTurnMessage } from '@/features/notifications/turn-buffer';
 import { buildNotification, buildSystemNotice, type NotificationItem } from '@/features/notifications/notification-vm';
+import {
+  ensureOsNotifyPermission,
+  sendOsNotification,
+  osNotificationSpec,
+  onOsNotificationAction,
+} from '@/features/notifications/os-notify';
 import { MNotificationToaster } from './MNotificationToaster';
 
 interface DirectEntry {
@@ -44,6 +50,51 @@ export function MNotificationProvider() {
     pathRef.current = location.pathname;
   }, [location.pathname]);
 
+  // Prompt for OS-notification permission once on mount (no-op in a plain browser). Getting the grant
+  // early means the first real notification fires as a system notification, not the in-app fallback.
+  useEffect(() => {
+    void ensureOsNotifyPermission();
+  }, []);
+
+  // Open a DM session (re-point the current project, then drill into the chat). Shared by the OS
+  // notification-tap handler (design 1q "轻点直达对应会话") and the in-app fallback toaster's tap.
+  const openSession = useCallback(
+    (sessionId: string, projectId: string | null) => {
+      if (!sessionId) return;
+      if (projectId) setCurrentProject(projectId);
+      navigate(`/m/session/${sessionId}`);
+    },
+    [navigate, setCurrentProject],
+  );
+
+  // Route a native notification tap. The `data` payload is the {sessionId, projectId} we stored in the
+  // notification's `extra` when sending — read it back and deep-link. No-op off-shell (browser).
+  useEffect(() => {
+    let cleanup = () => {};
+    void onOsNotificationAction((data) => {
+      const sessionId = typeof data?.sessionId === 'string' ? data.sessionId : '';
+      const projectId = typeof data?.projectId === 'string' && data.projectId ? data.projectId : null;
+      openSession(sessionId, projectId);
+    }).then((fn) => {
+      cleanup = fn;
+    });
+    return () => cleanup();
+  }, [openSession]);
+
+  // Deliver a notification as a native OS/system notification (design 1q: mobile uses system push).
+  // Falls back to the in-app banner only when the OS path cannot deliver (plain browser, permission
+  // denied, or a plugin error) so a notification is never silently dropped. The nav payload
+  // (sessionId/projectId) rides along in `extra` so a tap can deep-link back to the session.
+  const deliver = useCallback((item: NotificationItem) => {
+    const data = item.sessionId
+      ? { sessionId: item.sessionId, projectId: item.projectId ?? '' }
+      : undefined;
+    void (async () => {
+      const sent = await sendOsNotification(osNotificationSpec(item), data);
+      if (!sent) setItems((list) => addNotification(list, item));
+    })();
+  }, []);
+
   const turnBufferRef = useRef<Map<string, BufferedTurnMessage>>(new Map());
 
   const onMessage = useCallback((msg: DmAssistantMessage) => {
@@ -69,8 +120,8 @@ export function MNotificationProvider() {
       text: buffered.text,
       ts: buffered.ts,
     });
-    setItems((list) => addNotification(list, item));
-  }, []);
+    deliver(item);
+  }, [deliver]);
 
   useDmNotifications({ onMessage, onTurnEnd });
 
@@ -83,8 +134,8 @@ export function MNotificationProvider() {
       title: msg.title ?? undefined,
       ts: msg.ts ?? undefined,
     });
-    setItems((list) => addNotification(list, item));
-  }, []);
+    deliver(item);
+  }, [deliver]);
 
   useSystemNotices(onSystemNotice);
 
@@ -92,13 +143,10 @@ export function MNotificationProvider() {
 
   const activate = useCallback(
     (item: NotificationItem) => {
-      if (item.sessionId) {
-        if (item.projectId) setCurrentProject(item.projectId);
-        navigate(`/m/session/${item.sessionId}`);
-      }
+      openSession(item.sessionId, item.projectId);
       setItems((list) => removeNotification(list, item.id));
     },
-    [navigate, setCurrentProject],
+    [openSession],
   );
 
   const { visible } = splitVisible(items);
