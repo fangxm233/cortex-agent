@@ -235,6 +235,25 @@ describe('1b MChatView composition', () => {
     expect(html).toContain('hello');
     expect(html).toContain('profile 切换 default → cheap · 下一 turn 生效'); // system line
   });
+  it('shows a Stop button (not Send) while the session is running', () => {
+    const html = renderToStaticMarkup(
+      <MChatView
+        {...baseProps}
+        status={{ running: true, text: 'running · 12 turns' }}
+        rows={[]}
+        onStop={() => {}}
+      />,
+    );
+    expect(html).toContain('aria-label="Stop"');
+    expect(html).not.toContain('aria-label="Send"');
+  });
+  it('shows the Send button (not Stop) when idle', () => {
+    const html = renderToStaticMarkup(
+      <MChatView {...baseProps} status={{ running: false, text: 'idle' }} rows={[]} />,
+    );
+    expect(html).toContain('aria-label="Send"');
+    expect(html).not.toContain('aria-label="Stop"');
+  });
   it('shows the attachment footnote + placeholder when uploads are present', () => {
     const html = renderToStaticMarkup(
       <MChatView

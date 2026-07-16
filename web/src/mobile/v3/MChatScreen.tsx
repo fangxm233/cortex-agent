@@ -193,6 +193,13 @@ export function MChatScreen(): JSX.Element {
       onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
     }),
   );
+  // Stop: cancel the agent(s) running on this session's channel (reuses the desktop Composer's
+  // sessions.cancel path). `running` collapses to idle as the live stream quiets.
+  const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
+  const onStop = (): void => {
+    if (!sessionId || cancelMut.isPending) return;
+    cancelMut.mutate({ sessionId });
+  };
 
   // ── local UI state ──
   const [text, setText] = useState('');
@@ -306,6 +313,8 @@ export function MChatScreen(): JSX.Element {
         onComposerChange={setText}
         onSend={onSend}
         sendEnabled={sendEnabled}
+        onStop={onStop}
+        stopEnabled={!cancelMut.isPending}
         profileChipLabel={profileChipLabel(effectiveProfile, profiles)}
         onOpenProfile={() => setProfileOpen(true)}
         attachments={attachmentsVM}

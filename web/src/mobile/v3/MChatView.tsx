@@ -573,7 +573,6 @@ export interface MChatViewProps {
   onMoreToggle: () => void;
   onMoreClose: () => void;
   // stream slots
-  inlineThreadCard?: ReactNode;
   systemLines?: string[];
   pendingQuestion?: AskQuestionCardData;
   onAnswerQuestion?: (optionId: string) => void;
@@ -586,6 +585,9 @@ export interface MChatViewProps {
   onComposerChange: (v: string) => void;
   onSend: () => void;
   sendEnabled: boolean;
+  // Stop: while the session is running the composer shows a Stop button instead of Send.
+  onStop?: () => void;
+  stopEnabled?: boolean;
   profileChipLabel: string;
   onOpenProfile: () => void;
   attachments: PendingAttachmentVM[];
@@ -607,16 +609,22 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   // desktop MessageStream stick-to-bottom behavior.
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
+  // Suppress auto-scroll briefly after user taps inside the stream (e.g. expanding a tool row),
+  // so expanded content doesn't scroll out of view on the next streaming tick.
+  const tapFreezeUntil = useRef(0);
   const onScroll = (): void => {
     const el = scrollRef.current;
     if (!el) return;
     stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   };
+  const onContentClick = (): void => {
+    tapFreezeUntil.current = Date.now() + 800;
+  };
   // After every content change (entry, streaming delta, profile system-line) keep the view pinned to
   // the bottom IF the user hasn't scrolled up — identical to the desktop MessageStream effect.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
+    if (el && stickRef.current && Date.now() >= tapFreezeUntil.current) el.scrollTop = el.scrollHeight;
   }, [props.rows, props.systemLines, props.answeredQuestions]);
 
   const above = (
@@ -644,14 +652,13 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       <MChatHeader title={props.title} status={props.status} onBack={props.onBack} onMore={props.onMoreToggle} />
       {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
           content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. */}
-      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
+      <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
         <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {props.answeredQuestions?.map((r) => (
             <AnsweredRow key={r.id} row={r} copy={copy} />
           ))}
           <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} />
-          {props.inlineThreadCard}
-          {props.pendingQuestion && <AskQuestionCard data={props.pendingQuestion} copy={copy} onAnswer={props.onAnswerQuestion ?? (() => {})} />}
+          {props.pendingQuestion &&<AskQuestionCard data={props.pendingQuestion} copy={copy} onAnswer={props.onAnswerQuestion ?? (() => {})} />}
           {props.pendingPlan && <PlanApprovalCard data={props.pendingPlan} copy={copy} onApprove={props.onApprovePlan ?? (() => {})} onReject={props.onRejectPlan ?? (() => {})} />}
           {props.systemLines?.map((t, i) => (
             <SystemLine key={i} text={t} />
@@ -665,6 +672,9 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         onChange={props.onComposerChange}
         onSend={props.onSend}
         sendEnabled={props.sendEnabled}
+        running={props.status.running}
+        onStop={props.onStop}
+        stopEnabled={props.stopEnabled}
         leading={<PlusButton onClick={props.onPlus} />}
         above={above}
       />

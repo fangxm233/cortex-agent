@@ -544,8 +544,10 @@ export function MBottomSheet({
   );
 }
 
-// ── MComposer — the bottom message composer (input + send) ────────────────────
+// ── MComposer — the bottom message composer (input + send / stop) ─────────────
 // scheme 1b L165-168. `above` renders composer chips (profile chip / status line / attachment chips).
+// While the session is `running`, the send button swaps for a Stop button (white square on the ink
+// bg, mirroring the desktop Composer) so the user can cancel the running agent turn.
 export function MComposer({
   placeholder,
   above,
@@ -554,6 +556,9 @@ export function MComposer({
   value,
   onChange,
   onSend,
+  running = false,
+  onStop,
+  stopEnabled = true,
 }: {
   placeholder: string;
   above?: ReactNode;
@@ -562,6 +567,9 @@ export function MComposer({
   value?: string;
   onChange?: (v: string) => void;
   onSend?: () => void;
+  running?: boolean;
+  onStop?: () => void;
+  stopEnabled?: boolean;
 }) {
   return (
     <div
@@ -595,29 +603,53 @@ export function MComposer({
             outline: 'none',
           }}
         />
-        <button
-          type="button"
-          aria-label="Send"
-          disabled={!sendEnabled}
-          onClick={onSend}
-          style={{
-            flex: 'none',
-            width: 46,
-            height: 46,
-            borderRadius: 14,
-            background: MC.ink,
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: sendEnabled ? 1 : 0.45,
-            cursor: sendEnabled ? 'pointer' : 'default',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="1.8">
-            <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
-          </svg>
-        </button>
+        {running ? (
+          <button
+            type="button"
+            aria-label="Stop"
+            disabled={!stopEnabled}
+            onClick={onStop}
+            style={{
+              flex: 'none',
+              width: 46,
+              height: 46,
+              borderRadius: 14,
+              background: MC.ink,
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: stopEnabled ? 1 : 0.45,
+              cursor: stopEnabled ? 'pointer' : 'default',
+            }}
+          >
+            <span style={{ width: 14, height: 14, background: '#fff', borderRadius: 3 }} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="Send"
+            disabled={!sendEnabled}
+            onClick={onSend}
+            style={{
+              flex: 'none',
+              width: 46,
+              height: 46,
+              borderRadius: 14,
+              background: MC.ink,
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: sendEnabled ? 1 : 0.45,
+              cursor: sendEnabled ? 'pointer' : 'default',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="1.8">
+              <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );
