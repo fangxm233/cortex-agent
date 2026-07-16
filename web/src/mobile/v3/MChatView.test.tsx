@@ -99,7 +99,7 @@ describe('1b MChatStream', () => {
     { kind: 'assistant', text: 'scan complete', streaming: true },
   ];
   const html = renderToStaticMarkup(<MChatStream rows={rows} toolCallsUnit="次工具调用" />);
-  it('renders divider, dark user bubble, collapsed tools, assistant + caret', () => {
+  it('renders divider, dark user bubble, collapsed tools, assistant text — no blinking caret', () => {
     expect(html).toContain('今天 07:42');
     expect(html).toContain('how did the scan go?');
     expect(html).toContain('#191C22');
@@ -107,7 +107,8 @@ describe('1b MChatStream', () => {
     expect(html).toContain('read');
     expect(html).toContain('+2'); // 4 calls, first-two chips + overflow
     expect(html).toContain('scan complete');
-    expect(html).toContain('cxblink');
+    // The blue blinking output-position block was removed by request.
+    expect(html).not.toContain('cxblink');
   });
 });
 
@@ -222,17 +223,16 @@ describe('1b MChatView composition', () => {
     const html = renderToStaticMarkup(
       <MChatView
         {...baseProps}
-        status={{ running: true, text: 'running · 5 turns' }}
+        status={{ running: true, text: 'running · 2m 4s · 5 turns' }}
         rows={[{ kind: 'assistant', text: 'hello', streaming: false }]}
-        runningLine="running · 2m 4s"
         systemLines={['profile 切换 default → cheap · 下一 turn 生效']}
       />,
     );
     expect(html).toContain('nimbus review');
+    expect(html).toContain('running · 2m 4s · 5 turns'); // status now lives in the header
     expect(html).toContain('default · sonnet-4.5'); // profile chip
     expect(html).toContain('＋'); // attach affordance
     expect(html).toContain('hello');
-    expect(html).toContain('running · 2m 4s'); // composer running line
     expect(html).toContain('profile 切换 default → cheap · 下一 turn 生效'); // system line
   });
   it('shows the attachment footnote + placeholder when uploads are present', () => {

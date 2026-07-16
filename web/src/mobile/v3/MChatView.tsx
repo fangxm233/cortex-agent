@@ -2,7 +2,7 @@
 // (1b L136-168 · 1m L670-698 · 1n L709-741 · 1o L753-786 · 1p L799-845). Raw px/hex/font/svg by
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import type { ChatRow, Attachment } from '@/features/workbench/transcript-vm';
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
@@ -288,24 +288,14 @@ export function MChatStream({ rows, toolCallsUnit }: { rows: ChatRow[]; toolCall
           {row.kind === 'tools' && <ToolCallsRow count={row.count} calls={row.calls} unit={toolCallsUnit} />}
           {row.kind === 'assistant' && (
             <div style={{ fontSize: 13.5, lineHeight: 1.65, color: MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-              <ChatMarkdown text={row.text} />
+              {/* dropTrailingHr — assistant messages often end with a `---` separator; on mobile the
+                  trailing horizontal rule reads as dangling cruft, so it is stripped. No streaming
+                  caret: the blinking output-position block was removed by request. */}
+              <ChatMarkdown text={row.text} dropTrailingHr />
               {row.attachments && row.attachments.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <AttachmentGroup attachments={row.attachments} />
                 </div>
-              )}
-              {row.streaming && (
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: 7,
-                    height: 14,
-                    marginLeft: 2,
-                    verticalAlign: 'text-bottom',
-                    background: MC.run,
-                    animation: 'cxblink 1.1s steps(1) infinite',
-                  }}
-                />
               )}
             </div>
           )}
@@ -598,7 +588,6 @@ export interface MChatViewProps {
   sendEnabled: boolean;
   profileChipLabel: string;
   onOpenProfile: () => void;
-  runningLine?: string;
   attachments: PendingAttachmentVM[];
   onRemoveAttachment: (id: string) => void;
   onPlus: () => void;
@@ -612,6 +601,22 @@ export interface MChatViewProps {
 
 export function MChatView(props: MChatViewProps): JSX.Element {
   const { copy } = props;
+
+  // Open the session at the latest message (bottom), and keep it pinned to the bottom as new content
+  // streams in — releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the
+  // desktop MessageStream stick-to-bottom behavior.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
+  const onScroll = (): void => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  };
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
+  }, [props.rows, props.systemLines, props.answeredQuestions, props.inlineThreadCard]);
+
   const above = (
     <>
       {props.attachments.length > 0 && (
@@ -621,14 +626,10 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           ))}
         </div>
       )}
+      {/* Composer chrome above the input: the profile chip only. The running/idle status line was
+          removed — that readout now lives in the header (see chatHeaderStatus). */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 7px' }}>
         <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
-        {props.runningLine && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `500 10.5px ${MONO}`, color: MC.muted }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, animation: 'cxpulse 1.6s ease-in-out infinite' }} />
-            <span>{props.runningLine}</span>
-          </div>
-        )}
       </div>
     </>
   );
@@ -639,7 +640,11 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: MC.canvas }}
     >
       <MChatHeader title={props.title} status={props.status} onBack={props.onBack} onMore={props.onMoreToggle} />
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12, background: MC.canvas }}>
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12, background: MC.canvas }}
+      >
         {props.answeredQuestions?.map((r) => (
           <AnsweredRow key={r.id} row={r} copy={copy} />
         ))}

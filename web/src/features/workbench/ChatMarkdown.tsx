@@ -122,8 +122,16 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
   }
 }
 
-export function ChatMarkdown({ text }: { text: string }): JSX.Element {
-  const blocks = parseBlocks(text);
+export function ChatMarkdown({ text, dropTrailingHr = false }: { text: string; dropTrailingHr?: boolean }): JSX.Element {
+  let blocks = parseBlocks(text);
+  // Opt-in (mobile chat): assistant messages often close with a `---` separator, which renders as a
+  // dangling horizontal rule at the bottom of the bubble. Trim any trailing hr block(s). Default off,
+  // so the desktop renderer is unchanged.
+  if (dropTrailingHr) {
+    let end = blocks.length;
+    while (end > 0 && blocks[end - 1].type === 'hr') end--;
+    if (end !== blocks.length) blocks = blocks.slice(0, end);
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {blocks.map((b, i) => (

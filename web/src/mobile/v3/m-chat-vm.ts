@@ -13,14 +13,44 @@ import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 
 export interface ChatHeaderStatus {
   running: boolean;
-  /** `running · N turns` / `idle · N turns` (turns dropped when unknown). Cost intentionally absent. */
+  /**
+   * Header status line, mirroring the web composer (Composer.tsx):
+   *   • running          → `running · {elapsed} · {turns}` (cost is not known mid-turn)
+   *   • idle after a turn → `idle · {elapsed} · {turns} · {cost}`
+   *   • fresh / never-run → bare `idle`
+   * `turns`/`cost` render as `—` when unknown.
+   */
   text: string;
 }
 
-/** Header status line — real running snapshot+delta + real agent-turn count. No cost (no DTO source). */
-export function chatHeaderStatus(running: boolean, turns: number | null): ChatHeaderStatus {
-  const word = running ? 'running' : 'idle';
-  return { running, text: turns != null ? `${word} · ${turns} turns` : word };
+const DASH = '—';
+
+/** `$0.42` — matches the web `formatCost` (right-panel-vm.ts). */
+function fmtCost(v: number): string {
+  return '$' + v.toFixed(2);
+}
+
+/**
+ * Header status line — real running snapshot+delta + real agent-turn count + current/last-turn elapsed
+ * + last-run cost. Same progressive logic as the desktop composer: running shows time + turns; an
+ * idle-after-a-turn session adds the finalized cost; a fresh/never-run session shows just `idle`.
+ */
+export function chatHeaderStatus(
+  running: boolean,
+  turns: number | null,
+  elapsed: string,
+  cost: number | null,
+  hasRun: boolean,
+): ChatHeaderStatus {
+  const turnsText = turns == null ? DASH : `${turns} turns`;
+  if (running) {
+    return { running: true, text: `running · ${elapsed} · ${turnsText}` };
+  }
+  if (!hasRun) {
+    return { running: false, text: 'idle' };
+  }
+  const costText = cost == null ? DASH : fmtCost(cost);
+  return { running: false, text: `idle · ${elapsed} · ${turnsText} · ${costText}` };
 }
 
 /** The session's effective profile: explicit session profile, else config default, else first, else —. */

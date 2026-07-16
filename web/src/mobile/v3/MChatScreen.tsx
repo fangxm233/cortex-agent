@@ -292,7 +292,12 @@ export function MChatScreen(): JSX.Element {
     }
   };
 
-  const status = chatHeaderStatus(running, turns);
+  // Header status = running snapshot + real agent-turn count + current/last-turn elapsed + last-run
+  // cost — same progressive readout as the desktop composer (running: time+turns; idle-after-a-turn:
+  // +cost; fresh: bare idle). A draft or never-run session shows just `idle`.
+  const cost = active?.costUsd ?? null;
+  const hasRun = !isDraft && turns != null;
+  const status = chatHeaderStatus(running, turns, elapsed, cost, hasRun);
   const title = isDraft
     ? (lang === 'zh' ? '新会话' : 'New session')
     : (active?.label ?? active?.name ?? routeParam ?? '');
@@ -332,7 +337,6 @@ export function MChatScreen(): JSX.Element {
         sendEnabled={sendEnabled}
         profileChipLabel={profileChipLabel(effectiveProfile, profiles)}
         onOpenProfile={() => setProfileOpen(true)}
-        runningLine={running ? `running · ${elapsed}` : undefined}
         attachments={attachmentsVM}
         onRemoveAttachment={(id) => setUploads((prev) => prev.filter((u) => u.id !== id))}
         onPlus={() => setAttachMenuOpen((o) => !o)}

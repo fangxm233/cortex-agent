@@ -16,20 +16,26 @@ const profiles: ConfigProfileEntry[] = [
 ];
 
 describe('chatHeaderStatus', () => {
-  it('running with a real turn count → `running · N turns` (no cost)', () => {
-    const s = chatHeaderStatus(true, 12);
+  // Mirrors the web composer status line (Composer.tsx): running shows time + turns (cost is not
+  // known mid-turn); an idle-after-a-turn session adds cost; a fresh/never-run session is bare `idle`.
+  it('running → `running · {elapsed} · {turns}` (no cost mid-turn)', () => {
+    const s = chatHeaderStatus(true, 12, '2m 4s', null, true);
     expect(s.running).toBe(true);
-    expect(s.text).toBe('running · 12 turns');
+    expect(s.text).toBe('running · 2m 4s · 12 turns');
     expect(s.text).not.toContain('$');
   });
-  it('running with unknown turns → bare `running`', () => {
-    expect(chatHeaderStatus(true, null).text).toBe('running');
+  it('running with unknown turns → renders the — dash for turns', () => {
+    expect(chatHeaderStatus(true, null, '5s', null, false).text).toBe('running · 5s · —');
   });
-  it('idle with a real turn count → `idle · N turns`', () => {
-    expect(chatHeaderStatus(false, 12).text).toBe('idle · 12 turns');
+  it('idle after a turn → `idle · {elapsed} · {turns} · {cost}`', () => {
+    expect(chatHeaderStatus(false, 12, '2m 4s', 0.42, true).text).toBe('idle · 2m 4s · 12 turns · $0.42');
   });
-  it('idle with unknown turns → bare `idle`', () => {
-    expect(chatHeaderStatus(false, null).text).toBe('idle');
+  it('idle after a turn with unknown cost → — dash for cost', () => {
+    expect(chatHeaderStatus(false, 12, '2m 4s', null, true).text).toBe('idle · 2m 4s · 12 turns · —');
+  });
+  it('fresh / never-run session → bare `idle`', () => {
+    expect(chatHeaderStatus(false, null, '—', null, false).text).toBe('idle');
+    expect(chatHeaderStatus(false, 3, '10s', 0.1, false).text).toBe('idle');
   });
 });
 
