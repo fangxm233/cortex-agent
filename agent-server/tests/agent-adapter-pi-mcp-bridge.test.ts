@@ -15,9 +15,10 @@ import { _test } from '../src/agent-adapter/pi/mcp-bridge.js';
 // so this test self-maintains instead of drifting against hardcoded counts.
 import { TOOL_NAMES as CORE_TOOLS } from '../src/domain/mcp/core-server.js';
 import { TOOL_NAMES as SLACK_TOOLS } from '../src/domain/mcp/slack-server.js';
+import { TOOL_NAMES as WEB_TOOLS } from '../src/domain/mcp/web-server.js';
 import { FEISHU_TOOL_NAMES as FEISHU_TOOLS } from '../src/domain/mcp/feishu/index.js';
 
-const { mapMcpContent, shouldLoadSlack, shouldLoadFeishu } = _test;
+const { mapMcpContent, shouldLoadSlack, shouldLoadFeishu, shouldLoadWeb } = _test;
 
 // The CORE_SERVER_PATH / EXT_SERVER_PATH exported from mcp-bridge resolves relative to its own
 // location: when loaded via tsx from src/ those siblings don't exist; when running compiled from
@@ -29,6 +30,7 @@ const CORE_SERVER_PATH = resolve(DIST_DIR, 'domain/mcp/core-server.js');
 const EXT_SERVER_PATH = resolve(DIST_DIR, 'domain/mcp/server.js');
 const SLACK_SERVER_PATH = resolve(DIST_DIR, 'domain/mcp/slack-server.js');
 const FEISHU_SERVER_PATH = resolve(DIST_DIR, 'domain/mcp/feishu-server.js');
+const WEB_SERVER_PATH = resolve(DIST_DIR, 'domain/mcp/web-server.js');
 
 const EXT_TOOLS = [
   'cost_query', 'query_executions',
@@ -82,6 +84,20 @@ test('shouldLoadFeishu: false for slack / bare / empty channels', () => {
   assert.equal(shouldLoadFeishu(undefined), false);
 });
 
+// --- shouldLoadWeb: gate the cortex-web server on Web-UI-originated sessions ---
+
+test('shouldLoadWeb: true when channel carries the web: prefix', () => {
+  assert.equal(shouldLoadWeb('web:abc123'), true);
+});
+
+test('shouldLoadWeb: false for slack / feishu / bare / empty channels', () => {
+  assert.equal(shouldLoadWeb('slack:C0123'), false);
+  assert.equal(shouldLoadWeb('feishu:oc_abc'), false);
+  assert.equal(shouldLoadWeb('C0123'), false);
+  assert.equal(shouldLoadWeb(''), false);
+  assert.equal(shouldLoadWeb(undefined), false);
+});
+
 // --- shouldLoadSlack: gate the cortex-slack server on Slack-originated sessions ---
 
 test('shouldLoadSlack: true when channel carries the slack: prefix', () => {
@@ -111,6 +127,10 @@ test('compiled slack-server.js exists at expected dist location', () => {
 
 test('compiled feishu-server.js exists at expected dist location', () => {
   assert.ok(existsSync(FEISHU_SERVER_PATH), `expected ${FEISHU_SERVER_PATH} on disk — run \`npm run build\` first`);
+});
+
+test('compiled web-server.js exists at expected dist location', () => {
+  assert.ok(existsSync(WEB_SERVER_PATH), `expected ${WEB_SERVER_PATH} on disk — run \`npm run build\` first`);
 });
 
 // --- Test A: listTools integration (real MCP subprocesses) ---
@@ -170,6 +190,26 @@ test('slack-server exposes its declared SLACK_TOOL_NAMES via StdioClientTranspor
       assert.ok(names.includes(expected), `expected tool '${expected}' in slack-server listTools`);
     }
     assert.equal(names.length, SLACK_TOOLS.length, `expected exactly ${SLACK_TOOLS.length} tools in slack-server`);
+  } finally {
+    await transport.close();
+  }
+});
+
+test('web-server exposes its declared TOOL_NAMES via StdioClientTransport', { timeout: 15000 }, async () => {
+  const transport = new StdioClientTransport({
+    command: 'node',
+    args: [WEB_SERVER_PATH],
+    stderr: 'pipe',
+  });
+  const client = new Client({ name: 'test-web-server', version: '1.0.0' });
+  await client.connect(transport);
+  try {
+    const { tools } = await client.listTools();
+    const names = tools.map((t) => t.name);
+    for (const expected of WEB_TOOLS) {
+      assert.ok(names.includes(expected), `expected tool '${expected}' in web-server listTools`);
+    }
+    assert.equal(names.length, WEB_TOOLS.length, `expected exactly ${WEB_TOOLS.length} tools in web-server`);
   } finally {
     await transport.close();
   }

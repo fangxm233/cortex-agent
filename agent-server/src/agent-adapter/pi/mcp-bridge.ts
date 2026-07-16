@@ -22,6 +22,7 @@ const CORE_SERVER_PATH = resolve(_dirname, '../../domain/mcp/core-server.js');
 const EXT_SERVER_PATH = resolve(_dirname, '../../domain/mcp/server.js');
 const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
 const FEISHU_SERVER_PATH = resolve(_dirname, '../../domain/mcp/feishu-server.js');
+const WEB_SERVER_PATH = resolve(_dirname, '../../domain/mcp/web-server.js');
 
 /** The cortex-slack server (slack_send_file tool) is loaded only for sessions that originate from
  *  Slack. The PI adapter forwards the source channel into the subprocess env as SLACK_CHANNEL; the
@@ -35,6 +36,14 @@ export function shouldLoadSlack(channel: string | undefined): boolean {
  *  FeishuAdapter tags its conduits with the `feishu:` prefix, so that prefix is the source marker. */
 export function shouldLoadFeishu(channel: string | undefined): boolean {
   return !!channel && channel.startsWith('feishu:');
+}
+
+/** The cortex-web server (send_file tool) is loaded only for sessions that originate from
+ *  the Web UI. The PI adapter forwards the source channel into the subprocess env as
+ *  SLACK_CHANNEL; the Web UI tags its channels with the `web:` prefix, so that prefix is
+ *  the source marker. */
+export function shouldLoadWeb(channel: string | undefined): boolean {
+  return !!channel && channel.startsWith('web:');
 }
 
 // --- Content type mapping ---
@@ -102,11 +111,13 @@ export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
   let extHandle: McpClientHandle | null = null;
   let slackHandle: McpClientHandle | null = null;
   let feishuHandle: McpClientHandle | null = null;
+  let webHandle: McpClientHandle | null = null;
   let toolsRegistered = false;
 
   // The source channel is forwarded by the PI adapter as SLACK_CHANNEL (see pi/adapter.ts spawn env).
   const loadSlack = shouldLoadSlack(process.env.SLACK_CHANNEL);
   const loadFeishu = shouldLoadFeishu(process.env.SLACK_CHANNEL);
+  const loadWeb = shouldLoadWeb(process.env.SLACK_CHANNEL);
 
   async function ensureAllConnected(): Promise<void> {
     // Spawn core server (remote_* tools) — always loaded
@@ -124,6 +135,10 @@ export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
     // Spawn feishu server (Feishu document tools) only for Feishu-originated sessions.
     if (loadFeishu && !feishuHandle) {
       feishuHandle = await spawnMcpClient(FEISHU_SERVER_PATH, 'feishu').catch(() => null);
+    }
+    // Spawn web server (send_file tool) only for Web-UI-originated sessions.
+    if (loadWeb && !webHandle) {
+      webHandle = await spawnMcpClient(WEB_SERVER_PATH, 'web').catch(() => null);
     }
   }
 
@@ -179,6 +194,8 @@ export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
     if (slackHandle) await registerToolsFrom(slackHandle);
     // Register from feishu server (Feishu document tools) — Feishu-originated sessions only
     if (feishuHandle) await registerToolsFrom(feishuHandle);
+    // Register from web server (send_file) — Web-UI-originated sessions only
+    if (webHandle) await registerToolsFrom(webHandle);
 
     toolsRegistered = true;
   });
@@ -186,7 +203,7 @@ export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
   // Clean up MCP subprocesses when the PI session ends.
   pi.on('session_shutdown', async (_event, _ctx) => {
     toolsRegistered = false;
-    for (const h of [coreHandle, extHandle, slackHandle, feishuHandle]) {
+    for (const h of [coreHandle, extHandle, slackHandle, feishuHandle, webHandle]) {
       if (h) {
         try { await h.transport.close(); } catch { /* best-effort */ }
       }
@@ -195,6 +212,7 @@ export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
     extHandle = null;
     slackHandle = null;
     feishuHandle = null;
+    webHandle = null;
   });
 }
 
@@ -203,8 +221,10 @@ export const _test = {
   mapMcpContent,
   shouldLoadSlack,
   shouldLoadFeishu,
+  shouldLoadWeb,
   CORE_SERVER_PATH,
   EXT_SERVER_PATH,
   SLACK_SERVER_PATH,
   FEISHU_SERVER_PATH,
+  WEB_SERVER_PATH,
 };
