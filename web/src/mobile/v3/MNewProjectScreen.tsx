@@ -9,8 +9,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
-import { MScreen, MTabHeader } from '@/mobile/ui/kit';
 import { MNewProjectView } from './MNewProjectView';
+import { MProjectScreen } from './MProjectScreen';
 import { canCreate, type MNewProjectCopy } from './m-new-project-vm';
 
 const COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
@@ -57,13 +57,10 @@ export function MNewProjectScreen() {
     create.mutate({ name: name.trim() });
   };
 
-  // 守则11 neutral placeholder behind the sheet: the real 项目 page title chrome only — no
-  // fabricated current-project card. The sheet is the emphasis; only its dim shows over this.
-  const behind = (
-    <MScreen label="1i 新建项目 (behind)">
-      <MTabHeader title={lang === 'zh' ? '项目' : 'Projects'} />
-    </MScreen>
-  );
+  // Render the real 项目 page behind the sheet (its own tRPC data, from cache since we came from it)
+  // so this reads as a modal that pops up OVER the project page — not a standalone screen. It sits
+  // under the sheet's dim and is non-interactive (the dim overlay swallows taps). No fabrication.
+  const behind = <MProjectScreen />;
 
   return (
     <MNewProjectView

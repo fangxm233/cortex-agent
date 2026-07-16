@@ -7,20 +7,27 @@
 // home indicator and screen corners — we DON'T paint a mock device frame). We only RESERVE the OS
 // chrome via `env(safe-area-inset-*)`: the top inset is padded by each screen's header; the bottom
 // inset by the Tab bar / composer.
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
+import { AnimatedOutlet } from './MobileAnimatedOutlet';
 import { BottomTabBar } from './BottomTabBar';
 import { activeTabId, isTabRoute } from './mobile-tabs';
 import { MobileProjectProvider } from './current-project';
 import { MNotificationProvider } from './v3/MNotificationProvider';
+import { useViewportHeight } from './use-viewport-height';
 
 export function MobileShell() {
   const vocab = useVocab();
   const location = useLocation();
   const navigate = useNavigate();
   const trpc = useTRPC();
+
+  // Keyboard-aware height: pin the shell to the visual viewport so the soft keyboard shrinks the
+  // middle content (top chrome stays fixed, composer rises above the keyboard) instead of panning the
+  // whole UI up. Publishes `--cortex-vvh` / `--cortex-vvt`, read in the shell style below.
+  useViewportHeight();
 
   // 需要你 count → amber badge on the 项目 tab: pending approvals (the queue behind the project page's
   // amber bar, scheme 1e→1f). Reuses the existing ui-service contract; an older daemon without the
@@ -36,15 +43,20 @@ export function MobileShell() {
     <MobileProjectProvider>
       <div
         style={{
-          height: '100dvh',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 'var(--cortex-vvh, 100dvh)',
+          transform: 'translateY(var(--cortex-vvt, 0px))',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           background: '#F2F2F7',
         }}
       >
-        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-          <Outlet />
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <AnimatedOutlet />
         </div>
         {showTabBar && (
           <BottomTabBar
