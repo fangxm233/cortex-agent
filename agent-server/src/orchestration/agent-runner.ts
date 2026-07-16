@@ -39,7 +39,7 @@ import { shouldHoldForBg, shouldHoldWebForBg } from './bg-continuation.js';
 import { holdWebForBg } from './web-bg-hold.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
-import { WORKSPACE_DIR } from '@core/utils.js';
+import { WORKSPACE_DIR, resolveWorkspaceRelPath } from '@core/utils.js';
 
 const TEMP_DIR = WORKSPACE_DIR;
 
@@ -118,14 +118,16 @@ export class AgentRunner {
     const { message, channel, adapter, threadAnchorId, hasFiles, userMessage, agentMessage } = ctx;
     const downloadedFiles = await downloadFiles(message.files, hasFiles, adapter);
     // Web-uploaded attachments are already on disk — map to DownloadedFile shape.
-    // The `path` field from upload is relative (workspace/attachments/...); resolve to absolute.
+    // The `path` field from upload is the UI-relative `workspace/attachments/...` alias for
+    // WORKSPACE_DIR's contents; resolveWorkspaceRelPath maps it to the real absolute path under
+    // WORKSPACE_DIR (= <DATA_DIR>/tmp). A malformed/escaping path resolves to null and is dropped,
+    // so a broken path is never handed to the agent as a bogus absolute file.
     const allFiles = [
       ...downloadedFiles,
-      ...(message.webAttachments ?? []).map((a) => ({
-        localPath: path.join(WORKSPACE_DIR, '..', a.path),
-        mimetype: a.mimeType,
-        name: a.name,
-      })),
+      ...(message.webAttachments ?? []).flatMap((a) => {
+        const localPath = resolveWorkspaceRelPath(a.path);
+        return localPath ? [{ localPath, mimetype: a.mimeType, name: a.name }] : [];
+      }),
     ];
     const startTime = Date.now();
     const backend = resolveBackendForChannel(channel);

@@ -1,5 +1,5 @@
 // input:  nothing (leaf module)
-// output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR
+// output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / resolveWorkspaceRelPath / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR
 //         (deprecated re-exports: PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT) + moduleDir + utility helpers
 // pos:    cross-module shared constants and ESM/time/path utilities
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -19,6 +19,7 @@ import {
   CONTEXT_DIR,
   PROJECTS_DIR,
   WORKSPACE_DIR,
+  resolveWorkspaceRelPath,
   PLUGINS_DIR,
   PROMPTS_DIR,
   HOOKS_DIR,
@@ -117,4 +118,4 @@ function listProjectDirs(projectsDir: string = PROJECTS_DIR): string[] {
  */
 const GATEWAY_MANAGED_KEY_PLACEHOLDER = 'cortex-gateway-managed';
 
-export { INSTALL_ROOT, DEFAULTS_DIR, PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT, DATA_DIR, CONFIG_DIR, STORE_DIR, CONTEXT_DIR, PROJECTS_DIR, WORKSPACE_DIR, PLUGINS_DIR, PROMPTS_DIR, HOOKS_DIR, SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs };
+export { INSTALL_ROOT, DEFAULTS_DIR, PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT, DATA_DIR, CONFIG_DIR, STORE_DIR, CONTEXT_DIR, PROJECTS_DIR, WORKSPACE_DIR, resolveWorkspaceRelPath, PLUGINS_DIR, PROMPTS_DIR, HOOKS_DIR, SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs };

@@ -35,7 +35,7 @@ import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
-import { WORKSPACE_DIR } from '@core/paths.js';
+import { WORKSPACE_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
 
 const log = createLogger('ui-http');
 
@@ -159,8 +159,10 @@ function jsonReply(res: ServerResponse, status: number, body: unknown): void {
   }
 }
 
-/** File upload handler: reads raw file bytes from the body, saves to
- *  tmp/attachments/<sessionId>/<filename>, returns AttachmentMeta.
+/** File upload handler: reads raw file bytes from the body, saves the file physically under
+ *  WORKSPACE_DIR/attachments/<sessionId>/<filename> (WORKSPACE_DIR = <DATA_DIR>/tmp), and returns
+ *  AttachmentMeta whose `path` is the UI-relative `workspace/attachments/...` alias (resolved back to
+ *  the absolute path via resolveWorkspaceRelPath by both the download route and the agent-runner).
  *  Auto-renames on name collision (file.png → file_1.png, file_2.png, …). */
 async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const sessionId = (req.headers['x-session-id'] as string | undefined)?.trim();
@@ -194,6 +196,9 @@ async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<
 
   try {
     await pipeline(req, writeStream);
+    // UI-relative alias: `workspace/` maps to WORKSPACE_DIR's contents (the file physically lives at
+    // WORKSPACE_DIR/attachments/…, i.e. <DATA_DIR>/tmp/attachments/…). Consumers resolve it via
+    // resolveWorkspaceRelPath — never by treating `workspace` as a literal <DATA_DIR> subdirectory.
     const relPath = `workspace/attachments/${sessionId}/${finalName}`;
     jsonReply(res, 200, {
       ok: true,
@@ -232,16 +237,12 @@ const DOWNLOAD_CONTENT_TYPES: Record<string, string> = {
 };
 
 /** Resolve a UI-relative `workspace/…` path to an absolute path strictly inside WORKSPACE_DIR.
- *  Returns null when the prefix is wrong or the resolved target escapes the workspace root.
- *  Exported for unit testing the traversal guard. */
+ *  Thin wrapper over the shared `resolveWorkspaceRelPath` (core/paths) so the download route and the
+ *  agent-runner attachment mapping resolve the `workspace/` alias identically. Returns null when the
+ *  prefix is wrong or the resolved target escapes the workspace root. Exported for the traversal-guard
+ *  unit test. */
 export function resolveWorkspacePath(rel: string): string | null {
-  const PREFIX = 'workspace/';
-  if (!rel.startsWith(PREFIX)) return null;
-  const sub = rel.slice(PREFIX.length);
-  const root = path.resolve(WORKSPACE_DIR);
-  const target = path.resolve(root, sub);
-  if (target !== root && !target.startsWith(root + path.sep)) return null;
-  return target;
+  return resolveWorkspaceRelPath(rel);
 }
 
 /** GET /api/files/download?path=workspace/…&disposition=inline|attachment — streams the file. */

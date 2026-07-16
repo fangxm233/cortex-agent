@@ -1,5 +1,5 @@
 // input:  nothing (leaf module)
-// output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR / LOGS_DIR
+// output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR / LOGS_DIR / resolveWorkspaceRelPath()
 //         (deprecated aliases: PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT — all map to INSTALL_ROOT for migration period)
 // pos:    canonical path constants — install root (immutable code/assets) + user data/config/store/context/tmp
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -52,6 +52,24 @@ export const PROJECTS_DIR = process.env.CORTEX_PROJECTS_DIR
 
 /** Temporary workspace directory for thread artifacts, tool results, etc. */
 export const WORKSPACE_DIR = path.join(DATA_DIR, 'tmp');
+
+/** Resolve a UI-relative `workspace/…` path to an absolute path strictly inside WORKSPACE_DIR.
+ *  The `workspace/` prefix is a stable UI-facing ALIAS for WORKSPACE_DIR's contents — it is NOT the
+ *  directory's real basename (which is `tmp`). File cards (attachments/outputs) are stored under
+ *  `WORKSPACE_DIR/<sub>` and surfaced to the UI as `workspace/<sub>`; every consumer that turns such a
+ *  relative path back into an absolute one MUST go through here so the alias resolves consistently
+ *  (the divergent `path.join(WORKSPACE_DIR, '..', rel)` in agent-runner produced `<DATA_DIR>/workspace/…`,
+ *  a non-existent path, once WORKSPACE_DIR moved from `workspace` to `tmp`).
+ *  Returns null when the prefix is wrong or the resolved target escapes the workspace root. */
+export function resolveWorkspaceRelPath(rel: string): string | null {
+  const PREFIX = 'workspace/';
+  if (!rel.startsWith(PREFIX)) return null;
+  const sub = rel.slice(PREFIX.length);
+  const root = path.resolve(WORKSPACE_DIR);
+  const target = path.resolve(root, sub);
+  if (target !== root && !target.startsWith(root + path.sep)) return null;
+  return target;
+}
 
 /** Plugin packages directory (DATA_DIR/plugins/). */
 export const PLUGINS_DIR = path.join(DATA_DIR, 'plugins');
