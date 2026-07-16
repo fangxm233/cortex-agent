@@ -78,13 +78,21 @@ function buildBundle(spaDir: string): OtaBundle {
   const entries = collectEntries(spaDir);
   const zip = createZip(entries);
   const sha256 = crypto.createHash('sha256').update(zip).digest('hex');
+  const version = contentVersion(entries);
   return {
     zip,
     manifest: {
-      version: contentVersion(entries),
+      version,
       sha256,
       size: zip.length,
-      url: UI_OTA_BUNDLE_PATH,
+      // Version-stamp the bundle URL. `bundle.zip` is a Cloudflare default-cached extension, and the
+      // path is otherwise stable across redeploys — so an edge cache would keep serving an OLD bundle
+      // against a NEW manifest, and the desktop/Android client would reject it on the sha256 check
+      // ("bundle sha256 mismatch"). A per-version query string gives each build a distinct cache key,
+      // so a new version is always a cache miss → fetched fresh. The router matches on pathname
+      // (query stripped), so this stays the same custom route. Paired with `Cache-Control: no-store`
+      // below as belt-and-suspenders.
+      url: `${UI_OTA_BUNDLE_PATH}?v=${version}`,
     },
   };
 }
@@ -94,6 +102,9 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': String(payload.length),
+    // OTA manifest must never be cached by an intermediary (Cloudflare/proxy): a stale manifest would
+    // advertise the wrong version/sha and desync the client from the bundle.
+    'Cache-Control': 'no-store',
   });
   res.end(payload);
 }
@@ -131,6 +142,10 @@ export function createOtaRoutes(spaDir: string | undefined): Record<string, Cust
     res.writeHead(200, {
       'Content-Type': 'application/zip',
       'Content-Length': String(zip.length),
+      // Prevent edge caching (Cloudflare caches `.zip` by default): a cached bundle served against a
+      // newer manifest fails the client sha256 check. The versioned `?v=` URL is the primary guard;
+      // this stops the origin response itself from being cached under any key.
+      'Cache-Control': 'no-store',
     });
     res.end(req.method === 'HEAD' ? undefined : zip);
   };

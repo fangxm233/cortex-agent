@@ -108,7 +108,10 @@ test('manifest: returns JSON with version/sha256/size/url', async () => {
   assert.ok(m.version.length > 0);
   assert.match(m.sha256, /^[0-9a-f]{64}$/);
   assert.ok(Number.isInteger(m.size) && m.size > 0);
-  assert.equal(m.url, UI_OTA_BUNDLE_PATH);
+  // Version-stamped bundle URL (cache-busting) — path is UI_OTA_BUNDLE_PATH + `?v=<version>`.
+  assert.equal(m.url, `${UI_OTA_BUNDLE_PATH}?v=${m.version}`);
+  // Manifest must be marked uncacheable so an edge cache can't desync it from the bundle.
+  assert.equal(res.headers['cache-control'], 'no-store');
 });
 
 test('bundle: application/zip whose bytes match the manifest size and sha256', async () => {
@@ -123,6 +126,8 @@ test('bundle: application/zip whose bytes match the manifest size and sha256', a
   assert.equal(sha, manifest.sha256, 'bundle sha256 must equal manifest.sha256');
   // Sanity: the archive is a real ZIP.
   assert.equal(res.body.readUInt32LE(0), 0x04034b50);
+  // Bundle must be marked uncacheable so an edge cache can't serve a stale build.
+  assert.equal(res.headers['cache-control'], 'no-store');
 });
 
 test('version is content-addressed: stable for identical content across separate builds', async () => {
