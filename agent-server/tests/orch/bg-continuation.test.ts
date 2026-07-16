@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildContinuationSink, isBgContinuationEnabled, isInteractiveChannel, shouldHoldForBg } from '../../src/orchestration/bg-continuation.js';
+import { buildContinuationSink, isBgContinuationEnabled, isInteractiveChannel, isWebChannel, shouldHoldForBg, shouldHoldWebForBg } from '../../src/orchestration/bg-continuation.js';
 
 function makeStream() {
   const emitted: string[] = [];
@@ -210,10 +210,39 @@ test('shouldHoldForBg: hold gates — remaining count, rate limit, channel scope
   }
 });
 
-test('isInteractiveChannel: only slack/feishu interactive conduits, not thread/dispatch', () => {
+test('isInteractiveChannel: only slack/feishu interactive conduits, not thread/dispatch/web', () => {
   assert.equal(isInteractiveChannel('slack:D123'), true);
   assert.equal(isInteractiveChannel('feishu:oc_abc'), true);
   assert.equal(isInteractiveChannel('thread-abc123'), false);
   assert.equal(isInteractiveChannel('dispatch:task-1'), false);
+  assert.equal(isInteractiveChannel('web:cortex-abcd'), false, 'web is NOT slack/feishu — held separately');
   assert.equal(isInteractiveChannel(''), false);
+});
+
+test('isWebChannel: only the web: conduit', () => {
+  assert.equal(isWebChannel('web:cortex-abcd'), true);
+  assert.equal(isWebChannel('slack:D123'), false);
+  assert.equal(isWebChannel('feishu:oc_abc'), false);
+  assert.equal(isWebChannel('thread-abc123'), false);
+  assert.equal(isWebChannel(''), false);
+});
+
+test('shouldHoldWebForBg: hold gates mirror shouldHoldForBg but scoped to web:', () => {
+  const prev = process.env.CORTEX_BG_CONTINUATION;
+  try {
+    delete process.env.CORTEX_BG_CONTINUATION;
+    const base = { pendingBackgroundTasks: 1, undeliveredBackgroundTasks: 0, rateLimited: false };
+    assert.equal(shouldHoldWebForBg(base as any, 'web:cortex-abcd', true), true, 'running task on web holds');
+    assert.equal(shouldHoldWebForBg({ ...base, pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 } as any, 'web:cortex-abcd', true), true, 'undelivered completion holds');
+    assert.equal(shouldHoldWebForBg({ ...base, pendingBackgroundTasks: 0 } as any, 'web:cortex-abcd', true), false, 'nothing remaining → no hold');
+    assert.equal(shouldHoldWebForBg({ ...base, rateLimited: true } as any, 'web:cortex-abcd', true), false, 'rate-limited turn never holds');
+    assert.equal(shouldHoldWebForBg(base as any, 'slack:D1', true), false, 'slack channel is NOT the web hold');
+    assert.equal(shouldHoldWebForBg(base as any, 'web:cortex-abcd', false), false, 'no sink capability → no hold');
+    assert.equal(shouldHoldWebForBg(null, 'web:cortex-abcd', true), false, 'null result → no hold');
+    process.env.CORTEX_BG_CONTINUATION = '0';
+    assert.equal(shouldHoldWebForBg(base as any, 'web:cortex-abcd', true), false, 'feature flag off → no hold');
+  } finally {
+    if (prev === undefined) delete process.env.CORTEX_BG_CONTINUATION;
+    else process.env.CORTEX_BG_CONTINUATION = prev;
+  }
 });

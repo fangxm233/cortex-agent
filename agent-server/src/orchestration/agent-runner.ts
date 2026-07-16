@@ -35,7 +35,8 @@ import { recordResume } from '@domain/costs/resume-registry.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
 import { tryAnswerFromHuman } from './manager-qa.js';
-import { shouldHoldForBg } from './bg-continuation.js';
+import { shouldHoldForBg, shouldHoldWebForBg } from './bg-continuation.js';
+import { holdWebForBg } from './web-bg-hold.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
 import { WORKSPACE_DIR } from '@core/utils.js';
@@ -202,6 +203,10 @@ export class AgentRunner {
     // Emit the REAL running state for the S4 chat indicator: true now, false in the finally below.
     if (sessionId) publishSessionStatus({ sessionId, channel, running: true });
     let capturedExecutionId: string | null = null;
+    // Web background-task hold: when set, the turn ended with a live background task and a
+    // ContinuationSink was registered to stream the spontaneous continuation. The hold owns the
+    // terminal running:false publish, so the finally below must NOT seal the session idle.
+    let webBgHeld = false;
     try {
       const convResult = await runConversation({
         adapter, channel,
@@ -263,7 +268,8 @@ export class AgentRunner {
       // reply (handleAgentSuccess holds the status, registers a sink, and arms the bg-wait-guard).
       // Otherwise clear the callback as usual.
       const proc = convResult.agentProcess as { setContinuationSink?: (s: ContinuationSink) => void } | undefined;
-      const holdForBg = shouldHoldForBg(convResult.result, channel, typeof proc?.setContinuationSink === 'function');
+      const canSink = typeof proc?.setContinuationSink === 'function';
+      const holdForBg = shouldHoldForBg(convResult.result, channel, canSink);
       if (!holdForBg) clearStreamingCallback(channel);
       await maybeNotifyCodexLowUsage({ adapter, result: convResult.result });
       await handleDefaultAgentResult({
@@ -272,6 +278,29 @@ export class AgentRunner {
         sessionName, sessionId, threadAnchorId, messageTs, callbacks,
         registerContinuationSink: holdForBg ? (sink: ContinuationSink) => proc!.setContinuationSink!(sink) : null,
       });
+      // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
+      // web: channel. Keep the session marked running+backgroundRunning and stream the spontaneous
+      // continuation as new session messages, instead of dropping it and sealing the session idle.
+      if (sessionId && shouldHoldWebForBg(convResult.result, channel, canSink)) {
+        const sid = sessionId;
+        webBgHeld = holdWebForBg({
+          result: convResult.result,
+          registerSink: (sink) => proc!.setContinuationSink!(sink),
+          track: trackPendingTask,
+          publishStatus: ({ running, backgroundRunning }) => publishSessionStatus({ sessionId: sid, channel, running, backgroundRunning }),
+          publishAssistant: (text) => {
+            const ts = new Date().toISOString();
+            recordHistory(conversationHistory.appendAssistant(sid, { text, ts }));
+            publishSessionMessage({ sessionId: sid, channel, role: 'assistant', text, ts });
+          },
+          publishTool: (name, input) => {
+            const toolInput = summarizeToolInputForHistory(input);
+            const ts = new Date().toISOString();
+            recordHistory(conversationHistory.appendTool(sid, { toolName: name, toolInput, ts }));
+            publishSessionMessage({ sessionId: sid, channel, role: 'tool', text: '', toolName: name, toolInput, ts });
+          },
+        });
+      }
     } catch (error) {
       clearStreamingCallback(channel);
       await handleAgentError({
@@ -281,7 +310,10 @@ export class AgentRunner {
         sessionName, sessionId, threadAnchorId, userMessageTs: messageTs, userMessage,
       });
     } finally {
-      if (sessionId) publishSessionStatus({ sessionId, channel, running: false });
+      // Skip the idle seal when a web bg-hold is active — it owns the terminal running:false
+      // publish once the background work finishes (else the session flips to idle immediately and
+      // the spontaneous continuation is untracked).
+      if (sessionId && !webBgHeld) publishSessionStatus({ sessionId, channel, running: false });
     }
   }
 }

@@ -52,7 +52,7 @@ export function CenterChat(): JSX.Element {
     enabled: !!sessionId,
   });
 
-  const { liveTail, streaming, running, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
+  const { liveTail, streaming, running, backgroundRunning, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
   // Unread write side: the OPEN session is being read — stamp markRead on select, on live
   // activity while viewing, and on tab re-focus (only while the document is visible).
   useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
@@ -104,6 +104,7 @@ export function CenterChat(): JSX.Element {
       <Composer
         sessionId={sessionId}
         running={running}
+        backgroundRunning={backgroundRunning}
         turns={agentTurns}
         cost={active?.costUsd ?? null}
         elapsed={elapsed}

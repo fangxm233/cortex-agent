@@ -97,6 +97,7 @@ function nextId(): string { return `att_${++_attachId}_${Date.now()}`; }
 export function Composer({
   sessionId,
   running,
+  backgroundRunning = false,
   turns,
   cost,
   elapsed,
@@ -106,6 +107,10 @@ export function Composer({
 }: {
   sessionId: string;
   running: boolean;
+  /** Foreground turn ended but a background task is still running (web bg-hold). `running` stays
+   *  true; this only re-labels the running line "background" so the user knows the turn's own
+   *  reply is done while background work continues. */
+  backgroundRunning?: boolean;
   /** Real agent-turn count (snapshot + `session.turn` delta); null when unknown → rendered as —. */
   turns: number | null;
   /** Last run's total cost in USD (SessionInfo.costUsd snapshot); null while running / never-ran → —. */
@@ -643,12 +648,14 @@ export function Composer({
                 width: 7,
                 height: 7,
                 borderRadius: '50%',
-                background: '#4655D4',
+                // Amber while a background task holds the session (foreground turn done); accent
+                // blue during the live turn itself.
+                background: backgroundRunning ? '#D9822B' : '#4655D4',
                 animation: 'cxpulse 1.6s ease-in-out infinite',
               }}
             />
             <span>
-              {L.pillRunning} · {elapsed} · {turnsText}
+              {backgroundRunning ? L.pillBackground : L.pillRunning} · {elapsed} · {turnsText}
             </span>
           </div>
         ) : (

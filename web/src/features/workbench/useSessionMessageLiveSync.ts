@@ -30,6 +30,12 @@ export interface SessionLiveState {
    *  sessions.list snapshot (`snapshotRunning`), else the message-stream heuristic. This is what
    *  the chat's running/idle indicator should use. */
   running: boolean;
+  /** True while the foreground turn has ended but a background task (run_in_background Bash /
+   *  background subagent) is still running and may spontaneously re-invoke the model — the
+   *  `session.status` `backgroundRunning` flag (web bg-hold). `running` stays true throughout, so
+   *  the indicator lets the composer show a distinct "background" state instead of a plain turn.
+   *  Delta-only (there is no query-time snapshot source): false until the first status event. */
+  backgroundRunning: boolean;
   /** The live agent-turn count from the `session.turn` delta (null until the first event for this
    *  session). The caller resolves it against the `SessionInfo.numTurns` snapshot via `resolveTurns`. */
   liveTurns: number | null;
@@ -44,6 +50,9 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
   // Delta from the backend `session.status` event (real turn lifecycle). Null until the first status
   // event arrives for this session — until then the snapshot (then the stream heuristic) governs.
   const [statusRunning, setStatusRunning] = useState<boolean | null>(null);
+  // Background-task flag from the `session.status` delta (web bg-hold). Delta-only: reset to false
+  // on session switch and cleared once running:false lands.
+  const [backgroundRunning, setBackgroundRunning] = useState(false);
   // Live agent-turn count from the `session.turn` delta. Null until the first event for this session.
   const [liveTurns, setLiveTurns] = useState<number | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,6 +61,7 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
     setLiveTail([]);
     setStreaming(false);
     setStatusRunning(null);
+    setBackgroundRunning(false);
     setLiveTurns(null);
     if (!sessionId) return;
 
@@ -73,9 +83,12 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
         onData: (raw: { type?: string; payload?: unknown }) => {
           // Delta running signal — real turn start/end from the agent-runner.
           if (raw.type === 'session.status') {
-            const s = raw.payload as { running?: boolean } | undefined;
+            const s = raw.payload as { running?: boolean; backgroundRunning?: boolean } | undefined;
             const r = !!s?.running;
             setStatusRunning(r);
+            // Background-task hold: running stays true but the foreground turn is done and a
+            // background task may still stream a continuation. Cleared whenever running:false lands.
+            setBackgroundRunning(r && !!s?.backgroundRunning);
             if (r) {
               // A fresh turn starts its own turn count — drop the previous run's live value so the
               // composer doesn't flash the last count before this run's first progress event lands.
@@ -130,5 +143,5 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
 
   // Snapshot + delta: event wins once received; snapshot restores state before that; heuristic last.
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
-  return { liveTail, streaming, running, liveTurns };
+  return { liveTail, streaming, running, backgroundRunning, liveTurns };
 }

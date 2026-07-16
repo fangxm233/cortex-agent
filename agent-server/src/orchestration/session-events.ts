@@ -54,12 +54,19 @@ export function publishSessionTurn(p: { sessionId: string; channel: string; numT
  *  agent-runner at the start (running:true) and end (running:false, in a finally) of each interactive
  *  turn — the single seam covering every channel (web / Slack / Feishu). The Web chat subscribes to
  *  this (scoped by sessionId) so its running/idle state reflects the real turn, not a client-side
- *  heuristic. No-op when no bus is wired. */
-export function publishSessionStatus(p: { sessionId: string; channel: string; running: boolean }): void {
+ *  heuristic. No-op when no bus is wired.
+ *
+ *  `backgroundRunning` (optional): the turn's foreground work finished but a background task
+ *  (run_in_background Bash / background subagent) is still running and may spontaneously re-invoke
+ *  the model. The web bg-hold (web-bg-hold.ts) keeps `running:true, backgroundRunning:true` for the
+ *  whole wait so the session is NOT prematurely marked idle, then publishes `running:false` once the
+ *  background work finishes. Omitted (undefined) on the normal turn-start / turn-end edges. */
+export function publishSessionStatus(p: { sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }): void {
   jobCtx.bus?.publish({
     type: 'session.status',
     sessionId: p.sessionId,
     channel: p.channel,
     running: p.running,
+    ...(p.backgroundRunning !== undefined ? { backgroundRunning: p.backgroundRunning } : {}),
   });
 }
