@@ -544,10 +544,74 @@ export function MBottomSheet({
   );
 }
 
-// ── MComposer — the bottom message composer (input + send / stop) ─────────────
-// scheme 1b L165-168. `above` renders composer chips (profile chip / status line / attachment chips).
-// While the session is `running`, the send button swaps for a Stop button (white square on the ink
-// bg, mirroring the desktop Composer) so the user can cancel the running agent turn.
+// ── §2 composer text metrics (scheme-mobile.dc.html §2 rules) ──────────────────
+// Pure so the "N 行 · M 字" footer counter and the multi-line/expand decision are unit-testable
+// without a DOM. Line count = newline-separated rows (empty field is still one line); char count =
+// code points (newlines included), matching the 2b "6 行 · 118 字" readout.
+export function composerLineCount(value: string): number {
+  return value === '' ? 1 : value.split('\n').length;
+}
+export function composerCharCount(value: string): number {
+  return [...value].length;
+}
+export function composerCountLabel(value: string, lineUnit: string, charUnit: string): string {
+  return `${composerLineCount(value)} ${lineUnit} · ${composerCharCount(value)} ${charUnit}`;
+}
+
+// Field geometry (scheme §2: 13.5px text · 20px line-height · 5-line cap → internal scroll).
+const COMPOSER_LINE_H = 20;
+const COMPOSER_PAD_V = 12; // top+bottom padding inside the growable field
+const COMPOSER_MIN_H = 46; // single-line pill (scheme 1b)
+const COMPOSER_MAX_H = 5 * COMPOSER_LINE_H + 2 * COMPOSER_PAD_V; // 5-line cap, then overflow scrolls
+
+// Expand ⤢ (2a L109 — arrows pointing out) / collapse ⤡ (2b L136 — arrows pointing in) glyphs.
+function ExpandIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke={MC.muted} strokeWidth="1.5">
+      <path d="M6 1h3v3M4 9H1V6M9 1 5.8 4.2M1 9l3.2-3.2" />
+    </svg>
+  );
+}
+function CollapseIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke={MC.muted} strokeWidth="1.5">
+      <path d="M9 1 5.8 4.2m0 0H8.6M5.8 4.2V1.4M1 9l3.2-3.2m0 0H1.4m2.8 0v2.8" />
+    </svg>
+  );
+}
+function SendGlyph({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="1.8">
+      <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
+    </svg>
+  );
+}
+
+// Auto-grow a textarea to fit its content, capped at `max` (then it scrolls). Reports whether the
+// field is now multi-line (past the single-line pill) so the caller can show the Expand affordance.
+function useAutosize(
+  ref: React.RefObject<HTMLTextAreaElement>,
+  value: string | undefined,
+  max: number,
+  onMultiline: (m: boolean) => void,
+) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const full = el.scrollHeight;
+    el.style.height = `${Math.min(full, max)}px`;
+    el.style.overflowY = full > max ? 'auto' : 'hidden';
+    onMultiline(full > COMPOSER_MIN_H + 2);
+  }, [ref, value, max, onMultiline]);
+}
+
+// ── MComposer — the bottom message composer (scheme 1b L165-168 · 2a growth) ───
+// `above` renders composer chips (profile chip / status line / attachment chips). The field is a
+// growable textarea: a single line reads as the 46px pill; typing rows grows it (radius 14→16) up to
+// a 5-line cap, then it scrolls internally and a top-right Expand button opens the full-screen editor
+// (2b). Enter inserts a newline — sending is the button only. While the session is `running`, Send
+// swaps for a Stop button (white square on ink) so the user can cancel the running agent turn.
 export function MComposer({
   placeholder,
   above,
@@ -559,6 +623,9 @@ export function MComposer({
   running = false,
   onStop,
   stopEnabled = true,
+  lineUnit = '行',
+  charUnit = '字',
+  onPlus,
 }: {
   placeholder: string;
   above?: ReactNode;
@@ -570,7 +637,22 @@ export function MComposer({
   running?: boolean;
   onStop?: () => void;
   stopEnabled?: boolean;
+  /** Footer counter units for the full-screen editor (2b) — default zh 行/字. */
+  lineUnit?: string;
+  charUnit?: string;
+  /** Attach (＋) handler surfaced inside the full-screen editor's tool row. */
+  onPlus?: () => void;
 }) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const [focused, setFocused] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  // Seed the multi-line flag from the value so the Expand affordance is deterministic under SSR
+  // (no layout) and correct on first paint before the autosize effect measures real geometry.
+  const [multiline, setMultiline] = useState(() => composerLineCount(value ?? '') > 1);
+  useAutosize(taRef, value, COMPOSER_MAX_H, setMultiline);
+
+  const showExpand = multiline && !expanded;
+
   return (
     <div
       style={{
@@ -581,28 +663,73 @@ export function MComposer({
       }}
     >
       {above}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
         {leading}
-        <input
-          value={value}
-          onChange={(e) => onChange?.(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && sendEnabled) onSend?.();
-          }}
-          placeholder={placeholder}
+        <div
           style={{
             flex: 1,
-            height: 46,
-            border: '1.5px solid #D9DCE3',
-            borderRadius: 14,
+            minWidth: 0,
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            minHeight: COMPOSER_MIN_H,
+            border: `1.5px solid ${focused ? MC.run : '#D9DCE3'}`,
+            borderRadius: multiline ? 16 : 14,
             background: '#fff',
-            padding: '0 14px',
-            fontSize: 13.5,
-            color: MC.ink,
+            boxShadow: focused ? '0 0 0 3px rgba(70,85,212,.08)' : undefined,
             boxSizing: 'border-box',
-            outline: 'none',
+            padding: `0 ${showExpand ? 34 : 14}px 0 14px`,
           }}
-        />
+        >
+          <textarea
+            ref={taRef}
+            rows={1}
+            value={value}
+            onChange={(e) => onChange?.(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder={placeholder}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              resize: 'none',
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              padding: `${COMPOSER_PAD_V}px 0`,
+              margin: 0,
+              maxHeight: COMPOSER_MAX_H,
+              fontSize: 13.5,
+              lineHeight: `${COMPOSER_LINE_H}px`,
+              color: MC.ink,
+              fontFamily: 'inherit',
+              boxSizing: 'border-box',
+            }}
+          />
+          {showExpand && (
+            <button
+              type="button"
+              aria-label="Expand"
+              onClick={() => setExpanded(true)}
+              style={{
+                position: 'absolute',
+                top: 9,
+                right: 9,
+                width: 22,
+                height: 22,
+                borderRadius: 7,
+                background: '#F2F3F7',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <ExpandIcon />
+            </button>
+          )}
+        </div>
         {running ? (
           <button
             type="button"
@@ -645,11 +772,241 @@ export function MComposer({
               cursor: sendEnabled ? 'pointer' : 'default',
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="1.8">
-              <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
-            </svg>
+            <SendGlyph />
           </button>
         )}
+      </div>
+      {expanded && (
+        <ComposerFullscreen
+          value={value ?? ''}
+          placeholder={placeholder}
+          onChange={onChange}
+          onSend={() => {
+            onSend?.();
+            setExpanded(false);
+          }}
+          sendEnabled={sendEnabled}
+          running={running}
+          onStop={onStop}
+          stopEnabled={stopEnabled}
+          onCollapse={() => setExpanded(false)}
+          onPlus={onPlus}
+          lineUnit={lineUnit}
+          charUnit={charUnit}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── ComposerFullscreen — 2b 全屏编辑 (scheme L131-143) ─────────────────────────
+// The input animates in-place up to fill from below the header to above the keyboard, covering the
+// transcript. Rendered as an absolute overlay of the chat body (MChatView wraps its scroll + composer
+// in a position:relative region), so it does not disturb the header. ＋ / slash command / send collapse
+// into a bottom tool row inside the field; a top-right button collapses back to the inline field.
+export function ComposerFullscreen({
+  value,
+  placeholder,
+  onChange,
+  onSend,
+  sendEnabled = true,
+  running = false,
+  onStop,
+  stopEnabled = true,
+  onCollapse,
+  onPlus,
+  onSlash,
+  lineUnit = '行',
+  charUnit = '字',
+}: {
+  value: string;
+  placeholder: string;
+  onChange?: (v: string) => void;
+  onSend?: () => void;
+  sendEnabled?: boolean;
+  running?: boolean;
+  onStop?: () => void;
+  stopEnabled?: boolean;
+  onCollapse: () => void;
+  onPlus?: () => void;
+  /** Slash-command affordance — defaults to inserting a leading `/` into the draft. */
+  onSlash?: () => void;
+  lineUnit?: string;
+  charUnit?: string;
+}) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  // Focus the editor and drop the caret at the end when it opens.
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.focus();
+    const end = el.value.length;
+    el.setSelectionRange(end, end);
+  }, []);
+  const insertSlash = onSlash ?? (() => onChange?.(value ? `${value}/` : '/'));
+
+  const toolBtn: CSSProperties = {
+    flex: 'none',
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    border: `1px solid ${MC.hairline}`,
+    background: '#fff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: MC.muted,
+    cursor: 'pointer',
+  };
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 4,
+        background: MC.canvas,
+        padding: '8px 10px',
+        paddingBottom: 'calc(8px + env(safe-area-inset-bottom))',
+        boxSizing: 'border-box',
+        display: 'flex',
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          border: `1.5px solid ${MC.run}`,
+          borderRadius: 18,
+          background: '#fff',
+          boxShadow: '0 0 0 3px rgba(70,85,212,.08),0 8px 28px rgba(25,28,34,.10)',
+          boxSizing: 'border-box',
+        }}
+      >
+        <textarea
+          ref={taRef}
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
+          placeholder={placeholder}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            resize: 'none',
+            border: 'none',
+            outline: 'none',
+            background: 'transparent',
+            padding: '14px 40px 8px 16px',
+            margin: 0,
+            fontSize: 14.5,
+            lineHeight: '22px',
+            color: MC.ink,
+            fontFamily: 'inherit',
+            boxSizing: 'border-box',
+          }}
+        />
+        <button
+          type="button"
+          aria-label="Collapse"
+          onClick={onCollapse}
+          style={{
+            position: 'absolute',
+            top: 11,
+            right: 11,
+            width: 26,
+            height: 26,
+            borderRadius: 8,
+            background: '#F2F3F7',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <CollapseIcon />
+        </button>
+        <div
+          style={{
+            flex: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '8px 10px 8px 14px',
+            borderTop: '1px solid #EFF1F5',
+          }}
+        >
+          <button type="button" aria-label="Attach" onClick={onPlus} style={{ ...toolBtn, fontSize: 15, fontWeight: 400 }}>
+            ＋
+          </button>
+          <button
+            type="button"
+            aria-label="Slash command"
+            onClick={insertSlash}
+            style={{ ...toolBtn, font: `600 13px ${MONO}` }}
+          >
+            /
+          </button>
+          <span
+            style={{
+              marginLeft: 'auto',
+              flex: 'none',
+              whiteSpace: 'nowrap',
+              font: `400 10px ${MONO}`,
+              color: MC.faint,
+            }}
+          >
+            {composerCountLabel(value, lineUnit, charUnit)}
+          </span>
+          {running ? (
+            <button
+              type="button"
+              aria-label="Stop"
+              disabled={!stopEnabled}
+              onClick={onStop}
+              style={{
+                flex: 'none',
+                width: 38,
+                height: 38,
+                borderRadius: 12,
+                background: MC.ink,
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: stopEnabled ? 1 : 0.45,
+                cursor: stopEnabled ? 'pointer' : 'default',
+              }}
+            >
+              <span style={{ width: 12, height: 12, background: '#fff', borderRadius: 3 }} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-label="Send"
+              disabled={!sendEnabled}
+              onClick={onSend}
+              style={{
+                flex: 'none',
+                width: 38,
+                height: 38,
+                borderRadius: 12,
+                background: MC.ink,
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: sendEnabled ? 1 : 0.45,
+                cursor: sendEnabled ? 'pointer' : 'default',
+              }}
+            >
+              <SendGlyph size={15} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

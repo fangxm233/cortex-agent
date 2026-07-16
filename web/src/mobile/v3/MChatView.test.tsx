@@ -46,6 +46,8 @@ const copy: MChatCopy = {
   reject: '驳回并反馈',
   fromLabel: '来自',
   writeLabel: '批准写入',
+  lineUnit: '行',
+  charUnit: '字',
 };
 
 const baseProps = {

@@ -6,7 +6,8 @@ viewport with a bottom four-Tab nav (**会话 / 线程 / 任务 / 项目**); the
 own status bar, dynamic island, home indicator and screen corners — we do NOT paint a mock device
 frame.** Screens reserve the OS chrome via `env(safe-area-inset-*)`: headers pad the top inset; the Tab
 bar / composer / non-Tab bottom gutters pad the bottom inset. Design source (GROUND TRUTH):
-`context/projects/cortex-self/design/ref/scheme-mobile.dc.html` (sections 1a–1r). Raw px/hex/font by
+`context/projects/cortex-self/design/ref/scheme-mobile.dc.html` (sections 1a–1r plus §2 composer
+multi-line growth / full-screen editor). Raw px/hex/font by
 design (§8.3, `@ds-adherence-ignore`) — the mobile palette is not in the light `proto.*` token set.
 
 ## v3 structure
@@ -25,7 +26,7 @@ tab label `project` (v3 screens deliberately avoid the vocab bottleneck).
 | `MobileAnimatedOutlet.tsx` | Route-transition wrapper replacing the bare `<Outlet/>`: horizontal slide on screen swaps (iOS push/pop) — PUSH slides the incoming screen in from the right (outgoing shifts left), POP reverses, REPLACE / same-path / `prefers-reduced-motion` / **switches between the 4 bottom-Tab screens** swap instantly (no slide — the Tab bar is a flat switch, only drill-in sub-screens slide). Freezes the outgoing route element (`useOutlet()` snapshot) so both layers render until the incoming animation ends. Uses the existing Tailwind `animate-slide-*` utilities — no new deps. Pure `planTransition` / `slideAnimClasses` are unit-tested (`.test.tsx`); the DOM enter/exit is proven in the live harness. |
 | `current-project.tsx` | `MobileProjectProvider` / `useMobileProject` — the mobile-wide current-project state (reuses the desktop pure `resolveCurrentProjectId`). 会话/线程/任务 scope to it; 项目 (1e) switches it. |
 | `mobile-routes.tsx` / `mobile-router.tsx` | Route table + router. 4 tab routes + drill-in sub-screens `/m/session/:id` (1b) · `/m/thread/:id` (1g) · `/m/task/:id` (1h) · `/m/approvals` (1f) · `/m/new-project` (1i) · `/m/memory` (1j) · `/m/machines` (1k) · `/m/settings` (1l) · `/m/daemon` (1r). Index + catch-all → `/m/sessions`. |
-| `ui/kit.tsx` | **Shared mobile UI kit** (chrome extracted 1:1 from the scheme): `MScreen`, `MTabHeader`, `MDrillHeader`, `MMoreButton`, `MScrollBody`, `MCard`, `MPill`/`statusPillTone`, `MDot`, `MGroupLabel`, `MSegmented`, `MBottomSheet`, `MComposer` (input + Send; swaps to a Stop button via `running`/`onStop` while a turn runs), `MC` (palette), `MONO`. Every v3 screen composes these. |
+| `ui/kit.tsx` | **Shared mobile UI kit** (chrome extracted 1:1 from the scheme): `MScreen`, `MTabHeader`, `MDrillHeader`, `MMoreButton`, `MScrollBody`, `MCard`, `MPill`/`statusPillTone`, `MDot`, `MGroupLabel`, `MSegmented`, `MBottomSheet`, `MComposer` (**growable multi-line composer**, scheme §2: a single line reads as the 46px pill, typing rows auto-grows the field radius 14→16 up to a 5-line cap then it scrolls internally — Enter inserts a newline, sending is the button only; while a turn runs Send swaps to a Stop button via `running`/`onStop`; at the 5-line cap a top-right Expand button opens…), `ComposerFullscreen` (**2b 全屏编辑** — absolute overlay of the chat body region covering the transcript from below the header to above the keyboard; ＋ / slash / `N 行 · M 字` counter / Send collapse into a bottom tool row, a top-right button collapses back; pure helpers `composerLineCount` / `composerCharCount` / `composerCountLabel` are unit-tested), `MC` (palette), `MONO`. Every v3 screen composes these. |
 | `ui/format.ts` | Pure formatters: `relTimeZh`, `fmtMoney`, `pickCopy`. |
 
 ## v3 screens (`v3/`)

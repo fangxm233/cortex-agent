@@ -39,6 +39,9 @@ export interface MChatCopy {
   reject: string;
   fromLabel: string;
   writeLabel: string;
+  // Full-screen editor (2b) footer counter units.
+  lineUnit: string;
+  charUnit: string;
 }
 
 // ── 1b header — ‹ back · title + status line · ⋯ menu ─────────────────────────
@@ -651,38 +654,46 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: MC.canvas }}
     >
       <MChatHeader title={props.title} status={props.status} onBack={props.onBack} onMore={props.onMoreToggle} />
-      {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
-          content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. */}
-      <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
-        <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {props.answeredQuestions?.map((r) => (
-            <AnsweredRow key={r.id} row={r} copy={copy} />
-          ))}
-          <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} />
-          {props.inlineThreadCard}
-          {props.pendingQuestion && <AskQuestionCard data={props.pendingQuestion} copy={copy} onAnswer={props.onAnswerQuestion ?? (() => {})} />}
-          {props.pendingPlan && <PlanApprovalCard data={props.pendingPlan} copy={copy} onApprove={props.onApprovePlan ?? (() => {})} onReject={props.onRejectPlan ?? (() => {})} />}
-          {props.systemLines?.map((t, i) => (
-            <SystemLine key={i} text={t} />
-          ))}
-          <div style={{ height: 'calc(8px + env(safe-area-inset-bottom))', flex: 'none' }} />
+      {/* Body region — a position:relative frame holding the scroll transcript + composer. The
+          full-screen editor (2b) mounts as an absolute overlay of THIS region, so it covers the
+          transcript + composer while leaving the header untouched. */}
+      <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
+            content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. */}
+        <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
+          <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {props.answeredQuestions?.map((r) => (
+              <AnsweredRow key={r.id} row={r} copy={copy} />
+            ))}
+            <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} />
+            {props.inlineThreadCard}
+            {props.pendingQuestion && <AskQuestionCard data={props.pendingQuestion} copy={copy} onAnswer={props.onAnswerQuestion ?? (() => {})} />}
+            {props.pendingPlan && <PlanApprovalCard data={props.pendingPlan} copy={copy} onApprove={props.onApprovePlan ?? (() => {})} onReject={props.onRejectPlan ?? (() => {})} />}
+            {props.systemLines?.map((t, i) => (
+              <SystemLine key={i} text={t} />
+            ))}
+            <div style={{ height: 'calc(8px + env(safe-area-inset-bottom))', flex: 'none' }} />
+          </div>
         </div>
+        <MComposer
+          placeholder={props.attachments.length > 0 ? copy.attachPlaceholder : copy.composerPh}
+          value={props.composerValue}
+          onChange={props.onComposerChange}
+          onSend={props.onSend}
+          sendEnabled={props.sendEnabled}
+          running={props.status.running}
+          onStop={props.onStop}
+          stopEnabled={props.stopEnabled}
+          leading={<PlusButton onClick={props.onPlus} />}
+          above={above}
+          onPlus={props.onPlus}
+          lineUnit={copy.lineUnit}
+          charUnit={copy.charUnit}
+        />
+        {props.attachments.length > 0 && (
+          <div style={{ font: `400 9px ${MONO}`, color: MC.faint, padding: '0 16px 6px', marginTop: -28 }}>{copy.attachFootnote}</div>
+        )}
       </div>
-      <MComposer
-        placeholder={props.attachments.length > 0 ? copy.attachPlaceholder : copy.composerPh}
-        value={props.composerValue}
-        onChange={props.onComposerChange}
-        onSend={props.onSend}
-        sendEnabled={props.sendEnabled}
-        running={props.status.running}
-        onStop={props.onStop}
-        stopEnabled={props.stopEnabled}
-        leading={<PlusButton onClick={props.onPlus} />}
-        above={above}
-      />
-      {props.attachments.length > 0 && (
-        <div style={{ font: `400 9px ${MONO}`, color: MC.faint, padding: '0 16px 6px', marginTop: -28 }}>{copy.attachFootnote}</div>
-      )}
       {props.moreOpen && <MoreMenu copy={copy} onClose={props.onMoreClose} />}
       {props.attachMenuOpen && (
         <AttachMenu copy={copy} onClose={props.onAttachClose} onCamera={props.onCamera} onLibrary={props.onLibrary} onFile={props.onFile} />
