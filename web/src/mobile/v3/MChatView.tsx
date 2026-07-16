@@ -612,10 +612,12 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     if (!el) return;
     stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   };
+  // After every content change (entry, streaming delta, profile system-line) keep the view pinned to
+  // the bottom IF the user hasn't scrolled up — identical to the desktop MessageStream effect.
   useEffect(() => {
     const el = scrollRef.current;
     if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [props.rows, props.systemLines, props.answeredQuestions, props.inlineThreadCard]);
+  }, [props.rows, props.systemLines, props.answeredQuestions]);
 
   const above = (
     <>
@@ -640,22 +642,22 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: MC.canvas }}
     >
       <MChatHeader title={props.title} status={props.status} onBack={props.onBack} onMore={props.onMoreToggle} />
-      <div
-        ref={scrollRef}
-        onScroll={onScroll}
-        style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12, background: MC.canvas }}
-      >
-        {props.answeredQuestions?.map((r) => (
-          <AnsweredRow key={r.id} row={r} copy={copy} />
-        ))}
-        <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} />
-        {props.inlineThreadCard}
-        {props.pendingQuestion && <AskQuestionCard data={props.pendingQuestion} copy={copy} onAnswer={props.onAnswerQuestion ?? (() => {})} />}
-        {props.pendingPlan && <PlanApprovalCard data={props.pendingPlan} copy={copy} onApprove={props.onApprovePlan ?? (() => {})} onReject={props.onRejectPlan ?? (() => {})} />}
-        {props.systemLines?.map((t, i) => (
-          <SystemLine key={i} text={t} />
-        ))}
-        <div style={{ height: 'calc(8px + env(safe-area-inset-bottom))', flex: 'none' }} />
+      {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
+          content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. */}
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
+        <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {props.answeredQuestions?.map((r) => (
+            <AnsweredRow key={r.id} row={r} copy={copy} />
+          ))}
+          <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} />
+          {props.inlineThreadCard}
+          {props.pendingQuestion && <AskQuestionCard data={props.pendingQuestion} copy={copy} onAnswer={props.onAnswerQuestion ?? (() => {})} />}
+          {props.pendingPlan && <PlanApprovalCard data={props.pendingPlan} copy={copy} onApprove={props.onApprovePlan ?? (() => {})} onReject={props.onRejectPlan ?? (() => {})} />}
+          {props.systemLines?.map((t, i) => (
+            <SystemLine key={i} text={t} />
+          ))}
+          <div style={{ height: 'calc(8px + env(safe-area-inset-bottom))', flex: 'none' }} />
+        </div>
       </div>
       <MComposer
         placeholder={props.attachments.length > 0 ? copy.attachPlaceholder : copy.composerPh}
