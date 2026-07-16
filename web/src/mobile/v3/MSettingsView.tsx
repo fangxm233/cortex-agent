@@ -1,6 +1,7 @@
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1l L601-663)
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
+import { BUILD_STAMP } from '@/lib/build-info';
 import type { MSettingsVm } from './m-settings-vm';
 
 export interface MSettingsCopy {
@@ -264,7 +265,9 @@ export function MSettingsView({
           </div>
         </Card>
 
-        {/* footer — brand · hot-reload (scheme's `v0.4.2` omitted: no real version source) */}
+        {/* footer — brand · build stamp · hot-reload. The scheme's `v0.4.2` slot is filled with the
+            real build stamp (Vite-injected, see lib/build-info.ts): it changes every build, so an OTA
+            frontend swap is verifiable on-device by watching this value change. */}
         <div
           style={{
             display: 'flex',
@@ -276,7 +279,7 @@ export function MSettingsView({
           }}
         >
           <span>{copy.footerBrand}</span>
-          <span style={{ marginLeft: 'auto' }}>{copy.footerHot}</span>
+          <span style={{ marginLeft: 'auto' }}>build {BUILD_STAMP} · {copy.footerHot}</span>
         </div>
       </MScrollBody>
     </>
