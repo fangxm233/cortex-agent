@@ -3,6 +3,8 @@
 //   • forward nav (PUSH)  → incoming screen slides in from the right, outgoing shifts out to the left
 //   • back nav    (POP)   → outgoing screen slides out to the right, previous slides back in from the left
 //   • REPLACE (index/catch-all redirects, e.g. `/`→`/m/sessions`) → instant swap, no slide on load
+//   • between the 4 bottom-Tab screens (会话/线程/任务/项目) → instant swap, no slide (per design: the
+//     Tab bar is a flat switch, not a drill-in stack; only drill-in sub-screens slide)
 //
 // It works with the data router by FREEZING the outgoing route element: `useOutlet()` always returns
 // the element for the *current* location, so on a navigation we snapshot the previous element (React
@@ -12,6 +14,7 @@
 // `animate-slide-*` utilities (tailwind.config.ts) — no new animation deps.
 import { useLayoutEffect, useState, type ReactNode } from 'react';
 import { useLocation, useNavigationType, useOutlet } from 'react-router-dom';
+import { isTabRoute } from './mobile-tabs';
 import { MC } from './ui/kit';
 
 type Frame = { key: string; element: ReactNode };
@@ -19,15 +22,17 @@ type NavType = 'PUSH' | 'POP' | 'REPLACE';
 export type SlideDir = 'forward' | 'back';
 
 // Pure transition planner (extracted so it is testable without a DOM — the vitest env is `node`).
-// Given the router's navigation type and whether the destination differs, decide whether to animate a
-// directional slide and in which direction. REPLACE (index/catch-all redirects) and reduced-motion
-// swap instantly; PUSH slides forward; POP slides back.
+// Given the router's navigation type and the endpoints, decide whether to animate a directional slide
+// and in which direction. Instant swap (no slide) when: same path, reduced-motion, REPLACE (index/
+// catch-all redirects), or a switch BETWEEN two bottom-Tab screens (the Tab bar is a flat switch, not a
+// drill-in stack). Otherwise PUSH slides forward, POP slides back.
 export function planTransition(
   navType: NavType,
   samePath: boolean,
   reduceMotion: boolean,
+  betweenTabRoutes: boolean,
 ): { animate: false } | { animate: true; dir: SlideDir } {
-  if (samePath || reduceMotion || navType === 'REPLACE') return { animate: false };
+  if (samePath || reduceMotion || navType === 'REPLACE' || betweenTabRoutes) return { animate: false };
   return { animate: true, dir: navType === 'POP' ? 'back' : 'forward' };
 }
 
@@ -59,8 +64,10 @@ export function AnimatedOutlet() {
   const [dir, setDir] = useState<SlideDir>('forward');
 
   useLayoutEffect(() => {
-    const plan = planTransition(navType, location.pathname === current.key, prefersReducedMotion());
-    if (location.pathname === current.key) return;
+    const samePath = location.pathname === current.key;
+    const betweenTabRoutes = isTabRoute(current.key) && isTabRoute(location.pathname);
+    const plan = planTransition(navType, samePath, prefersReducedMotion(), betweenTabRoutes);
+    if (samePath) return;
     if (!plan.animate) {
       // REPLACE (redirects) / reduced-motion swap instantly — avoids a slide on app open too.
       setPrevious(null);

@@ -7,25 +7,30 @@ import { planTransition, slideAnimClasses } from './MobileAnimatedOutlet';
 // reduced-motion → instant swap with no slide.
 
 describe('planTransition', () => {
-  it('slides forward on PUSH', () => {
-    expect(planTransition('PUSH', false, false)).toEqual({ animate: true, dir: 'forward' });
+  it('slides forward on PUSH (drill-in)', () => {
+    expect(planTransition('PUSH', false, false, false)).toEqual({ animate: true, dir: 'forward' });
   });
 
-  it('slides back on POP', () => {
-    expect(planTransition('POP', false, false)).toEqual({ animate: true, dir: 'back' });
+  it('slides back on POP (drill-out)', () => {
+    expect(planTransition('POP', false, false, false)).toEqual({ animate: true, dir: 'back' });
   });
 
   it('swaps instantly on REPLACE (index/catch-all redirects, no slide on app open)', () => {
-    expect(planTransition('REPLACE', false, false)).toEqual({ animate: false });
+    expect(planTransition('REPLACE', false, false, false)).toEqual({ animate: false });
   });
 
   it('does not animate when the path is unchanged', () => {
-    expect(planTransition('PUSH', true, false)).toEqual({ animate: false });
+    expect(planTransition('PUSH', true, false, false)).toEqual({ animate: false });
   });
 
   it('honors prefers-reduced-motion by skipping the slide', () => {
-    expect(planTransition('PUSH', false, true)).toEqual({ animate: false });
-    expect(planTransition('POP', false, true)).toEqual({ animate: false });
+    expect(planTransition('PUSH', false, true, false)).toEqual({ animate: false });
+    expect(planTransition('POP', false, true, false)).toEqual({ animate: false });
+  });
+
+  it('swaps instantly between the 4 bottom-Tab screens (no slide on tab switch)', () => {
+    expect(planTransition('PUSH', false, false, true)).toEqual({ animate: false });
+    expect(planTransition('POP', false, false, true)).toEqual({ animate: false });
   });
 });
 
