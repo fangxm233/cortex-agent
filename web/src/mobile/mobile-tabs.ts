@@ -1,58 +1,74 @@
-// Bottom Tab navigation model for the mobile shell (design 5a–5c bottom bar, scheme L2995-3000 /
-// L3198). Pure logic — the presentational BottomTabBar binds real tRPC counts to it.
+// Bottom Tab navigation model for the mobile v3 shell (scheme-mobile.dc.html §1, four tabs
+// 会话 / 线程 / 任务 / 项目). Pure logic — the presentational BottomTabBar binds real tRPC counts.
+// v3 change: the 4th tab is 项目 (was 机器); 机器 becomes a drill-in sub-screen under 项目 (1k).
+// The 项目 tab carries an amber `需要你` count badge (pending approvals).
 import { type Vocab } from '@/i18n';
 
-export type MobileTabId = 'sessions' | 'threads' | 'tasks' | 'machines';
+export type MobileTabId = 'sessions' | 'threads' | 'tasks' | 'project';
 
 export interface MobileTab {
   id: MobileTabId;
   path: string;
-  // Label comes from useVocab() — 会话/线程/任务/机器 on the mobile (zh) viewport.
+  // Label comes from useVocab() — 会话/线程/任务/项目 on the mobile (zh) viewport.
   labelKey: keyof Vocab;
 }
 
-// Design order (scheme bottom bar): 会话 / 线程 / 任务 / 机器.
+// Design order (scheme bottom bar 1a L121-126): 会话 / 线程 / 任务 / 项目.
 export const MOBILE_TABS: readonly MobileTab[] = [
   { id: 'sessions', path: '/m/sessions', labelKey: 'sessions' },
   { id: 'threads', path: '/m/threads', labelKey: 'threads' },
   { id: 'tasks', path: '/m/tasks', labelKey: 'tasks' },
-  { id: 'machines', path: '/m/machines', labelKey: 'machines' },
+  { id: 'project', path: '/m/project', labelKey: 'project' },
+];
+
+// Non-tab drill-in sub-screens → which tab stays highlighted while they are open. The scheme hides
+// the Tab bar on these pages (`隐藏 tab bar` / `非 Tab 页`), but the parent tab is the origin. chat
+// (1b) drills from 会话; 线程详情 (1g) from 线程; 任务详情 (1h) from 任务; everything under 项目
+// (审批 1f · 项目记忆 1j · 机器 1k · 设置 1l · 新建项目 1i · Daemon 1r) from 项目.
+const SUBROUTE_TAB: ReadonlyArray<{ prefix: string; tab: MobileTabId }> = [
+  { prefix: '/m/session/', tab: 'sessions' },
+  { prefix: '/m/thread/', tab: 'threads' },
+  { prefix: '/m/task/', tab: 'tasks' },
+  { prefix: '/m/approvals', tab: 'project' },
+  { prefix: '/m/memory', tab: 'project' },
+  { prefix: '/m/machines', tab: 'project' },
+  { prefix: '/m/settings', tab: 'project' },
+  { prefix: '/m/new-project', tab: 'project' },
+  { prefix: '/m/daemon', tab: 'project' },
 ];
 
 /**
- * Which tab is highlighted for a pathname. Sub-paths of a tab (e.g. `/m/threads/thr_x`) count as
- * that tab. The approvals (10e) + overview (10f) sub-screens are reached from the 会话 context, so
- * they keep the sessions tab active. Anything else (incl. a desktop path after a resize) defaults to
- * sessions — the same target the mobile router's catch-all redirects to.
+ * Which tab is highlighted for a pathname. Exact tab paths and their sub-paths highlight that tab;
+ * the non-tab drill-in sub-screens map to their origin tab (SUBROUTE_TAB). Anything else (incl. a
+ * stale desktop path) defaults to sessions — the same target the mobile router's catch-all redirects to.
  */
 export function activeTabId(pathname: string): MobileTabId {
-  const found = MOBILE_TABS.find((t) => pathname === t.path || pathname.startsWith(t.path + '/'));
-  return found ? found.id : 'sessions';
+  const tab = MOBILE_TABS.find((t) => pathname === t.path || pathname.startsWith(t.path + '/'));
+  if (tab) return tab.id;
+  const sub = SUBROUTE_TAB.find((s) => pathname === s.prefix || pathname.startsWith(s.prefix));
+  return sub ? sub.tab : 'sessions';
 }
 
 /**
  * Whether a pathname is one of the 4 bottom-Tab routes (or a sub-path of one). The shell shows the
- * bottom Tab bar only on Tab routes; the non-Tab drill-in pages 10e (`/m/approvals`) and 10f
- * (`/m/overview`) hide it — the scheme draws no Tab bar for those (`非 Tab 页`, task 82ff).
+ * bottom Tab bar ONLY on Tab routes; the drill-in sub-screens (1b/1f/1g/1h/1i/1j/1k/1l/1r) hide it —
+ * the scheme draws no Tab bar there (`隐藏 tab bar` / `非 Tab 页`).
  */
 export function isTabRoute(pathname: string): boolean {
   return MOBILE_TABS.some((t) => pathname === t.path || pathname.startsWith(t.path + '/'));
 }
 
 export interface TabBadge {
+  /** Amber count badge (scheme #C99A2E) — currently only 项目 (需要你 count). */
   count?: number;
-  dot?: boolean;
 }
 
 /**
- * Per-tab decoration: the active-thread count badge on 线程 (scheme #4655D4 pill) and the amber
- * pending-approval dot on 会话 (scheme #C99A2E). Everything else is undecorated.
+ * Per-tab decoration. v3: only the 项目 tab carries an amber `需要你` count badge (scheme 1a L125,
+ * `#C99A2E` pill). The count is pending approvals. Everything else is undecorated — the active-thread
+ * count lives in the 线程 header segment, not the bottom bar.
  */
-export function tabBadge(
-  id: MobileTabId,
-  data: { activeThreadCount: number; hasPendingApproval: boolean },
-): TabBadge {
-  if (id === 'threads' && data.activeThreadCount > 0) return { count: data.activeThreadCount };
-  if (id === 'sessions' && data.hasPendingApproval) return { dot: true };
+export function tabBadge(id: MobileTabId, data: { needsYouCount: number }): TabBadge {
+  if (id === 'project' && data.needsYouCount > 0) return { count: data.needsYouCount };
   return {};
 }

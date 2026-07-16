@@ -81,6 +81,7 @@ export const en = {
   back: 'Back',
   search: 'Search',
   more: 'More',
+  project: 'Project',
 
   // ── Group D: mobile approval screen 10e chrome ──
   toProcess: 'to process',
@@ -567,6 +568,7 @@ export const zh: Record<keyof Vocab, string> = {
   back: '返回',
   search: '搜索',
   more: '更多',
+  project: '项目',
 
   // ── Group D: mobile approval screen 10e chrome ──
   toProcess: '待处理',
