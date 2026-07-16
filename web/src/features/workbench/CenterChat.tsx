@@ -4,6 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
 import { MessageStream } from './MessageStream';
+import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { Composer } from './Composer';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
 import { useMarkSessionRead } from './useMarkSessionRead';
@@ -100,7 +101,11 @@ export function CenterChat(): JSX.Element {
         hasHistory={hasHistory}
         isDraft={isDraft}
       />
-      <MessageStream rows={rows} loading={!!sessionId && transcriptQuery.isPending} />
+      <MessageStream
+        rows={rows}
+        loading={!!sessionId && transcriptQuery.isPending}
+        inlineThreadCard={sessionId ? <InlineThreadCardProto sessionId={sessionId} /> : undefined}
+      />
       <Composer
         sessionId={sessionId}
         running={running}

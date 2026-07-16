@@ -28,6 +28,7 @@ export const sessionsTranscriptInput = z.object({
 export const threadsListInput = z.object({
   projectId: z.string().optional(),
   status: z.array(z.string()).optional(),
+  sessionId: z.string().optional(),
 });
 
 export const threadsGetInput = z.object({

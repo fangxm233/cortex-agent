@@ -32,7 +32,10 @@ import {
 } from '@/features/workbench/transcript-vm';
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
-import { zhDivider } from '@/mobile/screens/mobile-session-vm';
+import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
+import { threadPill } from '@/features/workbench/thread-card-proto';
+import { buildMobileStepper, zhDivider } from '@/mobile/screens/mobile-session-vm';
+import { MobileThreadStepper } from '@/mobile/screens/MobileThreadStepper';
 import type { AttachmentMeta } from '@/features/workbench/chat-content';
 import { MChatView, type MChatCopy } from './MChatView';
 import {
@@ -96,6 +99,35 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     writeLabel: 'writes to',
   },
 };
+
+// Inline experiment-pipeline thread card (scheme 1b L148-158), bound to REAL threads.get. Scoped to
+// THIS conversation: threads.list({sessionId}) resolves the session's channel server-side and returns
+// only the thread(s) running on it, so the card shows the thread this chat spawned — never a random
+// global one. Empty when the session owns no active thread (the query returns []). `打开 →` drills to 1g.
+function InlineThreadCard({ sessionId, subthreadsLabel, openLabel }: { sessionId: string; subthreadsLabel: string; openLabel: string }): JSX.Element | null {
+  const navigate = useNavigate();
+  const trpc = useTRPC();
+  const listQuery = useQuery({
+    ...trpc.threads.list.queryOptions({ status: ['running', 'waiting'], sessionId }),
+    enabled: !!sessionId,
+  });
+  const threads = listQuery.data ?? [];
+  const target = threads.find((t) => t.status === 'running') ?? threads[0] ?? null;
+  const threadId = target?.id ?? '';
+  useThreadGetLiveSync(threadId);
+  const getQuery = useQuery({ ...trpc.threads.get.queryOptions({ threadId }), enabled: !!threadId });
+  if (!threadId || getQuery.isPending || getQuery.isError || !getQuery.data) return null;
+  const detail = getQuery.data;
+  return (
+    <MobileThreadStepper
+      card={buildMobileStepper(detail)}
+      pill={threadPill(detail.status)}
+      subthreadsLabel={subthreadsLabel}
+      openLabel={openLabel}
+      onOpen={() => navigate(`/m/thread/${threadId}`)}
+    />
+  );
+}
 
 interface PendingUpload {
   id: string;
@@ -308,6 +340,15 @@ export function MChatScreen(): JSX.Element {
         moreOpen={moreOpen}
         onMoreToggle={() => setMoreOpen((o) => !o)}
         onMoreClose={() => setMoreOpen(false)}
+        inlineThreadCard={
+          sessionId ? (
+            <InlineThreadCard
+              sessionId={sessionId}
+              subthreadsLabel={lang === 'zh' ? '子线程' : 'sub-threads'}
+              openLabel={lang === 'zh' ? '打开' : 'Open'}
+            />
+          ) : undefined
+        }
         systemLines={systemLines}
         composerValue={text}
         onComposerChange={setText}

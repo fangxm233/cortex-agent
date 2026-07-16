@@ -108,6 +108,11 @@ export interface SessionsTranscriptParams {
 export interface ThreadsListParams {
   projectId?: string;
   status?: string[];
+  /** Scope to the threads owned by a single chat session: the handler resolves this session's
+   *  channel and returns only threads running on it (a thread spawned interactively runs on its
+   *  originating channel). Backs the inline chat thread card, which must show THIS conversation's
+   *  thread, not a random global one. Unknown session → empty. Omit for the unscoped list. */
+  sessionId?: string;
 }
 
 export interface ThreadsGetParams {

@@ -35,7 +35,7 @@ export async function handleThreadsList(
   deps: UiServiceDeps,
   params: ThreadsListParams,
 ): Promise<ThreadInfo[]> {
-  const { projectId, status } = params;
+  const { projectId, status, sessionId } = params;
 
   let threads = deps.threadStore.getAll();
 
@@ -45,6 +45,14 @@ export async function handleThreadsList(
   if (status && status.length > 0) {
     const statusSet = new Set(status);
     threads = threads.filter((t: any) => statusSet.has(t.status));
+  }
+  // Session scoping: a thread spawned from a chat runs on that session's channel, so resolve the
+  // session → channel and keep only threads on it. An unknown session (or one with no channel)
+  // yields an empty list — the inline card then simply hides rather than showing a stray thread.
+  if (sessionId) {
+    const session = await deps.sessionStore.getById(sessionId);
+    const channel = session?.channel ?? null;
+    threads = channel ? threads.filter((t: any) => t.channel === channel) : [];
   }
 
   return threads.map((t: any): ThreadInfo => ({

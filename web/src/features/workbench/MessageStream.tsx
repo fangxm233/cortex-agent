@@ -399,7 +399,7 @@ export function ChatRows({ rows }: { rows: ChatRow[] }): JSX.Element {
   );
 }
 
-export function MessageStream({ rows, loading }: { rows: ChatRow[]; loading: boolean }): JSX.Element {
+export function MessageStream({ rows, loading, inlineThreadCard }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode }): JSX.Element {
   const populated = rows.length > 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   // Whether the view is currently pinned to the bottom. Starts pinned; a user scroll-up releases it,
@@ -424,6 +424,7 @@ export function MessageStream({ rows, loading }: { rows: ChatRow[]; loading: boo
       <div style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px' }}>
         {!populated && !loading && <EmptyChat />}
         <ChatRows rows={rows} />
+        {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
       </div>
     </div>
   );

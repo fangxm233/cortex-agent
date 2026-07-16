@@ -7,9 +7,10 @@ import { buildThreadCard, type ProtoRow, type ProtoSub } from './thread-card-pro
 
 // Inline thread card — 1:1 from prototype.dc.html L180–246, bound to REAL threads.get (B1). This is
 // the single live-data surface of the center chat: it re-flows live via useThreadGetLiveSync as the
-// thread advances. The thread to show is the first running (else first waiting) live thread from
-// threads.list — the contract has no session→thread link (the prototype hard-codes thr_8f2c), so we
-// bind to the most-relevant active thread. Renders whatever the DTO carries (data-driven).
+// thread advances. Scoped to the CURRENT session: threads.list({sessionId}) resolves the session's
+// channel server-side and returns only the thread(s) running on it, so the card shows the thread THIS
+// conversation spawned — not a random global one. It renders nothing when the session owns no active
+// thread (empty list) or when no session is selected. Renders whatever the DTO carries (data-driven).
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -142,10 +143,13 @@ function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => voi
   );
 }
 
-export function InlineThreadCardProto(): JSX.Element | null {
+export function InlineThreadCardProto({ sessionId }: { sessionId: string }): JSX.Element | null {
   const navigate = useNavigate();
   const trpc = useTRPC();
-  const listQuery = useQuery(trpc.threads.list.queryOptions({ status: ['running', 'waiting'] }));
+  const listQuery = useQuery({
+    ...trpc.threads.list.queryOptions({ status: ['running', 'waiting'], sessionId }),
+    enabled: !!sessionId,
+  });
 
   const threads = listQuery.data ?? [];
   const target = threads.find((t) => t.status === 'running') ?? threads[0] ?? null;

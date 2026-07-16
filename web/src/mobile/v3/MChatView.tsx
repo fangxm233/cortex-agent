@@ -573,6 +573,7 @@ export interface MChatViewProps {
   onMoreToggle: () => void;
   onMoreClose: () => void;
   // stream slots
+  inlineThreadCard?: ReactNode;
   systemLines?: string[];
   pendingQuestion?: AskQuestionCardData;
   onAnswerQuestion?: (optionId: string) => void;
@@ -658,7 +659,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             <AnsweredRow key={r.id} row={r} copy={copy} />
           ))}
           <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} />
-          {props.pendingQuestion &&<AskQuestionCard data={props.pendingQuestion} copy={copy} onAnswer={props.onAnswerQuestion ?? (() => {})} />}
+          {props.inlineThreadCard}
+          {props.pendingQuestion && <AskQuestionCard data={props.pendingQuestion} copy={copy} onAnswer={props.onAnswerQuestion ?? (() => {})} />}
           {props.pendingPlan && <PlanApprovalCard data={props.pendingPlan} copy={copy} onApprove={props.onApprovePlan ?? (() => {})} onReject={props.onRejectPlan ?? (() => {})} />}
           {props.systemLines?.map((t, i) => (
             <SystemLine key={i} text={t} />
