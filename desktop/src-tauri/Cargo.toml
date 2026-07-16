@@ -30,6 +30,12 @@ serde_json = "1"
 # sha2 and zip are already pure-Rust.
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls-no-provider", "webpki-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+# webpki-roots: the Mozilla trust anchors we pin the OTA HTTPS client to. reqwest's rustls backend
+# compiles in `rustls-platform-verifier` and uses it as the DEFAULT cert verifier — which SIGABRTs on
+# Android (needs a JNI-initialized OS trust store we never wire up). We build an explicit rustls
+# ClientConfig against these roots and hand it to reqwest via `use_preconfigured_tls`, so the platform
+# verifier is never touched. Direct dep (was transitive via reqwest); the version matches the lock.
+webpki-roots = "1"
 sha2 = "0.10"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 

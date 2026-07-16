@@ -168,15 +168,45 @@ impl UiStore {
     }
 }
 
+/// Build the blocking HTTP client used for OTA, pinned to the webpki (Mozilla) trust anchors.
+///
+/// Why not the default `reqwest::blocking::Client::builder().build()`: reqwest's rustls integration
+/// compiles in `rustls-platform-verifier` and selects it as the DEFAULT certificate verifier. On
+/// Android that verifier must be initialized with a JNI handle to the OS trust store — which this app
+/// never does — so the first HTTPS request from the default client aborts with
+/// "Expect rustls-platform-verifier to be initialized", and because the release profile is
+/// `panic=abort` the SIGABRT takes the whole process down (observed as a second-launch crash: the
+/// window/bottom bar draw, then the background OTA thread fires ~2s later and kills the app).
+///
+/// We sidestep the platform verifier entirely by handing reqwest a preconfigured rustls ClientConfig
+/// whose root store is the bundled webpki-roots trust anchors — no OS trust store, identical and
+/// crash-free on every platform. The crypto provider is ring, supplied explicitly (so this does not
+/// depend on a process-wide `install_default` having run first). reqwest wraps the passed value in
+/// `Some(..)` and downcasts to `Option<rustls::ClientConfig>`; a single unified rustls version in the
+/// dependency graph makes that downcast succeed.
+fn build_http_client() -> Result<reqwest::blocking::Client, String> {
+    let mut roots = rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .map_err(|e| e.to_string())?
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .use_preconfigured_tls(tls)
+        .build()
+        .map_err(|e| e.to_string())
+}
+
 /// Fetch the manifest, and if a new version is available (and not already staged), download the
 /// bundle, verify its sha256, and stage it for next launch. Returns the staged version on success,
 /// None when already up to date. Errors are surfaced for logging but are non-fatal to the caller.
 pub fn check_and_stage(server_url: &str, token: &str, store: &UiStore) -> Result<Option<String>, String> {
     let base = server_url.trim_end_matches('/');
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let client = build_http_client()?;
 
     let manifest: Manifest = client
         .get(format!("{base}{MANIFEST_PATH}"))
