@@ -14,6 +14,7 @@ import { useVocab } from '@/i18n';
 import { BottomTabBar } from './BottomTabBar';
 import { activeTabId, isTabRoute } from './mobile-tabs';
 import { MobileProjectProvider } from './current-project';
+import { MNotificationProvider } from './v3/MNotificationProvider';
 
 export function MobileShell() {
   const vocab = useVocab();
@@ -54,6 +55,8 @@ export function MobileShell() {
           />
         )}
       </div>
+      {/* 1q: global notification banner (real session.message / system.notice stream). */}
+      <MNotificationProvider />
     </MobileProjectProvider>
   );
 }
