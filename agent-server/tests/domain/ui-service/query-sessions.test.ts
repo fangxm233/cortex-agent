@@ -204,6 +204,49 @@ test('sessions.list numTurns: no execution data anywhere → null', async () => 
   assert.ok(result.every(s => s.numTurns === null));
 });
 
+test('sessions.list costUsd: idle session → last non-thread execution costUsd (latest by startedAt)', async () => {
+  const deps = makeDeps({
+    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
+    executionRegistry: {
+      getExecution: () => null, cancelExecution: () => null,
+      getAll: () => [
+        { channel: 'C1', thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 2, costUsd: 0.11 } },
+        { channel: 'C1', thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7, costUsd: 0.42 } },
+        // A thread execution on the same channel must be ignored.
+        { channel: 'C1', thread: { threadId: 'thr_x' }, runtime: { startedAt: '2026-06-01T00:00:00Z' }, metrics: { numTurns: 99, costUsd: 9.99 } },
+      ],
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(result.find(s => s.sessionId === 's1')!.costUsd, 0.42, 'latest non-thread run cost');
+  // s3 (channel C3) has no executions → null.
+  assert.equal(result.find(s => s.sessionId === 's3')!.costUsd, null);
+});
+
+test('sessions.list costUsd: running session → null (no live cost source, no stale fallback)', async () => {
+  const deps = makeDeps({
+    runningExecutions: {
+      getAll: () => [],
+      getByChannel: (channel: string) =>
+        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1', numTurns: 3 }] : [],
+    } as any,
+    // A previous completed run on C1 has a cost — must NOT leak into the fresh running turn.
+    executionRegistry: {
+      getExecution: () => null, cancelExecution: () => null,
+      getAll: () => [
+        { channel: 'C1', thread: null, runtime: { startedAt: '2026-04-01T00:00:00Z' }, metrics: { numTurns: 9, costUsd: 1.23 } },
+      ],
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(result.find(s => s.sessionId === 's1')!.costUsd, null);
+});
+
+test('sessions.list costUsd: no execution data anywhere → null', async () => {
+  const result = await handleSessionsList(makeDeps(), {});
+  assert.ok(result.every(s => s.costUsd === null));
+});
+
 test('sessions.list unread: activity after lastReadAt → unread; read/never-tracked → false', async () => {
   const withRead = [
     // s1: read AFTER last activity → not unread

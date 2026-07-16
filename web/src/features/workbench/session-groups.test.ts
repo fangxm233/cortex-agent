@@ -19,6 +19,7 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
     profileName: p.profileName ?? null,
     running: p.running ?? false,
     numTurns: p.numTurns ?? null,
+    costUsd: p.costUsd ?? null,
     unread: p.unread ?? false,
   };
 }

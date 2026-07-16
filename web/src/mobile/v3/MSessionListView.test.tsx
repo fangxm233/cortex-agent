@@ -27,6 +27,7 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     profileName: null,
     running: false,
     numTurns: null,
+    costUsd: null,
     unread: false,
     ...over,
   };

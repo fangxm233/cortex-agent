@@ -4,6 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { SLASH_COMMANDS } from './chat-content';
 import { slashItemDispatch } from './composer-slash';
+import { formatCost } from './right-panel-vm';
 import { useSelectedSession } from './SelectedSessionProvider';
 import type { AttachmentMeta } from './chat-content';
 
@@ -97,6 +98,7 @@ export function Composer({
   sessionId,
   running,
   turns,
+  cost,
   elapsed,
   isDraft = false,
   draftProfile = null,
@@ -106,6 +108,8 @@ export function Composer({
   running: boolean;
   /** Real agent-turn count (snapshot + `session.turn` delta); null when unknown → rendered as —. */
   turns: number | null;
+  /** Last run's total cost in USD (SessionInfo.costUsd snapshot); null while running / never-ran → —. */
+  cost: number | null;
   elapsed: string;
   isDraft?: boolean;
   draftProfile?: string | null;
@@ -174,6 +178,11 @@ export function Composer({
   const sendBg = canSend ? '#191C22' : '#D9DCE3';
   // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
   const turnsText = turns == null ? DASH : `${turns} ${L.wbTurnsUnit}`;
+  // Last run's cost; render — when unknown (running turn not yet finalized / never ran).
+  const costText = cost == null ? DASH : formatCost(cost);
+  // A session has run at least one turn once it carries a turn count. A fresh/never-run session (draft
+  // or created-but-unused) shows just `idle` — no placeholder metrics until a turn produces real values.
+  const hasRun = !isDraft && turns != null;
 
   const q = composer.startsWith('/') ? composer.slice(1).toLowerCase() : '';
   const filtered = SLASH_COMMANDS.filter((c) => c.cmd.slice(1).startsWith(q));
@@ -639,7 +648,7 @@ export function Composer({
               }}
             />
             <span>
-              {L.pillRunning} · {elapsed} · {turnsText} · {DASH}
+              {L.pillRunning} · {elapsed} · {turnsText}
             </span>
           </div>
         ) : (
@@ -655,7 +664,7 @@ export function Composer({
           >
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D9DCE3' }} />
             <span>
-              {L.wbIdle} · {turnsText} · {DASH}
+              {hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle}
             </span>
           </div>
         )}

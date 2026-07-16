@@ -344,6 +344,13 @@ export interface SessionInfo {
    *  unknown (a running turn before its first progress event, or a session that never ran). The client
    *  uses this as the snapshot and the `session.turn` event stream as the delta (snapshot + delta). */
   numTurns: number | null;
+  /** Last run's total cost in USD for the composer status line. Sourced from the most recent
+   *  non-thread execution on the session's channel (`metrics.costUsd`), the same run whose turn count
+   *  drives `numTurns`. Null while running (cost is only finalized at turn end — there is no live
+   *  in-memory cost source, so a running turn never falls back to the previous run's cost) and null
+   *  when the session never ran. Snapshot-only (no live delta event); refreshed when sessions.list
+   *  refetches on a turn-end status edge. */
+  costUsd: number | null;
   /** Unread: the session had activity (lastUsedAt, bumped at turn end) AFTER the user last viewed
    *  it (`sessions.markRead` → registry lastReadAt). Legacy records with no lastReadAt are treated
    *  as read (no unread flood on first deploy). */

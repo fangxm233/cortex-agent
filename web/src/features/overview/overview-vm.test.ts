@@ -82,6 +82,7 @@ describe('deriveActiveProjectId', () => {
     profileName: null,
     running: false,
     numTurns: null,
+    costUsd: null,
     unread: false,
   });
   it('picks the most-recently-used session project', () => {

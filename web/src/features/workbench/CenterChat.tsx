@@ -105,6 +105,7 @@ export function CenterChat(): JSX.Element {
         sessionId={sessionId}
         running={running}
         turns={agentTurns}
+        cost={active?.costUsd ?? null}
         elapsed={elapsed}
         isDraft={isDraft}
         draftProfile={draftProfile}

@@ -53,23 +53,31 @@ export async function handleSessionsList(
     return exec && typeof (exec as any).numTurns === 'number' ? (exec as any).numTurns : null;
   };
 
-  // Idle snapshot: the last COMPLETED interactive run's turn count. One pass over the execution
-  // registry builds channel → latest non-thread execution's numTurns (by startedAt). A running turn
-  // never falls back to this (avoids showing the previous run's count during a fresh turn).
-  const lastTurnsByChannel = new Map<string, { startedAt: string; numTurns: number }>();
+  // Idle snapshot: the last COMPLETED interactive run's turn count AND total cost. One pass over the
+  // execution registry builds channel → latest non-thread execution (by startedAt), carrying both its
+  // numTurns and metrics.costUsd (same run). A running turn never falls back to this (avoids showing
+  // the previous run's count/cost during a fresh turn). costUsd is only known at turn end — there is
+  // no live in-memory cost source — so the running case has no live cost (null).
+  const lastRunByChannel = new Map<string, { startedAt: string; numTurns: number; costUsd: number | null }>();
   for (const e of deps.executionRegistry.getAll()) {
     const channel: string | undefined = e?.channel ?? undefined;
     const numTurns: unknown = e?.metrics?.numTurns;
     if (!channel || e?.thread?.threadId || typeof numTurns !== 'number') continue;
     const startedAt: string = e?.runtime?.startedAt ?? '';
-    const prev = lastTurnsByChannel.get(channel);
+    const costUsd: unknown = e?.metrics?.costUsd;
+    const prev = lastRunByChannel.get(channel);
     if (!prev || startedAt.localeCompare(prev.startedAt) >= 0) {
-      lastTurnsByChannel.set(channel, { startedAt, numTurns });
+      lastRunByChannel.set(channel, { startedAt, numTurns, costUsd: typeof costUsd === 'number' ? costUsd : null });
     }
   }
   const resolveNumTurns = (channel: string | undefined, running: boolean): number | null => {
     if (running) return liveTurnsForChannel(channel);
-    return channel ? (lastTurnsByChannel.get(channel)?.numTurns ?? null) : null;
+    return channel ? (lastRunByChannel.get(channel)?.numTurns ?? null) : null;
+  };
+  // Last run's cost: idle → the latest non-thread run's finalized cost; running → null (no live source).
+  const resolveCost = (channel: string | undefined, running: boolean): number | null => {
+    if (running) return null;
+    return channel ? (lastRunByChannel.get(channel)?.costUsd ?? null) : null;
   };
 
   const infos = sessions.map((s: any): SessionInfo => {
@@ -88,6 +96,7 @@ export async function handleSessionsList(
       profileName: s.profileName ?? null,
       running,
       numTurns: resolveNumTurns(s.channel, running),
+      costUsd: resolveCost(s.channel, running),
       // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view
       // (sessions.markRead → lastReadAt). Legacy records without lastReadAt → read.
       unread: !!s.lastReadAt && s.lastUsedAt > s.lastReadAt,
