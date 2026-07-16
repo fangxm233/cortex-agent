@@ -4,6 +4,7 @@
 // NOTE: "TUI" here refers to Claude CLI's Ink terminal mode (DR-0012), not to the upcoming Cortex TUI.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import * as http from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { isMainModule } from '@core/utils.js';
@@ -22,18 +23,38 @@ const threadId = process.env.CORTEX_THREAD_ID ?? null;
 const webhookPort = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
 const webhookBaseUrl = `http://127.0.0.1:${webhookPort}`;
 
-/** Production HTTP POST: thin wrapper over global fetch returning { status, body }. */
+/** Production HTTP POST using node:http — the webhook endpoints block until user interaction
+ *  completes (up to 30 min). Node's global fetch (undici) has a 300s headersTimeout that fires
+ *  before the user can respond; http.request with an explicit 60-min timeout avoids this. */
 async function defaultHttpPost(url: string, body: any): Promise<{ status: number; body: any }> {
-  const r = await fetch(url, {
-    method: 'POST',
-    // Bearer token for the webhook auth gate. Inherited from the session's env (see core/auth.ts).
-    headers: { 'Content-Type': 'application/json', 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' },
-    body: JSON.stringify(body),
+  const jsonBody = JSON.stringify(body);
+  const parsed = new URL(url);
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname + parsed.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(jsonBody),
+        'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '',
+      },
+      timeout: 60 * 60 * 1000, // 60 minutes — user may take time to respond
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk: string) => { data += chunk; });
+      res.on('end', () => {
+        let parsed: any = null;
+        try { parsed = data ? JSON.parse(data) : null; } catch { parsed = { _raw: data }; }
+        resolve({ status: res.statusCode ?? 0, body: parsed });
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.write(jsonBody);
+    req.end();
   });
-  let parsed: any = null;
-  const text = await r.text();
-  try { parsed = text ? JSON.parse(text) : null; } catch { parsed = { _raw: text }; }
-  return { status: r.status, body: parsed };
 }
 
 const deps: TuiToolDeps = {
