@@ -78,12 +78,13 @@ export function MScreen({
 // reserves the OS status-bar inset.
 export function MTabHeader({
   title,
-  qn = false,
+  qn,
   trailing,
   below,
 }: {
   title: string;
-  qn?: boolean;
+  /** Passive project-scope tag (real current-project initials, e.g. "NI"); omitted → no tag. */
+  qn?: string;
   trailing?: ReactNode;
   below?: ReactNode;
 }) {
@@ -115,7 +116,7 @@ export function MTabHeader({
               flex: 'none',
             }}
           >
-            QN
+            {qn}
           </span>
         )}
         {trailing && <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>{trailing}</div>}

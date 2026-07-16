@@ -13,6 +13,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { BottomTabBar } from './BottomTabBar';
 import { activeTabId, isTabRoute } from './mobile-tabs';
+import { MobileProjectProvider } from './current-project';
 
 export function MobileShell() {
   const vocab = useVocab();
@@ -31,26 +32,28 @@ export function MobileShell() {
   const showTabBar = isTabRoute(location.pathname);
 
   return (
-    <div
-      style={{
-        height: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        background: '#F2F2F7',
-      }}
-    >
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-        <Outlet />
+    <MobileProjectProvider>
+      <div
+        style={{
+          height: '100dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          background: '#F2F2F7',
+        }}
+      >
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          <Outlet />
+        </div>
+        {showTabBar && (
+          <BottomTabBar
+            vocab={vocab}
+            activeId={activeTabId(location.pathname)}
+            needsYouCount={needsYouCount}
+            onNavigate={navigate}
+          />
+        )}
       </div>
-      {showTabBar && (
-        <BottomTabBar
-          vocab={vocab}
-          activeId={activeTabId(location.pathname)}
-          needsYouCount={needsYouCount}
-          onNavigate={navigate}
-        />
-      )}
-    </div>
+    </MobileProjectProvider>
   );
 }
