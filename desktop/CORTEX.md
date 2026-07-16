@@ -45,9 +45,20 @@ blocked by the browser.
    Page navigates to `index.html` (SPA workbench).
 
 2. **Credentials in keychain** → Rust loads them at startup, opens `index.html` directly.
-   `initialization_script` (injected on every page) runs an async IPC call to
-   `get_connection_config` — resolves in microseconds, before the React bundle executes.
-   `providers.tsx` reads `window.__CORTEX_DESKTOP_CONFIG` and passes it to `createTrpcClient()`.
+   `initialization_script` (injected on every page) **bakes the loaded credentials straight into
+   the script synchronously** as the initial `window.__CORTEX_DESKTOP_CONFIG` (see `init_script(&config)`
+   in `lib.rs`), so the SPA sees them before any bundle code runs. An async `get_connection_config`
+   IPC call still runs as a refresh (covers the first-run connect flow, where the window was built
+   before the user saved creds). `providers.tsx` reads `window.__CORTEX_DESKTOP_CONFIG` and passes it
+   to `createTrpcClient()`.
+
+   ⚠️ **Why baked, not IPC-only** (regression fixed): the old code seeded the config *only* via the
+   async IPC and `providers.tsx` read it *exactly once* at React mount. On Android's **second launch**
+   the WebView serves a code-cached bundle that mounts React faster than the IPC round-trip resolves,
+   so the SPA captured the stale `{serverUrl:null}` and built a dead tRPC client — the mobile shell
+   rendered (bottom Tab bar) but every data screen failed, i.e. "only the bottom bar shows". Baking
+   the creds synchronously + `providers.tsx` waiting for them in native shell (`useShellConfig`)
+   removes the race.
 
 3. **Switch / disconnect** → hover the "Switch" button (injected by `initialization_script`)
    → calls `disconnect` command (clears keychain + AppState) → navigates to `connect.html`.
@@ -92,13 +103,17 @@ desktop/
 
 ## Injection mechanism
 
-`initialization_script` (constant in `lib.rs`, injected on every page load):
-1. Sets `window.__CORTEX_DESKTOP__ = true`
-2. Starts async `invoke('get_connection_config')` → writes `window.__CORTEX_DESKTOP_CONFIG`
-3. On DOMContentLoaded: if NOT on `connect.html`, adds a "Switch" hover button (bottom-right)
+`initialization_script` (built by `init_script(&config)` in `lib.rs`, injected on every page load):
+1. Sets `window.__CORTEX_DESKTOP__ = true` (or `__CORTEX_MOBILE__` on Android) — synchronous
+2. Sets `window.__CORTEX_DESKTOP_CONFIG = {serverUrl, token}` from the **baked-in** credentials —
+   synchronous (present before any bundle code runs)
+3. Starts async `invoke('get_connection_config')` → refreshes `window.__CORTEX_DESKTOP_CONFIG`
+   (matters only on the first-run connect flow, where the baked value was still null)
+4. On DOMContentLoaded: if NOT on `connect.html` and NOT mobile, adds a "Switch" button (bottom-right)
 
-`web/src/providers.tsx` reads `window.__CORTEX_DESKTOP_CONFIG` at React mount and passes it to
-`createTrpcClient()` — enabling absolute-URL + token-bearer mode for desktop.
+`web/src/providers.tsx` resolves `window.__CORTEX_DESKTOP_CONFIG` via `useShellConfig()` (reads it
+synchronously; in a native shell without a config yet, briefly polls for the IPC refresh before
+falling back) and passes it to `createTrpcClient()` — enabling absolute-URL + token-bearer mode.
 
 ## Files
 

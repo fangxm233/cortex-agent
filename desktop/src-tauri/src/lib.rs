@@ -178,19 +178,37 @@ const SHELL_FLAG: &str = "window.__CORTEX_MOBILE__ = true;\n";
 #[cfg(not(target_os = "android"))]
 const SHELL_FLAG: &str = "window.__CORTEX_DESKTOP__ = true;\n";
 
-/// The full initialization script: platform flag + shared body.
-fn init_script() -> String {
-    format!("{SHELL_FLAG}{INIT_SCRIPT}")
+/// The full initialization script: platform flag + **synchronously baked** credentials + shared body.
+///
+/// The credentials known at window-build time (loaded from the credential store) are serialized
+/// straight into the injected script as the initial `window.__CORTEX_DESKTOP_CONFIG` value, so the
+/// SPA sees them synchronously — BEFORE any bundle code runs — with no dependency on the async IPC.
+/// This closes a race that surfaced on Android: on the second launch the WebView serves a
+/// code-cached bundle that mounts React faster than the `get_connection_config` IPC round-trip could
+/// resolve, so `providers.tsx` (which reads the config exactly once at mount) captured the stale
+/// `{serverUrl:null}` and built a broken tRPC client — the mobile shell rendered (bottom Tab bar)
+/// but every data screen failed, leaving "only the bottom bar". Baking removes the race entirely.
+///
+/// The async IPC in `INIT_SCRIPT` is kept as a REFRESH path: on the first-run connect flow the
+/// window was built with empty creds (baked null), then the user saves creds on connect.html and
+/// navigates to index.html within the same session — the re-injected script's baked value is still
+/// null there, so the async `get_connection_config` fills in the freshly-saved creds.
+fn init_script(config: &ConnectionConfig) -> String {
+    // Serialize via serde so serverUrl/token are correctly JSON-escaped (quotes, backslashes, etc.),
+    // never string-interpolated raw. `ConnectionConfig` serializes to {"serverUrl":…,"token":…},
+    // exactly the shape readDesktopConfig() expects. A serialize failure (unreachable for two
+    // Option<String>) falls back to the null literal, i.e. the async-IPC-only behaviour.
+    let baked = serde_json::to_string(config)
+        .unwrap_or_else(|_| r#"{"serverUrl":null,"token":null}"#.to_string());
+    format!("{SHELL_FLAG}window.__CORTEX_DESKTOP_CONFIG = {baked};\n{INIT_SCRIPT}")
 }
 
 const INIT_SCRIPT: &str = r#"
-window.__CORTEX_DESKTOP_CONFIG = { serverUrl: null, token: null };
-
-// Timing assumption: this IPC call resolves in ~microseconds (in-process Rust handler,
-// no network). The React bundle takes tens of milliseconds to download and parse, so
-// __CORTEX_DESKTOP_CONFIG is set before providers.tsx reads it in practice.
-// This is not a hard guarantee — a sufficiently fast device / cached bundle could
-// theoretically race. Accepted: the fallback is a broken tRPC client that retries.
+// Refresh path: re-read the current credentials via IPC and overwrite the baked value. Normally a
+// no-op (baked value is already correct); it matters on the first-run connect flow, where the window
+// was built before the user saved creds, so the baked value is null and this async call fills it in.
+// The baked value already covers the common (subsequent-launch) case synchronously, so this no longer
+// races the bundle — a stale read just keeps the correct baked creds.
 (function () {
   var tauri = window.__TAURI__;
   if (!tauri || !tauri.core || !tauri.core.invoke) return;
@@ -301,6 +319,9 @@ pub fn run() {
             // Load credentials (platform store → env fallback) and seed AppState.
             let initial_config = load_initial_config(&app.handle());
             let open_workbench = has_credentials(&initial_config);
+            // Keep a copy to bake synchronously into the window's initialization_script (below), so
+            // the SPA sees the credentials before any bundle code runs (no async-IPC race).
+            let baked_config = initial_config.clone();
             *app.state::<AppState>().config.lock().unwrap() = initial_config;
 
             // Open the workbench directly when credentials are available; otherwise the connect screen.
@@ -336,7 +357,7 @@ pub fn run() {
                 "main",
                 tauri::WebviewUrl::CustomProtocol(url.parse().expect("valid cortexui:// url")),
             )
-            .initialization_script(&init_script());
+            .initialization_script(&init_script(&baked_config));
             // Desktop-only window chrome (Android manages its own full-screen activity).
             #[cfg(not(target_os = "android"))]
             {
