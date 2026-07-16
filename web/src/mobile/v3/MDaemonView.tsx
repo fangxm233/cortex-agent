@@ -1,11 +1,12 @@
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1r L888-932)
 // 1r Daemon 状态 — Daemon liveness + restart controls, drilled from 1l 设置. Pure presentational:
-// takes the built vm + copy + callbacks (no tRPC). The scheme's rich process panel (pid/port/uptime/
-// api p50/ws count) and daemon.log event stream have no tRPC query source on this surface, so they are
-// rendered as honest gaps (see m-daemon-vm 守则11 note) — only real counts + restart actions are shown.
+// takes the built vm + copy + callbacks (no tRPC). The process card now renders REAL name / label /
+// status / pid / port / uptime from `system.daemonStatus` (the same query the desktop 17a modal uses);
+// any DTO field that is null is shown as an honest `—`. The daemon.log event stream still has no query
+// scope → the 最近事件 card surfaces the REAL lastRestart plus recent executions (see m-daemon-vm 守则11).
 import { useRef, useState, type CSSProperties } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
-import type { MDaemonVm, MDaemonEvent } from './m-daemon-vm';
+import type { MDaemonVm, MDaemonEvent, MDaemonProcess, MProcStatus } from './m-daemon-vm';
 import type { ExecutionInfo } from '@cortex-agent/ui-contract';
 
 export interface MDaemonCopy {
@@ -14,7 +15,12 @@ export interface MDaemonCopy {
   statusErr: string;
   threadsRunning: (n: number) => string;
   schedules: (n: number) => string;
-  metricsGap: string;
+  /** Mono label prefix for the uptime metric (technical token, e.g. `uptime`). */
+  uptimeLabel: string;
+  /** Honest placeholder for any null DTO metric. */
+  dash: string;
+  /** Label for the real lastRestart event row (e.g. `上次重启`). */
+  lastRestartLabel: string;
   recentTitle: string;
   recentGap: string;
   recentEmpty: string;
@@ -30,22 +36,40 @@ export interface MDaemonCopy {
 
 export type RestartState = 'idle' | 'pending' | 'success' | 'error';
 
-// ── Process row: dot (liveness implied by successful queries) + mono name ──────
-function ProcRow({ name, live, border }: { name: string; live: boolean; border: boolean }) {
+// Dot color from the DTO status — matches the desktop 17a modal (running=green, unknown=amber, stopped=red).
+function dotColor(status: MProcStatus): string {
+  if (status === 'running') return MC.done;
+  if (status === 'unknown') return MC.amber;
+  return MC.fail;
+}
+
+// ── Process row: dot (real DTO status) + mono name + label + real pid/port + uptime/extras sub-line ──
+function ProcRow({ proc, copy, border }: { proc: MDaemonProcess; copy: MDaemonCopy; border: boolean }) {
+  const dash = copy.dash;
   return (
     <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
         padding: '11px 13px 9px',
         borderBottom: border ? `1px solid ${MC.divider}` : undefined,
       }}
     >
-      <span
-        style={{ width: 7, height: 7, borderRadius: '50%', background: live ? MC.done : MC.fail, flex: 'none' }}
-      />
-      <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink }}>{name}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span
+          style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor(proc.status), flex: 'none' }}
+        />
+        <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink }}>{proc.name}</span>
+        {proc.label && (
+          <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted }}>{proc.label}</span>
+        )}
+        <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.muted }}>
+          pid {proc.pid ?? dash}
+          {proc.port != null ? ` · :${proc.port}` : ''}
+        </span>
+      </div>
+      <div style={{ font: `400 9.5px ${MONO}`, color: MC.muted, marginTop: 4, paddingLeft: 15 }}>
+        {copy.uptimeLabel} {proc.uptime ?? dash}
+        {proc.extras.map((e) => ` · ${e.k} ${e.v}`).join('')}
+      </div>
     </div>
   );
 }
@@ -199,28 +223,26 @@ export function MDaemonView({
       </MDrillHeader>
 
       <MScrollBody gap={10}>
-        {/* Process card — dots = liveness implied by successful queries; real counts; metrics are a GAP */}
+        {/* Process card — REAL rows from system.daemonStatus (dot=status, pid/port/uptime) + real counts */}
         <MCard padding={0} style={{ overflow: 'hidden' }}>
-          <ProcRow name="cortex-server" live={vm.processes[0]?.live ?? vm.ok} border />
-          <ProcRow name="cortex-daemon" live={vm.processes[1]?.live ?? vm.ok} border />
+          {vm.processes.map((proc, i) => (
+            <ProcRow key={proc.name} proc={proc} copy={copy} border={i < vm.processes.length - 1} />
+          ))}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 12,
-              padding: '10px 13px 4px',
+              padding: '10px 13px',
               font: `400 10px ${MONO}`,
               color: MC.muted,
               flexWrap: 'wrap',
+              borderTop: `1px solid ${MC.divider}`,
             }}
           >
             <span>{copy.threadsRunning(vm.threadCount)}</span>
             <span>·</span>
             <span>{copy.schedules(vm.scheduleCount)}</span>
-          </div>
-          {/* GAP: pid / port / uptime / api p50 / ws count have no tRPC query source on this surface. */}
-          <div style={{ padding: '0 13px 10px', font: `400 9px ${MONO}`, color: MC.faint }}>
-            {copy.metricsGap}
           </div>
         </MCard>
 
@@ -239,7 +261,7 @@ export function MDaemonView({
               executions.list
             </span>
           </div>
-          {vm.events.length === 0 ? (
+          {vm.lastRestart === null && vm.events.length === 0 ? (
             <div style={{ padding: '14px 13px', font: `400 10px ${MONO}`, color: MC.faint }}>
               {copy.recentEmpty}
             </div>
@@ -253,6 +275,16 @@ export function MDaemonView({
                 font: `400 10px/1.5 ${MONO}`,
               }}
             >
+              {/* Real lastRestart from system.daemonStatus (rendered first, above recent executions) */}
+              {vm.lastRestart && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <span style={{ color: MC.faint, flex: 'none' }}>{vm.lastRestart.time}</span>
+                  <span style={{ color: MC.sub }}>
+                    {copy.lastRestartLabel}
+                    {vm.lastRestart.reason ? ` · ${vm.lastRestart.reason}` : ''}
+                  </span>
+                </div>
+              )}
               {vm.events.map((ev) => (
                 <EventRow key={ev.id} ev={ev} copy={copy} />
               ))}

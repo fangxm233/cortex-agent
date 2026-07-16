@@ -1,8 +1,9 @@
 // 1r Daemon 状态 — Daemon liveness + restart controls, drilled from 1l 设置 「Daemon ›」 (scheme-mobile
-// .dc.html 1r L888-932). NON-Tab drill page. Real tRPC: threads.list (active count), schedules.list
-// (count), executions.list (recent activity), system.restart mutation (soft / hard). The scheme's rich
-// process panel (pid/port/uptime/api p50/ws) and daemon.log event stream have no query source here →
-// rendered as honest gaps (see m-daemon-vm 守则11 note), never fabricated.
+// .dc.html 1r L888-932). NON-Tab drill page. Real tRPC: system.daemonStatus (per-process name/label/
+// status/pid/port/uptime/extras + lastRestart — same query as the desktop 17a modal), threads.list
+// (active count), schedules.list (count), executions.list (recent activity), system.restart mutation
+// (soft / hard). Only the daemon.log event stream lacks a query scope → the 最近事件 card surfaces the
+// REAL lastRestart plus recent executions (see m-daemon-vm 守则11 note); nothing is fabricated.
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -20,8 +21,10 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
     statusErr: 'Unreachable',
     threadsRunning: (n) => `${n} threads running`,
     schedules: (n) => `schedules ${n}`,
-    metricsGap: 'pid · port · uptime not available on web',
-    recentTitle: 'Recent activity',
+    uptimeLabel: 'uptime',
+    dash: '—',
+    lastRestartLabel: 'Last restart',
+    recentTitle: 'Recent events',
     recentGap: 'daemon event log not exposed on web — showing recent executions',
     recentEmpty: 'No recent activity',
     status: { running: 'running', completed: 'completed', failed: 'failed', cancelled: 'cancelled', stale: 'stale' },
@@ -40,8 +43,10 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
     statusErr: '连接异常',
     threadsRunning: (n) => `${n} 线程运行中`,
     schedules: (n) => `schedules ${n}`,
-    metricsGap: 'pid · 端口 · 运行时长 在 Web 不可见',
-    recentTitle: '最近活动',
+    uptimeLabel: 'uptime',
+    dash: '—',
+    lastRestartLabel: '上次重启',
+    recentTitle: '最近事件',
     recentGap: 'Web 未提供 daemon 事件日志，以下为最近执行',
     recentEmpty: '暂无最近活动',
     status: { running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消', stale: '过期' },
@@ -65,8 +70,10 @@ export function MDaemonScreen() {
   const threadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter('active') }));
   const schedulesQuery = useQuery(trpc.schedules.list.queryOptions({}));
   const executionsQuery = useQuery(trpc.executions.list.queryOptions({ limit: 5 }));
+  // Real per-process status (pid/port/uptime/liveness) + lastRestart — same query as the desktop 17a modal.
+  const daemonQuery = useQuery(trpc.system.daemonStatus.queryOptions({}));
 
-  // Daemon reachability — implied by the queries succeeding (no per-process status DTO on this surface).
+  // Daemon reachability — implied by the queries succeeding (drives the header pill + fallback status).
   const ok = !threadsQuery.isError && !schedulesQuery.isError;
 
   const vm = useMemo(
@@ -75,15 +82,17 @@ export function MDaemonScreen() {
         threads: threadsQuery.data ?? [],
         schedules: schedulesQuery.data ?? [],
         executions: executionsQuery.data ?? [],
+        daemon: daemonQuery.data ?? null,
         ok,
       }),
-    [threadsQuery.data, schedulesQuery.data, executionsQuery.data, ok],
+    [threadsQuery.data, schedulesQuery.data, executionsQuery.data, daemonQuery.data, ok],
   );
 
   const restartMut = useMutation(
     trpc.system.restart.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries(trpc.threads.list.queryFilter());
+        queryClient.invalidateQueries(trpc.system.daemonStatus.queryFilter());
       },
     }),
   );
