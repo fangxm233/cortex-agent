@@ -126,9 +126,18 @@ export function LeftRail(): JSX.Element {
   // and selects its row. There is no dedicated per-session route, so selection + most-recent
   // resolution IS the navigation to the new session.
   // "+ New session" enters draft mode (no server call) — the session is created lazily
-  // when the user sends their first message (task 15b).
+  // when the user sends their first message (task 15b). navigate('/workbench') returns to the chat
+  // when the rail is shown over another center view (e.g. the Overview route).
   const onNewSession = () => {
     setSelectedSession('__draft__');
+    navigate('/workbench');
+  };
+  // Selecting a session row re-points the chat AND returns to the chat view if we are on another
+  // center route (Overview/Memory/…) — otherwise the click would silently change the selection
+  // while the user keeps looking at the overview.
+  const onSelectSession = (id: string) => {
+    setSelectedSession(id);
+    navigate('/workbench');
   };
   // Keep a ref to the latest handler so the ⌘N listener (registered once) always calls the current
   // closure without re-binding the window listener on every render.
@@ -314,7 +323,7 @@ export function LeftRail(): JSX.Element {
                   {...hp(rowKey)}
                   className="sess-row"
                   data-session-id={s.sessionId}
-                  onClick={() => setSelectedSession(s.sessionId)}
+                  onClick={() => onSelectSession(s.sessionId)}
                   style={{ borderRadius: 8, padding: '8px 10px', cursor: 'pointer', background: bg, position: 'relative' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>

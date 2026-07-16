@@ -6,9 +6,9 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
 import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
+import { useCurrentProject } from '@/features/workbench/CurrentProjectProvider';
 import {
   formatMoney,
-  deriveActiveProjectId,
   scheduleIntervalLabel,
   scheduleProfileLabel,
   nextRunLabel,
@@ -76,14 +76,11 @@ export function OverviewView(): JSX.Element {
   const { open: openScheduleModal } = useScheduleModal();
   const now = Date.now();
 
-  const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
-  const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({}));
-  const projects = projectsQuery.data ?? [];
-  const sessions = sessionsQuery.data ?? [];
-  const activeProjectId = useMemo(
-    () => deriveActiveProjectId(sessions, projects),
-    [sessions, projects],
-  );
+  // Active project = the shared cross-pane current project (task 569c) — the same value the LeftRail
+  // switcher writes and the RightPanel cost bar reads. Using it here (instead of re-deriving the
+  // most-recent-session project) fixes the overview showing a different project than the one selected
+  // in the rail.
+  const { currentProjectId: activeProjectId } = useCurrentProject();
   const projName = activeProjectId ?? '—';
 
   const costQuery = useQuery({

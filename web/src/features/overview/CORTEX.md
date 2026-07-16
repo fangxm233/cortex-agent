@@ -23,7 +23,10 @@ mirroring the prototype's `isOverview` state. Diffed vs `proto-shots/10-overview
   real `schedules.resume` mutation → invalidate `schedules.list`); **Executions** = `executions.list`
   filtered client-side by project (id · summary · machine · dur · cost · status pill · Logs →
   `useExecutionLogDrawer().open(id)`, the b963 execution-log drawer overlay). Active project =
-  most-recent session's project (`deriveActiveProjectId`).
+  the shared cross-pane current project (`useCurrentProject`, task 569c) — the same value the LeftRail
+  switcher writes, so opening the overview after switching projects scopes to the selected project
+  (previously it re-derived the most-recent-session project via `deriveActiveProjectId` and could show
+  a different project than the rail).
 - **REAL cost (task 302b, backed by the `CostSummary` c489 fields)**: **budget bar** = today's scoped
   spend as a % of `dailyBudget` (`budgetPercent`); **`budget /day`** = real `dailyBudget` (`formatPerDay`);
   **`forecast today`** = real `forecastToday`; **Last 14 days** = real `dailyCost` per-calendar-day series
