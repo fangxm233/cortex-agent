@@ -48,11 +48,20 @@ function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: 
   return (
     <MCard radius={12} padding="12px 13px" onClick={() => onOpen(row.id)}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        {/* Unread marker (honest addition, mirrors desktop LeftRail): an accent dot leads unread
+            rows and their title keeps full ink + semibold, while read rows soften — so unread reads
+            darker at a glance. Cleared by useMarkSessionRead once the chat is opened. */}
+        {row.unread && (
+          <span
+            aria-label="unread"
+            style={{ width: 7, height: 7, borderRadius: '50%', background: MC.run, flex: 'none' }}
+          />
+        )}
         <span
           style={{
             fontSize: 14,
-            fontWeight: 600,
-            color: MC.ink,
+            fontWeight: row.unread ? 600 : 400,
+            color: row.unread ? MC.ink : '#454C59',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',

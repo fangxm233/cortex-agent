@@ -72,4 +72,21 @@ describe('buildProjectSwitchRows', () => {
     const rows = buildProjectSwitchRows(projects, 'nimbus', threads, undefined);
     expect(rows.every((r) => r.todayCost === null)).toBe(true);
   });
+
+  it('carries the per-project unread count and defaults to 0 when absent', () => {
+    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, { orchard: 3 });
+    expect(rows.find((r) => r.id === 'orchard')?.unread).toBe(3);
+    expect(rows.find((r) => r.id === 'atlas')?.unread).toBe(0);
+  });
+
+  it('floats projects with unread sessions first (stable within each half)', () => {
+    // orchard has unread; atlas does not → orchard sorts ahead despite trailing in projects.list.
+    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, { orchard: 2 });
+    expect(rows.map((r) => r.id)).toEqual(['orchard', 'atlas']);
+  });
+
+  it('preserves projects.list order when no project has unread (back-compat)', () => {
+    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, {});
+    expect(rows.map((r) => r.id)).toEqual(['atlas', 'orchard']);
+  });
 });

@@ -44,18 +44,24 @@ export interface MProjectSwitchRow {
   /** Real today $ from the global cost summary's byProject bucket; null when the project has no
    *  bucket (honest — never a fabricated $0). */
   todayCost: number | null;
+  /** Unread direct-session count for this project (0 = none). Drives the switcher badge + ordering
+   *  — mirrors the desktop ProjectMenu (buildSwitchList). */
+  unread: number;
 }
 
 /**
  * The OTHER projects (projects.list minus the current one), each with a real running-thread count
- * and today $ from the GLOBAL cost.summary byProject map. Per-project approval / needs-you counts are
- * NOT derivable (ApprovalInfo has no projectId) → deliberately absent, never fabricated.
+ * and today $ from the GLOBAL cost.summary byProject map. Projects with UNREAD sessions sort first
+ * (stable — projects.list order preserved within each half), mirroring the desktop `buildSwitchList`.
+ * `unreadCounts` comes from `unreadCountByProject` over an UNSCOPED direct sessions.list. Per-project
+ * approval / needs-you counts are NOT derivable (ApprovalInfo has no projectId) → deliberately absent.
  */
 export function buildProjectSwitchRows(
   projects: ProjectConduitInfo[],
   currentId: string | null,
   threads: ThreadInfo[],
   globalByProject: CostSummary['byProject'] | undefined,
+  unreadCounts: Record<string, number> = {},
 ): MProjectSwitchRow[] {
   return projects
     .filter((p) => p.id !== currentId)
@@ -70,6 +76,8 @@ export function buildProjectSwitchRows(
         initials: projectInitials(p.id),
         running,
         todayCost: bucket ? bucket.today : null,
+        unread: unreadCounts[p.id] ?? 0,
       };
-    });
+    })
+    .sort((a, b) => Number(b.unread > 0) - Number(a.unread > 0));
 }

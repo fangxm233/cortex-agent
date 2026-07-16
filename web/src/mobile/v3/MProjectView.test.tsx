@@ -73,8 +73,8 @@ function baseProps(over: Partial<MProjectViewProps> = {}): MProjectViewProps {
     pendingApprovals: 2,
     onlineMachines: 3,
     switchRows: [
-      { id: 'atlas', initials: 'AT', running: 1, todayCost: 0.87 },
-      { id: 'orchard', initials: 'OR', running: 0, todayCost: null },
+      { id: 'atlas', initials: 'AT', running: 1, todayCost: 0.87, unread: 0 },
+      { id: 'orchard', initials: 'OR', running: 0, todayCost: null, unread: 0 },
     ],
     onApprovals: noop,
     onMemory: noop,
@@ -154,6 +154,17 @@ describe('MProjectView', () => {
     expect(html).toContain('今日 $0.87');
     expect(html).toContain('orchard');
     expect(html).toContain('空闲');
+  });
+
+  it('badges a switch row that has unread sessions (accent count), and none when unread=0', () => {
+    const withUnread = render({
+      switchRows: [{ id: 'atlas', initials: 'AT', running: 0, todayCost: null, unread: 3 }],
+    });
+    expect(withUnread).toContain('aria-label="unread"');
+    expect(withUnread).toContain('>3<');
+
+    const noUnread = render();
+    expect(noUnread).not.toContain('aria-label="unread"');
   });
 
   it('renders the 新建项目 dashed card + footer line', () => {

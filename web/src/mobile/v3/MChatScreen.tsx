@@ -31,10 +31,8 @@ import {
   formatElapsed,
 } from '@/features/workbench/transcript-vm';
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
-import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
-import { threadPill } from '@/features/workbench/thread-card-proto';
-import { buildMobileStepper, zhDivider } from '@/mobile/screens/mobile-session-vm';
-import { MobileThreadStepper } from '@/mobile/screens/MobileThreadStepper';
+import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
+import { zhDivider } from '@/mobile/screens/mobile-session-vm';
 import type { AttachmentMeta } from '@/features/workbench/chat-content';
 import { MChatView, type MChatCopy } from './MChatView';
 import {
@@ -99,31 +97,6 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
   },
 };
 
-// Inline experiment-pipeline thread card (scheme 1b L148-158), bound to REAL threads.get — same
-// discipline as the desktop InlineThreadCardProto: the contract has no session→thread link, so we bind
-// to the most-relevant active thread (first running, else first waiting). `打开 →` drills to 1g.
-function InlineThreadCard({ subthreadsLabel, openLabel }: { subthreadsLabel: string; openLabel: string }): JSX.Element | null {
-  const navigate = useNavigate();
-  const trpc = useTRPC();
-  const listQuery = useQuery(trpc.threads.list.queryOptions({ status: ['running', 'waiting'] }));
-  const threads = listQuery.data ?? [];
-  const target = threads.find((t) => t.status === 'running') ?? threads[0] ?? null;
-  const threadId = target?.id ?? '';
-  useThreadGetLiveSync(threadId);
-  const getQuery = useQuery({ ...trpc.threads.get.queryOptions({ threadId }), enabled: !!threadId });
-  if (!threadId || getQuery.isPending || getQuery.isError || !getQuery.data) return null;
-  const detail = getQuery.data;
-  return (
-    <MobileThreadStepper
-      card={buildMobileStepper(detail)}
-      pill={threadPill(detail.status)}
-      subthreadsLabel={subthreadsLabel}
-      openLabel={openLabel}
-      onOpen={() => navigate(`/m/thread/${threadId}`)}
-    />
-  );
-}
-
 interface PendingUpload {
   id: string;
   file: File;
@@ -182,6 +155,10 @@ export function MChatScreen(): JSX.Element {
     enabled: !!sessionId,
   });
   const { liveTail, streaming, running, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
+  // Unread write side (mirrors desktop CenterChat): viewing a session stamps it read (debounced,
+  // visibility-gated), re-arming on live activity so a reply landing under the user's eyes never
+  // stays unread. onSuccess invalidates sessions.list → clears the marker + project switcher badge.
+  useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
     () => buildTranscriptRows(transcript, liveTail, { streaming, formatDivider: zhDivider }),
@@ -324,14 +301,6 @@ export function MChatScreen(): JSX.Element {
         moreOpen={moreOpen}
         onMoreToggle={() => setMoreOpen((o) => !o)}
         onMoreClose={() => setMoreOpen(false)}
-        inlineThreadCard={
-          isDraft ? undefined : (
-            <InlineThreadCard
-              subthreadsLabel={lang === 'zh' ? '子线程' : 'sub-threads'}
-              openLabel={lang === 'zh' ? '打开' : 'Open'}
-            />
-          )
-        }
         systemLines={systemLines}
         composerValue={text}
         onComposerChange={setText}

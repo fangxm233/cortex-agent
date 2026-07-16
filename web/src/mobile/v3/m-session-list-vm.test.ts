@@ -69,4 +69,25 @@ describe('buildSessionGroups', () => {
     const [g] = buildSessionGroups([sess({ running: true, numTurns: 4 })], now);
     expect(g.rows[0]).toMatchObject({ running: true, numTurns: 4 });
   });
+
+  it('carries the real unread flag onto the row', () => {
+    const [g] = buildSessionGroups(
+      [sess({ sessionId: 'read' }), sess({ sessionId: 'new', unread: true })],
+      now,
+    );
+    expect(g.rows.find((r) => r.id === 'new')?.unread).toBe(true);
+    expect(g.rows.find((r) => r.id === 'read')?.unread).toBe(false);
+  });
+
+  it('floats unread sessions first within a day group (reuses groupSessions)', () => {
+    const [g] = buildSessionGroups(
+      [
+        sess({ sessionId: 'a', lastUsedAt: '2026-07-15T11:00:00Z', unread: false }),
+        sess({ sessionId: 'b', lastUsedAt: '2026-07-15T10:00:00Z', unread: true }),
+      ],
+      now,
+    );
+    // 'b' is older but unread → floats above the read 'a'.
+    expect(g.rows.map((r) => r.id)).toEqual(['b', 'a']);
+  });
 });

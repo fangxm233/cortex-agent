@@ -77,4 +77,15 @@ describe('MSessionListView', () => {
     const html = render([]);
     expect(html).toContain('暂无会话');
   });
+
+  it('marks an unread row with the accent dot + full ink, and softens read rows', () => {
+    const unread = render([sess({ unread: true })]);
+    expect(unread).toContain('aria-label="unread"');
+    expect(unread).toContain('#191C22'); // full ink title
+    expect(unread).not.toContain('#454C59'); // not softened
+
+    const read = render([sess({ unread: false })]);
+    expect(read).not.toContain('aria-label="unread"');
+    expect(read).toContain('#454C59'); // softened read title
+  });
 });

@@ -24,6 +24,8 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/workbench/session-groups';
+import { unreadCountByProject } from '@/features/workbench/project-menu';
+import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
 import { useMobileProject } from '@/mobile/current-project';
 import { MProjectView, type MProjectCopy } from './MProjectView';
 import { threadCountsForProject, onlineMachineCount, buildProjectSwitchRows } from './m-project-vm';
@@ -92,7 +94,11 @@ export function MProjectScreen() {
   const copy = pickCopy(lang, COPY);
   const { currentProjectId, setCurrentProject } = useMobileProject();
 
+  useSessionsLiveSync();
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
+  // UNSCOPED direct sessions (all projects) → per-project unread counts for the switcher badge +
+  // unread-first ordering. Kept fresh by useSessionsLiveSync (same as the desktop LeftRail).
+  const allSessionsQuery = useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' }));
   const scopedCostQuery = useQuery({
     ...trpc.cost.summary.queryOptions({ projectId: currentProjectId ?? undefined }),
     enabled: !!currentProjectId,
@@ -123,9 +129,13 @@ export function MProjectScreen() {
     };
   }, [currentProjectId, threads, pendingApprovals, scopedCostQuery.data]);
 
+  const unreadCounts = useMemo(
+    () => unreadCountByProject(allSessionsQuery.data ?? []),
+    [allSessionsQuery.data],
+  );
   const switchRows = useMemo(
-    () => buildProjectSwitchRows(projects, currentProjectId, threads, globalCostQuery.data?.byProject),
-    [projects, currentProjectId, threads, globalCostQuery.data],
+    () => buildProjectSwitchRows(projects, currentProjectId, threads, globalCostQuery.data?.byProject, unreadCounts),
+    [projects, currentProjectId, threads, globalCostQuery.data, unreadCounts],
   );
 
   return (
