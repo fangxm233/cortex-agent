@@ -220,6 +220,25 @@ generated `build.gradle.kts`), so a universal debug APK is hundreds of MB. For a
 out, build a signed release APK for a single ABI instead (see below). `tauri android dev` runs on
 a connected device / emulator.
 
+### On-device logs (logcat)
+
+Android does **not** capture Rust `eprintln!`/stdout in logcat — only native crash tombstones show
+up regardless. The shell therefore logs through the `log` facade wired to logcat by `android_logger`
+(init in `run()`, tag `cortex-desktop`); the `shell_log!` macro in `lib.rs` is `log::info!` on Android
+and `eprintln!` on desktop. Watch the OTA/seed flow with:
+
+```bash
+adb logcat -s cortex-desktop            # shell diagnostics only
+```
+
+Expected lines across two launches of a device that has a newer server frontend: `ota check
+starting: <url>` → `staged frontend update <v> (applies next launch)` on launch A, then
+`applied staged frontend update: <v>` on launch B. `ota: already up to date` means the served
+version already equals the installed one (nothing to do); `ota check skipped: <err>` means the
+manifest/bundle fetch failed (network / token / TLS). The server side logs the matching hit under
+the `ui-ota` logger (`manifest served: …` / `bundle served: …`) — a positive signal that a client
+reached and authenticated against the OTA endpoint.
+
 ### Release build (signed APK)
 
 Release APKs must be signed or Android refuses to install them. A single-ABI release APK is also

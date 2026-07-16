@@ -17,7 +17,10 @@ import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createZip, type ZipEntry } from './zip-writer.js';
+import { createLogger } from '@core/log.js';
 import type { CustomRouteHandler } from './ui-http-server.js';
+
+const log = createLogger('ui-ota');
 
 export const UI_OTA_MANIFEST_PATH = '/api/ui-ota/manifest.json';
 export const UI_OTA_BUNDLE_PATH = '/api/ui-ota/bundle.zip';
@@ -111,7 +114,11 @@ export function createOtaRoutes(spaDir: string | undefined): Record<string, Cust
       sendJson(res, 405, { ok: false, code: 'method-not-allowed', message: 'Use GET' });
       return;
     }
-    sendJson(res, 200, bundle().manifest);
+    const m = bundle().manifest;
+    // Positive server-side signal that a client reached (and passed auth on) the OTA endpoint —
+    // success was previously silent, so "no log" was ambiguous between not-reached and reached-ok.
+    log.info(`manifest served: version=${m.version.slice(0, 12)} size=${m.size} method=${req.method}`);
+    sendJson(res, 200, m);
   };
 
   const bundleHandler: CustomRouteHandler = async (req: IncomingMessage, res: ServerResponse) => {
@@ -120,6 +127,7 @@ export function createOtaRoutes(spaDir: string | undefined): Record<string, Cust
       return;
     }
     const { zip } = bundle();
+    log.info(`bundle served: size=${zip.length} method=${req.method}`);
     res.writeHead(200, {
       'Content-Type': 'application/zip',
       'Content-Length': String(zip.length),

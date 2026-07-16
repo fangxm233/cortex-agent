@@ -26,6 +26,21 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
+/// Emit a diagnostic line from the native shell.
+///
+/// On Android, Rust `eprintln!`/`println!` (stdout/stderr) is NOT captured by logcat, so the shell's
+/// OTA/seed diagnostics were invisible on-device (only native crash tombstones show up). This routes
+/// through the `log` facade — wired to logcat by `android_logger` in `run()` — so `adb logcat` sees
+/// them under the `cortex-desktop` tag. On desktop it stays `eprintln!` (visible on the terminal).
+macro_rules! shell_log {
+    ($($arg:tt)*) => {{
+        #[cfg(target_os = "android")]
+        { log::info!($($arg)*); }
+        #[cfg(not(target_os = "android"))]
+        { eprintln!($($arg)*); }
+    }};
+}
+
 mod creds;
 // frontend (custom-scheme asset resolver) + ota (self-updating SPA) now run on BOTH desktop and
 // Android: the SPA is served over the `cortexui://` scheme from an on-disk frontend directory, and
@@ -134,7 +149,7 @@ fn connect(
         token: Some(token),
     };
     if let Err(e) = creds::save(&app, &config) {
-        eprintln!(
+        shell_log!(
             "[cortex-desktop] credential store save failed ({e}); \
              credentials are session-only (lost on restart)"
         );
@@ -283,6 +298,16 @@ fn load_initial_config(app: &tauri::AppHandle) -> ConnectionConfig {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Route the `log` facade to logcat on Android (Rust stderr is not captured there) so the shell's
+    // OTA/seed diagnostics are observable via `adb logcat -s cortex-desktop`. init_once is safe to call
+    // unconditionally on every launch. No-op on desktop (uses eprintln! via shell_log!).
+    #[cfg(target_os = "android")]
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_max_level(log::LevelFilter::Info)
+            .with_tag("cortex-desktop"),
+    );
+
     // Install ring as the process-wide rustls crypto provider before any OTA request builds a TLS
     // client (reqwest is compiled with `rustls-no-provider`, so it relies on this default). Idempotent
     // — a second call would Err, which we ignore. Must run before the background OTA thread starts.
@@ -335,18 +360,22 @@ pub fn run() {
             if let Ok(data) = app.path().app_data_dir() {
                 let store = ota::UiStore::new(&data);
                 match store.promote_staged() {
-                    Ok(Some(v)) => eprintln!("[cortex-desktop] applied staged frontend update: {v}"),
-                    Ok(None) => {}
-                    Err(e) => eprintln!("[cortex-desktop] promote staged frontend failed: {e}"),
+                    Ok(Some(v)) => shell_log!("[cortex-desktop] applied staged frontend update: {v}"),
+                    Ok(None) => shell_log!("[cortex-desktop] no staged frontend to promote"),
+                    Err(e) => shell_log!("[cortex-desktop] promote staged frontend failed: {e}"),
                 }
                 #[cfg(target_os = "android")]
                 {
                     match seed::ensure_seed(&store.current_dir()) {
-                        Ok(true) => eprintln!("[cortex-desktop] extracted embedded frontend seed"),
+                        Ok(true) => shell_log!("[cortex-desktop] extracted embedded frontend seed"),
                         Ok(false) => {}
-                        Err(e) => eprintln!("[cortex-desktop] seed extract failed: {e}"),
+                        Err(e) => shell_log!("[cortex-desktop] seed extract failed: {e}"),
                     }
                 }
+                shell_log!(
+                    "[cortex-desktop] frontend dir: installed_version={:?}",
+                    store.installed_version()
+                );
             }
 
             // ── Open the window against the cortexui:// scheme (both platforms) ──
@@ -373,15 +402,18 @@ pub fn run() {
                 let cfg = app.state::<AppState>().config.lock().unwrap().clone();
                 if let (Some(url), Some(token)) = (cfg.server_url, cfg.token) {
                     std::thread::spawn(move || {
+                        shell_log!("[cortex-desktop] ota check starting: {url}");
                         let store = ota::UiStore::new(&data);
                         match ota::check_and_stage(&url, &token, &store) {
-                            Ok(Some(v)) => eprintln!(
+                            Ok(Some(v)) => shell_log!(
                                 "[cortex-desktop] staged frontend update {v} (applies next launch)"
                             ),
-                            Ok(None) => {}
-                            Err(e) => eprintln!("[cortex-desktop] ota check skipped: {e}"),
+                            Ok(None) => shell_log!("[cortex-desktop] ota: already up to date"),
+                            Err(e) => shell_log!("[cortex-desktop] ota check skipped: {e}"),
                         }
                     });
+                } else {
+                    shell_log!("[cortex-desktop] ota check not started: no credentials");
                 }
             }
 

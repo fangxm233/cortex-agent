@@ -51,6 +51,12 @@ keyring = { version = "3", features = [] }
 #   Kept Android-only so `cargo build`/`cargo test` on the host don't require web/dist to exist.
 [target.'cfg(target_os = "android")'.dependencies]
 include_dir = "0.7"
+# Android stdout/stderr (eprintln!/println!) is NOT captured by logcat; the shell's diagnostics (OTA
+# stage/promote/skip, seed extract) were therefore invisible on-device. android_logger routes the
+# `log` facade to logcat under the `cortex-desktop` tag so `adb logcat` can observe them. Desktop keeps
+# eprintln! (visible on the terminal) — see the `shell_log!` macro in lib.rs.
+android_logger = "0.14"
+log = "0.4"
 
 [profile.release]
 panic = "abort"   # Strip expensive panic clean-up logic
