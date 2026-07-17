@@ -626,6 +626,7 @@ export function MComposer({
   lineUnit = '行',
   charUnit = '字',
   onPlus,
+  tone = 'default',
 }: {
   placeholder: string;
   above?: ReactNode;
@@ -642,6 +643,8 @@ export function MComposer({
   charUnit?: string;
   /** Attach (＋) handler surfaced inside the full-screen editor's tool row. */
   onPlus?: () => void;
+  /** 'amber' = the 5a reject-feedback mode ring (scheme-mobile L213: #C99A2E + amber glow). */
+  tone?: 'default' | 'amber';
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [focused, setFocused] = useState(false);
@@ -673,10 +676,10 @@ export function MComposer({
             display: 'flex',
             alignItems: 'center',
             minHeight: COMPOSER_MIN_H,
-            border: `1.5px solid ${focused ? MC.run : '#D9DCE3'}`,
+            border: `1.5px solid ${tone === 'amber' ? MC.amber : focused ? MC.run : '#D9DCE3'}`,
             borderRadius: multiline ? 16 : 14,
             background: '#fff',
-            boxShadow: focused ? '0 0 0 3px rgba(70,85,212,.08)' : undefined,
+            boxShadow: tone === 'amber' ? '0 0 0 3px rgba(201,154,46,.10)' : focused ? '0 0 0 3px rgba(70,85,212,.08)' : undefined,
             boxSizing: 'border-box',
             padding: `0 ${showExpand ? 34 : 14}px 0 14px`,
           }}

@@ -5,10 +5,9 @@
 //
 // HONEST-GAP NOTE (verified against agent-server/domain/ui-service/app-router.ts + ui-contract):
 //   • per-session `$` cost — SessionInfo carries none → OMITTED from the header/status lines.
-//   • 1m agent-提问 (AskUserQuestion) and 1n Plan-审批 (ExitPlanMode) — the web tRPC contract has NO
-//     interaction/question/plan procedure or DTO, and the desktop CenterChat renders no such card.
-//     The card types + formatters below exist so the UI is built + tested (neutral fixtures), but the
-//     container has no real per-session source to feed them, so they never render from live data.
+// Interaction cards (提问 5b / plan 审批 6a) are transcript entity rows — their models live in
+// the SHARED features/workbench/interaction-vm (askCardModel/planCardModel + answer reducers);
+// this module only contributes the header status line for a pending interaction.
 import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 
 export interface ChatHeaderStatus {
@@ -19,8 +18,13 @@ export interface ChatHeaderStatus {
    *   • idle after a turn → `idle · {elapsed} · {turns} · {cost}`
    *   • fresh / never-run → bare `idle`
    * `turns`/`cost` render as `—` when unknown.
+   * A pending interaction overrides the whole line (interactionHeaderStatus, scheme §5/§6):
+   *   • plan  → `计划待批 · 线程已暂停`
+   *   • ask   → `等待你的回答 k/n · 线程已暂停`
    */
   text: string;
+  /** Header dot: running = blue pulse · waiting = amber (pending interaction) · idle = grey. */
+  tone: 'running' | 'idle' | 'waiting';
 }
 
 const DASH = '—';
@@ -44,13 +48,36 @@ export function chatHeaderStatus(
 ): ChatHeaderStatus {
   const turnsText = turns == null ? DASH : `${turns} turns`;
   if (running) {
-    return { running: true, text: `running · ${elapsed} · ${turnsText}` };
+    return { running: true, tone: 'running', text: `running · ${elapsed} · ${turnsText}` };
   }
   if (!hasRun) {
-    return { running: false, text: 'idle' };
+    return { running: false, tone: 'idle', text: 'idle' };
   }
   const costText = cost == null ? DASH : fmtCost(cost);
-  return { running: false, text: `idle · ${elapsed} · ${turnsText} · ${costText}` };
+  return { running: false, tone: 'idle', text: `idle · ${elapsed} · ${turnsText} · ${costText}` };
+}
+
+/**
+ * Header status while a pending interaction blocks the thread (scheme-mobile 5a/5b/6a):
+ * amber dot + `计划待批 · 线程已暂停` (plan) or `等待你的回答 k/n · 线程已暂停` (ask, k =
+ * current question 1-based; the counter is omitted for a single question).
+ */
+export function interactionHeaderStatus(
+  kind: 'ask-user' | 'plan-approval',
+  answered: number,
+  total: number,
+  lang: 'zh' | 'en',
+): ChatHeaderStatus {
+  const zh = lang === 'zh';
+  if (kind === 'plan-approval') {
+    return { running: false, tone: 'waiting', text: zh ? '计划待批 · 线程已暂停' : 'plan pending · thread paused' };
+  }
+  const counter = total > 1 ? ` ${Math.min(answered + 1, total)}/${total}` : '';
+  return {
+    running: false,
+    tone: 'waiting',
+    text: zh ? `等待你的回答${counter} · 线程已暂停` : `awaiting your answer${counter} · thread paused`,
+  };
 }
 
 /** The session's effective profile: explicit session profile, else config default, else first, else —. */
@@ -86,58 +113,6 @@ export interface ProfileSheetItem {
 /** 1p Profile sheet rows (scheme L824-843): every configured profile, `当前` on the active one. */
 export function buildProfileSheetItems(profiles: ConfigProfileEntry[], current: string): ProfileSheetItem[] {
   return profiles.map((p) => ({ name: p.name, sub: profileSub(p), current: p.name === current }));
-}
-
-/** `MM:SS` TTL label for a real question deadline (scheme 1m L683). Clamped at 0. */
-export function formatTtl(secondsLeft: number): string {
-  const s = Math.max(0, Math.floor(secondsLeft));
-  const mm = String(Math.floor(s / 60)).padStart(2, '0');
-  const ss = String(s % 60).padStart(2, '0');
-  return `${mm}:${ss}`;
-}
-
-// ── 1m agent-提问 card model (fed only from a REAL pending interaction — none in the contract today) ──
-export interface AskQuestionOption {
-  id: string;
-  label: string;
-  isDefault: boolean;
-  /** Optional right-aligned meta, e.g. cost/time delta (scheme L688). Omitted when absent. */
-  meta?: string;
-}
-export interface AskQuestionCardData {
-  id: string;
-  question: string;
-  /** `MM:SS 后按默认继续` — present ONLY when the real interaction carries a deadline; else omitted. */
-  ttlLabel: string | null;
-  options: AskQuestionOption[];
-  /** `来自 X` source path (scheme L691), e.g. `ablation-sweep › plan`. */
-  source: string;
-  /** `hook 已同步 Slack` footnote — only when real. */
-  syncedNote?: string;
-}
-export interface AnsweredQuestionRow {
-  id: string;
-  /** `问题 → 选中答案` one-line summary (scheme L679). */
-  summary: string;
-  time?: string;
-}
-
-// ── 1n Plan-审批 card model (fed only from a REAL pending plan — none in the contract today) ──
-export interface PlanStep {
-  n: number;
-  text: string;
-  /** Per-step duration estimate (scheme L725) — only when real. */
-  dur?: string;
-}
-export interface PlanCardData {
-  title: string;
-  /** `预估 $3.80 · ~55m` — present ONLY when the real plan carries an estimate; else omitted. */
-  estimateLabel: string | null;
-  steps: PlanStep[];
-  /** Amber caveat line (scheme L729) — only when real. */
-  note?: string;
-  /** `批准写入 plans/…` footer path (scheme L735) — only when real. */
-  writePath?: string;
 }
 
 // ── 1o attachment chip model (real upload state machine, ported from desktop Composer) ──

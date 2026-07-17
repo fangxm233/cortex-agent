@@ -8,7 +8,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 
 export interface InteractionActions {
-  answerQuestion: (requestId: string, questions: { question: string }[], optionLabel: string) => void;
+  /** Submit the full per-question answer record (multi-select values pre-joined with ", "). */
+  answerQuestion: (requestId: string, answers: Record<string, string>) => void;
   approvePlan: (requestId: string) => void;
   rejectPlan: (requestId: string, feedback?: string) => void;
   busy: boolean;
@@ -26,10 +27,8 @@ export function useInteractionActions(sessionId: string): InteractionActions {
     queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
   }, [queryClient, trpc, sessionId]);
 
-  const answerQuestion = useCallback((requestId: string, questions: { question: string }[], optionLabel: string) => {
+  const answerQuestion = useCallback((requestId: string, answers: Record<string, string>) => {
     if (answerMut.isPending) return;
-    const answers: Record<string, string> = {};
-    for (const q of questions) answers[q.question] = optionLabel;
     answerMut.mutate({ requestId, answers }, { onSettled: refresh });
   }, [answerMut, refresh]);
 

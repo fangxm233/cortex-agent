@@ -15,8 +15,8 @@
 //     client. `useInteractionActions` supplies answer/approve/reject via `sessions.answerQuestion`
 //     / `sessions.respondPlan`, which resolve the blocked MCP tool.
 //   • ⋯ 重命名/导出/归档 — no backend op → inert honest menu.
-import { useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
@@ -36,9 +36,26 @@ import { threadPill } from '@/features/workbench/thread-card-proto';
 import { buildMobileStepper, zhDivider } from '@/mobile/screens/mobile-session-vm';
 import { MobileThreadStepper } from '@/mobile/screens/MobileThreadStepper';
 import type { AttachmentMeta } from '@/features/workbench/chat-content';
-import { MChatView, type MChatCopy } from './MChatView';
+import {
+  askCardModel,
+  planCardModel,
+  emptyAskAnswers,
+  currentQuestionIndex,
+  commitAnswer,
+  toggleSelected,
+  confirmSelected,
+  askComplete,
+  mergedAnswers,
+  type AskAnswerState,
+  type AskCardModel,
+  type PlanCardModel,
+} from '@/features/workbench/interaction-vm';
+import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar } from './MChatView';
+import { M_INT_COPY } from './MInteractionCards';
+import type { RejectPlanNavState } from './MPlanReadScreen';
 import {
   chatHeaderStatus,
+  interactionHeaderStatus,
   effectiveProfileName,
   profileChipLabel,
   buildProfileSheetItems,
@@ -64,14 +81,6 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     profileSubtitle: '仅本会话 · 热更新',
     profileCurrent: '当前',
     profileFooter: '切换仅影响本会话后续 turn · 运行中线程不受影响 · 全局默认在设置',
-    askPill: 'Agent 提问',
-    answered: '✓ 已回答',
-    defaultBadge: '默认',
-    planPending: '计划待批',
-    approve: '批准并执行',
-    reject: '驳回并反馈',
-    fromLabel: '来自',
-    writeLabel: '批准写入',
     lineUnit: '行',
     charUnit: '字',
   },
@@ -90,14 +99,6 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     profileSubtitle: 'This session · hot-swap',
     profileCurrent: 'current',
     profileFooter: 'Applies to this session’s next turns only · running threads unaffected · global default in Settings',
-    askPill: 'Agent question',
-    answered: '✓ answered',
-    defaultBadge: 'default',
-    planPending: 'Plan pending',
-    approve: 'Approve & run',
-    reject: 'Reject with note',
-    fromLabel: 'from',
-    writeLabel: 'writes to',
     lineUnit: 'lines',
     charUnit: 'chars',
   },
@@ -205,6 +206,61 @@ export function MChatScreen(): JSX.Element {
   const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
   const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
 
+  // ── pending interaction (scheme 4/5/6: cards + header override + composer routing) ──
+  const pendingInteraction = useMemo(() => {
+    for (const r of rows) {
+      if (r.kind === 'interaction' && r.detail?.status === 'pending') return { detail: r.detail, ts: r.ts ?? null };
+    }
+    return null;
+  }, [rows]);
+  const pendingAskModel = pendingInteraction?.detail.kind === 'ask-user'
+    ? askCardModel(pendingInteraction.detail, pendingInteraction.ts)
+    : null;
+  const pendingPlanModel = pendingInteraction?.detail.kind === 'plan-approval'
+    ? planCardModel(pendingInteraction.detail, pendingInteraction.ts)
+    : null;
+
+  // Session-local progressive answers per ask card (5b: 答一题进一题, the entity resolves once
+  // when the LAST question is answered).
+  const [askStates, setAskStates] = useState<Record<string, AskAnswerState>>({});
+  const askStateOf = (id: string): AskAnswerState => askStates[id] ?? emptyAskAnswers;
+  const commitAndMaybeSubmit = (model: AskCardModel, next: AskAnswerState): void => {
+    setAskStates((prev) => ({ ...prev, [model.requestId]: next }));
+    if (askComplete(model, next)) interactionActions.answerQuestion(model.requestId, mergedAnswers(model, next));
+  };
+  const onAskPick = (model: AskCardModel, label: string): void => {
+    const st = askStateOf(model.requestId);
+    const q = model.questions[currentQuestionIndex(model, st)];
+    if (q) commitAndMaybeSubmit(model, commitAnswer(st, q.question, label));
+  };
+  const onAskToggle = (model: AskCardModel, label: string): void => {
+    setAskStates((prev) => ({ ...prev, [model.requestId]: toggleSelected(askStateOf(model.requestId), label) }));
+  };
+  const onAskConfirmMulti = (model: AskCardModel): void => {
+    const st = askStateOf(model.requestId);
+    const q = model.questions[currentQuestionIndex(model, st)];
+    if (q && st.selected.length > 0) commitAndMaybeSubmit(model, confirmSelected(st, q.question));
+  };
+
+  // 5a reject mode — armed by the card's 驳回并反馈 or by the reading page's router state.
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const location = useLocation();
+  useEffect(() => {
+    const st = location.state as RejectPlanNavState | null;
+    if (st?.rejectPlan) {
+      setRejectingId(st.rejectPlan);
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+  // Auto-disarm when the plan resolves elsewhere (Slack / desktop / timeout).
+  const pendingPlanId = pendingPlanModel?.requestId ?? null;
+  useEffect(() => {
+    if (rejectingId && rejectingId !== pendingPlanId) setRejectingId(null);
+  }, [rejectingId, pendingPlanId]);
+
+  const onOpenRead = (m: PlanCardModel): void => navigate(`/m/session/${sessionId}/plan/${m.requestId}`);
+
   // ── profiles (1p) ──
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const profiles = configQuery.data?.profiles?.profiles ?? [];
@@ -276,11 +332,31 @@ export function MChatScreen(): JSX.Element {
   const doneMetas = uploads.filter((u) => u.status === 'done' && u.meta).map((u) => u.meta!);
   const uploading = uploads.some((u) => u.status === 'uploading');
   const hasText = !!text.trim();
-  const sendEnabled = (hasText || doneMetas.length > 0) && (!!sessionId || isDraft) && !uploading && !sendMut.isPending && !createAndSendMut.isPending;
+  // 5a reject / 5b free-text answer: the composer routes to the interaction, text required.
+  const rejectArmed = !!rejectingId && rejectingId === pendingPlanId;
+  const interactionMode = rejectArmed || !!pendingAskModel;
+  const sendEnabled = interactionMode
+    ? hasText && !interactionActions.busy
+    : (hasText || doneMetas.length > 0) && (!!sessionId || isDraft) && !uploading && !sendMut.isPending && !createAndSendMut.isPending;
 
   const onSend = (): void => {
     const t = text.trim();
     if (!sendEnabled) return;
+    // 5a — send = reject with the typed feedback (required).
+    if (rejectArmed) {
+      interactionActions.rejectPlan(rejectingId!, t);
+      setRejectingId(null);
+      setText('');
+      return;
+    }
+    // 5b — typed text answers the CURRENT question of the pending ask card.
+    if (pendingAskModel) {
+      const st = askStateOf(pendingAskModel.requestId);
+      const q = pendingAskModel.questions[currentQuestionIndex(pendingAskModel, st)];
+      if (q) commitAndMaybeSubmit(pendingAskModel, commitAnswer(st, q.question, t));
+      setText('');
+      return;
+    }
     if (isDraft) {
       createAndSendMut.mutate({
         projectId: currentProjectId ?? 'general',
@@ -316,10 +392,52 @@ export function MChatScreen(): JSX.Element {
 
   // Header status = running snapshot + real agent-turn count + current/last-turn elapsed + last-run
   // cost — same progressive readout as the desktop composer (running: time+turns; idle-after-a-turn:
-  // +cost; fresh: bare idle). A draft or never-run session shows just `idle`.
+  // +cost; fresh: bare idle). A draft or never-run session shows just `idle`. A pending interaction
+  // overrides the whole line with the amber 线程已暂停 state (scheme 5a/5b/6a).
   const cost = active?.costUsd ?? null;
   const hasRun = !isDraft && turns != null;
-  const status = chatHeaderStatus(running, turns, elapsed, cost, hasRun);
+  const status = pendingInteraction
+    ? interactionHeaderStatus(
+        pendingInteraction.detail.kind,
+        pendingAskModel ? currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) : 0,
+        pendingAskModel?.questions.length ?? 1,
+        lang,
+      )
+    : chatHeaderStatus(running, turns, elapsed, cost, hasRun);
+
+  // ── interaction props for the view ──
+  const intCopy = pickCopy(lang, M_INT_COPY);
+  const interactions: MChatInteractions = {
+    copy: intCopy,
+    askState: askStateOf,
+    onAskPick,
+    onAskToggle,
+    onAskConfirmMulti,
+    onAskCustom: () => {}, // typed text already routes to the current question (5b placeholder)
+    rejectingId: rejectArmed ? rejectingId : null,
+    onApprove: (m) => interactionActions.approvePlan(m.requestId),
+    onRejectStart: (m) => setRejectingId(m.requestId),
+    onOpenRead,
+  };
+  const rejectBar: MRejectBar | undefined = rejectArmed && pendingPlanModel
+    ? {
+        title: lang === 'zh'
+          ? `驳回「${pendingPlanModel.title}」— 说明原因后发送`
+          : `Rejecting "${pendingPlanModel.title}" — explain, then send`,
+        chips: lang === 'zh'
+          ? ['范围太大', '先做 dry-run', '成本超预期', '步骤顺序不对']
+          : ['Scope too big', 'Dry-run first', 'Over budget', 'Wrong step order'],
+        onChipTap: (chip) => setText((t) => (t ? `${t}${lang === 'zh' ? '；' : '; '}${chip}` : chip)),
+        onCancel: () => setRejectingId(null),
+      }
+    : undefined;
+  const composerPlaceholder = rejectArmed
+    ? (lang === 'zh' ? '说明驳回原因…' : 'Reason for rejecting…')
+    : pendingAskModel
+      ? (lang === 'zh'
+          ? `点选项，或直接输入回答 Q${Math.min(currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) + 1, pendingAskModel.questions.length)}…`
+          : `Tap an option, or type your answer to Q${Math.min(currentQuestionIndex(pendingAskModel, askStateOf(pendingAskModel.requestId)) + 1, pendingAskModel.questions.length)}…`)
+      : undefined;
   const title = isDraft
     ? (lang === 'zh' ? '新会话' : 'New session')
     : (active?.label ?? active?.name ?? routeParam ?? '');
@@ -356,11 +474,13 @@ export function MChatScreen(): JSX.Element {
           ) : undefined
         }
         systemLines={systemLines}
-        interactionActions={interactionActions}
+        interactions={interactions}
+        rejectBar={rejectBar}
         composerValue={text}
         onComposerChange={setText}
         onSend={onSend}
         sendEnabled={sendEnabled}
+        composerPlaceholder={composerPlaceholder}
         onStop={onStop}
         stopEnabled={!cancelMut.isPending}
         profileChipLabel={profileChipLabel(effectiveProfile, profiles)}

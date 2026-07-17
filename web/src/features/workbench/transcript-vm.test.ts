@@ -308,6 +308,12 @@ describe('interaction entity rows', () => {
     expect(row && row.kind === 'interaction' && row.detail?.status).toBe('pending');
   });
 
+  it('carries the row ts through (TTL countdown + HH:MM badges need it)', () => {
+    const rows = buildTranscriptRows(mkTranscript('pending'), []);
+    const row = rows.find((r) => r.kind === 'interaction');
+    expect(row && row.kind === 'interaction' && row.ts).toBe('2026-07-16T00:00:01.000Z');
+  });
+
   it('keys interaction rows by entity id so a status change replaces (never duplicates)', () => {
     // Same interaction appearing twice with different status/ts (e.g. transcript refetch race)
     // must collapse to ONE row with the first occurrence winning within a single build.

@@ -1,23 +1,23 @@
 // @ds-adherence-ignore -- mobile v3 chat surface, chrome extracted 1:1 from scheme-mobile.dc.html
-// (1b L136-168 · 1m L670-698 · 1n L709-741 · 1o L753-786 · 1p L799-845). Raw px/hex/font/svg by
+// (1b L136-168 · 1o L753-786 · 1p L799-845 · 5a reject composer L200-218). Raw px/hex/font/svg by
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
+// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards.
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import type { ChatRow, Attachment } from '@/features/workbench/transcript-vm';
-import { interactionView } from '@/features/workbench/interaction-vm';
-import type { InteractionActions } from '@/features/workbench/useInteractionActions';
+import {
+  interactionView,
+  emptyAskAnswers,
+  type AskCardModel,
+  type PlanCardModel,
+  type AskAnswerState,
+} from '@/features/workbench/interaction-vm';
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
 import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { downloadFile } from '@/lib/files';
-import type {
-  ChatHeaderStatus,
-  AskQuestionCardData,
-  AnsweredQuestionRow,
-  PlanCardData,
-  ProfileSheetItem,
-  PendingAttachmentVM,
-} from './m-chat-vm';
+import { MAskCard, MPlanCard, M_INT_COPY, type MIntCopy } from './MInteractionCards';
+import type { ChatHeaderStatus, ProfileSheetItem, PendingAttachmentVM } from './m-chat-vm';
 
 export interface MChatCopy {
   composerPh: string;
@@ -34,17 +34,33 @@ export interface MChatCopy {
   profileSubtitle: string;
   profileCurrent: string;
   profileFooter: string;
-  askPill: string;
-  answered: string;
-  defaultBadge: string;
-  planPending: string;
-  approve: string;
-  reject: string;
-  fromLabel: string;
-  writeLabel: string;
   // Full-screen editor (2b) footer counter units.
   lineUnit: string;
   charUnit: string;
+}
+
+/** Interaction handlers + per-card local state threaded from the screen into the stream cards.
+ *  All optional — a stream without handlers renders the cards inert (e.g. static tests). */
+export interface MChatInteractions {
+  copy: MIntCopy;
+  askState: (requestId: string) => AskAnswerState;
+  onAskPick: (model: AskCardModel, label: string) => void;
+  onAskToggle: (model: AskCardModel, label: string) => void;
+  onAskConfirmMulti: (model: AskCardModel) => void;
+  onAskCustom: (model: AskCardModel) => void;
+  /** The plan card currently in 5a reject mode (dimmed) — null when none. */
+  rejectingId: string | null;
+  onApprove: (model: PlanCardModel) => void;
+  onRejectStart: (model: PlanCardModel) => void;
+  onOpenRead: (model: PlanCardModel) => void;
+}
+
+/** 5a reject composer chrome — amber context bar + reason chips above the composer. */
+export interface MRejectBar {
+  title: string;
+  chips: string[];
+  onChipTap: (chip: string) => void;
+  onCancel: () => void;
 }
 
 // ── 1b header — ‹ back · title + status line · ⋯ menu ─────────────────────────
@@ -81,7 +97,8 @@ export function MChatHeader({
             alignItems: 'center',
             gap: 5,
             font: `400 10px ${MONO}`,
-            color: MC.muted,
+            // 6a/5a header: a pending interaction turns the whole status line amber.
+            color: status.tone === 'waiting' ? MC.amberText : MC.muted,
             marginTop: 1,
           }}
         >
@@ -90,7 +107,7 @@ export function MChatHeader({
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: status.running ? MC.run : '#D9DCE3',
+              background: status.tone === 'waiting' ? MC.amber : status.running ? MC.run : '#D9DCE3',
               animation: status.running ? 'cxpulse 1.6s ease-in-out infinite' : undefined,
             }}
           />
@@ -264,36 +281,39 @@ function ToolCallsRow({
 }
 
 // ── the message stream (reuses ChatMarkdown; renders attachments above/below bubbles) ──
-// Fallback copy for the interaction cards when MChatStream is used without a full MChatCopy.
-const STREAM_FALLBACK_COPY = {
-  askPill: 'Agent 提问', answered: '✓ 已回答', defaultBadge: '默认',
-  planPending: '计划待批', approve: '批准并执行', reject: '驳回并反馈',
-  fromLabel: '来自', writeLabel: '批准写入',
-} as const;
 
-/** Interaction row for the mobile stream — pending rows render the actionable cards, resolved /
- *  expired / cancelled rows render a one-line summary (web-interactions-redesign). */
-function MInteractionRow({ row, copy, actions }: { row: Extract<ChatRow, { kind: 'interaction' }>; copy: MChatCopy; actions?: InteractionActions }): JSX.Element {
+const NOOP = (): void => {};
+
+/** Interaction row for the mobile stream (scheme 6a/5b/4a-c). Entity rows render the full cards
+ *  — pending actionable, resolved sealed in place; expired/cancelled + legacy rows render a
+ *  one-line summary. Without handlers the cards render inert. */
+function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 'interaction' }>; interactions?: MChatInteractions }): JSX.Element {
   const v = interactionView(row);
-  if (v.kind === 'ask-pending') {
+  const copy = interactions?.copy ?? M_INT_COPY.zh;
+  if (v.kind === 'ask') {
+    const m = v.model;
     return (
-      <AskQuestionCard
-        data={v.card}
+      <MAskCard
+        model={m}
+        state={interactions?.askState(m.requestId) ?? emptyAskAnswers}
         copy={copy}
-        onAnswer={(optionId) => {
-          const opt = v.card.options.find((o) => o.id === optionId);
-          if (opt && actions) actions.answerQuestion(v.requestId, v.questions, opt.label);
-        }}
+        onPick={(label) => interactions?.onAskPick(m, label)}
+        onToggle={(label) => interactions?.onAskToggle(m, label)}
+        onConfirmMulti={() => interactions?.onAskConfirmMulti(m)}
+        onCustom={() => interactions?.onAskCustom(m)}
       />
     );
   }
-  if (v.kind === 'plan-pending') {
+  if (v.kind === 'plan') {
+    const m = v.model;
     return (
-      <PlanApprovalCard
-        data={v.card}
+      <MPlanCard
+        model={m}
         copy={copy}
-        onApprove={() => actions?.approvePlan(v.requestId)}
-        onReject={() => actions?.rejectPlan(v.requestId)}
+        dimmed={interactions?.rejectingId === m.requestId}
+        onApprove={interactions ? () => interactions.onApprove(m) : NOOP}
+        onRejectStart={interactions ? () => interactions.onRejectStart(m) : NOOP}
+        onOpenRead={interactions ? () => interactions.onOpenRead(m) : NOOP}
       />
     );
   }
@@ -307,8 +327,7 @@ function MInteractionRow({ row, copy, actions }: { row: Extract<ChatRow, { kind:
   );
 }
 
-export function MChatStream({ rows, toolCallsUnit, copy, interactionActions }: { rows: ChatRow[]; toolCallsUnit: string; copy?: MChatCopy; interactionActions?: InteractionActions }): JSX.Element {
-  const cardCopy: MChatCopy = copy ?? ({ ...STREAM_FALLBACK_COPY } as unknown as MChatCopy);
+export function MChatStream({ rows, toolCallsUnit, interactions }: { rows: ChatRow[]; toolCallsUnit: string; interactions?: MChatInteractions }): JSX.Element {
   return (
     <>
       {rows.map((row, i) => (
@@ -356,7 +375,7 @@ export function MChatStream({ rows, toolCallsUnit, copy, interactionActions }: {
               )}
             </div>
           )}
-          {row.kind === 'interaction' && <MInteractionRow row={row} copy={cardCopy} actions={interactionActions} />}
+          {row.kind === 'interaction' && <MInteractionRow row={row} interactions={interactions} />}
         </Fragment>
       ))}
     </>
@@ -382,108 +401,6 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
     >
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run }} />
       {text}
-    </div>
-  );
-}
-
-// ── 1m agent-提问 card (scheme L681-692) ──────────────────────────────────────
-export function AskQuestionCard({ data, copy, onAnswer }: { data: AskQuestionCardData; copy: MChatCopy; onAnswer: (optionId: string) => void }): JSX.Element {
-  return (
-    <div style={{ border: `1px solid ${MC.runBorder}`, background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(70,85,212,.08)' }}>
-      <div style={{ padding: '12px 14px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: MC.runBg, color: MC.run }}>{copy.askPill}</span>
-          <span style={{ font: `400 10px ${MONO}`, color: MC.faint }}>{data.id}</span>
-          {data.ttlLabel && <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: MC.amberText }}>{data.ttlLabel}</span>}
-        </div>
-        <div style={{ fontSize: 14.5, fontWeight: 600, color: MC.ink, lineHeight: 1.4, marginTop: 8 }}>{data.question}</div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '11px 14px 14px' }}>
-        {data.options.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => onAnswer(o.id)}
-            style={{
-              minHeight: 44,
-              border: `1.5px solid ${o.isDefault ? MC.run : '#D9DCE3'}`,
-              borderRadius: 11,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '8px 13px',
-              boxSizing: 'border-box',
-              background: '#fff',
-              cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.ink }}>{o.label}</span>
-            {o.isDefault ? (
-              <span style={{ marginLeft: 'auto', fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.defaultBadge}</span>
-            ) : o.meta ? (
-              <span style={{ marginLeft: 'auto', font: `400 10px ${MONO}`, color: '#98A1B0', flex: 'none' }}>{o.meta}</span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderTop: '1px solid #EFF1F5', font: `400 10px ${MONO}`, color: '#98A1B0' }}>
-        <span>{copy.fromLabel}</span>
-        <span style={{ color: MC.run }}>{data.source}</span>
-        {data.syncedNote && <span style={{ marginLeft: 'auto' }}>{data.syncedNote}</span>}
-      </div>
-    </div>
-  );
-}
-
-// Collapsed already-answered row (scheme L679).
-export function AnsweredRow({ row, copy }: { row: AnsweredQuestionRow; copy: MChatCopy }): JSX.Element {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: '#fff', border: '1px solid #EFF1F5', borderRadius: 10, opacity: 0.75 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: MC.done, flex: 'none' }}>{copy.answered}</span>
-      <span style={{ fontSize: 11.5, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.summary}</span>
-      {row.time && <span style={{ marginLeft: 'auto', font: `400 9px ${MONO}`, color: MC.faint, flex: 'none' }}>{row.time}</span>}
-    </div>
-  );
-}
-
-// ── 1n Plan-审批 card (scheme L719-735) ───────────────────────────────────────
-export function PlanApprovalCard({ data, copy, onApprove, onReject }: { data: PlanCardData; copy: MChatCopy; onApprove: () => void; onReject: () => void }): JSX.Element {
-  return (
-    <div style={{ border: `1px solid ${MC.runBorder}`, background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(70,85,212,.08)' }}>
-      <div style={{ padding: '12px 14px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: MC.runBg, color: MC.run }}>{copy.planPending}</span>
-          <span style={{ font: `400 10px ${MONO}`, color: MC.faint }}>ExitPlanMode</span>
-          {data.estimateLabel && <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: MC.sub }}>{data.estimateLabel}</span>}
-        </div>
-        <div style={{ fontSize: 14.5, fontWeight: 600, color: MC.ink, lineHeight: 1.4, marginTop: 8 }}>{data.title}</div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 9, padding: '12px 14px' }}>
-        {data.steps.map((s) => (
-          <div key={s.n} style={{ display: 'flex', gap: 9, alignItems: 'baseline' }}>
-            <span style={{ width: 17, height: 17, borderRadius: '50%', background: MC.gray, color: MC.sub, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', font: `600 9.5px ${MONO}`, flex: 'none', alignSelf: 'flex-start' }}>{s.n}</span>
-            <span style={{ fontSize: 12.5, lineHeight: 1.5, color: MC.body, flex: 1 }}>{s.text}</span>
-            {s.dur && <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint, flex: 'none' }}>{s.dur}</span>}
-          </div>
-        ))}
-        {data.note && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', background: MC.amberCard, border: `1px solid ${MC.amberBg}`, borderRadius: 9 }}>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.amber, flex: 'none' }} />
-            <span style={{ fontSize: 10.5, color: '#6B5A1E' }}>{data.note}</span>
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 8, padding: '0 14px 12px' }}>
-        <button type="button" onClick={onApprove} style={{ flex: 1.3, height: 44, borderRadius: 11, background: MC.ink, color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{copy.approve}</button>
-        <button type="button" onClick={onReject} style={{ flex: 1, height: 44, borderRadius: 11, border: '1.5px solid #D9DCE3', background: '#fff', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}>{copy.reject}</button>
-      </div>
-      {data.writePath && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderTop: '1px solid #EFF1F5', font: `400 10px ${MONO}`, color: '#98A1B0' }}>
-          <span>{copy.writeLabel}</span>
-          <span style={{ color: MC.run }}>{data.writePath}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -633,13 +550,18 @@ export interface MChatViewProps {
   // stream slots
   inlineThreadCard?: ReactNode;
   systemLines?: string[];
-  // Interaction cards live inline in `rows` (transcript entities); this only supplies the actions.
-  interactionActions?: InteractionActions;
+  // Interaction cards live inline in `rows` (transcript entities); this supplies the per-card
+  // handlers + session-local answer state (scheme 6a/5b/4a-c).
+  interactions?: MChatInteractions;
+  // 5a reject mode — amber context bar + reason chips above the composer; composer ring amber.
+  rejectBar?: MRejectBar;
   // composer
   composerValue: string;
   onComposerChange: (v: string) => void;
   onSend: () => void;
   sendEnabled: boolean;
+  /** Overrides the composer placeholder (5a 说明原因 / 5b 直接输入回答 Q{k}). */
+  composerPlaceholder?: string;
   // Stop: while the session is running the composer shows a Stop button instead of Send.
   onStop?: () => void;
   stopEnabled?: boolean;
@@ -682,7 +604,36 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     if (el && stickRef.current && Date.now() >= tapFreezeUntil.current) el.scrollTop = el.scrollHeight;
   }, [props.rows, props.systemLines]);
 
-  const above = (
+  // 5a reject mode replaces the composer chrome: amber context bar (+ ✕ cancel) + reason chips
+  // (scheme L200-211). Otherwise: attachment chips + profile chip.
+  const above = props.rejectBar ? (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: MC.amberCard, border: `1px solid ${MC.amberBorder}`, borderRadius: 11, padding: '8px 8px 8px 12px', marginBottom: 7 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.amber, flex: 'none' }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#6B5A1E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.rejectBar.title}</span>
+        <div
+          role="button"
+          aria-label="Cancel reject"
+          onClick={props.rejectBar.onCancel}
+          style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, background: '#fff', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}
+        >
+          ✕
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 6, padding: '0 2px 8px', overflowX: 'auto' }}>
+        {props.rejectBar.chips.map((chip) => (
+          <span
+            key={chip}
+            role="button"
+            onClick={() => props.rejectBar!.onChipTap(chip)}
+            style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: MC.sub, border: '1px solid #D9DCE3', background: '#fff', borderRadius: 999, padding: '5px 11px', cursor: 'pointer' }}
+          >
+            {chip}
+          </span>
+        ))}
+      </div>
+    </>
+  ) : (
     <>
       {props.attachments.length > 0 && (
         <div style={{ display: 'flex', gap: 6, padding: '0 2px 7px', overflowX: 'auto' }}>
@@ -713,7 +664,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. */}
         <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
           <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} copy={copy} interactionActions={props.interactionActions} />
+            <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} interactions={props.interactions} />
             {props.inlineThreadCard}
             {props.systemLines?.map((t, i) => (
               <SystemLine key={i} text={t} />
@@ -722,7 +673,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           </div>
         </div>
         <MComposer
-          placeholder={props.attachments.length > 0 ? copy.attachPlaceholder : copy.composerPh}
+          placeholder={props.composerPlaceholder ?? (props.attachments.length > 0 ? copy.attachPlaceholder : copy.composerPh)}
           value={props.composerValue}
           onChange={props.onComposerChange}
           onSend={props.onSend}
@@ -730,11 +681,12 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           running={props.status.running}
           onStop={props.onStop}
           stopEnabled={props.stopEnabled}
-          leading={<PlusButton onClick={props.onPlus} />}
+          leading={props.rejectBar ? undefined : <PlusButton onClick={props.onPlus} />}
           above={above}
           onPlus={props.onPlus}
           lineUnit={copy.lineUnit}
           charUnit={copy.charUnit}
+          tone={props.rejectBar ? 'amber' : 'default'}
         />
         {props.attachments.length > 0 && (
           <div style={{ font: `400 9px ${MONO}`, color: MC.faint, padding: '0 16px 6px', marginTop: -28 }}>{copy.attachFootnote}</div>

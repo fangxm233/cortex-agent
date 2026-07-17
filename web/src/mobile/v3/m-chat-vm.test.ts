@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 import {
   chatHeaderStatus,
+  interactionHeaderStatus,
   effectiveProfileName,
   profileChipLabel,
   profileSub,
   buildProfileSheetItems,
-  formatTtl,
 } from './m-chat-vm';
 
 const profiles: ConfigProfileEntry[] = [
@@ -36,6 +36,27 @@ describe('chatHeaderStatus', () => {
   it('fresh / never-run session → bare `idle`', () => {
     expect(chatHeaderStatus(false, null, '—', null, false).text).toBe('idle');
     expect(chatHeaderStatus(false, 3, '10s', 0.1, false).text).toBe('idle');
+  });
+  it('carries a tone for the header dot (running/idle)', () => {
+    expect(chatHeaderStatus(true, 1, '5s', null, true).tone).toBe('running');
+    expect(chatHeaderStatus(false, 1, '5s', null, true).tone).toBe('idle');
+  });
+});
+
+describe('interactionHeaderStatus (scheme-mobile 5a/5b/6a header line)', () => {
+  it('pending plan → 计划待批 · 线程已暂停 with the amber waiting tone', () => {
+    const s = interactionHeaderStatus('plan-approval', 0, 1, 'zh');
+    expect(s.tone).toBe('waiting');
+    expect(s.running).toBe(false);
+    expect(s.text).toBe('计划待批 · 线程已暂停');
+    expect(interactionHeaderStatus('plan-approval', 0, 1, 'en').text).toBe('plan pending · thread paused');
+  });
+  it('pending ask with several questions → 等待你的回答 k/n (k = current 1-based)', () => {
+    expect(interactionHeaderStatus('ask-user', 1, 3, 'zh').text).toBe('等待你的回答 2/3 · 线程已暂停');
+    expect(interactionHeaderStatus('ask-user', 0, 3, 'en').text).toBe('awaiting your answer 1/3 · thread paused');
+  });
+  it('single-question ask omits the k/n counter', () => {
+    expect(interactionHeaderStatus('ask-user', 0, 1, 'zh').text).toBe('等待你的回答 · 线程已暂停');
   });
 });
 
@@ -72,13 +93,5 @@ describe('profileSub / buildProfileSheetItems', () => {
     expect(items.map((i) => i.name)).toEqual(['default', 'cheap', 'deep']);
     expect(items.find((i) => i.current)?.name).toBe('cheap');
     expect(items.filter((i) => i.current)).toHaveLength(1);
-  });
-});
-
-describe('formatTtl', () => {
-  it('formats MM:SS and clamps at 0', () => {
-    expect(formatTtl(1754)).toBe('29:14');
-    expect(formatTtl(9)).toBe('00:09');
-    expect(formatTtl(-5)).toBe('00:00');
   });
 });

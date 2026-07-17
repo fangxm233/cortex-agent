@@ -1,25 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import type { ChatRow, Attachment } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { AttachmentMeta } from './chat-content';
 import { downloadFile, openFile, copyFilePath, fetchFileObjectUrl } from '@/lib/files';
-import { interactionView } from './interaction-vm';
+import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-vm';
 import type { InteractionActions } from './useInteractionActions';
-import { AskQuestionCard, PlanApprovalCard } from '@/mobile/v3/MChatView';
-import type { MChatCopy } from '@/mobile/v3/MChatView';
-
-// Copy for the interaction cards (reused mobile components). Only the interaction-related
-// fields matter here; the rest are unused placeholders.
-const interactionsCopy: MChatCopy = {
-  composerPh: '', toolCallsUnit: '', menuRename: '', menuExport: '', menuArchive: '',
-  attachCamera: '', attachLibrary: '', attachFile: '', attachFootnote: '', attachPlaceholder: '',
-  profileTitle: '', profileSubtitle: '', profileCurrent: '', profileFooter: '',
-  askPill: 'Agent question', answered: 'answered', defaultBadge: 'default',
-  planPending: 'Plan pending', approve: 'Approve', reject: 'Reject',
-  fromLabel: 'from', writeLabel: 'writes to', lineUnit: 'lines', charUnit: 'chars',
-};
+import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
+import { PlanReadOverlay } from './PlanReadOverlay';
 
 // Message stream — 1:1 from prototype.dc.html L131–357. The transcript body (divider / user bubble /
 // tool-call row / assistant text) is driven by REAL data (task aba0): the `rows` are built from the
@@ -398,33 +387,68 @@ function InteractionSummaryRow({ tone, label, text }: { tone: 'done' | 'rejected
   );
 }
 
-/** Interaction row — the transcript-inline card (web-interactions-redesign). Pending rows render
- *  actionable cards (reused mobile components); resolved/expired rows render summaries. */
+/** Interaction row — the transcript-inline card (scheme 13b/13c). Entity rows render the full
+ *  desktop cards (pending actionable · resolved sealed in place); expired/cancelled + legacy rows
+ *  render one-line summaries. The row owns the 13b answer state, the 13c 请求修改 expansion and
+ *  the reading overlay (阅读 › / 查看计划 ›). */
 export function InteractionRowCard({ row, actions }: {
   row: Extract<ChatRow, { kind: 'interaction' }>;
   actions?: InteractionActions;
 }): JSX.Element {
+  const lang = useLang();
+  const copy = lang === 'zh' ? D_INT_COPY.zh : D_INT_COPY.en;
+  const [askState, setAskState] = useState<DeskAskState>(emptyDeskAsk);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [readOpen, setReadOpen] = useState(false);
   const v = interactionView(row);
-  if (v.kind === 'ask-pending') {
+
+  if (v.kind === 'ask') {
+    const m = v.model;
     return (
-      <AskQuestionCard
-        data={v.card}
-        copy={interactionsCopy}
-        onAnswer={(optionId) => {
-          const opt = v.card.options.find((o) => o.id === optionId);
-          if (opt && actions) actions.answerQuestion(v.requestId, v.questions, opt.label);
-        }}
+      <DeskAskCard
+        model={m}
+        state={askState}
+        copy={copy}
+        onState={setAskState}
+        onSubmit={(answers) => actions?.answerQuestion(m.requestId, answers)}
+        busy={!!actions?.busy}
       />
     );
   }
-  if (v.kind === 'plan-pending') {
+  if (v.kind === 'plan') {
+    const m = v.model;
     return (
-      <PlanApprovalCard
-        data={v.card}
-        copy={interactionsCopy}
-        onApprove={() => actions?.approvePlan(v.requestId)}
-        onReject={() => actions?.rejectPlan(v.requestId)}
-      />
+      <>
+        <DeskPlanCard
+          model={m}
+          copy={copy}
+          feedbackOpen={feedbackOpen}
+          onFeedbackOpen={setFeedbackOpen}
+          onApprove={() => actions?.approvePlan(m.requestId)}
+          onReject={(fb) => {
+            actions?.rejectPlan(m.requestId, fb);
+            setFeedbackOpen(false);
+          }}
+          onOpenRead={() => setReadOpen(true)}
+          busy={!!actions?.busy}
+        />
+        {readOpen && (
+          <PlanReadOverlay
+            model={m}
+            copy={copy}
+            lang={lang}
+            onClose={() => setReadOpen(false)}
+            onApprove={() => {
+              actions?.approvePlan(m.requestId);
+              setReadOpen(false);
+            }}
+            onRequestChanges={() => {
+              setReadOpen(false);
+              setFeedbackOpen(true);
+            }}
+          />
+        )}
+      </>
     );
   }
   return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;

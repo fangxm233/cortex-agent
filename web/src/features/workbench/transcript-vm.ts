@@ -28,7 +28,7 @@ export type ChatRow =
   | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[] }
   // `detail` carries the structured interaction entity (pending cards render actionable);
   // absent on legacy rows, which render the old subtype-driven summary.
-  | { kind: 'interaction'; subtype: string; text: string; detail?: TranscriptInteractionDetail };
+  | { kind: 'interaction'; subtype: string; text: string; detail?: TranscriptInteractionDetail; ts?: string | null };
 
 export interface BuildOpts {
   /** True while the session is actively producing output — marks the last assistant row's caret. */
@@ -214,7 +214,7 @@ export function buildTranscriptRows(
     }
     flushTools();
     if (m.type === 'interaction') {
-      rows.push({ kind: 'interaction', subtype: (m as any).subtype ?? '', text: m.text ?? '', detail: m.interaction });
+      rows.push({ kind: 'interaction', subtype: (m as any).subtype ?? '', text: m.text ?? '', detail: m.interaction, ts: m.ts ?? null });
     } else if (m.type === 'user') rows.push({ kind: 'user', text: m.text ?? '', attachments: (m as any).attachments });
     else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
   }

@@ -2,6 +2,7 @@ import { Navigate, type RouteObject } from 'react-router-dom';
 import { MobileShell } from './MobileShell';
 import { MSessionListScreen } from './v3/MSessionListScreen';
 import { MChatScreen } from './v3/MChatScreen';
+import { MPlanReadScreen } from './v3/MPlanReadScreen';
 import { MThreadsScreen } from './v3/MThreadsScreen';
 import { MTasksScreen } from './v3/MTasksScreen';
 import { MProjectScreen } from './v3/MProjectScreen';
@@ -31,6 +32,7 @@ export const mobileRoutes: RouteObject[] = [
       { path: '/m/project', element: <MProjectScreen /> },
       // Drill-in sub-screens (Tab bar hidden)
       { path: '/m/session/:sessionId', element: <MChatScreen /> },
+      { path: '/m/session/:sessionId/plan/:requestId', element: <MPlanReadScreen /> },
       { path: '/m/thread/:threadId', element: <MThreadDetailScreen /> },
       { path: '/m/task/:taskId', element: <MTaskDetailScreen /> },
       { path: '/m/approvals', element: <MApprovalsScreen /> },
