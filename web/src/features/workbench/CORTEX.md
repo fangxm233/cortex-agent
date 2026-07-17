@@ -2,8 +2,9 @@
 
 The `/workbench` route is the app-shell **frame** — the load-bearing seam every workbench pane
 composes into (plan §8.6 RB). Rebuilt 1:1 from `design/ref/prototype.dc.html` L39–100: a single
-`display:flex;height:100vh;min-width:1180px;overflow:hidden` row holding three panes — **240px**
-LeftRail (flex:none) / **fluid** CenterChat (flex:1;min-width:0) / **400px** RightPanel (flex:none).
+`display:flex;height:100vh;min-width:1340px;overflow:hidden` row holding three panes — **400px**
+LeftRail (flex:none — widened from the prototype's 240 to match the right panel, 2026-07-16) /
+**fluid** CenterChat (flex:1;min-width:0) / **400px** RightPanel (flex:none).
 CenterChat (89e7) + RightPanel (1e96) are real 1:1; the LeftRail was **refactored to the 22a
 dual-zone scheme** (scheme.dc.html §22a, 2026-07-16) — PROJECTS zone on top, current-project
 SESSIONS below, draggable divider.

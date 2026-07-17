@@ -215,7 +215,7 @@ export function LeftRail(): JSX.Element {
     <div
       data-pane="left"
       style={{
-        width: 240,
+        width: 400,
         flex: 'none',
         display: 'flex',
         flexDirection: 'column',

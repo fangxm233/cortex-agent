@@ -43,7 +43,7 @@ export function ThreadDetailRoute(): JSX.Element {
       style={{
         display: 'flex',
         height: '100vh',
-        minWidth: 1180,
+        minWidth: 1340,
         overflow: 'hidden',
         background: '#F7F8FA',
       }}
