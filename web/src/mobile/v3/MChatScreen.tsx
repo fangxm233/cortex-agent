@@ -36,6 +36,8 @@ import { threadPill } from '@/features/workbench/thread-card-proto';
 import { buildMobileStepper, zhDivider } from '@/mobile/screens/mobile-session-vm';
 import { MobileThreadStepper } from '@/mobile/screens/MobileThreadStepper';
 import type { AttachmentMeta } from '@/features/workbench/chat-content';
+import { fetchFileObjectUrl } from '@/lib/files';
+import { draftStorageKey, loadDraft, saveDraft, clearDraft } from '@/features/workbench/composer-draft';
 import {
   askCardModel,
   planCardModel,
@@ -135,7 +137,8 @@ function InlineThreadCard({ sessionId, subthreadsLabel, openLabel }: { sessionId
 
 interface PendingUpload {
   id: string;
-  file: File;
+  /** Absent for attachments restored from a persisted draft (already on the server via `meta.path`). */
+  file?: File;
   status: 'uploading' | 'done' | 'error';
   progress: number;
   meta?: AttachmentMeta;
@@ -317,6 +320,57 @@ export function MChatScreen(): JSX.Element {
   if (isDraft && !draftUploadId.current) draftUploadId.current = crypto.randomUUID();
   const uploadSessionId = isDraft ? (draftUploadId.current ?? '') : sessionId;
 
+  // ── Per-session draft persistence (localStorage) ──
+  // The composer text + successfully-uploaded attachments are persisted per scope so a draft survives
+  // an app restart (stable webview origin) and a server restart (the referenced upload files live on
+  // the server and are not wiped on boot). One effect LOADS on scope change and SAVES on content
+  // change, distinguished by comparing the live key to a ref (shared logic with the desktop Composer).
+  const draftKey = draftStorageKey({ isDraft, sessionId, projectId: currentProjectId });
+  const draftKeyRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (draftKeyRef.current !== draftKey) {
+      draftKeyRef.current = draftKey;
+      if (!draftKey) return; // no stable scope (transient empty sessionId) → leave content untouched
+      const d = loadDraft(draftKey);
+      if (isDraft && d?.draftUploadId) draftUploadId.current = d.draftUploadId;
+      setText(d?.text ?? '');
+      const restored: PendingUpload[] = (d?.attachments ?? []).map((m) => ({
+        id: nextId(),
+        status: 'done' as const,
+        progress: 100,
+        meta: m,
+        type: m.type,
+      }));
+      setUploads((prev) => {
+        prev.forEach((u) => { if (u.previewUrl) URL.revokeObjectURL(u.previewUrl); });
+        return restored;
+      });
+      return;
+    }
+    saveDraft(draftKey, {
+      text,
+      attachments: uploads.filter((u) => u.status === 'done' && u.meta).map((u) => u.meta!),
+      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey, text, uploads, isDraft]);
+
+  // Restored media attachments have no local File → fetch an authenticated object URL for the preview.
+  useEffect(() => {
+    let cancelled = false;
+    uploads
+      .filter((u) => !u.file && !u.previewUrl && u.status === 'done' && u.meta && (u.type === 'image' || u.type === 'video'))
+      .forEach((u) => {
+        fetchFileObjectUrl(u.meta!.path, 'inline')
+          .then((url) => {
+            if (cancelled) { URL.revokeObjectURL(url); return; }
+            setUploads((prev) => prev.map((x) => (x.id === u.id ? { ...x, previewUrl: url } : x)));
+          })
+          .catch(() => { /* preview is best-effort */ });
+      });
+    return () => { cancelled = true; };
+  }, [uploads]);
+
   const addFiles = (files: FileList | File[]): void => {
     const list = Array.from(files);
     for (const file of list) {
@@ -380,6 +434,9 @@ export function MChatScreen(): JSX.Element {
     } else {
       sendMut.mutate({ sessionId, text: t, ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}) } as never);
     }
+    // Draft consumed — drop the persisted copy and reset the draft upload dir for the next draft.
+    clearDraft(draftKey);
+    if (isDraft) draftUploadId.current = null;
     setText('');
     setUploads((prev) => {
       prev.forEach((u) => { if (u.previewUrl) URL.revokeObjectURL(u.previewUrl); });
@@ -456,7 +513,7 @@ export function MChatScreen(): JSX.Element {
   const title = isDraft
     ? (lang === 'zh' ? '新会话' : 'New session')
     : (active?.label ?? active?.name ?? routeParam ?? '');
-  const attachmentsVM: PendingAttachmentVM[] = uploads.map((u) => ({ id: u.id, name: u.file.name, progress: u.progress, status: u.status, type: u.type, previewUrl: u.previewUrl }));
+  const attachmentsVM: PendingAttachmentVM[] = uploads.map((u) => ({ id: u.id, name: u.file?.name ?? u.meta?.name ?? 'file', progress: u.progress, status: u.status, type: u.type, previewUrl: u.previewUrl }));
 
   return (
     <>

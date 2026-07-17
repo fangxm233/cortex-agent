@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
@@ -9,6 +9,8 @@ import { useSelectedSession } from './SelectedSessionProvider';
 import type { AttachmentMeta } from './chat-content';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { mediaKindOf } from '@/features/media/media-kind';
+import { fetchFileObjectUrl } from '@/lib/files';
+import { draftStorageKey, loadDraft, saveDraft, clearDraft } from './composer-draft';
 
 // Composer — extended with file attachment support (15a 附件输入与消息).
 // Three entry points for files: "+ attach" button · paste (clipboard images) · drag & drop.
@@ -22,7 +24,9 @@ const UPLOAD_PATH = '/api/attachments/upload';
 
 interface PendingAttachment {
   id: string;
-  file: File;
+  /** Absent for attachments restored from a persisted draft — those carry only `meta` (the file
+   *  bytes already live on the server, referenced by `meta.path`). */
+  file?: File;
   status: 'pending' | 'uploading' | 'done' | 'error';
   progress: number;
   meta?: AttachmentMeta;
@@ -31,16 +35,27 @@ interface PendingAttachment {
   previewUrl?: string;
 }
 
+// ── Attachment field accessors (a restored draft attachment has no File, only `meta`) ──
+function attMime(a: PendingAttachment): string {
+  return a.file?.type ?? a.meta?.mimeType ?? '';
+}
+function attName(a: PendingAttachment): string {
+  return a.file?.name ?? a.meta?.name ?? 'file';
+}
+function attSize(a: PendingAttachment): number {
+  return a.file?.size ?? a.meta?.size ?? 0;
+}
+function attType(a: PendingAttachment): AttachmentMeta['type'] {
+  const m = attMime(a);
+  if (m.startsWith('image/')) return 'image';
+  if (m.startsWith('video/')) return 'video';
+  return 'file';
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function classifyFileType(file: File): AttachmentMeta['type'] {
-  if (file.type.startsWith('image/')) return 'image';
-  if (file.type.startsWith('video/')) return 'video';
-  return 'file';
 }
 
 function fileExt(name: string): string {
@@ -179,6 +194,60 @@ export function Composer({
   const dragFileCount = useRef(0);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
 
+  // ── Per-session draft persistence (localStorage) ──
+  // The composer text + successfully-uploaded attachments are persisted per scope so a draft survives
+  // an app restart (stable webview/browser origin) and a server restart (the referenced upload files
+  // live on the server and are not wiped on boot). One effect both LOADS on scope change and SAVES on
+  // content change, distinguished by comparing the live key to a ref — so switching sessions swaps the
+  // draft cleanly and never writes the outgoing content under the incoming key.
+  const draftKey = draftStorageKey({ isDraft, sessionId, projectId });
+  const draftKeyRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (draftKeyRef.current !== draftKey) {
+      // Scope changed → load the new scope's draft; skip saving on this cycle.
+      draftKeyRef.current = draftKey;
+      if (!draftKey) return; // no stable scope (transient empty sessionId) → leave content untouched
+      const d = loadDraft(draftKey);
+      if (isDraft && d?.draftUploadId) draftUploadId.current = d.draftUploadId;
+      setComposer(d?.text ?? '');
+      const restored: PendingAttachment[] = (d?.attachments ?? []).map((m) => ({
+        id: nextId(),
+        status: 'done' as const,
+        progress: 100,
+        meta: m,
+      }));
+      setAttachments((prev) => {
+        prev.forEach((a) => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
+        return restored;
+      });
+      return;
+    }
+    // Same scope, content changed → persist.
+    saveDraft(draftKey, {
+      text: composer,
+      attachments: attachments.filter((a) => a.status === 'done' && a.meta).map((a) => a.meta!),
+      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
+    });
+  }, [draftKey, composer, attachments, isDraft]);
+
+  // Restored media attachments have no local File → fetch an authenticated object URL for the
+  // thumbnail/lightbox preview (mirrors the message-stream file cards). Converges (previewUrl set
+  // excludes the entry on the next pass).
+  useEffect(() => {
+    let cancelled = false;
+    attachments
+      .filter((a) => !a.file && !a.previewUrl && a.status === 'done' && a.meta && (a.meta.type === 'image' || a.meta.type === 'video'))
+      .forEach((a) => {
+        fetchFileObjectUrl(a.meta!.path, 'inline')
+          .then((url) => {
+            if (cancelled) { URL.revokeObjectURL(url); return; }
+            setAttachments((prev) => prev.map((x) => (x.id === a.id ? { ...x, previewUrl: url } : x)));
+          })
+          .catch(() => { /* preview is best-effort */ });
+      });
+    return () => { cancelled = true; };
+  }, [attachments]);
+
   const hasAttachments = attachments.length > 0;
   const doneAttachments = attachments.filter((a) => a.status === 'done');
   const hasText = !!composer.trim();
@@ -200,13 +269,15 @@ export function Composer({
 
   // ── File upload ──
   const startUpload = useCallback((pending: PendingAttachment): void => {
+    if (!pending.file) return; // restored draft attachment — already on the server, nothing to upload
+    const file = pending.file;
     const ctrl = new AbortController();
     abortControllers.current.set(pending.id, ctrl);
 
     setAttachments((prev) => prev.map((a) => (a.id === pending.id ? { ...a, status: 'uploading' as const, progress: 0 } : a)));
 
     uploadFile(
-      pending.file,
+      file,
       uploadSessionId,
       (pct) => setAttachments((prev) => prev.map((a) => (a.id === pending.id ? { ...a, progress: pct } : a))),
       ctrl.signal,
@@ -338,6 +409,10 @@ export function Composer({
         ...(metas.length > 0 ? { attachments: metas } : {}),
       } as any);
     }
+    // Draft consumed — drop the persisted copy for this scope (and reset the draft upload dir so a
+    // subsequent new-session draft in the same project gets a fresh directory).
+    clearDraft(draftKey);
+    if (isDraft) draftUploadId.current = null;
     setComposer('');
     setAttachments((prev) => {
       prev.forEach((a) => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
@@ -367,13 +442,15 @@ export function Composer({
 
   // ── Render attachment chip ──
   const renderChip = (a: PendingAttachment): JSX.Element => {
-    const isImage = a.file.type.startsWith('image/');
-    const isVideo = a.file.type.startsWith('video/');
-    const type = classifyFileType(a.file);
+    const mime = attMime(a);
+    const isImage = mime.startsWith('image/');
+    const isVideo = mime.startsWith('video/');
+    const type = attType(a);
     const colors = typeColor(type);
-    const ext = fileExt(a.file.name);
+    const name = attName(a);
+    const ext = fileExt(name);
 
-    const kind = mediaKindOf(classifyFileType(a.file));
+    const kind = mediaKindOf(type);
     const canPreview = !!a.previewUrl && a.status !== 'uploading' && a.status !== 'error';
 
     if (isImage || isVideo) {
@@ -381,8 +458,8 @@ export function Composer({
         <div
           key={a.id}
           role={canPreview ? 'button' : undefined}
-          title={canPreview ? a.file.name : undefined}
-          onClick={canPreview && kind ? () => openMedia({ kind, name: a.file.name, url: a.previewUrl! }) : undefined}
+          title={canPreview ? name : undefined}
+          onClick={canPreview && kind ? () => openMedia({ kind, name, url: a.previewUrl! }) : undefined}
           style={{
             position: 'relative',
             width: 54,
@@ -397,7 +474,7 @@ export function Composer({
           }}
         >
           {a.previewUrl && isImage && (
-            <img src={a.previewUrl} alt={a.file.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={a.previewUrl} alt={name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
           )}
           {a.previewUrl && isVideo && (
             <video src={a.previewUrl} muted playsInline preload="metadata" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -550,10 +627,10 @@ export function Composer({
         </span>
         <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span style={{ font: `500 10.5px ${mono}`, color: '#191C22', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {a.file.name}
+            {name}
           </span>
           <span style={{ font: `400 9px ${mono}`, color: a.status === 'uploading' ? '#4655D4' : a.status === 'error' ? '#C03D33' : '#98A1B0' }}>
-            {a.status === 'uploading' ? `${a.progress}%` : a.status === 'error' ? (a.errorMsg || 'Failed') : formatSize(a.file.size)}
+            {a.status === 'uploading' ? `${a.progress}%` : a.status === 'error' ? (a.errorMsg || 'Failed') : formatSize(attSize(a))}
           </span>
         </span>
         {/* Remove button */}
