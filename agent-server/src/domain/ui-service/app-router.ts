@@ -24,6 +24,8 @@ import {
   sessionsSetProfileInput,
   sessionsCreateAndSendInput,
   sessionsMarkReadInput,
+  sessionsAnswerQuestionInput,
+  sessionsRespondPlanInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,
@@ -145,6 +147,8 @@ export function createAppRouter(uiService: UiService) {
       setProfile: makeMutation(uiService, 'sessions.setProfile', sessionsSetProfileInput),
       createAndSend: makeMutation(uiService, 'sessions.createAndSend', sessionsCreateAndSendInput),
       markRead: makeMutation(uiService, 'sessions.markRead', sessionsMarkReadInput),
+      answerQuestion: makeMutation(uiService, 'sessions.answerQuestion', sessionsAnswerQuestionInput),
+      respondPlan: makeMutation(uiService, 'sessions.respondPlan', sessionsRespondPlanInput),
     }),
     threads: router({
       list: makeQuery(uiService, 'threads.list', threadsListInput),

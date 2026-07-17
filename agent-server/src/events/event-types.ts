@@ -17,6 +17,8 @@ export type CortexEvent =
   | { type: 'plan.approved';          ts: string; channel: string; executionId: string }
   | { type: 'ask-user.requested';     ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; questions: any[]; dryRun?: boolean; extensionUiId?: string }
   | { type: 'ask-user.answered';      ts: string; channel: string; requestId?: string; sessionId: string; answer: string }
+  | { type: 'session.askUser';        ts: string; sessionId: string; channel: string; requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[] }
+  | { type: 'session.planApproval';   ts: string; sessionId: string; channel: string; requestId: string; planContent: string; planFilePath: string | null }
 
   // Agent lifecycle
   | { type: 'agent.started';          ts: string; channel: string; executionId: string; backend: string }

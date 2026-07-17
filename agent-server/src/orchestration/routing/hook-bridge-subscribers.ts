@@ -27,6 +27,25 @@ export function registerHookBridgeSubscribers(
       const group = askUserQuestion.createHookGroup(ev.requestId, ev.channel, ev.sessionId, ev.questions, ev.extensionUiId, ev.threadId ?? null);
       askUserQuestion.registerHookResolver(ev.requestId, (data) => resolveHookRequest(ev.requestId, data));
 
+      // Web UI (web: conduit) has no PlatformAdapter — route through EventBus so the
+      // frontend SSE subscription picks it up and renders the AskQuestionCard.
+      if (ev.channel.startsWith('web:')) {
+        const webSessionId = ev.channel.slice(4);
+        bus.publish({
+          type: 'session.askUser',
+          sessionId: webSessionId,
+          channel: ev.channel,
+          requestId: ev.requestId,
+          questions: group.questions.map((q: any) => ({
+            question: q.question,
+            header: q.header,
+            options: q.options || [],
+            multiSelect: !!q.multiSelect,
+          })),
+        });
+        return;
+      }
+
       // Inline-modal platforms (Feishu) render the question form as an inline card,
       // so the intermediate "Answer" summary card + click is redundant — post the
       // form directly. Slack requires a user click (trigger_id) to open a modal, so
@@ -67,6 +86,21 @@ export function registerHookBridgeSubscribers(
     const ev = e as Extract<CortexEvent, { type: 'plan.submitted' }>;
     if (ev.dryRun) return; // smoke-test: event is journalled, skip Slack post + approval registration
     try {
+      // Web UI: route through EventBus (no PlatformAdapter for web: conduits).
+      if (ev.channel.startsWith('web:')) {
+        const webSessionId = ev.channel.slice(4);
+        planApprovals.register(ev.requestId, { channel: ev.channel, extensionUiId: ev.extensionUiId ?? null, threadId: ev.threadId ?? null });
+        bus.publish({
+          type: 'session.planApproval',
+          sessionId: webSessionId,
+          channel: ev.channel,
+          requestId: ev.requestId,
+          planContent: ev.planContent || '',
+          planFilePath: ev.toolInput?.plan_file_path ?? null,
+        });
+        return;
+      }
+
       const streamingCb = getStreamingCallback(ev.channel);
       const stream = (streamingCb as any)?.stream as OutputStream | undefined;
       const planDest: Destination = { type: 'interactive-reply', conduit: ev.channel, sessionId: ev.sessionId ?? '' };

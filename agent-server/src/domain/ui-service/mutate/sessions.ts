@@ -21,6 +21,8 @@ import type {
   SessionsSetProfileReturn,
   SessionsCreateAndSendArgs,
   SessionsCreateAndSendReturn,
+  SessionsAnswerQuestionArgs,
+  SessionsRespondPlanArgs,
 } from '../types.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
@@ -151,4 +153,42 @@ export async function handleSetProfile(
     };
   }
   return { ok: true, data: { profileName: res.name, backendChanged: res.backendChanged } };
+}
+
+// Web UI: resolve a pending ask-user-question interaction. The web client renders the question
+// card from a session.askUser EventBus event and submits the answers through this mutation.
+export async function handleAnswerQuestion(
+  deps: UiServiceDeps,
+  args: SessionsAnswerQuestionArgs,
+): Promise<Result<void>> {
+  if (!deps.answerQuestion) {
+    return { ok: false, code: 'not-available', message: 'answerQuestion not wired' };
+  }
+  if (!args.requestId) {
+    return { ok: false, code: 'invalid-args', message: 'requestId required' };
+  }
+  const resolved = deps.answerQuestion(args.requestId, args.answers ?? {});
+  if (!resolved) {
+    return { ok: false, code: 'not-found', message: `No pending question for requestId: ${args.requestId}` };
+  }
+  return { ok: true, data: undefined };
+}
+
+// Web UI: resolve a pending plan-approval interaction. The web client renders the plan card
+// from a session.planApproval EventBus event and submits the verdict through this mutation.
+export async function handleRespondPlan(
+  deps: UiServiceDeps,
+  args: SessionsRespondPlanArgs,
+): Promise<Result<void>> {
+  if (!deps.respondPlan) {
+    return { ok: false, code: 'not-available', message: 'respondPlan not wired' };
+  }
+  if (!args.requestId) {
+    return { ok: false, code: 'invalid-args', message: 'requestId required' };
+  }
+  const resolved = deps.respondPlan(args.requestId, args.approved, args.feedback);
+  if (!resolved) {
+    return { ok: false, code: 'not-found', message: `No pending plan for requestId: ${args.requestId}` };
+  }
+  return { ok: true, data: undefined };
 }

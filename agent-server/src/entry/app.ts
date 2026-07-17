@@ -20,7 +20,8 @@ import { startWebhookServer } from '@orch/routing/webhook.js';
 import * as pendingTaskTracker from '@domain/tasks/pending-tracker.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { executionLogTailer } from '@domain/executions/log-tailer.js';
-import { initHookBridge } from '@orch/routing/hook-bridge.js';
+import { initHookBridge, resolveRequest as resolveHookRequest } from '@orch/routing/hook-bridge.js';
+import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { cancelChannelRuns } from '@orch/routing/commands/cancel.js';
 import { taskStore } from '@domain/tasks/store.js';
@@ -401,6 +402,38 @@ process.on('SIGTERM', async () => {
     },
     bus,
     adapter,
+    // Web UI ask-user-question: resolve a pending interaction by requestId. The MCP tool blocks
+    // on the HTTP response; this callback collects answers and resolves it.
+    answerQuestion: (requestId, answers) => {
+      const groupId = `${requestId}:${requestId}`;
+      let group = askUserQuestion.getGroup(groupId);
+      // Fallback: the groupId convention is `sessionId:requestId` — when the caller only knows
+      // requestId, try the direct resolve path.
+      if (!group) {
+        return resolveHookRequest(requestId, { answers });
+      }
+      for (const q of group.questions) {
+        const answer = answers[q.question];
+        if (answer !== undefined) {
+          group.answers.set(q.pendingId, { header: q.header, value: answer });
+        }
+      }
+      return askUserQuestion.tryResolveHook(group);
+    },
+    // Web UI plan-approval: resolve or reject a pending plan by requestId.
+    respondPlan: (requestId, approved, feedback) => {
+      if (approved) {
+        const pending = planApprovals.resolve(requestId);
+        if (!pending) return false;
+        resolveHookRequest(requestId, { approved: true, reason: '' });
+        return true;
+      } else {
+        const pending = planApprovals.reject(requestId);
+        if (!pending) return false;
+        resolveHookRequest(requestId, { approved: false, reason: feedback || '' });
+        return true;
+      }
+    },
   });
   extractTuiAdapter(adapter)?.setUiService(uiService);
 

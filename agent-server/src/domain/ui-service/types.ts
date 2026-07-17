@@ -52,6 +52,8 @@ export type MutateOp =
   | 'sessions.setProfile'
   | 'sessions.createAndSend'
   | 'sessions.markRead'
+  | 'sessions.answerQuestion'
+  | 'sessions.respondPlan'
   | 'threads.cancel'
   | 'executions.cancel'
   | 'schedules.pause'
@@ -216,6 +218,17 @@ export interface SessionsSetProfileArgs {
   sessionId: string;
   /** The profile to switch the session to. Must exist in profiles.json. */
   profileName: string;
+}
+
+export interface SessionsAnswerQuestionArgs {
+  requestId: string;
+  answers: Record<string, string>;
+}
+
+export interface SessionsRespondPlanArgs {
+  requestId: string;
+  approved: boolean;
+  feedback?: string;
 }
 
 export interface SessionsCreateAndSendArgs {
@@ -975,6 +988,8 @@ export interface MutateArgsMap {
   'sessions.setProfile': SessionsSetProfileArgs;
   'sessions.createAndSend': SessionsCreateAndSendArgs;
   'sessions.markRead': SessionsMarkReadArgs;
+  'sessions.answerQuestion': SessionsAnswerQuestionArgs;
+  'sessions.respondPlan': SessionsRespondPlanArgs;
   'threads.cancel': ThreadsCancelArgs;
   'executions.cancel': ExecutionsCancelArgs;
   'schedules.pause': ScheduleActionArgs;
@@ -1001,6 +1016,8 @@ export interface MutateReturnMap {
   'sessions.setProfile': SessionsSetProfileReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
   'sessions.markRead': void;
+  'sessions.answerQuestion': void;
+  'sessions.respondPlan': void;
   'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
   'schedules.pause': void;
@@ -1178,4 +1195,16 @@ export interface UiServiceDeps {
   };
   bus: EventBus;
   adapter: PlatformAdapter;
+  /**
+   * Resolve a pending ask-user-question interaction (web UI path). The injected impl (app.ts)
+   * looks up the hook group, collects answers, and calls tryResolveHook/resolveHookRequest so the
+   * blocked MCP tool receives its response. Returns true if the request was found and resolved.
+   */
+  answerQuestion?: (requestId: string, answers: Record<string, string>) => boolean;
+  /**
+   * Resolve a pending plan-approval interaction (web UI path). The injected impl (app.ts)
+   * calls planApprovals.resolve/reject + resolveHookRequest so the blocked MCP tool receives
+   * its response. Returns true if the request was found and resolved.
+   */
+  respondPlan?: (requestId: string, approved: boolean, feedback?: string) => boolean;
 }

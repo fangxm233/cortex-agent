@@ -50,6 +50,8 @@ export type {
   ApprovalsApproveArgs,
   ApprovalsRejectArgs,
   ApprovalsRequestArgs,
+  SessionsAnswerQuestionArgs,
+  SessionsRespondPlanArgs,
   // Output DTOs
   ProjectConduitInfo,
   SessionInfo,

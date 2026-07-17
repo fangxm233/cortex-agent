@@ -44,6 +44,8 @@ export {
   threadTemplatesGetInput,
   systemDaemonStatusInput,
   systemRestartInput,
+  sessionsAnswerQuestionInput,
+  sessionsRespondPlanInput,
   queryInputSchemas,
   mutateInputSchemas,
 } from '@cortex-agent/server/dist/domain/ui-service/input-schemas.js';

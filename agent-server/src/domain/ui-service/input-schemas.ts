@@ -132,6 +132,17 @@ export const sessionsSetProfileInput = z.object({
   profileName: z.string().min(1),
 });
 
+export const sessionsAnswerQuestionInput = z.object({
+  requestId: z.string().min(1),
+  answers: z.record(z.string(), z.string()),
+});
+
+export const sessionsRespondPlanInput = z.object({
+  requestId: z.string().min(1),
+  approved: z.boolean(),
+  feedback: z.string().optional(),
+});
+
 export const sessionsCreateAndSendInput = z.object({
   projectId: z.string(),
   profileName: z.string().optional(),
@@ -296,6 +307,8 @@ export const mutateInputSchemas = {
   'sessions.setProfile': sessionsSetProfileInput,
   'sessions.createAndSend': sessionsCreateAndSendInput,
   'sessions.markRead': sessionsMarkReadInput,
+  'sessions.answerQuestion': sessionsAnswerQuestionInput,
+  'sessions.respondPlan': sessionsRespondPlanInput,
   'threads.cancel': threadsCancelInput,
   'executions.cancel': executionsCancelInput,
   'schedules.pause': scheduleActionInput,
