@@ -30,21 +30,28 @@ describe('buildMTaskGroups', () => {
     task({ id: 'C', actionable: true }), // claimable
     task({ id: 'D', actionable: true, dependsOn: ['A'] }), // waiting-deps (A is open)
     task({ id: 'E', blockedBy: 'APR-0001' }), // blocked
+    task({ id: 'F', status: 'done' }), // done
   ]);
 
-  it('all: 进行中 → 可执行 → 阻塞 order (waiting-deps is NEVER a 1d group)', () => {
+  it('all: 进行中 → 可执行 → 阻塞 → 完成 order (waiting-deps is NEVER a 1d group)', () => {
     expect(buildMTaskGroups(grouped, 'all').map((g) => g.key)).toEqual([
       'in-progress',
       'claimable',
       'blocked',
+      'done',
     ]);
   });
 
-  it('executable: only 进行中 + 可执行 (blocked hidden)', () => {
+  it('executable: only 进行中 + 可执行 (blocked + done hidden)', () => {
     expect(buildMTaskGroups(grouped, 'executable').map((g) => g.key)).toEqual([
       'in-progress',
       'claimable',
     ]);
+  });
+
+  it('carries done tasks onto the done group in the 全部 segment', () => {
+    const views = buildMTaskGroups(grouped, 'all');
+    expect(views.find((v) => v.key === 'done')?.tasks.map((t) => t.id)).toEqual(['F']);
   });
 
   it('carries the real tasks onto each group view', () => {

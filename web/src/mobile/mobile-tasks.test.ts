@@ -6,6 +6,7 @@ import {
   hasUnmetDependencies,
   executableCount,
   allOpenCount,
+  allCount,
   orderedGroups,
   MOBILE_GROUP_DOT,
 } from './mobile-tasks';
@@ -80,20 +81,21 @@ describe('hasUnmetDependencies', () => {
 });
 
 describe('groupMobileTasks', () => {
-  it('buckets by classifier (with dep join) and excludes done tasks', () => {
+  it('buckets by classifier (with dep join); done tasks collect in the done bucket', () => {
     const tasks = [
       task({ id: 'A', claimedBy: 'thr_a' }), // in-progress
       task({ id: 'B', actionable: true }), // claimable
       task({ id: 'C', actionable: true }), // claimable
       task({ id: 'D', actionable: true, dependsOn: ['A'] }), // waiting-deps (A is open)
       task({ id: 'E', blockedBy: 'robot offline' }), // blocked
-      task({ id: 'F', status: 'done', actionable: true }), // excluded
+      task({ id: 'F', status: 'done', actionable: true }), // done
     ];
     const g = groupMobileTasks(tasks);
     expect(g.inProgress.map((t) => t.id)).toEqual(['A']);
     expect(g.claimable.map((t) => t.id)).toEqual(['B', 'C']);
     expect(g.waitingDeps.map((t) => t.id)).toEqual(['D']);
     expect(g.blocked.map((t) => t.id)).toEqual(['E']);
+    expect(g.done.map((t) => t.id)).toEqual(['F']);
   });
 
   it('a task whose deps are all done is claimable, not waiting', () => {
@@ -129,6 +131,17 @@ describe('segment counts', () => {
 
   it('allOpenCount = every open task across the four groups', () => {
     expect(allOpenCount(grouped)).toBe(5);
+  });
+
+  it('allCount adds done tasks on top of the open groups (desktop 全部 parity)', () => {
+    const withDone = groupMobileTasks([
+      task({ id: 'A', claimedBy: 'thr_a' }),
+      task({ id: 'B', actionable: true }),
+      task({ id: 'F', status: 'done' }),
+      task({ id: 'G', status: 'done' }),
+    ]);
+    expect(allOpenCount(withDone)).toBe(2);
+    expect(allCount(withDone)).toBe(4);
   });
 });
 

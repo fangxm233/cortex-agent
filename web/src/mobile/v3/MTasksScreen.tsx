@@ -15,7 +15,7 @@ import { useMobileProject } from '@/mobile/current-project';
 import {
   groupMobileTasks,
   executableCount,
-  allOpenCount,
+  allCount,
   type MobileSegment,
 } from '@/mobile/mobile-tasks';
 import { MScreen, MC } from '@/mobile/ui/kit';
@@ -35,6 +35,7 @@ const COPY: { en: MTasksCopy; zh: MTasksCopy } = {
     doneWhenGap: 'no done-when recorded',
     waitApproval: 'awaiting approval',
     seeApprovals: 'see project approvals',
+    done: 'Done',
     empty: 'No tasks',
   },
   zh: {
@@ -49,6 +50,7 @@ const COPY: { en: MTasksCopy; zh: MTasksCopy } = {
     doneWhenGap: 'done-when 未记录',
     waitApproval: '等待审批',
     seeApprovals: '见项目页审批',
+    done: '完成',
     empty: '暂无任务',
   },
 };
@@ -90,7 +92,7 @@ export function MTasksScreen() {
           groups={groups}
           segment={segment}
           executableCount={executableCount(grouped)}
-          allCount={allOpenCount(grouped)}
+          allCount={allCount(grouped)}
           scope={scope}
           copy={copy}
           expandedIds={expandedIds}

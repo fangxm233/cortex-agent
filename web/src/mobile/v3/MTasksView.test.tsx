@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { groupMobileTasks, executableCount, allOpenCount } from '@/mobile/mobile-tasks';
+import { groupMobileTasks, executableCount, allCount } from '@/mobile/mobile-tasks';
 import { buildMTaskGroups } from './m-tasks-vm';
 import { MTasksView, type MTasksCopy } from './MTasksView';
 
@@ -17,6 +17,7 @@ const copy: MTasksCopy = {
   doneWhenGap: 'done-when 未记录',
   waitApproval: '等待审批',
   seeApprovals: '见项目页审批',
+  done: '完成',
   empty: '暂无任务',
 };
 
@@ -46,7 +47,7 @@ function render(tasks: TaskInfo[], expanded: string[] = []) {
       groups={buildMTaskGroups(grouped, 'all')}
       segment="all"
       executableCount={executableCount(grouped)}
-      allCount={allOpenCount(grouped)}
+      allCount={allCount(grouped)}
       scope="NI"
       copy={copy}
       expandedIds={new Set(expanded)}
@@ -105,6 +106,24 @@ describe('MTasksView', () => {
     expect(html).toContain('APR-0007');
     expect(html).toContain('见项目页审批');
     expect(html).toContain('#A96B0B'); // amber approval text
+  });
+
+  it('全部 segment shows a 完成 group with done rows and counts them in 全部', () => {
+    const html = render([
+      task({ id: 'T-050', actionable: true }),
+      task({ id: 'T-051', text: '收尾报告', status: 'done' }),
+    ]);
+    expect(html).toContain('完成 · 1'); // done group header
+    expect(html).toContain('T-051');
+    expect(html).toContain('收尾报告');
+    expect(html).toContain('全部 2'); // done counted in 全部
+    expect(html).toContain('可执行 1'); // but not in the executable count
+  });
+
+  it('truncates the task text to a single line (ellipsis parity with desktop)', () => {
+    const html = render([task({ id: 'T-052', actionable: true, text: 'a very long task title' })]);
+    expect(html).toContain('ellipsis');
+    expect(html).toContain('white-space:nowrap');
   });
 
   it('shows the empty state when there are no groups', () => {

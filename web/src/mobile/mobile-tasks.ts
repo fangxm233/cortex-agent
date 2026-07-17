@@ -37,13 +37,27 @@ export interface MobileTasksGrouped {
   claimable: TaskInfo[];
   waitingDeps: TaskInfo[];
   blocked: TaskInfo[];
+  done: TaskInfo[];
 }
 
-/** Bucket the OPEN tasks by classifier (done tasks are excluded from all four groups). Stable order. */
+/**
+ * Bucket tasks by classifier. Open tasks fall into the four lifecycle groups; done tasks collect in
+ * their own `done` bucket (shown only in the 全部 segment, parity with desktop). Stable order.
+ */
 export function groupMobileTasks(tasks: TaskInfo[]): MobileTasksGrouped {
   const statusById = new Map<string, TaskInfo['status']>(tasks.map((t) => [t.id, t.status]));
-  const g: MobileTasksGrouped = { inProgress: [], claimable: [], waitingDeps: [], blocked: [] };
+  const g: MobileTasksGrouped = {
+    inProgress: [],
+    claimable: [],
+    waitingDeps: [],
+    blocked: [],
+    done: [],
+  };
   for (const t of tasks) {
+    if (t.status === 'done') {
+      g.done.push(t);
+      continue;
+    }
     if (t.status !== 'open') continue;
     switch (classifyMobileTask(t, hasUnmetDependencies(t, statusById))) {
       case 'in-progress':
@@ -79,6 +93,11 @@ export function allOpenCount(grouped: MobileTasksGrouped): number {
     grouped.waitingDeps.length +
     grouped.blocked.length
   );
+}
+
+/** 全部 count including done — the mobile 全部 segment mirrors desktop's total (open + done). */
+export function allCount(grouped: MobileTasksGrouped): number {
+  return allOpenCount(grouped) + grouped.done.length;
 }
 
 export type MobileSegment = 'executable' | 'all';

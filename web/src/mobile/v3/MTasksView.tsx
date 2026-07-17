@@ -21,19 +21,41 @@ export interface MTasksCopy {
   doneWhenGap: string; // honest placeholder when a task records no done-when
   waitApproval: string; // 等待审批
   seeApprovals: string; // 见项目页审批
+  done: string; // 完成 (group)
   empty: string;
 }
 
 function groupLabel(copy: MTasksCopy, key: MTaskGroupKey): string {
-  return key === 'in-progress' ? copy.inProgress : key === 'claimable' ? copy.claimable : copy.blocked;
+  switch (key) {
+    case 'in-progress':
+      return copy.inProgress;
+    case 'claimable':
+      return copy.claimable;
+    case 'blocked':
+      return copy.blocked;
+    case 'done':
+      return copy.done;
+  }
 }
+
+// Single-line task text with ellipsis truncation (parity with desktop TaskRow — the card's first
+// line never wraps; overflow is cut with …).
+const TEXT_TRUNCATE = {
+  flex: 1,
+  minWidth: 0,
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+} as const;
 
 // The mono T-id + task text baseline row shared by all three card kinds (scheme L256/261/272).
 function IdText({ task, textColor }: { task: TaskInfo; textColor: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
       <span style={{ font: `500 10px ${MONO}`, color: MC.muted, flex: 'none' }}>{task.id}</span>
-      <span style={{ fontSize: 12.5, color: textColor, lineHeight: 1.45 }}>{task.text}</span>
+      <span style={{ fontSize: 12.5, color: textColor, lineHeight: 1.45, ...TEXT_TRUNCATE }} title={task.text}>
+        {task.text}
+      </span>
     </div>
   );
 }
@@ -95,9 +117,11 @@ function ClaimableCard({
 }) {
   return (
     <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
         <span style={{ font: `500 10px ${MONO}`, color: MC.muted, flex: 'none' }}>{task.id}</span>
-        <span style={{ fontSize: 12.5, color: MC.body, lineHeight: 1.45 }}>{task.text}</span>
+        <span style={{ fontSize: 12.5, color: MC.body, lineHeight: 1.45, ...TEXT_TRUNCATE }} title={task.text}>
+          {task.text}
+        </span>
         <span
           role="button"
           aria-label="Toggle done-when"
@@ -163,6 +187,28 @@ function BlockedCard({
         <span style={{ font: `400 9.5px ${MONO}`, color: MC.amberText }}>
           {copy.waitApproval}
           {task.blockedBy ? ` ${task.blockedBy}` : ''} · {copy.seeApprovals}
+        </span>
+      </div>
+    </MCard>
+  );
+}
+
+// 完成 (全部 segment only): a dimmed, read-only done card — green status dot + id/text. Whole card →
+// task detail. Parity with desktop, which surfaces the done group in its 全部 scope.
+function DoneCard({
+  task,
+  onOpenTask,
+}: {
+  task: TaskInfo;
+  onOpenTask: (id: string) => void;
+}) {
+  return (
+    <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.7 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.done, flex: 'none' }} />
+        <span style={{ font: `500 10px ${MONO}`, color: MC.muted, flex: 'none' }}>{task.id}</span>
+        <span style={{ fontSize: 12.5, color: MC.sub, lineHeight: 1.45, ...TEXT_TRUNCATE }} title={task.text}>
+          {task.text}
         </span>
       </div>
     </MCard>
@@ -254,6 +300,8 @@ export function MTasksView({
                       onOpenApprovals={onOpenApprovals}
                     />
                   );
+                case 'done':
+                  return <DoneCard key={task.id} task={task} onOpenTask={onOpenTask} />;
               }
             })}
           </div>
