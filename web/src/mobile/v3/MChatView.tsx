@@ -463,7 +463,7 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile }: { cop
         style={{
           position: 'absolute',
           left: 14,
-          bottom: 150,
+          bottom: 90,
           width: 196,
           background: 'rgba(250,250,252,.98)',
           border: '1px solid rgba(0,0,0,.06)',
@@ -749,7 +749,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           tone={props.rejectBar ? 'amber' : 'default'}
         />
         {props.attachments.length > 0 && (
-          <div style={{ font: `400 9px ${MONO}`, color: MC.faint, padding: '0 16px 6px', marginTop: -28 }}>{copy.attachFootnote}</div>
+          <div style={{ font: `400 9px ${MONO}`, color: MC.faint, padding: '0 16px 2px' }}>{copy.attachFootnote}</div>
         )}
       </div>
       {props.moreOpen && <MoreMenu copy={copy} onClose={props.onMoreClose} />}
