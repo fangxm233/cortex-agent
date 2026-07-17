@@ -9,6 +9,9 @@
 //         single line per event, no read-modify-rewrite of the whole store. Turn grouping
 //         and streaming-growth dedup are computed at READ time, so the write path never has
 //         to inspect prior state. Scales to thousands of sessions / long histories.
+//         Interaction ENTITIES (web-interactions-redesign): created (pending + payload snapshot)
+//         and resolved (final status + result) records share an `id` and merge into one event
+//         at read time; legacy {subtype,text} interaction lines still parse.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -21,6 +24,33 @@ const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
 export type HistoryEventType = 'user' | 'assistant' | 'tool' | 'interaction';
 
+// ── Interaction entity types (web-interactions-redesign) ─────────────────────
+// An interaction (ask-user question / plan approval) is a first-class persisted entity:
+// a `created` record (status pending, full payload snapshot) and a later `resolved` record
+// (final status + result) share the same `id` and are MERGED into one event at read time.
+
+export type InteractionKind = 'ask-user' | 'plan-approval';
+export type InteractionStatus = 'pending' | 'answered' | 'approved' | 'rejected' | 'expired' | 'cancelled';
+export type InteractionResolvedVia = 'web' | 'slack' | 'timeout' | 'restart' | 'command';
+
+export interface InteractionQuestion {
+  question: string;
+  header: string;
+  options: { label: string; description?: string }[];
+  multiSelect: boolean;
+}
+
+export interface InteractionPayload {
+  questions?: InteractionQuestion[];
+  planContent?: string;
+  planFilePath?: string | null;
+}
+
+export interface InteractionResult {
+  answers?: Record<string, string>;
+  feedback?: string;
+}
+
 /** A resolved history event (turnIndex derived at read time). */
 export interface HistoryEvent {
   type: HistoryEventType;
@@ -30,8 +60,16 @@ export interface HistoryEvent {
   toolName?: string;
   /** compact tool input summary (tool events only). */
   toolInput?: string;
-  /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (interaction events only). */
+  /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (LEGACY interaction rows only). */
   subtype?: string;
+  /** Interaction entity fields (interaction rows with an id; merged created+resolved on read). */
+  id?: string;
+  kind?: InteractionKind;
+  status?: InteractionStatus;
+  payload?: InteractionPayload;
+  result?: InteractionResult;
+  resolvedVia?: InteractionResolvedVia;
+  resolvedAt?: string;
   ts: string;
   /** Groups events under the user turn that triggered them. */
   turnIndex: number;
@@ -45,8 +83,15 @@ interface RawEvent {
   text?: string;
   toolName?: string;
   toolInput?: string;
-  /** interaction subtype (interaction events only). */
+  /** interaction subtype (LEGACY interaction lines only). */
   subtype?: string;
+  /** Interaction entity fields (created / resolved lines). */
+  id?: string;
+  kind?: InteractionKind;
+  status?: InteractionStatus;
+  payload?: InteractionPayload;
+  result?: InteractionResult;
+  resolvedVia?: InteractionResolvedVia;
   ts: string;
   /** Optional file attachments (user events from web composer). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
@@ -137,10 +182,16 @@ export class ConversationHistoryRepo {
     return this.append(sessionId, { type: 'tool', toolName: opts.toolName, toolInput: opts.toolInput ?? '', ts: opts.ts ?? nowIso() });
   }
 
-  /** Append an interaction event (ask-user answer, plan approval/rejection).
-   *  Persisted in the transcript so it's visible in historical sessions. */
-  appendInteraction(sessionId: string, opts: { subtype: string; text: string; ts?: string }): Promise<void> {
-    return this.append(sessionId, { type: 'interaction', subtype: opts.subtype, text: opts.text, ts: opts.ts ?? nowIso() });
+  /** Append an interaction CREATED record (status pending, full payload snapshot).
+   *  The later resolved record with the same id merges into this row at read time. */
+  appendInteractionCreated(sessionId: string, opts: { id: string; kind: InteractionKind; payload: InteractionPayload; text: string; ts?: string }): Promise<void> {
+    return this.append(sessionId, { type: 'interaction', id: opts.id, kind: opts.kind, status: 'pending', payload: opts.payload, text: opts.text, ts: opts.ts ?? nowIso() });
+  }
+
+  /** Append an interaction RESOLVED record (final status + result). Merged into the created
+   *  row by id at read time; kept standalone if no created row exists (defensive). */
+  appendInteractionResolved(sessionId: string, opts: { id: string; status: InteractionStatus; result?: InteractionResult; resolvedVia: InteractionResolvedVia; text: string; ts?: string }): Promise<void> {
+    return this.append(sessionId, { type: 'interaction', id: opts.id, status: opts.status, result: opts.result, resolvedVia: opts.resolvedVia, text: opts.text, ts: opts.ts ?? nowIso() });
   }
 
   /**
@@ -157,6 +208,9 @@ export class ConversationHistoryRepo {
     }
 
     const events: HistoryEvent[] = [];
+    // Interaction entity merge: id → the created row already pushed into `events`.
+    // A later resolved line with the same id updates that row in place (position kept).
+    const interactionById = new Map<string, HistoryEvent>();
     let turnIndex = -1;
     for (const line of raw.split('\n')) {
       if (!line.trim()) continue;
@@ -190,7 +244,35 @@ export class ConversationHistoryRepo {
       } else if (ev.type === 'tool') {
         events.push({ type: 'tool', toolName: ev.toolName ?? '', toolInput: ev.toolInput ?? '', ts: ev.ts, turnIndex: Math.max(0, turnIndex) });
       } else if (ev.type === 'interaction') {
-        events.push({ type: 'interaction', subtype: ev.subtype, text: ev.text ?? '', ts: ev.ts, turnIndex: Math.max(0, turnIndex) });
+        if (ev.id) {
+          const prior = interactionById.get(ev.id);
+          if (prior && ev.status && ev.status !== 'pending') {
+            // Resolved record → merge into the created row in place.
+            prior.status = ev.status;
+            if (ev.result !== undefined) prior.result = ev.result;
+            if (ev.resolvedVia !== undefined) prior.resolvedVia = ev.resolvedVia;
+            prior.resolvedAt = ev.ts;
+            if (ev.text) prior.text = ev.text;
+            continue;
+          }
+          const entity: HistoryEvent = {
+            type: 'interaction',
+            id: ev.id,
+            kind: ev.kind,
+            status: ev.status ?? 'pending',
+            payload: ev.payload,
+            result: ev.result,
+            resolvedVia: ev.resolvedVia,
+            text: ev.text ?? '',
+            ts: ev.ts,
+            turnIndex: Math.max(0, turnIndex),
+          };
+          events.push(entity);
+          interactionById.set(ev.id, entity);
+        } else {
+          // Legacy line: {subtype, text} only.
+          events.push({ type: 'interaction', subtype: ev.subtype, text: ev.text ?? '', ts: ev.ts, turnIndex: Math.max(0, turnIndex) });
+        }
       }
     }
 

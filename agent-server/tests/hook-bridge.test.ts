@@ -131,3 +131,30 @@ test('resolveRequest resolves the Promise returned by registerAskQuestion', asyn
   const secondAttempt = hb.resolveRequest('req-4', {});
   assert.ok(!secondAttempt, 'resolveRequest returns false for already-resolved requestId');
 });
+
+// ── (5) TTL stale cleanup notifies the onStale hook (web-interactions-redesign) ──
+
+test('cleanupStale resolves timed-out requests and fires the onStale callback', async (t) => {
+  const bus = new EventBus();
+  const hb = await freshHookBridge();
+  hb.initHookBridge(bus);
+  t.after(() => hb.setOnStale(null));
+
+  const stale: { requestId: string; channel: string; sessionId: string }[] = [];
+  hb.setOnStale((requestId, channel, sessionId) => { stale.push({ requestId, channel, sessionId }); });
+
+  const resultPromise = hb.registerPlanApproval('req-ttl', 'web:sess-t', 'sess-t', '# plan', {});
+
+  // Not yet stale — nothing happens.
+  hb.cleanupStale(Date.now());
+  assert.equal(stale.length, 0);
+
+  // 31 minutes later — the request is stale: resolver fires with timeout, onStale notified.
+  hb.cleanupStale(Date.now() + 31 * 60 * 1000);
+  const result = await resultPromise;
+  assert.equal(result.error, 'timeout');
+  assert.equal(stale.length, 1);
+  assert.equal(stale[0].requestId, 'req-ttl');
+  assert.equal(stale[0].channel, 'web:sess-t');
+  assert.equal(stale[0].sessionId, 'sess-t');
+});

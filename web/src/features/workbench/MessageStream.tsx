@@ -5,6 +5,21 @@ import { ToolCallsRow } from './ToolCallsRow';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { AttachmentMeta } from './chat-content';
 import { downloadFile, openFile, copyFilePath, fetchFileObjectUrl } from '@/lib/files';
+import { interactionView } from './interaction-vm';
+import type { InteractionActions } from './useInteractionActions';
+import { AskQuestionCard, PlanApprovalCard } from '@/mobile/v3/MChatView';
+import type { MChatCopy } from '@/mobile/v3/MChatView';
+
+// Copy for the interaction cards (reused mobile components). Only the interaction-related
+// fields matter here; the rest are unused placeholders.
+const interactionsCopy: MChatCopy = {
+  composerPh: '', toolCallsUnit: '', menuRename: '', menuExport: '', menuArchive: '',
+  attachCamera: '', attachLibrary: '', attachFile: '', attachFootnote: '', attachPlaceholder: '',
+  profileTitle: '', profileSubtitle: '', profileCurrent: '', profileFooter: '',
+  askPill: 'Agent question', answered: 'answered', defaultBadge: 'default',
+  planPending: 'Plan pending', approve: 'Approve', reject: 'Reject',
+  fromLabel: 'from', writeLabel: 'writes to', lineUnit: 'lines', charUnit: 'chars',
+};
 
 // Message stream — 1:1 from prototype.dc.html L131–357. The transcript body (divider / user bubble /
 // tool-call row / assistant text) is driven by REAL data (task aba0): the `rows` are built from the
@@ -371,19 +386,51 @@ function EmptyChat(): JSX.Element {
   );
 }
 
-function InteractionRow({ subtype, text }: { subtype: string; text: string }): JSX.Element {
-  const isApproval = subtype.startsWith('plan-');
-  const icon = subtype === 'plan-approved' ? '✓' : subtype === 'plan-rejected' ? '✗' : '✓';
-  const label = isApproval ? (subtype === 'plan-approved' ? 'Plan approved' : 'Plan rejected') : 'Answered';
+/** One-line summary row for resolved / expired / cancelled interactions (and legacy rows). */
+function InteractionSummaryRow({ tone, label, text }: { tone: 'done' | 'rejected' | 'inactive'; label: string; text: string }): JSX.Element {
+  const color = tone === 'rejected' ? '#C03D33' : tone === 'inactive' ? '#98A1B0' : '#34A853';
+  const icon = tone === 'rejected' ? '✗' : tone === 'inactive' ? '◌' : '✓';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#F8F9FB', border: '1px solid #EFF1F5', borderRadius: 10, opacity: 0.85 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: subtype === 'plan-rejected' ? '#C03D33' : '#34A853', flexShrink: 0 }}>{icon} {label}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#F8F9FB', border: '1px solid #EFF1F5', borderRadius: 10, opacity: tone === 'inactive' ? 0.6 : 0.85 }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color, flexShrink: 0 }}>{icon} {label}</span>
       <span style={{ fontSize: 12, color: '#454C59', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
     </div>
   );
 }
 
-function Row({ row }: { row: ChatRow }): JSX.Element | null {
+/** Interaction row — the transcript-inline card (web-interactions-redesign). Pending rows render
+ *  actionable cards (reused mobile components); resolved/expired rows render summaries. */
+export function InteractionRowCard({ row, actions }: {
+  row: Extract<ChatRow, { kind: 'interaction' }>;
+  actions?: InteractionActions;
+}): JSX.Element {
+  const v = interactionView(row);
+  if (v.kind === 'ask-pending') {
+    return (
+      <AskQuestionCard
+        data={v.card}
+        copy={interactionsCopy}
+        onAnswer={(optionId) => {
+          const opt = v.card.options.find((o) => o.id === optionId);
+          if (opt && actions) actions.answerQuestion(v.requestId, v.questions, opt.label);
+        }}
+      />
+    );
+  }
+  if (v.kind === 'plan-pending') {
+    return (
+      <PlanApprovalCard
+        data={v.card}
+        copy={interactionsCopy}
+        onApprove={() => actions?.approvePlan(v.requestId)}
+        onReject={() => actions?.rejectPlan(v.requestId)}
+      />
+    );
+  }
+  return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;
+}
+
+function Row({ row, interactionActions }: { row: ChatRow; interactionActions?: InteractionActions }): JSX.Element | null {
   switch (row.kind) {
     case 'divider':
       return <Divider text={row.text} />;
@@ -394,7 +441,7 @@ function Row({ row }: { row: ChatRow }): JSX.Element | null {
     case 'assistant':
       return <AssistantBlock text={row.text} streaming={row.streaming} attachments={row.attachments} />;
     case 'interaction':
-      return <InteractionRow subtype={row.subtype} text={row.text} />;
+      return <InteractionRowCard row={row} actions={interactionActions} />;
     default:
       return null;
   }
@@ -403,17 +450,17 @@ function Row({ row }: { row: ChatRow }): JSX.Element | null {
 /** Presentational transcript column — the ordered chat rows (divider / user / tools / assistant) laid
  *  out vertically. Framework-free of the scroll/stick behavior so it can be embedded wherever a
  *  transcript needs rendering (the workbench center chat, the thread-detail step chat). */
-export function ChatRows({ rows }: { rows: ChatRow[] }): JSX.Element {
+export function ChatRows({ rows, interactionActions }: { rows: ChatRow[]; interactionActions?: InteractionActions }): JSX.Element {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {rows.map((row, i) => (
-        <Row key={i} row={row} />
+        <Row key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i} row={row} interactionActions={interactionActions} />
       ))}
     </div>
   );
 }
 
-export function MessageStream({ rows, loading, inlineThreadCard, interactionsSlot }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionsSlot?: React.ReactNode }): JSX.Element {
+export function MessageStream({ rows, loading, inlineThreadCard, interactionActions }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionActions?: InteractionActions }): JSX.Element {
   const populated = rows.length > 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   // Whether the view is currently pinned to the bottom. Starts pinned; a user scroll-up releases it,
@@ -431,15 +478,14 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionsSlo
   useEffect(() => {
     const el = scrollRef.current;
     if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [rows, loading, interactionsSlot]);
+  }, [rows, loading]);
 
   return (
     <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
       <div style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px' }}>
         {!populated && !loading && <EmptyChat />}
-        <ChatRows rows={rows} />
+        <ChatRows rows={rows} interactionActions={interactionActions} />
         {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
-        {interactionsSlot && <div style={{ marginTop: 16 }}>{interactionsSlot}</div>}
       </div>
     </div>
   );

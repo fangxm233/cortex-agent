@@ -3,16 +3,19 @@ import assert from 'node:assert/strict';
 import { queryInputSchemas, mutateInputSchemas } from './schemas.js';
 
 const QUERY_SCOPES = [
-  'projects.list', 'sessions.list', 'sessions.transcript', 'threads.list', 'threads.get', 'tasks.list',
-  'tasks.verification', 'schedules.list', 'executions.list', 'executions.get', 'memory.tree', 'memory.file',
-  'approvals.list', 'cost.summary', 'config.get', 'machines.list',
+  'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
+  'threads.get', 'tasks.list', 'tasks.verification', 'schedules.list', 'executions.list', 'executions.get',
+  'memory.tree', 'memory.file', 'approvals.list', 'cost.summary', 'config.get', 'machines.list',
+  'skills.list', 'threadTemplates.get', 'system.daemonStatus',
 ] as const;
 
 const MUTATE_OPS = [
-  'projects.create', 'sessions.create', 'sessions.send', 'sessions.cancel', 'threads.cancel', 'executions.cancel', 'schedules.pause', 'schedules.resume',
+  'projects.create', 'sessions.create', 'sessions.send', 'sessions.cancel', 'sessions.setProfile',
+  'sessions.createAndSend', 'sessions.markRead', 'sessions.answerQuestion', 'sessions.respondPlan',
+  'threads.cancel', 'executions.cancel', 'schedules.pause', 'schedules.resume',
   'schedules.remove', 'schedules.add', 'tasks.claim', 'tasks.unclaim', 'tasks.complete',
   'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',
-  'config.set',
+  'config.set', 'system.restart',
 ] as const;
 
 test('every QueryScope has an input schema', () => {
@@ -95,12 +98,13 @@ test('mutate schemas require their mandatory fields', () => {
     mutateInputSchemas['tasks.block'].parse({ projectId: 'p', taskId: 'f184', reason: 'stuck' }),
     { projectId: 'p', taskId: 'f184', reason: 'stuck' },
   );
-  // sessions.send requires sessionId + non-empty text
+  // sessions.send requires sessionId + text; empty text is schema-legal (attachment-only sends —
+  // the handler enforces "text or attachments")
   assert.deepEqual(
     mutateInputSchemas['sessions.send'].parse({ sessionId: 'sess-1', text: 'hi' }),
     { sessionId: 'sess-1', text: 'hi' },
   );
-  assert.throws(() => mutateInputSchemas['sessions.send'].parse({ sessionId: 'sess-1', text: '' }));
+  assert.equal(mutateInputSchemas['sessions.send'].parse({ sessionId: 'sess-1', text: '' }).text, '');
   assert.throws(() => mutateInputSchemas['sessions.send'].parse({ sessionId: 'sess-1' }));
   // sessions.cancel requires sessionId
   assert.deepEqual(mutateInputSchemas['sessions.cancel'].parse({ sessionId: 'sess-1' }), { sessionId: 'sess-1' });

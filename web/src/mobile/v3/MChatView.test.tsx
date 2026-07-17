@@ -114,6 +114,44 @@ describe('1b MChatStream', () => {
   });
 });
 
+describe('interaction entity rows in the stream (web-interactions-redesign)', () => {
+  it('renders a pending plan interaction row as an actionable approval card', () => {
+    const rows: ChatRow[] = [{
+      kind: 'interaction', subtype: 'plan-pending', text: 'Plan submitted for approval',
+      detail: { id: 'req-1', kind: 'plan-approval', status: 'pending', payload: { planContent: '# DR sweep plan\nstep one', planFilePath: 'plan/x.md' } },
+    }];
+    const html = renderToStaticMarkup(<MChatStream rows={rows} toolCallsUnit="次" copy={copy} />);
+    expect(html).toContain('计划待批');
+    expect(html).toContain('# DR sweep plan');
+    expect(html).toContain('批准并执行');
+    expect(html).toContain('plan/x.md');
+  });
+  it('renders a pending ask-user interaction row as an actionable question card', () => {
+    const rows: ChatRow[] = [{
+      kind: 'interaction', subtype: 'ask-user-pending', text: 'A or B?',
+      detail: { id: 'req-2', kind: 'ask-user', status: 'pending', payload: { questions: [{ question: 'A or B?', header: 'Q', options: [{ label: 'A' }, { label: 'B' }], multiSelect: false }] } },
+    }];
+    const html = renderToStaticMarkup(<MChatStream rows={rows} toolCallsUnit="次" copy={copy} />);
+    expect(html).toContain('Agent 提问');
+    expect(html).toContain('A or B?');
+    expect(html).toContain('默认');
+  });
+  it('renders an expired interaction row as a grayed inactive summary (no buttons)', () => {
+    const rows: ChatRow[] = [{
+      kind: 'interaction', subtype: 'plan-expired', text: 'Plan approval expired',
+      detail: { id: 'req-3', kind: 'plan-approval', status: 'expired', payload: { planContent: '# P', planFilePath: null } },
+    }];
+    const html = renderToStaticMarkup(<MChatStream rows={rows} toolCallsUnit="次" copy={copy} />);
+    expect(html).toContain('Plan approval expired');
+    expect(html).not.toContain('批准并执行');
+  });
+  it('renders a legacy interaction row (no detail) as the old summary', () => {
+    const rows: ChatRow[] = [{ kind: 'interaction', subtype: 'plan-approved', text: 'Plan approved' }];
+    const html = renderToStaticMarkup(<MChatStream rows={rows} toolCallsUnit="次" copy={copy} />);
+    expect(html).toContain('Plan approved');
+  });
+});
+
 describe('1o attachments in the stream', () => {
   it('renders sent attachments above the user bubble', () => {
     const rows: ChatRow[] = [

@@ -54,6 +54,12 @@ export type {
   SessionsRespondPlanArgs,
   SessionsPendingInteractionParams,
   SessionsPendingInteraction,
+  SessionsInteractionMutateReturn,
+  // Interaction entity (web-interactions-redesign)
+  InteractionKind,
+  InteractionStatus,
+  InteractionQuestion,
+  TranscriptInteractionDetail,
   // Output DTOs
   ProjectConduitInfo,
   SessionInfo,

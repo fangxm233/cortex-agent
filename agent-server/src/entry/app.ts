@@ -20,9 +20,9 @@ import { startWebhookServer } from '@orch/routing/webhook.js';
 import * as pendingTaskTracker from '@domain/tasks/pending-tracker.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { executionLogTailer } from '@domain/executions/log-tailer.js';
-import { initHookBridge, resolveRequest as resolveHookRequest } from '@orch/routing/hook-bridge.js';
+import { initHookBridge, resolveRequest as resolveHookRequest, setOnStale } from '@orch/routing/hook-bridge.js';
+import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
-import { publishSessionMessage } from '@orch/session-events.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { cancelChannelRuns } from '@orch/routing/commands/cancel.js';
 import { taskStore } from '@domain/tasks/store.js';
@@ -162,6 +162,15 @@ process.on('uncaughtException', (err) => {
 const bus = new EventBus();
 createEventLogger(bus);
 initHookBridge(bus); // S5: wire hook-bridge to publish ask-user.requested / plan.submitted
+interactionRecords.init({ history: conversationHistory, bus }); // web-interactions-redesign: persistent interaction entities
+// TTL expiry: mark the web interaction entity expired + clean the live resolver maps, so every
+// connected client sees the card gray out (the entity resolve broadcasts session.interaction).
+setOnStale((requestId, channel) => {
+  if (!channel.startsWith('web:')) return;
+  void interactionRecords.resolve({ id: requestId, status: 'expired', resolvedVia: 'timeout' });
+  planApprovals.reject(requestId);
+  askUserQuestion.deleteGroupByHookRequestId(requestId);
+});
 runningExecutions.setBus(bus);   // S6-A: wire lifecycle events
 planApprovals.setBus(bus);  // S6-A: wire plan.approved events
 busyTracker.setBus(bus);    // S6-C: wire busy/idle IPC through event bus
@@ -403,33 +412,32 @@ process.on('SIGTERM', async () => {
     },
     bus,
     adapter,
-    // Web UI: return pending ask-user group for a channel (used by sessions.pendingInteraction query).
+    // Web UI: pending interactions for a channel (sessions.pendingInteraction query) —
+    // served from the interaction entity index, so the plan card rehydrates with FULL content.
     getPendingAskUser: (channel) => {
-      const group = askUserQuestion.getGroupByChannel(channel);
-      if (!group) return null;
-      return {
-        requestId: group.hookRequestId || group.toolUseId,
-        questions: group.questions.map((q: any) => ({
-          question: q.question,
-          header: q.header,
-          options: q.options || [],
-          multiSelect: !!q.multiSelect,
-        })),
-      };
-    },
-    // Web UI: return pending plan approval for a channel (used by sessions.pendingInteraction query).
-    getPendingPlan: (channel) => {
-      const entry = planApprovals.getByChannel(channel);
+      const entry = interactionRecords.getPendingByChannel(channel).find((e) => e.kind === 'ask-user');
       if (!entry) return null;
-      return { requestId: entry.requestId, planContent: '', planFilePath: null };
+      return { requestId: entry.id, questions: entry.payload.questions ?? [] };
     },
+    getPendingPlan: (channel) => {
+      const entry = interactionRecords.getPendingByChannel(channel).find((e) => e.kind === 'plan-approval');
+      if (!entry) return null;
+      return { requestId: entry.id, planContent: entry.payload.planContent ?? '', planFilePath: entry.payload.planFilePath ?? null };
+    },
+    // Transcript materialization liveness signal (pending rows with no live entry derive to expired).
+    isInteractionPending: (id) => interactionRecords.isPending(id),
     // Web UI ask-user-question: resolve a pending interaction by requestId. The MCP tool blocks
-    // on the HTTP response; this callback collects answers, persists to history, and resolves it.
+    // on the HTTP response; this callback collects answers, resolves the entity (which persists
+    // the record and broadcasts session.interaction to every client), and unblocks the tool.
     answerQuestion: (requestId, answers) => {
-      const groupId = `${requestId}:${requestId}`;
-      let group = askUserQuestion.getGroup(groupId);
+      const rec = interactionRecords.get(requestId);
+      if (rec && rec.status !== 'pending') return 'already-resolved';
+      const group = askUserQuestion.getGroupByHookRequestId(requestId);
       if (!group) {
-        return resolveHookRequest(requestId, { answers });
+        // No group (raw hook request) — unblock the webhook directly if it exists.
+        if (!resolveHookRequest(requestId, { answers })) return 'not-found';
+        void interactionRecords.resolve({ id: requestId, status: 'answered', result: { answers }, resolvedVia: 'web' });
+        return 'resolved';
       }
       for (const q of group.questions) {
         const answer = answers[q.question];
@@ -437,46 +445,25 @@ process.on('SIGTERM', async () => {
           group.answers.set(q.pendingId, { header: q.header, value: answer });
         }
       }
-      // Persist the answered interaction to conversation history.
-      const sessionId = group.channel?.startsWith('web:') ? group.channel.slice(4) : group.sessionId;
-      if (sessionId) {
-        const summary = group.questions.map((q: any) => {
-          const a = answers[q.question] ?? '(no answer)';
-          return `${q.question} → ${a}`;
-        }).join('\n');
-        const ts = new Date().toISOString();
-        conversationHistory.appendInteraction(sessionId, { subtype: 'ask-user-answered', text: summary, ts });
-        publishSessionMessage({ sessionId, channel: group.channel, role: 'tool', text: summary, toolName: 'ask-user-answered', ts });
-      }
-      return askUserQuestion.tryResolveHook(group);
+      if (!askUserQuestion.tryResolveHook(group)) return 'not-found';
+      void interactionRecords.resolve({ id: requestId, status: 'answered', result: { answers }, resolvedVia: 'web' });
+      return 'resolved';
     },
-    // Web UI plan-approval: resolve or reject a pending plan by requestId.
+    // Web UI plan-approval: resolve or reject a pending plan by requestId. First-writer-wins;
+    // the entity resolve persists + broadcasts, so no separate history/session-message writes.
     respondPlan: (requestId, approved, feedback) => {
-      if (approved) {
-        const pending = planApprovals.resolve(requestId);
-        if (!pending) return false;
-        // Persist to conversation history.
-        const sessionId = pending.channel?.startsWith('web:') ? pending.channel.slice(4) : null;
-        if (sessionId) {
-          const ts = new Date().toISOString();
-          conversationHistory.appendInteraction(sessionId, { subtype: 'plan-approved', text: 'Plan approved', ts });
-          publishSessionMessage({ sessionId, channel: pending.channel, role: 'tool', text: 'Plan approved', toolName: 'plan-approved', ts });
-        }
-        resolveHookRequest(requestId, { approved: true, reason: '' });
-        return true;
-      } else {
-        const pending = planApprovals.reject(requestId);
-        if (!pending) return false;
-        const sessionId = pending.channel?.startsWith('web:') ? pending.channel.slice(4) : null;
-        if (sessionId) {
-          const ts = new Date().toISOString();
-          const text = feedback ? `Plan rejected: ${feedback}` : 'Plan rejected';
-          conversationHistory.appendInteraction(sessionId, { subtype: 'plan-rejected', text, ts });
-          publishSessionMessage({ sessionId, channel: pending.channel, role: 'tool', text, toolName: 'plan-rejected', ts });
-        }
-        resolveHookRequest(requestId, { approved: false, reason: feedback || '' });
-        return true;
-      }
+      const rec = interactionRecords.get(requestId);
+      if (rec && rec.status !== 'pending') return 'already-resolved';
+      const pending = approved ? planApprovals.resolve(requestId) : planApprovals.reject(requestId);
+      if (!pending) return 'not-found';
+      void interactionRecords.resolve({
+        id: requestId,
+        status: approved ? 'approved' : 'rejected',
+        result: feedback ? { feedback } : undefined,
+        resolvedVia: 'web',
+      });
+      resolveHookRequest(requestId, approved ? { approved: true, reason: '' } : { approved: false, reason: feedback || '' });
+      return 'resolved';
     },
   });
   extractTuiAdapter(adapter)?.setUiService(uiService);

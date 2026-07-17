@@ -129,6 +129,17 @@ export async function handleSessionsList(
 // ── sessions.transcript (S4 chat) ─────────────────────────────────
 // Wrap the backend-independent conversation history and group its already-turn-tagged event
 // stream into turns. An absent/empty history is not an error — it maps to zero turns.
+
+/** Pending interactions older than this derive to expired at read time (matches the
+ *  hook-bridge / ask-user 30-minute TTLs). */
+const INTERACTION_TTL_MS = 30 * 60 * 1000;
+
+/** Legacy-compatible subtype derived from kind+status (old clients render InteractionRow off it). */
+function interactionSubtype(kind: string, status: string): string {
+  if (kind === 'plan-approval') return status === 'approved' ? 'plan-approved' : status === 'rejected' ? 'plan-rejected' : `plan-${status}`;
+  return status === 'answered' ? 'ask-user-answered' : `ask-user-${status}`;
+}
+
 export async function handleSessionsTranscript(
   deps: UiServiceDeps,
   params: SessionsTranscriptParams,
@@ -151,6 +162,30 @@ export async function handleSessionsTranscript(
     const curMs = Date.parse(ev.ts);
     const curValid = Number.isFinite(curMs);
     const elapsedMs = prevMs !== null && curValid ? curMs - prevMs : null;
+
+    // Interaction entity rows: derive `expired` for pending rows whose live resolver is gone
+    // (server restarted) or older than the TTL. The in-process pending index (via
+    // deps.isInteractionPending) is the liveness signal.
+    let interaction: TranscriptMessage['interaction'];
+    let entitySubtype: string | undefined;
+    if (ev.type === 'interaction' && ev.id) {
+      let status = ev.status ?? 'pending';
+      if (status === 'pending') {
+        const live = deps.isInteractionPending?.(ev.id) ?? false;
+        const age = curValid ? Date.now() - curMs : Infinity;
+        if (!live || age > INTERACTION_TTL_MS) status = 'expired';
+      }
+      interaction = {
+        id: ev.id,
+        kind: (ev.kind ?? 'ask-user') as NonNullable<TranscriptMessage['interaction']>['kind'],
+        status: status as NonNullable<TranscriptMessage['interaction']>['status'],
+        payload: ev.payload ?? {},
+        ...(ev.result !== undefined ? { result: ev.result } : {}),
+        ...(ev.resolvedVia !== undefined ? { resolvedVia: ev.resolvedVia } : {}),
+      };
+      entitySubtype = interactionSubtype(interaction.kind, interaction.status);
+    }
+
     turn.messages.push({
       type: ev.type as TranscriptMessage['type'],
       text: ev.type === 'tool' ? null : (ev.text ?? ''),
@@ -162,7 +197,8 @@ export async function handleSessionsTranscript(
       // deep-equality with the DTO shape (pre-existing red test, fixed in passing). Both user
       // uploads (15a) and agent-sent files (20a, assistant events) carry attachments.
       ...((ev.type === 'user' || ev.type === 'assistant') && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
-      ...(ev.type === 'interaction' && ev.subtype ? { subtype: ev.subtype } : {}),
+      ...(ev.type === 'interaction' && (entitySubtype ?? ev.subtype) ? { subtype: entitySubtype ?? ev.subtype } : {}),
+      ...(interaction !== undefined ? { interaction } : {}),
     });
     prevMs = curValid ? curMs : null;
   }

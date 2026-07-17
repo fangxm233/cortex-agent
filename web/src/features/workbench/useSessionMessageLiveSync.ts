@@ -70,7 +70,7 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
     let wasConnected = false;
 
     const sub = client.subscribe.subscribe(
-      { events: ['session.message', 'session.status', 'session.turn'], sessionId },
+      { events: ['session.message', 'session.status', 'session.turn', 'session.interaction'], sessionId },
       {
         onConnectionStateChange: (state: { state: string }) => {
           if (state.state !== 'pending') return;
@@ -101,6 +101,14 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
             // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
             // edges so the left rail reflects the turn without waiting for a focus refetch.
             queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+            return;
+          }
+          // Interaction entity state change (created / answered / approved / expired / …):
+          // events are hints, queries are truth — refetch the transcript; every connected
+          // client converges on the entity's current status (cards appear, resolve, gray out).
+          if (raw.type === 'session.interaction') {
+            queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+            queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
             return;
           }
           // Live agent-turn delta — the real turn count that grows as the agent works.

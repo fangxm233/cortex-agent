@@ -279,3 +279,44 @@ describe('agent-sent file attachments (20a)', () => {
     expect(m.attachments).toEqual(ATT);
   });
 });
+
+// ── Interaction entity rows (web-interactions-redesign) ─────────────────────
+
+describe('interaction entity rows', () => {
+  const detail = (status: 'pending' | 'approved') => ({
+    id: 'req-1',
+    kind: 'plan-approval' as const,
+    status,
+    payload: { planContent: '# P', planFilePath: null },
+  });
+
+  const mkTranscript = (status: 'pending' | 'approved'): SessionTranscript => ({
+    sessionId: 's',
+    turns: [{
+      turnIndex: 0,
+      messages: [
+        { type: 'user', text: 'go', toolName: null, toolInput: null, ts: '2026-07-16T00:00:00.000Z', elapsedMs: null },
+        { type: 'interaction', text: 'Plan', toolName: null, toolInput: null, ts: '2026-07-16T00:00:01.000Z', elapsedMs: null, subtype: `plan-${status}`, interaction: detail(status) as any },
+      ],
+    }],
+  });
+
+  it('carries the structured detail through to the interaction row', () => {
+    const rows = buildTranscriptRows(mkTranscript('pending'), []);
+    const row = rows.find((r) => r.kind === 'interaction');
+    expect(row && row.kind === 'interaction' && row.detail?.id).toBe('req-1');
+    expect(row && row.kind === 'interaction' && row.detail?.status).toBe('pending');
+  });
+
+  it('keys interaction rows by entity id so a status change replaces (never duplicates)', () => {
+    // Same interaction appearing twice with different status/ts (e.g. transcript refetch race)
+    // must collapse to ONE row with the first occurrence winning within a single build.
+    const t = mkTranscript('approved');
+    t.turns[0].messages.push({
+      type: 'interaction', text: 'Plan approved', toolName: null, toolInput: null,
+      ts: '2026-07-16T00:00:02.000Z', elapsedMs: null, subtype: 'plan-approved', interaction: detail('approved') as any,
+    });
+    const rows = buildTranscriptRows(t, []);
+    expect(rows.filter((r) => r.kind === 'interaction').length).toBe(1);
+  });
+});

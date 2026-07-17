@@ -92,3 +92,72 @@ test('concurrent appends to the same session do not interleave/corrupt lines', a
   const h = await repo.getHistory(sid);
   assert.equal(h!.events.length, 20, 'all 20 lines parsed (none corrupted)');
 });
+
+// ── Interaction entity records (web-interactions-redesign plan) ──────────────
+
+test('interaction created record round-trips with id/kind/status/payload', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-int-1';
+  const payload = { planContent: '# Plan\nstep 1', planFilePath: 'plan/x.md' };
+  await repo.appendUser(sid, { text: 'go' });
+  await repo.appendInteractionCreated(sid, { id: 'req-1', kind: 'plan-approval', payload, text: 'Plan submitted' });
+
+  const h = await repo.getHistory(sid);
+  const ev = h!.events.find(e => e.type === 'interaction')!;
+  assert.equal(ev.id, 'req-1');
+  assert.equal(ev.kind, 'plan-approval');
+  assert.equal(ev.status, 'pending');
+  assert.deepEqual(ev.payload, payload);
+  assert.equal(ev.text, 'Plan submitted');
+});
+
+test('interaction resolved record merges into the created row in place (single row, final status)', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-int-2';
+  await repo.appendUser(sid, { text: 'go' });
+  await repo.appendInteractionCreated(sid, { id: 'req-2', kind: 'ask-user', payload: { questions: [{ question: 'A or B?', header: 'Q', options: [], multiSelect: false }] }, text: 'A or B?' });
+  await repo.appendAssistant(sid, { text: 'waiting' });
+  await repo.appendInteractionResolved(sid, { id: 'req-2', status: 'answered', result: { answers: { 'A or B?': 'A' } }, resolvedVia: 'web', text: 'A or B? → A' });
+
+  const h = await repo.getHistory(sid);
+  const interactions = h!.events.filter(e => e.type === 'interaction');
+  assert.equal(interactions.length, 1, 'created + resolved merge into one row');
+  const ev = interactions[0];
+  assert.equal(ev.status, 'answered');
+  assert.equal(ev.resolvedVia, 'web');
+  assert.deepEqual(ev.result, { answers: { 'A or B?': 'A' } });
+  assert.equal(ev.text, 'A or B? → A', 'resolution text wins');
+  assert.ok(ev.payload?.questions, 'created payload preserved after merge');
+  // Row stays at the created position (before the assistant message).
+  const idx = h!.events.findIndex(e => e.type === 'interaction');
+  const assistantIdx = h!.events.findIndex(e => e.type === 'assistant');
+  assert.ok(idx < assistantIdx, 'interaction row keeps its created position');
+});
+
+test('legacy interaction lines (subtype/text, no id) still parse', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-int-3';
+  await repo.appendUser(sid, { text: 'go' });
+  // Simulate a legacy line by writing through the private append path shape:
+  // the old appendInteraction wrote {type:'interaction', subtype, text, ts}.
+  await (repo as any).append(sid, { type: 'interaction', subtype: 'plan-approved', text: 'Plan approved', ts: new Date().toISOString() });
+
+  const h = await repo.getHistory(sid);
+  const ev = h!.events.find(e => e.type === 'interaction')!;
+  assert.equal(ev.subtype, 'plan-approved');
+  assert.equal(ev.text, 'Plan approved');
+  assert.equal(ev.id, undefined);
+});
+
+test('a resolved record without a prior created row is kept as a standalone row (defensive)', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-int-4';
+  await repo.appendUser(sid, { text: 'go' });
+  await repo.appendInteractionResolved(sid, { id: 'orphan-1', status: 'approved', resolvedVia: 'web', text: 'Plan approved' });
+
+  const h = await repo.getHistory(sid);
+  const ev = h!.events.find(e => e.type === 'interaction')!;
+  assert.equal(ev.id, 'orphan-1');
+  assert.equal(ev.status, 'approved');
+  assert.equal(ev.text, 'Plan approved');
+});

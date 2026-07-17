@@ -104,6 +104,9 @@ How to run tests without tripping it:
 | `thread-coder-review.e2e.test.ts` | Test | coder/reviewer two-stage e2e |
 | `thread-extra-hooks.test.ts` | Test | per-call extraHooks serial injection |
 | `interaction-handlers.test.ts` | Test | handleModalSubmit -> bus.publish('ask-user.answered') BLK-1 regression |
+| `orch/interaction-records.test.ts` | Test | InteractionRecords entity service (web-interactions-redesign): create persists+publishes session.interaction pending / resolve first-writer-wins (resolved→already-resolved) / unknown-after-restart / getPendingByChannel payload+TTL scoping / resolvePendingByChannel (!new cancel) / uninitialised fail-soft |
+| `orch/hook-bridge-subscribers-web.test.ts` | Test | web: conduit branch creates interaction entities (plan-approval with FULL planContent snapshot + planApprovals live-resolver kept; ask-user normalized questions); non-web channels create none |
+| `domain/ui-service/mutate-sessions-interactions.test.ts` | Test | handleAnswerQuestion/handleRespondPlan three-way outcome: resolved/already-resolved → ok{outcome}, not-found → err, invalid-args, not-available |
 | `platform-mock-adapter.test.ts` | Test | MockAdapter 17 method coverage |
 | `output-stream.test.ts` | Test | SlackOutputStream/FeishuOutputStream/MockOutputStream unit tests (46 cases) |
 | `feishu-client.test.ts` | Test | stderrLogger routes all lark SDK logs to stderr (MCP stdout protocol safety) |

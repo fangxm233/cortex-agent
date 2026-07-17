@@ -241,6 +241,13 @@ export interface SessionsRespondPlanArgs {
   feedback?: string;
 }
 
+/** Return of sessions.answerQuestion / sessions.respondPlan. 'already-resolved' means another
+ *  client (or Slack / timeout) resolved the interaction first — not an error; the caller
+ *  refetches the transcript to show the final state. */
+export interface SessionsInteractionMutateReturn {
+  outcome: 'resolved' | 'already-resolved';
+}
+
 export interface SessionsCreateAndSendArgs {
   /** Project the new session belongs to. */
   projectId: string;
@@ -390,6 +397,35 @@ export interface SessionInfo {
 // event opens a turn). Streaming assistant partials are already collapsed at the source
 // (conversationHistory.getHistory). An absent/empty history maps to `{ sessionId, turns: [] }`.
 
+// ── Interaction entity DTO (web-interactions-redesign) ────────────────────
+// An interaction (agent question / plan approval) is a first-class transcript row with a
+// status machine. Pending rows render actionable cards; resolved/expired rows render
+// summaries. The server derives `expired` at read time for pending rows whose live
+// resolver is gone (restart) or older than the TTL.
+
+export type InteractionKind = 'ask-user' | 'plan-approval';
+export type InteractionStatus = 'pending' | 'answered' | 'approved' | 'rejected' | 'expired' | 'cancelled';
+
+export interface InteractionQuestion {
+  question: string;
+  header: string;
+  options: { label: string; description?: string }[];
+  multiSelect: boolean;
+}
+
+export interface TranscriptInteractionDetail {
+  id: string;
+  kind: InteractionKind;
+  status: InteractionStatus;
+  payload: {
+    questions?: InteractionQuestion[];
+    planContent?: string;
+    planFilePath?: string | null;
+  };
+  result?: { answers?: Record<string, string>; feedback?: string };
+  resolvedVia?: string;
+}
+
 export interface TranscriptMessage {
   type: 'user' | 'assistant' | 'tool' | 'interaction';
   /** user / assistant / interaction text; null for tool events. */
@@ -398,8 +434,11 @@ export interface TranscriptMessage {
   toolName: string | null;
   /** compact tool input summary (tool events only). */
   toolInput: string | null;
-  /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (interaction events only). */
+  /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (legacy rows)
+   *  or derived from kind+status for entity rows (display compat). */
   subtype?: string;
+  /** Structured interaction entity (interaction rows with an id). Absent on legacy rows. */
+  interaction?: TranscriptInteractionDetail;
   /** File attachments: user uploads via the web composer (15a, user messages) OR agent-sent
    *  files via the `send_file` MCP tool (20a, assistant messages). */
   attachments?: AttachmentMeta[];
@@ -1030,8 +1069,8 @@ export interface MutateReturnMap {
   'sessions.setProfile': SessionsSetProfileReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
   'sessions.markRead': void;
-  'sessions.answerQuestion': void;
-  'sessions.respondPlan': void;
+  'sessions.answerQuestion': SessionsInteractionMutateReturn;
+  'sessions.respondPlan': SessionsInteractionMutateReturn;
   'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
   'schedules.pause': void;
@@ -1221,14 +1260,22 @@ export interface UiServiceDeps {
   getPendingPlan?: (channel: string) => { requestId: string; planContent: string; planFilePath: string | null } | null;
   /**
    * Resolve a pending ask-user-question interaction (web UI path). The injected impl (app.ts)
-   * looks up the hook group, collects answers, and calls tryResolveHook/resolveHookRequest so the
-   * blocked MCP tool receives its response. Returns true if the request was found and resolved.
+   * looks up the hook group, collects answers, updates the interaction entity, and calls
+   * tryResolveHook/resolveHookRequest so the blocked MCP tool receives its response.
+   * Three-way outcome: 'resolved' | 'already-resolved' (another client won the race) |
+   * 'not-found' (no such interaction).
    */
-  answerQuestion?: (requestId: string, answers: Record<string, string>) => boolean;
+  answerQuestion?: (requestId: string, answers: Record<string, string>) => 'resolved' | 'already-resolved' | 'not-found';
   /**
-   * Resolve a pending plan-approval interaction (web UI path). The injected impl (app.ts)
-   * calls planApprovals.resolve/reject + resolveHookRequest so the blocked MCP tool receives
-   * its response. Returns true if the request was found and resolved.
+   * Resolve a pending plan-approval interaction (web UI path). Same three-way outcome as
+   * answerQuestion; the impl calls planApprovals.resolve/reject + entity resolve +
+   * resolveHookRequest.
    */
-  respondPlan?: (requestId: string, approved: boolean, feedback?: string) => boolean;
+  respondPlan?: (requestId: string, approved: boolean, feedback?: string) => 'resolved' | 'already-resolved' | 'not-found';
+  /**
+   * Liveness signal for transcript materialization: true only while the interaction is a live,
+   * un-expired pending entry in the in-process index. After a restart the index is empty, so
+   * still-`pending` persisted rows derive to `expired` at read time.
+   */
+  isInteractionPending?: (id: string) => boolean;
 }

@@ -202,6 +202,20 @@ function getGroupByChannel(channel: string): any | null {
   return null;
 }
 
+/** Return the pending question group registered under a PreToolUse hook requestId, or null. */
+function getGroupByHookRequestId(requestId: string): any | null {
+  for (const group of pendingAskUserQuestionGroups.values()) {
+    if (group.hookRequestId === requestId) return group;
+  }
+  return null;
+}
+
+/** Delete the group registered under a hook requestId (TTL-expiry cleanup path). */
+function deleteGroupByHookRequestId(requestId: string): void {
+  const group = getGroupByHookRequestId(requestId);
+  if (group) deleteGroup(group.groupId);
+}
+
 export {
   sendMessages,
   formatGroupResponse,
@@ -210,6 +224,8 @@ export {
   isExpired,
   getGroup,
   getGroupByChannel,
+  getGroupByHookRequestId,
+  deleteGroupByHookRequestId,
   deleteGroup,
   getPendingQuestion,
   createHookGroup,

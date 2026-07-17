@@ -11,6 +11,7 @@ import { buildPlanApprovalContent } from '@platform/index.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { sendPlanToSlack } from '@orch/interactions/plan-handler.js';
 import type { PlanApprovals } from '@orch/interactions/plan-approvals.js';
+import { interactionRecords as defaultInteractionRecords, type InteractionRecords } from '@orch/interactions/interaction-records.js';
 import { resolveRequest as resolveHookRequest, getStreamingCallback } from './hook-bridge.js';
 
 const log = createLogger('hook-bridge');
@@ -19,6 +20,7 @@ export function registerHookBridgeSubscribers(
   bus: EventBus,
   adapter: PlatformAdapter,
   planApprovals: PlanApprovals,
+  interactions: InteractionRecords = defaultInteractionRecords,
 ): void {
   bus.subscribe('ask-user.requested', async (e) => {
     const ev = e as Extract<CortexEvent, { type: 'ask-user.requested' }>;
@@ -27,21 +29,24 @@ export function registerHookBridgeSubscribers(
       const group = askUserQuestion.createHookGroup(ev.requestId, ev.channel, ev.sessionId, ev.questions, ev.extensionUiId, ev.threadId ?? null);
       askUserQuestion.registerHookResolver(ev.requestId, (data) => resolveHookRequest(ev.requestId, data));
 
-      // Web UI (web: conduit) has no PlatformAdapter — route through EventBus so the
-      // frontend SSE subscription picks it up and renders the AskQuestionCard.
+      // Web UI (web: conduit) has no PlatformAdapter — persist the interaction entity;
+      // the create() publishes session.interaction and the frontend renders the card
+      // from the transcript (web-interactions-redesign).
       if (ev.channel.startsWith('web:')) {
         const webSessionId = ev.channel.slice(4);
-        bus.publish({
-          type: 'session.askUser',
+        await interactions.create({
+          id: ev.requestId,
           sessionId: webSessionId,
           channel: ev.channel,
-          requestId: ev.requestId,
-          questions: group.questions.map((q: any) => ({
-            question: q.question,
-            header: q.header,
-            options: q.options || [],
-            multiSelect: !!q.multiSelect,
-          })),
+          kind: 'ask-user',
+          payload: {
+            questions: group.questions.map((q: any) => ({
+              question: q.question,
+              header: q.header,
+              options: q.options || [],
+              multiSelect: !!q.multiSelect,
+            })),
+          },
         });
         return;
       }
@@ -86,17 +91,20 @@ export function registerHookBridgeSubscribers(
     const ev = e as Extract<CortexEvent, { type: 'plan.submitted' }>;
     if (ev.dryRun) return; // smoke-test: event is journalled, skip Slack post + approval registration
     try {
-      // Web UI: route through EventBus (no PlatformAdapter for web: conduits).
+      // Web UI: persist the interaction entity with a FULL plan-content snapshot (no
+      // PlatformAdapter for web: conduits). planApprovals stays the live resolver map.
       if (ev.channel.startsWith('web:')) {
         const webSessionId = ev.channel.slice(4);
-        planApprovals.register(ev.requestId, { channel: ev.channel, extensionUiId: ev.extensionUiId ?? null, threadId: ev.threadId ?? null });
-        bus.publish({
-          type: 'session.planApproval',
+        planApprovals.register(ev.requestId, { channel: ev.channel, sessionId: webSessionId, extensionUiId: ev.extensionUiId ?? null, threadId: ev.threadId ?? null });
+        await interactions.create({
+          id: ev.requestId,
           sessionId: webSessionId,
           channel: ev.channel,
-          requestId: ev.requestId,
-          planContent: ev.planContent || '',
-          planFilePath: ev.toolInput?.plan_file_path ?? null,
+          kind: 'plan-approval',
+          payload: {
+            planContent: ev.planContent || '',
+            planFilePath: ev.toolInput?.plan_file_path ?? null,
+          },
         });
         return;
       }

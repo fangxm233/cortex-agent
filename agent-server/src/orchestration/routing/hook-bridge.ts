@@ -88,10 +88,21 @@ function resolveRequest(requestId: string, data: any): boolean {
 
 // --- Cleanup stale requests ---
 
-function cleanupStale() {
-  const now = Date.now();
+type OnStale = (requestId: string, channel: string, sessionId: string) => void;
+let _onStale: OnStale | null = null;
+
+/** Register a callback fired when a pending request times out (wired by app.ts to mark the
+ *  interaction entity expired + clean the group/plan maps). Pass null to clear (tests). */
+function setOnStale(cb: OnStale | null): void {
+  _onStale = cb;
+}
+
+function cleanupStale(now: number = Date.now()) {
   for (const [id, req] of pendingRequests) {
     if (now - req.createdAt > TTL_MS) {
+      try { _onStale?.(id, req.channel, req.sessionId); } catch (e) {
+        log.error(`onStale callback failed for ${id}: ${(e as Error).message}`);
+      }
       req.resolve({ error: 'timeout', answers: {} });
       pendingRequests.delete(id);
     }
@@ -99,7 +110,7 @@ function cleanupStale() {
 }
 
 // Run cleanup every 5 minutes
-setInterval(cleanupStale, 5 * 60 * 1000).unref();
+setInterval(() => cleanupStale(), 5 * 60 * 1000).unref();
 
 // --- Per-channel streaming context (for thread-aware hook messages) ---
 
@@ -139,4 +150,4 @@ function publishAskUserRequested(requestId: string, channel: string, sessionId: 
   _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, extensionUiId });
 }
 
-export { initHookBridge, setQuestionNotify, setPlanNotify, registerAskQuestion, registerPlanApproval, resolveRequest, setStreamingCallback, clearStreamingCallback, getStreamingCallback, publishPlanSubmitted, publishAskUserRequested };
+export { initHookBridge, setQuestionNotify, setPlanNotify, registerAskQuestion, registerPlanApproval, resolveRequest, setOnStale, cleanupStale, setStreamingCallback, clearStreamingCallback, getStreamingCallback, publishPlanSubmitted, publishAskUserRequested };

@@ -78,3 +78,92 @@ test('sessions.transcript returns empty turns for an absent history', async () =
   const out = await handleSessionsTranscript(makeDeps(null), { sessionId: 'nope' });
   assert.deepEqual(out, { sessionId: 'nope', turns: [] });
 });
+
+// ── Interaction entity materialization (web-interactions-redesign plan) ──────
+
+function makeInteractionDeps(history: SessionHistory, pendingIds: string[]): UiServiceDeps {
+  return {
+    conversationHistory: { getHistory: async () => history },
+    isInteractionPending: (id: string) => pendingIds.includes(id),
+  } as unknown as UiServiceDeps;
+}
+
+const QUESTIONS = [{ question: 'A or B?', header: 'Q', options: [{ label: 'A' }], multiSelect: false }];
+
+test('a live pending interaction materializes with structured detail and status pending', async () => {
+  const now = new Date().toISOString();
+  const history: SessionHistory = {
+    sessionId: 's1',
+    events: [
+      { type: 'user', text: 'go', ts: now, turnIndex: 0 },
+      { type: 'interaction', id: 'req-1', kind: 'ask-user', status: 'pending', payload: { questions: QUESTIONS }, text: 'A or B?', ts: now, turnIndex: 0 },
+    ],
+  };
+  const out = await handleSessionsTranscript(makeInteractionDeps(history, ['req-1']), { sessionId: 's1' });
+  const msg = out.turns[0].messages[1];
+  assert.equal(msg.type, 'interaction');
+  assert.equal(msg.interaction?.id, 'req-1');
+  assert.equal(msg.interaction?.kind, 'ask-user');
+  assert.equal(msg.interaction?.status, 'pending');
+  assert.deepEqual(msg.interaction?.payload.questions, QUESTIONS);
+});
+
+test('a pending interaction with no live resolver (server restarted) derives to expired', async () => {
+  const now = new Date().toISOString();
+  const history: SessionHistory = {
+    sessionId: 's2',
+    events: [
+      { type: 'user', text: 'go', ts: now, turnIndex: 0 },
+      { type: 'interaction', id: 'req-2', kind: 'plan-approval', status: 'pending', payload: { planContent: '# P', planFilePath: null }, text: 'Plan', ts: now, turnIndex: 0 },
+    ],
+  };
+  const out = await handleSessionsTranscript(makeInteractionDeps(history, []), { sessionId: 's2' });
+  const msg = out.turns[0].messages[1];
+  assert.equal(msg.interaction?.status, 'expired');
+});
+
+test('a pending interaction older than the TTL derives to expired even when the resolver looks live', async () => {
+  const old = new Date(Date.now() - 31 * 60 * 1000).toISOString();
+  const history: SessionHistory = {
+    sessionId: 's3',
+    events: [
+      { type: 'user', text: 'go', ts: old, turnIndex: 0 },
+      { type: 'interaction', id: 'req-3', kind: 'ask-user', status: 'pending', payload: { questions: QUESTIONS }, text: 'A or B?', ts: old, turnIndex: 0 },
+    ],
+  };
+  const out = await handleSessionsTranscript(makeInteractionDeps(history, ['req-3']), { sessionId: 's3' });
+  assert.equal(out.turns[0].messages[1].interaction?.status, 'expired');
+});
+
+test('a resolved interaction materializes final status + result and never re-derives', async () => {
+  const now = new Date().toISOString();
+  const history: SessionHistory = {
+    sessionId: 's4',
+    events: [
+      { type: 'user', text: 'go', ts: now, turnIndex: 0 },
+      { type: 'interaction', id: 'req-4', kind: 'plan-approval', status: 'approved', payload: { planContent: '# P', planFilePath: 'p.md' }, result: {}, resolvedVia: 'web', text: 'Plan approved', ts: now, turnIndex: 0 },
+    ],
+  };
+  const out = await handleSessionsTranscript(makeInteractionDeps(history, []), { sessionId: 's4' });
+  const msg = out.turns[0].messages[1];
+  assert.equal(msg.interaction?.status, 'approved');
+  assert.equal(msg.subtype, 'plan-approved', 'legacy-compatible subtype derived from kind+status');
+  assert.equal(msg.text, 'Plan approved');
+});
+
+test('legacy interaction rows (subtype/text, no id) materialize as before with no detail', async () => {
+  const now = new Date().toISOString();
+  const history: SessionHistory = {
+    sessionId: 's5',
+    events: [
+      { type: 'user', text: 'go', ts: now, turnIndex: 0 },
+      { type: 'interaction', subtype: 'ask-user-answered', text: 'Q → A', ts: now, turnIndex: 0 },
+    ],
+  };
+  const out = await handleSessionsTranscript(makeDeps(history), { sessionId: 's5' });
+  const msg = out.turns[0].messages[1];
+  assert.equal(msg.type, 'interaction');
+  assert.equal(msg.subtype, 'ask-user-answered');
+  assert.equal(msg.text, 'Q → A');
+  assert.equal(msg.interaction, undefined);
+});

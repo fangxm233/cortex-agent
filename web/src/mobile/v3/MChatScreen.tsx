@@ -9,11 +9,11 @@
 //
 // HONEST GAPS (verified against agent-server/domain/ui-service/app-router.ts + @cortex-agent/ui-contract):
 //   • per-session `$` cost — SessionInfo carries none → OMITTED (never fabricated).
-//   • 1m agent-提问 (AskUserQuestion) + 1n Plan-审批 (ExitPlanMode) — WIRED: the backend publishes
-//     `session.askUser` / `session.planApproval` EventBus events for `web:` conduit sessions;
-//     `useSessionInteractions` subscribes via SSE and feeds `pendingQuestion` / `pendingPlan` to
-//     MChatView. User responses route through `sessions.answerQuestion` / `sessions.respondPlan`
-//     tRPC mutations which resolve the blocked MCP tool.
+//   • 1m agent-提问 (AskUserQuestion) + 1n Plan-审批 (ExitPlanMode) — WIRED: interaction cards are
+//     transcript rows (persistent interaction entities, web-interactions-redesign); the backend
+//     broadcasts `session.interaction` state changes and the transcript refetch converges every
+//     client. `useInteractionActions` supplies answer/approve/reject via `sessions.answerQuestion`
+//     / `sessions.respondPlan`, which resolve the blocked MCP tool.
 //   • ⋯ 重命名/导出/归档 — no backend op → inert honest menu.
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -29,7 +29,7 @@ import {
   formatElapsed,
 } from '@/features/workbench/transcript-vm';
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
-import { useSessionInteractions } from '@/features/workbench/useSessionInteractions';
+import { useInteractionActions } from '@/features/workbench/useInteractionActions';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { threadPill } from '@/features/workbench/thread-card-proto';
@@ -190,7 +190,9 @@ export function MChatScreen(): JSX.Element {
     enabled: !!sessionId,
   });
   const { liveTail, streaming, running, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
-  const { pendingQuestion, pendingPlan, answeredQuestions, onAnswerQuestion, onApprovePlan, onRejectPlan } = useSessionInteractions(sessionId);
+  // Interaction cards are transcript rows (web-interactions-redesign); this hook only supplies
+  // the answer/approve/reject actions.
+  const interactionActions = useInteractionActions(sessionId);
   // Unread write side (mirrors desktop CenterChat): viewing a session stamps it read (debounced,
   // visibility-gated), re-arming on live activity so a reply landing under the user's eyes never
   // stays unread. onSuccess invalidates sessions.list → clears the marker + project switcher badge.
@@ -354,12 +356,7 @@ export function MChatScreen(): JSX.Element {
           ) : undefined
         }
         systemLines={systemLines}
-        pendingQuestion={pendingQuestion ?? undefined}
-        onAnswerQuestion={onAnswerQuestion}
-        answeredQuestions={answeredQuestions}
-        pendingPlan={pendingPlan ?? undefined}
-        onApprovePlan={onApprovePlan}
-        onRejectPlan={onRejectPlan}
+        interactionActions={interactionActions}
         composerValue={text}
         onComposerChange={setText}
         onSend={onSend}

@@ -5,6 +5,8 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import type { ChatRow, Attachment } from '@/features/workbench/transcript-vm';
+import { interactionView } from '@/features/workbench/interaction-vm';
+import type { InteractionActions } from '@/features/workbench/useInteractionActions';
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
 import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { downloadFile } from '@/lib/files';
@@ -262,11 +264,55 @@ function ToolCallsRow({
 }
 
 // ── the message stream (reuses ChatMarkdown; renders attachments above/below bubbles) ──
-export function MChatStream({ rows, toolCallsUnit }: { rows: ChatRow[]; toolCallsUnit: string }): JSX.Element {
+// Fallback copy for the interaction cards when MChatStream is used without a full MChatCopy.
+const STREAM_FALLBACK_COPY = {
+  askPill: 'Agent 提问', answered: '✓ 已回答', defaultBadge: '默认',
+  planPending: '计划待批', approve: '批准并执行', reject: '驳回并反馈',
+  fromLabel: '来自', writeLabel: '批准写入',
+} as const;
+
+/** Interaction row for the mobile stream — pending rows render the actionable cards, resolved /
+ *  expired / cancelled rows render a one-line summary (web-interactions-redesign). */
+function MInteractionRow({ row, copy, actions }: { row: Extract<ChatRow, { kind: 'interaction' }>; copy: MChatCopy; actions?: InteractionActions }): JSX.Element {
+  const v = interactionView(row);
+  if (v.kind === 'ask-pending') {
+    return (
+      <AskQuestionCard
+        data={v.card}
+        copy={copy}
+        onAnswer={(optionId) => {
+          const opt = v.card.options.find((o) => o.id === optionId);
+          if (opt && actions) actions.answerQuestion(v.requestId, v.questions, opt.label);
+        }}
+      />
+    );
+  }
+  if (v.kind === 'plan-pending') {
+    return (
+      <PlanApprovalCard
+        data={v.card}
+        copy={copy}
+        onApprove={() => actions?.approvePlan(v.requestId)}
+        onReject={() => actions?.rejectPlan(v.requestId)}
+      />
+    );
+  }
+  const color = v.tone === 'rejected' ? '#C03D33' : v.tone === 'inactive' ? '#98A1B0' : MC.done;
+  const icon = v.tone === 'rejected' ? '✗' : v.tone === 'inactive' ? '◌' : '✓';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: '#fff', border: '1px solid #EFF1F5', borderRadius: 10, opacity: v.tone === 'inactive' ? 0.6 : 0.75 }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color, flexShrink: 0 }}>{icon} {v.label}</span>
+      <span style={{ fontSize: 11.5, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.text}</span>
+    </div>
+  );
+}
+
+export function MChatStream({ rows, toolCallsUnit, copy, interactionActions }: { rows: ChatRow[]; toolCallsUnit: string; copy?: MChatCopy; interactionActions?: InteractionActions }): JSX.Element {
+  const cardCopy: MChatCopy = copy ?? ({ ...STREAM_FALLBACK_COPY } as unknown as MChatCopy);
   return (
     <>
       {rows.map((row, i) => (
-        <Fragment key={i}>
+        <Fragment key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}>
           {row.kind === 'divider' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ flex: 1, height: 1, background: '#E3E5EA' }} />
@@ -310,14 +356,7 @@ export function MChatStream({ rows, toolCallsUnit }: { rows: ChatRow[]; toolCall
               )}
             </div>
           )}
-          {row.kind === 'interaction' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: '#fff', border: '1px solid #EFF1F5', borderRadius: 10, opacity: 0.75 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: row.subtype === 'plan-rejected' ? '#C03D33' : MC.done, flexShrink: 0 }}>
-                {row.subtype === 'plan-rejected' ? '✗' : '✓'} {row.subtype.startsWith('plan-') ? (row.subtype === 'plan-approved' ? 'Plan approved' : 'Plan rejected') : 'Answered'}
-              </span>
-              <span style={{ fontSize: 11.5, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.text}</span>
-            </div>
-          )}
+          {row.kind === 'interaction' && <MInteractionRow row={row} copy={cardCopy} actions={interactionActions} />}
         </Fragment>
       ))}
     </>
@@ -594,12 +633,8 @@ export interface MChatViewProps {
   // stream slots
   inlineThreadCard?: ReactNode;
   systemLines?: string[];
-  pendingQuestion?: AskQuestionCardData;
-  onAnswerQuestion?: (optionId: string) => void;
-  answeredQuestions?: AnsweredQuestionRow[];
-  pendingPlan?: PlanCardData;
-  onApprovePlan?: () => void;
-  onRejectPlan?: () => void;
+  // Interaction cards live inline in `rows` (transcript entities); this only supplies the actions.
+  interactionActions?: InteractionActions;
   // composer
   composerValue: string;
   onComposerChange: (v: string) => void;
@@ -645,7 +680,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   useEffect(() => {
     const el = scrollRef.current;
     if (el && stickRef.current && Date.now() >= tapFreezeUntil.current) el.scrollTop = el.scrollHeight;
-  }, [props.rows, props.systemLines, props.answeredQuestions]);
+  }, [props.rows, props.systemLines]);
 
   const above = (
     <>
@@ -678,13 +713,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. */}
         <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
           <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {props.answeredQuestions?.map((r) => (
-              <AnsweredRow key={r.id} row={r} copy={copy} />
-            ))}
-            <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} />
+            <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} copy={copy} interactionActions={props.interactionActions} />
             {props.inlineThreadCard}
-            {props.pendingQuestion && <AskQuestionCard data={props.pendingQuestion} copy={copy} onAnswer={props.onAnswerQuestion ?? (() => {})} />}
-            {props.pendingPlan && <PlanApprovalCard data={props.pendingPlan} copy={copy} onApprove={props.onApprovePlan ?? (() => {})} onReject={props.onRejectPlan ?? (() => {})} />}
             {props.systemLines?.map((t, i) => (
               <SystemLine key={i} text={t} />
             ))}

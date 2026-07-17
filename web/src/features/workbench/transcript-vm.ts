@@ -1,4 +1,4 @@
-import type { SessionTranscript, TranscriptMessage } from '@cortex-agent/ui-contract';
+import type { SessionTranscript, TranscriptMessage, TranscriptInteractionDetail } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
 // Pure view-model for the workbench center-chat transcript (S4 chat, task aba0). Maps the real
@@ -26,7 +26,9 @@ export type ChatRow =
   | { kind: 'tools'; count: number; calls: { kind: string; input: string }[] }
   // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
   | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[] }
-  | { kind: 'interaction'; subtype: string; text: string };
+  // `detail` carries the structured interaction entity (pending cards render actionable);
+  // absent on legacy rows, which render the old subtype-driven summary.
+  | { kind: 'interaction'; subtype: string; text: string; detail?: TranscriptInteractionDetail };
 
 export interface BuildOpts {
   /** True while the session is actively producing output — marks the last assistant row's caret. */
@@ -122,6 +124,9 @@ export function formatElapsed(ms: number | null): string {
 }
 
 function msgKey(m: TranscriptMessage): string {
+  // Interaction entities have a stable id — key on it so a status change (pending → approved)
+  // REPLACES the row instead of duplicating it.
+  if (m.type === 'interaction' && m.interaction?.id) return `interaction|${m.interaction.id}`;
   return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}`;
 }
 
@@ -209,7 +214,7 @@ export function buildTranscriptRows(
     }
     flushTools();
     if (m.type === 'interaction') {
-      rows.push({ kind: 'interaction', subtype: (m as any).subtype ?? '', text: m.text ?? '' });
+      rows.push({ kind: 'interaction', subtype: (m as any).subtype ?? '', text: m.text ?? '', detail: m.interaction });
     } else if (m.type === 'user') rows.push({ kind: 'user', text: m.text ?? '', attachments: (m as any).attachments });
     else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
   }

@@ -12,6 +12,7 @@ import { conversationLedger } from '@store/conversation-ledger-repo.js';
 
 import { attachExistingSession, resetChannelSession } from '@domain/sessions/session-lifecycle.js';
 import { planApprovals } from '../../interactions/plan-approvals.js';
+import { interactionRecords } from '../../interactions/interaction-records.js';
 
 const log = createLogger('session');
 
@@ -59,6 +60,9 @@ export async function handleNewCmd(
   await resetChannelSession(channel);
   const cleared = planApprovals.clearByChannel(channel);
   if (cleared > 0) log.info('Cleared pending plan for channel:', channel);
+  // Web interaction entities: mark any pending question/plan cancelled so every client's card
+  // resolves (broadcasts session.interaction) instead of dangling.
+  void interactionRecords.resolvePendingByChannel(channel, 'cancelled', 'command');
   log.info('New conversation started in channel:', channel);
   await adapter.postMessage(dest, { text: t('cmd.session.newConversation', { profile: profileName }) });
 }

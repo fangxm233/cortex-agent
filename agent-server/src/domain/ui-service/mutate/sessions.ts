@@ -23,6 +23,7 @@ import type {
   SessionsCreateAndSendReturn,
   SessionsAnswerQuestionArgs,
   SessionsRespondPlanArgs,
+  SessionsInteractionMutateReturn,
 } from '../types.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
@@ -156,39 +157,41 @@ export async function handleSetProfile(
 }
 
 // Web UI: resolve a pending ask-user-question interaction. The web client renders the question
-// card from a session.askUser EventBus event and submits the answers through this mutation.
+// card from the transcript's interaction row and submits the answers through this mutation.
+// 'already-resolved' (another client / Slack / timeout won the race) is a SUCCESS outcome, not
+// an error — the caller refetches the transcript to show the final state.
 export async function handleAnswerQuestion(
   deps: UiServiceDeps,
   args: SessionsAnswerQuestionArgs,
-): Promise<Result<void>> {
+): Promise<Result<SessionsInteractionMutateReturn>> {
   if (!deps.answerQuestion) {
     return { ok: false, code: 'not-available', message: 'answerQuestion not wired' };
   }
   if (!args.requestId) {
     return { ok: false, code: 'invalid-args', message: 'requestId required' };
   }
-  const resolved = deps.answerQuestion(args.requestId, args.answers ?? {});
-  if (!resolved) {
+  const outcome = deps.answerQuestion(args.requestId, args.answers ?? {});
+  if (outcome === 'not-found') {
     return { ok: false, code: 'not-found', message: `No pending question for requestId: ${args.requestId}` };
   }
-  return { ok: true, data: undefined };
+  return { ok: true, data: { outcome } };
 }
 
-// Web UI: resolve a pending plan-approval interaction. The web client renders the plan card
-// from a session.planApproval EventBus event and submits the verdict through this mutation.
+// Web UI: resolve a pending plan-approval interaction. Same three-way outcome as
+// handleAnswerQuestion.
 export async function handleRespondPlan(
   deps: UiServiceDeps,
   args: SessionsRespondPlanArgs,
-): Promise<Result<void>> {
+): Promise<Result<SessionsInteractionMutateReturn>> {
   if (!deps.respondPlan) {
     return { ok: false, code: 'not-available', message: 'respondPlan not wired' };
   }
   if (!args.requestId) {
     return { ok: false, code: 'invalid-args', message: 'requestId required' };
   }
-  const resolved = deps.respondPlan(args.requestId, args.approved, args.feedback);
-  if (!resolved) {
+  const outcome = deps.respondPlan(args.requestId, args.approved, args.feedback);
+  if (outcome === 'not-found') {
     return { ok: false, code: 'not-found', message: `No pending plan for requestId: ${args.requestId}` };
   }
-  return { ok: true, data: undefined };
+  return { ok: true, data: { outcome } };
 }
