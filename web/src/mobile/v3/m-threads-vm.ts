@@ -28,14 +28,17 @@ export function threadsBudgetBand(
   };
 }
 
-// ── Card kind (scheme: running pipeline card vs amber 等待审批 card) ─────────────
-// `waiting` → the amber approval card (去处理 › → /m/approvals). Everything else renders as the running
-// pipeline card. NOTE — the scheme's third "子线程 · 深度 N" variant is intentionally NOT emitted:
-// `ThreadInfo` carries no depth / parent field, so a subthread is indistinguishable from a top-level
-// thread here (honest gap, 守则11; the depth tag would be fabricated).
-export type MThreadKind = 'running' | 'waiting';
-export function threadCardKind(status: ThreadInfo['status']): MThreadKind {
-  return status === 'waiting' ? 'waiting' : 'running';
+// ── Live (non-terminal) thread test ───────────────────────────────────────────
+// `running` and `waiting` are both live, active threads that drill into the thread detail page
+// (/m/thread/:id) and warrant a per-card `threads.get` (pipeline / cost / child count). A `waiting`
+// thread is NOT an approval block — it is a manager SUSPENDED on its child threads/tasks (DR-0014
+// parent suspension; server headline "Thread suspended — waiting on N child(ren)"). The earlier
+// mapping (waiting → amber 等待审批 card → /m/approvals) conflated this with the separate approval
+// queue (approvals.list / APR-NNNN); there is no ThreadInfo field for an approval-blocked thread, so
+// the amber-approval variant is intentionally dropped (honest gap, 守则11). NOTE — the scheme's
+// "子线程 · 深度 N" variant is likewise not emitted: `ThreadInfo` carries no depth / parent field.
+export function isLiveThread(status: ThreadInfo['status']): boolean {
+  return status === 'running' || status === 'waiting';
 }
 
 // ── Horizontal 4-step pipeline (scheme L201–209) ──────────────────────────────
@@ -85,13 +88,6 @@ export function runningMeta(
     if (n > 0) parts.push(`${n} ${subthreadWord}`);
   }
   return parts.join(' · ');
-}
-
-// ── Waiting card meta line "thr_a41d · 42m" (scheme L218) ─────────────────────
-// The scheme's "dispatch 暂停 · 超预算 $12.40" are mocks — no DTO field carries a pause reason / overrun
-// amount for a waiting thread, so only the real id + age are rendered (守则11 honest gap).
-export function waitingMeta(info: ThreadInfo, now: number): string {
-  return `${info.id} · ${formatAge(info.createdAt, now)}`;
 }
 
 /** 活跃 count for the segment label (real, from the active-status `threads.list`). */

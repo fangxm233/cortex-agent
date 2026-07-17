@@ -1,14 +1,15 @@
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1c L174–238)
 // Presentational views for the 1c 线程 screen: the tab header (title + qn + 活跃/历史 segment + 今日 budget
-// band), the running pipeline card, and the amber 等待审批 card. Prop-driven & framework-free of tRPC so
-// they render-test cleanly; the container (MThreadsScreen) binds the real queries and per-card detail.
+// band) and the thread pipeline card. Both running and waiting (a manager SUSPENDED on its children —
+// DR-0014 parent suspension) render as the same drill-in pipeline card; only the status pill differs.
+// Prop-driven & framework-free of tRPC so they render-test cleanly; the container (MThreadsScreen)
+// binds the real queries and per-card detail.
 import { MTabHeader, MCard, MPill, MSegmented, statusPillTone, MC, MONO } from '@/mobile/ui/kit';
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import type { Scope } from '@/features/workbench/scope';
 import {
   pipelineSteps,
   runningMeta,
-  waitingMeta,
   activeSegmentLabel,
   type MBudgetBand,
   type MPipelineStep,
@@ -20,7 +21,6 @@ export interface MThreadsCopy {
   history: string;
   today: string;
   open: string;
-  handle: string;
   subthread: string;
   empty: string;
   running: string;
@@ -31,10 +31,14 @@ export interface MThreadsCopy {
 }
 
 // Status → { pill tone, localized label } for a thread card (history shows terminal statuses too).
-function threadPill(status: ThreadInfo['status'], copy: MThreadsCopy): { tone: 'running' | 'done' | 'failed' | 'cancelled'; label: string } {
+// `waiting` = a manager suspended on its children → the amber "waiting" pill tone with the 等待子线程
+// label (NOT an approval block).
+function threadPill(status: ThreadInfo['status'], copy: MThreadsCopy): { tone: 'running' | 'waiting' | 'done' | 'failed' | 'cancelled'; label: string } {
   switch (status) {
     case 'running':
       return { tone: 'running', label: copy.running };
+    case 'waiting':
+      return { tone: 'waiting', label: copy.waiting };
     case 'completed':
       return { tone: 'done', label: copy.done };
     case 'failed':
@@ -164,10 +168,11 @@ export function MRunningCard({
 }) {
   const steps = pipelineSteps(info, detail);
   const pill = threadPill(info.status, copy);
+  const nodeColor = info.status === 'running' ? MC.run : info.status === 'waiting' ? MC.amber : MC.muted;
   return (
     <MCard onClick={onOpen}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <NodeIcon color={info.status === 'running' ? MC.run : MC.muted} />
+        <NodeIcon color={nodeColor} />
         <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink }}>{info.templateName}</span>
         <span style={{ marginLeft: 'auto' }}>
           <MPill tone={pill.tone}>{pill.label}</MPill>
@@ -179,35 +184,6 @@ export function MRunningCard({
           {runningMeta(info, detail, now, copy.subthread)}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: MC.run }}>{copy.open} ›</span>
-      </div>
-    </MCard>
-  );
-}
-
-// ── Amber 等待审批 card (scheme L212–219) ─────────────────────────────────────
-export function MWaitingCard({
-  info,
-  now,
-  copy,
-  onHandle,
-}: {
-  info: ThreadInfo;
-  now: number;
-  copy: MThreadsCopy;
-  onHandle: () => void;
-}) {
-  return (
-    <MCard tone="amber" onClick={onHandle}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <NodeIcon color={MC.amber} />
-        <span style={{ font: `600 12.5px ${MONO}`, color: MC.ink }}>{info.templateName}</span>
-        <span style={{ marginLeft: 'auto' }}>
-          <MPill tone="waiting">{copy.waiting}</MPill>
-        </span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-        <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0' }}>{waitingMeta(info, now)}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: MC.amberInk }}>{copy.handle} ›</span>
       </div>
     </MCard>
   );

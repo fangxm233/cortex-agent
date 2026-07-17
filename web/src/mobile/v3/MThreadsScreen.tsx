@@ -1,6 +1,8 @@
 // 1c 线程 — the current project's threads (scheme-mobile.dc.html 1c L174–238). Header = 线程 title +
-// current-project QN tag + 活跃/历史 segment + 今日 budget band; body = thread cards: a running pipeline
-// card (打开 › → /m/thread/:id) and an amber 等待审批 card (去处理 › → /m/approvals). Real tRPC:
+// current-project QN tag + 活跃/历史 segment + 今日 budget band; body = thread pipeline cards, each
+// drilling into the thread detail page (打开 › → /m/thread/:id). A `waiting` thread is a manager
+// SUSPENDED on its children (DR-0014), rendered as a live pipeline card with the amber 等待子线程 pill —
+// NOT an approval block, so it no longer routes to the approval queue. Real tRPC:
 // threads.list (scoped to the current project; active-status query for the 活跃 count), threads.get
 // (per running card — pipeline stages + cost + child count, mirrors MobileThreadCard), cost.summary
 // (今日 budget band). Live refresh via useThreadsLiveSync. The shell owns the bottom Tab bar.
@@ -17,19 +19,19 @@ import { threadScopeFilter, type Scope } from '@/features/workbench/scope';
 import { useThreadsLiveSync } from '@/features/workbench/useThreadsLiveSync';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { MScreen, MScrollBody, MC } from '@/mobile/ui/kit';
-import { MThreadsHeader, MRunningCard, MWaitingCard, type MThreadsCopy } from './MThreadsView';
-import { threadsBudgetBand, threadCardKind } from './m-threads-vm';
+import { MThreadsHeader, MRunningCard, type MThreadsCopy } from './MThreadsView';
+import { threadsBudgetBand, isLiveThread } from './m-threads-vm';
 
 const COPY: { en: MThreadsCopy; zh: MThreadsCopy } = {
   en: {
     title: 'Threads', active: 'Active', history: 'History', today: 'Today', open: 'Open',
-    handle: 'Handle', subthread: 'subthreads', empty: 'No threads', running: 'Running',
-    waiting: 'Awaiting approval', done: 'Done', failed: 'Failed', cancelled: 'Cancelled',
+    subthread: 'subthreads', empty: 'No threads', running: 'Running',
+    waiting: 'Suspended', done: 'Done', failed: 'Failed', cancelled: 'Cancelled',
   },
   zh: {
     title: '线程', active: '活跃', history: '历史', today: '今日', open: '打开',
-    handle: '去处理', subthread: '子线程', empty: '暂无线程', running: '运行中',
-    waiting: '等待审批', done: '已完成', failed: '失败', cancelled: '已取消',
+    subthread: '子线程', empty: '暂无线程', running: '运行中',
+    waiting: '等待子线程', done: '已完成', failed: '失败', cancelled: '已取消',
   },
 };
 
@@ -101,12 +103,10 @@ export function MThreadsScreen() {
           </div>
         )}
         {threads.map((t) => {
-          if (threadCardKind(t.status) === 'waiting') {
-            return <MWaitingCard key={t.id} info={t} now={now} copy={copy} onHandle={() => navigate('/m/approvals')} />;
-          }
           const onOpen = () => navigate(`/m/thread/${t.id}`);
-          // Running → live threads.get card (pipeline/cost/children); terminal → summary-only card.
-          return t.status === 'running' ? (
+          // Live (running / suspended-on-children) → live threads.get card (pipeline/cost/children);
+          // terminal (history) → summary-only card. Every card drills into the thread detail page.
+          return isLiveThread(t.status) ? (
             <MThreadRunningCard key={t.id} info={t} now={now} copy={copy} onOpen={onOpen} />
           ) : (
             <MRunningCard key={t.id} info={t} detail={undefined} now={now} copy={copy} onOpen={onOpen} />
