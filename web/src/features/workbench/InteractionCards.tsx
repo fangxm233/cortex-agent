@@ -76,7 +76,7 @@ export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
     cancel: '取消',
     confirmReturn: '确认退回',
     approvedFoot: '· 线程继续执行',
-    rejectedFoot: '· 重规划将改写',
+    rejectedFoot: '',
     viewPlan: '查看计划 ›',
     viewOriginalPlan: '查看原计划 ›',
   },
@@ -104,7 +104,7 @@ export const D_INT_COPY: { zh: DIntCopy; en: DIntCopy } = {
     cancel: 'Cancel',
     confirmReturn: 'Confirm return',
     approvedFoot: '· thread continues',
-    rejectedFoot: '· replanning rewrites it',
+    rejectedFoot: '',
     viewPlan: 'View plan ›',
     viewOriginalPlan: 'View original plan ›',
   },
@@ -130,7 +130,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
   // sealed — 13b right column: per-question ✓ rows
   if (!pending) {
     return (
-      <div style={{ maxWidth: 620, border: '1px solid #E7E9EE', background: '#FBFBFC', borderRadius: 10, padding: '13px 16px' }}>
+      <div style={{ border: '1px solid #E7E9EE', background: '#FBFBFC', borderRadius: 10, padding: '13px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#EEF0FA', color: '#4655D4', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' }}>?</span>
           <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: '#F1F2F5', color: '#8A93A2' }}>{copy.askAnsweredPill}</span>
@@ -152,7 +152,7 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
 
   // pending — 13b left column
   return (
-    <div style={{ maxWidth: 620, border: '1px solid #C9CFF2', background: '#FBFBFE', borderRadius: 10, padding: '13px 16px' }}>
+    <div style={{ border: '1px solid #C9CFF2', background: '#FBFBFE', borderRadius: 10, padding: '13px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#EEF0FA', color: '#4655D4', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' }}>?</span>
         <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: '#EEF0FA', color: '#4655D4' }}>{copy.askPill}</span>
@@ -304,7 +304,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
   if (!pending) {
     return (
       <>
-        <div style={{ maxWidth: 400, border: '1px solid #E7E9EE', background: '#FBFBFC', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ border: '1px solid #E7E9EE', background: '#FBFBFC', borderRadius: 10, overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid #EFF1F5', background: '#FBFBFC' }}>
             <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: approved ? '#E9F4EE' : '#F1F2F5', color: approved ? '#23854F' : '#8A93A2' }}>
               {approved ? copy.planApprovedPill : rejected ? copy.planRejectedPill : model.status}
@@ -348,7 +348,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
 
   // pending — 13c left/middle columns (feedback box only after 请求修改)
   return (
-    <div style={{ maxWidth: 400, border: '1px solid #C9CFF2', background: '#fff', borderRadius: 10, overflow: 'hidden' }}>
+    <div style={{ border: '1px solid #C9CFF2', background: '#fff', borderRadius: 10, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 15px', borderBottom: '1px solid #EFF1F5', background: '#FBFBFE' }}>
         <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: '#EEF0FA', color: '#4655D4' }}>{copy.planPendingPill}</span>
         <span style={{ font: `400 10px ${mono}`, color: '#98A1B0' }}>ExitPlanMode</span>

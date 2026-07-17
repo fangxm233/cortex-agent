@@ -61,7 +61,7 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     approveHint: '批准 = 开始执行',
     viewFullPlan: '查看完整计划 ›',
     viewOriginalPlan: '查看原计划 ›',
-    rewriteNote: '· 重规划将改写',
+    rewriteNote: '',
   },
   en: {
     askPill: 'Agent question',
@@ -84,7 +84,7 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     approveHint: 'approve = start execution',
     viewFullPlan: 'View full plan ›',
     viewOriginalPlan: 'View original plan ›',
-    rewriteNote: '· replanning rewrites it',
+    rewriteNote: '',
   },
 };
 
