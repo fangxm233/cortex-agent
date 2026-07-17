@@ -1,16 +1,26 @@
 Please update me when files in this folder change
 
 agent-server TypeScript ESM regression tests. Reference production code from here via ../src/*.js.
-Uses Node test runner + tsx loader + module-loader.ts to handle fresh imports.
+Runs under **vitest** (`vitest.config.ts`): one shared Vite server transpiles each module once
+and caches it, so the suite no longer pays a per-file `tsx` cold-start. A `.js`→`.ts` pre-resolver
+(config) lets NodeNext `../src/foo.js` imports resolve to `foo.ts`; `tests/_vitest-setup.ts` gives
+each test file its own temp `CORTEX_HOME`; `tests/module-loader.ts` `importFresh` re-imports a single
+module fresh (query-string cache-bust) while keeping transitive singletons shared.
 
-## Cleanup Discipline: Use t.after() for long-lived resources, don't write at the end of the test body
+Test API is vitest's: `import { test, describe, it, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'`
+(no default `test` export; node:test `before`/`after` → `beforeAll`/`afterAll`). `node:assert/strict`
+still works and is used throughout. Fake timers use `vi.useFakeTimers`/`advanceTimersByTime`; spies use
+`vi.spyOn` (auto-restored via `restoreMocks: true`).
+
+## Cleanup Discipline: register cleanup for long-lived resources, don't write it at the end of the test body
 
 If the module under test holds long-lived resources such as timer/interval/listener/child process (typical examples:
 `rate-limit-throttle._resumeTimer`, `disk-monitor._timer`),
-the test **must** register cleanup with `t.after(() => mod._testReset())` instead of writing `mod._testReset()` at the end of each test body.
+the test **must** register cleanup with `t.onTestFinished(() => mod._testReset())` (the vitest context
+teardown; the node:test `t.after()` equivalent) instead of writing `mod._testReset()` at the end of each test body.
 
 Reason: when an assertion fails, code at the end of the test body does not execute; residual `setTimeout`/`setInterval` will cause the Node event loop
-to refuse to exit, and the entire `npm test` hangs after the last test. `t.after()` runs in all three cases (pass/fail/throw)
+to refuse to exit, and the suite hangs after the last test. `t.onTestFinished()` runs in all three cases (pass/fail/throw)
 and is the only safe cleanup location. The `afterEach` global hook or `try/finally` also work — choose any of the three.
 
 Reference implementation: the `freshModuleWithCleanup(t)` helper in `tests/rate-limit-throttle.test.ts`.
@@ -23,13 +33,14 @@ Reference implementation: the `freshModuleWithCleanup(t)` helper in `tests/rate-
 production pollution into an immediate failure. Production is unaffected (guard is no-op when
 `NODE_TEST_CONTEXT` is unset). Regression: `tests/core/atomic-write-guard.test.ts`.
 
-How to run tests without tripping it:
-- Full suite: `npm test` (run-tests.sh seeds an isolated CORTEX_HOME + global `--import _test-home`).
-- One file: `npm run test:file tests/path/to/x.test.ts` (wraps `--import ./tests/_test-home.ts`, which
-  repoints CORTEX_HOME at a per-process temp before `paths.ts` binds).
-- Raw `npx tsx --test <file>` does NOT isolate. If the file touches a real store singleton, either
-  use `test:file`, or add `import '../_test-home.js'; // MUST be first` as the file's first import.
-  If you see `atomicWrite blocked: …`, that's why — the file wrote to production without isolating.
+How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT` so the guard stays armed):
+- Full suite: `npm test` (run-tests.sh seeds an isolated CORTEX_HOME; the vitest setupFile clones it
+  per test file).
+- One file: `npm run test:file tests/path/to/x.test.ts` (`vitest run <file>`; the setupFile repoints
+  CORTEX_HOME at a per-file temp before `paths.ts` binds).
+- Integration (forked servers): `npm run test:integration` (`vitest.integration.config.ts`, 120s timeout, serial).
+- If you see `atomicWrite blocked: …`, a file wrote to production without isolating — run it via `test:file`
+  so the setupFile applies, rather than a raw `vitest`/`tsx` invocation that skips it.
 
 | filename | role | function |
 |---|---|---|

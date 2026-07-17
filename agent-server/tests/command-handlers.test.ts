@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test, { before } from 'node:test';
+import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -21,7 +21,7 @@ import * as executionRegistry from '../src/domain/executions/registry.js';
 import { conduitQueues } from '../src/orchestration/conduit-queue.js';
 import { threadStore } from '../src/store/thread-repo.js';
 
-before(() => {
+beforeAll(() => {
   _testSetRegistry({ testbox: { cortexPath: '/tmp/test', gpuCount: 2 } });
 });
 
@@ -40,7 +40,7 @@ function withFakeIntervals(t) {
     const idx = intervals.findIndex(entry => entry === handle || entry.id === handle);
     if (idx >= 0) intervals.splice(idx, 1);
   }) as typeof clearInterval;
-  t.after(() => {
+  t.onTestFinished(() => {
     global.setInterval = originalSetInterval;
     global.clearInterval = originalClearInterval;
   });
@@ -50,7 +50,7 @@ function withFakeIntervals(t) {
 function withMockedGpuExec(t, outputsByCommand) {
   const originalEnv = process.env.CORTEX_GPU_MONITOR_MOCK;
   process.env.CORTEX_GPU_MONITOR_MOCK = JSON.stringify(outputsByCommand);
-  t.after(() => {
+  t.onTestFinished(() => {
     if (originalEnv === undefined) delete process.env.CORTEX_GPU_MONITOR_MOCK;
     else process.env.CORTEX_GPU_MONITOR_MOCK = originalEnv;
   });
@@ -65,7 +65,7 @@ function withTempCostData(t, entries) {
   process.env.CORTEX_BUDGET_FILE = budgetFile;
   // Reset the lazy JsonRepository so it picks up the new CORTEX_COSTS_FILE/CORTEX_BUDGET_FILE paths.
   costRepo._testReset();
-  t.after(() => {
+  t.onTestFinished(() => {
     delete process.env.CORTEX_COSTS_FILE;
     delete process.env.CORTEX_BUDGET_FILE;
     costRepo._testReset();
@@ -288,7 +288,7 @@ test('plain !cancel still cancels the current active process', async (t) => {
   runningExecutions.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv1', kill: () => { killed = true; return true; }, backend: 'test' });
   // Simulate a running queue entry so cancel can clear it
   conduitQueues.set('C123', Promise.resolve());
-  t.after(() => { runningExecutions.remove('exec-conv1'); conduitQueues.delete('C123'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-conv1'); conduitQueues.delete('C123'); });
   const dispatchCommand = createCommandDispatcher({
     scheduler: null,
     cancelDispatchedTask: async () => ({ ok: false, message: 'should not be called' }),
@@ -308,7 +308,7 @@ test('!cancel marks the execution record cancelled (not failed), idempotently', 
   const adapter = new MockAdapter();
   const rec = executionRegistry.startLocalExecution({ channel: 'Ccancel', project: 'general', trigger: 'user', backend: 'test' });
   runningExecutions.register({ threadId: null, channel: 'Ccancel', agentSlotId: null, executionId: rec.id, kill: () => true, backend: 'test' });
-  t.after(() => { runningExecutions.remove(rec.id); });
+  t.onTestFinished(() => { runningExecutions.remove(rec.id); });
 
   const dispatchCommand = createCommandDispatcher({
     scheduler: null,
@@ -333,7 +333,7 @@ test('!cancel --all kills all running executions for current channel, spares oth
   runningExecutions.register({ threadId: 'thr_11111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killedC1 = true; return true; }, backend: 'test' });
   runningExecutions.register({ threadId: 'thr_22222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => { killedC2 = true; return true; }, backend: 'test' });
   conduitQueues.set('C1', Promise.resolve());
-  t.after(() => { runningExecutions.remove('exec-1'); runningExecutions.remove('exec-2'); conduitQueues.delete('C1'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-1'); runningExecutions.remove('exec-2'); conduitQueues.delete('C1'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
   const handled = dispatchCommand('!cancel --all', 'C1', adapter);
@@ -362,7 +362,7 @@ test('!cancel <threadId> kills by threadId', async (t) => {
   let killed = false;
 
   runningExecutions.register({ threadId: 'thr_a1b2c3d4', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => { killed = true; return true; }, backend: 'test' });
-  t.after(() => { runningExecutions.remove('exec-1'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-1'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null, cancelDispatchedTask: null });
   const handled = dispatchCommand('!cancel thr_a1b2c3d4', 'C1', adapter);
@@ -406,7 +406,7 @@ test('!thread cancel is alias for !cancel (kills by channel)', async (t) => {
   let killed = false;
   runningExecutions.register({ threadId: null, channel: 'C123', agentSlotId: null, executionId: 'exec-conv2', kill: () => { killed = true; return true; }, backend: 'test' });
   conduitQueues.set('C123', Promise.resolve());
-  t.after(() => { runningExecutions.remove('exec-conv2'); conduitQueues.delete('C123'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-conv2'); conduitQueues.delete('C123'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
   const handled = dispatchCommand('!thread cancel', 'C123', adapter);
@@ -433,7 +433,7 @@ test('!thread list --running shows running threads across channels', async (t) =
   const adapter = new MockAdapter();
   runningExecutions.register({ threadId: 'thr_a1111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => true, backend: 'test' });
   runningExecutions.register({ threadId: 'thr_b2222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => true, backend: 'codex' });
-  t.after(() => { runningExecutions.remove('exec-1'); runningExecutions.remove('exec-2'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-1'); runningExecutions.remove('exec-2'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
   const handled = dispatchCommand('!thread list --running', 'C1', adapter);
@@ -578,7 +578,7 @@ function withTempTasksProject(t) {
     '    plan: ""',
     '    blocked-by: "waiting for sim"',
   ].join('\n'));
-  t.after(() => {
+  t.onTestFinished(() => {
     try { fs.unlinkSync(tasksPath); } catch {}
     try { fs.rmdirSync(projectDir); } catch {}
   });
@@ -680,7 +680,7 @@ test('!dispatch --profile updates profileOverride on running dispatch thread', a
   const threadId = threadStore.generateId();
   const thread = makeDispatchThreadRecord(threadId, 'C123');
   await threadStore.set(thread);
-  t.after(() => threadStore.delete(threadId).catch(() => {}));
+  t.onTestFinished(() => threadStore.delete(threadId).catch(() => {}));
 
   const adapter = new MockAdapter();
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
@@ -724,7 +724,7 @@ test('!dispatch with invalid profile name shows error', async (t) => {
   const threadId = threadStore.generateId();
   const thread = makeDispatchThreadRecord(threadId, 'C123');
   await threadStore.set(thread);
-  t.after(() => threadStore.delete(threadId).catch(() => {}));
+  t.onTestFinished(() => threadStore.delete(threadId).catch(() => {}));
 
   const adapter = new MockAdapter();
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
@@ -742,7 +742,7 @@ test('!dispatch on completed thread shows warning', async (t) => {
   const threadId = threadStore.generateId();
   const thread = makeDispatchThreadRecord(threadId, 'C123', { status: 'completed' });
   await threadStore.set(thread);
-  t.after(() => threadStore.delete(threadId).catch(() => {}));
+  t.onTestFinished(() => threadStore.delete(threadId).catch(() => {}));
 
   const adapter = new MockAdapter();
   const dispatchCommand = createCommandDispatcher({ scheduler: null });
@@ -760,7 +760,7 @@ test('!dispatch on non-dispatch thread shows error', async (t) => {
   const threadId = threadStore.generateId();
   const thread = makeDispatchThreadRecord(threadId, 'C123', { metadata: { trigger: 'scheduled' } });
   await threadStore.set(thread);
-  t.after(() => threadStore.delete(threadId).catch(() => {}));
+  t.onTestFinished(() => threadStore.delete(threadId).catch(() => {}));
 
   const adapter = new MockAdapter();
   const dispatchCommand = createCommandDispatcher({ scheduler: null });

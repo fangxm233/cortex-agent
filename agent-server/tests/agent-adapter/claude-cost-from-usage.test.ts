@@ -3,7 +3,7 @@
 // pos:    Claude TUI adapter pricing math regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { usageToCost, PRICING_TABLE, normalizeModelId, type ClaudeUsage } from '../../src/agent-adapter/claude/cost-from-usage.js';

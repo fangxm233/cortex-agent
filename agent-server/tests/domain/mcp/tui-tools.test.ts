@@ -3,7 +3,7 @@
 // pos:    DR-0012 Phase 3 — cortex-tui-bridge MCP tools regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -72,7 +72,7 @@ test('cortex_plan_enter includes the optional reasoning back in the system remin
 test('cortex_plan_exit POSTs to /hook/exit-plan-mode with planContent loaded from file', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, '# my plan\nstep 1: do X\n');
-  t.after(() => { try { fs.unlinkSync(planPath); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
 
   const { post, calls } = makeMockHttp([
     { status: 200, body: { approved: true, reason: '' } },
@@ -92,7 +92,7 @@ test('cortex_plan_exit POSTs to /hook/exit-plan-mode with planContent loaded fro
 test('cortex_plan_exit accepts a missing summary (PI parity — summary is optional)', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, 'plan');
-  t.after(() => { try { fs.unlinkSync(planPath); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
 
   const { post, calls } = makeMockHttp([{ status: 200, body: { approved: true, reason: '' } }]);
   const result = await runPlanExit({ plan_file_path: planPath }, makeDeps({ httpPost: post }));
@@ -103,7 +103,7 @@ test('cortex_plan_exit accepts a missing summary (PI parity — summary is optio
 test('cortex_plan_exit propagates approval back to the assistant tool_result', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, 'plan');
-  t.after(() => { try { fs.unlinkSync(planPath); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
 
   const { post } = makeMockHttp([{ status: 200, body: { approved: true, reason: '' } }]);
   const result = await runPlanExit({ plan_file_path: planPath, summary: 's' }, makeDeps({ httpPost: post }));
@@ -115,7 +115,7 @@ test('cortex_plan_exit propagates approval back to the assistant tool_result', a
 test('cortex_plan_exit handles approval with appended user feedback', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, 'plan');
-  t.after(() => { try { fs.unlinkSync(planPath); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
 
   const { post } = makeMockHttp([{ status: 200, body: { approved: true, reason: 'looks good but tighten step 2' } }]);
   const result = await runPlanExit({ plan_file_path: planPath, summary: 's' }, makeDeps({ httpPost: post }));
@@ -127,7 +127,7 @@ test('cortex_plan_exit handles approval with appended user feedback', async (t) 
 test('cortex_plan_exit handles denial and surfaces feedback to assistant', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, 'plan');
-  t.after(() => { try { fs.unlinkSync(planPath); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
 
   const { post } = makeMockHttp([{ status: 200, body: { approved: false, reason: 'needs more detail in step 3' } }]);
   const result = await runPlanExit({ plan_file_path: planPath, summary: 's' }, makeDeps({ httpPost: post }));
@@ -139,7 +139,7 @@ test('cortex_plan_exit handles denial and surfaces feedback to assistant', async
 test('cortex_plan_exit treats timeout as a non-fatal error the assistant should retry', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, 'plan');
-  t.after(() => { try { fs.unlinkSync(planPath); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
 
   const { post } = makeMockHttp([{ status: 200, body: { error: 'timeout', answers: {} } }]);
   const result = await runPlanExit({ plan_file_path: planPath, summary: 's' }, makeDeps({ httpPost: post }));
@@ -158,7 +158,7 @@ test('cortex_plan_exit returns isError when plan_file_path does not exist', asyn
 test('cortex_plan_exit returns isError when webhook returns non-200', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, 'plan');
-  t.after(() => { try { fs.unlinkSync(planPath); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
 
   const { post } = makeMockHttp([{ status: 500, body: { error: 'agent-server down' } }]);
   const result = await runPlanExit({ plan_file_path: planPath, summary: 's' }, makeDeps({ httpPost: post }));
@@ -170,7 +170,7 @@ test('cortex_plan_exit returns isError when webhook returns non-200', async (t) 
 test('cortex_plan_exit returns isError when no channel is configured', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, 'plan');
-  t.after(() => { try { fs.unlinkSync(planPath); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
 
   const result = await runPlanExit(
     { plan_file_path: planPath, summary: 's' },
@@ -182,7 +182,7 @@ test('cortex_plan_exit returns isError when no channel is configured', async (t)
 test('cortex_plan_exit forwards threadId when present in deps', async (t) => {
   const planPath = path.join(os.tmpdir(), `cortex-plan-test-${crypto.randomBytes(4).toString('hex')}.md`);
   fs.writeFileSync(planPath, 'plan');
-  t.after(() => { try { fs.unlinkSync(planPath); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(planPath); } catch {} });
 
   const { post, calls } = makeMockHttp([{ status: 200, body: { approved: true, reason: '' } }]);
   await runPlanExit({ plan_file_path: planPath, summary: 's' }, makeDeps({ httpPost: post, threadId: 'thr_xyz' }));

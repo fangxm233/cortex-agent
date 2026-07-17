@@ -2,7 +2,7 @@
 // output: Tests — claim/unclaim/complete/block/unblock mutation paths, row navigation, error display
 // pos:    Verifies per-row keybinds and ConfirmModal integration for M3 tasks tab
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';
@@ -71,7 +71,7 @@ test('renders task list with status, priority, and text', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   const output = instance.lastFrame();
@@ -90,7 +90,7 @@ test('renders empty state when no tasks', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   const output = instance.lastFrame();
@@ -106,7 +106,7 @@ test('arrow up/down navigates focused row', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   // Navigate to second row
@@ -130,7 +130,7 @@ test('[c] key sends tasks.claim mutate', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   instance.stdin.write('c');
@@ -149,7 +149,7 @@ test('[u] key sends tasks.unclaim mutate', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   instance.stdin.write('u');
@@ -168,7 +168,7 @@ test('[d] opens ConfirmModal, confirm sends tasks.complete', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   // Press d to open complete confirm modal
@@ -197,7 +197,7 @@ test('[d] then Esc cancels complete (no mutate sent)', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   // Press d to open complete confirm modal
@@ -228,7 +228,7 @@ test('[b] opens ConfirmModal with reasonInput, confirm with reason sends tasks.b
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   // Press b to open block confirm modal with reason input
@@ -267,7 +267,7 @@ test('[B] (uppercase) sends tasks.unblock mutate', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   // Press uppercase B with shift
@@ -287,7 +287,7 @@ test('task-lock-busy error shows specific inline message', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   // Trigger claim
@@ -313,7 +313,7 @@ test('generic error shows code and message inline', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   // Trigger claim
@@ -338,7 +338,7 @@ test('success result does not show error', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   // Trigger claim — resolve with success
@@ -365,7 +365,7 @@ test('Ctrl+C does not trigger claim', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   // Simulate Ctrl+C — send raw 'c' character (ink-testing-library cannot inject
@@ -388,7 +388,7 @@ test('Phase 3 placeholder text is removed', async (t) => {
   });
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   const output = instance.lastFrame();
@@ -402,7 +402,7 @@ test('no-mutate prop disables action keys', async (t) => {
   } as any);
 
   const instance = render(tab);
-  t.after(() => { instance.unmount(); instance.cleanup(); });
+  t.onTestFinished(() => { instance.unmount(); instance.cleanup(); });
   await delay(100);
 
   const output = instance.lastFrame();

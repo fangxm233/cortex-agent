@@ -3,7 +3,7 @@
 // pos:    Validate orchestration/lifecycle.ts bg-continuation hold wiring (F1/F2/F5/F6 glue)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleAgentSuccess } from '../../src/orchestration/lifecycle.js';
 import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
@@ -43,7 +43,7 @@ function harness() {
 function withEnv(t: any, key: string, value: string | undefined) {
   const prev = process.env[key];
   if (value === undefined) delete process.env[key]; else process.env[key] = value;
-  t.after(() => { if (prev === undefined) delete process.env[key]; else process.env[key] = prev; });
+  t.onTestFinished(() => { if (prev === undefined) delete process.env[key]; else process.env[key] = prev; });
 }
 
 test('undelivered-only completions hold the status waiting and register a sink; continuation completes → sealed done', async (t) => {

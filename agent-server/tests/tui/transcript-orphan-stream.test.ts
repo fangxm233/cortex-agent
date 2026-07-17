@@ -2,7 +2,7 @@
 // output: Regression: streamed reply must not be dropped on an empty transcript
 // pos:    Verifies orphan stream frames create a synthetic message instead of vanishing
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   _handleStreamText, _handleStreamMutableOpen, _appendUserMessage,

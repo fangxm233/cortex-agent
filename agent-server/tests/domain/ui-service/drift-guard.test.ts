@@ -3,7 +3,7 @@
 // pos:    CI-fails on missing impl for a newly added scope/op
 
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 // We test the handler registrations by importing the facade and checking

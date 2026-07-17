@@ -2,7 +2,7 @@
 // output: Tests — selection emits onSelect callback, escape closes, navigation works
 // pos:    Verifies ProjectSwitcher keybinding behavior
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { Text } from 'ink';

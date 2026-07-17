@@ -3,7 +3,7 @@
 //         unknown '/word' falls back to onSubmit
 // pos:    Guards the Claude-Code-style slash-command palette
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

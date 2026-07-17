@@ -2,7 +2,7 @@
 // output: Reconnect test — WS drop → retry sequence includes handshake.hello with resume
 // pos:    Verifies exponential backoff reconnect behavior
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocketServer } from 'ws';
 import { WsClient } from '../../src/tui/ws-client.js';
@@ -39,7 +39,7 @@ test('ws-client reconnects and retries handshake.hello with resume', async (t) =
     });
   });
 
-  t.after(() => { wss.close(); });
+  t.onTestFinished(() => { wss.close(); });
 
   const client = new WsClient();
   // Set resume session before connect

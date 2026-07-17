@@ -3,12 +3,12 @@
 // pos:    detectProject unit tests (tag matching / dynamic directory name matching / fallback / cache behavior)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { detectProject, _resetProjectCache } from '../../../src/domain/costs/cost-tracker.js';
 
-test.after(() => {
+afterAll(() => {
   _resetProjectCache(); // restore lazy-load behavior
 });
 

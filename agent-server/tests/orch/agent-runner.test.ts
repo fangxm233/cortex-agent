@@ -5,7 +5,7 @@
 //         (e) resolveDefaultAgent with directive; (f) agentRunner singleton exists
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { AgentRunner, agentRunner, resolveDefaultAgent, emitTurnProgress } from '../../src/orchestration/agent-runner.js';
 import { conduitQueues, enqueue } from '../../src/orchestration/conduit-queue.js';

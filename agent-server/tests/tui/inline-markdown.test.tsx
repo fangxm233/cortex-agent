@@ -2,7 +2,7 @@
 // output: Tests — markers are stripped (styling applied), plain text passes through, urls kept
 // pos:    Regression for "wrong bold" — raw **markers** must NOT appear in rendered output
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

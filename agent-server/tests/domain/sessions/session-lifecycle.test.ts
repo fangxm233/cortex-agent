@@ -1,6 +1,6 @@
 import '../../_test-home.js';
 import * as assert from 'node:assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 
 import { registerNamedSession, attachExistingSession, resetChannelSession, createDirectSession, SESSION_BACKENDS } from '@domain/sessions/session-lifecycle.js';
 import type { SessionRegistryWriter } from '@domain/sessions/session-lifecycle.js';

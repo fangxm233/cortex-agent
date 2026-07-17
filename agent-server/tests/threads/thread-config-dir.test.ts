@@ -5,7 +5,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, readdirSync } from 'node:fs';
 import * as path from 'node:path';

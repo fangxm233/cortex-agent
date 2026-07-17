@@ -3,7 +3,7 @@
 // pos:    ClaudeAdapter pure-function spec-fidelity lock-down
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { buildSpawnArgs, buildClaudeEnv } from '../src/agent-adapter/claude/spawn-args.js';

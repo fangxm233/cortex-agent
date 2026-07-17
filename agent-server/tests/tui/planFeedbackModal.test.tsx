@@ -7,7 +7,7 @@
 //   → hotkey 2 feedback → type text → submit → verify feedback values
 //   → hotkey 3 cancel → verify onClose
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

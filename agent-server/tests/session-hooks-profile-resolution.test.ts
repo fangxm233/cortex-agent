@@ -5,7 +5,7 @@
 //         channel-level conversation-ledger; the hook must prefer the registry source.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { resolveOnNewProfileName } from '../src/domain/sessions/session-hooks.js';
 

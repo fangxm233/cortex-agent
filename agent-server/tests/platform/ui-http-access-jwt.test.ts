@@ -10,7 +10,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test, { after } from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
 import { initTRPC } from '@trpc/server';
@@ -67,7 +67,7 @@ async function signJwt(
 }
 
 const uiServers: Array<{ close: () => Promise<void> }> = [];
-after(async () => {
+afterAll(async () => {
   for (const s of uiServers) await s.close().catch(() => {});
   for (const s of jwksServers) await new Promise<void>((r) => s.close(() => r()));
 });

@@ -3,7 +3,7 @@
 // pos:    S9 job-registry contract tests
 // >>> If I am updated, also update src/domain/scheduling/CORTEX.md (if exists) <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 // Static import — shares canonical ESM cache with dynamic imports below,

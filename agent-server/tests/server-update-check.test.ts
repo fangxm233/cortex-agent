@@ -2,7 +2,7 @@
 // output: tests for compareCalVer, isUpdateDevMode, checkServerUpdate
 // pos:    DR-0013 core checker — all branches covered
 
-import test from 'node:test';
+import { describe, test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -140,16 +140,16 @@ test('checkServerUpdate - dev mode returns null action and null version', async 
 // checkServerUpdate — non-dev-mode tests (CORTEX_REPO must be unset)
 // ============================================================
 
-test.describe('checkServerUpdate (non-dev mode)', () => {
+describe('checkServerUpdate (non-dev mode)', () => {
   let envBackup: string | undefined;
 
-  test.before(() => {
+  beforeAll(() => {
     envBackup = process.env.CORTEX_REPO;
     delete process.env.CORTEX_REPO;
     // Default is enabled; no need to set any env var
   });
 
-  test.after(() => {
+  afterAll(() => {
     if (envBackup !== undefined) process.env.CORTEX_REPO = envBackup;
     else delete process.env.CORTEX_REPO;
   });

@@ -3,7 +3,7 @@
 // pos:    status-message serializer regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { writeStatus, sealStatus, buildStatusActionBlocks, isStatusNewqButtonEnabled } from '../src/orchestration/status-helpers.js';
 import { MockAdapter } from '../src/platform/testing.js';

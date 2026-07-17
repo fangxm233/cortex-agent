@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';

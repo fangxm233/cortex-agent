@@ -5,7 +5,7 @@
 //         fixture below mirrors defaults/config/thread-templates/shells/worker-review.json.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { expandShell, isShellBinding } from '../../src/domain/threads/shell-templates.js';
 import type { AgentDefinition, ShellDefinition } from '../../src/core/types/thread-types.js';

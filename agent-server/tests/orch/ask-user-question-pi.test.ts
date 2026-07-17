@@ -3,7 +3,7 @@
 // pos:    verifies S3 invariant: PI ask-user-question resolves via extension_ui_response, not new turn
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { runningExecutions } from '../../src/core/running-executions.js';
 
@@ -30,7 +30,7 @@ test('tryResolveHook PI branch — sends extension_ui_response with joined answe
     backend: 'pi',
     agentProcess: mockProc,
   });
-  t.after(() => { runningExecutions.remove('exec-pi-ask-1'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-pi-ask-1'); });
 
   const group = askUser.createHookGroup('req-pi-ask', 'C_PI_ASK', 'sess-pi-ask', [
     { header: 'Pick', question: 'Which one?', options: [{ label: 'A', description: 'First' }, { label: 'B', description: 'Second' }] },
@@ -60,7 +60,7 @@ test('tryResolveHook PI branch — multi-question joins answers with newline', a
     backend: 'pi',
     agentProcess: mockProc,
   });
-  t.after(() => { runningExecutions.remove('exec-pi-ask-2'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-pi-ask-2'); });
 
   const group = askUser.createHookGroup('req-pi-ask2', 'C_PI_ASK2', 'sess-pi-ask2', [
     { header: 'Color', question: 'Favorite color?', options: [{ label: 'Red', description: 'R' }] },
@@ -87,7 +87,7 @@ test('tryResolveHook — non-PI backend falls through to Claude resolver', async
     kill: () => true,
     backend: 'claude',
   });
-  t.after(() => { runningExecutions.remove('exec-claude-ask-1'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-claude-ask-1'); });
 
   let resolverCalled = false;
   askUser.registerHookResolver('req-claude-ask', () => { resolverCalled = true; });
@@ -116,7 +116,7 @@ test('tryResolveHook — incomplete answers do not resolve (PI or Claude)', asyn
     backend: 'pi',
     agentProcess: mockProc,
   });
-  t.after(() => { runningExecutions.remove('exec-pi-partial'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-pi-partial'); });
 
   const group = askUser.createHookGroup('req-pi-partial', 'C_PI_PARTIAL', 'sess-pi-partial', [
     { header: 'A', question: 'First?', options: [{ label: 'X', description: 'x' }] },
@@ -143,7 +143,7 @@ test('tryResolveHook — PI with no agentProcess falls through to Claude path', 
     backend: 'pi',
     // no agentProcess
   });
-  t.after(() => { runningExecutions.remove('exec-pi-noproc'); });
+  t.onTestFinished(() => { runningExecutions.remove('exec-pi-noproc'); });
 
   let resolverCalled = false;
   askUser.registerHookResolver('req-pi-noproc', () => { resolverCalled = true; });

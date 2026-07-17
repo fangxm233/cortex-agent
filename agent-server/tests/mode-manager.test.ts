@@ -3,7 +3,7 @@
 // pos:    Verify mode-manager URL prefix routing and fallback
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { importFresh } from './module-loader.js';
 
@@ -17,7 +17,7 @@ test('configureEnvForMode(api) encodes mode in URL when gateway healthy', async 
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_BASE_URL;
 
-  t.after(() => {
+  t.onTestFinished(() => {
     _testSetHealthy(null);
     if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
     else delete process.env.ANTHROPIC_API_KEY;
@@ -45,7 +45,7 @@ test('configureEnvForMode(api) sets placeholder key when no key available and ga
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_BASE_URL;
 
-  t.after(() => {
+  t.onTestFinished(() => {
     _testSetHealthy(null);
     if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
     else delete process.env.ANTHROPIC_API_KEY;
@@ -75,7 +75,7 @@ test('configureEnvForMode(non-plan custom mode) keeps API key when gateway healt
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_BASE_URL;
 
-  t.after(() => {
+  t.onTestFinished(() => {
     _testSetHealthy(null);
     if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
     else delete process.env.ANTHROPIC_API_KEY;
@@ -102,7 +102,7 @@ test('placeholder key never leaks into saved env (gateway healthy → unhealthy)
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_BASE_URL;
 
-  t.after(() => {
+  t.onTestFinished(() => {
     _testSetHealthy(null);
     if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
     else delete process.env.ANTHROPIC_API_KEY;
@@ -137,7 +137,7 @@ test('configureEnvForMode(plan) encodes mode in URL when gateway healthy', async
   process.env.ANTHROPIC_API_KEY = 'sk-test-plan';
   process.env.ANTHROPIC_BASE_URL = 'https://managed.example.test';
 
-  t.after(() => {
+  t.onTestFinished(() => {
     _testSetHealthy(null);
     if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
     else delete process.env.ANTHROPIC_API_KEY;
@@ -162,7 +162,7 @@ test('configureEnvForMode(api) falls back to direct when gateway unhealthy', asy
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_BASE_URL;
 
-  t.after(() => {
+  t.onTestFinished(() => {
     _testSetHealthy(null);
     if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
     else delete process.env.ANTHROPIC_API_KEY;
@@ -190,7 +190,7 @@ test('configureEnvForMode(plan) falls back to direct when gateway unhealthy', as
   process.env.ANTHROPIC_API_KEY = 'sk-test-plan-direct';
   process.env.ANTHROPIC_BASE_URL = 'https://plan.example.test';
 
-  t.after(() => {
+  t.onTestFinished(() => {
     _testSetHealthy(null);
     if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
     else delete process.env.ANTHROPIC_API_KEY;
@@ -212,7 +212,7 @@ test('importing config.js does NOT mutate ANTHROPIC_API_KEY (no module side effe
   const originalApiKey = process.env.ANTHROPIC_API_KEY;
   const originalBaseUrl = process.env.ANTHROPIC_BASE_URL;
 
-  t.after(() => {
+  t.onTestFinished(() => {
     _testSetHealthy(null);
     if (originalApiKey !== undefined) process.env.ANTHROPIC_API_KEY = originalApiKey;
     else delete process.env.ANTHROPIC_API_KEY;

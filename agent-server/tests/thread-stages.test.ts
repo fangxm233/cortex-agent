@@ -3,7 +3,7 @@
 // pos:    Per-agent multi-stage layer unit regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test, { before, after } from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -26,7 +26,7 @@ let threadsBackup: string | null = null;
 let threadsBackupExisted = false;
 const testThreadIds = new Set<string>();
 
-before(() => {
+beforeAll(() => {
   try {
     threadsBackup = fs.readFileSync(THREADS_FILE, 'utf8');
     threadsBackupExisted = true;
@@ -36,7 +36,7 @@ before(() => {
   }
 });
 
-after(async () => {
+afterAll(async () => {
   if (threadsBackupExisted && threadsBackup != null) {
     fs.writeFileSync(THREADS_FILE, threadsBackup);
   } else {

@@ -7,7 +7,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first — isolates store singletons
-import test, { after } from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { AgentRunner } from '../../src/orchestration/agent-runner.js';
 import { askManager, getAnswer, _testResetManagerQa } from '../../src/orchestration/manager-qa.js';
@@ -20,7 +20,7 @@ import type { ThreadRecord, ThreadStatus } from '../../src/core/types/thread-typ
 const createdThreadIds = new Set<string>();
 let seq = 0;
 
-after(async () => {
+afterAll(async () => {
   for (const id of createdThreadIds) await threadStore.delete(id);
   await threadStore.flush();
 });

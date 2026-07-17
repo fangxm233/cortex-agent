@@ -2,7 +2,7 @@
 // output: Protocol contract test — mock server emits handshake.ack → session.switched → chat.post → stream.text*N → chat.update
 // pos:    Verifies client state at each step
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocketServer } from 'ws';
 import { WsClient } from '../../src/tui/ws-client.js';
@@ -26,7 +26,7 @@ test('ws protocol contract — full lifecycle', async (t) => {
     });
   });
 
-  t.after(() => { wss.close(); });
+  t.onTestFinished(() => { wss.close(); });
 
   const client = new WsClient();
   const serverFrames: TuiFrame[] = [];

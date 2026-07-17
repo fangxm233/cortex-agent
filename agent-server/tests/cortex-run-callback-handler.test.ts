@@ -3,7 +3,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -77,7 +77,7 @@ const BASE_TASK_YAML = (id: string) => `tasks:
 test('no task linkage — sends ack ok:true when taskProject is null', async (t) => {
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {
@@ -110,7 +110,7 @@ test('no task linkage — sends ack ok:true when taskProject is null', async (t)
 test('ghost callback — sends ack ok:true with ghost message for nonexistent task', async (t) => {
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {
@@ -145,7 +145,7 @@ test('task already done — sends ack idempotent when task already done', async 
   const proj = nextProject();
   const taskId = 'a111';
   const { cleanup } = makeRepo(proj, BASE_TASK_YAML(taskId));
-  t.after(() => cleanup());
+  t.onTestFinished(() => cleanup());
 
   // Mark the task done directly via lifecycle function
   const { completeTask } = await import('../src/domain/tasks/system/task-completion.js');
@@ -153,7 +153,7 @@ test('task already done — sends ack idempotent when task already done', async 
 
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {
@@ -188,11 +188,11 @@ test('success path — completeTask with skipVerify=true, verify_warning contain
   const proj = nextProject();
   const taskId = 'a222';
   const { tasksPath, cleanup } = makeRepo(proj, BASE_TASK_YAML(taskId));
-  t.after(() => cleanup());
+  t.onTestFinished(() => cleanup());
 
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {
@@ -239,11 +239,11 @@ test('failure path — blockTask with note containing termination and logTail', 
   const proj = nextProject();
   const taskId = 'a333';
   const { tasksPath, cleanup } = makeRepo(proj, BASE_TASK_YAML(taskId));
-  t.after(() => cleanup());
+  t.onTestFinished(() => cleanup());
 
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {
@@ -292,7 +292,7 @@ test('gpu capture — records the callback GPU onto the dispatch execution (DR-0
   const proj = nextProject();
   const taskId = 'a555';
   const { cleanup } = makeRepo(proj, BASE_TASK_YAML(taskId));
-  t.after(() => cleanup());
+  t.onTestFinished(() => cleanup());
 
   // A dispatch execution keyed by taskId exists (registered at cortex-run launch).
   registerDispatchExecution({ taskId, machine: 'test-device', project: proj, runName: 'gpu-run' });
@@ -300,7 +300,7 @@ test('gpu capture — records the callback GPU onto the dispatch execution (DR-0
 
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {
@@ -334,13 +334,13 @@ test('gpu capture — malformed gpu payload is ignored (record stays null)', asy
   const proj = nextProject();
   const taskId = 'a666';
   const { cleanup } = makeRepo(proj, BASE_TASK_YAML(taskId));
-  t.after(() => cleanup());
+  t.onTestFinished(() => cleanup());
 
   registerDispatchExecution({ taskId, machine: 'test-device', project: proj, runName: 'bad-gpu-run' });
 
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {
@@ -374,11 +374,11 @@ test('duplicate callback — first completes, second ack idempotent', async (t) 
   const proj = nextProject();
   const taskId = 'a444';
   const { tasksPath, cleanup } = makeRepo(proj, BASE_TASK_YAML(taskId));
-  t.after(() => cleanup());
+  t.onTestFinished(() => cleanup());
 
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {

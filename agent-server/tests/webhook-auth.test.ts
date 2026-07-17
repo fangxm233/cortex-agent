@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test, { before, after } from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createWebhookHandler } from '../src/orchestration/routing/webhook.js';
@@ -12,10 +12,10 @@ import { createWebhookHandler } from '../src/orchestration/routing/webhook.js';
 const TOKEN = 'test-webhook-token-abc';
 let prevToken: string | undefined;
 let prevGithub: string | undefined;
-// Built in before() so getSecret() default captures the cleared github secret.
+// Built in beforeAll() so getSecret() default captures the cleared github secret.
 let handler: ReturnType<typeof createWebhookHandler>;
 
-before(() => {
+beforeAll(() => {
   prevToken = process.env.CORTEX_WEBHOOK_TOKEN;
   process.env.CORTEX_WEBHOOK_TOKEN = TOKEN;
   // Clear the GitHub HMAC secret so the github-exemption test can prove the token gate
@@ -24,7 +24,7 @@ before(() => {
   delete process.env.GITHUB_WEBHOOK_SECRET;
   handler = createWebhookHandler();
 });
-after(() => {
+afterAll(() => {
   if (prevToken === undefined) delete process.env.CORTEX_WEBHOOK_TOKEN;
   else process.env.CORTEX_WEBHOOK_TOKEN = prevToken;
   if (prevGithub === undefined) delete process.env.GITHUB_WEBHOOK_SECRET;

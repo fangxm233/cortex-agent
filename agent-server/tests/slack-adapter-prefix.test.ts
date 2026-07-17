@@ -3,7 +3,7 @@
 // pos:    Regression tests for multi-platform conduit prefixing (Slack + Feishu + TUI coexistence)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { SlackAdapter } from '../src/platform/adapters/slack.js';
 import type { ActionContext, MessageContext } from '../src/platform/types.js';

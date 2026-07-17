@@ -5,7 +5,7 @@
 //         path (platform admin post AND bus event, event fires even if the post fails).
 // >>> If I am updated, update the parent folder's CORTEX.md <<<
 
-import { describe, it, afterEach } from 'node:test';
+import { describe, it, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';

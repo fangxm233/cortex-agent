@@ -2,7 +2,7 @@
 // output: Unit tests for the synchronized-output stdout wrapper + render stats
 // pos:    Guards Stage 0/1 of the TUI render-perf plan (flicker fix)
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   BSU, ESU,

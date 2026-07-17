@@ -3,7 +3,7 @@
 // pos:    verifies defaults/hooks/tasks-yaml-guard.mjs correctly allows/denies based on lock state
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';

@@ -3,7 +3,7 @@
 // pos:    Verify complete behavior matrix of cortex-md-injector.mjs hook script
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
@@ -69,9 +69,9 @@ function getAdditionalContext(output: Record<string, unknown>): string | undefin
 
 test('PostToolUse: Read tool with file_path produces additionalContext', async (t) => {
   const root = await mkTmp();
-  t.after(() => rmTmp(root));
+  t.onTestFinished(() => rmTmp(root));
   const sessionId = `cortex-hook-test-1-${process.pid}-${Date.now()}`;
-  t.after(() => removeCache(sessionId));
+  t.onTestFinished(() => removeCache(sessionId));
 
   await fs.promises.writeFile(path.join(root, 'CORTEX.md'), 'hello-world-content');
   await fs.promises.writeFile(path.join(root, 'target.txt'), 'dummy');
@@ -97,9 +97,9 @@ test('PostToolUse: Read tool with file_path produces additionalContext', async (
 
 test('SessionStart: startup source with cwd produces additionalContext', async (t) => {
   const root = await mkTmp();
-  t.after(() => rmTmp(root));
+  t.onTestFinished(() => rmTmp(root));
   const sessionId = `cortex-hook-test-2-${process.pid}-${Date.now()}`;
-  t.after(() => removeCache(sessionId));
+  t.onTestFinished(() => removeCache(sessionId));
 
   await fs.promises.writeFile(path.join(root, 'CORTEX.md'), 'session-start-content');
 
@@ -121,9 +121,9 @@ test('SessionStart: startup source with cwd produces additionalContext', async (
 
 test('Dedup: same sessionId and same mtime suppresses duplicate injection', async (t) => {
   const root = await mkTmp();
-  t.after(() => rmTmp(root));
+  t.onTestFinished(() => rmTmp(root));
   const sessionId = `cortex-hook-test-4-${process.pid}-${Date.now()}`;
-  t.after(() => removeCache(sessionId));
+  t.onTestFinished(() => removeCache(sessionId));
 
   await fs.promises.writeFile(path.join(root, 'CORTEX.md'), 'dedup-content');
   await fs.promises.writeFile(path.join(root, 'target.txt'), 'dummy');
@@ -151,9 +151,9 @@ test('Dedup: same sessionId and same mtime suppresses duplicate injection', asyn
 
 test('mtime change: updated mtime triggers re-injection', async (t) => {
   const root = await mkTmp();
-  t.after(() => rmTmp(root));
+  t.onTestFinished(() => rmTmp(root));
   const sessionId = `cortex-hook-test-5-${process.pid}-${Date.now()}`;
-  t.after(() => removeCache(sessionId));
+  t.onTestFinished(() => removeCache(sessionId));
 
   const cortexMd = path.join(root, 'CORTEX.md');
   await fs.promises.writeFile(cortexMd, 'version-1');
@@ -194,9 +194,9 @@ function sleep(ms: number): Promise<void> {
 
 test('Truncation: overflow files become a "Read EACH" instruction listing their paths', async (t) => {
   const root = await mkTmp();
-  t.after(() => rmTmp(root));
+  t.onTestFinished(() => rmTmp(root));
   const sessionId = `cortex-hook-test-6-${process.pid}-${Date.now()}`;
-  t.after(() => removeCache(sessionId));
+  t.onTestFinished(() => removeCache(sessionId));
 
   // Create 3 CORTEX.md files at different levels — each with 3000 chars of content.
   // Block overhead ≈ 180 chars → each block ≈ 3180 chars.
@@ -241,9 +241,9 @@ test('Truncation: overflow files become a "Read EACH" instruction listing their 
 
 test('markOnly: reading CORTEX.md itself suppresses additionalContext', async (t) => {
   const root = await mkTmp();
-  t.after(() => rmTmp(root));
+  t.onTestFinished(() => rmTmp(root));
   const sessionId = `cortex-hook-test-7-${process.pid}-${Date.now()}`;
-  t.after(() => removeCache(sessionId));
+  t.onTestFinished(() => removeCache(sessionId));
 
   const cortexMd = path.join(root, 'CORTEX.md');
   await fs.promises.writeFile(cortexMd, 'markonly-content');

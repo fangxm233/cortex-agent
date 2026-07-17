@@ -3,7 +3,7 @@
 // pos:    CC backend background-task continuation wiring tests (no child process)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { _test } from '../../src/agent-adapter/claude/adapter.js';
@@ -33,7 +33,7 @@ const RESULT_CONT = JSON.stringify({ type: 'result', subtype: 'success', is_erro
 test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   const cap: { value?: any } = {};
   s.currentTurn = fakeTurn(cap);
@@ -48,7 +48,7 @@ test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) 
 test('handleLine: spontaneous continuation routes assistant text + final result to the sink', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   const texts: string[] = [];
   let finalResult: any = null;
@@ -71,7 +71,7 @@ test('handleLine: spontaneous continuation routes assistant text + final result 
 test('handleLine: assistant with no active turn and NO continuation armed is dropped (no sink call)', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   let called = false;
   s.setContinuationSink({ onAssistantText: () => { called = true; }, onResult: () => { called = true; } });
@@ -83,7 +83,7 @@ test('handleLine: assistant with no active turn and NO continuation armed is dro
 test('integration: real captured line sequence merges continuation text + dispatches complete via production sink', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   const stream = new MockOutputStream(new MockAdapter(), { type: 'interactive-reply', conduit: 'slack:D1', sessionId: '' });
   let completedWith: any = null;
@@ -117,7 +117,7 @@ test('integration: real captured line sequence merges continuation text + dispat
 test('handleLine: task completed without notification → undelivered, not pending, on result', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   const cap: { value?: any } = {};
   s.currentTurn = fakeTurn(cap);
@@ -136,7 +136,7 @@ test('handleLine: task completed without notification → undelivered, not pendi
 test('handleProcessClose: waiting window (bg pending, no active turn) → sink gets backgroundInterrupted exactly once', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   const results: any[] = [];
   s.setContinuationSink({ onAssistantText: () => {}, onResult: (r: any) => results.push(r) });
@@ -155,7 +155,7 @@ test('handleProcessClose: waiting window (bg pending, no active turn) → sink g
 test('handleProcessClose: nothing pending → sink cleared silently (no interrupted call)', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   const results: any[] = [];
   s.setContinuationSink({ onAssistantText: () => {}, onResult: (r: any) => results.push(r) });
@@ -168,7 +168,7 @@ test('handleProcessClose: nothing pending → sink cleared silently (no interrup
 test('handleProcessClose: crash mid-continuation (spontaneous turn open) → sink gets backgroundInterrupted', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   const results: any[] = [];
   s.setContinuationSink({ onAssistantText: () => {}, onResult: (r: any) => results.push(r) });
@@ -185,7 +185,7 @@ test('handleProcessClose: crash mid-continuation (spontaneous turn open) → sin
 test('handleLine: compact_boundary fires onCompact with trigger + preTokens', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   const cap: { value?: any } = {};
   const turn: any = fakeTurn(cap);
@@ -201,7 +201,7 @@ test('handleLine: compact_boundary fires onCompact with trigger + preTokens', (t
 test('handleLine: compact_boundary with no active turn is a no-op', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   // No currentTurn set — must not throw.
   assert.doesNotThrow(() =>
@@ -212,7 +212,7 @@ test('handleLine: compact_boundary with no active turn is a no-op', (t) => {
 test('setContinuationSink/clearContinuationSink and close clear the sink', (t) => {
   const s: any = _test.makeSessionForTest();
   s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
-  t.after(() => s.close());
+  t.onTestFinished(() => s.close());
 
   const sink = { onAssistantText: () => {}, onResult: () => {} };
   s.setContinuationSink(sink);

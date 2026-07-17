@@ -2,7 +2,7 @@
 // output: regression tests — serialization guarantee + queue cleanup [S6-B]
 // pos:    verifies per-channel serial ordering and absence of Map memory leaks
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { conduitQueues, enqueue } from '../../src/orchestration/conduit-queue.js';
 

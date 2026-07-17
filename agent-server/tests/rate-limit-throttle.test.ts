@@ -3,7 +3,7 @@
 // pos:    Validate throttle state transitions & mode-level tracking
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { importFresh } from './module-loader.js';
 import { MockAdapter } from '../src/platform/testing.js';
@@ -33,9 +33,11 @@ async function freshModule() {
 // before reaching its trailing `_testReset()`, the timer leaks and Node's event
 // loop refuses to drain — `npm test` hangs. Register reset via `t.after()` so
 // it runs even when assertions throw.
-async function freshModuleWithCleanup(t: import('node:test').TestContext) {
+async function freshModuleWithCleanup(t: { onTestFinished: (fn: () => unknown) => void }) {
   const mod = await freshModule();
-  t.after(() => mod._testReset());
+  t.onTestFinished(() => mod._testReset());
+  // vitest does not auto-restore fake timers; no-op when a test never faked them.
+  t.onTestFinished(() => vi.useRealTimers());
   return mod;
 }
 
@@ -274,7 +276,7 @@ test('handleRateLimitEvent without mode activates throttle but no mode tracking'
 
 test('onResume fires once when the resume timer clears the throttle', async (t) => {
   const mod = await freshModuleWithCleanup(t);
-  t.mock.timers.enable({ apis: ['setTimeout'] });
+  vi.useFakeTimers({ toFake: ['setTimeout'] });
   let resumeCount = 0;
   const persistence = makePersistenceStub();
   const adapter = makeAdapterStub();
@@ -286,7 +288,7 @@ test('onResume fires once when the resume timer clears the throttle', async (t) 
   assert.equal(resumeCount, 0);
 
   // Advance past resetsAt + RESUME_BUFFER_MS so the resume timer fires.
-  t.mock.timers.tick(60_000);
+  vi.advanceTimersByTime(60_000);
   assert.equal(resumeCount, 1);
   assert.equal(mod.isThrottled(), false);
 });
@@ -305,7 +307,7 @@ test('onResume fires when an expired throttle is recovered on restart', async (t
 
 test('onResume does NOT fire immediately when an active throttle is recovered', async (t) => {
   const mod = await freshModuleWithCleanup(t);
-  t.mock.timers.enable({ apis: ['setTimeout'] });
+  vi.useFakeTimers({ toFake: ['setTimeout'] });
   let resumeCount = 0;
   const futureReset = Math.floor(Date.now() / 1000) + 600;
   const persistence = makePersistenceStub({ resetsAt: futureReset, activatedAt: Date.now() - 60000, modes: ['plan'] });
@@ -319,7 +321,7 @@ test('onResume does NOT fire immediately when an active throttle is recovered', 
 
 test('initRateLimitThrottle is backward-compatible without onResume', async (t) => {
   const mod = await freshModuleWithCleanup(t);
-  t.mock.timers.enable({ apis: ['setTimeout'] });
+  vi.useFakeTimers({ toFake: ['setTimeout'] });
   const persistence = makePersistenceStub();
   const adapter = makeAdapterStub();
   await mod.initRateLimitThrottle(adapter, persistence as any);
@@ -329,7 +331,7 @@ test('initRateLimitThrottle is backward-compatible without onResume', async (t) 
   assert.equal(mod.isThrottled(), true);
 
   // Timer clearing without an onResume callback must not throw.
-  t.mock.timers.tick(60_000);
+  vi.advanceTimersByTime(60_000);
   assert.equal(mod.isThrottled(), false);
 });
 

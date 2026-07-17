@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../../src/events/event-bus.js';
 import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';

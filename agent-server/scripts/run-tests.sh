@@ -53,56 +53,22 @@ fi
 echo "[run-tests] lint: no Slack emoji shortcodes"
 node --import tsx scripts/lint-no-slack-shortcodes.ts
 
-# ── Run tests ────────────────────────────────────────────────────
+# ── Run tests (vitest) ───────────────────────────────────────────
+#
+# The suite runs under vitest: a single Vite server transpiles each module ONCE
+# and caches it, versus node --test which spawned a fresh `node --import tsx`
+# process per file (299×) and re-transpiled the whole import graph each time —
+# the dominant cost that saturated the box and timed the suite out. vitest's
+# fork pool executes test files in parallel workers without re-paying transpile;
+# cap the worker count via CORTEX_TEST_CONCURRENCY (read by vitest.config.ts).
+#
+# Isolation, the `.js`→`.ts` resolver, per-file CORTEX_HOME setup, include/exclude
+# globs (debug/shim + integration filtering) and timeouts all live in the config
+# files, so this wrapper only handles env seeding + the two passes.
 
-# node --test runs test *files* in parallel, defaulting to
-# os.availableParallelism() concurrent processes. On many-core machines (e.g. 72
-# cores) this spawns dozens of heavy tsx processes at once, overloading the box
-# and timing the whole suite out. Cap the concurrency; override via env.
-TEST_CONCURRENCY="${CORTEX_TEST_CONCURRENCY:-20}"
-# Integration tests fork real server subprocesses, so keep their fan-out lower.
-INTEGRATION_CONCURRENCY="${CORTEX_INTEGRATION_CONCURRENCY:-20}"
-
-echo "[run-tests] running test suite (concurrency=$TEST_CONCURRENCY)"
-
-# Match the same glob pattern as the original npm test command.
-# Use nullglob to handle the case where no files match a pattern.
-shopt -s nullglob
-TEST_FILES=(
-  tests/*.test.ts
-  tests/core/*.test.ts
-  tests/agent-adapter/*.test.ts
-  tests/store/*.test.ts
-  tests/events/*.test.ts
-  tests/orch/*.test.ts
-  tests/threads/*.test.ts
-  tests/domain/**/*.test.ts
-  tests/platform/*.test.ts
-  tests/tui/*.test.ts
-  tests/tui/*.test.tsx
-)
-shopt -u nullglob
-
-# Filter out debug/shim files and integration tests. Integration tests fork real
-# server subprocesses and need longer than the 15s unit-test timeout; running them
-# here would systematically time out and orphan the spawned app.ts process. They run
-# in a dedicated pass below with no 15s cap.
-FILTERED=()
-INTEGRATION=()
-for f in "${TEST_FILES[@]}"; do
-  case "$(basename "$f")" in
-    _shims-*|_combined*|_plan*) ;;
-    integration-*) INTEGRATION+=("$f") ;;
-    *) FILTERED+=("$f") ;;
-  esac
-done
-
-# --import ./tests/_test-home.ts is a belt-and-suspenders isolation guard (no-op here
-# since CORTEX_HOME is already set above; protects ad-hoc invocations of this command).
-node --import tsx --import ./tests/_test-home.ts --test --test-force-exit --test-concurrency="$TEST_CONCURRENCY" --test-timeout=15000 "${FILTERED[@]}"
+echo "[run-tests] running unit suite (vitest, concurrency=${CORTEX_TEST_CONCURRENCY:-16})"
+pnpm exec vitest run
 
 # ── Integration tests (forked servers; longer timeout, run last) ─────
-if [[ ${#INTEGRATION[@]} -gt 0 ]]; then
-  echo "[run-tests] running integration tests (concurrency=$INTEGRATION_CONCURRENCY)"
-  node --import tsx --test --test-force-exit --test-concurrency="$INTEGRATION_CONCURRENCY" --test-timeout=120000 "${INTEGRATION[@]}"
-fi
+echo "[run-tests] running integration tests (vitest, serial)"
+pnpm exec vitest run --config vitest.integration.config.ts

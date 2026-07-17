@@ -1,5 +1,5 @@
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -8,7 +8,7 @@ import { acquireLock, releaseLock, readLock, getOwnerIdentity } from '../../../s
 
 const TEST_PROJECT = '_ui_mutate_tasks_test';
 
-test.before(() => {
+beforeAll(() => {
   const dir = path.join(PROJECTS_DIR, TEST_PROJECT);
   fs.mkdirSync(dir, { recursive: true });
   const tasksPath = path.join(dir, 'TASKS.yaml');
@@ -26,7 +26,7 @@ test.before(() => {
   }
 });
 
-test.after(() => {
+afterAll(() => {
   const dir = path.join(PROJECTS_DIR, TEST_PROJECT);
   try {
     const tasksPath = path.join(dir, 'TASKS.yaml');

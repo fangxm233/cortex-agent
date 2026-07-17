@@ -4,7 +4,7 @@
 //         not-running behavior.
 // >>> If I am updated, update the parent folder's CORTEX.md <<<
 
-import { describe, it, mock } from 'node:test';
+import { describe, it, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 
@@ -92,23 +92,23 @@ describe('tuiPortListening', () => {
 describe('cmdTui', () => {
   it('writes not-running message and exits 1 when daemon not listening', async () => {
     const stderrChunks: string[] = [];
-    mock.method(process.stderr, 'write', (chunk: string) => {
+    vi.spyOn(process.stderr, 'write').mockImplementation(((chunk: string) => {
       stderrChunks.push(chunk);
       return true;
-    });
+    }) as any);
 
     // Mock process.exit to throw for exit code 1 (our test path), but pass
     // through for other codes so the test runner's own cleanup works.
     let exitCode: number | null = null;
     const origExit = process.exit.bind(process);
-    mock.method(process, 'exit', (code: number) => {
+    vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
       exitCode = code;
       if (code === 1) {
         throw new Error(`process.exit(${code})`);
       }
       // Passthrough for test runner's own exit (undefined / 0)
       origExit(code as any);
-    });
+    }) as any);
 
     try {
       await cmdTui(['--port', '1']);

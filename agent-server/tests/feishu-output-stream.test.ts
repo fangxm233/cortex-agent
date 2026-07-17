@@ -3,7 +3,7 @@
 // pos:    Feishu-specific OutputStream regression test (coalescing parity w/ Slack)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   FeishuOutputStream,
@@ -23,8 +23,8 @@ function makeStream(adapter: MockAdapter, channel = 'oc_1') {
   return new FeishuOutputStream(adapter as any, testDest(channel));
 }
 
-test.beforeEach(() => { _testSetRetryDelays([0, 0, 0]); });
-test.afterEach(() => { _testResetRetryDelays(); });
+beforeEach(() => { _testSetRetryDelays([0, 0, 0]); });
+afterEach(() => { _testResetRetryDelays(); });
 
 test('FeishuOutputStream: single emitText posts one top-level card, no update', async () => {
   const adapter = new MockAdapter();

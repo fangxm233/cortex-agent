@@ -3,7 +3,7 @@
 // pos:    DR-0012 Phase 1 — jsonl translation + file-watcher regression spec
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -339,7 +339,7 @@ function makeTempPath(): string {
 
 test('JsonlTail waits for file to appear then reads existing lines if fromStart=true', async (t) => {
   const p = makeTempPath();
-  t.after(() => { try { fs.unlinkSync(p); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(p); } catch {} });
 
   // Write file BEFORE starting tail
   fs.writeFileSync(p, JSON.stringify({ type: 'permission-mode' }) + '\n' +
@@ -347,7 +347,7 @@ test('JsonlTail waits for file to appear then reads existing lines if fromStart=
 
   const events: any[] = [];
   const tail = new JsonlTail(p, { fromStart: true });
-  t.after(async () => await tail.stop());
+  t.onTestFinished(async () => await tail.stop());
   tail.on('event', (e) => events.push(e));
   await tail.start();
   // Tail reads existing lines synchronously on start
@@ -359,13 +359,13 @@ test('JsonlTail waits for file to appear then reads existing lines if fromStart=
 
 test('JsonlTail (fromStart=false, default) skips existing content and reads only new appends', async (t) => {
   const p = makeTempPath();
-  t.after(() => { try { fs.unlinkSync(p); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(p); } catch {} });
 
   fs.writeFileSync(p, JSON.stringify({ type: 'old-event' }) + '\n');
 
   const events: any[] = [];
   const tail = new JsonlTail(p);
-  t.after(async () => await tail.stop());
+  t.onTestFinished(async () => await tail.stop());
   tail.on('event', e => events.push(e));
   await tail.start();
   await new Promise(r => setTimeout(r, 50));
@@ -380,12 +380,12 @@ test('JsonlTail (fromStart=false, default) skips existing content and reads only
 
 test('JsonlTail emits turn-end when system/turn_duration is appended', async (t) => {
   const p = makeTempPath();
-  t.after(() => { try { fs.unlinkSync(p); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(p); } catch {} });
   fs.writeFileSync(p, '');
 
   const turnEnds: any[] = [];
   const tail = new JsonlTail(p);
-  t.after(async () => await tail.stop());
+  t.onTestFinished(async () => await tail.stop());
   tail.on('turn-end', e => turnEnds.push(e));
   await tail.start();
   await new Promise(r => setTimeout(r, 50));
@@ -398,12 +398,12 @@ test('JsonlTail emits turn-end when system/turn_duration is appended', async (t)
 
 test('JsonlTail handles partial lines split across appends (buffering)', async (t) => {
   const p = makeTempPath();
-  t.after(() => { try { fs.unlinkSync(p); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(p); } catch {} });
   fs.writeFileSync(p, '');
 
   const events: any[] = [];
   const tail = new JsonlTail(p);
-  t.after(async () => await tail.stop());
+  t.onTestFinished(async () => await tail.stop());
   tail.on('event', e => events.push(e));
   await tail.start();
   await new Promise(r => setTimeout(r, 50));
@@ -422,7 +422,7 @@ test('JsonlTail handles partial lines split across appends (buffering)', async (
 
 test('JsonlTail stop() halts further events', async (t) => {
   const p = makeTempPath();
-  t.after(() => { try { fs.unlinkSync(p); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(p); } catch {} });
   fs.writeFileSync(p, '');
 
   const events: any[] = [];
@@ -446,11 +446,11 @@ test('JsonlTail start() resolves immediately when file is absent, then backfills
   // submitted, so the tail must attach BEFORE the file exists. start() must not block on / reject
   // for a missing file — it begins polling and reads from offset 0 once the file appears.
   const p = makeTempPath();
-  t.after(() => { try { fs.unlinkSync(p); } catch {} });
+  t.onTestFinished(() => { try { fs.unlinkSync(p); } catch {} });
 
   const events: any[] = [];
   const tail = new JsonlTail(p);
-  t.after(async () => await tail.stop());
+  t.onTestFinished(async () => await tail.stop());
   tail.on('event', e => events.push(e));
 
   // start() must resolve promptly even though the file does not exist yet.
@@ -473,7 +473,7 @@ test('JsonlTail start() resolves immediately when file is absent, then backfills
 test('JsonlTail start() does not reject when file never appears (keeps polling)', async (t) => {
   const p = makeTempPath();
   const tail = new JsonlTail(p);
-  t.after(async () => await tail.stop());
+  t.onTestFinished(async () => await tail.stop());
   // Must resolve without throwing even though the file is never created.
   await tail.start();
   await new Promise(r => setTimeout(r, 250));

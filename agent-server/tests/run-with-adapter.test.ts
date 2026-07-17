@@ -3,7 +3,7 @@
 // pos:    Verify mode-manager adapter event-driven path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { _test as modeManagerTest, isRetryableResult } from '../src/domain/agents/index.js';
@@ -262,7 +262,7 @@ test('runWithAdapter: askUserQuestions on AgentResult survives through handle.pr
 
 test('runWithAdapter: context_compacted notifies via onAssistantMessage only when CORTEX_NOTIFY_COMPACTION=1', async (t) => {
   const prev = process.env.CORTEX_NOTIFY_COMPACTION;
-  t.after(() => {
+  t.onTestFinished(() => {
     if (prev === undefined) delete process.env.CORTEX_NOTIFY_COMPACTION;
     else process.env.CORTEX_NOTIFY_COMPACTION = prev;
   });

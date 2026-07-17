@@ -3,7 +3,7 @@
 // pos:    Slack-specific OutputStream regression test (ported from VirtualMessage)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   SlackOutputStream,
@@ -31,8 +31,8 @@ async function flush(stream: SlackOutputStream) {
 // zero them out so "sustained transient failure" cases exercise the retry
 // code path without paying ~6.3s of wall-clock per case. The specific test
 // that verifies the zero-delay contract re-sets defaults and then restores.
-test.beforeEach(() => { _testSetRetryDelays([0, 0, 0, 0]); });
-test.afterEach(() => { _testResetRetryDelays(); });
+beforeEach(() => { _testSetRetryDelays([0, 0, 0, 0]); });
+afterEach(() => { _testResetRetryDelays(); });
 
 test('SlackOutputStream: retry path runs without real wall-clock delay when delays are zeroed', async () => {
   _testSetRetryDelays([0, 0, 0, 0]);

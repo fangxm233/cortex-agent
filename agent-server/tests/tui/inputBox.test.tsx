@@ -2,7 +2,7 @@
 // output: InputBox tests — send when idle, blocked (text preserved) while awaiting response
 // pos:    Verifies the "type but cannot send while waiting" requirement
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

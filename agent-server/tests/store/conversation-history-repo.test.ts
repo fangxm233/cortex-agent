@@ -3,7 +3,7 @@ import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before path
 // output: Unit tests — per-session JSONL append, read-time turn grouping + streaming dedup
 // pos:    Guards Cortex's backend-independent conversation history store
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { ConversationHistoryRepo } from '../../src/store/conversation-history-repo.js';
 

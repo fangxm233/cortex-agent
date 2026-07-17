@@ -2,7 +2,7 @@
 // output: Unit tests for the numeric coalescer + leading/trailing throttle
 // pos:    Guards Stage 2 of the TUI render-perf plan (event coalescing)
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { createNumericBatcher, createThrottle } from '../../src/tui/raf-batch.js';
 

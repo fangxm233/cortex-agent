@@ -4,7 +4,7 @@
 //         balanced lifecycle events, and identity-guarded index cleanup.
 // pos:    validates the Stage 1 backbone refactor (plan: execution lifecycle).
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { RunningExecutions } from '../../src/core/running-executions.js';
 import type { RunningExecutionInput } from '../../src/core/running-executions.js';

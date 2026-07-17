@@ -3,7 +3,7 @@
 // pos:    Verify recursive thread-tree infrastructure (DR-0014)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test, { after } from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
@@ -19,7 +19,7 @@ import type { ThreadRecord, ThreadMetadata, ThreadStatus } from '../src/core/typ
 const createdThreadIds = new Set<string>();
 let seq = 0;
 
-after(async () => {
+afterAll(async () => {
   for (const id of createdThreadIds) await threadStore.delete(id);
   await threadStore.flush();
 });

@@ -8,7 +8,7 @@
 //         hard to forget. The dispatch seal (finalizeThreadSuccess) stays separate by layer/design.
 // >>> If I am updated, update my require first <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons pulled in by status-helpers
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { sealThreadStatus } from '../../src/orchestration/status-helpers.js';
 import { buildThreadSummary } from '../../src/domain/threads/runner.js';

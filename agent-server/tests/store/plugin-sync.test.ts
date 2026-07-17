@@ -7,7 +7,7 @@
 //         and preserve user-added files inside a managed plugin.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -54,7 +54,7 @@ test('parsePluginVersion extracts version, or null when absent/malformed', () =>
 
 test('(a) deploys a brand-new plugin when the destination is missing', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await writePlugin(src, 'cortex-new', '0.1.0');
 
   const updated = await syncManagedPlugins({ srcDir: src, dstDir: dst });
@@ -66,7 +66,7 @@ test('(a) deploys a brand-new plugin when the destination is missing', async (t)
 
 test('(b) refreshes an updated skill when the shipped version is newer', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await writePlugin(src, 'cortex-x', '0.2.0', 'NEW skill');
   await writePlugin(dst, 'cortex-x', '0.1.0', 'OLD skill');
 
@@ -78,7 +78,7 @@ test('(b) refreshes an updated skill when the shipped version is newer', async (
 
 test('(c) brings a legacy UNversioned deployed plugin under management (counts as oldest)', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await writePlugin(src, 'cortex-x', '0.2.0', 'NEW skill');
   await writePlugin(dst, 'cortex-x', null, 'LEGACY skill'); // no version in manifest
 
@@ -90,7 +90,7 @@ test('(c) brings a legacy UNversioned deployed plugin under management (counts a
 
 test('(d) leaves a current deployed plugin untouched (same version → no write)', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await writePlugin(src, 'cortex-x', '0.1.0', 'SHIPPED skill');
   await writePlugin(dst, 'cortex-x', '0.1.0', 'LOCAL skill');
 
@@ -102,7 +102,7 @@ test('(d) leaves a current deployed plugin untouched (same version → no write)
 
 test('(e) never downgrades when the deployed plugin is newer than the shipped default', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await writePlugin(src, 'cortex-x', '0.1.0', 'OLD shipped');
   await writePlugin(dst, 'cortex-x', '0.2.0', 'NEWER deployed');
 
@@ -114,7 +114,7 @@ test('(e) never downgrades when the deployed plugin is newer than the shipped de
 
 test('(f) ignores unversioned defaults — left to init copy-if-missing', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await writePlugin(src, 'cortex-x', null, 'unmanaged'); // no version → unmanaged
 
   const updated = await syncManagedPlugins({ srcDir: src, dstDir: dst });
@@ -125,7 +125,7 @@ test('(f) ignores unversioned defaults — left to init copy-if-missing', async 
 
 test('(g) preserves a user-added file inside a managed plugin across a refresh', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await writePlugin(src, 'cortex-x', '0.2.0', 'NEW skill');
   await writePlugin(dst, 'cortex-x', '0.1.0', 'OLD skill');
   // A skill the user created locally — not part of the shipped tree.

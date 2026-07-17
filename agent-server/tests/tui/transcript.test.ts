@@ -2,7 +2,7 @@
 // output: Unit tests for transcript data model
 // pos:    Verifies chat.post/update/delete/queued and stream frame handlers
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   _handleChatPost, _handleChatUpdate, _handleChatDelete, _handleChatMarkQueued,

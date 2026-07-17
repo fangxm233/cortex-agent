@@ -6,7 +6,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test, { before, after } from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -30,7 +30,7 @@ const handler = createWebhookHandler();
 const createdThreadIds = new Set<string>();
 let seq = 0;
 
-before(() => {
+beforeAll(() => {
   mergeThreadTemplates(
     path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
     path.join(CONFIG_DIR, 'thread-templates'),
@@ -38,7 +38,7 @@ before(() => {
   loadConfig();
 });
 
-after(async () => {
+afterAll(async () => {
   for (const id of createdThreadIds) await threadStore.delete(id);
   await threadStore.flush();
 });

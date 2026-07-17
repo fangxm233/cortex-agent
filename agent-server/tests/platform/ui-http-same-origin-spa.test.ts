@@ -7,7 +7,7 @@
 // >>> If I am updated, update the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before the core logger's paths.ts loads
-import test, { after } from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -37,7 +37,7 @@ function makeFakeUiService(): UiService {
 
 const servers: Array<{ close: () => Promise<void> }> = [];
 const tmpDirs: string[] = [];
-after(async () => {
+afterAll(async () => {
   for (const s of servers) await s.close().catch(() => {});
   for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
 });

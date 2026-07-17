@@ -2,7 +2,7 @@
 // output: Unit tests for the slash-command registry helpers
 // pos:    Guards the `/` palette parse/filter behaviour
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   SLASH_COMMANDS,

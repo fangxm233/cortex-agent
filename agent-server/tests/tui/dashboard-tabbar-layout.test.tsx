@@ -2,7 +2,7 @@
 // output: Regression — dashboard tab labels must render intact inside the side panel width
 // pos:    Guards the narrow-panel tab-label wrapping bug ("Execu/tions")
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

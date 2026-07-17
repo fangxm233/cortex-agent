@@ -3,7 +3,7 @@
 // pos:    PI cost record end-to-end integration path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
@@ -81,9 +81,9 @@ function pushLine(child: StubChild, obj: unknown): void {
   child.stdout.write(JSON.stringify(obj) + '\n');
 }
 
-// --- Cleanup (N2H-3: test.after() ensures env is restored even on assertion failure) ---
+// --- Cleanup (N2H-3: afterAll() ensures env is restored even on assertion failure) ---
 
-test.after(() => {
+afterAll(() => {
   if (ORIGINAL_COSTS_FILE !== undefined) {
     process.env['CORTEX_COSTS_FILE'] = ORIGINAL_COSTS_FILE;
   } else {

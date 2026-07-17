@@ -11,7 +11,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test, { after } from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -61,7 +61,7 @@ function makeOneShotStream(): AsyncIterable<UiEvent> & { close(): void } {
 }
 
 const servers: Array<{ close: () => Promise<void> }> = [];
-after(async () => {
+afterAll(async () => {
   for (const s of servers) await s.close().catch(() => {});
 });
 
@@ -254,7 +254,7 @@ test('cors env: unset CORTEX_UI_CORS_ORIGINS → no CORS headers (backward-compa
 // startUiHttpServer must mount the OTA manifest + bundle routes when a SPA dir is present, gated by
 // the same x-cortex-token check as tRPC.
 const otaTmpDirs: string[] = [];
-after(() => { for (const d of otaTmpDirs) rmSync(d, { recursive: true, force: true }); });
+afterAll(() => { for (const d of otaTmpDirs) rmSync(d, { recursive: true, force: true }); });
 
 function makeSpaDir(): string {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'cortex-ota-wire-'));
@@ -298,7 +298,9 @@ test('ota: manifest with the token returns 200 + a valid manifest pointing at th
   const m = JSON.parse(body);
   assert.match(m.sha256, /^[0-9a-f]{64}$/);
   assert.ok(m.size > 0);
-  assert.equal(m.url, UI_OTA_BUNDLE_PATH);
+  // The bundle url is content-addressed: bare path + a `?v=<sha256>` cache-buster.
+  assert.ok(m.url.startsWith(UI_OTA_BUNDLE_PATH), `url should point at the bundle path: ${m.url}`);
+  assert.match(m.url, /\?v=[0-9a-f]{64}$/);
 });
 
 test('ota: bundle with the token returns 200 application/zip', async () => {

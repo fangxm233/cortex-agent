@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/types.js';
 import { WEB_UI_SENDER, buildWebUserMessage, sendWebUserMessage } from '../../src/orchestration/session-send.js';

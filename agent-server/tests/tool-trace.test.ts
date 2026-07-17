@@ -3,7 +3,7 @@
 // pos:    tool-trace.ts compact Slack rendering regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { MockAdapter } from '../src/platform/testing.js';
 import { SlackOutputStream, _testSetRetryDelays, _testResetRetryDelays } from '../src/platform/adapters/slack-output-stream.js';
@@ -23,8 +23,8 @@ async function settle(stream: OutputStream) {
   await stream.flush();
 }
 
-test.beforeEach(() => { _testSetRetryDelays([0, 0, 0, 0]); });
-test.afterEach(() => { _testResetRetryDelays(); });
+beforeEach(() => { _testSetRetryDelays([0, 0, 0, 0]); });
+afterEach(() => { _testResetRetryDelays(); });
 
 test('isToolTraceEnabled: gated by CORTEX_SHOW_TOOL_CALLS', () => {
   const prev = process.env.CORTEX_SHOW_TOOL_CALLS;

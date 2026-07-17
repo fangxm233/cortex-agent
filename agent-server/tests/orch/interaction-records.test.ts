@@ -4,7 +4,7 @@
 //         pending index as liveness, channel scoping, session.interaction events)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { InteractionRecords } from '../../src/orchestration/interactions/interaction-records.js';
 import { EventBus } from '../../src/events/event-bus.js';

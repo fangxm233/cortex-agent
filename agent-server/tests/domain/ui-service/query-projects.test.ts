@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleProjectsList } from '../../../src/domain/ui-service/query/projects.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';

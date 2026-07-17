@@ -2,7 +2,7 @@
 // output: Tests — confirm path (no reason), cancel path, reason-input path
 // pos:    Verifies ConfirmModal keybinding and text input behavior
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

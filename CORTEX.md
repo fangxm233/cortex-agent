@@ -83,8 +83,8 @@ Bugfixes follow the same TDD discipline with an extra step: write a **regression
 ### Test Locations
 
 Tests live colocated near source or in `tests/` directories:
-- `agent-server/tests/` — server tests (Node built-in runner with `tsx`)
-- `client/` — client tests (if added)
+- `agent-server/tests/` — server tests (vitest; `vitest.config.ts` + `vitest.integration.config.ts`)
+- `client/` — client tests (Node built-in runner with `tsx`)
 
 Run server tests: `cd agent-server && npm test`
 

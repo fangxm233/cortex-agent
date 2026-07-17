@@ -2,7 +2,7 @@
 // output: tests for update-prompt.ts — 4-button registration, click paths, stale, re-prompt, timeout
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
 import { MockAdapter } from '../src/platform/testing.js';

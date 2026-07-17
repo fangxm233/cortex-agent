@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleExecutionsGet } from '../../../src/domain/ui-service/query/executions.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';

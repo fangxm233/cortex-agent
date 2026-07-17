@@ -2,7 +2,7 @@
 // output: Round-trip + negative + guard + inventory tests for M4 TUI wire protocol
 // pos:    Verifies every variant round-trips, guards narrow, inventory is complete
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   PROTOCOL_VERSION,

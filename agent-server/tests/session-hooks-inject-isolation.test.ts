@@ -6,7 +6,7 @@
 //         channel pool slot and the next conversation !new starts resumes the old session.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import type { OutputStream } from '../src/platform/output-stream.js';
 import type { AgentHandle } from '../src/core/types/agent-types.js';

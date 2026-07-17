@@ -2,7 +2,7 @@
 // output: Composite adapter unit tests
 // pos:    Verify fan-out routing, interactive-reply isolation, capabilities merging, extractTuiAdapter, FanOutOutputStream
 
-import test from 'node:test';
+import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
 import { MockAdapter } from '../../src/platform/testing.js';
@@ -55,7 +55,7 @@ class RecordingOutputStream implements OutputStream {
 }
 
 // Clean up global conduit states after each test
-test.afterEach(() => {
+afterEach(() => {
   tuiConduitStates.clear();
 });
 

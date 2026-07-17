@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -44,7 +44,7 @@ function makeTestProject(): { project: string; cleanup: () => void } {
 /** Track created execution IDs so we can remove them from the singleton map after test. */
 const createdExecIds: string[] = [];
 
-test.after(() => {
+afterAll(() => {
   for (const id of createdExecIds) {
     executionRepo['map']?.delete(id);
   }

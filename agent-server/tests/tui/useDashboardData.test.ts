@@ -2,7 +2,7 @@
 // output: Tests — query/render/subscribe/unsubscribe lifecycle
 // pos:    Verifies dashboard data management for each tab
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   _handleQueryResult, _handleEvent,

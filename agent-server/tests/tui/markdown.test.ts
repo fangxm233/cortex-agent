@@ -2,7 +2,7 @@
 // output: Unit tests for minimal markdown parser
 // pos:    Verifies bold/italic/code/link parsing
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { parseMarkdown } from '../../src/tui/render/markdown.js';
 

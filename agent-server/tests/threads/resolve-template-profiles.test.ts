@@ -4,14 +4,14 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test, { before } from 'node:test';
+import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import { mergeThreadTemplates, loadConfig } from '../../src/domain/threads/template-loader.js';
 import { resolveTemplateProfiles } from '../../src/domain/threads/index.js';
 import { CONFIG_DIR } from '../../src/core/paths.js';
 
-before(() => {
+beforeAll(() => {
   // Self-sufficient template fixture: ensure defaults templates exist in the isolated
   // CORTEX_HOME even when this file is run standalone (empty-skeleton home).
   mergeThreadTemplates(

@@ -3,7 +3,7 @@
 // pos:    Verify tryAcquireSingletonLock/releaseSingletonLock/isProcessAlive against a temp pidfile
 // >>> If I am updated, update me and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import * as os from 'node:os';
@@ -25,7 +25,7 @@ test('isProcessAlive: current process is alive, fake pid is not', () => {
 
 test('tryAcquireSingletonLock: fresh file acquires and writes own pid', (t) => {
   const { dir, file } = tmpPidFile();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 
   const r = tryAcquireSingletonLock(file);
   assert.deepEqual(r, { acquired: true, stale: false });
@@ -34,7 +34,7 @@ test('tryAcquireSingletonLock: fresh file acquires and writes own pid', (t) => {
 
 test('tryAcquireSingletonLock: live holder pid blocks acquisition', (t) => {
   const { dir, file } = tmpPidFile();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 
   writeFileSync(file, String(process.pid), 'utf8');
   const r = tryAcquireSingletonLock(file);
@@ -45,7 +45,7 @@ test('tryAcquireSingletonLock: live holder pid blocks acquisition', (t) => {
 
 test('tryAcquireSingletonLock: stale (dead) pid is reclaimed', (t) => {
   const { dir, file } = tmpPidFile();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 
   writeFileSync(file, String(DEAD_PID), 'utf8');
   const r = tryAcquireSingletonLock(file);
@@ -55,7 +55,7 @@ test('tryAcquireSingletonLock: stale (dead) pid is reclaimed', (t) => {
 
 test('tryAcquireSingletonLock: corrupt content is reclaimed', (t) => {
   const { dir, file } = tmpPidFile();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 
   writeFileSync(file, 'not-a-pid', 'utf8');
   const r = tryAcquireSingletonLock(file);
@@ -65,7 +65,7 @@ test('tryAcquireSingletonLock: corrupt content is reclaimed', (t) => {
 
 test('releaseSingletonLock: removes file when it holds our pid', (t) => {
   const { dir, file } = tmpPidFile();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 
   writeFileSync(file, String(process.pid), 'utf8');
   releaseSingletonLock(file);
@@ -74,7 +74,7 @@ test('releaseSingletonLock: removes file when it holds our pid', (t) => {
 
 test('releaseSingletonLock: leaves file owned by another pid', (t) => {
   const { dir, file } = tmpPidFile();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 
   writeFileSync(file, String(DEAD_PID), 'utf8');
   releaseSingletonLock(file);
@@ -84,7 +84,7 @@ test('releaseSingletonLock: leaves file owned by another pid', (t) => {
 
 test('releaseSingletonLock: no-op when file is missing', (t) => {
   const { dir, file } = tmpPidFile();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
 
   // file does not exist — must not throw
   releaseSingletonLock(file);

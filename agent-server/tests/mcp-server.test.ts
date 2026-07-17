@@ -3,7 +3,7 @@
 // pos:    Verify ext-server (server.ts) can be safely imported without Slack env
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { importFresh } from './module-loader.js';
 

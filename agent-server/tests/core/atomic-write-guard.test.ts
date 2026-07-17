@@ -5,7 +5,7 @@
 //         turning silent production corruption into a loud, immediate failure.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, rmSync, mkdtempSync } from 'node:fs';
 import * as os from 'node:os';

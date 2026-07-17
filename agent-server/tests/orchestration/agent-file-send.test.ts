@@ -3,7 +3,7 @@ import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before path
 // output: Unit tests — sendAgentFile dual-write (history + bus), mime/type inference, real copy
 // pos:    Guards the agent-sent file (20a) delivery path
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as os from 'node:os';
 import * as path from 'node:path';

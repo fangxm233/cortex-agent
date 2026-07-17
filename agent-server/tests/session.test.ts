@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test, { before, after } from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
@@ -16,7 +16,7 @@ const SESSIONS_FILE = path.join(STORE_DIR, 'sessions.json');
 let backup: string | null = null;
 let backupExisted = false;
 
-before(async () => {
+beforeAll(async () => {
   try {
     backup = await fs.readFile(SESSIONS_FILE, 'utf8');
     backupExisted = true;
@@ -29,7 +29,7 @@ before(async () => {
   sessionRepo.invalidate();
 });
 
-after(async () => {
+afterAll(async () => {
   // Clean up any .corrupt.<ts> backups the corruption-recovery test left behind.
   try {
     const dir = path.dirname(SESSIONS_FILE);

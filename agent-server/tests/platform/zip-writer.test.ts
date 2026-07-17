@@ -6,7 +6,7 @@
 //         `zip` crate is the real consumer; these tests pin the container invariants it relies on.
 // >>> If I am updated, update the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as zlib from 'node:zlib';
 import { createZip, crc32 } from '@platform/ui-http/zip-writer.js';

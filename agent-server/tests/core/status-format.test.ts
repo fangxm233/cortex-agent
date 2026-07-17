@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import * as assert from 'node:assert/strict';
 import { buildThreadStatusMessage } from '../../src/core/status-format.js';
 import { Icons } from '../../src/core/icons.js';

@@ -3,12 +3,15 @@
 // pos:    Verify daemon.ts only starts the main loop from the CLI entry point
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { AGENT_SERVER_DIR } from './module-loader.js';
 
-function runSnippet(snippet, { timeoutMs = 1200 } = {}) {
+// A hanging daemon main loop never exits, so a generous budget still catches the
+// regression; the tight 1200ms budget merely produced load-flaky false failures
+// when the cold `node --import tsx` subprocess was slow to warm up under a busy box.
+function runSnippet(snippet, { timeoutMs = 8000 } = {}) {
   return new Promise<any>((resolve, reject) => {
     const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', snippet], {
       cwd: AGENT_SERVER_DIR,
