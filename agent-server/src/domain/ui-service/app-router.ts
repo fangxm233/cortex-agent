@@ -26,6 +26,7 @@ import {
   sessionsMarkReadInput,
   sessionsAnswerQuestionInput,
   sessionsRespondPlanInput,
+  sessionsPendingInteractionInput,
   threadsListInput,
   threadsGetInput,
   tasksListInput,
@@ -141,6 +142,7 @@ export function createAppRouter(uiService: UiService) {
     sessions: router({
       list: makeQuery(uiService, 'sessions.list', sessionsListInput),
       transcript: makeQuery(uiService, 'sessions.transcript', sessionsTranscriptInput),
+      pendingInteraction: makeQuery(uiService, 'sessions.pendingInteraction', sessionsPendingInteractionInput),
       create: makeMutation(uiService, 'sessions.create', sessionsCreateInput),
       send: makeMutation(uiService, 'sessions.send', sessionsSendInput),
       cancel: makeMutation(uiService, 'sessions.cancel', sessionsCancelInput),

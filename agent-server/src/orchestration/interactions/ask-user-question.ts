@@ -194,6 +194,14 @@ async function sendMessages(result, channel, adapter: PlatformAdapter, messageTs
   return sentCount;
 }
 
+/** Return the first non-expired pending question group for a channel, or null. */
+function getGroupByChannel(channel: string): any | null {
+  for (const group of pendingAskUserQuestionGroups.values()) {
+    if (group.channel === channel && !isExpired(group)) return group;
+  }
+  return null;
+}
+
 export {
   sendMessages,
   formatGroupResponse,
@@ -201,6 +209,7 @@ export {
   buildQuestionModalDefinition,
   isExpired,
   getGroup,
+  getGroupByChannel,
   deleteGroup,
   getPendingQuestion,
   createHookGroup,

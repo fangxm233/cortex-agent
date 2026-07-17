@@ -52,6 +52,8 @@ export type {
   ApprovalsRequestArgs,
   SessionsAnswerQuestionArgs,
   SessionsRespondPlanArgs,
+  SessionsPendingInteractionParams,
+  SessionsPendingInteraction,
   // Output DTOs
   ProjectConduitInfo,
   SessionInfo,

@@ -4,7 +4,7 @@
 
 /** One replayable conversation message — the full backend-independent history. */
 export interface TranscriptMessage {
-  role: 'user' | 'assistant' | 'tool';
+  role: 'user' | 'assistant' | 'tool' | 'interaction';
   /** user / assistant text. Empty for tool messages (see toolName/toolInput). */
   text: string;
   toolName?: string;

@@ -132,6 +132,10 @@ export const sessionsSetProfileInput = z.object({
   profileName: z.string().min(1),
 });
 
+export const sessionsPendingInteractionInput = z.object({
+  sessionId: z.string().min(1),
+});
+
 export const sessionsAnswerQuestionInput = z.object({
   requestId: z.string().min(1),
   answers: z.record(z.string(), z.string()),
@@ -281,6 +285,7 @@ export const queryInputSchemas = {
   'projects.list': projectsListInput,
   'sessions.list': sessionsListInput,
   'sessions.transcript': sessionsTranscriptInput,
+  'sessions.pendingInteraction': sessionsPendingInteractionInput,
   'threads.list': threadsListInput,
   'threads.get': threadsGetInput,
   'tasks.list': tasksListInput,

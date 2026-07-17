@@ -46,6 +46,7 @@ export {
   systemRestartInput,
   sessionsAnswerQuestionInput,
   sessionsRespondPlanInput,
+  sessionsPendingInteractionInput,
   queryInputSchemas,
   mutateInputSchemas,
 } from '@cortex-agent/server/dist/domain/ui-service/input-schemas.js';

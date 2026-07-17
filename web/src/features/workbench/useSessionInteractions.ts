@@ -1,15 +1,10 @@
-// Live `session.askUser` + `session.planApproval` stream for the chat surface. Opens one SSE
-// subscription scoped to `sessionId` and maps the events to the card data shapes the mobile
-// MChatView (1m/1n) already renders. User responses route through the new tRPC mutations
-// `sessions.answerQuestion` / `sessions.respondPlan` which resolve the blocked MCP tool on
-// the server.
-//
-// State is cached in a module-level Map keyed by sessionId so it survives navigation within
-// the SPA (e.g. switching tabs on mobile then returning to the chat). The SSE subscription
-// re-establishes on mount; pending interactions are hydrated from the cache.
+// Live `session.askUser` + `session.planApproval` stream for the chat surface, with server-side
+// hydration via `sessions.pendingInteraction` query. The query runs on mount to catch interactions
+// that fired while the app was closed; the SSE subscription handles live arrivals. Answered
+// interactions are persisted server-side in conversation-history and appear in the transcript.
 
 import { useEffect, useState, useCallback } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
 import type { AskQuestionCardData, AnsweredQuestionRow, PlanCardData } from '@/mobile/v3/m-chat-vm';
 
@@ -21,27 +16,6 @@ export interface SessionInteractionsState {
   onApprovePlan: () => void;
   onRejectPlan: () => void;
 }
-
-// ── Module-level cache (survives navigation within the SPA) ──────────────────
-
-interface InteractionCache {
-  pendingQuestion: (AskQuestionCardData & { _requestId: string; _questions: { question: string }[] }) | null;
-  pendingPlan: (PlanCardData & { _requestId: string }) | null;
-  answered: AnsweredQuestionRow[];
-}
-
-const cache = new Map<string, InteractionCache>();
-
-function getCache(sessionId: string): InteractionCache {
-  let c = cache.get(sessionId);
-  if (!c) {
-    c = { pendingQuestion: null, pendingPlan: null, answered: [] };
-    cache.set(sessionId, c);
-  }
-  return c;
-}
-
-// ── Event payload types ──────────────────────────────────────────────────────
 
 interface RawAskUserPayload {
   sessionId?: string;
@@ -56,36 +30,74 @@ interface RawPlanPayload {
   planFilePath?: string | null;
 }
 
-// ── Hook ─────────────────────────────────────────────────────────────────────
+type PendingQ = AskQuestionCardData & { _requestId: string; _questions: { question: string }[] };
+type PendingP = PlanCardData & { _requestId: string };
+
+function mapAskUserToCard(requestId: string, questions: RawAskUserPayload['questions']): PendingQ | null {
+  if (!questions?.length) return null;
+  const firstQ = questions[0];
+  return {
+    id: requestId.slice(0, 8),
+    question: firstQ.question,
+    ttlLabel: null,
+    options: (firstQ.options ?? []).map((o, i) => ({
+      id: String(i),
+      label: o.label,
+      isDefault: i === 0,
+      meta: o.description,
+    })),
+    source: '',
+    _requestId: requestId,
+    _questions: questions,
+  };
+}
+
+function mapPlanToCard(requestId: string, planContent: string, planFilePath?: string | null): PendingP {
+  const lines = planContent.split('\n').filter(Boolean);
+  return {
+    title: lines[0] || 'Plan',
+    estimateLabel: null,
+    steps: lines.slice(1, 6).map((text, i) => ({ n: i + 1, text })),
+    writePath: planFilePath ?? undefined,
+    _requestId: requestId,
+  };
+}
 
 export function useSessionInteractions(sessionId: string): SessionInteractionsState {
   const trpc = useTRPC();
   const client = useTRPCClient();
+  const queryClient = useQueryClient();
+  const [pendingQuestion, setPendingQuestion] = useState<PendingQ | null>(null);
+  const [pendingPlan, setPendingPlan] = useState<PendingP | null>(null);
+  const [answered, setAnswered] = useState<AnsweredQuestionRow[]>([]);
 
-  // Hydrate from cache on mount / session switch.
-  const cached = sessionId ? getCache(sessionId) : null;
-  const [pendingQuestion, setPendingQuestion] = useState<InteractionCache['pendingQuestion']>(cached?.pendingQuestion ?? null);
-  const [pendingPlan, setPendingPlan] = useState<InteractionCache['pendingPlan']>(cached?.pendingPlan ?? null);
-  const [answered, setAnswered] = useState<AnsweredQuestionRow[]>(cached?.answered ?? []);
+  // Hydrate from server on mount — catches interactions that fired while app was closed.
+  const pendingQuery = useQuery({
+    ...trpc.sessions.pendingInteraction.queryOptions({ sessionId }),
+    enabled: !!sessionId,
+  });
 
-  // Sync state → cache on every change.
+  // Hydrate from query result when it arrives (only if no SSE-driven state yet).
   useEffect(() => {
-    if (!sessionId) return;
-    const c = getCache(sessionId);
-    c.pendingQuestion = pendingQuestion;
-    c.pendingPlan = pendingPlan;
-    c.answered = answered;
-  }, [sessionId, pendingQuestion, pendingPlan, answered]);
+    if (!pendingQuery.data) return;
+    const d = pendingQuery.data;
+    if (d.askUser && !pendingQuestion) {
+      const card = mapAskUserToCard(d.askUser.requestId, d.askUser.questions);
+      if (card) setPendingQuestion(card);
+    }
+    if (d.plan && !pendingPlan) {
+      setPendingPlan(mapPlanToCard(d.plan.requestId, d.plan.planContent, d.plan.planFilePath));
+    }
+  }, [pendingQuery.data]);
 
   const answerMut = useMutation(trpc.sessions.answerQuestion.mutationOptions());
   const respondMut = useMutation(trpc.sessions.respondPlan.mutationOptions());
 
+  // SSE subscription for live arrivals.
   useEffect(() => {
-    // Hydrate from cache (may have state from a previous mount).
-    const c = sessionId ? getCache(sessionId) : null;
-    setPendingQuestion(c?.pendingQuestion ?? null);
-    setPendingPlan(c?.pendingPlan ?? null);
-    setAnswered(c?.answered ?? []);
+    setPendingQuestion(null);
+    setPendingPlan(null);
+    setAnswered([]);
     if (!sessionId) return;
 
     const sub = client.subscribe.subscribe(
@@ -95,38 +107,14 @@ export function useSessionInteractions(sessionId: string): SessionInteractionsSt
           if (raw.type === 'session.askUser') {
             const p = raw.payload as RawAskUserPayload | undefined;
             if (!p?.requestId || !p.questions?.length) return;
-            const questions = p.questions;
-            const firstQ = questions[0];
-            const card: InteractionCache['pendingQuestion'] = {
-              id: p.requestId.slice(0, 8),
-              question: firstQ.question,
-              ttlLabel: null,
-              options: (firstQ.options ?? []).map((o, i) => ({
-                id: String(i),
-                label: o.label,
-                isDefault: i === 0,
-                meta: o.description,
-              })),
-              source: '',
-              _requestId: p.requestId,
-              _questions: questions,
-            };
-            setPendingQuestion(card);
+            const card = mapAskUserToCard(p.requestId, p.questions);
+            if (card) setPendingQuestion(card);
             return;
           }
           if (raw.type === 'session.planApproval') {
             const p = raw.payload as RawPlanPayload | undefined;
             if (!p?.requestId) return;
-            const content = p.planContent ?? '';
-            const lines = content.split('\n').filter(Boolean);
-            const card: InteractionCache['pendingPlan'] = {
-              title: lines[0] || 'Plan',
-              estimateLabel: null,
-              steps: lines.slice(1, 6).map((text, i) => ({ n: i + 1, text })),
-              writePath: p.planFilePath ?? undefined,
-              _requestId: p.requestId,
-            };
-            setPendingPlan(card);
+            setPendingPlan(mapPlanToCard(p.requestId, p.planContent ?? '', p.planFilePath));
             return;
           }
         },
@@ -154,10 +142,13 @@ export function useSessionInteractions(sessionId: string): SessionInteractionsSt
         onSuccess: () => {
           setPendingQuestion(null);
           setAnswered((prev) => [...prev, answeredRow]);
+          // Invalidate pending query + transcript so the persisted interaction row appears.
+          queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
+          queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         },
       },
     );
-  }, [pendingQuestion, answerMut]);
+  }, [pendingQuestion, answerMut, queryClient, trpc, sessionId]);
 
   const onApprovePlan = useCallback(() => {
     if (!pendingPlan || respondMut.isPending) return;
@@ -172,10 +163,12 @@ export function useSessionInteractions(sessionId: string): SessionInteractionsSt
         onSuccess: () => {
           setPendingPlan(null);
           setAnswered((prev) => [...prev, answeredRow]);
+          queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
+          queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         },
       },
     );
-  }, [pendingPlan, respondMut]);
+  }, [pendingPlan, respondMut, queryClient, trpc, sessionId]);
 
   const onRejectPlan = useCallback(() => {
     if (!pendingPlan || respondMut.isPending) return;
@@ -190,10 +183,12 @@ export function useSessionInteractions(sessionId: string): SessionInteractionsSt
         onSuccess: () => {
           setPendingPlan(null);
           setAnswered((prev) => [...prev, answeredRow]);
+          queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
+          queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         },
       },
     );
-  }, [pendingPlan, respondMut]);
+  }, [pendingPlan, respondMut, queryClient, trpc, sessionId]);
 
   return {
     pendingQuestion: pendingQuestion as AskQuestionCardData | null,

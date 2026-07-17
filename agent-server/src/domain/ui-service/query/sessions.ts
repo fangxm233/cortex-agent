@@ -9,6 +9,9 @@ import type {
   SessionsTranscriptParams,
   SessionTranscript,
   TranscriptTurn,
+  TranscriptMessage,
+  SessionsPendingInteractionParams,
+  SessionsPendingInteraction,
 } from '../types.js';
 
 export async function handleSessionsList(
@@ -149,7 +152,7 @@ export async function handleSessionsTranscript(
     const curValid = Number.isFinite(curMs);
     const elapsedMs = prevMs !== null && curValid ? curMs - prevMs : null;
     turn.messages.push({
-      type: ev.type,
+      type: ev.type as TranscriptMessage['type'],
       text: ev.type === 'tool' ? null : (ev.text ?? ''),
       toolName: ev.type === 'tool' ? (ev.toolName ?? '') : null,
       toolInput: ev.type === 'tool' ? (ev.toolInput ?? '') : null,
@@ -159,9 +162,24 @@ export async function handleSessionsTranscript(
       // deep-equality with the DTO shape (pre-existing red test, fixed in passing). Both user
       // uploads (15a) and agent-sent files (20a, assistant events) carry attachments.
       ...((ev.type === 'user' || ev.type === 'assistant') && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
+      ...(ev.type === 'interaction' && ev.subtype ? { subtype: ev.subtype } : {}),
     });
     prevMs = curValid ? curMs : null;
   }
 
   return { sessionId: history.sessionId, turns: order.map((i) => byTurn.get(i)!) };
+}
+
+// ── sessions.pendingInteraction ───────────────────────────────────
+// Returns the current pending ask-user or plan approval for a session, if any.
+// Reads from the server's in-memory Maps (same lifetime as the blocked MCP tool).
+export async function handleSessionsPendingInteraction(
+  deps: UiServiceDeps,
+  params: SessionsPendingInteractionParams,
+): Promise<SessionsPendingInteraction> {
+  const channel = `web:${params.sessionId}`;
+  return {
+    askUser: deps.getPendingAskUser?.(channel) ?? null,
+    plan: deps.getPendingPlan?.(channel) ?? null,
+  };
 }

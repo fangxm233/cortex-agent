@@ -310,6 +310,14 @@ export function MChatStream({ rows, toolCallsUnit }: { rows: ChatRow[]; toolCall
               )}
             </div>
           )}
+          {row.kind === 'interaction' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: '#fff', border: '1px solid #EFF1F5', borderRadius: 10, opacity: 0.75 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: row.subtype === 'plan-rejected' ? '#C03D33' : MC.done, flexShrink: 0 }}>
+                {row.subtype === 'plan-rejected' ? '✗' : '✓'} {row.subtype.startsWith('plan-') ? (row.subtype === 'plan-approved' ? 'Plan approved' : 'Plan rejected') : 'Answered'}
+              </span>
+              <span style={{ fontSize: 11.5, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.text}</span>
+            </div>
+          )}
         </Fragment>
       ))}
     </>

@@ -19,7 +19,7 @@ const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
 // --- Types ---
 
-export type HistoryEventType = 'user' | 'assistant' | 'tool';
+export type HistoryEventType = 'user' | 'assistant' | 'tool' | 'interaction';
 
 /** A resolved history event (turnIndex derived at read time). */
 export interface HistoryEvent {
@@ -30,6 +30,8 @@ export interface HistoryEvent {
   toolName?: string;
   /** compact tool input summary (tool events only). */
   toolInput?: string;
+  /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (interaction events only). */
+  subtype?: string;
   ts: string;
   /** Groups events under the user turn that triggered them. */
   turnIndex: number;
@@ -43,6 +45,8 @@ interface RawEvent {
   text?: string;
   toolName?: string;
   toolInput?: string;
+  /** interaction subtype (interaction events only). */
+  subtype?: string;
   ts: string;
   /** Optional file attachments (user events from web composer). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
@@ -133,6 +137,12 @@ export class ConversationHistoryRepo {
     return this.append(sessionId, { type: 'tool', toolName: opts.toolName, toolInput: opts.toolInput ?? '', ts: opts.ts ?? nowIso() });
   }
 
+  /** Append an interaction event (ask-user answer, plan approval/rejection).
+   *  Persisted in the transcript so it's visible in historical sessions. */
+  appendInteraction(sessionId: string, opts: { subtype: string; text: string; ts?: string }): Promise<void> {
+    return this.append(sessionId, { type: 'interaction', subtype: opts.subtype, text: opts.text, ts: opts.ts ?? nowIso() });
+  }
+
   /**
    * Read a session's history. Derives turnIndex (each `user` event opens a new turn) and
    * collapses consecutive same-turn assistant events whose texts are prefix-related (a
@@ -179,6 +189,8 @@ export class ConversationHistoryRepo {
         }
       } else if (ev.type === 'tool') {
         events.push({ type: 'tool', toolName: ev.toolName ?? '', toolInput: ev.toolInput ?? '', ts: ev.ts, turnIndex: Math.max(0, turnIndex) });
+      } else if (ev.type === 'interaction') {
+        events.push({ type: 'interaction', subtype: ev.subtype, text: ev.text ?? '', ts: ev.ts, turnIndex: Math.max(0, turnIndex) });
       }
     }
 

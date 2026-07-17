@@ -84,7 +84,7 @@ export interface TuiSessionDeps {
   conversationHistory: {
     getHistory(sessionId: string): Promise<{
       events: Array<{
-        type: 'user' | 'assistant' | 'tool';
+        type: 'user' | 'assistant' | 'tool' | 'interaction';
         text?: string;
         toolName?: string;
         toolInput?: string;

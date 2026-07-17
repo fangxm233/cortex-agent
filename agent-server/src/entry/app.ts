@@ -22,6 +22,7 @@ import * as executionRegistry from '@domain/executions/registry.js';
 import { executionLogTailer } from '@domain/executions/log-tailer.js';
 import { initHookBridge, resolveRequest as resolveHookRequest } from '@orch/routing/hook-bridge.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
+import { publishSessionMessage } from '@orch/session-events.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
 import { cancelChannelRuns } from '@orch/routing/commands/cancel.js';
 import { taskStore } from '@domain/tasks/store.js';
@@ -402,13 +403,31 @@ process.on('SIGTERM', async () => {
     },
     bus,
     adapter,
+    // Web UI: return pending ask-user group for a channel (used by sessions.pendingInteraction query).
+    getPendingAskUser: (channel) => {
+      const group = askUserQuestion.getGroupByChannel(channel);
+      if (!group) return null;
+      return {
+        requestId: group.hookRequestId || group.toolUseId,
+        questions: group.questions.map((q: any) => ({
+          question: q.question,
+          header: q.header,
+          options: q.options || [],
+          multiSelect: !!q.multiSelect,
+        })),
+      };
+    },
+    // Web UI: return pending plan approval for a channel (used by sessions.pendingInteraction query).
+    getPendingPlan: (channel) => {
+      const entry = planApprovals.getByChannel(channel);
+      if (!entry) return null;
+      return { requestId: entry.requestId, planContent: '', planFilePath: null };
+    },
     // Web UI ask-user-question: resolve a pending interaction by requestId. The MCP tool blocks
-    // on the HTTP response; this callback collects answers and resolves it.
+    // on the HTTP response; this callback collects answers, persists to history, and resolves it.
     answerQuestion: (requestId, answers) => {
       const groupId = `${requestId}:${requestId}`;
       let group = askUserQuestion.getGroup(groupId);
-      // Fallback: the groupId convention is `sessionId:requestId` — when the caller only knows
-      // requestId, try the direct resolve path.
       if (!group) {
         return resolveHookRequest(requestId, { answers });
       }
@@ -418,6 +437,17 @@ process.on('SIGTERM', async () => {
           group.answers.set(q.pendingId, { header: q.header, value: answer });
         }
       }
+      // Persist the answered interaction to conversation history.
+      const sessionId = group.channel?.startsWith('web:') ? group.channel.slice(4) : group.sessionId;
+      if (sessionId) {
+        const summary = group.questions.map((q: any) => {
+          const a = answers[q.question] ?? '(no answer)';
+          return `${q.question} → ${a}`;
+        }).join('\n');
+        const ts = new Date().toISOString();
+        conversationHistory.appendInteraction(sessionId, { subtype: 'ask-user-answered', text: summary, ts });
+        publishSessionMessage({ sessionId, channel: group.channel, role: 'tool', text: summary, toolName: 'ask-user-answered', ts });
+      }
       return askUserQuestion.tryResolveHook(group);
     },
     // Web UI plan-approval: resolve or reject a pending plan by requestId.
@@ -425,11 +455,25 @@ process.on('SIGTERM', async () => {
       if (approved) {
         const pending = planApprovals.resolve(requestId);
         if (!pending) return false;
+        // Persist to conversation history.
+        const sessionId = pending.channel?.startsWith('web:') ? pending.channel.slice(4) : null;
+        if (sessionId) {
+          const ts = new Date().toISOString();
+          conversationHistory.appendInteraction(sessionId, { subtype: 'plan-approved', text: 'Plan approved', ts });
+          publishSessionMessage({ sessionId, channel: pending.channel, role: 'tool', text: 'Plan approved', toolName: 'plan-approved', ts });
+        }
         resolveHookRequest(requestId, { approved: true, reason: '' });
         return true;
       } else {
         const pending = planApprovals.reject(requestId);
         if (!pending) return false;
+        const sessionId = pending.channel?.startsWith('web:') ? pending.channel.slice(4) : null;
+        if (sessionId) {
+          const ts = new Date().toISOString();
+          const text = feedback ? `Plan rejected: ${feedback}` : 'Plan rejected';
+          conversationHistory.appendInteraction(sessionId, { subtype: 'plan-rejected', text, ts });
+          publishSessionMessage({ sessionId, channel: pending.channel, role: 'tool', text, toolName: 'plan-rejected', ts });
+        }
         resolveHookRequest(requestId, { approved: false, reason: feedback || '' });
         return true;
       }

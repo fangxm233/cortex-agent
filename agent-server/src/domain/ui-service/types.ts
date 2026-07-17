@@ -25,6 +25,7 @@ export type QueryScope =
   | 'projects.list'
   | 'sessions.list'
   | 'sessions.transcript'
+  | 'sessions.pendingInteraction'
   | 'threads.list'
   | 'threads.get'
   | 'tasks.list'
@@ -105,6 +106,15 @@ export interface SessionsListParams {
 
 export interface SessionsTranscriptParams {
   sessionId: string;
+}
+
+export interface SessionsPendingInteractionParams {
+  sessionId: string;
+}
+
+export interface SessionsPendingInteraction {
+  askUser: { requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[] } | null;
+  plan: { requestId: string; planContent: string; planFilePath: string | null } | null;
 }
 
 export interface ThreadsListParams {
@@ -381,13 +391,15 @@ export interface SessionInfo {
 // (conversationHistory.getHistory). An absent/empty history maps to `{ sessionId, turns: [] }`.
 
 export interface TranscriptMessage {
-  type: 'user' | 'assistant' | 'tool';
-  /** user / assistant text; null for tool events. */
+  type: 'user' | 'assistant' | 'tool' | 'interaction';
+  /** user / assistant / interaction text; null for tool events. */
   text: string | null;
   /** tool name (tool events only). */
   toolName: string | null;
   /** compact tool input summary (tool events only). */
   toolInput: string | null;
+  /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (interaction events only). */
+  subtype?: string;
   /** File attachments: user uploads via the web composer (15a, user messages) OR agent-sent
    *  files via the `send_file` MCP tool (20a, assistant messages). */
   attachments?: AttachmentMeta[];
@@ -940,6 +952,7 @@ export interface QueryParamMap {
   'projects.list': Record<string, never>;
   'sessions.list': SessionsListParams;
   'sessions.transcript': SessionsTranscriptParams;
+  'sessions.pendingInteraction': SessionsPendingInteractionParams;
   'threads.list': ThreadsListParams;
   'threads.get': ThreadsGetParams;
   'tasks.list': TasksListParams;
@@ -962,6 +975,7 @@ export interface QueryReturnMap {
   'projects.list': ProjectConduitInfo[];
   'sessions.list': SessionInfo[];
   'sessions.transcript': SessionTranscript;
+  'sessions.pendingInteraction': SessionsPendingInteraction;
   'threads.list': ThreadInfo[];
   'threads.get': ThreadDetail;
   'tasks.list': TaskInfo[];
@@ -1195,6 +1209,16 @@ export interface UiServiceDeps {
   };
   bus: EventBus;
   adapter: PlatformAdapter;
+  /**
+   * Return the pending ask-user question group for a channel, if any (web UI pending query).
+   * Reads from the in-memory pendingAskUserQuestionGroups Map.
+   */
+  getPendingAskUser?: (channel: string) => { requestId: string; questions: { question: string; header: string; options: { label: string; description?: string }[]; multiSelect: boolean }[] } | null;
+  /**
+   * Return the pending plan approval for a channel, if any (web UI pending query).
+   * Reads from the in-memory planApprovals Map.
+   */
+  getPendingPlan?: (channel: string) => { requestId: string; planContent: string; planFilePath: string | null } | null;
   /**
    * Resolve a pending ask-user-question interaction (web UI path). The injected impl (app.ts)
    * looks up the hook group, collects answers, and calls tryResolveHook/resolveHookRequest so the

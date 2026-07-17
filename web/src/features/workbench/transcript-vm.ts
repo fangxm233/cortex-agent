@@ -25,7 +25,8 @@ export type ChatRow =
   | { kind: 'user'; text: string; attachments?: Attachment[] }
   | { kind: 'tools'; count: number; calls: { kind: string; input: string }[] }
   // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
-  | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[] };
+  | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[] }
+  | { kind: 'interaction'; subtype: string; text: string };
 
 export interface BuildOpts {
   /** True while the session is actively producing output — marks the last assistant row's caret. */
@@ -207,7 +208,9 @@ export function buildTranscriptRows(
       continue;
     }
     flushTools();
-    if (m.type === 'user') rows.push({ kind: 'user', text: m.text ?? '', attachments: (m as any).attachments });
+    if (m.type === 'interaction') {
+      rows.push({ kind: 'interaction', subtype: (m as any).subtype ?? '', text: m.text ?? '' });
+    } else if (m.type === 'user') rows.push({ kind: 'user', text: m.text ?? '', attachments: (m as any).attachments });
     else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
   }
   flushTools();

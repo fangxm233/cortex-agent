@@ -371,6 +371,18 @@ function EmptyChat(): JSX.Element {
   );
 }
 
+function InteractionRow({ subtype, text }: { subtype: string; text: string }): JSX.Element {
+  const isApproval = subtype.startsWith('plan-');
+  const icon = subtype === 'plan-approved' ? '✓' : subtype === 'plan-rejected' ? '✗' : '✓';
+  const label = isApproval ? (subtype === 'plan-approved' ? 'Plan approved' : 'Plan rejected') : 'Answered';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#F8F9FB', border: '1px solid #EFF1F5', borderRadius: 10, opacity: 0.85 }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: subtype === 'plan-rejected' ? '#C03D33' : '#34A853', flexShrink: 0 }}>{icon} {label}</span>
+      <span style={{ fontSize: 12, color: '#454C59', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
+    </div>
+  );
+}
+
 function Row({ row }: { row: ChatRow }): JSX.Element | null {
   switch (row.kind) {
     case 'divider':
@@ -381,6 +393,8 @@ function Row({ row }: { row: ChatRow }): JSX.Element | null {
       return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input }))} />;
     case 'assistant':
       return <AssistantBlock text={row.text} streaming={row.streaming} attachments={row.attachments} />;
+    case 'interaction':
+      return <InteractionRow subtype={row.subtype} text={row.text} />;
     default:
       return null;
   }

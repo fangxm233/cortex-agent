@@ -75,6 +75,14 @@ export class PlanApprovals {
     return plan;
   }
 
+  /** Return the first pending plan for a channel, or null. */
+  getByChannel(channel: string): { requestId: string; plan: PendingPlan } | null {
+    for (const [requestId, plan] of this._map) {
+      if (plan.channel === channel) return { requestId, plan };
+    }
+    return null;
+  }
+
   /** Returns true if a pending plan is registered for the requestId. */
   has(requestId: string): boolean {
     return this._map.has(requestId);
