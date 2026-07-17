@@ -1,6 +1,10 @@
 # Plan 审批 + Agent 提问 UI — 1:1 完整实现
 
-Status: PLAN (awaiting approval)
+Status: implemented (2026-07-16, commit 7ff41f71 + follow-up docs commit)
+Verification: 1029 unit tests green · `tsc --noEmit` · `vite build` · live isolated harness
+(tmp/int-shot-harness.mjs + tmp/int-shot-driver.mjs — synthetic CORTEX_HOME, real ui-service,
+headless-Chrome CDP) — 15 shots incl. a REAL answerQuestion round-trip (card seals via mutation
++ transcript refetch); evidence archived at design/build-shots/int-*.png (13 files)
 Builds on: web-interactions-redesign.md (interaction 实体层已落地 2026-07-16)
 Ground truth: `context/projects/cortex-self/design/ref/scheme-mobile.dc.html` **§4 / §5 / §6**
 + `scheme.dc.html` **13b / 13c**（用户指定，样式严格遵循）

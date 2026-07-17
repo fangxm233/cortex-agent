@@ -47,6 +47,17 @@ describe('vocab en/zh parity', () => {
     expect(zh.pillCancelled).toBe('已取消');
   });
 
+  it('carries the 22a dual-zone left-rail labels', () => {
+    expect(en.wbProjects).toBe('PROJECTS');
+    expect(zh.wbProjects).toBe('项目');
+    expect(en.wbSessions).toBe('SESSIONS');
+    expect(zh.wbSessions).toBe('会话');
+    expect(en.wbNewShort).toBe('New');
+    expect(zh.wbNewShort).toBe('新建');
+    expect(en.wbCost).toBe('Cost');
+    expect(zh.wbCost).toBe('成本');
+  });
+
   it('carries the mobile 5b thread-screen chrome keys (步骤/深度/待审批)', () => {
     expect(en.step).toBe('step');
     expect(zh.step).toBe('步骤');

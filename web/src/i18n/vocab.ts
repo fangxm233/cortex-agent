@@ -175,6 +175,12 @@ export const en = {
   wbSessionEarlier: 'EARLIER',
   wbFromSchedule: 'from schedule',
 
+  // ── 22a dual-zone left rail ──
+  wbProjects: 'PROJECTS',
+  wbSessions: 'SESSIONS',
+  wbNewShort: 'New',
+  wbCost: 'Cost',
+
   // ── Daemon status modal 17a ──
   dmDaemon: 'Daemon status',
   dmEsc: 'esc',
@@ -662,6 +668,12 @@ export const zh: Record<keyof Vocab, string> = {
   wbSessionYesterday: '昨天',
   wbSessionEarlier: '更早',
   wbFromSchedule: '来自调度',
+
+  // ── 22a dual-zone left rail ──
+  wbProjects: '项目',
+  wbSessions: '会话',
+  wbNewShort: '新建',
+  wbCost: '成本',
 
   // ── Daemon status modal 17a ──
   dmDaemon: '守护进程状态',
