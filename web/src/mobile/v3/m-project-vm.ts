@@ -8,6 +8,7 @@
 // GLOBAL, not project-scoped; phase/milestone (Phase 2 · M2.3) have no DTO source → omitted.
 import type { ThreadInfo, ProjectConduitInfo, CostSummary } from '@cortex-agent/ui-contract';
 import { projectInitials } from '@/features/workbench/session-groups';
+import { sortProjectsByActivity } from '@/features/workbench/left-rail-projects';
 
 /**
  * Strict per-project thread counts scoped to the current project. `线程运行中` = status 'running';
@@ -51,10 +52,13 @@ export interface MProjectSwitchRow {
 
 /**
  * The OTHER projects (projects.list minus the current one), each with a real running-thread count
- * and today $ from the GLOBAL cost.summary byProject map. Projects with UNREAD sessions sort first
- * (stable — projects.list order preserved within each half), mirroring the desktop `buildSwitchList`.
- * `unreadCounts` comes from `unreadCountByProject` over an UNSCOPED direct sessions.list. Per-project
- * approval / needs-you counts are NOT derivable (ApprovalInfo has no projectId) → deliberately absent.
+ * and today $ from the GLOBAL cost.summary byProject map. Rows are ordered by MOST RECENT ACTIVITY
+ * (parity with the desktop LeftRail — sortProjectsByActivity over `lastActivity`), so the project you
+ * touched last floats to the top; projects with no known activity sink to the bottom in stable order.
+ * `lastActivity` comes from `lastActivityByProject` over an UNSCOPED direct sessions.list — the same
+ * persistent session-registry signal the desktop rail uses, so the order survives server/app restarts.
+ * `unreadCounts` still badges each row but no longer drives ordering. Per-project approval / needs-you
+ * counts are NOT derivable (ApprovalInfo has no projectId) → deliberately absent.
  */
 export function buildProjectSwitchRows(
   projects: ProjectConduitInfo[],
@@ -62,22 +66,21 @@ export function buildProjectSwitchRows(
   threads: ThreadInfo[],
   globalByProject: CostSummary['byProject'] | undefined,
   unreadCounts: Record<string, number> = {},
+  lastActivity: Record<string, number> = {},
 ): MProjectSwitchRow[] {
-  return projects
-    .filter((p) => p.id !== currentId)
-    .map((p) => {
-      const running = threads.reduce(
-        (n, t) => n + (t.projectId === p.id && t.status === 'running' ? 1 : 0),
-        0,
-      );
-      const bucket = globalByProject?.[p.id];
-      return {
-        id: p.id,
-        initials: projectInitials(p.id),
-        running,
-        todayCost: bucket ? bucket.today : null,
-        unread: unreadCounts[p.id] ?? 0,
-      };
-    })
-    .sort((a, b) => Number(b.unread > 0) - Number(a.unread > 0));
+  const others = projects.filter((p) => p.id !== currentId);
+  return sortProjectsByActivity(others, lastActivity).map((p) => {
+    const running = threads.reduce(
+      (n, t) => n + (t.projectId === p.id && t.status === 'running' ? 1 : 0),
+      0,
+    );
+    const bucket = globalByProject?.[p.id];
+    return {
+      id: p.id,
+      initials: projectInitials(p.id),
+      running,
+      todayCost: bucket ? bucket.today : null,
+      unread: unreadCounts[p.id] ?? 0,
+    };
+  });
 }

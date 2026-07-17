@@ -11,6 +11,7 @@ import {
   lastActivityByProject,
   projectIndexFromKey,
   projectShortLabel,
+  sortProjectsByActivity,
   PROJECTS_ZONE_DEFAULT_H,
 } from './left-rail-projects';
 import { NewProjectModal } from './NewProjectModal';
@@ -22,7 +23,8 @@ import { DaemonStatusModal } from './DaemonStatusModal';
 import { useSessionsLiveSync } from './useSessionsLiveSync';
 
 // LEFT RAIL — 22a dual-zone rebuild (scheme.dc.html §22a, L37–150). Top zone: PROJECTS always
-// expanded — one row per project in FIXED projects.list order (⌘1–9 muscle memory), single click
+// expanded — one row per project ordered by MOST RECENT ACTIVITY (persistent, from the session
+// registry's lastUsedAt; ⌘1–9 follow this order, ⌘1 = most recently active), single click
 // switches, the active row expands one sub-entry line (Overview · Tasks · Cost); per-row badges =
 // real running-thread count (threads.list) + unread-session count (honest addition, kept from the
 // retired switcher popover). Draggable divider. Bottom zone: current project's SESSIONS with the
@@ -84,10 +86,16 @@ export function LeftRail(): JSX.Element {
     [allSessionsQuery.data],
   );
 
+  // Order rows by most-recent activity (persistent — derived from the session registry's
+  // lastUsedAt, so it survives server/app restarts). ⌘1–9 follow this order (⌘1 = most recent).
+  const sortedProjects = useMemo(
+    () => sortProjectsByActivity(projects, lastActivity),
+    [projects, lastActivity],
+  );
   const projectRows = useMemo(
     () =>
-      buildProjectRailRows(projects, activeProjectId, runningCounts, unreadCounts, lastActivity, Date.now()),
-    [projects, activeProjectId, runningCounts, unreadCounts, lastActivity],
+      buildProjectRailRows(sortedProjects, activeProjectId, runningCounts, unreadCounts, lastActivity, Date.now()),
+    [sortedProjects, activeProjectId, runningCounts, unreadCounts, lastActivity],
   );
 
   // New-project modal (kept from the retired switcher popover, task c551).
@@ -101,7 +109,7 @@ export function LeftRail(): JSX.Element {
     navigate('/workbench');
   };
 
-  // ⌘1–9 switches by PROJECTS list order (fixed row positions make this muscle memory).
+  // ⌘1–9 switches by the visible PROJECTS order (most-recent-activity first; ⌘1 = latest active).
   const projectRowsRef = useRef(projectRows);
   projectRowsRef.current = projectRows;
   const onSwitchProjectRef = useRef(onSwitchProject);

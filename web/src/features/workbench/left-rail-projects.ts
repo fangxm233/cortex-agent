@@ -2,9 +2,12 @@ import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract'
 import { projectInitials } from './session-groups';
 
 // Pure view-model for the 22a dual-zone left rail PROJECTS zone (scheme.dc.html §22a, L37–150).
-// Design contract: project rows keep the projects.list order FIXED (no unread hoisting — ⌘1–9
-// muscle memory depends on stable positions); a row's trailing slot shows its status badges +
-// hotkey when it has any (mock rows TR/LO), else the last-activity age (mock row PP "3d").
+// Design contract: project rows are ordered by MOST RECENT ACTIVITY (the project whose newest
+// session activity is latest sorts first — see sortProjectsByActivity). Ordering derives from the
+// persistent session registry (SessionInfo.lastUsedAt), so it survives server/app restarts and never
+// degrades to raw filesystem order. ⌘1–9 follow the visible (activity) order — ⌘1 is the most recently
+// active project. A row's trailing slot shows its status badges + hotkey when it has any (mock rows
+// TR/LO), else the last-activity age (mock row PP "3d").
 // DATA GAP (flagged): the mock's per-row amber "approval pending" dot has no backing field —
 // ApprovalInfo carries no projectId — so rows carry running/unread only; the bottom pill stays
 // the all-projects aggregate.
@@ -42,6 +45,25 @@ export function lastActivityByProject(sessions: SessionInfo[]): Record<string, n
     if (!(s.projectId in map) || t > map[s.projectId]) map[s.projectId] = t;
   }
   return map;
+}
+
+/** Order projects by most-recent activity (descending): the project whose newest session activity
+ *  (from lastActivityByProject) is latest comes first. Projects with no known activity sink to the
+ *  bottom, keeping their incoming relative order (stable). Pure — returns a new array, never mutates.
+ *  This is the persistent recency sort: lastActivity comes from the persisted session registry, so the
+ *  order is stable across server/app restarts (never falls back to raw filesystem order). */
+export function sortProjectsByActivity<T extends { id: string }>(
+  projects: readonly T[],
+  lastActivity: Record<string, number>,
+): T[] {
+  const val = (id: string): number =>
+    typeof lastActivity[id] === 'number' ? lastActivity[id] : -Infinity;
+  return [...projects].sort((a, b) => {
+    const av = val(a.id);
+    const bv = val(b.id);
+    if (av === bv) return 0; // ties + both-unknown → stable (keep incoming order)
+    return bv - av; // more recent first
+  });
 }
 
 /** SESSIONS zone-header project echo (design "quad-nav" from quad-nav-sim2real): the first two

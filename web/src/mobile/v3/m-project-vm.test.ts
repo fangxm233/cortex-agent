@@ -79,13 +79,25 @@ describe('buildProjectSwitchRows', () => {
     expect(rows.find((r) => r.id === 'atlas')?.unread).toBe(0);
   });
 
-  it('floats projects with unread sessions first (stable within each half)', () => {
-    // orchard has unread; atlas does not → orchard sorts ahead despite trailing in projects.list.
-    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, { orchard: 2 });
+  it('orders rows by most recent activity (parity with the desktop LeftRail)', () => {
+    // orchard was active more recently than atlas → orchard sorts ahead despite trailing in the list.
+    const activity = {
+      atlas: Date.parse('2026-07-14T00:00:00'),
+      orchard: Date.parse('2026-07-16T00:00:00'),
+    };
+    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, {}, activity);
     expect(rows.map((r) => r.id)).toEqual(['orchard', 'atlas']);
   });
 
-  it('preserves projects.list order when no project has unread (back-compat)', () => {
+  it('unread no longer drives ordering (recency does) — badge still carried', () => {
+    // orchard has unread but atlas is the more recently active → atlas stays ahead.
+    const activity = { atlas: Date.parse('2026-07-16T00:00:00') };
+    const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, { orchard: 2 }, activity);
+    expect(rows.map((r) => r.id)).toEqual(['atlas', 'orchard']);
+    expect(rows.find((r) => r.id === 'orchard')?.unread).toBe(2);
+  });
+
+  it('preserves projects.list order when no activity is known (back-compat)', () => {
     const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, {});
     expect(rows.map((r) => r.id)).toEqual(['atlas', 'orchard']);
   });

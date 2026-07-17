@@ -6,6 +6,7 @@ import {
   lastActivityByProject,
   projectShortLabel,
   projectIndexFromKey,
+  sortProjectsByActivity,
   clampProjectsZoneHeight,
   PROJECTS_ZONE_DEFAULT_H,
   PROJECTS_ZONE_MIN_H,
@@ -57,6 +58,37 @@ describe('lastActivityByProject', () => {
   it('empty input → empty map; unparseable timestamps are skipped', () => {
     expect(lastActivityByProject([])).toEqual({});
     expect(lastActivityByProject([session('a', 'not-a-date')])).toEqual({});
+  });
+});
+
+describe('sortProjectsByActivity', () => {
+  const projects = [project('a'), project('b'), project('c'), project('d')];
+
+  it('orders by most recent activity (descending)', () => {
+    const activity = {
+      a: Date.parse('2026-07-10T00:00:00'),
+      b: Date.parse('2026-07-15T00:00:00'),
+      c: Date.parse('2026-07-12T00:00:00'),
+      d: Date.parse('2026-07-16T00:00:00'),
+    };
+    expect(sortProjectsByActivity(projects, activity).map((p) => p.id)).toEqual(['d', 'b', 'c', 'a']);
+  });
+
+  it('sinks projects with no known activity to the bottom, keeping their incoming order (stable)', () => {
+    const activity = { c: Date.parse('2026-07-12T00:00:00'), a: Date.parse('2026-07-15T00:00:00') };
+    // a (latest) then c, then the unknowns b,d in their original relative order.
+    expect(sortProjectsByActivity(projects, activity).map((p) => p.id)).toEqual(['a', 'c', 'b', 'd']);
+  });
+
+  it('empty activity map → incoming order preserved verbatim (never NaN-shuffled)', () => {
+    expect(sortProjectsByActivity(projects, {}).map((p) => p.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('does not mutate the input array', () => {
+    const input = [project('x'), project('y')];
+    const before = input.map((p) => p.id);
+    sortProjectsByActivity(input, { y: 1 });
+    expect(input.map((p) => p.id)).toEqual(before);
   });
 });
 

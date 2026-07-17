@@ -25,6 +25,7 @@ import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/workbench/session-groups';
 import { unreadCountByProject } from '@/features/workbench/project-menu';
+import { lastActivityByProject } from '@/features/workbench/left-rail-projects';
 import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
 import { useMobileProject } from '@/mobile/current-project';
 import { MProjectView, type MProjectCopy } from './MProjectView';
@@ -133,9 +134,22 @@ export function MProjectScreen() {
     () => unreadCountByProject(allSessionsQuery.data ?? []),
     [allSessionsQuery.data],
   );
+  // Persistent recency signal (session-registry lastUsedAt) → most-recently-active projects first.
+  const lastActivity = useMemo(
+    () => lastActivityByProject(allSessionsQuery.data ?? []),
+    [allSessionsQuery.data],
+  );
   const switchRows = useMemo(
-    () => buildProjectSwitchRows(projects, currentProjectId, threads, globalCostQuery.data?.byProject, unreadCounts),
-    [projects, currentProjectId, threads, globalCostQuery.data, unreadCounts],
+    () =>
+      buildProjectSwitchRows(
+        projects,
+        currentProjectId,
+        threads,
+        globalCostQuery.data?.byProject,
+        unreadCounts,
+        lastActivity,
+      ),
+    [projects, currentProjectId, threads, globalCostQuery.data, unreadCounts, lastActivity],
   );
 
   return (
