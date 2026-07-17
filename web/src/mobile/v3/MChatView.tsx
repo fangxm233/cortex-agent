@@ -7,6 +7,7 @@ import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import type { ChatRow, Attachment } from '@/features/workbench/transcript-vm';
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
 import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { downloadFile } from '@/lib/files';
 import type {
   ChatHeaderStatus,
   AskQuestionCardData,
@@ -142,9 +143,12 @@ export function MoreMenu({ copy, onClose }: { copy: MChatCopy; onClose: () => vo
 const STRIPES = 'repeating-linear-gradient(45deg,#E9EBF0 0 6px,#F4F5F8 6px 12px)';
 
 function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
+  const tap = () => void downloadFile(a.path, a.name);
   if (a.type === 'image' || a.type === 'video') {
     return (
       <div
+        role="button"
+        onClick={tap}
         style={{
           width: a.type === 'video' ? 104 : 74,
           height: 74,
@@ -153,6 +157,7 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
           position: 'relative',
           overflow: 'hidden',
           flex: 'none',
+          cursor: 'pointer',
         }}
       >
         <span
@@ -174,6 +179,8 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
   }
   return (
     <div
+      role="button"
+      onClick={tap}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -183,6 +190,7 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
         borderRadius: 9,
         padding: '6px 10px',
         flex: 'none',
+        cursor: 'pointer',
       }}
     >
       <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.5">
