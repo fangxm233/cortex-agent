@@ -2,10 +2,9 @@ import { describe, it, expect } from 'vitest';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadChildNode } from '@cortex-agent/ui-contract';
 import {
   threadsBudgetBand,
-  threadCardKind,
+  isLiveThread,
   pipelineSteps,
   runningMeta,
-  waitingMeta,
   activeSegmentLabel,
 } from './m-threads-vm';
 
@@ -104,13 +103,16 @@ describe('threadsBudgetBand', () => {
   });
 });
 
-describe('threadCardKind', () => {
-  it('waiting → the amber approval card', () => {
-    expect(threadCardKind('waiting')).toBe('waiting');
+describe('isLiveThread', () => {
+  it('running and waiting (suspended-on-children) are both live → drill-in + threads.get', () => {
+    expect(isLiveThread('running')).toBe(true);
+    expect(isLiveThread('waiting')).toBe(true);
   });
-  it('running (and everything else) → the running pipeline card', () => {
-    expect(threadCardKind('running')).toBe('running');
-    expect(threadCardKind('completed')).toBe('running');
+  it('terminal statuses are not live', () => {
+    expect(isLiveThread('completed')).toBe(false);
+    expect(isLiveThread('failed')).toBe(false);
+    expect(isLiveThread('cancelled')).toBe(false);
+    expect(isLiveThread('aborted')).toBe(false);
   });
 });
 
@@ -154,12 +156,6 @@ describe('runningMeta', () => {
   });
   it('omits the child count when there are none', () => {
     expect(runningMeta(info({}), detail({ totalCostUsd: 0.1, children: [] }), now, '子线程')).toBe('thr_1a2b · 42m · $0.10');
-  });
-});
-
-describe('waitingMeta', () => {
-  it('renders only the real id + age (dispatch 暂停 / 超预算 are mocks)', () => {
-    expect(waitingMeta(info({ id: 'thr_a41d', status: 'waiting' }), now)).toBe('thr_a41d · 42m');
   });
 });
 

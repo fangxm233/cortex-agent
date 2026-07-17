@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';
-import { MThreadsHeader, MRunningCard, MWaitingCard, type MThreadsCopy } from './MThreadsView';
+import { MThreadsHeader, MRunningCard, type MThreadsCopy } from './MThreadsView';
 import { threadsBudgetBand } from './m-threads-vm';
 
 const copy: MThreadsCopy = {
@@ -10,11 +10,10 @@ const copy: MThreadsCopy = {
   history: '历史',
   today: '今日',
   open: '打开',
-  handle: '去处理',
   subthread: '子线程',
   empty: '暂无活跃线程',
   running: '运行中',
-  waiting: '等待审批',
+  waiting: '等待子线程',
   done: '已完成',
   failed: '失败',
   cancelled: '已取消',
@@ -121,21 +120,22 @@ describe('MRunningCard history status', () => {
   });
 });
 
-describe('MWaitingCard', () => {
-  it('renders amber 等待审批 pill + honest meta + 去处理 › (amber ink)', () => {
+describe('MRunningCard waiting (suspended-on-children) status', () => {
+  it('a waiting manager shows the amber 等待子线程 pill + 打开 › drill-in (NOT an approval affordance)', () => {
     const html = renderToStaticMarkup(
-      <MWaitingCard
+      <MRunningCard
         info={info({ id: 'thr_a41d', templateName: 'ablation-sweep', status: 'waiting' })}
+        detail={undefined}
         now={now}
         copy={copy}
-        onHandle={() => {}}
+        onOpen={() => {}}
       />,
     );
     expect(html).toContain('ablation-sweep');
-    expect(html).toContain('等待审批');
+    expect(html).toContain('等待子线程');
     expect(html).toContain('thr_a41d · 42m');
-    expect(html).toContain('去处理');
-    expect(html).toContain('#8A5B06'); // amber ink affordance
-    expect(html).not.toContain('超预算'); // mock, not rendered
+    expect(html).toContain('打开'); // drills into the thread detail page like any live thread
+    expect(html).not.toContain('等待审批'); // no longer mislabeled as an approval block
+    expect(html).not.toContain('去处理'); // no approval-queue affordance
   });
 });
