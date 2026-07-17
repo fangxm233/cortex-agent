@@ -3,7 +3,7 @@
 // pos: Verify taskStore.runExclusive mutex serialization guarantee for external callers (S3 Pattern B migration)
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { taskStore } from '../src/domain/tasks/store.js';
 

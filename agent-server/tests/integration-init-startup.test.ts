@@ -2,7 +2,7 @@
 // output: Integration tests: init (non-interactive), server start/stop, config validation
 // pos:    End-to-end integration test for cortex init + start lifecycle via subprocess fork
 
-import test, { after } from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync, statSync, readdirSync } from 'node:fs';
@@ -49,7 +49,7 @@ function killTree(child: ChildProcess): void {
   catch { try { child.kill('SIGKILL'); } catch { /* already gone */ } }
 }
 
-after(() => {
+afterAll(() => {
   for (const c of liveChildren) killTree(c);
   liveChildren.clear();
 });

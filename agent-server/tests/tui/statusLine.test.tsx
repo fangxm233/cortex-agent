@@ -3,7 +3,7 @@
 //         full shortcuts overlay on demand, abnormal connection status only
 // pos:    Verifies the header-removal redesign (project/queue/notif moved to the bottom line)
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

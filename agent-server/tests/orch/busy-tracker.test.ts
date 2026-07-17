@@ -6,7 +6,7 @@
 //         (e) non-tracker aggregate produces correct single busy+idle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { BusyTracker } from '../../src/orchestration/busy-tracker.js';
 import { EventBus } from '../../src/events/index.js';
@@ -24,7 +24,7 @@ test('(a) +1 publishes llm.active-count-delta(delta=1) and sends IPC busy; -1 se
 
   const origSend = process.send;
   process.send = (msg: unknown) => { ipc.push(msg); return true; };
-  t.after(() => { process.send = origSend; });
+  t.onTestFinished(() => { process.send = origSend; });
 
   tracker.setBus(bus);
 
@@ -58,7 +58,7 @@ test('(b) two +1 then two -1 produces exactly one busy and one idle IPC', (t) =>
 
   const origSend = process.send;
   process.send = (msg: unknown) => { ipc.push(msg); return true; };
-  t.after(() => { process.send = origSend; });
+  t.onTestFinished(() => { process.send = origSend; });
 
   tracker.setBus(bus);
 
@@ -81,7 +81,7 @@ test('(c) re-entrant trackPendingTask inside subscriber completes without crash'
 
   const origSend = process.send;
   process.send = (msg: unknown) => { ipc.push(msg); return true; };
-  t.after(() => { process.send = origSend; });
+  t.onTestFinished(() => { process.send = origSend; });
 
   tracker.setBus(bus);
 
@@ -134,7 +134,7 @@ test('(d) non-tracker +1 via bus.publish fires IPC busy; non-tracker -1 fires IP
 
   const origSend = process.send;
   process.send = (msg: unknown) => { ipc.push(msg); return true; };
-  t.after(() => { process.send = origSend; });
+  t.onTestFinished(() => { process.send = origSend; });
 
   tracker.setBus(bus);
 
@@ -159,7 +159,7 @@ test('(e) non-tracker aggregate +1+1 then -1-1 produces single busy+idle IPC', (
 
   const origSend = process.send;
   process.send = (msg: unknown) => { ipc.push(msg); return true; };
-  t.after(() => { process.send = origSend; });
+  t.onTestFinished(() => { process.send = origSend; });
 
   tracker.setBus(bus);
 

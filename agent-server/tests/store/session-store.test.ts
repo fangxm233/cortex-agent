@@ -3,7 +3,7 @@
 // pos:    verifies store/session-registry-repo.ts M2 contract per plan/refactor-m1m2-project-session.md
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -17,11 +17,11 @@ import type { ThreadRecord } from '../../src/core/types/thread-types.js';
 
 let tmpDir: string;
 
-test.before(async () => {
+beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-session-store-test-'));
 });
 
-test.after(async () => {
+afterAll(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 

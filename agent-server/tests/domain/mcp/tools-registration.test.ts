@@ -3,7 +3,7 @@
 // pos:    regression guard — split may change tool registration shape
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 test('ext-server (server.ts) registers 9 non-remote tool names (excluding platform-specific slack_send_file)', async () => {

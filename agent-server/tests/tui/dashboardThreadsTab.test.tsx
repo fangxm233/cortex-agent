@@ -2,7 +2,7 @@
 // output: Tests — happy path cancel + already-terminal path
 // pos:    Verifies DashboardThreadsTab cancel keybind, ConfirmModal, mutate, and inline feedback
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

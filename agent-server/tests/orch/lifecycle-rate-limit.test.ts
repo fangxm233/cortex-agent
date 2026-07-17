@@ -3,7 +3,7 @@
 // pos:    Validate orchestration/lifecycle.ts direct/TUI thrown-rate-limit recovery (parity with thread path)
 // >>> If I am updated, update my require first <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleAgentError } from '../../src/orchestration/lifecycle.js';
 import { initRateLimitThrottle, handleRateLimitEvent, _testReset as throttleReset } from '../../src/domain/costs/rate-limit-throttle.js';
@@ -36,7 +36,7 @@ function baseArgs(adapter: MockAdapter, overrides: Record<string, unknown> = {})
 }
 
 test('throttled + rate-limit error + userMessage → pause & record direct resume (no error post)', async (t) => {
-  t.after(() => { throttleReset(); resumeReset(); });
+  t.onTestFinished(() => { throttleReset(); resumeReset(); });
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   await initResumeRegistry({ save: async () => {}, load: async () => [] });
   await activateThrottle(adapter);
@@ -52,7 +52,7 @@ test('throttled + rate-limit error + userMessage → pause & record direct resum
 });
 
 test('NOT throttled + rate-limit error → normal error path, no resume', async (t) => {
-  t.after(() => { throttleReset(); resumeReset(); });
+  t.onTestFinished(() => { throttleReset(); resumeReset(); });
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   await initResumeRegistry({ save: async () => {}, load: async () => [] });
   // throttle intentionally NOT activated → isThrottled() false
@@ -64,7 +64,7 @@ test('NOT throttled + rate-limit error → normal error path, no resume', async 
 });
 
 test('throttled + rate-limit error but no userMessage → normal error path, no resume', async (t) => {
-  t.after(() => { throttleReset(); resumeReset(); });
+  t.onTestFinished(() => { throttleReset(); resumeReset(); });
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   await initResumeRegistry({ save: async () => {}, load: async () => [] });
   await activateThrottle(adapter);
@@ -76,7 +76,7 @@ test('throttled + rate-limit error but no userMessage → normal error path, no 
 });
 
 test('throttled + non-rate-limit error → normal error path, no resume', async (t) => {
-  t.after(() => { throttleReset(); resumeReset(); });
+  t.onTestFinished(() => { throttleReset(); resumeReset(); });
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   await initResumeRegistry({ save: async () => {}, load: async () => [] });
   await activateThrottle(adapter);

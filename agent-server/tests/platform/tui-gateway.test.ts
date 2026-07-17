@@ -3,7 +3,7 @@
 // pos:    verifies TUI Gateway Adapter M1 implementation
 // >>> If I am updated, update the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
 import { TuiGatewayAdapter } from '../../src/platform/adapters/tui/tui-gateway.js';
@@ -157,11 +157,11 @@ async function handshake(
 
 test('handshake → session.attach → msg.user → chat.post → session.switch → close', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   // Step 1: Handshake — fresh session
   const { sessionId: initialSessionId } = await handshake(ws, coll);
@@ -199,11 +199,11 @@ test('handshake → session.attach → msg.user → chat.post → session.switch
 
 test('lazy session: no-resume handshake emits NO session.switched (no session minted on open)', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   sendFrame(ws, {
     type: 'handshake.hello', protocolVersion: 1, clientName: 'test', clientVersion: '1.0',
@@ -224,11 +224,11 @@ test('lazy session: no-resume handshake emits NO session.switched (no session mi
 
 test('lazy session: the first msg.user mints + announces the session, then replies', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   sendFrame(ws, {
     type: 'handshake.hello', protocolVersion: 1, clientName: 'test', clientVersion: '1.0',
@@ -255,11 +255,11 @@ test('lazy session: the first msg.user mints + announces the session, then repli
 
 test('handshake protocol version mismatch causes error + close', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   sendFrame(ws, {
     type: 'handshake.hello',
@@ -278,10 +278,10 @@ test('handshake protocol version mismatch causes error + close', async (t) => {
 
 test('handshake timeout closes connection', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   // Don't send handshake — should be closed by 5s timeout
   await waitForClose(ws);
@@ -289,11 +289,11 @@ test('handshake timeout closes connection', async (t) => {
 
 test('unknown frame type returns error 4002 without close', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -310,11 +310,11 @@ test('unknown frame type returns error 4002 without close', async (t) => {
 
 test('message edit dispatches to edit handler', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -337,11 +337,11 @@ test('message edit dispatches to edit handler', async (t) => {
 
 test('action click dispatches to registered handler', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -367,11 +367,11 @@ test('action click dispatches to registered handler', async (t) => {
 
 test('modal submit → ack roundtrip', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -398,11 +398,11 @@ test('modal submit → ack roundtrip', async (t) => {
 
 test('modal submit with errors sends error response', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -426,11 +426,11 @@ test('modal submit with errors sends error response', async (t) => {
 
 test('ping triggers pong', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -446,13 +446,13 @@ test('ping triggers pong', async (t) => {
 test('EADDRINUSE soft-failure — second adapter becomes noop', async (t) => {
   const adapter1 = new TuiGatewayAdapter({ port: 0, host: '127.0.0.1' });
   await adapter1.start();
-  t.after(() => adapter1.stop());
+  t.onTestFinished(() => adapter1.stop());
 
   const actualPort = (adapter1 as any)._wss.address().port;
 
   const adapter2 = new TuiGatewayAdapter({ port: actualPort, host: '127.0.0.1' });
   await adapter2.start();
-  t.after(() => adapter2.stop());
+  t.onTestFinished(() => adapter2.stop());
 
   assert.equal(adapter2.noopOutbound, true);
 });
@@ -461,7 +461,7 @@ test('EADDRINUSE soft-failure — second adapter becomes noop', async (t) => {
 
 test('per-conduit serial queue — same conduit serialised, different conduits parallel', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const order: string[] = [];
   const handlerDelay = 200;
@@ -476,11 +476,11 @@ test('per-conduit serial queue — same conduit serialised, different conduits p
   // Connect two clients
   const ws1 = await wsConnect(port);
   const coll1 = makeFrameCollector(ws1);
-  t.after(() => ws1.close());
+  t.onTestFinished(() => ws1.close());
 
   const ws2 = await wsConnect(port);
   const coll2 = makeFrameCollector(ws2);
-  t.after(() => ws2.close());
+  t.onTestFinished(() => ws2.close());
 
   await handshake(ws1, coll1);
   await handshake(ws2, coll2);
@@ -510,7 +510,7 @@ test('per-conduit serial queue — same conduit serialised, different conduits p
 
 test('different conduits run message handlers in parallel', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const startOrder: string[] = [];
 
@@ -522,11 +522,11 @@ test('different conduits run message handlers in parallel', async (t) => {
 
   const ws1 = await wsConnect(port);
   const coll1 = makeFrameCollector(ws1);
-  t.after(() => ws1.close());
+  t.onTestFinished(() => ws1.close());
 
   const ws2 = await wsConnect(port);
   const coll2 = makeFrameCollector(ws2);
-  t.after(() => ws2.close());
+  t.onTestFinished(() => ws2.close());
 
   await handshake(ws1, coll1);
   await handshake(ws2, coll2);
@@ -545,11 +545,11 @@ test('different conduits run message handlers in parallel', async (t) => {
 
 test('ui.query without uiService returns error result', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -563,11 +563,11 @@ test('ui.query without uiService returns error result', async (t) => {
 
 test('ui.mutate without uiService returns error result', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -583,7 +583,7 @@ test('ui.mutate without uiService returns error result', async (t) => {
 
 test('ui.query with UiService returns real data', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const mockUiService = {
     query: async (_scope: string, _params: any) => ({ ok: true, data: [{ id: '1', name: 'test-project' }] }),
@@ -594,7 +594,7 @@ test('ui.query with UiService returns real data', async (t) => {
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -611,7 +611,7 @@ test('ui.query with UiService returns real data', async (t) => {
 
 test('ui.query with UiService returning error forwards error code', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const mockUiService = {
     query: async () => ({ ok: false, code: 'invalid-args', message: 'bad scope' }),
@@ -622,7 +622,7 @@ test('ui.query with UiService returning error forwards error code', async (t) =>
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -637,7 +637,7 @@ test('ui.query with UiService returning error forwards error code', async (t) =>
 
 test('ui.query with UiService that throws returns internal error', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const mockUiService = {
     query: async () => { throw new Error('db connection failed'); },
@@ -648,7 +648,7 @@ test('ui.query with UiService that throws returns internal error', async (t) => 
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -664,7 +664,7 @@ test('ui.query with UiService that throws returns internal error', async (t) => 
 
 test('ui.subscribe with UiService forwards events to connection', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const events: Array<{ type: string; ts: string; payload: unknown }> = [
     { type: 'thread.created', ts: '2024-01-01T00:00:00Z', payload: { threadId: 't1' } },
@@ -695,7 +695,7 @@ test('ui.subscribe with UiService forwards events to connection', async (t) => {
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -720,7 +720,7 @@ test('ui.subscribe with UiService forwards events to connection', async (t) => {
 
 test('ui.unsubscribe closes subscription', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   let subscriptionClosed = false;
   const mockSubscription = {
@@ -739,7 +739,7 @@ test('ui.unsubscribe closes subscription', async (t) => {
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -759,11 +759,11 @@ test('ui.unsubscribe closes subscription', async (t) => {
 
 test('ui.subscribe without UiService returns error', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   await handshake(ws, coll);
 
@@ -785,16 +785,16 @@ test('sendProjectReport routes per activeSession equality', async (t) => {
   await adapter.start();
   wireTestDeps(adapter);
   const actualPort = (adapter as any)._wss.address().port;
-  t.after(() => adapter.stop());
+  t.onTestFinished(() => adapter.stop());
 
   // Two WS connections → two conduits with distinct sessions
   const ws1 = await wsConnect(actualPort);
   const coll1 = makeFrameCollector(ws1);
-  t.after(() => ws1.close());
+  t.onTestFinished(() => ws1.close());
 
   const ws2 = await wsConnect(actualPort);
   const coll2 = makeFrameCollector(ws2);
-  t.after(() => ws2.close());
+  t.onTestFinished(() => ws2.close());
 
   await handshake(ws1, coll1, { project: 'test-proj' });
   await handshake(ws2, coll2, { project: 'test-proj' });
@@ -831,18 +831,18 @@ test('sendProjectReport delivers cross-project notification frames', async (t) =
   await adapter.start();
   wireTestDeps(adapter);
   const actualPort = (adapter as any)._wss.address().port;
-  t.after(() => adapter.stop());
+  t.onTestFinished(() => adapter.stop());
 
   // Connection in project-a
   const ws1 = await wsConnect(actualPort);
   const coll1 = makeFrameCollector(ws1);
-  t.after(() => ws1.close());
+  t.onTestFinished(() => ws1.close());
   await handshake(ws1, coll1, { project: 'project-a' });
 
   // Connection in project-b
   const ws2 = await wsConnect(actualPort);
   const coll2 = makeFrameCollector(ws2);
-  t.after(() => ws2.close());
+  t.onTestFinished(() => ws2.close());
   await handshake(ws2, coll2, { project: 'project-b' });
 
   // Drain handshake leftover frames
@@ -878,15 +878,15 @@ test('sendSystemNotice fans out to all connections', async (t) => {
   await adapter.start();
   wireTestDeps(adapter);
   const actualPort = (adapter as any)._wss.address().port;
-  t.after(() => adapter.stop());
+  t.onTestFinished(() => adapter.stop());
 
   const ws1 = await wsConnect(actualPort);
   const coll1 = makeFrameCollector(ws1);
-  t.after(() => ws1.close());
+  t.onTestFinished(() => ws1.close());
 
   const ws2 = await wsConnect(actualPort);
   const coll2 = makeFrameCollector(ws2);
-  t.after(() => ws2.close());
+  t.onTestFinished(() => ws2.close());
 
   await handshake(ws1, coll1);
   await handshake(ws2, coll2);
@@ -913,11 +913,11 @@ test('sendSystemNotice fans out to all connections', async (t) => {
 
 test('uploadFile sends notification with absolute path', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   const { sessionId } = await handshake(ws, coll);
   coll.drain();
@@ -937,7 +937,7 @@ test('uploadFile sends notification with absolute path', async (t) => {
 
 test('conduits are tracked and cleaned up on close', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   assert.equal(adapter.connections.size, 0);
 
@@ -961,11 +961,11 @@ test('conduits are tracked and cleaned up on close', async (t) => {
 
 test('postMessage sends to connection matching sessionId', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   const { sessionId } = await handshake(ws, coll);
   coll.drain();
@@ -1000,18 +1000,18 @@ test('postMessage sends chat.post to matching project and notification to cross-
   await adapter.start();
   wireTestDeps(adapter);
   const actualPort = (adapter as any)._wss.address().port;
-  t.after(() => adapter.stop());
+  t.onTestFinished(() => adapter.stop());
 
   // Connection in project-a
   const ws1 = await wsConnect(actualPort);
   const coll1 = makeFrameCollector(ws1);
-  t.after(() => ws1.close());
+  t.onTestFinished(() => ws1.close());
   await handshake(ws1, coll1, { project: 'project-a' });
 
   // Connection in project-b
   const ws2 = await wsConnect(actualPort);
   const coll2 = makeFrameCollector(ws2);
-  t.after(() => ws2.close());
+  t.onTestFinished(() => ws2.close());
   await handshake(ws2, coll2, { project: 'project-b' });
 
   // Drain handshake leftover frames
@@ -1046,11 +1046,11 @@ test('postMessage sends chat.post to matching project and notification to cross-
 
 test('openOutputStream creates TuiOutputStream for matching connection', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   const { sessionId } = await handshake(ws, coll);
   coll.drain();
@@ -1070,7 +1070,7 @@ test('openOutputStream creates TuiOutputStream for matching connection', async (
 
 test('openOutputStream on noop adapter returns noop stream', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const stream = adapter.openOutputStream(
     { type: 'system-notice' },
@@ -1089,11 +1089,11 @@ test('openOutputStream on noop adapter returns noop stream', async (t) => {
 
 test('handshake resume with unknown sessionId emits error 4003 then fresh session', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   // Send handshake.hello with a non-existent sessionId
   const unknownSessionId = crypto.randomUUID();
@@ -1125,11 +1125,11 @@ test('handshake resume with unknown sessionId emits error 4003 then fresh sessio
 
 test('session.switch with unknown sessionId creates fresh session silently', async (t) => {
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   // Normal handshake first
   const { sessionId: initialSessionId } = await handshake(ws, coll);
@@ -1180,11 +1180,11 @@ test('handshake resume with known sessionId attaches to existing session', async
   });
 
   const { adapter, port, stop } = await startEphemeralGateway();
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const ws = await wsConnect(port);
   const coll = makeFrameCollector(ws);
-  t.after(() => ws.close());
+  t.onTestFinished(() => ws.close());
 
   // Send handshake.hello with resume.sessionId pointing to known session
   sendFrame(ws, {

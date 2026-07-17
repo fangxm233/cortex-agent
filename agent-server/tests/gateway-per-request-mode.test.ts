@@ -3,7 +3,7 @@
 // pos:    Verify gateway per-request mode and cache cost
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
 
@@ -91,7 +91,7 @@ test('gateway /m/{mode}/ URL prefix selects per-request mode', async (t) => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as any).port;
 
-  t.after(() => {
+  t.onTestFinished(() => {
     server.close();
   });
 

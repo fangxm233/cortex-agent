@@ -5,7 +5,7 @@
 //         legacy (unstamped) copies under management, and never downgrade or touch unmanaged hooks.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -34,7 +34,7 @@ test('parseHookVersion extracts the stamp, or null when absent', () => {
 
 test('(a) deploys a managed hook when the destination is missing', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await fs.writeFile(path.join(src, 'h.mjs'), stamped('2026.6.8'));
 
   const updated = await syncManagedHooks({ srcDir: src, dstDir: dst });
@@ -45,7 +45,7 @@ test('(a) deploys a managed hook when the destination is missing', async (t) => 
 
 test('(b) refreshes a deployed hook when the shipped version is newer', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await fs.writeFile(path.join(src, 'h.mjs'), stamped('2026.6.8', 'export const NEW = 1;'));
   await fs.writeFile(path.join(dst, 'h.mjs'), stamped('2026.5.9', 'export const OLD = 1;'));
 
@@ -57,7 +57,7 @@ test('(b) refreshes a deployed hook when the shipped version is newer', async (t
 
 test('(c) brings a legacy UNstamped deployed hook under management (counts as oldest)', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await fs.writeFile(path.join(src, 'h.mjs'), stamped('2026.6.8', 'export const NEW = 1;'));
   await fs.writeFile(path.join(dst, 'h.mjs'), '#!/usr/bin/env node\nexport const LEGACY = 1;\n'); // no stamp
 
@@ -69,7 +69,7 @@ test('(c) brings a legacy UNstamped deployed hook under management (counts as ol
 
 test('(d) leaves a current deployed hook untouched (same version → no write)', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await fs.writeFile(path.join(src, 'h.mjs'), stamped('2026.6.8', 'export const SHIPPED = 1;'));
   await fs.writeFile(path.join(dst, 'h.mjs'), stamped('2026.6.8', 'export const LOCAL = 1;'));
 
@@ -81,7 +81,7 @@ test('(d) leaves a current deployed hook untouched (same version → no write)',
 
 test('(e) never downgrades when the deployed hook is newer than the shipped default', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await fs.writeFile(path.join(src, 'h.mjs'), stamped('2026.5.9'));
   await fs.writeFile(path.join(dst, 'h.mjs'), stamped('2026.6.8', 'export const NEWER = 1;'));
 
@@ -93,7 +93,7 @@ test('(e) never downgrades when the deployed hook is newer than the shipped defa
 
 test('(f) ignores unmanaged (unstamped) defaults — left to init copy-if-missing', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
-  t.after(cleanup);
+  t.onTestFinished(cleanup);
   await fs.writeFile(path.join(src, 'h.mjs'), '#!/usr/bin/env node\nexport const UNMANAGED = 1;\n'); // no stamp
 
   const updated = await syncManagedHooks({ srcDir: src, dstDir: dst });

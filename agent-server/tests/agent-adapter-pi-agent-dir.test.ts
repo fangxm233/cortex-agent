@@ -2,7 +2,7 @@
 // output: verify writeProvidersConfig multi-provider override + ensureAuthVisible symlink/copy semantics
 // pos:    Unit tests for PI agent dir helpers — no real PI spawn
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';

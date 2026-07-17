@@ -4,7 +4,7 @@
 // pos:    B2-C (task 6c5b): the tRPC-facing facade method wiring the tailer ref-count to the
 //         subscription lifecycle over the existing bounded queue.
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../../../src/events/event-bus.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';

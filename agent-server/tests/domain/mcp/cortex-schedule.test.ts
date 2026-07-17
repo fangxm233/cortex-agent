@@ -5,7 +5,7 @@
 //         not at fire — so the persisted record always shows real IDs in list output).
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { resolveTargetShorthand, type CortexContextSnapshot } from '../../../src/domain/mcp/tools/schedule.js';
 

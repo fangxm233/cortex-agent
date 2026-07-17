@@ -3,7 +3,7 @@
 //         stream text collection, visible-window computation
 // pos:    Guards the behavioral fixes for input/focus/scroll defects
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   computeFocusZone,

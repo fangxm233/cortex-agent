@@ -3,7 +3,7 @@
 // pos:    DR-0008 §4.5 PI fixture regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 
 import {
   replayPiFixture,

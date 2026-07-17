@@ -4,7 +4,7 @@
 //         (print-mode) path — a pre-registered sessionId must NOT trigger --resume
 //         until Claude has actually written a transcript for it.
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { resolveResumeForPrint } from '../../src/agent-adapter/claude/adapter.js';
 

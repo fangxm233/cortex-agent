@@ -3,7 +3,7 @@
 // pos:    asserts the REAL interruption point records a resume + leaves the thread resumable
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons to a temp CORTEX_HOME
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { threadStore } from '../../src/store/thread-repo.js';
 import { recordStepOutcome, buildThreadSummary, resumeRateLimitedThread } from '../../src/domain/threads/runner.js';
@@ -35,8 +35,8 @@ async function activateThrottle() {
   await throttle.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.99, resetsAt: Math.floor(Date.now() / 1000) + 3000 }, 'plan');
 }
 
-function cleanup(t: import('node:test').TestContext) {
-  t.after(() => { throttle._testReset(); resumeRegistry._testReset(); });
+function cleanup(t: { onTestFinished: (fn: () => unknown) => void }) {
+  t.onTestFinished(() => { throttle._testReset(); resumeRegistry._testReset(); });
 }
 
 test('markThreadRateLimited pauses without terminalizing (idempotent)', async (t) => {

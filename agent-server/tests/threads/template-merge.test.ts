@@ -2,7 +2,7 @@
 // from the defaults thread-templates/ dir into the user's config dir: new entity files propagate,
 // existing user files are never overwritten (aligned with plugin-sync semantics).
 
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, mkdtempSync } from 'fs';
 import { join } from 'path';

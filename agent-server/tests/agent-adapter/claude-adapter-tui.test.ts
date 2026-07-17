@@ -3,7 +3,7 @@
 // pos:    DR-0012 Phase 2 — TUI adapter state-machine regression tests (mocked tmux + jsonl tail)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
@@ -102,7 +102,7 @@ function makeSession(deps: TuiSessionDeps, overrides: Partial<ConstructorParamet
 test('first sendMessage spawns tmux with --session-id and starts the jsonl tail', async (t) => {
   const { deps, tmuxCalls, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const turnPromise = sess.sendMessage('hello', {});
   // sendMessage is async — let the spawn + paste happen
@@ -130,7 +130,7 @@ test('first sendMessage spawns tmux with --session-id and starts the jsonl tail'
 test('first sendMessage with needsResume=true uses --resume instead of --session-id', async (t) => {
   const { deps, tmuxCalls, tails } = makeDeps();
   const sess = makeSession(deps, { needsResume: true });
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const turnPromise = sess.sendMessage('hi', {});
   await new Promise(r => setImmediate(r));
@@ -147,7 +147,7 @@ test('first sendMessage with needsResume=true uses --resume instead of --session
 test('sendMessage pastes the prompt text and submits with Enter', async (t) => {
   const { deps, tmuxCalls, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const turnPromise = sess.sendMessage('my prompt here', {});
   await new Promise(r => setImmediate(r));
@@ -179,7 +179,7 @@ test('sendMessage delays Enter after paste so the Ink TUI registers the brackete
     paneReadyTimeoutMs: 0,
   };
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const turnPromise = sess.sendMessage('hi', {});
   await new Promise(r => setImmediate(r));
@@ -201,7 +201,7 @@ test('sendMessage delays Enter after paste so the Ink TUI registers the brackete
 test('turn resolves with sessionId / num_turns / total_cost_usd populated from cost_record', async (t) => {
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const turnPromise = sess.sendMessage('hi', {});
   await new Promise(r => setImmediate(r));
@@ -229,7 +229,7 @@ test('turn resolves with sessionId / num_turns / total_cost_usd populated from c
 test('turn aggregates multiple assistant messages — finalOutput is the last text block', async (t) => {
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const turnPromise = sess.sendMessage('hi', {});
   await new Promise(r => setImmediate(r));
@@ -265,7 +265,7 @@ test('turn aggregates multiple assistant messages — finalOutput is the last te
 test('onAssistantMessage / onToolUse / onProgress callbacks fire per event', async (t) => {
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const messages: string[] = [];
   const tools: Array<{ name: string; input: any }> = [];
@@ -305,7 +305,7 @@ test('onAssistantMessage / onToolUse / onProgress callbacks fire per event', asy
 test('result carries enteredPlanMode + planFilePath when plan tools observed', async (t) => {
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const turnPromise = sess.sendMessage('plan something', {});
   await new Promise(r => setImmediate(r));
@@ -333,7 +333,7 @@ test('result does NOT collect askUserQuestions from self-resolving MCP cortex_as
   // tool_use via onToolUse for the tool trace.
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const tools: Array<{ name: string }> = [];
   const turnPromise = sess.sendMessage('ask me', { onToolUse: (name) => tools.push({ name }) });
@@ -366,7 +366,7 @@ test('result does NOT collect askUserQuestions from self-resolving MCP cortex_as
 test('cancelCurrentTurn sends Escape then C-u then rejects pending turn', async (t) => {
   const { deps, tmuxCalls, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const turnPromise = sess.sendMessage('long task', {});
   await new Promise(r => setImmediate(r));
@@ -386,7 +386,7 @@ test('cancelCurrentTurn sends Escape then C-u then rejects pending turn', async 
 test('cancelCurrentTurn is a no-op when no turn is in flight', async (t) => {
   const { deps } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   // Spawn-then-await a clean turn first
   const p = sess.sendMessage('x', {});
@@ -419,7 +419,7 @@ test('kill() invokes tmux kill-session and rejects pending turns', async (t) => 
 test('isAlive() reflects spawn + kill lifecycle', async (t) => {
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   assert.equal(sess.isAlive(), false, 'not alive before first spawn');
   const turnPromise = sess.sendMessage('x', {});
@@ -439,7 +439,7 @@ test('isAlive() reflects spawn + kill lifecycle', async (t) => {
 test('cumulative cost accumulates correctly across multiple sequential turns', async (t) => {
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   // Turn 1
   const p1 = sess.sendMessage('q1', {});
@@ -482,7 +482,7 @@ test('cumulative cost accumulates correctly across multiple sequential turns', a
 test('onEvent callback fires for every NormalizedEvent including turn_complete', async (t) => {
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const events: any[] = [];
   const turnPromise = sess.sendMessage('hi', { onEvent: (ev) => events.push(ev) });
@@ -517,7 +517,7 @@ test('onEvent callback fires for every NormalizedEvent including turn_complete',
 test('when tmux dies between turns, second sendMessage re-spawns with --resume', async (t) => {
   const { deps, tmuxCalls, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   // Turn 1: fresh spawn → --session-id
   const p1 = sess.sendMessage('q1', {});
@@ -546,7 +546,7 @@ test('when tmux dies between turns, second sendMessage re-spawns with --resume',
 test('jsonl path follows ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl convention', async (t) => {
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps, { cwd: '/home/foo/Cortex' });
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const p = sess.sendMessage('x', {});
   await new Promise(r => setImmediate(r));
@@ -565,7 +565,7 @@ test('jsonl path encodes BOTH slashes AND dots in cwd (regression: DATA_DIR /hom
   // watch a non-existent jsonl path and time out on first turn.
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps, { cwd: '/home/foo/.cortex' });
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const p = sess.sendMessage('x', {});
   await new Promise(r => setImmediate(r));
@@ -605,7 +605,7 @@ test('first-turn tail.start() failure does not wedge the session — next sendMe
     paneReadyTimeoutMs: 0,
   };
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   // Turn 1: ensureSpawned throws because the (first) tail.start rejects.
   await assert.rejects(sess.sendMessage('q1', {}), /simulated first-turn start failure/);
@@ -638,7 +638,7 @@ test('first-event watchdog rejects the turn when no jsonl output arrives within 
     firstEventTimeoutMs: 60, // tiny fast-fail window for the test
   };
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   // Spawn + paste happen, but we never push any jsonl event → watchdog must fire.
   // The watchdog timer is unref()'d, so hold the loop open with a normal timer while it fires.
@@ -656,7 +656,7 @@ test('first-event watchdog is disarmed once the first jsonl event arrives', asyn
   const { deps, tails } = makeDeps();
   (deps as any).firstEventTimeoutMs = 80;
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   const turnPromise = sess.sendMessage('hi', {});
   await new Promise(r => setImmediate(r));
@@ -675,7 +675,7 @@ test('first-event watchdog is disarmed once the first jsonl event arrives', asyn
 test('respawn after external tmux death stops the previous jsonl tail (no double-emit leak)', async (t) => {
   const { deps, tails } = makeDeps();
   const sess = makeSession(deps);
-  t.after(() => sess.kill());
+  t.onTestFinished(() => { sess.kill(); });
 
   // Turn 1: spawn + finish
   const p1 = sess.sendMessage('q1', {});

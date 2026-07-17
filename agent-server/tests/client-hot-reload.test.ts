@@ -2,7 +2,7 @@
 // output: local-client release-update branch coverage (DI deps)
 // pos:    release-mode local cortex-client auto-update (mirror of remote path)
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   updateClientReleaseLocal,

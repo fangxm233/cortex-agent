@@ -5,7 +5,7 @@
 //         the blocking Promise after the S5 refactor
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../src/events/event-bus.js';
 import type { CortexEvent } from '../src/events/event-types.js';
@@ -138,7 +138,7 @@ test('cleanupStale resolves timed-out requests and fires the onStale callback', 
   const bus = new EventBus();
   const hb = await freshHookBridge();
   hb.initHookBridge(bus);
-  t.after(() => hb.setOnStale(null));
+  t.onTestFinished(() => hb.setOnStale(null));
 
   const stale: { requestId: string; channel: string; sessionId: string }[] = [];
   hb.setOnStale((requestId, channel, sessionId) => { stale.push({ requestId, channel, sessionId }); });

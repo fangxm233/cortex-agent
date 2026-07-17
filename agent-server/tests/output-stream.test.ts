@@ -3,7 +3,7 @@
 // pos:    Regression test for the three S1 OutputStream implementations
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { SlackOutputStream, _testSetRetryDelays, _testResetRetryDelays } from '../src/platform/adapters/slack-output-stream.js';
 import { FeishuOutputStream } from '../src/platform/adapters/feishu-output-stream.js';
@@ -30,8 +30,8 @@ function feishuStream(adapter: MockAdapter, dest?: Destination, opts?: any): Fei
   return new FeishuOutputStream(adapter as any, dest ?? testDest('C124'), opts);
 }
 
-test.beforeEach(() => { _testSetRetryDelays([0, 0, 0, 0]); });
-test.afterEach(() => { _testResetRetryDelays(); });
+beforeEach(() => { _testSetRetryDelays([0, 0, 0, 0]); });
+afterEach(() => { _testResetRetryDelays(); });
 
 // =========================================================================
 // SlackOutputStream tests

@@ -3,7 +3,7 @@
 // pos:    Verify Claude output merging logic
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { claudeTest } from '../src/domain/agents/index.js';
 const { mergeSubstantialOutput } = claudeTest;

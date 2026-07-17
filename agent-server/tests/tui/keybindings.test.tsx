@@ -2,7 +2,7 @@
 // output: Keybinding tests — verify handler invocation via ink useInput
 // pos:    Verifies Ctrl+C, Ctrl+L, arrow key handlers via stdin simulation
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { Text } from 'ink';

@@ -3,7 +3,7 @@
 // pos:    Unit tests for the zero-dependency i18n layer (L0)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { describe, it, afterEach } from 'node:test';
+import { describe, it, afterEach } from 'vitest';
 import * as assert from 'node:assert/strict';
 import { t, setLocale, getLocale, normalizeLocale, detectSystemLocale } from '../../src/core/i18n.js';
 import { en } from '../../src/core/locales/en.js';

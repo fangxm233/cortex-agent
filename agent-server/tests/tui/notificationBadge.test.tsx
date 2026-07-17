@@ -2,7 +2,7 @@
 // output: Tests — badge shows when unreadCount > 0, hides when 0
 // pos:    Verifies corner notification badge
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { Text } from 'ink';

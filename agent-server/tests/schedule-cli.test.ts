@@ -3,7 +3,7 @@
 // pos:    Verify schedule API + CLI behavior and profile persistence
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test, { before, after } from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -29,8 +29,8 @@ function snapshotProductionTaskIds(): string {
 }
 
 let productionTaskIdSnapshot = '';
-before(() => { productionTaskIdSnapshot = snapshotProductionTaskIds(); });
-after(() => {
+beforeAll(() => { productionTaskIdSnapshot = snapshotProductionTaskIds(); });
+afterAll(() => {
   const current = snapshotProductionTaskIds();
   if (current !== productionTaskIdSnapshot) {
     throw new Error(

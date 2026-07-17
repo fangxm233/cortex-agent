@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleCancelExecution } from '../../../src/domain/ui-service/mutate/executions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';

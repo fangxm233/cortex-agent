@@ -2,7 +2,7 @@
 // output: Tests — ring buffer cap 50, add, markRead, overflow eviction, unreadCount
 // pos:    Verifies notification ring buffer behavior
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   _addNotification, _markRead, _clearNotifications,

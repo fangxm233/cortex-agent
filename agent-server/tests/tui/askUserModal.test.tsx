@@ -6,7 +6,7 @@
 //   render modal → arrow-key navigate → select option → type text → submit
 //   → verify modal.submit values → verify ack error display
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { Text } from 'ink';

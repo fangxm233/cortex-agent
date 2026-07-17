@@ -4,7 +4,7 @@
 //         gateway in-use vs idle logic, and idempotent safe-fix actuation.
 // >>> If I am updated, update the parent folder's CORTEX.md <<<
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {

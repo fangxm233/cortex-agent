@@ -2,7 +2,7 @@
 // output: Tests — text+richBlocks renders once (no dup), streamed markdown is styled
 // pos:    Regressions for the doubled sealed-status line and literal-markdown reply
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

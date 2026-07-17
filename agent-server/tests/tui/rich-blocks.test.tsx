@@ -2,7 +2,7 @@
 // output: Tests — actions block renders nothing; markdown/section text is styled
 // pos:    Guards the "inert [Resume] [New] buttons removed" change + markdown wiring
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

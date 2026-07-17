@@ -4,7 +4,7 @@
 //         exit-code mapping, and --fix re-run behavior. Uses injected diag/fix deps.
 // >>> If I am updated, update the parent folder's CORTEX.md <<<
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { cmdDoctor, getDoctorHelp } from '../../src/entry/doctor-cli.js';

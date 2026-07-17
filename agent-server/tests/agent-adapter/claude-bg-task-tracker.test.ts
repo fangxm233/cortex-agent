@@ -3,7 +3,7 @@
 // pos:    CC backend background-task continuation tracking unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { BgTaskTracker, isContinuationResult, routeLine } from '../../src/agent-adapter/claude/bg-task-tracker.js';

@@ -3,7 +3,7 @@
 // pos:    Validate the rate-limit resume registry (interrupted session/thread bookkeeping)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { importFresh } from './module-loader.js';
 
@@ -21,9 +21,9 @@ async function freshModule() {
   return await importFresh('./../src/domain/costs/resume-registry.js') as typeof import('../src/domain/costs/resume-registry.js');
 }
 
-async function freshModuleWithCleanup(t: import('node:test').TestContext) {
+async function freshModuleWithCleanup(t: { onTestFinished: (fn: () => unknown) => void }) {
   const mod = await freshModule();
-  t.after(() => mod._testReset());
+  t.onTestFinished(() => mod._testReset());
   return mod;
 }
 

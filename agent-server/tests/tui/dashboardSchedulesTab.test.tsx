@@ -2,7 +2,7 @@
 // output: Tests — pause/resume/remove mutation paths, row navigation, error display
 // pos:    Verifies per-row keybinds and ConfirmModal integration for M3 schedules tab
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

@@ -2,7 +2,7 @@
 // output: regression tests — mark/check/clear lifecycle + edit-cancel race [S6-B]
 // pos:    verifies SupersededEdits state transitions and idempotent clear
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { supersededEdits } from '../../src/orchestration/superseded-edits.js';
 

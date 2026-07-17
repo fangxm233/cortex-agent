@@ -3,7 +3,7 @@
 // pos:    Guards the "No conversation found with session ID" bug (pre-registered TUI sessionId
 //         made the orchestrator request --resume on a transcript that does not exist yet)
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { resolveTuiResume } from '../../src/agent-adapter/claude/adapter-tui.js';
 

@@ -3,7 +3,7 @@
 // pos:    verifies store/profile-repo.ts Pattern A guarantees
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -15,11 +15,11 @@ import type { ProfilesFile } from '../../src/domain/agents/profile-manager.js';
 
 let tmpDir: string;
 
-test.before(async () => {
+beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-profile-repo-test-'));
 });
 
-test.after(async () => {
+afterAll(async () => {
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
@@ -161,7 +161,7 @@ test('startProfileWatcher - invalidates cache and reloads on file change', async
   assert.equal(initial.defaultProfile, 'a');
 
   const stop = startProfileWatcher(repo, filePath);
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   const updated: ProfilesFile = {
     defaultProfile: 'hot-loaded',
@@ -201,7 +201,7 @@ test('startProfileWatcher - logs and keeps old cache when reloaded file is inval
   const initial = repo.readSync();
 
   const stop = startProfileWatcher(repo, filePath);
-  t.after(() => stop());
+  t.onTestFinished(() => stop());
 
   // Write invalid JSON to the file.
   await fs.writeFile(filePath, '{ not valid json !!!');

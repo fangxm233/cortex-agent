@@ -3,7 +3,7 @@
 //         dailyCost 14-day series / byTriggerScoped project-scoped where-it-goes)
 // pos:    verifies domain/costs/cost-tracker.ts getCostSummary real-data extensions (task c489)
 
-import test from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -47,7 +47,7 @@ function makeEntry(o: Partial<CostEntry> & { timestamp: string; project: string;
   };
 }
 
-test.before(async () => {
+beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-cost-summary-test-'));
   costsPath = path.join(tmpDir, 'costs.jsonl');
   budgetPath = path.join(tmpDir, 'budget.json');
@@ -71,7 +71,7 @@ test.before(async () => {
   costRepo._testReset(); // re-resolve paths from the env vars set above
 });
 
-test.after(async () => {
+afterAll(async () => {
   delete process.env.CORTEX_COSTS_FILE;
   delete process.env.CORTEX_BUDGET_FILE;
   costRepo._testReset();

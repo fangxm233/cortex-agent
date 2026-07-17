@@ -31,8 +31,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bash scripts/run-tests.sh",
     "test:quick": "bash scripts/run-tests.sh --quick",
-    "test:integration": "node --import tsx --test tests/integration-init-startup.test.ts",
-    "test:file": "node --import tsx --import ./tests/_test-home.ts --test",
+    "test:integration": "pnpm exec vitest run --config vitest.integration.config.ts",
+    "test:file": "pnpm exec vitest run",
     "depcruise": "npx depcruise src --validate",
     "lint:no-slack-shortcodes": "node --import tsx scripts/lint-no-slack-shortcodes.ts"
   },
@@ -67,7 +67,9 @@
     "ink-testing-library": "^4.0.0",
     "tsc-alias": "^1.8.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^2.1.9"
   },
   "repository": "https://github.com/fangxm233/cortex-agent",
   "keywords": [

@@ -2,7 +2,7 @@
 // These tests import directly from the new module paths (not via the thread-manager.ts shim)
 // to verify the split is importable and core pure functions work correctly.
 
-import test, { before, after } from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
@@ -16,11 +16,11 @@ import { threadStore } from '../../src/store/thread-repo.js';
 
 const createdThreadIds = new Set<string>();
 
-before(() => {
+beforeAll(() => {
   loadConfig();
 });
 
-after(async () => {
+afterAll(async () => {
   for (const id of createdThreadIds) await threadStore.delete(id);
   await threadStore.flush();
 });

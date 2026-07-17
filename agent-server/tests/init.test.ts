@@ -3,7 +3,7 @@
 //         backend detection, gateway usage config generation
 // pos:    Validate cortex init pure logic before filesystem integration
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import * as os from 'node:os';

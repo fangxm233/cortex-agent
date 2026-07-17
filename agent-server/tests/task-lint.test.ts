@@ -3,7 +3,7 @@
 // pos:    Ensure lint throws error when X in [template:X] does not exist
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { lintTasks } from '../src/domain/tasks/lint.js';
 

@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import test, { before, after } from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -16,7 +16,7 @@ import { threadStore } from '../src/store/thread-repo.js';
 const createdThreadIds = new Set<string>();
 const projectDirs: string[] = [];
 
-before(() => {
+beforeAll(() => {
   // The isolated test home has no thread-templates config — seed from shipped defaults dir
   // (same path app startup takes) so 'manager' / 'coder-review' resolve.
   mergeThreadTemplates(
@@ -26,7 +26,7 @@ before(() => {
   loadConfig();
 });
 
-after(async () => {
+afterAll(async () => {
   for (const id of createdThreadIds) await threadStore.delete(id);
   await threadStore.flush();
   for (const d of projectDirs) { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} }

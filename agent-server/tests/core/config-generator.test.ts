@@ -2,7 +2,7 @@
 // output: verify MCP config builder functions produce correct structure
 // pos:    Validate config-generator pure logic (builders only, no filesystem)
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { buildFullConfig, buildCoreConfig, buildTuiConfig, buildFeishuConfig, buildWebConfig } from '../../src/core/config-generator.js';

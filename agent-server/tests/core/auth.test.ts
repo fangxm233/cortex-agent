@@ -3,7 +3,7 @@
 // pos:    Regression guard for WS/webhook shared-secret auth (no-Cloudflare auth model)
 // >>> If I am updated, update me and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs';
 import * as os from 'node:os';
@@ -35,7 +35,7 @@ test('timingSafeEqualStr returns true only for equal non-empty strings', () => {
 
 function tmpEnvPath(t: any): string {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
   return path.join(dir, '.env');
 }
 

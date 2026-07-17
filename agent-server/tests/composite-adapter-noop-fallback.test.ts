@@ -3,7 +3,7 @@
 // pos:    Regression test: postMessage/updateMessage no longer throw for unowned conduits
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { CompositeAdapter } from '../src/platform/adapters/composite-adapter.js';
 import { MockAdapter } from '../src/platform/testing.js';

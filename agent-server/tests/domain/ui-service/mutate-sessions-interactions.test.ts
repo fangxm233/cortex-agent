@@ -1,7 +1,7 @@
 // input:  handleAnswerQuestion / handleRespondPlan + fake deps
 // output: unit tests for the interaction mutations' three-way outcome
 //         (resolved / already-resolved / not-found) — web-interactions-redesign plan
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleAnswerQuestion, handleRespondPlan } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';

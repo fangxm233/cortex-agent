@@ -2,7 +2,7 @@
 // output: verify help text, subcommand routing, error handling
 // pos:    Validate cortex CLI dispatcher pure logic
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { getCliHelp, runCli } from '../src/entry/cli.js';
 

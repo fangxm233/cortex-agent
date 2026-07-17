@@ -3,7 +3,7 @@
 // pos:    SlackAdapter platform-layer coalescing + rate limit regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { SlackAdapter } from '../src/platform/adapters/slack.js';
 import { TokenBucketRateLimiter } from '../src/platform/utils/rate-limiter.js';

@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleCreateSession } from '../../../src/domain/ui-service/mutate/sessions.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';

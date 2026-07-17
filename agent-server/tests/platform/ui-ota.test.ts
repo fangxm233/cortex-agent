@@ -6,7 +6,7 @@
 //         via ui-http-server customRoutes (auth-gated there); these tests exercise the handlers.
 // >>> If I am updated, update the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as crypto from 'node:crypto';
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
@@ -19,7 +19,7 @@ import {
 } from '@platform/ui-http/ui-ota.js';
 
 const tmpDirs: string[] = [];
-test.after(() => {
+afterAll(() => {
   for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
 });
 

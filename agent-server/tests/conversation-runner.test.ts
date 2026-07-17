@@ -9,7 +9,7 @@
 // artifact, no [ABORT] protocol). These tests pin that assembly so the migration does not
 // silently change every chat turn.
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { buildConversationPrompt, THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.js';
 import type { AgentSlotConfig } from '../src/core/types/thread-types.js';

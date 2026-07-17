@@ -3,7 +3,7 @@
 // pos:    Verify prompt template parsing flow
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
@@ -11,11 +11,11 @@ import { resolveTemplate } from '../src/domain/threads/template-resolver.js';
 
 const TMP_DIR = join(import.meta.dirname!, '..', 'tmp', 'test-templates');
 
-test.before(() => {
+beforeAll(() => {
   mkdirSync(TMP_DIR, { recursive: true });
 });
 
-test.after(() => {
+afterAll(() => {
   rmSync(TMP_DIR, { recursive: true, force: true });
 });
 

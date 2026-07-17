@@ -6,7 +6,7 @@
 //         bounded number of re-renders with fresh identities rather than the live loop
 //         (which would starve the event loop and hang the suite).
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

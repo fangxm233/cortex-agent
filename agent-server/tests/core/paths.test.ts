@@ -2,7 +2,7 @@
 // output: verify INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / PROJECTS_DIR / WORKSPACE_DIR / deprecated aliases
 // pos:    Verify path system refactored constant behavior
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import * as os from 'node:os';

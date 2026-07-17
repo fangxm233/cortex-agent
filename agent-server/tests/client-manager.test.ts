@@ -3,7 +3,7 @@
 // pos:    client-manager observability entry point regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test, { after } from 'node:test';
+import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { WebSocket, WebSocketServer } from 'ws';
 import {
@@ -54,7 +54,7 @@ async function waitFor(pred: () => boolean, timeoutMs = 2000): Promise<void> {
 }
 
 // A single test-suite-wide cleanup guard: if any test leaks a started server we stop it here.
-after(() => {
+afterAll(() => {
   try { stopClientManager(); } catch {}
 });
 
@@ -82,7 +82,7 @@ test('stopClientManager is idempotent — safe to call when not started', () => 
 test('start + hello handshake populates devices; stopClientManager tears everything down', async (t) => {
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   // Connect a fake client and send a hello frame.
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
@@ -116,7 +116,7 @@ test('start + hello handshake populates devices; stopClientManager tears everyth
 test('WS handshake rejects a connection with no x-cortex-token header', async (t) => {
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`); // no auth header
   const outcome = await new Promise<'open' | 'rejected'>((resolve) => {
@@ -132,7 +132,7 @@ test('WS handshake rejects a connection with no x-cortex-token header', async (t
 test('WS handshake rejects a connection with a wrong token', async (t) => {
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: { 'x-cortex-token': 'wrong-token' } });
   const outcome = await new Promise<'open' | 'rejected'>((resolve) => {
@@ -147,7 +147,7 @@ test('WS handshake rejects a connection with a wrong token', async (t) => {
 test('WS handshake accepts a connection carrying the correct token', async (t) => {
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {
@@ -261,7 +261,7 @@ test('buildRemoteInstallCommand falls back to the default when installCommand is
 //     no retry was scheduled. Combined with the WMI bug above, this caused my-pc to
 //     stay silently offline for 3 days. Fix: always schedule a retry on spawn failure.
 test('startRemoteClient schedules a retry when remote returns empty PID', async (t) => {
-  t.after(() => _testReset());
+  t.onTestFinished(() => _testReset());
 
   // Fake registry with one Windows device.
   _setMachineRegistryProviderForTesting(() => ({
@@ -276,7 +276,7 @@ test('startRemoteClient schedules a retry when remote returns empty PID', async 
 });
 
 test('startRemoteClient schedules a retry when SSH itself throws', async (t) => {
-  t.after(() => _testReset());
+  t.onTestFinished(() => _testReset());
 
   _setMachineRegistryProviderForTesting(() => ({
     'fake-linux': { cortexPath: '/home/x', gpuCount: 0, ssh: 'user@fake' },
@@ -291,7 +291,7 @@ test('startRemoteClient schedules a retry when SSH itself throws', async (t) => 
 test('sendCommand rejects pending commands when stopClientManager is called mid-flight', async (t) => {
   const port = await findEphemeralPort();
   startClientManager(port);
-  t.after(() => stopClientManager());
+  t.onTestFinished(() => stopClientManager());
 
   const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
   await new Promise<void>((resolve, reject) => {

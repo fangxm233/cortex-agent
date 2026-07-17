@@ -3,12 +3,12 @@
 // pos:    Verify GPU slot occupancy/gpu_count parsing and injection
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test, { before } from 'node:test';
+import { test, beforeAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { checkRealGpuOccupancy, filterDispatchableTasks } from '../src/domain/tasks/dispatcher.js';
 import { _testSetRegistry } from '../src/domain/tasks/dispatch-utils.js';
 
-before(() => {
+beforeAll(() => {
   _testSetRegistry({ testbox: { cortexPath: '/tmp/test', gpuCount: 2 } });
 });
 

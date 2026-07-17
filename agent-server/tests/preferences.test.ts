@@ -3,7 +3,7 @@
 // pos:    Operator display-preferences store (config/preferences.json) regression
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it, beforeEach } from 'vitest';
 import * as assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';

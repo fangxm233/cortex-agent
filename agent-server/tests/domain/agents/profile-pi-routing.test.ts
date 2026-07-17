@@ -4,7 +4,7 @@
 // pos:    PI per-provider gateway routing — decouple gateway route (mode) from PI protocol (provider)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { validateProfilesFile } from '../../../src/domain/agents/profile-manager.js';

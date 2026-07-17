@@ -6,7 +6,7 @@
 //         (along with the default-thread path) — user messages are no longer threads.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { planScheduledDispatch, type DispatchPlan } from '../src/domain/scheduling/jobs/target-dispatch.js';
 import type { ScheduleTarget } from '../src/store/schedule-repo.js';

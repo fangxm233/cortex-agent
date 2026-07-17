@@ -4,7 +4,7 @@
 //         edits) and that mode/credential gating returns the right client (or null).
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as lark from '@larksuiteoapi/node-sdk';
 import { wrapWithUserToken, buildFeishuClientFromEnv } from '../src/domain/mcp/feishu/client.js';

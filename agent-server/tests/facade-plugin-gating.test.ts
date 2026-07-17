@@ -3,7 +3,7 @@
 // pos:    Verify cortex-feishu plugin loads only for Feishu-originated sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { _test } from '../src/domain/agents/index.js';

@@ -3,7 +3,7 @@
 // pos:    Regression for the property-name mismatch that made every Cost tab read
 //         "No cost summary available" even when cost data existed.
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

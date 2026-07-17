@@ -2,7 +2,7 @@
 // output: Tests — ok-path, error-path, timeout-path, unmount-cleanup
 // pos:    Verifies ui.mutate request/response correlation
 
-import test from 'node:test';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { Text } from 'ink';
@@ -113,12 +113,12 @@ test('timeout-path: resolves with timeout error after 10s', async (t) => {
   await delay(100); // real timers — let mount settle
 
   // Enable mock timers AFTER mount so React/Ink internals are unaffected
-  t.mock.timers.enable({ apis: ['setTimeout'] });
+  vi.useFakeTimers({ toFake: ['setTimeout'] });
 
   const promise = state.mutate!('task.claim', { taskId: 't1' });
 
   // Advance past the 10s timeout
-  t.mock.timers.tick(10000);
+  vi.advanceTimersByTime(10000);
 
   const result = await promise;
   assert.equal(result.ok, false);
@@ -127,7 +127,7 @@ test('timeout-path: resolves with timeout error after 10s', async (t) => {
     assert.equal(result.error.message, 'no ui.mutateResult within 10s');
   }
 
-  t.mock.timers.reset();
+  vi.useRealTimers();
   instance.unmount();
   instance.cleanup();
 });

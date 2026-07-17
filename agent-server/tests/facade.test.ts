@@ -7,7 +7,7 @@
 // await import() (not importFresh) so facade imports the same module instance and
 // sees the injected state. _testReset() before/after each test prevents leakage.
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { MockAdapter } from '../src/platform/testing.js';
 
@@ -44,7 +44,7 @@ async function initThrottle(modes: string[]) {
 test('allConfigsRateLimited returns false when not throttled', async (t) => {
   const rl = await getRl();
   rl._testReset();
-  t.after(() => rl._testReset());
+  t.onTestFinished(() => rl._testReset());
 
   const facade = await import('../src/domain/agents/facade.js');
   assert.equal(facade.allConfigsRateLimited('plan'), false);
@@ -56,7 +56,7 @@ test('allConfigsRateLimited returns true when all modes in profile are rate-limi
   // plan profile: mode=plan, fallback=[{mode:api}, {mode:plan}]
   // Need plan and api both rate-limited
   const rl = await initThrottle(['plan', 'api']);
-  t.after(() => rl._testReset());
+  t.onTestFinished(() => rl._testReset());
 
   const facade = await import('../src/domain/agents/facade.js');
   assert.equal(facade.allConfigsRateLimited('plan'), true);
@@ -66,7 +66,7 @@ test('allConfigsRateLimited returns false when only some modes rate-limited', as
   // plan profile: mode=plan, fallback=[api, plan]
   // Only rate-limit plan — api still available
   const rl = await initThrottle(['plan']);
-  t.after(() => rl._testReset());
+  t.onTestFinished(() => rl._testReset());
 
   const facade = await import('../src/domain/agents/facade.js');
   assert.equal(facade.allConfigsRateLimited('plan'), false);
@@ -75,7 +75,7 @@ test('allConfigsRateLimited returns false when only some modes rate-limited', as
 test('allConfigsRateLimited returns false on unknown profile', async (t) => {
   await initThrottle(['plan']);
   const rl = await getRl();
-  t.after(() => rl._testReset());
+  t.onTestFinished(() => rl._testReset());
 
   const facade = await import('../src/domain/agents/facade.js');
   // Unknown profile — catch in resolveProfileConfig -> return false (conservative)
@@ -87,7 +87,7 @@ test('allConfigsRateLimited returns false on unknown profile', async (t) => {
 test('runAgent single-config path skips runAgentOnce when mode rate-limited', async (t) => {
   // scan profile has no fallback (single config, mode=plan)
   const rl = await initThrottle(['plan']);
-  t.after(() => rl._testReset());
+  t.onTestFinished(() => rl._testReset());
 
   const facade = await import('../src/domain/agents/facade.js');
   const handle = facade.runAgent('test', { profileName: 'scan' });
@@ -103,7 +103,7 @@ test('runAgent fallback loop skips rate-limited configs and returns synthetic re
   // plan profile: mode=plan, fallback=[mode=api, mode=plan]
   // Rate-limit both plan and api — all 3 configs skipped
   const rl = await initThrottle(['plan', 'api']);
-  t.after(() => rl._testReset());
+  t.onTestFinished(() => rl._testReset());
 
   const facade = await import('../src/domain/agents/facade.js');
   const handle = facade.runAgent('test', { profileName: 'plan' });
@@ -117,7 +117,7 @@ test('runAgent fallback loop skips rate-limited configs and returns synthetic re
 
 test('runAgent fallback loop calls onFallback for each skipped config', async (t) => {
   const rl = await initThrottle(['plan', 'api']);
-  t.after(() => rl._testReset());
+  t.onTestFinished(() => rl._testReset());
 
   const facade = await import('../src/domain/agents/facade.js');
   const fallbackCalls: Array<{ current: any; next: any; result: any }> = [];

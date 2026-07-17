@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first — isolates CORTEX_HOME
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import type { MachineInfo } from '../src/domain/ui-service/types.js';
 import { handleMachinesList } from '../src/domain/ui-service/query/machines.js';

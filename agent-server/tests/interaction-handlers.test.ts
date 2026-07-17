@@ -3,7 +3,7 @@
 // pos:    verifies BLK-1 fix: ask-user.answered published with correct payload before hook resolution
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../src/events/event-bus.js';
 import type { CortexEvent } from '../src/events/event-types.js';

@@ -2,7 +2,7 @@
 // output: Regression — Ctrl-modified keys must not leak a character into the input
 // pos:    Guards the "Ctrl+D opens dashboard but leaves a stray 'd' in the input box" bug
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { render } from 'ink-testing-library';

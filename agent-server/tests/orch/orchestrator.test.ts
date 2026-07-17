@@ -4,7 +4,7 @@
 //         (d) no match → agent runner; (e) both flags set → thread executor wins
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { Orchestrator } from '../../src/orchestration/orchestrator.js';
 import type { OrchMessageContext } from '../../src/orchestration/orchestrator.js';

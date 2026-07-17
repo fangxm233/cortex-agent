@@ -3,7 +3,7 @@
 // pos:    Verify cortex-run CLI parses new flags and forwards via sendCommand
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import * as path from 'node:path';
