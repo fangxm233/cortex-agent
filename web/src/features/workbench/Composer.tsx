@@ -11,6 +11,7 @@ import { useMediaViewer } from '@/features/media/MediaViewer';
 import { mediaKindOf } from '@/features/media/media-kind';
 import { fetchFileObjectUrl } from '@/lib/files';
 import { draftStorageKey, loadDraft, saveDraft, clearDraft } from './composer-draft';
+import { apiBase, authHeaders } from '@/lib/desktop-config';
 
 // Composer — extended with file attachment support (15a 附件输入与消息).
 // Three entry points for files: "+ attach" button · paste (clipboard images) · drag & drop.
@@ -79,11 +80,14 @@ async function uploadFile(
     'X-Session-Id': sessionId,
     'X-File-Name': encodeURIComponent(file.name),
     'Content-Type': file.type || 'application/octet-stream',
+    // Native-shell auth token (empty in browser/ui-http mode — proxy/Access supplies it).
+    ...authHeaders(),
   };
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', UPLOAD_PATH);
+    // Absolute server URL in native-shell/remote mode; relative (same-origin) in browser mode.
+    xhr.open('POST', `${apiBase()}${UPLOAD_PATH}`);
     Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
     xhr.responseType = 'json';
     signal.addEventListener('abort', () => xhr.abort());

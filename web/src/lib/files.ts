@@ -6,21 +6,9 @@
 //         with the right auth (desktop: token header; browser/ui-http: same-origin proxy/Access) and
 //         wrap them in an object URL — correct in every mode.
 
-import { readDesktopConfig } from './desktop-config';
+import { apiBase, authHeaders } from './desktop-config';
 
 const DOWNLOAD_PATH = '/api/files/download';
-
-/** Same-origin in browser/ui-http mode; absolute server URL in desktop/remote mode. */
-function apiBase(): string {
-  const cfg = readDesktopConfig();
-  return cfg ? cfg.serverUrl : '';
-}
-
-/** Auth headers for an authenticated fetch — token in desktop mode, empty (proxy/Access) otherwise. */
-function authHeaders(): Record<string, string> {
-  const cfg = readDesktopConfig();
-  return cfg ? { 'x-cortex-token': cfg.token } : {};
-}
 
 /** Build the download URL for a UI-relative `workspace/…` path. `disposition=inline` for preview. */
 export function fileDownloadUrl(relPath: string, disposition: 'inline' | 'attachment' = 'attachment'): string {

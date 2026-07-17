@@ -38,6 +38,7 @@ import { MobileThreadStepper } from '@/mobile/screens/MobileThreadStepper';
 import type { AttachmentMeta } from '@/features/workbench/chat-content';
 import { fetchFileObjectUrl } from '@/lib/files';
 import { draftStorageKey, loadDraft, saveDraft, clearDraft } from '@/features/workbench/composer-draft';
+import { apiBase, authHeaders } from '@/lib/desktop-config';
 import {
   askCardModel,
   planCardModel,
@@ -162,10 +163,13 @@ const nextId = (): string => `att_${++_uid}_${Date.now()}`;
 function uploadFile(file: File, sessionId: string, onProgress: (pct: number) => void): Promise<AttachmentMeta> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', UPLOAD_PATH);
+    // Absolute server URL in native-shell/remote mode; relative (same-origin) in browser mode.
+    xhr.open('POST', `${apiBase()}${UPLOAD_PATH}`);
     xhr.setRequestHeader('X-Session-Id', sessionId);
     xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    // Native-shell auth token (no-op in browser/ui-http mode — proxy/Access supplies it).
+    Object.entries(authHeaders()).forEach(([k, v]) => xhr.setRequestHeader(k, v));
     xhr.responseType = 'json';
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));

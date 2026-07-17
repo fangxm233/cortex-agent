@@ -35,7 +35,10 @@ const TRPC_BASE_PATH = '/trpc/';
 
 /** CORS headers emitted for both preflight and regular responses from an allowed origin. */
 const CORS_ALLOW_METHODS = 'GET, POST, OPTIONS';
-const CORS_ALLOW_HEADERS = `${AUTH_HEADER}, content-type`;
+// `x-session-id` / `x-file-name` are the custom headers the file-upload route reads; the app's
+// upload is cross-origin (webview `cortexui://localhost` → server), so its CORS preflight fails
+// unless these are allow-listed alongside the auth token and content-type.
+const CORS_ALLOW_HEADERS = `${AUTH_HEADER}, content-type, x-session-id, x-file-name`;
 const CORS_MAX_AGE = '86400'; // 24 h preflight cache
 
 export interface UiHttpServerOptions {
