@@ -136,13 +136,14 @@ describe('MPlanCard — 6a 薄卡 + 4b/4c 封存', () => {
     expect(html).toContain('查看完整计划 ›');
     expect(html).not.toContain('批准并执行');
   });
-  it('4c rejected sealed: grey badge + strikethrough title + 重规划将改写 + feedback user bubble', () => {
+  it('4c rejected sealed: grey badge + strikethrough title + feedback user bubble', () => {
     const html = renderToStaticMarkup(
       <MPlanCard model={planCardModel(planDetail('rejected', { feedback: 'friction 上限压到 1.0' }), '2026-07-16T07:44:00Z')} copy={copy} {...planHandlers} />,
     );
     expect(html).toContain('已驳回');
     expect(html).toContain('line-through');
-    expect(html).toContain('重规划将改写');
+    // The "重规划将改写" / "replanning rewrites it" note was removed (commit fbf52bd2).
+    expect(html).not.toContain('重规划将改写');
     expect(html).toContain('查看原计划 ›');
     expect(html).toContain('friction 上限压到 1.0'); // real result.feedback as the user bubble
   });

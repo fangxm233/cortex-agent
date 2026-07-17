@@ -134,7 +134,9 @@ describe('DeskPlanCard — 13c', () => {
     );
     expect(html).toContain('已驳回');
     expect(html).toContain('line-through');
-    expect(html).toContain('· 重规划将改写');
+    // The "· 重规划将改写" / "replanning rewrites it" footer was removed (commit fbf52bd2) — the
+    // rejected seal is now the grey pill + strikethrough title + the user's feedback bubble.
+    expect(html).not.toContain('重规划将改写');
     expect(html).toContain('friction 上限压到 1.0');
   });
 });
