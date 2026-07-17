@@ -78,15 +78,18 @@ export function buildProjectRailRows(
   nowMs: number,
 ): ProjectRailRow[] {
   return projects.map((p, i) => {
+    const active = p.id === activeId;
     const running = runningCounts[p.id] ?? 0;
     const unread = unreadCounts[p.id] ?? 0;
     const hasBadge = running > 0 || unread > 0;
     const activityMs = lastActivity[p.id];
-    const idleAge = !hasBadge && typeof activityMs === 'number' ? relativeAge(activityMs, nowMs) : null;
+    // The active row never shows an age — its trailing sub-line carries the ⌘k echo instead.
+    const idleAge =
+      !active && !hasBadge && typeof activityMs === 'number' ? relativeAge(activityMs, nowMs) : null;
     return {
       id: p.id,
       initials: projectInitials(p.id),
-      active: p.id === activeId,
+      active,
       running,
       unread,
       hotkey: idleAge === null && i < 9 ? '⌘' + (i + 1) : null,

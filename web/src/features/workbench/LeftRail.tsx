@@ -120,6 +120,17 @@ export function LeftRail(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Keep the active row visible inside the zone's internal scroller (20 real projects vs the
+  // design's 4 — without this a switch via ⌘k or derivation can leave the active row folded).
+  const projectsScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!activeProjectId) return;
+    const el = projectsScrollRef.current?.querySelector(
+      `[data-project-row="${CSS.escape(activeProjectId)}"]`,
+    );
+    el?.scrollIntoView({ block: 'nearest' });
+  }, [activeProjectId, projectRows.length]);
+
   // Draggable divider: adjusts the PROJECTS zone height (rows scroll internally, header pinned).
   const [zoneH, setZoneH] = useState(initialZoneH);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
@@ -272,7 +283,7 @@ export function LeftRail(): JSX.Element {
             +
           </span>
         </div>
-        <div style={{ maxHeight: zoneH, overflowY: 'auto' }}>
+        <div ref={projectsScrollRef} style={{ maxHeight: zoneH, overflowY: 'auto' }}>
           {projectRows.map((row) => {
             const rowKey = 'proj:' + row.id;
             if (row.active) {

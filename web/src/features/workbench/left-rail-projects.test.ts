@@ -149,4 +149,12 @@ describe('buildProjectRailRows', () => {
     expect(rows[0].idleAge).toBeNull();
     expect(rows[0].running).toBe(0);
   });
+
+  it('the ACTIVE row never trades its hotkey for an idle age (sub-line shows ⌘k, mock L66)', () => {
+    const activity = { 'quad-nav-sim2real': NOW - 2 * 3_600_000 };
+    const rows = buildProjectRailRows(projects, 'quad-nav-sim2real', {}, {}, activity, NOW);
+    expect(rows[0].active).toBe(true);
+    expect(rows[0].idleAge).toBeNull();
+    expect(rows[0].hotkey).toBe('⌘1');
+  });
 });
