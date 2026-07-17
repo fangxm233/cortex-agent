@@ -1,6 +1,6 @@
 # Web/Mobile 交互卡片(ask-user / plan-approval)根本性重设计
 
-Status: proposal (2026-07-16, 未实施)
+Status: implemented (2026-07-16, commit b2c37324 — Step 2 完整落地;等待 server 重启 + 客户端更新生效)
 Supersedes: web-persist-interactions.md, web-persist-interactions-v2.md, web-ask-user-fixes.md
 
 ## 症状 → 根因对照
