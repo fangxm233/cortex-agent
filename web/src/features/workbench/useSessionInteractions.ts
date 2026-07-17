@@ -3,19 +3,45 @@
 // MChatView (1m/1n) already renders. User responses route through the new tRPC mutations
 // `sessions.answerQuestion` / `sessions.respondPlan` which resolve the blocked MCP tool on
 // the server.
+//
+// State is cached in a module-level Map keyed by sessionId so it survives navigation within
+// the SPA (e.g. switching tabs on mobile then returning to the chat). The SSE subscription
+// re-establishes on mount; pending interactions are hydrated from the cache.
 
 import { useEffect, useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
-import type { AskQuestionCardData, PlanCardData } from '@/mobile/v3/m-chat-vm';
+import type { AskQuestionCardData, AnsweredQuestionRow, PlanCardData } from '@/mobile/v3/m-chat-vm';
 
 export interface SessionInteractionsState {
   pendingQuestion: AskQuestionCardData | null;
   pendingPlan: PlanCardData | null;
+  answeredQuestions: AnsweredQuestionRow[];
   onAnswerQuestion: (optionLabel: string) => void;
   onApprovePlan: () => void;
   onRejectPlan: () => void;
 }
+
+// ── Module-level cache (survives navigation within the SPA) ──────────────────
+
+interface InteractionCache {
+  pendingQuestion: (AskQuestionCardData & { _requestId: string; _questions: { question: string }[] }) | null;
+  pendingPlan: (PlanCardData & { _requestId: string }) | null;
+  answered: AnsweredQuestionRow[];
+}
+
+const cache = new Map<string, InteractionCache>();
+
+function getCache(sessionId: string): InteractionCache {
+  let c = cache.get(sessionId);
+  if (!c) {
+    c = { pendingQuestion: null, pendingPlan: null, answered: [] };
+    cache.set(sessionId, c);
+  }
+  return c;
+}
+
+// ── Event payload types ──────────────────────────────────────────────────────
 
 interface RawAskUserPayload {
   sessionId?: string;
@@ -30,22 +56,36 @@ interface RawPlanPayload {
   planFilePath?: string | null;
 }
 
+// ── Hook ─────────────────────────────────────────────────────────────────────
+
 export function useSessionInteractions(sessionId: string): SessionInteractionsState {
   const trpc = useTRPC();
   const client = useTRPCClient();
-  const [pendingQuestion, setPendingQuestion] = useState<(AskQuestionCardData & { _requestId: string; _questions: { question: string }[] }) | null>(null);
-  const [pendingPlan, setPendingPlan] = useState<(PlanCardData & { _requestId: string }) | null>(null);
 
-  const answerMut = useMutation(trpc.sessions.answerQuestion.mutationOptions({
-    onSuccess: () => setPendingQuestion(null),
-  }));
-  const respondMut = useMutation(trpc.sessions.respondPlan.mutationOptions({
-    onSuccess: () => setPendingPlan(null),
-  }));
+  // Hydrate from cache on mount / session switch.
+  const cached = sessionId ? getCache(sessionId) : null;
+  const [pendingQuestion, setPendingQuestion] = useState<InteractionCache['pendingQuestion']>(cached?.pendingQuestion ?? null);
+  const [pendingPlan, setPendingPlan] = useState<InteractionCache['pendingPlan']>(cached?.pendingPlan ?? null);
+  const [answered, setAnswered] = useState<AnsweredQuestionRow[]>(cached?.answered ?? []);
+
+  // Sync state → cache on every change.
+  useEffect(() => {
+    if (!sessionId) return;
+    const c = getCache(sessionId);
+    c.pendingQuestion = pendingQuestion;
+    c.pendingPlan = pendingPlan;
+    c.answered = answered;
+  }, [sessionId, pendingQuestion, pendingPlan, answered]);
+
+  const answerMut = useMutation(trpc.sessions.answerQuestion.mutationOptions());
+  const respondMut = useMutation(trpc.sessions.respondPlan.mutationOptions());
 
   useEffect(() => {
-    setPendingQuestion(null);
-    setPendingPlan(null);
+    // Hydrate from cache (may have state from a previous mount).
+    const c = sessionId ? getCache(sessionId) : null;
+    setPendingQuestion(c?.pendingQuestion ?? null);
+    setPendingPlan(c?.pendingPlan ?? null);
+    setAnswered(c?.answered ?? []);
     if (!sessionId) return;
 
     const sub = client.subscribe.subscribe(
@@ -57,7 +97,7 @@ export function useSessionInteractions(sessionId: string): SessionInteractionsSt
             if (!p?.requestId || !p.questions?.length) return;
             const questions = p.questions;
             const firstQ = questions[0];
-            const card: AskQuestionCardData & { _requestId: string; _questions: { question: string }[] } = {
+            const card: InteractionCache['pendingQuestion'] = {
               id: p.requestId.slice(0, 8),
               question: firstQ.question,
               ttlLabel: null,
@@ -79,7 +119,7 @@ export function useSessionInteractions(sessionId: string): SessionInteractionsSt
             if (!p?.requestId) return;
             const content = p.planContent ?? '';
             const lines = content.split('\n').filter(Boolean);
-            const card: PlanCardData & { _requestId: string } = {
+            const card: InteractionCache['pendingPlan'] = {
               title: lines[0] || 'Plan',
               estimateLabel: null,
               steps: lines.slice(1, 6).map((text, i) => ({ n: i + 1, text })),
@@ -98,30 +138,67 @@ export function useSessionInteractions(sessionId: string): SessionInteractionsSt
 
   const onAnswerQuestion = useCallback((optionLabel: string) => {
     if (!pendingQuestion || answerMut.isPending) return;
-    // Build answers map: question text → selected option label.
-    // For a single-question card, the first question maps to the chosen label.
-    // For free-text (no options), optionLabel IS the typed text.
     const answers: Record<string, string> = {};
     for (const q of pendingQuestion._questions) {
       answers[q.question] = optionLabel;
     }
-    answerMut.mutate({ requestId: pendingQuestion._requestId, answers });
+    const summary = `${pendingQuestion.question} → ${optionLabel}`;
+    const answeredRow: AnsweredQuestionRow = {
+      id: pendingQuestion._requestId,
+      summary,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    answerMut.mutate(
+      { requestId: pendingQuestion._requestId, answers },
+      {
+        onSuccess: () => {
+          setPendingQuestion(null);
+          setAnswered((prev) => [...prev, answeredRow]);
+        },
+      },
+    );
   }, [pendingQuestion, answerMut]);
 
   const onApprovePlan = useCallback(() => {
     if (!pendingPlan || respondMut.isPending) return;
-    respondMut.mutate({ requestId: pendingPlan._requestId, approved: true });
+    const answeredRow: AnsweredQuestionRow = {
+      id: pendingPlan._requestId,
+      summary: `${pendingPlan.title} → approved`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    respondMut.mutate(
+      { requestId: pendingPlan._requestId, approved: true },
+      {
+        onSuccess: () => {
+          setPendingPlan(null);
+          setAnswered((prev) => [...prev, answeredRow]);
+        },
+      },
+    );
   }, [pendingPlan, respondMut]);
 
   const onRejectPlan = useCallback(() => {
     if (!pendingPlan || respondMut.isPending) return;
-    // For now, reject with empty feedback. A proper UI could show a text input.
-    respondMut.mutate({ requestId: pendingPlan._requestId, approved: false, feedback: '' });
+    const answeredRow: AnsweredQuestionRow = {
+      id: pendingPlan._requestId,
+      summary: `${pendingPlan.title} → rejected`,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    respondMut.mutate(
+      { requestId: pendingPlan._requestId, approved: false, feedback: '' },
+      {
+        onSuccess: () => {
+          setPendingPlan(null);
+          setAnswered((prev) => [...prev, answeredRow]);
+        },
+      },
+    );
   }, [pendingPlan, respondMut]);
 
   return {
     pendingQuestion: pendingQuestion as AskQuestionCardData | null,
     pendingPlan: pendingPlan as PlanCardData | null,
+    answeredQuestions: answered,
     onAnswerQuestion,
     onApprovePlan,
     onRejectPlan,

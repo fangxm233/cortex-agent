@@ -190,7 +190,7 @@ export function MChatScreen(): JSX.Element {
     enabled: !!sessionId,
   });
   const { liveTail, streaming, running, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
-  const { pendingQuestion, pendingPlan, onAnswerQuestion, onApprovePlan, onRejectPlan } = useSessionInteractions(sessionId);
+  const { pendingQuestion, pendingPlan, answeredQuestions, onAnswerQuestion, onApprovePlan, onRejectPlan } = useSessionInteractions(sessionId);
   // Unread write side (mirrors desktop CenterChat): viewing a session stamps it read (debounced,
   // visibility-gated), re-arming on live activity so a reply landing under the user's eyes never
   // stays unread. onSuccess invalidates sessions.list → clears the marker + project switcher badge.
@@ -356,6 +356,7 @@ export function MChatScreen(): JSX.Element {
         systemLines={systemLines}
         pendingQuestion={pendingQuestion ?? undefined}
         onAnswerQuestion={onAnswerQuestion}
+        answeredQuestions={answeredQuestions}
         pendingPlan={pendingPlan ?? undefined}
         onApprovePlan={onApprovePlan}
         onRejectPlan={onRejectPlan}

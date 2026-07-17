@@ -7,10 +7,13 @@ import { MessageStream } from './MessageStream';
 import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { Composer } from './Composer';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
+import { useSessionInteractions } from './useSessionInteractions';
 import { useMarkSessionRead } from './useMarkSessionRead';
 import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
+import { AskQuestionCard, PlanApprovalCard, AnsweredRow } from '@/mobile/v3/MChatView';
+import type { MChatCopy } from '@/mobile/v3/MChatView';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -54,6 +57,7 @@ export function CenterChat(): JSX.Element {
   });
 
   const { liveTail, streaming, running, backgroundRunning, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
+  const { pendingQuestion, pendingPlan, answeredQuestions, onAnswerQuestion, onApprovePlan, onRejectPlan } = useSessionInteractions(sessionId);
   // Unread write side: the OPEN session is being read — stamp markRead on select, on live
   // activity while viewing, and on tab re-focus (only while the document is visible).
   useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
@@ -74,6 +78,25 @@ export function CenterChat(): JSX.Element {
   // A session "has history" once it carries at least one turn — the switch rule uses this to allow
   // only same-backend profile switches on a live conversation. Live streaming counts too.
   const hasHistory = turns > 0 || liveTail.length > 0;
+
+  // Build the interactions slot for ask-user / plan-approval cards (reuses the mobile card components).
+  const interactionsCopy: MChatCopy = {
+    composerPh: '', toolCallsUnit: '', menuRename: '', menuExport: '', menuArchive: '',
+    attachCamera: '', attachLibrary: '', attachFile: '', attachFootnote: '', attachPlaceholder: '',
+    profileTitle: '', profileSubtitle: '', profileCurrent: '', profileFooter: '',
+    askPill: 'Agent question', answered: 'answered', defaultBadge: 'default',
+    planPending: 'Plan pending', approve: 'Approve', reject: 'Reject',
+    fromLabel: 'from', writeLabel: 'writes to', lineUnit: 'lines', charUnit: 'chars',
+  };
+  const interactionsSlot = (pendingQuestion || pendingPlan || answeredQuestions.length > 0) ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {answeredQuestions.map((r) => (
+        <AnsweredRow key={r.id} row={r} copy={interactionsCopy} />
+      ))}
+      {pendingQuestion && <AskQuestionCard data={pendingQuestion} copy={interactionsCopy} onAnswer={onAnswerQuestion} />}
+      {pendingPlan && <PlanApprovalCard data={pendingPlan} copy={interactionsCopy} onApprove={onApprovePlan} onReject={onRejectPlan} />}
+    </div>
+  ) : undefined;
 
   const onCmdK = () => {
     // Trigger the global ⌘K command palette (AppShell mounts it via a window keydown hook).
@@ -105,6 +128,7 @@ export function CenterChat(): JSX.Element {
         rows={rows}
         loading={!!sessionId && transcriptQuery.isPending}
         inlineThreadCard={sessionId ? <InlineThreadCardProto sessionId={sessionId} /> : undefined}
+        interactionsSlot={interactionsSlot}
       />
       <Composer
         sessionId={sessionId}

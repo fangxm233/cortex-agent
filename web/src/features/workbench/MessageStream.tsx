@@ -399,7 +399,7 @@ export function ChatRows({ rows }: { rows: ChatRow[] }): JSX.Element {
   );
 }
 
-export function MessageStream({ rows, loading, inlineThreadCard }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode }): JSX.Element {
+export function MessageStream({ rows, loading, inlineThreadCard, interactionsSlot }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionsSlot?: React.ReactNode }): JSX.Element {
   const populated = rows.length > 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   // Whether the view is currently pinned to the bottom. Starts pinned; a user scroll-up releases it,
@@ -417,7 +417,7 @@ export function MessageStream({ rows, loading, inlineThreadCard }: { rows: ChatR
   useEffect(() => {
     const el = scrollRef.current;
     if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [rows, loading]);
+  }, [rows, loading, interactionsSlot]);
 
   return (
     <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
@@ -425,6 +425,7 @@ export function MessageStream({ rows, loading, inlineThreadCard }: { rows: ChatR
         {!populated && !loading && <EmptyChat />}
         <ChatRows rows={rows} />
         {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
+        {interactionsSlot && <div style={{ marginTop: 16 }}>{interactionsSlot}</div>}
       </div>
     </div>
   );
