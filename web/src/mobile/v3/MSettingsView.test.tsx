@@ -16,6 +16,7 @@ const copy: MSettingsCopy = {
   notifySub: '推送开 · 长任务 > 10m · 审批即时',
   autoResume: '限额自动续跑',
   autoResumeSub: 'rate-limit 解除后自动恢复线程',
+  language: '语言',
   platform: 'Platform',
   desktopEdit: '桌面编辑',
   templates: 'Thread templates',
@@ -41,7 +42,7 @@ function vm(over: Partial<MSettingsVm> = {}): MSettingsVm {
 
 function render(over: Partial<MSettingsVm> = {}) {
   return renderToStaticMarkup(
-    <MSettingsView vm={vm(over)} copy={copy} onBack={() => {}} onOpenDaemon={() => {}} />,
+    <MSettingsView vm={vm(over)} copy={copy} lang="zh" onSetLang={() => {}} onBack={() => {}} onOpenDaemon={() => {}} />,
   );
 }
 
@@ -91,6 +92,13 @@ describe('MSettingsView', () => {
     const html = render({ platforms: [] });
     expect(html).toContain('Platform');
     expect(html).not.toContain('（slack');
+  });
+
+  it('renders the language row with EN/中 toggle', () => {
+    const html = render();
+    expect(html).toContain('语言');
+    expect(html).toContain('EN');
+    expect(html).toContain('中');
   });
 
   it('renders the footer brand + hot-reload note without a fabricated version', () => {

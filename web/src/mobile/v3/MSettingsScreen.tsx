@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { useLang } from '@/i18n';
+import { useLang, useSetLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';
@@ -29,6 +29,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     notifySub: 'push on · long task > 10m · approvals instant',
     autoResume: 'Auto-resume on limit',
     autoResumeSub: 'resume threads after rate-limit clears',
+    language: 'Language',
     platform: 'Platform',
     desktopEdit: 'Edit on desktop',
     templates: 'Thread templates',
@@ -49,6 +50,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     notifySub: '推送开 · 长任务 > 10m · 审批即时',
     autoResume: '限额自动续跑',
     autoResumeSub: 'rate-limit 解除后自动恢复线程',
+    language: '语言',
     platform: 'Platform',
     desktopEdit: '桌面编辑',
     templates: 'Thread templates',
@@ -72,6 +74,7 @@ export function MSettingsScreen() {
   const trpc = useTRPC();
   const navigate = useNavigate();
   const lang = useLang();
+  const setLang = useSetLang();
   const copy = pickCopy(lang, COPY);
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
@@ -90,6 +93,8 @@ export function MSettingsScreen() {
         <MSettingsView
           vm={vm}
           copy={copy}
+          lang={lang}
+          onSetLang={setLang}
           onBack={() => navigate('/m/project')}
           onOpenDaemon={() => navigate('/m/daemon')}
         />

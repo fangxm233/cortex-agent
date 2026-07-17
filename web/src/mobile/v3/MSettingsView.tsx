@@ -2,6 +2,7 @@
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
 import { BUILD_STAMP } from '@/lib/build-info';
+import type { Lang } from '@/i18n';
 import type { MSettingsVm } from './m-settings-vm';
 
 export interface MSettingsCopy {
@@ -17,6 +18,7 @@ export interface MSettingsCopy {
   notifySub: string;
   autoResume: string;
   autoResumeSub: string;
+  language: string; // `语言`
   platform: string; // `Platform`
   desktopEdit: string; // `桌面编辑`
   templates: string; // `Thread templates`
@@ -131,14 +133,51 @@ function DesktopPill({ children }: { children: ReactNode }) {
   );
 }
 
+// ── EN/中 segmented toggle (mirrors the desktop LeftRail footer toggle) ──────
+function LangToggle({ lang, onSetLang }: { lang: Lang; onSetLang: (l: Lang) => void }) {
+  const seg = (l: Lang, label: string) => (
+    <span
+      onClick={() => onSetLang(l)}
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        padding: '3px 10px',
+        cursor: 'pointer',
+        background: lang === l ? '#191C22' : 'transparent',
+        color: lang === l ? '#fff' : '#8A93A2',
+      }}
+    >
+      {label}
+    </span>
+  );
+  return (
+    <div
+      style={{
+        display: 'flex',
+        border: '1px solid #E7E9EE',
+        borderRadius: 6,
+        overflow: 'hidden',
+        flex: 'none',
+      }}
+    >
+      {seg('en', 'EN')}
+      {seg('zh', '中')}
+    </div>
+  );
+}
+
 export function MSettingsView({
   vm,
   copy,
+  lang,
+  onSetLang,
   onBack,
   onOpenDaemon,
 }: {
   vm: MSettingsVm;
   copy: MSettingsCopy;
+  lang: Lang;
+  onSetLang: (lang: Lang) => void;
   onBack: () => void;
   onOpenDaemon: () => void;
 }) {
@@ -236,12 +275,18 @@ export function MSettingsView({
             </div>
             <ReadOnlyToggle on={vm.notifyOn} label={copy.notify} />
           </div>
-          <div style={rowStyle(false)}>
+          <div style={rowStyle(true)}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={TITLE}>{copy.autoResume}</div>
               <div style={SUB}>{copy.autoResumeSub}</div>
             </div>
             <ReadOnlyToggle on={vm.autoResumeOn} label={copy.autoResume} />
+          </div>
+          <div style={rowStyle(false)}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={TITLE}>{copy.language}</div>
+            </div>
+            <LangToggle lang={lang} onSetLang={onSetLang} />
           </div>
         </Card>
 
