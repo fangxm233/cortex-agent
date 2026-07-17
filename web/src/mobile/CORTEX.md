@@ -57,6 +57,11 @@ the contract does not carry (never fabricated; flagged `// GAP`).
 
 ## Notes
 
+- **Image/video lightbox** (`features/media`, shared with desktop): `MediaViewerProvider` is mounted in
+  `MobileShell`; the composer chips (`MChatView` `ComposerChip`, local `URL.createObjectURL` preview)
+  and stream attachment tiles (`AttachmentTile`, auth-fetched thumbnail — user AND agent media) open the
+  full-screen **modal** previewer via `useMediaViewer().openMedia` instead of downloading / a new tab.
+  Plain files keep the download tap.
 - **Render switch**: `src/RootRouter.tsx` mounts `mobileRouter` (mobile) or the desktop `router`.
 - **Live data / no backend change**: every screen uses the existing `ui-service` tRPC contract; no
   agent-server change was needed for v3 (the contract already covered it).

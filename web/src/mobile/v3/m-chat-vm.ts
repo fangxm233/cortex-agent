@@ -123,4 +123,8 @@ export interface PendingAttachmentVM {
   /** 0-100 upload progress (scheme L774). */
   progress: number;
   status: AttachmentStatus;
+  /** 'image' | 'video' | 'file' — drives the tappable preview thumbnail on the composer chip. */
+  type?: 'image' | 'video' | 'file';
+  /** Local object URL for an image/video preview (thumbnail + tap-to-open lightbox). */
+  previewUrl?: string;
 }

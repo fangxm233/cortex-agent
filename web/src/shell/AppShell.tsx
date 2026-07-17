@@ -8,6 +8,7 @@ import { CurrentProjectProvider } from '@/features/workbench/CurrentProjectProvi
 import { SelectedSessionProvider } from '@/features/workbench/SelectedSessionProvider';
 import { NotificationProvider } from '@/features/notifications/NotificationProvider';
 import { HotUpdateProvider } from '@/features/hot-update/HotUpdateProvider';
+import { MediaViewerProvider } from '@/features/media/MediaViewer';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
 // frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
@@ -24,10 +25,12 @@ export function AppShell() {
         <ExecutionLogDrawerProvider>
           <ScheduleModalProvider>
             <ApprovalsProvider>
-              <Outlet />
-              <CommandPalette open={open} onOpenChange={setOpen} />
-              <NotificationProvider />
-              <HotUpdateProvider />
+              <MediaViewerProvider>
+                <Outlet />
+                <CommandPalette open={open} onOpenChange={setOpen} />
+                <NotificationProvider />
+                <HotUpdateProvider />
+              </MediaViewerProvider>
             </ApprovalsProvider>
           </ScheduleModalProvider>
         </ExecutionLogDrawerProvider>

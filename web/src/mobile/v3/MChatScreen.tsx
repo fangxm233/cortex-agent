@@ -139,6 +139,16 @@ interface PendingUpload {
   status: 'uploading' | 'done' | 'error';
   progress: number;
   meta?: AttachmentMeta;
+  /** 'image' | 'video' | 'file' for the composer chip preview. */
+  type: 'image' | 'video' | 'file';
+  /** Local object URL for image/video previews (revoked on remove / send). */
+  previewUrl?: string;
+}
+
+function classifyFileType(file: File): 'image' | 'video' | 'file' {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('video/')) return 'video';
+  return 'file';
 }
 
 let _uid = 0;
@@ -311,7 +321,9 @@ export function MChatScreen(): JSX.Element {
     const list = Array.from(files);
     for (const file of list) {
       const id = nextId();
-      setUploads((prev) => [...prev, { id, file, status: 'uploading', progress: 0 }]);
+      const type = classifyFileType(file);
+      const previewUrl = type === 'image' || type === 'video' ? URL.createObjectURL(file) : undefined;
+      setUploads((prev) => [...prev, { id, file, status: 'uploading', progress: 0, type, previewUrl }]);
       uploadFile(file, uploadSessionId, (pct) =>
         setUploads((prev) => prev.map((u) => (u.id === id ? { ...u, progress: pct } : u))),
       )
@@ -369,7 +381,10 @@ export function MChatScreen(): JSX.Element {
       sendMut.mutate({ sessionId, text: t, ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}) } as never);
     }
     setText('');
-    setUploads([]);
+    setUploads((prev) => {
+      prev.forEach((u) => { if (u.previewUrl) URL.revokeObjectURL(u.previewUrl); });
+      return [];
+    });
   };
 
   const onPickProfile = (name: string): void => {
@@ -441,7 +456,7 @@ export function MChatScreen(): JSX.Element {
   const title = isDraft
     ? (lang === 'zh' ? '新会话' : 'New session')
     : (active?.label ?? active?.name ?? routeParam ?? '');
-  const attachmentsVM: PendingAttachmentVM[] = uploads.map((u) => ({ id: u.id, name: u.file.name, progress: u.progress, status: u.status }));
+  const attachmentsVM: PendingAttachmentVM[] = uploads.map((u) => ({ id: u.id, name: u.file.name, progress: u.progress, status: u.status, type: u.type, previewUrl: u.previewUrl }));
 
   return (
     <>
@@ -486,7 +501,11 @@ export function MChatScreen(): JSX.Element {
         profileChipLabel={profileChipLabel(effectiveProfile, profiles)}
         onOpenProfile={() => setProfileOpen(true)}
         attachments={attachmentsVM}
-        onRemoveAttachment={(id) => setUploads((prev) => prev.filter((u) => u.id !== id))}
+        onRemoveAttachment={(id) => setUploads((prev) => {
+          const gone = prev.find((u) => u.id === id);
+          if (gone?.previewUrl) URL.revokeObjectURL(gone.previewUrl);
+          return prev.filter((u) => u.id !== id);
+        })}
         onPlus={() => setAttachMenuOpen((o) => !o)}
         attachMenuOpen={attachMenuOpen}
         onAttachClose={() => setAttachMenuOpen(false)}

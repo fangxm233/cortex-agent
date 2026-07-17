@@ -4,7 +4,10 @@ import type { ChatRow, Attachment } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { AttachmentMeta } from './chat-content';
-import { downloadFile, openFile, copyFilePath, fetchFileObjectUrl } from '@/lib/files';
+import { downloadFile, openFile, copyFilePath } from '@/lib/files';
+import { useMediaViewer } from '@/features/media/MediaViewer';
+import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
+import { mediaKindOf } from '@/features/media/media-kind';
 import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-vm';
 import type { InteractionActions } from './useInteractionActions';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
@@ -46,54 +49,38 @@ function fileExt(name: string): string {
   return i > 0 ? name.slice(i + 1).toUpperCase().slice(0, 4) : 'FILE';
 }
 
-/** Renders a single attachment thumbnail / file card for the message bubble (15a). */
-function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
-  if (a.type === 'image') {
-    return (
-      <div
-        style={{
-          position: 'relative',
-          width: 150,
-          height: 98,
-          borderRadius: 12,
-          border: '1px solid #E7E9EE',
-          background: 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
-          boxSizing: 'border-box',
-          flex: 'none',
-        }}
-      >
-        <span
-          style={{
-            position: 'absolute',
-            left: 6,
-            bottom: 5,
-            font: `500 8.5px 'IBM Plex Mono',monospace`,
-            color: '#8A93A2',
-            background: 'rgba(255,255,255,.88)',
-            padding: '1.5px 5px',
-            borderRadius: 4,
-          }}
-        >
-          {a.name}
-        </span>
-      </div>
-    );
-  }
-
-  if (a.type === 'video') {
-    return (
-      <div
-        style={{
-          position: 'relative',
-          width: 150,
-          height: 98,
-          borderRadius: 12,
-          border: '1px solid #E7E9EE',
-          background: 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
-          boxSizing: 'border-box',
-          flex: 'none',
-        }}
-      >
+/** Real thumbnail (image/video) that opens the media lightbox on click — used by the sent-user-message
+ *  bubble (15a). The bytes are auth-fetched into an object URL (a plain <img>/<video src> can't send
+ *  the token). Clicking raises the in-app modal (no new tab). */
+function MediaThumb({ a, width, height }: { a: { name: string; path: string; type: 'image' | 'video' | 'file' }; width: number; height: number }): JSX.Element {
+  const kind = mediaKindOf(a.type)!;
+  const { openMedia } = useMediaViewer();
+  const url = useWorkspaceObjectUrl(a.path);
+  return (
+    <div
+      role="button"
+      title={a.name}
+      onClick={() => openMedia({ kind, name: a.name, path: a.path })}
+      style={{
+        position: 'relative',
+        width,
+        height,
+        borderRadius: 12,
+        border: '1px solid #E7E9EE',
+        background: url ? '#000' : 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
+        boxSizing: 'border-box',
+        flex: 'none',
+        overflow: 'hidden',
+        cursor: 'pointer',
+      }}
+    >
+      {url && kind === 'image' && (
+        <img src={url} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      )}
+      {url && kind === 'video' && (
+        <video src={url} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      )}
+      {kind === 'video' && (
         <span
           style={{
             position: 'absolute',
@@ -115,22 +102,34 @@ function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
         >
           ▶
         </span>
-        <span
-          style={{
-            position: 'absolute',
-            right: 6,
-            bottom: 5,
-            font: `500 8.5px 'IBM Plex Mono',monospace`,
-            color: '#fff',
-            background: 'rgba(25,28,34,.72)',
-            padding: '1.5px 5px',
-            borderRadius: 4,
-          }}
-        >
-          0:38
-        </span>
-      </div>
-    );
+      )}
+      <span
+        style={{
+          position: 'absolute',
+          left: 6,
+          bottom: 5,
+          maxWidth: width - 12,
+          font: `500 8.5px 'IBM Plex Mono',monospace`,
+          color: '#8A93A2',
+          background: 'rgba(255,255,255,.88)',
+          padding: '1.5px 5px',
+          borderRadius: 4,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          boxSizing: 'border-box',
+        }}
+      >
+        {a.name}
+      </span>
+    </div>
+  );
+}
+
+/** Renders a single attachment thumbnail / file card for the message bubble (15a). */
+function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
+  if (a.type === 'image' || a.type === 'video') {
+    return <MediaThumb a={a} width={150} height={98} />;
   }
 
   // File card
@@ -237,38 +236,47 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
   );
 }
 
-/** 20a image — real inline preview (≤320px) fetched with auth into an object URL; hover download. */
-function AgentImagePreview({ a }: { a: Attachment }): JSX.Element {
+/** 20a image/video — real inline preview (≤320px) fetched with auth into an object URL; click opens
+ *  the media lightbox (no new tab), hover reveals a download button. */
+function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
   const L = useVocab();
-  const [url, setUrl] = useState<string | null>(null);
+  const kind = mediaKindOf(a.type)!;
+  const { openMedia } = useMediaViewer();
+  const url = useWorkspaceObjectUrl(a.path);
   const [hover, setHover] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    let created: string | null = null;
-    fetchFileObjectUrl(a.path, 'inline').then((u) => { if (alive) { created = u; setUrl(u); } }).catch(() => {});
-    return () => { alive = false; if (created) URL.revokeObjectURL(created); };
-  }, [a.path]);
   return (
     <div
+      role="button"
+      title={a.name}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onClick={() => openMedia({ kind, name: a.name, path: a.path })}
       style={{
         position: 'relative', maxWidth: 320, borderRadius: 12, border: '1px solid #E7E9EE',
-        overflow: 'hidden', boxSizing: 'border-box',
-        background: url ? '#fff' : 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
+        overflow: 'hidden', boxSizing: 'border-box', cursor: 'pointer',
+        background: url ? '#000' : 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
       }}
     >
-      {url ? (
+      {url && kind === 'image' && (
         <img src={url} alt={a.name} style={{ display: 'block', maxWidth: 320, maxHeight: 240, width: 'auto', height: 'auto' }} />
-      ) : (
-        <div style={{ width: 320, height: 180 }} />
+      )}
+      {url && kind === 'video' && (
+        <video src={url} muted playsInline preload="metadata" style={{ display: 'block', maxWidth: 320, maxHeight: 240, width: 'auto', height: 'auto' }} />
+      )}
+      {!url && <div style={{ width: 320, height: 180 }} />}
+      {kind === 'video' && (
+        <span
+          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 40, height: 40, borderRadius: '50%', background: 'rgba(25,28,34,.72)', color: '#fff', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 3, boxSizing: 'border-box' }}
+        >
+          ▶
+        </span>
       )}
       <span style={{ position: 'absolute', left: 8, bottom: 7, font: `500 8.5px ${mono}`, color: '#8A93A2', background: 'rgba(255,255,255,.88)', padding: '1.5px 5px', borderRadius: 4 }}>{a.name}</span>
       {hover && (
         <span
           role="button"
           title={L.wbFileDownload}
-          onClick={() => void downloadFile(a.path, a.name)}
+          onClick={(e) => { e.stopPropagation(); void downloadFile(a.path, a.name); }}
           style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 7, background: 'rgba(25,28,34,.78)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}
         >
           ↓
@@ -278,17 +286,17 @@ function AgentImagePreview({ a }: { a: Attachment }): JSX.Element {
   );
 }
 
-/** 20a file group — hung under the agent text, left-aligned, ≤75% width. Images inline first, then
- *  file cards; a "download all" affordance appears for groups of ≥3. */
+/** 20a file group — hung under the agent text, left-aligned, ≤75% width. Images/videos inline first
+ *  (click → lightbox), then plain file cards; a "download all" affordance appears for groups of ≥3. */
 function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Element {
   const L = useVocab();
-  const images = attachments.filter((a) => a.type === 'image');
-  const files = attachments.filter((a) => a.type !== 'image');
+  const media = attachments.filter((a) => mediaKindOf(a.type) !== null);
+  const files = attachments.filter((a) => mediaKindOf(a.type) === null);
   return (
     <div style={{ maxWidth: '75%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 10 }}>
-      {images.length > 0 && (
+      {media.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {images.map((a, i) => <AgentImagePreview key={`img-${i}`} a={a} />)}
+          {media.map((a, i) => <AgentMediaPreview key={`media-${i}`} a={a} />)}
         </div>
       )}
       {files.map((a, i) => <AgentFileCard key={`file-${i}`} a={a} />)}

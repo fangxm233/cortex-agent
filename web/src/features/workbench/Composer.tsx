@@ -7,6 +7,8 @@ import { slashItemDispatch } from './composer-slash';
 import { formatCost } from './right-panel-vm';
 import { useSelectedSession } from './SelectedSessionProvider';
 import type { AttachmentMeta } from './chat-content';
+import { useMediaViewer } from '@/features/media/MediaViewer';
+import { mediaKindOf } from '@/features/media/media-kind';
 
 // Composer — extended with file attachment support (15a 附件输入与消息).
 // Three entry points for files: "+ attach" button · paste (clipboard images) · drag & drop.
@@ -25,6 +27,8 @@ interface PendingAttachment {
   progress: number;
   meta?: AttachmentMeta;
   errorMsg?: string;
+  /** Local object URL for image/video previews (thumbnail + lightbox); revoked on remove / send. */
+  previewUrl?: string;
 }
 
 function formatSize(bytes: number): string {
@@ -123,6 +127,7 @@ export function Composer({
   const trpc = useTRPC();
   const L = useVocab();
   const queryClient = useQueryClient();
+  const { openMedia } = useMediaViewer();
   const { selectCreatedSession } = useSelectedSession();
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
@@ -224,6 +229,9 @@ export function Composer({
       file,
       status: 'pending' as const,
       progress: 0,
+      // Local preview for image/video: a client-side object URL powers the chip thumbnail + the
+      // click-to-open lightbox (no server round-trip needed for the sender's own file).
+      previewUrl: (file.type.startsWith('image/') || file.type.startsWith('video/')) ? URL.createObjectURL(file) : undefined,
     }));
     setAttachments((prev) => [...prev, ...newAttachments]);
     // Start upload for each
@@ -235,7 +243,11 @@ export function Composer({
     const ctrl = abortControllers.current.get(id);
     if (ctrl) ctrl.abort();
     abortControllers.current.delete(id);
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
+    setAttachments((prev) => {
+      const gone = prev.find((a) => a.id === id);
+      if (gone?.previewUrl) URL.revokeObjectURL(gone.previewUrl);
+      return prev.filter((a) => a.id !== id);
+    });
   }, []);
 
   // ── Retry failed upload ──
@@ -327,7 +339,10 @@ export function Composer({
       } as any);
     }
     setComposer('');
-    setAttachments([]);
+    setAttachments((prev) => {
+      prev.forEach((a) => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
+      return [];
+    });
     setSlashOpen(false);
     abortControllers.current.forEach((c) => c.abort());
     abortControllers.current.clear();
@@ -358,22 +373,35 @@ export function Composer({
     const colors = typeColor(type);
     const ext = fileExt(a.file.name);
 
+    const kind = mediaKindOf(classifyFileType(a.file));
+    const canPreview = !!a.previewUrl && a.status !== 'uploading' && a.status !== 'error';
+
     if (isImage || isVideo) {
       return (
         <div
           key={a.id}
+          role={canPreview ? 'button' : undefined}
+          title={canPreview ? a.file.name : undefined}
+          onClick={canPreview && kind ? () => openMedia({ kind, name: a.file.name, url: a.previewUrl! }) : undefined}
           style={{
             position: 'relative',
             width: 54,
             height: 54,
             borderRadius: 8,
             border: a.status === 'error' ? '1px solid #C03D33' : '1px solid #E7E9EE',
-            background: 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
+            background: a.previewUrl ? '#000' : 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
             flex: 'none',
             boxSizing: 'border-box',
             overflow: 'hidden',
+            cursor: canPreview ? 'pointer' : 'default',
           }}
         >
+          {a.previewUrl && isImage && (
+            <img src={a.previewUrl} alt={a.file.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          )}
+          {a.previewUrl && isVideo && (
+            <video src={a.previewUrl} muted playsInline preload="metadata" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          )}
           <span
             style={{
               position: 'absolute',
@@ -411,20 +439,6 @@ export function Composer({
               >
                 ▶
               </span>
-              <span
-                style={{
-                  position: 'absolute',
-                  right: 4,
-                  bottom: 3,
-                  font: `500 8px ${mono}`,
-                  color: '#fff',
-                  background: 'rgba(25,28,34,.72)',
-                  padding: '1px 4px',
-                  borderRadius: 3,
-                }}
-              >
-                0:38
-              </span>
             </>
           )}
           {a.status === 'uploading' && (
@@ -457,7 +471,7 @@ export function Composer({
           )}
           {a.status === 'error' && (
             <span
-              onClick={() => retryAttachment(a.id)}
+              onClick={(e) => { e.stopPropagation(); retryAttachment(a.id); }}
               style={{
                 position: 'absolute',
                 inset: 0,
@@ -475,7 +489,7 @@ export function Composer({
           )}
           {/* Remove button */}
           <span
-            onClick={() => removeAttachment(a.id)}
+            onClick={(e) => { e.stopPropagation(); removeAttachment(a.id); }}
             style={{
               position: 'absolute',
               top: -5,

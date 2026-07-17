@@ -113,6 +113,11 @@ Center Chat uses its own 1:1 `InlineThreadCardProto`; kept valid for any future 
 
 ## Notes
 
+- **Image/video lightbox** (`features/media`): the composer attachment chips (`Composer`), sent-message
+  media (`MessageStream` `AttachmentCard`→`MediaThumb`) and agent-sent images/videos (`MessageStream`
+  `AgentMediaPreview`, `AgentFileGroup` now inlines video too) all render real thumbnails and open the
+  shared full-screen **modal** previewer (`useMediaViewer().openMedia`) — never a new browser tab.
+  `openFile` (new tab) now only backs non-media agent files (PDF/CSV/…).
 - **Web-only** — the S4 chat backend (`sessions.transcript` query, `sessions.send` mutate,
   `session.message` subscribe event) is delivered by a paired be leaf; this task consumes it and
   changes only `web/`. Other consumed scopes: `projects.list`, `sessions.list`, `cost.summary`,

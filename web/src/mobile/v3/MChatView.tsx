@@ -16,6 +16,9 @@ import {
 import { toolChips } from '@/mobile/screens/mobile-session-vm';
 import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { downloadFile } from '@/lib/files';
+import { useMediaViewer } from '@/features/media/MediaViewer';
+import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
+import { mediaKindOf } from '@/features/media/media-kind';
 import { MAskCard, MPlanCard, M_INT_COPY, type MIntCopy } from './MInteractionCards';
 import type { ChatHeaderStatus, ProfileSheetItem, PendingAttachmentVM } from './m-chat-vm';
 
@@ -162,36 +165,73 @@ export function MoreMenu({ copy, onClose }: { copy: MChatCopy; onClose: () => vo
 const STRIPES = 'repeating-linear-gradient(45deg,#E9EBF0 0 6px,#F4F5F8 6px 12px)';
 
 function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
-  const tap = () => void downloadFile(a.path, a.name);
-  if (a.type === 'image' || a.type === 'video') {
+  const kind = mediaKindOf(a.type);
+  const { openMedia } = useMediaViewer();
+  // Real thumbnail (auth-fetched) for image/video; tap opens the media lightbox (no new tab).
+  const url = useWorkspaceObjectUrl(a.path, kind !== null);
+  if (kind !== null) {
     return (
       <div
         role="button"
-        onClick={tap}
+        onClick={() => openMedia({ kind, name: a.name, path: a.path })}
         style={{
           width: a.type === 'video' ? 104 : 74,
           height: 74,
           borderRadius: 12,
-          background: STRIPES,
+          background: url ? '#000' : STRIPES,
           position: 'relative',
           overflow: 'hidden',
           flex: 'none',
           cursor: 'pointer',
         }}
       >
+        {url && kind === 'image' && (
+          <img src={url} alt={a.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
+        {url && kind === 'video' && (
+          <video src={url} muted playsInline preload="metadata" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+        )}
+        {kind === 'video' && (
+          <span
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%,-50%)',
+              width: 26,
+              height: 26,
+              borderRadius: '50%',
+              background: 'rgba(25,28,34,.72)',
+              color: '#fff',
+              fontSize: 9,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingLeft: 2,
+              boxSizing: 'border-box',
+            }}
+          >
+            ▶
+          </span>
+        )}
         <span
           style={{
             position: 'absolute',
             left: 7,
             bottom: 6,
+            maxWidth: (a.type === 'video' ? 104 : 74) - 14,
             font: `500 8px ${MONO}`,
             color: MC.muted,
             background: 'rgba(255,255,255,.85)',
             padding: '1px 5px',
             borderRadius: 4,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            boxSizing: 'border-box',
           }}
         >
-          {a.type === 'video' ? `▶ ${a.name}` : a.name}
+          {a.name}
         </span>
       </div>
     );
@@ -199,7 +239,7 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
   return (
     <div
       role="button"
-      onClick={tap}
+      onClick={() => void downloadFile(a.path, a.name)}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -454,11 +494,31 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile }: { cop
   );
 }
 
-// Composer attachment chip (scheme 1o L773-774) — filename + upload progress / done ✓.
+// Composer attachment chip (scheme 1o L773-774) — filename + upload progress / done ✓. Image/video
+// chips show a real thumbnail and open the media lightbox on tap (no new tab).
 function ComposerChip({ a, onRemove }: { a: PendingAttachmentVM; onRemove: () => void }): JSX.Element {
   const uploading = a.status === 'uploading';
+  const { openMedia } = useMediaViewer();
+  const kind = a.type ? mediaKindOf(a.type) : null;
+  const canPreview = !!a.previewUrl && kind !== null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: '#fff', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 9, padding: '5px 9px', flex: 'none' }}>
+      {canPreview && (
+        <span
+          role="button"
+          onClick={() => openMedia({ kind: kind!, name: a.name, url: a.previewUrl! })}
+          style={{ position: 'relative', width: 26, height: 26, borderRadius: 6, overflow: 'hidden', background: '#000', flex: 'none', cursor: 'pointer' }}
+        >
+          {kind === 'image' ? (
+            <img src={a.previewUrl} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          ) : (
+            <video src={a.previewUrl} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          )}
+          {kind === 'video' && (
+            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 8, textShadow: '0 0 3px rgba(0,0,0,.8)' }}>▶</span>
+          )}
+        </span>
+      )}
       <span style={{ font: `500 10px ${MONO}`, color: MC.body }}>{a.name}</span>
       {uploading ? (
         <>
