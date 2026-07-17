@@ -322,6 +322,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
                 fontSize: 13.5,
                 fontWeight: 600,
                 color: approved ? '#5B6472' : '#8A93A2',
+                overflowWrap: 'break-word',
                 ...(rejected ? { textDecoration: 'line-through', textDecorationColor: '#C9CDD6' } : {}),
               }}
             >
@@ -357,7 +358,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
         </span>
       </div>
       <div style={{ padding: '12px 16px 13px' }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: '#191C22' }}>{model.title}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: '#191C22', overflowWrap: 'break-word' }}>{model.title}</div>
         {fileRow}
       </div>
       {feedbackOpen && (

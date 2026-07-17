@@ -335,6 +335,7 @@ export function MPlanCard({ model, copy, dimmed = false, onApprove, onRejectStar
         color: approved ? MC.sub : rejected ? MC.grayInk : MC.ink,
         lineHeight: 1.4,
         marginTop: 8,
+        overflowWrap: 'break-word' as const,
         ...(rejected ? { textDecoration: 'line-through', textDecorationColor: '#C9CDD6' } : {}),
       }}
     >
