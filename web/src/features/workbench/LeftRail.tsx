@@ -5,6 +5,7 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { groupSessions, sessionMeta, groupLabel } from './session-groups';
 import { runningCountByProject, unreadCountByProject } from './project-menu';
+import { formatCost } from './right-panel-vm';
 import {
   buildProjectRailRows,
   clampProjectsZoneHeight,
@@ -25,13 +26,14 @@ import { useSessionsLiveSync } from './useSessionsLiveSync';
 // LEFT RAIL — 22a dual-zone rebuild (scheme.dc.html §22a, L37–150). Top zone: PROJECTS always
 // expanded — one row per project ordered by MOST RECENT ACTIVITY (persistent, from the session
 // registry's lastUsedAt; ⌘1–9 follow this order, ⌘1 = most recently active), single click
-// switches, the active row expands one sub-entry line (Overview · Tasks · Cost); per-row badges =
+// switches, the active row expands one sub-entry line (Overview + today-cost readout); per-row badges =
 // real running-thread count (threads.list) + unread-session count (honest addition, kept from the
 // retired switcher popover). Draggable divider. Bottom zone: current project's SESSIONS with the
 // project-name echo + "+ New" moved into the zone header. Data gaps rendered honestly (flagged in
 // CORTEX.md): no per-row amber approval dot (ApprovalInfo has no projectId — the bottom pill stays
 // the all-projects aggregate); idle rows show a real last-activity age derived from the unscoped
-// sessions.list. Cost/Tasks sub-entries route to the nearest real surfaces (/settings, /tasks).
+// sessions.list. Active-row sub-entry line = the Overview route + a direct today-cost readout
+// (real cost.summary.today for the active project); the former Tasks/Cost link entries were removed.
 const mono = "'IBM Plex Mono',monospace";
 const ZONE_H_KEY = 'cortex.railProjectsH';
 
@@ -65,6 +67,15 @@ export function LeftRail(): JSX.Element {
   );
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
+
+  // Active project's REAL today cost (mirrors RightPanel's cost bar, task 569c) — replaces the
+  // active row's former Tasks/Cost sub-entries with a direct today-cost readout.
+  const costQuery = useQuery({
+    ...trpc.cost.summary.queryOptions({ projectId: activeProjectId ?? undefined }),
+    enabled: !!activeProjectId,
+  });
+  const todayCost = costQuery.data?.today;
+  const todayCostLabel = typeof todayCost === 'number' ? formatCost(todayCost) : '—';
 
   const projects = projectsQuery.data ?? [];
   const sessions = sessionsQuery.data ?? [];
@@ -203,12 +214,10 @@ export function LeftRail(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Active-row sub-entries (22a: "承接原下拉卡片里的入口"). Overview/Tasks are real routes; Cost
-  // routes to /settings (Budget panel = the nearest real cost surface, flagged).
+  // Active-row sub-entry: only the real Overview route now — the former Tasks/Cost entries were
+  // dropped in favour of a direct today-cost readout rendered alongside (real cost.summary.today).
   const subEntries: { key: string; label: string; to: string }[] = [
     { key: 'overview', label: L.overview, to: '/overview' },
-    { key: 'tasks', label: L.tasks, to: '/tasks' },
-    { key: 'cost', label: L.wbCost, to: '/settings' },
   ];
 
   const [hover, setHover] = useState<string | null>(null);
@@ -362,7 +371,7 @@ export function LeftRail(): JSX.Element {
                       )}
                     </span>
                   </div>
-                  {/* sub-entry line: Overview · Tasks · Cost + hotkey echo (22a L64–67) */}
+                  {/* sub-entry line: Overview + direct today-cost readout + hotkey echo (22a L64–67) */}
                   <div
                     style={{
                       display: 'flex',
@@ -391,6 +400,11 @@ export function LeftRail(): JSX.Element {
                         </span>
                       );
                     })}
+                    {/* Today cost — real cost.summary.today for the active project (replaces Tasks/Cost). */}
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ color: '#8A93A2', fontWeight: 600 }}>{L.today}</span>
+                      <span style={{ font: `600 10px ${mono}`, color: '#4655D4' }}>{todayCostLabel}</span>
+                    </span>
                     {row.hotkey && (
                       <span style={{ marginLeft: 'auto', font: `500 9px ${mono}`, color: '#B6BDC9', fontWeight: 400 }}>
                         {row.hotkey}
