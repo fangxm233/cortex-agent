@@ -294,6 +294,12 @@ Concrete machine paths, the keystore location, and its password are recorded in 
 ## Keychain notes
 
 - Uses `keyring` crate v3 (OS-native: SecretService on Linux, Keychain on macOS, CredMan on Windows).
+- ⚠️ **Backend feature flags are load-bearing.** keyring v3 enables NO platform backend by default; with
+  `features = []` it silently falls back to an in-process **mock** store — `set_password` succeeds
+  in-session but nothing persists, so the connect screen reappears on every launch. Cargo.toml must
+  keep `features = ["windows-native", "apple-native", "sync-secret-service", "crypto-rust"]` (each only
+  compiles on its matching target). `creds::diagnostics()` now actually round-trips the keychain at
+  startup so a broken/mock backend shows up in the log instead of a hard-coded "os-keychain".
 - If the secret-service daemon is not running (headless Linux), save fails silently; credentials
   are kept in AppState for the session only (lost on restart). Use env vars as alternative.
 - Keychain entry: service=`dev.cortex.desktop`, account=`connection`, value=JSON `ConnectionConfig`.

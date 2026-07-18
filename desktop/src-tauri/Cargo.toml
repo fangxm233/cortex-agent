@@ -48,8 +48,17 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 # ── Desktop-only dependencies ──
 # keyring: the OS keychain has NO Android backend (Android uses an app-private file store in
 #   creds.rs instead), so the crate is only pulled in for desktop targets.
+#   keyring v3 splits every platform backend behind a feature flag and enables NONE by default: with
+#   `features = []` the crate silently falls back to an in-process MOCK store, so `set_password`
+#   succeeds in-session but nothing is ever written to the OS credential store and `load()` returns
+#   None on the next launch (symptom: the connect screen reappears every launch, creds never persist).
+#   Enable the native backend per platform. Each feature only compiles its deps on the matching target
+#   (keyring gates them by `cfg`), so listing all three here is cross-platform-safe:
+#     windows-native        → Windows Credential Manager
+#     apple-native          → macOS Keychain
+#     sync-secret-service   → Linux Secret Service (D-Bus); crypto-rust = pure-Rust session crypto (no OpenSSL)
 [target.'cfg(not(target_os = "android"))'.dependencies]
-keyring = { version = "3", features = [] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 
 # ── Android-only dependencies ──
 # include_dir: embeds the built SPA (web/dist) into the binary as a first-run / offline seed, since

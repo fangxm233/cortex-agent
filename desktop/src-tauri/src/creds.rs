@@ -49,9 +49,33 @@ mod backend {
         }
     }
 
-    /// One-line diagnostic of the credential store state (logged at startup).
+    /// One-line diagnostic of the credential store state (logged at startup). Actually probes the
+    /// keychain (open + round-trip a value) so a misconfigured backend — e.g. keyring compiled with
+    /// no platform feature, silently falling back to the in-process mock store that never persists —
+    /// is visible in the log instead of being masked by a hard-coded "os-keychain".
     pub fn diagnostics(_app: &AppHandle) -> String {
-        "creds backend=os-keychain".to_string()
+        const PROBE_ACCOUNT: &str = "diagnostics-probe";
+        match keyring::Entry::new(KEYCHAIN_SERVICE, PROBE_ACCOUNT) {
+            Err(e) => format!("creds backend=os-keychain probe=open-failed({e})"),
+            Ok(entry) => {
+                // A mock store persists within the process, so this round-trip alone can't prove a real
+                // OS backend; but an open/read/write error here is a strong signal the backend is broken
+                // (e.g. headless Linux with no secret-service daemon).
+                let probe = match entry.set_password("probe") {
+                    Err(e) => format!("write-failed({e})"),
+                    Ok(()) => {
+                        let r = match entry.get_password() {
+                            Ok(v) if v == "probe" => "ok".to_string(),
+                            Ok(_) => "read-mismatch".to_string(),
+                            Err(e) => format!("read-failed({e})"),
+                        };
+                        let _ = entry.delete_credential();
+                        r
+                    }
+                };
+                format!("creds backend=os-keychain probe={probe}")
+            }
+        }
     }
 }
 
