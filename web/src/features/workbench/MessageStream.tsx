@@ -369,11 +369,14 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
           ))}
         </div>
       )}
-      {/* Text bubble — hover floats the copy/edit pill to its left (sec-23: 不遮内容) */}
+      {/* Text bubble — hover floats the copy/edit pill to its left (sec-23: 不遮内容).
+          The pill is absolutely positioned so it never consumes the bubble's width. */}
       {text && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', maxWidth: '100%' }}>
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', maxWidth: '100%' }}>
           {editCopy && hover && (
-            <HoverActionPill text={text} copy={editCopy} onEdit={onStartEdit} editDisabled={editDisabled} />
+            <div style={{ position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: 8, display: 'flex' }}>
+              <HoverActionPill text={text} copy={editCopy} onEdit={onStartEdit} editDisabled={editDisabled} />
+            </div>
           )}
           <div
             style={{
