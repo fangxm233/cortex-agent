@@ -86,3 +86,17 @@ feature end-to-end (7a modal / 1f mobile / markdown-file-backed paired tRPC scop
 
 web `pnpm typecheck` + `vitest run` (targeted dirs), agent-server targeted vitest files,
 `corepack pnpm -r run build`, then merge back to main per worktree discipline (no push).
+
+## Status (2026-07-17)
+
+DONE on branch `feat/issues-ui` (3 commits: backend scope → desktop 24a/24b → mobile 24c).
+Gates all green: workspace build (excl. desktop Tauri) PASS; web full suite 115 files /
+1110 tests PASS + tsc clean; agent-server targeted vitest — domain/ui-service 35 files /
+253 tests PASS, platform ui-http router/wiring + query-memory 51 tests PASS; ui-contract
+node --test 10/10 PASS (incl. new scope entries in the completeness maps).
+
+MERGE BLOCKED (not attempted further): the main checkout `/home/fangxin/Cortex` has 25
+uncommitted in-progress files from another session (touching ui-service types.ts /
+query/sessions.ts / entry/app.ts / workbench / mobile session list) + main advanced to
+a4992dbe. Merging now risks disturbing that work → left the worktree + branch intact;
+merge `feat/issues-ui` into main once that session lands its work.
