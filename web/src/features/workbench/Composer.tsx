@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
@@ -181,6 +181,16 @@ export function Composer({
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 160) + 'px';
   };
+
+  // Re-fit the textarea height whenever `composer` changes for any reason — not just
+  // on keystroke (onChange). Switching sessions loads the new scope's draft via
+  // setComposer(), which does NOT go through onChange, so without this the height stayed
+  // frozen at the previous session's size: a multi-line draft looked collapsed to one row
+  // until the user typed, and switching to an empty/new session left the box tall. Layout
+  // effect runs synchronously after the value commits, before paint, so there is no flicker.
+  useLayoutEffect(() => {
+    autoGrow(inputRef.current);
+  }, [composer]);
 
   // ── Slash palette state ──
   const [slashOpen, setSlashOpen] = useState(false);
@@ -838,7 +848,7 @@ export function Composer({
                         const v = e.target.value;
                         setComposer(v);
                         setSlashOpen(v.startsWith('/'));
-                        autoGrow(e.target);
+                        // Height is re-fit by the useLayoutEffect on `composer`.
                       }}
                       onKeyDown={onKey}
                       onPaste={onPaste}
