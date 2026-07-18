@@ -3,6 +3,7 @@ import { downloadFile, fileDownloadUrl } from '@/lib/files';
 import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { isMarkdownName, type DocKind } from './doc-kind';
+import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 
 // Shared in-app document previewer — the single inline viewer for agent-sent (and user-uploaded)
 // PDF + text files on web AND mobile. Opening a document NEVER opens a new browser tab (a no-op in the
@@ -81,17 +82,25 @@ function TextBody({ item }: { item: DocItem }): JSX.Element {
   );
 }
 
-/** PDF body — pdf.js renders each page to a canvas. Loads pdf.js lazily on first PDF open. */
+/** PDF body — pdf.js renders each page to a canvas. Loads pdf.js lazily on first PDF open.
+ *  A page pager (counter + prev/next + jump-to-page) tracks the page under the viewport center. */
 function PdfBody({ item }: { item: DocItem }): JSX.Element {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const pagesRef = useRef<HTMLDivElement[]>([]);
   const [state, setState] = useState<'loading' | 'ok' | 'failed'>('loading');
+  const [numPages, setNumPages] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     let alive = true;
     let cancelled = false;
     const container = containerRef.current;
     if (container) container.innerHTML = '';
+    pagesRef.current = [];
     setState('loading');
+    setNumPages(0);
+    setCurrentPage(1);
 
     (async () => {
       const [{ getPdfjs }, res] = await Promise.all([
@@ -104,6 +113,7 @@ function PdfBody({ item }: { item: DocItem }): JSX.Element {
       const pdfjs = getPdfjs();
       const pdf = await pdfjs.getDocument({ data }).promise;
       if (cancelled) return;
+      if (alive) setNumPages(pdf.numPages);
 
       const target = containerRef.current;
       if (!target) return;
@@ -112,21 +122,24 @@ function PdfBody({ item }: { item: DocItem }): JSX.Element {
         if (cancelled) return;
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1.5 });
+        const wrapper = document.createElement('div');
+        wrapper.style.maxWidth = `${Math.floor(viewport.width)}px`;
+        wrapper.style.margin = '0 auto 12px';
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) continue;
         canvas.width = Math.floor(viewport.width * dpr);
         canvas.height = Math.floor(viewport.height * dpr);
         canvas.style.width = '100%';
-        canvas.style.maxWidth = `${Math.floor(viewport.width)}px`;
         canvas.style.height = 'auto';
         canvas.style.display = 'block';
-        canvas.style.margin = '0 auto 12px';
         canvas.style.borderRadius = '6px';
         canvas.style.background = '#fff';
         canvas.style.boxShadow = '0 2px 10px rgba(0,0,0,.25)';
         ctx.scale(dpr, dpr);
-        target.appendChild(canvas);
+        wrapper.appendChild(canvas);
+        target.appendChild(wrapper);
+        pagesRef.current.push(wrapper);
         await page.render({ canvas, canvasContext: ctx, viewport }).promise;
       }
       if (alive && !cancelled) setState('ok');
@@ -135,13 +148,131 @@ function PdfBody({ item }: { item: DocItem }): JSX.Element {
     return () => { alive = false; cancelled = true; };
   }, [item.path]);
 
+  const pageBoxes = useCallback((): PageBox[] => {
+    const scroll = scrollRef.current;
+    if (!scroll) return [];
+    const base = scroll.getBoundingClientRect().top - scroll.scrollTop;
+    return pagesRef.current.map((el) => ({ top: el.getBoundingClientRect().top - base, height: el.offsetHeight }));
+  }, []);
+
+  const onScroll = useCallback(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const p = pageAtScroll(pageBoxes(), scroll.scrollTop, scroll.clientHeight);
+    setCurrentPage((prev) => (prev === p ? prev : p));
+  }, [pageBoxes]);
+
+  const goToPage = useCallback((n: number) => {
+    const scroll = scrollRef.current;
+    const el = pagesRef.current[clampPage(n, numPages) - 1];
+    if (!scroll || !el) return;
+    const top = el.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop;
+    scroll.scrollTo({ top: Math.max(0, top - 12), behavior: 'smooth' });
+  }, [numPages]);
+
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'auto', padding: '20px 16px', boxSizing: 'border-box' }}>
-      {state === 'loading' && <Centered>Loading PDF…</Centered>}
-      {state === 'failed' && <Centered failed>Failed to render {item.name}</Centered>}
-      <div ref={containerRef} style={{ maxWidth: 900, margin: '0 auto' }} />
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+      {numPages > 0 && state !== 'failed' && (
+        <PdfPager current={currentPage} total={numPages} onJump={goToPage} />
+      )}
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '20px 16px', boxSizing: 'border-box' }}
+      >
+        {state === 'loading' && <Centered>Loading PDF…</Centered>}
+        {state === 'failed' && <Centered failed>Failed to render {item.name}</Centered>}
+        <div ref={containerRef} style={{ maxWidth: 900, margin: '0 auto' }} />
+      </div>
     </div>
   );
+}
+
+/** Page pager toolbar — prev/next + an editable "N / total" jump field. */
+function PdfPager({ current, total, onJump }: { current: number; total: number; onJump: (n: number) => void }): JSX.Element {
+  const [draft, setDraft] = useState(String(current));
+  useEffect(() => { setDraft(String(current)); }, [current]);
+
+  const commit = (): void => {
+    const n = parseJump(draft, total);
+    if (n === null) setDraft(String(current));
+    else onJump(n);
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: '7px 10px',
+        borderBottom: '1px solid var(--proto-line)',
+        background: 'var(--proto-rail)',
+        flex: 'none',
+      }}
+    >
+      <span
+        role="button"
+        title="Previous page"
+        aria-disabled={current <= 1}
+        onClick={() => { if (current > 1) onJump(current - 1); }}
+        style={pagerBtnStyle(current <= 1)}
+      >
+        ↑
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `600 11.5px ${mono}`, color: 'var(--proto-ink)' }}>
+        <input
+          value={draft}
+          inputMode="numeric"
+          aria-label="Page number"
+          onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
+          onFocus={(e) => e.currentTarget.select()}
+          onKeyDown={(e) => { if (e.key === 'Enter') { commit(); e.currentTarget.blur(); } }}
+          onBlur={commit}
+          style={{
+            width: 44,
+            textAlign: 'center',
+            padding: '3px 4px',
+            borderRadius: 6,
+            border: '1px solid var(--proto-line)',
+            background: 'var(--proto-card)',
+            color: 'var(--proto-ink)',
+            font: `600 11.5px ${mono}`,
+          }}
+        />
+        <span style={{ color: 'var(--proto-muted)' }}>/ {total}</span>
+      </div>
+      <span
+        role="button"
+        title="Next page"
+        aria-disabled={current >= total}
+        onClick={() => { if (current < total) onJump(current + 1); }}
+        style={pagerBtnStyle(current >= total)}
+      >
+        ↓
+      </span>
+    </div>
+  );
+}
+
+function pagerBtnStyle(disabled: boolean): React.CSSProperties {
+  return {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    border: '1px solid var(--proto-line)',
+    background: 'var(--proto-card)',
+    color: 'var(--proto-muted)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 14,
+    cursor: disabled ? 'default' : 'pointer',
+    opacity: disabled ? 0.4 : 1,
+    flex: 'none',
+    userSelect: 'none',
+  };
 }
 
 function Centered({ children, failed }: { children: ReactNode; failed?: boolean }): JSX.Element {
