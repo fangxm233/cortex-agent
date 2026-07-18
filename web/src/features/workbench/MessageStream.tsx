@@ -4,7 +4,7 @@ import type { ChatRow, Attachment } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { AttachmentMeta } from './chat-content';
-import { downloadFile, copyFilePath } from '@/lib/files';
+import { downloadFile } from '@/lib/files';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
@@ -251,7 +251,6 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
       {/* Actions stop propagation so they don't also trigger the card's preview click. */}
       <span style={{ display: 'flex', gap: 5, flex: 'none' }} onClick={(e) => e.stopPropagation()}>
         <ActionBtn title={L.wbFileDownload} onClick={() => void downloadFile(a.path, a.name)}>↓</ActionBtn>
-        <ActionBtn title={L.wbFileCopyPath} onClick={() => void copyFilePath(a.path)}>⧉</ActionBtn>
         {preview && <OpenBtn onClick={preview}>{L.wbFileOpen}</OpenBtn>}
       </span>
     </div>
@@ -406,27 +405,19 @@ function AssistantBlock({ text, streaming: _streaming, attachments, editCopy, re
   text: string;
   streaming: boolean;
   attachments?: Attachment[];
-  /** Present → hover reveals the copy pill (agent messages: copy only, sec-23). */
+  /** Present → the「由编辑重新生成」footnote renders (agent messages carry no copy affordance). */
   editCopy?: MEditCopy;
   /** True → the「由编辑重新生成」footnote renders atop this block. */
   regen?: boolean;
 }): JSX.Element {
   const hasAttachments = !!attachments && attachments.length > 0;
-  const [hover, setHover] = useState(false);
   return (
     <div
-      onMouseEnter={editCopy ? () => setHover(true) : undefined}
-      onMouseLeave={editCopy ? () => setHover(false) : undefined}
       style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
     >
       {editCopy && regen && <div style={{ marginBottom: 4 }}><RegenNote copy={editCopy} /></div>}
       {text.trim() && <ChatMarkdown text={text} />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
-      {editCopy && hover && !!text.trim() && (
-        <div style={{ position: 'absolute', left: 0, bottom: -32, zIndex: 2 }}>
-          <HoverActionPill text={text} copy={editCopy} />
-        </div>
-      )}
     </div>
   );
 }

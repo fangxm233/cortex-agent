@@ -99,7 +99,7 @@ export interface MChatEditCopy {
 export interface MMsgMenu {
   rowIndex: number;
   onCopy: () => void;
-  /** Absent for agent messages (copy-only, 7a). */
+  /** The long-press menu is user-messages-only; onEdit is always present in practice. */
   onEdit?: () => void;
   /** True while running — the 编辑 row greys out (7a footnote). */
   editDisabled?: boolean;
@@ -131,7 +131,7 @@ function longPressHandlers(fire: () => void): {
 }
 
 /** 7a — the long-press action overlay: conversation dims + blurs, the held bubble floats, the
- *  复制 / 编辑消息 menu hangs under it (agent messages: copy only; running: edit greyed). */
+ *  复制 / 编辑消息 menu hangs under it (user messages only; running: edit greyed). */
 export function MsgActionMenu({ row, menu, copy }: { row: ChatRow; menu: MMsgMenu; copy: MChatEditCopy }): JSX.Element {
   const isUser = row.kind === 'user';
   const text = row.kind === 'user' || row.kind === 'assistant' ? row.text : '';
@@ -612,7 +612,8 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
       {rows.map((row, i) => {
         const dimmed = editingIdx != null && i > editingIdx;
         const isEditingRow = editingIdx === i;
-        const canHold = !!editCopy && !!onLongPress && editingIdx == null && (row.kind === 'user' || (row.kind === 'assistant' && !!row.text.trim()));
+        // Long-press affordance (复制 / 编辑消息) is user-messages-only — agent messages carry no copy.
+        const canHold = !!editCopy && !!onLongPress && editingIdx == null && row.kind === 'user';
         const hold = canHold ? longPressHandlers(() => onLongPress!(i)) : null;
         return (
         <Fragment key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}>
