@@ -4,16 +4,18 @@ The **Settings modal** overlay, rebuilt **1:1** from `design/ref/prototype.dc.ht
 L2379–2797) and diffed vs `design/proto-shots/14-settings.png` (plan §8.5 settings row). A 1080×680
 centered Radix-Dialog card: 48px header + **210px left nav (10 panels)** + `var(--proto-alt)` content area.
 
-The first nav entry is **Appearance** (`AppearancePanel.tsx`) — the device-local light/dark theme
-toggle (persisted to localStorage `cortex.theme` via `src/theme`; no `config.get`/`config.set`, so it
-renders even if the config query is loading/errored). The remaining 9 panels are below.
+The first nav entry is **Appearance** (`AppearancePanel.tsx`) — the two device-local settings:
+interface **language** (EN/中, `src/i18n` `useLang`/`useSetLang`, localStorage `cortex.lang`) and the
+light/dark **theme** (`src/theme` `useTheme`/`useSetTheme`, localStorage `cortex.theme`). Both are
+ink-solid segmented toggles; no `config.get`/`config.set`, so the panel renders even if the config
+query is loading/errored. The remaining 9 panels are below.
 Wired to the **real** `config.get` query (redacted `~/.cortex/config` snapshot) for every panel; the
 **Budget** panel drives a real `config.set` write. Consumes the config contract shipped by task 0837.
 
 | path | role |
 |---|---|
 | `settings-nav.ts` | **Pure** (TDD): the 10 nav entries — `appearance` first, then the 9 prototype panels (label/file/key, prototype order) + `SETTINGS_SECTION_META` (title/sub). |
-| `AppearancePanel.tsx` | Device-local **light/dark theme** toggle (segmented Light/Dark, ink-solid inverse chip) over `src/theme` `useTheme`/`useSetTheme`. No backend — persisted to localStorage `cortex.theme`. |
+| `AppearancePanel.tsx` | Device-local **language** (EN/中 over `src/i18n` `useLang`/`useSetLang`) + **light/dark theme** (over `src/theme` `useTheme`/`useSetTheme`) toggles — both ink-solid segmented chips via a shared `Segmented` helper. No backend — persisted to localStorage `cortex.lang` / `cortex.theme`. The language switch moved here from the left-rail footer (which now hosts the theme toggle). |
 | `settings-nav.test.ts` | vitest — nav order, labels/file tags, section meta. |
 | `platform-env.ts` | **Pure** (TDD): redacted `.env` helpers — `indexEnv`/`envRow` (present→mask `••••••••`, absent→`—`, **never cleartext**), `envKeysWithPrefix`/`hasAnyKey`, and the prototype key groups (SLACK/FEISHU/API/DAEMON, notify + advanced flags). |
 | `platform-env.test.ts` | vitest — index, row masking (no cleartext), prefix filter, presence. |

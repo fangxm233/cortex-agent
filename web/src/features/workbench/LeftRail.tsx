@@ -19,7 +19,8 @@ import { NewProjectModal } from './NewProjectModal';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
-import { useLang, useSetLang, useVocab } from '@/i18n';
+import { useVocab } from '@/i18n';
+import { useTheme, useSetTheme } from '@/theme';
 import { DaemonStatusModal } from './DaemonStatusModal';
 import { useSessionsLiveSync } from './useSessionsLiveSync';
 import { BUILD_STAMP } from '@/lib/build-info';
@@ -52,8 +53,8 @@ export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const trpc = useTRPC();
-  const lang = useLang();
-  const setLang = useSetLang();
+  const theme = useTheme();
+  const setTheme = useSetTheme();
   const L = useVocab();
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
 
@@ -701,7 +702,7 @@ export function LeftRail(): JSX.Element {
         </div>
       )}
 
-      {/* footer: EN/中 toggle + Settings */}
+      {/* footer: theme (☀/☾) toggle + Settings. The language switch moved to Settings → Appearance. */}
       <div
         style={{
           display: 'flex',
@@ -714,16 +715,20 @@ export function LeftRail(): JSX.Element {
       >
         <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 6, overflow: 'hidden' }}>
           <span
-            onClick={() => setLang('en')}
-            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: lang === 'en' ? 'var(--proto-ink)' : 'transparent', color: lang === 'en' ? 'var(--proto-card)' : 'var(--proto-muted-2)' }}
+            onClick={() => setTheme('light')}
+            title={L.stThemeLight}
+            aria-label={L.stThemeLight}
+            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: theme === 'light' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'light' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
           >
-            EN
+            ☀
           </span>
           <span
-            onClick={() => setLang('zh')}
-            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: lang === 'zh' ? 'var(--proto-ink)' : 'transparent', color: lang === 'zh' ? 'var(--proto-card)' : 'var(--proto-muted-2)' }}
+            onClick={() => setTheme('dark')}
+            title={L.stThemeDark}
+            aria-label={L.stThemeDark}
+            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: theme === 'dark' ? 'var(--ink-solid-bg)' : 'transparent', color: theme === 'dark' ? 'var(--ink-solid-fg)' : 'var(--proto-muted-2)' }}
           >
-            中
+            ☾
           </span>
         </div>
         {/* Frontend build stamp (Vite-injected, see lib/build-info.ts) — changes every build so an
