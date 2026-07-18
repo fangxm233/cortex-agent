@@ -35,13 +35,20 @@ export async function fetchFileObjectUrl(relPath: string, disposition: 'inline' 
   return URL.createObjectURL(blob);
 }
 
+/** Result of a download. `savedPath` is the absolute on-disk path in the native shell (returned by
+ *  `save_download`); it is undefined in the browser, where the download is handed to the browser's
+ *  own download manager and the final location is not observable to the page. */
+export interface DownloadResult {
+  savedPath?: string;
+}
+
 /**
  * Save a workspace file to disk. In a plain browser / ui-http this triggers the normal `<a download>`.
  * In the native Tauri shell (desktop + Android) that anchor is a no-op, so the bytes are fetched and
  * handed to the `save_download` command, which writes them to the OS download dir (desktop) or the
  * app's downloads dir + a notification (Android) and returns the saved absolute path.
  */
-export async function downloadFile(relPath: string, fileName?: string): Promise<void> {
+export async function downloadFile(relPath: string, fileName?: string): Promise<DownloadResult> {
   const name = fileName ?? relPath.split('/').pop() ?? 'download';
 
   const core = isNativeShell() ? tauriCore() : undefined;
@@ -49,8 +56,8 @@ export async function downloadFile(relPath: string, fileName?: string): Promise<
     const res = await fetch(fileDownloadUrl(relPath, 'attachment'), { headers: authHeaders() });
     if (!res.ok) throw new Error(`download failed: ${res.status}`);
     const bytes = Array.from(new Uint8Array(await res.arrayBuffer()));
-    await core.invoke('save_download', { name, bytes });
-    return;
+    const savedPath = await core.invoke<string>('save_download', { name, bytes });
+    return { savedPath };
   }
 
   const objUrl = await fetchFileObjectUrl(relPath, 'attachment');
@@ -61,6 +68,7 @@ export async function downloadFile(relPath: string, fileName?: string): Promise<
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(objUrl), 10_000);
+  return {};
 }
 
 /** Copy a file's path to the clipboard (hover action). */

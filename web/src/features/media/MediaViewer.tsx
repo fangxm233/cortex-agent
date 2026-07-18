@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { fetchFileObjectUrl, downloadFile } from '@/lib/files';
+import { fetchFileObjectUrl } from '@/lib/files';
+import { useDownloadFile } from './useDownloadFile';
 import type { MediaKind } from './media-kind';
 
 // Shared full-screen media lightbox (modal) — the single previewer for every image/video surface on
@@ -33,6 +34,7 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
   // fetched with auth into one (revoked on close / change).
   const [src, setSrc] = useState<string | null>(item.url ?? null);
   const [failed, setFailed] = useState(false);
+  const dl = useDownloadFile();
 
   useEffect(() => {
     if (item.url) {
@@ -78,7 +80,7 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
 
   const onDownload = (): void => {
     if (item.path) {
-      void downloadFile(item.path, item.name);
+      dl(item.path, item.name);
     } else if (item.url) {
       const a = document.createElement('a');
       a.href = item.url;

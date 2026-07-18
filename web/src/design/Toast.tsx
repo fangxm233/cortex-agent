@@ -101,3 +101,10 @@ export function useToast(): ToastContextValue {
   if (!ctx) throw new Error('useToast must be used within a ToastProvider');
   return ctx;
 }
+
+/** Provider-optional variant: returns `null` instead of throwing when no `ToastProvider` is in scope.
+ *  Lets shared helpers (e.g. useDownloadFile) run inside isolated component tests that render a
+ *  consumer bare, without a ToastProvider — they simply skip the toast. */
+export function useToastOptional(): ToastContextValue | null {
+  return useContext(ToastContext);
+}

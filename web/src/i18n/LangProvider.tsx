@@ -52,6 +52,14 @@ export function useVocab(): Vocab {
   return useLangContext().vocab;
 }
 
+// Provider-optional vocabulary accessor: returns the active-language vocab when a LangProvider is in
+// scope, else the default-language vocab. Lets shared helpers (e.g. useDownloadFile) run inside
+// isolated component tests that render a previewer bare, without a LangProvider.
+export function useVocabOptional(): Vocab {
+  const ctx = useContext(LangContext);
+  return ctx?.vocab ?? pickVocab(readStoredLang());
+}
+
 // True only inside the dedicated mobile client shell. Drives the mobile/desktop render switch.
 export function useIsMobile(): boolean {
   return useLangContext().isMobile;

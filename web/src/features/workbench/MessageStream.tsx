@@ -225,6 +225,7 @@ function OpenBtn({ onClick, children }: { onClick: () => void; children: React.R
  *  file in a new tab is a no-op in the native shell, so that broken affordance was removed). */
 function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
   const L = useVocab();
+  const dl = useDownloadFile();
   const { openDoc } = useDocViewer();
   const colors = typeColor(a.type);
   const ext = fileExt(a.name);
@@ -250,7 +251,7 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
       </span>
       {/* Actions stop propagation so they don't also trigger the card's preview click. */}
       <span style={{ display: 'flex', gap: 5, flex: 'none' }} onClick={(e) => e.stopPropagation()}>
-        <ActionBtn title={L.wbFileDownload} onClick={() => void downloadFile(a.path, a.name)}>↓</ActionBtn>
+        <ActionBtn title={L.wbFileDownload} onClick={() => dl(a.path, a.name)}>↓</ActionBtn>
         {preview && <OpenBtn onClick={preview}>{L.wbFileOpen}</OpenBtn>}
       </span>
     </div>
@@ -261,6 +262,7 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
  *  the media lightbox (no new tab), hover reveals a download button. */
 function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
   const L = useVocab();
+  const dl = useDownloadFile();
   const kind = mediaKindOf(a.type)!;
   const { openMedia } = useMediaViewer();
   const url = useWorkspaceObjectUrl(a.path);
@@ -297,7 +299,7 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
         <span
           role="button"
           title={L.wbFileDownload}
-          onClick={(e) => { e.stopPropagation(); void downloadFile(a.path, a.name); }}
+          onClick={(e) => { e.stopPropagation(); dl(a.path, a.name); }}
           style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 7, background: 'rgba(25,28,34,.78)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}
         >
           ↓
@@ -311,6 +313,7 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
  *  (click → lightbox), then plain file cards; a "download all" affordance appears for groups of ≥3. */
 function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Element {
   const L = useVocab();
+  const dl = useDownloadFile();
   const media = attachments.filter((a) => mediaKindOf(a.type) !== null);
   const files = attachments.filter((a) => mediaKindOf(a.type) === null);
   return (
@@ -324,7 +327,7 @@ function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Ele
       {attachments.length >= 3 && (
         <div style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)', padding: '2px 2px 0' }}>
           {attachments.length} {L.wbFileFiles} ·{' '}
-          <span style={{ color: 'var(--proto-muted-2)', cursor: 'pointer' }} onClick={() => attachments.forEach((a) => void downloadFile(a.path, a.name))}>
+          <span style={{ color: 'var(--proto-muted-2)', cursor: 'pointer' }} onClick={() => attachments.forEach((a) => dl(a.path, a.name))}>
             {L.wbFileDownloadAll} ↓
           </span>
         </div>

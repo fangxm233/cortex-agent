@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { downloadFile, fileDownloadUrl } from '@/lib/files';
+import { fileDownloadUrl } from '@/lib/files';
+import { useDownloadFile } from './useDownloadFile';
 import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { isMarkdownName, type DocKind } from './doc-kind';
@@ -284,6 +285,7 @@ function Centered({ children, failed }: { children: ReactNode; failed?: boolean 
 }
 
 export function DocModal({ item, onClose }: { item: DocItem; onClose: () => void }): JSX.Element {
+  const dl = useDownloadFile();
   // Esc closes; lock body scroll while open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose(); };
@@ -346,7 +348,7 @@ export function DocModal({ item, onClose }: { item: DocItem; onClose: () => void
           <span
             role="button"
             title="Download"
-            onClick={() => void downloadFile(item.path, item.name)}
+            onClick={() => dl(item.path, item.name)}
             style={btnStyle}
           >
             ↓
