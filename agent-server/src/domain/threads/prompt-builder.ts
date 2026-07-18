@@ -266,7 +266,6 @@ export function buildConversationPrompt(
       `[Session Project] This session is bound to the project "${project.id}".\n`
       + `Project context directory: ${project.contextDir}\n`
       + `Treat messages in this session as pertaining to this project unless stated otherwise. `
-      + `Read that directory's CORTEX.md / STATUS.md when project context is needed, and record `
       + `project-related findings and status updates there.`,
     );
   }
