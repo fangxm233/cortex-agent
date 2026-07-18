@@ -139,10 +139,10 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
         </div>
         <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {model.questions.map((q) => (
-            <div key={q.question} style={{ display: 'flex', gap: 8, fontSize: 12, lineHeight: 1.5, alignItems: 'baseline' }}>
+            <div key={q.question} style={{ display: 'flex', gap: 8, fontSize: 12, lineHeight: 1.5, alignItems: 'baseline', flexWrap: 'wrap' }}>
               <span style={{ color: 'var(--proto-success)', fontWeight: 700, flex: 'none' }}>✓</span>
-              <span style={{ color: 'var(--proto-muted-2)', flex: 'none' }}>{q.question}</span>
-              <span style={{ color: 'var(--proto-ink)', fontWeight: 600 }}>{q.answer ?? '—'}</span>
+              <span style={{ color: 'var(--proto-muted-2)', minWidth: 0, overflowWrap: 'anywhere' }}>{q.question}</span>
+              <span style={{ color: 'var(--proto-ink)', fontWeight: 600, minWidth: 0, overflowWrap: 'anywhere' }}>{q.answer ?? '—'}</span>
             </div>
           ))}
         </div>

@@ -208,6 +208,15 @@ export function Composer({
   const dragFileCount = useRef(0);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
 
+  // Re-fit the textarea whenever the chip row appears/disappears: its vertical padding changes with
+  // attachments (2px→11px). Pasting an image mutates `attachments` but not `composer`, so the
+  // `[composer]` effect above never re-fires and the box stayed fitted to the old padding — the text
+  // was clipped. Keyed on the boolean edge so it runs once per toggle, not on every chip mutation.
+  const hasAttachmentsForFit = attachments.length > 0;
+  useLayoutEffect(() => {
+    autoGrow(inputRef.current);
+  }, [hasAttachmentsForFit]);
+
   // ── Per-session draft persistence (localStorage) ──
   // The composer text + successfully-uploaded attachments are persisted per scope so a draft survives
   // an app restart (stable webview/browser origin) and a server restart (the referenced upload files
@@ -469,19 +478,19 @@ export function Composer({
 
     if (isImage || isVideo) {
       return (
+        // Outer wrapper is NOT overflow-hidden so the overhanging × (top:-5/right:-5) shows in full;
+        // the inner layer keeps overflow:hidden to clip the thumbnail to the rounded corners.
+        <div key={a.id} style={{ position: 'relative', width: 54, height: 54, flex: 'none' }}>
         <div
-          key={a.id}
           role={canPreview ? 'button' : undefined}
           title={canPreview ? name : undefined}
           onClick={canPreview && kind ? () => openMedia({ kind, name, url: a.previewUrl! }) : undefined}
           style={{
-            position: 'relative',
-            width: 54,
-            height: 54,
+            position: 'absolute',
+            inset: 0,
             borderRadius: 8,
             border: a.status === 'error' ? '1px solid var(--proto-danger)' : '1px solid var(--proto-line)',
             background: a.previewUrl ? '#000' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
-            flex: 'none',
             boxSizing: 'border-box',
             overflow: 'hidden',
             cursor: canPreview ? 'pointer' : 'default',
@@ -578,29 +587,30 @@ export function Composer({
               retry
             </span>
           )}
-          {/* Remove button */}
-          <span
-            onClick={(e) => { e.stopPropagation(); removeAttachment(a.id); }}
-            style={{
-              position: 'absolute',
-              top: -5,
-              right: -5,
-              width: 16,
-              height: 16,
-              borderRadius: '50%',
-              background: 'var(--proto-ink)',
-              color: 'var(--ink-solid-fg)',
-              fontSize: 9,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1.5px solid var(--proto-card)',
-              boxSizing: 'border-box',
-              cursor: 'pointer',
-            }}
-          >
-            ×
-          </span>
+        </div>
+        {/* Remove button — sits on the outer wrapper (outside overflow:hidden) so it isn't clipped */}
+        <span
+          onClick={(e) => { e.stopPropagation(); removeAttachment(a.id); }}
+          style={{
+            position: 'absolute',
+            top: -5,
+            right: -5,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            background: 'var(--proto-ink)',
+            color: 'var(--ink-solid-fg)',
+            fontSize: 9,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1.5px solid var(--proto-card)',
+            boxSizing: 'border-box',
+            cursor: 'pointer',
+          }}
+        >
+          ×
+        </span>
         </div>
       );
     }
