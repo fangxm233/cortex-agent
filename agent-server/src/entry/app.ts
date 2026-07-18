@@ -87,6 +87,7 @@ import { ensurePIAgentDirs } from '../agent-adapter/pi/agent-dir.js';
 import { initOutboundQueue, getOutboundQueue } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
 import { sendWebUserMessage } from '../orchestration/session-send.js';
+import { rewindWebSession } from '../orchestration/session-rewind.js';
 import { createTuiSessionService } from '@domain/tui-session/index.js';
 import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
@@ -374,6 +375,10 @@ process.on('SIGTERM', async () => {
     // channel-cancel path (same code the no-arg/`--all` !cancel command uses). Injected here so the
     // ui-service domain never imports orchestration.
     cancelSessionRun: ({ channel }) => cancelChannelRuns(channel),
+    // Message edit + rewind (sessions.rewind, desktop design 23 / mobile 7): roll the session back
+    // to the edited turn and re-send. Injected here so the ui-service domain never imports
+    // orchestration.
+    rewindSession: (opts) => rewindWebSession({ ...opts, adapter }),
     // Workbench "+ New session": create a fresh live direct session. Wired here (entry layer) to the
     // domain primitive with the real session/ledger singletons, so ui-service never imports store.
     createDirectSession: (opts) => createDirectSession({

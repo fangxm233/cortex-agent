@@ -75,11 +75,21 @@ export interface HistoryEvent {
   turnIndex: number;
   /** Optional file attachments (user events from web composer). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
+  /** Present on a user event that replaced an earlier message via edit+rewind. Derived on read
+   *  from the preceding `edit-marker` raw line (the marker itself is never emitted). */
+  edited?: { originalText: string; originalTs: string };
 }
 
-/** Raw line as persisted (no turnIndex — derived on read). */
+/** Raw line as persisted (no turnIndex — derived on read).
+ *  `edit-marker` is a persistence-only line (message edit + rewind): appended right before the
+ *  edited user event's re-send; on read it attaches to the NEXT user event as `edited` and is
+ *  never emitted as an event itself. */
 interface RawEvent {
-  type: HistoryEventType;
+  type: HistoryEventType | 'edit-marker';
+  /** edit-marker lines only. */
+  originalText?: string;
+  /** edit-marker lines only. */
+  originalTs?: string;
   text?: string;
   toolName?: string;
   toolInput?: string;
@@ -194,6 +204,63 @@ export class ConversationHistoryRepo {
     return this.append(sessionId, { type: 'interaction', id: opts.id, status: opts.status, result: opts.result, resolvedVia: opts.resolvedVia, text: opts.text, ts: opts.ts ?? nowIso() });
   }
 
+  /** Append an EDIT MARKER (message edit + rewind): records the replaced message's original
+   *  text/ts so the next user event reads back with an `edited` field. Call after
+   *  {@link truncateFromTurn} and before re-sending the edited message. */
+  appendEditMarker(sessionId: string, opts: { originalText: string; originalTs: string }): Promise<void> {
+    return this.append(sessionId, { type: 'edit-marker', originalText: opts.originalText, originalTs: opts.originalTs, ts: nowIso() });
+  }
+
+  /**
+   * Rewind support: drop every line from the `turnIndex`-th user event onward (plus a directly
+   * preceding edit-marker, which belonged to the removed user event). Serialized on the same
+   * per-session write chain as appends. Returns the removed opening user event's text/ts/attachments
+   * (for the edit marker + attachment reuse), or null when the turn does not exist.
+   */
+  async truncateFromTurn(sessionId: string, turnIndex: number): Promise<{ text: string; ts: string; attachments?: RawEvent['attachments'] } | null> {
+    let removed: { text: string; ts: string; attachments?: RawEvent['attachments'] } | null = null;
+    const prev = this.writeChains.get(sessionId) ?? Promise.resolve();
+    const next = prev
+      .catch(() => {})
+      .then(async () => {
+        let raw: string;
+        try {
+          raw = await fs.readFile(sessionFile(sessionId), 'utf8');
+        } catch {
+          return; // no history — nothing to truncate
+        }
+        const lines = raw.split('\n').filter(l => l.trim());
+        let userCount = 0;
+        let cutAt = -1;
+        for (let i = 0; i < lines.length; i++) {
+          let ev: RawEvent;
+          try { ev = JSON.parse(lines[i]) as RawEvent; } catch { continue; }
+          if (ev.type === 'user') {
+            if (userCount === turnIndex) {
+              cutAt = i;
+              removed = { text: ev.text ?? '', ts: ev.ts, ...(ev.attachments !== undefined ? { attachments: ev.attachments } : {}) };
+              break;
+            }
+            userCount++;
+          }
+        }
+        if (cutAt === -1) return; // turn out of range — no-op
+        // Drop a marker line directly preceding the cut: it described the removed user event.
+        let keepEnd = cutAt;
+        if (keepEnd > 0) {
+          try {
+            const prevEv = JSON.parse(lines[keepEnd - 1]) as RawEvent;
+            if (prevEv.type === 'edit-marker') keepEnd--;
+          } catch { /* keep as is */ }
+        }
+        const kept = lines.slice(0, keepEnd);
+        await fs.writeFile(sessionFile(sessionId), kept.length ? kept.join('\n') + '\n' : '', 'utf8');
+      });
+    this.writeChains.set(sessionId, next);
+    await next;
+    return removed;
+  }
+
   /**
    * Read a session's history. Derives turnIndex (each `user` event opens a new turn) and
    * collapses consecutive same-turn assistant events whose texts are prefix-related (a
@@ -212,14 +279,22 @@ export class ConversationHistoryRepo {
     // A later resolved line with the same id updates that row in place (position kept).
     const interactionById = new Map<string, HistoryEvent>();
     let turnIndex = -1;
+    // Pending edit-marker: attaches to the NEXT user event as `edited` (never emitted itself).
+    let pendingEdit: { originalText: string; originalTs: string } | null = null;
     for (const line of raw.split('\n')) {
       if (!line.trim()) continue;
       let ev: RawEvent;
       try { ev = JSON.parse(line) as RawEvent; } catch { continue; }
 
-      if (ev.type === 'user') {
+      if (ev.type === 'edit-marker') {
+        pendingEdit = { originalText: ev.originalText ?? '', originalTs: ev.originalTs ?? '' };
+      } else if (ev.type === 'user') {
         turnIndex++;
-        events.push({ type: 'user', text: ev.text ?? '', ts: ev.ts, turnIndex, attachments: ev.attachments });
+        events.push({
+          type: 'user', text: ev.text ?? '', ts: ev.ts, turnIndex, attachments: ev.attachments,
+          ...(pendingEdit ? { edited: pendingEdit } : {}),
+        });
+        pendingEdit = null;
       } else if (ev.type === 'assistant') {
         const tIdx = Math.max(0, turnIndex);
         const last = events[events.length - 1];

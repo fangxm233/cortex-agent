@@ -20,7 +20,7 @@ import { handleThreadTemplatesGet } from './query/thread-templates.js';
 import { handleSystemDaemonStatus } from './query/system.js';
 import { handleConfigSet } from './mutate/config.js';
 import { handleCreateProject } from './mutate/projects.js';
-import { handleCreateSession, handleSendSession, handleCancelSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan } from './mutate/sessions.js';
+import { handleCreateSession, handleSendSession, handleCancelSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
 import { handleCancelExecution } from './mutate/executions.js';
 import {
@@ -77,6 +77,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'sessions.markRead': (deps, args) => handleMarkReadSession(deps, args),
   'sessions.answerQuestion': (deps, args) => handleAnswerQuestion(deps, args),
   'sessions.respondPlan': (deps, args) => handleRespondPlan(deps, args),
+  'sessions.rewind': (deps, args) => handleRewindSession(deps, args),
   'threads.cancel': (deps, args) => handleCancelThread(deps, args),
   'executions.cancel': (deps, args) => handleCancelExecution(deps, args),
   'schedules.pause': (deps, args) => handlePauseSchedule(deps, args),

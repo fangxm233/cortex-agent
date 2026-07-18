@@ -70,7 +70,7 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
     let wasConnected = false;
 
     const sub = client.subscribe.subscribe(
-      { events: ['session.message', 'session.status', 'session.turn', 'session.interaction'], sessionId },
+      { events: ['session.message', 'session.status', 'session.turn', 'session.interaction', 'session.rewound'], sessionId },
       {
         onConnectionStateChange: (state: { state: string }) => {
           if (state.state !== 'pending') return;
@@ -100,6 +100,15 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
             }
             // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
             // edges so the left rail reflects the turn without waiting for a focus refetch.
+            queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+            return;
+          }
+          // Message edit + rewind (sessions.rewind, possibly from ANOTHER client): the transcript
+          // changed SHAPE — the buffered live tail may hold now-superseded messages, so drop it
+          // entirely and refetch the authoritative transcript.
+          if (raw.type === 'session.rewound') {
+            setLiveTail([]);
+            queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
             queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
             return;
           }

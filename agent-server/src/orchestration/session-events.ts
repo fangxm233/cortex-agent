@@ -50,6 +50,19 @@ export function publishSessionTurn(p: { sessionId: string; channel: string; numT
   });
 }
 
+/** Emit a `session.rewound` event (message edit + rewind): the session's transcript changed SHAPE —
+ *  every turn from `turnIndex` onward was rolled back. Live web clients drop their buffered live
+ *  tails (which may hold now-superseded messages) and refetch the transcript. Published by
+ *  session-rewind.ts before the edited message is re-sent. No-op when no bus is wired. */
+export function publishSessionRewound(p: { sessionId: string; channel: string; turnIndex: number }): void {
+  jobCtx.bus?.publish({
+    type: 'session.rewound',
+    sessionId: p.sessionId,
+    channel: p.channel,
+    turnIndex: p.turnIndex,
+  });
+}
+
 /** Emit the REAL running state of a session's turn (S4 chat running indicator). Published by the
  *  agent-runner at the start (running:true) and end (running:false, in a finally) of each interactive
  *  turn — the single seam covering every channel (web / Slack / Feishu). The Web chat subscribes to

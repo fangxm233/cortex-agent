@@ -7,6 +7,7 @@ import {
   formatElapsed,
   resolveRunning,
   resolveTurns,
+  rewindStats,
   type LiveSessionMessage,
 } from './transcript-vm';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
@@ -36,7 +37,7 @@ describe('buildTranscriptRows', () => {
       [],
     );
     expect(rows[0].kind).toBe('divider');
-    expect(rows[1]).toEqual({ kind: 'user', text: 'hi there' });
+    expect(rows[1]).toEqual({ kind: 'user', text: 'hi there', turnIndex: 0, ts: T });
     expect(rows[2]).toEqual({ kind: 'assistant', text: 'hello back', streaming: false });
   });
 
@@ -324,5 +325,60 @@ describe('interaction entity rows', () => {
     });
     const rows = buildTranscriptRows(t, []);
     expect(rows.filter((r) => r.kind === 'interaction').length).toBe(1);
+  });
+});
+
+describe('message edit + rewind (desktop 23 / mobile 7)', () => {
+  const twoTurns = tx([
+    {
+      turnIndex: 0,
+      messages: [
+        { type: 'user', text: 'first', toolName: null, toolInput: null, ts: T, elapsedMs: null },
+        { type: 'assistant', text: 'r0', toolName: null, toolInput: null, ts: T, elapsedMs: 100 },
+      ],
+    },
+    {
+      turnIndex: 1,
+      messages: [
+        { type: 'user', text: 'second', toolName: null, toolInput: null, ts: T, elapsedMs: 100, edited: { originalText: 'second-orig', originalTs: T } } as never,
+        { type: 'tool', text: null, toolName: 'Read', toolInput: 'x.ts', ts: T, elapsedMs: 100 },
+        { type: 'tool', text: null, toolName: 'Bash', toolInput: 'ls', ts: T, elapsedMs: 100 },
+        { type: 'assistant', text: 'r1', toolName: null, toolInput: null, ts: T, elapsedMs: 100 },
+        { type: 'assistant', text: 'r2', toolName: null, toolInput: null, ts: T, elapsedMs: 100 },
+      ],
+    },
+  ]);
+
+  it('user rows carry their turnIndex (the rewind anchor)', () => {
+    const rows = buildTranscriptRows(twoTurns, []);
+    const users = rows.filter((r) => r.kind === 'user') as { turnIndex?: number }[];
+    expect(users.map((u) => u.turnIndex)).toEqual([0, 1]);
+  });
+
+  it('user rows carry the edited marker (已编辑 badge + original card)', () => {
+    const rows = buildTranscriptRows(twoTurns, []);
+    const users = rows.filter((r) => r.kind === 'user') as { edited?: unknown }[];
+    expect(users[0].edited).toBeUndefined();
+    expect(users[1].edited).toEqual({ originalText: 'second-orig', originalTs: T });
+  });
+
+  it('live-tail user rows have no turnIndex (not editable until the transcript reconciles)', () => {
+    const live: LiveSessionMessage[] = [{ sessionId: 's1', role: 'user', text: 'fresh', ts: '2026-07-07T07:43:00.000Z' }];
+    const rows = buildTranscriptRows(tx([]), live);
+    const user = rows.find((r) => r.kind === 'user') as { turnIndex?: number };
+    expect(user.turnIndex).toBeUndefined();
+  });
+
+  it('rewindStats counts replies + tool calls after the edited user row', () => {
+    const rows = buildTranscriptRows(twoTurns, []);
+    const idx1 = rows.findIndex((r) => r.kind === 'user' && (r as { turnIndex?: number }).turnIndex === 1);
+    expect(rewindStats(rows, idx1)).toEqual({ replies: 2, toolCalls: 2 });
+    const idx0 = rows.findIndex((r) => r.kind === 'user' && (r as { turnIndex?: number }).turnIndex === 0);
+    expect(rewindStats(rows, idx0)).toEqual({ replies: 3, toolCalls: 2 });
+  });
+
+  it('rewindStats on the last row → zeros', () => {
+    const rows = buildTranscriptRows(twoTurns, []);
+    expect(rewindStats(rows, rows.length - 1)).toEqual({ replies: 0, toolCalls: 0 });
   });
 });

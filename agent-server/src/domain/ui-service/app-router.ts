@@ -26,6 +26,7 @@ import {
   sessionsMarkReadInput,
   sessionsAnswerQuestionInput,
   sessionsRespondPlanInput,
+  sessionsRewindInput,
   sessionsPendingInteractionInput,
   threadsListInput,
   threadsGetInput,
@@ -85,6 +86,7 @@ const ERR_CODE_MAP: Record<string, TRPCError['code']> = {
   'already-terminal': 'CONFLICT',
   'already-exists': 'CONFLICT',
   'backend-locked': 'CONFLICT',
+  'session-running': 'CONFLICT',
   'task-lock-busy': 'CONFLICT',
   'internal': 'INTERNAL_SERVER_ERROR',
 };
@@ -151,6 +153,7 @@ export function createAppRouter(uiService: UiService) {
       markRead: makeMutation(uiService, 'sessions.markRead', sessionsMarkReadInput),
       answerQuestion: makeMutation(uiService, 'sessions.answerQuestion', sessionsAnswerQuestionInput),
       respondPlan: makeMutation(uiService, 'sessions.respondPlan', sessionsRespondPlanInput),
+      rewind: makeMutation(uiService, 'sessions.rewind', sessionsRewindInput),
     }),
     threads: router({
       list: makeQuery(uiService, 'threads.list', threadsListInput),

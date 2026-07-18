@@ -161,3 +161,93 @@ test('a resolved record without a prior created row is kept as a standalone row 
   assert.equal(ev.status, 'approved');
   assert.equal(ev.text, 'Plan approved');
 });
+
+// ── Rewind: truncateFromTurn + edit markers (message edit + rewind) ──────────
+
+test('truncateFromTurn drops everything from the target turn onward and returns the removed opening user event', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-rw-1';
+  const attachments = [{ name: 'a.png', path: 'workspace/attachments/sess-rw-1/a.png', size: 10, mimeType: 'image/png', type: 'image' as const }];
+  await repo.appendUser(sid, { text: 'first' });
+  await repo.appendAssistant(sid, { text: 'reply-0' });
+  await repo.appendUser(sid, { text: 'second', attachments });
+  await repo.appendTool(sid, { toolName: 'Read', toolInput: 'x.ts' });
+  await repo.appendAssistant(sid, { text: 'reply-1' });
+
+  const removed = await repo.truncateFromTurn(sid, 1);
+  assert.ok(removed);
+  assert.equal(removed!.text, 'second');
+  assert.deepEqual(removed!.attachments, attachments);
+
+  const h = await repo.getHistory(sid);
+  const kinds = h!.events.map(e => `${e.type}:${e.turnIndex}`);
+  assert.deepEqual(kinds, ['user:0', 'assistant:0'], 'turn 1 and everything after is gone');
+});
+
+test('truncateFromTurn(0) empties the session history (getHistory → null)', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-rw-2';
+  await repo.appendUser(sid, { text: 'only' });
+  await repo.appendAssistant(sid, { text: 'reply' });
+
+  const removed = await repo.truncateFromTurn(sid, 0);
+  assert.equal(removed!.text, 'only');
+  assert.equal(await repo.getHistory(sid), null, 'empty file reads as null');
+});
+
+test('truncateFromTurn out of range is a no-op returning null', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-rw-3';
+  await repo.appendUser(sid, { text: 'one' });
+  const removed = await repo.truncateFromTurn(sid, 5);
+  assert.equal(removed, null);
+  assert.equal((await repo.getHistory(sid))!.events.length, 1, 'history untouched');
+});
+
+test('edit marker attaches to the NEXT user event as `edited` and is not emitted itself', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-rw-4';
+  await repo.appendUser(sid, { text: 'orig' });
+  await repo.appendAssistant(sid, { text: 'r' });
+  await repo.truncateFromTurn(sid, 0);
+  await repo.appendEditMarker(sid, { originalText: 'orig', originalTs: '2026-07-17T00:00:00.000Z' });
+  await repo.appendUser(sid, { text: 'edited text' });
+  await repo.appendAssistant(sid, { text: 'new reply' });
+
+  const h = await repo.getHistory(sid);
+  const kinds = h!.events.map(e => e.type);
+  assert.deepEqual(kinds, ['user', 'assistant'], 'marker row is invisible');
+  const user = h!.events[0];
+  assert.equal(user.text, 'edited text');
+  assert.deepEqual(user.edited, { originalText: 'orig', originalTs: '2026-07-17T00:00:00.000Z' });
+});
+
+test('a dangling edit marker (no user event after it) is invisible', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-rw-5';
+  await repo.appendUser(sid, { text: 'a' });
+  await repo.appendEditMarker(sid, { originalText: 'x', originalTs: 't' });
+  const h = await repo.getHistory(sid);
+  assert.equal(h!.events.length, 1);
+  assert.equal(h!.events[0].edited, undefined, 'marker does not retro-attach to a previous user');
+});
+
+test('truncateFromTurn also drops a marker that belonged to the removed user event (re-edit of the same turn)', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-rw-6';
+  await repo.appendUser(sid, { text: 'first' });
+  await repo.appendAssistant(sid, { text: 'r0' });
+  await repo.appendEditMarker(sid, { originalText: 'second-orig', originalTs: 't1' });
+  await repo.appendUser(sid, { text: 'second-edited' });
+  await repo.appendAssistant(sid, { text: 'r1' });
+
+  const removed = await repo.truncateFromTurn(sid, 1);
+  assert.equal(removed!.text, 'second-edited');
+
+  // A fresh marker + user then reads back with the NEW original, not the stale one.
+  await repo.appendEditMarker(sid, { originalText: 'second-edited', originalTs: 't2' });
+  await repo.appendUser(sid, { text: 'second-edited-again' });
+  const h = await repo.getHistory(sid);
+  const user1 = h!.events.filter(e => e.type === 'user')[1];
+  assert.deepEqual(user1.edited, { originalText: 'second-edited', originalTs: 't2' });
+});
