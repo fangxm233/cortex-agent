@@ -442,6 +442,9 @@ pub fn run() {
         // this plugin's commands; it is the only path to a real OS notification inside the Android
         // WebView, which has no web Notifications API.
         .plugin(tauri_plugin_notification::init())
+        // Android public-Downloads bridge (DownloadManager). Desktop registers a stub; the desktop
+        // download path stays the `save_download` command below.
+        .plugin(tauri_plugin_cortex_download::init())
         .manage(AppState {
             config: Mutex::new(ConnectionConfig::default()),
         })

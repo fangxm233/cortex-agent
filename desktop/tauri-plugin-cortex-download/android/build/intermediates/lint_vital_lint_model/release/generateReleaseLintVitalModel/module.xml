@@ -1,0 +1,19 @@
+<lint-module
+    format="1"
+    dir="/home/fangxin/Cortex/desktop/tauri-plugin-cortex-download/android"
+    name=":tauri-plugin-cortex-download"
+    type="LIBRARY"
+    maven="android:tauri-plugin-cortex-download:unspecified"
+    agpVersion="8.11.0"
+    buildFolder="build"
+    bootClassPath="/home/fangxin/android-tools/sdk/platforms/android-36/android.jar:/home/fangxin/android-tools/sdk/build-tools/35.0.0/core-lambda-stubs.jar"
+    javaSourceLevel="1.8"
+    compileTarget="android-36"
+    neverShrinking="true">
+  <lintOptions
+      abortOnError="true"
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true"/>
+  <variant name="release"/>
+</lint-module>

@@ -26,6 +26,11 @@ serde_json = "1"
 # @tauri-apps/plugin-notification). Works on both desktop and Android.
 tauri-plugin-notification = "2"
 
+# Local plugin: saves agent-sent files to the PUBLIC Android Downloads folder via the system
+# DownloadManager (public Downloads + native "download complete" notification). Android does the real
+# work through a Kotlin bridge; on desktop it is a stub (the app uses its own `save_download` there).
+tauri-plugin-cortex-download = { path = "../tauri-plugin-cortex-download" }
+
 # ── Frontend OTA updater (all platforms) ──
 # reqwest/sha2/zip power the self-updating SPA on both desktop and Android. TLS = rustls with the
 # **ring** crypto provider + bundled Mozilla (webpki) roots. ring (not aws-lc-rs) is deliberate:

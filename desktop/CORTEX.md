@@ -87,6 +87,13 @@ blocked by the browser.
 desktop/
 ├── package.json              pnpm package: @tauri-apps/cli devDep, @tauri-apps/api dep
 │                             scripts: copy-connect / dev / build
+├── tauri-plugin-cortex-download/  Local Tauri plugin — public Android Downloads via DownloadManager
+│   ├── Cargo.toml            crate (links=tauri-plugin-cortex-download); build.rs → android_path
+│   ├── src/lib.rs            `init()` + `download` command; Android registers the Kotlin plugin,
+│   │                         desktop is a stub (app uses `save_download` there)
+│   ├── permissions/default.toml  `cortex-download:default` → allow-download
+│   └── android/              Gradle library (namespace dev.cortex.download) + DownloadPlugin.kt
+│                             (`@Command download` → DownloadManager.Request into public Downloads)
 ├── ui/
 │   └── connect.html          Standalone connection config screen, in the SPA's design language:
 │                             theme-aware (light default / dark, follows persisted `cortex.theme` +
@@ -127,6 +134,19 @@ desktop/
   notifications go through this plugin. JS side: `@tauri-apps/plugin-notification`, called from
   `web/src/features/notifications/os-notify.ts`. Android's `POST_NOTIFICATIONS` runtime permission is
   requested by the SPA on mount (`MNotificationProvider`) via the plugin's `requestPermission`.
+- `tauri-plugin-cortex-download` (**local** plugin at `desktop/tauri-plugin-cortex-download/`; Cargo
+  path dep + `.plugin(tauri_plugin_cortex_download::init())` in `lib.rs`; `cortex-download:default` in
+  `capabilities/default.json`): saves agent-sent files to the **public** Android Downloads folder.
+  Android scoped storage forbids a plain `std::fs` write into `/storage/emulated/0/Download`, and
+  Tauri 2.x exposes no public API to run raw JNI/MediaStore from app code (`run_on_android_context` is
+  crate-internal), so this needs a Kotlin bridge. The one command, `download`, hands the file's
+  authenticated URL + `x-cortex-token` to the system **DownloadManager**, which downloads straight
+  into the public Downloads collection (exempt from scoped storage, auto-registered with MediaStore)
+  AND raises the native download-progress / "download complete" notification. Desktop compiles a stub
+  (returns an error; the app uses `save_download` there instead). JS side: `web/src/lib/files.ts`
+  `downloadFile` invokes `plugin:cortex-download|download` when `isMobileShell()`. The plugin's
+  `android/` Gradle module is auto-wired into `gen/android/tauri.settings.gradle` on `tauri android
+  init`, so no manual Gradle edit — but adding it needs a fresh `tauri android init` (script `--init`).
 
 ## Tauri commands
 
@@ -138,7 +158,7 @@ desktop/
 | `disconnect` | `() → Result<()>` | Clear keychain + AppState |
 | `apply_frontend_update` | `() → ()` | Apply a staged frontend update — desktop `app.restart()`, Android `app.exit(0)` (hot-update prompt primary button) |
 | `get_staged_update` | `() → Option<StagedUpdate>` | Currently-staged update (`{version, fromVersion, size:0}`) as a backstop for a missed `frontend-update-staged` event |
-| `save_download` | `(name, bytes) → Result<String>` | Save agent-sent / user-downloaded file bytes to disk (the SPA fetches bytes then invokes this, because a browser `<a download>` / `window.open(blob)` is a no-op in the WebView). Basename-sanitized (no path escape), ` (n)`-suffixed on collision. **Desktop** → OS download dir (`download_dir()`, fallback `app_data_dir/downloads`); **Android** → `app_data_dir/downloads` (app-private, reachable under `Android/data/dev.cortex.desktop/`) + a system notification. Returns the saved absolute path. No new plugin/capability — an app command using `std::fs` + the core path API. Public Android Downloads (MediaStore/DownloadManager) is a documented follow-up. |
+| `save_download` | `(name, bytes) → Result<String>` | **Desktop** download path: the SPA fetches bytes then invokes this (a browser `<a download>` / `window.open(blob)` is a no-op in the WebView). Basename-sanitized (no path escape), ` (n)`-suffixed on collision. Writes to the OS download dir (`download_dir()`, fallback `app_data_dir/downloads`) and returns the saved absolute path. App command using `std::fs` + the core path API. **Android no longer uses this for downloads** — the mobile shell routes to `tauri-plugin-cortex-download` (public Downloads via DownloadManager, see Plugins); the Android branch here remains only as a dead fallback. |
 
 ## Injection mechanism
 

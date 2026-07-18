@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- DownloadManager fetches the file over the network. Writing into the public Downloads
+         collection needs no storage permission (DownloadManager is exempt from scoped storage);
+         POST_NOTIFICATIONS is declared by the app so the completion notification can show on API 33+. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

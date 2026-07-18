@@ -1,0 +1,16 @@
+[package]
+name = "tauri-plugin-cortex-download"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+description = "Save agent-sent files to the public Downloads folder on Android via the system DownloadManager."
+# `links` associates the crate with its permission set (the ACL system keys off it), matching the
+# convention of the first-party Tauri mobile plugins (e.g. tauri-plugin-notification).
+links = "tauri-plugin-cortex-download"
+
+[dependencies]
+tauri = { version = "2" }
+serde = { version = "1", features = ["derive"] }
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

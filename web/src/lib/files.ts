@@ -6,7 +6,7 @@
 //         with the right auth (desktop: token header; browser/ui-http: same-origin proxy/Access) and
 //         wrap them in an object URL — correct in every mode.
 
-import { apiBase, authHeaders, isNativeShell } from './desktop-config';
+import { apiBase, authHeaders, isNativeShell, isMobileShell } from './desktop-config';
 
 const DOWNLOAD_PATH = '/api/files/download';
 
@@ -43,16 +43,30 @@ export interface DownloadResult {
 }
 
 /**
- * Save a workspace file to disk. In a plain browser / ui-http this triggers the normal `<a download>`.
- * In the native Tauri shell (desktop + Android) that anchor is a no-op, so the bytes are fetched and
- * handed to the `save_download` command, which writes them to the OS download dir (desktop) or the
- * app's downloads dir + a notification (Android) and returns the saved absolute path.
+ * Save a workspace file to disk. A plain browser `<a download>` / `window.open(blob)` is a no-op
+ * inside the Tauri WebView, so the native shell routes downloads through native commands:
+ *   - Android (mobile shell): hand the authenticated file URL to the system DownloadManager
+ *     (`plugin:cortex-download|download`), which saves into the PUBLIC Downloads folder and raises
+ *     the native "download complete" notification. No location is returned (the OS notification is
+ *     the feedback), so `savedPath` is undefined.
+ *   - Desktop: fetch the bytes and hand them to `save_download`, which writes them to the OS
+ *     download dir and returns the saved absolute path.
+ *   - Browser / ui-http: the normal `<a download>`.
  */
 export async function downloadFile(relPath: string, fileName?: string): Promise<DownloadResult> {
   const name = fileName ?? relPath.split('/').pop() ?? 'download';
 
   const core = isNativeShell() ? tauriCore() : undefined;
   if (core) {
+    if (isMobileShell()) {
+      // Android → system DownloadManager: fetches the URL straight into public Downloads + notifies.
+      await core.invoke('plugin:cortex-download|download', {
+        url: fileDownloadUrl(relPath, 'attachment'),
+        fileName: name,
+        token: authHeaders()['x-cortex-token'],
+      });
+      return {};
+    }
     const res = await fetch(fileDownloadUrl(relPath, 'attachment'), { headers: authHeaders() });
     if (!res.ok) throw new Error(`download failed: ${res.status}`);
     const bytes = Array.from(new Uint8Array(await res.arrayBuffer()));
