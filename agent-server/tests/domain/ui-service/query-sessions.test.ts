@@ -247,6 +247,61 @@ test('sessions.list costUsd: no execution data anywhere → null', async () => {
   assert.ok(result.every(s => s.costUsd === null));
 });
 
+test('sessions.list bg-held session: running true + backgroundRunning true with NO live execution (web bg-hold snapshot)', async () => {
+  // The web bg-hold ends the foreground execution (removed from runningExecutions) but keeps the
+  // session logically running via the session.status event stream. The snapshot must mirror that,
+  // or a session switch / app restart loses the state (the original bug).
+  const deps = makeDeps({
+    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
+    isSessionBgHeld: (id: string) => id === 's1',
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  const s1 = result.find(s => s.sessionId === 's1')!;
+  assert.equal(s1.running, true, 'held session stays running');
+  assert.equal(s1.backgroundRunning, true, 'held session carries the background flag');
+  const s3 = result.find(s => s.sessionId === 's3')!;
+  assert.equal(s3.running, false);
+  assert.equal(s3.backgroundRunning, false);
+});
+
+test('sessions.list bg-held session: numTurns/costUsd fall back to the last completed run (foreground turn is over)', async () => {
+  const deps = makeDeps({
+    runningExecutions: { getAll: () => [], getByChannel: () => [] } as any,
+    isSessionBgHeld: (id: string) => id === 's1',
+    executionRegistry: {
+      getExecution: () => null, cancelExecution: () => null,
+      getAll: () => [
+        { channel: 'C1', thread: null, runtime: { startedAt: '2026-05-01T00:00:00Z' }, metrics: { numTurns: 7, costUsd: 0.42 } },
+      ],
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  const s1 = result.find(s => s.sessionId === 's1')!;
+  assert.equal(s1.numTurns, 7);
+  assert.equal(s1.costUsd, 0.42);
+});
+
+test('sessions.list live foreground turn wins over the bg flag (backgroundRunning false while in a turn)', async () => {
+  const deps = makeDeps({
+    runningExecutions: {
+      getAll: () => [],
+      getByChannel: (channel: string) =>
+        channel === 'C1' ? [{ threadId: null, channel: 'C1', executionId: 'exec_1' }] : [],
+    } as any,
+    // Defensive: even if the tracker still flags the session, a live turn renders as plain running.
+    isSessionBgHeld: (id: string) => id === 's1',
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  const s1 = result.find(s => s.sessionId === 's1')!;
+  assert.equal(s1.running, true);
+  assert.equal(s1.backgroundRunning, false);
+});
+
+test('sessions.list without an isSessionBgHeld dep → backgroundRunning false everywhere (fixtures/TUI)', async () => {
+  const result = await handleSessionsList(makeDeps(), {});
+  assert.ok(result.every(s => s.backgroundRunning === false));
+});
+
 test('sessions.list unread: activity after lastReadAt → unread; read/never-tracked → false', async () => {
   const withRead = [
     // s1: read AFTER last activity → not unread

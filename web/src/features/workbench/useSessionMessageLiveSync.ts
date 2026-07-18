@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC, useTRPCClient } from '@/lib/trpc';
 import type { LiveSessionMessage } from './transcript-vm';
-import { resolveRunning } from './transcript-vm';
+import { resolveRunning, resolveBackgroundRunning } from './transcript-vm';
 
 // Live `session.message` stream for the center chat (S4 chat, task aba0). Opens one SSE subscription
 // scoped to `sessionId` and accumulates each event into a bounded live-tail buffer so the assistant
@@ -34,14 +34,20 @@ export interface SessionLiveState {
    *  background subagent) is still running and may spontaneously re-invoke the model — the
    *  `session.status` `backgroundRunning` flag (web bg-hold). `running` stays true throughout, so
    *  the indicator lets the composer show a distinct "background" state instead of a plain turn.
-   *  Delta-only (there is no query-time snapshot source): false until the first status event. */
+   *  Snapshot + delta (fix: the state was delta-only and lost on session switch / reload / app
+   *  restart): the live event wins once received; before that the caller-passed
+   *  `SessionInfo.backgroundRunning` snapshot governs. */
   backgroundRunning: boolean;
   /** The live agent-turn count from the `session.turn` delta (null until the first event for this
    *  session). The caller resolves it against the `SessionInfo.numTurns` snapshot via `resolveTurns`. */
   liveTurns: number | null;
 }
 
-export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: boolean): SessionLiveState {
+export function useSessionMessageLiveSync(
+  sessionId: string,
+  snapshotRunning?: boolean,
+  snapshotBackgroundRunning?: boolean,
+): SessionLiveState {
   const trpc = useTRPC();
   const client = useTRPCClient();
   const queryClient = useQueryClient();
@@ -50,9 +56,9 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
   // Delta from the backend `session.status` event (real turn lifecycle). Null until the first status
   // event arrives for this session — until then the snapshot (then the stream heuristic) governs.
   const [statusRunning, setStatusRunning] = useState<boolean | null>(null);
-  // Background-task flag from the `session.status` delta (web bg-hold). Delta-only: reset to false
-  // on session switch and cleared once running:false lands.
-  const [backgroundRunning, setBackgroundRunning] = useState(false);
+  // Background-task flag from the `session.status` delta (web bg-hold). Null until the first status
+  // event for this session (reset on switch) — before that the sessions.list snapshot governs.
+  const [statusBackground, setStatusBackground] = useState<boolean | null>(null);
   // Live agent-turn count from the `session.turn` delta. Null until the first event for this session.
   const [liveTurns, setLiveTurns] = useState<number | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,7 +67,7 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
     setLiveTail([]);
     setStreaming(false);
     setStatusRunning(null);
-    setBackgroundRunning(false);
+    setStatusBackground(null);
     setLiveTurns(null);
     if (!sessionId) return;
 
@@ -88,7 +94,7 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
             setStatusRunning(r);
             // Background-task hold: running stays true but the foreground turn is done and a
             // background task may still stream a continuation. Cleared whenever running:false lands.
-            setBackgroundRunning(r && !!s?.backgroundRunning);
+            setStatusBackground(r && !!s?.backgroundRunning);
             if (r) {
               // A fresh turn starts its own turn count — drop the previous run's live value so the
               // composer doesn't flash the last count before this run's first progress event lands.
@@ -151,5 +157,6 @@ export function useSessionMessageLiveSync(sessionId: string, snapshotRunning?: b
 
   // Snapshot + delta: event wins once received; snapshot restores state before that; heuristic last.
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
+  const backgroundRunning = resolveBackgroundRunning(statusBackground, snapshotBackgroundRunning);
   return { liveTail, streaming, running, backgroundRunning, liveTurns };
 }

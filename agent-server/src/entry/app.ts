@@ -52,6 +52,7 @@ import { cleanupLogs, ensureMcpConfig } from './startup-helpers.js';
 import { createLogger } from '@core/log.js';
 import { ensureAuthTokens } from '@core/auth.js';
 import { runningExecutions } from '@core/running-executions.js';
+import { bgHeldSessions } from '@core/bg-held-sessions.js';
 import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
@@ -172,6 +173,9 @@ setOnStale((requestId, channel) => {
   askUserQuestion.deleteGroupByHookRequestId(requestId);
 });
 runningExecutions.setBus(bus);   // S6-A: wire lifecycle events
+// Web bg-hold snapshot: mirror every session.status event into the bg-held registry so
+// sessions.list can serve the held state as a queryable snapshot (snapshot + delta).
+bus.subscribe('session.status', (e) => bgHeldSessions.onSessionStatus(e));
 planApprovals.setBus(bus);  // S6-A: wire plan.approved events
 busyTracker.setBus(bus);    // S6-C: wire busy/idle IPC through event bus
 taskMutator.setBus(bus);    // c39d: wire task lifecycle events
@@ -426,6 +430,9 @@ process.on('SIGTERM', async () => {
     },
     // Transcript materialization liveness signal (pending rows with no live entry derive to expired).
     isInteractionPending: (id) => interactionRecords.isPending(id),
+    // Web bg-hold snapshot: sessions.list serves the held state so it survives session switches /
+    // app restarts (the registry mirrors session.status events — subscribed at the bus wiring above).
+    isSessionBgHeld: (sessionId) => bgHeldSessions.has(sessionId),
     // Web UI ask-user-question: resolve a pending interaction by requestId. The MCP tool blocks
     // on the HTTP response; this callback collects answers, resolves the entity (which persists
     // the record and broadcasts session.interaction to every client), and unblocks the tool.

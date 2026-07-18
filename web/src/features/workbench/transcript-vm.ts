@@ -102,6 +102,21 @@ export function resolveRunning(
 }
 
 /**
+ * Snapshot + delta background-hold resolution (mirrors resolveRunning). Precedence:
+ *   1. `statusBackground` — derived from the live `session.status` event (running &&
+ *      backgroundRunning), authoritative once any status event was received (null before);
+ *   2. `snapshotBackground` — the sessions.list `backgroundRunning` snapshot, restores the
+ *      Background state on mount / session switch / reload / app restart;
+ *   3. false — old servers whose sessions.list carries no `backgroundRunning` field.
+ */
+export function resolveBackgroundRunning(
+  statusBackground: boolean | null,
+  snapshotBackground: boolean | undefined,
+): boolean {
+  return statusBackground ?? snapshotBackground ?? false;
+}
+
+/**
  * Snapshot + delta resolution for the composer's REAL agent-turn count. Precedence:
  *   1. `liveTurns` — the live `session.turn` event (delta), authoritative once received (a real 0 wins);
  *   2. `snapshotTurns` — the sessions.list `numTurns` snapshot, restores the count on mount / session

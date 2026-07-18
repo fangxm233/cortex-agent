@@ -16,6 +16,7 @@ function session(over: Partial<SessionInfo> = {}): SessionInfo {
     label: null,
     profileName: null,
     running: false,
+    backgroundRunning: false,
     numTurns: null,
     costUsd: null,
     unread: false,

@@ -17,6 +17,7 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     label: null,
     profileName: null,
     running: false,
+    backgroundRunning: false,
     numTurns: null,
     costUsd: null,
     unread: false,
@@ -41,6 +42,13 @@ describe('sessionStatusLine', () => {
 
   it('idle → 空闲 (no fabricated cost — SessionInfo carries none)', () => {
     expect(sessionStatusLine(sess({ running: false }))).toEqual({ kind: 'idle', text: '空闲' });
+  });
+
+  it('background-held → kind background + `后台运行` (web bg-hold snapshot)', () => {
+    expect(sessionStatusLine(sess({ running: true, backgroundRunning: true }))).toEqual({
+      kind: 'background',
+      text: '后台运行',
+    });
   });
 });
 

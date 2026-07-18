@@ -84,7 +84,13 @@ export async function handleSessionsList(
   };
 
   const infos = sessions.map((s: any): SessionInfo => {
-    const running = isChannelInTurn(s.channel);
+    const inTurn = isChannelInTurn(s.channel);
+    // Web bg-hold snapshot: the foreground execution is gone from runningExecutions, but a
+    // background task still holds the session (running stays true per the session.status contract).
+    // A live foreground turn wins — the session then renders as plain running. Metrics
+    // (numTurns/costUsd) key off the foreground turn: a held session shows its last completed run.
+    const bgHeld = !inTurn && (deps.isSessionBgHeld?.(s.sessionId) ?? false);
+    const running = inTurn || bgHeld;
     return {
       sessionId: s.sessionId,
       name: s.name,
@@ -98,8 +104,9 @@ export async function handleSessionsList(
       label: s.label ?? null,
       profileName: s.profileName ?? null,
       running,
-      numTurns: resolveNumTurns(s.channel, running),
-      costUsd: resolveCost(s.channel, running),
+      backgroundRunning: bgHeld,
+      numTurns: resolveNumTurns(s.channel, inTurn),
+      costUsd: resolveCost(s.channel, inTurn),
       // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view
       // (sessions.markRead → lastReadAt). Legacy records without lastReadAt → read.
       unread: !!s.lastReadAt && s.lastUsedAt > s.lastReadAt,

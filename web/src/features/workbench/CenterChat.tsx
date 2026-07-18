@@ -54,7 +54,7 @@ export function CenterChat(): JSX.Element {
     enabled: !!sessionId,
   });
 
-  const { liveTail, streaming, running, backgroundRunning, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
+  const { liveTail, streaming, running, backgroundRunning, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning);
   // Interaction cards are transcript rows now (web-interactions-redesign) — this hook only
   // provides the answer/approve/reject actions; state lives in the transcript.
   const interactionActions = useInteractionActions(sessionId);

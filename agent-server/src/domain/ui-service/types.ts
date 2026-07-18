@@ -373,6 +373,12 @@ export interface SessionInfo {
    *  `session.status` event stream as the delta (snapshot + delta), so running state survives
    *  session switches, page reloads, and SSE reconnects. */
   running: boolean;
+  /** Background-hold snapshot (web bg-hold): true while the session's foreground turn has ended but
+   *  a background task (run_in_background Bash / background subagent) still holds it — `running`
+   *  stays true throughout. Mirrors the `session.status` `backgroundRunning` delta via the in-memory
+   *  bg-held registry (snapshot + delta, same pattern as `running`), so the state survives session
+   *  switches, page reloads, and app restarts. False while a live foreground turn is on the channel. */
+  backgroundRunning: boolean;
   /** Real agent-turn count for the composer (NOT the number of user-message rounds). While running,
    *  the live count of the in-flight turn (from the running execution); while idle, the last run's
    *  final turn count (from the most recent non-thread execution on the session's channel). Null when
@@ -1278,4 +1284,10 @@ export interface UiServiceDeps {
    * still-`pending` persisted rows derive to `expired` at read time.
    */
   isInteractionPending?: (id: string) => boolean;
+  /**
+   * Web bg-hold snapshot (core/bg-held-sessions, fed from `session.status` events in entry/app.ts):
+   * true while the session's foreground turn ended but a background task still holds it. Optional so
+   * fixtures / the TUI need not provide it — absent ⇒ no session is held.
+   */
+  isSessionBgHeld?: (sessionId: string) => boolean;
 }

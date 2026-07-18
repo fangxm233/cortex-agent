@@ -23,11 +23,15 @@ export interface MSessionGroup {
 }
 
 /**
- * The status-line for a session row. Running → dot + `running · N turns` (turns only when known);
- * idle → `空闲`. Per-session cost has NO DTO source (SessionInfo carries none) → deliberately omitted,
- * never fabricated (the scheme's `· $0.31` is a design mock).
+ * The status-line for a session row. Background-held (web bg-hold snapshot: foreground turn done,
+ * background task still running) → amber dot + `后台运行`; running → dot + `running · N turns`
+ * (turns only when known); idle → `空闲`. Per-session cost has NO DTO source (SessionInfo carries
+ * none) → deliberately omitted, never fabricated (the scheme's `· $0.31` is a design mock).
  */
-export function sessionStatusLine(s: SessionInfo): { kind: 'running' | 'idle'; text: string } {
+export function sessionStatusLine(s: SessionInfo): { kind: 'running' | 'background' | 'idle'; text: string } {
+  if (s.running && s.backgroundRunning) {
+    return { kind: 'background', text: '后台运行' };
+  }
   if (s.running) {
     return { kind: 'running', text: s.numTurns != null ? `running · ${s.numTurns} turns` : 'running' };
   }

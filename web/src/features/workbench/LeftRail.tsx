@@ -577,6 +577,9 @@ export function LeftRail(): JSX.Element {
                 const active = s.sessionId === effectiveSelected;
                 // Real running snapshot (SessionInfo.running), kept fresh by useSessionsLiveSync.
                 const running = s.running;
+                // Web bg-hold snapshot: foreground turn done, background task still holds the
+                // session — amber dot (matches the composer's Background state color).
+                const bgHeld = s.backgroundRunning;
                 const rowKey = 'sess:' + s.sessionId;
                 const bg = active ? 'var(--proto-line-2)' : isHover(rowKey) ? 'var(--proto-gray)' : 'transparent';
                 return (
@@ -595,7 +598,7 @@ export function LeftRail(): JSX.Element {
                             width: 7,
                             height: 7,
                             borderRadius: '50%',
-                            background: 'var(--proto-accent)',
+                            background: bgHeld ? 'var(--proto-amber)' : 'var(--proto-accent)',
                             flex: 'none',
                             animation: 'cxpulse 1.6s ease-in-out infinite',
                           }}

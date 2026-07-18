@@ -75,6 +75,7 @@ function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: 
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
         {status.kind === 'running' && <MDot color={MC.run} pulse />}
+        {status.kind === 'background' && <MDot color={MC.amber} pulse />}
         <span style={{ font: `400 10px ${MONO}`, color: MC.muted }}>{status.text}</span>
       </div>
     </MCard>

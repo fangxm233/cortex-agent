@@ -6,6 +6,7 @@ import {
   currentTurnElapsedMs,
   formatElapsed,
   resolveRunning,
+  resolveBackgroundRunning,
   resolveTurns,
   type LiveSessionMessage,
 } from './transcript-vm';
@@ -236,6 +237,25 @@ describe('resolveRunning', () => {
   it('uses the stream heuristic only when neither event nor snapshot exists', () => {
     expect(resolveRunning(null, undefined, true)).toBe(true);
     expect(resolveRunning(null, undefined, false)).toBe(false);
+  });
+});
+
+// Snapshot + delta background-hold resolution (fix: the Background state was delta-only and lost
+// on session switch / reload / app restart — the sessions.list `backgroundRunning` snapshot now
+// restores it, mirroring resolveRunning).
+describe('resolveBackgroundRunning', () => {
+  it('prefers the live status event over the snapshot', () => {
+    expect(resolveBackgroundRunning(true, false)).toBe(true);
+    expect(resolveBackgroundRunning(false, true)).toBe(false);
+  });
+
+  it('falls back to the sessions.list snapshot before any status event', () => {
+    expect(resolveBackgroundRunning(null, true)).toBe(true);
+    expect(resolveBackgroundRunning(null, false)).toBe(false);
+  });
+
+  it('is false when neither event nor snapshot exists (old servers)', () => {
+    expect(resolveBackgroundRunning(null, undefined)).toBe(false);
   });
 });
 
