@@ -486,9 +486,12 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
   );
 }
 
-function AttachmentGroup({ attachments }: { attachments: Attachment[] }): JSX.Element {
+// `side` follows the message it belongs to: user attachments hug the right (with the dark user
+// bubble), agent attachments hug the left (with the agent message body).
+function AttachmentGroup({ attachments, side = 'right' }: { attachments: Attachment[]; side?: 'left' | 'right' }): JSX.Element {
+  const edge = side === 'left' ? 'flex-start' : 'flex-end';
   return (
-    <div style={{ alignSelf: 'flex-end', display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+    <div style={{ alignSelf: edge, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: edge }}>
       {attachments.map((a, i) => (
         <AttachmentTile key={i} a={a} />
       ))}
@@ -696,7 +699,7 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
               <ChatMarkdown text={row.text} dropTrailingHr />
               {row.attachments && row.attachments.length > 0 && (
                 <div style={{ marginTop: 8 }}>
-                  <AttachmentGroup attachments={row.attachments} />
+                  <AttachmentGroup attachments={row.attachments} side="left" />
                 </div>
               )}
             </div>

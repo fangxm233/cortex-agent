@@ -173,7 +173,7 @@ describe('interaction entity rows in the stream (scheme 6a/5b/4a-c)', () => {
 });
 
 describe('1o attachments in the stream', () => {
-  it('renders sent attachments above the user bubble', () => {
+  it('renders sent attachments above the user bubble, right-aligned', () => {
     const rows: ChatRow[] = [
       { kind: 'user', text: 'look at this rollout', attachments: [
         { name: 'rollout.mp4', path: 'p', size: 1, mimeType: 'video/mp4', type: 'video' },
@@ -184,6 +184,20 @@ describe('1o attachments in the stream', () => {
     expect(html).toContain('rollout.mp4');
     expect(html).toContain('traj.csv');
     expect(html).toContain('look at this rollout');
+    // User attachments sit on the right (same side as the user bubble).
+    expect(html).toContain('align-self:flex-end');
+  });
+  it('renders agent-sent attachments left-aligned (same side as the agent message)', () => {
+    const rows: ChatRow[] = [
+      { kind: 'assistant', text: 'here is the plot', streaming: false, attachments: [
+        { name: 'result.png', path: 'p', size: 1, mimeType: 'image/png', type: 'image' },
+      ] },
+    ];
+    const html = renderToStaticMarkup(<MChatStream rows={rows} toolCallsUnit="次" />);
+    expect(html).toContain('result.png');
+    // Agent attachments must hug the left, not the right.
+    expect(html).toContain('align-self:flex-start');
+    expect(html).not.toContain('align-self:flex-end');
   });
 });
 
