@@ -430,7 +430,14 @@ function EmptyChat(): JSX.Element {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13, padding: '88px 20px 40px', textAlign: 'center' }}>
-      <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--proto-ink)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `600 15px ${mono}` }}>cx</div>
+      <div aria-label="Cortex" style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--proto-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {/* 25c 皮层弧 C (scheme.dc.html §25c) */}
+        <svg width={28} height={28} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <circle cx={33} cy={32} r={5} fill="#fff" />
+          <path d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36" stroke="#fff" strokeWidth={5} strokeLinecap="round" />
+          <path d="M48.6 17.95A21 21 0 1 0 48.6 46.05" stroke="#fff" strokeWidth={5} strokeLinecap="round" />
+        </svg>
+      </div>
       <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.wbEmptyTitle}</div>
       <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', lineHeight: 1.7, maxWidth: 420 }}>
         {L.wbEmptyBody}

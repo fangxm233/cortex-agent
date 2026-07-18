@@ -75,6 +75,9 @@ else
   echo "=== 2/5  gen/android exists — skipping init (pass --init to force) ==="
 fi
 
+echo "=== 2.5  apply Cortex 25c launcher icons (init ships the green placeholder) ==="
+bash "$(dirname "$0")/gen-android-icons.sh"
+
 echo "=== 3/5  write keystore.properties ==="
 # storeFile is read by build.gradle.kts via file(...) relative to the app module, so use an
 # absolute path to be location-independent.

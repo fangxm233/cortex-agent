@@ -30,7 +30,7 @@ describe('MNotificationToaster (1q)', () => {
         onActivate={() => {}}
       />,
     );
-    expect(html).toContain('cx');
+    expect(html).toContain('aria-label="Cortex"');
     expect(html).toContain('线程完成 — orchard-pipeline');
     expect(html).toContain('评审通过 · 42m · 轻点查看产物');
     expect(html).toContain('现在');

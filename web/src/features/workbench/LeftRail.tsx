@@ -245,19 +245,34 @@ export function LeftRail(): JSX.Element {
       {/* header: cx logo + Cortex + daemon status (22a L43–47) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '16px 16px 10px', flex: 'none' }}>
         <div
+          aria-label="Cortex"
           style={{
             width: 26,
             height: 26,
             borderRadius: 7,
-            background: 'var(--proto-ink)',
-            color: 'var(--ink-solid-fg)',
+            background: 'var(--proto-card)',
+            border: '1px solid var(--proto-line)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            font: `600 12px ${mono}`,
           }}
         >
-          cx
+          {/* 25c 皮层弧 C — 两弧一核成 C / 由核向外的信号 (scheme.dc.html §25c) */}
+          <svg width={19} height={19} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <circle cx={33} cy={32} r={6} fill="var(--proto-ink)" />
+            <path
+              d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36"
+              stroke="var(--proto-accent)"
+              strokeWidth={6}
+              strokeLinecap="round"
+            />
+            <path
+              d="M48.6 17.95A21 21 0 1 0 48.6 46.05"
+              stroke="var(--proto-accent)"
+              strokeWidth={6}
+              strokeLinecap="round"
+            />
+          </svg>
         </div>
         <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
         <div
