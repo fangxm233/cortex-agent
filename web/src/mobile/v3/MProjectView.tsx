@@ -33,6 +33,14 @@ export interface MProjectCopy {
   newProject: string;
   newProjectHint: string;
   footer: string;
+  issuesTitle: string;
+}
+
+export interface MProjectIssues {
+  /** ISSUES.md entry count for the current project (card hidden at 0 — design sec-24 24a). */
+  count: number;
+  /** First few entry titles for the card preview. */
+  previews: string[];
 }
 
 export interface MProjectCurrent {
@@ -54,8 +62,11 @@ export interface MProjectViewProps {
   current: MProjectCurrent | null;
   /** GLOBAL pending approvals — drives the amber bar visibility (shown only when > 0). */
   pendingApprovals: number;
+  /** Current project's ISSUES.md entries (24a card, hidden at 0 — issues never enter 需要你). */
+  issues: MProjectIssues;
   onlineMachines: number;
   switchRows: MProjectSwitchRow[];
+  onIssues: () => void;
   onApprovals: () => void;
   onMemory: () => void;
   onMachines: () => void;
@@ -208,6 +219,59 @@ function ApprovalBar({
   );
 }
 
+// Issues card (design sec-24 24a, mobile column): neutral chrome — deliberately NOT amber and NOT
+// part of the 需要你 bar (issues never block a thread). Shows the first 2 titles + `+ N more`
+// (design-verbatim mono suffix). Hidden entirely at 0 (rendered conditionally by the parent).
+function IssuesCard({
+  issues,
+  copy,
+  onClick,
+}: {
+  issues: MProjectIssues;
+  copy: MProjectCopy;
+  onClick: () => void;
+}) {
+  const more = issues.count - issues.previews.length;
+  return (
+    <MCard radius={14} padding="12px 14px" onClick={onClick} style={{ cursor: 'pointer' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 13.5, fontWeight: 650, color: MC.ink }}>{copy.issuesTitle}</span>
+        <span
+          style={{
+            font: `600 10px ${MONO}`,
+            color: MC.sub,
+            background: 'var(--proto-line-2)',
+            padding: '2px 8px',
+            borderRadius: 999,
+          }}
+        >
+          {issues.count}
+        </span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, color: MC.faint }}>›</span>
+      </div>
+      {issues.previews.map((title) => (
+        <div
+          key={title}
+          style={{
+            fontSize: 12,
+            lineHeight: 1.55,
+            color: MC.sub,
+            marginTop: 4,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {title}
+        </div>
+      ))}
+      {more > 0 && (
+        <div style={{ font: `400 10px ${MONO}`, color: MC.faint, marginTop: 7 }}>+ {more} more</div>
+      )}
+    </MCard>
+  );
+}
+
 function InfoRow({
   label,
   onClick,
@@ -345,7 +409,7 @@ function SwitchRow({
 }
 
 export function MProjectView(props: MProjectViewProps) {
-  const { copy, connected, current, pendingApprovals, onlineMachines, switchRows } = props;
+  const { copy, connected, current, pendingApprovals, issues, onlineMachines, switchRows } = props;
   return (
     <MScreen
       label="1e 项目"
@@ -364,6 +428,8 @@ export function MProjectView(props: MProjectViewProps) {
             onClick={props.onApprovals}
           />
         )}
+
+        {issues.count > 0 && <IssuesCard issues={issues} copy={copy} onClick={props.onIssues} />}
 
         <MCard radius={13} padding={0} style={{ overflow: 'hidden' }}>
           <InfoRow label={copy.memory} onClick={props.onMemory} divider />

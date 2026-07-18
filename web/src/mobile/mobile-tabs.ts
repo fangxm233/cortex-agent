@@ -30,6 +30,7 @@ const SUBROUTE_TAB: ReadonlyArray<{ prefix: string; tab: MobileTabId }> = [
   { prefix: '/m/thread/', tab: 'threads' },
   { prefix: '/m/task/', tab: 'tasks' },
   { prefix: '/m/approvals', tab: 'project' },
+  { prefix: '/m/issues', tab: 'project' },
   { prefix: '/m/memory', tab: 'project' },
   { prefix: '/m/machines', tab: 'project' },
   { prefix: '/m/settings', tab: 'project' },

@@ -7,6 +7,7 @@ import { MThreadsScreen } from './v3/MThreadsScreen';
 import { MTasksScreen } from './v3/MTasksScreen';
 import { MProjectScreen } from './v3/MProjectScreen';
 import { MApprovalsScreen } from './v3/MApprovalsScreen';
+import { MIssuesScreen } from './v3/MIssuesScreen';
 import { MThreadDetailScreen } from './v3/MThreadDetailScreen';
 import { MTaskDetailScreen } from './v3/MTaskDetailScreen';
 import { MNewProjectScreen } from './v3/MNewProjectScreen';
@@ -36,6 +37,7 @@ export const mobileRoutes: RouteObject[] = [
       { path: '/m/thread/:threadId', element: <MThreadDetailScreen /> },
       { path: '/m/task/:taskId', element: <MTaskDetailScreen /> },
       { path: '/m/approvals', element: <MApprovalsScreen /> },
+      { path: '/m/issues', element: <MIssuesScreen /> },
       { path: '/m/new-project', element: <MNewProjectScreen /> },
       { path: '/m/memory', element: <MMemoryScreen /> },
       { path: '/m/machines', element: <MMachinesScreen /> },

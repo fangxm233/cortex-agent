@@ -58,6 +58,7 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     newProject: 'New project',
     newProjectHint: 'Just a name — init happens in chat',
     footer: 'Tap a row to switch: sessions / runs / tasks re-scope, chat lands on the latest.',
+    issuesTitle: 'Issues',
   },
   zh: {
     title: '项目',
@@ -85,6 +86,7 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     newProject: '新建项目',
     newProjectHint: '只填名字，初始化在对话里做',
     footer: '点行即切换：会话 / 运行 / 任务同步换到该项目，会话落到最近一条',
+    issuesTitle: 'Issues',
   },
 };
 
@@ -108,11 +110,21 @@ export function MProjectScreen() {
   const threadsQuery = useQuery(trpc.threads.list.queryOptions({}));
   const approvalsQuery = useQuery(trpc.approvals.list.queryOptions({ status: 'pending' }));
   const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
+  // Issues (design sec-24 24a): the current project's ISSUES.md entries — the card is hidden at 0.
+  const issuesQuery = useQuery({
+    ...trpc.issues.list.queryOptions({ projectId: currentProjectId ?? '' }),
+    enabled: !!currentProjectId,
+  });
 
   const projects = projectsQuery.data ?? [];
   const threads = threadsQuery.data ?? [];
   const machines = machinesQuery.data ?? [];
   const pendingApprovals = approvalsQuery.data?.length ?? 0;
+  const issueEntries = issuesQuery.data ?? [];
+  const issues = useMemo(
+    () => ({ count: issueEntries.length, previews: issueEntries.slice(0, 2).map((i) => i.title) }),
+    [issueEntries],
+  );
   const onlineMachines = onlineMachineCount(machines);
   // Honest daemon signal: a successful projects query implies the daemon answered.
   const connected = !projectsQuery.isError;
@@ -158,8 +170,10 @@ export function MProjectScreen() {
       connected={connected}
       current={current}
       pendingApprovals={pendingApprovals}
+      issues={issues}
       onlineMachines={onlineMachines}
       switchRows={switchRows}
+      onIssues={() => navigate('/m/issues')}
       onApprovals={() => navigate('/m/approvals')}
       onMemory={() => navigate('/m/memory')}
       onMachines={() => navigate('/m/machines')}
