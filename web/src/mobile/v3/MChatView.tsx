@@ -6,6 +6,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { regenNoteIndexes, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
+import { buildSessionIdRows } from '@/features/workbench/session-id';
 import {
   interactionView,
   emptyAskAnswers,
@@ -30,6 +31,13 @@ export interface MChatCopy {
   menuRename: string;
   menuExport: string;
   menuArchive: string;
+  menuSessionId: string;
+  // Session ID sheet (⋯ → 会话ID)
+  sessionIdTitle: string;
+  cortexIdLabel: string;
+  backendUuidLabel: string;
+  copy: string;
+  copied: string;
   attachCamera: string;
   attachLibrary: string;
   attachFile: string;
@@ -251,9 +259,15 @@ export function MChatHeader({
   );
 }
 
-// The inert ⋯ menu (重命名/导出/归档 — no backend op; honest affordance).
-export function MoreMenu({ copy, onClose }: { copy: MChatCopy; onClose: () => void }): JSX.Element {
-  const items = [copy.menuRename, copy.menuExport, copy.menuArchive];
+// The ⋯ menu: 会话ID (real → opens the Session ID sheet) + 重命名/导出/归档 (no backend op; honest
+// affordance, inert).
+export function MoreMenu({ copy, onClose, onSessionId }: { copy: MChatCopy; onClose: () => void; onSessionId: () => void }): JSX.Element {
+  const items: { label: string; onTap: () => void }[] = [
+    { label: copy.menuSessionId, onTap: onSessionId },
+    { label: copy.menuRename, onTap: onClose },
+    { label: copy.menuExport, onTap: onClose },
+    { label: copy.menuArchive, onTap: onClose },
+  ];
   return (
     <>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 5 }} />
@@ -271,10 +285,10 @@ export function MoreMenu({ copy, onClose }: { copy: MChatCopy; onClose: () => vo
           zIndex: 6,
         }}
       >
-        {items.map((label, i) => (
+        {items.map((it, i) => (
           <div
-            key={label}
-            onClick={onClose}
+            key={it.label}
+            onClick={it.onTap}
             style={{
               padding: '11px 14px',
               fontSize: 13,
@@ -283,11 +297,86 @@ export function MoreMenu({ copy, onClose }: { copy: MChatCopy; onClose: () => vo
               cursor: 'pointer',
             }}
           >
-            {label}
+            {it.label}
           </div>
         ))}
       </div>
     </>
+  );
+}
+
+// Session ID sheet (⋯ → 会话ID) — a bottom sheet showing the two identifiers a session carries: the
+// human-facing Cortex ID (cortex-XXXX) and the backend UUID. Each row is copy-to-clipboard.
+export function SessionIdSheet({
+  copy,
+  cortexId,
+  backendUuid,
+  onClose,
+}: {
+  copy: MChatCopy;
+  cortexId: string | null | undefined;
+  backendUuid: string | null | undefined;
+  onClose: () => void;
+}): JSX.Element {
+  const rows = buildSessionIdRows({
+    cortexId,
+    backendUuid,
+    cortexIdLabel: copy.cortexIdLabel,
+    backendUuidLabel: copy.backendUuidLabel,
+  });
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const doCopy = (key: string, value: string): void => {
+    if (value === '—') return;
+    void navigator.clipboard?.writeText(value).catch(() => {});
+    setCopiedKey(key);
+    window.setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1400);
+  };
+  return (
+    <MBottomSheet onClose={onClose}>
+      <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 12px' }}>
+        {copy.sessionIdTitle}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+        {rows.map((row) => (
+          <div key={row.key}>
+            <div style={{ font: `600 9.5px ${MONO}`, letterSpacing: '.05em', color: MC.muted, padding: '0 2px 5px' }}>
+              {row.label}
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'var(--proto-card)',
+                border: `1px solid ${MC.hairline}`,
+                borderRadius: 11,
+                padding: '10px 12px',
+              }}
+            >
+              <span style={{ flex: 1, font: `500 12px ${MONO}`, color: MC.ink, wordBreak: 'break-all', userSelect: 'all' }}>
+                {row.value}
+              </span>
+              <span
+                role="button"
+                onClick={() => doCopy(row.key, row.value)}
+                style={{
+                  flex: 'none',
+                  font: `600 9.5px ${MONO}`,
+                  color: copiedKey === row.key ? MC.run : MC.muted,
+                  border: `1px solid ${copiedKey === row.key ? MC.runBorder : 'var(--proto-line-3)'}`,
+                  borderRadius: 7,
+                  padding: '4px 9px',
+                  cursor: row.value === '—' ? 'default' : 'pointer',
+                  opacity: row.value === '—' ? 0.4 : 1,
+                }}
+              >
+                {copiedKey === row.key ? copy.copied : copy.copy}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </MBottomSheet>
   );
 }
 
@@ -808,6 +897,12 @@ export interface MChatViewProps {
   moreOpen: boolean;
   onMoreToggle: () => void;
   onMoreClose: () => void;
+  // ⋯ → 会话ID sheet
+  sessionIdOpen: boolean;
+  onSessionIdOpen: () => void;
+  onSessionIdClose: () => void;
+  cortexId: string | null;
+  backendUuid: string | null;
   // stream slots
   inlineThreadCard?: ReactNode;
   systemLines?: string[];
@@ -974,7 +1069,24 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           <div style={{ font: `400 9px ${MONO}`, color: MC.faint, padding: '0 16px 2px' }}>{copy.attachFootnote}</div>
         )}
       </div>
-      {props.moreOpen && <MoreMenu copy={copy} onClose={props.onMoreClose} />}
+      {props.moreOpen && (
+        <MoreMenu
+          copy={copy}
+          onClose={props.onMoreClose}
+          onSessionId={() => {
+            props.onMoreClose();
+            props.onSessionIdOpen();
+          }}
+        />
+      )}
+      {props.sessionIdOpen && (
+        <SessionIdSheet
+          copy={copy}
+          cortexId={props.cortexId}
+          backendUuid={props.backendUuid}
+          onClose={props.onSessionIdClose}
+        />
+      )}
       {props.msgMenu && props.editCopy && props.rows[props.msgMenu.rowIndex] && (
         <MsgActionMenu row={props.rows[props.msgMenu.rowIndex]} menu={props.msgMenu} copy={props.editCopy} />
       )}

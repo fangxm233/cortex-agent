@@ -7,6 +7,8 @@ import {
   MChatStream,
   ProfileSheet,
   AttachMenu,
+  MoreMenu,
+  SessionIdSheet,
   type MChatCopy,
 } from './MChatView';
 import type { ProfileSheetItem, PendingAttachmentVM } from './m-chat-vm';
@@ -21,6 +23,12 @@ const copy: MChatCopy = {
   menuRename: '重命名',
   menuExport: '导出',
   menuArchive: '归档',
+  menuSessionId: '会话 ID',
+  sessionIdTitle: '会话 ID',
+  cortexIdLabel: 'Cortex ID',
+  backendUuidLabel: '后端 UUID',
+  copy: '复制',
+  copied: '已复制',
   attachCamera: '拍照',
   attachLibrary: '照片图库',
   attachFile: '选择文件',
@@ -41,6 +49,11 @@ const baseProps = {
   moreOpen: false,
   onMoreToggle: () => {},
   onMoreClose: () => {},
+  sessionIdOpen: false,
+  onSessionIdOpen: () => {},
+  onSessionIdClose: () => {},
+  cortexId: null,
+  backendUuid: null,
   composerValue: '',
   onComposerChange: () => {},
   onSend: () => {},
@@ -272,5 +285,50 @@ describe('1b MChatView composition', () => {
     expect(html).toContain('64%');
     expect(html).toContain('补充说明…');
     expect(html).toContain('由 agent 读取');
+  });
+});
+
+describe('⋯ → 会话ID (MoreMenu + SessionIdSheet)', () => {
+  it('MoreMenu lists 会话ID above the inert rename/export/archive items', () => {
+    const html = renderToStaticMarkup(<MoreMenu copy={copy} onClose={() => {}} onSessionId={() => {}} />);
+    expect(html).toContain('会话 ID');
+    expect(html).toContain('重命名');
+    expect(html).toContain('导出');
+    expect(html).toContain('归档');
+  });
+  it('SessionIdSheet shows the Cortex ID and backend UUID with their real values', () => {
+    const html = renderToStaticMarkup(
+      <SessionIdSheet
+        copy={copy}
+        cortexId="cortex-0042"
+        backendUuid="11111111-2222-3333-4444-555555555555"
+        onClose={() => {}}
+      />,
+    );
+    expect(html).toContain('Cortex ID');
+    expect(html).toContain('cortex-0042');
+    expect(html).toContain('后端 UUID');
+    expect(html).toContain('11111111-2222-3333-4444-555555555555');
+    expect(html).toContain('复制');
+  });
+  it('SessionIdSheet falls back to a dash when an id is missing (never fabricated)', () => {
+    const html = renderToStaticMarkup(
+      <SessionIdSheet copy={copy} cortexId={null} backendUuid={null} onClose={() => {}} />,
+    );
+    expect(html).toContain('—');
+  });
+  it('MChatView renders the Session ID sheet when sessionIdOpen', () => {
+    const html = renderToStaticMarkup(
+      <MChatView
+        {...baseProps}
+        status={{ running: false, tone: 'idle', text: 'idle' }}
+        rows={[]}
+        sessionIdOpen
+        cortexId="cortex-0007"
+        backendUuid="uuid-abc"
+      />,
+    );
+    expect(html).toContain('cortex-0007');
+    expect(html).toContain('uuid-abc');
   });
 });

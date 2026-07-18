@@ -76,6 +76,12 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     menuRename: '重命名',
     menuExport: '导出',
     menuArchive: '归档',
+    menuSessionId: '会话 ID',
+    sessionIdTitle: '会话 ID',
+    cortexIdLabel: 'Cortex ID',
+    backendUuidLabel: '后端 UUID',
+    copy: '复制',
+    copied: '已复制',
     attachCamera: '拍照',
     attachLibrary: '照片图库',
     attachFile: '选择文件',
@@ -94,6 +100,12 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     menuRename: 'Rename',
     menuExport: 'Export',
     menuArchive: 'Archive',
+    menuSessionId: 'Session ID',
+    sessionIdTitle: 'Session ID',
+    cortexIdLabel: 'Cortex ID',
+    backendUuidLabel: 'Backend UUID',
+    copy: 'Copy',
+    copied: 'Copied',
     attachCamera: 'Take photo',
     attachLibrary: 'Photo library',
     attachFile: 'Choose file',
@@ -350,6 +362,7 @@ export function MChatScreen(): JSX.Element {
   const [text, setText] = useState('');
   const [uploads, setUploads] = useState<PendingUpload[]>([]);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [sessionIdOpen, setSessionIdOpen] = useState(false);
   // sec-7: long-press action menu (held row) · 7b edit mode (edited row) · 原消息 sheet.
   const [msgMenuIdx, setMsgMenuIdx] = useState<number | null>(null);
   const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
@@ -635,6 +648,11 @@ export function MChatScreen(): JSX.Element {
         moreOpen={moreOpen}
         onMoreToggle={() => setMoreOpen((o) => !o)}
         onMoreClose={() => setMoreOpen(false)}
+        sessionIdOpen={sessionIdOpen}
+        onSessionIdOpen={() => setSessionIdOpen(true)}
+        onSessionIdClose={() => setSessionIdOpen(false)}
+        cortexId={active?.name ?? null}
+        backendUuid={sessionId || null}
         inlineThreadCard={
           sessionId ? (
             <InlineThreadCard

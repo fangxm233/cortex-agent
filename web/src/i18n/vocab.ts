@@ -196,6 +196,13 @@ export const en = {
   wbNewShort: 'New',
   wbCost: 'Cost',
 
+  // ── Session ID (⋯ header menu → modal) ──
+  wbSessionId: 'Session ID',
+  wbCortexId: 'Cortex ID',
+  wbBackendUuid: 'Backend UUID',
+  wbCopy: 'Copy',
+  wbCopied: 'Copied',
+
   // ── Daemon status modal 17a ──
   dmDaemon: 'Daemon status',
   dmEsc: 'esc',
@@ -712,6 +719,13 @@ export const zh: Record<keyof Vocab, string> = {
   wbSessions: '会话',
   wbNewShort: '新建',
   wbCost: '成本',
+
+  // ── Session ID (⋯ header menu → modal) ──
+  wbSessionId: '会话 ID',
+  wbCortexId: 'Cortex ID',
+  wbBackendUuid: '后端 UUID',
+  wbCopy: '复制',
+  wbCopied: '已复制',
 
   // ── Daemon status modal 17a ──
   dmDaemon: '守护进程状态',

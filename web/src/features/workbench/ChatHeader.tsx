@@ -4,6 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { buildProfileOptions, currentBackendOf } from './profile-menu';
 import { ProfileMenu } from './ProfileMenu';
+import { SessionIdModal } from './SessionIdModal';
 import { useSelectedSession } from './SelectedSessionProvider';
 
 // Chat header — 1:1 from prototype.dc.html L107–130: session title · profile chip · running/idle
@@ -22,6 +23,7 @@ export function ChatHeader({
   running,
   onCmdK,
   sessionId,
+  sessionName,
   currentProfile,
   hasHistory,
   isDraft = false,
@@ -30,6 +32,8 @@ export function ChatHeader({
   running: boolean;
   onCmdK: () => void;
   sessionId: string;
+  /** The human-facing Cortex ID (cortex-XXXX, SessionInfo.name); null on a draft/no session. */
+  sessionName: string | null;
   currentProfile: string | null;
   hasHistory: boolean;
   isDraft?: boolean;
@@ -68,7 +72,10 @@ export function ChatHeader({
 
   const [chipHover, setChipHover] = useState(false);
   const [cmdkHover, setCmdkHover] = useState(false);
+  const [moreHover, setMoreHover] = useState(false);
   const [profMenuOpen, setProfMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [sessionIdOpen, setSessionIdOpen] = useState(false);
   useEffect(() => {
     if (!profMenuOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -82,6 +89,19 @@ export function ChatHeader({
       window.removeEventListener('click', onClickAway);
     };
   }, [profMenuOpen]);
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreMenuOpen(false);
+    };
+    const onClickAway = () => setMoreMenuOpen(false);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('click', onClickAway);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('click', onClickAway);
+    };
+  }, [moreMenuOpen]);
 
   return (
     <div
@@ -200,7 +220,68 @@ export function ChatHeader({
         >
           ⌘K
         </span>
+        <span style={{ position: 'relative', display: 'inline-flex' }}>
+          <span
+            data-chip="more"
+            aria-label="Session menu"
+            onMouseEnter={() => setMoreHover(true)}
+            onMouseLeave={() => setMoreHover(false)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setMoreMenuOpen((o) => !o);
+            }}
+            style={{
+              fontSize: 15,
+              lineHeight: 1,
+              letterSpacing: 1,
+              cursor: 'pointer',
+              color: moreHover || moreMenuOpen ? 'var(--proto-ink)' : undefined,
+            }}
+          >
+            ⋯
+          </span>
+          {moreMenuOpen && (
+            <span
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: 24,
+                minWidth: 132,
+                background: 'var(--proto-card)',
+                border: '1px solid var(--proto-line)',
+                borderRadius: 9,
+                boxShadow: '0 14px 40px rgba(16,24,40,.2)',
+                overflow: 'hidden',
+                zIndex: 40,
+              }}
+            >
+              <div
+                onClick={() => {
+                  setMoreMenuOpen(false);
+                  setSessionIdOpen(true);
+                }}
+                style={{
+                  padding: '9px 13px',
+                  fontSize: 12.5,
+                  color: 'var(--proto-ink)',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {L.wbSessionId}
+              </div>
+            </span>
+          )}
+        </span>
       </div>
+      {sessionIdOpen && (
+        <SessionIdModal
+          cortexId={sessionName}
+          backendUuid={sessionId || null}
+          onClose={() => setSessionIdOpen(false)}
+        />
+      )}
     </div>
   );
 }
