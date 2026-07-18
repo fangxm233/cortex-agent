@@ -4,7 +4,7 @@ import type { ChatRow, Attachment } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { AttachmentMeta } from './chat-content';
-import { downloadFile } from '@/lib/files';
+import { useDownloadFile } from '@/features/media/useDownloadFile';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
@@ -373,7 +373,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
       {text && (
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', maxWidth: '100%' }}>
           {editCopy && hover && (
-            <div style={{ position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)', marginRight: 8, display: 'flex' }}>
+            <div style={{ position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)', paddingRight: 8, display: 'flex' }}>
               <HoverActionPill text={text} copy={editCopy} onEdit={onStartEdit} editDisabled={editDisabled} />
             </div>
           )}
