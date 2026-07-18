@@ -23,6 +23,9 @@ export interface PISpawnOptions {
   pluginDirs?: string[] | null;
   /** PI extension file paths; each emits a repeated --extension flag (pi args.js:95-98). */
   extensionPaths?: string[] | null;
+  /** Thinking level from the profile's `thinking` field → `--thinking <level>`
+   *  (off/minimal/low/medium/high/xhigh). Absent → no flag. */
+  thinking?: string | null;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string> | null;
 }
@@ -78,6 +81,11 @@ export function buildSpawnArgs(opts: PISpawnOptions): string[] {
     for (const ext of opts.extensionPaths) {
       args.push('--extension', ext);
     }
+  }
+
+  // Before extraOption so an explicit extraOption {"--thinking": ...} still wins (CLI last-wins).
+  if (opts.thinking) {
+    args.push('--thinking', opts.thinking);
   }
 
   if (opts.extraOption) {

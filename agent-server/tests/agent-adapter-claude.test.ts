@@ -84,6 +84,40 @@ test('buildSpawnArgs with full options — system-prompt, append, model, agent, 
   assert.deepEqual(args, expected);
 });
 
+test('buildSpawnArgs: thinking level is passed as --effort', () => {
+  const args = buildSpawnArgs({
+    tools: null,
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    thinking: 'xhigh',
+    needsResume: false,
+    sessionId: 'uuid-ccc',
+  });
+  const idx = args.indexOf('--effort');
+  assert.ok(idx >= 0, '--effort must be present');
+  assert.equal(args[idx + 1], 'xhigh');
+});
+
+test('buildSpawnArgs: no --effort when thinking is absent (backward compat)', () => {
+  const base = {
+    tools: null,
+    systemPrompt: null,
+    appendSystemPrompt: null,
+    model: null,
+    claudeAgent: null,
+    pluginDirs: null,
+    outputStyle: null,
+    needsResume: false,
+    sessionId: 'uuid-ddd',
+  };
+  assert.ok(!buildSpawnArgs(base).includes('--effort'));
+  assert.ok(!buildSpawnArgs({ ...base, thinking: null }).includes('--effort'));
+});
+
 // --- buildSpawnArgs: Feishu MCP layering (Feishu-originated sessions) ---
 
 test('buildSpawnArgs loadFeishuMcp — layers cortex-feishu config on top of the full MCP set', () => {

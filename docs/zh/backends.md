@@ -83,6 +83,10 @@ Codex 目前支持三种能力：MCP、系统提示覆盖和会话恢复。适�
 
 线程模板也可以为每个智能体指定配置，允许同一管道中的不同智能体使用不同的后端。模板配置参见 [threads.md](./threads.md)。
 
+## 思考档位
+
+可选的 `thinking` 配置字段设置后端的推理深度。每个后端以其原生标志接收：Claude Code 为 `--effort <level>`（`low`/`medium`/`high`/`xhigh`/`max`），PI 为 `--thinking <level>`（`off`/`minimal`/`low`/`medium`/`high`/`xhigh`）。Codex 没有思考档位传递，在 codex 配置上声明该字段会导致校验失败。字段缺省时不传递任何标志，后端使用自身默认值，因此现有配置行为不变。fallback 条目不继承主配置的值——每条自行声明。
+
 ## 回退行为
 
 每个配置项可以指定一个 `fallback` 数组作为备选配置。如果主后端调用因瞬态错误失败（网络超时、速率限制、认证），Cortex 按顺序遍历回退链。每个回退项继承主配置中未指定的字段。

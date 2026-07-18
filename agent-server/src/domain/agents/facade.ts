@@ -30,6 +30,9 @@ export interface AgentConfig {
   extraOption?: Record<string, string>;
   /** DR-0012: Claude adapter mode (print/tui). Only meaningful for backend='claude'. */
   claudeBackend?: 'print' | 'tui';
+  /** Thinking level from the profile (backend-native value: claude → --effort, pi → --thinking).
+   *  null/undefined → nothing is passed. */
+  thinking?: string | null;
 }
 
 export interface RunAgentOptions {
@@ -162,6 +165,7 @@ function buildSpawnConfig(
     env: config.extraEnv && Object.keys(config.extraEnv).length > 0 ? config.extraEnv : undefined,
     extraOption: config.extraOption && Object.keys(config.extraOption).length > 0 ? config.extraOption : undefined,
     claudeBackend: config.claudeBackend,
+    thinking: config.thinking || undefined,
     channel: options.channel,
     claudeAgent: options.claudeAgent ?? undefined,
     callbackSource: options.callbackSource ?? undefined,
@@ -317,7 +321,7 @@ export function runAgentOnce(message: string, options: RunAgentOptions, config: 
 export function runAgent(message: string, options: RunAgentOptions = {}): AgentHandle {
   const profileConfig: ResolvedProfileConfig = resolveProfileConfig(options.profileName);
   const configs: AgentConfig[] = [
-    { model: profileConfig.model, backend: profileConfig.backend, mode: profileConfig.mode, provider: profileConfig.provider, extraEnv: profileConfig.extraEnv, extraOption: profileConfig.extraOption, claudeBackend: profileConfig.claudeBackend },
+    { model: profileConfig.model, backend: profileConfig.backend, mode: profileConfig.mode, provider: profileConfig.provider, extraEnv: profileConfig.extraEnv, extraOption: profileConfig.extraOption, claudeBackend: profileConfig.claudeBackend, thinking: profileConfig.thinking },
     ...(profileConfig.fallback || []),
   ];
 

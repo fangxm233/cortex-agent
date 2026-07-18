@@ -183,6 +183,7 @@ $CORTEX_HOME/
 | `profiles.<name>.extraEnv` | object | 否 | 传递给后端进程的额外环境变量。键必须匹配 `^[A-Z_][A-Z0-9_]*$`。 |
 | `profiles.<name>.extraOption` | object | 否 | 传递给后端的额外 CLI 标志。键必须以 `--` 开头。 |
 | `profiles.<name>.claudeBackend` | string | 否 | Claude 适配器模式：`print`（默认，使用 `-p` + stream-json）或 `tui`（在 tmux 下交互式 Claude + jsonl tail）。非 claude 后端忽略。 |
+| `profiles.<name>.thinking` | string | 否 | 思考档位，取后端原生值域：`claude` 为 `low`/`medium`/`high`/`xhigh`/`max` 之一（以 `--effort` 传递），`pi` 为 `off`/`minimal`/`low`/`medium`/`high`/`xhigh` 之一（以 `--thinking` 传递）。`codex` 不支持。不写则不传任何标志。fallback 条目不继承——每条自行声明。 |
 | `profiles.<name>.fallback` | array | 否 | 有序的回退配置项列表。如果主后端失败，Cortex 按顺序尝试每个回退项。每个回退项继承主配置中未指定的字段。 |
 
 ### 配置解析
@@ -191,12 +192,12 @@ $CORTEX_HOME/
 
 1. 如果显式提供了配置名称（通过 `--profile` 或线程模板），使用它。
 2. 否则，使用 `profiles.json` 中的 `defaultProfile`。
-3. 解析后的配置提供 `model`、`backend`、`mode`、`extraEnv`、`extraOption` 和 `claudeBackend`。
+3. 解析后的配置提供 `model`、`backend`、`mode`、`extraEnv`、`extraOption`、`claudeBackend` 和 `thinking`。
 4. 如果后端调用因瞬态错误失败，Cortex 遍历 `fallback` 数组（如果有），按顺序尝试每个条目。
 
 ### 验证规则
 
-配置名称必须匹配 `^[a-zA-Z0-9_-]+$`。后端必须是 `claude`、`codex` 或 `pi` 之一。如果指定，`claudeBackend` 必须是 `print` 或 `tui`。未知字段会被静默忽略。
+配置名称必须匹配 `^[a-zA-Z0-9_-]+$`。后端必须是 `claude`、`codex` 或 `pi` 之一。如果指定，`claudeBackend` 必须是 `print` 或 `tui`。如果指定 `thinking`，其值必须属于该条目后端的值域（见字段表）；在 `codex` 配置上声明会报错。未知字段会被静默忽略。
 
 ## settings.json
 

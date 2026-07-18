@@ -88,6 +88,8 @@ interface ClaudeSessionOptions {
   extraEnv?: Record<string, string>;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string>;
+  /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
+  thinking?: string | null;
   /** Cortex execution context surfaced to the MCP server child as CORTEX_THREAD_ID/PROFILE/PROJECT/SESSION_NAME env vars.
    *  Captured at spawn time; later turns on the same session reuse the original snapshot. */
   context?: CortexAgentContext;
@@ -104,6 +106,7 @@ function deriveClaudeSpawnOptions(fields: {
   pluginDirs: string[] | null;
   outputStyle: string | null;
   extraOption: Record<string, string> | undefined;
+  thinking: string | null;
   needsResume: boolean;
   sessionId: string;
 }): ClaudeSpawnOptions {
@@ -116,6 +119,7 @@ function deriveClaudeSpawnOptions(fields: {
     pluginDirs: fields.pluginDirs,
     outputStyle: fields.outputStyle,
     extraOption: fields.extraOption,
+    thinking: fields.thinking,
     needsResume: fields.needsResume,
     sessionId: fields.sessionId,
   };
@@ -141,6 +145,7 @@ class ClaudeSession {
   private anthropicBaseUrl: string | undefined;
   private extraEnv: Record<string, string> | undefined;
   private extraOption: Record<string, string> | undefined;
+  private thinking: string | null;
   private context: CortexAgentContext | undefined;
   private currentTurn: PendingTurn | null = null;
   /** Tracks in-flight background tasks (run_in_background) for this session. */
@@ -177,6 +182,7 @@ class ClaudeSession {
     this.anthropicBaseUrl = options.anthropicBaseUrl;
     this.extraEnv = options.extraEnv;
     this.extraOption = options.extraOption;
+    this.thinking = options.thinking ?? null;
     this.context = options.context;
     this.spawnProcess();
   }
@@ -191,6 +197,7 @@ class ClaudeSession {
       pluginDirs: this.pluginDirs,
       outputStyle: this.outputStyle,
       extraOption: this.extraOption,
+      thinking: this.thinking,
       needsResume: this.needsResume,
       sessionId: this.sessionId,
     });
@@ -765,6 +772,7 @@ function getOrCreateTuiSession(config: AgentSpawnConfig, sessionIdEffective: str
       pluginDirs: opts.pluginDirs,
       outputStyle: opts.outputStyle,
       extraOption: opts.extraOption ?? null,
+      thinking: opts.thinking ?? null,
       // Mirror the print-mode rule (spawnProcess): template thread sessions load only the core MCP
       // server. buildSpawnArgs reads this CORE_MCP_CONFIG marker to also suppress the TUI bridge.
       mcpConfigPath: opts.context?.useCoreMcp ? CORE_MCP_CONFIG : undefined,
@@ -826,6 +834,7 @@ function sessionOptionsFromSpawnConfig(config: AgentSpawnConfig): ClaudeSessionO
     anthropicBaseUrl: config.anthropicBaseUrl,
     extraEnv: config.env,
     extraOption: config.extraOption,
+    thinking: config.thinking ?? null,
     context: config.cortexContext,
   };
 }
@@ -845,6 +854,7 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     pluginDirs: opts.pluginDirs ?? null,
     outputStyle: opts.outputStyle ?? null,
     extraOption: opts.extraOption,
+    thinking: opts.thinking ?? null,
     needsResume: opts.needsResume,
     sessionId: opts.sessionIdEffective,
   });

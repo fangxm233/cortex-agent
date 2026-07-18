@@ -17,7 +17,7 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `claude/defaults.ts` | constants | timeout/MCP/tools/hooks constants |
 | `claude/hooks-builder.ts` | builder | buildHooksSettings generates hook configuration |
 | `claude/tool-summarizers.ts` | summarizer | summarizeToolInput tool input rendering |
-| `claude/spawn-args.ts` | args | buildSpawnArgs constructs CLI args |
+| `claude/spawn-args.ts` | args | buildSpawnArgs constructs CLI args (profile `thinking` → `--effort`) |
 | `claude/event-parser.ts` | parser | stream-json event parsing + plan tracking |
 | `claude/bg-task-tracker.ts` | tracker | background-task (run_in_background) running/undelivered dual-set tracking (task_updated terminal statuses count as work-done because CC may never send task_notification — old-CLI same-turn completions / killed tasks) + spontaneous continuation-turn detection (BgTaskTracker / routeLine / isContinuationResult) |
 | `claude/tmux-control.ts` | utility | tmux CLI wrapper (DR-0012 Phase 1, TUI mode foundation) |
@@ -30,7 +30,7 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `pi/adapter.ts` | adapter | PIAdapter + PISession + switch_session; forwards agent tool allowlist to subprocess via CORTEX_PI_ALLOWED_TOOLS env (from rawTools/canonical tools). Resume guard (`piSessionFileExists` + sessionPathRegistry): `--session <id>` is passed only when the id is KNOWN (bootstrapped this instance or a matching file on disk) — PI can only resume an existing session, not create one under an external id (unlike Claude's `--session-id`), so an unknown id starts fresh instead of exiting "No session found matching <id>" |
 | `pi/event-parser.ts` | parser | piRpcLineToNormalized translation |
 | `pi/framing.ts` | framing | LF-only NDJSON encoding and splitter |
-| `pi/spawn-args.ts` | args | buildSpawnArgs constructs pi CLI args |
+| `pi/spawn-args.ts` | args | buildSpawnArgs constructs pi CLI args (profile `thinking` → `--thinking`) |
 | `pi/mcp-bridge.ts` | extension | Bridge PI to Cortex MCP server |
 | `pi/hook-bridge.ts` | extension | Bridge PI tool events to hooks/*.mjs |
 | `pi/tool-shims.ts` | extension | ask/exit_plan/todo pseudo tool registration, gated by agent tool allowlist (makeToolGate + CORTEX_PI_ALLOWED_TOOLS) so thread agents don't get interaction tools |

@@ -146,6 +146,18 @@ test('buildSpawnArgs accepts appendSystemPrompt array for repeated flag', () => 
   ]);
 });
 
+test('buildSpawnArgs: thinking level is passed as --thinking', () => {
+  const args = buildSpawnArgs({ sessionDir: '/x', thinking: 'high' });
+  const idx = args.indexOf('--thinking');
+  assert.ok(idx >= 0, '--thinking must be present');
+  assert.equal(args[idx + 1], 'high');
+});
+
+test('buildSpawnArgs: no --thinking when thinking is absent (backward compat)', () => {
+  assert.ok(!buildSpawnArgs({ sessionDir: '/x' }).includes('--thinking'));
+  assert.ok(!buildSpawnArgs({ sessionDir: '/x', thinking: null }).includes('--thinking'));
+});
+
 test('buildSpawnArgs emits no --skill when pluginDirs is empty or undefined', () => {
   const a = buildSpawnArgs({ sessionDir: '/x', pluginDirs: [] });
   assert.ok(!a.includes('--skill'));

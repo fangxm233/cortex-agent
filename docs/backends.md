@@ -119,6 +119,18 @@ Thread templates can also specify a profile per agent, allowing different
 agents in the same pipeline to use different backends. See
 [threads.md](./threads.md) for template configuration.
 
+## Thinking level
+
+The optional `thinking` profile field sets the backend's reasoning depth.
+Each backend receives it in its native flag: Claude Code as
+`--effort <level>` (`low`/`medium`/`high`/`xhigh`/`max`), PI as
+`--thinking <level>` (`off`/`minimal`/`low`/`medium`/`high`/`xhigh`).
+Codex has no thinking passthrough, and declaring the field on a codex
+profile fails validation. When the field is absent no flag is passed and
+the backend uses its own default, so existing profiles behave unchanged.
+Fallback entries do not inherit the primary's value — each entry declares
+its own.
+
 ## Fallback behavior
 
 Each profile entry can specify a `fallback` array of alternative profiles.

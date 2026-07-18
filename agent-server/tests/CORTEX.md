@@ -133,6 +133,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `message-router.test.ts` | Test | Message routing branches |
 | `session.test.ts` | Test | session.ts backend:channel CRUD |
 | `session-hooks-profile-resolution.test.ts` | Test | resolveOnNewProfileName priority (registry > ledger) — regression for "Invalid signature in thinking block" caused by thread vs user session profile mismatch |
+| `domain/agents/profile-thinking.test.ts` | Test | Profile `thinking` field: per-backend value validation (claude --effort / pi --thinking / codex unsupported), resolveProfileConfig propagation (no fallback inheritance), buildSpawnConfig passthrough |
 | `session-hooks-inject-isolation.test.ts` | Test | onNewInjectSessionKey isolation + runHookInjection: onNew pre-close turn runs on an isolated pool key (≠ channel) and is closed after (incl. on failure); onMessageEnd stays on the channel live slot — regression for the `!new` + onNew memory-hook session-resurrection race |
 | `client-manager.test.ts` | Test | client-manager handshake/sendCommand + WS bearer-token verifyClient (reject no/wrong token, accept valid) + `buildRemoteSpawnCommand` cmd.exe-wrap + token-injection + retry-on-spawn-failure regressions + `buildRemoteInstallCommand` (dev hot-reload install cmd: default `npm install -g <tgz>` / `{tgz}` placeholder substitution / no-placeholder append / blank-fallback) |
 | `machines-query.test.ts` | Test | machines.list handler: online/offline/liveRuns/windows-os/empty-registry (5 cases) |

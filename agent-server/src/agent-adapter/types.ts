@@ -79,6 +79,11 @@ export interface AgentSpawnConfig {
    *  Ignored for non-claude backends. Sourced from the active profile's claudeBackend field. */
   claudeBackend?: 'print' | 'tui';
 
+  /** Thinking level from the active profile's `thinking` field (backend-native value, validated at
+   *  profile load). Claude adapter passes it as `--effort <level>`, PI adapter as `--thinking <level>`;
+   *  codex ignores it. Absent → no flag is passed (backward compatible). */
+  thinking?: string;
+
   /** Cortex execution context surfaced to the MCP server child as CORTEX_THREAD_ID/PROFILE/PROJECT/SESSION_NAME env vars
    *  (and into Codex route-context.json). Read by mcp tools/context.ts and tools/schedule.ts so LLMs running inside
    *  the agent can self-discover their thread / profile / project / session-name without guessing. */

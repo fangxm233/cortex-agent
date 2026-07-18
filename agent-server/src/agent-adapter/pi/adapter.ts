@@ -639,6 +639,7 @@ export class PIAdapter implements AgentAdapter {
       pluginDirs: config.pluginDirs ?? null,
       // All three extensions always injected: MCP bridge (task 5754) + tool shims (task 5b5c) + hook bridge (task d3ae).
       extensionPaths: [MCP_BRIDGE_PATH, TOOL_SHIMS_PATH, HOOK_BRIDGE_PATH],
+      thinking: config.thinking ?? null,
       extraOption: config.extraOption ?? null,
     });
 

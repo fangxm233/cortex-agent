@@ -80,6 +80,8 @@ export interface ClaudeTuiSessionConfig {
   pluginDirs?: string[] | null;
   outputStyle?: string | null;
   extraOption?: Record<string, string> | null;
+  /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
+  thinking?: string | null;
   mcpConfigPath?: string;
   // -- runtime context surfaced to MCP servers via env --
   callbackSource?: string | null;
@@ -205,6 +207,7 @@ export class ClaudeTuiSession {
       pluginDirs: this.config.pluginDirs ?? null,
       outputStyle: this.config.outputStyle ?? null,
       extraOption: this.config.extraOption ?? null,
+      thinking: this.config.thinking ?? null,
       mcpConfigPath: this.config.mcpConfigPath,
       needsResume: this.needsResume,
       sessionId: this.sessionId,

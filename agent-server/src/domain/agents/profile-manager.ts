@@ -22,6 +22,12 @@ export interface ProfileEntry {
   /** DR-0012: opt into TUI-mode Claude (interactive tmux + jsonl tail). Default 'print' for backward
    *  compatibility. Only meaningful when backend='claude'. Other backends ignore the field. */
   claudeBackend?: 'print' | 'tui';
+  /** Optional thinking level. Backend-native value set, validated against the entry's effective
+   *  backend: claude → `--effort` (low/medium/high/xhigh/max), pi → `--thinking`
+   *  (off/minimal/low/medium/high/xhigh). codex has no thinking passthrough — declaring it there is
+   *  a validation error. Absent → no flag is passed (backward compatible). Like `provider`, fallback
+   *  entries do NOT inherit it from the primary — each entry declares its own. */
+  thinking?: string;
   fallback?: ProfileEntry[];
 }
 
@@ -46,7 +52,9 @@ export interface ResolvedProfileConfig {
   /** DR-0012: resolved claude adapter mode. 'print' (default, uses -p + stream-json) or 'tui'
    *  (interactive Claude under tmux + jsonl tail). Ignored for non-claude backends. */
   claudeBackend: 'print' | 'tui';
-  fallback: Array<{ model: string; backend: string; mode: string | null; provider: string | null; extraEnv: Record<string, string>; extraOption: Record<string, string>; claudeBackend: 'print' | 'tui' }>;
+  /** Thinking level (backend-native value). null → nothing is passed to the CLI. */
+  thinking: string | null;
+  fallback: Array<{ model: string; backend: string; mode: string | null; provider: string | null; extraEnv: Record<string, string>; extraOption: Record<string, string>; claudeBackend: 'print' | 'tui'; thinking: string | null }>;
 }
 
 const PROFILE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
@@ -55,6 +63,12 @@ const MODE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 const PROVIDER_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 const ENV_KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
 const VALID_BACKENDS = new Set(['claude', 'codex', 'pi']);
+// Backend-native thinking levels: claude `--effort`, pi `--thinking`. codex has no passthrough
+// (absent from the map → any declared thinking is rejected for it).
+const THINKING_LEVELS_BY_BACKEND: Record<string, Set<string>> = {
+  claude: new Set(['low', 'medium', 'high', 'xhigh', 'max']),
+  pi: new Set(['off', 'minimal', 'low', 'medium', 'high', 'xhigh']),
+};
 
 function loadProfilesFile(): ProfilesFile {
   try {
@@ -123,6 +137,15 @@ function validateProfileEntry(profile: unknown, label: string, inheritedBackend 
   if (p.claudeBackend !== undefined) {
     if (p.claudeBackend !== 'print' && p.claudeBackend !== 'tui') {
       throw new Error(`${label} has invalid claudeBackend: ${String(p.claudeBackend)} (expected 'print' or 'tui')`);
+    }
+  }
+  if (p.thinking !== undefined) {
+    const levels = THINKING_LEVELS_BY_BACKEND[effectiveBackend];
+    if (!levels) {
+      throw new Error(`${label} declares thinking but backend '${effectiveBackend}' does not support it`);
+    }
+    if (typeof p.thinking !== 'string' || !levels.has(p.thinking)) {
+      throw new Error(`${label} has invalid thinking: ${String(p.thinking)} (backend '${effectiveBackend}' expects one of: ${[...levels].join(', ')})`);
     }
   }
 }
@@ -217,6 +240,7 @@ function resolveProfileConfig(name: string | null = null): ResolvedProfileConfig
     extraEnv: { ...(profile.extraEnv || {}) },
     extraOption: { ...(profile.extraOption || {}) },
     claudeBackend: resolveClaudeBackend(profile),
+    thinking: profile.thinking || null,
   };
   const fallback = (profile.fallback || []).map(fb => ({
     model: fb.model,
@@ -228,6 +252,9 @@ function resolveProfileConfig(name: string | null = null): ResolvedProfileConfig
     extraEnv: { ...(fb.extraEnv || {}) },
     extraOption: { ...(fb.extraOption || {}) },
     claudeBackend: fb.claudeBackend !== undefined ? resolveClaudeBackend(fb) : primary.claudeBackend,
+    // thinking does NOT inherit from primary (like provider) — value sets are backend-specific,
+    // so each entry must declare its own; undeclared → nothing is passed.
+    thinking: fb.thinking || null,
   }));
   return { name: resolvedName, ...primary, fallback };
 }

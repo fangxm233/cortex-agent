@@ -39,6 +39,9 @@ export interface ClaudeSpawnOptions {
    *  originate from the Web UI (channel carries the `web:` prefix), enabling the send_file tool.
    *  Ignored for thread/core sessions (CORE_MCP_CONFIG), which must stay on the core server set only. */
   loadWebMcp?: boolean;
+  /** Thinking level from the profile's `thinking` field → `--effort <level>`
+   *  (low/medium/high/xhigh/max). Absent → no flag. */
+  thinking?: string | null;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string> | null;
   /** DR-0012: select adapter mode. Default 'print' preserves -p stream-json behavior. */
@@ -114,6 +117,8 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   if (options.systemPrompt) args.push('--system-prompt', options.systemPrompt);
   if (options.appendSystemPrompt) args.push('--append-system-prompt', options.appendSystemPrompt);
   if (options.model) args.push('--model', options.model);
+  // Before extraOption so an explicit extraOption {"--effort": ...} still wins (CLI last-wins).
+  if (options.thinking) args.push('--effort', options.thinking);
   if (options.claudeAgent) args.push('--agent', options.claudeAgent);
   if (options.pluginDirs) {
     for (const dir of options.pluginDirs) args.push('--plugin-dir', dir);

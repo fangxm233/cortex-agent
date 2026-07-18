@@ -202,6 +202,7 @@ uses. For a comparison of available backends, see
 | `profiles.<name>.extraEnv` | object | no | Extra environment variables passed to the backend process. Keys must match `^[A-Z_][A-Z0-9_]*$`. |
 | `profiles.<name>.extraOption` | object | no | Extra CLI flags passed to the backend. Keys must start with `--`. |
 | `profiles.<name>.claudeBackend` | string | no | Claude adapter mode: `print` (default, uses `-p` + stream-json) or `tui` (interactive Claude under tmux + jsonl tail). Ignored for non-claude backends. |
+| `profiles.<name>.thinking` | string | no | Thinking level, in the backend's native value set: for `claude` one of `low`/`medium`/`high`/`xhigh`/`max` (passed as `--effort`), for `pi` one of `off`/`minimal`/`low`/`medium`/`high`/`xhigh` (passed as `--thinking`). Not supported for `codex`. Absent → no flag is passed. Fallback entries do not inherit it — each declares its own. |
 | `profiles.<name>.fallback` | array | no | Ordered list of fallback profile entries. If the primary backend fails, Cortex tries each fallback in order. Each fallback inherits unspecified fields from the primary. |
 
 ### Profile resolution
@@ -212,7 +213,7 @@ At agent spawn time, Cortex resolves the profile through this chain:
    template), use it.
 2. Otherwise, use `defaultProfile` from `profiles.json`.
 3. The resolved profile supplies `model`, `backend`, `mode`, `extraEnv`,
-   `extraOption`, and `claudeBackend`.
+   `extraOption`, `claudeBackend`, and `thinking`.
 4. If the backend call fails with a transient error, Cortex iterates
    through the `fallback` array (if any), trying each entry in order.
 
@@ -220,7 +221,9 @@ At agent spawn time, Cortex resolves the profile through this chain:
 
 Profile names must match `^[a-zA-Z0-9_-]+$`. Backend must be one of
 `claude`, `codex`, or `pi`. `claudeBackend` must be `print` or `tui`
-if specified. Unknown fields are silently ignored.
+if specified. `thinking`, if specified, must be a value from the entry's
+backend value set (see the fields table); declaring it on a `codex`
+profile is an error. Unknown fields are silently ignored.
 
 ## settings.json
 
