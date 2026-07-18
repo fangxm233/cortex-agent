@@ -89,13 +89,17 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
         </div>
       );
     case 'table':
+      // Don't cap the table's horizontal size — let it take its natural width (cells stay on one
+      // line, no squish). Instead cap the WRAPPER at the bubble width and let it scroll horizontally,
+      // so a wide table produces a scrollbar rather than stretching the chat pane. `maxWidth:100%`
+      // keeps the scroll container inside its bubble (the assistant blocks already carry `minWidth:0`).
       return (
-        <div style={{ overflow: 'auto' }}>
+        <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
           <table style={{ borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr>
                 {block.header.map((cell, i) => (
-                  <th key={i} style={{ border: '1px solid var(--proto-line)', padding: '4px 8px', textAlign: 'left', fontWeight: 650 }}>
+                  <th key={i} style={{ border: '1px solid var(--proto-line)', padding: '4px 8px', textAlign: 'left', fontWeight: 650, whiteSpace: 'nowrap' }}>
                     <Inline nodes={cell} />
                   </th>
                 ))}
@@ -105,7 +109,7 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
               {block.rows.map((row, r) => (
                 <tr key={r}>
                   {row.map((cell, c) => (
-                    <td key={c} style={{ border: '1px solid var(--proto-line)', padding: '4px 8px' }}>
+                    <td key={c} style={{ border: '1px solid var(--proto-line)', padding: '4px 8px', whiteSpace: 'nowrap' }}>
                       <Inline nodes={cell} />
                     </td>
                   ))}

@@ -26,3 +26,19 @@ describe('ChatMarkdown dropTrailingHr', () => {
     expect(html).toContain(HR_LINE); // the mid-message divider survives
   });
 });
+
+describe('ChatMarkdown table horizontal overflow', () => {
+  const TABLE = '| Col A | Col B | Col C |\n| --- | --- | --- |\n| one | two | three |';
+
+  it('wraps the table in a horizontally scrollable, width-capped container', () => {
+    const html = renderToStaticMarkup(<ChatMarkdown text={TABLE} />);
+    // The wrapper never grows past its bubble; it scrolls horizontally instead of expanding the chat.
+    expect(html).toContain('overflow-x:auto');
+    expect(html).toContain('max-width:100%');
+  });
+
+  it('keeps cell content on one line so the table takes its natural width (no squish)', () => {
+    const html = renderToStaticMarkup(<ChatMarkdown text={TABLE} />);
+    expect(html).toContain('white-space:nowrap');
+  });
+});
