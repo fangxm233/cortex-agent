@@ -29,6 +29,16 @@ percent-decode + path-traversal guard + MIME + SPA fallback to index.html, mirro
 (`cortexui://`) is kept for the SPA's whole life so browser-origin state is stable across seed→OTA
 swaps. OTA hot-updates only the SPA; changes to the Rust shell still require an APK/app rebuild.
 
+⚠️ **`connect.html` is served from a binary-embedded copy, NOT the frontend dir.** The scheme handler
+calls `frontend::resolve_embedded` first: any request for `connect.html` returns an `include_str!`-baked
+copy (source of truth `desktop/ui/connect.html`), bypassing the on-disk frontend dir; every other path
+falls through to `resolve_asset`. This is load-bearing: `connect.html` is a shell-local page and is
+**not** part of the server-delivered OTA bundle (the server only builds the SPA). Once an OTA frontend
+(or any bundle without connect.html) is the active dir, resolving connect.html from disk fails and
+SPA-falls-back to `index.html` — a workbench with no server config → blank "can't connect", and the app
+is **bricked after a disconnect** (which navigates to connect.html). Embedding removes that whole class
+of failure and keeps the connection screen reachable regardless of seed/OTA state, on both platforms.
+
 The server side (agent-server `platform/ui-http/ui-ota.ts`) exposes the matching
 `/api/ui-ota/manifest.json` + `/api/ui-ota/bundle.zip` (token-gated).
 
@@ -142,7 +152,7 @@ falling back) and passes it to `createTrpcClient()` — enabling absolute-URL + 
 | `ui/connect.html` | connect screen | Standalone HTML/CSS/JS — serverUrl+token inputs, Test probe, Connect (keychain), Switch link |
 | `src-tauri/src/lib.rs` | core | `AppState`, `ConnectionConfig`, 4 Tauri commands, `init_script()` + `SHELL_FLAG` (per-platform), `active_frontend_dir`, `cortexui://` scheme (both platforms), `run()` |
 | `src-tauri/src/creds.rs` | credential store | Platform-branched `load`/`save`/`clear` — OS keychain (desktop) / app-private JSON in `app_data_dir` (android) |
-| `src-tauri/src/frontend.rs` | OTA resolver | Pure `resolve_asset`/`sanitize_request_path`/`content_type` (traversal guard + MIME + SPA fallback); unit-tested |
+| `src-tauri/src/frontend.rs` | OTA resolver | Pure `resolve_asset`/`sanitize_request_path`/`content_type` (traversal guard + MIME + SPA fallback) + `resolve_embedded` (serves the `include_str!`-baked `connect.html` so the connect screen never depends on the on-disk/OTA frontend); unit-tested |
 | `src-tauri/src/ota.rs` | OTA updater | `UiStore` (current/staged promote), `check_and_stage`, sha256 verify, zip extract; reqwest[rustls]; unit-tested |
 | `src-tauri/src/seed.rs` | android seed | `ensure_seed` — `include_dir!`-embedded `web/dist`, extracted into `ui/current` on first run (Android only) |
 | `src-tauri/src/main.rs` | entry | `#[cfg_attr windows_subsystem]` + `lib::run()` |

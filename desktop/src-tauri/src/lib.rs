@@ -460,8 +460,14 @@ pub fn run() {
     // swapped by the updater. resolve_asset applies the SPA fallback + traversal guard + MIME. On
     // Android `ui/current` is seeded from the embedded copy before the window opens (see setup).
     builder = builder.register_uri_scheme_protocol(FRONTEND_SCHEME, |ctx, request| {
-        let root = active_frontend_dir(ctx.app_handle());
-        let asset = frontend::resolve_asset(&root, &request.uri().to_string());
+        let uri = request.uri().to_string();
+        // connect.html is a shell-local page not shipped in the server OTA bundle. Serve it from the
+        // binary-embedded copy first so the connection screen is always reachable, even when the
+        // active frontend dir is an OTA bundle that lacks it (otherwise it SPA-falls-back to the
+        // workbench with no server config → blank "can't connect"). All other paths fall through to
+        // the normal on-disk resolver.
+        let asset = frontend::resolve_embedded(&uri)
+            .unwrap_or_else(|| frontend::resolve_asset(&active_frontend_dir(ctx.app_handle()), &uri));
         tauri::http::Response::builder()
             .status(asset.status)
             .header(tauri::http::header::CONTENT_TYPE, asset.mime)

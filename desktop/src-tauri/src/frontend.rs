@@ -10,6 +10,32 @@ use std::path::Path;
 
 const INDEX: &str = "index.html";
 
+/// Binary-embedded local page: the connection/config screen. This page is a desktop/mobile-shell
+/// artifact — it is NOT part of the server-delivered OTA bundle (the server only builds the SPA), so
+/// resolving it from the active frontend dir fails whenever an OTA frontend is active. That left the
+/// connection screen unreachable (it SPA-fell-back to index.html → a workbench with no server config
+/// → blank "can't connect"), and bricked the app after a disconnect. Serving it from an embedded copy
+/// makes it reachable regardless of seed/OTA state, on both platforms. Source of truth is
+/// `desktop/ui/connect.html` (also staged into web/dist by `copy-connect` for dev/OTA parity).
+pub const CONNECT_PATH: &str = "connect.html";
+const CONNECT_HTML: &str = include_str!("../../ui/connect.html");
+
+/// Serve a binary-embedded local page (currently only `connect.html`), bypassing the on-disk frontend
+/// dir entirely. Returns `Some` when the request targets such a page, `None` otherwise (the normal
+/// on-disk `resolve_asset` path then applies). This is what guarantees the connection screen is always
+/// reachable even when the active frontend is an OTA bundle that does not contain it.
+pub fn resolve_embedded(raw_url: &str) -> Option<ResolvedAsset> {
+    let rel = sanitize_request_path(raw_url)?;
+    if rel == CONNECT_PATH {
+        return Some(ResolvedAsset {
+            status: 200,
+            mime: content_type(CONNECT_PATH),
+            body: CONNECT_HTML.as_bytes().to_vec(),
+        });
+    }
+    None
+}
+
 /// The outcome of resolving one asset request: an HTTP-like status, a MIME type, and the body bytes.
 pub struct ResolvedAsset {
     pub status: u16,
@@ -243,6 +269,28 @@ mod tests {
             let r = resolve_asset(dir, "cortexui://localhost/missing.js");
             assert_eq!(r.status, 404);
         });
+    }
+
+    #[test]
+    fn resolve_embedded_serves_connect_html_regardless_of_dir() {
+        // connect.html is served from the binary, so it does not depend on any on-disk frontend dir.
+        for url in [
+            "cortexui://localhost/connect.html",
+            "http://cortexui.localhost/connect.html",
+            "/connect.html?x=1",
+        ] {
+            let r = super::resolve_embedded(url).expect("connect.html must resolve from embed");
+            assert_eq!(r.status, 200);
+            assert_eq!(r.mime, "text/html; charset=utf-8");
+            assert!(!r.body.is_empty());
+        }
+    }
+
+    #[test]
+    fn resolve_embedded_ignores_non_connect_paths() {
+        assert!(super::resolve_embedded("cortexui://localhost/index.html").is_none());
+        assert!(super::resolve_embedded("cortexui://localhost/").is_none());
+        assert!(super::resolve_embedded("/assets/app.js").is_none());
     }
 
     #[test]
