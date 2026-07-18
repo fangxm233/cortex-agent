@@ -22,7 +22,8 @@ export interface RunningExecution {
   backend: string;
   /** Agent process reference — used by PI backend to route extension_ui_response for plan/ask interactions. */
   agentProcess?: unknown;
-  /** Claude session ID — saved on cancel so the next message can resume the same session. */
+  /** Backend session id snapshot from spawn time (informational; resume-target persistence on an
+   *  interrupted turn is handled by runConversation's settle hook, keyed on the track record). */
   sessionId?: string | null;
   /** Live agent-turn count of the in-flight run (adapter `turn_progress`/`turn_complete`), updated
    *  in-memory via setNumTurns. Null until the first progress event. Read by sessions.list as the

@@ -23,6 +23,7 @@ import { resolveAgentSlotConfigByName, resolveSystemVars, buildConversationPromp
 import { projectStore } from '@domain/projects/index.js';
 import type { Project } from '@domain/projects/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
+import { sessionStore } from '@store/session-registry-repo.js';
 import { runningExecutions } from '../core/running-executions.js';
 
 export interface RunConversationOptions {
@@ -186,7 +187,25 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     sessionId: handle.sessionId,
   });
 
-  const result = await handle.promise;
+  let result: AgentResult;
+  try {
+    result = await handle.promise;
+  } finally {
+    // Persist the backend resume target as soon as the turn settles — success OR interruption.
+    // The backend id is assigned at spawn (Claude `--session-id`), but was previously only
+    // persisted by handleAgentSuccess, so killing a session's FIRST turn (web Stop / !cancel /
+    // error) lost it and the next message started a brand-new backend session with no context.
+    // The backend writes its transcript incrementally during the interrupted turn, so persisting
+    // the id here lets the next turn `--resume` it (and the adapter's resolveResumeForPrint
+    // self-heals to a create when no transcript was written). Best-effort; success-path
+    // handleAgentSuccess still overwrites with the result's authoritative id.
+    if (isFreshSession && handle.sessionId) {
+      await sessionStore.updateSession(opts.sessionName, {
+        backendSessionId: handle.sessionId,
+        lastUsedAt: new Date().toISOString(),
+      }).catch(() => {});
+    }
+  }
 
   // Finalize the execution here (persistent record + registry teardown + balanced agent.* event)
   // so this function is self-contained and serves both the interactive path (agent-runner) and

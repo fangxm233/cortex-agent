@@ -7,16 +7,19 @@ import type { CommandActionRouter } from '@orch/interactions/command-action-rout
 import { runningExecutions, type RunningExecution } from '../../../core/running-executions.js';
 import { conduitQueues } from '../../conduit-queue.js';
 import { cancelThread as cancelThreadById } from '@domain/threads/index.js';
-import { setSessionAsync } from '@domain/sessions/session.js';
-import { getActiveBackend } from '@domain/agents/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 
-/** Cancel one live execution: preserve its session, cancel its thread record, then tear it down as
- *  'cancelled'. teardownExecution sets the persistent record cancelled BEFORE killing the handle, so
+/** Cancel one live execution: cancel its thread record, then tear it down as 'cancelled'.
+ *  teardownExecution sets the persistent record cancelled BEFORE killing the handle, so
  *  the kill-error path's failExecution is a terminal no-op — and it publishes a balanced terminal
- *  event so agent.started is not left dangling. */
-async function cancelLive(exec: RunningExecution, channel: string): Promise<void> {
-  if (exec.sessionId) await setSessionAsync(channel, exec.sessionId, getActiveBackend()).catch(() => {});
+ *  event so agent.started is not left dangling.
+ *
+ *  NOTE: this must NOT touch the channel→session binding. A pre-decoupling version rebound the
+ *  channel to `exec.sessionId` (the BACKEND CLI's own id) "to preserve the session" — but the
+ *  channel is bound to the stable TRACK id, so that rebind pointed it at an id unknown to the
+ *  session registry and the next message minted a brand-new session. Backend-resume-target
+ *  persistence on an interrupted turn is handled by runConversation's settle hook instead. */
+async function cancelLive(exec: RunningExecution): Promise<void> {
   if (exec.threadId) await cancelThreadById(exec.threadId).catch(() => {});
   if (exec.executionId) {
     executionRegistry.teardownExecution({ executionId: exec.executionId, status: 'cancelled', durationS: 0 });
@@ -31,7 +34,7 @@ async function cancelLive(exec: RunningExecution, channel: string): Promise<void
 export async function cancelChannelRuns(channel: string): Promise<number> {
   const executions = runningExecutions.getByChannel(channel);
   for (const exec of executions) {
-    await cancelLive(exec, channel);
+    await cancelLive(exec);
   }
   if (executions.length > 0) conduitQueues.delete(channel);
   return executions.length;
@@ -54,7 +57,7 @@ export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: stri
       const exec = threadId
         ? runningExecutions.getByThreadId(threadId)
         : (executionId ? runningExecutions.getById(executionId) : null);
-      if (exec) await cancelLive(exec, ctx.channelId);
+      if (exec) await cancelLive(exec);
       conduitQueues.delete(ctx.channelId);
 
       if (ctx.messageRef) {
@@ -92,7 +95,7 @@ export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: stri
       if (THREAD_ID_RE.test(firstArg)) {
         const exec = runningExecutions.getByThreadId(firstArg);
         if (exec) {
-          await cancelLive(exec, channel);
+          await cancelLive(exec);
           log.info('Cancel requested for thread:', firstArg);
           await adapter.postMessage(dest, { text: `${Icons.stopped} ${t('cmd.cancel.threadCancelled', { id: firstArg })}` });
         } else {
@@ -122,7 +125,7 @@ export function createCancelHandler(cancelDispatchedTask: ((opts: { taskId: stri
 
     // 1 execution: cancel directly (existing default behavior)
     if (executions.length === 1) {
-      await cancelLive(executions[0], channel);
+      await cancelLive(executions[0]);
       conduitQueues.delete(channel);
       await adapter.postMessage(dest, { text: `${Icons.stopped} ${t('cmd.cancel.cancelledSessionPreserved')}` });
       return;
