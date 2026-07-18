@@ -1,6 +1,6 @@
 // Prompt assembly and agent slot config resolution.
 // input:  template-loader, artifact-io, thread-store, thread-types
-// output: buildStepPrompt / resolveSystemVars / resolveAgentSlotConfig / resolveTemplateAgents / resolveTemplateProfiles / formatEndpoint / pickStepTemplate
+// output: buildStepPrompt / buildConversationPrompt (incl. optional [Session Project] prefix block) / resolveSystemVars / resolveAgentSlotConfig / resolveTemplateAgents / resolveTemplateProfiles / formatEndpoint / pickStepTemplate
 
 import { threadStore } from '@store/thread-repo.js';
 import { getAgent, getTemplate, resolveFileRef } from './template-loader.js';
@@ -235,14 +235,17 @@ export function buildStepPrompt(threadId: string, agentConfig: AgentSlotConfig, 
  *    injects USER.md; it is on by default unless CORTEX_DISABLE_USER_CONTEXT=1. Thread steps
  *    (buildStepPrompt) never inject it. The caller gates it via opts.includeUserContext so the
  *    profile is sent only on a session's FIRST turn (session resume keeps it in history thereafter);
+ *  - prepends a [Session Project] block when opts.project is given — the caller (conversation-runner
+ *    via resolveConversationProject) passes it only on the FIRST turn of a Web UI direct session
+ *    bound to a user project, so the agent knows which project the session belongs to;
  *  - NEVER injects THREAD_PROTOCOL_PREAMBLE (no artifact, no [ABORT] protocol for conversations).
  */
 export function buildConversationPrompt(
   agentConfig: AgentSlotConfig,
   input: string,
-  opts: { includeUserContext?: boolean } = {},
+  opts: { includeUserContext?: boolean; project?: { id: string; contextDir: string } | null } = {},
 ): string {
-  const { includeUserContext = true } = opts;
+  const { includeUserContext = true, project = null } = opts;
   const { template: templateStr } = pickStepTemplate(agentConfig, null);
   const vars: Record<string, string> = {
     input,
@@ -258,6 +261,15 @@ export function buildConversationPrompt(
   const userCtx = includeUserContext ? loadUserContext() : null;
   if (userCtx) prefixes.push(userCtx);
   if (agentConfig.directive) prefixes.push(resolveSystemVars(agentConfig.directive));
+  if (project) {
+    prefixes.push(
+      `[Session Project] This session is bound to the project "${project.id}".\n`
+      + `Project context directory: ${project.contextDir}\n`
+      + `Treat messages in this session as pertaining to this project unless stated otherwise. `
+      + `Read that directory's CORTEX.md / STATUS.md when project context is needed, and record `
+      + `project-related findings and status updates there.`,
+    );
+  }
   if (prefixes.length > 0) prompt = prefixes.join('\n\n') + '\n\n' + prompt;
 
   return prompt.trim();

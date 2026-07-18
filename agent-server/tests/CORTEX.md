@@ -87,7 +87,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `thread-manager.test.ts` | Test | resolveSystemVars/evaluateTransitions |
 | `thread-runner.test.ts` | Test | buildThreadSummary/initThreadContext |
 | `threads/thread-transcript.test.ts` | Test | createStepTranscriptBuffer accumulation (assistant/tool, summarized input) + flushStepTranscript (prompt→user turn then buffer in order, keyed by sessionId, empty-buffer still records prompt, onEvent live-publish) |
-| `conversation-runner.test.ts` | Test | buildConversationPrompt golden-prompt fidelity vs legacy default-thread prompt |
+| `conversation-runner.test.ts` | Test | buildConversationPrompt golden-prompt fidelity vs legacy default-thread prompt + `[Session Project]` block injection (project opt) + resolveConversationProject gating (web-only / fresh-only / non-general / unknown-id) |
 | `user-context.test.ts` | Test | loadUserContext env-gate/file-present/absent + USER.md injected into buildConversationPrompt, never into thread steps |
 | `thread-abort.test.ts` | Test | DR-0015 control plane: peekPendingControl/clearPendingControl(abort)/abortThread + THREAD_PROTOCOL_PREAMBLE (tool-based) + regression (artifact "[ABORT]" prose must NOT trigger) |
 | `thread-tree.test.ts` | Test | DR-0014 tree: getRootThreadId/getTreeThreads/summarizeTree/checkSpawnGuards/buildThreadTree/registerChildSpawn |

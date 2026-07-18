@@ -1,6 +1,8 @@
 // input:  domain/agents (runAgent + config getters), domain/threads (agent-slot + prompt assembly),
 //         domain/executions/registry, core/running-executions, domain/projects
 // output: runConversation — executes a single plain user-conversation turn WITHOUT a thread
+//         + resolveConversationProject — gate for the first-turn [Session Project] prompt block
+//           (web: channel + fresh session + non-general user project)
 // pos:    orch/ — dedicated execution path for plain user messages (replaces the default-thread wrapper)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
@@ -18,6 +20,8 @@ import {
   runAgent, getClaudeMode, getActiveProfile, getDefaultAgent, resolveBackendForChannel,
 } from '@domain/agents/index.js';
 import { resolveAgentSlotConfigByName, resolveSystemVars, buildConversationPrompt } from '@domain/threads/index.js';
+import { projectStore } from '@domain/projects/index.js';
+import type { Project } from '@domain/projects/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { runningExecutions } from '../core/running-executions.js';
 
@@ -63,6 +67,29 @@ export interface ConversationResult {
 }
 
 /**
+ * Decide whether (and which) project context to inject into the conversation prompt.
+ * Returns the {id, contextDir} pair for buildConversationPrompt, or null to inject nothing.
+ *
+ * Injection is deliberately narrow: only the FIRST turn (fresh backend session — resume keeps it
+ * in history) of a Web UI direct session (`web:` channel — the only path where the user explicitly
+ * binds the session to a project at create time), and only for real user projects (the `general`
+ * umbrella carries no signal). Unknown/deleted project ids inject nothing rather than a dead path.
+ */
+export function resolveConversationProject(args: {
+  channel: string;
+  projectId: string;
+  isFreshSession: boolean;
+  store?: Pick<typeof projectStore, 'get'>;
+}): { id: string; contextDir: string } | null {
+  const store = args.store ?? projectStore;
+  if (!args.isFreshSession) return null;
+  if (!args.channel.startsWith('web:')) return null;
+  const project: Project | undefined = store.get(args.projectId);
+  if (!project || project.kind === 'general') return null;
+  return { id: project.id, contextDir: project.contextDir };
+}
+
+/**
  * Execute a single plain user-conversation turn against the active default agent — no thread,
  * no workspace, no artifact. Mirrors the legacy default-thread branch of runThread() exactly
  * (channel session reuse, useCoreMcp:false, isUserInitiated:true, single step) and the
@@ -81,7 +108,12 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
   // USER.md profile is injected only on a session's FIRST turn (no backend session yet).
   // Session resume keeps it in history thereafter, so re-sending it every turn just wastes tokens.
   const isFreshSession = opts.backendSessionId === null;
-  const prompt = buildConversationPrompt(agentConfig, opts.userMessage, { includeUserContext: isFreshSession });
+  const prompt = buildConversationPrompt(agentConfig, opts.userMessage, {
+    includeUserContext: isFreshSession,
+    // Web UI direct sessions are bound to a project at create time; tell the agent which one
+    // on the session's first turn (see resolveConversationProject for the exact gating).
+    project: resolveConversationProject({ channel: opts.channel, projectId: opts.projectId, isFreshSession }),
+  });
   // Attribute cost/execution to the session's bound project (from the registry record), NOT a
   // re-derivation from the message text. A session created under project X stays project X even if
   // no message ever mentions X literally (that mismatch previously dumped everything into 'general').
