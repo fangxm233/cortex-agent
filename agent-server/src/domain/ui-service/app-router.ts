@@ -132,7 +132,7 @@ function makeMutation<O extends MutateOp, Sch extends z.ZodType>(
 }
 
 // ── AppRouter ─────────────────────────────────────────────────────────────────────
-// 17 QueryScope + 17 MutateOp + 2 subscriptions (generic `subscribe` + `executions.log`;
+// Every QueryScope + MutateOp + 2 subscriptions (generic `subscribe` + `executions.log`;
 // `subscribeFilterInput` carries `sessionId` for the S4 `session.message` stream),
 // mirroring the ui-service contract.
 export function createAppRouter(uiService: UiService) {

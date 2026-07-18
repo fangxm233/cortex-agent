@@ -142,6 +142,22 @@ export function rewindStats(rows: ChatRow[], rowIndex: number): { replies: numbe
   return { replies, toolCalls };
 }
 
+/** Row indexes carrying the「由编辑重新生成」footnote: the first assistant row after each edited
+ *  user row (stops at the next user row). Shared by the desktop MessageStream + mobile MChatStream. */
+export function regenNoteIndexes(rows: ChatRow[]): Set<number> {
+  const out = new Set<number>();
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.kind !== 'user' || !r.edited) continue;
+    for (let j = i + 1; j < rows.length; j++) {
+      const k = rows[j].kind;
+      if (k === 'user') break;
+      if (k === 'assistant') { out.add(j); break; }
+    }
+  }
+  return out;
+}
+
 function msgKey(m: TranscriptMessage): string {
   // Interaction entities have a stable id — key on it so a status change (pending → approved)
   // REPLACES the row instead of duplicating it.

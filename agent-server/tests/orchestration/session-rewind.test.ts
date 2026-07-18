@@ -108,6 +108,57 @@ test('missing backup on turn ≥ 1 falls back to clearing the backend session id
   assert.ok(log.calls.includes('updateSession:cortex-1:{"backendSessionId":null}'), 'fallback clears backend id');
 });
 
+test('integration: real ledger + history + session registry round-trip (isolated CORTEX_HOME)', async () => {
+  const { conversationLedger } = await import('../../src/store/conversation-ledger-repo.js');
+  const { conversationHistory } = await import('../../src/store/conversation-history-repo.js');
+  const { sessionStore } = await import('../../src/store/session-registry-repo.js');
+
+  const sid = 'track-int-1';
+  const channel = `web:${sid}`;
+  await sessionStore.registerSession('cortex-int1', {
+    sessionId: sid, channel, backend: 'claude', kind: 'local', backendSessionId: 'backend-int-1',
+  });
+  for (const [i, msg] of (['first', 'second'] as const).entries()) {
+    await conversationLedger.initAndBeginTurn(channel, {
+      sessionId: sid, sessionName: 'cortex-int1', backend: 'claude',
+      userMessageTs: `ts${i}`, userMessageText: msg, statusMessageTs: `st${i}`,
+    });
+    await conversationHistory.appendUser(sid, { text: msg });
+    await conversationHistory.appendAssistant(sid, { text: `reply-${i}` });
+  }
+
+  const log: CallLog = { calls: [] };
+  const res = await rewindWebSession(
+    { sessionId: sid, channel, turnIndex: 1, text: 'second (edited)', adapter },
+    {
+      ...makeDeps(log),
+      ledger: conversationLedger,
+      history: conversationHistory,
+      sessionStore,
+    },
+  );
+  assert.deepEqual(res, { ok: true });
+
+  // History rewound to turn 0 only (the dangling marker is invisible until the resend appends).
+  const h = await conversationHistory.getHistory(sid);
+  assert.deepEqual(h!.events.map(e => `${e.type}:${e.text}`), ['user:first', 'assistant:reply-0']);
+
+  // Ledger truncated to one turn.
+  const conv = await conversationLedger.getConversation(channel);
+  assert.equal(conv!.turns.length, 1);
+  assert.equal(conv!.turns[0].userMessageText, 'first');
+
+  // The edited text was re-sent; the marker carries the REAL original text.
+  assert.ok(log.calls.includes('restoreBackup:backend-int-1:1'), 'backup restored for the real backend id');
+  assert.ok(log.calls.some(c => c.startsWith('send:web:track-int-1:second (edited)')));
+
+  // A resend would append the new user event — simulate it and confirm the edited marker merges.
+  await conversationHistory.appendUser(sid, { text: 'second (edited)' });
+  const h2 = await conversationHistory.getHistory(sid);
+  const user1 = h2!.events.filter(e => e.type === 'user')[1];
+  assert.equal(user1.edited?.originalText, 'second');
+});
+
 test('missing session record → not-found', async () => {
   const log: CallLog = { calls: [] };
   const deps = makeDeps(log, { sessionStore: { getById: async () => null, updateSession: async () => {} } });

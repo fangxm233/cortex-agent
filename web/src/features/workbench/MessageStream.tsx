@@ -12,7 +12,7 @@ import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-
 import type { InteractionActions } from './useInteractionActions';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
 import { PlanReadOverlay } from './PlanReadOverlay';
-import { rewindStats } from './transcript-vm';
+import { rewindStats, regenNoteIndexes } from './transcript-vm';
 import { M_EDIT_COPY, HoverActionPill, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
 
 /** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
@@ -536,22 +536,6 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
     default:
       return null;
   }
-}
-
-/** Row indexes that carry the「由编辑重新生成」footnote: the first reply row (assistant / tools)
- *  after each edited user row. */
-function regenNoteIndexes(rows: ChatRow[]): Set<number> {
-  const out = new Set<number>();
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    if (r.kind !== 'user' || !r.edited) continue;
-    for (let j = i + 1; j < rows.length; j++) {
-      const k = rows[j].kind;
-      if (k === 'user') break;
-      if (k === 'assistant') { out.add(j); break; }
-    }
-  }
-  return out;
 }
 
 /** Presentational transcript column — the ordered chat rows (divider / user / tools / assistant) laid

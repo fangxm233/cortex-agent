@@ -68,7 +68,17 @@ id 模型：track sessionId（UI/history/channel `web:<id>`）≠ backendSession
 - 前端：transcript-vm 纯函数单测（turnIndex/edited 透传、rewound 清 tail 逻辑若为纯函数）；
   `pnpm --filter web build` 过 tsc。
 
-## 验证
+## 验证（2026-07-17 已完成）
 
-agent-server `npm test` 全绿；web build；本地起 server + `CORTEX_FRONTEND_DIR`/dev 走一轮
-编辑→回退→重生成 手动冒烟。
+- agent-server `npm test` 全量（depcruise + lint + unit + integration）EXIT 0，两次（后端落地后 + handler 改动后）。
+  新增测试：conversation-history truncateFromTurn/edit-marker ×6、session-rewind ×7（含真实
+  ledger+history+registry 集成回环）、mutate-sessions-rewind ×6。
+- web `tsc --noEmit` EXIT 0；`vitest run` 111 files / **1085 tests** 全绿（transcript-vm 新增
+  turnIndex/edited/rewindStats ×5）；`vite build` EXIT 0。
+- **端到端冒烟**（隔离 CORTEX_HOME=/tmp + CORTEX_PLATFORM=test + CORTEX_UI_HTTP，真实 server + tRPC HTTP）：
+  sessions.create → 两条真实 turn（含真实 claude CLI 往返）→ `sessions.rewind(turnIndex=1, 新文本)` →
+  transcript 验证：turn 0 完整保留；turn 1 user 文本被替换、`edited.originalText` = 原文；旧回复被
+  回退移除；重新生成的回复真实落账（且新 turn 用上了热更后的 profile，反证 pooled CLI 被正确关闭重开）。
+  Guard：turnIndex 越界 → NOT_FOUND；未知 session → NOT_FOUND。
+- 未做：浏览器/移动端的视觉逐像素比对（headless CDP 截图）——交互按 scheme 逐条手写，建议合并后在
+  dev/ui-lab2 人工过一遍两端交互。

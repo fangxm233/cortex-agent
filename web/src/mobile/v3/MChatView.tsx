@@ -5,7 +5,7 @@
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards.
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
-import type { ChatRow, Attachment } from '@/features/workbench/transcript-vm';
+import { regenNoteIndexes, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
 import {
   interactionView,
   emptyAskAnswers,
@@ -64,6 +64,134 @@ export interface MRejectBar {
   chips: string[];
   onChipTap: (chip: string) => void;
   onCancel: () => void;
+}
+
+// ── sec-7 message edit + rewind chrome ────────────────────────────────────────
+
+export interface MChatEditCopy {
+  menuCopy: string;
+  menuEdit: string;
+  /** 编辑中 badge on the bubble being edited (7b). */
+  editingBadge: string;
+  /** 将被回退 · N 条回复 · M 次工具调用 (7b). */
+  willRewind: (replies: number, toolCalls: number) => string;
+  /** 编辑消息 — 发送将回退后续回复 (7b context bar). */
+  editBarTitle: string;
+  /** 已编辑 under-bubble note; tap opens the original sheet. */
+  edited: string;
+  /** 原消息 sheet header. */
+  original: string;
+  /** 由编辑重新生成 footnote. */
+  regenNote: string;
+}
+
+/** 7a long-press menu state: which row is held + what actions apply. */
+export interface MMsgMenu {
+  rowIndex: number;
+  onCopy: () => void;
+  /** Absent for agent messages (copy-only, 7a). */
+  onEdit?: () => void;
+  /** True while running — the 编辑 row greys out (7a footnote). */
+  editDisabled?: boolean;
+  onClose: () => void;
+}
+
+/** 7b edit mode: the row being edited + the discard stats for the 将被回退 badge. */
+export interface MEditMode {
+  rowIndex: number;
+  replies: number;
+  toolCalls: number;
+  onCancel: () => void;
+}
+
+/** Long-press (~450ms) handlers for a stream bubble; also fires on contextmenu (desktop testing). */
+function longPressHandlers(fire: () => void): {
+  onTouchStart: () => void;
+  onTouchEnd: () => void;
+  onTouchMove: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+} {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return {
+    onTouchStart: () => { timer = setTimeout(fire, 450); },
+    onTouchEnd: () => { if (timer) clearTimeout(timer); },
+    onTouchMove: () => { if (timer) clearTimeout(timer); },
+    onContextMenu: (e) => { e.preventDefault(); fire(); },
+  };
+}
+
+/** 7a — the long-press action overlay: conversation dims + blurs, the held bubble floats, the
+ *  复制 / 编辑消息 menu hangs under it (agent messages: copy only; running: edit greyed). */
+export function MsgActionMenu({ row, menu, copy }: { row: ChatRow; menu: MMsgMenu; copy: MChatEditCopy }): JSX.Element {
+  const isUser = row.kind === 'user';
+  const text = row.kind === 'user' || row.kind === 'assistant' ? row.text : '';
+  const item = (label: string, onTap: (() => void) | undefined, disabled?: boolean, last?: boolean): JSX.Element => (
+    <div
+      role="button"
+      onClick={disabled ? undefined : () => { onTap?.(); menu.onClose(); }}
+      style={{
+        display: 'flex', alignItems: 'center', height: 46, padding: '0 15px', fontSize: 14.5,
+        color: MC.ink, opacity: disabled ? 0.35 : 1, cursor: disabled ? 'default' : 'pointer',
+        borderTop: last ? '1px solid rgba(0,0,0,.07)' : undefined,
+      }}
+    >
+      {label}
+      {label === copy.menuCopy ? (
+        <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.4" style={{ marginLeft: 'auto' }}>
+          <rect x="4.5" y="4.5" width="8" height="8" rx="1.5" /><path d="M2.5 9.5V3.5a1 1 0 0 1 1-1h6" />
+        </svg>
+      ) : (
+        <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.4" style={{ marginLeft: 'auto' }}>
+          <path d="M2.5 11.5l.6-2.6 6.4-6.4a1.3 1.3 0 0 1 1.8 0l.2.2a1.3 1.3 0 0 1 0 1.8L5.1 10.9z" /><path d="M8.6 3.4l2 2" />
+        </svg>
+      )}
+    </div>
+  );
+  return (
+    <div
+      onClick={menu.onClose}
+      style={{
+        position: 'absolute', inset: 0, zIndex: 8, background: 'rgba(25,28,34,.38)',
+        backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)',
+        padding: '120px 14px 0', boxSizing: 'border-box',
+        display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 9,
+      }}
+    >
+      {/* Floated copy of the held bubble */}
+      {isUser ? (
+        <div style={{ maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: '16px 16px 4px 16px', padding: '9px 13px', fontSize: 13.5, lineHeight: 1.55, boxShadow: '0 14px 40px rgba(0,0,0,.4)', maxHeight: '38%', overflow: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+          {text}
+        </div>
+      ) : (
+        <div style={{ maxWidth: '88%', background: 'var(--proto-card)', color: MC.body, borderRadius: 14, padding: '9px 13px', fontSize: 13.5, lineHeight: 1.6, boxShadow: '0 14px 40px rgba(0,0,0,.4)', maxHeight: '38%', overflow: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
+          {text}
+        </div>
+      )}
+      {/* Menu — 复制 / 编辑消息 (46px rows, scheme 7a) */}
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 196, background: 'rgba(250,250,252,.98)', border: '1px solid rgba(0,0,0,.06)', borderRadius: 13, boxShadow: '0 14px 40px rgba(16,24,40,.25)', overflow: 'hidden' }}>
+        {item(copy.menuCopy, menu.onCopy)}
+        {menu.onEdit && item(copy.menuEdit, menu.onEdit, menu.editDisabled, true)}
+      </div>
+    </div>
+  );
+}
+
+/** 7b — the accent context bar above the composer while editing (mirror of the 5a amber bar). */
+export function EditBar({ title, onCancel }: { title: string; onCancel: () => void }): JSX.Element {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--proto-alt)', border: '1px solid var(--proto-accent-border)', borderRadius: 11, padding: '8px 8px 8px 12px', marginBottom: 7 }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.run, flex: 'none' }} />
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-accent-strong)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+      <div
+        role="button"
+        aria-label="Cancel edit"
+        onClick={onCancel}
+        style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, background: 'var(--proto-card)', border: '1px solid var(--proto-accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.run, fontSize: 12, flex: 'none', cursor: 'pointer' }}
+      >
+        ×
+      </div>
+    </div>
+  );
 }
 
 // ── 1b header — ‹ back · title + status line · ⋯ menu ─────────────────────────
@@ -367,13 +495,32 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
   );
 }
 
-export function MChatStream({ rows, toolCallsUnit, interactions }: { rows: ChatRow[]; toolCallsUnit: string; interactions?: MChatInteractions }): JSX.Element {
+export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editing, onLongPress, onShowOriginal }: {
+  rows: ChatRow[];
+  toolCallsUnit: string;
+  interactions?: MChatInteractions;
+  /** Present → the sec-7 edit affordances render (long-press menu, 编辑中/将被回退, 已编辑 note). */
+  editCopy?: MChatEditCopy;
+  /** 7b edit mode: the held row rings 编辑中, later rows dim under the 将被回退 badge. */
+  editing?: MEditMode | null;
+  /** Long-press on a user/assistant bubble (opens the 7a action menu). */
+  onLongPress?: (rowIndex: number) => void;
+  /** Tap on the 已编辑 note (opens the original-message sheet). */
+  onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
+}): JSX.Element {
+  const regenIdx = editCopy ? regenNoteIndexes(rows) : null;
+  const editingIdx = editing?.rowIndex ?? null;
   return (
     <>
-      {rows.map((row, i) => (
+      {rows.map((row, i) => {
+        const dimmed = editingIdx != null && i > editingIdx;
+        const isEditingRow = editingIdx === i;
+        const canHold = !!editCopy && !!onLongPress && editingIdx == null && (row.kind === 'user' || (row.kind === 'assistant' && !!row.text.trim()));
+        const hold = canHold ? longPressHandlers(() => onLongPress!(i)) : null;
+        return (
         <Fragment key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}>
           {row.kind === 'divider' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, ...(dimmed ? { opacity: 0.35 } : {}) }}>
               <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
               <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: MC.faint }}>{row.text}</div>
               <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
@@ -382,28 +529,69 @@ export function MChatStream({ rows, toolCallsUnit, interactions }: { rows: ChatR
           {row.kind === 'user' && (
             <>
               {row.attachments && row.attachments.length > 0 && <AttachmentGroup attachments={row.attachments} />}
-              <div
-                style={{
-                  alignSelf: 'flex-end',
-                  maxWidth: '82%',
-                  background: MC.ink,
-                  color: 'var(--ink-solid-fg)',
-                  borderRadius: '16px 16px 4px 16px',
-                  padding: '9px 13px',
-                  fontSize: 13.5,
-                  lineHeight: 1.55,
-                  whiteSpace: 'pre-wrap',
-                  overflowWrap: 'break-word',
-                  wordBreak: 'break-word',
-                }}
-              >
-                {row.text}
+              <div style={{ alignSelf: 'flex-end', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, maxWidth: '82%', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
+                {/* 7b — the bubble being edited rings accent + 编辑中 badge */}
+                {isEditingRow && editCopy && (
+                  <span style={{ font: `600 9.5px ${MONO}`, color: MC.run, background: 'var(--proto-accent-bg)', padding: '2px 7px', borderRadius: 4 }}>{editCopy.editingBadge}</span>
+                )}
+                <div
+                  {...(hold ?? {})}
+                  style={{
+                    background: MC.ink,
+                    color: 'var(--ink-solid-fg)',
+                    borderRadius: '16px 16px 4px 16px',
+                    padding: '9px 13px',
+                    fontSize: 13.5,
+                    lineHeight: 1.55,
+                    whiteSpace: 'pre-wrap',
+                    overflowWrap: 'break-word',
+                    wordBreak: 'break-word',
+                    WebkitUserSelect: canHold ? 'none' : undefined,
+                    userSelect: canHold ? 'none' : undefined,
+                    WebkitTouchCallout: canHold ? 'none' : undefined,
+                    ...(isEditingRow ? { boxShadow: `0 0 0 2px ${MC.canvas}, 0 0 0 3.5px ${MC.run}` } : {}),
+                  } as React.CSSProperties}
+                >
+                  {row.text}
+                </div>
+                {/* 已编辑 note — tap opens the original-message sheet */}
+                {editCopy && row.edited && !isEditingRow && (
+                  <span
+                    role="button"
+                    onClick={onShowOriginal ? () => onShowOriginal(row.edited!) : undefined}
+                    style={{ font: `400 9.5px ${MONO}`, color: MC.faint, cursor: 'pointer' }}
+                  >
+                    <span style={{ borderBottom: `1px dotted ${MC.faint}` }}>{editCopy.edited}</span>
+                  </span>
+                )}
               </div>
+              {/* 7b — the 将被回退 badge opens the dimmed tail right after the edited bubble */}
+              {isEditingRow && editCopy && editing && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <span style={{ font: `600 9px ${MONO}`, color: 'var(--m-amber-ink)', background: MC.amberBg, padding: '2px 7px', borderRadius: 4 }}>
+                    {editCopy.willRewind(editing.replies, editing.toolCalls)}
+                  </span>
+                </div>
+              )}
             </>
           )}
-          {row.kind === 'tools' && <ToolCallsRow count={row.count} calls={row.calls} unit={toolCallsUnit} />}
+          {row.kind === 'tools' && (
+            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+              <ToolCallsRow count={row.count} calls={row.calls} unit={toolCallsUnit} />
+            </div>
+          )}
           {row.kind === 'assistant' && (
-            <div style={{ fontSize: 13.5, lineHeight: 1.65, color: MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+            <div
+              {...(hold ?? {})}
+              style={{ fontSize: 13.5, lineHeight: 1.65, color: MC.body, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}), WebkitUserSelect: canHold ? 'none' : undefined, userSelect: canHold ? 'none' : undefined, WebkitTouchCallout: canHold ? 'none' : undefined } as React.CSSProperties}
+            >
+              {/* 由编辑重新生成 — footnote atop the first regenerated reply after an edit */}
+              {editCopy && regenIdx?.has(i) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, font: `400 9.5px ${MONO}`, color: MC.faint, marginBottom: 4 }}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-line-3)', flex: 'none' }} />
+                  {editCopy.regenNote}
+                </div>
+              )}
               {/* dropTrailingHr — assistant messages often end with a `---` separator; on mobile the
                   trailing horizontal rule reads as dangling cruft, so it is stripped. No streaming
                   caret: the blinking output-position block was removed by request. */}
@@ -415,9 +603,14 @@ export function MChatStream({ rows, toolCallsUnit, interactions }: { rows: ChatR
               )}
             </div>
           )}
-          {row.kind === 'interaction' && <MInteractionRow row={row} interactions={interactions} />}
+          {row.kind === 'interaction' && (
+            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+              <MInteractionRow row={row} interactions={interactions} />
+            </div>
+          )}
         </Fragment>
-      ))}
+        );
+      })}
     </>
   );
 }
@@ -615,6 +808,16 @@ export interface MChatViewProps {
   interactions?: MChatInteractions;
   // 5a reject mode — amber context bar + reason chips above the composer; composer ring amber.
   rejectBar?: MRejectBar;
+  // sec-7 message edit + rewind
+  editCopy?: MChatEditCopy;
+  /** 7a long-press action menu (held row + actions). */
+  msgMenu?: MMsgMenu | null;
+  onLongPress?: (rowIndex: number) => void;
+  /** 7b edit mode — marks the stream + swaps the composer chrome to the accent edit bar. */
+  editing?: MEditMode | null;
+  /** 已编辑 tap → original-message sheet. */
+  onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
+  originalSheet?: { text: string; onClose: () => void } | null;
   // composer
   composerValue: string;
   onComposerChange: (v: string) => void;
@@ -664,9 +867,12 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     if (el && stickRef.current && Date.now() >= tapFreezeUntil.current) el.scrollTop = el.scrollHeight;
   }, [props.rows, props.systemLines]);
 
-  // 5a reject mode replaces the composer chrome: amber context bar (+ ✕ cancel) + reason chips
-  // (scheme L200-211). Otherwise: attachment chips + profile chip.
-  const above = props.rejectBar ? (
+  // 7b edit mode replaces the composer chrome with the accent edit bar; 5a reject mode replaces it
+  // with the amber context bar (+ ✕ cancel) + reason chips (scheme L200-211). Otherwise: attachment
+  // chips + profile chip.
+  const above = props.editing && props.editCopy ? (
+    <EditBar title={props.editCopy.editBarTitle} onCancel={props.editing.onCancel} />
+  ) : props.rejectBar ? (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: MC.amberCard, border: `1px solid ${MC.amberBorder}`, borderRadius: 11, padding: '8px 8px 8px 12px', marginBottom: 7 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.amber, flex: 'none' }} />
@@ -724,7 +930,15 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. */}
         <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
           <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <MChatStream rows={props.rows} toolCallsUnit={copy.toolCallsUnit} interactions={props.interactions} />
+            <MChatStream
+              rows={props.rows}
+              toolCallsUnit={copy.toolCallsUnit}
+              interactions={props.interactions}
+              editCopy={props.editCopy}
+              editing={props.editing}
+              onLongPress={props.onLongPress}
+              onShowOriginal={props.onShowOriginal}
+            />
             {props.inlineThreadCard}
             {props.systemLines?.map((t, i) => (
               <SystemLine key={i} text={t} />
@@ -741,18 +955,29 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           running={props.status.running}
           onStop={props.onStop}
           stopEnabled={props.stopEnabled}
-          leading={props.rejectBar ? undefined : <PlusButton onClick={props.onPlus} />}
+          leading={props.editing || props.rejectBar ? undefined : <PlusButton onClick={props.onPlus} />}
           above={above}
           onPlus={props.onPlus}
           lineUnit={copy.lineUnit}
           charUnit={copy.charUnit}
-          tone={props.rejectBar ? 'amber' : 'default'}
+          tone={props.editing ? 'accent' : props.rejectBar ? 'amber' : 'default'}
         />
         {props.attachments.length > 0 && (
           <div style={{ font: `400 9px ${MONO}`, color: MC.faint, padding: '0 16px 2px' }}>{copy.attachFootnote}</div>
         )}
       </div>
       {props.moreOpen && <MoreMenu copy={copy} onClose={props.onMoreClose} />}
+      {props.msgMenu && props.editCopy && props.rows[props.msgMenu.rowIndex] && (
+        <MsgActionMenu row={props.rows[props.msgMenu.rowIndex]} menu={props.msgMenu} copy={props.editCopy} />
+      )}
+      {props.originalSheet && props.editCopy && (
+        <MBottomSheet onClose={props.originalSheet.onClose}>
+          <div style={{ font: `600 10px ${MONO}`, color: MC.muted, letterSpacing: '.05em', padding: '0 2px 8px' }}>{props.editCopy.original}</div>
+          <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, padding: '11px 13px', fontSize: 13, lineHeight: 1.6, color: MC.body, whiteSpace: 'pre-wrap', overflowWrap: 'break-word', maxHeight: '50vh', overflow: 'auto' }}>
+            {props.originalSheet.text}
+          </div>
+        </MBottomSheet>
+      )}
       {props.attachMenuOpen && (
         <AttachMenu copy={copy} onClose={props.onAttachClose} onCamera={props.onCamera} onLibrary={props.onLibrary} onFile={props.onFile} />
       )}
