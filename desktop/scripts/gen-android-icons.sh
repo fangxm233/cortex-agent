@@ -17,10 +17,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TAURI="$HERE/../src-tauri"
 ICONS="$TAURI/icons"
 RES="$TAURI/gen/android/app/src/main/res"
-ACCENT="#4655d4"
+BG_COLOR="#ffffff"                     # adaptive background (white 25c variant)
 
-SRC="$ICONS/icon-source.png"           # square tile
-FG="$ICONS/icon-foreground.png"        # transparent mark
+SRC="$ICONS/icon-source.png"           # square white tile + colored mark
+FG="$ICONS/icon-foreground.png"        # transparent colored mark (ink core + indigo arcs)
 [ -f "$SRC" ] || { echo "error: missing $SRC" >&2; exit 1; }
 [ -f "$FG" ]  || { echo "error: missing $FG" >&2; exit 1; }
 [ -d "$RES" ] || { echo "error: $RES not found — run 'tauri android init' first" >&2; exit 1; }
@@ -59,7 +59,7 @@ cat > "$RES/drawable/ic_launcher_background.xml" <<XML
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="$ACCENT" android:pathData="M0,0h108v108h-108z" />
+    <path android:fillColor="$BG_COLOR" android:pathData="M0,0h108v108h-108z" />
 </vector>
 XML
 
