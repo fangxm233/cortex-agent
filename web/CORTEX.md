@@ -5,6 +5,20 @@ three-pane workbench shell; talks to agent-server over tRPC (HTTP/SSE) via `@trp
 + TanStack Query. Design tokens (design §5) live in `tailwind.config.ts` — no screen
 hard-codes hex.
 
+## Theming (light / dark)
+
+Every color resolves to a CSS variable defined in `src/index.css` (`:root` = light /
+`[data-theme="dark"]` = dark), so the whole UI (desktop + mobile) re-themes when `data-theme`
+flips on `<html>`. The dark palette is a 1:1 encoding of `design/ref/scheme-dark.dc.html`
+(per-level remap: elevation via surface lightness, semantic colors brightened + translucent tint
+bg, ink-solid elements inverted to light-bg/dark-fg — NOT a color inversion). The Tailwind tokens
+(`proto.*`/`state.*`/`pill.*`/`surface.*`) and the mobile `MC` palette both point at these
+variables; raw inline `style` hexes were migrated to `var(--…)`. `src/theme/` owns the persisted
+choice (localStorage `cortex.theme`, default = OS `prefers-color-scheme`), mirroring `src/i18n/`.
+The toggle lives in the Settings screen: desktop = the **Appearance** panel (first nav entry,
+`features/settings/AppearancePanel.tsx`); mobile = the **主题/Theme** row in `mobile/v3/MSettingsView`.
+A no-flash inline script in `index.html` sets `data-theme` before first paint.
+
 ## Layout
 
 | path | role |
@@ -19,7 +33,8 @@ hard-codes hex.
 | `src/RootRouter.tsx` | **Shell render switch**: `useIsMobile()` → mounts `mobile/mobile-router` (mobile) or the desktop `router`. Mobile is selected ONLY by the dedicated mobile client shell (`isMobileShell()` = `window.__CORTEX_MOBILE__`), **not** by viewport width — resizing a browser window never switches to mobile. |
 | `src/mobile/` | **Mobile shell base** (web-only, design 5a–5c, task 0325) — ported `IOSDevice` frame + bottom 4-Tab nav (会话/线程/任务/机器 from `useVocab`, active state + live active-thread badge + amber approval dot, ≥44px touch) + `/m/*` routing with 5 STUB screen slots (5a/5b/5c/10e/10f) siblings replace. See its CORTEX.md |
 | `src/i18n/` | Real, **user-controlled + persisted** language (`useLang`/`useSetLang`, localStorage `cortex.lang`, default en / zh from navigator) — wired to the left-rail EN/中 toggle; decoupled from viewport. `useIsMobile` now reflects the mobile client shell (`isMobileShell`), not width. `useVocab` → the active-language vocab. See `lang.ts`/`vocab.ts`/`LangProvider.tsx`. |
-| `src/providers.tsx` | `QueryClientProvider` + tRPC `TRPCProvider` + `design/TooltipProvider` + `LangProvider` |
+| `src/theme/` | Real, **user-controlled + persisted** color theme (`useTheme`/`useSetTheme`/`useToggleTheme`, localStorage `cortex.theme`, default = OS `prefers-color-scheme`) — applied via `data-theme="dark"` on `<html>`. Drives the CSS-variable dark palette (scheme-dark.dc.html). Toggle in the Settings screen (desktop Appearance panel / mobile 主题 row). See `theme.ts`/`ThemeProvider.tsx`. |
+| `src/providers.tsx` | `QueryClientProvider` + tRPC `TRPCProvider` + `ThemeProvider` + `design/TooltipProvider` + `ToastProvider` + `LangProvider` |
 | `src/lib/trpc.ts` | `@trpc/tanstack-react-query` context + vanilla client + **conditional transport** (task 1b60). `splitLink`: query/mutate → `httpBatchLink`, subscription → `httpSubscriptionLink`. **Two modes**: browser/ui-http (no config) — relative `/trpc`, same-origin, proxy injects token; desktop/remote (injected `RemoteConfig{serverUrl,token}`) — absolute URL, `x-cortex-token` in batch headers, `eventsource` npm ponyfill for SSE (fetch-based, injects token in custom fetch). Exports `trpcUrl(config?)`, `buildBatchHeaders(config?)`, `buildSseFetch(token)` for unit testing. `src/lib/trpc.test.ts` covers both modes. |
 | `src/router.tsx` | `createBrowserRouter`: `AppShell` layout; `/workbench` → `WorkbenchPage` (design 3a, task 5b0f), `/tasks` → `TasksPage` (task 5), `/kit` → `KitPage` (design demo, task e794), other routes still `EmptyPane` |
 | `src/design/` | Design-system core primitives (design §5 Stage 2, tasks e794/2add) — token-driven StatusPill/MonoText/ID/Card/SectionHeader/Button/Tabs/Tooltip/EmptyState/DegradedState (10c status language). See its CORTEX.md |

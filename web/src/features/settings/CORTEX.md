@@ -2,13 +2,18 @@
 
 The **Settings modal** overlay, rebuilt **1:1** from `design/ref/prototype.dc.html` L721–1088 (script
 L2379–2797) and diffed vs `design/proto-shots/14-settings.png` (plan §8.5 settings row). A 1080×680
-centered Radix-Dialog card: 48px header + **210px left nav (9 panels)** + `#F7F8FA` content area.
+centered Radix-Dialog card: 48px header + **210px left nav (10 panels)** + `var(--proto-alt)` content area.
+
+The first nav entry is **Appearance** (`AppearancePanel.tsx`) — the device-local light/dark theme
+toggle (persisted to localStorage `cortex.theme` via `src/theme`; no `config.get`/`config.set`, so it
+renders even if the config query is loading/errored). The remaining 9 panels are below.
 Wired to the **real** `config.get` query (redacted `~/.cortex/config` snapshot) for every panel; the
 **Budget** panel drives a real `config.set` write. Consumes the config contract shipped by task 0837.
 
 | path | role |
 |---|---|
-| `settings-nav.ts` | **Pure** (TDD): the 9 nav entries (label/file/key, prototype order) + `SETTINGS_SECTION_META` (title/sub, verbatim EN copy L2394–2404). |
+| `settings-nav.ts` | **Pure** (TDD): the 10 nav entries — `appearance` first, then the 9 prototype panels (label/file/key, prototype order) + `SETTINGS_SECTION_META` (title/sub). |
+| `AppearancePanel.tsx` | Device-local **light/dark theme** toggle (segmented Light/Dark, ink-solid inverse chip) over `src/theme` `useTheme`/`useSetTheme`. No backend — persisted to localStorage `cortex.theme`. |
 | `settings-nav.test.ts` | vitest — nav order, labels/file tags, section meta. |
 | `platform-env.ts` | **Pure** (TDD): redacted `.env` helpers — `indexEnv`/`envRow` (present→mask `••••••••`, absent→`—`, **never cleartext**), `envKeysWithPrefix`/`hasAnyKey`, and the prototype key groups (SLACK/FEISHU/API/DAEMON, notify + advanced flags). |
 | `platform-env.test.ts` | vitest — index, row masking (no cleartext), prefix filter, presence. |
