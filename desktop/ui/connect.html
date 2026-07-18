@@ -7,14 +7,79 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    // No-flash theme: apply the persisted (or OS-preferred) theme before first paint so a dark user
+    // never sees a light flash. Mirrors web/src/theme/theme.ts resolveInitialTheme + web/index.html —
+    // same localStorage key (`cortex.theme`) so the connect screen matches the SPA's theme choice.
+    (function () {
+      try {
+        var stored = null;
+        try { stored = window.localStorage.getItem('cortex.theme'); } catch (e) {}
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var theme = stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light';
+        if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.style.colorScheme = theme;
+      } catch (e) {}
+    })();
+  </script>
   <style>
+    /* ── Theme tokens: a subset of web/src/index.css, kept in sync so this standalone shell page
+     *    renders in the SAME design language as the SPA. `:root` = light (default), `[data-theme=dark]`
+     *    = the scheme-dark palette. Colors are referenced via var(--…) only, never hard-coded. ── */
+    :root {
+      --surface-base: #e9e7e2;
+      --proto-card: #ffffff;
+      --proto-alt: #f7f8fa;
+      --proto-ink: #191c22;
+      --proto-ink-2: #22262e;
+      --proto-muted: #5b6472;
+      --proto-muted-2: #8a93a2;
+      --proto-muted-3: #98a1b0;
+      --proto-line: #e7e9ee;
+      --proto-line-3: #d9dce3;
+      --proto-accent: #4655d4;
+      --proto-accent-bg: #eef0fa;
+      --proto-success: #23854f;
+      --proto-danger: #c03d33;
+      --ink-solid-bg: #191c22;
+      --ink-solid-fg: #ffffff;
+      --ink-solid-hover: #32363e;
+      --border-card: rgba(0, 0, 0, 0.08);
+      --card-shadow: 0 8px 30px rgba(16, 24, 40, 0.12);
+    }
+
+    [data-theme="dark"] {
+      --surface-base: #12151a;
+      --proto-card: #1e232c;
+      --proto-alt: #1a1f29;
+      --proto-ink: #ebedf2;
+      --proto-ink-2: #c9ceda;
+      --proto-muted: #99a2b2;
+      --proto-muted-2: #7e8798;
+      --proto-muted-3: #6e7787;
+      --proto-line: #2c323e;
+      --proto-line-3: #3a4250;
+      --proto-accent: #8b96f2;
+      --proto-accent-bg: rgba(110, 123, 236, 0.16);
+      --proto-success: #57c48a;
+      --proto-danger: #ed7b72;
+      --ink-solid-bg: #ebedf2;
+      --ink-solid-fg: #14171b;
+      --ink-solid-hover: #d5dae2;
+      --border-card: rgba(255, 255, 255, 0.10);
+      --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Body uses the app's system-sans stack (web/src/index.css @layer base); IBM Plex Mono is reserved
+     * for technical/mono content (the logo + the URL/token inputs), matching the SPA's mono usage. */
     html, body {
       height: 100%;
-      background: #191C22;
-      color: #E9E7E2;
-      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      background: var(--surface-base);
+      color: var(--proto-ink);
+      font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial,
+        'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
       font-size: 13px;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
@@ -27,71 +92,102 @@
       min-height: 100vh;
     }
 
-    /* Settings-card style */
+    .mono {
+      font-family: 'IBM Plex Mono', ui-monospace, 'Courier New', monospace;
+    }
+
+    /* Settings-style card (matches the SPA's card surface: proto-card bg + hairline border + shadow) */
     .card {
       width: 400px;
-      background: #1E2028;
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 8px;
-      padding: 32px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      max-width: calc(100vw - 32px);
+      background: var(--proto-card);
+      border: 1px solid var(--border-card);
+      border-radius: 10px;
+      padding: 30px;
+      box-shadow: var(--card-shadow);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 26px;
     }
 
     .logo {
       font-size: 16px;
       font-weight: 600;
-      color: #E9E7E2;
-      letter-spacing: 0.05em;
-      margin-bottom: 4px;
+      color: var(--proto-ink);
+      letter-spacing: 0.04em;
     }
 
     .subtitle {
       font-size: 11px;
-      color: rgba(233, 231, 226, 0.42);
-      letter-spacing: 0.03em;
-      margin-bottom: 28px;
+      color: var(--proto-muted);
+      letter-spacing: 0.02em;
+      margin-top: 3px;
+    }
+
+    /* Language toggle — 1:1 with the SPA left-rail EN/中 segmented control */
+    .lang-toggle {
+      display: flex;
+      flex-shrink: 0;
+      border: 1px solid var(--proto-line);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .lang-opt {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2.5px 7px;
+      cursor: pointer;
+      background: transparent;
+      color: var(--proto-muted-2);
+      border: none;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .lang-opt.active {
+      background: var(--proto-ink);
+      color: var(--proto-card);
     }
 
     /* Field group */
-    .field {
-      margin-bottom: 14px;
-    }
+    .field { margin-bottom: 14px; }
 
     .label {
       display: block;
       font-size: 10px;
       font-weight: 600;
-      color: rgba(233, 231, 226, 0.5);
+      color: var(--proto-muted-2);
       letter-spacing: 0.10em;
       text-transform: uppercase;
-      margin-bottom: 5px;
+      margin-bottom: 6px;
     }
 
     .input {
       display: block;
       width: 100%;
-      background: #191C22;
-      border: 1px solid rgba(255, 255, 255, 0.10);
-      border-radius: 4px;
-      padding: 8px 11px;
-      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      background: var(--proto-alt);
+      border: 1px solid var(--proto-line);
+      border-radius: 6px;
+      padding: 9px 11px;
+      font-family: 'IBM Plex Mono', ui-monospace, 'Courier New', monospace;
       font-size: 13px;
-      color: #E9E7E2;
+      color: var(--proto-ink);
       outline: none;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
 
     .input:focus {
-      border-color: #4655D4;
+      border-color: var(--proto-accent);
+      box-shadow: 0 0 0 3px var(--proto-accent-bg);
     }
 
-    .input::placeholder {
-      color: rgba(233, 231, 226, 0.22);
-    }
-
-    .input:disabled {
-      opacity: 0.5;
-    }
+    .input::placeholder { color: var(--proto-muted-3); }
+    .input:disabled { opacity: 0.5; }
 
     /* Action row */
     .actions {
@@ -103,42 +199,37 @@
     .btn {
       flex: 1;
       padding: 9px 14px;
-      border-radius: 4px;
-      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      border-radius: 6px;
+      font-family: inherit;
       font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.03em;
+      font-weight: 600;
+      letter-spacing: 0.02em;
       cursor: pointer;
-      border: none;
-      transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+      border: 1px solid transparent;
+      transition: opacity 0.15s, background 0.15s, border-color 0.15s, color 0.15s;
     }
 
-    .btn:disabled {
-      opacity: 0.38;
-      cursor: not-allowed;
-    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
     .btn-outline {
       flex: 0 0 auto;
-      width: 88px;
+      width: 92px;
       background: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      color: rgba(233, 231, 226, 0.72);
+      border-color: var(--proto-line-3);
+      color: var(--proto-ink-2);
     }
 
     .btn-outline:hover:not(:disabled) {
-      border-color: rgba(255, 255, 255, 0.28);
-      color: #E9E7E2;
+      border-color: var(--proto-muted-3);
+      background: var(--proto-alt);
     }
 
     .btn-primary {
-      background: #4655D4;
-      color: #fff;
+      background: var(--ink-solid-bg);
+      color: var(--ink-solid-fg);
     }
 
-    .btn-primary:hover:not(:disabled) {
-      background: #3d4bbf;
-    }
+    .btn-primary:hover:not(:disabled) { background: var(--ink-solid-hover); }
 
     /* Status line */
     .status {
@@ -148,7 +239,7 @@
       display: flex;
       align-items: center;
       gap: 7px;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.01em;
     }
 
     .status-dot {
@@ -158,47 +249,50 @@
       flex-shrink: 0;
     }
 
-    .status-ok { color: #23854F; }
-    .status-ok .status-dot { background: #23854F; }
-
-    .status-err { color: #d06060; }
-    .status-err .status-dot { background: #c0392b; }
-
-    .status-pending { color: rgba(233, 231, 226, 0.42); }
+    .status-ok { color: var(--proto-success); }
+    .status-ok .status-dot { background: var(--proto-success); }
+    .status-err { color: var(--proto-danger); }
+    .status-err .status-dot { background: var(--proto-danger); }
+    .status-pending { color: var(--proto-muted); }
 
     /* Divider + switch link */
     .divider {
       border: none;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid var(--proto-line);
       margin: 24px 0 18px;
     }
 
     .switch-row {
       text-align: center;
       font-size: 11px;
-      color: rgba(233, 231, 226, 0.32);
-      letter-spacing: 0.02em;
+      color: var(--proto-muted);
+      letter-spacing: 0.01em;
     }
 
     .switch-row a {
-      color: rgba(100, 118, 220, 0.85);
+      color: var(--proto-accent);
       text-decoration: none;
       cursor: pointer;
     }
 
-    .switch-row a:hover {
-      color: #4655D4;
-      text-decoration: underline;
-    }
+    .switch-row a:hover { text-decoration: underline; }
   </style>
 </head>
 <body id="cortex-connect-screen">
   <div class="card">
-    <div class="logo">Cortex</div>
-    <div class="subtitle">Connect to your server</div>
+    <div class="card-head">
+      <div>
+        <div class="logo mono">Cortex</div>
+        <div class="subtitle" id="cx-subtitle">Connect to your server</div>
+      </div>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button class="lang-opt" id="cx-lang-en" type="button">EN</button>
+        <button class="lang-opt" id="cx-lang-zh" type="button">中</button>
+      </div>
+    </div>
 
     <div class="field">
-      <label class="label" for="cx-server-url">Server URL</label>
+      <label class="label" id="cx-label-url" for="cx-server-url">Server URL</label>
       <input
         class="input"
         type="url"
@@ -210,7 +304,7 @@
     </div>
 
     <div class="field">
-      <label class="label" for="cx-token">Client Token</label>
+      <label class="label" id="cx-label-token" for="cx-token">Client Token</label>
       <input
         class="input"
         type="password"
@@ -229,7 +323,8 @@
 
     <hr class="divider">
     <div class="switch-row">
-      Already connected? <a id="cx-link-switch" href="#" role="button">Switch server</a>
+      <span id="cx-switch-prompt">Already connected?</span>
+      <a id="cx-link-switch" href="#" role="button">Switch server</a>
     </div>
   </div>
 
@@ -246,6 +341,89 @@
       var btnConnect  = document.getElementById('cx-btn-connect');
       var statusEl    = document.getElementById('cx-status');
       var linkSwitch  = document.getElementById('cx-link-switch');
+
+      // ── i18n ──────────────────────────────────────────────────────────────
+      // Standalone copy of the SPA's language system: same localStorage key (`cortex.lang`), same
+      // en/zh set + default resolution (stored → navigator → en), so toggling here matches the SPA.
+      var LANG_KEY = 'cortex.lang';
+      var I18N = {
+        en: {
+          htmlLang: 'en',
+          subtitle: 'Connect to your server',
+          serverUrl: 'Server URL',
+          clientToken: 'Client Token',
+          test: 'Test',
+          connect: 'Connect',
+          testing: 'Testing…',
+          connecting: 'Connecting…',
+          required: 'Server URL and token required',
+          unreachable: function (e) { return 'Unreachable — ' + e; },
+          networkError: 'network error',
+          unauthorized: '401 Unauthorized — check token',
+          ok: function (s) { return 'Connection OK (' + s + ')'; },
+          saveFailed: function (e) { return 'Save failed: ' + e; },
+          connected: 'Connected — loading workbench…',
+          switchPrompt: 'Already connected?',
+          switchServer: 'Switch server',
+        },
+        zh: {
+          htmlLang: 'zh-CN',
+          subtitle: '连接到你的服务器',
+          serverUrl: '服务器地址',
+          clientToken: '客户端令牌',
+          test: '测试',
+          connect: '连接',
+          testing: '测试中…',
+          connecting: '连接中…',
+          required: '请填写服务器地址和令牌',
+          unreachable: function (e) { return '无法连接 — ' + e; },
+          networkError: '网络错误',
+          unauthorized: '401 未授权 — 请检查令牌',
+          ok: function (s) { return '连接正常 (' + s + ')'; },
+          saveFailed: function (e) { return '保存失败：' + e; },
+          connected: '已连接 — 正在加载工作台…',
+          switchPrompt: '已经连接过？',
+          switchServer: '切换服务器',
+        },
+      };
+
+      function resolveInitialLang() {
+        var stored = null;
+        try { stored = window.localStorage.getItem(LANG_KEY); } catch (e) {}
+        if (stored === 'en' || stored === 'zh') return stored;
+        var nav = (typeof navigator !== 'undefined' && navigator.language) || '';
+        return nav.toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+      }
+
+      var lang = resolveInitialLang();
+      var L = I18N[lang];
+
+      // Static text is (re)applied on load + on every toggle. The transient status line keeps whatever
+      // it is currently showing (it is re-rendered by its own event with the active-language strings).
+      function applyLang() {
+        L = I18N[lang];
+        document.documentElement.lang = L.htmlLang;
+        document.getElementById('cx-subtitle').textContent = L.subtitle;
+        document.getElementById('cx-label-url').textContent = L.serverUrl;
+        document.getElementById('cx-label-token').textContent = L.clientToken;
+        btnTest.textContent = L.test;
+        btnConnect.textContent = L.connect;
+        document.getElementById('cx-switch-prompt').textContent = L.switchPrompt;
+        linkSwitch.textContent = L.switchServer;
+        document.getElementById('cx-lang-en').classList.toggle('active', lang === 'en');
+        document.getElementById('cx-lang-zh').classList.toggle('active', lang === 'zh');
+      }
+
+      function setLang(next) {
+        if (next !== 'en' && next !== 'zh') return;
+        lang = next;
+        try { window.localStorage.setItem(LANG_KEY, next); } catch (e) {}
+        applyLang();
+      }
+
+      document.getElementById('cx-lang-en').addEventListener('click', function () { setLang('en'); });
+      document.getElementById('cx-lang-zh').addEventListener('click', function () { setLang('zh'); });
+      applyLang();
 
       // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -302,19 +480,19 @@
       btnTest.addEventListener('click', async function () {
         var f = fields();
         if (!f.serverUrl || !f.token) {
-          setStatus('err', 'Server URL and token required');
+          setStatus('err', L.required);
           return;
         }
         setLoading(true);
-        setStatus('pending', 'Testing…');
+        setStatus('pending', L.testing);
         var r = await probe(f.serverUrl, f.token);
         setLoading(false);
         if (!r.reached) {
-          setStatus('err', 'Unreachable — ' + (r.error || 'network error'));
+          setStatus('err', L.unreachable(r.error || L.networkError));
         } else if (!r.ok) {
-          setStatus('err', '401 Unauthorized — check token');
+          setStatus('err', L.unauthorized);
         } else {
-          setStatus('ok', 'Connection OK (' + r.status + ')');
+          setStatus('ok', L.ok(r.status));
         }
       });
 
@@ -323,21 +501,21 @@
       btnConnect.addEventListener('click', async function () {
         var f = fields();
         if (!f.serverUrl || !f.token) {
-          setStatus('err', 'Server URL and token required');
+          setStatus('err', L.required);
           return;
         }
         setLoading(true);
-        setStatus('pending', 'Connecting…');
+        setStatus('pending', L.connecting);
 
         var r = await probe(f.serverUrl, f.token);
         if (!r.reached) {
           setLoading(false);
-          setStatus('err', 'Unreachable — ' + (r.error || 'network error'));
+          setStatus('err', L.unreachable(r.error || L.networkError));
           return;
         }
         if (!r.ok) {
           setLoading(false);
-          setStatus('err', '401 Unauthorized — check token');
+          setStatus('err', L.unauthorized);
           return;
         }
 
@@ -347,7 +525,7 @@
             await invoke('connect', { serverUrl: f.serverUrl, token: f.token });
           } catch (e) {
             setLoading(false);
-            setStatus('err', 'Save failed: ' + String(e));
+            setStatus('err', L.saveFailed(String(e)));
             return;
           }
         } else {
@@ -355,7 +533,7 @@
           window.__CORTEX_DESKTOP_CONFIG = { serverUrl: f.serverUrl, token: f.token };
         }
 
-        setStatus('ok', 'Connected — loading workbench…');
+        setStatus('ok', L.connected);
         setTimeout(function () {
           window.location.href = 'index.html';
         }, 350);

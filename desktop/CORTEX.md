@@ -88,9 +88,14 @@ desktop/
 ├── package.json              pnpm package: @tauri-apps/cli devDep, @tauri-apps/api dep
 │                             scripts: copy-connect / dev / build
 ├── ui/
-│   └── connect.html          Standalone connection config screen (design-to-match;
-│                             IBM Plex Mono, #191C22/#4655D4/#23854F, settings-card).
-│                             Copied to web/dist/connect.html by `npm run copy-connect`.
+│   └── connect.html          Standalone connection config screen, in the SPA's design language:
+│                             theme-aware (light default / dark, follows persisted `cortex.theme` +
+│                             OS via a no-flash script; tokens mirror web/src/index.css), system-sans
+│                             body + IBM Plex Mono for the logo/inputs, ink-solid primary button.
+│                             Top-right EN/中 language toggle (1:1 with the SPA left rail, persisted to
+│                             `cortex.lang`) localizes the whole screen. Both keys are shared with the
+│                             SPA so a choice here matches the workbench. Served from the binary embed
+│                             (frontend::resolve_embedded); also copied to web/dist by `copy-connect`.
 ├── src-tauri/
 │   ├── Cargo.toml            cortex-desktop crate (tauri v2 + serde + reqwest[rustls]/sha2/zip; keyring v3 desktop-only, include_dir android-only)
 │   ├── build.rs              tauri-build entry point
@@ -149,7 +154,7 @@ falling back) and passes it to `createTrpcClient()` — enabling absolute-URL + 
 
 | filename | role | function |
 |---|---|---|
-| `ui/connect.html` | connect screen | Standalone HTML/CSS/JS — serverUrl+token inputs, Test probe, Connect (keychain), Switch link |
+| `ui/connect.html` | connect screen | Standalone HTML/CSS/JS in the SPA design language (theme-aware via `cortex.theme` + tokens from index.css; EN/中 toggle persisted to `cortex.lang`) — serverUrl+token inputs, Test probe, Connect (keychain), Switch link |
 | `src-tauri/src/lib.rs` | core | `AppState`, `ConnectionConfig`, 4 Tauri commands, `init_script()` + `SHELL_FLAG` (per-platform), `active_frontend_dir`, `cortexui://` scheme (both platforms), `run()` |
 | `src-tauri/src/creds.rs` | credential store | Platform-branched `load`/`save`/`clear` — OS keychain (desktop) / app-private JSON in `app_data_dir` (android) |
 | `src-tauri/src/frontend.rs` | OTA resolver | Pure `resolve_asset`/`sanitize_request_path`/`content_type` (traversal guard + MIME + SPA fallback) + `resolve_embedded` (serves the `include_str!`-baked `connect.html` so the connect screen never depends on the on-disk/OTA frontend); unit-tested |
