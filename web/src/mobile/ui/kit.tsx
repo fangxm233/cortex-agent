@@ -8,32 +8,40 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 // ── Palette (scheme-mobile.dc.html system tokens, L57-73) ─────────────────────
+// Each value resolves to a CSS variable (defined in src/index.css `:root` / `[data-theme='dark']`)
+// so the whole mobile surface re-themes on the single `data-theme` flip — the light values are the
+// exact original scheme-mobile hexes, the dark values follow scheme-dark 1b–1d. Card/page surfaces
+// (`--m-*`) run a touch darker than desktop; `--ink-solid-*` handles the inverted send/stop keys.
 export const MC = {
-  canvas: '#F2F2F7',
-  ink: '#191C22',
-  sub: '#5B6472',
-  body: '#22262E',
-  muted: '#8A93A2',
-  faint: '#B6BDC9',
-  hairline: '#E7E9EE',
-  divider: '#F3F4F7',
-  cardBorder: '#E7E9EE',
-  run: '#4655D4',
-  runBg: '#EEF0FA',
-  runBorder: '#C9CFF2',
-  amber: '#C99A2E',
-  amberInk: '#8A5B06',
-  amberText: '#A96B0B',
-  amberBg: '#F7ECCE',
-  amberBorder: '#EFDDB0',
-  amberCard: '#FDF9F0',
-  done: '#23854F',
-  doneBg: '#E9F4EE',
-  fail: '#C03D33',
-  failBg: '#FBEDEB',
-  failBorder: '#EED3D0',
-  gray: '#F1F2F5',
-  grayInk: '#8A93A2',
+  canvas: 'var(--m-canvas)',
+  card: 'var(--m-card)',
+  ink: 'var(--m-ink)',
+  sub: 'var(--m-sub)',
+  body: 'var(--m-body)',
+  muted: 'var(--m-muted)',
+  faint: 'var(--m-faint)',
+  hairline: 'var(--m-hairline)',
+  divider: 'var(--m-divider)',
+  cardBorder: 'var(--m-card-border)',
+  run: 'var(--m-run)',
+  runBg: 'var(--m-run-bg)',
+  runBorder: 'var(--m-run-border)',
+  amber: 'var(--m-amber)',
+  amberInk: 'var(--m-amber-ink)',
+  amberText: 'var(--m-amber-text)',
+  amberBg: 'var(--m-amber-bg)',
+  amberBorder: 'var(--m-amber-border)',
+  amberCard: 'var(--m-amber-card)',
+  done: 'var(--m-done)',
+  doneBg: 'var(--m-done-bg)',
+  fail: 'var(--m-fail)',
+  failBg: 'var(--m-fail-bg)',
+  failBorder: 'var(--m-fail-border)',
+  gray: 'var(--m-gray)',
+  grayInk: 'var(--m-gray-ink)',
+  // Ink-solid inverse (send/stop key, primary buttons) — light-bg/dark-fg in dark mode.
+  inkSolid: 'var(--ink-solid-bg)',
+  inkSolidFg: 'var(--ink-solid-fg)',
 } as const;
 
 export const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
@@ -189,7 +197,7 @@ export function MMoreButton({ onClick }: { onClick?: () => void }) {
         width: 34,
         height: 34,
         borderRadius: '50%',
-        background: '#fff',
+        background: MC.card,
         border: `1px solid ${MC.hairline}`,
         display: 'flex',
         alignItems: 'center',
@@ -250,7 +258,7 @@ export function MCard({
     <div
       onClick={onClick}
       style={{
-        background: '#fff',
+        background: MC.card,
         border: `1px solid ${CARD_BORDER[tone]}`,
         borderRadius: radius,
         padding,
@@ -390,7 +398,7 @@ export function MSegmented<T extends string>({
               fontSize: 11.5,
               fontWeight: 600,
               color: active ? MC.ink : MC.muted,
-              background: active ? '#fff' : 'transparent',
+              background: active ? MC.card : 'transparent',
               borderRadius: 6,
               padding: '4px 12px',
               boxShadow: active ? '0 1px 2px rgba(16,24,40,.06)' : undefined,
@@ -536,7 +544,7 @@ export function MBottomSheet({
           onPointerCancel={onHandleUp}
           style={{ margin: '-8px -14px 0', padding: '10px 14px 6px', cursor: 'grab', touchAction: 'none' }}
         >
-          <div style={{ width: 36, height: 5, borderRadius: 999, background: '#D9DCE3', margin: '0 auto 12px' }} />
+          <div style={{ width: 36, height: 5, borderRadius: 999, background: 'var(--proto-line-3)', margin: '0 auto 12px' }} />
         </div>
         {children}
       </div>
@@ -581,7 +589,7 @@ function CollapseIcon() {
 }
 function SendGlyph({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="1.8">
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="var(--ink-solid-fg)" strokeWidth="1.8">
       <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
     </svg>
   );
@@ -676,9 +684,9 @@ export function MComposer({
             display: 'flex',
             alignItems: 'center',
             minHeight: COMPOSER_MIN_H,
-            border: `1.5px solid ${tone === 'amber' ? MC.amber : focused ? MC.run : '#D9DCE3'}`,
+            border: `1.5px solid ${tone === 'amber' ? MC.amber : focused ? MC.run : 'var(--proto-line-3)'}`,
             borderRadius: multiline ? 16 : 14,
-            background: '#fff',
+            background: MC.card,
             boxShadow: tone === 'amber' ? '0 0 0 3px rgba(201,154,46,.10)' : focused ? '0 0 0 3px rgba(70,85,212,.08)' : undefined,
             boxSizing: 'border-box',
             padding: `0 ${showExpand ? 34 : 14}px 0 14px`,
@@ -721,7 +729,7 @@ export function MComposer({
                 width: 22,
                 height: 22,
                 borderRadius: 7,
-                background: '#F2F3F7',
+                background: 'var(--m-gray)',
                 border: 'none',
                 display: 'flex',
                 alignItems: 'center',
@@ -744,7 +752,7 @@ export function MComposer({
               width: 46,
               height: 46,
               borderRadius: 14,
-              background: MC.ink,
+              background: MC.inkSolid,
               border: 'none',
               display: 'flex',
               alignItems: 'center',
@@ -753,7 +761,7 @@ export function MComposer({
               cursor: stopEnabled ? 'pointer' : 'default',
             }}
           >
-            <span style={{ width: 14, height: 14, background: '#fff', borderRadius: 3 }} />
+            <span style={{ width: 14, height: 14, background: MC.inkSolidFg, borderRadius: 3 }} />
           </button>
         ) : (
           <button
@@ -766,7 +774,7 @@ export function MComposer({
               width: 46,
               height: 46,
               borderRadius: 14,
-              background: MC.ink,
+              background: MC.inkSolid,
               border: 'none',
               display: 'flex',
               alignItems: 'center',
@@ -854,7 +862,7 @@ export function ComposerFullscreen({
     height: 30,
     borderRadius: 10,
     border: `1px solid ${MC.hairline}`,
-    background: '#fff',
+    background: MC.card,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -885,7 +893,7 @@ export function ComposerFullscreen({
           overflow: 'hidden',
           border: `1.5px solid ${MC.run}`,
           borderRadius: 18,
-          background: '#fff',
+          background: MC.card,
           boxShadow: '0 0 0 3px rgba(70,85,212,.08),0 8px 28px rgba(25,28,34,.10)',
           boxSizing: 'border-box',
         }}
@@ -922,7 +930,7 @@ export function ComposerFullscreen({
             width: 26,
             height: 26,
             borderRadius: 8,
-            background: '#F2F3F7',
+            background: 'var(--m-gray)',
             border: 'none',
             display: 'flex',
             alignItems: 'center',
@@ -939,7 +947,7 @@ export function ComposerFullscreen({
             alignItems: 'center',
             gap: 10,
             padding: '8px 10px 8px 14px',
-            borderTop: '1px solid #EFF1F5',
+            borderTop: `1px solid ${MC.divider}`,
           }}
         >
           <button type="button" aria-label="Attach" onClick={onPlus} style={{ ...toolBtn, fontSize: 15, fontWeight: 400 }}>
@@ -975,7 +983,7 @@ export function ComposerFullscreen({
                 width: 38,
                 height: 38,
                 borderRadius: 12,
-                background: MC.ink,
+                background: MC.inkSolid,
                 border: 'none',
                 display: 'flex',
                 alignItems: 'center',
@@ -984,7 +992,7 @@ export function ComposerFullscreen({
                 cursor: stopEnabled ? 'pointer' : 'default',
               }}
             >
-              <span style={{ width: 12, height: 12, background: '#fff', borderRadius: 3 }} />
+              <span style={{ width: 12, height: 12, background: MC.inkSolidFg, borderRadius: 3 }} />
             </button>
           ) : (
             <button
@@ -997,7 +1005,7 @@ export function ComposerFullscreen({
                 width: 38,
                 height: 38,
                 borderRadius: 12,
-                background: MC.ink,
+                background: MC.inkSolid,
                 border: 'none',
                 display: 'flex',
                 alignItems: 'center',

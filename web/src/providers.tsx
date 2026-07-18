@@ -4,6 +4,7 @@ import { TRPCProvider, createTrpcClient } from '@/lib/trpc';
 import { readDesktopConfig, isNativeShell } from '@/lib/desktop-config';
 import { TooltipProvider, ToastProvider } from '@/design';
 import { LangProvider } from '@/i18n';
+import { ThemeProvider } from '@/theme';
 
 // How long the native shell will wait for its injected credentials before giving up and falling
 // back to browser mode. The Tauri shell now BAKES the credentials into the initialization_script
@@ -77,11 +78,13 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-        <TooltipProvider>
-          <ToastProvider>
-            <LangProvider>{children}</LangProvider>
-          </ToastProvider>
-        </TooltipProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            <ToastProvider>
+              <LangProvider>{children}</LangProvider>
+            </ToastProvider>
+          </TooltipProvider>
+        </ThemeProvider>
       </TRPCProvider>
     </QueryClientProvider>
   );

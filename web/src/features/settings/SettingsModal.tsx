@@ -16,6 +16,7 @@ import {
   AdvancedPanel,
 } from './SettingsPanels';
 import { BudgetPanel } from './BudgetPanel';
+import { AppearancePanel } from './AppearancePanel';
 
 // Settings modal (design 12a–g, prototype.dc.html L721–1088; proto-shot 14-settings.png). Rebuilt
 // 1:1 on Radix Dialog (focus trap / Esc-close / focus-restore + backdrop scrim). Header + 210px left
@@ -231,7 +232,10 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
         >
           <div style={{ fontSize: 15, fontWeight: 650, color: '#191C22' }}>{meta.title}</div>
           <div style={{ fontSize: 11, color: '#8A93A2', marginTop: 2 }}>{meta.sub}</div>
-          {configQuery.isLoading ? (
+          {section === 'appearance' ? (
+            // Device-local theme — no config.get dependency, so it renders even if config fails to load.
+            <AppearancePanel />
+          ) : configQuery.isLoading ? (
             <div style={{ marginTop: 16, fontSize: 12, color: '#98A1B0' }}>{L.stLoadingConfig}</div>
           ) : configQuery.isError ? (
             <div style={{ marginTop: 16, fontSize: 12, color: '#C03D33' }}>

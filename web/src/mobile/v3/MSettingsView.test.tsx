@@ -10,6 +10,9 @@ const copy: MSettingsCopy = {
   profileTitle: 'Profile（全局默认）',
   profileTail: '会话级切换在 chat 内 chip',
   switchLabel: '切换',
+  theme: '主题',
+  themeLight: '浅色',
+  themeDark: '深色',
   budget: '预算',
   budgetUnit: '日',
   notify: '通知',
@@ -42,7 +45,16 @@ function vm(over: Partial<MSettingsVm> = {}): MSettingsVm {
 
 function render(over: Partial<MSettingsVm> = {}) {
   return renderToStaticMarkup(
-    <MSettingsView vm={vm(over)} copy={copy} lang="zh" onSetLang={() => {}} onBack={() => {}} onOpenDaemon={() => {}} />,
+    <MSettingsView
+      vm={vm(over)}
+      copy={copy}
+      lang="zh"
+      onSetLang={() => {}}
+      theme="light"
+      onSetTheme={() => {}}
+      onBack={() => {}}
+      onOpenDaemon={() => {}}
+    />,
   );
 }
 
@@ -99,6 +111,13 @@ describe('MSettingsView', () => {
     expect(html).toContain('语言');
     expect(html).toContain('EN');
     expect(html).toContain('中');
+  });
+
+  it('renders the theme row with 浅色/深色 toggle', () => {
+    const html = render();
+    expect(html).toContain('主题');
+    expect(html).toContain('浅色');
+    expect(html).toContain('深色');
   });
 
   it('renders the footer brand + hot-reload note without a fabricated version', () => {

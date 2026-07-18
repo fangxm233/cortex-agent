@@ -6,6 +6,7 @@
 import type { Vocab } from '@/i18n';
 
 export type SettingsSectionKey =
+  | 'appearance'
   | 'platform'
   | 'profiles'
   | 'budget'
@@ -32,6 +33,7 @@ export interface SettingsSectionMeta {
 
 // Vocab key for each nav label (also used as section meta title).
 const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
+  appearance: 'stNavAppearance',
   platform: 'stNavPlatform',
   profiles: 'stNavProfiles',
   budget: 'stNavBudget',
@@ -45,6 +47,7 @@ const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
 
 // Vocab key for each section meta sub description.
 const NAV_SUB_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
+  appearance: 'stMetaAppearanceSub',
   platform: 'stMetaPlatformSub',
   profiles: 'stMetaProfilesSub',
   budget: 'stMetaBudgetSub',
@@ -58,6 +61,7 @@ const NAV_SUB_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
 
 // File tags (prototype order). These are file paths — not translated.
 const NAV_FILES: Record<SettingsSectionKey, string> = {
+  appearance: 'this device',
   platform: '.env',
   profiles: 'profiles.json',
   budget: 'budget.json',
@@ -71,6 +75,7 @@ const NAV_FILES: Record<SettingsSectionKey, string> = {
 
 // prototype L2379–2388 — order is authoritative.
 const NAV_ORDER: SettingsSectionKey[] = [
+  'appearance',
   'platform',
   'profiles',
   'budget',

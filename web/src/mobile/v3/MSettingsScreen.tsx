@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useSetLang } from '@/i18n';
+import { useTheme, useSetTheme } from '@/theme';
 import { pickCopy } from '@/mobile/ui/format';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';
@@ -23,6 +24,9 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     profileTitle: 'Profile (global default)',
     profileTail: 'session-level switch is a chip in chat',
     switchLabel: 'Switch',
+    theme: 'Theme',
+    themeLight: 'Light',
+    themeDark: 'Dark',
     budget: 'Budget',
     budgetUnit: '/day',
     notify: 'Notifications',
@@ -44,6 +48,9 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     profileTitle: 'Profile（全局默认）',
     profileTail: '会话级切换在 chat 内 chip',
     switchLabel: '切换',
+    theme: '主题',
+    themeLight: '浅色',
+    themeDark: '深色',
     budget: '预算',
     budgetUnit: '日',
     notify: '通知',
@@ -75,6 +82,8 @@ export function MSettingsScreen() {
   const navigate = useNavigate();
   const lang = useLang();
   const setLang = useSetLang();
+  const theme = useTheme();
+  const setTheme = useSetTheme();
   const copy = pickCopy(lang, COPY);
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
@@ -95,6 +104,8 @@ export function MSettingsScreen() {
           copy={copy}
           lang={lang}
           onSetLang={setLang}
+          theme={theme}
+          onSetTheme={setTheme}
           onBack={() => navigate('/m/project')}
           onOpenDaemon={() => navigate('/m/daemon')}
         />

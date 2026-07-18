@@ -3,8 +3,9 @@ import { SETTINGS_NAV, SETTINGS_SECTION_META, getSettingsNav, getSectionMeta } f
 import { en } from '@/i18n';
 
 describe('settings-nav', () => {
-  it('lists the 9 panels in the prototype order (L2379–2388)', () => {
+  it('lists the panels in order — Appearance first, then the prototype order (L2379–2388)', () => {
     expect(SETTINGS_NAV.map((n) => n.key)).toEqual([
+      'appearance',
       'platform',
       'profiles',
       'budget',
@@ -28,9 +29,10 @@ describe('settings-nav', () => {
 
   it('getSettingsNav returns translated entries', () => {
     const nav = getSettingsNav(en);
-    expect(nav.length).toBe(9);
-    expect(nav[0].label).toBe('Platform');
-    expect(nav[8].label).toBe('Advanced');
+    expect(nav.length).toBe(10);
+    expect(nav[0].label).toBe('Appearance');
+    expect(nav[1].label).toBe('Platform');
+    expect(nav[9].label).toBe('Advanced');
   });
 
   it('getSectionMeta returns translated title + sub', () => {

@@ -3,6 +3,230 @@
 @tailwind utilities;
 
 /*
+ * ── Theme token layer (design/ref/scheme-dark.dc.html) ────────────────────────────────────────
+ * Single source of truth for every color the app renders. `:root` holds the LIGHT palette (the
+ * prototype 1:1 values); `[data-theme="dark"]` overrides them with the scheme-dark palette. The
+ * Tailwind tokens (tailwind.config.ts) and the mobile MC palette (mobile/ui/kit.tsx) both resolve
+ * to these variables, and raw inline `style` hexes are migrated to `var(--…)`, so a single attribute
+ * flip on <html> re-themes the whole surface. Dark is a per-LEVEL remap (elevation via surface
+ * lightness, semantic colors brightened one notch with translucent tint bg, ink-solid elements
+ * inverted to light-bg/dark-fg), NOT a color inversion — layout/size/spacing stay identical.
+ */
+:root {
+  /* Surfaces (light → dark: brighter = more elevated) */
+  --surface-base: #e9e7e2;
+  --surface-canvas: #ffffff;
+  --surface-canvas-alt: #f7f8fa;
+  --surface-rail: #fbfbfc;
+  --surface-raised: #f1f2f5;
+
+  /* proto.* scale (tailwind token mirror) */
+  --proto-base: #e9e7e2;
+  --proto-card: #ffffff;
+  --proto-rail: #fbfbfc;
+  --proto-alt: #f7f8fa;
+  --proto-gray: #f1f2f5;
+  --proto-ink: #191c22;
+  --proto-ink-2: #22262e;
+  --proto-ink-3: #383e48;
+  --proto-muted: #5b6472;
+  --proto-muted-2: #8a93a2;
+  --proto-muted-3: #98a1b0;
+  --proto-faint: #b6bdc9;
+  --proto-disabled: #d9dce3;
+  --proto-line: #e7e9ee;
+  --proto-line-2: #eff1f5;
+  --proto-line-3: #d9dce3;
+  --proto-line-4: #e3e6f0;
+  --proto-line-soft: #f3f4f7;
+  --proto-accent: #4655d4;
+  --proto-accent-bg: #eef0fa;
+  --proto-accent-border: #c9cff2;
+  --proto-accent-2: #9aa3e8;
+  --proto-accent-strong: #3a48b8;
+  --proto-amber: #c99a2e;
+  --proto-amber-fg: #8a5b06;
+  --proto-amber-text: #a96b0b;
+  --proto-amber-bg: #fdf9f0;
+  --proto-amber-border: #efddb0;
+  --proto-amber-accent: #c0a96e;
+  --proto-success: #23854f;
+  --proto-success-bg: #e9f4ee;
+  --proto-danger: #c03d33;
+  --proto-danger-bg: #fbedeb;
+
+  /* state.* palette */
+  --state-ink: #191c22;
+  --state-run: #4655d4;
+  --state-wait: #a96b0b;
+  --state-done: #23854f;
+  --state-fail: #c03d33;
+  --state-gray: #f1f2f5;
+
+  /* status-pill tinted bg/fg pairs */
+  --pill-running-bg: #eef0fa;
+  --pill-running-fg: #4655d4;
+  --pill-waiting-bg: #f7ecce;
+  --pill-waiting-fg: #8a5b06;
+  --pill-done-bg: #e9f4ee;
+  --pill-done-fg: #23854f;
+  --pill-failed-bg: #fbedeb;
+  --pill-failed-fg: #c03d33;
+  --pill-cancelled-bg: #f1f2f5;
+  --pill-cancelled-fg: #8a93a2;
+
+  /* ink-solid inverse (primary buttons, send key, user bubble, cx logo) */
+  --ink-solid-bg: #191c22;
+  --ink-solid-fg: #ffffff;
+
+  /* run dot (a touch deeper than the run text) */
+  --run-dot: #4655d4;
+
+  /* card hairline border */
+  --border-card: rgba(0, 0, 0, 0.08);
+
+  /* command palette / overlay chrome */
+  --overlay-scrim: rgba(25, 28, 34, 0.34);
+  --cmdk-panel-bg: #ffffff;
+  --cmdk-row-selected: #f5f6fd;
+  --cmdk-row-hover: #eef0fa;
+
+  /* ── Mobile v3 palette (scheme-mobile / scheme-dark 1b-1d). The mobile page + card surfaces are a
+   *    touch darker than desktop, so they get their own vars; semantic colors track the desktop set. */
+  --m-canvas: #f2f2f7;
+  --m-page-header: #ffffff;
+  --m-card: #ffffff;
+  --m-tabbar-bg: #ffffff;
+  --m-sheet-bg: #f7f8fa;
+  --m-ink: #191c22;
+  --m-sub: #5b6472;
+  --m-body: #22262e;
+  --m-muted: #8a93a2;
+  --m-faint: #b6bdc9;
+  --m-hairline: #e7e9ee;
+  --m-divider: #f3f4f7;
+  --m-card-border: #e7e9ee;
+  --m-run: #4655d4;
+  --m-run-bg: #eef0fa;
+  --m-run-border: #c9cff2;
+  --m-amber: #c99a2e;
+  --m-amber-ink: #8a5b06;
+  --m-amber-text: #a96b0b;
+  --m-amber-bg: #f7ecce;
+  --m-amber-border: #efddb0;
+  --m-amber-card: #fdf9f0;
+  --m-done: #23854f;
+  --m-done-bg: #e9f4ee;
+  --m-fail: #c03d33;
+  --m-fail-bg: #fbedeb;
+  --m-fail-border: #eed3d0;
+  --m-gray: #f1f2f5;
+  --m-gray-ink: #8a93a2;
+}
+
+[data-theme='dark'] {
+  --surface-base: #12151a;
+  --surface-canvas: #12151a;
+  --surface-canvas-alt: #171a21;
+  --surface-rail: #171a21;
+  --surface-raised: #262c37;
+
+  --proto-base: #12151a;
+  --proto-card: #1e232c;
+  --proto-rail: #171a21;
+  --proto-alt: #1a1f29;
+  --proto-gray: #262c37;
+  --proto-ink: #ebedf2;
+  --proto-ink-2: #c9ceda;
+  --proto-ink-3: #aab2c0;
+  --proto-muted: #99a2b2;
+  --proto-muted-2: #7e8798;
+  --proto-muted-3: #6e7787;
+  --proto-faint: #566070;
+  --proto-disabled: #454e5e;
+  --proto-line: #2c323e;
+  --proto-line-2: #232833;
+  --proto-line-3: #3a4250;
+  --proto-line-4: #2a303c;
+  --proto-line-soft: #232833;
+  --proto-accent: #8b96f2;
+  --proto-accent-bg: rgba(110, 123, 236, 0.16);
+  --proto-accent-border: #333c5a;
+  --proto-accent-2: #6e7bec;
+  --proto-accent-strong: #6e7bec;
+  --proto-amber: #e2b95b;
+  --proto-amber-fg: #e2b95b;
+  --proto-amber-text: #d9a544;
+  --proto-amber-bg: #262115;
+  --proto-amber-border: #4a3d1e;
+  --proto-amber-accent: #a08a54;
+  --proto-success: #57c48a;
+  --proto-success-bg: rgba(76, 175, 125, 0.15);
+  --proto-danger: #ed7b72;
+  --proto-danger-bg: rgba(224, 107, 98, 0.16);
+
+  --state-ink: #ebedf2;
+  --state-run: #8b96f2;
+  --state-wait: #e2b95b;
+  --state-done: #57c48a;
+  --state-fail: #ed7b72;
+  --state-gray: #262c37;
+
+  --pill-running-bg: rgba(110, 123, 236, 0.16);
+  --pill-running-fg: #8b96f2;
+  --pill-waiting-bg: rgba(201, 154, 46, 0.16);
+  --pill-waiting-fg: #e2b95b;
+  --pill-done-bg: rgba(76, 175, 125, 0.15);
+  --pill-done-fg: #57c48a;
+  --pill-failed-bg: rgba(224, 107, 98, 0.16);
+  --pill-failed-fg: #ed7b72;
+  --pill-cancelled-bg: #262b34;
+  --pill-cancelled-fg: #99a2b2;
+
+  --ink-solid-bg: #ebedf2;
+  --ink-solid-fg: #14171b;
+
+  --run-dot: #6e7bec;
+
+  --border-card: rgba(255, 255, 255, 0.1);
+
+  --overlay-scrim: rgba(0, 0, 0, 0.55);
+  --cmdk-panel-bg: #1e232c;
+  --cmdk-row-selected: #262c37;
+  --cmdk-row-hover: #232833;
+
+  --m-canvas: #0e1116;
+  --m-page-header: #0e1116;
+  --m-card: #1b2029;
+  --m-tabbar-bg: #12151b;
+  --m-sheet-bg: #1b2029;
+  --m-ink: #f2f3f7;
+  --m-sub: #99a2b2;
+  --m-body: #c9ceda;
+  --m-muted: #7e8798;
+  --m-faint: #566070;
+  --m-hairline: #20252e;
+  --m-divider: #232833;
+  --m-card-border: #262c37;
+  --m-run: #8b96f2;
+  --m-run-bg: rgba(110, 123, 236, 0.16);
+  --m-run-border: #333c5a;
+  --m-amber: #d9a83f;
+  --m-amber-ink: #e2b95b;
+  --m-amber-text: #d9a544;
+  --m-amber-bg: rgba(201, 154, 46, 0.16);
+  --m-amber-border: #4a3d1e;
+  --m-amber-card: #262115;
+  --m-done: #57c48a;
+  --m-done-bg: rgba(76, 175, 125, 0.15);
+  --m-fail: #ed7b72;
+  --m-fail-bg: rgba(224, 107, 98, 0.16);
+  --m-fail-border: #4a2e2b;
+  --m-gray: #262b34;
+  --m-gray-ink: #7e8798;
+}
+
+/*
  * Prototype 1:1 base (design §8.6 RA / task 6d21).
  * The reset + the 16 `cx*` keyframes are copied VERBATIM from the prototype
  * `<style>` block (design/ref/prototype.dc.html lines 14-36). The keyframe
@@ -14,7 +238,7 @@
   body {
     margin: 0;
     height: 100%;
-    background: #e9e7e2;
+    background: var(--surface-base);
     font-family: -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial,
       'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -47,7 +271,7 @@
   .cmdk-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(25, 28, 34, 0.34);
+    background: var(--overlay-scrim);
     z-index: 60;
     animation: cxfade 0.18s ease;
   }
@@ -58,7 +282,7 @@
     transform: translateX(-50%);
     width: 560px;
     max-width: 94vw;
-    background: #fff;
+    background: var(--cmdk-panel-bg);
     border-radius: 14px;
     box-shadow: 0 24px 64px rgba(16, 24, 40, 0.3);
     z-index: 61;
@@ -70,22 +294,22 @@
     outline: none;
   }
   .cmdk-row[data-selected='true'] {
-    background: #f5f6fd;
+    background: var(--cmdk-row-selected);
   }
   .cmdk-row:hover {
-    background: #eef0fa;
+    background: var(--cmdk-row-hover);
   }
   .cmdk-row-label {
     font-size: 12.5px;
     font-weight: 600;
-    color: #191c22;
+    color: var(--proto-ink);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
   }
   .cmdk-row[data-selected='true'] .cmdk-row-label {
-    color: #4655d4;
+    color: var(--proto-accent);
   }
 }
 

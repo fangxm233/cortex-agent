@@ -3,6 +3,7 @@ import { type ReactNode } from 'react';
 import { MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
 import { BUILD_STAMP } from '@/lib/build-info';
 import type { Lang } from '@/i18n';
+import type { Theme } from '@/theme';
 import type { MSettingsVm } from './m-settings-vm';
 
 export interface MSettingsCopy {
@@ -12,6 +13,9 @@ export interface MSettingsCopy {
   profileTitle: string; // `Profile（全局默认）`
   profileTail: string; // `会话级切换在 chat 内 chip`
   switchLabel: string; // `切换`
+  theme: string; // `主题`
+  themeLight: string; // `浅色`
+  themeDark: string; // `深色`
   budget: string;
   budgetUnit: string; // `日`
   notify: string;
@@ -51,7 +55,7 @@ function Card({ children, opacity }: { children: ReactNode; opacity?: number }) 
   return (
     <div
       style={{
-        background: '#fff',
+        background: MC.card,
         border: `1px solid ${MC.hairline}`,
         borderRadius: 13,
         overflow: 'hidden',
@@ -91,7 +95,7 @@ function ReadOnlyToggle({ on, label }: { on: boolean; label: string }) {
         width: 44,
         height: 26,
         borderRadius: 999,
-        background: on ? MC.done : '#D9DCE3',
+        background: on ? MC.done : 'var(--proto-line-3)',
         position: 'relative',
         flex: 'none',
         cursor: 'default',
@@ -105,7 +109,7 @@ function ReadOnlyToggle({ on, label }: { on: boolean; label: string }) {
           width: 22,
           height: 22,
           borderRadius: '50%',
-          background: '#fff',
+          background: 'var(--ink-solid-bg)',
           boxShadow: '0 1px 3px rgba(16,24,40,.2)',
         }}
       />
@@ -133,36 +137,91 @@ function DesktopPill({ children }: { children: ReactNode }) {
   );
 }
 
-// ── EN/中 segmented toggle (mirrors the desktop LeftRail footer toggle) ──────
-function LangToggle({ lang, onSetLang }: { lang: Lang; onSetLang: (l: Lang) => void }) {
-  const seg = (l: Lang, label: string) => (
-    <span
-      onClick={() => onSetLang(l)}
-      style={{
-        fontSize: 11,
-        fontWeight: 600,
-        padding: '3px 10px',
-        cursor: 'pointer',
-        background: lang === l ? '#191C22' : 'transparent',
-        color: lang === l ? '#fff' : '#8A93A2',
-      }}
-    >
-      {label}
-    </span>
-  );
+// ── A generic two-option segmented toggle (mirrors the desktop LeftRail footer toggle). The active
+//    segment is the ink-solid inverse chip (light-bg/dark-fg in dark mode). ───────────────────────
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: T;
+  options: readonly { id: T; label: string }[];
+  onChange: (v: T) => void;
+  ariaLabel?: string;
+}) {
   return (
     <div
+      role="group"
+      aria-label={ariaLabel}
       style={{
         display: 'flex',
-        border: '1px solid #E7E9EE',
+        border: `1px solid ${MC.hairline}`,
         borderRadius: 6,
         overflow: 'hidden',
         flex: 'none',
       }}
     >
-      {seg('en', 'EN')}
-      {seg('zh', '中')}
+      {options.map((o) => {
+        const active = value === o.id;
+        return (
+          <span
+            key={o.id}
+            role="button"
+            aria-pressed={active}
+            onClick={() => onChange(o.id)}
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              padding: '3px 10px',
+              cursor: 'pointer',
+              background: active ? 'var(--ink-solid-bg)' : 'transparent',
+              color: active ? 'var(--ink-solid-fg)' : MC.muted,
+            }}
+          >
+            {o.label}
+          </span>
+        );
+      })}
     </div>
+  );
+}
+
+function LangToggle({ lang, onSetLang }: { lang: Lang; onSetLang: (l: Lang) => void }) {
+  return (
+    <Segmented
+      ariaLabel="Language"
+      value={lang}
+      options={[
+        { id: 'en', label: 'EN' },
+        { id: 'zh', label: '中' },
+      ]}
+      onChange={onSetLang}
+    />
+  );
+}
+
+function ThemeToggle({
+  theme,
+  onSetTheme,
+  lightLabel,
+  darkLabel,
+}: {
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+  lightLabel: string;
+  darkLabel: string;
+}) {
+  return (
+    <Segmented
+      ariaLabel="Theme"
+      value={theme}
+      options={[
+        { id: 'light', label: lightLabel },
+        { id: 'dark', label: darkLabel },
+      ]}
+      onChange={onSetTheme}
+    />
   );
 }
 
@@ -171,6 +230,8 @@ export function MSettingsView({
   copy,
   lang,
   onSetLang,
+  theme,
+  onSetTheme,
   onBack,
   onOpenDaemon,
 }: {
@@ -178,6 +239,8 @@ export function MSettingsView({
   copy: MSettingsCopy;
   lang: Lang;
   onSetLang: (lang: Lang) => void;
+  theme: Theme;
+  onSetTheme: (theme: Theme) => void;
   onBack: () => void;
   onOpenDaemon: () => void;
 }) {
@@ -255,7 +318,7 @@ export function MSettingsView({
                     flex: 1,
                     height: 5,
                     borderRadius: 999,
-                    background: '#EFF1F5',
+                    background: 'var(--proto-line-2)',
                     overflow: 'hidden',
                   }}
                 >
@@ -282,11 +345,22 @@ export function MSettingsView({
             </div>
             <ReadOnlyToggle on={vm.autoResumeOn} label={copy.autoResume} />
           </div>
-          <div style={rowStyle(false)}>
+          <div style={rowStyle(true)}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={TITLE}>{copy.language}</div>
             </div>
             <LangToggle lang={lang} onSetLang={onSetLang} />
+          </div>
+          <div style={rowStyle(false)}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={TITLE}>{copy.theme}</div>
+            </div>
+            <ThemeToggle
+              theme={theme}
+              onSetTheme={onSetTheme}
+              lightLabel={copy.themeLight}
+              darkLabel={copy.themeDark}
+            />
           </div>
         </Card>
 

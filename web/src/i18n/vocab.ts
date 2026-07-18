@@ -333,6 +333,7 @@ export const en = {
   stBudgetFootNote: 'today / month are real (cost.summary); the daily/monthly denominators are real (budget.json). Forecast is not in the contract — omitted.',
 
   // ── Settings nav labels (also used as section meta titles) ──
+  stNavAppearance: 'Appearance',
   stNavPlatform: 'Platform',
   stNavProfiles: 'Profiles',
   stNavBudget: 'Budget',
@@ -344,6 +345,7 @@ export const en = {
   stNavAdvanced: 'Advanced',
 
   // ── Settings section meta subs ──
+  stMetaAppearanceSub: 'Theme — light or dark. Applies instantly and is remembered on this device.',
   stMetaPlatformSub: 'config/.env — loaded once at daemon startup; the only restart-required config',
   stMetaProfilesSub: 'config/profiles.json — read on every agent spawn, no restart needed',
   stMetaBudgetSub: 'config/budget.json — hot-read, applies immediately; upgrades never overwrite (only --force)',
@@ -353,6 +355,12 @@ export const en = {
   stMetaNotificationsSub: '.env notification flags + system notice routing (fans out per platform)',
   stMetaHooksSub: 'three layers: in-agent · thread lifecycle · session — .mjs read fresh per invocation',
   stMetaAdvancedSub: 'feature flags — written to .env, restart to apply',
+
+  // ── Appearance / theme control ──
+  stThemeLabel: 'Theme',
+  stThemeLight: 'Light',
+  stThemeDark: 'Dark',
+  stThemeHint: 'Colors follow the Cortex design system in both modes; the choice is saved on this device.',
 
   // ── Budget panel extras ──
   stBudgetWriteError: 'Cannot write budget — monthly_usd must be set (positive) in budget.json first',
@@ -827,6 +835,7 @@ export const zh: Record<keyof Vocab, string> = {
   stBudgetFootNote: '今日 / 本月为真实值（cost.summary）；每日/每月的分母为真实值（budget.json）。预测不在契约中——已省略。',
 
   // ── Settings nav labels (also used as section meta titles) ──
+  stNavAppearance: '外观',
   stNavPlatform: '平台',
   stNavProfiles: '配置',
   stNavBudget: '预算',
@@ -838,6 +847,7 @@ export const zh: Record<keyof Vocab, string> = {
   stNavAdvanced: '高级',
 
   // ── Settings section meta subs ──
+  stMetaAppearanceSub: '主题 — 浅色或深色。即时生效，并记住在本设备上。',
   stMetaPlatformSub: 'config/.env — 守护进程启动时加载一次；唯一需要重启的配置',
   stMetaProfilesSub: 'config/profiles.json — 每次 agent 启动时读取，无需重启',
   stMetaBudgetSub: 'config/budget.json — 热读取，即时生效；升级永不覆盖（仅 --force）',
@@ -847,6 +857,12 @@ export const zh: Record<keyof Vocab, string> = {
   stMetaNotificationsSub: '.env 通知标志 + 系统通知路由（多平台分发）',
   stMetaHooksSub: '三层：agent 内 · 线程生命周期 · 会话 — .mjs 每次调用时重新读取',
   stMetaAdvancedSub: '功能开关 — 写入 .env，重启生效',
+
+  // ── Appearance / theme control ──
+  stThemeLabel: '主题',
+  stThemeLight: '浅色',
+  stThemeDark: '深色',
+  stThemeHint: '两种模式的配色都遵循 Cortex 设计系统；选择保存在本设备上。',
 
   // ── Budget panel extras ──
   stBudgetWriteError: '无法写入预算 — 必须先在 budget.json 中设置 monthly_usd（正数）',

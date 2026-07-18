@@ -13,6 +13,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // No-flash theme: apply the persisted (or OS-preferred) theme before first paint so a dark
+      // user never sees a light flash. Mirrors src/theme/theme.ts resolveInitialTheme — keep in sync.
+      (function () {
+        try {
+          var stored = null;
+          try { stored = window.localStorage.getItem('cortex.theme'); } catch (e) {}
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light';
+          if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
