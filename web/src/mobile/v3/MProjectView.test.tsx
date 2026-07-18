@@ -29,6 +29,7 @@ const copy: MProjectCopy = {
   newProject: '新建项目',
   newProjectHint: '只填名字，初始化在对话里做',
   footer: '点行即切换：会话 / 运行 / 任务同步换到该项目，会话落到最近一条',
+  issuesTitle: 'Issues',
 };
 
 function cost(over: Partial<CostSummary> = {}): CostSummary {
@@ -76,6 +77,8 @@ function baseProps(over: Partial<MProjectViewProps> = {}): MProjectViewProps {
       { id: 'atlas', initials: 'AT', running: 1, todayCost: 0.87, unread: 0 },
       { id: 'orchard', initials: 'OR', running: 0, todayCost: null, unread: 0 },
     ],
+    issues: { count: 4, previews: ['EXP-023 验证集 return 回落', 'gpu-02 磁盘剩余 6%'] },
+    onIssues: noop,
     onApprovals: noop,
     onMemory: noop,
     onMachines: noop,
@@ -91,6 +94,20 @@ function render(over: Partial<MProjectViewProps> = {}) {
 }
 
 describe('MProjectView', () => {
+  it('renders the Issues card (24a): title + count pill + previews + `+ N more`', () => {
+    const html = render();
+    expect(html).toContain('Issues');
+    expect(html).toContain('>4<');
+    expect(html).toContain('EXP-023 验证集 return 回落');
+    expect(html).toContain('gpu-02 磁盘剩余 6%');
+    expect(html).toContain('+ 2 more');
+  });
+
+  it('hides the Issues card at 0 issues (为 0 时整项隐藏)', () => {
+    const html = render({ issues: { count: 0, previews: [] } });
+    expect(html).not.toContain('Issues');
+  });
+
   it('renders the header title + daemon-connected status (green var(--proto-success) dot, no qn tag)', () => {
     const html = render();
     expect(html).toContain('项目');

@@ -5,7 +5,7 @@ import { queryInputSchemas, mutateInputSchemas } from './schemas.js';
 const QUERY_SCOPES = [
   'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
   'threads.get', 'tasks.list', 'tasks.verification', 'schedules.list', 'executions.list', 'executions.get',
-  'memory.tree', 'memory.file', 'approvals.list', 'cost.summary', 'config.get', 'machines.list',
+  'memory.tree', 'memory.file', 'approvals.list', 'issues.list', 'cost.summary', 'config.get', 'machines.list',
   'skills.list', 'threadTemplates.get', 'system.daemonStatus',
 ] as const;
 
@@ -15,7 +15,7 @@ const MUTATE_OPS = [
   'threads.cancel', 'executions.cancel', 'schedules.pause', 'schedules.resume',
   'schedules.remove', 'schedules.add', 'tasks.claim', 'tasks.unclaim', 'tasks.complete',
   'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',
-  'config.set', 'system.restart',
+  'issues.handle', 'issues.delete', 'config.set', 'system.restart',
 ] as const;
 
 test('every QueryScope has an input schema', () => {
@@ -62,6 +62,8 @@ test('query schemas accept valid input', () => {
     queryInputSchemas['sessions.transcript'].parse({ sessionId: 'sess-1' }),
     { sessionId: 'sess-1' },
   );
+  // issues.list requires a projectId
+  assert.deepEqual(queryInputSchemas['issues.list'].parse({ projectId: 'p' }), { projectId: 'p' });
   // approvals.list: status optional + enum
   assert.deepEqual(queryInputSchemas['approvals.list'].parse({}), {});
   assert.deepEqual(
@@ -79,6 +81,7 @@ test('query schemas reject invalid input', () => {
   assert.throws(() => queryInputSchemas['memory.file'].parse({ projectId: 'p' }));
   assert.throws(() => queryInputSchemas['sessions.transcript'].parse({}));
   assert.throws(() => queryInputSchemas['approvals.list'].parse({ status: 'nope' }));
+  assert.throws(() => queryInputSchemas['issues.list'].parse({}));
 });
 
 test('mutate schemas require their mandatory fields', () => {
@@ -119,6 +122,17 @@ test('mutate schemas require their mandatory fields', () => {
     { id: 'a1', feedback: 'no' },
   );
   assert.throws(() => mutateInputSchemas['approvals.approve'].parse({}));
+  // issues.handle / issues.delete require projectId + id
+  assert.deepEqual(
+    mutateInputSchemas['issues.handle'].parse({ projectId: 'p', id: 'i1' }),
+    { projectId: 'p', id: 'i1' },
+  );
+  assert.deepEqual(
+    mutateInputSchemas['issues.delete'].parse({ projectId: 'p', id: 'i1' }),
+    { projectId: 'p', id: 'i1' },
+  );
+  assert.throws(() => mutateInputSchemas['issues.handle'].parse({ id: 'i1' }));
+  assert.throws(() => mutateInputSchemas['issues.delete'].parse({ projectId: 'p' }));
 });
 
 test('config.get accepts an empty object', () => {

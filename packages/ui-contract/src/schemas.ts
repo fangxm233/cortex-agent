@@ -28,6 +28,8 @@ export {
   approvalsApproveInput,
   approvalsRejectInput,
   approvalsRequestInput,
+  issuesListInput,
+  issueActionInput,
   costSummaryInput,
   threadsCancelInput,
   executionsCancelInput,

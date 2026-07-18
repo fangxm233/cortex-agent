@@ -40,6 +40,8 @@ import {
   approvalsApproveInput,
   approvalsRejectInput,
   approvalsRequestInput,
+  issuesListInput,
+  issueActionInput,
   costSummaryInput,
   threadsCancelInput,
   executionsCancelInput,
@@ -202,6 +204,11 @@ export function createAppRouter(uiService: UiService) {
       approve: makeMutation(uiService, 'approvals.approve', approvalsApproveInput),
       reject: makeMutation(uiService, 'approvals.reject', approvalsRejectInput),
       request: makeMutation(uiService, 'approvals.request', approvalsRequestInput),
+    }),
+    issues: router({
+      list: makeQuery(uiService, 'issues.list', issuesListInput),
+      handle: makeMutation(uiService, 'issues.handle', issueActionInput),
+      delete: makeMutation(uiService, 'issues.delete', issueActionInput),
     }),
     cost: router({
       summary: makeQuery(uiService, 'cost.summary', costSummaryInput),

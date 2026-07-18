@@ -28,6 +28,8 @@ import type {
   approvalsApproveInput,
   approvalsRejectInput,
   approvalsRequestInput,
+  issuesListInput,
+  issueActionInput,
   costSummaryInput,
   threadsCancelInput,
   executionsCancelInput,
@@ -71,6 +73,7 @@ const _executionsGet: QueryParity<'executions.get', typeof executionsGetInput> =
 const _memoryTree: QueryParity<'memory.tree', typeof memoryTreeInput> = true;
 const _memoryFile: QueryParity<'memory.file', typeof memoryFileInput> = true;
 const _approvalsList: QueryParity<'approvals.list', typeof approvalsListInput> = true;
+const _issuesList: QueryParity<'issues.list', typeof issuesListInput> = true;
 const _costSummary: QueryParity<'cost.summary', typeof costSummaryInput> = true;
 const _configGet: QueryParity<'config.get', typeof configGetInput> = true;
 const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = true;
@@ -98,6 +101,8 @@ const _configSet: MutateParity<'config.set', typeof configSetInput> = true;
 const _approvalsApprove: MutateParity<'approvals.approve', typeof approvalsApproveInput> = true;
 const _approvalsReject: MutateParity<'approvals.reject', typeof approvalsRejectInput> = true;
 const _approvalsRequest: MutateParity<'approvals.request', typeof approvalsRequestInput> = true;
+const _issuesHandle: MutateParity<'issues.handle', typeof issueActionInput> = true;
+const _issuesDelete: MutateParity<'issues.delete', typeof issueActionInput> = true;
 const _systemRestart: MutateParity<'system.restart', typeof systemRestartInput> = true;
 
 // ── Subscriptions ─────────────────────────────────────────────────
@@ -114,6 +119,7 @@ export const _contractParityChecked = [
   _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsSetProfile, _threadsCancel, _executionsCancel,
   _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _tasksClaim,
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
-  _approvalsApprove, _approvalsReject, _approvalsRequest, _configSet, _executionsLog,
+  _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
+  _configSet, _executionsLog,
   _systemDaemonStatus, _systemRestart,
 ] as const;

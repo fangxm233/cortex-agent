@@ -4,6 +4,7 @@ import { useCommandPalette } from '@/features/command-palette/useCommandPalette'
 import { ExecutionLogDrawerProvider } from '@/features/execution/ExecutionLogDrawerProvider';
 import { ScheduleModalProvider } from '@/features/schedule/ScheduleModalProvider';
 import { ApprovalsProvider } from '@/features/approvals/ApprovalsProvider';
+import { IssuesProvider } from '@/features/issues/IssuesProvider';
 import { CurrentProjectProvider } from '@/features/workbench/CurrentProjectProvider';
 import { SelectedSessionProvider } from '@/features/workbench/SelectedSessionProvider';
 import { NotificationProvider } from '@/features/notifications/NotificationProvider';
@@ -25,12 +26,14 @@ export function AppShell() {
         <ExecutionLogDrawerProvider>
           <ScheduleModalProvider>
             <ApprovalsProvider>
-              <MediaViewerProvider>
-                <Outlet />
-                <CommandPalette open={open} onOpenChange={setOpen} />
-                <NotificationProvider />
-                <HotUpdateProvider />
-              </MediaViewerProvider>
+              <IssuesProvider>
+                <MediaViewerProvider>
+                  <Outlet />
+                  <CommandPalette open={open} onOpenChange={setOpen} />
+                  <NotificationProvider />
+                  <HotUpdateProvider />
+                </MediaViewerProvider>
+              </IssuesProvider>
             </ApprovalsProvider>
           </ScheduleModalProvider>
         </ExecutionLogDrawerProvider>

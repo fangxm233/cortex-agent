@@ -1,11 +1,12 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ScheduleInfo, ExecutionInfo } from '@cortex-agent/ui-contract';
+import type { ScheduleInfo, ExecutionInfo, IssueInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
 import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
+import { useIssues } from '@/features/issues/IssuesProvider';
 import { useCurrentProject } from '@/features/workbench/CurrentProjectProvider';
 import {
   formatMoney,
@@ -74,6 +75,7 @@ export function OverviewView(): JSX.Element {
   const queryClient = useQueryClient();
   const { open: openExecutionLog } = useExecutionLogDrawer();
   const { open: openScheduleModal } = useScheduleModal();
+  const { open: openIssues } = useIssues();
   const now = Date.now();
 
   // Active project = the shared cross-pane current project (task 569c) — the same value the LeftRail
@@ -111,6 +113,14 @@ export function OverviewView(): JSX.Element {
     return scoped.slice(0, 6);
   }, [executionsQuery.data, activeProjectId]);
 
+  // Issues (design sec-24 24a): per-project ISSUES.md entries. Count stat hidden at 0; card hidden
+  // at 0 too (为 0 时整项隐藏).
+  const issuesQuery = useQuery({
+    ...trpc.issues.list.queryOptions({ projectId: activeProjectId ?? '' }),
+    enabled: !!activeProjectId,
+  });
+  const issues = useMemo<IssueInfo[]>(() => issuesQuery.data ?? [], [issuesQuery.data]);
+
   const resume = useMutation(
     trpc.schedules.resume.mutationOptions({
       onSuccess: () => {
@@ -144,6 +154,24 @@ export function OverviewView(): JSX.Element {
         <span style={{ color: 'var(--proto-line-3)' }}>/</span>
         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.overview}</span>
         <span style={{ position: 'relative', marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          {/* Issues stat (24a): count from ISSUES.md, hidden at 0; click opens the 24b modal */}
+          {issues.length > 0 && (
+            <span
+              data-issues-stat=""
+              onClick={() => openIssues()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                font: "500 10px 'IBM Plex Mono',monospace",
+                color: 'var(--proto-muted)',
+                padding: '3px 8px',
+                cursor: 'pointer',
+              }}
+            >
+              <b style={{ color: 'var(--proto-accent)' }}>{issues.length}</b> {L.issuesStat}
+            </span>
+          )}
           {/* Adjust budget — no budget-mutate scope, inert (GAP, Stage 7) */}
           <span
             style={{
@@ -283,6 +311,70 @@ export function OverviewView(): JSX.Element {
             </div>
           </div>
         </div>
+
+        {/* Issues (design sec-24 24a) — per-project ISSUES.md entries; rows open the 24b modal
+            located at that entry. No status labels (在列表即待处理). Hidden entirely at 0. The
+            design mock's source slot has no markdown field → only title + date (honest). */}
+        {issues.length > 0 && (
+          <div style={CARD} data-issues-card="">
+            <CardHeader title={L.issuesTitle} right="ISSUES.md" />
+            <div style={{ padding: '4px 14px 6px' }}>
+              {issues.slice(0, 3).map((i, idx) => (
+                <div
+                  key={i.id}
+                  onClick={() => openIssues(i.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 9,
+                    padding: '8px 0',
+                    borderBottom: idx < Math.min(issues.length, 3) - 1 ? '1px solid var(--proto-alt)' : 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="var(--proto-muted-2)" strokeWidth="1.5" style={{ flex: 'none' }}>
+                    <circle cx="7" cy="7" r="5.5" />
+                    <path d="M7 4.2v3.3" />
+                    <circle cx="7" cy="9.8" r=".4" fill="var(--proto-muted-2)" />
+                  </svg>
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: 'var(--proto-ink-2)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      flex: 1,
+                      minWidth: 0,
+                    }}
+                  >
+                    {i.title}
+                  </span>
+                  {i.date && (
+                    <span style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)', flex: 'none' }}>
+                      {i.date}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', flex: 'none' }}>↗</span>
+                </div>
+              ))}
+            </div>
+            <div
+              onClick={() => openIssues()}
+              style={{
+                borderTop: '1px solid var(--proto-line-2)',
+                padding: '9px 14px',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--proto-accent)',
+                cursor: 'pointer',
+              }}
+            >
+              {L.isViewAll} {issues.length} ›
+            </div>
+          </div>
+        )}
 
         {/* Where it goes — REAL: project-scoped byTriggerScoped weekly breakdown. Rows are real trigger
             names (not the prototype's mock threads/sessions/schedules labels), sorted desc + capped;
