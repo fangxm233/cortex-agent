@@ -14,8 +14,8 @@ function StepDot({ state }: { state: StepperNode['state'] }): JSX.Element {
           width: 14,
           height: 14,
           borderRadius: '50%',
-          background: '#E9F4EE',
-          color: '#23854F',
+          background: 'var(--proto-success-bg)',
+          color: 'var(--proto-success)',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -33,21 +33,21 @@ function StepDot({ state }: { state: StepperNode['state'] }): JSX.Element {
           width: 14,
           height: 14,
           borderRadius: '50%',
-          background: '#4655D4',
-          boxShadow: '0 0 0 3px #EEF0FA',
+          background: 'var(--proto-accent)',
+          boxShadow: '0 0 0 3px var(--proto-accent-bg)',
           animation: 'cxpulse 1.6s ease-in-out infinite',
         }}
       />
     );
   return (
     <span
-      style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid #D9DCE3', boxSizing: 'border-box' }}
+      style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box' }}
     />
   );
 }
 
 function nodeLabelColor(state: StepperNode['state']): string {
-  return state === 'running' ? '#191C22' : state === 'done' ? '#5B6472' : '#B6BDC9';
+  return state === 'running' ? 'var(--proto-ink)' : state === 'done' ? 'var(--proto-muted)' : 'var(--proto-faint)';
 }
 
 export function MobileThreadStepper({
@@ -64,7 +64,7 @@ export function MobileThreadStepper({
   onOpen: () => void;
 }): JSX.Element {
   return (
-    <div style={{ border: '1px solid #E7E9EE', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+    <div style={{ border: '1px solid var(--proto-line)', borderRadius: 12, overflow: 'hidden', background: 'var(--proto-card)' }}>
       {/* header */}
       <div
         style={{
@@ -72,16 +72,16 @@ export function MobileThreadStepper({
           alignItems: 'center',
           gap: 8,
           padding: '9px 12px',
-          borderBottom: '1px solid #EFF1F5',
+          borderBottom: '1px solid var(--proto-line-2)',
         }}
       >
-        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="#4655D4" strokeWidth="1.6">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth="1.6">
           <circle cx="3.5" cy="3" r="1.9" />
           <circle cx="3.5" cy="11" r="1.9" />
           <circle cx="10.5" cy="7" r="1.9" />
           <path d="M3.5 5v4M5.4 3.7 8.7 6.1M5.4 10.3 8.7 7.9" />
         </svg>
-        <span style={{ font: `600 12px ${mono}`, color: '#191C22' }}>{card.name}</span>
+        <span style={{ font: `600 12px ${mono}`, color: 'var(--proto-ink)' }}>{card.name}</span>
         <span
           style={{
             marginLeft: 'auto',
@@ -103,7 +103,7 @@ export function MobileThreadStepper({
           <Fragment key={i}>
             {i > 0 && (
               <div
-                style={{ flex: 1, height: 1.5, background: node.lineDone ? '#BFE0CD' : '#E7E9EE', margin: '0 6px' }}
+                style={{ flex: 1, height: 1.5, background: node.lineDone ? 'var(--proto-success-bg)' : 'var(--proto-line)', margin: '0 6px' }}
               />
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -123,13 +123,13 @@ export function MobileThreadStepper({
       </div>
 
       {/* footer */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', borderTop: '1px solid #EFF1F5' }}>
-        <span style={{ font: `400 10px ${mono}`, color: '#98A1B0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', borderTop: '1px solid var(--proto-line-2)' }}>
+        <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
           {card.footer.elapsed} · {card.footer.cost} · {card.footer.subCount} {subthreadsLabel}
         </span>
         <span
           onClick={onOpen}
-          style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+          style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
         >
           {openLabel} →
         </span>

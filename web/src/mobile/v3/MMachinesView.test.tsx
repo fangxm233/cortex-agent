@@ -68,7 +68,7 @@ describe('MMachinesView', () => {
     expect(html).toContain('30s 前');
     expect(html).toContain('2 GPU'); // honest gpuCount, not util bars
     expect(html).toContain('2 运行中'); // real liveRuns
-    expect(html).toContain('#4655D4'); // running pulse dot
+    expect(html).toContain('var(--m-run)'); // running pulse dot
   });
 
   it('renders an offline card: 离线 pill, honest — heartbeat, and inert retry/logs buttons', () => {

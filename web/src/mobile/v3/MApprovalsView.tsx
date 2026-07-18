@@ -138,7 +138,7 @@ function ExpandedCard({
           <span
             style={{
               font: `400 10px ${MONO}`,
-              color: '#C0A96E',
+              color: 'var(--proto-amber-accent)',
               flex: 1,
               minWidth: 0,
               whiteSpace: 'nowrap',
@@ -173,7 +173,7 @@ function ExpandedCard({
               border: `1px solid ${MC.amberBg}`,
               borderRadius: 9,
               font: `400 10.5px ${MONO}`,
-              color: '#6B5A1E',
+              color: 'var(--proto-amber-fg)',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
             }}
@@ -227,9 +227,9 @@ function DecisionButton({
         flex: 1,
         height: 44,
         borderRadius: 11,
-        background: ink ? MC.ink : '#fff',
-        color: ink ? '#fff' : MC.ink,
-        border: ink ? 'none' : '1.5px solid #D9DCE3',
+        background: ink ? MC.ink : 'var(--proto-card)',
+        color: ink ? 'var(--proto-card)' : MC.ink,
+        border: ink ? 'none' : '1.5px solid var(--proto-line-3)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

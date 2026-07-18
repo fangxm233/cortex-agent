@@ -43,10 +43,10 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
   const approveSub = approveSubLabel(pct, lang);
   const stamp =
     model.status === 'approved'
-      ? { text: `${copy.planApprovedPill}${model.timeLabel ? ` · ${model.timeLabel} ${copy.approvedBy}` : ''}`, fg: '#23854F', bg: '#E9F4EE' }
+      ? { text: `${copy.planApprovedPill}${model.timeLabel ? ` · ${model.timeLabel} ${copy.approvedBy}` : ''}`, fg: 'var(--proto-success)', bg: 'var(--proto-success-bg)' }
       : model.status === 'rejected'
-        ? { text: `${copy.planRejectedPill}${model.timeLabel ? ` · ${model.timeLabel}` : ''}`, fg: '#8A93A2', bg: '#F1F2F5' }
-        : { text: statusLabel, fg: '#8A93A2', bg: '#F1F2F5' };
+        ? { text: `${copy.planRejectedPill}${model.timeLabel ? ` · ${model.timeLabel}` : ''}`, fg: 'var(--proto-muted-2)', bg: 'var(--proto-gray)' }
+        : { text: statusLabel, fg: 'var(--proto-muted-2)', bg: 'var(--proto-gray)' };
 
   return (
     <div
@@ -55,19 +55,19 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ width: 760, maxWidth: 'calc(100vw - 64px)', height: 'min(720px, calc(100vh - 80px))', background: '#fff', borderRadius: 14, boxShadow: '0 24px 64px rgba(16,24,40,.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        style={{ width: 760, maxWidth: 'calc(100vw - 64px)', height: 'min(720px, calc(100vh - 80px))', background: 'var(--proto-card)', borderRadius: 14, boxShadow: '0 24px 64px rgba(16,24,40,.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
         {/* header — title · meta · status pill · ✕ · progress bar (6b header, desktop chrome) */}
-        <div style={{ flex: 'none', padding: '14px 18px 12px', borderBottom: '1px solid #EFF1F5' }}>
+        <div style={{ flex: 'none', padding: '14px 18px 12px', borderBottom: '1px solid var(--proto-line-2)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 650, color: '#191C22', letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.title}</div>
-              <div style={{ font: `400 10px ${mono}`, color: '#8A93A2', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)', letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.title}</div>
+              <div style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-2)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {planMetaLine(model.filePath, model.lineCount, statusLabel, lang)}
               </div>
             </div>
             {pending ? (
-              <span style={{ font: `600 9.5px ${mono}`, color: '#8A5B06', background: '#F7ECCE', padding: '2.5px 9px', borderRadius: 999, flex: 'none' }}>{copy.planPendingPill}</span>
+              <span style={{ font: `600 9.5px ${mono}`, color: 'var(--proto-amber-fg)', background: 'var(--pill-waiting-bg)', padding: '2.5px 9px', borderRadius: 999, flex: 'none' }}>{copy.planPendingPill}</span>
             ) : (
               <span style={{ font: `600 9.5px ${mono}`, color: stamp.fg, background: stamp.bg, padding: '2.5px 9px', borderRadius: 999, flex: 'none' }}>{statusLabel}</span>
             )}
@@ -75,14 +75,14 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
               role="button"
               aria-label="Close"
               onClick={onClose}
-              style={{ width: 26, height: 26, borderRadius: 8, border: '1px solid #E7E9EE', background: '#FBFBFC', color: '#5B6472', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, cursor: 'pointer', flex: 'none' }}
+              style={{ width: 26, height: 26, borderRadius: 8, border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, cursor: 'pointer', flex: 'none' }}
             >
               ✕
             </span>
           </div>
           {pending && (
-            <div style={{ height: 3, borderRadius: 999, background: '#E3E5EA', overflow: 'hidden', marginTop: 10 }}>
-              <div style={{ width: `${pct}%`, height: '100%', background: '#4655D4' }} />
+            <div style={{ height: 3, borderRadius: 999, background: 'var(--proto-line)', overflow: 'hidden', marginTop: 10 }}>
+              <div style={{ width: `${pct}%`, height: '100%', background: 'var(--proto-accent)' }} />
             </div>
           )}
         </div>
@@ -90,36 +90,36 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
         {/* body — the real plan snapshot as markdown */}
         <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
           <div ref={scrollRef} onScroll={onScroll} style={{ position: 'absolute', inset: 0, overflow: 'auto', padding: '18px 22px 28px', boxSizing: 'border-box' }}>
-            {model.timeLabel && <div style={{ font: `400 10px ${mono}`, color: '#B6BDC9', paddingBottom: 8 }}>{model.timeLabel}</div>}
-            <div style={{ fontSize: 13.5, lineHeight: 1.7, color: '#22262E' }}>
+            {model.timeLabel && <div style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', paddingBottom: 8 }}>{model.timeLabel}</div>}
+            <div style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--proto-ink-2)' }}>
               <ChatMarkdown text={model.planContent} />
             </div>
             {model.status === 'rejected' && model.feedback && (
-              <div style={{ marginTop: 16, border: '1px solid #EFDDB0', background: '#FDF9F0', borderRadius: 10, padding: '10px 13px' }}>
-                <div style={{ font: `600 10px ${mono}`, color: '#A96B0B', paddingBottom: 4 }}>{copy.feedbackHint.split(' · ')[0]}</div>
-                <div style={{ fontSize: 12.5, lineHeight: 1.6, color: '#6B5A1E', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
+              <div style={{ marginTop: 16, border: '1px solid var(--proto-amber-border)', background: 'var(--proto-amber-bg)', borderRadius: 10, padding: '10px 13px' }}>
+                <div style={{ font: `600 10px ${mono}`, color: 'var(--proto-amber-text)', paddingBottom: 4 }}>{copy.feedbackHint.split(' · ')[0]}</div>
+                <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-amber-fg)', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
               </div>
             )}
           </div>
-          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 48, background: 'linear-gradient(180deg,rgba(255,255,255,0),#fff)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 48, background: 'linear-gradient(180deg,rgba(255,255,255,0),var(--proto-card))', pointerEvents: 'none' }} />
         </div>
 
         {/* resident action bar (pending) / status stamp (sealed) */}
-        <div style={{ flex: 'none', borderTop: '1px solid #EFF1F5', padding: '12px 18px' }}>
+        <div style={{ flex: 'none', borderTop: '1px solid var(--proto-line-2)', padding: '12px 18px' }}>
           {pending ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10.5, color: '#98A1B0', flex: 1 }}>{copy.approveHint}</span>
+              <span style={{ fontSize: 10.5, color: 'var(--proto-muted-3)', flex: 1 }}>{copy.approveHint}</span>
               <span
                 role="button"
                 onClick={onRequestChanges}
-                style={{ fontSize: 12, fontWeight: 600, border: '1px solid #D9DCE3', background: '#fff', color: '#191C22', padding: '7px 14px', borderRadius: 8, cursor: 'pointer', flex: 'none' }}
+                style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', color: 'var(--proto-ink)', padding: '7px 14px', borderRadius: 8, cursor: 'pointer', flex: 'none' }}
               >
                 {copy.requestChanges}
               </span>
               <span
                 role="button"
                 onClick={onApprove}
-                style={{ fontSize: 12, fontWeight: 600, borderRadius: 8, padding: '8px 18px', color: '#fff', background: '#191C22', cursor: 'pointer', flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
+                style={{ fontSize: 12, fontWeight: 600, borderRadius: 8, padding: '8px 18px', color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', cursor: 'pointer', flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
               >
                 <span>{copy.approvePlan}</span>
                 {approveSub && <span style={{ font: `400 9px ${mono}`, color: 'rgba(255,255,255,.55)' }}>{approveSub}</span>}

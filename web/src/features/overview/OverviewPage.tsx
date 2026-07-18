@@ -14,7 +14,7 @@ export function OverviewPage(): JSX.Element {
         minHeight: 640,
         minWidth: 1280,
         display: 'flex',
-        background: '#fff',
+        background: 'var(--proto-card)',
         overflow: 'hidden',
       }}
     >

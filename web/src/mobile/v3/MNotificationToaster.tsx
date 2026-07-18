@@ -53,7 +53,7 @@ export function MNotificationToaster({ items, now = Date.now(), onDismiss, onAct
               height: 36,
               borderRadius: 9,
               background: MC.ink,
-              color: '#fff',
+              color: 'var(--ink-solid-fg)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

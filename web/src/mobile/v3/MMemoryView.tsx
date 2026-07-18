@@ -27,7 +27,7 @@ export interface MMemoryCopy {
   empty: string;
 }
 
-// The scheme's file-doc svg (1j L536): 12px, 1.5 stroke, muted (#8A93A2).
+// The scheme's file-doc svg (1j L536): 12px, 1.5 stroke, muted (var(--proto-muted-2)).
 function DocIcon() {
   return (
     <svg
@@ -48,7 +48,7 @@ function DocIcon() {
 // Card section header (scheme L535/L540): 12/650 label + optional faint mono count badge.
 function CardHeader({ label, count }: { label: string; count?: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid #EFF1F5' }}>
+    <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid var(--proto-line-2)' }}>
       <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{label}</span>
       {count != null && (
         <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint, marginLeft: 7 }}>{count}</span>
@@ -67,7 +67,7 @@ function FileRow({ row, last }: { row: MMemoryFileRow; last: boolean }) {
         alignItems: 'center',
         gap: 9,
         padding: '10px 13px',
-        borderBottom: last ? undefined : '1px solid #F7F8FA',
+        borderBottom: last ? undefined : '1px solid var(--proto-alt)',
       }}
     >
       <DocIcon />

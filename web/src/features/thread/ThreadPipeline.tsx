@@ -11,7 +11,7 @@ import { ThreadStepChat } from './ThreadStepChat';
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: '#98A1B0' }}>
+    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted-3)' }}>
       {children}
     </span>
   );
@@ -26,8 +26,8 @@ function StepDot({ kind }: { kind: DetailStep['kind'] }) {
           width: 15,
           height: 15,
           borderRadius: '50%',
-          background: '#E9F4EE',
-          color: '#23854F',
+          background: 'var(--proto-success-bg)',
+          color: 'var(--proto-success)',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -47,8 +47,8 @@ function StepDot({ kind }: { kind: DetailStep['kind'] }) {
           width: 15,
           height: 15,
           borderRadius: '50%',
-          background: '#4655D4',
-          boxShadow: '0 0 0 3px #EEF0FA',
+          background: 'var(--proto-accent)',
+          boxShadow: '0 0 0 3px var(--proto-accent-bg)',
           animation: 'cxpulse 1.6s ease-in-out infinite',
           flex: 'none',
         }}
@@ -61,7 +61,7 @@ function StepDot({ kind }: { kind: DetailStep['kind'] }) {
         width: 15,
         height: 15,
         borderRadius: '50%',
-        border: '1.5px solid #D9DCE3',
+        border: '1.5px solid var(--proto-line-3)',
         boxSizing: 'border-box',
         flex: 'none',
       }}
@@ -79,8 +79,8 @@ function CompactStep({ step, onClick }: { step: DetailStep; onClick: () => void 
       onClick={onClick}
       data-step-kind={step.kind}
       style={{
-        background: '#fff',
-        border: pending ? '1px dashed #D9DCE3' : '1px solid ' + (hover ? '#C9CFF2' : '#E7E9EE'),
+        background: 'var(--proto-card)',
+        border: pending ? '1px dashed var(--proto-line-3)' : '1px solid ' + (hover ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
         borderRadius: 10,
         padding: '9px 13px',
         boxShadow: '0 1px 2px rgba(16,24,40,.03)',
@@ -90,14 +90,14 @@ function CompactStep({ step, onClick }: { step: DetailStep; onClick: () => void 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <StepDot kind={step.kind} />
         <span
-          style={{ fontSize: 12.5, fontWeight: 600, color: pending ? '#B6BDC9' : '#5B6472', flex: 'none' }}
+          style={{ fontSize: 12.5, fontWeight: 600, color: pending ? 'var(--proto-faint)' : 'var(--proto-muted)', flex: 'none' }}
         >
           {step.title}
         </span>
         <span
           style={{
             fontSize: 10.5,
-            color: '#98A1B0',
+            color: 'var(--proto-muted-3)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -109,13 +109,13 @@ function CompactStep({ step, onClick }: { step: DetailStep; onClick: () => void 
           style={{
             marginLeft: 'auto',
             font: "400 10px 'IBM Plex Mono',monospace",
-            color: pending ? '#D9DCE3' : '#B6BDC9',
+            color: pending ? 'var(--proto-line-3)' : 'var(--proto-faint)',
             flex: 'none',
           }}
         >
           {step.meta}
         </span>
-        <span style={{ color: '#D9DCE3', fontSize: 9, flex: 'none' }}>▸</span>
+        <span style={{ color: 'var(--proto-line-3)', fontSize: 9, flex: 'none' }}>▸</span>
       </div>
     </div>
   );
@@ -128,15 +128,15 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
     <div
       data-sub-thread-id={sub.id}
       style={{
-        border: '1px solid ' + (running ? '#E3E6F5' : '#EFF1F5'),
-        background: running ? '#FBFBFE' : '#FBFBFC',
+        border: '1px solid ' + (running ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'),
+        background: running ? 'var(--proto-rail)' : 'var(--proto-rail)',
         borderRadius: 8,
         padding: '8px 11px',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-        <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: '#191C22' }}>{sub.name}</span>
-        <span style={{ font: "400 9px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>{sub.level}</span>
+        <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{sub.name}</span>
+        <span style={{ font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>{sub.level}</span>
         <span
           style={{
             marginLeft: 'auto',
@@ -152,13 +152,13 @@ function SubCard({ sub, onOpen }: { sub: DetailStepSub; onOpen: () => void }) {
         </span>
       </div>
       {(sub.hasLine || sub.drillable) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#5B6472', marginTop: 5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--proto-muted)', marginTop: 5 }}>
           {sub.hasLine && sub.line}
           {sub.drillable && (
             <span
               data-drill-thread-id={sub.id}
               onClick={onOpen}
-              style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+              style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
             >
               {L.thOpenSub} ›
             </span>
@@ -190,10 +190,10 @@ function ExpandedStep({
       data-active-step={running ? 'true' : undefined}
       data-expanded-step="true"
       style={{
-        background: '#fff',
-        border: running ? '1.5px solid #4655D4' : '1.5px solid #C9CFF2',
+        background: 'var(--proto-card)',
+        border: running ? '1.5px solid var(--proto-accent)' : '1.5px solid var(--proto-accent-border)',
         borderRadius: 10,
-        boxShadow: running ? '0 0 0 3px #EEF0FA' : '0 1px 2px rgba(16,24,40,.04)',
+        boxShadow: running ? '0 0 0 3px var(--proto-accent-bg)' : '0 1px 2px rgba(16,24,40,.04)',
         overflow: 'hidden',
       }}
     >
@@ -203,13 +203,13 @@ function ExpandedStep({
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 13px', cursor: 'pointer' }}
       >
         <StepDot kind={step.kind} />
-        <span style={{ fontSize: 12.5, fontWeight: 650, color: '#191C22' }}>{step.title}</span>
+        <span style={{ fontSize: 12.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{step.title}</span>
         {agentLabel && (
           <span
             style={{
               font: "500 9px 'IBM Plex Mono',monospace",
-              border: '1px solid #E7E9EE',
-              color: '#8A93A2',
+              border: '1px solid var(--proto-line)',
+              color: 'var(--proto-muted-2)',
               padding: '1px 6px',
               borderRadius: 5,
             }}
@@ -218,22 +218,22 @@ function ExpandedStep({
           </span>
         )}
         {execInfo && (
-          <span style={{ font: "400 10px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>{execInfo}</span>
+          <span style={{ font: "400 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>{execInfo}</span>
         )}
         <span
           style={{
             marginLeft: 'auto',
             font: "400 10px 'IBM Plex Mono',monospace",
-            color: running ? '#4655D4' : '#B6BDC9',
+            color: running ? 'var(--proto-accent)' : 'var(--proto-faint)',
           }}
         >
           {step.meta}
         </span>
-        <span style={{ color: '#B6BDC9', fontSize: 9, flex: 'none', transform: 'rotate(90deg)' }}>▸</span>
+        <span style={{ color: 'var(--proto-faint)', fontSize: 9, flex: 'none', transform: 'rotate(90deg)' }}>▸</span>
       </div>
 
       {/* agent chat */}
-      <div style={{ borderTop: '1px solid #EFF1F5', padding: '10px 13px 12px' }}>
+      <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '10px 13px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <SectionLabel>{L.thAgentSection}</SectionLabel>
           {running && agent?.live && (
@@ -242,7 +242,7 @@ function ExpandedStep({
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                background: '#4655D4',
+                background: 'var(--proto-accent)',
                 animation: 'cxpulse 1.6s ease-in-out infinite',
               }}
             />
@@ -253,8 +253,8 @@ function ExpandedStep({
 
       {/* sub-threads */}
       {step.subCount > 0 && (
-        <div style={{ borderTop: '1px solid #EFF1F5', padding: '10px 13px 12px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: '#98A1B0', marginBottom: 7 }}>
+        <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '10px 13px 12px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-muted-3)', marginBottom: 7 }}>
             {L.thSubThreads} · {step.subCount}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -291,14 +291,14 @@ export function ThreadPipeline({ vm, onOpenSub, renderStepChat }: ThreadPipeline
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }} data-pipeline="true">
       <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 8px' }}>
         <SectionLabel>{L.thPipeline}</SectionLabel>
-        <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>
+        <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>
           {L.thPipelineHint}
         </span>
       </div>
       {vm.steps.map((step, i) => (
         <div key={i}>
           {step.hasConnector && (
-            <div style={{ width: 1.5, height: 12, background: '#DCE0E8', marginLeft: 20 }} />
+            <div style={{ width: 1.5, height: 12, background: 'var(--proto-line)', marginLeft: 20 }} />
           )}
           {i === selectedIdx ? (
             <ExpandedStep

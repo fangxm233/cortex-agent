@@ -236,8 +236,8 @@ export function LeftRail(): JSX.Element {
         flex: 'none',
         display: 'flex',
         flexDirection: 'column',
-        background: '#FBFBFC',
-        borderRight: '1px solid #E7E9EE',
+        background: 'var(--proto-rail)',
+        borderRight: '1px solid var(--proto-line)',
         minHeight: 0,
       }}
     >
@@ -248,8 +248,8 @@ export function LeftRail(): JSX.Element {
             width: 26,
             height: 26,
             borderRadius: 7,
-            background: '#191C22',
-            color: '#fff',
+            background: 'var(--proto-ink)',
+            color: 'var(--ink-solid-fg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -258,7 +258,7 @@ export function LeftRail(): JSX.Element {
         >
           cx
         </div>
-        <div style={{ fontWeight: 650, fontSize: 14, color: '#191C22', letterSpacing: '-.01em' }}>Cortex</div>
+        <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
         <div
           onClick={() => setDaemonOpen(true)}
           style={{
@@ -267,12 +267,12 @@ export function LeftRail(): JSX.Element {
             alignItems: 'center',
             gap: 5,
             fontSize: 10,
-            color: '#23854F',
+            color: 'var(--proto-success)',
             fontWeight: 600,
             cursor: 'pointer',
           }}
         >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#23854F' }} />
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-success)' }} />
           {L.wbDaemon}
         </div>
       </div>
@@ -280,10 +280,10 @@ export function LeftRail(): JSX.Element {
       {/* PROJECTS zone (22a L49–84): header pinned, rows scroll internally up to the drag height */}
       <div data-zone="projects" style={{ flex: 'none', padding: '2px 12px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 4px 5px' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: '#B6BDC9' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-faint)' }}>
             {L.wbProjects}
           </span>
-          <span style={{ font: `500 9.5px ${mono}`, color: '#D9DCE3', marginLeft: 5 }}>{projects.length}</span>
+          <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-line-3)', marginLeft: 5 }}>{projects.length}</span>
           <span
             {...hp('newproj')}
             onClick={() => setNewProjOpen(true)}
@@ -291,7 +291,7 @@ export function LeftRail(): JSX.Element {
             style={{
               marginLeft: 'auto',
               fontSize: 13,
-              color: isHover('newproj') ? '#191C22' : '#8A93A2',
+              color: isHover('newproj') ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
               lineHeight: 1,
               cursor: 'pointer',
               padding: '0 2px',
@@ -305,15 +305,15 @@ export function LeftRail(): JSX.Element {
             const rowKey = 'proj:' + row.id;
             if (row.active) {
               return (
-                <div key={row.id} data-project-row={row.id} style={{ background: '#EFF1F5', borderRadius: 8, padding: '7px 9px' }}>
+                <div key={row.id} data-project-row={row.id} style={{ background: 'var(--proto-line-2)', borderRadius: 8, padding: '7px 9px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div
                       style={{
                         width: 20,
                         height: 20,
                         borderRadius: 6,
-                        background: '#4655D4',
-                        color: '#fff',
+                        background: 'var(--proto-accent)',
+                        color: 'var(--ink-solid-fg)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -327,7 +327,7 @@ export function LeftRail(): JSX.Element {
                       style={{
                         fontSize: 12.5,
                         fontWeight: 650,
-                        color: '#191C22',
+                        color: 'var(--proto-ink)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -337,13 +337,13 @@ export function LeftRail(): JSX.Element {
                     </span>
                     <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, flex: 'none' }}>
                       {row.running > 0 && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 3, font: `600 9.5px ${mono}`, color: '#4655D4' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 3, font: `600 9.5px ${mono}`, color: 'var(--proto-accent)' }}>
                           <span
                             style={{
                               width: 6,
                               height: 6,
                               borderRadius: '50%',
-                              background: '#4655D4',
+                              background: 'var(--proto-accent)',
                               animation: 'cxpulse 1.6s ease-in-out infinite',
                             }}
                           />
@@ -358,8 +358,8 @@ export function LeftRail(): JSX.Element {
                             height: 14,
                             padding: '0 4px',
                             borderRadius: 7,
-                            background: '#4655D4',
-                            color: '#fff',
+                            background: 'var(--proto-accent)',
+                            color: 'var(--ink-solid-fg)',
                             font: `600 9px ${mono}`,
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -380,7 +380,7 @@ export function LeftRail(): JSX.Element {
                       padding: '5px 0 1px 28px',
                       fontSize: 10.5,
                       fontWeight: 600,
-                      color: '#5B6472',
+                      color: 'var(--proto-muted)',
                     }}
                   >
                     {subEntries.map((entry) => {
@@ -392,7 +392,7 @@ export function LeftRail(): JSX.Element {
                           {...hp(k)}
                           onClick={() => navigate(entry.to)}
                           style={{
-                            color: current ? '#4655D4' : isHover(k) ? '#191C22' : '#5B6472',
+                            color: current ? 'var(--proto-accent)' : isHover(k) ? 'var(--proto-ink)' : 'var(--proto-muted)',
                             cursor: 'pointer',
                           }}
                         >
@@ -402,11 +402,11 @@ export function LeftRail(): JSX.Element {
                     })}
                     {/* Today cost — real cost.summary.today for the active project (replaces Tasks/Cost). */}
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ color: '#8A93A2', fontWeight: 600 }}>{L.today}</span>
-                      <span style={{ font: `600 10px ${mono}`, color: '#4655D4' }}>{todayCostLabel}</span>
+                      <span style={{ color: 'var(--proto-muted-2)', fontWeight: 600 }}>{L.today}</span>
+                      <span style={{ font: `600 10px ${mono}`, color: 'var(--proto-accent)' }}>{todayCostLabel}</span>
                     </span>
                     {row.hotkey && (
-                      <span style={{ marginLeft: 'auto', font: `500 9px ${mono}`, color: '#B6BDC9', fontWeight: 400 }}>
+                      <span style={{ marginLeft: 'auto', font: `500 9px ${mono}`, color: 'var(--proto-faint)', fontWeight: 400 }}>
                         {row.hotkey}
                       </span>
                     )}
@@ -427,7 +427,7 @@ export function LeftRail(): JSX.Element {
                   padding: '7px 9px',
                   borderRadius: 8,
                   cursor: 'pointer',
-                  background: isHover(rowKey) ? '#F1F2F5' : 'transparent',
+                  background: isHover(rowKey) ? 'var(--proto-gray)' : 'transparent',
                 }}
               >
                 <div
@@ -435,8 +435,8 @@ export function LeftRail(): JSX.Element {
                     width: 20,
                     height: 20,
                     borderRadius: 6,
-                    background: '#EEF0FA',
-                    color: '#4655D4',
+                    background: 'var(--proto-accent-bg)',
+                    color: 'var(--proto-accent)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -449,7 +449,7 @@ export function LeftRail(): JSX.Element {
                 <span
                   style={{
                     fontSize: 12.5,
-                    color: row.unread > 0 ? '#191C22' : '#22262E',
+                    color: row.unread > 0 ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
                     fontWeight: row.unread > 0 ? 600 : 400,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
@@ -460,13 +460,13 @@ export function LeftRail(): JSX.Element {
                 </span>
                 <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, flex: 'none' }}>
                   {row.running > 0 && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, font: `600 9.5px ${mono}`, color: '#4655D4' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, font: `600 9.5px ${mono}`, color: 'var(--proto-accent)' }}>
                       <span
                         style={{
                           width: 6,
                           height: 6,
                           borderRadius: '50%',
-                          background: '#4655D4',
+                          background: 'var(--proto-accent)',
                           animation: 'cxpulse 1.6s ease-in-out infinite',
                         }}
                       />
@@ -481,8 +481,8 @@ export function LeftRail(): JSX.Element {
                         height: 14,
                         padding: '0 4px',
                         borderRadius: 7,
-                        background: '#4655D4',
-                        color: '#fff',
+                        background: 'var(--proto-accent)',
+                        color: 'var(--ink-solid-fg)',
                         font: `600 9px ${mono}`,
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -493,9 +493,9 @@ export function LeftRail(): JSX.Element {
                     </span>
                   )}
                   {row.idleAge !== null ? (
-                    <span style={{ font: `400 9.5px ${mono}`, color: '#B6BDC9' }}>{row.idleAge}</span>
+                    <span style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>{row.idleAge}</span>
                   ) : (
-                    row.hotkey && <span style={{ font: `400 9px ${mono}`, color: '#D9DCE3' }}>{row.hotkey}</span>
+                    row.hotkey && <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-line-3)' }}>{row.hotkey}</span>
                   )}
                 </span>
               </div>
@@ -519,13 +519,13 @@ export function LeftRail(): JSX.Element {
           userSelect: 'none',
         }}
       >
-        <div style={{ flex: 1, height: 1, background: '#E7E9EE' }} />
+        <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
         <div style={{ display: 'flex', gap: 3 }}>
-          <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#D9DCE3' }} />
-          <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#D9DCE3' }} />
-          <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#D9DCE3' }} />
+          <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--proto-line-3)' }} />
+          <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--proto-line-3)' }} />
+          <span style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--proto-line-3)' }} />
         </div>
-        <div style={{ flex: 1, height: 1, background: '#E7E9EE' }} />
+        <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
       </div>
 
       {/* SESSIONS zone (22a L92–122): header with project echo + "+ New" ⌘N, grouped rows below */}
@@ -534,11 +534,11 @@ export function LeftRail(): JSX.Element {
         style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '0 12px' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', padding: '2px 4px 6px', flex: 'none' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: '#B6BDC9' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--proto-faint)' }}>
             {L.wbSessions}
           </span>
           {activeProjectId && (
-            <span style={{ font: `500 9.5px ${mono}`, color: '#C9CFF2', marginLeft: 5 }}>
+            <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-accent-border)', marginLeft: 5 }}>
               {projectShortLabel(activeProjectId)}
             </span>
           )}
@@ -549,13 +549,13 @@ export function LeftRail(): JSX.Element {
               style={{
                 fontSize: 12,
                 fontWeight: 600,
-                color: isHover('newsess') ? '#3543B8' : '#4655D4',
+                color: isHover('newsess') ? 'var(--proto-accent-strong)' : 'var(--proto-accent)',
                 cursor: 'pointer',
               }}
             >
               + {L.wbNewShort}
             </span>
-            <span style={{ font: `500 9.5px ${mono}`, color: '#B6BDC9' }}>⌘N</span>
+            <span style={{ font: `500 9.5px ${mono}`, color: 'var(--proto-faint)' }}>⌘N</span>
           </span>
         </div>
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -566,7 +566,7 @@ export function LeftRail(): JSX.Element {
                   fontSize: 10,
                   fontWeight: 700,
                   letterSpacing: '.07em',
-                  color: '#B6BDC9',
+                  color: 'var(--proto-faint)',
                   padding: gi === 0 ? '2px 4px 5px' : '10px 4px 6px',
                 }}
               >
@@ -577,7 +577,7 @@ export function LeftRail(): JSX.Element {
                 // Real running snapshot (SessionInfo.running), kept fresh by useSessionsLiveSync.
                 const running = s.running;
                 const rowKey = 'sess:' + s.sessionId;
-                const bg = active ? '#EFF1F5' : isHover(rowKey) ? '#F1F2F5' : 'transparent';
+                const bg = active ? 'var(--proto-line-2)' : isHover(rowKey) ? 'var(--proto-gray)' : 'transparent';
                 return (
                   <div
                     key={s.sessionId}
@@ -594,7 +594,7 @@ export function LeftRail(): JSX.Element {
                             width: 7,
                             height: 7,
                             borderRadius: '50%',
-                            background: '#4655D4',
+                            background: 'var(--proto-accent)',
                             flex: 'none',
                             animation: 'cxpulse 1.6s ease-in-out infinite',
                           }}
@@ -608,7 +608,7 @@ export function LeftRail(): JSX.Element {
                           // Unread emphasis (honest addition): unread rows keep the full ink +
                           // semibold; read rows soften so unread reads darker at a glance.
                           fontWeight: active || s.unread ? 600 : 400,
-                          color: s.unread || active ? '#191C22' : '#454C59',
+                          color: s.unread || active ? 'var(--proto-ink)' : 'var(--proto-muted)',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -620,7 +620,7 @@ export function LeftRail(): JSX.Element {
                         className="sess-more"
                         style={{
                           flex: 'none',
-                          color: '#98A1B0',
+                          color: 'var(--proto-muted-3)',
                           fontSize: 13,
                           letterSpacing: 1,
                           padding: '0 4px',
@@ -634,7 +634,7 @@ export function LeftRail(): JSX.Element {
                     <div
                       style={{
                         font: `400 10px ${mono}`,
-                        color: active ? '#8A93A2' : '#B6BDC9',
+                        color: active ? 'var(--proto-muted-2)' : 'var(--proto-faint)',
                         marginTop: 3,
                         paddingLeft: running ? 14 : 0,
                       }}
@@ -657,8 +657,8 @@ export function LeftRail(): JSX.Element {
           style={{
             margin: '0 12px 10px',
             padding: '9px 12px',
-            background: '#FDF9F0',
-            border: '1px solid ' + (isHover('approval') ? '#E3C88A' : '#EFDDB0'),
+            background: 'var(--proto-amber-bg)',
+            border: '1px solid ' + (isHover('approval') ? 'var(--proto-amber)' : 'var(--proto-amber-border)'),
             borderRadius: 9,
             display: 'flex',
             alignItems: 'center',
@@ -672,13 +672,13 @@ export function LeftRail(): JSX.Element {
               width: 7,
               height: 7,
               borderRadius: '50%',
-              background: '#C99A2E',
+              background: 'var(--proto-amber)',
               flex: 'none',
               animation: 'cxpulse 2s ease-in-out infinite',
             }}
           />
-          <div style={{ fontSize: 11.5, color: '#8A5B06', fontWeight: 600 }}>{pendingLabel}</div>
-          <div style={{ marginLeft: 'auto', color: '#C0A96E', fontSize: 11 }}>→</div>
+          <div style={{ fontSize: 11.5, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>{pendingLabel}</div>
+          <div style={{ marginLeft: 'auto', color: 'var(--proto-amber-accent)', fontSize: 11 }}>→</div>
         </div>
       )}
 
@@ -689,20 +689,20 @@ export function LeftRail(): JSX.Element {
           alignItems: 'center',
           gap: 8,
           padding: '10px 16px 14px',
-          borderTop: '1px solid #EFF1F5',
+          borderTop: '1px solid var(--proto-line-2)',
           flex: 'none',
         }}
       >
-        <div style={{ display: 'flex', border: '1px solid #E7E9EE', borderRadius: 6, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 6, overflow: 'hidden' }}>
           <span
             onClick={() => setLang('en')}
-            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: lang === 'en' ? '#191C22' : 'transparent', color: lang === 'en' ? '#fff' : '#8A93A2' }}
+            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: lang === 'en' ? 'var(--proto-ink)' : 'transparent', color: lang === 'en' ? 'var(--proto-card)' : 'var(--proto-muted-2)' }}
           >
             EN
           </span>
           <span
             onClick={() => setLang('zh')}
-            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: lang === 'zh' ? '#191C22' : 'transparent', color: lang === 'zh' ? '#fff' : '#8A93A2' }}
+            style={{ fontSize: 10, fontWeight: 600, padding: '2.5px 7px', cursor: 'pointer', background: lang === 'zh' ? 'var(--proto-ink)' : 'transparent', color: lang === 'zh' ? 'var(--proto-card)' : 'var(--proto-muted-2)' }}
           >
             中
           </span>
@@ -710,7 +710,7 @@ export function LeftRail(): JSX.Element {
         <span
           {...hp('settings')}
           onClick={() => navigate('/settings')}
-          style={{ marginLeft: 'auto', fontSize: 11.5, color: isHover('settings') ? '#191C22' : '#8A93A2', cursor: 'pointer' }}
+          style={{ marginLeft: 'auto', fontSize: 11.5, color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)', cursor: 'pointer' }}
         >
           {L.settings}
         </span>

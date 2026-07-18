@@ -65,9 +65,9 @@ function fileExt(name: string): string {
 }
 
 function typeColor(type: AttachmentMeta['type']): { bg: string; fg: string } {
-  if (type === 'image') return { bg: '#EEF0FA', fg: '#4655D4' };
-  if (type === 'video') return { bg: '#FBF0ED', fg: '#C03D33' };
-  return { bg: '#F1F2F5', fg: '#5B6472' };
+  if (type === 'image') return { bg: 'var(--proto-accent-bg)', fg: 'var(--proto-accent)' };
+  if (type === 'video') return { bg: 'var(--proto-danger-bg)', fg: 'var(--proto-danger)' };
+  return { bg: 'var(--proto-gray)', fg: 'var(--proto-muted)' };
 }
 
 async function uploadFile(
@@ -256,9 +256,9 @@ export function Composer({
   const doneAttachments = attachments.filter((a) => a.status === 'done');
   const hasText = !!composer.trim();
   const canSend = (hasText || doneAttachments.length > 0) && (!!sessionId || isDraft) && !sendMut.isPending && !createAndSendMut.isPending;
-  const composerBorder = slashOpen ? '#4655D4' : dragOver ? '#4655D4' : '#D9DCE3';
+  const composerBorder = slashOpen ? 'var(--proto-accent)' : dragOver ? 'var(--proto-accent)' : 'var(--proto-line-3)';
   const composerHint = running ? `${L.pillRunning} · ${L.wbEscToStop}` : `⏎ ${L.wbSend} · ⇧⏎ ${L.wbNewline}`;
-  const sendBg = canSend ? '#191C22' : '#D9DCE3';
+  const sendBg = canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)';
   // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
   const turnsText = turns == null ? DASH : `${turns} ${L.wbTurnsUnit}`;
   // Last run's cost; render — when unknown (running turn not yet finalized / never ran).
@@ -469,8 +469,8 @@ export function Composer({
             width: 54,
             height: 54,
             borderRadius: 8,
-            border: a.status === 'error' ? '1px solid #C03D33' : '1px solid #E7E9EE',
-            background: a.previewUrl ? '#000' : 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
+            border: a.status === 'error' ? '1px solid var(--proto-danger)' : '1px solid var(--proto-line)',
+            background: a.previewUrl ? '#000' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
             flex: 'none',
             boxSizing: 'border-box',
             overflow: 'hidden',
@@ -489,7 +489,7 @@ export function Composer({
               left: 4,
               bottom: 3,
               font: `500 8px ${mono}`,
-              color: '#8A93A2',
+              color: 'var(--proto-muted-2)',
               background: 'rgba(255,255,255,.88)',
               padding: '1px 4px',
               borderRadius: 3,
@@ -509,7 +509,7 @@ export function Composer({
                   height: 19,
                   borderRadius: '50%',
                   background: 'rgba(25,28,34,.82)',
-                  color: '#fff',
+                  color: 'var(--ink-solid-fg)',
                   fontSize: 7,
                   display: 'flex',
                   alignItems: 'center',
@@ -533,7 +533,7 @@ export function Composer({
                   alignItems: 'center',
                   justifyContent: 'center',
                   font: `600 9px ${mono}`,
-                  color: '#4655D4',
+                  color: 'var(--proto-accent)',
                 }}
               >
                 {a.progress}%
@@ -545,7 +545,7 @@ export function Composer({
                   bottom: 0,
                   height: 3,
                   width: `${a.progress}%`,
-                  background: '#4655D4',
+                  background: 'var(--proto-accent)',
                 }}
               />
             </>
@@ -562,7 +562,7 @@ export function Composer({
                 justifyContent: 'center',
                 cursor: 'pointer',
                 font: `600 8px ${mono}`,
-                color: '#C03D33',
+                color: 'var(--proto-danger)',
               }}
             >
               retry
@@ -578,13 +578,13 @@ export function Composer({
               width: 16,
               height: 16,
               borderRadius: '50%',
-              background: '#191C22',
-              color: '#fff',
+              background: 'var(--proto-ink)',
+              color: 'var(--ink-solid-fg)',
               fontSize: 9,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '1.5px solid #fff',
+              border: '1.5px solid var(--proto-card)',
               boxSizing: 'border-box',
               cursor: 'pointer',
             }}
@@ -605,8 +605,8 @@ export function Composer({
           alignItems: 'center',
           gap: 8,
           height: 54,
-          border: a.status === 'error' ? '1px solid #C03D33' : '1px solid #E7E9EE',
-          background: '#FBFBFC',
+          border: a.status === 'error' ? '1px solid var(--proto-danger)' : '1px solid var(--proto-line)',
+          background: 'var(--proto-rail)',
           borderRadius: 8,
           padding: '0 12px 0 8px',
           flex: 'none',
@@ -630,10 +630,10 @@ export function Composer({
           {ext}
         </span>
         <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ font: `500 10.5px ${mono}`, color: '#191C22', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ font: `500 10.5px ${mono}`, color: 'var(--proto-ink)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {name}
           </span>
-          <span style={{ font: `400 9px ${mono}`, color: a.status === 'uploading' ? '#4655D4' : a.status === 'error' ? '#C03D33' : '#98A1B0' }}>
+          <span style={{ font: `400 9px ${mono}`, color: a.status === 'uploading' ? 'var(--proto-accent)' : a.status === 'error' ? 'var(--proto-danger)' : 'var(--proto-muted-3)' }}>
             {a.status === 'uploading' ? `${a.progress}%` : a.status === 'error' ? (a.errorMsg || 'Failed') : formatSize(attSize(a))}
           </span>
         </span>
@@ -647,13 +647,13 @@ export function Composer({
             width: 16,
             height: 16,
             borderRadius: '50%',
-            background: '#191C22',
-            color: '#fff',
+            background: 'var(--proto-ink)',
+            color: 'var(--ink-solid-fg)',
             fontSize: 9,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            border: '1.5px solid #fff',
+            border: '1.5px solid var(--proto-card)',
             boxSizing: 'border-box',
             cursor: 'pointer',
           }}
@@ -683,10 +683,10 @@ export function Composer({
               right: 32,
               bottom: '100%',
               marginBottom: -2,
-              border: '1px solid #E7E9EE',
+              border: '1px solid var(--proto-line)',
               borderRadius: 12,
               boxShadow: '0 6px 24px rgba(16,24,40,.08)',
-              background: '#fff',
+              background: 'var(--proto-card)',
               overflow: 'hidden',
               zIndex: 10,
             }}
@@ -704,12 +704,12 @@ export function Composer({
                   display: 'flex',
                   alignItems: 'center',
                   padding: '8px 14px',
-                  background: slashHover === i || i === 0 ? '#EEF0FA' : '#fff',
+                  background: slashHover === i || i === 0 ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
                   cursor: 'pointer',
                 }}
               >
-                <span style={{ font: `600 12px ${mono}`, color: i === 0 ? '#4655D4' : '#5B6472' }}>{c.cmd}</span>
-                <span style={{ fontSize: 11.5, color: '#8A93A2', marginLeft: 12 }}>{c.desc}</span>
+                <span style={{ font: `600 12px ${mono}`, color: i === 0 ? 'var(--proto-accent)' : 'var(--proto-muted)' }}>{c.cmd}</span>
+                <span style={{ fontSize: 11.5, color: 'var(--proto-muted-2)', marginLeft: 12 }}>{c.desc}</span>
               </div>
             ))}
             <div
@@ -717,11 +717,11 @@ export function Composer({
                 display: 'flex',
                 alignItems: 'center',
                 padding: '7px 14px',
-                borderTop: '1px solid #F7F8FA',
-                background: '#FBFBFC',
+                borderTop: '1px solid var(--proto-alt)',
+                background: 'var(--proto-rail)',
               }}
             >
-              <span style={{ font: `400 10px ${mono}`, color: '#B6BDC9' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
+              <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)' }}>↑↓ {L.wbNavigate} · ⏎ {L.wbRun} · {L.wbEscDismiss}</span>
             </div>
           </div>
         )}
@@ -734,7 +734,7 @@ export function Composer({
               alignItems: 'center',
               gap: 6,
               font: `500 11px ${mono}`,
-              color: '#8A93A2',
+              color: 'var(--proto-muted-2)',
               padding: '8px 2px 10px',
             }}
           >
@@ -745,7 +745,7 @@ export function Composer({
                 borderRadius: '50%',
                 // Amber while a background task holds the session (foreground turn done); accent
                 // blue during the live turn itself.
-                background: backgroundRunning ? '#D9822B' : '#4655D4',
+                background: backgroundRunning ? 'var(--proto-amber)' : 'var(--proto-accent)',
                 animation: 'cxpulse 1.6s ease-in-out infinite',
               }}
             />
@@ -760,11 +760,11 @@ export function Composer({
               alignItems: 'center',
               gap: 6,
               font: `500 11px ${mono}`,
-              color: '#B6BDC9',
+              color: 'var(--proto-faint)',
               padding: '8px 2px 10px',
             }}
           >
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#D9DCE3' }} />
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--proto-line-3)' }} />
             <span>
               {hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle}
             </span>
@@ -775,9 +775,9 @@ export function Composer({
         <div
           style={{
             position: 'relative',
-            border: dragOver ? '1.5px dashed #4655D4' : '1.5px solid ' + composerBorder,
+            border: dragOver ? '1.5px dashed var(--proto-accent)' : '1.5px solid ' + composerBorder,
             borderRadius: 12,
-            background: dragOver ? '#FBFBFE' : '#fff',
+            background: dragOver ? 'var(--proto-rail)' : 'var(--proto-card)',
             boxShadow: dragOver ? 'none' : '0 1px 2px rgba(16,24,40,.04)',
             padding: '10px 12px 10px 14px',
           }}
@@ -793,12 +793,12 @@ export function Composer({
                 padding: '22px 12px',
               }}
             >
-              <span style={{ font: `600 11.5px ${mono}`, color: '#4655D4' }}>
+              <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>
                 {dragFileCount.current > 0
                   ? L.wbDropFilesPlural.replace('{n}', String(dragFileCount.current))
                   : L.wbDropFilesSingular}
               </span>
-              <span style={{ font: `400 10px ${mono}`, color: '#98A1B0' }}>
+              <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
                 {L.wbAttachPath}
               </span>
             </div>
@@ -821,7 +821,7 @@ export function Composer({
                           flexWrap: 'wrap',
                           gap: 8,
                           padding: '2px 2px 10px',
-                          borderBottom: '1px solid #EFF1F5',
+                          borderBottom: '1px solid var(--proto-line-2)',
                         }}
                       >
                         {attachments.map(renderChip)}
@@ -847,7 +847,7 @@ export function Composer({
                         width: '100%',
                         fontSize: 13.5,
                         lineHeight: 1.5,
-                        color: '#191C22',
+                        color: 'var(--proto-ink)',
                         fontFamily: 'inherit',
                         padding: hasAttachments ? '11px 2px' : '2px 0',
                         border: 'none',
@@ -868,8 +868,8 @@ export function Composer({
                         onMouseLeave={() => setAttachHover(false)}
                         style={{
                           font: `500 10.5px ${mono}`,
-                          border: '1px solid ' + (attachHover ? '#C9CFF2' : '#E7E9EE'),
-                          color: attachHover ? '#4655D4' : '#8A93A2',
+                          border: '1px solid ' + (attachHover ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
+                          color: attachHover ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
                           padding: '2px 7px',
                           borderRadius: 6,
                           cursor: 'pointer',
@@ -885,8 +885,8 @@ export function Composer({
                         onMouseLeave={() => setChipHover(false)}
                         style={{
                           font: `500 10.5px ${mono}`,
-                          border: '1px solid ' + (chipHover ? '#C9CFF2' : '#E7E9EE'),
-                          color: chipHover ? '#4655D4' : '#8A93A2',
+                          border: '1px solid ' + (chipHover ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
+                          color: chipHover ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
                           padding: '2px 7px',
                           borderRadius: 6,
                           cursor: 'pointer',
@@ -896,7 +896,7 @@ export function Composer({
                         / {L.commands}
                       </span>
 
-                      <span style={{ marginLeft: 'auto', font: `400 10.5px ${mono}`, color: '#B6BDC9' }}>
+                      <span style={{ marginLeft: 'auto', font: `400 10.5px ${mono}`, color: 'var(--proto-faint)' }}>
                         {hasAttachments ? L.wbAttachHint : composerHint}
                       </span>
                     </div>
@@ -914,7 +914,7 @@ export function Composer({
                         width: 34,
                         height: 34,
                         borderRadius: 10,
-                        background: btnHover ? '#32363E' : '#191C22',
+                        background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -922,7 +922,7 @@ export function Composer({
                         marginTop: hasAttachments ? 2 : 0,
                       }}
                     >
-                      <span style={{ width: 11, height: 11, background: '#fff', borderRadius: 2 }} />
+                      <span style={{ width: 11, height: 11, background: 'var(--proto-card)', borderRadius: 2 }} />
                     </div>
                   ) : (
                     <div
@@ -941,7 +941,7 @@ export function Composer({
                         marginTop: hasAttachments ? 2 : 0,
                       }}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#fff" strokeWidth="1.8">
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="var(--ink-solid-fg)" strokeWidth="1.8">
                         <path d="M7 12V2M3 6l4-4 4 4" />
                       </svg>
                     </div>
@@ -962,19 +962,19 @@ export function Composer({
                     alignItems: 'center',
                     gap: 3,
                     background: 'rgba(251,251,254,.94)',
-                    border: '1px solid #C9CFF2',
+                    border: '1px solid var(--proto-accent-border)',
                     borderRadius: 10,
                     padding: '10px 18px',
                     boxShadow: '0 2px 8px rgba(70,85,212,.10)',
                     zIndex: 2,
                   }}
                 >
-                  <span style={{ font: `600 11.5px ${mono}`, color: '#4655D4' }}>
+                  <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-accent)' }}>
                     {dragFileCount.current > 0
                       ? L.wbDropAddMoreN.replace('{n}', String(dragFileCount.current))
                       : L.wbDropAddMore}
                   </span>
-                  <span style={{ font: `400 10px ${mono}`, color: '#98A1B0' }}>
+                  <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>
                     {L.wbDragOverCount.replace('{n}', String(attachments.length)).replace('{m}', String(attachments.length + dragFileCount.current))}
                   </span>
                 </div>

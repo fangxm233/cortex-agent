@@ -29,20 +29,20 @@ export function ToolCallsRow({ calls }: { calls: ToolCall[] }): JSX.Element {
             alignItems: 'center',
             gap: 7,
             fontSize: 11.5,
-            color: hover ? '#5B6472' : '#98A1B0',
+            color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-3)',
             flexWrap: 'wrap',
             cursor: 'pointer',
           }}
         >
-          <span style={{ fontSize: 9, color: '#B6BDC9' }}>▸</span>
+          <span style={{ fontSize: 9, color: 'var(--proto-faint)' }}>▸</span>
           <span>{text}</span>
           {calls.map((c, i) => (
             <span
               key={i}
               style={{
                 font: `400 10.5px ${mono}`,
-                background: '#F7F8FA',
-                border: '1px solid #EFF1F5',
+                background: 'var(--proto-alt)',
+                border: '1px solid var(--proto-line-2)',
                 padding: '1px 6px',
                 borderRadius: 4,
               }}
@@ -62,15 +62,15 @@ export function ToolCallsRow({ calls }: { calls: ToolCall[] }): JSX.Element {
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         style={{
-          background: '#FBFBFC',
-          border: '1px solid ' + (hover ? '#D9DCE3' : '#EFF1F5'),
+          background: 'var(--proto-rail)',
+          border: '1px solid ' + (hover ? 'var(--proto-line-3)' : 'var(--proto-line-2)'),
           borderRadius: 8,
           padding: '2px 0',
           cursor: 'pointer',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: '#98A1B0', padding: '6px 13px' }}>
-          <span style={{ fontSize: 9, color: '#B6BDC9' }}>▾</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: 'var(--proto-muted-3)', padding: '6px 13px' }}>
+          <span style={{ fontSize: 9, color: 'var(--proto-faint)' }}>▾</span>
           <span>{text}</span>
         </div>
         {calls.map((c, i) => (
@@ -81,14 +81,14 @@ export function ToolCallsRow({ calls }: { calls: ToolCall[] }): JSX.Element {
               alignItems: 'center',
               gap: 8,
               padding: '5.5px 13px',
-              borderTop: '1px solid #F3F4F7',
+              borderTop: '1px solid var(--proto-line-soft)',
             }}
           >
             <span
               style={{
                 font: `600 9px ${mono}`,
-                color: '#5B6472',
-                background: '#F1F2F5',
+                color: 'var(--proto-muted)',
+                background: 'var(--proto-gray)',
                 padding: '1.5px 7px',
                 borderRadius: 5,
                 flex: 'none',
@@ -99,7 +99,7 @@ export function ToolCallsRow({ calls }: { calls: ToolCall[] }): JSX.Element {
             <span
               style={{
                 font: `400 10.5px ${mono}`,
-                color: '#22262E',
+                color: 'var(--proto-ink-2)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',

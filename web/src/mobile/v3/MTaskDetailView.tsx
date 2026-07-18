@@ -83,7 +83,7 @@ const PILL_TONE: Record<MTaskStatusKind, PillTone> = {
   waiting: 'waiting',
 };
 
-// A dependency's status text color, keyed by its own derived kind (scheme dep line = amber #A96B0B).
+// A dependency's status text color, keyed by its own derived kind (scheme dep line = amber var(--proto-amber-text)).
 const DEP_COLOR: Record<MTaskStatusKind, string> = {
   'in-progress': MC.run,
   actionable: MC.run,
@@ -92,7 +92,7 @@ const DEP_COLOR: Record<MTaskStatusKind, string> = {
   waiting: MC.amberText,
 };
 
-// ── the claim-line thread glyph (scheme L459: 13×13, stroke #4655D4, sw 1.6) ──
+// ── the claim-line thread glyph (scheme L459: 13×13, stroke var(--proto-accent), sw 1.6) ──
 function ThreadIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke={MC.run} strokeWidth="1.6" style={{ flex: 'none' }}>
@@ -229,7 +229,7 @@ export function MTaskDetailView({
 
         {/* 历史 card */}
         <MCard padding={0} style={{ overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: `1px solid #EFF1F5` }}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: `1px solid var(--proto-line-2)` }}>
             <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.historyLabel}</span>
           </div>
           {vm.history.length === 0 ? (

@@ -18,7 +18,7 @@ import type { DetailArtifact, ThreadDetailVm } from './thread-detail-vm';
 const runningVm: ThreadDetailVm = {
   name: 'plan-exec-review',
   tid: 'thr_8f2c',
-  pill: { bg: '#EEF0FA', fg: '#4655D4', text: 'Running' },
+  pill: { bg: 'var(--proto-accent-bg)', fg: 'var(--proto-accent)', text: 'Running' },
   crumbs: [{ id: null, name: 'quad-nav-sim2real', accent: false }],
   template: 'plan-exec-review',
   started: '07:12',
@@ -50,11 +50,11 @@ const runningVm: ThreadDetailVm = {
       subCount: 3,
       subs: [
         // running + drillable → line + `open ›`
-        { id: 'thr_b7f3', name: 'verify-metrics', level: 'L2', pill: { bg: '#EEF0FA', fg: '#4655D4', text: 'Running' }, hasLine: true, line: 'analyst', isMax: false, drillable: true },
+        { id: 'thr_b7f3', name: 'verify-metrics', level: 'L2', pill: { bg: 'var(--proto-accent-bg)', fg: 'var(--proto-accent)', text: 'Running' }, hasLine: true, line: 'analyst', isMax: false, drillable: true },
         // terminal (no agent line) BUT drillable → `open ›` only, no line (the decoupled-drill case)
-        { id: 'thr_done', name: 'sub-audit', level: 'L2', pill: { bg: '#E9F4EE', fg: '#23854F', text: 'Done' }, hasLine: false, line: '', isMax: false, drillable: true },
+        { id: 'thr_done', name: 'sub-audit', level: 'L2', pill: { bg: 'var(--proto-success-bg)', fg: 'var(--proto-success)', text: 'Done' }, hasLine: false, line: '', isMax: false, drillable: true },
         // terminal leaf, no subtree → NO `open ›` (matches proto-shot 04 check-claims)
-        { id: 'thr_cc', name: 'check-claims', level: 'L2', pill: { bg: '#E9F4EE', fg: '#23854F', text: 'Done' }, hasLine: false, line: '', isMax: false, drillable: false },
+        { id: 'thr_cc', name: 'check-claims', level: 'L2', pill: { bg: 'var(--proto-success-bg)', fg: 'var(--proto-success)', text: 'Done' }, hasLine: false, line: '', isMax: false, drillable: false },
       ],
     },
     { kind: 'pending', title: '4 · Commit', note: 'safety class: repo write', meta: 'gated', hasConnector: true, subs: [], subCount: 0, stepIndex: 3, sessionId: null, sessionName: null, profile: 'slot-3' },

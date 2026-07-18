@@ -21,7 +21,7 @@ const DRAWER_STYLE: React.CSSProperties = {
   right: 0,
   bottom: 0,
   width: 480,
-  background: '#191C22',
+  background: 'var(--proto-ink)',
   zIndex: 61,
   display: 'flex',
   flexDirection: 'column',

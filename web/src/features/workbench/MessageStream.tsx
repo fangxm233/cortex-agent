@@ -25,17 +25,17 @@ const mono = "'IBM Plex Mono',monospace";
 function Divider({ text }: { text: string }): JSX.Element {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-      <div style={{ flex: 1, height: 1, background: '#EFF1F5' }} />
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.06em', color: '#B6BDC9' }}>{text}</div>
-      <div style={{ flex: 1, height: 1, background: '#EFF1F5' }} />
+      <div style={{ flex: 1, height: 1, background: 'var(--proto-line-2)' }} />
+      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.06em', color: 'var(--proto-faint)' }}>{text}</div>
+      <div style={{ flex: 1, height: 1, background: 'var(--proto-line-2)' }} />
     </div>
   );
 }
 
 function typeColor(type: AttachmentMeta['type']): { bg: string; fg: string } {
-  if (type === 'image') return { bg: '#EEF0FA', fg: '#4655D4' };
-  if (type === 'video') return { bg: '#FBF0ED', fg: '#C03D33' };
-  return { bg: '#F1F2F5', fg: '#5B6472' };
+  if (type === 'image') return { bg: 'var(--proto-accent-bg)', fg: 'var(--proto-accent)' };
+  if (type === 'video') return { bg: 'var(--proto-danger-bg)', fg: 'var(--proto-danger)' };
+  return { bg: 'var(--proto-gray)', fg: 'var(--proto-muted)' };
 }
 
 function formatSize(bytes: number): string {
@@ -66,8 +66,8 @@ function MediaThumb({ a, width, height }: { a: { name: string; path: string; typ
         width,
         height,
         borderRadius: 12,
-        border: '1px solid #E7E9EE',
-        background: url ? '#000' : 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
+        border: '1px solid var(--proto-line)',
+        background: url ? '#000' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
         boxSizing: 'border-box',
         flex: 'none',
         overflow: 'hidden',
@@ -91,7 +91,7 @@ function MediaThumb({ a, width, height }: { a: { name: string; path: string; typ
             height: 26,
             borderRadius: '50%',
             background: 'rgba(25,28,34,.82)',
-            color: '#fff',
+            color: 'var(--ink-solid-fg)',
             fontSize: 9,
             display: 'flex',
             alignItems: 'center',
@@ -110,7 +110,7 @@ function MediaThumb({ a, width, height }: { a: { name: string; path: string; typ
           bottom: 5,
           maxWidth: width - 12,
           font: `500 8.5px 'IBM Plex Mono',monospace`,
-          color: '#8A93A2',
+          color: 'var(--proto-muted-2)',
           background: 'rgba(255,255,255,.88)',
           padding: '1.5px 5px',
           borderRadius: 4,
@@ -141,7 +141,7 @@ function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
         display: 'flex',
         alignItems: 'center',
         gap: 9,
-        background: '#F1F2F5',
+        background: 'var(--proto-gray)',
         borderRadius: 10,
         padding: '8px 12px 8px 9px',
       }}
@@ -163,8 +163,8 @@ function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
         {ext}
       </span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <span style={{ font: `500 11px 'IBM Plex Mono',monospace`, color: '#191C22' }}>{a.name}</span>
-        <span style={{ font: `400 9px 'IBM Plex Mono',monospace`, color: '#98A1B0' }}>
+        <span style={{ font: `500 11px 'IBM Plex Mono',monospace`, color: 'var(--proto-ink)' }}>{a.name}</span>
+        <span style={{ font: `400 9px 'IBM Plex Mono',monospace`, color: 'var(--proto-muted-3)' }}>
           {formatSize(a.size)} · {a.path}
         </span>
       </span>
@@ -186,7 +186,7 @@ function ActionBtn({ title, onClick, children }: { title: string; onClick: () =>
       role="button"
       title={title}
       onClick={onClick}
-      style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid #E7E9EE', background: '#FBFBFC', color: '#5B6472', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer', flex: 'none' }}
+      style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid var(--proto-line)', background: 'var(--proto-rail)', color: 'var(--proto-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer', flex: 'none' }}
     >
       {children}
     </span>
@@ -199,7 +199,7 @@ function OpenBtn({ onClick, children }: { onClick: () => void; children: React.R
     <span
       role="button"
       onClick={onClick}
-      style={{ height: 26, borderRadius: 7, border: '1px solid #C9CFF2', background: '#FBFBFE', color: '#4655D4', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `500 9.5px ${mono}`, padding: '0 9px', cursor: 'pointer', flex: 'none' }}
+      style={{ height: 26, borderRadius: 7, border: '1px solid var(--proto-accent-border)', background: 'var(--proto-rail)', color: 'var(--proto-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `500 9.5px ${mono}`, padding: '0 9px', cursor: 'pointer', flex: 'none' }}
     >
       {children} ↗
     </span>
@@ -215,7 +215,7 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
     <div
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
-        border: '1px solid #E7E9EE', background: '#fff',
+        border: '1px solid var(--proto-line)', background: 'var(--proto-card)',
         borderRadius: 10, padding: '9px 10px',
         boxShadow: '0 1px 2px rgba(16,24,40,.03)',
         boxSizing: 'border-box', maxWidth: '100%',
@@ -223,8 +223,8 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
     >
       <span style={{ width: 28, height: 34, borderRadius: 5, background: colors.bg, color: colors.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 8px ${mono}`, flex: 'none' }}>{ext}</span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
-        <span style={{ font: `500 11.5px ${mono}`, color: '#191C22', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-        <span style={{ font: `400 9px ${mono}`, color: '#98A1B0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatSize(a.size)} · {dirOf(a.path)}</span>
+        <span style={{ font: `500 11.5px ${mono}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
+        <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-muted-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatSize(a.size)} · {dirOf(a.path)}</span>
       </span>
       {/* Actions are always visible (no hover toggle) so download / copy-path / open are one click away. */}
       <span style={{ display: 'flex', gap: 5, flex: 'none' }}>
@@ -252,9 +252,9 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
       onMouseLeave={() => setHover(false)}
       onClick={() => openMedia({ kind, name: a.name, path: a.path })}
       style={{
-        position: 'relative', maxWidth: 320, borderRadius: 12, border: '1px solid #E7E9EE',
+        position: 'relative', maxWidth: 320, borderRadius: 12, border: '1px solid var(--proto-line)',
         overflow: 'hidden', boxSizing: 'border-box', cursor: 'pointer',
-        background: url ? '#000' : 'repeating-linear-gradient(45deg,#EDEFF3,#EDEFF3 5px,#E5E8EE 5px,#E5E8EE 10px)',
+        background: url ? '#000' : 'repeating-linear-gradient(45deg,var(--proto-line),var(--proto-line) 5px,var(--proto-line) 5px,var(--proto-line) 10px)',
       }}
     >
       {url && kind === 'image' && (
@@ -266,18 +266,18 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
       {!url && <div style={{ width: 320, height: 180 }} />}
       {kind === 'video' && (
         <span
-          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 40, height: 40, borderRadius: '50%', background: 'rgba(25,28,34,.72)', color: '#fff', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 3, boxSizing: 'border-box' }}
+          style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 40, height: 40, borderRadius: '50%', background: 'rgba(25,28,34,.72)', color: 'var(--ink-solid-fg)', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: 3, boxSizing: 'border-box' }}
         >
           ▶
         </span>
       )}
-      <span style={{ position: 'absolute', left: 8, bottom: 7, font: `500 8.5px ${mono}`, color: '#8A93A2', background: 'rgba(255,255,255,.88)', padding: '1.5px 5px', borderRadius: 4 }}>{a.name}</span>
+      <span style={{ position: 'absolute', left: 8, bottom: 7, font: `500 8.5px ${mono}`, color: 'var(--proto-muted-2)', background: 'rgba(255,255,255,.88)', padding: '1.5px 5px', borderRadius: 4 }}>{a.name}</span>
       {hover && (
         <span
           role="button"
           title={L.wbFileDownload}
           onClick={(e) => { e.stopPropagation(); void downloadFile(a.path, a.name); }}
-          style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 7, background: 'rgba(25,28,34,.78)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}
+          style={{ position: 'absolute', top: 7, right: 7, width: 24, height: 24, borderRadius: 7, background: 'rgba(25,28,34,.78)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, cursor: 'pointer' }}
         >
           ↓
         </span>
@@ -301,9 +301,9 @@ function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Ele
       )}
       {files.map((a, i) => <AgentFileCard key={`file-${i}`} a={a} />)}
       {attachments.length >= 3 && (
-        <div style={{ font: `400 9.5px ${mono}`, color: '#B6BDC9', padding: '2px 2px 0' }}>
+        <div style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)', padding: '2px 2px 0' }}>
           {attachments.length} {L.wbFileFiles} ·{' '}
-          <span style={{ color: '#8A93A2', cursor: 'pointer' }} onClick={() => attachments.forEach((a) => void downloadFile(a.path, a.name))}>
+          <span style={{ color: 'var(--proto-muted-2)', cursor: 'pointer' }} onClick={() => attachments.forEach((a) => void downloadFile(a.path, a.name))}>
             {L.wbFileDownloadAll} ↓
           </span>
         </div>
@@ -338,12 +338,12 @@ function UserBubble({ text, attachments }: { text: string; attachments?: Attachm
       {text && (
         <div
           style={{
-            background: '#F1F2F5',
+            background: 'var(--proto-gray)',
             borderRadius: '14px 14px 4px 14px',
             padding: '9px 14px',
             fontSize: 13.5,
             lineHeight: 1.55,
-            color: '#191C22',
+            color: 'var(--proto-ink)',
             whiteSpace: 'pre-wrap',
             overflowWrap: 'break-word',
             wordBreak: 'break-word',
@@ -359,7 +359,7 @@ function UserBubble({ text, attachments }: { text: string; attachments?: Attachm
 function AssistantBlock({ text, streaming: _streaming, attachments }: { text: string; streaming: boolean; attachments?: Attachment[] }): JSX.Element {
   const hasAttachments = !!attachments && attachments.length > 0;
   return (
-    <div style={{ animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: '#22262E', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+    <div style={{ animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
       {text.trim() && <ChatMarkdown text={text} />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
     </div>
@@ -371,12 +371,12 @@ function EmptyChat(): JSX.Element {
   const L = useVocab();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13, padding: '88px 20px 40px', textAlign: 'center' }}>
-      <div style={{ width: 40, height: 40, borderRadius: 12, background: '#191C22', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `600 15px ${mono}` }}>cx</div>
-      <div style={{ fontSize: 15, fontWeight: 650, color: '#191C22' }}>{L.wbEmptyTitle}</div>
-      <div style={{ fontSize: 12, color: '#8A93A2', lineHeight: 1.7, maxWidth: 420 }}>
+      <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--proto-ink)', color: 'var(--ink-solid-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', font: `600 15px ${mono}` }}>cx</div>
+      <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.wbEmptyTitle}</div>
+      <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', lineHeight: 1.7, maxWidth: 420 }}>
         {L.wbEmptyBody}
       </div>
-      <div style={{ fontSize: 10.5, color: '#B6BDC9', lineHeight: 1.7, maxWidth: 430 }}>
+      <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', lineHeight: 1.7, maxWidth: 430 }}>
         {L.wbEmptyHint}
       </div>
     </div>
@@ -385,12 +385,12 @@ function EmptyChat(): JSX.Element {
 
 /** One-line summary row for resolved / expired / cancelled interactions (and legacy rows). */
 function InteractionSummaryRow({ tone, label, text }: { tone: 'done' | 'rejected' | 'inactive'; label: string; text: string }): JSX.Element {
-  const color = tone === 'rejected' ? '#C03D33' : tone === 'inactive' ? '#98A1B0' : '#34A853';
+  const color = tone === 'rejected' ? 'var(--proto-danger)' : tone === 'inactive' ? 'var(--proto-muted-3)' : 'var(--proto-success)';
   const icon = tone === 'rejected' ? '✗' : tone === 'inactive' ? '◌' : '✓';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#F8F9FB', border: '1px solid #EFF1F5', borderRadius: 10, opacity: tone === 'inactive' ? 0.6 : 0.85 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 10, opacity: tone === 'inactive' ? 0.6 : 0.85 }}>
       <span style={{ fontSize: 10, fontWeight: 700, color, flexShrink: 0 }}>{icon} {label}</span>
-      <span style={{ fontSize: 12, color: '#454C59', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
+      <span style={{ fontSize: 12, color: 'var(--proto-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
     </div>
   );
 }

@@ -112,7 +112,7 @@ describe('DeskPlanCard — 13c', () => {
     const html = renderToStaticMarkup(
       <DeskPlanCard model={planCardModel(planDetail('pending'))} copy={copy} feedbackOpen busy={false} {...handlers} />,
     );
-    expect(html).toContain('#C99A2E'); // amber input ring
+    expect(html).toContain('var(--proto-amber)'); // amber input ring
     expect(html).toContain('反馈必填 · 确认后退回重新规划');
     expect(html).toContain('取消');
     expect(html).toContain('确认退回');

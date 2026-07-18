@@ -49,7 +49,7 @@ export function MobileApprovalsView(props: MobileApprovalsViewProps) {
         flexDirection: 'column',
         paddingTop: 'env(safe-area-inset-top)',
         boxSizing: 'border-box',
-        background: '#F2F2F7',
+        background: 'var(--proto-alt)',
       }}
     >
       {/* header (scheme L3205-3210) */}
@@ -60,31 +60,31 @@ export function MobileApprovalsView(props: MobileApprovalsViewProps) {
           alignItems: 'center',
           gap: 9,
           padding: '8px 14px 10px',
-          borderBottom: '1px solid #E7E9EE',
-          background: '#F2F2F7',
+          borderBottom: '1px solid var(--proto-line)',
+          background: 'var(--proto-alt)',
         }}
       >
         <span
           onClick={props.onBack}
-          style={{ fontSize: 15, color: '#4655D4', flex: 'none', cursor: 'pointer' }}
+          style={{ fontSize: 15, color: 'var(--proto-accent)', flex: 'none', cursor: 'pointer' }}
         >
           ‹
         </span>
-        <div style={{ fontSize: 16, fontWeight: 650, color: '#191C22', letterSpacing: '-.01em' }}>
+        <div style={{ fontSize: 16, fontWeight: 650, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>
           {vocab.approvals}
         </div>
         <span
           style={{
             font: `600 10px ${mono}`,
-            color: '#8A5B06',
-            background: '#F7ECCE',
+            color: 'var(--proto-amber-fg)',
+            background: 'var(--pill-waiting-bg)',
             padding: '2px 8px',
             borderRadius: 999,
           }}
         >
           {vm.pendingCount} {vocab.toProcess}
         </span>
-        <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: '#B6BDC9' }}>
+        <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>
           PENDING_APPROVALS.md
         </span>
       </div>
@@ -98,7 +98,7 @@ export function MobileApprovalsView(props: MobileApprovalsViewProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: 10,
-          background: '#F2F2F7',
+          background: 'var(--proto-alt)',
         }}
       >
         {vm.firstCard ? <FirstCard {...props} /> : <AllClearCard vocab={vocab} />}
@@ -111,13 +111,13 @@ export function MobileApprovalsView(props: MobileApprovalsViewProps) {
           <>
             {/* 本周已处理 divider (scheme L3237) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2px 2px' }}>
-              <div style={{ flex: 1, height: 1, background: '#E3E5EA' }} />
+              <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
               <div
-                style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: '#B6BDC9' }}
+                style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: 'var(--proto-faint)' }}
               >
                 {vocab.weekProcessed}
               </div>
-              <div style={{ flex: 1, height: 1, background: '#E3E5EA' }} />
+              <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
             </div>
             {vm.processedRows.map((row, i) => (
               <ProcessedRow key={row.id} row={row} first={i === 0} />
@@ -136,14 +136,14 @@ export function MobileApprovalsView(props: MobileApprovalsViewProps) {
             padding: '10px 0 12px',
           }}
         >
-          <span style={{ fontSize: 10.5, color: '#B6BDC9' }}>{vocab.slackSynced}</span>
+          <span style={{ fontSize: 10.5, color: 'var(--proto-faint)' }}>{vocab.slackSynced}</span>
           <FootChip>/approval</FootChip>
           <FootChip>approve 1</FootChip>
         </div>
       </div>
 
       {/* home-indicator gutter (scheme L3244) — non-Tab page owns its own bottom OS inset */}
-      <div style={{ flex: 'none', height: 'calc(8px + env(safe-area-inset-bottom))', background: '#F2F2F7' }} />
+      <div style={{ flex: 'none', height: 'calc(8px + env(safe-area-inset-bottom))', background: 'var(--proto-alt)' }} />
     </div>
   );
 }
@@ -156,8 +156,8 @@ function FirstCard(props: MobileApprovalsViewProps) {
   return (
     <div
       style={{
-        border: '1px solid #EFDDB0',
-        background: '#fff',
+        border: '1px solid var(--proto-amber-border)',
+        background: 'var(--proto-card)',
         borderRadius: 14,
         overflow: 'hidden',
         boxShadow: '0 1px 3px rgba(16,24,40,.05)',
@@ -184,7 +184,7 @@ function FirstCard(props: MobileApprovalsViewProps) {
           <span
             style={{
               font: `400 10px ${mono}`,
-              color: '#C0A96E',
+              color: 'var(--proto-amber-accent)',
               flex: 1,
               minWidth: 0,
               whiteSpace: 'nowrap',
@@ -195,18 +195,18 @@ function FirstCard(props: MobileApprovalsViewProps) {
             {card.id}
           </span>
           {card.age && (
-            <span style={{ font: `400 10px ${mono}`, color: '#B6BDC9', flex: 'none' }}>
+            <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', flex: 'none' }}>
               {card.age}
             </span>
           )}
         </div>
         <div
-          style={{ fontSize: 14.5, fontWeight: 600, color: '#191C22', lineHeight: 1.4, marginTop: 8 }}
+          style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--proto-ink)', lineHeight: 1.4, marginTop: 8 }}
         >
           {card.title}
         </div>
         {card.reason && (
-          <div style={{ fontSize: 12, lineHeight: 1.55, color: '#5B6472', marginTop: 4 }}>
+          <div style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--proto-muted)', marginTop: 4 }}>
             {card.reason}
           </div>
         )}
@@ -219,15 +219,15 @@ function FirstCard(props: MobileApprovalsViewProps) {
               gap: 6,
               marginTop: 8,
               padding: '7px 10px',
-              background: '#FDF9F0',
-              border: '1px solid #F7ECCE',
+              background: 'var(--proto-amber-bg)',
+              border: '1px solid var(--pill-waiting-bg)',
               borderRadius: 9,
             }}
           >
             <span
-              style={{ width: 5, height: 5, borderRadius: '50%', background: '#C99A2E', flex: 'none' }}
+              style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }}
             />
-            <span style={{ fontSize: 10.5, color: '#6B5A1E' }}>{card.judgement}</span>
+            <span style={{ fontSize: 10.5, color: 'var(--proto-amber-fg)' }}>{card.judgement}</span>
           </div>
         )}
         {/* 来源线程 row OMITTED — no thread / from / ttl field (851f gap) */}
@@ -244,8 +244,8 @@ function FirstCard(props: MobileApprovalsViewProps) {
               flex: 1,
               height: 44,
               borderRadius: 11,
-              background: '#191C22',
-              color: '#fff',
+              background: 'var(--proto-ink)',
+              color: 'var(--ink-solid-fg)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -267,9 +267,9 @@ function FirstCard(props: MobileApprovalsViewProps) {
               flex: 1,
               height: 44,
               borderRadius: 11,
-              border: '1.5px solid #D9DCE3',
-              background: '#fff',
-              color: '#191C22',
+              border: '1.5px solid var(--proto-line-3)',
+              background: 'var(--proto-card)',
+              color: 'var(--proto-ink)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -294,12 +294,12 @@ function FirstCard(props: MobileApprovalsViewProps) {
             style={{
               width: '100%',
               boxSizing: 'border-box',
-              border: '1px solid #EED3D0',
-              background: '#fff',
+              border: '1px solid var(--proto-danger-bg)',
+              background: 'var(--proto-card)',
               borderRadius: 11,
               padding: '11px 12px',
               fontSize: 13,
-              color: '#191C22',
+              color: 'var(--proto-ink)',
               fontFamily: 'inherit',
             }}
           />
@@ -312,9 +312,9 @@ function FirstCard(props: MobileApprovalsViewProps) {
                 flex: 1,
                 height: 44,
                 borderRadius: 11,
-                border: '1.5px solid #D9DCE3',
-                background: '#fff',
-                color: '#191C22',
+                border: '1.5px solid var(--proto-line-3)',
+                background: 'var(--proto-card)',
+                color: 'var(--proto-ink)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -336,8 +336,8 @@ function FirstCard(props: MobileApprovalsViewProps) {
                 flex: 1,
                 height: 44,
                 borderRadius: 11,
-                background: '#C03D33',
-                color: '#fff',
+                background: 'var(--proto-danger)',
+                color: 'var(--ink-solid-fg)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -364,21 +364,21 @@ function QueueRow({ row }: { row: MobileApprovalsVm['queueRows'][number] }) {
   return (
     <div
       style={{
-        border: '1px solid #E7E9EE',
-        background: '#fff',
+        border: '1px solid var(--proto-line)',
+        background: 'var(--proto-card)',
         borderRadius: 14,
         padding: '11px 14px',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         <span
-          style={{ width: 6, height: 6, borderRadius: '50%', background: '#C99A2E', flex: 'none' }}
+          style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }}
         />
         <span
           style={{
             fontSize: 13,
             fontWeight: 600,
-            color: '#22262E',
+            color: 'var(--proto-ink-2)',
             flex: 1,
             minWidth: 0,
             whiteSpace: 'nowrap',
@@ -389,7 +389,7 @@ function QueueRow({ row }: { row: MobileApprovalsVm['queueRows'][number] }) {
           {row.title}
         </span>
         {row.age && (
-          <span style={{ font: `400 10px ${mono}`, color: '#B6BDC9', flex: 'none' }}>{row.age}</span>
+          <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', flex: 'none' }}>{row.age}</span>
         )}
       </div>
       {row.tier && (
@@ -430,7 +430,7 @@ function ProcessedRow({
         style={{
           fontSize: 11,
           fontWeight: 700,
-          color: row.approved ? '#23854F' : '#C03D33',
+          color: row.approved ? 'var(--proto-success)' : 'var(--proto-danger)',
           flex: 'none',
         }}
       >
@@ -439,7 +439,7 @@ function ProcessedRow({
       <span
         style={{
           fontSize: 12,
-          color: '#5B6472',
+          color: 'var(--proto-muted)',
           flex: 1,
           minWidth: 0,
           whiteSpace: 'nowrap',
@@ -450,7 +450,7 @@ function ProcessedRow({
         {row.title}
       </span>
       {row.date && (
-        <span style={{ font: `400 9.5px ${mono}`, color: '#B6BDC9', flex: 'none' }}>{row.date}</span>
+        <span style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-faint)', flex: 'none' }}>{row.date}</span>
       )}
     </div>
   );
@@ -461,9 +461,9 @@ function FootChip({ children }: { children: React.ReactNode }) {
     <span
       style={{
         font: `500 10px ${mono}`,
-        color: '#8A93A2',
-        background: '#fff',
-        border: '1px solid #E7E9EE',
+        color: 'var(--proto-muted-2)',
+        background: 'var(--proto-card)',
+        border: '1px solid var(--proto-line)',
         padding: '2px 8px',
         borderRadius: 6,
       }}
@@ -478,8 +478,8 @@ function AllClearCard({ vocab }: { vocab: Vocab }) {
   return (
     <div
       style={{
-        border: '1px solid #E7E9EE',
-        background: '#fff',
+        border: '1px solid var(--proto-line)',
+        background: 'var(--proto-card)',
         borderRadius: 14,
         padding: '22px 14px',
         display: 'flex',
@@ -494,8 +494,8 @@ function AllClearCard({ vocab }: { vocab: Vocab }) {
           width: 34,
           height: 34,
           borderRadius: '50%',
-          background: '#E9F4EE',
-          color: '#23854F',
+          background: 'var(--proto-success-bg)',
+          color: 'var(--proto-success)',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -505,8 +505,8 @@ function AllClearCard({ vocab }: { vocab: Vocab }) {
       >
         ✓
       </span>
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#191C22' }}>{vocab.aprEmptyTitle}</div>
-      <div style={{ fontSize: 11, color: '#8A93A2' }}>{vocab.aprEmptyDesc}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{vocab.aprEmptyTitle}</div>
+      <div style={{ fontSize: 11, color: 'var(--proto-muted-2)' }}>{vocab.aprEmptyDesc}</div>
     </div>
   );
 }

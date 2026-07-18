@@ -69,12 +69,12 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
         style={{
           height: 50,
           flex: 'none',
-          borderBottom: '1px solid #E7E9EE',
+          borderBottom: '1px solid var(--proto-line)',
           display: 'flex',
           alignItems: 'center',
           gap: 9,
           padding: '0 20px',
-          background: '#fff',
+          background: 'var(--proto-card)',
         }}
       >
         <span
@@ -82,7 +82,7 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
           onClick={() => navigate('/workbench')}
           style={{
             fontSize: 14,
-            color: hover === 'back' ? '#191C22' : '#5B6472',
+            color: hover === 'back' ? 'var(--proto-ink)' : 'var(--proto-muted)',
             cursor: 'pointer',
             padding: '4px 8px 4px 0',
           }}
@@ -95,17 +95,17 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
               onClick={() => goCrumb(i)}
               style={{
                 font: "500 12px 'IBM Plex Mono',monospace",
-                color: cr.accent ? '#4655D4' : '#8A93A2',
+                color: cr.accent ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
                 cursor: 'pointer',
               }}
             >
               {cr.name}
             </span>
-            <span style={{ color: '#D9DCE3' }}>/</span>
+            <span style={{ color: 'var(--proto-line-3)' }}>/</span>
           </span>
         ))}
-        <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: '#191C22' }}>{vm.name}</span>
-        <span style={{ font: "400 10.5px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>{vm.tid}</span>
+        <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{vm.name}</span>
+        <span style={{ font: "400 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>{vm.tid}</span>
         <span
           style={{
             fontSize: 10.5,
@@ -127,11 +127,11 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
               style={{
                 fontSize: 11.5,
                 fontWeight: 600,
-                border: '1px solid #D9DCE3',
+                border: '1px solid var(--proto-line-3)',
                 borderRadius: 7,
                 padding: '4px 12px',
-                color: '#191C22',
-                background: '#fff',
+                color: 'var(--proto-ink)',
+                background: 'var(--proto-card)',
                 cursor: 'not-allowed',
                 opacity: 0.6,
               }}
@@ -145,11 +145,11 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
               style={{
                 fontSize: 11.5,
                 fontWeight: 600,
-                border: '1px solid #EED3D0',
+                border: '1px solid var(--proto-danger-bg)',
                 borderRadius: 7,
                 padding: '4px 12px',
-                color: '#C03D33',
-                background: hover === 'cancel' ? '#FBEDEB' : '#fff',
+                color: 'var(--proto-danger)',
+                background: hover === 'cancel' ? 'var(--proto-danger-bg)' : 'var(--proto-card)',
                 cursor: 'pointer',
               }}
             >
@@ -163,8 +163,8 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
       <div
         style={{
           flex: 'none',
-          background: '#fff',
-          borderBottom: '1px solid #E7E9EE',
+          background: 'var(--proto-card)',
+          borderBottom: '1px solid var(--proto-line)',
           display: 'flex',
           alignItems: 'center',
           gap: 32,
@@ -177,16 +177,16 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
         <MetaField label={L.thCostInclChildren} value={vm.cost} />
         <MetaField label={L.thTask} value={vm.task} accent={vm.task !== '—'} />
         <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-          <span style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: '#98A1B0', marginRight: 3 }}>
+          <span style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', marginRight: 3 }}>
             {L.depth}
           </span>
           {vm.depthDots.map((d, i) => (
             <span
               key={i}
-              style={{ width: 6, height: 6, borderRadius: '50%', background: d.filled ? '#4655D4' : '#E7E9EE' }}
+              style={{ width: 6, height: 6, borderRadius: '50%', background: d.filled ? 'var(--proto-accent)' : 'var(--proto-line)' }}
             />
           ))}
-          <span style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: '#5B6472', marginLeft: 3 }}>
+          <span style={{ font: "500 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginLeft: 3 }}>
             {vm.depthText}
           </span>
         </div>
@@ -200,7 +200,7 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
           gap: 16,
           padding: '16px 20px',
           minHeight: 0,
-          background: '#F7F8FA',
+          background: 'var(--proto-alt)',
           overflow: 'auto',
         }}
       >
@@ -214,8 +214,8 @@ export function ThreadDetailView({ detail, trail, now }: ThreadDetailViewProps):
 function MetaField({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div>
-      <div style={{ fontSize: 9.5, color: '#98A1B0', marginBottom: 2 }}>{label}</div>
-      <div style={{ font: "600 12px 'IBM Plex Mono',monospace", color: accent ? '#4655D4' : '#191C22' }}>
+      <div style={{ fontSize: 9.5, color: 'var(--proto-muted-3)', marginBottom: 2 }}>{label}</div>
+      <div style={{ font: "600 12px 'IBM Plex Mono',monospace", color: accent ? 'var(--proto-accent)' : 'var(--proto-ink)' }}>
         {value}
       </div>
     </div>

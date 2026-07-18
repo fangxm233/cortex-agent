@@ -20,7 +20,7 @@ import { AppearancePanel } from './AppearancePanel';
 
 // Settings modal (design 12a–g, prototype.dc.html L721–1088; proto-shot 14-settings.png). Rebuilt
 // 1:1 on Radix Dialog (focus trap / Esc-close / focus-restore + backdrop scrim). Header + 210px left
-// nav + #F7F8FA content area; 9 panels switch client-side. Real config.get data feeds every panel;
+// nav + var(--proto-alt) content area; 9 panels switch client-side. Real config.get data feeds every panel;
 // the Budget panel drives a real config.set write. Raw inline styles/px/hex/font per §8.3.
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -41,7 +41,7 @@ const MODAL_STYLE: CSSProperties = {
   maxWidth: '94vw',
   height: 680,
   maxHeight: '90vh',
-  background: '#fff',
+  background: 'var(--proto-card)',
   borderRadius: 14,
   boxShadow: '0 24px 64px rgba(16,24,40,.3)',
   zIndex: 61,
@@ -139,24 +139,24 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
         style={{
           height: 48,
           flex: 'none',
-          borderBottom: '1px solid #E7E9EE',
+          borderBottom: '1px solid var(--proto-line)',
           display: 'flex',
           alignItems: 'center',
           gap: 9,
           padding: '0 18px',
-          background: '#fff',
+          background: 'var(--proto-card)',
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: 650, color: '#191C22' }}>{L.settings}</span>
-        <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0', marginLeft: 4 }}>{L.stConfigRoot}</span>
+        <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.settings}</span>
+        <span style={{ font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)', marginLeft: 4 }}>{L.stConfigRoot}</span>
         <span
           onClick={onClose}
           role="button"
           style={{
             marginLeft: 'auto',
             font: `500 9.5px ${MONO}`,
-            color: '#98A1B0',
-            border: '1px solid #E7E9EE',
+            color: 'var(--proto-muted-3)',
+            border: '1px solid var(--proto-line)',
             borderRadius: 5,
             padding: '2px 6px',
             cursor: 'pointer',
@@ -171,8 +171,8 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
           style={{
             width: 210,
             flex: 'none',
-            borderRight: '1px solid #E7E9EE',
-            background: '#FBFBFC',
+            borderRight: '1px solid var(--proto-line)',
+            background: 'var(--proto-rail)',
             padding: '10px 8px',
             overflow: 'auto',
           }}
@@ -190,7 +190,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                   alignItems: 'center',
                   gap: 8,
                   padding: '7px 10px',
-                  background: active ? '#EEF0FA' : 'transparent',
+                  background: active ? 'var(--proto-accent-bg)' : 'transparent',
                   borderRadius: 8,
                   cursor: 'pointer',
                 }}
@@ -199,7 +199,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                   style={{
                     fontSize: 12,
                     fontWeight: 600,
-                    color: active ? '#4655D4' : '#22262E',
+                    color: active ? 'var(--proto-accent)' : 'var(--proto-ink-2)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -211,7 +211,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                   style={{
                     marginLeft: 'auto',
                     font: `400 9px ${MONO}`,
-                    color: active ? '#4655D4' : '#B6BDC9',
+                    color: active ? 'var(--proto-accent)' : 'var(--proto-faint)',
                     flex: 'none',
                   }}
                 >
@@ -227,18 +227,18 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             minWidth: 0,
             overflow: 'auto',
             padding: '16px 22px',
-            background: '#F7F8FA',
+            background: 'var(--proto-alt)',
           }}
         >
-          <div style={{ fontSize: 15, fontWeight: 650, color: '#191C22' }}>{meta.title}</div>
-          <div style={{ fontSize: 11, color: '#8A93A2', marginTop: 2 }}>{meta.sub}</div>
+          <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{meta.title}</div>
+          <div style={{ fontSize: 11, color: 'var(--proto-muted-2)', marginTop: 2 }}>{meta.sub}</div>
           {section === 'appearance' ? (
             // Device-local theme — no config.get dependency, so it renders even if config fails to load.
             <AppearancePanel />
           ) : configQuery.isLoading ? (
-            <div style={{ marginTop: 16, fontSize: 12, color: '#98A1B0' }}>{L.stLoadingConfig}</div>
+            <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.stLoadingConfig}</div>
           ) : configQuery.isError ? (
-            <div style={{ marginTop: 16, fontSize: 12, color: '#C03D33' }}>
+            <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-danger)' }}>
               {L.stFailedLoadConfig} {configQuery.error.message}
             </div>
           ) : snapshot ? (

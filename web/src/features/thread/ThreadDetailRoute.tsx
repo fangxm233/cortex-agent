@@ -45,22 +45,22 @@ export function ThreadDetailRoute(): JSX.Element {
         height: '100vh',
         minWidth: 1280,
         overflow: 'hidden',
-        background: '#F7F8FA',
+        background: 'var(--proto-alt)',
       }}
     >
       <LeftRail />
       {threadQuery.isPending ? (
-        <div style={{ flex: 1, padding: 20, fontSize: 13, color: '#98A1B0' }}>{L.rpLoadingThread}</div>
+        <div style={{ flex: 1, padding: 20, fontSize: 13, color: 'var(--proto-muted-3)' }}>{L.rpLoadingThread}</div>
       ) : threadQuery.isError ? (
         <div style={{ flex: 1, padding: 20 }}>
           <div
             style={{
-              background: '#FBEDEB',
-              border: '1px solid #EED3D0',
+              background: 'var(--proto-danger-bg)',
+              border: '1px solid var(--proto-danger-bg)',
               borderRadius: 10,
               padding: '10px 14px',
               fontSize: 12.5,
-              color: '#C03D33',
+              color: 'var(--proto-danger)',
             }}
           >
             {L.thFailedLoadThread} {threadId}: {threadQuery.error.message}

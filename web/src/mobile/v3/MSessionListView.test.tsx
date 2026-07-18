@@ -60,7 +60,7 @@ describe('MSessionListView', () => {
     const html = render([sess({ running: true, numTurns: 12 })]);
     expect(html).toContain('running · 12 turns');
     expect(html).not.toContain('$');
-    expect(html).toContain('#4655D4'); // running dot
+    expect(html).toContain('var(--m-run)'); // running dot
   });
 
   it('renders an idle row as 空闲', () => {
@@ -81,11 +81,11 @@ describe('MSessionListView', () => {
   it('marks an unread row with the accent dot + full ink, and softens read rows', () => {
     const unread = render([sess({ unread: true })]);
     expect(unread).toContain('aria-label="unread"');
-    expect(unread).toContain('#191C22'); // full ink title
-    expect(unread).not.toContain('#454C59'); // not softened
+    expect(unread).toContain('var(--m-ink)'); // full ink title
+    expect(unread).not.toContain('var(--proto-muted)'); // not softened
 
     const read = render([sess({ unread: false })]);
     expect(read).not.toContain('aria-label="unread"');
-    expect(read).toContain('#454C59'); // softened read title
+    expect(read).toContain('var(--proto-muted)'); // softened read title
   });
 });

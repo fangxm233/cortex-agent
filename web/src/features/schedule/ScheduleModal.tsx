@@ -23,18 +23,18 @@ const LABEL: CSSProperties = {
   fontSize: 9.5,
   fontWeight: 700,
   letterSpacing: '.05em',
-  color: '#98A1B0',
+  color: 'var(--proto-muted-3)',
 };
 
 const CELL_BOX: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  border: '1px solid #E7E9EE',
+  border: '1px solid var(--proto-line)',
   borderRadius: 8,
   padding: '7px 10px',
 };
 
-const CARET: CSSProperties = { marginLeft: 'auto', color: '#98A1B0', fontSize: 8 };
+const CARET: CSSProperties = { marginLeft: 'auto', color: 'var(--proto-muted-3)', fontSize: 8 };
 
 // A native <select> styled to disappear into the prototype's value chrome (+ a ▾ glyph).
 function bareSelectStyle(font: string): CSSProperties {
@@ -49,7 +49,7 @@ function bareSelectStyle(font: string): CSSProperties {
     MozAppearance: 'none',
     cursor: 'pointer',
     font,
-    color: '#191C22',
+    color: 'var(--proto-ink)',
   };
 }
 
@@ -119,7 +119,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
           transform: 'translate(-50%,-50%)',
           animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
           width: 560,
-          background: '#fff',
+          background: 'var(--proto-card)',
           borderRadius: 14,
           boxShadow: '0 24px 64px rgba(16,24,40,.3)',
           zIndex: 61,
@@ -128,14 +128,14 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
       >
         {/* header (prototype L1434) */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#191C22' }}>{L.scNewSchedule}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.scNewSchedule}</span>
           <span
             onClick={onCancel}
             style={{
               marginLeft: 'auto',
               font: "500 9.5px 'IBM Plex Mono',monospace",
-              color: '#98A1B0',
-              border: '1px solid #E7E9EE',
+              color: 'var(--proto-muted-3)',
+              border: '1px solid var(--proto-line)',
               borderRadius: 5,
               padding: '2px 6px',
               cursor: 'pointer',
@@ -149,7 +149,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
         <div style={{ padding: '0 20px' }}>
           {/* TYPE (prototype L1436-1442) */}
           <div style={{ ...LABEL, margin: '13px 0 5px' }}>{L.scType}</div>
-          <div style={{ display: 'flex', border: '1px solid #E7E9EE', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', border: '1px solid var(--proto-line)', borderRadius: 8, overflow: 'hidden' }}>
             {SCHED_TYPES.map((t: SchedType, i) => {
               const selected = form.type === t;
               return (
@@ -164,9 +164,9 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
                     padding: '6px 0',
                     fontSize: 11.5,
                     fontWeight: 600,
-                    color: selected ? '#4655D4' : '#8A93A2',
-                    background: selected ? '#EEF0FA' : undefined,
-                    borderRight: i < SCHED_TYPES.length - 1 ? '1px solid #E7E9EE' : undefined,
+                    color: selected ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
+                    background: selected ? 'var(--proto-accent-bg)' : undefined,
+                    borderRight: i < SCHED_TYPES.length - 1 ? '1px solid var(--proto-line)' : undefined,
                     cursor: 'pointer',
                   }}
                 >
@@ -195,10 +195,10 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
                         outline: 'none',
                         background: 'transparent',
                         font: "600 12px 'IBM Plex Mono',monospace",
-                        color: '#191C22',
+                        color: 'var(--proto-ink)',
                       }}
                     />
-                    <span style={{ marginLeft: 'auto', font: "400 9px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>24h</span>
+                    <span style={{ marginLeft: 'auto', font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>24h</span>
                   </div>
                 </>
               )}
@@ -217,7 +217,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
                         outline: 'none',
                         background: 'transparent',
                         font: "600 12px 'IBM Plex Mono',monospace",
-                        color: '#191C22',
+                        color: 'var(--proto-ink)',
                       }}
                     />
                     <select
@@ -248,7 +248,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
                         outline: 'none',
                         background: 'transparent',
                         font: "600 12px 'IBM Plex Mono',monospace",
-                        color: '#191C22',
+                        color: 'var(--proto-ink)',
                       }}
                     />
                     <select
@@ -305,7 +305,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
 
           {/* MESSAGE (prototype L1447-1448) */}
           <div style={{ ...LABEL, margin: '12px 0 5px' }}>{L.scMessage}</div>
-          <div style={{ border: '1px solid #E7E9EE', borderRadius: 8, padding: '8px 11px', minHeight: 38 }}>
+          <div style={{ border: '1px solid var(--proto-line)', borderRadius: 8, padding: '8px 11px', minHeight: 38 }}>
             <textarea
               value={form.message}
               onChange={(e) => onChange({ message: e.target.value })}
@@ -319,7 +319,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
                 background: 'transparent',
                 fontSize: 11.5,
                 lineHeight: 1.55,
-                color: '#22262E',
+                color: 'var(--proto-ink-2)',
                 fontFamily: 'inherit',
               }}
             />
@@ -362,8 +362,8 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
 
         {/* footer (prototype L1454-1458) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px 16px' }}>
-          <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: '#5B6472' }}>
-            {L.scNextRun} <b style={{ color: '#4655D4' }}>{clock}</b> · {L.scFooterIn} {delta}
+          <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)' }}>
+            {L.scNextRun} <b style={{ color: 'var(--proto-accent)' }}>{clock}</b> · {L.scFooterIn} {delta}
           </span>
           <span
             onClick={onCancel}
@@ -371,10 +371,10 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
               marginLeft: 'auto',
               fontSize: 11.5,
               fontWeight: 600,
-              border: '1px solid #D9DCE3',
+              border: '1px solid var(--proto-line-3)',
               borderRadius: 8,
               padding: '6px 13px',
-              color: '#191C22',
+              color: 'var(--proto-ink)',
               cursor: 'pointer',
             }}
           >
@@ -388,8 +388,8 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
               fontWeight: 600,
               borderRadius: 8,
               padding: '7px 15px',
-              color: '#fff',
-              background: '#4655D4',
+              color: 'var(--ink-solid-fg)',
+              background: 'var(--proto-accent)',
               cursor: canCreate ? 'pointer' : 'not-allowed',
               opacity: canCreate ? 1 : 0.55,
             }}

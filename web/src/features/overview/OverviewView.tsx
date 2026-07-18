@@ -38,8 +38,8 @@ import {
 //   - Adjust-budget + ⋯ are inert (no budget-mutate scope).
 
 const CARD: CSSProperties = {
-  background: '#fff',
-  border: '1px solid #E7E9EE',
+  background: 'var(--proto-card)',
+  border: '1px solid var(--proto-line)',
   borderRadius: 10,
   boxShadow: '0 1px 2px rgba(16,24,40,.03)',
   // minWidth:0 lets the 1fr grid track shrink below its content's min-content size, so long real
@@ -54,12 +54,12 @@ function CardHeader({ title, right }: { title: string; right?: ReactNode }) {
         display: 'flex',
         alignItems: 'center',
         padding: '10px 14px',
-        borderBottom: '1px solid #EFF1F5',
+        borderBottom: '1px solid var(--proto-line-2)',
       }}
     >
-      <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>{title}</span>
+      <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{title}</span>
       {right != null && (
-        <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+        <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
           {right}
         </span>
       )}
@@ -120,47 +120,47 @@ export function OverviewView(): JSX.Element {
   );
 
   return (
-    <div data-pane="center" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, background: '#fff' }}>
+    <div data-pane="center" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, background: 'var(--proto-card)' }}>
       {/* header bar (prototype L526–556) */}
       <div
         style={{
           height: 50,
           flex: 'none',
-          borderBottom: '1px solid #E7E9EE',
+          borderBottom: '1px solid var(--proto-line)',
           display: 'flex',
           alignItems: 'center',
           gap: 9,
           padding: '0 20px',
-          background: '#fff',
+          background: 'var(--proto-card)',
         }}
       >
         <span
           onClick={() => navigate('/workbench')}
-          style={{ fontSize: 14, color: '#5B6472', cursor: 'pointer', padding: '4px 8px 4px 0' }}
+          style={{ fontSize: 14, color: 'var(--proto-muted)', cursor: 'pointer', padding: '4px 8px 4px 0' }}
         >
           ‹
         </span>
-        <span style={{ font: "500 12px 'IBM Plex Mono',monospace", color: '#8A93A2' }}>{projName}</span>
-        <span style={{ color: '#D9DCE3' }}>/</span>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: '#191C22' }}>{L.overview}</span>
+        <span style={{ font: "500 12px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-2)' }}>{projName}</span>
+        <span style={{ color: 'var(--proto-line-3)' }}>/</span>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.overview}</span>
         <span style={{ position: 'relative', marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           {/* Adjust budget — no budget-mutate scope, inert (GAP, Stage 7) */}
           <span
             style={{
               fontSize: 11.5,
               fontWeight: 600,
-              border: '1px solid #D9DCE3',
+              border: '1px solid var(--proto-line-3)',
               borderRadius: 7,
               padding: '4px 12px',
-              color: '#191C22',
-              background: '#fff',
+              color: 'var(--proto-ink)',
+              background: 'var(--proto-card)',
               cursor: 'pointer',
             }}
           >
             {L.adjustBudget}
           </span>
           {/* ⋯ overflow menu — decorative for this view */}
-          <span style={{ color: '#8A93A2', fontSize: 15, letterSpacing: 1, padding: '2px 6px', borderRadius: 6, cursor: 'pointer' }}>
+          <span style={{ color: 'var(--proto-muted-2)', fontSize: 15, letterSpacing: 1, padding: '2px 6px', borderRadius: 6, cursor: 'pointer' }}>
             ⋯
           </span>
         </span>
@@ -170,47 +170,47 @@ export function OverviewView(): JSX.Element {
       <div
         style={{
           flex: 'none',
-          borderBottom: '1px solid #E7E9EE',
+          borderBottom: '1px solid var(--proto-line)',
           display: 'flex',
           alignItems: 'center',
           gap: 30,
           padding: '12px 20px 14px',
-          background: '#fff',
+          background: 'var(--proto-card)',
         }}
       >
         <div style={{ minWidth: 180 }}>
-          <div style={{ fontSize: 10, color: '#98A1B0', marginBottom: 3 }}>{L.today}</div>
+          <div style={{ fontSize: 10, color: 'var(--proto-muted-3)', marginBottom: 3 }}>{L.today}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ font: "600 22px 'IBM Plex Mono',monospace", color: '#191C22', letterSpacing: '-.02em' }}>
+            <span style={{ font: "600 22px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)', letterSpacing: '-.02em' }}>
               {formatMoney(cost?.today)}
             </span>
             {/* budget progress bar — REAL: today's scoped spend as % of the daily budget (empty when
                 there is no positive daily-budget denominator, honest placeholder) */}
-            <div style={{ flex: 1, height: 5, borderRadius: 999, background: '#EFF1F5', overflow: 'hidden', marginTop: 2 }}>
-              <div style={{ width: `${budgetPct ?? 0}%`, height: '100%', background: '#4655D4' }} />
+            <div style={{ flex: 1, height: 5, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 2 }}>
+              <div style={{ width: `${budgetPct ?? 0}%`, height: '100%', background: 'var(--proto-accent)' }} />
             </div>
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 10, color: '#98A1B0', marginBottom: 3 }}>{L.thisWeek}</div>
-          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: '#22262E' }}>{formatMoney(cost?.week)}</div>
+          <div style={{ fontSize: 10, color: 'var(--proto-muted-3)', marginBottom: 3 }}>{L.thisWeek}</div>
+          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>{formatMoney(cost?.week)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 10, color: '#98A1B0', marginBottom: 3 }}>{L.month}</div>
-          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: '#22262E' }}>{formatMoney(cost?.month)}</div>
+          <div style={{ fontSize: 10, color: 'var(--proto-muted-3)', marginBottom: 3 }}>{L.month}</div>
+          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>{formatMoney(cost?.month)}</div>
         </div>
         <div>
-          <div style={{ fontSize: 10, color: '#98A1B0', marginBottom: 3 }}>{L.budgetPerDay}</div>
+          <div style={{ fontSize: 10, color: 'var(--proto-muted-3)', marginBottom: 3 }}>{L.budgetPerDay}</div>
           {/* REAL: dailyBudget from budget.json (global daily cap). `—` when unset (honest). */}
-          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: '#22262E' }}>
+          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>
             {formatPerDay(cost?.dailyBudget)}
-            <span style={{ fontSize: 10, color: '#98A1B0', fontWeight: 400 }}> {L.perDay}</span>
+            <span style={{ fontSize: 10, color: 'var(--proto-muted-3)', fontWeight: 400 }}> {L.perDay}</span>
           </div>
         </div>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-          <div style={{ fontSize: 10, color: '#98A1B0', marginBottom: 3 }}>{L.forecastToday}</div>
+          <div style={{ fontSize: 10, color: 'var(--proto-muted-3)', marginBottom: 3 }}>{L.forecastToday}</div>
           {/* REAL: forecastToday = scoped spend extrapolated by elapsed fraction of the local day */}
-          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: '#A96B0B' }}>{formatMoney(cost?.forecastToday)}</div>
+          <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: 'var(--proto-amber-text)' }}>{formatMoney(cost?.forecastToday)}</div>
         </div>
       </div>
 
@@ -225,7 +225,7 @@ export function OverviewView(): JSX.Element {
           gridTemplateColumns: '1fr 1fr',
           gridAutoRows: 'min-content',
           gap: 12,
-          background: '#F7F8FA',
+          background: 'var(--proto-alt)',
           alignContent: 'start',
         }}
       >
@@ -240,7 +240,7 @@ export function OverviewView(): JSX.Element {
                   <div
                     key={bar.date}
                     title={`${bar.date} · ${formatMoney(bar.cost)}`}
-                    style={{ flex: 1, position: 'relative', background: '#4655D4', borderRadius: '3px 3px 0 0', height: `${bar.pct}%` }}
+                    style={{ flex: 1, position: 'relative', background: 'var(--proto-accent)', borderRadius: '3px 3px 0 0', height: `${bar.pct}%` }}
                   >
                     <div
                       style={{
@@ -250,7 +250,7 @@ export function OverviewView(): JSX.Element {
                         transform: 'translateX(-50%)',
                         marginBottom: 5,
                         font: "600 9.5px 'IBM Plex Mono',monospace",
-                        color: '#4655D4',
+                        color: 'var(--proto-accent)',
                         whiteSpace: 'nowrap',
                       }}
                     >
@@ -261,14 +261,14 @@ export function OverviewView(): JSX.Element {
                   <div
                     key={bar.date}
                     title={`${bar.date} · ${formatMoney(bar.cost)}`}
-                    style={{ flex: 1, background: '#E3E6F0', borderRadius: '3px 3px 0 0', height: `${bar.pct}%` }}
+                    style={{ flex: 1, background: 'var(--proto-line-4)', borderRadius: '3px 3px 0 0', height: `${bar.pct}%` }}
                   />
                 ),
               )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', marginTop: 7, font: "400 9px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 7, font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>
               <span>{dailyBars[0]?.date ?? '—'}</span>
-              <span style={{ marginLeft: 'auto', color: '#4655D4', fontWeight: 600 }}>{L.today}</span>
+              <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontWeight: 600 }}>{L.today}</span>
             </div>
           </div>
         </div>
@@ -277,8 +277,8 @@ export function OverviewView(): JSX.Element {
         <div style={{ ...CARD, cursor: 'pointer' }} onClick={() => navigate('/memory')}>
           <CardHeader title={L.projectMemory} right={L.ovGitBacked} />
           <div style={{ padding: '18px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textAlign: 'center' }}>
-            <div style={{ fontSize: 11.5, fontWeight: 600, color: '#4655D4' }}>{L.ovOpenMemoryViewer} ›</div>
-            <div style={{ fontSize: 10.5, color: '#B6BDC9', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)' }}>{L.ovOpenMemoryViewer} ›</div>
+            <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', lineHeight: 1.5 }}>
               {L.ovMemoryDesc}
             </div>
           </div>
@@ -291,7 +291,7 @@ export function OverviewView(): JSX.Element {
           <CardHeader title={L.ovWhereItGoes} right={L.thisWeek} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '13px 14px 14px' }}>
             {whereRows.length === 0 && (
-              <div style={{ fontSize: 10.5, color: '#B6BDC9', padding: '2px 0' }}>{L.ovNoSpend}</div>
+              <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', padding: '2px 0' }}>{L.ovNoSpend}</div>
             )}
             {whereRows.map((row, i) => (
               <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -299,7 +299,7 @@ export function OverviewView(): JSX.Element {
                   title={row.label}
                   style={{
                     fontSize: 10.5,
-                    color: '#5B6472',
+                    color: 'var(--proto-muted)',
                     width: 56,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
@@ -308,16 +308,16 @@ export function OverviewView(): JSX.Element {
                 >
                   {row.label}
                 </span>
-                <div style={{ flex: 1, height: 6, borderRadius: 999, background: '#EFF1F5', overflow: 'hidden' }}>
+                <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}>
                   <div
                     style={{
                       width: `${row.pct}%`,
                       height: '100%',
-                      background: ['#4655D4', '#9AA3E8', '#D4D8F4'][i % 3],
+                      background: ['var(--proto-accent)', 'var(--proto-accent-2)', 'var(--proto-accent-bg)'][i % 3],
                     }}
                   />
                 </div>
-                <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: '#191C22', width: 40, textAlign: 'right' }}>
+                <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)', width: 40, textAlign: 'right' }}>
                   {formatMoney(row.cost)}
                 </span>
               </div>
@@ -327,25 +327,25 @@ export function OverviewView(): JSX.Element {
 
         {/* Schedules — REAL schedules.list */}
         <div style={CARD}>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #EFF1F5' }}>
-            <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>{L.scheduleCard}</span>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
+            <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.scheduleCard}</span>
             {/* + New — opens the New-schedule overlay (design 7c), real schedules.add */}
             <span
               onClick={() => openScheduleModal({ projectId: activeProjectId })}
-              style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+              style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
             >
               + {L.newSchedule}
             </span>
           </div>
           <div style={{ padding: '9px 14px 11px', display: 'flex', flexDirection: 'column', gap: 9 }}>
             {schedules.length === 0 && (
-              <div style={{ fontSize: 10.5, color: '#B6BDC9', padding: '4px 0' }}>{L.ovNoSchedules}</div>
+              <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', padding: '4px 0' }}>{L.ovNoSchedules}</div>
             )}
             {schedules.map((s: ScheduleInfo, idx: number) => (
               <div key={s.id}>
-                {idx > 0 && <div style={{ height: 1, background: '#F3F4F7', margin: '0 0 9px' }} />}
+                {idx > 0 && <div style={{ height: 1, background: 'var(--proto-line-soft)', margin: '0 0 9px' }} />}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={s.paused ? '#8A93A2' : '#5B6472'} strokeWidth="1.5">
+                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={s.paused ? 'var(--proto-muted-2)' : 'var(--proto-muted)'} strokeWidth="1.5">
                     <circle cx="7" cy="7" r="5.6" />
                     <path d="M7 4v3.2l2.2 1.3" />
                   </svg>
@@ -356,7 +356,7 @@ export function OverviewView(): JSX.Element {
                       minWidth: 0,
                       fontSize: 11.5,
                       fontWeight: 600,
-                      color: s.paused ? '#8A93A2' : '#191C22',
+                      color: s.paused ? 'var(--proto-muted-2)' : 'var(--proto-ink)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -365,15 +365,15 @@ export function OverviewView(): JSX.Element {
                     {s.message}
                   </span>
                   {s.paused && (
-                    <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 999, background: '#F1F2F5', color: '#8A93A2' }}>
+                    <span style={{ fontSize: 9, fontWeight: 600, padding: '1px 6px', borderRadius: 999, background: 'var(--proto-gray)', color: 'var(--proto-muted-2)' }}>
                       {L.paused}
                     </span>
                   )}
-                  <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+                  <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
                     {scheduleIntervalLabel(s)}
                   </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', fontSize: 10, color: '#8A93A2', marginTop: 2, paddingLeft: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', fontSize: 10, color: 'var(--proto-muted-2)', marginTop: 2, paddingLeft: 18 }}>
                   <span>
                     {s.paused
                       ? `${lastRunLabel(s.lastRun, now)}`
@@ -384,7 +384,7 @@ export function OverviewView(): JSX.Element {
                   {scheduleProfileLabel(s) && (
                     <span
                       title="profile"
-                      style={{ marginLeft: 7, font: "400 9.5px 'IBM Plex Mono',monospace", color: '#98A1B0' }}
+                      style={{ marginLeft: 7, font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}
                     >
                       {scheduleProfileLabel(s)}
                     </span>
@@ -392,7 +392,7 @@ export function OverviewView(): JSX.Element {
                   {s.paused && (
                     <span
                       onClick={() => !resume.isPending && resume.mutate({ scheduleId: s.id })}
-                      style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+                      style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
                     >
                       {L.resume}
                     </span>
@@ -405,21 +405,21 @@ export function OverviewView(): JSX.Element {
 
         {/* Executions — REAL executions.list (span 2) */}
         <div style={{ ...CARD, gridColumn: 'span 2', overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid #EFF1F5' }}>
-            <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>{L.execFlow}</span>
-            <span style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: '#98A1B0', marginLeft: 8 }}>{L.ovExecSubtitle}</span>
-            <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>executions.json</span>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--proto-line-2)' }}>
+            <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.execFlow}</span>
+            <span style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', marginLeft: 8 }}>{L.ovExecSubtitle}</span>
+            <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>executions.json</span>
           </div>
           <div
             style={{
               display: 'grid',
               gridTemplateColumns: '88px 1fr 76px 52px 56px 86px 46px',
               padding: '6px 14px',
-              borderBottom: '1px solid #F3F4F7',
+              borderBottom: '1px solid var(--proto-line-soft)',
               fontSize: 9.5,
               fontWeight: 700,
               letterSpacing: '.05em',
-              color: '#98A1B0',
+              color: 'var(--proto-muted-3)',
             }}
           >
             <span>{L.ovColId}</span>
@@ -431,7 +431,7 @@ export function OverviewView(): JSX.Element {
             <span />
           </div>
           {executions.length === 0 && (
-            <div style={{ padding: '10px 14px', fontSize: 10.5, color: '#B6BDC9' }}>{L.ovNoExecutions}</div>
+            <div style={{ padding: '10px 14px', fontSize: 10.5, color: 'var(--proto-faint)' }}>{L.ovNoExecutions}</div>
           )}
           {executions.map((x: ExecutionInfo) => {
             const pill = execStatusPill(x.status);
@@ -442,17 +442,17 @@ export function OverviewView(): JSX.Element {
                   display: 'grid',
                   gridTemplateColumns: '88px 1fr 76px 52px 56px 86px 46px',
                   padding: '7.5px 14px',
-                  borderBottom: '1px solid #F7F8FA',
+                  borderBottom: '1px solid var(--proto-alt)',
                   alignItems: 'center',
                   fontSize: 11,
-                  color: '#22262E',
+                  color: 'var(--proto-ink-2)',
                 }}
               >
                 <span
                   title={x.id}
                   style={{
                     font: "400 10px 'IBM Plex Mono',monospace",
-                    color: '#5B6472',
+                    color: 'var(--proto-muted)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -475,7 +475,7 @@ export function OverviewView(): JSX.Element {
                 </span>
                 <span
                   onClick={() => openExecutionLog(x.id)}
-                  style={{ fontSize: 10.5, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+                  style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
                 >
                   {L.ovLogs}
                 </span>

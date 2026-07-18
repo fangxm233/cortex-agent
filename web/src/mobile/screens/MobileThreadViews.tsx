@@ -55,17 +55,17 @@ export function MobileThreadsHeader({
   onSegment: (s: Scope) => void;
 }) {
   return (
-    <div style={{ flex: 'none', padding: '6px 14px 10px', borderBottom: '1px solid #E7E9EE', background: '#F2F2F7' }}>
+    <div style={{ flex: 'none', padding: '6px 14px 10px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-alt)' }}>
       <div style={{ display: 'flex', alignItems: 'center' }}>
-        <span style={{ fontSize: 22, fontWeight: 700, color: '#191C22', letterSpacing: '-.02em' }}>{vocab.threads}</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', background: '#E7E9EE', borderRadius: 8, padding: 2 }}>
+        <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--proto-ink)', letterSpacing: '-.02em' }}>{vocab.threads}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', background: 'var(--proto-line)', borderRadius: 8, padding: 2 }}>
           <span
             onClick={() => onSegment('active')}
             style={{
               fontSize: 11.5,
               fontWeight: 600,
-              color: segment === 'active' ? '#191C22' : '#8A93A2',
-              background: segment === 'active' ? '#fff' : 'transparent',
+              color: segment === 'active' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+              background: segment === 'active' ? 'var(--proto-card)' : 'transparent',
               borderRadius: 6,
               padding: '4px 12px',
               boxShadow: segment === 'active' ? '0 1px 2px rgba(16,24,40,.06)' : 'none',
@@ -79,8 +79,8 @@ export function MobileThreadsHeader({
             style={{
               fontSize: 11.5,
               fontWeight: 600,
-              color: segment === 'history' ? '#191C22' : '#8A93A2',
-              background: segment === 'history' ? '#fff' : 'transparent',
+              color: segment === 'history' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+              background: segment === 'history' ? 'var(--proto-card)' : 'transparent',
               borderRadius: 6,
               padding: '4px 12px',
               boxShadow: segment === 'history' ? '0 1px 2px rgba(16,24,40,.06)' : 'none',
@@ -92,11 +92,11 @@ export function MobileThreadsHeader({
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9 }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: '#8A93A2' }}>{vocab.today}</span>
-        <div style={{ flex: 1, height: 4, borderRadius: 999, background: '#E3E5EA', overflow: 'hidden' }}>
-          <div style={{ width: `${band.pct}%`, height: '100%', background: '#4655D4' }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{vocab.today}</span>
+        <div style={{ flex: 1, height: 4, borderRadius: 999, background: 'var(--proto-line)', overflow: 'hidden' }}>
+          <div style={{ width: `${band.pct}%`, height: '100%', background: 'var(--proto-accent)' }} />
         </div>
-        <span style={{ font: `500 10px ${MONO}`, color: '#191C22' }}>
+        <span style={{ font: `500 10px ${MONO}`, color: 'var(--proto-ink)' }}>
           {band.numerator} / {band.denominator}
         </span>
       </div>
@@ -109,15 +109,15 @@ function StepDot({ kind, hasTail }: { kind: 'done' | 'running' | 'pending'; hasT
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       {kind === 'done' && (
-        <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#E9F4EE', color: '#23854F', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 7.5, fontWeight: 700, flex: 'none' }}>✓</span>
+        <span style={{ width: 13, height: 13, borderRadius: '50%', background: 'var(--proto-success-bg)', color: 'var(--proto-success)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 7.5, fontWeight: 700, flex: 'none' }}>✓</span>
       )}
       {kind === 'running' && (
-        <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#4655D4', flex: 'none', boxShadow: '0 0 0 3px #EEF0FA', animation: 'cxpulse 1.6s ease-in-out infinite' }} />
+        <span style={{ width: 13, height: 13, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none', boxShadow: '0 0 0 3px var(--proto-accent-bg)', animation: 'cxpulse 1.6s ease-in-out infinite' }} />
       )}
       {kind === 'pending' && (
-        <span style={{ width: 13, height: 13, borderRadius: '50%', border: '1.5px solid #D9DCE3', boxSizing: 'border-box', flex: 'none' }} />
+        <span style={{ width: 13, height: 13, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box', flex: 'none' }} />
       )}
-      {hasTail && <span style={{ flex: 1, width: 1.5, background: '#EFF1F5', margin: '3px 0' }} />}
+      {hasTail && <span style={{ flex: 1, width: 1.5, background: 'var(--proto-line-2)', margin: '3px 0' }} />}
     </div>
   );
 }
@@ -133,15 +133,15 @@ function MobileDrillRow({
   onDrill: (n: ThreadChildNode) => void;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #EFF1F5', background: '#fff', borderRadius: 8, padding: '7px 9px', marginTop: 5 }}>
-      <span style={{ font: `600 10.5px ${MONO}`, color: '#22262E' }}>{node.templateName ?? node.id}</span>
-      <span style={{ font: `400 8.5px ${MONO}`, color: '#B6BDC9' }}>L{nodeLevel(node)}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--proto-line-2)', background: 'var(--proto-card)', borderRadius: 8, padding: '7px 9px', marginTop: 5 }}>
+      <span style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-ink-2)' }}>{node.templateName ?? node.id}</span>
+      <span style={{ font: `400 8.5px ${MONO}`, color: 'var(--proto-faint)' }}>L{nodeLevel(node)}</span>
       {node.status === 'running' && (
-        <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#4655D4', animation: 'cxpulse 1.6s ease-in-out infinite' }} />
+        <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--proto-accent)', animation: 'cxpulse 1.6s ease-in-out infinite' }} />
       )}
       <span
         onClick={() => onDrill(node)}
-        style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+        style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
       >
         {vocab.open} ›
       </span>
@@ -164,14 +164,14 @@ function MobileSubCard({
   const pillText = pillLabel(node.status, vocab);
   const running = node.status === 'running';
   return (
-    <div style={{ border: `1px solid ${running ? '#E3E6F5' : '#EFF1F5'}`, background: running ? '#FBFBFE' : '#FBFBFC', borderRadius: 9 }}>
+    <div style={{ border: `1px solid ${running ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`, background: running ? 'var(--proto-rail)' : 'var(--proto-rail)', borderRadius: 9 }}>
       <div
         onClick={() => setExpanded((e) => !e)}
         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', cursor: 'pointer' }}
       >
-        <span style={{ color: running ? '#8A93A2' : '#B6BDC9', fontSize: 8.5 }}>{expanded ? '▾' : '▸'}</span>
-        <span style={{ font: `600 11px ${MONO}`, color: running ? '#191C22' : '#5B6472' }}>{node.templateName ?? node.id}</span>
-        <span style={{ font: `400 8.5px ${MONO}`, color: '#B6BDC9' }}>L{nodeLevel(node)}</span>
+        <span style={{ color: running ? 'var(--proto-muted-2)' : 'var(--proto-faint)', fontSize: 8.5 }}>{expanded ? '▾' : '▸'}</span>
+        <span style={{ font: `600 11px ${MONO}`, color: running ? 'var(--proto-ink)' : 'var(--proto-muted)' }}>{node.templateName ?? node.id}</span>
+        <span style={{ font: `400 8.5px ${MONO}`, color: 'var(--proto-faint)' }}>L{nodeLevel(node)}</span>
         <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: pill.bg, color: pill.fg }}>
           {pillText}
         </span>
@@ -216,12 +216,12 @@ function MobileStepRow({
       <StepDot kind={kind} hasTail={!isLast} />
       <div style={{ paddingBottom: isLast ? 4 : 8 }}>
         <div style={{ display: 'flex', alignItems: 'baseline' }}>
-          <span style={{ fontSize: 11.5, fontWeight: active ? 600 : 500, color: active ? '#191C22' : kind === 'done' ? '#5B6472' : '#B6BDC9' }}>
+          <span style={{ fontSize: 11.5, fontWeight: active ? 600 : 500, color: active ? 'var(--proto-ink)' : kind === 'done' ? 'var(--proto-muted)' : 'var(--proto-faint)' }}>
             {label}
           </span>
-          {machine && <span style={{ fontSize: 9, color: '#98A1B0', marginLeft: 6 }}>{machine} ✓</span>}
+          {machine && <span style={{ fontSize: 9, color: 'var(--proto-muted-3)', marginLeft: 6 }}>{machine} ✓</span>}
           {time && (
-            <span style={{ marginLeft: 'auto', font: `400 9px ${MONO}`, color: active ? '#4655D4' : '#B6BDC9' }}>{time}</span>
+            <span style={{ marginLeft: 'auto', font: `400 9px ${MONO}`, color: active ? 'var(--proto-accent)' : 'var(--proto-faint)' }}>{time}</span>
           )}
         </div>
         {subthreads.length > 0 && (
@@ -294,15 +294,15 @@ export function MobileThreadCardView({
   if (!showBody) {
     // Card B — collapsed row (scheme L3081–3097).
     return (
-      <div style={{ background: '#fff', border: '1px solid #E7E9EE', borderRadius: 12, padding: '10px 13px' }}>
+      <div style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 12, padding: '10px 13px' }}>
         <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}>
-          <span style={{ color: '#B6BDC9', fontSize: 8.5 }}>▸</span>
-          <span style={{ font: `600 11.5px ${MONO}`, color: '#191C22' }}>{thread.templateName}</span>
+          <span style={{ color: 'var(--proto-faint)', fontSize: 8.5 }}>▸</span>
+          <span style={{ font: `600 11.5px ${MONO}`, color: 'var(--proto-ink)' }}>{thread.templateName}</span>
           <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: pill.bg, color: pill.fg }}>
             {pillText}
           </span>
         </div>
-        <div style={{ font: `400 10px ${MONO}`, color: '#98A1B0', marginTop: 4, paddingLeft: 16 }}>
+        <div style={{ font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 4, paddingLeft: 16 }}>
           {loading ? '…' : threadSubLine(thread)}
         </div>
       </div>
@@ -312,19 +312,19 @@ export function MobileThreadCardView({
   // Card A — expanded card (scheme L3026–3078).
   const depth = depthInfo(detail);
   return (
-    <div style={{ background: '#fff', border: '1px solid #E7E9EE', borderRadius: 12 }}>
-      <div onClick={onToggle} style={{ padding: '11px 13px 9px', borderBottom: '1px solid #F3F4F7', cursor: 'pointer' }}>
+    <div style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 12 }}>
+      <div onClick={onToggle} style={{ padding: '11px 13px 9px', borderBottom: '1px solid var(--proto-line-soft)', cursor: 'pointer' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <NodeIcon color={thread.status === 'running' ? '#4655D4' : '#8A93A2'} />
-          <span style={{ font: `600 12.5px ${MONO}`, color: '#191C22' }}>{thread.templateName}</span>
+          <NodeIcon color={thread.status === 'running' ? 'var(--proto-accent)' : 'var(--proto-muted-2)'} />
+          <span style={{ font: `600 12.5px ${MONO}`, color: 'var(--proto-ink)' }}>{thread.templateName}</span>
           <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: pill.bg, color: pill.fg }}>
             {pillText}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-          <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0' }}>{threadMetaLineZh(thread, now, vocab.step)}</span>
+          <span style={{ font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>{threadMetaLineZh(thread, now, vocab.step)}</span>
           {depth.filled > 1 && (
-            <span style={{ marginLeft: 'auto', font: `500 9px ${MONO}`, color: '#5B6472' }}>
+            <span style={{ marginLeft: 'auto', font: `500 9px ${MONO}`, color: 'var(--proto-muted)' }}>
               {vocab.depth} {depth.text}
             </span>
           )}
@@ -333,14 +333,14 @@ export function MobileThreadCardView({
       <div style={{ padding: '10px 13px 6px' }}>
         <MobileStepTree detail={detail} now={now} vocab={vocab} onDrill={onDrill} />
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderTop: '1px solid #EFF1F5' }}>
-        <span title="Pause has no backend mutate op yet" style={{ fontSize: 12, fontWeight: 600, color: '#5B6472', padding: '4px 10px 4px 0', cursor: 'not-allowed', opacity: 0.6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderTop: '1px solid var(--proto-line-2)' }}>
+        <span title="Pause has no backend mutate op yet" style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-muted)', padding: '4px 10px 4px 0', cursor: 'not-allowed', opacity: 0.6 }}>
           {vocab.pause}
         </span>
-        <span data-cancel-thread-id={thread.id} onClick={onCancel} style={{ fontSize: 12, fontWeight: 600, color: '#C03D33', padding: '4px 10px', cursor: 'pointer' }}>
+        <span data-cancel-thread-id={thread.id} onClick={onCancel} style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-danger)', padding: '4px 10px', cursor: 'pointer' }}>
           {vocab.cancel}
         </span>
-        <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: '#98A1B0' }}>Σ {formatCost(detail.totalCostUsd)}</span>
+        <span style={{ marginLeft: 'auto', font: `500 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>Σ {formatCost(detail.totalCostUsd)}</span>
       </div>
     </div>
   );

@@ -27,9 +27,9 @@ function chipStyle(active: boolean): CSSProperties {
   return {
     ...CHIP_LABEL,
     fontWeight: active ? 600 : 500,
-    color: active ? '#4655D4' : '#5B6472',
-    background: active ? '#EEF0FA' : '#fff',
-    border: '1px solid ' + (active ? '#C9CFF2' : '#E7E9EE'),
+    color: active ? 'var(--proto-accent)' : 'var(--proto-muted)',
+    background: active ? 'var(--proto-accent-bg)' : 'var(--proto-card)',
+    border: '1px solid ' + (active ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
     cursor: 'pointer',
   };
 }
@@ -104,20 +104,20 @@ export function BudgetPanel({
           <div
             style={{
               padding: '12px 14px',
-              borderBottom: '1px solid #F7F8FA',
+              borderBottom: '1px solid var(--proto-alt)',
               display: 'flex',
               alignItems: 'center',
               gap: 12,
             }}
           >
             <div style={{ width: 104, flex: 'none' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', color: '#98A1B0' }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--proto-muted-3)' }}>
                 {L.stDaily}
               </div>
               <div
                 style={{
                   font: `600 19px ${MONO}`,
-                  color: '#191C22',
+                  color: 'var(--proto-ink)',
                   letterSpacing: '-.02em',
                   marginTop: 2,
                 }}
@@ -143,10 +143,10 @@ export function BudgetPanel({
           {/* WARN AT — no budget.json field → inert placeholder */}
           <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 104, flex: 'none' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', color: '#98A1B0' }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--proto-muted-3)' }}>
                 {L.stWarnAt}
               </div>
-              <div style={{ font: `600 19px ${MONO}`, color: '#B6BDC9', letterSpacing: '-.02em', marginTop: 2 }}>
+              <div style={{ font: `600 19px ${MONO}`, color: 'var(--proto-faint)', letterSpacing: '-.02em', marginTop: 2 }}>
                 —
               </div>
             </div>
@@ -155,13 +155,13 @@ export function BudgetPanel({
                 <span
                   key={v}
                   title="No warn-threshold field in budget.json — inert"
-                  style={{ ...chipStyle(false), cursor: 'not-allowed', color: '#B6BDC9' }}
+                  style={{ ...chipStyle(false), cursor: 'not-allowed', color: 'var(--proto-faint)' }}
                 >
                   {v + '%'}
                 </span>
               ))}
             </div>
-            <span style={{ marginLeft: 'auto', fontSize: 10.5, color: '#8A93A2' }}>
+            <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--proto-muted-2)' }}>
               {L.warnNote}
             </span>
           </div>
@@ -178,13 +178,13 @@ export function BudgetPanel({
                   alignItems: 'flex-start',
                   gap: 10,
                   padding: '9px 0',
-                  borderBottom: i < POLICY_ROWS.length - 1 ? '1px solid #F7F8FA' : undefined,
+                  borderBottom: i < POLICY_ROWS.length - 1 ? '1px solid var(--proto-alt)' : undefined,
                   cursor: 'not-allowed',
                 }}
               >
                 <RadioDot selected={false} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#5B6472' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-muted)' }}>
                     {L[r.titleKey]}
                     {r.def ? (
                       <span
@@ -193,8 +193,8 @@ export function BudgetPanel({
                           fontWeight: 600,
                           padding: '1px 6px',
                           borderRadius: 999,
-                          background: '#EEF0FA',
-                          color: '#4655D4',
+                          background: 'var(--proto-accent-bg)',
+                          color: 'var(--proto-accent)',
                           marginLeft: 4,
                         }}
                       >
@@ -202,7 +202,7 @@ export function BudgetPanel({
                       </span>
                     ) : null}
                   </div>
-                  <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 2 }}>{L[r.descKey]}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 2 }}>{L[r.descKey]}</div>
                 </div>
               </div>
             ))}
@@ -213,50 +213,50 @@ export function BudgetPanel({
         <SCardHeader title={L.stCurrentSpend} right={L.stCostsJsonlLabel} />
         <div style={{ padding: '12px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ font: `600 21px ${MONO}`, color: '#191C22', letterSpacing: '-.02em' }}>
+            <span style={{ font: `600 21px ${MONO}`, color: 'var(--proto-ink)', letterSpacing: '-.02em' }}>
               {formatBudgetUsd(today)}
             </span>
-            <span style={{ fontSize: 11, color: '#98A1B0' }}>/ {formatBudgetUsd(daily)}</span>
+            <span style={{ fontSize: 11, color: 'var(--proto-muted-3)' }}>/ {formatBudgetUsd(daily)}</span>
           </div>
           <div
             style={{
               height: 5,
               borderRadius: 999,
-              background: '#EFF1F5',
+              background: 'var(--proto-line-2)',
               overflow: 'hidden',
               marginTop: 8,
               position: 'relative',
             }}
           >
-            <div style={{ width: budgetBarPct(today, daily), height: '100%', background: '#4655D4' }} />
+            <div style={{ width: budgetBarPct(today, daily), height: '100%', background: 'var(--proto-accent)' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 14 }}>
-            <span style={{ font: `600 14px ${MONO}`, color: '#22262E' }}>{formatBudgetUsd(month)}</span>
-            <span style={{ fontSize: 10.5, color: '#98A1B0' }}>
+            <span style={{ font: `600 14px ${MONO}`, color: 'var(--proto-ink-2)' }}>{formatBudgetUsd(month)}</span>
+            <span style={{ fontSize: 10.5, color: 'var(--proto-muted-3)' }}>
               {L.month} / {formatBudgetUsd(monthly)}
             </span>
           </div>
-          <div style={{ height: 5, borderRadius: 999, background: '#EFF1F5', overflow: 'hidden', marginTop: 7 }}>
-            <div style={{ width: budgetBarPct(month, monthly), height: '100%', background: '#9AA3E8' }} />
+          <div style={{ height: 5, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden', marginTop: 7 }}>
+            <div style={{ width: budgetBarPct(month, monthly), height: '100%', background: 'var(--proto-accent-2)' }} />
           </div>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 7,
-              background: '#FDF9F0',
-              border: '1px solid #EFDDB0',
+              background: 'var(--proto-amber-bg)',
+              border: '1px solid var(--proto-amber-border)',
               borderRadius: 8,
               padding: '7px 10px',
               marginTop: 13,
             }}
           >
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#C99A2E', flex: 'none' }} />
-            <span style={{ fontSize: 10.5, color: '#8A5B06' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }} />
+            <span style={{ fontSize: 10.5, color: 'var(--proto-amber-fg)' }}>
               {L.stObNote}
             </span>
           </div>
-          <div style={{ fontSize: 10, color: '#B6BDC9', marginTop: 10 }}>
+          <div style={{ fontSize: 10, color: 'var(--proto-faint)', marginTop: 10 }}>
             {L.stBudgetFootNote}
           </div>
         </div>

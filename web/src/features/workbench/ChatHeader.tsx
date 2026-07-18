@@ -88,7 +88,7 @@ export function ChatHeader({
       style={{
         height: 50,
         flex: 'none',
-        borderBottom: '1px solid #E7E9EE',
+        borderBottom: '1px solid var(--proto-line)',
         display: 'flex',
         alignItems: 'center',
         gap: 10,
@@ -99,7 +99,7 @@ export function ChatHeader({
         style={{
           fontSize: 13.5,
           fontWeight: 600,
-          color: '#191C22',
+          color: 'var(--proto-ink)',
           maxWidth: 320,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
@@ -119,8 +119,8 @@ export function ChatHeader({
           }}
           style={{
             font: `500 10.5px ${mono}`,
-            border: '1px solid ' + (chipHover ? '#C9CFF2' : '#E7E9EE'),
-            color: chipHover ? '#4655D4' : '#5B6472',
+            border: '1px solid ' + (chipHover ? 'var(--proto-accent-border)' : 'var(--proto-line)'),
+            color: chipHover ? 'var(--proto-accent)' : 'var(--proto-muted)',
             padding: '2px 7px',
             borderRadius: 6,
             cursor: 'pointer',
@@ -130,7 +130,7 @@ export function ChatHeader({
           }}
         >
           {L.wbProfile} · {effectiveProfile}
-          <span style={{ fontSize: 8, color: '#B6BDC9' }}>▾</span>
+          <span style={{ fontSize: 8, color: 'var(--proto-faint)' }}>▾</span>
         </span>
         {profMenuOpen && (
           <span onClick={(e) => e.stopPropagation()}>
@@ -160,8 +160,8 @@ export function ChatHeader({
             fontWeight: 600,
             padding: '2px 8px',
             borderRadius: 999,
-            background: '#EEF0FA',
-            color: '#4655D4',
+            background: 'var(--proto-accent-bg)',
+            color: 'var(--proto-accent)',
           }}
         >
           <span
@@ -170,7 +170,7 @@ export function ChatHeader({
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: '#4655D4',
+              background: 'var(--proto-accent)',
               marginRight: 4,
               animation: 'cxpulse 1.6s ease-in-out infinite',
             }}
@@ -184,19 +184,19 @@ export function ChatHeader({
             fontWeight: 600,
             padding: '2px 8px',
             borderRadius: 999,
-            background: '#F1F2F5',
-            color: '#8A93A2',
+            background: 'var(--proto-gray)',
+            color: 'var(--proto-muted-2)',
           }}
         >
           {L.wbIdle}
         </span>
       )}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14, color: '#8A93A2' }}>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14, color: 'var(--proto-muted-2)' }}>
         <span
           onClick={onCmdK}
           onMouseEnter={() => setCmdkHover(true)}
           onMouseLeave={() => setCmdkHover(false)}
-          style={{ font: `500 11px ${mono}`, cursor: 'pointer', color: cmdkHover ? '#191C22' : undefined }}
+          style={{ font: `500 11px ${mono}`, cursor: 'pointer', color: cmdkHover ? 'var(--proto-ink)' : undefined }}
         >
           ⌘K
         </span>

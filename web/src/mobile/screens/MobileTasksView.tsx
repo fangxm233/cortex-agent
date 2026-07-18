@@ -49,32 +49,32 @@ function TitleRow({
   return (
     <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
       <span style={{ color: chevronColor, fontSize: 8.5, flex: 'none' }}>{chevron}</span>
-      <span style={{ font: `500 10px ${MONO}`, color: '#98A1B0' }}>{task.id}</span>
-      <span style={{ fontSize: 12.5, color: '#22262E', lineHeight: 1.45 }}>{task.text}</span>
+      <span style={{ font: `500 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>{task.id}</span>
+      <span style={{ fontSize: 12.5, color: 'var(--proto-ink-2)', lineHeight: 1.45 }}>{task.text}</span>
     </div>
   );
 }
 
 const CARD_BASE: CSSProperties = {
-  background: '#fff',
+  background: 'var(--proto-card)',
   borderRadius: 11,
   padding: '10px 13px',
 };
 
 function InProgressCard({ task, vocab }: { task: TaskInfo; vocab: Vocab }) {
   return (
-    <div style={{ ...CARD_BASE, border: '1px solid #E7E9EE' }}>
+    <div style={{ ...CARD_BASE, border: '1px solid var(--proto-line)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <Dot color={MOBILE_GROUP_DOT['in-progress']} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <TitleRow chevron="▸" chevronColor="#B6BDC9" task={task} />
+          <TitleRow chevron="▸" chevronColor="var(--proto-faint)" task={task} />
           {task.claimedBy && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5 }}>
               <span
                 style={{
                   font: `500 9.5px ${MONO}`,
-                  color: '#4655D4',
-                  background: '#EEF0FA',
+                  color: 'var(--proto-accent)',
+                  background: 'var(--proto-accent-bg)',
                   padding: '2px 7px',
                   borderRadius: 999,
                 }}
@@ -115,29 +115,29 @@ function ClaimableCard({
       style={{
         ...CARD_BASE,
         cursor: 'pointer',
-        border: expanded ? '1px solid #C9CFF2' : '1px solid #E7E9EE',
+        border: expanded ? '1px solid var(--proto-accent-border)' : '1px solid var(--proto-line)',
         boxShadow: expanded ? '0 1px 3px rgba(70,85,212,.08)' : undefined,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-        <Dot color={expanded ? '#C99A2E' : '#B6BDC9'} />
+        <Dot color={expanded ? 'var(--proto-amber)' : 'var(--proto-faint)'} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <TitleRow
             chevron={expanded ? '▾' : '▸'}
-            chevronColor={expanded ? '#5B6472' : '#B6BDC9'}
+            chevronColor={expanded ? 'var(--proto-muted)' : 'var(--proto-faint)'}
             task={task}
           />
-          <div style={{ font: `400 9.5px ${MONO}`, color: '#98A1B0', marginTop: 5 }}>
+          <div style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 5 }}>
             {task.priority} · {task.template}
           </div>
           {expanded && (
-            <div style={{ marginTop: 9, paddingTop: 9, borderTop: '1px solid #F3F4F7' }}>
+            <div style={{ marginTop: 9, paddingTop: 9, borderTop: '1px solid var(--proto-line-soft)' }}>
               <div
                 style={{
                   fontSize: 9,
                   fontWeight: 700,
                   letterSpacing: '.06em',
-                  color: '#B6BDC9',
+                  color: 'var(--proto-faint)',
                   marginBottom: 5,
                 }}
               >
@@ -146,12 +146,12 @@ function ClaimableCard({
               {/* Real `doneWhen` (task store done-when) when present; honest placeholder when the
                   task has none (null-safe, no fabrication — 守则11). */}
               {task.doneWhen != null ? (
-                <div style={{ fontSize: 11.5, lineHeight: 1.5, color: '#22262E' }}>
+                <div style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-ink-2)' }}>
                   {task.doneWhen}
                 </div>
               ) : (
                 <div
-                  style={{ fontSize: 11.5, lineHeight: 1.5, color: '#8A93A2', fontStyle: 'italic' }}
+                  style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--proto-muted-2)', fontStyle: 'italic' }}
                 >
                   {vocab.mDoneWhenGap}
                 </div>
@@ -166,19 +166,19 @@ function ClaimableCard({
 
 function WaitingDepsCard({ task, vocab }: { task: TaskInfo; vocab: Vocab }) {
   return (
-    <div style={{ ...CARD_BASE, border: '1px solid #E7E9EE', opacity: 0.82 }}>
+    <div style={{ ...CARD_BASE, border: '1px solid var(--proto-line)', opacity: 0.82 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <Dot color={MOBILE_GROUP_DOT['waiting-deps']} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <TitleRow chevron="▸" chevronColor="#B6BDC9" task={task} />
+          <TitleRow chevron="▸" chevronColor="var(--proto-faint)" task={task} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5, flexWrap: 'wrap' }}>
             {task.dependsOn.map((dep) => (
               <span
                 key={dep}
                 style={{
                   font: `500 9.5px ${MONO}`,
-                  color: '#8A93A2',
-                  background: '#F1F2F5',
+                  color: 'var(--proto-muted-2)',
+                  background: 'var(--proto-gray)',
                   padding: '2px 7px',
                   borderRadius: 999,
                 }}
@@ -186,7 +186,7 @@ function WaitingDepsCard({ task, vocab }: { task: TaskInfo; vocab: Vocab }) {
                 {vocab.mDependsOn} {dep}
               </span>
             ))}
-            <span style={{ font: `400 9.5px ${MONO}`, color: '#98A1B0' }}>{vocab.mAutoUnlock}</span>
+            <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}>{vocab.mAutoUnlock}</span>
           </div>
         </div>
       </div>
@@ -206,17 +206,17 @@ function BlockedCard({
   onUnblock: (t: TaskInfo) => void;
 }) {
   return (
-    <div style={{ ...CARD_BASE, border: '1px solid #EED3D0' }}>
+    <div style={{ ...CARD_BASE, border: '1px solid var(--proto-danger-bg)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <Dot color={MOBILE_GROUP_DOT.blocked} />
         <div style={{ minWidth: 0, flex: 1 }}>
-          <TitleRow chevron="▸" chevronColor="#B6BDC9" task={task} />
+          <TitleRow chevron="▸" chevronColor="var(--proto-faint)" task={task} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5 }}>
             <span
               style={{
                 font: `500 9.5px ${MONO}`,
-                color: '#C03D33',
-                background: '#FBEDEB',
+                color: 'var(--proto-danger)',
+                background: 'var(--proto-danger-bg)',
                 padding: '2px 7px',
                 borderRadius: 999,
               }}
@@ -224,7 +224,7 @@ function BlockedCard({
               {vocab.mBlockedPill}
             </span>
             {task.blockedBy && (
-              <span style={{ fontSize: 10, color: '#8A5B06' }}>{task.blockedBy}</span>
+              <span style={{ fontSize: 10, color: 'var(--proto-amber-fg)' }}>{task.blockedBy}</span>
             )}
           </div>
         </div>
@@ -236,7 +236,7 @@ function BlockedCard({
             // scheme text style; ≥44px touch target (触屏适配 per scheme note L3198)
             fontSize: 12,
             fontWeight: 600,
-            color: '#4655D4',
+            color: 'var(--proto-accent)',
             flex: 'none',
             background: 'none',
             border: 'none',
@@ -338,8 +338,8 @@ export function MobileTasksView({
       ? {
           fontSize: 11.5,
           fontWeight: 600,
-          color: '#191C22',
-          background: '#fff',
+          color: 'var(--proto-ink)',
+          background: 'var(--proto-card)',
           borderRadius: 6,
           padding: '4px 12px',
           boxShadow: '0 1px 2px rgba(16,24,40,.06)',
@@ -349,7 +349,7 @@ export function MobileTasksView({
       : {
           fontSize: 11.5,
           fontWeight: 600,
-          color: '#8A93A2',
+          color: 'var(--proto-muted-2)',
           padding: '4px 12px',
           background: 'none',
           border: 'none',
@@ -373,18 +373,18 @@ export function MobileTasksView({
           display: 'flex',
           alignItems: 'center',
           padding: '6px 14px 10px',
-          borderBottom: '1px solid #E7E9EE',
-          background: '#F2F2F7',
+          borderBottom: '1px solid var(--proto-line)',
+          background: 'var(--proto-alt)',
         }}
       >
-        <span style={{ fontSize: 22, fontWeight: 700, color: '#191C22', letterSpacing: '-.02em' }}>
+        <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--proto-ink)', letterSpacing: '-.02em' }}>
           {vocab.tasks}
         </span>
         <div
           style={{
             marginLeft: 'auto',
             display: 'flex',
-            background: '#E7E9EE',
+            background: 'var(--proto-line)',
             borderRadius: 8,
             padding: 2,
           }}
@@ -406,11 +406,11 @@ export function MobileTasksView({
           display: 'flex',
           flexDirection: 'column',
           gap: 6,
-          background: '#F2F2F7',
+          background: 'var(--proto-alt)',
         }}
       >
         {groups.length === 0 ? (
-          <div style={{ fontSize: 12.5, color: '#8A93A2', padding: '8px 2px' }}>{empty}</div>
+          <div style={{ fontSize: 12.5, color: 'var(--proto-muted-2)', padding: '8px 2px' }}>{empty}</div>
         ) : (
           groups.map((view, i) => (
             <div key={view.group} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -419,7 +419,7 @@ export function MobileTasksView({
                   fontSize: 9.5,
                   fontWeight: 700,
                   letterSpacing: '.07em',
-                  color: '#B6BDC9',
+                  color: 'var(--proto-faint)',
                   padding: i === 0 ? '0 2px 2px' : '8px 2px 2px',
                 }}
               >

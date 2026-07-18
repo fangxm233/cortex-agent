@@ -147,7 +147,7 @@ function ClaimableCard({
           style={{
             marginTop: 7,
             padding: '8px 10px',
-            background: '#F7F8FA',
+            background: 'var(--proto-alt)',
             borderRadius: 8,
             font: `400 10px/1.6 ${MONO}`,
             color: MC.sub,

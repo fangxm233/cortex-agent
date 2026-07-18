@@ -44,7 +44,7 @@ import {
 
 function FileIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="#8A93A2" strokeWidth="1.5" style={{ flex: 'none' }}>
+    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="var(--proto-muted-2)" strokeWidth="1.5" style={{ flex: 'none' }}>
       <path d="M3 1.5h5.5L11.5 4v8.5h-8.5z" />
       <path d="M8.5 1.5V4H11" />
     </svg>
@@ -141,11 +141,11 @@ export function MobileOverviewScreen(): JSX.Element {
           alignItems: 'center',
           gap: 9,
           padding: '8px 14px 10px',
-          borderBottom: '1px solid #E7E9EE',
-          background: '#F2F2F7',
+          borderBottom: '1px solid var(--proto-line)',
+          background: 'var(--proto-alt)',
         }}
       >
-        <span onClick={() => navigate(-1)} style={{ fontSize: 15, color: '#4655D4', flex: 'none', cursor: 'pointer' }}>
+        <span onClick={() => navigate(-1)} style={{ fontSize: 15, color: 'var(--proto-accent)', flex: 'none', cursor: 'pointer' }}>
           ‹
         </span>
         <div
@@ -153,8 +153,8 @@ export function MobileOverviewScreen(): JSX.Element {
             width: 30,
             height: 30,
             borderRadius: 8,
-            background: '#EEF0FA',
-            color: '#4655D4',
+            background: 'var(--proto-accent-bg)',
+            color: 'var(--proto-accent)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -170,7 +170,7 @@ export function MobileOverviewScreen(): JSX.Element {
             style={{
               fontSize: 15,
               fontWeight: 650,
-              color: '#191C22',
+              color: 'var(--proto-ink)',
               letterSpacing: '-.01em',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -179,7 +179,7 @@ export function MobileOverviewScreen(): JSX.Element {
           >
             {projName}
           </div>
-          <div style={{ font: "400 10px 'IBM Plex Mono',monospace", color: '#8A93A2', marginTop: 1 }}>
+          <div style={{ font: "400 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-2)', marginTop: 1 }}>
             {activeThreadCountLabelZh(activeThreadCount)}
           </div>
         </div>
@@ -189,12 +189,12 @@ export function MobileOverviewScreen(): JSX.Element {
             width: 34,
             height: 34,
             borderRadius: '50%',
-            background: '#fff',
-            border: '1px solid #E7E9EE',
+            background: 'var(--proto-card)',
+            border: '1px solid var(--proto-line)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#8A93A2',
+            color: 'var(--proto-muted-2)',
             fontSize: 14,
             letterSpacing: 1,
             flex: 'none',
@@ -213,27 +213,27 @@ export function MobileOverviewScreen(): JSX.Element {
           display: 'flex',
           flexDirection: 'column',
           gap: 10,
-          background: '#F2F2F7',
+          background: 'var(--proto-alt)',
         }}
       >
         {/* cost card (scheme L3265–3272) */}
-        <div style={{ background: '#fff', border: '1px solid #E7E9EE', borderRadius: 14, padding: '13px 14px' }}>
+        <div style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 14, padding: '13px 14px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 10, color: '#98A1B0' }}>{v.today}</span>
+            <span style={{ fontSize: 10, color: 'var(--proto-muted-3)' }}>{v.today}</span>
             {/* REAL: dailyBudget from budget.json (global daily cap). `—` when unset (honest). */}
-            <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+            <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
               {v.budgetPerDay} {formatPerDay(cost?.dailyBudget)}{v.perDay}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-            <span style={{ font: "600 24px 'IBM Plex Mono',monospace", color: '#191C22', letterSpacing: '-.02em' }}>
+            <span style={{ font: "600 24px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)', letterSpacing: '-.02em' }}>
               {formatMoney(cost?.today)}
             </span>
             {/* REAL: today's scoped spend as % of the daily budget (empty track + `—%` when no denom) */}
-            <div style={{ flex: 1, height: 6, borderRadius: 999, background: '#EFF1F5', overflow: 'hidden' }}>
-              <div style={{ width: `${budgetPct ?? 0}%`, height: '100%', background: '#4655D4' }} />
+            <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}>
+              <div style={{ width: `${budgetPct ?? 0}%`, height: '100%', background: 'var(--proto-accent)' }} />
             </div>
-            <span style={{ font: "400 10px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>{budgetPercentLabel(budgetPct)}</span>
+            <span style={{ font: "400 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>{budgetPercentLabel(budgetPct)}</span>
           </div>
           {/* REAL: per-calendar-day scoped cost series (oldest→newest, last = today, highlighted). */}
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 44, marginTop: 12 }}>
@@ -243,7 +243,7 @@ export function MobileOverviewScreen(): JSX.Element {
                 title={`${bar.date} · ${formatMoney(bar.cost)}`}
                 style={{
                   flex: 1,
-                  background: bar.isToday ? '#4655D4' : '#E3E6F0',
+                  background: bar.isToday ? 'var(--proto-accent)' : 'var(--proto-line-4)',
                   borderRadius: '2px 2px 0 0',
                   height: `${bar.pct}%`,
                 }}
@@ -257,35 +257,35 @@ export function MobileOverviewScreen(): JSX.Element {
               gap: 14,
               marginTop: 9,
               font: "400 10px 'IBM Plex Mono',monospace",
-              color: '#98A1B0',
+              color: 'var(--proto-muted-3)',
             }}
           >
             <span>
-              {v.thisWeek} <b style={{ color: '#22262E' }}>{formatMoney(cost?.week)}</b>
+              {v.thisWeek} <b style={{ color: 'var(--proto-ink-2)' }}>{formatMoney(cost?.week)}</b>
             </span>
             <span>
-              {v.month} <b style={{ color: '#22262E' }}>{formatMoney(cost?.month)}</b>
+              {v.month} <b style={{ color: 'var(--proto-ink-2)' }}>{formatMoney(cost?.month)}</b>
             </span>
             {/* REAL: forecastToday = scoped spend extrapolated by the elapsed fraction of the local day */}
-            <span style={{ marginLeft: 'auto', color: '#A96B0B' }}>{v.forecastToday} {formatMoney(cost?.forecastToday)}</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-amber-text)' }}>{v.forecastToday} {formatMoney(cost?.forecastToday)}</span>
           </div>
         </div>
 
         {/* memory card (scheme L3274–3279) */}
-        <div style={{ background: '#fff', border: '1px solid #E7E9EE', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 14, overflow: 'hidden' }}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               padding: '10px 14px',
-              borderBottom: '1px solid #EFF1F5',
+              borderBottom: '1px solid var(--proto-line-2)',
             }}
           >
-            <span style={{ fontSize: 12.5, fontWeight: 650, color: '#191C22' }}>{v.projectMemory}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{v.projectMemory}</span>
             {/* inert: no mobile memory-viewer route (flagged) */}
-            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#4655D4' }}>{v.viewAll} →</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)' }}>{v.viewAll} →</span>
           </div>
-          {files.length === 0 && <div style={{ padding: '10px 14px', fontSize: 10.5, color: '#B6BDC9' }}>—</div>}
+          {files.length === 0 && <div style={{ padding: '10px 14px', fontSize: 10.5, color: 'var(--proto-faint)' }}>—</div>}
           {files.map((f, idx) => (
             <div
               key={f.name}
@@ -294,7 +294,7 @@ export function MobileOverviewScreen(): JSX.Element {
                 alignItems: 'center',
                 gap: 9,
                 padding: '9px 14px',
-                borderBottom: idx < files.length - 1 ? '1px solid #F7F8FA' : undefined,
+                borderBottom: idx < files.length - 1 ? '1px solid var(--proto-alt)' : undefined,
               }}
             >
               <FileIcon />
@@ -304,7 +304,7 @@ export function MobileOverviewScreen(): JSX.Element {
                   flex: 1,
                   minWidth: 0,
                   font: "500 12px 'IBM Plex Mono',monospace",
-                  color: '#22262E',
+                  color: 'var(--proto-ink-2)',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -313,7 +313,7 @@ export function MobileOverviewScreen(): JSX.Element {
                 {f.name}
               </span>
               {/* GAP: no per-file +/- diff or 草稿 status in MemoryTree → badge omitted (no fabrication) */}
-              <span style={{ flex: 'none', font: "400 9.5px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>
+              <span style={{ flex: 'none', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>
                 {relTimeZh(f.modifiedAt, now)}
               </span>
             </div>
@@ -321,30 +321,30 @@ export function MobileOverviewScreen(): JSX.Element {
         </div>
 
         {/* schedule card (scheme L3281–3290) */}
-        <div style={{ background: '#fff', border: '1px solid #E7E9EE', borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--proto-card)', border: '1px solid var(--proto-line)', borderRadius: 14, overflow: 'hidden' }}>
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               padding: '10px 14px',
-              borderBottom: '1px solid #EFF1F5',
+              borderBottom: '1px solid var(--proto-line-2)',
             }}
           >
-            <span style={{ fontSize: 12.5, fontWeight: 650, color: '#191C22' }}>{v.scheduleCard}</span>
+            <span style={{ fontSize: 12.5, fontWeight: 650, color: 'var(--proto-ink)' }}>{v.scheduleCard}</span>
             {/* inert: ScheduleModalProvider not mounted in the mobile tree (flagged) */}
-            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#4655D4' }}>+ {v.newSchedule}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)' }}>+ {v.newSchedule}</span>
           </div>
-          {schedules.length === 0 && <div style={{ padding: '10px 14px', fontSize: 10.5, color: '#B6BDC9' }}>—</div>}
+          {schedules.length === 0 && <div style={{ padding: '10px 14px', fontSize: 10.5, color: 'var(--proto-faint)' }}>—</div>}
           {schedules.map((s: ScheduleInfo, idx: number) => (
             <div
               key={s.id}
               style={{
                 padding: '9px 14px',
-                borderBottom: idx < schedules.length - 1 ? '1px solid #F7F8FA' : undefined,
+                borderBottom: idx < schedules.length - 1 ? '1px solid var(--proto-alt)' : undefined,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <ClockIcon stroke={s.paused ? '#8A93A2' : '#5B6472'} />
+                <ClockIcon stroke={s.paused ? 'var(--proto-muted-2)' : 'var(--proto-muted)'} />
                 <span
                   title={s.message}
                   style={{
@@ -352,7 +352,7 @@ export function MobileOverviewScreen(): JSX.Element {
                     minWidth: 0,
                     fontSize: 12.5,
                     fontWeight: 600,
-                    color: s.paused ? '#8A93A2' : '#191C22',
+                    color: s.paused ? 'var(--proto-muted-2)' : 'var(--proto-ink)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -369,28 +369,28 @@ export function MobileOverviewScreen(): JSX.Element {
                         fontWeight: 600,
                         padding: '1.5px 7px',
                         borderRadius: 999,
-                        background: '#F1F2F5',
-                        color: '#8A93A2',
+                        background: 'var(--proto-gray)',
+                        color: 'var(--proto-muted-2)',
                       }}
                     >
                       {v.paused}
                     </span>
                     <span
                       onClick={() => !resume.isPending && resume.mutate({ scheduleId: s.id })}
-                      style={{ marginLeft: 'auto', flex: 'none', fontSize: 11, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+                      style={{ marginLeft: 'auto', flex: 'none', fontSize: 11, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
                     >
                       {v.resume}
                     </span>
                   </>
                 ) : (
-                  <span style={{ marginLeft: 'auto', flex: 'none', font: "400 10px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+                  <span style={{ marginLeft: 'auto', flex: 'none', font: "400 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
                     {intervalLabelZh(s)}
                   </span>
                 )}
               </div>
               {/* active entry sub-line; GAP: no last-run outcome text → time-since only */}
               {!s.paused && (
-                <div style={{ fontSize: 11, color: '#8A93A2', marginTop: 3, paddingLeft: 20 }}>
+                <div style={{ fontSize: 11, color: 'var(--proto-muted-2)', marginTop: 3, paddingLeft: 20 }}>
                   {nextRunLabelZh(s.nextRun, now)} · {lastRunLabelZh(s.lastRun, now)}
                 </div>
               )}
@@ -401,8 +401,8 @@ export function MobileOverviewScreen(): JSX.Element {
         {/* execution-flow row (scheme L3292) */}
         <div
           style={{
-            background: '#fff',
-            border: '1px solid #E7E9EE',
+            background: 'var(--proto-card)',
+            border: '1px solid var(--proto-line)',
             borderRadius: 14,
             display: 'flex',
             alignItems: 'center',
@@ -410,17 +410,17 @@ export function MobileOverviewScreen(): JSX.Element {
             padding: '11px 14px',
           }}
         >
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#191C22' }}>{v.execFlow}</span>
-          <span style={{ font: "400 10px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{v.execFlow}</span>
+          <span style={{ font: "400 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
             {v.execCountUnit} {todayExecCount} 条 · {formatMoney(cost?.today)}
           </span>
           {/* inert: no mobile executions route (flagged) */}
-          <span style={{ marginLeft: 'auto', fontSize: 12, color: '#B6BDC9' }}>→</span>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--proto-faint)' }}>→</span>
         </div>
       </div>
 
       {/* home-indicator safe-area spacer (scheme L3295) — non-Tab page owns its own bottom OS inset */}
-      <div style={{ flex: 'none', height: 'calc(8px + env(safe-area-inset-bottom))', background: '#F2F2F7' }} />
+      <div style={{ flex: 'none', height: 'calc(8px + env(safe-area-inset-bottom))', background: 'var(--proto-alt)' }} />
     </div>
   );
 }

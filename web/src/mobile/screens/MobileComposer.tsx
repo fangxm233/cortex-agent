@@ -35,7 +35,7 @@ export function MobileComposer({ sessionId, running }: { sessionId: string; runn
   };
 
   return (
-    <div style={{ flex: 'none', padding: '6px 14px 8px', background: '#F2F2F7' }}>
+    <div style={{ flex: 'none', padding: '6px 14px 8px', background: 'var(--proto-alt)' }}>
       {running && (
         <div
           style={{
@@ -43,7 +43,7 @@ export function MobileComposer({ sessionId, running }: { sessionId: string; runn
             alignItems: 'center',
             gap: 6,
             font: `500 10.5px ${mono}`,
-            color: '#8A93A2',
+            color: 'var(--proto-muted-2)',
             padding: '0 2px 7px',
           }}
         >
@@ -52,7 +52,7 @@ export function MobileComposer({ sessionId, running }: { sessionId: string; runn
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: '#4655D4',
+              background: 'var(--proto-accent)',
               animation: 'cxpulse 1.6s ease-in-out infinite',
             }}
           />
@@ -64,9 +64,9 @@ export function MobileComposer({ sessionId, running }: { sessionId: string; runn
           style={{
             flex: 1,
             height: 46,
-            border: '1.5px solid #D9DCE3',
+            border: '1.5px solid var(--proto-line-3)',
             borderRadius: 14,
-            background: '#fff',
+            background: 'var(--proto-card)',
             display: 'flex',
             alignItems: 'center',
             padding: '0 14px',
@@ -82,7 +82,7 @@ export function MobileComposer({ sessionId, running }: { sessionId: string; runn
             style={{
               width: '100%',
               fontSize: 13.5,
-              color: '#191C22',
+              color: 'var(--proto-ink)',
               fontFamily: 'inherit',
               background: 'transparent',
               border: 'none',
@@ -98,7 +98,7 @@ export function MobileComposer({ sessionId, running }: { sessionId: string; runn
             width: 46,
             height: 46,
             borderRadius: 14,
-            background: canSend || running ? '#191C22' : '#D9DCE3',
+            background: canSend || running ? 'var(--proto-ink)' : 'var(--proto-line-3)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -106,9 +106,9 @@ export function MobileComposer({ sessionId, running }: { sessionId: string; runn
           }}
         >
           {running ? (
-            <span style={{ width: 13, height: 13, background: '#fff', borderRadius: 3.5 }} />
+            <span style={{ width: 13, height: 13, background: 'var(--proto-card)', borderRadius: 3.5 }} />
           ) : (
-            <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="#fff" strokeWidth="1.8">
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="var(--ink-solid-fg)" strokeWidth="1.8">
               <path d="M7 12V2M3 6l4-4 4 4" />
             </svg>
           )}

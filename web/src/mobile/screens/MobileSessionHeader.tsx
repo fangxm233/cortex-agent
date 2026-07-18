@@ -23,8 +23,8 @@ export function MobileSessionHeader({
         alignItems: 'center',
         gap: 9,
         padding: '8px 14px 10px',
-        borderBottom: '1px solid #E7E9EE',
-        background: '#F2F2F7',
+        borderBottom: '1px solid var(--proto-line)',
+        background: 'var(--proto-alt)',
       }}
     >
       <div
@@ -32,8 +32,8 @@ export function MobileSessionHeader({
           width: 30,
           height: 30,
           borderRadius: 8,
-          background: '#EEF0FA',
-          color: '#4655D4',
+          background: 'var(--proto-accent-bg)',
+          color: 'var(--proto-accent)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -48,7 +48,7 @@ export function MobileSessionHeader({
           style={{
             fontSize: 15,
             fontWeight: 650,
-            color: '#191C22',
+            color: 'var(--proto-ink)',
             letterSpacing: '-.01em',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -63,7 +63,7 @@ export function MobileSessionHeader({
             alignItems: 'center',
             gap: 5,
             font: `400 10px ${mono}`,
-            color: '#8A93A2',
+            color: 'var(--proto-muted-2)',
             marginTop: 1,
           }}
         >
@@ -72,7 +72,7 @@ export function MobileSessionHeader({
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: running ? '#4655D4' : '#D9DCE3',
+              background: running ? 'var(--proto-accent)' : 'var(--proto-line-3)',
               animation: running ? 'cxpulse 1.6s ease-in-out infinite' : undefined,
             }}
           />
@@ -85,12 +85,12 @@ export function MobileSessionHeader({
           width: 34,
           height: 34,
           borderRadius: '50%',
-          background: '#fff',
-          border: '1px solid #E7E9EE',
+          background: 'var(--proto-card)',
+          border: '1px solid var(--proto-line)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#8A93A2',
+          color: 'var(--proto-muted-2)',
           fontSize: 14,
           letterSpacing: 1,
           flex: 'none',

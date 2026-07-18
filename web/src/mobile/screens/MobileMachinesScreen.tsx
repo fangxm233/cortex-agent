@@ -24,8 +24,8 @@ const mono = "'IBM Plex Mono',monospace";
 
 // ── online-status dot colors ─────────────────────────────────────────────────────────────────────
 
-const DOT_ONLINE = '#23854F';
-const DOT_OFFLINE = '#B6BDC9';
+const DOT_ONLINE = 'var(--proto-success)';
+const DOT_OFFLINE = 'var(--proto-faint)';
 
 // ── pure presentational view (render-testable without tRPC / QueryClient providers) ─────────────
 
@@ -45,7 +45,7 @@ export function MobileMachinesView({ cards, vocab, now }: MobileMachinesViewProp
         flexDirection: 'column',
         paddingTop: 'env(safe-area-inset-top)',
         boxSizing: 'border-box',
-        background: '#F2F2F7',
+        background: 'var(--proto-alt)',
       }}
     >
       {/* header */}
@@ -56,12 +56,12 @@ export function MobileMachinesView({ cards, vocab, now }: MobileMachinesViewProp
           alignItems: 'center',
           gap: 9,
           padding: '6px 14px 10px',
-          borderBottom: '1px solid #E7E9EE',
-          background: '#F2F2F7',
+          borderBottom: '1px solid var(--proto-line)',
+          background: 'var(--proto-alt)',
         }}
       >
         <span
-          style={{ fontSize: 22, fontWeight: 700, color: '#191C22', letterSpacing: '-.02em' }}
+          style={{ fontSize: 22, fontWeight: 700, color: 'var(--proto-ink)', letterSpacing: '-.02em' }}
         >
           {vocab.machines}
         </span>
@@ -70,8 +70,8 @@ export function MobileMachinesView({ cards, vocab, now }: MobileMachinesViewProp
           style={{
             marginLeft: 'auto',
             font: `600 10px ${mono}`,
-            color: '#5B6472',
-            background: '#EFF1F5',
+            color: 'var(--proto-muted)',
+            background: 'var(--proto-line-2)',
             padding: '2px 9px',
             borderRadius: 999,
           }}
@@ -89,7 +89,7 @@ export function MobileMachinesView({ cards, vocab, now }: MobileMachinesViewProp
           display: 'flex',
           flexDirection: 'column',
           gap: 10,
-          background: '#F2F2F7',
+          background: 'var(--proto-alt)',
         }}
       >
         {cards.length === 0 ? (
@@ -100,7 +100,7 @@ export function MobileMachinesView({ cards, vocab, now }: MobileMachinesViewProp
       </div>
 
       {/* home-indicator safe-area spacer */}
-      <div style={{ flex: 'none', height: 28, background: '#F2F2F7' }} />
+      <div style={{ flex: 'none', height: 28, background: 'var(--proto-alt)' }} />
     </div>
   );
 }
@@ -114,8 +114,8 @@ function MachineCard({ card, vocab, now }: { card: MachineCardVm; vocab: Vocab; 
   return (
     <div
       style={{
-        background: '#fff',
-        border: '1px solid #E7E9EE',
+        background: 'var(--proto-card)',
+        border: '1px solid var(--proto-line)',
         borderRadius: 14,
         padding: '12px 14px',
       }}
@@ -140,7 +140,7 @@ function MachineCard({ card, vocab, now }: { card: MachineCardVm; vocab: Vocab; 
             minWidth: 0,
             fontSize: 14,
             fontWeight: 650,
-            color: '#191C22',
+            color: 'var(--proto-ink)',
             letterSpacing: '-.01em',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -153,8 +153,8 @@ function MachineCard({ card, vocab, now }: { card: MachineCardVm; vocab: Vocab; 
         <span
           style={{
             font: `500 9.5px ${mono}`,
-            color: '#8A93A2',
-            background: '#F5F6F8',
+            color: 'var(--proto-muted-2)',
+            background: 'var(--proto-rail)',
             padding: '2px 7px',
             borderRadius: 6,
             flex: 'none',
@@ -167,8 +167,8 @@ function MachineCard({ card, vocab, now }: { card: MachineCardVm; vocab: Vocab; 
           <span
             style={{
               font: `600 10px ${mono}`,
-              color: '#fff',
-              background: '#4655D4',
+              color: 'var(--ink-solid-fg)',
+              background: 'var(--proto-accent)',
               padding: '2px 8px',
               borderRadius: 999,
               flex: 'none',
@@ -188,7 +188,7 @@ function MachineCard({ card, vocab, now }: { card: MachineCardVm; vocab: Vocab; 
           marginTop: 6,
           paddingLeft: 17,
           font: `400 10.5px ${mono}`,
-          color: '#8A93A2',
+          color: 'var(--proto-muted-2)',
         }}
       >
         <span style={{ color: card.online ? DOT_ONLINE : DOT_OFFLINE, fontWeight: 600 }}>
@@ -215,8 +215,8 @@ function EmptyCard({ vocab }: { vocab: Vocab }) {
   return (
     <div
       style={{
-        background: '#fff',
-        border: '1px solid #E7E9EE',
+        background: 'var(--proto-card)',
+        border: '1px solid var(--proto-line)',
         borderRadius: 14,
         padding: '28px 14px',
         display: 'flex',
@@ -226,7 +226,7 @@ function EmptyCard({ vocab }: { vocab: Vocab }) {
         textAlign: 'center',
       }}
     >
-      <span style={{ fontSize: 13, color: '#B6BDC9' }}>{vocab.mNoMachines}</span>
+      <span style={{ fontSize: 13, color: 'var(--proto-faint)' }}>{vocab.mNoMachines}</span>
     </div>
   );
 }

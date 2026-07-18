@@ -31,7 +31,7 @@ function NewButton({ onClick }: { onClick: () => void }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#fff',
+        color: 'var(--ink-solid-fg)',
         fontSize: 17,
         fontWeight: 400,
         cursor: 'pointer',
@@ -61,7 +61,7 @@ function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: 
           style={{
             fontSize: 14,
             fontWeight: row.unread ? 600 : 400,
-            color: row.unread ? MC.ink : '#454C59',
+            color: row.unread ? MC.ink : 'var(--proto-muted)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',

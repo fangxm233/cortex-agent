@@ -14,36 +14,36 @@ interface Swatch {
 
 // The audited recurring prototype palette (mirrors tailwind `proto.*`).
 const SWATCHES: Swatch[] = [
-  { name: 'base', hex: '#E9E7E2' },
-  { name: 'card', hex: '#FFFFFF' },
-  { name: 'rail', hex: '#FBFBFC' },
-  { name: 'alt', hex: '#F7F8FA' },
-  { name: 'gray', hex: '#F1F2F5' },
-  { name: 'ink', hex: '#191C22', dark: true },
-  { name: 'ink-2', hex: '#22262E', dark: true },
-  { name: 'ink-3', hex: '#383E48', dark: true },
-  { name: 'muted', hex: '#5B6472', dark: true },
-  { name: 'muted-2', hex: '#8A93A2', dark: true },
-  { name: 'muted-3', hex: '#98A1B0', dark: true },
-  { name: 'faint', hex: '#B6BDC9' },
-  { name: 'line', hex: '#E7E9EE' },
-  { name: 'line-2', hex: '#EFF1F5' },
-  { name: 'line-3', hex: '#D9DCE3' },
-  { name: 'line-4', hex: '#E3E6F0' },
-  { name: 'accent', hex: '#4655D4', dark: true },
-  { name: 'accent-bg', hex: '#EEF0FA' },
-  { name: 'accent-border', hex: '#C9CFF2' },
-  { name: 'accent-2', hex: '#9AA3E8', dark: true },
-  { name: 'accent-strong', hex: '#3A48B8', dark: true },
-  { name: 'amber', hex: '#C99A2E', dark: true },
-  { name: 'amber-fg', hex: '#8A5B06', dark: true },
-  { name: 'amber-bg', hex: '#FDF9F0' },
-  { name: 'amber-border', hex: '#EFDDB0' },
-  { name: 'amber-accent', hex: '#C0A96E', dark: true },
-  { name: 'success', hex: '#23854F', dark: true },
-  { name: 'success-bg', hex: '#E9F4EE' },
-  { name: 'danger', hex: '#C03D33', dark: true },
-  { name: 'danger-bg', hex: '#FBEDEB' },
+  { name: 'base', hex: 'var(--surface-base)' },
+  { name: 'card', hex: 'var(--proto-card)' },
+  { name: 'rail', hex: 'var(--proto-rail)' },
+  { name: 'alt', hex: 'var(--proto-alt)' },
+  { name: 'gray', hex: 'var(--proto-gray)' },
+  { name: 'ink', hex: 'var(--proto-ink)', dark: true },
+  { name: 'ink-2', hex: 'var(--proto-ink-2)', dark: true },
+  { name: 'ink-3', hex: 'var(--proto-ink-3)', dark: true },
+  { name: 'muted', hex: 'var(--proto-muted)', dark: true },
+  { name: 'muted-2', hex: 'var(--proto-muted-2)', dark: true },
+  { name: 'muted-3', hex: 'var(--proto-muted-3)', dark: true },
+  { name: 'faint', hex: 'var(--proto-faint)' },
+  { name: 'line', hex: 'var(--proto-line)' },
+  { name: 'line-2', hex: 'var(--proto-line-2)' },
+  { name: 'line-3', hex: 'var(--proto-line-3)' },
+  { name: 'line-4', hex: 'var(--proto-line-4)' },
+  { name: 'accent', hex: 'var(--proto-accent)', dark: true },
+  { name: 'accent-bg', hex: 'var(--proto-accent-bg)' },
+  { name: 'accent-border', hex: 'var(--proto-accent-border)' },
+  { name: 'accent-2', hex: 'var(--proto-accent-2)', dark: true },
+  { name: 'accent-strong', hex: 'var(--proto-accent-strong)', dark: true },
+  { name: 'amber', hex: 'var(--proto-amber)', dark: true },
+  { name: 'amber-fg', hex: 'var(--proto-amber-fg)', dark: true },
+  { name: 'amber-bg', hex: 'var(--proto-amber-bg)' },
+  { name: 'amber-border', hex: 'var(--proto-amber-border)' },
+  { name: 'amber-accent', hex: 'var(--proto-amber-accent)', dark: true },
+  { name: 'success', hex: 'var(--proto-success)', dark: true },
+  { name: 'success-bg', hex: 'var(--proto-success-bg)' },
+  { name: 'danger', hex: 'var(--proto-danger)', dark: true },
+  { name: 'danger-bg', hex: 'var(--proto-danger-bg)' },
 ];
 
 // The 16 prototype keyframes, shown as live specimens.
@@ -75,7 +75,7 @@ function SectionTitle({ children }: { children: string }) {
         fontSize: '10px',
         fontWeight: 700,
         letterSpacing: '0.07em',
-        color: '#B6BDC9',
+        color: 'var(--proto-faint)',
         textTransform: 'uppercase',
         margin: '28px 0 12px',
       }}
@@ -87,15 +87,15 @@ function SectionTitle({ children }: { children: string }) {
 
 export function BaseDemoPage() {
   return (
-    <div style={{ padding: '24px 28px', background: '#fff', minHeight: '100%', overflow: 'auto' }}>
+    <div style={{ padding: '24px 28px', background: 'var(--proto-card)', minHeight: '100%', overflow: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
         <div
           style={{
             width: 26,
             height: 26,
             borderRadius: 7,
-            background: '#191C22',
-            color: '#fff',
+            background: 'var(--proto-ink)',
+            color: 'var(--ink-solid-fg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -104,19 +104,19 @@ export function BaseDemoPage() {
         >
           cx
         </div>
-        <div style={{ fontWeight: 650, fontSize: 14, color: '#191C22', letterSpacing: '-0.01em' }}>
+        <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-0.01em' }}>
           Cortex — base specimen
         </div>
       </div>
 
       {/* ── Typography ── */}
       <SectionTitle>Sans (UI)</SectionTitle>
-      <div style={{ fontFamily: 'inherit', color: '#191C22' }}>
+      <div style={{ fontFamily: 'inherit', color: 'var(--proto-ink)' }}>
         <div style={{ fontSize: 14, fontWeight: 650, letterSpacing: '-0.01em' }}>
           Interface heading — 14px / 650
         </div>
         <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>Section label — 13px / 600</div>
-        <div style={{ fontSize: 12.5, fontWeight: 400, color: '#5B6472', marginTop: 4 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 400, color: 'var(--proto-muted)', marginTop: 4 }}>
           Body copy — 12.5px / 400 · The quick brown fox jumps over the lazy dog. 中文界面文字样张。
         </div>
       </div>
@@ -126,7 +126,7 @@ export function BaseDemoPage() {
         {MONO_SIZES.map((sz) => (
           <div
             key={sz}
-            style={{ font: `500 ${sz} 'IBM Plex Mono',monospace`, color: '#191C22' }}
+            style={{ font: `500 ${sz} 'IBM Plex Mono',monospace`, color: 'var(--proto-ink)' }}
           >
             thr_502fb888 · 6d21 · $2.64 · 3m 27s — {sz}
           </div>
@@ -146,7 +146,7 @@ export function BaseDemoPage() {
           <div
             key={s.name}
             style={{
-              border: '1px solid #E7E9EE',
+              border: '1px solid var(--proto-line)',
               borderRadius: 8,
               overflow: 'hidden',
             }}
@@ -164,7 +164,7 @@ export function BaseDemoPage() {
               <span
                 style={{
                   font: "500 8.5px 'IBM Plex Mono',monospace",
-                  color: s.dark ? '#fff' : '#98A1B0',
+                  color: s.dark ? 'var(--proto-card)' : 'var(--proto-muted-3)',
                 }}
               >
                 {s.hex}
@@ -175,8 +175,8 @@ export function BaseDemoPage() {
                 padding: '5px 7px',
                 fontSize: 11,
                 fontWeight: 600,
-                color: '#22262E',
-                background: '#fff',
+                color: 'var(--proto-ink-2)',
+                background: 'var(--proto-card)',
               }}
             >
               {s.name}
@@ -194,12 +194,12 @@ export function BaseDemoPage() {
               width: 7,
               height: 7,
               borderRadius: '50%',
-              background: '#4655D4',
+              background: 'var(--proto-accent)',
               display: 'inline-block',
               animation: 'cxpulse 1.6s ease-in-out infinite',
             }}
           />
-          <span style={{ fontSize: 12, color: '#4655D4', fontWeight: 600 }}>running (cxpulse)</span>
+          <span style={{ fontSize: 12, color: 'var(--proto-accent)', fontWeight: 600 }}>running (cxpulse)</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span
@@ -207,25 +207,25 @@ export function BaseDemoPage() {
               width: 7,
               height: 7,
               borderRadius: '50%',
-              background: '#C99A2E',
+              background: 'var(--proto-amber)',
               display: 'inline-block',
               animation: 'cxpulse 2s ease-in-out infinite',
             }}
           />
-          <span style={{ fontSize: 12, color: '#8A5B06', fontWeight: 600 }}>approval (cxpulse 2s)</span>
+          <span style={{ fontSize: 12, color: 'var(--proto-amber-fg)', fontWeight: 600 }}>approval (cxpulse 2s)</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-          <span style={{ font: "500 12px 'IBM Plex Mono',monospace", color: '#191C22' }}>cortex</span>
+          <span style={{ font: "500 12px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>cortex</span>
           <span
             style={{
               display: 'inline-block',
               width: 7,
               height: 14,
-              background: '#191C22',
+              background: 'var(--proto-ink)',
               animation: 'cxblink 1.1s steps(1) infinite',
             }}
           />
-          <span style={{ fontSize: 12, color: '#98A1B0', marginLeft: 6 }}>caret (cxblink)</span>
+          <span style={{ fontSize: 12, color: 'var(--proto-muted-3)', marginLeft: 6 }}>caret (cxblink)</span>
         </div>
       </div>
       <div
@@ -239,16 +239,16 @@ export function BaseDemoPage() {
           <div
             key={a}
             style={{
-              border: '1px solid #E7E9EE',
+              border: '1px solid var(--proto-line)',
               borderRadius: 8,
               padding: '10px 8px',
               textAlign: 'center',
-              background: '#FBFBFC',
+              background: 'var(--proto-rail)',
               // Loop the enter/exit specimens so the reviewer can see each fire.
               animation: `${a} 1.6s ease-in-out infinite`,
             }}
           >
-            <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: '#22262E' }}>{a}</span>
+            <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>{a}</span>
           </div>
         ))}
       </div>

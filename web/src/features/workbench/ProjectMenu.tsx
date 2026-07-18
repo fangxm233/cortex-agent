@@ -51,8 +51,8 @@ export function ProjectMenu({
           left: 10,
           top: 106,
           width: 282,
-          background: '#fff',
-          border: '1px solid #E7E9EE',
+          background: 'var(--proto-card)',
+          border: '1px solid var(--proto-line)',
           borderRadius: 12,
           boxShadow: '0 16px 48px rgba(16,24,40,.18)',
           zIndex: 59,
@@ -60,15 +60,15 @@ export function ProjectMenu({
         }}
       >
         {/* header */}
-        <div style={{ padding: '11px 13px 10px', borderBottom: '1px solid #EFF1F5' }}>
+        <div style={{ padding: '11px 13px 10px', borderBottom: '1px solid var(--proto-line-2)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div
               style={{
                 width: 22,
                 height: 22,
                 borderRadius: 6,
-                background: '#EEF0FA',
-                color: '#4655D4',
+                background: 'var(--proto-accent-bg)',
+                color: 'var(--proto-accent)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -78,8 +78,8 @@ export function ProjectMenu({
             >
               {projInitials}
             </div>
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: '#191C22' }}>{projName}</span>
-            <span style={{ marginLeft: 'auto', color: '#4655D4', fontSize: 11, fontWeight: 700 }}>✓</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{projName}</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 11, fontWeight: 700 }}>✓</span>
           </div>
           <div
             style={{
@@ -89,7 +89,7 @@ export function ProjectMenu({
               marginTop: 4,
               paddingLeft: 30,
               font: `400 9.5px ${mono}`,
-              color: '#98A1B0',
+              color: 'var(--proto-muted-3)',
             }}
           >
             <span
@@ -97,7 +97,7 @@ export function ProjectMenu({
                 width: 5,
                 height: 5,
                 borderRadius: '50%',
-                background: '#4655D4',
+                background: 'var(--proto-accent)',
                 animation: 'cxpulse 1.6s ease-in-out infinite',
                 flex: 'none',
               }}
@@ -113,14 +113,14 @@ export function ProjectMenu({
               alignItems: 'center',
               justifyContent: 'center',
               gap: 6,
-              border: '1px solid #C9CFF2',
-              background: hover === 'overview' ? '#E3E6F5' : '#EEF0FA',
+              border: '1px solid var(--proto-accent-border)',
+              background: hover === 'overview' ? 'var(--proto-accent-bg)' : 'var(--proto-accent-bg)',
               borderRadius: 8,
               padding: '6px 0',
               cursor: 'pointer',
             }}
           >
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#4655D4' }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)' }}>
               {L.openOverview} →
             </span>
           </div>
@@ -133,7 +133,7 @@ export function ProjectMenu({
             fontSize: 9,
             fontWeight: 700,
             letterSpacing: '.07em',
-            color: '#B6BDC9',
+            color: 'var(--proto-faint)',
           }}
         >
           {L.switchProject}
@@ -157,7 +157,7 @@ export function ProjectMenu({
                   padding: '7px 8px',
                   borderRadius: 7,
                   cursor: 'pointer',
-                  background: hover === rowKey ? '#F1F2F5' : 'transparent',
+                  background: hover === rowKey ? 'var(--proto-gray)' : 'transparent',
                 }}
               >
                 <span
@@ -165,7 +165,7 @@ export function ProjectMenu({
                     width: 6,
                     height: 6,
                     borderRadius: '50%',
-                    background: row.isRunning ? '#4655D4' : '#D9DCE3',
+                    background: row.isRunning ? 'var(--proto-accent)' : 'var(--proto-line-3)',
                     flex: 'none',
                     ...(row.isRunning
                       ? { animation: 'cxpulse 1.6s ease-in-out infinite' }
@@ -175,7 +175,7 @@ export function ProjectMenu({
                 <span
                   style={{
                     font: `${row.unread > 0 ? 600 : 500} 11.5px ${mono}`,
-                    color: row.unread > 0 ? '#191C22' : '#22262E',
+                    color: row.unread > 0 ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
                   }}
                 >
                   {row.id}
@@ -190,8 +190,8 @@ export function ProjectMenu({
                       height: 14,
                       padding: '0 4px',
                       borderRadius: 7,
-                      background: '#4655D4',
-                      color: '#fff',
+                      background: 'var(--proto-accent)',
+                      color: 'var(--ink-solid-fg)',
                       font: `600 9px ${mono}`,
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -201,7 +201,7 @@ export function ProjectMenu({
                     {row.unread}
                   </span>
                 )}
-                <span style={{ marginLeft: 'auto', font: `400 9px ${mono}`, color: '#B6BDC9' }}>
+                <span style={{ marginLeft: 'auto', font: `400 9px ${mono}`, color: 'var(--proto-faint)' }}>
                   {row.meta}
                 </span>
               </div>
@@ -214,16 +214,16 @@ export function ProjectMenu({
           {...hp('newproj')}
           onClick={onNewProject}
           style={{
-            borderTop: '1px solid #EFF1F5',
+            borderTop: '1px solid var(--proto-line-2)',
             padding: '9px 13px',
             display: 'flex',
             alignItems: 'center',
             gap: 7,
             cursor: 'pointer',
-            background: hover === 'newproj' ? '#FBFBFC' : 'transparent',
+            background: hover === 'newproj' ? 'var(--proto-rail)' : 'transparent',
           }}
         >
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: '#4655D4' }}>+ {L.newProject}</span>
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)' }}>+ {L.newProject}</span>
         </div>
       </div>
     </>

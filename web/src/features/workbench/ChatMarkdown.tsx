@@ -20,13 +20,13 @@ function Inline({ nodes }: { nodes: InlineNode[] }): JSX.Element {
             return <em key={i}>{n.text}</em>;
           case 'code':
             return (
-              <code key={i} style={{ font: `500 12.5px ${mono}`, background: '#F1F2F5', borderRadius: 4, padding: '1px 5px' }}>
+              <code key={i} style={{ font: `500 12.5px ${mono}`, background: 'var(--proto-gray)', borderRadius: 4, padding: '1px 5px' }}>
                 {n.text}
               </code>
             );
           case 'link':
             return (
-              <a key={i} href={n.href} target="_blank" rel="noreferrer" style={{ color: '#4655D4', textDecoration: 'underline' }}>
+              <a key={i} href={n.href} target="_blank" rel="noreferrer" style={{ color: 'var(--proto-accent)', textDecoration: 'underline' }}>
                 {n.text}
               </a>
             );
@@ -43,7 +43,7 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
     case 'heading': {
       const size = block.level <= 1 ? 17 : block.level === 2 ? 15.5 : 14.5;
       return (
-        <div style={{ fontSize: size, fontWeight: 650, color: '#191C22', margin: '2px 0' }}>
+        <div style={{ fontSize: size, fontWeight: 650, color: 'var(--proto-ink)', margin: '2px 0' }}>
           <Inline nodes={block.inline} />
         </div>
       );
@@ -71,8 +71,8 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
         <pre
           style={{
             font: `500 12.5px ${mono}`,
-            background: '#F7F8FA',
-            border: '1px solid #E7E9EE',
+            background: 'var(--proto-alt)',
+            border: '1px solid var(--proto-line)',
             borderRadius: 8,
             padding: '10px 12px',
             overflow: 'auto',
@@ -84,7 +84,7 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
       );
     case 'blockquote':
       return (
-        <div style={{ borderLeft: '3px solid #E7E9EE', paddingLeft: 12, color: '#5B6472' }}>
+        <div style={{ borderLeft: '3px solid var(--proto-line)', paddingLeft: 12, color: 'var(--proto-muted)' }}>
           <Inline nodes={block.inline} />
         </div>
       );
@@ -95,7 +95,7 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
             <thead>
               <tr>
                 {block.header.map((cell, i) => (
-                  <th key={i} style={{ border: '1px solid #E7E9EE', padding: '4px 8px', textAlign: 'left', fontWeight: 650 }}>
+                  <th key={i} style={{ border: '1px solid var(--proto-line)', padding: '4px 8px', textAlign: 'left', fontWeight: 650 }}>
                     <Inline nodes={cell} />
                   </th>
                 ))}
@@ -105,7 +105,7 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
               {block.rows.map((row, r) => (
                 <tr key={r}>
                   {row.map((cell, c) => (
-                    <td key={c} style={{ border: '1px solid #E7E9EE', padding: '4px 8px' }}>
+                    <td key={c} style={{ border: '1px solid var(--proto-line)', padding: '4px 8px' }}>
                       <Inline nodes={cell} />
                     </td>
                   ))}
@@ -116,7 +116,7 @@ function BlockView({ block }: { block: Block }): JSX.Element | null {
         </div>
       );
     case 'hr':
-      return <div style={{ height: 1, background: '#EFF1F5', margin: '4px 0' }} />;
+      return <div style={{ height: 1, background: 'var(--proto-line-2)', margin: '4px 0' }} />;
     default:
       return null;
   }

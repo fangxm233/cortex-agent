@@ -27,8 +27,8 @@ export function ProfileMenu({
         position: 'absolute',
         left: 0,
         top: 26,
-        background: '#fff',
-        border: '1px solid #E7E9EE',
+        background: 'var(--proto-card)',
+        border: '1px solid var(--proto-line)',
         borderRadius: 9,
         boxShadow: '0 10px 28px rgba(16,24,40,.14)',
         zIndex: 59,
@@ -52,13 +52,13 @@ export function ProfileMenu({
             padding: '7.5px 12px',
             cursor: po.disabled ? 'not-allowed' : 'pointer',
             opacity: po.disabled ? 0.42 : 1,
-            background: po.disabled ? 'transparent' : hover === po.name ? '#F1F2F5' : po.active ? '#F5F6FD' : 'transparent',
+            background: po.disabled ? 'transparent' : hover === po.name ? 'var(--proto-gray)' : po.active ? 'var(--proto-accent-bg)' : 'transparent',
           }}
         >
-          <span style={{ font: `600 11px ${mono}`, color: '#191C22' }}>{po.name}</span>
-          <span style={{ font: `400 9.5px ${mono}`, color: '#98A1B0' }}>{po.sub}</span>
+          <span style={{ font: `600 11px ${mono}`, color: 'var(--proto-ink)' }}>{po.name}</span>
+          <span style={{ font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{po.sub}</span>
           {po.active && (
-            <span style={{ marginLeft: 'auto', color: '#4655D4', fontSize: 10, fontWeight: 700 }}>✓</span>
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 10, fontWeight: 700 }}>✓</span>
           )}
         </div>
       ))}

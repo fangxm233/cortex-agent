@@ -39,7 +39,7 @@ function GroupSection({
           fontWeight: 700,
           letterSpacing: '.06em',
           textTransform: 'uppercase',
-          color: '#5B6472',
+          color: 'var(--proto-muted)',
           padding: '8px 2px 4px',
         }}
       >
@@ -111,14 +111,14 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
   const onOpen = (t: TaskInfo) => setOpenTaskId(t.id);
 
   if (tasksQuery.isPending) {
-    return <div style={{ fontSize: 12, color: '#8A93A2', padding: 12 }}>{L.tkLoading}</div>;
+    return <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', padding: 12 }}>{L.tkLoading}</div>;
   }
 
   if (tasksQuery.isError) {
     return (
       <div style={{
-        borderRadius: 10, border: '1px solid #E7E9EE', background: '#FBEDEB',
-        padding: '6px 10px', fontSize: 12, color: '#C03D33',
+        borderRadius: 10, border: '1px solid var(--proto-line)', background: 'var(--proto-danger-bg)',
+        padding: '6px 10px', fontSize: 12, color: 'var(--proto-danger)',
       }}>
         {L.tkLoadFailed}: {tasksQuery.error.message}
       </div>
@@ -140,14 +140,14 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
       {/* Filter row: Actionable / All toggle — no "+ Task" button per the spec */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '0 0 8px', flex: 'none' }}>
-        <div style={{ display: 'flex', background: '#EFF1F5', borderRadius: 7, padding: 2 }}>
+        <div style={{ display: 'flex', background: 'var(--proto-line-2)', borderRadius: 7, padding: 2 }}>
           <span
             onClick={() => setScope('actionable')}
             style={{
               fontSize: 11,
               fontWeight: 600,
-              color: scope === 'actionable' ? '#191C22' : '#8A93A2',
-              background: scope === 'actionable' ? '#fff' : 'transparent',
+              color: scope === 'actionable' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+              background: scope === 'actionable' ? 'var(--proto-card)' : 'transparent',
               borderRadius: 5,
               padding: '3px 10px',
               cursor: 'pointer',
@@ -161,8 +161,8 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
             style={{
               fontSize: 11,
               fontWeight: 600,
-              color: scope === 'all' ? '#191C22' : '#8A93A2',
-              background: scope === 'all' ? '#fff' : 'transparent',
+              color: scope === 'all' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+              background: scope === 'all' ? 'var(--proto-card)' : 'transparent',
               borderRadius: 5,
               padding: '3px 10px',
               cursor: 'pointer',
@@ -176,7 +176,7 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
 
         {/* Task cards by lifecycle group */}
         {visible.length === 0 ? (
-          <div style={{ fontSize: 12, color: '#8A93A2', padding: '24px 0', textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', padding: '24px 0', textAlign: 'center' }}>
             {L.mNoTasks}
           </div>
         ) : (
@@ -198,9 +198,9 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
           display: 'flex',
           alignItems: 'center',
           padding: '8px 2px 0',
-          borderTop: '1px solid #EFF1F5',
+          borderTop: '1px solid var(--proto-line-2)',
           font: "400 9.5px 'IBM Plex Mono',monospace",
-          color: '#B6BDC9',
+          color: 'var(--proto-faint)',
         }}
       >
         <span>TASKS.yaml · {L.synced}</span>

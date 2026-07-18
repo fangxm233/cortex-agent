@@ -11,7 +11,7 @@ import { type CSSProperties, type ReactNode } from 'react';
 // Status bar
 // ─────────────────────────────────────────────────────────────
 function IOSStatusBar({ dark = false, time = '9:41' }: { dark?: boolean; time?: string }) {
-  const c = dark ? '#fff' : '#000';
+  const c = dark ? 'var(--proto-card)' : '#000';
   return (
     <div
       style={{
@@ -111,7 +111,7 @@ export function IOSDevice({
         borderRadius: 48,
         overflow: 'hidden',
         position: 'relative',
-        background: dark ? '#000' : '#F2F2F7',
+        background: dark ? '#000' : 'var(--proto-alt)',
         boxShadow: '0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)',
         fontFamily: '-apple-system, system-ui, sans-serif',
         WebkitFontSmoothing: 'antialiased',

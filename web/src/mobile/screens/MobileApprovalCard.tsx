@@ -24,7 +24,7 @@ export function MobileApprovalCard({
   onDeny: () => void;
 }): JSX.Element {
   return (
-    <div style={{ border: '1px solid #EFDDB0', background: '#FDF9F0', borderRadius: 12, padding: '12px 14px' }}>
+    <div style={{ border: '1px solid var(--proto-amber-border)', background: 'var(--proto-amber-bg)', borderRadius: 12, padding: '12px 14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span
           style={{
@@ -32,16 +32,16 @@ export function MobileApprovalCard({
             fontWeight: 700,
             padding: '2px 8px',
             borderRadius: 999,
-            background: '#F7ECCE',
-            color: '#8A5B06',
+            background: 'var(--pill-waiting-bg)',
+            color: 'var(--proto-amber-fg)',
           }}
         >
           {needsApprovalLabel}
         </span>
-        <span style={{ font: `400 10px ${mono}`, color: '#C0A96E' }}>{id}</span>
+        <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-amber-accent)' }}>{id}</span>
       </div>
-      <div style={{ fontSize: 13.5, fontWeight: 600, color: '#191C22', marginTop: 8 }}>{title}</div>
-      <div style={{ fontSize: 12, lineHeight: 1.55, color: '#5B6472', marginTop: 3 }}>{desc}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--proto-ink)', marginTop: 8 }}>{title}</div>
+      <div style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--proto-muted)', marginTop: 3 }}>{desc}</div>
       <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>
         <div
           data-action="approve"
@@ -50,8 +50,8 @@ export function MobileApprovalCard({
             flex: 1,
             height: 44,
             borderRadius: 11,
-            background: '#191C22',
-            color: '#fff',
+            background: 'var(--proto-ink)',
+            color: 'var(--ink-solid-fg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -70,9 +70,9 @@ export function MobileApprovalCard({
             flex: 1,
             height: 44,
             borderRadius: 11,
-            border: '1.5px solid #D9DCE3',
-            background: '#fff',
-            color: '#191C22',
+            border: '1.5px solid var(--proto-line-3)',
+            background: 'var(--proto-card)',
+            color: 'var(--proto-ink)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

@@ -130,7 +130,7 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
             height: 38,
             borderRadius: 10,
             background: 'rgba(255,255,255,.12)',
-            color: '#fff',
+            color: 'var(--ink-solid-fg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -149,7 +149,7 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
             height: 38,
             borderRadius: 10,
             background: 'rgba(255,255,255,.12)',
-            color: '#fff',
+            color: 'var(--ink-solid-fg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -167,9 +167,9 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
         style={{ maxWidth: '94vw', maxHeight: '84vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         {failed ? (
-          <div style={{ color: '#B6BDC9', font: `500 12px ${mono}` }}>Failed to load {item.name}</div>
+          <div style={{ color: 'var(--proto-faint)', font: `500 12px ${mono}` }}>Failed to load {item.name}</div>
         ) : !src ? (
-          <div style={{ color: '#8A93A2', font: `500 12px ${mono}` }}>Loading…</div>
+          <div style={{ color: 'var(--proto-muted-2)', font: `500 12px ${mono}` }}>Loading…</div>
         ) : item.kind === 'video' ? (
           <video
             src={src}

@@ -96,7 +96,7 @@ export function MThreadsHeader({
       below={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9 }}>
           <span style={{ fontSize: 10, fontWeight: 600, color: MC.muted }}>{copy.today}</span>
-          <div style={{ flex: 1, height: 4, borderRadius: 999, background: '#E3E5EA', overflow: 'hidden' }}>
+          <div style={{ flex: 1, height: 4, borderRadius: 999, background: 'var(--proto-line)', overflow: 'hidden' }}>
             <div style={{ width: `${band.pct}%`, height: '100%', background: MC.run }} />
           </div>
           <span style={{ font: `500 10px ${MONO}`, color: MC.ink }}>
@@ -122,7 +122,7 @@ function PipelineDot({ state }: { state: MPipelineStep['state'] }) {
       <span style={{ width: 14, height: 14, borderRadius: '50%', background: MC.run, boxShadow: `0 0 0 3px ${MC.runBg}`, animation: 'cxpulse 1.6s ease-in-out infinite', flex: 'none' }} />
     );
   }
-  return <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid #D9DCE3', boxSizing: 'border-box', flex: 'none' }} />;
+  return <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box', flex: 'none' }} />;
 }
 
 function Pipeline({ steps }: { steps: MPipelineStep[] }) {
@@ -144,7 +144,7 @@ function Pipeline({ steps }: { steps: MPipelineStep[] }) {
             </span>
           </div>
           {i < steps.length - 1 && (
-            <div style={{ flex: 1, height: 1.5, margin: '0 6px', background: s.state === 'done' ? '#BFE0CD' : MC.hairline }} />
+            <div style={{ flex: 1, height: 1.5, margin: '0 6px', background: s.state === 'done' ? 'var(--proto-success-bg)' : MC.hairline }} />
           )}
         </div>
       ))}
@@ -180,7 +180,7 @@ export function MRunningCard({
       </div>
       {steps.length > 0 && <Pipeline steps={steps} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-        <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0' }}>
+        <span style={{ font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>
           {runningMeta(info, detail, now, copy.subthread)}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: MC.run }}>{copy.open} ›</span>

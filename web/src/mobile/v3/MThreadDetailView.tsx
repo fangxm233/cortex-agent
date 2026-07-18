@@ -87,7 +87,7 @@ function Header({
           alignItems: 'center',
           gap: 6,
           font: `400 9.5px ${MONO}`,
-          color: '#98A1B0',
+          color: 'var(--proto-muted-3)',
           padding: '6px 0 9px 24px',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
@@ -146,18 +146,18 @@ function StepDotColumn({ kind, hasConnector }: { kind: MThreadStepVm['kind']; ha
       )}
       {kind === 'pending' && (
         <span
-          style={{ width: 13, height: 13, borderRadius: '50%', border: '1.5px solid #D9DCE3', boxSizing: 'border-box', flex: 'none' }}
+          style={{ width: 13, height: 13, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box', flex: 'none' }}
         />
       )}
-      {hasConnector && <span style={{ flex: 1, width: 1.5, background: '#EFF1F5', margin: '3px 0' }} />}
+      {hasConnector && <span style={{ flex: 1, width: 1.5, background: 'var(--proto-line-2)', margin: '3px 0' }} />}
     </div>
   );
 }
 
 function AgentBox({ agent }: { agent: NonNullable<MThreadStepVm['agent']> }) {
   return (
-    <div style={{ border: '1px solid #E3E6F5', background: '#FBFBFE', borderRadius: 9, padding: '9px 11px', marginTop: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `400 9px ${MONO}`, color: '#98A1B0' }}>
+    <div style={{ border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-rail)', borderRadius: 9, padding: '9px 11px', marginTop: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>
         {agent.live && <MDot color={MC.run} size={5} pulse />}
         <span>{agent.turnLabel}</span>
         {agent.cost && <span style={{ marginLeft: 'auto' }}>{agent.cost}</span>}
@@ -193,7 +193,7 @@ function StepRow({ step, copy }: { step: MThreadStepVm; copy: MThreadDetailCopy 
       <div style={{ paddingBottom: step.hasConnector ? 9 : 4 }}>
         <div style={{ display: 'flex', alignItems: 'baseline' }}>
           <span style={{ fontSize: 11.5, fontWeight: active ? 600 : 500, color: nameColor }}>{step.name}</span>
-          {step.note && <span style={{ fontSize: 9, color: '#98A1B0', marginLeft: 6 }}>{step.note}</span>}
+          {step.note && <span style={{ fontSize: 9, color: 'var(--proto-muted-3)', marginLeft: 6 }}>{step.note}</span>}
           {timeLabel && (
             <span style={{ marginLeft: 'auto', font: `400 9px ${MONO}`, color: active ? MC.run : MC.faint }}>
               {timeLabel}
@@ -208,8 +208,8 @@ function StepRow({ step, copy }: { step: MThreadStepVm; copy: MThreadDetailCopy 
 
 function ArtifactsCard({ vm, copy }: { vm: MThreadDetailVm; copy: MThreadDetailCopy }) {
   return (
-    <div style={{ background: '#fff', border: `1px solid ${MC.hairline}`, borderRadius: 12, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid #EFF1F5' }}>
+    <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid var(--proto-line-2)' }}>
         <span style={{ fontSize: 12, fontWeight: 650, color: MC.ink }}>{copy.artifacts}</span>
         <span style={{ font: `400 9.5px ${MONO}`, color: MC.faint, marginLeft: 7 }}>{vm.artifactCount}</span>
       </div>
@@ -224,7 +224,7 @@ function ArtifactsCard({ vm, copy }: { vm: MThreadDetailVm; copy: MThreadDetailC
               alignItems: 'center',
               gap: 9,
               padding: '9px 13px',
-              borderBottom: i < vm.artifacts.length - 1 ? '1px solid #F7F8FA' : undefined,
+              borderBottom: i < vm.artifacts.length - 1 ? '1px solid var(--proto-alt)' : undefined,
             }}
           >
             <FileGlyph />
@@ -244,7 +244,7 @@ function Footer({ vm, copy, onCancel }: { vm: MThreadDetailVm; copy: MThreadDeta
       style={{
         flex: 'none',
         borderTop: `1px solid ${MC.hairline}`,
-        background: '#FBFBFC',
+        background: 'var(--proto-rail)',
         display: 'flex',
         alignItems: 'center',
         gap: 8,
@@ -264,8 +264,8 @@ function Footer({ vm, copy, onCancel }: { vm: MThreadDetailVm; copy: MThreadDeta
               flex: 1,
               height: 44,
               borderRadius: 11,
-              border: '1.5px solid #D9DCE3',
-              background: '#fff',
+              border: '1.5px solid var(--proto-line-3)',
+              background: 'var(--proto-card)',
               color: MC.ink,
               display: 'flex',
               alignItems: 'center',
@@ -287,8 +287,8 @@ function Footer({ vm, copy, onCancel }: { vm: MThreadDetailVm; copy: MThreadDeta
               flex: 1,
               height: 44,
               borderRadius: 11,
-              border: '1.5px solid #EED3D0',
-              background: '#fff',
+              border: '1.5px solid var(--proto-danger-bg)',
+              background: 'var(--proto-card)',
               color: MC.fail,
               display: 'flex',
               alignItems: 'center',
@@ -303,7 +303,7 @@ function Footer({ vm, copy, onCancel }: { vm: MThreadDetailVm; copy: MThreadDeta
           </button>
         </>
       )}
-      <span style={{ font: `500 10.5px ${MONO}`, color: '#98A1B0', flex: 'none', marginLeft: 'auto', paddingLeft: 4 }}>
+      <span style={{ font: `500 10.5px ${MONO}`, color: 'var(--proto-muted-3)', flex: 'none', marginLeft: 'auto', paddingLeft: 4 }}>
         Σ {vm.cost}
       </span>
     </div>
@@ -331,13 +331,13 @@ export function MThreadDetailView({
     >
       <div style={{ padding: '12px 14px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* meta line: thr_xxxx · agent X · machine · elapsed */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, font: `400 10px ${MONO}`, color: '#98A1B0', padding: '0 2px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)', padding: '0 2px' }}>
           <span>{vm.metaParts.join(' · ')}</span>
           <span style={{ marginLeft: 'auto', color: MC.run }}>{vm.elapsed}</span>
         </div>
 
         {/* PIPELINE */}
-        <div style={{ background: '#fff', border: `1px solid ${MC.hairline}`, borderRadius: 12, padding: '11px 13px 7px' }}>
+        <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 12, padding: '11px 13px 7px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '15px 1fr', columnGap: 8 }}>
             {vm.steps.map((step, i) => (
               <StepRow key={i} step={step} copy={copy} />

@@ -38,7 +38,7 @@ export function MHotUpdateDialog({ update, onApply, onDismiss }: MHotUpdateDialo
       <div
         style={{
           width: '100%',
-          background: '#fff',
+          background: 'var(--proto-card)',
           borderRadius: 18,
           boxShadow: '0 24px 64px rgba(16,24,40,.32)',
           padding: '24px 20px 14px',
@@ -53,30 +53,30 @@ export function MHotUpdateDialog({ update, onApply, onDismiss }: MHotUpdateDialo
             width: 46,
             height: 46,
             borderRadius: 14,
-            background: '#EEF0FA',
+            background: 'var(--proto-accent-bg)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: 14,
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#4655D4" strokeWidth="1.8">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="var(--proto-accent)" strokeWidth="1.8">
             <path d="M10 14V4M5.5 8.5 10 4l4.5 4.5" />
             <path d="M3.5 16.5h13" />
           </svg>
         </div>
 
-        <div style={{ fontSize: 17, fontWeight: 700, color: '#191C22', letterSpacing: '-.01em' }}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>
           新版本已就绪
         </div>
-        <div style={{ font: `500 10.5px ${MONO}`, color: '#98A1B0', marginTop: 6 }}>
+        <div style={{ font: `500 10.5px ${MONO}`, color: 'var(--proto-muted-3)', marginTop: 6 }}>
           {updateSummaryLine(update)}
         </div>
         <div
           style={{
             fontSize: 13,
             lineHeight: 1.6,
-            color: '#5B6472',
+            color: 'var(--proto-muted)',
             textAlign: 'center',
             margin: '10px 0 18px',
           }}
@@ -92,8 +92,8 @@ export function MHotUpdateDialog({ update, onApply, onDismiss }: MHotUpdateDialo
               height: 48,
               border: 'none',
               borderRadius: 13,
-              background: '#191C22',
-              color: '#fff',
+              background: 'var(--proto-ink)',
+              color: 'var(--ink-solid-fg)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -117,7 +117,7 @@ export function MHotUpdateDialog({ update, onApply, onDismiss }: MHotUpdateDialo
               justifyContent: 'center',
               fontSize: 13.5,
               fontWeight: 600,
-              color: '#8A93A2',
+              color: 'var(--proto-muted-2)',
               cursor: 'pointer',
               width: '100%',
             }}

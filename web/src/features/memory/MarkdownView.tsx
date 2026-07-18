@@ -13,7 +13,7 @@ function renderInline(nodes: InlineNode[]): ReactNode {
     switch (n.type) {
       case 'bold':
         return (
-          <span key={i} style={{ fontWeight: 650, color: '#22262E' }}>
+          <span key={i} style={{ fontWeight: 650, color: 'var(--proto-ink-2)' }}>
             {n.text}
           </span>
         );
@@ -27,14 +27,14 @@ function renderInline(nodes: InlineNode[]): ReactNode {
         return (
           <code
             key={i}
-            style={{ font: `400 .92em ${MONO}`, background: '#F1F2F5', color: '#3A3F6E', padding: '1px 4px', borderRadius: 4 }}
+            style={{ font: `400 .92em ${MONO}`, background: 'var(--proto-gray)', color: 'var(--proto-accent-strong)', padding: '1px 4px', borderRadius: 4 }}
           >
             {n.text}
           </code>
         );
       case 'link':
         return (
-          <a key={i} href={n.href} style={{ color: '#4655D4', textDecoration: 'none' }}>
+          <a key={i} href={n.href} style={{ color: 'var(--proto-accent)', textDecoration: 'none' }}>
             {n.text}
           </a>
         );
@@ -44,8 +44,8 @@ function renderInline(nodes: InlineNode[]): ReactNode {
   });
 }
 
-const HEADING: CSSProperties = { fontSize: 12.5, fontWeight: 650, color: '#191C22', margin: '15px 0 5px' };
-const PARA: CSSProperties = { fontSize: 11.5, lineHeight: 1.65, color: '#383E48', margin: '4px 0 0' };
+const HEADING: CSSProperties = { fontSize: 12.5, fontWeight: 650, color: 'var(--proto-ink)', margin: '15px 0 5px' };
+const PARA: CSSProperties = { fontSize: 11.5, lineHeight: 1.65, color: 'var(--proto-ink-3)', margin: '4px 0 0' };
 
 function renderBlock(b: Block, i: number): ReactNode {
   switch (b.type) {
@@ -63,10 +63,10 @@ function renderBlock(b: Block, i: number): ReactNode {
       );
     case 'list':
       return (
-        <div key={i} style={{ fontSize: 11.5, lineHeight: 1.75, color: '#383E48', margin: '4px 0 0' }}>
+        <div key={i} style={{ fontSize: 11.5, lineHeight: 1.75, color: 'var(--proto-ink-3)', margin: '4px 0 0' }}>
           {b.items.map((item, j) => (
             <div key={j} style={{ display: 'flex', gap: 9 }}>
-              <span style={{ color: '#B6BDC9', flex: 'none' }}>{b.ordered ? `${j + 1}.` : '·'}</span>
+              <span style={{ color: 'var(--proto-faint)', flex: 'none' }}>{b.ordered ? `${j + 1}.` : '·'}</span>
               <span>{renderInline(item)}</span>
             </div>
           ))}
@@ -76,18 +76,18 @@ function renderBlock(b: Block, i: number): ReactNode {
       const cols = Math.max(b.header.length, ...b.rows.map((r) => r.length), 1);
       const grid = `repeat(${cols}, minmax(0,1fr))`;
       return (
-        <div key={i} style={{ border: '1px solid #EFF1F5', borderRadius: 8, overflow: 'hidden', fontSize: 11, margin: '7px 0 0' }}>
+        <div key={i} style={{ border: '1px solid var(--proto-line-2)', borderRadius: 8, overflow: 'hidden', fontSize: 11, margin: '7px 0 0' }}>
           <div
             style={{
               display: 'grid',
               gridTemplateColumns: grid,
               padding: '6px 12px',
-              background: '#FBFBFC',
-              borderBottom: '1px solid #EFF1F5',
+              background: 'var(--proto-rail)',
+              borderBottom: '1px solid var(--proto-line-2)',
               fontSize: 9,
               fontWeight: 700,
               letterSpacing: '.05em',
-              color: '#98A1B0',
+              color: 'var(--proto-muted-3)',
             }}
           >
             {b.header.map((cell, c) => (
@@ -101,8 +101,8 @@ function renderBlock(b: Block, i: number): ReactNode {
                 display: 'grid',
                 gridTemplateColumns: grid,
                 padding: '6px 12px',
-                borderBottom: '1px solid #F7F8FA',
-                color: '#383E48',
+                borderBottom: '1px solid var(--proto-alt)',
+                color: 'var(--proto-ink-3)',
               }}
             >
               {Array.from({ length: cols }).map((_, c) => (
@@ -120,12 +120,12 @@ function renderBlock(b: Block, i: number): ReactNode {
         <pre
           key={i}
           style={{
-            background: '#FBFBFC',
-            border: '1px solid #EFF1F5',
+            background: 'var(--proto-rail)',
+            border: '1px solid var(--proto-line-2)',
             borderRadius: 8,
             padding: '10px 13px',
             font: `400 10.5px ${MONO}`,
-            color: '#22262E',
+            color: 'var(--proto-ink-2)',
             overflow: 'auto',
             margin: '7px 0 0',
             whiteSpace: 'pre',
@@ -138,13 +138,13 @@ function renderBlock(b: Block, i: number): ReactNode {
       return (
         <div
           key={i}
-          style={{ borderLeft: '2px solid #D9DCE3', padding: '2px 0 2px 9px', margin: '7px 0 0', fontSize: 11.5, lineHeight: 1.65, color: '#5B6472' }}
+          style={{ borderLeft: '2px solid var(--proto-line-3)', padding: '2px 0 2px 9px', margin: '7px 0 0', fontSize: 11.5, lineHeight: 1.65, color: 'var(--proto-muted)' }}
         >
           {renderInline(b.inline)}
         </div>
       );
     case 'hr':
-      return <div key={i} style={{ height: 1, background: '#EFF1F5', margin: '12px 0' }} />;
+      return <div key={i} style={{ height: 1, background: 'var(--proto-line-2)', margin: '12px 0' }} />;
     default:
       return null;
   }
@@ -157,17 +157,17 @@ export function MarkdownView({ content }: { content: string }): JSX.Element {
   return (
     <div>
       {frontmatter && (frontmatter.entries.length > 0 || frontmatter.summary) && (
-        <div style={{ background: '#FBFBFC', border: '1px solid #EFF1F5', borderRadius: 8, padding: '10px 13px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 13, font: `400 10px ${MONO}`, color: '#5B6472', flexWrap: 'wrap' }}>
+        <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8, padding: '10px 13px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 13, font: `400 10px ${MONO}`, color: 'var(--proto-muted)', flexWrap: 'wrap' }}>
             {frontmatter.entries.map((e, i) => (
               <span key={i}>
-                <span style={{ color: '#98A1B0' }}>{e.key}</span> {e.value}
+                <span style={{ color: 'var(--proto-muted-3)' }}>{e.key}</span> {e.value}
               </span>
             ))}
           </div>
           {frontmatter.summary && (
-            <div style={{ fontSize: 11, color: '#22262E', marginTop: 6 }}>
-              <span style={{ font: `400 10px ${MONO}`, color: '#98A1B0' }}>{L.memSummary}</span>&nbsp; {frontmatter.summary}
+            <div style={{ fontSize: 11, color: 'var(--proto-ink-2)', marginTop: 6 }}>
+              <span style={{ font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)' }}>{L.memSummary}</span>&nbsp; {frontmatter.summary}
             </div>
           )}
         </div>

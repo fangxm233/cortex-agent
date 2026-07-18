@@ -91,11 +91,11 @@ function render(over: Partial<MProjectViewProps> = {}) {
 }
 
 describe('MProjectView', () => {
-  it('renders the header title + daemon-connected status (green #23854F dot, no qn tag)', () => {
+  it('renders the header title + daemon-connected status (green var(--proto-success) dot, no qn tag)', () => {
     const html = render();
     expect(html).toContain('项目');
     expect(html).toContain('daemon 已连接');
-    expect(html).toContain('#23854F');
+    expect(html).toContain('var(--m-done)');
   });
 
   it('renders the current-project card: name (=id), 当前 badge, real thread + needs-you sub-line', () => {
@@ -130,7 +130,7 @@ describe('MProjectView', () => {
     expect(html).toContain('审批 · 2 待处理');
     expect(html).toContain('1 线程暂停等待');
     expect(html).toContain('处理');
-    expect(html).toContain('#C99A2E'); // amber dot
+    expect(html).toContain('var(--m-amber)'); // amber dot
   });
 
   it('hides the amber approval bar when there are no pending approvals', () => {

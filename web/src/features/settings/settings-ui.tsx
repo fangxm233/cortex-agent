@@ -2,14 +2,14 @@ import type { CSSProperties, ReactNode } from 'react';
 
 // Small 1:1 building blocks shared by the settings panels — the prototype's white card chrome,
 // card header, mono key/value row, toggle and radio. Raw inline styles/px/hex per §8.3 (the light
-// settings palette #E7E9EE/#EFF1F5/#F7F8FA is not all in proto.* tokens; the 1:1 rebuild uses exact
+// settings palette var(--proto-line)/var(--proto-line-2)/var(--proto-alt) is not all in proto.* tokens; the 1:1 rebuild uses exact
 // values, matching the LeftRail / exec-drawer precedent).
 
 const MONO = "'IBM Plex Mono',monospace";
 
 export const CARD_STYLE: CSSProperties = {
-  background: '#fff',
-  border: '1px solid #E7E9EE',
+  background: 'var(--proto-card)',
+  border: '1px solid var(--proto-line)',
   borderRadius: 10,
   boxShadow: '0 1px 2px rgba(16,24,40,.03)',
 };
@@ -25,13 +25,13 @@ export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactN
         display: 'flex',
         alignItems: 'center',
         padding: '10px 14px',
-        borderBottom: '1px solid #EFF1F5',
+        borderBottom: '1px solid var(--proto-line-2)',
       }}
     >
-      <span style={{ fontSize: 12, fontWeight: 650, color: '#191C22' }}>{title}</span>
+      <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{title}</span>
       {right != null ? (
         <span
-          style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: '#98A1B0' }}
+          style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-3)' }}
         >
           {right}
         </span>
@@ -44,7 +44,7 @@ export function SCardHeader({ title, right }: { title: ReactNode; right?: ReactN
 export function MonoKV({ k, value, valueColor }: { k: string; value: ReactNode; valueColor?: string }) {
   return (
     <div style={{ display: 'flex' }}>
-      <span style={{ color: '#98A1B0' }}>{k}</span>
+      <span style={{ color: 'var(--proto-muted-3)' }}>{k}</span>
       <span style={{ marginLeft: 'auto', color: valueColor }}>{value}</span>
     </div>
   );
@@ -63,7 +63,7 @@ export function Toggle({ on, onClick, inert }: { on: boolean; onClick?: () => vo
         width: 32,
         height: 19,
         borderRadius: 999,
-        background: on ? '#4655D4' : '#E3E5EA',
+        background: on ? 'var(--proto-accent)' : 'var(--proto-line)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: on ? 'flex-end' : 'flex-start',
@@ -74,7 +74,7 @@ export function Toggle({ on, onClick, inert }: { on: boolean; onClick?: () => vo
         opacity: inert ? 0.85 : 1,
       }}
     >
-      <span style={{ width: 15, height: 15, borderRadius: '50%', background: '#fff' }} />
+      <span style={{ width: 15, height: 15, borderRadius: '50%', background: 'var(--proto-card)' }} />
     </div>
   );
 }
@@ -87,7 +87,7 @@ export function RadioDot({ selected }: { selected: boolean }) {
         width: 14,
         height: 14,
         borderRadius: '50%',
-        border: selected ? '4.5px solid #4655D4' : '1.5px solid #D9DCE3',
+        border: selected ? '4.5px solid var(--proto-accent)' : '1.5px solid var(--proto-line-3)',
         boxSizing: 'border-box',
         flex: 'none',
         marginTop: 1,

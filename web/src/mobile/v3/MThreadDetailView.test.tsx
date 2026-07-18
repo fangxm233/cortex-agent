@@ -95,7 +95,7 @@ describe('MThreadDetailView', () => {
     expect(html).toContain('暂停');
     expect(html).toContain('取消');
     expect(html).toContain('Σ $0.41');
-    expect(html).toContain('#EED3D0'); // cancel red outline
+    expect(html).toContain('var(--proto-danger-bg)'); // cancel red outline
   });
 
   it('hides 暂停/取消 for a terminal thread but still shows Σ cost', () => {

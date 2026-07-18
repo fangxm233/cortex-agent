@@ -15,15 +15,15 @@ export interface DaemonStatusModalProps {
 }
 
 function statusColor(status: string): string {
-  if (status === 'running') return '#23854F';
-  if (status === 'unknown') return '#C99A2E';
-  return '#C03D33';
+  if (status === 'running') return 'var(--proto-success)';
+  if (status === 'unknown') return 'var(--proto-amber)';
+  return 'var(--proto-danger)';
 }
 
 function statusBg(status: string): string {
-  if (status === 'running') return '#E9F4EE';
-  if (status === 'unknown') return '#F7ECCE';
-  return '#FBEDEB';
+  if (status === 'running') return 'var(--proto-success-bg)';
+  if (status === 'unknown') return 'var(--pill-waiting-bg)';
+  return 'var(--proto-danger-bg)';
 }
 
 export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
@@ -81,8 +81,8 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           transform: 'translate(-50%, -50%)',
           zIndex: 50,
           width: 470,
-          background: '#fff',
-          border: '1px solid #E7E9EE',
+          background: 'var(--proto-card)',
+          border: '1px solid var(--proto-line)',
           borderRadius: 14,
           boxShadow: '0 8px 24px rgba(16,24,40,.10)',
           overflow: 'hidden',
@@ -95,7 +95,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             alignItems: 'center',
             gap: 10,
             padding: '16px 20px 14px',
-            borderBottom: '1px solid #EFF1F5',
+            borderBottom: '1px solid var(--proto-line-2)',
           }}
         >
           <div
@@ -103,8 +103,8 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
               width: 28,
               height: 28,
               borderRadius: 8,
-              background: '#191C22',
-              color: '#fff',
+              background: 'var(--proto-ink)',
+              color: 'var(--ink-solid-fg)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -114,13 +114,13 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             cx
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#191C22' }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>
               {L.dmDaemon}
             </div>
             <div
               style={{
                 font: "400 10px 'IBM Plex Mono',monospace",
-                color: '#98A1B0',
+                color: 'var(--proto-muted-3)',
                 marginTop: 1,
               }}
             >
@@ -132,8 +132,8 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             style={{
               marginLeft: 'auto',
               font: "500 9.5px 'IBM Plex Mono',monospace",
-              color: '#98A1B0',
-              border: '1px solid #E7E9EE',
+              color: 'var(--proto-muted-3)',
+              border: '1px solid var(--proto-line)',
               borderRadius: 5,
               padding: '2px 6px',
               cursor: 'pointer',
@@ -153,12 +153,12 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           }}
         >
           {statusQuery.isLoading && (
-            <div style={{ fontSize: 12, color: '#98A1B0', textAlign: 'center', padding: 20 }}>
+            <div style={{ fontSize: 12, color: 'var(--proto-muted-3)', textAlign: 'center', padding: 20 }}>
               Loading…
             </div>
           )}
           {statusQuery.isError && (
-            <div style={{ fontSize: 12, color: '#C03D33', textAlign: 'center', padding: 20 }}>
+            <div style={{ fontSize: 12, color: 'var(--proto-danger)', textAlign: 'center', padding: 20 }}>
               Failed to load daemon status
             </div>
           )}
@@ -169,7 +169,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
               <div
                 key={proc.name}
                 style={{
-                  border: '1px solid #E7E9EE',
+                  border: '1px solid var(--proto-line)',
                   borderRadius: 10,
                   padding: '11px 14px',
                 }}
@@ -188,7 +188,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                   <span
                     style={{
                       font: "600 12px 'IBM Plex Mono',monospace",
-                      color: '#191C22',
+                      color: 'var(--proto-ink)',
                     }}
                   >
                     {proc.name}
@@ -196,7 +196,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                   <span
                     style={{
                       font: "400 9.5px 'IBM Plex Mono',monospace",
-                      color: '#98A1B0',
+                      color: 'var(--proto-muted-3)',
                     }}
                   >
                     {proc.label}
@@ -221,32 +221,32 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                     gap: 14,
                     marginTop: 8,
                     font: "400 10px 'IBM Plex Mono',monospace",
-                    color: '#5B6472',
+                    color: 'var(--proto-muted)',
                     flexWrap: 'wrap',
                   }}
                 >
                   {proc.uptime && (
                     <span>
-                      <span style={{ color: '#98A1B0' }}>{L.dmUp} </span>
+                      <span style={{ color: 'var(--proto-muted-3)' }}>{L.dmUp} </span>
                       {proc.uptime}
                     </span>
                   )}
                   {proc.pid != null && (
                     <span>
-                      <span style={{ color: '#98A1B0' }}>{L.dmPid} </span>
+                      <span style={{ color: 'var(--proto-muted-3)' }}>{L.dmPid} </span>
                       {proc.pid}
                     </span>
                   )}
                   {proc.port != null && (
                     <span>
-                      <span style={{ color: '#98A1B0' }}>{L.dmPort} </span>
+                      <span style={{ color: 'var(--proto-muted-3)' }}>{L.dmPort} </span>
                       :{proc.port}
                     </span>
                   )}
                   {proc.extras &&
                     Object.entries(proc.extras).map(([k, v]) => (
                       <span key={k}>
-                        <span style={{ color: '#98A1B0' }}>{k} </span>
+                        <span style={{ color: 'var(--proto-muted-3)' }}>{k} </span>
                         {v}
                       </span>
                     ))}
@@ -259,7 +259,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             <div
               style={{
                 font: "400 9.5px 'IBM Plex Mono',monospace",
-                color: '#B6BDC9',
+                color: 'var(--proto-faint)',
                 padding: '0 2px',
               }}
             >
@@ -276,7 +276,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
         {!confirmHard && (
           <div
             style={{
-              borderTop: '1px solid #EFF1F5',
+              borderTop: '1px solid var(--proto-line-2)',
               padding: '12px 20px',
               display: 'flex',
               flexDirection: 'column',
@@ -285,10 +285,10 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#191C22' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-ink)' }}>
                   {L.dmSoftRestart}
                 </div>
-                <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 1 }}>
+                <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 1 }}>
                   {L.dmSoftRestartDesc}
                 </div>
               </div>
@@ -298,9 +298,9 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                   flex: 'none',
                   fontSize: 11.5,
                   fontWeight: 600,
-                  color: '#191C22',
-                  border: '1px solid #D9DCE3',
-                  background: '#fff',
+                  color: 'var(--proto-ink)',
+                  border: '1px solid var(--proto-line-3)',
+                  background: 'var(--proto-card)',
                   borderRadius: 8,
                   padding: '6px 14px',
                   cursor: restartMut.isPending ? 'default' : 'pointer',
@@ -312,10 +312,10 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#C03D33' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-danger)' }}>
                   {L.dmHardRestart}
                 </div>
-                <div style={{ fontSize: 10.5, color: '#8A93A2', marginTop: 1 }}>
+                <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 1 }}>
                   {L.dmHardRestartDesc}
                 </div>
               </div>
@@ -325,9 +325,9 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                   flex: 'none',
                   fontSize: 11.5,
                   fontWeight: 600,
-                  color: '#C03D33',
-                  border: '1px solid #EBC7C3',
-                  background: '#FBEDEB',
+                  color: 'var(--proto-danger)',
+                  border: '1px solid var(--proto-danger-bg)',
+                  background: 'var(--proto-danger-bg)',
                   borderRadius: 8,
                   padding: '6px 14px',
                   cursor: 'pointer',
@@ -343,7 +343,7 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
         {confirmHard && (
           <div
             style={{
-              borderTop: '1px solid #EFF1F5',
+              borderTop: '1px solid var(--proto-line-2)',
               padding: '12px 20px',
               display: 'flex',
               flexDirection: 'column',
@@ -352,21 +352,21 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           >
             <div
               style={{
-                border: '1px solid #EFDDB0',
-                background: '#FDF9F0',
+                border: '1px solid var(--proto-amber-border)',
+                background: 'var(--proto-amber-bg)',
                 borderRadius: 9,
                 padding: '10px 14px',
               }}
             >
               <div
-                style={{ fontSize: 12, fontWeight: 600, color: '#8A5B06' }}
+                style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-amber-fg)' }}
               >
                 {L.dmHardConfirm}
               </div>
               <div
                 style={{
                   fontSize: 11.5,
-                  color: '#5B6472',
+                  color: 'var(--proto-muted)',
                   marginTop: 4,
                   lineHeight: 1.5,
                 }}
@@ -380,9 +380,9 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                 style={{
                   fontSize: 11.5,
                   fontWeight: 600,
-                  color: '#191C22',
-                  border: '1px solid #D9DCE3',
-                  background: '#fff',
+                  color: 'var(--proto-ink)',
+                  border: '1px solid var(--proto-line-3)',
+                  background: 'var(--proto-card)',
                   borderRadius: 8,
                   padding: '6px 14px',
                   cursor: 'pointer',
@@ -395,8 +395,8 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
                 style={{
                   fontSize: 11.5,
                   fontWeight: 600,
-                  color: '#fff',
-                  background: '#C03D33',
+                  color: 'var(--ink-solid-fg)',
+                  background: 'var(--proto-danger)',
                   borderRadius: 8,
                   padding: '6px 14px',
                   cursor: restartMut.isPending ? 'default' : 'pointer',
@@ -413,10 +413,10 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
         {restartMut.isSuccess && (
           <div
             style={{
-              borderTop: '1px solid #EFF1F5',
+              borderTop: '1px solid var(--proto-line-2)',
               padding: '10px 20px',
               fontSize: 11.5,
-              color: '#23854F',
+              color: 'var(--proto-success)',
               fontWeight: 600,
             }}
           >
@@ -426,10 +426,10 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
         {restartMut.isError && (
           <div
             style={{
-              borderTop: '1px solid #EFF1F5',
+              borderTop: '1px solid var(--proto-line-2)',
               padding: '10px 20px',
               fontSize: 11.5,
-              color: '#C03D33',
+              color: 'var(--proto-danger)',
               fontWeight: 600,
             }}
           >

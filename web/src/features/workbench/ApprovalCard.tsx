@@ -20,8 +20,8 @@ export function ApprovalCard({ approval }: { approval: ApprovalContent }): JSX.E
     <div
       onClick={() => approvals.open()}
       style={{
-        border: '1px solid #EFDDB0',
-        background: '#FDF9F0',
+        border: '1px solid var(--proto-amber-border)',
+        background: 'var(--proto-amber-bg)',
         borderRadius: 10,
         padding: '13px 16px',
         cursor: 'pointer',
@@ -34,16 +34,16 @@ export function ApprovalCard({ approval }: { approval: ApprovalContent }): JSX.E
             fontWeight: 700,
             padding: '2.5px 9px',
             borderRadius: 999,
-            background: '#F7ECCE',
-            color: '#8A5B06',
+            background: 'var(--pill-waiting-bg)',
+            color: 'var(--proto-amber-fg)',
           }}
         >
           {approval.tagText}
         </span>
-        <span style={{ font: `400 10.5px ${mono}`, color: '#C0A96E' }}>{approval.id}</span>
+        <span style={{ font: `400 10.5px ${mono}`, color: 'var(--proto-amber-accent)' }}>{approval.id}</span>
       </div>
-      <div style={{ fontSize: 13.5, fontWeight: 600, color: '#191C22', marginTop: 9 }}>{approval.title}</div>
-      <div style={{ fontSize: 12.5, lineHeight: 1.6, color: '#5B6472', marginTop: 3 }}>{approval.desc}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--proto-ink)', marginTop: 9 }}>{approval.title}</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-muted)', marginTop: 3 }}>{approval.desc}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
         <span
           onMouseEnter={() => setApproveHover(true)}
@@ -51,8 +51,8 @@ export function ApprovalCard({ approval }: { approval: ApprovalContent }): JSX.E
           style={{
             fontSize: 12.5,
             fontWeight: 600,
-            background: approveHover ? '#32363E' : '#191C22',
-            color: '#fff',
+            background: approveHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
+            color: 'var(--ink-solid-fg)',
             padding: '6px 14px',
             borderRadius: 7,
             cursor: 'pointer',
@@ -66,9 +66,9 @@ export function ApprovalCard({ approval }: { approval: ApprovalContent }): JSX.E
           style={{
             fontSize: 12.5,
             fontWeight: 600,
-            border: '1px solid #D9DCE3',
-            background: denyHover ? '#F7F8FA' : '#fff',
-            color: '#191C22',
+            border: '1px solid var(--proto-line-3)',
+            background: denyHover ? 'var(--proto-alt)' : 'var(--proto-card)',
+            color: 'var(--proto-ink)',
             padding: '5px 14px',
             borderRadius: 7,
             cursor: 'pointer',

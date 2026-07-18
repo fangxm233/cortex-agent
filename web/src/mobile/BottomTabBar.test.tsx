@@ -27,14 +27,14 @@ describe('BottomTabBar (v3)', () => {
     expect(html).toContain('项目');
   });
 
-  it('marks the active tab (data-active) and colors it ink #191C22', () => {
+  it('marks the active tab (data-active) and colors it ink var(--proto-ink)', () => {
     const html = render({ ...base, activeId: 'tasks' });
     expect(html).toContain('data-tab-id="tasks"');
     expect(html).toMatch(
       /data-tab-id="tasks"[^>]*data-active="true"|data-active="true"[^>]*data-tab-id="tasks"/,
     );
-    expect(html).toContain('#191C22');
-    expect(html).toContain('#98A1B0');
+    expect(html).toContain('var(--proto-ink)');
+    expect(html).toContain('var(--proto-muted-3)');
   });
 
   it('gives every tab a ≥44px touch target', () => {
@@ -42,15 +42,15 @@ describe('BottomTabBar (v3)', () => {
     expect(html).toContain('min-height:44px');
   });
 
-  it('shows the amber 需要你 badge (#C99A2E) with the count on the project tab', () => {
+  it('shows the amber 需要你 badge (var(--proto-amber)) with the count on the project tab', () => {
     const html = render({ ...base, needsYouCount: 2 });
-    expect(html).toContain('#C99A2E');
+    expect(html).toContain('var(--proto-amber)');
     expect(html).toContain('>2<');
     expect(html).toContain('data-tab-id="project"');
   });
 
   it('hides the amber badge when the count is 0', () => {
     const html = render({ ...base, needsYouCount: 0 });
-    expect(html).not.toContain('#C99A2E');
+    expect(html).not.toContain('var(--proto-amber)');
   });
 });

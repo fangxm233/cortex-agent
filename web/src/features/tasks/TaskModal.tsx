@@ -21,8 +21,8 @@ import { buildTaskVerificationVm, type TaskVerificationVm } from './task-verific
 //   • GAP-GPU          : no gpu on TaskInfo → Fields gpu renders "—" (matches the T-046 proto-shot).
 
 const CARD: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #E7E9EE',
+  background: 'var(--proto-card)',
+  border: '1px solid var(--proto-line)',
   borderRadius: 10,
   boxShadow: '0 1px 2px rgba(16,24,40,.03)',
 };
@@ -31,15 +31,15 @@ const CARD_HEADER: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   padding: '10px 15px',
-  borderBottom: '1px solid #EFF1F5',
+  borderBottom: '1px solid var(--proto-line-2)',
 };
 
-const CARD_TITLE: React.CSSProperties = { fontSize: 11.5, fontWeight: 650, color: '#191C22' };
+const CARD_TITLE: React.CSSProperties = { fontSize: 11.5, fontWeight: 650, color: 'var(--proto-ink)' };
 
 // A muted note flagging a field with no real value (task not completed / never dispatched, etc.).
 function GapNote({ children }: { children: React.ReactNode }) {
   return (
-    <span style={{ fontStyle: 'italic', color: '#B6BDC9' }}>{children}</span>
+    <span style={{ fontStyle: 'italic', color: 'var(--proto-faint)' }}>{children}</span>
   );
 }
 
@@ -55,23 +55,23 @@ function DispatchHistoryBody({ vv }: { vv: TaskVerificationVm }) {
             alignItems: 'center',
             gap: 8,
             padding: '6px 9px',
-            background: d.isCompleting ? '#F5F7FF' : '#FBFBFC',
-            border: `1px solid ${d.isCompleting ? '#DDE3FB' : '#EFF1F5'}`,
+            background: d.isCompleting ? 'var(--proto-accent-bg)' : 'var(--proto-rail)',
+            border: `1px solid ${d.isCompleting ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`,
             borderRadius: 7,
           }}
         >
           <span
             style={{ width: 6, height: 6, borderRadius: '50%', background: d.statusColor, flex: 'none' }}
           />
-          <span style={{ font: "600 10px 'IBM Plex Mono',monospace", color: '#4655D4' }}>
+          <span style={{ font: "600 10px 'IBM Plex Mono',monospace", color: 'var(--proto-accent)' }}>
             {d.executionId}
           </span>
-          <span style={{ fontSize: 9.5, color: '#8A93A2' }}>{d.machine}</span>
+          <span style={{ fontSize: 9.5, color: 'var(--proto-muted-2)' }}>{d.machine}</span>
           <span
             style={{
               marginLeft: 'auto',
               font: "400 9px 'IBM Plex Mono',monospace",
-              color: '#98A1B0',
+              color: 'var(--proto-muted-3)',
               flex: 'none',
             }}
           >
@@ -136,7 +136,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
           animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
           width: 760,
           maxHeight: '84vh',
-          background: '#F7F8FA',
+          background: 'var(--proto-alt)',
           borderRadius: 14,
           boxShadow: '0 24px 64px rgba(16,24,40,.3)',
           zIndex: 61,
@@ -149,15 +149,15 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
         <div
           style={{
             flex: 'none',
-            background: '#fff',
-            borderBottom: '1px solid #E7E9EE',
+            background: 'var(--proto-card)',
+            borderBottom: '1px solid var(--proto-line)',
             display: 'flex',
             alignItems: 'center',
             gap: 9,
             padding: '12px 18px',
           }}
         >
-          <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: '#191C22' }}>
+          <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>
             {tm.id}
           </span>
           <span
@@ -173,7 +173,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             {tm.pill.text}
           </span>
           <span
-            style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: '#98A1B0', marginLeft: 4 }}
+            style={{ font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', marginLeft: 4 }}
           >
             TASKS.yaml
           </span>
@@ -182,8 +182,8 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
             style={{
               marginLeft: 'auto',
               font: "500 9.5px 'IBM Plex Mono',monospace",
-              color: '#98A1B0',
-              border: '1px solid #E7E9EE',
+              color: 'var(--proto-muted-3)',
+              border: '1px solid var(--proto-line)',
               borderRadius: 5,
               padding: '2px 6px',
               cursor: 'pointer',
@@ -221,17 +221,17 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     marginTop: 5,
                   }}
                 />
-                <div style={{ fontSize: 13.5, fontWeight: 650, color: '#191C22', lineHeight: 1.4 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 650, color: 'var(--proto-ink)', lineHeight: 1.4 }}>
                   {tm.title}
                 </div>
               </div>
-              <div style={{ fontSize: 11.5, lineHeight: 1.6, color: '#5B6472', marginTop: 7 }}>
+              <div style={{ fontSize: 11.5, lineHeight: 1.6, color: 'var(--proto-muted)', marginTop: 7 }}>
                 <span
                   style={{
                     fontSize: 9.5,
                     fontWeight: 700,
                     letterSpacing: '.05em',
-                    color: '#98A1B0',
+                    color: 'var(--proto-muted-3)',
                     marginRight: 7,
                   }}
                 >
@@ -248,7 +248,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   fontSize: 9.5,
                   fontWeight: 700,
                   letterSpacing: '.05em',
-                  color: '#98A1B0',
+                  color: 'var(--proto-muted-3)',
                   margin: '11px 0 5px',
                 }}
               >
@@ -263,9 +263,9 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     gap: 8,
                     fontSize: 11.5,
                     lineHeight: 1.5,
-                    color: '#22262E',
-                    background: '#FBFBFC',
-                    border: '1px solid #EFF1F5',
+                    color: 'var(--proto-ink-2)',
+                    background: 'var(--proto-rail)',
+                    border: '1px solid var(--proto-line-2)',
                     borderRadius: 7,
                     padding: '6px 10px',
                   }}
@@ -275,8 +275,8 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                       width: 12,
                       height: 12,
                       borderRadius: 4,
-                      border: '1.5px solid #D9DCE3',
-                      background: '#fff',
+                      border: '1.5px solid var(--proto-line-3)',
+                      background: 'var(--proto-card)',
                       boxSizing: 'border-box',
                       flex: 'none',
                       marginTop: 1.5,
@@ -300,7 +300,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     style={{
                       marginLeft: 'auto',
                       font: "400 9px 'IBM Plex Mono',monospace",
-                      color: '#98A1B0',
+                      color: 'var(--proto-muted-3)',
                     }}
                   >
                     {vv.dispatches.length} run{vv.dispatches.length === 1 ? '' : 's'}
@@ -332,12 +332,12 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                 style={{
                   padding: '8px 15px 10px',
                   font: "400 10px/2 'IBM Plex Mono',monospace",
-                  color: '#5B6472',
+                  color: 'var(--proto-muted)',
                 }}
               >
                 {tm.fields.map((f) => (
                   <div key={f.k} style={{ display: 'flex' }}>
-                    <span style={{ color: '#98A1B0' }}>{f.k}</span>
+                    <span style={{ color: 'var(--proto-muted-3)' }}>{f.k}</span>
                     <span style={{ marginLeft: 'auto', color: f.vColor, textAlign: 'right' }}>
                       {f.v}
                     </span>
@@ -382,7 +382,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     <span
                       style={{
                         fontSize: 10.5,
-                        color: '#5B6472',
+                        color: 'var(--proto-muted)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -394,7 +394,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                       style={{
                         marginLeft: 'auto',
                         font: "400 8.5px 'IBM Plex Mono',monospace",
-                        color: '#98A1B0',
+                        color: 'var(--proto-muted-3)',
                         flex: 'none',
                       }}
                     >
@@ -415,10 +415,10 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                     textAlign: 'center',
                     fontSize: 11,
                     fontWeight: 600,
-                    border: '1px solid #D9DCE3',
+                    border: '1px solid var(--proto-line-3)',
                     borderRadius: 8,
                     padding: '6px 0',
-                    color: '#191C22',
+                    color: 'var(--proto-ink)',
                     cursor: pending ? 'not-allowed' : 'pointer',
                     opacity: pending ? 0.5 : 1,
                   }}
@@ -436,7 +436,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                   fontWeight: 600,
                   borderRadius: 8,
                   padding: '7px 0',
-                  color: '#fff',
+                  color: 'var(--ink-solid-fg)',
                   background: tm.completeBg,
                   cursor: tm.completable && !pending ? 'pointer' : 'not-allowed',
                   opacity: pending ? 0.6 : 1,

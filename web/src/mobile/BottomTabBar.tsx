@@ -4,8 +4,8 @@ import { type ReactNode } from 'react';
 import { MOBILE_TABS, tabBadge, type MobileTabId } from './mobile-tabs';
 import { type Vocab } from '@/i18n';
 
-const INK = '#191C22';
-const MUTED = '#98A1B0';
+const INK = 'var(--proto-ink)';
+const MUTED = 'var(--proto-muted-3)';
 
 function TabIcon({ id, color }: { id: MobileTabId; color: string }): ReactNode {
   switch (id) {
@@ -55,8 +55,8 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
     <div
       style={{
         flex: 'none',
-        borderTop: '1px solid #E7E9EE',
-        background: '#FBFBFC',
+        borderTop: '1px solid var(--proto-line)',
+        background: 'var(--proto-rail)',
         display: 'flex',
         // Reserve the OS home-indicator gutter (env bottom inset) below the 8px base padding.
         padding: '8px 6px',
@@ -97,8 +97,8 @@ export function BottomTabBar({ vocab, activeId, needsYouCount, onNavigate }: Bot
                     position: 'absolute',
                     top: -4,
                     right: -9,
-                    background: '#C99A2E',
-                    color: '#fff',
+                    background: 'var(--proto-amber)',
+                    color: 'var(--ink-solid-fg)',
                     font: "600 8px 'IBM Plex Mono', monospace",
                     padding: '1px 4.5px',
                     borderRadius: 999,

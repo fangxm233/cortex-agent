@@ -40,9 +40,9 @@ function TabButton({
       style={{
         fontSize: 12.5,
         fontWeight: active ? 600 : 500,
-        color: active ? '#191C22' : '#8A93A2',
+        color: active ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
         padding: '13px 0 11px',
-        borderBottom: '2px solid ' + (active ? '#191C22' : 'transparent'),
+        borderBottom: '2px solid ' + (active ? 'var(--proto-ink)' : 'transparent'),
         marginBottom: -1,
         cursor: 'pointer',
         display: 'inline-flex',
@@ -52,7 +52,7 @@ function TabButton({
     >
       {label}{' '}
       {dot && (
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4655D4', display: 'inline-block' }} />
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)', display: 'inline-block' }} />
       )}
       <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: countColor }}>{count}</span>
     </div>
@@ -102,33 +102,33 @@ export function RightPanel(): JSX.Element {
       style={{
         width: 400,
         flex: 'none',
-        background: '#FBFBFC',
-        borderLeft: '1px solid #E7E9EE',
+        background: 'var(--proto-rail)',
+        borderLeft: '1px solid var(--proto-line)',
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
       }}
     >
       {/* tab bar */}
-      <div style={{ display: 'flex', gap: 16, padding: '0 18px', borderBottom: '1px solid #E7E9EE', flex: 'none' }}>
+      <div style={{ display: 'flex', gap: 16, padding: '0 18px', borderBottom: '1px solid var(--proto-line)', flex: 'none' }}>
         <TabButton
           label={L.threads}
           count={String(activeThreadCount)}
-          countColor="#4655D4"
+          countColor="var(--proto-accent)"
           active={tab === 'threads'}
           onClick={() => setTab('threads')}
         />
         <TabButton
           label={L.tasks}
           count={String(actionable)}
-          countColor="#8A93A2"
+          countColor="var(--proto-muted-2)"
           active={tab === 'tasks'}
           onClick={() => setTab('tasks')}
         />
         <TabButton
           label={L.machines}
           count={String(machineCount)}
-          countColor="#8A93A2"
+          countColor="var(--proto-muted-2)"
           active={tab === 'machines'}
           dot
           onClick={() => setTab('machines')}
@@ -142,15 +142,15 @@ export function RightPanel(): JSX.Element {
           alignItems: 'center',
           gap: 10,
           padding: '10px 18px',
-          borderBottom: '1px solid #EFF1F5',
+          borderBottom: '1px solid var(--proto-line-2)',
           flex: 'none',
         }}
       >
-        <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A93A2' }}>{L.today}</span>
-        <div style={{ flex: 1, height: 4, borderRadius: 999, background: '#EFF1F5', overflow: 'hidden' }}>
-          <div style={{ width: '0%', height: '100%', borderRadius: 999, background: '#4655D4' }} />
+        <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.today}</span>
+        <div style={{ flex: 1, height: 4, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}>
+          <div style={{ width: '0%', height: '100%', borderRadius: 999, background: 'var(--proto-accent)' }} />
         </div>
-        <span style={{ font: "500 10.5px 'IBM Plex Mono',monospace", color: '#191C22' }}>
+        <span style={{ font: "500 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>
           {todayLabel} / —
         </span>
       </div>
@@ -159,14 +159,14 @@ export function RightPanel(): JSX.Element {
       {tab === 'threads' && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px 0', flex: 'none' }}>
-            <div style={{ display: 'flex', background: '#EFF1F5', borderRadius: 7, padding: 2 }}>
+            <div style={{ display: 'flex', background: 'var(--proto-line-2)', borderRadius: 7, padding: 2 }}>
               <span
                 onClick={() => setFilter('active')}
                 style={{
                   fontSize: 11,
                   fontWeight: 600,
-                  color: filter === 'active' ? '#191C22' : '#8A93A2',
-                  background: filter === 'active' ? '#fff' : 'transparent',
+                  color: filter === 'active' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+                  background: filter === 'active' ? 'var(--proto-card)' : 'transparent',
                   borderRadius: 5,
                   padding: '3px 10px',
                   cursor: 'pointer',
@@ -180,8 +180,8 @@ export function RightPanel(): JSX.Element {
                 style={{
                   fontSize: 11,
                   fontWeight: 600,
-                  color: filter === 'history' ? '#191C22' : '#8A93A2',
-                  background: filter === 'history' ? '#fff' : 'transparent',
+                  color: filter === 'history' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+                  background: filter === 'history' ? 'var(--proto-card)' : 'transparent',
                   borderRadius: 5,
                   padding: '3px 10px',
                   cursor: 'pointer',
@@ -207,15 +207,15 @@ export function RightPanel(): JSX.Element {
               <RightThreadCard key={t.id} thread={t} now={now} />
             ))}
             {threadsQuery.isSuccess && threads.length === 0 && filter === 'active' && (
-              <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed #E7E9EE', borderRadius: 10 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 600, color: '#8A93A2' }}>{L.rpNoActiveThreads}</div>
-                <div style={{ fontSize: 10.5, color: '#B6BDC9', marginTop: 4, lineHeight: 1.6 }}>
+              <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed var(--proto-line)', borderRadius: 10 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.rpNoActiveThreads}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4, lineHeight: 1.6 }}>
                   {L.rpNoActiveThreadsHint}
                 </div>
               </div>
             )}
             {threadsQuery.isSuccess && threads.length === 0 && filter === 'history' && (
-              <div style={{ textAlign: 'center', fontSize: 11.5, color: '#B6BDC9', padding: '24px 0' }}>
+              <div style={{ textAlign: 'center', fontSize: 11.5, color: 'var(--proto-faint)', padding: '24px 0' }}>
                 {L.rpNoFinishedThreads}
               </div>
             )}

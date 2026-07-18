@@ -10,11 +10,11 @@ export interface TaskRowProps {
 // mono ID, expand toggle, metadata row below. No done-when, no priority, no "Add Task" button.
 // Red dot colour encodes lifecycle (in-progress/actionable/waiting/blocked).
 const DOT_COLORS: Record<string, string> = {
-  'in-progress': '#C03D33',
-  actionable: '#C99A2E',
-  'waiting-deps': '#B6BDC9',
-  blocked: '#C99A2E',
-  done: '#23854F',
+  'in-progress': 'var(--proto-danger)',
+  actionable: 'var(--proto-amber)',
+  'waiting-deps': 'var(--proto-faint)',
+  blocked: 'var(--proto-amber)',
+  done: 'var(--proto-success)',
 };
 
 function dotColor(task: TaskInfo): string {
@@ -47,8 +47,8 @@ export function TaskRow({ task, onOpen }: TaskRowProps) {
       data-status={task.status}
       onClick={() => onOpen(task)}
       style={{
-        background: '#fff',
-        border: '1px solid #E7E9EE',
+        background: 'var(--proto-card)',
+        border: '1px solid var(--proto-line)',
         borderRadius: 9,
         padding: '9px 12px',
         boxShadow: '0 1px 2px rgba(16,24,40,.03)',
@@ -69,14 +69,14 @@ export function TaskRow({ task, onOpen }: TaskRowProps) {
         />
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
-            <span style={{ color: '#B6BDC9', fontSize: 8.5, flex: 'none' }}>▸</span>
-            <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+            <span style={{ color: 'var(--proto-faint)', fontSize: 8.5, flex: 'none' }}>▸</span>
+            <span style={{ font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
               {task.id}
             </span>
             <span
               style={{
                 fontSize: 12,
-                color: '#22262E',
+                color: 'var(--proto-ink-2)',
                 lineHeight: 1.45,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -95,15 +95,15 @@ export function TaskRow({ task, onOpen }: TaskRowProps) {
                 gap: 7,
                 marginTop: 5,
                 font: "400 9.5px 'IBM Plex Mono',monospace",
-                color: '#98A1B0',
+                color: 'var(--proto-muted-3)',
               }}
             >
               {task.claimedBy && (
                 <span
                   style={{
                     font: "500 9.5px 'IBM Plex Mono',monospace",
-                    color: '#4655D4',
-                    background: '#EEF0FA',
+                    color: 'var(--proto-accent)',
+                    background: 'var(--proto-accent-bg)',
                     padding: '1.5px 7px',
                     borderRadius: 999,
                   }}
@@ -120,8 +120,8 @@ export function TaskRow({ task, onOpen }: TaskRowProps) {
                 <span
                   style={{
                     font: "500 9.5px 'IBM Plex Mono',monospace",
-                    color: '#C03D33',
-                    background: '#FBEDEB',
+                    color: 'var(--proto-danger)',
+                    background: 'var(--proto-danger-bg)',
                     padding: '1.5px 7px',
                     borderRadius: 999,
                   }}
@@ -133,8 +133,8 @@ export function TaskRow({ task, onOpen }: TaskRowProps) {
                 <span
                   style={{
                     font: "500 9.5px 'IBM Plex Mono',monospace",
-                    color: '#8A93A2',
-                    background: '#F1F2F5',
+                    color: 'var(--proto-muted-2)',
+                    background: 'var(--proto-gray)',
                     padding: '1.5px 7px',
                     borderRadius: 999,
                   }}
@@ -145,7 +145,7 @@ export function TaskRow({ task, onOpen }: TaskRowProps) {
             </div>
           )}
         </div>
-        <span style={{ color: '#B6BDC9', fontSize: 12, flex: 'none' }}>⋯</span>
+        <span style={{ color: 'var(--proto-faint)', fontSize: 12, flex: 'none' }}>⋯</span>
       </div>
     </div>
   );

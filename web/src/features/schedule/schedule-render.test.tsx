@@ -35,11 +35,11 @@ describe('ScheduleModal render (daily = proto-shot 13 bar)', () => {
     expect(html).toContain('>esc<');
   });
 
-  it('renders the four TYPE segments with daily selected (#4655D4/#EEF0FA)', () => {
+  it('renders the four TYPE segments with daily selected (var(--proto-accent)/var(--proto-accent-bg))', () => {
     const html = render();
     for (const t of ['interval', 'daily', 'weekly', 'once']) expect(html).toContain(`>${t}<`);
-    expect(html).toContain('background:#EEF0FA');
-    expect(html).toContain('color:#4655D4');
+    expect(html).toContain('background:var(--proto-accent-bg)');
+    expect(html).toContain('color:var(--proto-accent)');
   });
 
   it('daily shows TIME + PROFILE, not EVERY/IN/DAY', () => {

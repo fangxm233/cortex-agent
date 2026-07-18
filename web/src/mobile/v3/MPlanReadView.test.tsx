@@ -25,7 +25,7 @@ describe('MPlanReadView — 6b pending', () => {
     expect(html).toContain('DR 扫描计划');
     expect(html).toContain('plans/EXP-024-plan.md · 5 行 · 待批');
     expect(html).toContain('计划待批'); // header pill
-    expect(html).toContain('#4655D4'); // progress bar fill
+    expect(html).toContain('var(--m-run)'); // progress bar fill
   });
   it('renders the plan markdown body (headings, not raw #)', () => {
     expect(html).toContain('目标');

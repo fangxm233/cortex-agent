@@ -24,20 +24,20 @@ const HEADER_STYLE: CSSProperties = {
   alignItems: 'center',
   gap: 10,
   padding: '12px 16px',
-  borderBottom: '1px solid #EFF1F5',
+  borderBottom: '1px solid var(--proto-line-2)',
 };
 
 const INPUT_STYLE: CSSProperties = {
   flex: 1,
   fontSize: 13.5,
-  color: '#191C22',
+  color: 'var(--proto-ink)',
   fontFamily: 'inherit',
 };
 
 const ESC_STYLE: CSSProperties = {
   font: "500 9.5px 'IBM Plex Mono',monospace",
-  color: '#98A1B0',
-  border: '1px solid #E7E9EE',
+  color: 'var(--proto-muted-3)',
+  border: '1px solid var(--proto-line)',
   borderRadius: 5,
   padding: '2px 6px',
   cursor: 'pointer',
@@ -60,18 +60,18 @@ const GLYPH_STYLE: CSSProperties = {
   width: 20,
   height: 20,
   borderRadius: 6,
-  background: '#F1F2F5',
+  background: 'var(--proto-gray)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   font: "600 9px 'IBM Plex Mono',monospace",
-  color: '#5B6472',
+  color: 'var(--proto-muted)',
   flex: 'none',
 };
 
 const SUB_STYLE: CSSProperties = {
   fontSize: 10.5,
-  color: '#98A1B0',
+  color: 'var(--proto-muted-3)',
   whiteSpace: 'nowrap',
   flex: 'none',
 };
@@ -79,7 +79,7 @@ const SUB_STYLE: CSSProperties = {
 const KBD_STYLE: CSSProperties = {
   marginLeft: 'auto',
   font: "400 9.5px 'IBM Plex Mono',monospace",
-  color: '#B6BDC9',
+  color: 'var(--proto-faint)',
   flex: 'none',
   paddingLeft: 10,
 };
@@ -88,20 +88,20 @@ const FOOTER_STYLE: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   padding: '7px 16px',
-  borderTop: '1px solid #F7F8FA',
-  background: '#FBFBFC',
+  borderTop: '1px solid var(--proto-alt)',
+  background: 'var(--proto-rail)',
 };
 
 const FOOTER_TEXT_STYLE: CSSProperties = {
   font: "400 9.5px 'IBM Plex Mono',monospace",
-  color: '#B6BDC9',
+  color: 'var(--proto-faint)',
 };
 
 const EMPTY_STYLE: CSSProperties = {
   padding: '18px 11px',
   textAlign: 'center',
   fontSize: 12.5,
-  color: '#98A1B0',
+  color: 'var(--proto-muted-3)',
 };
 
 export interface CommandPaletteProps {
@@ -111,7 +111,7 @@ export interface CommandPaletteProps {
 
 // A single palette row — glyph badge + label + sub + right-aligned kbd. cmdk sets
 // `data-[selected=true]` on the arrow-selected (or mouse-hovered) row; the prototype highlight
-// (#F5F6FD bg, #4655D4 label) is applied there via `.cmdk-row` CSS in index.css.
+// (var(--proto-accent-bg) bg, var(--proto-accent) label) is applied there via `.cmdk-row` CSS in index.css.
 function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
   const L = useVocab();
   // Nav rows carry vocab keys → localized; entity rows carry real data in label/sub.
@@ -180,7 +180,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           height="13"
           viewBox="0 0 12 12"
           fill="none"
-          stroke="#98A1B0"
+          stroke="var(--proto-muted-3)"
           strokeWidth="1.5"
         >
           <circle cx="5" cy="5" r="3.8" />

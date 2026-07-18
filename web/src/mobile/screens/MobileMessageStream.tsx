@@ -10,9 +10,9 @@ const mono = "'IBM Plex Mono',monospace";
 function Divider({ text }: { text: string }): JSX.Element {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ flex: 1, height: 1, background: '#E3E5EA' }} />
-      <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: '#B6BDC9' }}>{text}</div>
-      <div style={{ flex: 1, height: 1, background: '#E3E5EA' }} />
+      <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
+      <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: 'var(--proto-faint)' }}>{text}</div>
+      <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
     </div>
   );
 }
@@ -23,8 +23,8 @@ function UserBubble({ text }: { text: string }): JSX.Element {
       style={{
         alignSelf: 'flex-end',
         maxWidth: '82%',
-        background: '#191C22',
-        color: '#fff',
+        background: 'var(--proto-ink)',
+        color: 'var(--ink-solid-fg)',
         borderRadius: '16px 16px 4px 16px',
         padding: '9px 13px',
         fontSize: 13.5,
@@ -63,7 +63,7 @@ function ToolCallsRow({
           alignItems: 'center',
           gap: 6,
           fontSize: 11,
-          color: '#98A1B0',
+          color: 'var(--proto-muted-3)',
           flexWrap: 'wrap',
           cursor: 'pointer',
         }}
@@ -77,8 +77,8 @@ function ToolCallsRow({
             key={i}
             style={{
               font: `400 10px ${mono}`,
-              background: '#fff',
-              border: '1px solid #EFF1F5',
+              background: 'var(--proto-card)',
+              border: '1px solid var(--proto-line-2)',
               padding: '1px 6px',
               borderRadius: 4,
             }}
@@ -94,8 +94,8 @@ function ToolCallsRow({
   return (
     <div
       style={{
-        background: '#FBFBFC',
-        border: '1px solid #EFF1F5',
+        background: 'var(--proto-rail)',
+        border: '1px solid var(--proto-line-2)',
         borderRadius: 8,
         overflow: 'hidden',
       }}
@@ -107,7 +107,7 @@ function ToolCallsRow({
           alignItems: 'center',
           gap: 6,
           fontSize: 11,
-          color: '#98A1B0',
+          color: 'var(--proto-muted-3)',
           padding: '6px 11px',
           cursor: 'pointer',
         }}
@@ -125,14 +125,14 @@ function ToolCallsRow({
             alignItems: 'center',
             gap: 8,
             padding: '5.5px 11px',
-            borderTop: '1px solid #F3F4F7',
+            borderTop: '1px solid var(--proto-line-soft)',
           }}
         >
           <span
             style={{
               font: `600 9px ${mono}`,
-              color: '#5B6472',
-              background: '#F1F2F5',
+              color: 'var(--proto-muted)',
+              background: 'var(--proto-gray)',
               padding: '1.5px 7px',
               borderRadius: 5,
               flex: 'none',
@@ -143,7 +143,7 @@ function ToolCallsRow({
           <span
             style={{
               font: `400 10.5px ${mono}`,
-              color: '#22262E',
+              color: 'var(--proto-ink-2)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -162,7 +162,7 @@ function AssistantBlock({ text, streaming }: { text: string; streaming: boolean 
   // Rich Markdown (headings/lists/code/inline bold·italic·code·links/table) via the shared chat
   // renderer — replaces the former raw-text block that dropped every line break and format.
   return (
-    <div style={{ fontSize: 13.5, lineHeight: 1.65, color: '#22262E', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+    <div style={{ fontSize: 13.5, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
       <ChatMarkdown text={text} />
       {streaming && (
         <span
@@ -172,7 +172,7 @@ function AssistantBlock({ text, streaming }: { text: string; streaming: boolean 
             height: 14,
             marginLeft: 2,
             verticalAlign: 'text-bottom',
-            background: '#4655D4',
+            background: 'var(--proto-accent)',
             animation: 'cxblink 1.1s steps(1) infinite',
           }}
         />

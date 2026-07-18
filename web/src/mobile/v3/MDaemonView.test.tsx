@@ -132,12 +132,12 @@ describe('MDaemonView', () => {
         ],
       }),
     });
-    expect(html).toContain('#23854F'); // running green dot
-    expect(html).toContain('#C03D33'); // stopped red dot (also force-kill ink, present regardless)
+    expect(html).toContain('var(--m-done)'); // running green dot
+    expect(html).toContain('var(--m-fail)'); // stopped red dot (also force-kill ink, present regardless)
     const amber = render({
       daemon: daemon({ processes: [proc({ status: 'unknown' })] }),
     });
-    expect(amber).toContain('#C99A2E'); // unknown amber dot
+    expect(amber).toContain('var(--m-amber)'); // unknown amber dot
   });
 
   it('renders honest — for null pid / port / uptime, never fabricated', () => {
@@ -198,7 +198,7 @@ describe('MDaemonView', () => {
     expect(html).toContain('强制终止');
     expect(html).toContain('先暂停 2 个运行中线程');
     expect(html).toContain('软重启不丢线程状态');
-    expect(html).toContain('#C03D33'); // red force-kill ink
+    expect(html).toContain('var(--m-fail)'); // red force-kill ink
   });
 
   it('surfaces restart result feedback', () => {

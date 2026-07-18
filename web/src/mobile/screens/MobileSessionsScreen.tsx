@@ -67,7 +67,7 @@ export function MobileSessionsScreen(): JSX.Element {
         flexDirection: 'column',
         paddingTop: 'env(safe-area-inset-top)',
         boxSizing: 'border-box',
-        background: '#F2F2F7',
+        background: 'var(--proto-alt)',
       }}
     >
       <MobileSessionHeader
@@ -85,7 +85,7 @@ export function MobileSessionsScreen(): JSX.Element {
           display: 'flex',
           flexDirection: 'column',
           gap: 12,
-          background: '#F2F2F7',
+          background: 'var(--proto-alt)',
         }}
       >
         <MobileMessageStream rows={rows} toolCallsUnit={vocab.toolCallsUnit} />

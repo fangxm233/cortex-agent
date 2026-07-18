@@ -64,7 +64,7 @@ export interface MProjectViewProps {
   onNewProject: () => void;
 }
 
-// Daemon status (header trailing): green #23854F dot + text; neutral gray when disconnected.
+// Daemon status (header trailing): green var(--proto-success) dot + text; neutral gray when disconnected.
 function DaemonStatus({ connected, copy }: { connected: boolean; copy: MProjectCopy }) {
   const color = connected ? MC.done : MC.muted;
   return (
@@ -133,7 +133,7 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
                 flex: 1,
                 height: 6,
                 borderRadius: 999,
-                background: '#EFF1F5',
+                background: 'var(--proto-line-2)',
                 overflow: 'hidden',
               }}
             >
@@ -159,7 +159,7 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
             <span>
               {copy.month} <b style={{ color: MC.body }}>{formatMoney(c.month)}</b>
             </span>
-            <span style={{ marginLeft: 'auto', color: '#A96B0B' }}>
+            <span style={{ marginLeft: 'auto', color: 'var(--proto-amber-text)' }}>
               {copy.forecastToday} {formatMoney(c.forecastToday)}
             </span>
           </div>
@@ -195,10 +195,10 @@ function ApprovalBar({
       }}
     >
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.amber, flex: 'none' }} />
-      <span style={{ fontSize: 13, fontWeight: 600, color: '#6B5A1E' }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-amber-fg)' }}>
         {copy.approvals} · {pending} {copy.pending}
       </span>
-      <span style={{ font: `400 9.5px ${MONO}`, color: '#C0A96E' }}>
+      <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-amber-accent)' }}>
         {waitingThreads} {copy.threadsWaiting}
       </span>
       <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: MC.amberInk }}>
@@ -238,11 +238,11 @@ function InfoRow({
 function SwitchDivider({ label }: { label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 2px 0' }}>
-      <div style={{ flex: 1, height: 1, background: '#E3E5EA' }} />
+      <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
       <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: MC.faint }}>
         {label}
       </div>
-      <div style={{ flex: 1, height: 1, background: '#E3E5EA' }} />
+      <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
     </div>
   );
 }
@@ -328,7 +328,7 @@ function SwitchRow({
             padding: '0 6px',
             borderRadius: 999,
             background: MC.run,
-            color: '#fff',
+            color: 'var(--ink-solid-fg)',
             font: `600 10px ${MONO}`,
             display: 'flex',
             alignItems: 'center',
@@ -398,7 +398,7 @@ export function MProjectView(props: MProjectViewProps) {
             display: 'flex',
             alignItems: 'center',
             gap: 9,
-            background: '#fff',
+            background: 'var(--proto-card)',
             border: `1.5px dashed ${MC.runBorder}`,
             borderRadius: 13,
             padding: 13,

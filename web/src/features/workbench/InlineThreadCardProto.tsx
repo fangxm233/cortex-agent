@@ -23,8 +23,8 @@ function NodeCell({ row }: { row: ProtoRow }) {
             width: 14,
             height: 14,
             borderRadius: '50%',
-            background: '#E9F4EE',
-            color: '#23854F',
+            background: 'var(--proto-success-bg)',
+            color: 'var(--proto-success)',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -42,9 +42,9 @@ function NodeCell({ row }: { row: ProtoRow }) {
             width: 14,
             height: 14,
             borderRadius: '50%',
-            background: '#4655D4',
+            background: 'var(--proto-accent)',
             flex: 'none',
-            boxShadow: '0 0 0 3px #EEF0FA',
+            boxShadow: '0 0 0 3px var(--proto-accent-bg)',
             animation: 'cxpulse 1.6s ease-in-out infinite',
           }}
         />
@@ -55,14 +55,14 @@ function NodeCell({ row }: { row: ProtoRow }) {
             width: 14,
             height: 14,
             borderRadius: '50%',
-            border: '1.5px solid #D9DCE3',
+            border: '1.5px solid var(--proto-line-3)',
             boxSizing: 'border-box',
             flex: 'none',
           }}
         />
       )}
       {row.hasTail && (
-        <span style={{ flex: 1, width: 1.5, background: '#EFF1F5', margin: '3px 0' }} />
+        <span style={{ flex: 1, width: 1.5, background: 'var(--proto-line-2)', margin: '3px 0' }} />
       )}
     </div>
   );
@@ -72,7 +72,7 @@ function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => voi
   return (
     <div style={{ border: '1px solid ' + sub.border, background: sub.bg, borderRadius: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px' }}>
-        <span style={{ color: '#8A93A2', fontSize: 9 }}>{sub.chev}</span>
+        <span style={{ color: 'var(--proto-muted-2)', fontSize: 9 }}>{sub.chev}</span>
         <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={sub.iconColor} strokeWidth="1.8">
           <path d="M7 1.5v5M7 6.5 3.5 10M7 6.5l3.5 3.5" />
           <circle cx="7" cy="1.5" r="1.4" fill={sub.iconColor} stroke="none" />
@@ -80,7 +80,7 @@ function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => voi
           <circle cx="10.5" cy="11" r="1.4" fill={sub.iconColor} stroke="none" />
         </svg>
         <span style={{ font: `600 11px ${mono}`, color: sub.nameColor }}>{sub.name}</span>
-        <span style={{ font: `400 9px ${mono}`, color: '#B6BDC9' }}>{sub.level}</span>
+        <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-faint)' }}>{sub.level}</span>
         <span
           style={{
             marginLeft: 'auto',
@@ -97,9 +97,9 @@ function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => voi
       </div>
       {sub.hasLine && (
         <div style={{ padding: '0 10px 8px 27px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#5B6472' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--proto-muted)' }}>
             <span>{sub.line}</span>
-            <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: '#98A1B0' }}>{sub.meta}</span>
+            <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{sub.meta}</span>
           </div>
           {sub.nested && (
             <div
@@ -107,31 +107,31 @@ function SubCard({ sub, onOpenNested }: { sub: ProtoSub; onOpenNested: () => voi
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7,
-                border: '1px solid #EFF1F5',
-                background: '#fff',
+                border: '1px solid var(--proto-line-2)',
+                background: 'var(--proto-card)',
                 borderRadius: 7,
                 padding: '5.5px 9px',
                 marginTop: 6,
               }}
             >
-              <span style={{ color: '#B6BDC9', fontSize: 9 }}>▸</span>
-              <span style={{ font: `600 10.5px ${mono}`, color: '#22262E' }}>{sub.nested.name}</span>
-              <span style={{ font: `400 9px ${mono}`, color: '#B6BDC9' }}>{sub.nested.level}</span>
+              <span style={{ color: 'var(--proto-faint)', fontSize: 9 }}>▸</span>
+              <span style={{ font: `600 10.5px ${mono}`, color: 'var(--proto-ink-2)' }}>{sub.nested.name}</span>
+              <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-faint)' }}>{sub.nested.level}</span>
               {sub.nested.running && (
                 <span
                   style={{
                     width: 6,
                     height: 6,
                     borderRadius: '50%',
-                    background: '#4655D4',
+                    background: 'var(--proto-accent)',
                     animation: 'cxpulse 1.6s ease-in-out infinite',
                   }}
                 />
               )}
-              <span style={{ fontSize: 9.5, color: '#98A1B0' }}>{sub.nested.meta}</span>
+              <span style={{ fontSize: 9.5, color: 'var(--proto-muted-3)' }}>{sub.nested.meta}</span>
               <span
                 onClick={onOpenNested}
-                style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+                style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
               >
                 Open ›
               </span>
@@ -167,25 +167,25 @@ export function InlineThreadCardProto({ sessionId }: { sessionId: string }): JSX
   const card = buildThreadCard(getQuery.data);
 
   return (
-    <div data-inline-thread-id={card.id} style={{ border: '1px solid #E7E9EE', borderRadius: 10, overflow: 'hidden' }}>
+    <div data-inline-thread-id={card.id} style={{ border: '1px solid var(--proto-line)', borderRadius: 10, overflow: 'hidden' }}>
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 9,
           padding: '8px 13px',
-          background: '#FBFBFC',
-          borderBottom: '1px solid #EFF1F5',
+          background: 'var(--proto-rail)',
+          borderBottom: '1px solid var(--proto-line-2)',
         }}
       >
-        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="#4655D4" strokeWidth="1.6">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth="1.6">
           <circle cx="3.5" cy="3" r="1.9" />
           <circle cx="3.5" cy="11" r="1.9" />
           <circle cx="10.5" cy="7" r="1.9" />
           <path d="M3.5 5v4M5.4 3.7 8.7 6.1M5.4 10.3 8.7 7.9" />
         </svg>
-        <span style={{ font: `600 12px ${mono}`, color: '#191C22' }}>{card.name}</span>
-        <span style={{ font: `400 10.5px ${mono}`, color: '#98A1B0' }}>{card.id}</span>
+        <span style={{ font: `600 12px ${mono}`, color: 'var(--proto-ink)' }}>{card.name}</span>
+        <span style={{ font: `400 10.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.id}</span>
         <span
           style={{
             fontSize: 10,
@@ -198,10 +198,10 @@ export function InlineThreadCardProto({ sessionId }: { sessionId: string }): JSX
         >
           {card.pillText}
         </span>
-        <span style={{ marginLeft: 'auto', font: `400 10.5px ${mono}`, color: '#98A1B0' }}>{card.meta}</span>
+        <span style={{ marginLeft: 'auto', font: `400 10.5px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.meta}</span>
         <span
           onClick={() => navigate(`/threads/${card.id}`)}
-          style={{ fontSize: 11.5, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+          style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
         >
           Open →
         </span>
@@ -228,7 +228,7 @@ export function InlineThreadCardProto({ sessionId }: { sessionId: string }): JSX
                   <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: row.metaColor, flex: 'none' }}>
                     {row.meta}
                   </span>
-                  {row.chev && <span style={{ color: '#D9DCE3', fontSize: 8, flex: 'none' }}>▸</span>}
+                  {row.chev && <span style={{ color: 'var(--proto-line-3)', fontSize: 8, flex: 'none' }}>▸</span>}
                 </div>
                 {row.expanded && row.subs.length > 0 && (
                   <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>

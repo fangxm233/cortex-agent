@@ -56,7 +56,7 @@ describe('MobileMessageStream', () => {
   });
   it('renders the dark user bubble text', () => {
     expect(html).toContain('how did the scan go?');
-    expect(html).toContain('#191C22');
+    expect(html).toContain('var(--proto-ink)');
   });
   it('renders the tool-calls count + unit + first-two chips + overflow', () => {
     expect(html).toContain('4');
@@ -86,7 +86,7 @@ describe('MobileThreadStepper', () => {
   const html = renderToStaticMarkup(
     <MobileThreadStepper
       card={card}
-      pill={{ bg: '#EEF0FA', color: '#4655D4', text: 'Running' }}
+      pill={{ bg: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', text: 'Running' }}
       subthreadsLabel="子线程"
       openLabel="打开"
       onOpen={() => {}}

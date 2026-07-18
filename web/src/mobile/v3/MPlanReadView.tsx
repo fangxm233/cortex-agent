@@ -109,14 +109,14 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
           )}
         </div>
         {pending && (
-          <div style={{ height: 3, borderRadius: 999, background: '#E3E5EA', overflow: 'hidden', marginTop: 9 }}>
+          <div style={{ height: 3, borderRadius: 999, background: 'var(--proto-line)', overflow: 'hidden', marginTop: 9 }}>
             <div style={{ width: `${pct}%`, height: '100%', background: MC.run }} />
           </div>
         )}
       </div>
 
       {/* body — white reading surface, real plan markdown (scheme L147-158) */}
-      <div style={{ flex: 1, minHeight: 0, position: 'relative', background: '#fff' }}>
+      <div style={{ flex: 1, minHeight: 0, position: 'relative', background: 'var(--proto-card)' }}>
         <div ref={scrollRef} onScroll={onScroll} style={{ position: 'absolute', inset: 0, overflow: 'auto', padding: '16px 18px 24px', boxSizing: 'border-box' }}>
           {/* `由 X 生成` source line has no entity field (GAP) — only the real row time shows. */}
           {model.timeLabel && <div style={{ font: `400 10px ${MONO}`, color: MC.faint, paddingBottom: 8 }}>{model.timeLabel}</div>}
@@ -126,22 +126,22 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
           {model.status === 'rejected' && model.feedback && (
             <div style={{ marginTop: 16, border: `1px solid ${MC.amberBorder}`, background: MC.amberCard, borderRadius: 11, padding: '10px 13px' }}>
               <div style={{ font: `600 10px ${MONO}`, color: MC.amberText, paddingBottom: 4 }}>{copy.feedbackLabel}</div>
-              <div style={{ fontSize: 12.5, lineHeight: 1.6, color: '#6B5A1E', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
+              <div style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-amber-fg)', whiteSpace: 'pre-wrap' }}>{model.feedback}</div>
             </div>
           )}
         </div>
         {/* bottom fade into the action bar (scheme L158) */}
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 56, background: 'linear-gradient(180deg,rgba(255,255,255,0),#fff)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 56, background: 'linear-gradient(180deg,rgba(255,255,255,0),var(--proto-card))', pointerEvents: 'none' }} />
       </div>
 
       {/* resident action bar (pending) / status stamp (sealed) — scheme L160-165 */}
-      <div style={{ flex: 'none', background: '#fff', borderTop: '1px solid #EFF1F5', padding: '10px 14px', paddingBottom: 'calc(14px + env(safe-area-inset-bottom))' }}>
+      <div style={{ flex: 'none', background: 'var(--proto-card)', borderTop: '1px solid var(--proto-line-2)', padding: '10px 14px', paddingBottom: 'calc(14px + env(safe-area-inset-bottom))' }}>
         {pending ? (
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               type="button"
               onClick={onApprove}
-              style={{ flex: 1.3, height: 48, borderRadius: 13, background: MC.ink, color: '#fff', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
+              style={{ flex: 1.3, height: 48, borderRadius: 13, background: MC.ink, color: 'var(--ink-solid-fg)', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
             >
               <span style={{ fontSize: 14, fontWeight: 600 }}>{copy.approve}</span>
               {approveSub && <span style={{ font: `400 9px ${MONO}`, color: 'rgba(255,255,255,.55)' }}>{approveSub}</span>}
@@ -149,7 +149,7 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
             <button
               type="button"
               onClick={onReject}
-              style={{ flex: 1, height: 48, borderRadius: 13, border: '1.5px solid #D9DCE3', background: '#fff', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}
+              style={{ flex: 1, height: 48, borderRadius: 13, border: '1.5px solid var(--proto-line-3)', background: 'var(--proto-card)', color: MC.ink, fontSize: 14, fontWeight: 600, boxSizing: 'border-box', cursor: 'pointer' }}
             >
               {copy.reject}
             </button>

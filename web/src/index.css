@@ -78,6 +78,7 @@
   /* ink-solid inverse (primary buttons, send key, user bubble, cx logo) */
   --ink-solid-bg: #191c22;
   --ink-solid-fg: #ffffff;
+  --ink-solid-hover: #32363e;
 
   /* run dot (a touch deeper than the run text) */
   --run-dot: #4655d4;
@@ -185,6 +186,7 @@
 
   --ink-solid-bg: #ebedf2;
   --ink-solid-fg: #14171b;
+  --ink-solid-hover: #d5dae2;
 
   --run-dot: #6e7bec;
 

@@ -18,7 +18,7 @@ import {
 //
 // HONEST ADDITION (flagged): the prototype has NO error UI (its mock create always succeeds), but the
 // real backend can reject (already-exists / invalid-name). On error the hint row shows the backend's
-// own message in the danger color (#C03D33); it reverts to the normal hint on the next keystroke. No
+// own message in the danger color (var(--proto-danger)); it reverts to the normal hint on the next keystroke. No
 // fabricated toasts/states.
 
 const mono = "'IBM Plex Mono',monospace";
@@ -82,7 +82,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
           transform: 'translate(-50%,-50%)',
           animation: 'cxmodal .26s cubic-bezier(.22,1,.36,1)',
           width: 540,
-          background: '#fff',
+          background: 'var(--proto-card)',
           borderRadius: 14,
           boxShadow: '0 24px 64px rgba(16,24,40,.3)',
           zIndex: 61,
@@ -91,8 +91,8 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
       >
         {/* header (L1410-1414) */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#191C22' }}>{L.newProject}</span>
-          <span style={{ font: `400 10px ${mono}`, color: '#98A1B0', marginLeft: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.newProject}</span>
+          <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)', marginLeft: 10 }}>
             {NP_BREADCRUMB}
           </span>
           <span
@@ -100,8 +100,8 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
             style={{
               marginLeft: 'auto',
               font: `500 9.5px ${mono}`,
-              color: '#98A1B0',
-              border: '1px solid #E7E9EE',
+              color: 'var(--proto-muted-3)',
+              border: '1px solid var(--proto-line)',
               borderRadius: 5,
               padding: '2px 6px',
               cursor: 'pointer',
@@ -118,7 +118,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               fontSize: 9.5,
               fontWeight: 700,
               letterSpacing: '.05em',
-              color: '#98A1B0',
+              color: 'var(--proto-muted-3)',
               marginBottom: 6,
             }}
           >
@@ -129,7 +129,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              border: '1.5px solid #C9CFF2',
+              border: '1.5px solid var(--proto-accent-border)',
               borderRadius: 9,
               padding: '9px 12px',
             }}
@@ -146,13 +146,13 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               }}
               autoFocus
               placeholder={NP_PLACEHOLDER}
-              style={{ flex: 1, font: `500 13px ${mono}`, color: '#191C22' }}
+              style={{ flex: 1, font: `500 13px ${mono}`, color: 'var(--proto-ink)' }}
             />
           </div>
           <div
             style={{
               fontSize: 10.5,
-              color: error ? '#C03D33' : '#98A1B0',
+              color: error ? 'var(--proto-danger)' : 'var(--proto-muted-3)',
               marginTop: 8,
               lineHeight: 1.6,
             }}
@@ -178,12 +178,12 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
             style={{
               fontSize: 11.5,
               fontWeight: 600,
-              border: '1px solid #D9DCE3',
+              border: '1px solid var(--proto-line-3)',
               borderRadius: 8,
               padding: '6px 13px',
-              color: '#191C22',
+              color: 'var(--proto-ink)',
               cursor: 'pointer',
-              background: cancelHover ? '#F7F8FA' : 'transparent',
+              background: cancelHover ? 'var(--proto-alt)' : 'transparent',
             }}
           >
             {L.cancel}
@@ -195,7 +195,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               fontWeight: 600,
               borderRadius: 8,
               padding: '7px 15px',
-              color: '#fff',
+              color: 'var(--ink-solid-fg)',
               background: createBg(name),
               cursor: creatable && !create.isPending ? 'pointer' : 'default',
             }}

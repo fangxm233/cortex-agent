@@ -21,11 +21,11 @@ export function StubScreen({
         flexDirection: 'column',
         paddingTop: 'env(safe-area-inset-top)',
         boxSizing: 'border-box',
-        background: '#F2F2F7',
+        background: 'var(--proto-alt)',
       }}
     >
-      <div style={{ flex: 'none', padding: '6px 14px 10px', borderBottom: '1px solid #E7E9EE' }}>
-        <span style={{ fontSize: 22, fontWeight: 700, color: '#191C22', letterSpacing: '-.02em' }}>
+      <div style={{ flex: 'none', padding: '6px 14px 10px', borderBottom: '1px solid var(--proto-line)' }}>
+        <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--proto-ink)', letterSpacing: '-.02em' }}>
           {title}
         </span>
       </div>
@@ -42,7 +42,7 @@ export function StubScreen({
         }}
       >
         {children ?? (
-          <span style={{ fontSize: 13, color: '#8A93A2' }}>Screen slot — filled by a later pass.</span>
+          <span style={{ fontSize: 13, color: 'var(--proto-muted-2)' }}>Screen slot — filled by a later pass.</span>
         )}
       </div>
     </div>

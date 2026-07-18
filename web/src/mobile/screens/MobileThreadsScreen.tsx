@@ -61,11 +61,11 @@ function MobileThreadDrillView({
   const thread = detail ? detailToInfo(detail) : null;
   return (
     <>
-      <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px 10px', borderBottom: '1px solid #E7E9EE', background: '#F2F2F7' }}>
-        <span onClick={onBack} style={{ fontSize: 16, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}>‹ {vocab.back}</span>
-        <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: '#191C22' }}>{entry.name}</span>
+      <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px 10px', borderBottom: '1px solid var(--proto-line)', background: 'var(--proto-alt)' }}>
+        <span onClick={onBack} style={{ fontSize: 16, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>‹ {vocab.back}</span>
+        <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{entry.name}</span>
       </div>
-      <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px 0', display: 'flex', flexDirection: 'column', gap: 10, background: '#F2F2F7' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px 0', display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--proto-alt)' }}>
         {detail && thread ? (
           <MobileThreadCardView
             thread={thread}
@@ -78,7 +78,7 @@ function MobileThreadDrillView({
             onDrill={onDrill}
           />
         ) : (
-          <div style={{ fontSize: 12, color: '#98A1B0', padding: '20px 0', textAlign: 'center' }}>…</div>
+          <div style={{ fontSize: 12, color: 'var(--proto-muted-3)', padding: '20px 0', textAlign: 'center' }}>…</div>
         )}
       </div>
     </>
@@ -109,19 +109,19 @@ export function MobileThreadsScreen() {
     <div
       data-screen-label="5b"
       data-mobile-threads=""
-      style={{ height: '100%', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', boxSizing: 'border-box', background: '#F2F2F7' }}
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top)', boxSizing: 'border-box', background: 'var(--proto-alt)' }}
     >
       {trail.length > 0 ? (
         <MobileThreadDrillView entry={trail[trail.length - 1]} onBack={popDrill} onDrill={pushDrill} />
       ) : (
         <>
           <MobileThreadsHeader vocab={vocab} segment={segment} activeCount={activeCount} band={band} onSegment={setSegment} />
-          <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px 0', display: 'flex', flexDirection: 'column', gap: 10, background: '#F2F2F7' }}>
+          <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px 0', display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--proto-alt)' }}>
             {threads.map((t) => (
               <MobileThreadCard key={t.id} thread={t} now={now} onDrill={pushDrill} />
             ))}
             {threadsQuery.isSuccess && threads.length === 0 && (
-              <div style={{ fontSize: 12, color: '#98A1B0', textAlign: 'center', padding: '28px 0' }}>—</div>
+              <div style={{ fontSize: 12, color: 'var(--proto-muted-3)', textAlign: 'center', padding: '28px 0' }}>—</div>
             )}
           </div>
         </>

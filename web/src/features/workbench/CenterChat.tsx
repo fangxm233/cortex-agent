@@ -92,7 +92,7 @@ export function CenterChat(): JSX.Element {
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: '#fff',
+        background: 'var(--proto-card)',
         minHeight: 0,
       }}
     >

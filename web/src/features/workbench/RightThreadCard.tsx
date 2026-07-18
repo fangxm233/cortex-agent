@@ -46,8 +46,8 @@ function StepDot({ kind, hasTail }: { kind: 'done' | 'running' | 'pending'; hasT
             width: 14,
             height: 14,
             borderRadius: '50%',
-            background: '#E9F4EE',
-            color: '#23854F',
+            background: 'var(--proto-success-bg)',
+            color: 'var(--proto-success)',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -65,9 +65,9 @@ function StepDot({ kind, hasTail }: { kind: 'done' | 'running' | 'pending'; hasT
             width: 14,
             height: 14,
             borderRadius: '50%',
-            background: '#4655D4',
+            background: 'var(--proto-accent)',
             flex: 'none',
-            boxShadow: '0 0 0 3px #EEF0FA',
+            boxShadow: '0 0 0 3px var(--proto-accent-bg)',
             animation: 'cxpulse 1.6s ease-in-out infinite',
           }}
         />
@@ -78,13 +78,13 @@ function StepDot({ kind, hasTail }: { kind: 'done' | 'running' | 'pending'; hasT
             width: 14,
             height: 14,
             borderRadius: '50%',
-            border: '1.5px solid #D9DCE3',
+            border: '1.5px solid var(--proto-line-3)',
             boxSizing: 'border-box',
             flex: 'none',
           }}
         />
       )}
-      {hasTail && <span style={{ flex: 1, width: 1.5, background: '#EFF1F5', margin: '3px 0' }} />}
+      {hasTail && <span style={{ flex: 1, width: 1.5, background: 'var(--proto-line-2)', margin: '3px 0' }} />}
     </div>
   );
 }
@@ -99,18 +99,18 @@ function ChildRow({ node }: { node: ThreadChildNode }) {
         display: 'flex',
         alignItems: 'center',
         gap: 7,
-        border: '1px solid #EFF1F5',
-        background: '#fff',
+        border: '1px solid var(--proto-line-2)',
+        background: 'var(--proto-card)',
         borderRadius: 7,
         padding: '5.5px 9px',
         marginTop: 6,
       }}
     >
-      <span style={{ color: '#B6BDC9', fontSize: 9 }}>▸</span>
-      <span style={{ font: "600 10.5px 'IBM Plex Mono',monospace", color: '#22262E' }}>
+      <span style={{ color: 'var(--proto-faint)', fontSize: 9 }}>▸</span>
+      <span style={{ font: "600 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>
         {node.templateName ?? node.id}
       </span>
-      <span style={{ font: "400 9px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>
+      <span style={{ font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>
         L{nodeLevel(node)}
       </span>
       {node.status === 'running' && (
@@ -119,15 +119,15 @@ function ChildRow({ node }: { node: ThreadChildNode }) {
             width: 6,
             height: 6,
             borderRadius: '50%',
-            background: '#4655D4',
+            background: 'var(--proto-accent)',
             animation: 'cxpulse 1.6s ease-in-out infinite',
           }}
         />
       )}
-      <span style={{ fontSize: 9.5, color: '#98A1B0' }}>{formatCost(node.costUsd)}</span>
+      <span style={{ fontSize: 9.5, color: 'var(--proto-muted-3)' }}>{formatCost(node.costUsd)}</span>
       <span
         onClick={() => navigate(`/threads/${node.id}`)}
-        style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+        style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
       >
         {L.rpOpen} ›
       </span>
@@ -140,12 +140,12 @@ function SubthreadCard({ node }: { node: ThreadChildNode }) {
   const [expanded, setExpanded] = useState(false);
   const pill = threadPill(node.status);
   const running = node.status === 'running';
-  const iconColor = running ? '#4655D4' : '#8A93A2';
+  const iconColor = running ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
   return (
     <div
       style={{
-        border: '1px solid ' + (running ? '#E3E6F5' : '#EFF1F5'),
-        background: running ? '#FBFBFE' : '#FBFBFC',
+        border: '1px solid ' + (running ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'),
+        background: running ? 'var(--proto-rail)' : 'var(--proto-rail)',
         borderRadius: 8,
       }}
     >
@@ -153,17 +153,17 @@ function SubthreadCard({ node }: { node: ThreadChildNode }) {
         onClick={() => setExpanded((e) => !e)}
         style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', cursor: 'pointer' }}
       >
-        <span style={{ color: '#8A93A2', fontSize: 9 }}>{expanded ? '▾' : '▸'}</span>
+        <span style={{ color: 'var(--proto-muted-2)', fontSize: 9 }}>{expanded ? '▾' : '▸'}</span>
         <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={iconColor} strokeWidth="1.8">
           <path d="M7 1.5v5M7 6.5 3.5 10M7 6.5l3.5 3.5" />
           <circle cx="7" cy="1.5" r="1.4" fill={iconColor} stroke="none" />
           <circle cx="3.5" cy="11" r="1.4" fill={iconColor} stroke="none" />
           <circle cx="10.5" cy="11" r="1.4" fill={iconColor} stroke="none" />
         </svg>
-        <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: '#191C22' }}>
+        <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>
           {node.templateName ?? node.id}
         </span>
-        <span style={{ font: "400 9px 'IBM Plex Mono',monospace", color: '#B6BDC9' }}>L{nodeLevel(node)}</span>
+        <span style={{ font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>L{nodeLevel(node)}</span>
         <span
           style={{
             marginLeft: 'auto',
@@ -180,9 +180,9 @@ function SubthreadCard({ node }: { node: ThreadChildNode }) {
       </div>
       {expanded && (
         <div style={{ padding: '0 10px 8px 27px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#5B6472' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--proto-muted)' }}>
             <span>{node.id}</span>
-            <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+            <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
               {formatCost(node.costUsd)}
             </span>
           </div>
@@ -205,18 +205,18 @@ function DispatchCard({ dispatch }: { dispatch: ThreadDispatchInfo }) {
         display: 'flex',
         alignItems: 'center',
         gap: 7,
-        border: '1px solid #EFF1F5',
-        background: '#FBFBFC',
+        border: '1px solid var(--proto-line-2)',
+        background: 'var(--proto-rail)',
         borderRadius: 8,
         padding: '7px 10px',
         cursor: 'pointer',
       }}
     >
-      <span style={{ font: "600 10.5px 'IBM Plex Mono',monospace", color: '#22262E' }}>
+      <span style={{ font: "600 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>
         {dispatch.executionId}
       </span>
-      <span style={{ fontSize: 10.5, color: '#5B6472' }}>{dispatch.machine ?? 'local'}</span>
-      <span style={{ marginLeft: 'auto', font: "400 9px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+      <span style={{ fontSize: 10.5, color: 'var(--proto-muted)' }}>{dispatch.machine ?? 'local'}</span>
+      <span style={{ marginLeft: 'auto', font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
         {dispatch.type}
       </span>
     </div>
@@ -248,7 +248,7 @@ function StepRow({
             style={{
               fontSize: 11.5,
               fontWeight: active ? 600 : 500,
-              color: active ? '#191C22' : kind === 'done' ? '#5B6472' : '#B6BDC9',
+              color: active ? 'var(--proto-ink)' : kind === 'done' ? 'var(--proto-muted)' : 'var(--proto-faint)',
             }}
           >
             {step.stage ?? `${L.rpStep} ${step.stepIndex + 1}`}
@@ -257,7 +257,7 @@ function StepRow({
             style={{
               marginLeft: 'auto',
               font: "400 9.5px 'IBM Plex Mono',monospace",
-              color: active ? '#4655D4' : '#B6BDC9',
+              color: active ? 'var(--proto-accent)' : 'var(--proto-faint)',
             }}
           >
             {meta}
@@ -314,30 +314,30 @@ function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string
           alignItems: 'center',
           gap: 13,
           padding: '8px 14px',
-          borderTop: '1px solid #EFF1F5',
+          borderTop: '1px solid var(--proto-line-2)',
         }}
       >
         {/* GAP-P: no threads pause mutate op in the contract — inert affordance (flagged, Stage later). */}
         <span
           title="Pause has no backend mutate op yet"
-          style={{ fontSize: 11.5, fontWeight: 600, color: '#5B6472', cursor: 'not-allowed', opacity: 0.6 }}
+          style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)', cursor: 'not-allowed', opacity: 0.6 }}
         >
           {L.pause}
         </span>
         <span
           data-cancel-thread-id={threadId}
           onClick={() => cancel.mutate({ threadId })}
-          style={{ fontSize: 11.5, fontWeight: 600, color: '#C03D33', cursor: 'pointer' }}
+          style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-danger)', cursor: 'pointer' }}
         >
           {L.cancel}
         </span>
         <span
           onClick={() => navigate(`/threads/${threadId}`)}
-          style={{ fontSize: 11.5, fontWeight: 600, color: '#4655D4', cursor: 'pointer' }}
+          style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
         >
           {L.detailPage}
         </span>
-        <span style={{ marginLeft: 'auto', font: "500 10px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+        <span style={{ marginLeft: 'auto', font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
           Σ {formatCost(detail.totalCostUsd)}
         </span>
       </div>
@@ -362,7 +362,7 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
   });
 
   const pill = threadPill(thread.status);
-  const iconColor = thread.status === 'running' ? '#4655D4' : '#8A93A2';
+  const iconColor = thread.status === 'running' ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
   const detail = open ? detailQuery.data : undefined;
   const dots = detail ? depthInfo(detail) : null;
   const hasDots = !!dots && dots.filled > 1;
@@ -370,8 +370,8 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
   return (
     <div
       style={{
-        background: '#fff',
-        border: '1px solid #E7E9EE',
+        background: 'var(--proto-card)',
+        border: '1px solid var(--proto-line)',
         borderRadius: 10,
         boxShadow: '0 1px 2px rgba(16,24,40,.03)',
       }}
@@ -381,12 +381,12 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
         style={{
           padding: '11px 14px 9px',
           cursor: 'pointer',
-          borderBottom: '1px solid ' + (open ? '#F3F4F7' : 'transparent'),
+          borderBottom: '1px solid ' + (open ? 'var(--proto-line-soft)' : 'transparent'),
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ display: 'inline-flex', color: iconColor, stroke: iconColor }}>{NODE_ICON}</span>
-          <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: '#191C22' }}>
+          <span style={{ font: "600 12.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>
             {thread.templateName}
           </span>
           <span
@@ -404,12 +404,12 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
-          <span style={{ font: "400 10.5px 'IBM Plex Mono',monospace", color: '#98A1B0' }}>
+          <span style={{ font: "400 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
             {threadMetaLine(thread, now)}
           </span>
           {hasDots && dots && (
             <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: '#98A1B0', marginRight: 2 }}>
+              <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)', marginRight: 2 }}>
                 {L.rpDepth}
               </span>
               {Array.from({ length: dots.total }).map((_, i) => (
@@ -419,11 +419,11 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
                     width: 5,
                     height: 5,
                     borderRadius: '50%',
-                    background: i < dots.filled ? '#4655D4' : '#E7E9EE',
+                    background: i < dots.filled ? 'var(--proto-accent)' : 'var(--proto-line)',
                   }}
                 />
               ))}
-              <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: '#5B6472', marginLeft: 2 }}>
+              <span style={{ font: "500 9px 'IBM Plex Mono',monospace", color: 'var(--proto-muted)', marginLeft: 2 }}>
                 {dots.text}
               </span>
             </span>
@@ -431,10 +431,10 @@ export function RightThreadCard({ thread, now }: RightThreadCardProps) {
         </div>
       </div>
       {open && detailQuery.isPending && (
-        <div style={{ padding: '10px 14px', fontSize: 11, color: '#98A1B0' }}>{L.rpLoadingThread}</div>
+        <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--proto-muted-3)' }}>{L.rpLoadingThread}</div>
       )}
       {open && detailQuery.isError && (
-        <div style={{ padding: '10px 14px', fontSize: 11, color: '#C03D33' }}>
+        <div style={{ padding: '10px 14px', fontSize: 11, color: 'var(--proto-danger)' }}>
           {L.rpFailedLoadThread}
         </div>
       )}

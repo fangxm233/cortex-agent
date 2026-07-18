@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ChatMarkdown } from './ChatMarkdown';
 
-// The hr block renders as a 1px horizontal line (`background:#EFF1F5`). These lock the mobile
+// The hr block renders as a 1px horizontal line (`background:var(--proto-line-2)`). These lock the mobile
 // `dropTrailingHr` opt-in without changing the default desktop behavior.
-const HR_LINE = 'background:#EFF1F5';
+const HR_LINE = 'background:var(--proto-line-2)';
 
 describe('ChatMarkdown dropTrailingHr', () => {
   it('renders a trailing `---` as a horizontal rule by default (desktop unchanged)', () => {

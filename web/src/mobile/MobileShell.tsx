@@ -55,7 +55,7 @@ export function MobileShell() {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          background: '#F2F2F7',
+          background: 'var(--proto-alt)',
         }}
       >
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>

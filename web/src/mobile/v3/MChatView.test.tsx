@@ -80,8 +80,8 @@ describe('1b MChatHeader', () => {
       <MChatHeader title="atlas" status={{ running: false, tone: 'waiting', text: '计划待批 · 线程已暂停' }} onBack={() => {}} onMore={() => {}} />,
     );
     expect(html).toContain('计划待批 · 线程已暂停');
-    expect(html).toContain('#C99A2E'); // amber dot
-    expect(html).toContain('#A96B0B'); // amber status text
+    expect(html).toContain('var(--m-amber)'); // amber dot
+    expect(html).toContain('var(--m-amber-text)'); // amber status text
     expect(html).not.toContain('cxpulse');
   });
 });
@@ -97,7 +97,7 @@ describe('1b MChatStream', () => {
   it('renders divider, dark user bubble, collapsed tools, assistant text — no blinking caret', () => {
     expect(html).toContain('今天 07:42');
     expect(html).toContain('how did the scan go?');
-    expect(html).toContain('#191C22');
+    expect(html).toContain('var(--m-ink)');
     expect(html).toContain('次工具调用');
     expect(html).toContain('read');
     expect(html).toContain('+2'); // 4 calls, first-two chips + overflow
@@ -193,8 +193,8 @@ describe('5a reject-feedback composer mode', () => {
     expect(html).toContain('范围太大');
     expect(html).toContain('先做 dry-run');
     expect(html).toContain('✕'); // cancel back to pending
-    expect(html).toContain('#C99A2E'); // amber composer border
-    expect(html).toContain('#FDF9F0'); // amber context bar bg
+    expect(html).toContain('var(--m-amber)'); // amber composer border
+    expect(html).toContain('var(--m-amber-card)'); // amber context bar bg
   });
 });
 

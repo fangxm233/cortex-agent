@@ -110,7 +110,7 @@ export function MChatHeader({
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: status.tone === 'waiting' ? MC.amber : status.running ? MC.run : '#D9DCE3',
+              background: status.tone === 'waiting' ? MC.amber : status.running ? MC.run : 'var(--proto-line-3)',
               animation: status.running ? 'cxpulse 1.6s ease-in-out infinite' : undefined,
             }}
           />
@@ -149,7 +149,7 @@ export function MoreMenu({ copy, onClose }: { copy: MChatCopy; onClose: () => vo
               padding: '11px 14px',
               fontSize: 13,
               color: MC.ink,
-              borderBottom: i < items.length - 1 ? '1px solid #EFF1F5' : undefined,
+              borderBottom: i < items.length - 1 ? '1px solid var(--proto-line-2)' : undefined,
               cursor: 'pointer',
             }}
           >
@@ -162,7 +162,7 @@ export function MoreMenu({ copy, onClose }: { copy: MChatCopy; onClose: () => vo
 }
 
 // ── attachment tiles (scheme 1o L762-766) ─────────────────────────────────────
-const STRIPES = 'repeating-linear-gradient(45deg,#E9EBF0 0 6px,#F4F5F8 6px 12px)';
+const STRIPES = 'repeating-linear-gradient(45deg,var(--proto-line) 0 6px,var(--proto-rail) 6px 12px)';
 
 function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
   const kind = mediaKindOf(a.type);
@@ -202,7 +202,7 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
               height: 26,
               borderRadius: '50%',
               background: 'rgba(25,28,34,.72)',
-              color: '#fff',
+              color: 'var(--ink-solid-fg)',
               fontSize: 9,
               display: 'flex',
               alignItems: 'center',
@@ -244,7 +244,7 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        background: '#fff',
+        background: 'var(--proto-card)',
         border: `1px solid ${MC.hairline}`,
         borderRadius: 9,
         padding: '6px 10px',
@@ -287,14 +287,14 @@ function ToolCallsRow({
     return (
       <div
         onClick={() => setExpanded(true)}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#98A1B0', flexWrap: 'wrap', cursor: 'pointer' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--proto-muted-3)', flexWrap: 'wrap', cursor: 'pointer' }}
       >
         <span style={{ fontSize: 8.5 }}>▸</span>
         <span>
           {count} {unit}
         </span>
         {chips.names.map((name, i) => (
-          <span key={i} style={{ font: `400 10px ${MONO}`, background: '#fff', border: '1px solid #EFF1F5', padding: '1px 6px', borderRadius: 4 }}>
+          <span key={i} style={{ font: `400 10px ${MONO}`, background: 'var(--proto-card)', border: '1px solid var(--proto-line-2)', padding: '1px 6px', borderRadius: 4 }}>
             {name}
           </span>
         ))}
@@ -303,16 +303,16 @@ function ToolCallsRow({
     );
   }
   return (
-    <div style={{ background: '#FBFBFC', border: '1px solid #EFF1F5', borderRadius: 8, overflow: 'hidden' }}>
-      <div onClick={() => setExpanded(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#98A1B0', padding: '6px 11px', cursor: 'pointer' }}>
+    <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8, overflow: 'hidden' }}>
+      <div onClick={() => setExpanded(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--proto-muted-3)', padding: '6px 11px', cursor: 'pointer' }}>
         <span style={{ fontSize: 8.5 }}>▾</span>
         <span>
           {count} {unit}
         </span>
       </div>
       {calls.map((c, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5.5px 11px', borderTop: '1px solid #F3F4F7' }}>
-          <span style={{ font: `600 9px ${MONO}`, color: '#5B6472', background: '#F1F2F5', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>{c.kind}</span>
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5.5px 11px', borderTop: '1px solid var(--proto-line-soft)' }}>
+          <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>{c.kind}</span>
           <span style={{ font: `400 10.5px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{c.input}</span>
         </div>
       ))}
@@ -357,10 +357,10 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
       />
     );
   }
-  const color = v.tone === 'rejected' ? '#C03D33' : v.tone === 'inactive' ? '#98A1B0' : MC.done;
+  const color = v.tone === 'rejected' ? 'var(--proto-danger)' : v.tone === 'inactive' ? 'var(--proto-muted-3)' : MC.done;
   const icon = v.tone === 'rejected' ? '✗' : v.tone === 'inactive' ? '◌' : '✓';
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: '#fff', border: '1px solid #EFF1F5', borderRadius: 10, opacity: v.tone === 'inactive' ? 0.6 : 0.75 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: 'var(--proto-card)', border: '1px solid var(--proto-line-2)', borderRadius: 10, opacity: v.tone === 'inactive' ? 0.6 : 0.75 }}>
       <span style={{ fontSize: 10, fontWeight: 700, color, flexShrink: 0 }}>{icon} {v.label}</span>
       <span style={{ fontSize: 11.5, color: MC.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.text}</span>
     </div>
@@ -374,9 +374,9 @@ export function MChatStream({ rows, toolCallsUnit, interactions }: { rows: ChatR
         <Fragment key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}>
           {row.kind === 'divider' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1, height: 1, background: '#E3E5EA' }} />
+              <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
               <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: MC.faint }}>{row.text}</div>
-              <div style={{ flex: 1, height: 1, background: '#E3E5EA' }} />
+              <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
             </div>
           )}
           {row.kind === 'user' && (
@@ -387,7 +387,7 @@ export function MChatStream({ rows, toolCallsUnit, interactions }: { rows: ChatR
                   alignSelf: 'flex-end',
                   maxWidth: '82%',
                   background: MC.ink,
-                  color: '#fff',
+                  color: 'var(--ink-solid-fg)',
                   borderRadius: '16px 16px 4px 16px',
                   padding: '9px 13px',
                   fontSize: 13.5,
@@ -433,8 +433,8 @@ export function SystemLine({ text }: { text: string }): JSX.Element {
         gap: 6,
         font: `400 9.5px ${MONO}`,
         color: MC.faint,
-        background: '#fff',
-        border: '1px solid #EFF1F5',
+        background: 'var(--proto-card)',
+        border: '1px solid var(--proto-line-2)',
         padding: '3px 10px',
         borderRadius: 999,
       }}
@@ -450,7 +450,7 @@ export function AttachMenu({ copy, onClose, onCamera, onLibrary, onFile }: { cop
   const row = (label: string, on: () => void, icon: ReactNode, last?: boolean): JSX.Element => (
     <div
       onClick={() => { on(); onClose(); }}
-      style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: last ? undefined : '1px solid #EFF1F5', cursor: 'pointer' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 14px', borderBottom: last ? undefined : '1px solid var(--proto-line-2)', cursor: 'pointer' }}
     >
       {icon}
       <span style={{ fontSize: 13, color: MC.ink }}>{label}</span>
@@ -502,7 +502,7 @@ function ComposerChip({ a, onRemove }: { a: PendingAttachmentVM; onRemove: () =>
   const kind = a.type ? mediaKindOf(a.type) : null;
   const canPreview = !!a.previewUrl && kind !== null;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: '#fff', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 9, padding: '5px 9px', flex: 'none' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: uploading ? 7 : 6, background: 'var(--proto-card)', border: `1px solid ${uploading ? MC.runBorder : MC.hairline}`, borderRadius: 9, padding: '5px 9px', flex: 'none' }}>
       {canPreview && (
         <span
           role="button"
@@ -515,14 +515,14 @@ function ComposerChip({ a, onRemove }: { a: PendingAttachmentVM; onRemove: () =>
             <video src={a.previewUrl} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           )}
           {kind === 'video' && (
-            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 8, textShadow: '0 0 3px rgba(0,0,0,.8)' }}>▶</span>
+            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-solid-fg)', fontSize: 8, textShadow: '0 0 3px rgba(0,0,0,.8)' }}>▶</span>
           )}
         </span>
       )}
       <span style={{ font: `500 10px ${MONO}`, color: MC.body }}>{a.name}</span>
       {uploading ? (
         <>
-          <div style={{ width: 34, height: 4, borderRadius: 999, background: '#EFF1F5', overflow: 'hidden' }}>
+          <div style={{ width: 34, height: 4, borderRadius: 999, background: 'var(--proto-line-2)', overflow: 'hidden' }}>
             <div style={{ width: `${a.progress}%`, height: '100%', background: MC.run }} />
           </div>
           <span style={{ font: `400 9px ${MONO}`, color: MC.run }}>{a.progress}%</span>
@@ -545,12 +545,12 @@ export function ProfileSheet({ items, copy, onClose, onPick }: { items: ProfileS
         <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileTitle}</span>
         <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>{copy.profileSubtitle}</span>
       </div>
-      <div style={{ background: '#fff', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
+      <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
         {items.map((it, i) => (
           <div
             key={it.name}
             onClick={() => onPick(it.name)}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: i < items.length - 1 ? '1px solid #F3F4F7' : undefined, cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: i < items.length - 1 ? '1px solid var(--proto-line-soft)' : undefined, cursor: 'pointer' }}
           >
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
@@ -575,7 +575,7 @@ function PlusButton({ onClick }: { onClick: () => void }): JSX.Element {
       type="button"
       aria-label="Attach"
       onClick={onClick}
-      style={{ flex: 'none', width: 46, height: 46, borderRadius: 14, border: `1.5px solid ${MC.run}`, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.run, fontSize: 22, fontWeight: 300, cursor: 'pointer' }}
+      style={{ flex: 'none', width: 46, height: 46, borderRadius: 14, border: `1.5px solid ${MC.run}`, background: 'var(--proto-card)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', color: MC.run, fontSize: 22, fontWeight: 300, cursor: 'pointer' }}
     >
       ＋
     </button>
@@ -587,7 +587,7 @@ function ProfileChip({ label, onClick }: { label: string; onClick: () => void })
     <button
       type="button"
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #E3E6F5', background: '#fff', borderRadius: 999, padding: '4px 10px', flex: 'none', cursor: 'pointer' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-card)', borderRadius: 999, padding: '4px 10px', flex: 'none', cursor: 'pointer' }}
     >
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.run }} />
       <span style={{ font: `600 10px ${MONO}`, color: MC.run }}>{label}</span>
@@ -670,12 +670,12 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: MC.amberCard, border: `1px solid ${MC.amberBorder}`, borderRadius: 11, padding: '8px 8px 8px 12px', marginBottom: 7 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: MC.amber, flex: 'none' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#6B5A1E', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.rejectBar.title}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-amber-fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{props.rejectBar.title}</span>
         <div
           role="button"
           aria-label="Cancel reject"
           onClick={props.rejectBar.onCancel}
-          style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, background: '#fff', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}
+          style={{ marginLeft: 'auto', width: 26, height: 26, borderRadius: 8, background: 'var(--proto-card)', border: `1px solid ${MC.amberBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: MC.amberText, fontSize: 11, flex: 'none', cursor: 'pointer' }}
         >
           ✕
         </div>
@@ -686,7 +686,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
             key={chip}
             role="button"
             onClick={() => props.rejectBar!.onChipTap(chip)}
-            style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: MC.sub, border: '1px solid #D9DCE3', background: '#fff', borderRadius: 999, padding: '5px 11px', cursor: 'pointer' }}
+            style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: MC.sub, border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)', borderRadius: 999, padding: '5px 11px', cursor: 'pointer' }}
           >
             {chip}
           </span>

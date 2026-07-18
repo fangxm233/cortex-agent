@@ -88,7 +88,7 @@ export function ApprovalCenterView(props: ApprovalCenterViewProps) {
           maxWidth: '94vw',
           height: 700,
           maxHeight: '90vh',
-          background: '#fff',
+          background: 'var(--proto-card)',
           borderRadius: 14,
           boxShadow: '0 24px 64px rgba(16,24,40,.3)',
           zIndex: 61,
@@ -105,18 +105,18 @@ export function ApprovalCenterView(props: ApprovalCenterViewProps) {
             alignItems: 'center',
             gap: 9,
             padding: '12px 20px',
-            borderBottom: '1px solid #E7E9EE',
+            borderBottom: '1px solid var(--proto-line)',
           }}
         >
-          <span style={{ fontSize: 13, fontWeight: 650, color: '#191C22' }}>{L.approvals}</span>
+          <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.approvals}</span>
           {hasItems && (
             <span
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                background: '#FDF9F0',
-                border: '1px solid #EFDDB0',
+                background: 'var(--proto-amber-bg)',
+                border: '1px solid var(--proto-amber-border)',
                 borderRadius: 999,
                 padding: '3px 10px',
                 marginLeft: 4,
@@ -127,17 +127,17 @@ export function ApprovalCenterView(props: ApprovalCenterViewProps) {
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  background: '#C99A2E',
+                  background: 'var(--proto-amber)',
                   animation: 'cxpulse 2s ease-in-out infinite',
                 }}
               />
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: '#8A5B06' }}>
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--proto-amber-fg)' }}>
                 {pendingLabel(count)}
               </span>
             </span>
           )}
           <span
-            style={{ marginLeft: 'auto', font: `400 10px ${mono}`, color: '#98A1B0' }}
+            style={{ marginLeft: 'auto', font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}
           >
             ~/.cortex/context/PENDING_APPROVALS.md
           </span>
@@ -145,8 +145,8 @@ export function ApprovalCenterView(props: ApprovalCenterViewProps) {
             onClick={props.onClose}
             style={{
               font: `500 9.5px ${mono}`,
-              color: '#98A1B0',
-              border: '1px solid #E7E9EE',
+              color: 'var(--proto-muted-3)',
+              border: '1px solid var(--proto-line)',
               borderRadius: 5,
               padding: '2px 6px',
               cursor: 'pointer',
@@ -201,7 +201,7 @@ function EmptyState() {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 9,
-        background: '#FBFBFC',
+        background: 'var(--proto-rail)',
       }}
     >
       <span
@@ -209,8 +209,8 @@ function EmptyState() {
           width: 34,
           height: 34,
           borderRadius: '50%',
-          background: '#E9F4EE',
-          color: '#23854F',
+          background: 'var(--proto-success-bg)',
+          color: 'var(--proto-success)',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -220,8 +220,8 @@ function EmptyState() {
       >
         ✓
       </span>
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#191C22' }}>{L.aprEmptyTitle}</div>
-      <div style={{ fontSize: 11, color: '#8A93A2' }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.aprEmptyTitle}</div>
+      <div style={{ fontSize: 11, color: 'var(--proto-muted-2)' }}>
         {L.aprEmptyDesc}
       </div>
     </div>
@@ -247,8 +247,8 @@ function PendingList({
       style={{
         width: 370,
         flex: 'none',
-        borderRight: '1px solid #E7E9EE',
-        background: '#FBFBFC',
+        borderRight: '1px solid var(--proto-line)',
+        background: 'var(--proto-rail)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'auto',
@@ -260,7 +260,7 @@ function PendingList({
           fontSize: 10,
           fontWeight: 700,
           letterSpacing: '.06em',
-          color: '#98A1B0',
+          color: 'var(--proto-muted-3)',
         }}
       >
         {L.apPending} · {count}
@@ -275,8 +275,8 @@ function PendingList({
               data-approval-id={e.id}
               onClick={() => onSelect(e.id)}
               style={{
-                background: '#fff',
-                border: `1px solid ${sel ? '#C9CFF2' : '#EFF1F5'}`,
+                background: 'var(--proto-card)',
+                border: `1px solid ${sel ? 'var(--proto-accent-border)' : 'var(--proto-line-2)'}`,
                 borderRadius: 10,
                 padding: '10px 12px',
                 boxShadow: sel ? '0 1px 3px rgba(70,85,212,.08)' : 'none',
@@ -289,7 +289,7 @@ function PendingList({
                     width: 7,
                     height: 7,
                     borderRadius: '50%',
-                    background: '#C99A2E',
+                    background: 'var(--proto-amber)',
                     flex: 'none',
                     marginTop: 5,
                     animation: sel ? 'cxpulse 2s ease-in-out infinite' : 'none',
@@ -300,7 +300,7 @@ function PendingList({
                     style={{
                       fontSize: 12,
                       fontWeight: 600,
-                      color: sel ? '#191C22' : '#22262E',
+                      color: sel ? 'var(--proto-ink)' : 'var(--proto-ink-2)',
                       lineHeight: 1.4,
                     }}
                   >
@@ -318,10 +318,10 @@ function PendingList({
                     }}
                   >
                     {card.origin && (
-                      <span style={{ font: `400 9px ${mono}`, color: '#98A1B0' }}>{card.origin}</span>
+                      <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.origin}</span>
                     )}
                     {card.age && (
-                      <span style={{ marginLeft: 'auto', font: `400 9px ${mono}`, color: '#B6BDC9' }}>
+                      <span style={{ marginLeft: 'auto', font: `400 9px ${mono}`, color: 'var(--proto-faint)' }}>
                         {card.age}
                       </span>
                     )}
@@ -342,7 +342,7 @@ const GRID_LABEL: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   letterSpacing: '.05em',
-  color: '#98A1B0',
+  color: 'var(--proto-muted-3)',
   paddingTop: 2,
 };
 
@@ -373,7 +373,7 @@ function DetailPane({
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0, padding: '16px 22px 0' }}>
         {/* title + status pill */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ fontSize: 15.5, fontWeight: 650, color: '#191C22', lineHeight: 1.35, flex: 1 }}>
+          <div style={{ fontSize: 15.5, fontWeight: 650, color: 'var(--proto-ink)', lineHeight: 1.35, flex: 1 }}>
             {detail.title}
           </div>
           <span
@@ -401,19 +401,19 @@ function DetailPane({
             gap: 14,
             marginTop: 8,
             font: `400 10px ${mono}`,
-            color: '#98A1B0',
+            color: 'var(--proto-muted-3)',
             flexWrap: 'wrap',
           }}
         >
           {detail.queued && <span>{detail.queued}</span>}
           {detail.origin && (
             <span>
-              {L.apFrom} <span style={{ color: '#4655D4' }}>{detail.origin}</span>
+              {L.apFrom} <span style={{ color: 'var(--proto-accent)' }}>{detail.origin}</span>
             </span>
           )}
           {detail.task && (
             <span>
-              {L.apTask} <span style={{ color: '#4655D4' }}>{detail.task}</span>
+              {L.apTask} <span style={{ color: 'var(--proto-accent)' }}>{detail.task}</span>
             </span>
           )}
         </div>
@@ -431,11 +431,11 @@ function DetailPane({
           }}
         >
           <span style={GRID_LABEL}>{L.apOperation}</span>
-          <span style={{ color: '#22262E' }}>{detail.operation}</span>
+          <span style={{ color: 'var(--proto-ink-2)' }}>{detail.operation}</span>
           <span style={GRID_LABEL}>{L.apReason}</span>
-          <span style={{ color: '#22262E' }}>{detail.reason}</span>
+          <span style={{ color: 'var(--proto-ink-2)' }}>{detail.reason}</span>
           <span style={GRID_LABEL}>{L.apImpact}</span>
-          <span style={{ color: '#22262E' }}>{detail.impact}</span>
+          <span style={{ color: 'var(--proto-ink-2)' }}>{detail.impact}</span>
         </div>
 
         {/* COMMAND mono block (real command; prototype's ESTIMATE cost table has no real data) */}
@@ -446,7 +446,7 @@ function DetailPane({
                 fontSize: 10,
                 fontWeight: 700,
                 letterSpacing: '.05em',
-                color: '#98A1B0',
+                color: 'var(--proto-muted-3)',
                 marginBottom: 6,
               }}
             >
@@ -454,12 +454,12 @@ function DetailPane({
             </div>
             <div
               style={{
-                background: '#FBFBFC',
-                border: '1px solid #EFF1F5',
+                background: 'var(--proto-rail)',
+                border: '1px solid var(--proto-line-2)',
                 borderRadius: 8,
                 padding: '9px 14px',
                 font: `400 11px/1.75 ${mono}`,
-                color: '#5B6472',
+                color: 'var(--proto-muted)',
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
               }}
@@ -474,16 +474,16 @@ function DetailPane({
           <div
             style={{
               margin: '13px 0 14px',
-              background: '#FBEDEB',
-              border: '1px solid #EED3D0',
+              background: 'var(--proto-danger-bg)',
+              border: '1px solid var(--proto-danger-bg)',
               borderRadius: 8,
               padding: '10px 13px',
               fontSize: 11.5,
               lineHeight: 1.55,
-              color: '#8A3B33',
+              color: 'var(--proto-danger)',
             }}
           >
-            <b style={{ color: '#C03D33' }}>{L.apFeedbackLabel}</b> — {detail.feedback}
+            <b style={{ color: 'var(--proto-danger)' }}>{L.apFeedbackLabel}</b> — {detail.feedback}
           </div>
         )}
       </div>
@@ -496,8 +496,8 @@ function DetailPane({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              border: '1px solid #EED3D0',
-              background: '#fff',
+              border: '1px solid var(--proto-danger-bg)',
+              background: 'var(--proto-card)',
               borderRadius: 8,
               padding: '7px 12px',
             }}
@@ -507,7 +507,7 @@ function DetailPane({
               value={feedback}
               onChange={(e) => onFeedback(e.target.value)}
               placeholder={L.apFeedbackPh}
-              style={{ flex: 1, fontSize: 12, color: '#191C22', fontFamily: 'inherit' }}
+              style={{ flex: 1, fontSize: 12, color: 'var(--proto-ink)', fontFamily: 'inherit' }}
             />
           </div>
         </div>
@@ -517,14 +517,14 @@ function DetailPane({
       <div
         style={{
           flex: 'none',
-          borderTop: '1px solid #EFF1F5',
+          borderTop: '1px solid var(--proto-line-2)',
           padding: '12px 22px',
           display: 'flex',
           alignItems: 'center',
           gap: 10,
         }}
       >
-        <span style={{ font: `400 10px ${mono}`, color: '#B6BDC9', lineHeight: 1.6 }}>
+        <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', lineHeight: 1.6 }}>
           {L.apFootNote}
         </span>
         {!armed && (
@@ -536,16 +536,16 @@ function DetailPane({
                 marginLeft: 'auto',
                 fontSize: 12,
                 fontWeight: 600,
-                border: '1px solid #EED3D0',
+                border: '1px solid var(--proto-danger-bg)',
                 borderRadius: 8,
                 padding: '7px 16px',
-                color: '#C03D33',
-                background: '#fff',
+                color: 'var(--proto-danger)',
+                background: 'var(--proto-card)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
               }}
-              hover={{ background: '#FBEDEB' }}
+              hover={{ background: 'var(--proto-danger-bg)' }}
             >
               {L.rejectFeedback}
             </HoverButton>
@@ -557,13 +557,13 @@ function DetailPane({
                 fontWeight: 600,
                 borderRadius: 8,
                 padding: '8px 20px',
-                color: '#fff',
-                background: '#4655D4',
+                color: 'var(--ink-solid-fg)',
+                background: 'var(--proto-accent)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
               }}
-              hover={{ background: '#3A48B8' }}
+              hover={{ background: 'var(--proto-accent-strong)' }}
             >
               {L.approve}
             </HoverButton>
@@ -578,16 +578,16 @@ function DetailPane({
                 marginLeft: 'auto',
                 fontSize: 12,
                 fontWeight: 600,
-                border: '1px solid #D9DCE3',
+                border: '1px solid var(--proto-line-3)',
                 borderRadius: 8,
                 padding: '7px 16px',
-                color: '#191C22',
-                background: '#fff',
+                color: 'var(--proto-ink)',
+                background: 'var(--proto-card)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,
               }}
-              hover={{ background: '#F7F8FA' }}
+              hover={{ background: 'var(--proto-alt)' }}
             >
               {L.cancel}
             </HoverButton>
@@ -599,8 +599,8 @@ function DetailPane({
                 fontWeight: 600,
                 borderRadius: 8,
                 padding: '8px 20px',
-                color: '#fff',
-                background: '#C03D33',
+                color: 'var(--ink-solid-fg)',
+                background: 'var(--proto-danger)',
                 cursor: pending ? 'not-allowed' : 'pointer',
                 flex: 'none',
                 opacity: pending ? 0.6 : 1,

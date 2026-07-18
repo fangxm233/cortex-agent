@@ -74,14 +74,14 @@ describe('MTasksView', () => {
     expect(html).toContain('T-041');
     expect(html).toContain('认领');
     expect(html).toContain('thr_8f2c');
-    expect(html).toContain('#4655D4'); // running/run accent
+    expect(html).toContain('var(--m-run)'); // running/run accent
     expect(html).not.toContain('步骤'); // no step fraction — no DTO source
   });
 
   it('claimable collapsed: ▸ chevron, no done-when box', () => {
     const html = render([task({ id: 'T-042', actionable: true, doneWhen: 'X' })]);
     expect(html).toContain('▸');
-    expect(html).not.toContain('#F7F8FA'); // done-when box background not present when collapsed
+    expect(html).not.toContain('var(--proto-alt)'); // done-when box background not present when collapsed
   });
 
   it('claimable expanded: ▾ chevron + real done-when in the mono box', () => {
@@ -90,7 +90,7 @@ describe('MTasksView', () => {
       ['T-042'],
     );
     expect(html).toContain('▾');
-    expect(html).toContain('#F7F8FA'); // done-when box
+    expect(html).toContain('var(--proto-alt)'); // done-when box
     expect(html).toContain('报告落 reports/DR-sweep.md');
   });
 
@@ -105,7 +105,7 @@ describe('MTasksView', () => {
     expect(html).toContain('等待审批');
     expect(html).toContain('APR-0007');
     expect(html).toContain('见项目页审批');
-    expect(html).toContain('#A96B0B'); // amber approval text
+    expect(html).toContain('var(--m-amber-text)'); // amber approval text
   });
 
   it('全部 segment shows a 完成 group with done rows and counts them in 全部', () => {

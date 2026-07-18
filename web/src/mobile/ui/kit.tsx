@@ -524,7 +524,7 @@ export function MBottomSheet({
           left: 0,
           right: 0,
           bottom: 0,
-          background: '#F7F8FA',
+          background: 'var(--proto-alt)',
           borderRadius: '18px 18px 0 0',
           boxShadow: '0 -14px 44px rgba(16,24,40,.28)',
           padding: '8px 14px 36px',
@@ -651,7 +651,7 @@ export function MComposer({
   charUnit?: string;
   /** Attach (＋) handler surfaced inside the full-screen editor's tool row. */
   onPlus?: () => void;
-  /** 'amber' = the 5a reject-feedback mode ring (scheme-mobile L213: #C99A2E + amber glow). */
+  /** 'amber' = the 5a reject-feedback mode ring (scheme-mobile L213: var(--proto-amber) + amber glow). */
   tone?: 'default' | 'amber';
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);

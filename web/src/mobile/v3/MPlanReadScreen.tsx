@@ -44,7 +44,7 @@ export function MPlanReadScreen(): JSX.Element {
         <div style={{ font: `400 11px ${MONO}`, color: MC.faint }}>
           {transcriptQuery.isPending ? '…' : lang === 'zh' ? '未找到该计划' : 'Plan not found'}
         </div>
-        <button type="button" onClick={onBack} style={{ border: `1px solid ${MC.hairline}`, background: '#fff', borderRadius: 999, padding: '7px 16px', fontSize: 12.5, fontWeight: 600, color: MC.ink, cursor: 'pointer' }}>
+        <button type="button" onClick={onBack} style={{ border: `1px solid ${MC.hairline}`, background: 'var(--proto-card)', borderRadius: 999, padding: '7px 16px', fontSize: 12.5, fontWeight: 600, color: MC.ink, cursor: 'pointer' }}>
           {lang === 'zh' ? '返回会话' : 'Back to chat'}
         </button>
       </div>
