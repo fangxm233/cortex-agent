@@ -151,6 +151,12 @@ export const sessionsRespondPlanInput = z.object({
   feedback: z.string().optional(),
 });
 
+export const sessionsRewindInput = z.object({
+  sessionId: z.string(),
+  turnIndex: z.number().int().min(0),
+  text: z.string().min(1),
+});
+
 export const sessionsCreateAndSendInput = z.object({
   projectId: z.string(),
   profileName: z.string().optional(),
@@ -325,6 +331,7 @@ export const mutateInputSchemas = {
   'sessions.markRead': sessionsMarkReadInput,
   'sessions.answerQuestion': sessionsAnswerQuestionInput,
   'sessions.respondPlan': sessionsRespondPlanInput,
+  'sessions.rewind': sessionsRewindInput,
   'threads.cancel': threadsCancelInput,
   'executions.cancel': executionsCancelInput,
   'schedules.pause': scheduleActionInput,

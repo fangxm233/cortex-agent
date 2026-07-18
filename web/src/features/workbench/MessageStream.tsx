@@ -12,6 +12,18 @@ import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-
 import type { InteractionActions } from './useInteractionActions';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
 import { PlanReadOverlay } from './PlanReadOverlay';
+import { rewindStats, regenNoteIndexes } from './transcript-vm';
+import { M_EDIT_COPY, HoverActionPill, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
+
+/** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
+ *  w.r.t. editing (the thread step chat), hover copy still works. */
+export interface MessageEditCtx {
+  /** Live turn on the session — editing is greyed out (运行中不可编辑). */
+  running: boolean;
+  /** A rewind mutation is in flight. */
+  busy: boolean;
+  onSubmit: (turnIndex: number, text: string) => void;
+}
 
 // Message stream — 1:1 from prototype.dc.html L131–357. The transcript body (divider / user bubble /
 // tool-call row / assistant text) is driven by REAL data (task aba0): the `rows` are built from the
@@ -312,10 +324,23 @@ function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Ele
   );
 }
 
-function UserBubble({ text, attachments }: { text: string; attachments?: AttachmentMeta[] }): JSX.Element {
+function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled }: {
+  text: string;
+  attachments?: AttachmentMeta[];
+  ts?: string;
+  edited?: { originalText: string; originalTs: string };
+  /** Present → the sec-23 hover copy/edit affordances render. */
+  editCopy?: MEditCopy;
+  /** Present → the pill carries the edit button (rewind-capable rows only). */
+  onStartEdit?: () => void;
+  editDisabled?: boolean;
+}): JSX.Element {
   const hasAttachments = attachments && attachments.length > 0;
+  const [hover, setHover] = useState(false);
   return (
     <div
+      onMouseEnter={editCopy ? () => setHover(true) : undefined}
+      onMouseLeave={editCopy ? () => setHover(false) : undefined}
       style={{
         alignSelf: 'flex-end',
         maxWidth: '75%',
@@ -334,34 +359,61 @@ function UserBubble({ text, attachments }: { text: string; attachments?: Attachm
           ))}
         </div>
       )}
-      {/* Text bubble */}
+      {/* Text bubble — hover floats the copy/edit pill to its left (sec-23: 不遮内容) */}
       {text && (
-        <div
-          style={{
-            background: 'var(--proto-gray)',
-            borderRadius: '14px 14px 4px 14px',
-            padding: '9px 14px',
-            fontSize: 13.5,
-            lineHeight: 1.55,
-            color: 'var(--proto-ink)',
-            whiteSpace: 'pre-wrap',
-            overflowWrap: 'break-word',
-            wordBreak: 'break-word',
-          }}
-        >
-          {text}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', maxWidth: '100%' }}>
+          {editCopy && hover && (
+            <HoverActionPill text={text} copy={editCopy} onEdit={onStartEdit} editDisabled={editDisabled} />
+          )}
+          <div
+            style={{
+              background: 'var(--proto-gray)',
+              borderRadius: '14px 14px 4px 14px',
+              padding: '9px 14px',
+              fontSize: 13.5,
+              lineHeight: 1.55,
+              color: 'var(--proto-ink)',
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'break-word',
+              wordBreak: 'break-word',
+              minWidth: 0,
+            }}
+          >
+            {text}
+          </div>
         </div>
       )}
+      {/* 已编辑 badge + hover original card (sec-23 right column) */}
+      {editCopy && edited && <EditedBadge edited={edited} ts={ts} copy={editCopy} />}
     </div>
   );
 }
 
-function AssistantBlock({ text, streaming: _streaming, attachments }: { text: string; streaming: boolean; attachments?: Attachment[] }): JSX.Element {
+function AssistantBlock({ text, streaming: _streaming, attachments, editCopy, regen }: {
+  text: string;
+  streaming: boolean;
+  attachments?: Attachment[];
+  /** Present → hover reveals the copy pill (agent messages: copy only, sec-23). */
+  editCopy?: MEditCopy;
+  /** True → the「由编辑重新生成」footnote renders atop this block. */
+  regen?: boolean;
+}): JSX.Element {
   const hasAttachments = !!attachments && attachments.length > 0;
+  const [hover, setHover] = useState(false);
   return (
-    <div style={{ animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+    <div
+      onMouseEnter={editCopy ? () => setHover(true) : undefined}
+      onMouseLeave={editCopy ? () => setHover(false) : undefined}
+      style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
+    >
+      {editCopy && regen && <div style={{ marginBottom: 4 }}><RegenNote copy={editCopy} /></div>}
       {text.trim() && <ChatMarkdown text={text} />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
+      {editCopy && hover && !!text.trim() && (
+        <div style={{ position: 'absolute', left: 0, bottom: -32, zIndex: 2 }}>
+          <HoverActionPill text={text} copy={editCopy} />
+        </div>
+      )}
     </div>
   );
 }
@@ -462,16 +514,23 @@ export function InteractionRowCard({ row, actions }: {
   return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;
 }
 
-function Row({ row, interactionActions }: { row: ChatRow; interactionActions?: InteractionActions }): JSX.Element | null {
+function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, regen }: {
+  row: ChatRow;
+  interactionActions?: InteractionActions;
+  editCopy?: MEditCopy;
+  onStartEdit?: () => void;
+  editDisabled?: boolean;
+  regen?: boolean;
+}): JSX.Element | null {
   switch (row.kind) {
     case 'divider':
       return <Divider text={row.text} />;
     case 'user':
-      return <UserBubble text={row.text} attachments={row.attachments} />;
+      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} />;
     case 'tools':
       return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input }))} />;
     case 'assistant':
-      return <AssistantBlock text={row.text} streaming={row.streaming} attachments={row.attachments} />;
+      return <AssistantBlock text={row.text} streaming={row.streaming} attachments={row.attachments} editCopy={editCopy} regen={regen} />;
     case 'interaction':
       return <InteractionRowCard row={row} actions={interactionActions} />;
     default:
@@ -481,18 +540,74 @@ function Row({ row, interactionActions }: { row: ChatRow; interactionActions?: I
 
 /** Presentational transcript column — the ordered chat rows (divider / user / tools / assistant) laid
  *  out vertically. Framework-free of the scroll/stick behavior so it can be embedded wherever a
- *  transcript needs rendering (the workbench center chat, the thread-detail step chat). */
-export function ChatRows({ rows, interactionActions }: { rows: ChatRow[]; interactionActions?: InteractionActions }): JSX.Element {
+ *  transcript needs rendering (the workbench center chat, the thread-detail step chat). Owns the
+ *  sec-23 message-edit state when an `edit` context is passed (the workbench center chat): the edited
+ *  bubble becomes an in-place EditBox, later rows dim under a「将被回退」badge, and submit fires
+ *  the rewind. */
+export function ChatRows({ rows, interactionActions, edit }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx }): JSX.Element {
+  const lang = useLang();
+  const editCopy = lang === 'zh' ? M_EDIT_COPY.zh : M_EDIT_COPY.en;
+  // The row currently being edited (a user row with a turnIndex). Reset when the row set changes
+  // shape enough that the anchor no longer matches (guard inside the render below).
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const regenIdx = regenNoteIndexes(rows);
+
+  const editingRow = editingIdx != null ? rows[editingIdx] : null;
+  const editingValid = !!edit && !!editingRow && editingRow.kind === 'user' && editingRow.turnIndex !== undefined;
+  const stats = editingValid ? rewindStats(rows, editingIdx!) : null;
+
+  const rowKey = (row: ChatRow, i: number): string | number =>
+    row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i;
+
+  if (editingValid) {
+    const er = editingRow as Extract<ChatRow, { kind: 'user' }>;
+    const before = rows.slice(0, editingIdx!);
+    const after = rows.slice(editingIdx! + 1);
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {before.map((row, i) => (
+          <Row key={rowKey(row, i)} row={row} interactionActions={interactionActions} />
+        ))}
+        <EditBox
+          initialText={er.text}
+          copy={editCopy}
+          busy={edit!.busy}
+          onCancel={() => setEditingIdx(null)}
+          onSubmit={(text) => {
+            edit!.onSubmit(er.turnIndex!, text);
+            setEditingIdx(null);
+          }}
+        />
+        {stats && <RewindNote replies={stats.replies} toolCalls={stats.toolCalls} copy={editCopy} />}
+        {after.length > 0 && (
+          <RewindTail copy={editCopy}>
+            {after.map((row, i) => (
+              <Row key={rowKey(row, editingIdx! + 1 + i)} row={row} interactionActions={interactionActions} />
+            ))}
+          </RewindTail>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {rows.map((row, i) => (
-        <Row key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i} row={row} interactionActions={interactionActions} />
+        <Row
+          key={rowKey(row, i)}
+          row={row}
+          interactionActions={interactionActions}
+          editCopy={editCopy}
+          regen={regenIdx.has(i)}
+          onStartEdit={edit && row.kind === 'user' && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
+          editDisabled={edit?.running || edit?.busy}
+        />
       ))}
     </div>
   );
 }
 
-export function MessageStream({ rows, loading, inlineThreadCard, interactionActions }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionActions?: InteractionActions }): JSX.Element {
+export function MessageStream({ rows, loading, inlineThreadCard, interactionActions, edit }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionActions?: InteractionActions; edit?: MessageEditCtx }): JSX.Element {
   const populated = rows.length > 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   // Whether the view is currently pinned to the bottom. Starts pinned; a user scroll-up releases it,
@@ -516,7 +631,7 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
     <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
       <div style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px' }}>
         {!populated && !loading && <EmptyChat />}
-        <ChatRows rows={rows} interactionActions={interactionActions} />
+        <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} />
         {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
       </div>
     </div>

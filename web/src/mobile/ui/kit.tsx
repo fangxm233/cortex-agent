@@ -651,8 +651,10 @@ export function MComposer({
   charUnit?: string;
   /** Attach (＋) handler surfaced inside the full-screen editor's tool row. */
   onPlus?: () => void;
-  /** 'amber' = the 5a reject-feedback mode ring (scheme-mobile L213: var(--proto-amber) + amber glow). */
-  tone?: 'default' | 'amber';
+  /** 'amber' = the 5a reject-feedback mode ring (scheme-mobile L213: var(--proto-amber) + amber glow).
+   *  'accent' = the 7b edit-message mode ring (scheme-mobile L155: run-blue + accent glow, held even
+   *  while unfocused). */
+  tone?: 'default' | 'amber' | 'accent';
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [focused, setFocused] = useState(false);
@@ -684,10 +686,10 @@ export function MComposer({
             display: 'flex',
             alignItems: 'center',
             minHeight: COMPOSER_MIN_H,
-            border: `1.5px solid ${tone === 'amber' ? MC.amber : focused ? MC.run : 'var(--proto-line-3)'}`,
+            border: `1.5px solid ${tone === 'amber' ? MC.amber : tone === 'accent' || focused ? MC.run : 'var(--proto-line-3)'}`,
             borderRadius: multiline ? 16 : 14,
             background: MC.card,
-            boxShadow: tone === 'amber' ? '0 0 0 3px rgba(201,154,46,.10)' : focused ? '0 0 0 3px rgba(70,85,212,.08)' : undefined,
+            boxShadow: tone === 'amber' ? '0 0 0 3px rgba(201,154,46,.10)' : tone === 'accent' || focused ? '0 0 0 3px rgba(70,85,212,.08)' : undefined,
             boxSizing: 'border-box',
             padding: `0 ${showExpand ? 34 : 14}px 0 14px`,
           }}

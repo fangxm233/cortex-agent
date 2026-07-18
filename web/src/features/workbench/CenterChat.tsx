@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
-import { MessageStream } from './MessageStream';
+import { MessageStream, type MessageEditCtx } from './MessageStream';
 import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { Composer } from './Composer';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
@@ -79,6 +79,26 @@ export function CenterChat(): JSX.Element {
   // only same-backend profile switches on a live conversation. Live streaming counts too.
   const hasHistory = turns > 0 || liveTail.length > 0;
 
+  // Message edit + rewind (sec-23): submit fires the real `sessions.rewind` mutation; the
+  // transcript + rail refetch on settle (and again on the `session.rewound` event / regeneration
+  // stream). Editing is greyed out while running (`edit.running`) — the server double-guards.
+  const queryClient = useQueryClient();
+  const rewindMut = useMutation(trpc.sessions.rewind.mutationOptions({
+    onSettled: () => {
+      if (!sessionId) return;
+      queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+      queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+    },
+  }));
+  const edit = useMemo<MessageEditCtx | undefined>(() => {
+    if (!sessionId) return undefined;
+    return {
+      running,
+      busy: rewindMut.isPending,
+      onSubmit: (turnIndex, text) => rewindMut.mutate({ sessionId, turnIndex, text }),
+    };
+  }, [sessionId, running, rewindMut]);
+
   const onCmdK = () => {
     // Trigger the global ⌘K command palette (AppShell mounts it via a window keydown hook).
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
@@ -110,6 +130,7 @@ export function CenterChat(): JSX.Element {
         loading={!!sessionId && transcriptQuery.isPending}
         inlineThreadCard={sessionId ? <InlineThreadCardProto sessionId={sessionId} /> : undefined}
         interactionActions={interactionActions}
+        edit={edit}
       />
       <Composer
         sessionId={sessionId}

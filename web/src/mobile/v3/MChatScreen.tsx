@@ -27,6 +27,7 @@ import {
   resolveTurns,
   currentTurnElapsedMs,
   formatElapsed,
+  rewindStats,
 } from '@/features/workbench/transcript-vm';
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
@@ -53,7 +54,7 @@ import {
   type AskCardModel,
   type PlanCardModel,
 } from '@/features/workbench/interaction-vm';
-import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar } from './MChatView';
+import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, type MChatEditCopy, type MMsgMenu, type MEditMode } from './MChatView';
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
 import {
@@ -104,6 +105,30 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     profileFooter: 'Applies to this session’s next turns only · running threads unaffected · global default in Settings',
     lineUnit: 'lines',
     charUnit: 'chars',
+  },
+};
+
+// sec-7 message edit + rewind copy (7a long-press menu · 7b edit mode · 已编辑/原消息 · regen note).
+const EDIT_COPY: { en: MChatEditCopy; zh: MChatEditCopy } = {
+  zh: {
+    menuCopy: '复制',
+    menuEdit: '编辑消息',
+    editingBadge: '编辑中',
+    willRewind: (replies, toolCalls) => `将被回退 · ${replies} 条回复 · ${toolCalls} 次工具调用`,
+    editBarTitle: '编辑消息 — 发送将回退后续回复',
+    edited: '已编辑',
+    original: '原消息',
+    regenNote: '由编辑重新生成',
+  },
+  en: {
+    menuCopy: 'Copy',
+    menuEdit: 'Edit message',
+    editingBadge: 'Editing',
+    willRewind: (replies, toolCalls) => `Will rewind · ${replies} repl${replies === 1 ? 'y' : 'ies'} · ${toolCalls} tool call${toolCalls === 1 ? '' : 's'}`,
+    editBarTitle: 'Editing message — send rewinds later replies',
+    edited: 'edited',
+    original: 'Original message',
+    regenNote: 'Regenerated from edit',
   },
 };
 
@@ -311,11 +336,26 @@ export function MChatScreen(): JSX.Element {
     if (!sessionId || cancelMut.isPending) return;
     cancelMut.mutate({ sessionId });
   };
+  // sec-7 message edit + rewind: submit fires the real `sessions.rewind` mutation; the transcript +
+  // rail refetch on settle (and again on the `session.rewound` event / regeneration stream).
+  const rewindMut = useMutation(trpc.sessions.rewind.mutationOptions({
+    onSettled: () => {
+      if (!sessionId) return;
+      queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+      queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+    },
+  }));
 
   // ── local UI state ──
   const [text, setText] = useState('');
   const [uploads, setUploads] = useState<PendingUpload[]>([]);
   const [moreOpen, setMoreOpen] = useState(false);
+  // sec-7: long-press action menu (held row) · 7b edit mode (edited row) · 原消息 sheet.
+  const [msgMenuIdx, setMsgMenuIdx] = useState<number | null>(null);
+  const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
+  const [originalSheet, setOriginalSheet] = useState<{ text: string } | null>(null);
+  // Composer text before the edit hijacked it — restored on × cancel (原样退出).
+  const preEditText = useRef('');
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [systemLines, setSystemLines] = useState<string[]>([]);
@@ -402,16 +442,71 @@ export function MChatScreen(): JSX.Element {
   const doneMetas = uploads.filter((u) => u.status === 'done' && u.meta).map((u) => u.meta!);
   const uploading = uploads.some((u) => u.status === 'uploading');
   const hasText = !!text.trim();
+
+  // ── sec-7 edit mode (7b) ──
+  const editingRow = editingRowIdx != null ? rows[editingRowIdx] : null;
+  const editArmed = !!editingRow && editingRow.kind === 'user' && editingRow.turnIndex !== undefined;
+  const cancelEdit = (): void => {
+    setEditingRowIdx(null);
+    setText(preEditText.current);
+    preEditText.current = '';
+  };
+  const startEdit = (rowIndex: number): void => {
+    const r = rows[rowIndex];
+    if (!r || r.kind !== 'user' || r.turnIndex === undefined || running) return;
+    preEditText.current = text;
+    setRejectingId(null);
+    setEditingRowIdx(rowIndex);
+    setText(r.text);
+  };
+  // Disarm when the anchored row stops being an editable user row (transcript reshaped) or a turn
+  // starts running (a scheduled/other-client message landed).
+  useEffect(() => {
+    if (editingRowIdx == null) return;
+    const r = rows[editingRowIdx];
+    const valid = !!r && r.kind === 'user' && r.turnIndex !== undefined;
+    if (!valid || running) cancelEdit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, running, editingRowIdx]);
+  const editing: MEditMode | null = editArmed
+    ? { rowIndex: editingRowIdx!, ...rewindStats(rows, editingRowIdx!), onCancel: cancelEdit }
+    : null;
+
+  // ── sec-7 long-press menu (7a) ──
+  const heldRow = msgMenuIdx != null ? rows[msgMenuIdx] : null;
+  const msgMenu: MMsgMenu | null =
+    heldRow && (heldRow.kind === 'user' || heldRow.kind === 'assistant')
+      ? {
+          rowIndex: msgMenuIdx!,
+          onCopy: () => { void navigator.clipboard?.writeText(heldRow.text).catch(() => {}); },
+          ...(heldRow.kind === 'user' && heldRow.turnIndex !== undefined
+            ? { onEdit: () => startEdit(msgMenuIdx!), editDisabled: running || rewindMut.isPending }
+            : {}),
+          onClose: () => setMsgMenuIdx(null),
+        }
+      : null;
+
   // 5a reject / 5b free-text answer: the composer routes to the interaction, text required.
-  const rejectArmed = !!rejectingId && rejectingId === pendingPlanId;
+  const rejectArmed = !editArmed && !!rejectingId && rejectingId === pendingPlanId;
   const interactionMode = rejectArmed || !!pendingAskModel;
-  const sendEnabled = interactionMode
-    ? hasText && !interactionActions.busy
-    : (hasText || doneMetas.length > 0) && (!!sessionId || isDraft) && !uploading && !sendMut.isPending && !createAndSendMut.isPending;
+  const sendEnabled = editArmed
+    ? hasText && !rewindMut.isPending
+    : interactionMode
+      ? hasText && !interactionActions.busy
+      : (hasText || doneMetas.length > 0) && (!!sessionId || isDraft) && !uploading && !sendMut.isPending && !createAndSendMut.isPending;
 
   const onSend = (): void => {
     const t = text.trim();
     if (!sendEnabled) return;
+    // 7b — send = rewind to the edited turn and regenerate with the new text.
+    if (editArmed) {
+      const er = editingRow as Extract<typeof rows[number], { kind: 'user' }>;
+      rewindMut.mutate({ sessionId, turnIndex: er.turnIndex!, text: t });
+      setEditingRowIdx(null);
+      setText(preEditText.current);
+      preEditText.current = '';
+      return;
+    }
     // 5a — send = reject with the typed feedback (required).
     if (rejectArmed) {
       interactionActions.rejectPlan(rejectingId!, t);
@@ -552,6 +647,12 @@ export function MChatScreen(): JSX.Element {
         systemLines={systemLines}
         interactions={interactions}
         rejectBar={rejectBar}
+        editCopy={pickCopy(lang, EDIT_COPY)}
+        msgMenu={msgMenu}
+        onLongPress={(rowIndex) => setMsgMenuIdx(rowIndex)}
+        editing={editing}
+        onShowOriginal={(edited) => setOriginalSheet({ text: edited.originalText })}
+        originalSheet={originalSheet ? { text: originalSheet.text, onClose: () => setOriginalSheet(null) } : null}
         composerValue={text}
         onComposerChange={setText}
         onSend={onSend}

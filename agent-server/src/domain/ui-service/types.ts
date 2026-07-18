@@ -56,6 +56,7 @@ export type MutateOp =
   | 'sessions.markRead'
   | 'sessions.answerQuestion'
   | 'sessions.respondPlan'
+  | 'sessions.rewind'
   | 'threads.cancel'
   | 'executions.cancel'
   | 'schedules.pause'
@@ -254,6 +255,23 @@ export interface SessionsRespondPlanArgs {
  *  refetches the transcript to show the final state. */
 export interface SessionsInteractionMutateReturn {
   outcome: 'resolved' | 'already-resolved';
+}
+
+/** Args for `sessions.rewind` (message edit + rewind, desktop design 23 / mobile 7): replace the
+ *  user message that opened `turnIndex` with `text`, rolling back every later turn and
+ *  regenerating. Attachments of the original message are preserved server-side (the edit UI can
+ *  neither add nor remove them). */
+export interface SessionsRewindArgs {
+  sessionId: string;
+  /** The transcript turn whose opening user message is being edited. */
+  turnIndex: number;
+  /** The edited message text (non-empty). */
+  text: string;
+}
+
+/** Fire-and-forget like sessions.send — the regenerated reply streams over `session.message`. */
+export interface SessionsRewindReturn {
+  accepted: true;
 }
 
 export interface SessionsCreateAndSendArgs {
@@ -463,6 +481,9 @@ export interface TranscriptMessage {
   /** File attachments: user uploads via the web composer (15a, user messages) OR agent-sent
    *  files via the `send_file` MCP tool (20a, assistant messages). */
   attachments?: AttachmentMeta[];
+  /** Present on a user message that replaced an earlier one via edit+rewind (sessions.rewind):
+   *  the original text/ts backing the「已编辑」badge + hover/tap original-message card. */
+  edited?: { originalText: string; originalTs: string };
   ts: string;
   /**
    * Real elapsed since the previous message in the session's chronological stream, in ms
@@ -1094,6 +1115,7 @@ export interface MutateArgsMap {
   'sessions.markRead': SessionsMarkReadArgs;
   'sessions.answerQuestion': SessionsAnswerQuestionArgs;
   'sessions.respondPlan': SessionsRespondPlanArgs;
+  'sessions.rewind': SessionsRewindArgs;
   'threads.cancel': ThreadsCancelArgs;
   'executions.cancel': ExecutionsCancelArgs;
   'schedules.pause': ScheduleActionArgs;
@@ -1124,6 +1146,7 @@ export interface MutateReturnMap {
   'sessions.markRead': void;
   'sessions.answerQuestion': SessionsInteractionMutateReturn;
   'sessions.respondPlan': SessionsInteractionMutateReturn;
+  'sessions.rewind': SessionsRewindReturn;
   'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
   'schedules.pause': void;
@@ -1204,6 +1227,14 @@ export interface UiServiceDeps {
    * domain never imports orchestration (layer safety / depcruise).
    */
   cancelSessionRun: (opts: { channel: string }) => Promise<number>;
+  /**
+   * Message edit + rewind: roll the session back to `turnIndex` and re-send the edited text
+   * (orchestration `rewindWebSession` — ledger rollback + backend backup restore + pooled-CLI
+   * close + display-history truncate + resend). Wired in the entry layer (app.ts) so the
+   * ui-service domain never imports orchestration. Optional so test fixtures need not provide it
+   * (the handler returns not-available when absent).
+   */
+  rewindSession?: (opts: { sessionId: string; channel: string; turnIndex: number; text: string }) => Promise<{ ok: true } | { ok: false; reason: 'running' | 'not-found' }>;
   /**
    * Create a fresh, live user-initiated (origin='direct') session for the workbench and return its
    * id. Injected in the entry layer (app.ts) to the domain `createDirectSession` primitive with the

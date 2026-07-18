@@ -22,7 +22,10 @@ export type Attachment = { name: string; path: string; size: number; mimeType: s
 
 export type ChatRow =
   | { kind: 'divider'; text: string }
-  | { kind: 'user'; text: string; attachments?: Attachment[] }
+  // `turnIndex` is the rewind anchor (sessions.rewind) — absent on live-tail rows (not editable
+  // until the transcript reconciles). `edited` backs the「已编辑」badge + original-message card;
+  // `ts` backs its HH:MM stamp.
+  | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string } }
   | { kind: 'tools'; count: number; calls: { kind: string; input: string }[] }
   // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
   | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[] }
@@ -138,6 +141,38 @@ export function formatElapsed(ms: number | null): string {
   return `${h}h ${totalM % 60}m`;
 }
 
+/**
+ * What an edit at `rowIndex` (a user row) would discard: the count of assistant replies and tool
+ * calls after that row. Backs the「发送后回退其后 N 条回复 · M 次工具调用作废」line (desktop 23a)
+ * and the mobile「将被回退 · N 条回复 · M 次工具调用」badge (7b).
+ */
+export function rewindStats(rows: ChatRow[], rowIndex: number): { replies: number; toolCalls: number } {
+  let replies = 0;
+  let toolCalls = 0;
+  for (let i = rowIndex + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.kind === 'assistant') replies++;
+    else if (r.kind === 'tools') toolCalls += r.count;
+  }
+  return { replies, toolCalls };
+}
+
+/** Row indexes carrying the「由编辑重新生成」footnote: the first assistant row after each edited
+ *  user row (stops at the next user row). Shared by the desktop MessageStream + mobile MChatStream. */
+export function regenNoteIndexes(rows: ChatRow[]): Set<number> {
+  const out = new Set<number>();
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.kind !== 'user' || !r.edited) continue;
+    for (let j = i + 1; j < rows.length; j++) {
+      const k = rows[j].kind;
+      if (k === 'user') break;
+      if (k === 'assistant') { out.add(j); break; }
+    }
+  }
+  return out;
+}
+
 function msgKey(m: TranscriptMessage): string {
   // Interaction entities have a stable id — key on it so a status change (pending → approved)
   // REPLACES the row instead of duplicating it.
@@ -194,15 +229,15 @@ export function buildTranscriptRows(
 ): ChatRow[] {
   const now = opts.now ?? new Date();
 
-  const flat: TranscriptMessage[] = [];
+  const flat: (TranscriptMessage & { turnIndex?: number })[] = [];
   const seen = new Set<string>();
-  const push = (m: TranscriptMessage): void => {
+  const push = (m: TranscriptMessage, turnIndex?: number): void => {
     const k = msgKey(m);
     if (seen.has(k)) return;
     seen.add(k);
-    flat.push(m);
+    flat.push(turnIndex !== undefined ? { ...m, turnIndex } : m);
   };
-  for (const turn of transcript.turns) for (const m of turn.messages) push(m);
+  for (const turn of transcript.turns) for (const m of turn.messages) push(m, turn.turnIndex);
   for (const lm of liveTail) push(liveToMessage(lm));
 
   const rows: ChatRow[] = [];
@@ -230,7 +265,14 @@ export function buildTranscriptRows(
     flushTools();
     if (m.type === 'interaction') {
       rows.push({ kind: 'interaction', subtype: (m as any).subtype ?? '', text: m.text ?? '', detail: m.interaction, ts: m.ts ?? null });
-    } else if (m.type === 'user') rows.push({ kind: 'user', text: m.text ?? '', attachments: (m as any).attachments });
+    } else if (m.type === 'user') {
+      rows.push({
+        kind: 'user', text: m.text ?? '', attachments: (m as any).attachments,
+        ...(m.turnIndex !== undefined ? { turnIndex: m.turnIndex } : {}),
+        ...(m.ts ? { ts: m.ts } : {}),
+        ...((m as any).edited !== undefined ? { edited: (m as any).edited } : {}),
+      });
+    }
     else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
   }
   flushTools();

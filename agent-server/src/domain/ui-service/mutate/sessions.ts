@@ -24,6 +24,8 @@ import type {
   SessionsAnswerQuestionArgs,
   SessionsRespondPlanArgs,
   SessionsInteractionMutateReturn,
+  SessionsRewindArgs,
+  SessionsRewindReturn,
 } from '../types.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
@@ -154,6 +156,40 @@ export async function handleSetProfile(
     };
   }
   return { ok: true, data: { profileName: res.name, backendChanged: res.backendChanged } };
+}
+
+// Message edit + rewind (desktop design 23 / mobile 7): resolve session→channel and delegate to
+// the injected orchestration rewind path (ledger rollback + backend backup restore + display-history
+// truncate + resend). Fire-and-forget like sessions.send — the regenerated reply streams over
+// `session.message`. A live run maps to `session-running` (CONFLICT — the UI greys editing out
+// while running); an unknown turn maps to not-found.
+export async function handleRewindSession(
+  deps: UiServiceDeps,
+  args: SessionsRewindArgs,
+): Promise<Result<SessionsRewindReturn>> {
+  const session = await deps.sessionStore.getById(args.sessionId);
+  if (!session) {
+    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  }
+  if (!args.text.trim()) {
+    return { ok: false, code: 'invalid-args', message: 'Edited text must not be empty' };
+  }
+  if (!deps.rewindSession) {
+    return { ok: false, code: 'not-available', message: 'rewindSession not wired' };
+  }
+  const res = await deps.rewindSession({
+    sessionId: args.sessionId,
+    channel: session.channel,
+    turnIndex: args.turnIndex,
+    text: args.text,
+  });
+  if (!('reason' in res)) {
+    return { ok: true, data: { accepted: true } };
+  }
+  if (res.reason === 'running') {
+    return { ok: false, code: 'session-running', message: 'Session is running — stop it before editing' };
+  }
+  return { ok: false, code: 'not-found', message: `No turn ${args.turnIndex} to rewind in session ${args.sessionId}` };
 }
 
 // Web UI: resolve a pending ask-user-question interaction. The web client renders the question

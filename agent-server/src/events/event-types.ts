@@ -13,6 +13,9 @@ export type CortexEvent =
   | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string }
   | { type: 'session.status';         ts: string; sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }
   | { type: 'session.turn';           ts: string; sessionId: string; channel: string; numTurns: number }
+  // Message edit + rewind: the session transcript changed shape (turns ≥ turnIndex rolled back).
+  // Content-free hint — live clients drop buffered live tails and refetch the transcript.
+  | { type: 'session.rewound';        ts: string; sessionId: string; channel: string; turnIndex: number }
   | { type: 'plan.submitted';         ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; planContent: string; toolInput: any; dryRun?: boolean; extensionUiId?: string }
   | { type: 'plan.approved';          ts: string; channel: string; executionId: string }
   | { type: 'ask-user.requested';     ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; questions: any[]; dryRun?: boolean; extensionUiId?: string }

@@ -204,6 +204,8 @@ export async function handleSessionsTranscript(
       // deep-equality with the DTO shape (pre-existing red test, fixed in passing). Both user
       // uploads (15a) and agent-sent files (20a, assistant events) carry attachments.
       ...((ev.type === 'user' || ev.type === 'assistant') && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
+      // Edit+rewind marker (sessions.rewind): backs the「已编辑」badge + original-message card.
+      ...(ev.type === 'user' && ev.edited !== undefined ? { edited: ev.edited } : {}),
       ...(ev.type === 'interaction' && (entitySubtype ?? ev.subtype) ? { subtype: entitySubtype ?? ev.subtype } : {}),
       ...(interaction !== undefined ? { interaction } : {}),
     });
