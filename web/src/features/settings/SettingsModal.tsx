@@ -96,7 +96,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [section, setSection] = useState<SettingsSectionKey>('platform');
+  const [section, setSection] = useState<SettingsSectionKey>('appearance');
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const costQuery = useQuery(trpc.cost.summary.queryOptions({}));
