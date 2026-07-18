@@ -212,6 +212,85 @@ fn get_staged_update(app: tauri::AppHandle) -> Option<ota::StagedUpdate> {
     })
 }
 
+/// Save agent-sent (or user-downloaded) file bytes to disk. A plain browser `<a download>` /
+/// `window.open(blob)` is a no-op inside the Tauri WebView, so the SPA fetches the bytes and hands
+/// them here (see `web/src/lib/files.downloadFile`). Returns the saved absolute path.
+///
+/// Destination:
+///   - Desktop: the OS download dir (`~/Downloads`), falling back to `app_data_dir/downloads`.
+///   - Android: `app_data_dir/downloads` (app-private but retrievable via a file manager under
+///     `Android/data/dev.cortex.desktop/`), plus a system notification pointing at the saved file —
+///     the public Downloads collection needs MediaStore/DownloadManager (Kotlin/JNI), a documented
+///     follow-up.
+///
+/// `name` is reduced to its basename and stripped of path separators so a crafted name can never
+/// escape the destination directory. On a name collision a ` (n)` suffix is appended.
+#[tauri::command]
+fn save_download(app: tauri::AppHandle, name: String, bytes: Vec<u8>) -> Result<String, String> {
+    use std::path::Path;
+
+    // Sanitize: basename only, drop separators / parent refs, fall back to a safe default.
+    let base = Path::new(&name)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .map(|s| s.replace(['/', '\\'], "_"))
+        .filter(|s| !s.is_empty() && s != "." && s != "..")
+        .unwrap_or_else(|| "download".to_string());
+
+    // Destination directory: OS downloads on desktop, app-private downloads on Android.
+    #[cfg(not(target_os = "android"))]
+    let dir = app
+        .path()
+        .download_dir()
+        .or_else(|_| app.path().app_data_dir().map(|d| d.join("downloads")))
+        .map_err(|e| format!("no download dir: {e}"))?;
+    #[cfg(target_os = "android")]
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map(|d| d.join("downloads"))
+        .map_err(|e| format!("no download dir: {e}"))?;
+
+    std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir failed: {e}"))?;
+
+    // Avoid clobbering an existing file: `name.ext` → `name (1).ext` → `name (2).ext` …
+    let mut target = dir.join(&base);
+    if target.exists() {
+        let path = Path::new(&base);
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(&base);
+        let ext = path.extension().and_then(|s| s.to_str());
+        for n in 1..1000 {
+            let candidate = match ext {
+                Some(e) => format!("{stem} ({n}).{e}"),
+                None => format!("{stem} ({n})"),
+            };
+            let p = dir.join(candidate);
+            if !p.exists() {
+                target = p;
+                break;
+            }
+        }
+    }
+
+    std::fs::write(&target, &bytes).map_err(|e| format!("write failed: {e}"))?;
+    let saved = target.to_string_lossy().to_string();
+
+    // Android: surface where it landed via a system notification (the app-private dir is not obvious).
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_notification::NotificationExt;
+        let _ = app
+            .notification()
+            .builder()
+            .title("已保存")
+            .body(format!("{base} → {saved}"))
+            .show();
+    }
+
+    shell_log!("[cortex-desktop] save_download → {saved}");
+    Ok(saved)
+}
+
 // ─── Initialization script ─────────────────────────────────────────────────
 // Injected into EVERY page load (connect.html and index.html). A per-platform
 // PREFIX (see `init_script()`) sets the shell-detection flag first:
@@ -373,6 +452,7 @@ pub fn run() {
             disconnect,
             apply_frontend_update,
             get_staged_update,
+            save_download,
         ]);
 
     // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend

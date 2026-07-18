@@ -4,10 +4,12 @@ import type { ChatRow, Attachment } from './transcript-vm';
 import { ToolCallsRow } from './ToolCallsRow';
 import { ChatMarkdown } from './ChatMarkdown';
 import type { AttachmentMeta } from './chat-content';
-import { downloadFile, openFile, copyFilePath } from '@/lib/files';
+import { downloadFile, copyFilePath } from '@/lib/files';
 import { useMediaViewer } from '@/features/media/MediaViewer';
+import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { mediaKindOf } from '@/features/media/media-kind';
+import { docKindOf } from '@/features/media/doc-kind';
 import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-vm';
 import type { InteractionActions } from './useInteractionActions';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
@@ -218,19 +220,27 @@ function OpenBtn({ onClick, children }: { onClick: () => void; children: React.R
   );
 }
 
-/** 20a default/hover file card — white bordered; hover reveals download / copy-path / open. */
+/** 20a file card — white bordered; download / copy-path always visible. PDF/text files are clickable
+ *  and reveal a "预览" action that opens the in-app DocViewer; other files only download (opening a
+ *  file in a new tab is a no-op in the native shell, so that broken affordance was removed). */
 function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
   const L = useVocab();
+  const { openDoc } = useDocViewer();
   const colors = typeColor(a.type);
   const ext = fileExt(a.name);
+  const docKind = docKindOf(a.name, a.mimeType);
+  const preview = docKind ? () => openDoc({ kind: docKind, name: a.name, path: a.path, mimeType: a.mimeType }) : undefined;
   return (
     <div
+      role={preview ? 'button' : undefined}
+      onClick={preview}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         border: '1px solid var(--proto-line)', background: 'var(--proto-card)',
         borderRadius: 10, padding: '9px 10px',
         boxShadow: '0 1px 2px rgba(16,24,40,.03)',
         boxSizing: 'border-box', maxWidth: '100%',
+        cursor: preview ? 'pointer' : 'default',
       }}
     >
       <span style={{ width: 28, height: 34, borderRadius: 5, background: colors.bg, color: colors.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', font: `700 8px ${mono}`, flex: 'none' }}>{ext}</span>
@@ -238,11 +248,11 @@ function AgentFileCard({ a }: { a: Attachment }): JSX.Element {
         <span style={{ font: `500 11.5px ${mono}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
         <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-muted-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatSize(a.size)} · {dirOf(a.path)}</span>
       </span>
-      {/* Actions are always visible (no hover toggle) so download / copy-path / open are one click away. */}
-      <span style={{ display: 'flex', gap: 5, flex: 'none' }}>
+      {/* Actions stop propagation so they don't also trigger the card's preview click. */}
+      <span style={{ display: 'flex', gap: 5, flex: 'none' }} onClick={(e) => e.stopPropagation()}>
         <ActionBtn title={L.wbFileDownload} onClick={() => void downloadFile(a.path, a.name)}>↓</ActionBtn>
         <ActionBtn title={L.wbFileCopyPath} onClick={() => void copyFilePath(a.path)}>⧉</ActionBtn>
-        <OpenBtn onClick={() => void openFile(a.path)}>{L.wbFileOpen}</OpenBtn>
+        {preview && <OpenBtn onClick={preview}>{L.wbFileOpen}</OpenBtn>}
       </span>
     </div>
   );

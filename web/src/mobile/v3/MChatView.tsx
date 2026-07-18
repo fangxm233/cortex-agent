@@ -17,8 +17,10 @@ import { toolChips } from '@/mobile/screens/mobile-session-vm';
 import { MDrillHeader, MMoreButton, MComposer, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { downloadFile } from '@/lib/files';
 import { useMediaViewer } from '@/features/media/MediaViewer';
+import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { mediaKindOf } from '@/features/media/media-kind';
+import { docKindOf } from '@/features/media/doc-kind';
 import { MAskCard, MPlanCard, M_INT_COPY, type MIntCopy } from './MInteractionCards';
 import type { ChatHeaderStatus, ProfileSheetItem, PendingAttachmentVM } from './m-chat-vm';
 
@@ -295,6 +297,8 @@ const STRIPES = 'repeating-linear-gradient(45deg,var(--proto-line) 0 6px,var(--p
 function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
   const kind = mediaKindOf(a.type);
   const { openMedia } = useMediaViewer();
+  const { openDoc } = useDocViewer();
+  const docKind = docKindOf(a.name, a.mimeType);
   // Real thumbnail (auth-fetched) for image/video; tap opens the media lightbox (no new tab).
   const url = useWorkspaceObjectUrl(a.path, kind !== null);
   if (kind !== null) {
@@ -364,10 +368,14 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
       </div>
     );
   }
+  // PDF/text tap → in-app DocViewer; other files tap → native download (save to disk).
+  const onTap = docKind
+    ? () => openDoc({ kind: docKind, name: a.name, path: a.path, mimeType: a.mimeType })
+    : () => void downloadFile(a.path, a.name);
   return (
     <div
       role="button"
-      onClick={() => void downloadFile(a.path, a.name)}
+      onClick={onTap}
       style={{
         display: 'flex',
         alignItems: 'center',

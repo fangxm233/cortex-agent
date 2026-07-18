@@ -119,6 +119,7 @@ desktop/
 | `disconnect` | `() → Result<()>` | Clear keychain + AppState |
 | `apply_frontend_update` | `() → ()` | Apply a staged frontend update — desktop `app.restart()`, Android `app.exit(0)` (hot-update prompt primary button) |
 | `get_staged_update` | `() → Option<StagedUpdate>` | Currently-staged update (`{version, fromVersion, size:0}`) as a backstop for a missed `frontend-update-staged` event |
+| `save_download` | `(name, bytes) → Result<String>` | Save agent-sent / user-downloaded file bytes to disk (the SPA fetches bytes then invokes this, because a browser `<a download>` / `window.open(blob)` is a no-op in the WebView). Basename-sanitized (no path escape), ` (n)`-suffixed on collision. **Desktop** → OS download dir (`download_dir()`, fallback `app_data_dir/downloads`); **Android** → `app_data_dir/downloads` (app-private, reachable under `Android/data/dev.cortex.desktop/`) + a system notification. Returns the saved absolute path. No new plugin/capability — an app command using `std::fs` + the core path API. Public Android Downloads (MediaStore/DownloadManager) is a documented follow-up. |
 
 ## Injection mechanism
 

@@ -6,9 +6,20 @@
 //         with the right auth (desktop: token header; browser/ui-http: same-origin proxy/Access) and
 //         wrap them in an object URL — correct in every mode.
 
-import { apiBase, authHeaders } from './desktop-config';
+import { apiBase, authHeaders, isNativeShell } from './desktop-config';
 
 const DOWNLOAD_PATH = '/api/files/download';
+
+// Native-shell (Tauri desktop/Android) IPC seam. A plain browser `<a download>` / window.open(blob)
+// is a NO-OP inside the WebView, so in the native shell downloads go through the `save_download`
+// command instead. Accessed via the global `window.__TAURI__` (the shell is built with
+// `withGlobalTauri: true`), so no `@tauri-apps/api` dependency is added.
+interface TauriGlobal {
+  core?: { invoke: <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T> };
+}
+function tauriCore(): TauriGlobal['core'] | undefined {
+  return (globalThis as unknown as { __TAURI__?: TauriGlobal }).__TAURI__?.core;
+}
 
 /** Build the download URL for a UI-relative `workspace/…` path. `disposition=inline` for preview. */
 export function fileDownloadUrl(relPath: string, disposition: 'inline' | 'attachment' = 'attachment'): string {
@@ -24,23 +35,32 @@ export async function fetchFileObjectUrl(relPath: string, disposition: 'inline' 
   return URL.createObjectURL(blob);
 }
 
-/** Trigger a browser download of a workspace file, working in browser and desktop modes alike. */
+/**
+ * Save a workspace file to disk. In a plain browser / ui-http this triggers the normal `<a download>`.
+ * In the native Tauri shell (desktop + Android) that anchor is a no-op, so the bytes are fetched and
+ * handed to the `save_download` command, which writes them to the OS download dir (desktop) or the
+ * app's downloads dir + a notification (Android) and returns the saved absolute path.
+ */
 export async function downloadFile(relPath: string, fileName?: string): Promise<void> {
+  const name = fileName ?? relPath.split('/').pop() ?? 'download';
+
+  const core = isNativeShell() ? tauriCore() : undefined;
+  if (core) {
+    const res = await fetch(fileDownloadUrl(relPath, 'attachment'), { headers: authHeaders() });
+    if (!res.ok) throw new Error(`download failed: ${res.status}`);
+    const bytes = Array.from(new Uint8Array(await res.arrayBuffer()));
+    await core.invoke('save_download', { name, bytes });
+    return;
+  }
+
   const objUrl = await fetchFileObjectUrl(relPath, 'attachment');
   const a = document.createElement('a');
   a.href = objUrl;
-  a.download = fileName ?? relPath.split('/').pop() ?? 'download';
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(objUrl), 10_000);
-}
-
-/** Open a workspace file inline in a new tab (image / PDF preview). */
-export async function openFile(relPath: string): Promise<void> {
-  const objUrl = await fetchFileObjectUrl(relPath, 'inline');
-  window.open(objUrl, '_blank', 'noopener');
-  setTimeout(() => URL.revokeObjectURL(objUrl), 60_000);
 }
 
 /** Copy a file's path to the clipboard (hover action). */
