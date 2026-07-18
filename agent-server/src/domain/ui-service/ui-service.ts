@@ -12,6 +12,7 @@ import { handleSchedulesList } from './query/schedules.js';
 import { handleExecutionsList, handleExecutionsGet } from './query/executions.js';
 import { handleMemoryTree, handleMemoryFile } from './query/memory.js';
 import { handleApprovalsList } from './query/approvals.js';
+import { handleIssuesList } from './query/issues.js';
 import { handleCostSummary } from './query/cost.js';
 import { handleConfigGet } from './query/config.js';
 import { handleMachinesList } from './query/machines.js';
@@ -37,6 +38,7 @@ import {
   handleUnblockTask,
 } from './mutate/tasks.js';
 import { handleApproveApproval, handleRejectApproval, handleRequestApproval } from './mutate/approvals.js';
+import { handleIssuesDelete, handleIssuesHandle } from './mutate/issues.js';
 import { handleSystemRestart } from './mutate/system.js';
 import { createSubscription } from './subscribe.js';
 import { resolveExecutionLogLocation } from '@domain/executions/log-tailer.js';
@@ -59,6 +61,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'memory.tree': (deps, params) => handleMemoryTree(deps, params),
   'memory.file': (deps, params) => handleMemoryFile(deps, params),
   'approvals.list': (deps, params) => handleApprovalsList(deps, params),
+  'issues.list': (deps, params) => handleIssuesList(deps, params),
   'cost.summary': (deps, params) => handleCostSummary(deps, params),
   'config.get': (deps, params) => handleConfigGet(deps, params),
   'machines.list': (deps, params) => handleMachinesList(deps, params),
@@ -91,6 +94,8 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'approvals.approve': (deps, args) => handleApproveApproval(deps, args),
   'approvals.reject': (deps, args) => handleRejectApproval(deps, args),
   'approvals.request': (deps, args) => handleRequestApproval(deps, args),
+  'issues.handle': (deps, args) => handleIssuesHandle(deps, args),
+  'issues.delete': (deps, args) => handleIssuesDelete(deps, args),
   'config.set': (deps, args) => handleConfigSet(deps, args),
   'system.restart': (_deps, args) => handleSystemRestart(args),
 };

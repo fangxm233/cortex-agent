@@ -36,6 +36,7 @@ export type QueryScope =
   | 'memory.tree'
   | 'memory.file'
   | 'approvals.list'
+  | 'issues.list'
   | 'cost.summary'
   | 'config.get'
   | 'machines.list'
@@ -69,6 +70,8 @@ export type MutateOp =
   | 'approvals.approve'
   | 'approvals.reject'
   | 'approvals.request'
+  | 'issues.handle'
+  | 'issues.delete'
   | 'config.set'
   | 'system.restart';
 
@@ -169,6 +172,11 @@ export interface MemoryFileParams {
 export interface ApprovalsListParams {
   /** Filter to a single approval status. Omitted → all entries. */
   status?: ApprovalStatus;
+}
+
+export interface IssuesListParams {
+  /** Issues are per-project (`<contextDir>/ISSUES.md`) — the project is required. */
+  projectId: string;
 }
 
 export interface CostSummaryParams {
@@ -321,6 +329,13 @@ export type ConfigSetArgs =
   | { section: 'profiles'; value: ProfilesValue };
 
 export interface ApprovalsApproveArgs {
+  id: string;
+}
+
+// issues.handle / issues.delete both take the target issue off the project's ISSUES.md list
+// (design sec-24: 在列表即待处理，处理/删除即离场).
+export interface IssueActionArgs {
+  projectId: string;
   id: string;
 }
 
@@ -893,6 +908,24 @@ export interface ApprovalInfo {
   taskRef: string | null;
 }
 
+// ── issues DTO (design sec-24 project issue list) ──────────────────
+// Parsed from the per-project <contextDir>/ISSUES.md. One entry per column-0 `- **<title>**`
+// bullet; the real files carry freeform sub-bullets (问题/发生时机/调查过程/建议/规避/Fix…), NOT a
+// guaranteed schema. No status field exists — being listed == pending (design sec-24). The design
+// mock's source (`nightly-eval › report`) and 相关文件 chips have NO markdown source → deliberately
+// NOT DTO fields, never fabricated.
+
+export interface IssueInfo {
+  /** Stable id derived from the raw title line (no explicit id exists in the markdown). */
+  id: string;
+  /** Bold title text of the entry bullet. */
+  title: string;
+  /** First `YYYY-MM-DD` found in the title line's trailing parens; honest null when absent. */
+  date: string | null;
+  /** Raw markdown body lines (freeform sub-bullets), verbatim; '' when the entry has no body. */
+  body: string;
+}
+
 // ── system.daemonStatus DTO ───────────────────────────────────────
 // Daemon + child (app.js) process status. Read from daemon.pid / daemon-child.pid
 // under STORE_DIR; liveness checked via process.kill(pid, 0); uptime from /proc.
@@ -979,6 +1012,16 @@ export interface ApprovalMutateReturn {
   status: ApprovalStatus;
 }
 
+export interface IssuesDeleteReturn {
+  id: string;
+  deleted: true;
+}
+
+export interface IssuesHandleReturn {
+  /** The freshly created direct session now carrying the issue as its first user turn. */
+  sessionId: string;
+}
+
 export interface ApprovalsRequestReturn {
   queued: true;
   /** headingId of the newly appended PENDING entry (stable, hashed from the heading line). */
@@ -1002,6 +1045,7 @@ export interface QueryParamMap {
   'memory.tree': MemoryTreeParams;
   'memory.file': MemoryFileParams;
   'approvals.list': ApprovalsListParams;
+  'issues.list': IssuesListParams;
   'cost.summary': CostSummaryParams;
   'config.get': ConfigGetParams;
   'machines.list': MachinesListParams;
@@ -1025,6 +1069,7 @@ export interface QueryReturnMap {
   'memory.tree': MemoryTree;
   'memory.file': MemoryFile;
   'approvals.list': ApprovalInfo[];
+  'issues.list': IssueInfo[];
   'cost.summary': CostSummary;
   'config.get': ConfigSnapshot;
   'machines.list': MachineInfo[];
@@ -1057,6 +1102,8 @@ export interface MutateArgsMap {
   'approvals.approve': ApprovalsApproveArgs;
   'approvals.reject': ApprovalsRejectArgs;
   'approvals.request': ApprovalsRequestArgs;
+  'issues.handle': IssueActionArgs;
+  'issues.delete': IssueActionArgs;
   'config.set': ConfigSetArgs;
   'system.restart': SystemRestartArgs;
 }
@@ -1085,6 +1132,8 @@ export interface MutateReturnMap {
   'approvals.approve': ApprovalMutateReturn;
   'approvals.reject': ApprovalMutateReturn;
   'approvals.request': ApprovalsRequestReturn;
+  'issues.handle': IssuesHandleReturn;
+  'issues.delete': IssuesDeleteReturn;
   'config.set': ConfigSetReturn;
   'system.restart': SystemRestartReturn;
 }

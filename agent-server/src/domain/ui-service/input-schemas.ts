@@ -73,6 +73,10 @@ export const approvalsListInput = z.object({
   status: z.enum(['pending', 'approved', 'rejected', 'failed']).optional(),
 });
 
+export const issuesListInput = z.object({
+  projectId: z.string(),
+});
+
 export const costSummaryInput = z.object({
   projectId: z.string().nullish(),
 });
@@ -251,6 +255,12 @@ export const approvalsApproveInput = z.object({
   id: z.string(),
 });
 
+// issues.handle / issues.delete — take the target issue off the project's ISSUES.md list.
+export const issueActionInput = z.object({
+  projectId: z.string(),
+  id: z.string(),
+});
+
 export const approvalsRejectInput = z.object({
   id: z.string(),
   feedback: z.string().optional(),
@@ -296,6 +306,7 @@ export const queryInputSchemas = {
   'memory.tree': memoryTreeInput,
   'memory.file': memoryFileInput,
   'approvals.list': approvalsListInput,
+  'issues.list': issuesListInput,
   'cost.summary': costSummaryInput,
   'config.get': configGetInput,
   'machines.list': machinesListInput,
@@ -328,6 +339,8 @@ export const mutateInputSchemas = {
   'approvals.approve': approvalsApproveInput,
   'approvals.reject': approvalsRejectInput,
   'approvals.request': approvalsRequestInput,
+  'issues.handle': issueActionInput,
+  'issues.delete': issueActionInput,
   'config.set': configSetInput,
   'system.restart': systemRestartInput,
 } satisfies Record<MutateOp, z.ZodType>;
