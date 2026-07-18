@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Cortex — Connect</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,6 +19,15 @@
         var theme = stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light';
         if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
         document.documentElement.style.colorScheme = theme;
+      } catch (e) {}
+    })();
+
+    // Mobile vs desktop layout. The native shell injects `window.__CORTEX_MOBILE__ = true` on Android
+    // (init_script in lib.rs) BEFORE this runs, so we can pick the full-bleed mobile layout up-front —
+    // the `.mobile` class on <html> gates the mobile CSS, so there is no desktop→mobile layout flash.
+    (function () {
+      try {
+        if (window.__CORTEX_MOBILE__) document.documentElement.classList.add('mobile');
       } catch (e) {}
     })();
   </script>
@@ -46,6 +55,18 @@
       --ink-solid-hover: #32363e;
       --border-card: rgba(0, 0, 0, 0.08);
       --card-shadow: 0 8px 30px rgba(16, 24, 40, 0.12);
+
+      /* Mobile v3 palette (scheme-mobile) — page/card surfaces run a touch darker than desktop. */
+      --m-canvas: #f2f2f7;
+      --m-card: #ffffff;
+      --m-ink: #191c22;
+      --m-sub: #5b6472;
+      --m-muted: #8a93a2;
+      --m-faint: #b6bdc9;
+      --m-hairline: #e7e9ee;
+      --m-card-border: #e7e9ee;
+      --m-run: #4655d4;
+      --m-run-bg: #eef0fa;
     }
 
     [data-theme="dark"] {
@@ -68,6 +89,17 @@
       --ink-solid-hover: #d5dae2;
       --border-card: rgba(255, 255, 255, 0.10);
       --card-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+
+      --m-canvas: #0e1116;
+      --m-card: #1b2029;
+      --m-ink: #f2f3f7;
+      --m-sub: #99a2b2;
+      --m-muted: #7e8798;
+      --m-faint: #566070;
+      --m-hairline: #20252e;
+      --m-card-border: #262c37;
+      --m-run: #8b96f2;
+      --m-run-bg: rgba(110, 123, 236, 0.16);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -276,6 +308,82 @@
     }
 
     .switch-row a:hover { text-decoration: underline; }
+
+    /* ── Mobile layout (Android shell: `.mobile` on <html>) ───────────────────────────────────────
+     * The desktop centered card becomes a full-bleed, edge-to-edge screen matching the mobile v3
+     * shell (scheme-mobile): --m-* surfaces, a big-title header, larger touch targets, 16px inputs
+     * (prevents iOS focus-zoom), full-width stacked buttons, and OS-chrome-safe padding via
+     * env(safe-area-inset-*). The bottom switch-row is pinned to the bottom of the flex column. */
+    .mobile body { display: block; background: var(--m-canvas); }
+
+    .mobile .card {
+      width: 100%;
+      max-width: none;
+      min-height: 100vh;
+      min-height: 100dvh;
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: var(--m-canvas);
+      display: flex;
+      flex-direction: column;
+      padding: calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 22px);
+    }
+
+    .mobile .card-head { align-items: center; margin-bottom: 32px; }
+    .mobile .logo { font-size: 24px; letter-spacing: 0.02em; }
+    .mobile .subtitle { font-size: 13px; margin-top: 5px; color: var(--m-sub); }
+
+    /* Language toggle → mobile segmented control (scheme-mobile MSegmented) */
+    .mobile .lang-toggle {
+      background: var(--m-hairline);
+      border: none;
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .mobile .lang-opt {
+      font-size: 12px;
+      padding: 5px 13px;
+      border-radius: 6px;
+      color: var(--m-muted);
+    }
+    .mobile .lang-opt.active {
+      background: var(--m-card);
+      color: var(--m-ink);
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+    }
+
+    .mobile .field { margin-bottom: 18px; }
+    .mobile .label { font-size: 11px; margin-bottom: 8px; color: var(--m-muted); }
+
+    .mobile .input {
+      background: var(--m-card);
+      border: 1px solid var(--m-card-border);
+      border-radius: 12px;
+      padding: 13px 14px;
+      font-size: 16px; /* ≥16px so iOS/Android does not zoom the viewport on focus */
+    }
+    .mobile .input:focus {
+      border-color: var(--m-run);
+      box-shadow: 0 0 0 3px var(--m-run-bg);
+    }
+
+    .mobile .actions { flex-direction: column; gap: 10px; margin-top: 26px; }
+    .mobile .btn {
+      flex: none;
+      width: 100%;
+      font-size: 15px;
+      padding: 14px;
+      border-radius: 14px;
+    }
+
+    .mobile .status { justify-content: center; margin-top: 16px; font-size: 12px; }
+
+    /* Pin the switch-row to the bottom of the screen; drop the desktop divider. */
+    .mobile .divider { display: none; }
+    .mobile .switch-row { margin-top: auto; padding-top: 28px; font-size: 12px; color: var(--m-sub); }
+    .mobile .switch-row a { color: var(--m-run); }
   </style>
 </head>
 <body id="cortex-connect-screen">

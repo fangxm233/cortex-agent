@@ -94,7 +94,11 @@ desktop/
 │                             body + IBM Plex Mono for the logo/inputs, ink-solid primary button.
 │                             Top-right EN/中 language toggle (1:1 with the SPA left rail, persisted to
 │                             `cortex.lang`) localizes the whole screen. Both keys are shared with the
-│                             SPA so a choice here matches the workbench. Served from the binary embed
+│                             SPA so a choice here matches the workbench. RESPONSIVE: when the shell
+│                             injects `__CORTEX_MOBILE__` (Android) it adds `.mobile` to <html> and
+│                             switches to a full-bleed mobile layout (scheme-mobile `--m-*` surfaces,
+│                             big-title header, 16px inputs, full-width stacked buttons, safe-area
+│                             insets); desktop keeps the centered card. Served from the binary embed
 │                             (frontend::resolve_embedded); also copied to web/dist by `copy-connect`.
 ├── src-tauri/
 │   ├── Cargo.toml            cortex-desktop crate (tauri v2 + serde + reqwest[rustls]/sha2/zip; keyring v3 desktop-only, include_dir android-only)
