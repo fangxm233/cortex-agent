@@ -53,18 +53,19 @@ export function MNotificationToaster({ items, now = Date.now(), onDismiss, onAct
               width: 36,
               height: 36,
               borderRadius: 9,
-              background: MC.run,
+              background: 'var(--brand-badge-bg)',
+              border: '1px solid var(--brand-badge-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flex: 'none',
             }}
           >
-            {/* 25c 皮层弧 C (scheme.dc.html §25c) */}
+            {/* 25c 皮层弧 C (scheme.dc.html §25c) — follows theme */}
             <svg width={25} height={25} viewBox="0 0 64 64" fill="none" aria-hidden="true">
-              <circle cx={33} cy={32} r={5} fill="#fff" />
-              <path d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36" stroke="#fff" strokeWidth={5} strokeLinecap="round" />
-              <path d="M48.6 17.95A21 21 0 1 0 48.6 46.05" stroke="#fff" strokeWidth={5} strokeLinecap="round" />
+              <circle cx={33} cy={32} r={5} fill="var(--brand-badge-core)" />
+              <path d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36" stroke="var(--brand-badge-arc)" strokeWidth={5} strokeLinecap="round" />
+              <path d="M48.6 17.95A21 21 0 1 0 48.6 46.05" stroke="var(--brand-badge-arc)" strokeWidth={5} strokeLinecap="round" />
             </svg>
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>

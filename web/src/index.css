@@ -44,6 +44,13 @@
   --proto-accent-border: #c9cff2;
   --proto-accent-2: #9aa3e8;
   --proto-accent-strong: #3a48b8;
+
+  /* Cortex 25c brand badge — follows theme: light = white tile / ink core / indigo arcs;
+   * dark = indigo tile / white marks (see index.css dark block). */
+  --brand-badge-bg: #ffffff;
+  --brand-badge-border: #e7e9ee;
+  --brand-badge-core: #191c22;
+  --brand-badge-arc: #4655d4;
   --proto-amber: #c99a2e;
   --proto-amber-fg: #8a5b06;
   --proto-amber-text: #a96b0b;
@@ -155,6 +162,12 @@
   --proto-accent-border: #333c5a;
   --proto-accent-2: #6e7bec;
   --proto-accent-strong: #6e7bec;
+
+  /* Cortex 25c brand badge — dark: indigo tile + white marks (no border) */
+  --brand-badge-bg: #4655d4;
+  --brand-badge-border: transparent;
+  --brand-badge-core: #ffffff;
+  --brand-badge-arc: #ffffff;
   --proto-amber: #e2b95b;
   --proto-amber-fg: #e2b95b;
   --proto-amber-text: #d9a544;

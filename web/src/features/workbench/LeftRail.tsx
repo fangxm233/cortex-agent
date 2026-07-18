@@ -250,8 +250,8 @@ export function LeftRail(): JSX.Element {
             width: 26,
             height: 26,
             borderRadius: 7,
-            background: 'var(--proto-card)',
-            border: '1px solid var(--proto-line)',
+            background: 'var(--brand-badge-bg)',
+            border: '1px solid var(--brand-badge-border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -259,16 +259,16 @@ export function LeftRail(): JSX.Element {
         >
           {/* 25c 皮层弧 C — 两弧一核成 C / 由核向外的信号 (scheme.dc.html §25c) */}
           <svg width={19} height={19} viewBox="0 0 64 64" fill="none" aria-hidden="true">
-            <circle cx={33} cy={32} r={6} fill="var(--proto-ink)" />
+            <circle cx={33} cy={32} r={6} fill="var(--brand-badge-core)" />
             <path
               d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36"
-              stroke="var(--proto-accent)"
+              stroke="var(--brand-badge-arc)"
               strokeWidth={6}
               strokeLinecap="round"
             />
             <path
               d="M48.6 17.95A21 21 0 1 0 48.6 46.05"
-              stroke="var(--proto-accent)"
+              stroke="var(--brand-badge-arc)"
               strokeWidth={6}
               strokeLinecap="round"
             />
