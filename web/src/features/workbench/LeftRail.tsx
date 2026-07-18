@@ -22,6 +22,7 @@ import { useSelectedSession } from './SelectedSessionProvider';
 import { useLang, useSetLang, useVocab } from '@/i18n';
 import { DaemonStatusModal } from './DaemonStatusModal';
 import { useSessionsLiveSync } from './useSessionsLiveSync';
+import { BUILD_STAMP } from '@/lib/build-info';
 
 // LEFT RAIL — 22a dual-zone rebuild (scheme.dc.html §22a, L37–150). Top zone: PROJECTS always
 // expanded — one row per project ordered by MOST RECENT ACTIVITY (persistent, from the session
@@ -707,10 +708,25 @@ export function LeftRail(): JSX.Element {
             中
           </span>
         </div>
+        {/* Frontend build stamp (Vite-injected, see lib/build-info.ts) — changes every build so an
+            OTA frontend swap is verifiable on-device. Content hash / build id, never a fabricated semver. */}
+        <span
+          title={`frontend build ${BUILD_STAMP}`}
+          style={{
+            marginLeft: 'auto',
+            fontFamily: "'IBM Plex Mono',monospace",
+            fontSize: 9.5,
+            color: 'var(--proto-muted-2)',
+            opacity: 0.7,
+            userSelect: 'text',
+          }}
+        >
+          {BUILD_STAMP}
+        </span>
         <span
           {...hp('settings')}
           onClick={() => navigate('/settings')}
-          style={{ marginLeft: 'auto', fontSize: 11.5, color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)', cursor: 'pointer' }}
+          style={{ fontSize: 11.5, color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)', cursor: 'pointer' }}
         >
           {L.settings}
         </span>
