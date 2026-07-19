@@ -13,8 +13,8 @@ function snap(over: Partial<ConfigSnapshot> = {}): ConfigSnapshot {
     profiles: {
       defaultProfile: 'default',
       profiles: [
-        { name: 'default', model: 'sonnet-4.5', backend: 'anthropic', mode: null },
-        { name: 'fast', model: 'haiku', backend: 'anthropic', mode: null },
+        { name: 'default', model: 'sonnet-4.5', backend: 'anthropic', mode: null, thinking: 'high' },
+        { name: 'fast', model: 'haiku', backend: 'anthropic', mode: null, thinking: null },
       ],
     },
     machines: [],
@@ -35,16 +35,18 @@ describe('buildMSettingsVm', () => {
     expect(buildMSettingsVm(snap(), cost()).daemonHost).toBeNull();
   });
 
-  it('surfaces the real default profile + its model', () => {
+  it('surfaces the real default profile + its model + thinking level', () => {
     const vm = buildMSettingsVm(snap(), cost());
     expect(vm.profileName).toBe('default');
     expect(vm.profileModel).toBe('sonnet-4.5');
+    expect(vm.profileThinking).toBe('high');
   });
 
   it('leaves profile null when config.get has no profiles section', () => {
     const vm = buildMSettingsVm(snap({ profiles: null }), cost());
     expect(vm.profileName).toBeNull();
     expect(vm.profileModel).toBeNull();
+    expect(vm.profileThinking).toBeNull();
   });
 
   it('builds the budget spend label + bar pct from real cost/budget', () => {

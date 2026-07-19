@@ -5,7 +5,8 @@
 // 守则11 no-fabrication — every rendered field has a real DTO source or is explicitly omitted:
 //   • Daemon host / uptime (scheme `home-server:7433 · uptime 6d 4h`) → NO DTO source (config.get
 //     redacts .env, carries no host string and no uptime) → `daemonHost: null` → sub omitted.
-//   • Profile default + model → real `profiles.defaultProfile` + the matching entry's `model`.
+//   • Profile default + model + thinking → real `profiles.defaultProfile` + the matching entry's
+//     `model` and `thinking` level.
 //   • Budget today/daily → real `cost.today` + `budget.daily_usd` (daily denom from budget.json).
 //   • Notify / auto-resume toggles → REAL env-flag PRESENCE (CORTEX_TURN_NOTIFY / CORTEX_AUTO_RESUME)
 //     but there is NO config.set for .env → the toggles are READ-ONLY/inert (see view GAP notes).
@@ -24,6 +25,8 @@ export interface MSettingsVm {
   profileName: string | null;
   /** Real model of the default profile; null when unknown. */
   profileModel: string | null;
+  /** Real thinking level of the default profile (claude --effort / pi --thinking); null when none. */
+  profileThinking: string | null;
   /** `$today / $daily` spend label (real cost.today over budget.daily_usd). */
   budgetSpendLabel: string;
   /** Clamped `NN%` fill for the spend bar. */
@@ -68,6 +71,7 @@ export function buildMSettingsVm(
     daemonHost: null,
     profileName: defaultName,
     profileModel: defaultEntry?.model ?? null,
+    profileThinking: defaultEntry?.thinking ?? null,
     budgetSpendLabel: `${fmtMoney(today)} / ${fmtMoney(daily)}`,
     budgetBarPct: budgetBarPct(today, daily),
     notifyOn: isPresent(snapshot.env, NOTIFY_ENV_KEY),

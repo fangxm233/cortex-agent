@@ -29,8 +29,8 @@ const snap: ConfigSnapshot = {
   profiles: {
     defaultProfile: 'plan',
     profiles: [
-      { name: 'plan', model: 'claude-sonnet-4', backend: 'claude', mode: 'print' },
-      { name: 'execute', model: 'claude-sonnet-4', backend: 'claude', mode: null },
+      { name: 'plan', model: 'claude-sonnet-4', backend: 'claude', mode: 'print', thinking: 'high' },
+      { name: 'execute', model: 'claude-sonnet-4', backend: 'claude', mode: null, thinking: null },
     ],
   },
   machines: [
@@ -60,11 +60,14 @@ describe('settings panels — real data render', () => {
     expect(html).toContain('configured');
   });
 
-  it('Profiles: real defaultProfile + rows, FALLBACK column omitted honestly', () => {
+  it('Profiles: real defaultProfile + rows, THINKING column shown, FALLBACK column omitted honestly', () => {
     const html = renderToStaticMarkup(<ProfilesPanel snapshot={snap} />);
     expect(html).toContain('plan');
     expect(html).toContain('execute');
     expect(html).toContain('claude-sonnet-4');
+    // THINKING column header + the real per-profile value
+    expect(html).toContain('THINKING');
+    expect(html).toContain('high');
     expect(html).toContain('fallback is not in the config.get contract');
   });
 

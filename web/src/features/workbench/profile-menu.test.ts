@@ -3,17 +3,20 @@ import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 import { buildProfileOptions, currentBackendOf } from './profile-menu';
 
 const profiles: ConfigProfileEntry[] = [
-  { name: 'plan', model: 'claude-opus-4-8', backend: 'claude', mode: 'plan' },
-  { name: 'execute', model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
-  { name: 'codex', model: 'gpt-5.4', backend: 'codex', mode: 'plan' },
-  { name: 'deepseek-pro', model: 'deepseek-v4-pro', backend: 'pi', mode: 'deepseek' },
+  { name: 'plan', model: 'claude-opus-4-8', backend: 'claude', mode: 'plan', thinking: 'high' },
+  { name: 'execute', model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan', thinking: null },
+  { name: 'codex', model: 'gpt-5.4', backend: 'codex', mode: 'plan', thinking: null },
+  { name: 'deepseek-pro', model: 'deepseek-v4-pro', backend: 'pi', mode: 'deepseek', thinking: 'medium' },
 ];
 
 describe('buildProfileOptions', () => {
   it('builds options from the real profiles with model sub-labels and marks the active one', () => {
     const opts = buildProfileOptions(profiles, 'plan', { currentBackend: 'claude', hasHistory: false });
     expect(opts.map((o) => o.name)).toEqual(['plan', 'execute', 'codex', 'deepseek-pro']);
-    expect(opts.find((o) => o.name === 'plan')).toMatchObject({ active: true, sub: 'claude-opus-4-8 · claude', backend: 'claude' });
+    // sub-label carries the thinking level when the profile declares one
+    expect(opts.find((o) => o.name === 'plan')).toMatchObject({ active: true, sub: 'claude-opus-4-8 · claude · high', backend: 'claude' });
+    // no thinking → sub-label is just model · backend
+    expect(opts.find((o) => o.name === 'execute')!.sub).toBe('claude-sonnet-4-6 · claude');
     expect(opts.filter((o) => o.active).map((o) => o.name)).toEqual(['plan']);
   });
 

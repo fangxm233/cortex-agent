@@ -10,9 +10,9 @@ import {
 } from './m-chat-vm';
 
 const profiles: ConfigProfileEntry[] = [
-  { name: 'default', model: 'sonnet-4.5', backend: 'anthropic', mode: null },
-  { name: 'cheap', model: 'haiku-4', backend: 'anthropic', mode: null },
-  { name: 'deep', model: 'opus-4.5', backend: 'bedrock', mode: null },
+  { name: 'default', model: 'sonnet-4.5', backend: 'anthropic', mode: null, thinking: 'high' },
+  { name: 'cheap', model: 'haiku-4', backend: 'anthropic', mode: null, thinking: null },
+  { name: 'deep', model: 'opus-4.5', backend: 'bedrock', mode: null, thinking: null },
 ];
 
 describe('chatHeaderStatus', () => {
@@ -76,17 +76,19 @@ describe('profileChipLabel', () => {
     expect(profileChipLabel('default', profiles)).toBe('default · sonnet-4.5');
   });
   it('falls back to backend when model is null, then to bare name', () => {
-    expect(profileChipLabel('x', [{ name: 'x', model: null, backend: 'anthropic', mode: null }])).toBe('x · anthropic');
-    expect(profileChipLabel('x', [{ name: 'x', model: null, backend: null, mode: null }])).toBe('x');
+    expect(profileChipLabel('x', [{ name: 'x', model: null, backend: 'anthropic', mode: null, thinking: null }])).toBe('x · anthropic');
+    expect(profileChipLabel('x', [{ name: 'x', model: null, backend: null, mode: null, thinking: null }])).toBe('x');
     expect(profileChipLabel('missing', profiles)).toBe('missing');
   });
 });
 
 describe('profileSub / buildProfileSheetItems', () => {
-  it('renders `model · backend`, dropping a missing half', () => {
-    expect(profileSub(profiles[0])).toBe('sonnet-4.5 · anthropic');
-    expect(profileSub({ name: 'x', model: null, backend: 'anthropic', mode: null })).toBe('anthropic');
-    expect(profileSub({ name: 'x', model: 'm', backend: null, mode: null })).toBe('m');
+  it('renders `model · backend · thinking`, dropping any missing segment', () => {
+    expect(profileSub(profiles[0])).toBe('sonnet-4.5 · anthropic · high');
+    // no thinking → just model · backend
+    expect(profileSub(profiles[1])).toBe('haiku-4 · anthropic');
+    expect(profileSub({ name: 'x', model: null, backend: 'anthropic', mode: null, thinking: null })).toBe('anthropic');
+    expect(profileSub({ name: 'x', model: 'm', backend: null, mode: null, thinking: 'medium' })).toBe('m · medium');
   });
   it('marks the current profile', () => {
     const items = buildProfileSheetItems(profiles, 'cheap');

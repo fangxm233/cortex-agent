@@ -31,7 +31,7 @@ Wired to the **real** `config.get` query (redacted `~/.cortex/config` snapshot) 
 ## Real data vs honest placeholders (no fabricated numbers)
 
 - **REAL**: Platform env keys (grouped, present✓/masked/absent—); Profiles defaultProfile + rows
-  (name/model/backend/mode) + **live config.set `profiles` write** (default-profile select, b983);
+  (name/model/backend/mode/thinking) + **live config.set `profiles` write** (default-profile select, b983);
   **Budget** daily/monthly (budget.json) + today/month (cost.summary) + **live config.set write**;
   Machines name/cortexPath/gpuCount/ssh-presence/os; Templates real basenames (templates/agents/
   shells); MCP real server names; Notifications/Advanced toggles reflect real env presence; Hooks

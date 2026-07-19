@@ -244,7 +244,7 @@ export function MSettingsView({
   onBack: () => void;
   onOpenDaemon: () => void;
 }) {
-  const profileSub = [vm.profileName, vm.profileModel].filter(Boolean).join(' · ');
+  const profileSub = [vm.profileName, vm.profileModel, vm.profileThinking].filter(Boolean).join(' · ');
   const platformLabel =
     copy.platform + (vm.platforms.length ? `（${vm.platforms.join(', ')}）` : '');
   return (

@@ -33,6 +33,7 @@ function vm(over: Partial<MSettingsVm> = {}): MSettingsVm {
     daemonHost: null,
     profileName: 'default',
     profileModel: 'sonnet-4.5',
+    profileThinking: 'high',
     budgetSpendLabel: '$4.21 / $10.00',
     budgetBarPct: '42%',
     notifyOn: true,
@@ -65,10 +66,15 @@ describe('MSettingsView', () => {
     expect(html).toContain('daemon · 已连接');
   });
 
-  it('renders the real default profile + model in the profile sub, with the 切换 accent', () => {
+  it('renders the real default profile + model + thinking in the profile sub, with the 切换 accent', () => {
     const html = render();
-    expect(html).toContain('default · sonnet-4.5 · 会话级切换在 chat 内 chip');
+    expect(html).toContain('default · sonnet-4.5 · high · 会话级切换在 chat 内 chip');
     expect(html).toContain('切换');
+  });
+
+  it('drops the thinking segment when the default profile declares none', () => {
+    const html = render({ profileThinking: null });
+    expect(html).toContain('default · sonnet-4.5 · 会话级切换在 chat 内 chip');
   });
 
   it('omits the daemon host line when there is no host (never fabricated)', () => {

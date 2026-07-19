@@ -744,6 +744,9 @@ export interface ConfigProfileEntry {
   model: string | null;
   backend: string | null;
   mode: string | null;
+  /** Thinking level (backend-native value: claude --effort / pi --thinking). null when the profile
+   *  declares none (or the backend has no thinking passthrough, e.g. codex). */
+  thinking: string | null;
 }
 
 export interface ConfigProfiles {

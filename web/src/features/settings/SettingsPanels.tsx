@@ -242,7 +242,7 @@ export function ProfilesPanel({
   const L = useVocab();
   const p = snapshot.profiles;
   const rows = p?.profiles ?? [];
-  const grid = '84px 1fr 74px 52px';
+  const grid = '84px 1fr 74px 52px 64px';
   // The default-profile picker is a REAL write when wired (config.set 'profiles' → re-points
   // profiles.json defaultProfile, read at each agent start). It can only SELECT an existing profile
   // (the option list is the real profiles.json rows), so it can never break startup. Inert when no
@@ -315,6 +315,7 @@ export function ProfilesPanel({
           <span>{L.stColModel}</span>
           <span>{L.stColBackend}</span>
           <span>{L.stColMode}</span>
+          <span>{L.stColThinking}</span>
         </div>
         {rows.length === 0 ? (
           <div style={{ padding: '12px 14px', fontSize: 11, color: 'var(--proto-muted-3)' }}>
@@ -366,6 +367,9 @@ export function ProfilesPanel({
               </span>
               <span style={{ font: `400 10px ${MONO}`, color: r.mode ? 'var(--proto-ink)' : 'var(--proto-faint)' }}>
                 {r.mode ?? '—'}
+              </span>
+              <span style={{ font: `400 10px ${MONO}`, color: r.thinking ? 'var(--proto-ink)' : 'var(--proto-faint)' }}>
+                {r.thinking ?? '—'}
               </span>
             </div>
           ))

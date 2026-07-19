@@ -65,6 +65,7 @@ function parseProfiles(raw: any): ConfigProfiles | null {
     model: typeof p?.model === 'string' ? p.model : null,
     backend: typeof p?.backend === 'string' ? p.backend : null,
     mode: typeof p?.mode === 'string' ? p.mode : null,
+    thinking: typeof p?.thinking === 'string' ? p.thinking : null,
   }));
   return {
     defaultProfile: typeof raw.defaultProfile === 'string' ? raw.defaultProfile : null,
