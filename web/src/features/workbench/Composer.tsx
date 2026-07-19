@@ -775,9 +775,10 @@ export function Composer({
                 width: 7,
                 height: 7,
                 borderRadius: '50%',
-                // Amber while a background task holds the session (foreground turn done); accent
-                // blue during the live turn itself.
-                background: backgroundRunning ? 'var(--proto-amber)' : 'var(--proto-accent)',
+                // Accent blue for both a live turn and a background hold — a background task is not a
+                // user action, so it no longer shows amber (amber is reserved for「需要你」). The
+                // Background/Running label still distinguishes the two states.
+                background: 'var(--proto-accent)',
                 animation: 'cxpulse 1.6s ease-in-out infinite',
               }}
             />

@@ -4,9 +4,10 @@ import { useTRPC, useTRPCClient } from '@/lib/trpc';
 
 /**
  * Rail-wide session running-state live-sync. Opens one UNSCOPED SSE subscription on
- * `session.status` (no sessionId filter — the center chat's subscription only covers the
- * selected session) and invalidates `sessions.list` on each turn start/end, so every row's
- * running dot (SessionInfo.running snapshot) re-fetches live. Mirrors useThreadsLiveSync.
+ * `session.status` + `session.interaction` (no sessionId filter — the center chat's subscription
+ * only covers the selected session) and invalidates `sessions.list` on each turn start/end AND on
+ * any interaction create/resolve, so every row's running dot (SessionInfo.running) AND the amber
+ * awaiting-input dot (SessionInfo.awaitingInput) re-fetch live. Mirrors useThreadsLiveSync.
  */
 export function useSessionsLiveSync(): void {
   const trpc = useTRPC();
@@ -15,7 +16,7 @@ export function useSessionsLiveSync(): void {
 
   useEffect(() => {
     const sub = client.subscribe.subscribe(
-      { events: ['session.status'] },
+      { events: ['session.status', 'session.interaction'] },
       {
         onData: () => {
           queryClient.invalidateQueries(trpc.sessions.list.queryFilter());

@@ -420,6 +420,13 @@ export interface SessionInfo {
    *  bg-held registry (snapshot + delta, same pattern as `running`), so the state survives session
    *  switches, page reloads, and app restarts. False while a live foreground turn is on the channel. */
   backgroundRunning: boolean;
+  /** Awaiting-user-action snapshot: true while the session is blocked on a pending interaction that
+   *  needs the user to act — an ask-user question or a plan approval — resolved from the in-memory
+   *  pending maps keyed by the session's channel (`getPendingAskUser`/`getPendingPlan`). This is the
+   *  ONLY state that drives the rail's amber「需要你」dot; plain running and web bg-hold both render
+   *  blue. False when nothing is pending, and false when the pending-interaction deps are absent
+   *  (fixtures / TUI). Snapshot-only, mirrored live via the `session.interaction` event stream. */
+  awaitingInput: boolean;
   /** Real agent-turn count for the composer (NOT the number of user-message rounds). While running,
    *  the live count of the in-flight turn (from the running execution); while idle, the last run's
    *  final turn count (from the most recent non-thread execution on the session's channel). Null when

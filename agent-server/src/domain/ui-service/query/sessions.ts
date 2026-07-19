@@ -92,6 +92,11 @@ export async function handleSessionsList(
     // (numTurns/costUsd) key off the foreground turn: a held session shows its last completed run.
     const bgHeld = !inTurn && (deps.isSessionBgHeld?.(s.sessionId) ?? false);
     const running = inTurn || bgHeld;
+    // Awaiting user action: the session is blocked on a pending ask-user question or plan approval
+    // (keyed by the session's channel). This is the ONLY signal that turns the rail dot amber —
+    // running/background stay blue. Absent deps (fixtures/TUI) ⇒ false.
+    const awaitingInput =
+      !!deps.getPendingAskUser?.(s.channel) || !!deps.getPendingPlan?.(s.channel);
     return {
       sessionId: s.sessionId,
       // Backend CLI resume target (registry backendSessionId, legacy fallback to sessionId) — the
@@ -109,6 +114,7 @@ export async function handleSessionsList(
       profileName: s.profileName ?? null,
       running,
       backgroundRunning: bgHeld,
+      awaitingInput,
       numTurns: resolveNumTurns(s.channel, inTurn),
       costUsd: resolveCost(s.channel, inTurn),
       // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view

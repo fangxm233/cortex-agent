@@ -83,6 +83,7 @@ describe('deriveActiveProjectId', () => {
     profileName: null,
     running: false,
     backgroundRunning: false,
+    awaitingInput: false,
     numTurns: null,
     costUsd: null,
     unread: false,

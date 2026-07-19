@@ -592,10 +592,11 @@ export function LeftRail(): JSX.Element {
               {g.items.map((s: SessionInfo) => {
                 const active = s.sessionId === effectiveSelected;
                 // Real running snapshot (SessionInfo.running), kept fresh by useSessionsLiveSync.
+                // Covers both a live turn and the web bg-hold — both render blue.
                 const running = s.running;
-                // Web bg-hold snapshot: foreground turn done, background task still holds the
-                // session — amber dot (matches the composer's Background state color).
-                const bgHeld = s.backgroundRunning;
+                // Needs-user-action snapshot: a pending ask-user question / plan approval. This is
+                // the ONLY state that turns the dot amber; running + background stay blue.
+                const awaitingInput = s.awaitingInput;
                 const rowKey = 'sess:' + s.sessionId;
                 const bg = active ? 'var(--proto-line-2)' : isHover(rowKey) ? 'var(--proto-gray)' : 'transparent';
                 return (
@@ -608,13 +609,13 @@ export function LeftRail(): JSX.Element {
                     style={{ borderRadius: 8, padding: '8px 10px', cursor: 'pointer', background: bg, position: 'relative' }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                      {running && (
+                      {(running || awaitingInput) && (
                         <span
                           style={{
                             width: 7,
                             height: 7,
                             borderRadius: '50%',
-                            background: bgHeld ? 'var(--proto-amber)' : 'var(--proto-accent)',
+                            background: awaitingInput ? 'var(--proto-amber)' : 'var(--proto-accent)',
                             flex: 'none',
                             animation: 'cxpulse 1.6s ease-in-out infinite',
                           }}

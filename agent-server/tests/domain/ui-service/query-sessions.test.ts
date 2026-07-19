@@ -302,6 +302,28 @@ test('sessions.list without an isSessionBgHeld dep → backgroundRunning false e
   assert.ok(result.every(s => s.backgroundRunning === false));
 });
 
+test('sessions.list awaitingInput: a pending ask-user OR plan on the channel → true (needs-user amber)', async () => {
+  // The rail dot turns amber only when the session is blocked on a user action (ask-user question /
+  // plan approval), keyed by the session's channel via the in-memory pending maps. Background-hold
+  // and plain running stay blue — this flag is what distinguishes them.
+  const deps = makeDeps({
+    getPendingAskUser: (channel: string) =>
+      channel === 'C1' ? { requestId: 'r1', questions: [] } : null,
+    getPendingPlan: (channel: string) =>
+      channel === 'C3' ? { requestId: 'r2', planContent: 'plan', planFilePath: null } : null,
+  });
+  const result = await handleSessionsList(deps, {});
+  const byId = Object.fromEntries(result.map((s) => [s.sessionId, s.awaitingInput]));
+  assert.equal(byId['s1'], true, 'pending ask-user → awaiting');
+  assert.equal(byId['s3'], true, 'pending plan → awaiting');
+  assert.equal(byId['s2'], false, 'no pending interaction → not awaiting');
+});
+
+test('sessions.list awaitingInput: without pending-interaction deps → false everywhere (fixtures/TUI)', async () => {
+  const result = await handleSessionsList(makeDeps(), {});
+  assert.ok(result.every((s) => s.awaitingInput === false));
+});
+
 test('sessions.list unread: activity after lastReadAt → unread; read/never-tracked → false', async () => {
   const withRead = [
     // s1: read AFTER last activity → not unread

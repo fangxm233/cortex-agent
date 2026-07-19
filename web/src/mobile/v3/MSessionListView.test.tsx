@@ -28,6 +28,7 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     profileName: null,
     running: false,
     backgroundRunning: false,
+    awaitingInput: false,
     numTurns: null,
     costUsd: null,
     unread: false,

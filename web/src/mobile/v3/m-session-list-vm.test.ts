@@ -19,6 +19,7 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     profileName: null,
     running: false,
     backgroundRunning: false,
+    awaitingInput: false,
     numTurns: null,
     costUsd: null,
     unread: false,
@@ -50,6 +51,19 @@ describe('sessionStatusLine', () => {
       kind: 'background',
       text: '后台运行',
     });
+  });
+
+  it('awaiting user action → kind awaiting + `等待操作` (needs-you amber)', () => {
+    expect(sessionStatusLine(sess({ running: true, awaitingInput: true }))).toEqual({
+      kind: 'awaiting',
+      text: '等待操作',
+    });
+  });
+
+  it('awaiting wins over background (blocked on a question while a bg task holds)', () => {
+    expect(
+      sessionStatusLine(sess({ running: true, backgroundRunning: true, awaitingInput: true })).kind,
+    ).toBe('awaiting');
   });
 });
 

@@ -75,7 +75,10 @@ function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: 
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
         {status.kind === 'running' && <MDot color={MC.run} pulse />}
-        {status.kind === 'background' && <MDot color={MC.amber} pulse />}
+        {/* Background-held now reads as run-blue (same as running) — a bg task is not a user action. */}
+        {status.kind === 'background' && <MDot color={MC.run} pulse />}
+        {/* Amber is reserved for「需要你」— a pending ask-user question / plan approval. */}
+        {status.kind === 'awaiting' && <MDot color={MC.amber} pulse />}
         <span style={{ font: `400 10px ${MONO}`, color: MC.muted }}>{status.text}</span>
       </div>
     </MCard>
