@@ -3,8 +3,9 @@ import { useVocab } from '@/i18n';
 import { buildSessionIdRows } from './session-id';
 
 // SESSION ID MODAL — opened from the ChatHeader ⋯ menu (会话ID). Shows the two identifiers a session
-// carries: the human-facing Cortex ID (cortex-XXXX, SessionInfo.name) and the backend UUID
-// (SessionInfo.sessionId). Each row has a copy-to-clipboard affordance. Styled with the proto-* CSS
+// carries: the human-facing Cortex ID (cortex-XXXX, SessionInfo.name) and the backend UUID — the
+// backend CLI resume target (SessionInfo.backendSessionId, distinct from the track sessionId since the
+// id decoupling). Each row has a copy-to-clipboard affordance. Styled with the proto-* CSS
 // variables so it re-themes light/dark; centered card + scrim, esc / click-away close (mirrors
 // NewProjectModal).
 

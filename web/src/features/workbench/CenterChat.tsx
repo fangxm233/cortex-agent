@@ -121,6 +121,7 @@ export function CenterChat(): JSX.Element {
         running={running}
         onCmdK={onCmdK}
         sessionId={sessionId}
+        backendSessionId={active?.backendSessionId ?? null}
         sessionName={active?.name ?? null}
         currentProfile={active?.profileName ?? null}
         hasHistory={hasHistory}

@@ -13,6 +13,7 @@ import type {
   SessionsPendingInteractionParams,
   SessionsPendingInteraction,
 } from '../types.js';
+import { effectiveBackendSessionId } from '@store/session-registry-repo.js';
 
 export async function handleSessionsList(
   deps: UiServiceDeps,
@@ -93,6 +94,9 @@ export async function handleSessionsList(
     const running = inTurn || bgHeld;
     return {
       sessionId: s.sessionId,
+      // Backend CLI resume target (registry backendSessionId, legacy fallback to sessionId) — the
+      // real UUID the "Session ID" surface shows, decoupled from the track sessionId above.
+      backendSessionId: effectiveBackendSessionId(s),
       name: s.name,
       projectId: s.projectId,
       backend: s.backend,

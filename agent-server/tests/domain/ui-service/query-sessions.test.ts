@@ -326,6 +326,47 @@ test('sessions.list unread: activity after lastReadAt → unread; read/never-tra
   assert.equal(byId['s3'], false, 'no lastReadAt → grandfathered read');
 });
 
+test('sessions.list exposes backendSessionId (resume target) distinct from the track sessionId', async () => {
+  // Post-decoupling (track/backend split): SessionInfo.sessionId is the stable TRACK id (UI identity),
+  // while the CLI --resume target lives in the registry's backendSessionId. The Session ID surface
+  // must show the real backend resume id, so the DTO has to carry it separately from sessionId.
+  const withBackend = [{ ...mockSessions[0], backendSessionId: 'be-uuid-1111' }];
+  const deps = makeDeps({
+    sessionStore: {
+      listByProject: async () => withBackend,
+      listByOrigin: async () => withBackend,
+      listResumable: async () => withBackend,
+      getById: async () => null,
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  const s1 = result.find((s) => s.sessionId === 's1')!;
+  assert.equal(s1.sessionId, 's1', 'track id (UI identity) unchanged');
+  assert.equal(s1.backendSessionId, 'be-uuid-1111', 'exposes the real backend resume id');
+});
+
+test('sessions.list backendSessionId: fresh session (explicit null) → null (never fabricated)', async () => {
+  const fresh = [{ ...mockSessions[0], backendSessionId: null }];
+  const deps = makeDeps({
+    sessionStore: {
+      listByProject: async () => fresh,
+      listByOrigin: async () => fresh,
+      listResumable: async () => fresh,
+      getById: async () => null,
+    } as any,
+  });
+  const result = await handleSessionsList(deps, { projectId: 'proj1' });
+  assert.equal(result.find((s) => s.sessionId === 's1')!.backendSessionId, null);
+});
+
+test('sessions.list backendSessionId: legacy record (field absent) → falls back to sessionId', async () => {
+  // mockSessions carry no backendSessionId (undefined) → the pre-decoupling conflated id, where
+  // sessionId WAS the backend id. effectiveBackendSessionId falls back to sessionId so old sessions
+  // still resume.
+  const result = await handleSessionsList(makeDeps(), { projectId: 'proj1' });
+  assert.equal(result.find((s) => s.sessionId === 's1')!.backendSessionId, 's1');
+});
+
 test('sessions.list titles a label-less session from its first user message, keeping existing labels', async () => {
   const deps = makeDeps({
     conversationHistory: {

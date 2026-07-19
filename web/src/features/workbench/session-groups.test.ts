@@ -7,6 +7,7 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
   const created = p.createdAt ?? '2026-07-06T00:00:00.000Z';
   return {
     sessionId: p.sessionId,
+    backendSessionId: p.backendSessionId ?? null,
     name: p.name ?? p.sessionId,
     projectId: p.projectId ?? 'proj',
     backend: p.backend ?? 'claude',

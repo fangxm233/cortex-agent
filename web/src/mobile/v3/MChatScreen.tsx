@@ -652,7 +652,7 @@ export function MChatScreen(): JSX.Element {
         onSessionIdOpen={() => setSessionIdOpen(true)}
         onSessionIdClose={() => setSessionIdOpen(false)}
         cortexId={active?.name ?? null}
-        backendUuid={sessionId || null}
+        backendUuid={active?.backendSessionId ?? null}
         inlineThreadCard={
           sessionId ? (
             <InlineThreadCard

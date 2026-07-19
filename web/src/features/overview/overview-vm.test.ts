@@ -70,6 +70,7 @@ describe('deriveActiveProjectId', () => {
   });
   const sess = (projectId: string, lastUsedAt: string): SessionInfo => ({
     sessionId: 's-' + lastUsedAt,
+    backendSessionId: null,
     name: 'n',
     projectId,
     backend: 'claude',

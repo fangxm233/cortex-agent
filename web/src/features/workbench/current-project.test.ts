@@ -4,6 +4,7 @@ import { deriveActiveProjectId, resolveCurrentProjectId } from './current-projec
 
 const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   sessionId: 's_' + Math.random().toString(36).slice(2),
+  backendSessionId: null,
   name: 'cortex-0000',
   projectId,
   backend: 'claude',

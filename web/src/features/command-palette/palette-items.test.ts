@@ -5,6 +5,7 @@ import { buildCmdkItems, NAV_COMMAND_ITEMS, selectPaletteRows } from './palette-
 function session(over: Partial<SessionInfo> = {}): SessionInfo {
   return {
     sessionId: 'sess_1',
+    backendSessionId: null,
     name: 'morning review',
     projectId: 'cortex-self',
     backend: 'claude',

@@ -6,6 +6,7 @@ import { buildSessionGroups, sessionStatusLine } from './m-session-list-vm';
 function sess(over: Partial<SessionInfo>): SessionInfo {
   return {
     sessionId: 's1',
+    backendSessionId: null,
     name: 'morning review',
     projectId: 'nimbus',
     backend: 'anthropic',

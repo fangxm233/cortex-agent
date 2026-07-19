@@ -23,6 +23,7 @@ export function ChatHeader({
   running,
   onCmdK,
   sessionId,
+  backendSessionId,
   sessionName,
   currentProfile,
   hasHistory,
@@ -32,6 +33,10 @@ export function ChatHeader({
   running: boolean;
   onCmdK: () => void;
   sessionId: string;
+  /** The backend CLI resume target (SessionInfo.backendSessionId) — shown as the backend UUID in the
+   *  Session ID modal. Distinct from `sessionId` (the track id) since the id decoupling; null on a
+   *  draft or a fresh session with no backend id yet. */
+  backendSessionId: string | null;
   /** The human-facing Cortex ID (cortex-XXXX, SessionInfo.name); null on a draft/no session. */
   sessionName: string | null;
   currentProfile: string | null;
@@ -278,7 +283,7 @@ export function ChatHeader({
       {sessionIdOpen && (
         <SessionIdModal
           cortexId={sessionName}
-          backendUuid={sessionId || null}
+          backendUuid={backendSessionId}
           onClose={() => setSessionIdOpen(false)}
         />
       )}

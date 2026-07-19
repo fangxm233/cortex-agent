@@ -386,7 +386,15 @@ export interface ProjectConduitInfo {
 }
 
 export interface SessionInfo {
+  /** The stable TRACK id (Cortex UI identity): registry key, `session.*` events, transcript, and every
+   *  ui-service op key. Since the track/backend session-id decoupling this is NO LONGER the backend CLI
+   *  resume target — use `backendSessionId` for that. */
   sessionId: string;
+  /** The backend CLI resume target (`--resume`/`--session-id`) and session-backup file name — the id
+   *  the "Session ID" surface shows as the backend UUID. Null on a fresh session before its first turn
+   *  completes (no backend id assigned yet — never fabricated). Legacy records that predate the
+   *  decoupling fall back to `sessionId` (where the conflated id WAS the backend id). */
+  backendSessionId: string | null;
   name: string;
   projectId: string;
   backend: string;
