@@ -59,6 +59,15 @@ export function isTabRoute(pathname: string): boolean {
   return MOBILE_TABS.some((t) => pathname === t.path || pathname.startsWith(t.path + '/'));
 }
 
+// Routes that present as overlays (bottom sheet / modal) with their own enter/exit animation.
+// AnimatedOutlet skips the horizontal slide for these — only the sheet's vertical transition plays.
+const OVERLAY_ROUTES: ReadonlyArray<string> = ['/m/new-project'];
+
+/** Whether a pathname is an overlay route whose own animation should not be stacked with a slide. */
+export function isOverlayRoute(pathname: string): boolean {
+  return OVERLAY_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'));
+}
+
 export interface TabBadge {
   /** Amber count badge (scheme #C99A2E) — currently only 项目 (需要你 count). */
   count?: number;
