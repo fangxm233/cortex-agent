@@ -6,6 +6,7 @@
 // (MobileShell) owns the viewport + bottom Tab bar; a screen renders <MScreen> with its own header,
 // scroll body, and optional footer. Headers reserve the OS status-bar inset via env(safe-area-inset-top).
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { useBackDismiss } from '@/mobile/use-back-dismiss';
 
 // ── Palette (scheme-mobile.dc.html system tokens, L57-73) ─────────────────────
 // Each value resolves to a CSS variable (defined in src/index.css `:root` / `[data-theme='dark']`)
@@ -467,6 +468,10 @@ export function MBottomSheet({
     setPhase('exit');
     window.setTimeout(onClose, SHEET_MS);
   }, [onClose]);
+
+  // Android hardware back (and browser back) dismiss the sheet instead of navigating a route — every
+  // bottom sheet (profile picker, attach menu, new project, 原消息) gets this for free.
+  useBackDismiss(close);
 
   const onHandleDown = useCallback((e: React.PointerEvent) => {
     if (closed.current) return;
