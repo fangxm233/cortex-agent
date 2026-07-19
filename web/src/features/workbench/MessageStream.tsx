@@ -146,11 +146,18 @@ function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
     return <MediaThumb a={a} width={150} height={98} />;
   }
 
-  // File card
+  // File card — PDF/text open the in-app DocViewer on click (mirrors the agent file card); other
+  // files stay inert (opening in a new tab is a no-op in the native WebView).
   const colors = typeColor(a.type);
   const ext = fileExt(a.name);
+  const { openDoc } = useDocViewer();
+  const docKind = docKindOf(a.name, a.mimeType);
+  const preview = docKind ? () => openDoc({ kind: docKind, name: a.name, path: a.path, mimeType: a.mimeType }) : undefined;
   return (
     <div
+      role={preview ? 'button' : undefined}
+      title={preview ? a.name : undefined}
+      onClick={preview}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -158,6 +165,7 @@ function AttachmentCard({ a }: { a: AttachmentMeta }): JSX.Element {
         background: 'var(--proto-gray)',
         borderRadius: 10,
         padding: '8px 12px 8px 9px',
+        cursor: preview ? 'pointer' : 'default',
       }}
     >
       <span

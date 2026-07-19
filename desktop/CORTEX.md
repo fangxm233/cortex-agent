@@ -55,6 +55,14 @@ never interrupts work: threads execute server-side, not in the app.
 `CORTEX_UI_CORS_ORIGINS` must list these new origins or the SPA's cross-origin tRPC calls are
 blocked by the browser.
 
+⚠️ **Native drag-drop is disabled on desktop** (`lib.rs` window builder, `not(target_os="android")`):
+the builder calls `.disable_drag_drop_handler()`. Tauri v2 enables an OS-level file drag-drop handler
+by default that intercepts drops BEFORE the webview, so the SPA composer's HTML5 `onDrop`
+(`web/src/features/workbench/Composer.tsx`) never fired — dropping a file did nothing (a browser has no
+such interception, so drag-drop worked on web but not the desktop app). Disabling it lets the webview's
+own HTML5 DnD deliver `dataTransfer.files` to the DOM. This is a Rust-shell change → needs an app
+rebuild, not an OTA.
+
 ## First-run / connection flow
 
 1. **No stored credentials** → Tauri opens `connect.html` (the connection config screen).

@@ -529,9 +529,17 @@ pub fn run() {
             )
             .initialization_script(&init_script(&baked_config));
             // Desktop-only window chrome (Android manages its own full-screen activity).
+            // `disable_drag_drop_handler()` turns OFF Tauri's native OS-level file drag-drop
+            // interception so the webview's own HTML5 DnD events reach the DOM — without it the
+            // OS handler swallows file drops and the Composer's `onDrop` never fires (the "拖入
+            // 文件没反应" bug; the browser has no such interception, so it works there).
             #[cfg(not(target_os = "android"))]
             {
-                win = win.title("Cortex").inner_size(1400.0, 900.0).resizable(true);
+                win = win
+                    .title("Cortex")
+                    .inner_size(1400.0, 900.0)
+                    .resizable(true)
+                    .disable_drag_drop_handler();
             }
             win.build()?;
 

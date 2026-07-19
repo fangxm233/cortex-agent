@@ -8,7 +8,9 @@ import { formatCost } from './right-panel-vm';
 import { useSelectedSession } from './SelectedSessionProvider';
 import type { AttachmentMeta } from './chat-content';
 import { useMediaViewer } from '@/features/media/MediaViewer';
+import { useDocViewer } from '@/features/media/DocViewer';
 import { mediaKindOf } from '@/features/media/media-kind';
+import { docKindOf } from '@/features/media/doc-kind';
 import { fetchFileObjectUrl } from '@/lib/files';
 import { draftStorageKey, loadDraft, saveDraft, clearDraft } from './composer-draft';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
@@ -147,6 +149,7 @@ export function Composer({
   const L = useVocab();
   const queryClient = useQueryClient();
   const { openMedia } = useMediaViewer();
+  const { openDoc } = useDocViewer();
   const { selectCreatedSession } = useSelectedSession();
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
@@ -615,10 +618,18 @@ export function Composer({
       );
     }
 
-    // File chip (PDF, CSV, etc.)
+    // File chip (PDF, CSV, etc.) — PDF/text open the in-app DocViewer on click once uploaded (the
+    // viewer fetches by server path, so it needs the completed `meta.path`); other files stay inert.
+    const docKind = docKindOf(name, mime);
+    const previewDoc = docKind && a.status === 'done' && a.meta?.path
+      ? () => openDoc({ kind: docKind, name, path: a.meta!.path, mimeType: mime })
+      : undefined;
     return (
       <div
         key={a.id}
+        role={previewDoc ? 'button' : undefined}
+        title={previewDoc ? name : undefined}
+        onClick={previewDoc}
         style={{
           position: 'relative',
           display: 'flex',
@@ -631,6 +642,7 @@ export function Composer({
           padding: '0 12px 0 8px',
           flex: 'none',
           boxSizing: 'border-box',
+          cursor: previewDoc ? 'pointer' : 'default',
         }}
       >
         <span
@@ -657,9 +669,9 @@ export function Composer({
             {a.status === 'uploading' ? `${a.progress}%` : a.status === 'error' ? (a.errorMsg || 'Failed') : formatSize(attSize(a))}
           </span>
         </span>
-        {/* Remove button */}
+        {/* Remove button — stops propagation so removing doesn't also trigger the card preview. */}
         <span
-          onClick={() => removeAttachment(a.id)}
+          onClick={(e) => { e.stopPropagation(); removeAttachment(a.id); }}
           style={{
             position: 'absolute',
             top: -5,

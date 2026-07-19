@@ -122,12 +122,15 @@ Center Chat uses its own 1:1 `InlineThreadCardProto`; kept valid for any future 
   media (`MessageStream` `AttachmentCard`→`MediaThumb`) and agent-sent images/videos (`MessageStream`
   `AgentMediaPreview`, `AgentFileGroup` now inlines video too) all render real thumbnails and open the
   shared full-screen **modal** previewer (`useMediaViewer().openMedia`) — never a new browser tab.
-- **PDF/text DocViewer** (`features/media/DocViewer`): agent-sent (and user) **PDF/text** file cards
-  (`AgentFileCard`, classified by `docKindOf`) are clickable and open the in-app document modal
-  (`useDocViewer().openDoc`) — PDF via pdf.js canvas, text/`.md` via `ChatMarkdown`/`<pre>`. Other
-  files (zip/xlsx/…) only **download** (`lib/files.downloadFile` → native `save_download` in the Tauri
-  shell). The old `openFile`/`window.open` "open in new tab" action was **removed** — it was a silent
-  no-op inside the native WebView (the "点了没反应" bug).
+- **PDF/text DocViewer** (`features/media/DocViewer`): **PDF/text** file cards are clickable and open
+  the in-app document modal (`useDocViewer().openDoc`) — PDF via pdf.js canvas, text/`.md` via
+  `ChatMarkdown`/`<pre>`. Wired on all three surfaces via `docKindOf`: agent-sent (`AgentFileCard`),
+  **sent-user cards** (`MessageStream` `AttachmentCard`, by `meta.path`), and **staged composer chips**
+  (`Composer` file chip — clickable once `status==='done'` so `meta.path` exists for the viewer's
+  fetch). Before this the user file cards had no click handler, so a user-uploaded PDF was un-previewable
+  on web AND desktop (the "PDF 点不开预览" bug). Other files (zip/xlsx/…) only **download**
+  (`lib/files.downloadFile` → native `save_download` in the Tauri shell). The old `openFile`/`window.open`
+  "open in new tab" action was **removed** — it was a silent no-op inside the native WebView.
 - **Web-only** — the S4 chat backend (`sessions.transcript` query, `sessions.send` mutate,
   `session.message` subscribe event) is delivered by a paired be leaf; this task consumes it and
   changes only `web/`. Other consumed scopes: `projects.list`, `sessions.list`, `cost.summary`,
