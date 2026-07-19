@@ -18,18 +18,12 @@ const COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
     title: 'New project',
     tag: 'projects/',
     placeholder: 'Project name, e.g. rl-locomotion',
-    hintA: 'Only creates ',
-    hintB: ' and an empty CORTEX.md — mission, templates, and budget are initialized by the agent via ',
-    hintC: ' in the first conversation',
     create: 'Create and start a chat',
   },
   zh: {
     title: '新建项目',
     tag: 'projects/',
     placeholder: '项目名字，如 rl-locomotion',
-    hintA: '只创建 ',
-    hintB: ' 和空 CORTEX.md — mission、模板、预算在第一次对话里由 agent 通过 ',
-    hintC: ' 初始化',
     create: '创建并开始对话',
   },
 };

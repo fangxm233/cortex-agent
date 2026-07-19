@@ -58,8 +58,6 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     today: 'today',
     idle: 'idle',
     newProject: 'New project',
-    newProjectHint: 'Just a name — init happens in chat',
-    footer: 'Tap a row to switch: sessions / runs / tasks re-scope, chat lands on the latest.',
     issuesTitle: 'Issues',
   },
   zh: {
@@ -86,8 +84,6 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     today: '今日',
     idle: '空闲',
     newProject: '新建项目',
-    newProjectHint: '只填名字，初始化在对话里做',
-    footer: '点行即切换：会话 / 运行 / 任务同步换到该项目，会话落到最近一条',
     issuesTitle: 'Issues',
   },
 };
@@ -97,18 +93,12 @@ const NEW_PROJECT_COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
     title: 'New project',
     tag: 'projects/',
     placeholder: 'Project name, e.g. rl-locomotion',
-    hintA: 'Only creates ',
-    hintB: ' and an empty CORTEX.md — mission, templates, and budget are initialized by the agent via ',
-    hintC: ' in the first conversation',
     create: 'Create and start a chat',
   },
   zh: {
     title: '新建项目',
     tag: 'projects/',
     placeholder: '项目名字，如 rl-locomotion',
-    hintA: '只创建 ',
-    hintB: ' 和空 CORTEX.md — mission、模板、预算在第一次对话里由 agent 通过 ',
-    hintC: ' 初始化',
     create: '创建并开始对话',
   },
 };

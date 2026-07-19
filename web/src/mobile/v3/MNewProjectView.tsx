@@ -6,14 +6,6 @@ import type { ReactNode } from 'react';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { canCreate, type MNewProjectCopy } from './m-new-project-vm';
 
-// The two literal, untranslated mono code fragments woven into the hint (scheme L516).
-const NAME_CODE = 'projects/<name>/';
-const INIT_CODE = 'project_init';
-
-function Mono({ children }: { children: ReactNode }) {
-  return <span style={{ fontFamily: MONO, fontSize: 10 }}>{children}</span>;
-}
-
 export function MNewProjectView({
   name,
   onNameChange,
@@ -64,15 +56,6 @@ export function MNewProjectView({
           outline: 'none',
         }}
       />
-
-      {/* hint (L516) */}
-      <div style={{ fontSize: 11, lineHeight: 1.6, color: MC.muted, padding: '10px 4px 0' }}>
-        {copy.hintA}
-        <Mono>{NAME_CODE}</Mono>
-        {copy.hintB}
-        <Mono>{INIT_CODE}</Mono>
-        {copy.hintC}
-      </div>
 
       {/* create-and-chat button (L517) */}
       <button

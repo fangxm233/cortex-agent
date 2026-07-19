@@ -11,7 +11,6 @@ export interface MSettingsCopy {
   daemonStatus: string; // header trailing `daemon · 已连接`
   daemon: string;
   profileTitle: string; // `Profile（全局默认）`
-  profileTail: string; // `会话级切换在 chat 内 chip`
   switchLabel: string; // `切换`
   theme: string; // `主题`
   themeLight: string; // `浅色`
@@ -28,7 +27,6 @@ export interface MSettingsCopy {
   templates: string; // `Thread templates`
   hooks: string; // `Hooks · 三层只读`
   footerBrand: string; // `cortex mobile`
-  footerHot: string; // `配置热更新 · 免重启`
 }
 
 // ── header trailing: daemon · 已连接 (scheme L607) ─────────────────────────────
@@ -298,7 +296,7 @@ export function MSettingsView({
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={TITLE}>{copy.profileTitle}</div>
-              <div style={SUB}>{profileSub ? `${profileSub} · ${copy.profileTail}` : copy.profileTail}</div>
+              {profileSub && <div style={SUB}>{profileSub}</div>}
             </div>
             {/* GAP: profile switch is desktop-only here → inert accent label (no config.set wired). */}
             <span style={{ font: `500 10px ${MONO}`, color: MC.run, flex: 'none' }}>
@@ -398,7 +396,7 @@ export function MSettingsView({
           }}
         >
           <span>{copy.footerBrand}</span>
-          <span style={{ marginLeft: 'auto' }}>build {BUILD_STAMP} · {copy.footerHot}</span>
+          <span style={{ marginLeft: 'auto' }}>build {BUILD_STAMP}</span>
         </div>
       </MScrollBody>
     </>

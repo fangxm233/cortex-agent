@@ -27,8 +27,6 @@ const copy: MProjectCopy = {
   today: '今日',
   idle: '空闲',
   newProject: '新建项目',
-  newProjectHint: '只填名字，初始化在对话里做',
-  footer: '点行即切换：会话 / 运行 / 任务同步换到该项目，会话落到最近一条',
   issuesTitle: 'Issues',
 };
 
@@ -184,11 +182,11 @@ describe('MProjectView', () => {
     expect(noUnread).not.toContain('aria-label="unread"');
   });
 
-  it('renders the 新建项目 dashed card + footer line', () => {
+  it('renders the 新建项目 dashed card without the removed hint/footer copy', () => {
     const html = render();
     expect(html).toContain('新建项目');
-    expect(html).toContain('只填名字');
-    expect(html).toContain('点行即切换');
+    expect(html).not.toContain('只填名字');
+    expect(html).not.toContain('点行即切换');
   });
 
   it('shows the disconnected daemon state honestly when not connected', () => {

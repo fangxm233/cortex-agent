@@ -14,12 +14,6 @@ export interface MNewProjectCopy {
   tag: string;
   /** Name input placeholder. */
   placeholder: string;
-  /** Hint text before the `projects/<name>/` mono fragment. */
-  hintA: string;
-  /** Hint text between the two mono fragments. */
-  hintB: string;
-  /** Hint text after the `project_init` mono fragment. */
-  hintC: string;
   /** Ink create button label. */
   create: string;
 }

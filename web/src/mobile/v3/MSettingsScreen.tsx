@@ -22,7 +22,6 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     daemonStatus: 'daemon · connected',
     daemon: 'Daemon',
     profileTitle: 'Profile (global default)',
-    profileTail: 'session-level switch is a chip in chat',
     switchLabel: 'Switch',
     theme: 'Theme',
     themeLight: 'Light',
@@ -39,14 +38,12 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     templates: 'Thread templates',
     hooks: 'Hooks · 3-layer read-only',
     footerBrand: 'cortex mobile',
-    footerHot: 'config hot-reload · no restart',
   },
   zh: {
     title: '设置',
     daemonStatus: 'daemon · 已连接',
     daemon: 'Daemon',
     profileTitle: 'Profile（全局默认）',
-    profileTail: '会话级切换在 chat 内 chip',
     switchLabel: '切换',
     theme: '主题',
     themeLight: '浅色',
@@ -63,7 +60,6 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     templates: 'Thread templates',
     hooks: 'Hooks · 三层只读',
     footerBrand: 'cortex mobile',
-    footerHot: '配置热更新 · 免重启',
   },
 };
 

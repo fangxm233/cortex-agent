@@ -8,7 +8,6 @@ const copy: MSettingsCopy = {
   daemonStatus: 'daemon · 已连接',
   daemon: 'Daemon',
   profileTitle: 'Profile（全局默认）',
-  profileTail: '会话级切换在 chat 内 chip',
   switchLabel: '切换',
   theme: '主题',
   themeLight: '浅色',
@@ -25,7 +24,6 @@ const copy: MSettingsCopy = {
   templates: 'Thread templates',
   hooks: 'Hooks · 三层只读',
   footerBrand: 'cortex mobile',
-  footerHot: '配置热更新 · 免重启',
 };
 
 function vm(over: Partial<MSettingsVm> = {}): MSettingsVm {
@@ -68,13 +66,13 @@ describe('MSettingsView', () => {
 
   it('renders the real default profile + model + thinking in the profile sub, with the 切换 accent', () => {
     const html = render();
-    expect(html).toContain('default · sonnet-4.5 · high · 会话级切换在 chat 内 chip');
+    expect(html).toContain('default · sonnet-4.5 · high');
     expect(html).toContain('切换');
   });
 
   it('drops the thinking segment when the default profile declares none', () => {
     const html = render({ profileThinking: null });
-    expect(html).toContain('default · sonnet-4.5 · 会话级切换在 chat 内 chip');
+    expect(html).toContain('default · sonnet-4.5');
   });
 
   it('omits the daemon host line when there is no host (never fabricated)', () => {
@@ -126,10 +124,9 @@ describe('MSettingsView', () => {
     expect(html).toContain('深色');
   });
 
-  it('renders the footer brand + hot-reload note without a fabricated version', () => {
+  it('renders the footer brand without a fabricated version', () => {
     const html = render();
     expect(html).toContain('cortex mobile');
-    expect(html).toContain('配置热更新 · 免重启');
     expect(html).not.toContain('v0.4.2');
   });
 });

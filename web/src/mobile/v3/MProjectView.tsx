@@ -31,8 +31,6 @@ export interface MProjectCopy {
   today: string;
   idle: string;
   newProject: string;
-  newProjectHint: string;
-  footer: string;
   issuesTitle: string;
 }
 
@@ -473,10 +471,7 @@ export function MProjectView(props: MProjectViewProps) {
         >
           <span style={{ fontSize: 15, color: MC.run, fontWeight: 400 }}>＋</span>
           <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.run }}>{copy.newProject}</span>
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: MC.faint }}>{copy.newProjectHint}</span>
         </div>
-
-        <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '0 4px' }}>{copy.footer}</div>
       </MScrollBody>
     </MScreen>
   );
