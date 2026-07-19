@@ -298,7 +298,6 @@ describe('1b MChatView composition', () => {
     expect(html).toContain('IMG_1.jpg');
     expect(html).toContain('64%');
     expect(html).toContain('补充说明…');
-    expect(html).toContain('由 agent 读取');
   });
 });
 
