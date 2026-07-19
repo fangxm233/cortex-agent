@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchFileObjectUrl } from '@/lib/files';
+import { useBackDismiss } from '@/mobile/use-back-dismiss';
 import { useDownloadFile } from './useDownloadFile';
 import type { MediaKind } from './media-kind';
 
@@ -63,6 +64,9 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
       if (created) URL.revokeObjectURL(created);
     };
   }, [item.path, item.url]);
+
+  // Android hardware back (and browser back) close the lightbox instead of navigating a route.
+  useBackDismiss(onClose);
 
   // Esc closes; lock body scroll while open.
   useEffect(() => {

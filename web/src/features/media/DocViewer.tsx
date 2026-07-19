@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { fileDownloadUrl } from '@/lib/files';
+import { useBackDismiss } from '@/mobile/use-back-dismiss';
 import { useDownloadFile } from './useDownloadFile';
 import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
@@ -286,6 +287,8 @@ function Centered({ children, failed }: { children: ReactNode; failed?: boolean 
 
 export function DocModal({ item, onClose }: { item: DocItem; onClose: () => void }): JSX.Element {
   const dl = useDownloadFile();
+  // Android hardware back (and browser back) close the doc modal instead of navigating a route.
+  useBackDismiss(onClose);
   // Esc closes; lock body scroll while open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose(); };
