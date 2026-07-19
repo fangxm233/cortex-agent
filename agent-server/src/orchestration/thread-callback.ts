@@ -232,7 +232,9 @@ export async function maybeRotateManager(threadId: string): Promise<boolean> {
   if (since < rotateStepsThreshold()) return false;
   const notice = buildRehydrationNotice(parent, since);
   await threadStore.mutate(threadId, (t) => {
-    for (const slot of Object.values(t.agents)) slot.sessionId = null;
+    // Clear BOTH ids (track/backend decoupling): backendSessionId is the actual --resume
+    // target now — leaving it would defeat the rotation's fresh-session guarantee.
+    for (const slot of Object.values(t.agents)) { slot.sessionId = null; slot.backendSessionId = null; }
     const m = (t.metadata ??= {});
     m.rotationBaseStepIndex = t.steps.length;
     if (!Array.isArray(m.pendingMessages)) m.pendingMessages = [];

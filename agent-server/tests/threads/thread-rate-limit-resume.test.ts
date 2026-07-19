@@ -26,7 +26,13 @@ function makeThread(id: string, over: Partial<ThreadRecord> = {}): ThreadRecord 
   } as ThreadRecord;
 }
 
-const stepCtx = () => ({ agentSlotId: 'main', prompt: 'p', sessionName: 's', execution: { id: null }, stepStartTime: new Date().toISOString(), stage: null }) as any;
+const stepCtx = () => ({
+  agentSlotId: 'main', prompt: 'p', sessionName: 's', execution: { id: null },
+  stepStartTime: new Date().toISOString(), stage: null,
+  // Track/backend decoupling contract fields (beginStepSession output + live recorder stub).
+  trackSessionId: 'track-test', resumeSessionId: null,
+  recorder: { recordUser() {}, recordAssistant() {}, recordTool() {}, settle: async () => {} },
+}) as any;
 const makeCtx = (thread: ThreadRecord) => ({ thread, template: null, meta: thread.metadata, stream: { emitText() {}, flush: async () => {} }, lastAgentResult: null, totalNumTurns: 0 }) as any;
 const makeOpts = (thread: ThreadRecord) => ({ channel: thread.channel }) as any;
 

@@ -6,7 +6,7 @@
 import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { threadStore } from '@store/thread-repo.js';
-import { getSessionKey, recordStepResult } from './index.js';
+import { getSessionKey, recordStepResult, resolveTargetResumeId } from './index.js';
 import { runAgent, getClaudeMode, getActiveBackend, getActiveProfile } from '../agents/index.js';
 import * as executionRegistry from '../executions/registry.js';
 import { sessionStore } from '@store/session-registry-repo.js';
@@ -148,11 +148,10 @@ async function runHookAgent(
     }
     slotId = hookResult.targetAgent!;
     sessionKey = getSessionKey(threadId, slotId);
-    // sessionId: use slot's if available (persistSession=true), otherwise find from most recent step (persistSession=false)
-    // claude-bridge: sessionId does not matter when process is alive (finds process by sessionKey and writes to stdin); when dead, uses it for --resume
-    sessionId = targetSlot.sessionId
-      || [...thread.steps].reverse().find(s => s.agentSlotId === slotId)?.sessionId
-      || null;
+    // Backend resume target (track/backend decoupling aware): slot.backendSessionId, legacy
+    // slot.sessionId fallback, else the slot's most recent step. claude-bridge: the id does not
+    // matter while the process is alive (found by sessionKey, stdin write); when dead → --resume.
+    sessionId = resolveTargetResumeId(targetSlot, thread.steps);
     profileName = hookResult.profile
       ? (hookResult.profile === '__active__' ? getActiveProfile(opts.channel) : hookResult.profile)
       : (targetSlot.profile === '__active__' ? getActiveProfile(opts.channel) : targetSlot.profile);

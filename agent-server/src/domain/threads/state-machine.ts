@@ -7,8 +7,9 @@
 //         isArtifactUnchangedSinceStepStart (DR-0017 W2 checkpoint gate)
 
 import { mkdirSync, writeFileSync, readFileSync } from 'fs';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import * as path from 'path';
+import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { ensureTaskArtifact } from '@core/task-node.js';
 import { createLogger } from '@core/log.js';
@@ -25,6 +26,19 @@ import type {
   AgentSlotConfig, AgentSlotId, AgentSlot, AgentStep,
   StepResult, TransitionResult, TransitionRule,
 } from '@core/types/thread-types.js';
+
+// --- Thread lifecycle events ---
+// Published on the shared bus (job-registry ctx — the same seam the runner's session.message
+// publish uses) so the web UI / TUI thread views refetch on lifecycle edges. No-op without a bus.
+
+function publishThreadEvent(e: Record<string, unknown>): void {
+  jobCtx.bus?.publish(e as any);
+}
+
+/** `agent` or `agent:stage` — matches the transition endpoint syntax (runner's status label). */
+function stepLabel(agentSlotId: AgentSlotId, stage: string | null | undefined): string {
+  return stage ? `${agentSlotId}:${stage}` : agentSlotId;
+}
 
 // --- Agent slot helpers ---
 
@@ -176,6 +190,7 @@ export function createThread(channel: string, options: {
     metadata: { ...(options.metadata ?? {}), stepStartArtifactHash: hashArtifactAt(artifactPath) },
   });
   threadStore.set(thread);
+  publishThreadEvent({ type: 'thread.created', threadId: id, templateName: options.templateName || 'ad-hoc' });
   const mode = isTemplate ? `template=${options.templateName}` : `agent=${options.agentName}`;
   log.info(`Created thread ${id} (${mode}, workspace=${workspacePath})`);
   return thread;
@@ -199,6 +214,7 @@ function upsertAgentSlot(thread: ThreadRecord, config: AgentSlotConfig): void {
     slotId: config.slotId,
     profile: config.profile,
     sessionId: existing?.sessionId || null,
+    ...(existing?.backendSessionId !== undefined ? { backendSessionId: existing.backendSessionId } : {}),
     sessionName: existing?.sessionName || null,
     status: 'idle',
     lastOutput: null,
@@ -262,10 +278,43 @@ export function resolveNextStep(threadId: string): NextStepInfo | null {
   return thread.templateName ? resolveTemplateNextStep(thread) : resolveAdHocNextStep(thread);
 }
 
+// --- Step session identity (track/backend id decoupling) ---
+
+/** Prepare the slot's session ids for a step about to run, mirroring the direct path's
+ *  trackSessionId/backendSessionId split (conversation-runner):
+ *  - `trackSessionId` (slot.sessionId) — stable Cortex id, the conversation-history / UI
+ *    transcript key + CORTEX_SESSION_ID. Minted HERE (before the agent spawns) and persisted,
+ *    so a RUNNING step is queryable/streamable by the web UI. persistSession slots keep it
+ *    across steps; non-persist slots get a fresh one per step (fresh conversation).
+ *  - `resumeSessionId` (slot.backendSessionId) — the backend `--resume` target, resolved at
+ *    the previous settle. Legacy records (field absent) held the backend id in slot.sessionId:
+ *    migrated in place, keeping that id as BOTH keys for history continuity.
+ *  Publishes `thread.step.started` after persisting, so subscribers refetching `threads.get`
+ *  already see the new sessionId. */
+export async function beginStepSession(
+  threadId: string,
+  agentSlotId: AgentSlotId,
+  stage: string | null,
+): Promise<{ trackSessionId: string; resumeSessionId: string | null }> {
+  let track = '';
+  let resume: string | null = null;
+  await threadStore.mutate(threadId, (t) => {
+    const slot = t.agents[agentSlotId];
+    if (!slot) throw new Error(`Agent slot not found: ${agentSlotId} in ${threadId}`);
+    if (slot.backendSessionId === undefined) slot.backendSessionId = slot.sessionId ?? null;
+    if (!slot.sessionId || !slot.persistSession) slot.sessionId = randomUUID();
+    track = slot.sessionId;
+    resume = slot.persistSession ? (slot.backendSessionId ?? null) : null;
+  });
+  publishThreadEvent({ type: 'thread.step.started', threadId, step: stepLabel(agentSlotId, stage) });
+  return { trackSessionId: track, resumeSessionId: resume };
+}
+
 // --- Step result recording ---
 
 interface StepResultInput {
   sessionId?: string | null;
+  backendSessionId?: string | null;
   sessionName?: string | null;
   executionId?: string | null;
   input?: string | null;
@@ -283,6 +332,7 @@ function makeAgentStep(stepIndex: number, agentSlotId: AgentSlotId, result: Step
     stage: result.stage ?? null,
     executionId: result.executionId || null,
     sessionId: result.sessionId || null,
+    backendSessionId: result.backendSessionId ?? null,
     sessionName: result.sessionName || null,
     input: result.input || '',
     output: result.output,
@@ -298,6 +348,8 @@ function updateSlotAfterStep(slot: AgentSlot, result: StepResultInput): void {
   slot.status = 'completed';
   slot.lastOutput = result.output;
   if (result.sessionId && slot.persistSession) slot.sessionId = result.sessionId;
+  // Backend resume target for the next step of a persist slot (track/backend decoupling).
+  if (result.backendSessionId && slot.persistSession) slot.backendSessionId = result.backendSessionId;
   if (result.sessionName) slot.sessionName = result.sessionName;
 }
 
@@ -315,6 +367,12 @@ export async function recordStepResult(threadId: string, agentSlotId: AgentSlotI
     // DR-0017 W2: the artifact as this step left it IS the next step's start state
     // (nothing writes the artifact between steps) — refresh the checkpoint-gate baseline.
     if (t.artifactPath) (t.metadata ??= {}).stepStartArtifactHash = hashArtifactAt(t.artifactPath);
+  });
+  publishThreadEvent({
+    type: 'thread.step.finished',
+    threadId,
+    step: stepLabel(agentSlotId, result.stage ?? null),
+    result: (result.output ?? '').slice(0, 200),
   });
   return step;
 }
@@ -344,6 +402,7 @@ function applyTransition(thread: ThreadRecord, rule: TransitionRule, result: Tra
   thread.activeAgent = result.nextAgent!;
   thread.activeStage = result.nextStage ?? null;
   threadStore.set(thread);
+  publishThreadEvent({ type: 'thread.transitioned', threadId: thread.id, from: rule.from, to: rule.to });
   return result;
 }
 
@@ -449,6 +508,9 @@ export async function cancelThread(threadId: string): Promise<boolean> {
     t.status = 'cancelled';
     t.endedAt = new Date().toISOString();
   });
+  // No dedicated cancelled/aborted event variants — map to thread.failed so every
+  // subscribed thread view (web/TUI) gets its terminal refetch hint.
+  publishThreadEvent({ type: 'thread.failed', threadId, error: 'cancelled' });
   log.info(`Cancelled thread ${threadId}`);
   return true;
 }
@@ -576,6 +638,7 @@ export async function abortThread(threadId: string, reason: string | null): Prom
     t.abortReason = reason;
     t.endedAt = new Date().toISOString();
   });
+  publishThreadEvent({ type: 'thread.failed', threadId, error: `aborted${reason ? `: ${reason}` : ''}` });
   const reasonTag = reason ? ` (${reason})` : '';
   log.info(`Aborted thread ${threadId}${reasonTag}`);
   return true;
@@ -589,6 +652,7 @@ export async function completeThread(threadId: string): Promise<boolean> {
     t.status = 'completed';
     t.endedAt = new Date().toISOString();
   });
+  publishThreadEvent({ type: 'thread.completed', threadId });
   log.info(`Completed thread ${threadId}`);
   return true;
 }
@@ -602,6 +666,7 @@ export async function failThread(threadId: string, error: string): Promise<boole
     t.error = error;
     t.endedAt = new Date().toISOString();
   });
+  publishThreadEvent({ type: 'thread.failed', threadId, error });
   log.info(`Failed thread ${threadId}: ${error}`);
   return true;
 }

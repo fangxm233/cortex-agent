@@ -244,7 +244,13 @@ export interface AgentStep {
   /** Stage name this step ran. Null for single-stage agents (no `stages` map declared). */
   stage: string | null;
   executionId: string | null;
+  /** Stable Cortex track id — the conversation-history / UI transcript key for this step
+   *  (minted at step start by beginStepSession; decoupled from the backend session id). */
   sessionId: string | null;
+  /** Backend session id resolved when the agent run settled — the `--resume` target.
+   *  Absent (undefined) on records written before the track/backend decoupling, where
+   *  `sessionId` held the backend id. */
+  backendSessionId?: string | null;
   sessionName: string | null;
   input: string;
   output: string | null;
@@ -260,7 +266,14 @@ export interface AgentStep {
 export interface AgentSlot {
   slotId: AgentSlotId;
   profile: string;
+  /** Stable Cortex track id — the conversation-history / UI transcript key. Minted at step
+   *  start (beginStepSession) so a RUNNING step is queryable/streamable; for persistSession
+   *  slots it stays stable across steps. Decoupled from the backend resume id. */
   sessionId: string | null;
+  /** Backend session id (`--resume` target), set when a step settles. Absent (undefined) on
+   *  records written before the track/backend decoupling, where `sessionId` held the backend
+   *  id — beginStepSession migrates those in place. */
+  backendSessionId?: string | null;
   sessionName: string | null;
   status: 'idle' | 'running' | 'completed';
   lastOutput: string | null;

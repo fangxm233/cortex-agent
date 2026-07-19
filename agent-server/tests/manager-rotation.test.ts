@@ -68,7 +68,7 @@ function makeManager(proj: string, taskId: string, over: Partial<ThreadRecord> =
     userMessage: 'contract text', userMessageTs: 'ts', workspacePath: '',
     artifactPath: `/tmp/rot-artifact-${id}.md`,
     agents: {
-      manager: { slotId: 'manager', profile: 'p', sessionId: 'sess-old', sessionName: null, status: 'idle', lastOutput: null, persistSession: true },
+      manager: { slotId: 'manager', profile: 'p', sessionId: 'sess-old', backendSessionId: 'backend-old', sessionName: null, status: 'idle', lastOutput: null, persistSession: true },
     },
     activeAgent: 'manager', activeStage: null, currentStepIndex: 6,
     steps: dummySteps(6), iterationCounts: {}, totalCostUsd: 0,
@@ -103,6 +103,7 @@ test('over threshold → session cleared, base reset, rehydration notice queued 
   assert.equal(await maybeRotateManager(mgr.id), true);
   const t = threadStore.get(mgr.id)!;
   assert.equal(t.agents.manager.sessionId, null, 'persisted session retired');
+  assert.equal(t.agents.manager.backendSessionId, null, 'backend resume target retired too (track/backend decoupling)');
   assert.equal(t.metadata?.rotationBaseStepIndex, 6, 'base reset to current step count');
   const notice = (t.metadata?.pendingMessages ?? []).join('\n');
   assert.match(notice, /fresh incarnation/i);
