@@ -41,7 +41,7 @@ export interface MChatCopy {
   attachCamera: string;
   attachLibrary: string;
   attachFile: string;
-  attachFootnote: string;
+
   attachPlaceholder: string;
   profileTitle: string;
   profileSubtitle: string;
@@ -1069,9 +1069,6 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           charUnit={copy.charUnit}
           tone={props.editing ? 'accent' : props.rejectBar ? 'amber' : 'default'}
         />
-        {props.attachments.length > 0 && (
-          <div style={{ font: `400 9px ${MONO}`, color: MC.faint, padding: '0 16px 2px' }}>{copy.attachFootnote}</div>
-        )}
       </div>
       {props.moreOpen && (
         <MoreMenu

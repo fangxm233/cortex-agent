@@ -85,7 +85,7 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     attachCamera: '拍照',
     attachLibrary: '照片图库',
     attachFile: '选择文件',
-    attachFootnote: '上传完成前发送置灰 · 附件落 uploads/ 由 agent 读取',
+
     attachPlaceholder: '补充说明…',
     profileTitle: 'Profile',
     profileSubtitle: '仅本会话 · 热更新',
@@ -109,7 +109,7 @@ const COPY: { en: MChatCopy; zh: MChatCopy } = {
     attachCamera: 'Take photo',
     attachLibrary: 'Photo library',
     attachFile: 'Choose file',
-    attachFootnote: 'Send is disabled until uploads finish · files land in uploads/ for the agent',
+
     attachPlaceholder: 'Add a note…',
     profileTitle: 'Profile',
     profileSubtitle: 'This session · hot-swap',

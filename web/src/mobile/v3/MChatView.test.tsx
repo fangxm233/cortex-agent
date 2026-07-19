@@ -32,7 +32,7 @@ const copy: MChatCopy = {
   attachCamera: '拍照',
   attachLibrary: '照片图库',
   attachFile: '选择文件',
-  attachFootnote: '上传完成前发送置灰 · 附件落 uploads/ 由 agent 读取',
+
   attachPlaceholder: '补充说明…',
   profileTitle: 'Profile',
   profileSubtitle: '仅本会话 · 热更新',
