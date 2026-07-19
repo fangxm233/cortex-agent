@@ -34,7 +34,6 @@ const SUBROUTE_TAB: ReadonlyArray<{ prefix: string; tab: MobileTabId }> = [
   { prefix: '/m/memory', tab: 'project' },
   { prefix: '/m/machines', tab: 'project' },
   { prefix: '/m/settings', tab: 'project' },
-  { prefix: '/m/new-project', tab: 'project' },
   { prefix: '/m/daemon', tab: 'project' },
 ];
 

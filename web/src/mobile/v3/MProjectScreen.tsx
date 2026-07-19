@@ -17,9 +17,9 @@
 //  · 机器 · N 台正常         → REAL: machines.list online count (MachineInfo.online).
 //  · Switcher per-project running → REAL (threads.list); 今日 $ → REAL global cost.summary byProject
 //    bucket; null-safe (omitted, never a fabricated $0). Per-project 需要你 → OMITTED (see approvals GAP).
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
@@ -30,6 +30,8 @@ import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
 import { useMobileProject } from '@/mobile/current-project';
 import { MProjectView, type MProjectCopy } from './MProjectView';
 import { threadCountsForProject, onlineMachineCount, buildProjectSwitchRows } from './m-project-vm';
+import { MNewProjectView } from './MNewProjectView';
+import { canCreate, type MNewProjectCopy } from './m-new-project-vm';
 
 const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   en: {
@@ -90,9 +92,31 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   },
 };
 
+const NEW_PROJECT_COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
+  en: {
+    title: 'New project',
+    tag: 'projects/',
+    placeholder: 'Project name, e.g. rl-locomotion',
+    hintA: 'Only creates ',
+    hintB: ' and an empty CORTEX.md — mission, templates, and budget are initialized by the agent via ',
+    hintC: ' in the first conversation',
+    create: 'Create and start a chat',
+  },
+  zh: {
+    title: '新建项目',
+    tag: 'projects/',
+    placeholder: '项目名字，如 rl-locomotion',
+    hintA: '只创建 ',
+    hintB: ' 和空 CORTEX.md — mission、模板、预算在第一次对话里由 agent 通过 ',
+    hintC: ' 初始化',
+    create: '创建并开始对话',
+  },
+};
+
 export function MProjectScreen() {
   const trpc = useTRPC();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const lang = useLang();
   const copy = pickCopy(lang, COPY);
   const { currentProjectId, setCurrentProject } = useMobileProject();
@@ -164,25 +188,56 @@ export function MProjectScreen() {
     [projects, currentProjectId, threads, globalCostQuery.data, unreadCounts, lastActivity],
   );
 
+  // ── new-project bottom sheet (inline overlay, same pattern as profile picker in MChatScreen) ──
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const newProjectCopy = pickCopy(lang, NEW_PROJECT_COPY);
+
+  const createProject = useMutation(
+    trpc.projects.create.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(trpc.projects.list.queryFilter());
+        setNewProjectOpen(false);
+        navigate('/m/session/new');
+      },
+    }),
+  );
+
+  const submitNewProject = () => {
+    if (!canCreate(newProjectName) || createProject.isPending) return;
+    createProject.mutate({ name: newProjectName.trim() });
+  };
+
   return (
-    <MProjectView
-      copy={copy}
-      connected={connected}
-      current={current}
-      pendingApprovals={pendingApprovals}
-      issues={issues}
-      onlineMachines={onlineMachines}
-      switchRows={switchRows}
-      onIssues={() => navigate('/m/issues')}
-      onApprovals={() => navigate('/m/approvals')}
-      onMemory={() => navigate('/m/memory')}
-      onMachines={() => navigate('/m/machines')}
-      onSettings={() => navigate('/m/settings')}
-      onSwitch={(id) => {
-        setCurrentProject(id);
-        navigate('/m/sessions');
-      }}
-      onNewProject={() => navigate('/m/new-project')}
-    />
+    <>
+      <MProjectView
+        copy={copy}
+        connected={connected}
+        current={current}
+        pendingApprovals={pendingApprovals}
+        issues={issues}
+        onlineMachines={onlineMachines}
+        switchRows={switchRows}
+        onIssues={() => navigate('/m/issues')}
+        onApprovals={() => navigate('/m/approvals')}
+        onMemory={() => navigate('/m/memory')}
+        onMachines={() => navigate('/m/machines')}
+        onSettings={() => navigate('/m/settings')}
+        onSwitch={(id) => {
+          setCurrentProject(id);
+          navigate('/m/sessions');
+        }}
+        onNewProject={() => { setNewProjectName(''); setNewProjectOpen(true); }}
+      />
+      {newProjectOpen && (
+        <MNewProjectView
+          name={newProjectName}
+          onNameChange={setNewProjectName}
+          onCreate={submitNewProject}
+          onClose={() => setNewProjectOpen(false)}
+          copy={newProjectCopy}
+        />
+      )}
+    </>
   );
 }

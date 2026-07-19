@@ -26,7 +26,6 @@ describe('mobileRoutes (v3)', () => {
         '/m/thread/:threadId',
         '/m/task/:taskId',
         '/m/approvals',
-        '/m/new-project',
         '/m/memory',
         '/m/machines',
         '/m/settings',

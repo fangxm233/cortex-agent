@@ -10,7 +10,6 @@ import { MApprovalsScreen } from './v3/MApprovalsScreen';
 import { MIssuesScreen } from './v3/MIssuesScreen';
 import { MThreadDetailScreen } from './v3/MThreadDetailScreen';
 import { MTaskDetailScreen } from './v3/MTaskDetailScreen';
-import { MNewProjectScreen } from './v3/MNewProjectScreen';
 import { MMemoryScreen } from './v3/MMemoryScreen';
 import { MMachinesScreen } from './v3/MMachinesScreen';
 import { MSettingsScreen } from './v3/MSettingsScreen';
@@ -38,7 +37,6 @@ export const mobileRoutes: RouteObject[] = [
       { path: '/m/task/:taskId', element: <MTaskDetailScreen /> },
       { path: '/m/approvals', element: <MApprovalsScreen /> },
       { path: '/m/issues', element: <MIssuesScreen /> },
-      { path: '/m/new-project', element: <MNewProjectScreen /> },
       { path: '/m/memory', element: <MMemoryScreen /> },
       { path: '/m/machines', element: <MMachinesScreen /> },
       { path: '/m/settings', element: <MSettingsScreen /> },
