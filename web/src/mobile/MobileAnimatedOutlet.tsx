@@ -14,7 +14,7 @@
 // `animate-slide-*` utilities (tailwind.config.ts) — no new animation deps.
 import { useLayoutEffect, useState, type ReactNode } from 'react';
 import { useLocation, useNavigationType, useOutlet } from 'react-router-dom';
-import { isTabRoute, isOverlayRoute } from './mobile-tabs';
+import { isTabRoute } from './mobile-tabs';
 import { MC } from './ui/kit';
 
 type Frame = { key: string; element: ReactNode };
@@ -31,9 +31,8 @@ export function planTransition(
   samePath: boolean,
   reduceMotion: boolean,
   betweenTabRoutes: boolean,
-  eitherOverlay = false,
 ): { animate: false } | { animate: true; dir: SlideDir } {
-  if (samePath || reduceMotion || navType === 'REPLACE' || betweenTabRoutes || eitherOverlay) return { animate: false };
+  if (samePath || reduceMotion || navType === 'REPLACE' || betweenTabRoutes) return { animate: false };
   return { animate: true, dir: navType === 'POP' ? 'back' : 'forward' };
 }
 
@@ -67,8 +66,7 @@ export function AnimatedOutlet() {
   useLayoutEffect(() => {
     const samePath = location.pathname === current.key;
     const betweenTabRoutes = isTabRoute(current.key) && isTabRoute(location.pathname);
-    const eitherOverlay = isOverlayRoute(current.key) || isOverlayRoute(location.pathname);
-    const plan = planTransition(navType, samePath, prefersReducedMotion(), betweenTabRoutes, eitherOverlay);
+    const plan = planTransition(navType, samePath, prefersReducedMotion(), betweenTabRoutes);
     if (samePath) return;
     if (!plan.animate) {
       // REPLACE (redirects) / reduced-motion swap instantly — avoids a slide on app open too.

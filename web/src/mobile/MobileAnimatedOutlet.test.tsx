@@ -32,13 +32,6 @@ describe('planTransition', () => {
     expect(planTransition('PUSH', false, false, true)).toEqual({ animate: false });
     expect(planTransition('POP', false, false, true)).toEqual({ animate: false });
   });
-
-  it('swaps instantly when either endpoint is an overlay route (bottom sheet with own animation)', () => {
-    // Overlay routes like /m/new-project present as a bottom sheet with their own vertical
-    // slide — the horizontal AnimatedOutlet slide must not stack on top of it.
-    expect(planTransition('PUSH', false, false, false, true)).toEqual({ animate: false });
-    expect(planTransition('POP', false, false, false, true)).toEqual({ animate: false });
-  });
 });
 
 describe('slideAnimClasses', () => {

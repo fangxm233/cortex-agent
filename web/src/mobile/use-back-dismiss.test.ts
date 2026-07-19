@@ -59,29 +59,4 @@ describe('armBackGuard', () => {
     // the dismiss into a route navigation.
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
-
-  it('skips sentinel pop on teardown when isSentinelCurrent returns false (parent already navigated away)', () => {
-    // When the parent navigates away with { replace: true } before unmount, the sentinel is no
-    // longer the current history entry. Popping now would undo the parent's navigation and cause
-    // the overlay to flicker back open.
-    const { host, calls, listeners } = fakeHost();
-    host.isSentinelCurrent = () => false;
-    const onDismiss = vi.fn();
-    const teardown = armBackGuard(host, onDismiss);
-    teardown();
-    expect(onDismiss).not.toHaveBeenCalled();
-    expect(calls.pop).toBe(0); // sentinel NOT popped — parent already navigated past it
-    expect(listeners.size).toBe(0);
-  });
-
-  it('still pops sentinel on teardown when isSentinelCurrent returns true', () => {
-    // When the sentinel is still current (e.g. in-place overlay closed by tap-away), the
-    // teardown must pop it so the history stack stays balanced.
-    const { host, calls } = fakeHost();
-    host.isSentinelCurrent = () => true;
-    const onDismiss = vi.fn();
-    const teardown = armBackGuard(host, onDismiss);
-    teardown();
-    expect(calls.pop).toBe(1);
-  });
 });

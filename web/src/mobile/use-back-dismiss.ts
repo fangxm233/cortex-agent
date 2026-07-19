@@ -19,9 +19,6 @@ export interface BackGuardHost {
   popSentinel(): void;
   addPopListener(fn: () => void): void;
   removePopListener(fn: () => void): void;
-  /** When present, teardown checks this before popping — returns false if the parent already
-   *  navigated past the sentinel (e.g. via `navigate(..., { replace: true })`). */
-  isSentinelCurrent?(): boolean;
 }
 
 /**
@@ -41,14 +38,8 @@ export function armBackGuard(host: BackGuardHost, onDismiss: () => void): () => 
     host.removePopListener(onPop);
     // Closed by tap-away / pick / drag — the sentinel is still on the stack, so remove it. If a back
     // press already dismissed us the browser popped the sentinel for us; popping again would eat a
-    // real navigation. For routed overlays whose onClose navigates with { replace: true }, the
-    // sentinel is already gone — isSentinelCurrent() returns false and we skip the pop to avoid
-    // undoing the parent's navigation (which would flicker the overlay back open).
-    if (!dismissedByBack) {
-      if (!host.isSentinelCurrent || host.isSentinelCurrent()) {
-        host.popSentinel();
-      }
-    }
+    // real navigation.
+    if (!dismissedByBack) host.popSentinel();
   };
 }
 
@@ -62,7 +53,6 @@ function windowBackGuardHost(): BackGuardHost {
     popSentinel: () => window.history.back(),
     addPopListener: (fn) => window.addEventListener('popstate', fn),
     removePopListener: (fn) => window.removeEventListener('popstate', fn),
-    isSentinelCurrent: () => !!(window.history.state as Record<string, unknown> | null)?.__cortexOverlay,
   };
 }
 

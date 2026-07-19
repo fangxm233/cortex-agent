@@ -47,9 +47,7 @@ export function MNewProjectScreen() {
       onSuccess: () => {
         queryClient.invalidateQueries(trpc.projects.list.queryFilter());
         // Enter a fresh chat draft for the new project (mission/templates/budget → first conversation).
-        // replace: true so the sentinel history entry (pushed by useBackDismiss in MBottomSheet) is
-        // overwritten — without this, teardown's popSentinel would undo the navigation.
-        navigate('/m/session/new', { replace: true });
+        navigate('/m/session/new');
       },
     }),
   );
@@ -69,7 +67,7 @@ export function MNewProjectScreen() {
       name={name}
       onNameChange={setName}
       onCreate={submit}
-      onClose={() => navigate('/m/project', { replace: true })}
+      onClose={() => navigate('/m/project')}
       copy={copy}
       behind={behind}
     />
