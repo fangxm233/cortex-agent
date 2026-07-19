@@ -21,6 +21,7 @@ import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { mediaKindOf } from '@/features/media/media-kind';
+import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOf } from '@/features/media/doc-kind';
 import { MAskCard, MPlanCard, M_INT_COPY, type MIntCopy } from './MInteractionCards';
 import type { ChatHeaderStatus, ProfileSheetItem, PendingAttachmentVM } from './m-chat-vm';
@@ -410,7 +411,7 @@ function AttachmentTile({ a }: { a: Attachment }): JSX.Element {
           <img src={url} alt={a.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
         {url && kind === 'video' && (
-          <video src={url} muted playsInline preload="metadata" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+          <VideoThumb src={url} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
         {kind === 'video' && (
           <span
@@ -806,7 +807,7 @@ function ComposerChip({ a, onRemove }: { a: PendingAttachmentVM; onRemove: () =>
           {kind === 'image' ? (
             <img src={a.previewUrl} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           ) : (
-            <video src={a.previewUrl} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <VideoThumb src={a.previewUrl!} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           )}
           {kind === 'video' && (
             <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-solid-fg)', fontSize: 8, textShadow: '0 0 3px rgba(0,0,0,.8)' }}>▶</span>

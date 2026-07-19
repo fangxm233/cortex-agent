@@ -10,6 +10,7 @@ import type { AttachmentMeta } from './chat-content';
 import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { mediaKindOf } from '@/features/media/media-kind';
+import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOf } from '@/features/media/doc-kind';
 import { fetchFileObjectUrl } from '@/lib/files';
 import { draftStorageKey, loadDraft, saveDraft, clearDraft } from './composer-draft';
@@ -503,7 +504,7 @@ export function Composer({
             <img src={a.previewUrl} alt={name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
           )}
           {a.previewUrl && isVideo && (
-            <video src={a.previewUrl} muted playsInline preload="metadata" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+            <VideoThumb src={a.previewUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
           )}
           <span
             style={{

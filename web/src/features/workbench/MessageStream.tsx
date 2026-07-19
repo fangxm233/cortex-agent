@@ -9,6 +9,7 @@ import { useMediaViewer } from '@/features/media/MediaViewer';
 import { useDocViewer } from '@/features/media/DocViewer';
 import { useWorkspaceObjectUrl } from '@/features/media/useWorkspaceObjectUrl';
 import { mediaKindOf } from '@/features/media/media-kind';
+import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOf } from '@/features/media/doc-kind';
 import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-vm';
 import type { InteractionActions } from './useInteractionActions';
@@ -92,7 +93,7 @@ function MediaThumb({ a, width, height }: { a: { name: string; path: string; typ
         <img src={url} alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       )}
       {url && kind === 'video' && (
-        <video src={url} muted playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        <VideoThumb src={url} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       )}
       {kind === 'video' && (
         <span
@@ -292,7 +293,7 @@ function AgentMediaPreview({ a }: { a: Attachment }): JSX.Element {
         <img src={url} alt={a.name} style={{ display: 'block', maxWidth: 320, maxHeight: 240, width: 'auto', height: 'auto' }} />
       )}
       {url && kind === 'video' && (
-        <video src={url} muted playsInline preload="metadata" style={{ display: 'block', maxWidth: 320, maxHeight: 240, width: 'auto', height: 'auto' }} />
+        <VideoThumb src={url} style={{ display: 'block', maxWidth: 320, maxHeight: 240, width: 'auto', height: 'auto' }} />
       )}
       {!url && <div style={{ width: 320, height: 180 }} />}
       {kind === 'video' && (
