@@ -22,7 +22,13 @@ async function makeFixture(): Promise<{ configDir: string; hooksDir: string }> {
   await fs.writeFile(path.join(configDir, 'budget.json'), JSON.stringify({ daily_usd: 100, monthly_usd: 2000 }));
   await fs.writeFile(
     path.join(configDir, 'profiles.json'),
-    JSON.stringify({ defaultProfile: 'plan', profiles: { plan: { model: 'm1', backend: 'claude', mode: 'plan' } } }),
+    JSON.stringify({
+      defaultProfile: 'plan',
+      profiles: {
+        plan: { model: 'm1', backend: 'claude', mode: 'plan', thinking: 'high' },
+        fast: { model: 'm2', backend: 'codex', mode: 'plan' },
+      },
+    }),
   );
   await fs.writeFile(
     path.join(configDir, 'machines.json'),
@@ -75,7 +81,10 @@ test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hoo
   const snap = await readConfigSnapshot(configDir, hooksDir);
 
   assert.equal(snap.profiles!.defaultProfile, 'plan');
-  assert.deepEqual(snap.profiles!.profiles, [{ name: 'plan', model: 'm1', backend: 'claude', mode: 'plan' }]);
+  assert.deepEqual(snap.profiles!.profiles, [
+    { name: 'plan', model: 'm1', backend: 'claude', mode: 'plan', thinking: 'high' },
+    { name: 'fast', model: 'm2', backend: 'codex', mode: 'plan', thinking: null },
+  ]);
 
   const lab2 = snap.machines.find((m) => m.name === 'lab2');
   const lab = snap.machines.find((m) => m.name === 'lab');
