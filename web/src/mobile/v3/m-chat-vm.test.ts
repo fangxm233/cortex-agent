@@ -83,8 +83,8 @@ describe('profileChipLabel', () => {
 });
 
 describe('profileSub / buildProfileSheetItems', () => {
-  it('renders `model · backend · thinking`, dropping any missing segment', () => {
-    expect(profileSub(profiles[0])).toBe('sonnet-4.5 · anthropic · high');
+  it('renders `model · thinking · backend`, dropping any missing segment', () => {
+    expect(profileSub(profiles[0])).toBe('sonnet-4.5 · high · anthropic');
     // no thinking → just model · backend
     expect(profileSub(profiles[1])).toBe('haiku-4 · anthropic');
     expect(profileSub({ name: 'x', model: null, backend: 'anthropic', mode: null, thinking: null })).toBe('anthropic');

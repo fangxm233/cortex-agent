@@ -8,7 +8,7 @@ import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 
 export interface ProfileOption {
   name: string;
-  /** Sub-label: the profile's model · backend (· thinking level when set). */
+  /** Sub-label: the profile's model · thinking (when set) · backend. */
   sub: string;
   active: boolean;
   /** The profile's backend (claude / codex / pi). */
@@ -21,10 +21,10 @@ function backendOf(p: ConfigProfileEntry): string {
   return p.backend ?? 'claude';
 }
 
-// Sub-label shows the model, the backend, and the thinking level when set,
-// e.g. "claude-opus-4-8 · claude · high" (thinking is dropped when the profile declares none).
+// Sub-label shows the model, the thinking level when set, then the backend,
+// e.g. "claude-opus-4-8 · high · claude" (thinking is dropped when the profile declares none).
 function profileSub(p: ConfigProfileEntry): string {
-  return [p.model, backendOf(p), p.thinking].filter(Boolean).join(' · ');
+  return [p.model, p.thinking, backendOf(p)].filter(Boolean).join(' · ');
 }
 
 /** The backend of the currently-active profile — the reference for the same-backend disable rule.

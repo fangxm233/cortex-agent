@@ -96,10 +96,10 @@ export function profileChipLabel(name: string, profiles: ConfigProfileEntry[]): 
   return detail ? `${name} · ${detail}` : name;
 }
 
-/** Sub-label for a profile row in the 1p sheet: `model · backend · thinking`
+/** Sub-label for a profile row in the 1p sheet: `model · thinking · backend`
  *  (drops any missing segment — a null thinking level is simply omitted). */
 export function profileSub(p: ConfigProfileEntry): string {
-  return [p.model, p.backend, p.thinking].filter(Boolean).join(' · ');
+  return [p.model, p.thinking, p.backend].filter(Boolean).join(' · ');
 }
 
 export interface ProfileSheetItem {
