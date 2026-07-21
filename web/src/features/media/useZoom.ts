@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /** Pinch-to-zoom + wheel zoom + pan hook for image/PDF viewers.
  *
  * Two modes:
  * - 'transform': manages scale + translate via CSS transform (for images in a fixed container).
  * - 'css-zoom': applies CSS transform: scale() only; assumes a parent scroll container handles panning.
+ *   In css-zoom mode the hook auto-adjusts scroll position so the zoom anchor (cursor / pinch midpoint /
+ *   viewport center) stays fixed on screen.
  */
 
 export interface UseZoomOptions {
@@ -36,6 +38,17 @@ export interface UseZoomReturn {
 
 const ZOOM_STEP = 0.4;
 
+/** Saved before each css-zoom scale change so the layoutEffect can reposition scroll. */
+interface ScrollAnchor {
+  /** Anchor X offset from scroll container viewport left. */
+  ox: number;
+  /** Anchor Y offset from scroll container viewport top. */
+  oy: number;
+  scrollLeft: number;
+  scrollTop: number;
+  prevScale: number;
+}
+
 export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
   const { minScale = 1, maxScale = 5, mode = 'transform' } = opts;
   const [zoom, setZoom] = useState<ZoomState>({ scale: 1, x: 0, y: 0 });
@@ -46,6 +59,9 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
   // the effect re-running (which would re-attach listeners on every frame).
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+
+  // Scroll anchor — set before each css-zoom scale change, consumed in useLayoutEffect.
+  const anchorRef = useRef<ScrollAnchor | null>(null);
 
   // Touch state refs (not reactive — used only in event handlers).
   const touchState = useRef<{
@@ -65,21 +81,53 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
 
   const clamp = useCallback((s: number) => Math.min(maxScale, Math.max(minScale, s)), [minScale, maxScale]);
 
+  /** Save a scroll anchor at viewport center (used by button zoom). */
+  const saveViewportAnchor = useCallback(() => {
+    if (!el || mode !== 'css-zoom') return;
+    anchorRef.current = {
+      ox: el.clientWidth / 2,
+      oy: el.clientHeight / 2,
+      scrollLeft: el.scrollLeft,
+      scrollTop: el.scrollTop,
+      prevScale: zoomRef.current.scale,
+    };
+  }, [el, mode]);
+
   const zoomIn = useCallback(() => {
+    saveViewportAnchor();
     setZoom((prev) => ({ ...prev, scale: Math.min(maxScale, prev.scale + ZOOM_STEP) }));
-  }, [maxScale]);
+  }, [maxScale, saveViewportAnchor]);
 
   const zoomOut = useCallback(() => {
+    saveViewportAnchor();
     setZoom((prev) => {
       const next = Math.max(minScale, prev.scale - ZOOM_STEP);
       if (next <= 1) return { scale: 1, x: 0, y: 0 };
       return { ...prev, scale: next };
     });
-  }, [minScale]);
+  }, [minScale, saveViewportAnchor]);
 
-  const resetZoom = useCallback(() => setZoom({ scale: 1, x: 0, y: 0 }), []);
+  const resetZoom = useCallback(() => {
+    saveViewportAnchor();
+    setZoom({ scale: 1, x: 0, y: 0 });
+  }, [saveViewportAnchor]);
 
   const containerRef = useCallback((node: HTMLDivElement | null) => { setEl(node); }, []);
+
+  // --- css-zoom scroll correction: runs before paint so there's no flash. ---
+  useLayoutEffect(() => {
+    if (!el || mode !== 'css-zoom' || !anchorRef.current) return;
+    const { ox, oy, scrollLeft: oldSL, scrollTop: oldST, prevScale } = anchorRef.current;
+    const newScale = zoom.scale;
+    anchorRef.current = null;
+    if (prevScale === newScale) return;
+    // The anchor point in unscaled content: (oldSL + ox) / prevScale.
+    // At the new scale that becomes (oldSL + ox) / prevScale * newScale.
+    // We want it at the same viewport offset (ox, oy), so:
+    const ratio = newScale / prevScale;
+    el.scrollLeft = (oldSL + ox) * ratio - ox;
+    el.scrollTop = (oldST + oy) * ratio - oy;
+  }, [zoom.scale, el, mode]);
 
   useEffect(() => {
     if (!el) return;
@@ -91,12 +139,17 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
       const cx = e.clientX - rect.left;
       const cy = e.clientY - rect.top;
 
+      if (mode === 'css-zoom') {
+        // Anchor at cursor position.
+        anchorRef.current = { ox: cx, oy: cy, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, prevScale: zoomRef.current.scale };
+      }
+
       setZoom((prev) => {
         const dir = e.deltaY < 0 ? 1 : -1;
         const factor = 1 + dir * 0.12;
         const nextScale = clamp(prev.scale * factor);
         if (mode === 'css-zoom') return { ...prev, scale: nextScale };
-        // Zoom toward cursor.
+        // Zoom toward cursor (transform mode).
         const ratio = nextScale / prev.scale;
         const nx = cx - ratio * (cx - prev.x);
         const ny = cy - ratio * (cy - prev.y);
@@ -132,6 +185,9 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
         const nextScale = clamp(touchState.current.initialScale * ratio);
 
         if (mode === 'css-zoom') {
+          // Anchor at pinch midpoint.
+          const rect = el.getBoundingClientRect();
+          anchorRef.current = { ox: mid.x - rect.left, oy: mid.y - rect.top, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, prevScale: zoomRef.current.scale };
           setZoom((prev) => ({ ...prev, scale: nextScale }));
         } else {
           const rect = el.getBoundingClientRect();
@@ -160,9 +216,14 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
         e.preventDefault();
         const cur = zoomRef.current;
         if (cur.scale > 1) {
+          if (mode === 'css-zoom') {
+            anchorRef.current = { ox: el.clientWidth / 2, oy: el.clientHeight / 2, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, prevScale: cur.scale };
+          }
           setZoom({ scale: 1, x: 0, y: 0 });
         } else {
           if (mode === 'css-zoom') {
+            const rect = el.getBoundingClientRect();
+            anchorRef.current = { ox: e.touches[0].clientX - rect.left, oy: e.touches[0].clientY - rect.top, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, prevScale: cur.scale };
             setZoom({ scale: 2, x: 0, y: 0 });
           } else {
             const rect = el.getBoundingClientRect();
