@@ -1,10 +1,11 @@
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1l L601-663)
 import { type ReactNode } from 'react';
-import { MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
+import { MDrillHeader, MScrollBody, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { BUILD_STAMP } from '@/lib/build-info';
 import type { Lang } from '@/i18n';
 import type { Theme } from '@/theme';
 import type { MSettingsVm } from './m-settings-vm';
+import type { ProfileSheetItem } from './m-chat-vm';
 
 export interface MSettingsCopy {
   title: string;
@@ -12,6 +13,9 @@ export interface MSettingsCopy {
   daemon: string;
   profileTitle: string; // `Profile（全局默认）`
   switchLabel: string; // `切换`
+  profileSheetTitle: string; // `全局默认 Profile`
+  profileSheetCurrent: string; // `当前`
+  profileSheetFooter: string; // `切换后新会话 / 新线程使用`
   theme: string; // `主题`
   themeLight: string; // `浅色`
   themeDark: string; // `深色`
@@ -232,6 +236,10 @@ export function MSettingsView({
   onSetTheme,
   onBack,
   onOpenDaemon,
+  profileSheet,
+  onOpenProfile,
+  onCloseProfile,
+  onPickProfile,
 }: {
   vm: MSettingsVm;
   copy: MSettingsCopy;
@@ -241,6 +249,10 @@ export function MSettingsView({
   onSetTheme: (theme: Theme) => void;
   onBack: () => void;
   onOpenDaemon: () => void;
+  profileSheet: ProfileSheetItem[] | null;
+  onOpenProfile: () => void;
+  onCloseProfile: () => void;
+  onPickProfile: (name: string) => void;
 }) {
   const profileSub = [vm.profileName, vm.profileModel, vm.profileThinking].filter(Boolean).join(' · ');
   const platformLabel =
@@ -298,8 +310,11 @@ export function MSettingsView({
               <div style={TITLE}>{copy.profileTitle}</div>
               {profileSub && <div style={SUB}>{profileSub}</div>}
             </div>
-            {/* GAP: profile switch is desktop-only here → inert accent label (no config.set wired). */}
-            <span style={{ font: `500 10px ${MONO}`, color: MC.run, flex: 'none' }}>
+            <span
+              role="button"
+              onClick={onOpenProfile}
+              style={{ font: `500 10px ${MONO}`, color: MC.run, flex: 'none', cursor: 'pointer' }}
+            >
               {copy.switchLabel}
             </span>
           </div>
@@ -399,6 +414,32 @@ export function MSettingsView({
           <span style={{ marginLeft: 'auto' }}>build {BUILD_STAMP}</span>
         </div>
       </MScrollBody>
+      {profileSheet && (
+        <MBottomSheet onClose={onCloseProfile}>
+          <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 10px' }}>
+            <span style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em' }}>{copy.profileSheetTitle}</span>
+          </div>
+          <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, overflow: 'hidden' }}>
+            {profileSheet.map((it, i) => (
+              <div
+                key={it.name}
+                onClick={() => onPickProfile(it.name)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderBottom: i < profileSheet.length - 1 ? `1px solid var(--proto-line-soft)` : undefined, cursor: 'pointer' }}
+              >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{ font: `600 13px ${MONO}`, color: MC.ink }}>{it.name}</span>
+                    {it.current && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: MC.runBg, color: MC.run }}>{copy.profileSheetCurrent}</span>}
+                  </div>
+                  <div style={{ font: `400 10px ${MONO}`, color: MC.muted, marginTop: 3 }}>{it.sub}</div>
+                </div>
+                {it.current && <span style={{ fontSize: 15, fontWeight: 700, color: MC.run, flex: 'none' }}>✓</span>}
+              </div>
+            ))}
+          </div>
+          <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '9px 4px 0' }}>{copy.profileSheetFooter}</div>
+        </MBottomSheet>
+      )}
     </>
   );
 }

@@ -9,6 +9,9 @@ const copy: MSettingsCopy = {
   daemon: 'Daemon',
   profileTitle: 'Profile（全局默认）',
   switchLabel: '切换',
+  profileSheetTitle: '全局默认 Profile',
+  profileSheetCurrent: '当前',
+  profileSheetFooter: '切换后新会话 / 新线程使用',
   theme: '主题',
   themeLight: '浅色',
   themeDark: '深色',
@@ -32,6 +35,7 @@ function vm(over: Partial<MSettingsVm> = {}): MSettingsVm {
     profileName: 'default',
     profileModel: 'sonnet-4.5',
     profileThinking: 'high',
+    profiles: [],
     budgetSpendLabel: '$4.21 / $10.00',
     budgetBarPct: '42%',
     notifyOn: true,
@@ -53,6 +57,10 @@ function render(over: Partial<MSettingsVm> = {}) {
       onSetTheme={() => {}}
       onBack={() => {}}
       onOpenDaemon={() => {}}
+      profileSheet={null}
+      onOpenProfile={() => {}}
+      onCloseProfile={() => {}}
+      onPickProfile={() => {}}
     />,
   );
 }

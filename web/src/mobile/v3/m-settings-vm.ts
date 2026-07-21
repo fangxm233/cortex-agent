@@ -13,7 +13,7 @@
 //   • Platforms → real present env-key groups (slack / feishu); scheme's `（slack, feishu）` is a mock.
 //   • Templates count → real `threadTemplates.templates.length` (scheme's `4` is a mock).
 //   • App version (scheme `v0.4.2`) → NO DTO source → omitted from the footer (no fabricated version).
-import type { ConfigSnapshot, CostSummary } from '@cortex-agent/ui-contract';
+import type { ConfigSnapshot, ConfigProfileEntry, CostSummary } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
 import { budgetBarPct } from '@/features/settings/budget-vm';
 import { hasAnyKey } from '@/features/settings/platform-env';
@@ -27,6 +27,8 @@ export interface MSettingsVm {
   profileModel: string | null;
   /** Real thinking level of the default profile (claude --effort / pi --thinking); null when none. */
   profileThinking: string | null;
+  /** All configured profiles (for the profile-switch bottom sheet). */
+  profiles: ConfigProfileEntry[];
   /** `$today / $daily` spend label (real cost.today over budget.daily_usd). */
   budgetSpendLabel: string;
   /** Clamped `NN%` fill for the spend bar. */
@@ -72,6 +74,7 @@ export function buildMSettingsVm(
     profileName: defaultName,
     profileModel: defaultEntry?.model ?? null,
     profileThinking: defaultEntry?.thinking ?? null,
+    profiles: profiles?.profiles ?? [],
     budgetSpendLabel: `${fmtMoney(today)} / ${fmtMoney(daily)}`,
     budgetBarPct: budgetBarPct(today, daily),
     notifyOn: isPresent(snapshot.env, NOTIFY_ENV_KEY),

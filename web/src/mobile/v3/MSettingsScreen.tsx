@@ -1,12 +1,12 @@
 // 1l 设置 — the settings page drilled from the project page (scheme-mobile.dc.html 1l L601-663). A
 // non-Tab drill page (the shell keeps the project Tab active); back returns to the project page. Wired
 // to the REAL read scopes: `config.get` (redacted ~/.cortex/config snapshot) + `cost.summary` (today/
-// month spend). The Daemon row drills into 1r (/m/daemon). Profile-switch + the two toggles are inert
-// honest surfaces: config.set is budget/profiles-only server-side and there is NO .env write path, so
-// they reflect real data but never fabricate a write (see MSettingsView GAP notes).
-import { useMemo } from 'react';
+// month spend). The Daemon row drills into 1r (/m/daemon). Profile switch drives a real config.set
+// `profiles` write (re-points defaultProfile in profiles.json). The two env toggles are inert honest
+// surfaces (no .env write path — see MSettingsView notes).
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useSetLang } from '@/i18n';
@@ -15,6 +15,7 @@ import { pickCopy } from '@/mobile/ui/format';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';
 import { buildMSettingsVm } from './m-settings-vm';
+import { buildProfileSheetItems } from './m-chat-vm';
 
 const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
   en: {
@@ -23,6 +24,9 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     daemon: 'Daemon',
     profileTitle: 'Profile (global default)',
     switchLabel: 'Switch',
+    profileSheetTitle: 'Global default profile',
+    profileSheetCurrent: 'current',
+    profileSheetFooter: 'Applies to new sessions and new threads',
     theme: 'Theme',
     themeLight: 'Light',
     themeDark: 'Dark',
@@ -45,6 +49,9 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     daemon: 'Daemon',
     profileTitle: 'Profile（全局默认）',
     switchLabel: '切换',
+    profileSheetTitle: '全局默认 Profile',
+    profileSheetCurrent: '当前',
+    profileSheetFooter: '切换后新会话 / 新线程使用',
     theme: '主题',
     themeLight: '浅色',
     themeDark: '深色',
@@ -75,6 +82,7 @@ const EMPTY_SNAPSHOT: ConfigSnapshot = {
 
 export function MSettingsScreen() {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const lang = useLang();
   const setLang = useSetLang();
@@ -90,6 +98,22 @@ export function MSettingsScreen() {
     [configQuery.data, costQuery.data],
   );
 
+  // profile switch: real config.set `profiles` write (re-points defaultProfile in profiles.json).
+  const [profileOpen, setProfileOpen] = useState(false);
+  const setProfileMut = useMutation(
+    trpc.config.set.mutationOptions({
+      onSuccess: () => queryClient.invalidateQueries(trpc.config.get.queryFilter({})),
+    }),
+  );
+  const profileSheet = profileOpen
+    ? buildProfileSheetItems(vm.profiles, vm.profileName ?? '')
+    : null;
+  const onPickProfile = (name: string) => {
+    setProfileOpen(false);
+    if (name === vm.profileName) return;
+    setProfileMut.mutate({ section: 'profiles', value: { defaultProfile: name } });
+  };
+
   return (
     <MScreen label="1l 设置">
       {configQuery.isLoading ? (
@@ -104,6 +128,10 @@ export function MSettingsScreen() {
           onSetTheme={setTheme}
           onBack={() => navigate('/m/project')}
           onOpenDaemon={() => navigate('/m/daemon')}
+          profileSheet={profileSheet}
+          onOpenProfile={() => setProfileOpen(true)}
+          onCloseProfile={() => setProfileOpen(false)}
+          onPickProfile={onPickProfile}
         />
       )}
     </MScreen>
