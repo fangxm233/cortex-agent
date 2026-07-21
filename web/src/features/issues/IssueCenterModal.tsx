@@ -7,7 +7,9 @@ import { useToast } from '@/design';
 import { useVocab } from '@/i18n';
 import { useCurrentProject } from '@/features/workbench/CurrentProjectProvider';
 import { useSelectedSession } from '@/features/workbench/SelectedSessionProvider';
-import { defaultSelectedId, toIssueDetail, toIssueListCard } from './issues-vm';
+import { DRAFT_SENTINEL } from '@/features/workbench/selected-session';
+import { draftStorageKey, saveDraft } from '@/features/workbench/composer-draft';
+import { defaultSelectedId, toIssueDetail, toIssueListCard, buildIssuePrompt } from './issues-vm';
 
 // Issues modal (design sec-24 24b), isomorphic to the approval center 7a overlay: backdrop +
 // centered shell, left queue + right detail. Differences BY DESIGN: no amber anywhere (issues never
@@ -527,7 +529,7 @@ export function IssueCenterModal({
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentProjectId } = useCurrentProject();
-  const { selectCreatedSession } = useSelectedSession();
+  const { setSelectedSession } = useSelectedSession();
 
   const listQuery = useQuery({
     ...trpc.issues.list.queryOptions({ projectId: currentProjectId ?? '' }),
@@ -543,29 +545,13 @@ export function IssueCenterModal({
 
   const del = useMutation(
     trpc.issues.delete.mutationOptions({
-      onSuccess: () => toast({ title: L.isToastDeleted, tone: 'done' }),
       onSettled: () => {
         setArmed(false);
         invalidate();
       },
     }),
   );
-  const handle = useMutation(
-    trpc.issues.handle.mutationOptions({
-      onSuccess: (data) => {
-        toast({ title: L.isToastHandled, tone: 'done' });
-        // Jump into the freshly created session carrying the issue (design: 处理 = 新建会话).
-        selectCreatedSession(data.sessionId);
-        onClose();
-        navigate('/workbench');
-      },
-      onSettled: () => {
-        setArmed(false);
-        invalidate();
-      },
-    }),
-  );
-  const pending = del.isPending || handle.isPending;
+  const pending = del.isPending;
 
   // reset transient state whenever the overlay opens/closes or the selection changes
   useEffect(() => {
@@ -601,8 +587,29 @@ export function IssueCenterModal({
       onClose={onClose}
       onArm={() => setArmed(true)}
       onCancelArm={() => setArmed(false)}
-      onDelete={(id) => currentProjectId && del.mutate({ projectId: currentProjectId, id })}
-      onHandle={(id) => currentProjectId && handle.mutate({ projectId: currentProjectId, id })}
+      onDelete={(id) => {
+        if (!currentProjectId) return;
+        del.mutate({ projectId: currentProjectId, id }, {
+          onSuccess: () => toast({ title: L.isToastDeleted, tone: 'done' }),
+        });
+      }}
+      onHandle={(id) => {
+        if (!currentProjectId) return;
+        const entry = entries.find((e) => e.id === id);
+        if (!entry) return;
+        // Pre-fill the new-session draft composer with the issue prompt (editable before send).
+        const prompt = buildIssuePrompt(currentProjectId, entry);
+        const key = draftStorageKey({ isDraft: true, projectId: currentProjectId });
+        saveDraft(key, { text: prompt, attachments: [] });
+        // Enter draft mode + navigate (optimistic — don't wait for the delete round-trip).
+        setSelectedSession(DRAFT_SENTINEL);
+        onClose();
+        navigate('/workbench');
+        // Remove the issue entry from ISSUES.md in the background.
+        del.mutate({ projectId: currentProjectId, id }, {
+          onSuccess: () => toast({ title: L.isToastHandled, tone: 'done' }),
+        });
+      }}
     />
   );
 }

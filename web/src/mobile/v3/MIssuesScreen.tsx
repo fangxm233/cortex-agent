@@ -13,6 +13,8 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useMobileProject } from '@/mobile/current-project';
+import { draftStorageKey, saveDraft } from '@/features/workbench/composer-draft';
+import { buildIssuePrompt } from '@/features/issues/issues-vm';
 import { MIssuesView, type MIssuesCopy } from './MIssuesView';
 import { buildMIssuesVm } from './m-issues-vm';
 
@@ -58,13 +60,7 @@ export function MIssuesScreen() {
 
   const invalidate = () => queryClient.invalidateQueries(trpc.issues.list.queryFilter());
   const del = useMutation(trpc.issues.delete.mutationOptions({ onSettled: invalidate }));
-  const handle = useMutation(
-    trpc.issues.handle.mutationOptions({
-      onSuccess: (data) => navigate(`/m/session/${data.sessionId}`),
-      onSettled: invalidate,
-    }),
-  );
-  const busy = del.isPending || handle.isPending;
+  const busy = del.isPending;
 
   return (
     <MIssuesView
@@ -75,7 +71,19 @@ export function MIssuesScreen() {
       onBack={() => navigate('/m/project')}
       onExpand={setExpandedId}
       onDelete={(id) => currentProjectId && del.mutate({ projectId: currentProjectId, id })}
-      onHandle={(id) => currentProjectId && handle.mutate({ projectId: currentProjectId, id })}
+      onHandle={(id) => {
+        if (!currentProjectId) return;
+        const entry = entries.find((e) => e.id === id);
+        if (!entry) return;
+        // Pre-fill the new-session draft composer with the issue prompt (editable before send).
+        const prompt = buildIssuePrompt(currentProjectId, entry);
+        const key = draftStorageKey({ isDraft: true, projectId: currentProjectId });
+        saveDraft(key, { text: prompt, attachments: [] });
+        // Navigate to the draft chat screen.
+        navigate('/m/session/new');
+        // Remove the issue entry from ISSUES.md in the background.
+        del.mutate({ projectId: currentProjectId, id });
+      }}
     />
   );
 }
