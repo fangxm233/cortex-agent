@@ -10,10 +10,11 @@ import type { ThreadInfo, ProjectConduitInfo, CostSummary } from '@cortex-agent/
 import { projectInitials } from '@/features/workbench/session-groups';
 import { sortProjectsByActivity } from '@/features/workbench/left-rail-projects';
 
+const ACTIVE_THREAD_STATUSES: ReadonlySet<ThreadInfo['status']> = new Set(['running', 'waiting']);
+
 /**
- * Strict per-project thread counts scoped to the current project. `线程运行中` = status 'running';
- * `线程暂停等待` = status 'waiting'. Kept separate (the scheme distinguishes them) rather than the
- * desktop `runningCountByProject`, which folds running+waiting into one number.
+ * Per-project active thread counts. `running` folds 'running' + 'waiting' (parity with the desktop
+ * `runningCountByProject`). `waiting` is kept for the approval bar's "threads paused" label.
  */
 export function threadCountsForProject(
   threads: ThreadInfo[],
@@ -24,8 +25,8 @@ export function threadCountsForProject(
   if (!projectId) return { running, waiting };
   for (const t of threads) {
     if (t.projectId !== projectId) continue;
-    if (t.status === 'running') running++;
-    else if (t.status === 'waiting') waiting++;
+    if (ACTIVE_THREAD_STATUSES.has(t.status)) running++;
+    if (t.status === 'waiting') waiting++;
   }
   return { running, waiting };
 }
@@ -40,7 +41,7 @@ export interface MProjectSwitchRow {
   id: string;
   /** Avatar initials from the id (`atlas` → `AT`). */
   initials: string;
-  /** Real running-thread count for this project (status 'running'). */
+  /** Active thread count for this project (status 'running' + 'waiting', parity with desktop). */
   running: number;
   /** Real today $ from the global cost summary's byProject bucket; null when the project has no
    *  bucket (honest — never a fabricated $0). */
@@ -71,7 +72,7 @@ export function buildProjectSwitchRows(
   const others = projects.filter((p) => p.id !== currentId);
   return sortProjectsByActivity(others, lastActivity).map((p) => {
     const running = threads.reduce(
-      (n, t) => n + (t.projectId === p.id && t.status === 'running' ? 1 : 0),
+      (n, t) => n + (t.projectId === p.id && ACTIVE_THREAD_STATUSES.has(t.status) ? 1 : 0),
       0,
     );
     const bucket = globalByProject?.[p.id];

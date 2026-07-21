@@ -27,6 +27,7 @@ import { projectInitials } from '@/features/workbench/session-groups';
 import { unreadCountByProject } from '@/features/workbench/project-menu';
 import { lastActivityByProject } from '@/features/workbench/left-rail-projects';
 import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
+import { useThreadsLiveSync } from '@/features/workbench/useThreadsLiveSync';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { useMobileProject } from '@/mobile/current-project';
 import { MProjectView, type MProjectCopy } from './MProjectView';
@@ -117,6 +118,7 @@ export function MProjectScreen() {
   const { currentProjectId, setCurrentProject } = useMobileProject();
 
   useSessionsLiveSync();
+  useThreadsLiveSync();
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
   // UNSCOPED direct sessions (all projects) → per-project unread counts for the switcher badge +
   // unread-first ordering. Kept fresh by useSessionsLiveSync (same as the desktop LeftRail).
