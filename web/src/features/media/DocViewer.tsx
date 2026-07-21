@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { fileDownloadUrl } from '@/lib/files';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
 import { useDownloadFile } from './useDownloadFile';
+import { useZoom } from './useZoom';
 import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { isMarkdownName, type DocKind } from './doc-kind';
@@ -93,6 +94,7 @@ function PdfBody({ item }: { item: DocItem }): JSX.Element {
   const [state, setState] = useState<'loading' | 'ok' | 'failed'>('loading');
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const { containerRef: zoomRef, style: zoomStyle, zoom, zoomIn, zoomOut, resetZoom } = useZoom({ mode: 'css-zoom', minScale: 1, maxScale: 5 });
 
   useEffect(() => {
     let alive = true;
@@ -175,23 +177,26 @@ function PdfBody({ item }: { item: DocItem }): JSX.Element {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
       {numPages > 0 && state !== 'failed' && (
-        <PdfPager current={currentPage} total={numPages} onJump={goToPage} />
+        <PdfPager current={currentPage} total={numPages} onJump={goToPage} scale={zoom.scale} onZoomIn={zoomIn} onZoomOut={zoomOut} onZoomReset={resetZoom} />
       )}
       <div
-        ref={scrollRef}
+        ref={(el) => { scrollRef.current = el; zoomRef(el); }}
         onScroll={onScroll}
         style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '20px 16px', boxSizing: 'border-box' }}
       >
         {state === 'loading' && <Centered>Loading PDF…</Centered>}
         {state === 'failed' && <Centered failed>Failed to render {item.name}</Centered>}
-        <div ref={containerRef} style={{ maxWidth: 900, margin: '0 auto' }} />
+        <div ref={containerRef} style={{ ...zoomStyle, maxWidth: 900, margin: '0 auto' }} />
       </div>
     </div>
   );
 }
 
-/** Page pager toolbar — prev/next + an editable "N / total" jump field. */
-function PdfPager({ current, total, onJump }: { current: number; total: number; onJump: (n: number) => void }): JSX.Element {
+/** Page pager toolbar — prev/next + an editable "N / total" jump field + zoom controls. */
+function PdfPager({ current, total, onJump, scale, onZoomIn, onZoomOut, onZoomReset }: {
+  current: number; total: number; onJump: (n: number) => void;
+  scale: number; onZoomIn: () => void; onZoomOut: () => void; onZoomReset: () => void;
+}): JSX.Element {
   const [draft, setDraft] = useState(String(current));
   useEffect(() => { setDraft(String(current)); }, [current]);
 
@@ -254,6 +259,20 @@ function PdfPager({ current, total, onJump }: { current: number; total: number; 
       >
         ↓
       </span>
+
+      {/* Zoom controls */}
+      <div style={{ marginLeft: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span role="button" title="Zoom out" onClick={onZoomOut} style={pagerBtnStyle(scale <= 1)}>−</span>
+        <span
+          role="button"
+          title="Reset zoom"
+          onClick={onZoomReset}
+          style={{ font: `600 10.5px ${mono}`, color: 'var(--proto-muted)', cursor: 'pointer', padding: '0 4px', userSelect: 'none', minWidth: 36, textAlign: 'center' }}
+        >
+          {Math.round(scale * 100)}%
+        </span>
+        <span role="button" title="Zoom in" onClick={onZoomIn} style={pagerBtnStyle(scale >= 5)}>+</span>
+      </div>
     </div>
   );
 }

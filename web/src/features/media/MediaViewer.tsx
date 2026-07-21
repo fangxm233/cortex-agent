@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { fetchFileObjectUrl } from '@/lib/files';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
 import { useDownloadFile } from './useDownloadFile';
+import { useZoom } from './useZoom';
 import type { MediaKind } from './media-kind';
 
 // Shared full-screen media lightbox (modal) — the single previewer for every image/video surface on
@@ -36,6 +37,7 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
   const [src, setSrc] = useState<string | null>(item.url ?? null);
   const [failed, setFailed] = useState(false);
   const dl = useDownloadFile();
+  const { containerRef, style: zoomStyle, isZoomed, resetZoom } = useZoom({ mode: 'transform', minScale: 1, maxScale: 8 });
 
   useEffect(() => {
     if (item.url) {
@@ -100,7 +102,7 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
       role="dialog"
       aria-modal="true"
       aria-label={item.name}
-      onClick={onClose}
+      onClick={() => { if (!isZoomed) onClose(); else resetZoom(); }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -169,8 +171,8 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
 
       {/* Media stage — click-through inner wrapper stops close on the media itself. */}
       <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '94vw', maxHeight: '84vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        onClick={(e) => { e.stopPropagation(); if (!isZoomed) return; /* don't close when panning */ }}
+        style={{ maxWidth: '94vw', maxHeight: '84vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
       >
         {failed ? (
           <div style={{ color: 'var(--proto-faint)', font: `500 12px ${mono}` }}>Failed to load {item.name}</div>
@@ -185,11 +187,14 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
             style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 10, background: '#000' }}
           />
         ) : (
-          <img
-            src={src}
-            alt={item.name}
-            style={{ maxWidth: '94vw', maxHeight: '84vh', objectFit: 'contain', borderRadius: 10 }}
-          />
+          <div ref={containerRef} style={{ ...zoomStyle, display: 'inline-block' }}>
+            <img
+              src={src}
+              alt={item.name}
+              draggable={false}
+              style={{ maxWidth: '94vw', maxHeight: '84vh', objectFit: 'contain', borderRadius: 10, display: 'block' }}
+            />
+          </div>
         )}
       </div>
 
