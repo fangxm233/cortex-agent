@@ -57,11 +57,16 @@ export interface MThreadStepVm {
   hasConnector: boolean;
   /** Present only on the running step (its expanded agent-flow box). */
   agent?: MThreadStepAgent;
+  /** The agent session backing this step — its transcript is the expandable chat content.
+   *  Null for pending steps that have not started yet (no session). */
+  sessionId: string | null;
 }
 
 export interface MThreadArtifactVm {
   filename: string;
   meta: string;
+  /** Workspace-relative path for the file download API (`workspace/threads/<id>/artifact.md`). */
+  wsRelPath: string;
 }
 
 export interface MThreadDetailVm {
@@ -174,14 +179,17 @@ export function buildMThreadDetailVm(
       time,
       hasConnector: i < lastIndex,
       agent,
+      sessionId: s.sessionId ?? null,
     };
   });
 
   const artifacts: MThreadArtifactVm[] = [];
   if (detail.artifacts.artifactPath) {
+    const fname = basename(detail.artifacts.artifactPath);
     artifacts.push({
-      filename: basename(detail.artifacts.artifactPath),
+      filename: fname,
       meta: relTimeZh(detail.updatedAt, now),
+      wsRelPath: `workspace/threads/${detail.id}/${fname}`,
     });
   }
 

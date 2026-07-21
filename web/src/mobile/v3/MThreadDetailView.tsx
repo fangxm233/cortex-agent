@@ -4,10 +4,11 @@
 // meta line, the vertical PIPELINE step list (collapsed done / expanded running agent-flow / faint
 // pending), the 产物 refs card, and a footer (暂停 inert + 取消 + Σ cost). Prop-driven so it render-tests
 // without tRPC. Reuses the kit chrome (MScreen/MMoreButton/MPill/statusPillTone/MDot/MC/MONO).
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { MScreen, MMoreButton, MPill, statusPillTone, MDot, MC, MONO, type PillTone } from '@/mobile/ui/kit';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
-import type { MThreadDetailVm, MThreadStepVm } from './m-thread-detail-vm';
+import { ThreadStepChat } from '@/features/thread/ThreadStepChat';
+import type { MThreadDetailVm, MThreadStepVm, MThreadArtifactVm } from './m-thread-detail-vm';
 
 export interface MThreadDetailCopy {
   pause: string;
@@ -172,30 +173,45 @@ function AgentBox({ agent }: { agent: NonNullable<MThreadStepVm['agent']> }) {
   );
 }
 
-function StepRow({ step, copy }: { step: MThreadStepVm; copy: MThreadDetailCopy }) {
+function StepRow({ step, copy, selected, onSelect }: { step: MThreadStepVm; copy: MThreadDetailCopy; selected: boolean; onSelect: () => void }) {
   const active = step.kind === 'running';
+  const expanded = selected && (step.kind === 'done' || step.kind === 'running');
   const nameColor = active ? MC.ink : step.kind === 'done' ? MC.sub : MC.faint;
   const timeLabel = step.kind === 'pending' ? copy.pending : step.time;
+  const tappable = step.kind !== 'pending';
   return (
     <>
       <StepDotColumn kind={step.kind} hasConnector={step.hasConnector} />
-      <div style={{ paddingBottom: step.hasConnector ? 9 : 4, minWidth: 0 }}>
+      <div
+        onClick={tappable ? onSelect : undefined}
+        style={{ paddingBottom: step.hasConnector ? 9 : 4, minWidth: 0, cursor: tappable ? 'pointer' : undefined }}
+      >
         <div style={{ display: 'flex', alignItems: 'baseline' }}>
-          <span style={{ fontSize: 11.5, fontWeight: active ? 600 : 500, color: nameColor }}>{step.name}</span>
-          {step.note && <span style={{ fontSize: 9, color: 'var(--proto-muted-3)', marginLeft: 6 }}>{step.note}</span>}
+          <span style={{ fontSize: 11.5, fontWeight: active || selected ? 600 : 500, color: selected ? MC.ink : nameColor }}>{step.name}</span>
+          {step.note && !expanded && <span style={{ fontSize: 9, color: 'var(--proto-muted-3)', marginLeft: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{step.note}</span>}
           {timeLabel && (
-            <span style={{ marginLeft: 'auto', font: `400 9px ${MONO}`, color: active ? MC.run : MC.faint }}>
+            <span style={{ marginLeft: 'auto', font: `400 9px ${MONO}`, color: active ? MC.run : MC.faint, flex: 'none' }}>
               {timeLabel}
             </span>
           )}
+          {tappable && (
+            <span style={{ color: MC.faint, fontSize: 8, flex: 'none', marginLeft: 4, transform: expanded ? 'rotate(90deg)' : undefined, transition: 'transform .15s' }}>▸</span>
+          )}
         </div>
-        {step.agent && <AgentBox agent={step.agent} />}
+        {/* Running step: live agent box (always shown when selected) */}
+        {step.agent && selected && <AgentBox agent={step.agent} />}
+        {/* Done step: full session transcript when expanded */}
+        {step.kind === 'done' && selected && step.sessionId && (
+          <div style={{ border: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)', borderRadius: 9, padding: '9px 11px', marginTop: 6, overflow: 'hidden', maxHeight: 400, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <ThreadStepChat sessionId={step.sessionId} live={false} />
+          </div>
+        )}
       </div>
     </>
   );
 }
 
-function ArtifactsCard({ vm, copy }: { vm: MThreadDetailVm; copy: MThreadDetailCopy }) {
+function ArtifactsCard({ vm, copy, onArtifactClick }: { vm: MThreadDetailVm; copy: MThreadDetailCopy; onArtifactClick?: (artifact: MThreadArtifactVm) => void }) {
   return (
     <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 12, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', padding: '9px 13px', borderBottom: '1px solid var(--proto-line-2)' }}>
@@ -208,17 +224,20 @@ function ArtifactsCard({ vm, copy }: { vm: MThreadDetailVm; copy: MThreadDetailC
         vm.artifacts.map((a, i) => (
           <div
             key={i}
+            onClick={onArtifactClick ? () => onArtifactClick(a) : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 9,
               padding: '9px 13px',
               borderBottom: i < vm.artifacts.length - 1 ? '1px solid var(--proto-alt)' : undefined,
+              cursor: onArtifactClick ? 'pointer' : undefined,
             }}
           >
             <FileGlyph />
             <span style={{ font: `500 12px ${MONO}`, color: MC.body }}>{a.filename}</span>
             <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: MC.faint }}>{a.meta}</span>
+            {onArtifactClick && <span style={{ color: MC.run, fontSize: 8, flex: 'none' }}>▸</span>}
           </div>
         ))
       )}
@@ -305,13 +324,21 @@ export function MThreadDetailView({
   onBack,
   onMore,
   onCancel,
+  onArtifactClick,
 }: {
   vm: MThreadDetailVm;
   copy: MThreadDetailCopy;
   onBack: () => void;
   onMore: () => void;
   onCancel: () => void;
+  onArtifactClick?: (artifact: MThreadArtifactVm) => void;
 }): ReactNode {
+  // Default selection follows the running step, else the last step for terminal threads.
+  const runningIdx = vm.steps.findIndex((s) => s.kind === 'running');
+  const defaultIdx = runningIdx >= 0 ? runningIdx : vm.steps.length - 1;
+  const [manualIdx, setManualIdx] = useState<number | null>(null);
+  const selectedIdx = manualIdx ?? defaultIdx;
+
   return (
     <MScreen
       label="1g 线程详情"
@@ -329,13 +356,19 @@ export function MThreadDetailView({
         <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 12, padding: '11px 13px 7px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '15px 1fr', columnGap: 8 }}>
             {vm.steps.map((step, i) => (
-              <StepRow key={i} step={step} copy={copy} />
+              <StepRow
+                key={i}
+                step={step}
+                copy={copy}
+                selected={i === selectedIdx}
+                onSelect={() => setManualIdx(i === selectedIdx ? -1 : i)}
+              />
             ))}
           </div>
         </div>
 
         {/* 产物 */}
-        <ArtifactsCard vm={vm} copy={copy} />
+        <ArtifactsCard vm={vm} copy={copy} onArtifactClick={onArtifactClick} />
         <div style={{ height: 4, flex: 'none' }} />
       </div>
     </MScreen>

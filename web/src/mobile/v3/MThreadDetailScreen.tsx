@@ -3,16 +3,18 @@
 // useThreadGetLiveSync; 取消 is the real threads.cancel mutation; 暂停 is inert (no pause backend op —
 // GAP). The ancestor breadcrumb trail rides in React Router location.state.trail (carried by 1c's
 // drill-down; honest — omitted when absent). Presentation + the pure VM live alongside (TDD).
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
+import { useDocViewer } from '@/features/media/DocViewer';
+import { docKindOf } from '@/features/media/doc-kind';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MThreadDetailView, type MThreadDetailCopy } from './MThreadDetailView';
-import { buildMThreadDetailVm, type MThreadTrailCrumb } from './m-thread-detail-vm';
+import { buildMThreadDetailVm, type MThreadTrailCrumb, type MThreadArtifactVm } from './m-thread-detail-vm';
 
 const COPY: { en: MThreadDetailCopy; zh: MThreadDetailCopy } = {
   en: {
@@ -73,6 +75,14 @@ export function MThreadDetailScreen() {
     }),
   );
 
+  const { openDoc } = useDocViewer();
+  const handleArtifactClick = useCallback((artifact: MThreadArtifactVm) => {
+    const kind = docKindOf(artifact.filename);
+    if (kind) {
+      openDoc({ kind, name: artifact.filename, path: artifact.wsRelPath });
+    }
+  }, [openDoc]);
+
   if (threadQuery.isPending) {
     return (
       <MScreen label="1g 线程详情">
@@ -108,6 +118,7 @@ export function MThreadDetailScreen() {
       onBack={() => navigate(-1)}
       onMore={() => { /* rename/export/archive menu — out of 1g scope */ }}
       onCancel={() => cancel.mutate({ threadId })}
+      onArtifactClick={handleArtifactClick}
     />
   );
 }

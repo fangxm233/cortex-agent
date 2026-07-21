@@ -26,7 +26,7 @@ function vm(over: Partial<MThreadDetailVm> = {}): MThreadDetailVm {
     elapsed: '04:12',
     cost: '$0.41',
     steps: [
-      { kind: 'done', name: 'collect', note: '8 seeds · metrics/*.json', time: '2m', hasConnector: true },
+      { kind: 'done', name: 'collect', note: '8 seeds · metrics/*.json', time: '2m', hasConnector: true, sessionId: 'sess_aaa' },
       {
         kind: 'running',
         name: 'recompute',
@@ -34,10 +34,11 @@ function vm(over: Partial<MThreadDetailVm> = {}): MThreadDetailVm {
         time: '02:07',
         hasConnector: true,
         agent: { turnLabel: 'turn 6 · sonnet', cost: '$0.09', lines: ['read metrics/seed.json', 'Δ success = +9.2pt'], text: 'read metrics/seed.json\nΔ success = +9.2pt', live: true },
+        sessionId: 'sess_bbb',
       },
-      { kind: 'pending', name: 'report', note: '', time: '', hasConnector: false },
+      { kind: 'pending', name: 'report', note: '', time: '', hasConnector: false, sessionId: null },
     ],
-    artifacts: [{ filename: 'audit-report.md', meta: '2 分钟' }],
+    artifacts: [{ filename: 'audit-report.md', meta: '2 分钟', wsRelPath: 'workspace/threads/thr_c3a1/audit-report.md' }],
     artifactCount: 1,
     ...over,
   };
