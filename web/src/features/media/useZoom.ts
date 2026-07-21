@@ -227,7 +227,7 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
   const style: React.CSSProperties =
     mode === 'transform'
       ? { transform: `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.scale})`, transformOrigin: '0 0', touchAction: 'none' }
-      : { transform: `scale(${zoom.scale})`, transformOrigin: 'top center' };
+      : { transform: `scale(${zoom.scale})`, transformOrigin: 'top left' };
 
   return {
     containerRef,
