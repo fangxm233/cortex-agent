@@ -9,13 +9,16 @@ import type {
 } from '@cortex-agent/ui-contract';
 import { MDaemonView, type MDaemonCopy } from './MDaemonView';
 import { buildDaemonVm } from './m-daemon-vm';
+import type { ConnectionStatus } from '@/features/connection/connection-status';
 
 const NOW = new Date('2026-07-15T12:00:00Z').getTime();
 
 const copy: MDaemonCopy = {
   title: 'Daemon',
-  statusOk: '运行正常',
-  statusErr: '连接异常',
+  connConnected: '已连接',
+  connConnecting: '连接中',
+  connReconnecting: '正在重连',
+  connDisconnected: '已断开',
   threadsRunning: (n) => `${n} 线程运行中`,
   schedules: (n) => `schedules ${n}`,
   uptimeLabel: 'uptime',
@@ -66,6 +69,7 @@ function render(opts: {
   executions?: ExecutionInfo[];
   daemon?: SystemDaemonStatus | null;
   ok?: boolean;
+  connStatus?: ConnectionStatus;
   restartState?: 'idle' | 'pending' | 'success' | 'error';
 }) {
   const vm = buildDaemonVm({
@@ -80,6 +84,7 @@ function render(opts: {
     <MDaemonView
       vm={vm}
       copy={copy}
+      connStatus={opts.connStatus ?? 'connected'}
       restartState={opts.restartState ?? 'idle'}
       onBack={() => {}}
       onSoftRestart={() => {}}
@@ -92,16 +97,22 @@ const baseThreads = [thread(), thread({ id: 'thr_2', status: 'waiting' })];
 const baseScheds = [sched(), sched({ id: 's2' }), sched({ id: 's3' }), sched({ id: 's4' })];
 
 describe('MDaemonView', () => {
-  it('renders the drill header title and the 运行正常 pill when reachable', () => {
-    const html = render({ ok: true });
+  it('renders the drill header title and the 已连接 pill when the link is up', () => {
+    const html = render({ connStatus: 'connected' });
     expect(html).toContain('Daemon');
-    expect(html).toContain('运行正常');
+    expect(html).toContain('已连接');
   });
 
-  it('shows the 连接异常 pill when the daemon is unreachable', () => {
-    const html = render({ ok: false });
-    expect(html).toContain('连接异常');
-    expect(html).not.toContain('运行正常');
+  it('shows the 已断开 pill when the link is down', () => {
+    const html = render({ connStatus: 'disconnected' });
+    expect(html).toContain('已断开');
+    expect(html).not.toContain('已连接');
+  });
+
+  it('shows the 正在重连 pill (amber waiting tone) while the link reconnects', () => {
+    const html = render({ connStatus: 'reconnecting' });
+    expect(html).toContain('正在重连');
+    expect(html).toContain('var(--m-amber-bg)'); // MPill waiting tone bg
   });
 
   it('renders both process rows with the real counts summary line', () => {

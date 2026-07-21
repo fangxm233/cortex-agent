@@ -8,11 +8,16 @@ import { useRef, useState, type CSSProperties } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
 import type { MDaemonVm, MDaemonEvent, MDaemonProcess, MProcStatus } from './m-daemon-vm';
 import type { ExecutionInfo } from '@cortex-agent/ui-contract';
+import type { ConnectionStatus } from '@/features/connection/connection-status';
+import { mConnTone, mConnPulse } from './m-connection';
 
 export interface MDaemonCopy {
   title: string;
-  statusOk: string;
-  statusErr: string;
+  // Header pill: live UI<->server connectivity labels.
+  connConnected: string;
+  connConnecting: string;
+  connReconnecting: string;
+  connDisconnected: string;
   threadsRunning: (n: number) => string;
   schedules: (n: number) => string;
   /** Mono label prefix for the uptime metric (technical token, e.g. `uptime`). */
@@ -191,9 +196,19 @@ function EventRow({ ev, copy }: { ev: MDaemonEvent; copy: MDaemonCopy }) {
   );
 }
 
+// Header pill: live UI<->server connectivity — supersedes the former query-inferred ok/err pill.
+type MConnLabelKey = 'connConnected' | 'connConnecting' | 'connReconnecting' | 'connDisconnected';
+const CONN_LABEL: Record<ConnectionStatus, MConnLabelKey> = {
+  connected: 'connConnected',
+  connecting: 'connConnecting',
+  reconnecting: 'connReconnecting',
+  disconnected: 'connDisconnected',
+};
+
 export function MDaemonView({
   vm,
   copy,
+  connStatus,
   restartState,
   onBack,
   onSoftRestart,
@@ -201,6 +216,7 @@ export function MDaemonView({
 }: {
   vm: MDaemonVm;
   copy: MDaemonCopy;
+  connStatus: ConnectionStatus;
   restartState: RestartState;
   onBack: () => void;
   onSoftRestart: () => void;
@@ -214,11 +230,10 @@ export function MDaemonView({
           <span style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
             {copy.title}
           </span>
-          {vm.ok ? (
-            <MPill tone="done">{copy.statusOk}</MPill>
-          ) : (
-            <MPill tone="failed">{copy.statusErr}</MPill>
-          )}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            {mConnPulse(connStatus) && <MDot color={MC.amber} pulse />}
+            <MPill tone={mConnTone(connStatus)}>{copy[CONN_LABEL[connStatus]]}</MPill>
+          </span>
         </div>
       </MDrillHeader>
 

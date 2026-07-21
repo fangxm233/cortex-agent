@@ -11,14 +11,17 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { threadScopeFilter } from '@/features/workbench/scope';
+import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { MDaemonView, type MDaemonCopy, type RestartState } from './MDaemonView';
 import { buildDaemonVm } from './m-daemon-vm';
 
 const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
   en: {
     title: 'Daemon',
-    statusOk: 'Running',
-    statusErr: 'Unreachable',
+    connConnected: 'connected',
+    connConnecting: 'connecting',
+    connReconnecting: 'reconnecting',
+    connDisconnected: 'disconnected',
     threadsRunning: (n) => `${n} threads running`,
     schedules: (n) => `schedules ${n}`,
     uptimeLabel: 'uptime',
@@ -39,8 +42,10 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
   },
   zh: {
     title: 'Daemon',
-    statusOk: '运行正常',
-    statusErr: '连接异常',
+    connConnected: '已连接',
+    connConnecting: '连接中',
+    connReconnecting: '正在重连',
+    connDisconnected: '已断开',
     threadsRunning: (n) => `${n} 线程运行中`,
     schedules: (n) => `schedules ${n}`,
     uptimeLabel: 'uptime',
@@ -73,8 +78,10 @@ export function MDaemonScreen() {
   // Real per-process status (pid/port/uptime/liveness) + lastRestart — same query as the desktop 17a modal.
   const daemonQuery = useQuery(trpc.system.daemonStatus.queryOptions({}));
 
-  // Daemon reachability — implied by the queries succeeding (drives the header pill + fallback status).
+  // Daemon reachability — implied by the queries succeeding (drives the process-row fallback status).
   const ok = !threadsQuery.isError && !schedulesQuery.isError;
+  // Real UI<->server connectivity (SSE link) — drives the header pill (connected / (re)connecting / down).
+  const connStatus = useConnectionStatus();
 
   const vm = useMemo(
     () =>
@@ -109,6 +116,7 @@ export function MDaemonScreen() {
     <MDaemonView
       vm={vm}
       copy={copy}
+      connStatus={connStatus}
       restartState={restartState}
       onBack={() => navigate('/m/settings')}
       onSoftRestart={() => restartMut.mutate({ kind: 'soft' })}

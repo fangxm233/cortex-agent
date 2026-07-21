@@ -3,13 +3,17 @@
 // switcher + new-project card + footer. All numbers are supplied real by the container; this file only
 // lays out the scheme's raw chrome. GAPs are documented at the VM (m-project-vm.ts) and container.
 import type { CostSummary } from '@cortex-agent/ui-contract';
-import { MScreen, MTabHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, MScrollBody, MCard, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
+import type { ConnectionStatus } from '@/features/connection/connection-status';
+import { mConnTone, mConnPulse } from './m-connection';
 import type { MProjectSwitchRow } from './m-project-vm';
 
 export interface MProjectCopy {
   title: string;
   daemonConnected: string;
+  daemonConnecting: string;
+  daemonReconnecting: string;
   daemonDisconnected: string;
   current: string;
   threadsRunning: string;
@@ -55,8 +59,8 @@ export interface MProjectCurrent {
 
 export interface MProjectViewProps {
   copy: MProjectCopy;
-  /** Daemon connectivity — inferred honestly from a successful query (GAP: no dedicated health probe). */
-  connected: boolean;
+  /** Live UI<->server connectivity (SSE link) driving the header badge — real, not query-inferred. */
+  connStatus: ConnectionStatus;
   current: MProjectCurrent | null;
   /** GLOBAL pending approvals — drives the amber bar visibility (shown only when > 0). */
   pendingApprovals: number;
@@ -73,15 +77,23 @@ export interface MProjectViewProps {
   onNewProject: () => void;
 }
 
-// Daemon status (header trailing): green var(--proto-success) dot + text; neutral gray when disconnected.
-function DaemonStatus({ connected, copy }: { connected: boolean; copy: MProjectCopy }) {
-  const color = connected ? MC.done : MC.muted;
+// Daemon status (header trailing): live UI<->server connectivity — green connected / amber pulsing
+// (re)connecting / red disconnected dot + text (replaces the former binary query-inferred green/gray).
+const CONN_LABEL: Record<ConnectionStatus, keyof MProjectCopy> = {
+  connected: 'daemonConnected',
+  connecting: 'daemonConnecting',
+  reconnecting: 'daemonReconnecting',
+  disconnected: 'daemonDisconnected',
+};
+function DaemonStatus({ status, copy }: { status: ConnectionStatus; copy: MProjectCopy }) {
+  const tone = mConnTone(status);
+  const color = tone === 'done' ? MC.done : tone === 'failed' ? MC.fail : MC.amber;
   return (
     <span
       style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color, fontWeight: 600 }}
     >
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
-      {connected ? copy.daemonConnected : copy.daemonDisconnected}
+      <MDot color={color} pulse={mConnPulse(status)} />
+      {copy[CONN_LABEL[status]]}
     </span>
   );
 }
@@ -407,12 +419,12 @@ function SwitchRow({
 }
 
 export function MProjectView(props: MProjectViewProps) {
-  const { copy, connected, current, pendingApprovals, issues, onlineMachines, switchRows } = props;
+  const { copy, connStatus, current, pendingApprovals, issues, onlineMachines, switchRows } = props;
   return (
     <MScreen
       label="1e 项目"
       header={
-        <MTabHeader title={copy.title} trailing={<DaemonStatus connected={connected} copy={copy} />} />
+        <MTabHeader title={copy.title} trailing={<DaemonStatus status={connStatus} copy={copy} />} />
       }
     >
       <MScrollBody gap={10}>

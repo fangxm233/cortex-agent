@@ -19,6 +19,7 @@ import { MNotificationProvider } from './v3/MNotificationProvider';
 import { MHotUpdateProvider } from './v3/MHotUpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
+import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
 import { useViewportHeight } from './use-viewport-height';
 
 export function MobileShell() {
@@ -43,6 +44,7 @@ export function MobileShell() {
   const showTabBar = isTabRoute(location.pathname);
 
   return (
+    <ConnectionStatusProvider>
     <MobileProjectProvider>
       <MediaViewerProvider>
       <DocViewerProvider>
@@ -79,5 +81,6 @@ export function MobileShell() {
       </DocViewerProvider>
       </MediaViewerProvider>
     </MobileProjectProvider>
+    </ConnectionStatusProvider>
   );
 }

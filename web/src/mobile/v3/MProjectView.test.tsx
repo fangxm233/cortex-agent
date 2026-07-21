@@ -6,7 +6,9 @@ import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProj
 const copy: MProjectCopy = {
   title: '项目',
   daemonConnected: 'daemon 已连接',
-  daemonDisconnected: 'daemon 未连接',
+  daemonConnecting: 'daemon 连接中',
+  daemonReconnecting: 'daemon 正在重连',
+  daemonDisconnected: 'daemon 已断开',
   current: '当前',
   threadsRunning: '线程运行中',
   needsYou: '需要你',
@@ -60,7 +62,7 @@ const noop = () => {};
 function baseProps(over: Partial<MProjectViewProps> = {}): MProjectViewProps {
   return {
     copy,
-    connected: true,
+    connStatus: 'connected',
     current: {
       id: 'nimbus',
       initials: 'NI',
@@ -106,11 +108,19 @@ describe('MProjectView', () => {
     expect(html).not.toContain('Issues');
   });
 
-  it('renders the header title + daemon-connected status (green var(--proto-success) dot, no qn tag)', () => {
+  it('renders the header title + daemon-connected status (green var(--m-done) dot, no qn tag)', () => {
     const html = render();
     expect(html).toContain('项目');
     expect(html).toContain('daemon 已连接');
     expect(html).toContain('var(--m-done)');
+  });
+
+  it('shows the reconnecting state (amber pulsing dot) when the link is reconnecting', () => {
+    const html = render({ connStatus: 'reconnecting' });
+    expect(html).toContain('daemon 正在重连');
+    expect(html).toContain('var(--m-amber)');
+    expect(html).toContain('cxpulse'); // dot pulses while (re)connecting
+    expect(html).not.toContain('daemon 已连接');
   });
 
   it('renders the current-project card: name (=id), 当前 badge, real thread + needs-you sub-line', () => {
@@ -189,9 +199,10 @@ describe('MProjectView', () => {
     expect(html).not.toContain('点行即切换');
   });
 
-  it('shows the disconnected daemon state honestly when not connected', () => {
-    const html = render({ connected: false });
-    expect(html).toContain('daemon 未连接');
+  it('shows the disconnected daemon state (red dot) when the link is down', () => {
+    const html = render({ connStatus: 'disconnected' });
+    expect(html).toContain('daemon 已断开');
+    expect(html).toContain('var(--m-fail)');
     expect(html).not.toContain('daemon 已连接');
   });
 });

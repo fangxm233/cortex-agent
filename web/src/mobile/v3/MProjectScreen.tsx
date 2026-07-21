@@ -4,9 +4,9 @@
 // (unscoped → per-project counts), approvals.list (pending), machines.list.
 //
 // REAL-vs-GAP field map (honest):
-//  · Header daemon status  → connected = projects.list did not error (a successful query implies the
-//    daemon is reachable). GAP: no dedicated health probe surfaced here (system.daemonStatus exists but
-//    isn't wired into this tab) — inferred, not measured.
+//  · Header daemon status  → REAL live UI<->server connectivity (useConnectionStatus, the tRPC SSE
+//    link state): green connected / amber (re)connecting / red disconnected — no longer inferred from a
+//    query succeeding.
 //  · Current name/avatar   → REAL: project id (ProjectConduitInfo has no display name) + projectInitials.
 //  · 线程运行中 / 线程暂停等待 → REAL: threads.list filtered by projectId + status (running / waiting).
 //  · N 需要你 / 审批 · N 待处理 → GLOBAL pending-approval count. GAP: ApprovalInfo has no projectId, so
@@ -27,6 +27,7 @@ import { projectInitials } from '@/features/workbench/session-groups';
 import { unreadCountByProject } from '@/features/workbench/project-menu';
 import { lastActivityByProject } from '@/features/workbench/left-rail-projects';
 import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
+import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { useMobileProject } from '@/mobile/current-project';
 import { MProjectView, type MProjectCopy } from './MProjectView';
 import { threadCountsForProject, onlineMachineCount, buildProjectSwitchRows } from './m-project-vm';
@@ -37,7 +38,9 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   en: {
     title: 'Projects',
     daemonConnected: 'daemon connected',
-    daemonDisconnected: 'daemon offline',
+    daemonConnecting: 'daemon connecting',
+    daemonReconnecting: 'daemon reconnecting',
+    daemonDisconnected: 'daemon disconnected',
     current: 'Current',
     threadsRunning: 'running',
     needsYou: 'need you',
@@ -63,7 +66,9 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   zh: {
     title: '项目',
     daemonConnected: 'daemon 已连接',
-    daemonDisconnected: 'daemon 未连接',
+    daemonConnecting: 'daemon 连接中',
+    daemonReconnecting: 'daemon 正在重连',
+    daemonDisconnected: 'daemon 已断开',
     current: '当前',
     threadsRunning: '线程运行中',
     needsYou: '需要你',
@@ -140,8 +145,8 @@ export function MProjectScreen() {
     [issueEntries],
   );
   const onlineMachines = onlineMachineCount(machines);
-  // Honest daemon signal: a successful projects query implies the daemon answered.
-  const connected = !projectsQuery.isError;
+  // Real UI<->server connectivity (SSE link) — supersedes the former query-inferred boolean.
+  const connStatus = useConnectionStatus();
 
   const current = useMemo(() => {
     if (!currentProjectId) return null;
@@ -202,7 +207,7 @@ export function MProjectScreen() {
     <>
       <MProjectView
         copy={copy}
-        connected={connected}
+        connStatus={connStatus}
         current={current}
         pendingApprovals={pendingApprovals}
         issues={issues}
