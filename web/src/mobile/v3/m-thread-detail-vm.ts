@@ -39,6 +39,8 @@ export interface MThreadStepAgent {
   cost: string;
   /** agent-flow lastOutput split into non-empty lines (mono feed box). */
   lines: string[];
+  /** Raw agent-flow lastOutput text for markdown rendering. */
+  text: string;
   /** true while the backing thread is still running (drives the pulsing feed dot). */
   live: boolean;
 }
@@ -160,6 +162,7 @@ export function buildMThreadDetailVm(
         turnLabel: s.numTurns != null ? `turn ${s.numTurns} · ${profile}` : profile,
         cost: s.costUsd != null ? `$${s.costUsd.toFixed(2)}` : '',
         lines: output.split('\n').map((l) => l.trim()).filter(Boolean),
+        text: output,
         live,
       };
     }

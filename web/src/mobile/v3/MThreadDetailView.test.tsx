@@ -33,7 +33,7 @@ function vm(over: Partial<MThreadDetailVm> = {}): MThreadDetailVm {
         note: '',
         time: '02:07',
         hasConnector: true,
-        agent: { turnLabel: 'turn 6 · sonnet', cost: '$0.09', lines: ['read metrics/seed.json', 'Δ success = +9.2pt'], live: true },
+        agent: { turnLabel: 'turn 6 · sonnet', cost: '$0.09', lines: ['read metrics/seed.json', 'Δ success = +9.2pt'], text: 'read metrics/seed.json\nΔ success = +9.2pt', live: true },
       },
       { kind: 'pending', name: 'report', note: '', time: '', hasConnector: false },
     ],

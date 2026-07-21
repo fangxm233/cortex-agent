@@ -6,6 +6,7 @@
 // without tRPC. Reuses the kit chrome (MScreen/MMoreButton/MPill/statusPillTone/MDot/MC/MONO).
 import type { ReactNode } from 'react';
 import { MScreen, MMoreButton, MPill, statusPillTone, MDot, MC, MONO, type PillTone } from '@/mobile/ui/kit';
+import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import type { MThreadDetailVm, MThreadStepVm } from './m-thread-detail-vm';
 
 export interface MThreadDetailCopy {
@@ -156,27 +157,15 @@ function StepDotColumn({ kind, hasConnector }: { kind: MThreadStepVm['kind']; ha
 
 function AgentBox({ agent }: { agent: NonNullable<MThreadStepVm['agent']> }) {
   return (
-    <div style={{ border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-rail)', borderRadius: 9, padding: '9px 11px', marginTop: 6 }}>
+    <div style={{ border: '1px solid var(--proto-accent-bg)', background: 'var(--proto-rail)', borderRadius: 9, padding: '9px 11px', marginTop: 6, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>
         {agent.live && <MDot color={MC.run} size={5} pulse />}
         <span>{agent.turnLabel}</span>
         {agent.cost && <span style={{ marginLeft: 'auto' }}>{agent.cost}</span>}
       </div>
-      {agent.lines.length > 0 && (
-        <div style={{ font: `400 10px/1.75 ${MONO}`, color: MC.sub, marginTop: 6, overflow: 'hidden' }}>
-          {agent.lines.map((line, i) => (
-            <div
-              key={i}
-              style={{
-                whiteSpace: 'nowrap',
-                textOverflow: 'ellipsis',
-                overflow: 'hidden',
-                color: i === agent.lines.length - 1 ? MC.ink : undefined,
-              }}
-            >
-              {line}
-            </div>
-          ))}
+      {agent.text && (
+        <div style={{ fontSize: 11, lineHeight: 1.65, color: MC.sub, marginTop: 6, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+          <ChatMarkdown text={agent.text} />
         </div>
       )}
     </div>
@@ -190,7 +179,7 @@ function StepRow({ step, copy }: { step: MThreadStepVm; copy: MThreadDetailCopy 
   return (
     <>
       <StepDotColumn kind={step.kind} hasConnector={step.hasConnector} />
-      <div style={{ paddingBottom: step.hasConnector ? 9 : 4 }}>
+      <div style={{ paddingBottom: step.hasConnector ? 9 : 4, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline' }}>
           <span style={{ fontSize: 11.5, fontWeight: active ? 600 : 500, color: nameColor }}>{step.name}</span>
           {step.note && <span style={{ fontSize: 9, color: 'var(--proto-muted-3)', marginLeft: 6 }}>{step.note}</span>}
