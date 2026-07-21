@@ -101,8 +101,10 @@ function TierPill({ copy, operation }: { copy: MApprovalsCopy; operation: string
         borderRadius: 999,
         background: MC.amberBg,
         color: MC.amberInk,
-        flex: 'none',
+        minWidth: 0,
         whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
       }}
     >
       {copy.tier} · {operation}
@@ -133,7 +135,7 @@ function ExpandedCard({
     >
       <div style={{ padding: '12px 14px 0' }}>
         {/* meta row: tier pill + real id + real relative time (scheme L368) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
           {card.operation && <TierPill copy={copy} operation={card.operation} />}
           <span
             style={{
@@ -261,7 +263,7 @@ function CollapsedCard({
     .join(' · ');
   return (
     <MCard radius={14} padding="11px 14px" onClick={() => onExpand(card.id)}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, overflow: 'hidden' }}>
         {card.operation && <TierPill copy={copy} operation={card.operation} />}
         <span
           style={{
