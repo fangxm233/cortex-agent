@@ -31,7 +31,10 @@ describe('threadCountsForProject', () => {
       thread({ projectId: 'atlas', status: 'running' }),
       thread({ projectId: 'nimbus', status: 'completed' }),
     ];
-    expect(threadCountsForProject(threads, 'nimbus')).toEqual({ running: 2, waiting: 1 });
+    // `running` counts ACTIVE threads (running + waiting) to match the desktop sibling
+    // `runningCountByProject` (workbench/project-menu): 2 running + 1 waiting = 3 active;
+    // `waiting` is additionally reported on its own.
+    expect(threadCountsForProject(threads, 'nimbus')).toEqual({ running: 3, waiting: 1 });
   });
 
   it('returns zeros for a null current project (no fabrication)', () => {
