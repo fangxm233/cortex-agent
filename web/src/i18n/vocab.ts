@@ -156,6 +156,11 @@ export const en = {
   // ── Group J: desktop i18n migration (workbench / tasks / overview / settings) ──
   wbToday: 'today',
   wbDaemon: 'daemon',
+  // Daemon/connection badge (LeftRail header) — live UI↔server connectivity.
+  connConnected: 'connected',
+  connConnecting: 'connecting',
+  connReconnecting: 'reconnecting',
+  connDisconnected: 'disconnected',
   wbProfile: 'profile',
   wbIdle: 'idle',
   wbSwitchTo: 'Switch to',
@@ -690,6 +695,11 @@ export const zh: Record<keyof Vocab, string> = {
   // ── Group J: desktop i18n migration ──
   wbToday: '今日',
   wbDaemon: '守护进程',
+  // Daemon/connection badge (LeftRail header) — live UI↔server connectivity.
+  connConnected: '已连接',
+  connConnecting: '连接中',
+  connReconnecting: '正在重连',
+  connDisconnected: '已断开',
   wbProfile: '配置',
   wbIdle: '空闲',
   wbSwitchTo: '切换到',

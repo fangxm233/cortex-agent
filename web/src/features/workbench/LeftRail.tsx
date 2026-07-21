@@ -23,6 +23,8 @@ import { useVocab } from '@/i18n';
 import { useTheme, useSetTheme } from '@/theme';
 import { DaemonStatusModal } from './DaemonStatusModal';
 import { useSessionsLiveSync } from './useSessionsLiveSync';
+import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
+import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
 import { BUILD_STAMP } from '@/lib/build-info';
 
 // LEFT RAIL — 22a dual-zone rebuild (scheme.dc.html §22a, L37–150). Top zone: PROJECTS always
@@ -56,6 +58,11 @@ export function LeftRail(): JSX.Element {
   const theme = useTheme();
   const setTheme = useSetTheme();
   const L = useVocab();
+  // Live UI↔server connectivity for the daemon badge (green connected / amber (re)connecting /
+  // red disconnected) — replaces the former always-green hard-code.
+  const connStatus = useConnectionStatus();
+  const connDot = connectionDot(connStatus);
+  const connLabel = L[connectionLabelKey(connStatus)];
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
 
   // Active project = the shared cross-pane current project (task 569c): the explicit selection,
@@ -278,19 +285,28 @@ export function LeftRail(): JSX.Element {
         <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
         <div
           onClick={() => setDaemonOpen(true)}
+          title={L.dmDaemon}
           style={{
             marginLeft: 'auto',
             display: 'flex',
             alignItems: 'center',
             gap: 5,
             fontSize: 10,
-            color: 'var(--proto-success)',
+            color: connDot.color,
             fontWeight: 600,
             cursor: 'pointer',
           }}
         >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-success)' }} />
-          {L.wbDaemon}
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: connDot.color,
+              ...(connDot.pulse ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
+            }}
+          />
+          {connLabel}
         </div>
       </div>
 

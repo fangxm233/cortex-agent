@@ -11,6 +11,7 @@ import { NotificationProvider } from '@/features/notifications/NotificationProvi
 import { HotUpdateProvider } from '@/features/hot-update/HotUpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
+import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
 // frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
@@ -22,25 +23,27 @@ import { DocViewerProvider } from '@/features/media/DocViewer';
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
-    <CurrentProjectProvider>
-      <SelectedSessionProvider>
-        <ExecutionLogDrawerProvider>
-          <ScheduleModalProvider>
-            <ApprovalsProvider>
-              <IssuesProvider>
-                <MediaViewerProvider>
-                  <DocViewerProvider>
-                    <Outlet />
-                    <CommandPalette open={open} onOpenChange={setOpen} />
-                    <NotificationProvider />
-                    <HotUpdateProvider />
-                  </DocViewerProvider>
-                </MediaViewerProvider>
-              </IssuesProvider>
-            </ApprovalsProvider>
-          </ScheduleModalProvider>
-        </ExecutionLogDrawerProvider>
-      </SelectedSessionProvider>
-    </CurrentProjectProvider>
+    <ConnectionStatusProvider>
+      <CurrentProjectProvider>
+        <SelectedSessionProvider>
+          <ExecutionLogDrawerProvider>
+            <ScheduleModalProvider>
+              <ApprovalsProvider>
+                <IssuesProvider>
+                  <MediaViewerProvider>
+                    <DocViewerProvider>
+                      <Outlet />
+                      <CommandPalette open={open} onOpenChange={setOpen} />
+                      <NotificationProvider />
+                      <HotUpdateProvider />
+                    </DocViewerProvider>
+                  </MediaViewerProvider>
+                </IssuesProvider>
+              </ApprovalsProvider>
+            </ScheduleModalProvider>
+          </ExecutionLogDrawerProvider>
+        </SelectedSessionProvider>
+      </CurrentProjectProvider>
+    </ConnectionStatusProvider>
   );
 }
