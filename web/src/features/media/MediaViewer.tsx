@@ -169,10 +169,11 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
         </span>
       </div>
 
-      {/* Media stage — click-through inner wrapper stops close on the media itself. */}
+      {/* Media stage — touch target for zoom gestures covers full area; transform on inner wrapper. */}
       <div
-        onClick={(e) => { e.stopPropagation(); if (!isZoomed) return; /* don't close when panning */ }}
-        style={{ maxWidth: '94vw', maxHeight: '84vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+        ref={containerRef}
+        onClick={(e) => { e.stopPropagation(); if (!isZoomed) return; }}
+        style={{ maxWidth: '94vw', maxHeight: '84vh', width: '94vw', height: '84vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
       >
         {failed ? (
           <div style={{ color: 'var(--proto-faint)', font: `500 12px ${mono}` }}>Failed to load {item.name}</div>
@@ -187,7 +188,7 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
             style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 10, background: '#000' }}
           />
         ) : (
-          <div ref={containerRef} style={{ ...zoomStyle, display: 'inline-block' }}>
+          <div style={{ ...zoomStyle, display: 'inline-block' }}>
             <img
               src={src}
               alt={item.name}

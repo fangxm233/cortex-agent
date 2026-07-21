@@ -39,7 +39,9 @@ const ZOOM_STEP = 0.4;
 export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
   const { minScale = 1, maxScale = 5, mode = 'transform' } = opts;
   const [zoom, setZoom] = useState<ZoomState>({ scale: 1, x: 0, y: 0 });
-  const elRef = useRef<HTMLDivElement | null>(null);
+  // Store element in state so the effect re-runs when the element mounts/unmounts
+  // (fixes the case where the zoomable element renders conditionally after async load).
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
   // Keep latest zoom in a ref so event handlers always see current values without
   // the effect re-running (which would re-attach listeners on every frame).
   const zoomRef = useRef(zoom);
@@ -77,12 +79,9 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
 
   const resetZoom = useCallback(() => setZoom({ scale: 1, x: 0, y: 0 }), []);
 
-  const containerRef = useCallback((el: HTMLDivElement | null) => {
-    elRef.current = el;
-  }, []);
+  const containerRef = useCallback((node: HTMLDivElement | null) => { setEl(node); }, []);
 
   useEffect(() => {
-    const el = elRef.current;
     if (!el) return;
 
     // --- Wheel zoom (desktop) ---
@@ -223,7 +222,7 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
       el.removeEventListener('touchend', onTouchEnd);
       el.removeEventListener('touchend', onPanEnd);
     };
-  }, [clamp, mode]);
+  }, [el, clamp, mode]);
 
   const style: React.CSSProperties =
     mode === 'transform'
