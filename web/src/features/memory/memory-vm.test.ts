@@ -17,8 +17,8 @@ function tree(over: Partial<MemoryTree> = {}): MemoryTree {
       { name: 'STATUS.md', sizeBytes: 200, modifiedAt: '2026-07-02T00:00:00.000Z' },
     ],
     dirs: [
-      { name: 'experiments', entryCount: 23 },
-      { name: 'knowledge', entryCount: 12 },
+      { name: 'experiments', entryCount: 23, entries: [] },
+      { name: 'knowledge', entryCount: 12, entries: [] },
     ],
     ...over,
   };

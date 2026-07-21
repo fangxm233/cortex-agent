@@ -12,6 +12,7 @@ const QUERY_SCOPES = [
 const MUTATE_OPS = [
   'projects.create', 'sessions.create', 'sessions.send', 'sessions.cancel', 'sessions.setProfile',
   'sessions.createAndSend', 'sessions.markRead', 'sessions.answerQuestion', 'sessions.respondPlan',
+  'sessions.rewind',
   'threads.cancel', 'executions.cancel', 'schedules.pause', 'schedules.resume',
   'schedules.remove', 'schedules.add', 'tasks.claim', 'tasks.unclaim', 'tasks.complete',
   'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',

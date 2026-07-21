@@ -866,6 +866,12 @@ export interface MemoryDirEntry {
   name: string;
   /** Number of `*.md` entry files, excluding the auto-generated `index.md` and `CORTEX.md`. */
   entryCount: number;
+  /**
+   * The dir's `*.md` entry files (same filter as `entryCount` — excludes `index.md` / `CORTEX.md`),
+   * sorted by name. Lets a client enumerate + open the files under each memory dir (mobile 1j
+   * accordion) without a second round-trip. `entryCount === entries.length`.
+   */
+  entries: MemoryFileEntry[];
 }
 
 export interface MemoryTree {

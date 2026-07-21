@@ -45,8 +45,11 @@ proto-shots 11/12 show the right rail). Diffed vs `proto-shots/11-memory-exp.png
     with diff ON the body switches to the per-line blame pane (real hashes + refs); with diff OFF it renders
     the plain Markdown. When `blame` is `null` (not a git work tree / git unavailable / binary) the amber
     banner explains per-line blame is unavailable and the Markdown body is shown instead.
-  - **Dir contents** — `memory.tree` returns dir names + counts only (no entry list) → dirs are
-    non-selectable and their nested files are NOT enumerated (no dir-listing scope). Flagged gap.
+  - **Dir contents** — this desktop 7b viewer still treats dirs as **non-selectable** and does NOT
+    enumerate their nested files. NOTE: `memory.tree` now DOES carry each dir's real `.md` `entries`
+    list (added for the mobile 1j accordion, `mobile/v3/m-memory-vm`); the desktop viewer simply does
+    not consume it yet (it reads only `name`/`entryCount`). Adopting `entries` here to make dirs
+    expandable is a possible later enhancement — no fabrication either way.
 
 ## Notes
 

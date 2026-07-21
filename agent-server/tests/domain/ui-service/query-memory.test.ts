@@ -87,6 +87,17 @@ test('memory.tree lists real top-level files and memory dirs with entry counts',
   assert.equal(dirByName['knowledge'], 1);
   assert.equal(dirByName['decisions'], 1);
   assert.ok(!('patterns' in dirByName)); // patterns/ absent → omitted
+
+  // Each dir now enumerates its real .md entries (mobile 1j accordion), sorted, with entryCount === entries.length.
+  const experiments = tree.dirs.find((d) => d.name === 'experiments')!;
+  assert.deepEqual(
+    experiments.entries.map((e) => e.name),
+    ['EXP-001.md', 'EXP-002.md'], // index.md / CORTEX.md excluded, name-sorted
+  );
+  assert.equal(experiments.entryCount, experiments.entries.length);
+  const exp1 = experiments.entries.find((e) => e.name === 'EXP-001.md')!;
+  assert.equal(exp1.sizeBytes, Buffer.byteLength('exp1'));
+  assert.ok(typeof exp1.modifiedAt === 'string' && exp1.modifiedAt.length > 0);
 });
 
 // ── (2) file returns real content ────────────────────────────────────────────

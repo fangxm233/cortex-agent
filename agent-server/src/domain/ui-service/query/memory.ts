@@ -85,16 +85,22 @@ export async function handleMemoryTree(
 
   const dirs = MEMORY_DIRS.flatMap((name) => {
     const abs = path.join(root, name);
-    let entries: fs.Dirent[];
+    let dirents: fs.Dirent[];
     try {
-      entries = fs.readdirSync(abs, { withFileTypes: true });
+      dirents = fs.readdirSync(abs, { withFileTypes: true });
     } catch {
       return [];
     }
-    const entryCount = entries.filter(
-      (e) => e.isFile() && e.name.endsWith('.md') && e.name !== 'index.md' && e.name !== 'CORTEX.md',
-    ).length;
-    return [{ name, entryCount }];
+    const entries = dirents
+      .filter(
+        (e) => e.isFile() && e.name.endsWith('.md') && e.name !== 'index.md' && e.name !== 'CORTEX.md',
+      )
+      .map((e) => {
+        const st = fs.statSync(path.join(abs, e.name));
+        return { name: e.name, sizeBytes: st.size, modifiedAt: st.mtime.toISOString() };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return [{ name, entryCount: entries.length, entries }];
   });
 
   return { projectId: params.projectId, files, dirs };
