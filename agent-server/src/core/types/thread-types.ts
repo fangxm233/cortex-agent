@@ -364,6 +364,12 @@ export interface ThreadMetadata {
    *  task.completed / task.blocked events drain it; resume requires waitingOn AND
    *  waitingOnTasks both empty. Unlike thread children, task children survive restarts. */
   waitingOnTasks?: string[];
+  /** Stall marker for the wait-set deadlock guard: the computeStuckWaitSet key of the last
+   *  stall this manager was woken for. A waiting manager whose remaining awaited tasks are ALL
+   *  stuck behind blocked dependencies is woken once per distinct stall (wake-on-empty alone
+   *  would hang it forever); an identical stall never re-wakes — without this the periodic
+   *  sweep would wake it every cycle. Cleared on a normal (empty wait set) resume. */
+  stuckWakeKey?: string | null;
   /** Children whose results were already queued into pendingMessages — persistent
    *  idempotency for completion callbacks (survives restarts, unlike the in-memory fired set). */
   deliveredChildResults?: string[];

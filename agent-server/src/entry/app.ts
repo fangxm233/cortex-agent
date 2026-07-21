@@ -27,6 +27,7 @@ import { registerCommands } from '@orch/routing/commands/index.js';
 import { cancelChannelRuns } from '@orch/routing/commands/cancel.js';
 import { taskStore } from '@domain/tasks/store.js';
 import { taskMutator } from '@domain/tasks/mutator.js';
+import { recoverOrphanedClaims } from '@domain/tasks/claim-recovery.js';
 import { projectDirRepo } from '@store/project-dir-repo.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
@@ -530,6 +531,14 @@ process.on('SIGTERM', async () => {
   threadStore.load();
   await threadStore.markRunningAsFailedOnStartup();
   await threadStore.cleanup();
+
+  // Crash-orphan claim recovery: a dispatch claim whose owner died with the server keeps the
+  // task invisible to the dispatcher forever (claimed → not actionable → never re-dispatched),
+  // stranding it and any manager suspended on it. Runs after markRunningAsFailedOnStartup so
+  // surviving waiting/rate_limited threads still protect their claims; remote cortex-run tasks
+  // (status pending / pending-tracker) and manual claims are respected. Before scheduler.start
+  // so recovered tasks are back in the queue for the first dispatch cycle.
+  await recoverOrphanedClaims().catch((e) => log.error(`recoverOrphanedClaims failed: ${(e as Error).message}`));
 
   // --- Rate-limit recovery (ordered; must run after threadStore.load) ---
   // 1) hydrate the persisted resume queue. 2) Reconcile orphaned rate-limited threads: any thread

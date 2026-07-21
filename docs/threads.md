@@ -293,6 +293,12 @@ Terminal states: `completed`, `failed`, `cancelled`, `aborted`.
 
 Thread control is out-of-band: an agent signals its own thread by calling the `thread_abort`, `thread_split`, or `thread_wait` MCP tools, never by writing markers into the artifact (text mentioning those keywords in the artifact does nothing). The tool writes a structured `metadata.pendingControl` on the agent's own thread; the runner reads it after every step completion, with **higher priority than all transition rules**. `thread_abort({ kind, diagnosis })` immediately terminates the thread with status `aborted` (but `onEnd` hooks still fire); `thread_split({ subtasks })` proposes a decomposition of the owning dispatch task; `thread_wait` suspends until awaited children finish.
 
+### Suspension and Wake-up (thread_wait)
+
+A suspended manager waits on its child tasks (and any child threads). Each child that completes or blocks is delivered into the manager's `pendingMessages` as a result or escalation notice, and the manager is re-entered once nothing is left to wait on. Delivery is event-driven (`task.completed` / `task.blocked`, verified against `TASKS.yaml` before delivery), backed by two safety nets: a periodic disk-driven sweep (every 60 seconds, configurable via `CORTEX_WAITING_SWEEP_MS`) that reconciles every waiting manager against on-disk task state, and a startup recovery pass that re-delivers results that turned terminal while the server was down. Open child tasks survive restarts and stay awaited.
+
+Blocking a task does not cascade to its dependents, so a wait set can reach a state where every remaining awaited task depends — directly or transitively — on a blocked task and can never start. The wake path detects this stall and wakes the manager with a deadlock notice naming the stuck tasks and their blockers; the manager is expected to unblock, re-plan the decomposition, or escalate via `thread_abort`. Each distinct stall wakes the manager exactly once — an unchanged stall never re-wakes it.
+
 ### thread_wait Checkpoint Gate (DR-0017)
 
 Before a manager suspends via `thread_wait`, it must leave a fresh checkpoint for its (possibly rotated) next incarnation. The runner enforces this with a **checkpoint gate**:

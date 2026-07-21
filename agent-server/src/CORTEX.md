@@ -26,7 +26,7 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 |---|---|
 | `agents/` | `config.ts` `facade.ts` `profile-manager.ts` `index.ts` |
 | `sessions/` | `session.ts` `session-registry.ts` `session-backup.ts` `session-hooks.ts` (unified onNew/onMessageEnd hook pipeline — spawn + OutputStream display + optional agent injection) |
-| `tasks/` | `parser.ts` `lint.ts` `archiver.ts` `dispatcher.ts` `dispatch-utils.ts` `pending-tracker.ts` `store.ts` `recommendation/` `system/` |
+| `tasks/` | `parser.ts` `lint.ts` `archiver.ts` `dispatcher.ts` `dispatch-utils.ts` `pending-tracker.ts` `claim-recovery.ts` `store.ts` `recommendation/` `system/` |
 | `executions/` | `registry.ts` |
 | `costs/` | `cost-tracker.ts` `gateway-manager.ts` `rate-limit-parser.ts` `rate-limit-throttle.ts` `resume-registry.ts` (records sessions/threads interrupted by a rate limit, for auto-resume) `codex-usage-monitor.ts` `codex-event-format.ts` |
 | `scheduling/` | `scheduler.ts` `runner.ts` `job-registry.ts` `schedule-command.ts` `schedule-cli.ts` `jobs/` (includes `target-dispatch.ts` 4-way fresh/channel/session/thread decision) |

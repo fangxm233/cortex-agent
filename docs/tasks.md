@@ -157,7 +157,9 @@ The task dispatch system has an automatic quarantine mechanism: if a dispatched 
 
 ## Stale Claim Detection
 
-The 3-day rule: if a task has been `claimed_by` an agent for more than 3 days without completion, it is considered a stale/orphan claim and should be investigated. This is a manual convention, not currently auto-enforced in code.
+At startup, the server reconciles dispatcher claims against their owners. A task claimed by `task-dispatcher` whose execution did not survive the restart is automatically unclaimed and returns to the dispatch queue. Claims with a surviving owner are left in place: a suspended manager thread waiting on children, a rate-limit-paused thread awaiting auto-resume, and a remote `cortex-run` tracked by the pending task tracker all legitimately hold their claim across restarts. Manual claims (any `claimed_by` other than `task-dispatcher`) are never touched.
+
+The 3-day rule: if a task has been `claimed_by` an agent for more than 3 days without completion, it is considered a stale/orphan claim and should be investigated. This manual convention covers the claims the automatic reconciliation deliberately respects, such as manual claims.
 
 Separately, the pending task tracker has a 4-hour timeout for dispatched tasks on remote machines — if a dispatched task hasn't reported back within 4 hours, its tracking state is cleared.
 
