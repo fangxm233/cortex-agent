@@ -4,7 +4,7 @@ import { useTRPC } from '@/lib/trpc';
 import { TasksPanel } from '@/features/tasks/TasksPanel';
 import { RightThreadCard } from './RightThreadCard';
 import { RightMachinesTab } from './RightMachinesTab';
-import { actionableCount, formatCost } from './right-panel-vm';
+import { actionableCount, formatCost, onlineMachineCount } from './right-panel-vm';
 import { threadScopeFilter, type Scope } from './scope';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
 import { useCurrentProject } from './CurrentProjectProvider';
@@ -84,7 +84,8 @@ export function RightPanel(): JSX.Element {
   const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
   const activeThreadCount = activeThreadsQuery.data?.length ?? 0;
   const actionable = openTasksQuery.data ? actionableCount(openTasksQuery.data) : 0;
-  const machineCount = machinesQuery.data?.length ?? 0;
+  // Machines tab badge = ONLINE machines, not the total in the registry (task: show online count).
+  const machineCount = onlineMachineCount(machinesQuery.data);
 
   // Threads list for the current Active/History filter (project-scoped).
   const threadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter(filter), projectId }));
