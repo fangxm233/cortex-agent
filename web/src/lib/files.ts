@@ -89,3 +89,23 @@ export async function downloadFile(relPath: string, fileName?: string): Promise<
 export async function copyFilePath(relPath: string): Promise<void> {
   try { await navigator.clipboard.writeText(relPath); } catch { /* clipboard blocked — no-op */ }
 }
+
+/**
+ * Open a saved file with the OS default application (desktop download-complete toast "Open file"
+ * action). Native shell only — invokes the `open_path` Tauri command with the absolute path that
+ * `save_download` returned. A no-op off-shell (a plain browser cannot open a local file path). */
+export async function openPath(absPath: string): Promise<void> {
+  const core = isNativeShell() ? tauriCore() : undefined;
+  if (!core) return;
+  await core.invoke('open_path', { path: absPath });
+}
+
+/**
+ * Reveal a saved file in the OS file manager — opens its containing folder, selecting the file where
+ * the platform supports it (desktop toast "Open folder" action). Native shell only — invokes the
+ * `reveal_path` Tauri command. A no-op off-shell. */
+export async function revealPath(absPath: string): Promise<void> {
+  const core = isNativeShell() ? tauriCore() : undefined;
+  if (!core) return;
+  await core.invoke('reveal_path', { path: absPath });
+}

@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import { useToastOptional } from '@/design';
+import type { ToastAction } from '@/design';
 import { useVocabOptional } from '@/i18n';
-import { downloadFile } from '@/lib/files';
+import { downloadFile, openPath, revealPath } from '@/lib/files';
 import { isMobileShell } from '@/lib/desktop-config';
 
 // input:  a UI-relative `workspace/…` file path (+ optional display name)
@@ -34,14 +35,24 @@ export function useDownloadFile(): (relPath: string, name?: string) => void {
         const fallbackName = name ?? relPath.split('/').pop() ?? relPath;
         try {
           const { savedPath } = await downloadFile(relPath, name);
+          // Desktop native shell returns the absolute on-disk path → offer Open file / Open folder
+          // actions (they invoke the `open_path` / `reveal_path` Tauri commands). The browser has no
+          // observable location, so it just shows the file name with no actions.
+          const actions: ToastAction[] | undefined = savedPath
+            ? [
+                { label: L.wbFileOpenFile, onClick: () => void openPath(savedPath) },
+                { label: L.wbFileOpenFolder, onClick: () => void revealPath(savedPath) },
+              ]
+            : undefined;
           toastCtx?.toast({
             title: L.wbFileDownloadDone,
-            // Desktop native shell returns the absolute path; browser has no observable location,
-            // so fall back to the file name.
             description: savedPath
               ? L.wbFileSavedTo.replace('{path}', savedPath)
               : fallbackName,
             tone: 'done',
+            // Give the user time to reach the action buttons (Radix pauses the timer on hover/focus).
+            duration: actions ? 10_000 : undefined,
+            actions,
           });
         } catch (err) {
           toastCtx?.toast({

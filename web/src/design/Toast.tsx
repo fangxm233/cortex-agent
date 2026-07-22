@@ -1,6 +1,6 @@
 import * as RadixToast from '@radix-ui/react-toast';
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { addToast, removeToast, type ToastItem } from './toast-store';
+import { addToast, removeToast, type ToastAction, type ToastItem } from './toast-store';
 import type { Tone } from './tone';
 
 // Token-styled wrapper over Radix Toast (approved primitive layer, design §1):
@@ -29,6 +29,8 @@ export interface ToastInput {
   description?: string;
   tone?: Tone;
   duration?: number;
+  /** Optional action buttons (e.g. the download toast's Open file / Open folder). */
+  actions?: ToastAction[];
 }
 
 interface ToastContextValue {
@@ -54,6 +56,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       description: input.description,
       tone: input.tone ?? 'running',
       duration: input.duration ?? 5000,
+      actions: input.actions,
     };
     setItems((list) => addToast(list, item));
     return id;
@@ -81,6 +84,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <RadixToast.Description className="text-ui text-state-ink/70">
                 {item.description}
               </RadixToast.Description>
+            ) : null}
+            {item.actions && item.actions.length > 0 ? (
+              <div className="mt-1g flex flex-wrap gap-1g">
+                {item.actions.map((action, i) => (
+                  <RadixToast.Action key={i} altText={action.altText ?? action.label} asChild>
+                    <button
+                      type="button"
+                      onClick={action.onClick}
+                      className="rounded-card border border-card bg-surface-canvas-alt px-1.5g py-0.5g text-ui text-state-ink transition-colors hover:bg-surface-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-state-run/40"
+                    >
+                      {action.label}
+                    </button>
+                  </RadixToast.Action>
+                ))}
+              </div>
             ) : null}
             <RadixToast.Close
               aria-label="Dismiss"

@@ -26,3 +26,4 @@ export { Modal, ModalClose, type ModalProps } from './Modal';
 export { Drawer, DrawerClose, type DrawerProps, type DrawerSide } from './Drawer';
 export { Popover, PopoverClose, type PopoverProps } from './Popover';
 export { ToastProvider, useToast, useToastOptional, type ToastInput } from './Toast';
+export type { ToastAction } from './toast-store';

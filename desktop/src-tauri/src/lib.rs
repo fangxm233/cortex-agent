@@ -291,6 +291,79 @@ fn save_download(app: tauri::AppHandle, name: String, bytes: Vec<u8>) -> Result<
     Ok(saved)
 }
 
+/// Open a saved file with the OS default application — the desktop download toast's "Open file"
+/// action (`web/src/features/media/useDownloadFile.ts`). Desktop-only: the mobile shell surfaces the
+/// system Downloads notification instead, so this is never invoked on Android (the Android branch of
+/// `open_with_os` just returns an error). `path` is the absolute path returned by `save_download`.
+#[tauri::command]
+fn open_path(path: String) -> Result<(), String> {
+    open_with_os(&path)
+}
+
+/// Reveal a saved file in the OS file manager — opens its containing folder, selecting the file where
+/// the platform supports it (macOS Finder / Windows Explorer). The desktop download toast's "Open
+/// folder" action. Desktop-only, same as `open_path`. `path` is the absolute path from `save_download`.
+#[tauri::command]
+fn reveal_path(path: String) -> Result<(), String> {
+    reveal_with_os(&path)
+}
+
+/// Launch an OS opener process fire-and-forget (never wait): file managers like Windows Explorer
+/// return non-zero exit codes even on success, so we only care that the process launched, not its
+/// exit status. Args are passed directly (no shell), so a path can never be interpreted as a command.
+#[allow(dead_code)]
+fn spawn_detached(program: &str, args: &[&str]) -> Result<(), String> {
+    std::process::Command::new(program)
+        .args(args)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("failed to launch {program}: {e}"))
+}
+
+#[cfg(target_os = "linux")]
+fn open_with_os(path: &str) -> Result<(), String> {
+    spawn_detached("xdg-open", &[path])
+}
+#[cfg(target_os = "macos")]
+fn open_with_os(path: &str) -> Result<(), String> {
+    spawn_detached("open", &[path])
+}
+#[cfg(target_os = "windows")]
+fn open_with_os(path: &str) -> Result<(), String> {
+    // `explorer <file>` opens folders, not arbitrary files with their default app — use `start`
+    // (via cmd) with an empty title argument so a path is never mistaken for the window title.
+    spawn_detached("cmd", &["/C", "start", "", path])
+}
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+fn open_with_os(_path: &str) -> Result<(), String> {
+    Err("open_path is desktop-only".to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn reveal_with_os(path: &str) -> Result<(), String> {
+    // Linux file managers have no portable "reveal + select this file", so open the containing folder.
+    let parent = std::path::Path::new(path)
+        .parent()
+        .and_then(|p| p.to_str())
+        .ok_or_else(|| "no parent dir".to_string())?;
+    spawn_detached("xdg-open", &[parent])
+}
+#[cfg(target_os = "macos")]
+fn reveal_with_os(path: &str) -> Result<(), String> {
+    // `-R` reveals the file in Finder with it selected.
+    spawn_detached("open", &["-R", path])
+}
+#[cfg(target_os = "windows")]
+fn reveal_with_os(path: &str) -> Result<(), String> {
+    // `/select,<path>` opens the containing folder with the file highlighted.
+    let arg = format!("/select,{path}");
+    spawn_detached("explorer", &[arg.as_str()])
+}
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+fn reveal_with_os(_path: &str) -> Result<(), String> {
+    Err("reveal_path is desktop-only".to_string())
+}
+
 // ─── Initialization script ─────────────────────────────────────────────────
 // Injected into EVERY page load (connect.html and index.html). A per-platform
 // PREFIX (see `init_script()`) sets the shell-detection flag first:
@@ -417,6 +490,8 @@ pub fn run() {
             apply_frontend_update,
             get_staged_update,
             save_download,
+            open_path,
+            reveal_path,
         ]);
 
     // Both platforms: serve the SPA over the custom `cortexui://` scheme from the active frontend

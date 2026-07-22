@@ -23,8 +23,8 @@ instead of hard-coding styles. **All** colors/spacing/radius/shadow/fonts come f
 | `Modal.tsx` | `Modal` (+ `ModalClose`) — token-styled Radix **Dialog**: centered card, overlay fade + content zoom in/out. Focus trap, Esc-close, focus-restore, aria-modal from Radix. Controlled (`open`/`onOpenChange`) or uncontrolled (`trigger`); requires a `title` (`hideTitle` → sr-only). |
 | `Drawer.tsx` | `Drawer` (+ `DrawerClose`) — side sheet on Radix Dialog; `side` `right`(default)`/left` with matching slide in/out. Same Dialog a11y as Modal. |
 | `Popover.tsx` | `Popover` (+ `PopoverClose`) — token-styled Radix **Popover**: positioned floating panel, fade/scale in-out, arrow. Esc-close + focus-return from Radix. |
-| `Toast.tsx` | `ToastProvider` (mount once in `providers.tsx`) + imperative `useToast()` hook (`toast()`/`dismiss()`) on Radix **Toast**. Tone accent from pill tokens; slide/fade enter-exit; role/announce/swipe/hotkey a11y from Radix. |
-| `toast-store.ts` | Pure toast-queue logic (`addToast`/`removeToast`/`MAX_TOASTS`) — framework-agnostic, unit-tested; the hook owns id/timers and delegates here. |
+| `Toast.tsx` | `ToastProvider` (mount once in `providers.tsx`) + imperative `useToast()` hook (`toast()`/`dismiss()`) on Radix **Toast**. Tone accent from pill tokens; slide/fade enter-exit; role/announce/swipe/hotkey a11y from Radix. Optional `actions: ToastAction[]` render as token-styled buttons under the description (Radix `Toast.Action`, dismisses on click) — used by the desktop download-complete toast's Open file / Open folder. |
+| `toast-store.ts` | Pure toast-queue logic (`addToast`/`removeToast`/`MAX_TOASTS`) + `ToastItem`/`ToastAction` types — framework-agnostic, unit-tested; the hook owns id/timers and delegates here. |
 | `toast-store.test.ts` | vitest unit test for the queue reducer (TDD — written first). |
 | `index.ts` | Barrel — public exports for all primitives + `Tone`/`statusTone`/`TONES` + `DegradedState`/`severityTone`/`DEGRADED_SEVERITIES` + Modal/Drawer/Popover/Toast. |
 

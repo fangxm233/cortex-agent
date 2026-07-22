@@ -7,7 +7,10 @@ do nothing; that was the "点了没反应" bug). Instead:
 - **image / video** → the `MediaViewer` full-screen lightbox (`useMediaViewer().openMedia`).
 - **PDF / text** → the `DocViewer` document modal (`useDocViewer().openDoc`).
 - **everything else** (zip/xlsx/binaries) → download to disk (`lib/files.downloadFile`, which routes
-  through the native `save_download` command in the Tauri shell — see `desktop/CORTEX.md`).
+  through the native `save_download` command in the Tauri shell — see `desktop/CORTEX.md`). On the
+  desktop shell `useDownloadFile` then raises a "下载完成" toast whose **Open file / Open folder**
+  buttons invoke `lib/files.openPath` / `revealPath` (→ the `open_path` / `reveal_path` Tauri commands);
+  the browser has no observable save location so it shows the file name with no buttons.
 
 Both providers are mounted once per shell (`shell/AppShell` desktop · `mobile/MobileShell` mobile).
 
