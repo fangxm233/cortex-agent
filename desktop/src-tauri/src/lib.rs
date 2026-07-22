@@ -15,11 +15,11 @@
 //   React bundle finishes downloading/parsing. providers.tsx reads
 //   window.__CORTEX_DESKTOP_CONFIG and passes it to createTrpcClient().
 //
-// Switch / disconnect:
-//   An always-visible (low-contrast, bottom-right) button injected by
-//   initialization_script calls the `disconnect` Tauri command (clears keychain
-//   + AppState) then navigates to connect.html — a permanent escape hatch so a
-//   stale/dead saved server is always recoverable.
+// Disconnect:
+//   The SPA's daemon interface (desktop DaemonStatusModal, mobile 1r Daemon
+//   screen) offers a Disconnect action that calls the `disconnect` Tauri command
+//   (clears keychain + AppState) then navigates to connect.html — the escape hatch
+//   back to the connect screen when a saved server is stale/dead.
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -160,8 +160,8 @@ fn connect(
 
 /// Clear credentials from the platform store and AppState.
 ///
-/// Called by the always-visible "Switch server" button. After this returns the
-/// JS navigates to connect.html.
+/// Called by the SPA daemon interface's Disconnect action (web/src/lib/shell-connection.ts).
+/// After this returns the SPA navigates to connect.html.
 #[tauri::command]
 fn disconnect(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
     creds::clear(&app);
@@ -304,10 +304,10 @@ fn save_download(app: tauri::AppHandle, name: String, bytes: Vec<u8>) -> Result<
 //    ~microseconds; the React bundle takes tens of milliseconds to download +
 //    parse, so the global is set before providers.tsx reads it. Shared by both
 //    platforms — the mobile shell reaches the same remote server the same way.
-// 2. After DOMContentLoaded, injects an always-visible "Switch server" button
-//    (low-contrast, bottom-right) into the workbench. Suppressed on the connect
-//    screen (body id) AND on mobile (the bottom-Tab shell owns its own nav, and
-//    a fixed bottom-right button would overlap the Tab bar).
+//
+// Disconnect is no longer a shell-injected button — the SPA's daemon interface
+// owns a discoverable Disconnect action (web/src/lib/shell-connection.ts) that
+// invokes the `disconnect` command + navigates to connect.html.
 
 /// Per-platform flag prefix prepended to `INIT_SCRIPT`.
 #[cfg(target_os = "android")]
@@ -355,45 +355,6 @@ const INIT_SCRIPT: &str = r#"
     }
   }).catch(function () {});
 }());
-
-// Inject "Switch server" hover button into the workbench.
-document.addEventListener('DOMContentLoaded', function () {
-  // connect.html has id="cortex-connect-screen" on <body> — skip there.
-  if (document.getElementById('cortex-connect-screen')) return;
-  // Mobile shell owns its own navigation (bottom Tab bar) — no desktop switch button.
-  if (window.__CORTEX_MOBILE__) return;
-  var tauri = window.__TAURI__;
-  if (!tauri || !tauri.core || !tauri.core.invoke) return;
-
-  var btn = document.createElement('button');
-  btn.id = '__cortex-switch-btn';
-  btn.title = 'Switch or disconnect server';
-  btn.textContent = 'Switch';
-  // ALWAYS visible (no hover fade-to-0). A stale/dead saved server leaves the SPA with a broken
-  // tRPC client and no visible UI affordance; a hover-only button was effectively unreachable in
-  // that state. Kept small, low-contrast, and pinned bottom-right so it stays unobtrusive while
-  // remaining a permanent escape hatch back to the connect screen. It brightens on hover only.
-  btn.style.cssText = [
-    'position:fixed', 'bottom:12px', 'right:12px', 'z-index:9999',
-    'background:rgba(70,85,212,0.12)', 'color:rgba(233,231,226,0.55)',
-    'border:1px solid rgba(70,85,212,0.25)', 'border-radius:4px',
-    'padding:4px 10px', 'font:11px/1.4 "IBM Plex Mono",monospace',
-    'cursor:pointer', 'letter-spacing:.04em', 'opacity:0.55',
-    'transition:opacity 0.2s',
-  ].join(';');
-
-  // Brighten on hover, settle back to the resting low-contrast state on leave — but never hide.
-  btn.addEventListener('mouseenter', function () { btn.style.opacity = '1'; });
-  btn.addEventListener('mouseleave', function () { btn.style.opacity = '0.55'; });
-
-  btn.addEventListener('click', function () {
-    tauri.core.invoke('disconnect').catch(function () {}).finally(function () {
-      window.location.href = 'connect.html';
-    });
-  });
-
-  document.body.appendChild(btn);
-});
 "#;
 
 /// A credential counts as PRESENT only when it is Some AND non-empty after trimming.

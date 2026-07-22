@@ -86,8 +86,11 @@ rebuild, not an OTA.
    the creds synchronously + `providers.tsx` waiting for them in native shell (`useShellConfig`)
    removes the race.
 
-3. **Switch / disconnect** → hover the "Switch" button (injected by `initialization_script`)
-   → calls `disconnect` command (clears keychain + AppState) → navigates to `connect.html`.
+3. **Disconnect** → the SPA's daemon interface (desktop `DaemonStatusModal`, mobile 1r Daemon screen)
+   has a **断开连接 / Disconnect** action (`web/src/lib/shell-connection.ts` `disconnectShell()`)
+   → calls the `disconnect` command (clears keychain + AppState) → navigates to `connect.html`.
+   (The former always-visible bottom-right "Switch" button injected by `initialization_script` was
+   removed once this in-app action existed — 2026-07-21.)
 
 ## Package layout
 
@@ -176,7 +179,9 @@ desktop/
    synchronous (present before any bundle code runs)
 3. Starts async `invoke('get_connection_config')` → refreshes `window.__CORTEX_DESKTOP_CONFIG`
    (matters only on the first-run connect flow, where the baked value was still null)
-4. On DOMContentLoaded: if NOT on `connect.html` and NOT mobile, adds a "Switch" button (bottom-right)
+
+(It no longer injects any UI — the former bottom-right "Switch" button was removed once the SPA's
+daemon interface gained a discoverable Disconnect action, 2026-07-21.)
 
 `web/src/providers.tsx` resolves `window.__CORTEX_DESKTOP_CONFIG` via `useShellConfig()` (reads it
 synchronously; in a native shell without a config yet, briefly polls for the IPC refresh before
@@ -237,7 +242,7 @@ in `lib.rs` on `target_os = "android"`:
 | First-run seed | `resource_dir/frontend-seed` — real files staged by `bundle.resources` | `include_dir!`-embedded copy of `web/dist`, materialized into `ui/current` before the window opens (`seed::ensure_seed`). Android's APK assets are NOT std::fs-readable, so the desktop resource-dir seed can't be used; embedding sidesteps it and keeps a single stable `cortexui://` origin for the app's whole life. |
 | Shell flag | `window.__CORTEX_DESKTOP__ = true` → desktop 3-pane workbench | `window.__CORTEX_MOBILE__ = true` → mobile bottom-Tab shell (`web/src/mobile/`). Set by `SHELL_FLAG` in `init_script()`. |
 | Credential store | OS keychain (`keyring` v3) | app-private JSON file in `app_data_dir()` (keyring has no Android backend) — see `creds.rs`. |
-| Switch button | injected bottom-right | suppressed (mobile shell owns its own nav) |
+| Disconnect | in-app `DaemonStatusModal` footer action (no shell-injected button) | in-app 1r Daemon screen 断开连接 card |
 | Web router | `HashRouter` (via `isNativeShell()`) | `HashRouter` (same predicate — the `cortexui://` resolver loads `/index.html`) |
 
 `creds.rs` holds the platform-branched credential store (`load`/`save`/`clear`, each taking the
