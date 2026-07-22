@@ -38,6 +38,18 @@ export interface UseZoomReturn {
 
 const ZOOM_STEP = 0.4;
 
+/** Whether a wheel event should zoom (vs. let the scroll container scroll).
+ * - 'css-zoom' (PDF in a scroll container): scroll on a plain wheel, zoom ONLY while Ctrl/⌘ is held.
+ *   (Trackpad pinch is delivered by the browser as a ctrl+wheel event, so it still zooms.)
+ * - 'transform' (image lightbox, no scroll container): the wheel always zooms. */
+export function wheelShouldZoom(
+  mode: 'transform' | 'css-zoom',
+  modifier: { ctrlKey: boolean; metaKey: boolean },
+): boolean {
+  if (mode === 'transform') return true;
+  return modifier.ctrlKey || modifier.metaKey;
+}
+
 /** Saved before each css-zoom scale change so the layoutEffect can reposition scroll. */
 interface ScrollAnchor {
   /** Anchor X offset from scroll container viewport left. */
@@ -134,6 +146,9 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
 
     // --- Wheel zoom (desktop) ---
     const onWheel = (e: WheelEvent): void => {
+      // In css-zoom mode the wheel scrolls the container; only Ctrl/⌘+wheel zooms.
+      // Bail out (no preventDefault) so the native scroll runs normally.
+      if (!wheelShouldZoom(mode, e)) return;
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       const cx = e.clientX - rect.left;
