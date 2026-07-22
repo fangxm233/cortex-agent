@@ -37,6 +37,10 @@ export interface MDaemonCopy {
   footerNote: string;
   sent: string;
   failed: string;
+  /** Disconnect action label (e.g. 断开连接) — clears saved creds + returns to the login screen. */
+  disconnect: string;
+  /** Sub-line under the disconnect button explaining what it does. */
+  disconnectNote: string;
 }
 
 export type RestartState = 'idle' | 'pending' | 'success' | 'error';
@@ -210,17 +214,22 @@ export function MDaemonView({
   copy,
   connStatus,
   restartState,
+  showDisconnect,
   onBack,
   onSoftRestart,
   onHardRestart,
+  onDisconnect,
 }: {
   vm: MDaemonVm;
   copy: MDaemonCopy;
   connStatus: ConnectionStatus;
   restartState: RestartState;
+  /** Show the disconnect action — only in a native shell that has saved creds to clear. */
+  showDisconnect: boolean;
   onBack: () => void;
   onSoftRestart: () => void;
   onHardRestart: () => void;
+  onDisconnect: () => void;
 }) {
   const pending = restartState === 'pending';
   return (
@@ -345,6 +354,21 @@ export function MDaemonView({
             <div style={{ marginTop: 8, fontSize: 11, fontWeight: 600, color: MC.fail }}>{copy.failed}</div>
           )}
         </MCard>
+
+        {/* Disconnect card — clears the saved server + token and returns to the login screen. Only in a
+            native shell (isNativeShell) where there are stored creds to clear + a connect screen to
+            return to. Returning to login is recoverable (re-enter creds), so it stays a neutral ink
+            outline — the red force-kill ink above owns the destructive treatment. */}
+        {showDisconnect && (
+          <MCard padding="12px 13px">
+            <button type="button" onClick={onDisconnect} style={{ ...OUTLINE_BTN }}>
+              {copy.disconnect}
+            </button>
+            <div style={{ font: `400 9px ${MONO}`, color: MC.faint, marginTop: 8, textAlign: 'center' }}>
+              {copy.disconnectNote}
+            </div>
+          </MCard>
+        )}
       </MScrollBody>
     </MScreen>
   );

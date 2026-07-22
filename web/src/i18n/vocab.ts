@@ -229,6 +229,8 @@ export const en = {
   dmConfirmProceed: 'Hard restart',
   dmRestartSent: 'Restart signal sent',
   dmRestartFailed: 'Restart failed',
+  dmDisconnect: 'Disconnect',
+  dmDisconnectDesc: 'Clear the saved server & token and return to the login screen',
 
   rpNoActiveThreads: 'No active threads',
   rpNoActiveThreadsHint: 'Running and waiting threads will appear here.',
@@ -768,6 +770,8 @@ export const zh: Record<keyof Vocab, string> = {
   dmConfirmProceed: '硬重启',
   dmRestartSent: '重启信号已发送',
   dmRestartFailed: '重启失败',
+  dmDisconnect: '断开连接',
+  dmDisconnectDesc: '清除已保存的服务器与令牌，返回登录页',
 
   rpNoActiveThreads: '暂无活跃线程',
   rpNoActiveThreadsHint: '运行中和等待中的线程将显示在此处。',

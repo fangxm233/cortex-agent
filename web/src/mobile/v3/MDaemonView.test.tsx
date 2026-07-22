@@ -35,6 +35,8 @@ const copy: MDaemonCopy = {
   footerNote: '软重启不丢线程状态，恢复后自动续跑 · 强制终止需长按 2s 确认，运行中线程标记 interrupted',
   sent: '重启信号已发送',
   failed: '重启失败',
+  disconnect: '断开连接',
+  disconnectNote: '清除已保存的服务器与令牌，返回登录页',
 };
 
 function thread(p: Partial<ThreadInfo> = {}): ThreadInfo {
@@ -71,6 +73,7 @@ function render(opts: {
   ok?: boolean;
   connStatus?: ConnectionStatus;
   restartState?: 'idle' | 'pending' | 'success' | 'error';
+  showDisconnect?: boolean;
 }) {
   const vm = buildDaemonVm({
     threads: opts.threads ?? [],
@@ -86,9 +89,11 @@ function render(opts: {
       copy={copy}
       connStatus={opts.connStatus ?? 'connected'}
       restartState={opts.restartState ?? 'idle'}
+      showDisconnect={opts.showDisconnect ?? true}
       onBack={() => {}}
       onSoftRestart={() => {}}
       onHardRestart={() => {}}
+      onDisconnect={() => {}}
     />,
   );
 }
@@ -215,6 +220,18 @@ describe('MDaemonView', () => {
   it('surfaces restart result feedback', () => {
     expect(render({ restartState: 'success' })).toContain('重启信号已发送');
     expect(render({ restartState: 'error' })).toContain('重启失败');
+  });
+
+  it('renders the disconnect button + note in a native shell (showDisconnect)', () => {
+    const html = render({ showDisconnect: true });
+    expect(html).toContain('断开连接');
+    expect(html).toContain('清除已保存的服务器与令牌，返回登录页');
+  });
+
+  it('hides the disconnect action off-shell (plain browser / ui-http)', () => {
+    const html = render({ showDisconnect: false });
+    expect(html).not.toContain('断开连接');
+    expect(html).not.toContain('清除已保存的服务器与令牌，返回登录页');
   });
 
   it('does NOT fabricate the scheme daemon.log mocks (api p50 / watchdog / daemon.log / home-server)', () => {

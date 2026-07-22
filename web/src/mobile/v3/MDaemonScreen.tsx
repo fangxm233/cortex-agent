@@ -12,6 +12,8 @@ import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { threadScopeFilter } from '@/features/workbench/scope';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
+import { isNativeShell } from '@/lib/desktop-config';
+import { disconnectShell } from '@/lib/shell-connection';
 import { MDaemonView, type MDaemonCopy, type RestartState } from './MDaemonView';
 import { buildDaemonVm } from './m-daemon-vm';
 
@@ -39,6 +41,8 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
       'Soft restart keeps thread state and auto-resumes · Force kill needs a 2s long-press; running threads are marked interrupted',
     sent: 'Restart signal sent',
     failed: 'Restart failed',
+    disconnect: 'Disconnect',
+    disconnectNote: 'Clears the saved server & token, returns to the login screen',
   },
   zh: {
     title: 'Daemon',
@@ -62,6 +66,8 @@ const COPY: { en: MDaemonCopy; zh: MDaemonCopy } = {
     footerNote: '软重启不丢线程状态，恢复后自动续跑 · 强制终止需长按 2s 确认，运行中线程标记 interrupted',
     sent: '重启信号已发送',
     failed: '重启失败',
+    disconnect: '断开连接',
+    disconnectNote: '清除已保存的服务器与令牌，返回登录页',
   },
 };
 
@@ -118,9 +124,11 @@ export function MDaemonScreen() {
       copy={copy}
       connStatus={connStatus}
       restartState={restartState}
+      showDisconnect={isNativeShell()}
       onBack={() => navigate('/m/settings')}
       onSoftRestart={() => restartMut.mutate({ kind: 'soft' })}
       onHardRestart={() => restartMut.mutate({ kind: 'hard' })}
+      onDisconnect={() => void disconnectShell()}
     />
   );
 }

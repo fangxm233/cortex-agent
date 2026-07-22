@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
+import { isNativeShell } from '@/lib/desktop-config';
+import { disconnectShell } from '@/lib/shell-connection';
 
 // Daemon status modal — 1:1 from scheme.dc.html #17a (L2376–2441).
 // Opened by clicking the daemon badge in the LeftRail header.
@@ -434,6 +436,46 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
             }}
           >
             {L.dmRestartFailed}
+          </div>
+        )}
+
+        {/* Disconnect — clears the saved server + token and returns to the connect (login) screen.
+            Only in the native desktop shell (isNativeShell): in browser / ui-http mode auth is
+            same-origin / Cloudflare Access with no local creds to clear and no connect screen. */}
+        {isNativeShell() && (
+          <div
+            style={{
+              borderTop: '1px solid var(--proto-line-2)',
+              padding: '12px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-ink)' }}>
+                {L.dmDisconnect}
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 1 }}>
+                {L.dmDisconnectDesc}
+              </div>
+            </div>
+            <span
+              onClick={() => void disconnectShell()}
+              style={{
+                flex: 'none',
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: 'var(--proto-ink)',
+                border: '1px solid var(--proto-line-3)',
+                background: 'var(--proto-card)',
+                borderRadius: 8,
+                padding: '6px 14px',
+                cursor: 'pointer',
+              }}
+            >
+              {L.dmDisconnect}
+            </span>
           </div>
         )}
       </div>
