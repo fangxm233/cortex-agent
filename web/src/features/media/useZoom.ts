@@ -25,6 +25,9 @@ export interface ZoomState {
 export interface UseZoomReturn {
   /** Attach to the zoomable element. */
   containerRef: (el: HTMLDivElement | null) => void;
+  /** (transform mode) Attach to the transformed content element so cursor-anchored zoom can
+   * measure its on-screen top-left. Optional — omit for css-zoom. */
+  contentRef: (el: HTMLElement | null) => void;
   /** Current zoom state. */
   zoom: ZoomState;
   /** CSS transform + touchAction to apply. */
@@ -50,6 +53,51 @@ export function wheelShouldZoom(
   return modifier.ctrlKey || modifier.metaKey;
 }
 
+/** Transform-mode anchored zoom (wheel / double-tap): return the next zoom state so the content
+ * point currently under `anchor` (the cursor) stays fixed on screen across the scale change.
+ *
+ * With `transform-origin: 0 0`, a content-local point `p` (unscaled px from the content top-left)
+ * projects to `contentTopLeft + scale * p`. `contentTopLeft` is the content element's CURRENT
+ * on-screen top-left from getBoundingClientRect() — measured on the transformed content itself,
+ * NOT the container. The content is centered in the container, so using the container corner would
+ * anchor the zoom off by the centering offset (the "zoom not centered on cursor" bug). */
+export function anchoredZoom(
+  prev: ZoomState,
+  nextScale: number,
+  anchor: { x: number; y: number },
+  contentTopLeft: { x: number; y: number },
+): ZoomState {
+  if (nextScale <= 1) return { scale: 1, x: 0, y: 0 };
+  const ratio = nextScale / prev.scale;
+  // Keep (anchor - contentTopLeft) fixed: translate += (1 - ratio) * (anchor - contentTopLeft).
+  return {
+    scale: nextScale,
+    x: prev.x + (1 - ratio) * (anchor.x - contentTopLeft.x),
+    y: prev.y + (1 - ratio) * (anchor.y - contentTopLeft.y),
+  };
+}
+
+/** Transform-mode two-finger pinch: return the next zoom state so the content point under the
+ * pinch midpoint stays under it while the fingers scale/move. `startTopLeft` is the content
+ * element's on-screen top-left captured at gesture start (getBoundingClientRect, transform-origin
+ * 0 0) — again the content's own box, not the container's. */
+export function anchoredPinch(
+  initialScale: number,
+  initialTranslate: { x: number; y: number },
+  initialMid: { x: number; y: number },
+  currentMid: { x: number; y: number },
+  nextScale: number,
+  startTopLeft: { x: number; y: number },
+): ZoomState {
+  if (nextScale <= 1) return { scale: 1, x: 0, y: 0 };
+  const scaleRatio = nextScale / initialScale;
+  return {
+    scale: nextScale,
+    x: initialTranslate.x + (currentMid.x - initialMid.x) + (initialMid.x - startTopLeft.x) * (1 - scaleRatio),
+    y: initialTranslate.y + (currentMid.y - initialMid.y) + (initialMid.y - startTopLeft.y) * (1 - scaleRatio),
+  };
+}
+
 /** Saved before each css-zoom scale change so the layoutEffect can reposition scroll. */
 interface ScrollAnchor {
   /** Anchor X offset from scroll container viewport left. */
@@ -67,6 +115,10 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
   // Store element in state so the effect re-runs when the element mounts/unmounts
   // (fixes the case where the zoomable element renders conditionally after async load).
   const [el, setEl] = useState<HTMLDivElement | null>(null);
+  // The transformed content element (transform mode) — read live inside handlers via a ref so
+  // it never re-attaches listeners. Used to measure the content's on-screen top-left for
+  // cursor-anchored zoom (see anchoredZoom).
+  const contentElRef = useRef<HTMLElement | null>(null);
   // Keep latest zoom in a ref so event handlers always see current values without
   // the effect re-running (which would re-attach listeners on every frame).
   const zoomRef = useRef(zoom);
@@ -81,6 +133,8 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
     initialScale: number;
     initialMid: { x: number; y: number };
     initialTranslate: { x: number; y: number };
+    /** (transform mode) content on-screen top-left at gesture start, for anchoredPinch. */
+    startTopLeft: { x: number; y: number };
   } | null>(null);
 
   // Pan state refs (pointer drag when zoomed).
@@ -125,6 +179,7 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
   }, [saveViewportAnchor]);
 
   const containerRef = useCallback((node: HTMLDivElement | null) => { setEl(node); }, []);
+  const contentRef = useCallback((node: HTMLElement | null) => { contentElRef.current = node; }, []);
 
   // --- css-zoom scroll correction: runs before paint so there's no flash. ---
   useLayoutEffect(() => {
@@ -151,25 +206,28 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
       if (!wheelShouldZoom(mode, e)) return;
       e.preventDefault();
       const rect = el.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
 
       if (mode === 'css-zoom') {
-        // Anchor at cursor position.
-        anchorRef.current = { ox: cx, oy: cy, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, prevScale: zoomRef.current.scale };
+        // Anchor at cursor position; scroll correction happens in the layoutEffect.
+        anchorRef.current = { ox: e.clientX - rect.left, oy: e.clientY - rect.top, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, prevScale: zoomRef.current.scale };
+        setZoom((prev) => {
+          const dir = e.deltaY < 0 ? 1 : -1;
+          const factor = 1 + dir * 0.12;
+          return { ...prev, scale: clamp(prev.scale * factor) };
+        });
+        return;
       }
 
+      // Transform mode: anchor the zoom on the cursor. Measure the *content* element's current
+      // on-screen top-left (its transform origin) — the content is centered in the container, so a
+      // container-relative anchor is off by the centering offset (the "zoom not centered" bug).
+      const contentRect = contentElRef.current?.getBoundingClientRect();
+      const origin = { x: contentRect?.left ?? rect.left, y: contentRect?.top ?? rect.top };
       setZoom((prev) => {
         const dir = e.deltaY < 0 ? 1 : -1;
         const factor = 1 + dir * 0.12;
         const nextScale = clamp(prev.scale * factor);
-        if (mode === 'css-zoom') return { ...prev, scale: nextScale };
-        // Zoom toward cursor (transform mode).
-        const ratio = nextScale / prev.scale;
-        const nx = cx - ratio * (cx - prev.x);
-        const ny = cy - ratio * (cy - prev.y);
-        if (nextScale <= 1) return { scale: 1, x: 0, y: 0 };
-        return { scale: nextScale, x: nx, y: ny };
+        return anchoredZoom(prev, nextScale, { x: e.clientX, y: e.clientY }, origin);
       });
     };
 
@@ -181,11 +239,13 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
         const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
         const mid = { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 };
         const cur = zoomRef.current;
+        const r0 = contentElRef.current?.getBoundingClientRect();
         touchState.current = {
           initialDist: dist,
           initialScale: cur.scale,
           initialMid: mid,
           initialTranslate: { x: cur.x, y: cur.y },
+          startTopLeft: { x: r0?.left ?? 0, y: r0?.top ?? 0 },
         };
       }
     };
@@ -205,15 +265,8 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
           anchorRef.current = { ox: mid.x - rect.left, oy: mid.y - rect.top, scrollLeft: el.scrollLeft, scrollTop: el.scrollTop, prevScale: zoomRef.current.scale };
           setZoom((prev) => ({ ...prev, scale: nextScale }));
         } else {
-          const rect = el.getBoundingClientRect();
-          const cx = touchState.current!.initialMid.x - rect.left;
-          const cy = touchState.current!.initialMid.y - rect.top;
-          const scaleRatio = nextScale / touchState.current!.initialScale;
-          const nx = cx - scaleRatio * (cx - touchState.current!.initialTranslate.x)
-            + (mid.x - touchState.current!.initialMid.x);
-          const ny = cy - scaleRatio * (cy - touchState.current!.initialTranslate.y)
-            + (mid.y - touchState.current!.initialMid.y);
-          setZoom(nextScale <= 1 ? { scale: 1, x: 0, y: 0 } : { scale: nextScale, x: nx, y: ny });
+          const ts = touchState.current!;
+          setZoom(anchoredPinch(ts.initialScale, ts.initialTranslate, ts.initialMid, mid, nextScale, ts.startTopLeft));
         }
       }
     };
@@ -242,10 +295,9 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
             setZoom({ scale: 2, x: 0, y: 0 });
           } else {
             const rect = el.getBoundingClientRect();
-            const cx = e.touches[0].clientX - rect.left;
-            const cy = e.touches[0].clientY - rect.top;
-            const s = 2;
-            setZoom({ scale: s, x: cx - s * cx, y: cy - s * cy });
+            const contentRect = contentElRef.current?.getBoundingClientRect();
+            const origin = { x: contentRect?.left ?? rect.left, y: contentRect?.top ?? rect.top };
+            setZoom(anchoredZoom({ scale: 1, x: 0, y: 0 }, 2, { x: e.touches[0].clientX, y: e.touches[0].clientY }, origin));
           }
         }
       }
@@ -307,6 +359,7 @@ export function useZoom(opts: UseZoomOptions = {}): UseZoomReturn {
 
   return {
     containerRef,
+    contentRef,
     zoom,
     style,
     zoomIn,

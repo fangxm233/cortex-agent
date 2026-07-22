@@ -37,7 +37,7 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
   const [src, setSrc] = useState<string | null>(item.url ?? null);
   const [failed, setFailed] = useState(false);
   const dl = useDownloadFile();
-  const { containerRef, style: zoomStyle, isZoomed, resetZoom } = useZoom({ mode: 'transform', minScale: 1, maxScale: 8 });
+  const { containerRef, contentRef, style: zoomStyle, isZoomed, resetZoom } = useZoom({ mode: 'transform', minScale: 1, maxScale: 8 });
 
   useEffect(() => {
     if (item.url) {
@@ -188,7 +188,7 @@ export function Lightbox({ item, onClose }: { item: MediaItem; onClose: () => vo
             style={{ maxWidth: '94vw', maxHeight: '84vh', borderRadius: 10, background: '#000' }}
           />
         ) : (
-          <div style={{ ...zoomStyle, display: 'inline-block' }}>
+          <div ref={contentRef} style={{ ...zoomStyle, display: 'inline-block' }}>
             <img
               src={src}
               alt={item.name}
