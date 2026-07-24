@@ -66,6 +66,9 @@ logs/
 tmp/
 *.pid
 
+# Planning docs live in ~/.cortex/plan, never in this repo
+plan/
+
 # Crash dumps
 core_*.nvcudmp
 
