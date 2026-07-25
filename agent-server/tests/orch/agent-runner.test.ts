@@ -1,6 +1,7 @@
 // input:  AgentRunner class, resolveDefaultAgent
 // output: unit tests — routing coordination + resolveDefaultAgent config [S8-A]
-// pos:    verifies (a) hourglass reaction when queue exists; (b) +1/-1 trackPendingTask;
+// pos:    verifies (a) hourglass reaction when queue exists; (a2) mid-turn injection pre-empts the
+//         queue / declining falls back to it; (b) +1/-1 trackPendingTask;
 //         (c) enqueue called for channel; (d) resolveDefaultAgent with no agent;
 //         (e) resolveDefaultAgent with directive; (f) agentRunner singleton exists
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -100,6 +101,66 @@ test('(a) route() calls addReaction(hourglass) when channel already has a queue'
   assert.equal(enqueueCalls[0], channel);
 
   // Clean up: unblock the prior queue and drain
+  unlockPrior();
+  const tail = conduitQueues.get(channel);
+  if (tail) await tail;
+});
+
+// ── (a2) mid-turn injection takes precedence over the queue ──────────────────
+
+test('(a2) route() injects into the live turn instead of queuing it behind that turn', async () => {
+  const channel = freshChannel();
+  const { promise, resolve: unlockPrior } = (() => {
+    let res!: () => void;
+    const p = new Promise<void>(r => { res = r; });
+    return { promise: p, resolve: res };
+  })();
+  enqueue(channel, () => promise); // the channel is busy — today this message would wait
+
+  const enqueueCalls: string[] = [];
+  const trackCalls: number[] = [];
+  const runner = new AgentRunner({
+    enqueue: (ch, _fn) => { enqueueCalls.push(ch); return true; },
+    track: (d) => { trackCalls.push(d); },
+    tryInject: async () => true, // the backend took it into the running turn
+  });
+
+  const adapter = new MockAdapter();
+  await runner.route(makeCtx({ channel, adapter }) as any);
+
+  assert.equal(enqueueCalls.length, 0, 'an injected message is not queued behind the running turn');
+  assert.equal(adapter.marksQueued.length, 0, 'and is never marked queued — it is already in front of the model');
+  assert.deepEqual(trackCalls, [], 'the injection path owns its own busy bracket');
+
+  unlockPrior();
+  const tail = conduitQueues.get(channel);
+  if (tail) await tail;
+});
+
+test('(a2) route() falls back to the normal queue when there is no live turn to inject into', async () => {
+  const channel = freshChannel();
+  const { promise, resolve: unlockPrior } = (() => {
+    let res!: () => void;
+    const p = new Promise<void>(r => { res = r; });
+    return { promise: p, resolve: res };
+  })();
+  enqueue(channel, () => promise);
+
+  const enqueueCalls: string[] = [];
+  const trackCalls: number[] = [];
+  const runner = new AgentRunner({
+    enqueue: (ch, _fn) => { enqueueCalls.push(ch); return true; },
+    track: (d) => { trackCalls.push(d); },
+    tryInject: async () => false, // no live turn / incapable backend / !command
+  });
+
+  const adapter = new MockAdapter();
+  await runner.route(makeCtx({ channel, adapter }) as any);
+
+  assert.deepEqual(enqueueCalls, [channel], 'today’s queue behaviour is preserved exactly');
+  assert.equal(adapter.marksQueued.length, 1, 'and the queued-message feedback still fires');
+  assert.deepEqual(trackCalls, [+1], 'the queued turn takes the busy gate as before');
+
   unlockPrior();
   const tail = conduitQueues.get(channel);
   if (tail) await tail;
