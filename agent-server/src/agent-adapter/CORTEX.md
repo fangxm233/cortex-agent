@@ -17,7 +17,7 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `claude/defaults.ts` | constants | timeout/MCP/tools/hooks constants |
 | `claude/hooks-builder.ts` | builder | buildHooksSettings generates hook configuration |
 | `claude/tool-summarizers.ts` | summarizer | summarizeToolInput tool input rendering |
-| `claude/spawn-args.ts` | args | buildSpawnArgs constructs CLI args (profile `thinking` → `--effort`) |
+| `claude/spawn-args.ts` | args | buildSpawnArgs constructs CLI args (profile `thinking` → `--effort`; print mode also passes `--include-partial-messages` for token-level `stream_event` output, killable with `CORTEX_STREAM_DELTAS=0` via the exported `isStreamDeltasEnabled`) |
 | `claude/event-parser.ts` | parser | stream-json event parsing + plan tracking |
 | `claude/bg-task-tracker.ts` | tracker | background-task (run_in_background) running/undelivered dual-set tracking (task_updated terminal statuses count as work-done because CC may never send task_notification — old-CLI same-turn completions / killed tasks) + spontaneous continuation-turn detection (BgTaskTracker / routeLine / isContinuationResult) |
 | `claude/tmux-control.ts` | utility | tmux CLI wrapper (DR-0012 Phase 1, TUI mode foundation) |

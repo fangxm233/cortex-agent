@@ -1,5 +1,5 @@
 // input:  ClaudeSpawnOptions + channel/session env
-// output: buildSpawnArgs + buildClaudeEnv pure functions
+// output: buildSpawnArgs + buildClaudeEnv pure functions + isStreamDeltasEnabled kill switch
 // pos:    Construct Claude CLI argv and process environment variables
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -53,6 +53,16 @@ export interface ClaudeSpawnOptions {
   isUserInitiated?: boolean;
 }
 
+/**
+ * Kill switch for token-level assistant streaming (`CORTEX_STREAM_DELTAS=0`). Read at call time, so
+ * a daemon restart is enough to flip it. When off, print mode drops `--include-partial-messages`
+ * and the CLI emits no `stream_event` lines at all — the delta pipeline goes dark at the source.
+ * Only the literal `0` disables; anything else (unset included) keeps streaming on.
+ */
+export function isStreamDeltasEnabled(): boolean {
+  return process.env.CORTEX_STREAM_DELTAS !== '0';
+}
+
 export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   const mode: ClaudeSpawnMode = options.mode ?? 'print';
   // MCP server selection is identical to print mode: the base config follows the caller's
@@ -92,6 +102,13 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
       '--output-format', 'stream-json',
       '--verbose',
     );
+    // Token-level streaming: adds `stream_event` lines (message_start / content_block_start /
+    // content_block_delta / …) on top of the complete `assistant` / `result` events, which are
+    // unchanged — the addition is purely incremental, so every existing parser stays correct.
+    // It is what lets the Web UI show text as it is generated instead of waiting for the whole
+    // block (measured gap on a long reply: first delta at ~3.5s vs the complete event at ~25s).
+    // TUI mode reads the session jsonl, not stdout, so the flag would be pure overhead there.
+    if (isStreamDeltasEnabled()) args.push('--include-partial-messages');
   }
   // TUI mode: strip native interaction tools (AskUserQuestion / EnterPlanMode / ExitPlanMode)
   // from ALL sessions (user messages and threads alike). These tools require stdin/stdout

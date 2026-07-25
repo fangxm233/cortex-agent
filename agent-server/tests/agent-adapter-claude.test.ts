@@ -43,6 +43,7 @@ test('buildSpawnArgs baseline — no optional flags', () => {
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
+    '--include-partial-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
     '--tools', DEFAULT_TOOLS,
@@ -69,6 +70,7 @@ test('buildSpawnArgs with full options — system-prompt, append, model, agent, 
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
+    '--include-partial-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
     '--tools', 'Bash,Read',
@@ -221,6 +223,61 @@ test('buildSpawnArgs loadFeishuMcp — thread/core session (CORE_MCP_CONFIG) sup
     loadFeishuMcp: true,
   });
   assert.ok(!args.includes(FEISHU_MCP_CONFIG), 'core/thread sessions must stay on the core server set only');
+});
+
+// --- buildSpawnArgs: token-level streaming (--include-partial-messages) ---
+// The flag makes the CLI emit `stream_event` lines (message_start / content_block_start /
+// content_block_delta / …) alongside the existing complete events. It is print-mode only and
+// killable with CORTEX_STREAM_DELTAS=0.
+
+const streamingBase = {
+  tools: null,
+  systemPrompt: null,
+  appendSystemPrompt: null,
+  model: null,
+  claudeAgent: null,
+  pluginDirs: null,
+  outputStyle: null,
+  needsResume: false,
+};
+
+test('buildSpawnArgs print: --include-partial-messages follows --verbose (token streaming on by default)', () => {
+  const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-1' });
+  const idx = args.indexOf('--include-partial-messages');
+  assert.ok(idx >= 0, '--include-partial-messages must be present by default');
+  assert.equal(args[idx - 1], '--verbose', 'must sit directly after --verbose');
+});
+
+test('buildSpawnArgs print: CORTEX_STREAM_DELTAS=0 kills --include-partial-messages', () => {
+  const prev = process.env.CORTEX_STREAM_DELTAS;
+  process.env.CORTEX_STREAM_DELTAS = '0';
+  try {
+    const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-2' });
+    assert.ok(!args.includes('--include-partial-messages'), 'kill switch must drop the flag');
+    // Everything else is untouched — the rest of the print argv is the legacy sequence.
+    assert.equal(args[0], '-p');
+    assert.ok(args.includes('--verbose'));
+  } finally {
+    if (prev === undefined) delete process.env.CORTEX_STREAM_DELTAS;
+    else process.env.CORTEX_STREAM_DELTAS = prev;
+  }
+});
+
+test('buildSpawnArgs: any other CORTEX_STREAM_DELTAS value keeps streaming on', () => {
+  const prev = process.env.CORTEX_STREAM_DELTAS;
+  process.env.CORTEX_STREAM_DELTAS = '1';
+  try {
+    const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-3' });
+    assert.ok(args.includes('--include-partial-messages'));
+  } finally {
+    if (prev === undefined) delete process.env.CORTEX_STREAM_DELTAS;
+    else process.env.CORTEX_STREAM_DELTAS = prev;
+  }
+});
+
+test("buildSpawnArgs mode='tui': never passes --include-partial-messages (jsonl tail, not stdout)", () => {
+  const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-4', mode: 'tui' });
+  assert.ok(!args.includes('--include-partial-messages'));
 });
 
 // --- buildSpawnArgs: TUI mode (DR-0012) ---
@@ -803,6 +860,7 @@ test('ClaudeAdapter.spawn: full AgentSpawnConfig produces expected CLI args (can
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
+    '--include-partial-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
     '--tools', nativeTools,
