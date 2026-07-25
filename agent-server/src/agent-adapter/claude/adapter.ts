@@ -41,6 +41,10 @@ import {
   isPlanFilePath,
   mergeSubstantialOutput,
   setActivePlanFile,
+  createStreamDeltaState,
+  parseStreamEvent,
+  takeTextBlockId,
+  type StreamDeltaState,
 } from './event-parser.js';
 import { BgTaskTracker, routeLine } from './bg-task-tracker.js';
 
@@ -60,7 +64,12 @@ interface PendingTurn {
   longestOutput: string | null;
   turnCount: number;
   onProgress: ((progress: any) => void) | null;
-  onAssistantMessage: ((text: string) => void) | null;
+  /** Complete assistant text block. `blockId` ties it to the deltas that streamed it (absent when
+   *  nothing streamed — kill switch, older CLI, or a reply that produced no partial messages). */
+  onAssistantMessage: ((text: string, blockId?: string) => void) | null;
+  /** Incremental text chunk while a block is still being generated (never the accumulated total).
+   *  Web UI preview only — the complete message above stays authoritative. */
+  onAssistantDelta: ((text: string, blockId: string) => void) | null;
   onToolUse: ((name: string, input: any) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
   rawStream: WriteStream;
@@ -148,6 +157,10 @@ class ClaudeSession {
   private thinking: string | null;
   private context: CortexAgentContext | undefined;
   private currentTurn: PendingTurn | null = null;
+  /** Cursor over the `stream_event` sequence (--include-partial-messages). Session-scoped rather
+   *  than turn-scoped because the stream is a property of the process, and every `message_start`
+   *  resets it anyway. */
+  private streamDeltaState: StreamDeltaState = createStreamDeltaState();
   /** Tracks in-flight background tasks (run_in_background) for this session. */
   private bgTracker = new BgTaskTracker();
   /** Set by orchestration to receive spontaneous background-task continuation turns. */
@@ -318,6 +331,7 @@ class ClaudeSession {
       turnCount: 0,
       onProgress: options.onProgress || null,
       onAssistantMessage: options.onAssistantMessage || null,
+      onAssistantDelta: options.onAssistantDelta || null,
       onToolUse: options.onToolUse || null,
       onCompact: options.onCompact || null,
       rawStream: streams.rawStream,
@@ -356,6 +370,9 @@ class ClaudeSession {
       turnCount: 0,
       onProgress: null,
       onAssistantMessage: sink ? (text: string) => { try { sink.onAssistantText(text); } catch (e) { log.warn('continuation onAssistantText threw:', (e as Error).message); } } : null,
+      // A spontaneous background-task continuation has no caller awaiting it and reaches the UI
+      // through the sink's complete messages only — nothing streams a preview for it.
+      onAssistantDelta: null,
       onToolUse: sink?.onToolUse ? (name: string, input: any) => { try { sink.onToolUse!(name, input); } catch {} } : null,
       onCompact: null,
       rawStream: streams.rawStream,
@@ -399,7 +416,8 @@ class ClaudeSession {
     scheduleTaskId?: string | null;
     isUserInitiated?: boolean;
     onProgress?: ((progress: any) => void) | null;
-    onAssistantMessage?: ((text: string) => void) | null;
+    onAssistantMessage?: ((text: string, blockId?: string) => void) | null;
+    onAssistantDelta?: ((text: string, blockId: string) => void) | null;
     onToolUse?: ((name: string, input: any) => void) | null;
     onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
   }): Promise<any> {
@@ -504,7 +522,12 @@ class ClaudeSession {
       if (block.type === 'text' && block.text) {
         turn.finalOutput = block.text;
         if (block.text.length > (turn.longestOutput?.length || 0)) turn.longestOutput = block.text;
-        if (typeof turn.onAssistantMessage === 'function') turn.onAssistantMessage(block.text);
+        // Adopt the id of the text block that just streamed, so the UI can replace its accumulated
+        // preview with this authoritative text instead of appending a second row. The block's own
+        // position in `message.content` cannot serve: the CLI sends one assistant event per block,
+        // so that position is always 0 while the streamed index may be any number.
+        const blockId = takeTextBlockId(this.streamDeltaState) ?? undefined;
+        if (typeof turn.onAssistantMessage === 'function') turn.onAssistantMessage(block.text, blockId);
       }
     }
     if (typeof turn.onProgress === 'function') {
@@ -516,10 +539,30 @@ class ClaudeSession {
     if (!line) return;
     this.resetIdleTimer();
     this.bumpTurnIdleTimer();
+
+    let parsed: any;
+    let isJson = false;
+    try { parsed = JSON.parse(line); isJson = true; } catch { /* handled below */ }
+
+    // `stream_event` lines are the token-level preview of a block the CLI will also deliver
+    // complete. They dominate stdout once --include-partial-messages is on (measured: 74-86% of
+    // all lines), and everything they carry is repeated verbatim by the complete event, so they
+    // are deliberately kept out of the per-turn raw jsonl and the daemon log. Handled first, and
+    // separately, because everything below is about complete events.
+    if (isJson && parsed?.type === 'stream_event') {
+      const delta = parseStreamEvent(parsed, this.streamDeltaState);
+      if (delta && typeof this.currentTurn?.onAssistantDelta === 'function') {
+        try { this.currentTurn.onAssistantDelta(delta.text, delta.blockId); }
+        catch (e) { log.warn('onAssistantDelta threw:', (e as Error).message); }
+      }
+      return;
+    }
+
     if (this.currentTurn?.rawStream) this.currentTurn.rawStream.write(line + '\n');
 
     try {
-      const data = JSON.parse(line);
+      const data = parsed;
+      if (!isJson) throw new Error('not json');
       // Context compaction boundary: Claude emits a system/compact_boundary line the instant it
       // decides to compact. Surface it to the active turn so observers (e.g. Slack) can notify.
       if (data.type === 'system' && data.subtype === 'compact_boundary' && this.currentTurn?.onCompact) {
@@ -902,7 +945,12 @@ export class ClaudeAdapter implements AgentAdapter {
         try {
           const result = await session.sendMessage(message.text, {
             files,
-            onAssistantMessage: (text: string) => stream.push({ type: 'assistant_text', text }),
+            onAssistantMessage: (text: string, blockId?: string) =>
+              stream.push({ type: 'assistant_text', text, ...(blockId ? { blockId } : {}) }),
+            // Token-level preview of the block above. Same FIFO stream, so every delta is delivered
+            // before the complete message that supersedes it.
+            onAssistantDelta: (text: string, blockId: string) =>
+              stream.push({ type: 'assistant_delta', text, blockId }),
             onToolUse: (name: string, input: any) =>
               stream.push({ type: 'tool_use', toolUseId: '', name, input }),
             onCompact: (info: { trigger: string; preTokens?: number }) =>
@@ -1081,6 +1129,7 @@ function makeSessionForTest(): ClaudeSession {
   s.channel = 'test';
   s.sessionKey = 'test';
   s.bgTracker = new BgTaskTracker();
+  s.streamDeltaState = createStreamDeltaState();
   s.continuationSink = null;
   s.currentTurn = null;
   s.idleTimer = null;

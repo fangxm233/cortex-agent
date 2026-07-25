@@ -69,7 +69,12 @@ export interface RunAgentOptions {
   taskId?: string | null;
   taskProject?: string | null;
   onProgress?: ((progress: any) => void) | null;
-  onAssistantMessage?: ((msg: string) => void) | null;
+  /** A complete assistant text block. `blockId` (when the backend streamed it) identifies the block
+   *  whose deltas preceded this message, so a live preview can be replaced rather than duplicated. */
+  onAssistantMessage?: ((msg: string, blockId?: string) => void) | null;
+  /** An incremental text chunk of a block still being generated (never the accumulated total).
+   *  Opt-in: callers that leave it unset receive complete messages only, exactly as before. */
+  onAssistantDelta?: ((text: string, blockId: string) => void) | null;
   onToolUse?: ((name: string, input: any) => void) | null;
   onFallback?: (current: AgentConfig, next: AgentConfig, result: AgentResult | null, error?: Error) => Promise<void>;
   [key: string]: any;
@@ -209,7 +214,12 @@ export function runWithAdapter(
       for await (const event of proc.events) {
         switch (event.type) {
           case 'assistant_text':
-            options.onAssistantMessage?.(event.text);
+            options.onAssistantMessage?.(event.text, event.blockId);
+            break;
+          case 'assistant_delta':
+            // Token-level preview. Only surfaces where a caller opted in by passing the callback —
+            // Slack / Feishu / Ink-TUI pass none, so no partial text can reach OutputStream.
+            options.onAssistantDelta?.(event.text, event.blockId);
             break;
           case 'tool_use':
             options.onToolUse?.(event.name, event.input);

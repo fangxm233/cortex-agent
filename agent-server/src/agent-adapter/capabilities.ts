@@ -14,6 +14,12 @@ export enum Capability {
   SystemPromptOverride = 'system-prompt-override',
   SessionResume = 'session-resume',
   ToolAllowlist = 'tool-allowlist',
+  /** Backend republishes token-level assistant text as `assistant_delta` events while a block is
+   *  still being generated. Rendered by the Web UI only. */
+  StreamingDeltas = 'streaming-deltas',
+  /** Backend accepts a user message into a turn already in flight (no new turn opened).
+   *  Part of the shared capability vocabulary; declared by the backends that implement injection. */
+  MidTurnInject = 'mid-turn-inject',
 }
 
 // Claude: full native support (claude-bridge.ts currently wires all eight; DR-0008 §3.2)
@@ -26,6 +32,9 @@ const CLAUDE_CAPS: Capability[] = [
   Capability.SystemPromptOverride,
   Capability.SessionResume,
   Capability.ToolAllowlist,
+  // Print mode requests --include-partial-messages and republishes the resulting text deltas as
+  // `assistant_delta` normalized events (Web UI preview only).
+  Capability.StreamingDeltas,
 ];
 
 // Codex: per DR-0008 §3.4 table — MCP via existing buildMcpBlock in codex-bridge.ts; --system-prompt + resume via app-server RPC; no Hooks/Plugins/PlanMode/AskUserQuestion/ToolAllowlist

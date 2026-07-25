@@ -1,12 +1,103 @@
-// input:  Claude stream-json events, user message, sessionId
-// output: formatters, extractors, buildPrompt, plan-file helpers
-// pos:    Claude event parsing and plan file tracking
+// input:  Claude stream-json events (complete + `stream_event` partials), user message, sessionId
+// output: formatters, extractors, buildPrompt, plan-file helpers, stream-delta cursor
+// pos:    Claude event parsing, plan file tracking, and token-level delta extraction
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { readFileSync } from 'fs';
 import { CancelledError, DEFAULT_PLAN_DIRS, PROJECT_SETTINGS } from './defaults.js';
 import { summarizeToolInput } from './tool-summarizers.js';
 import { buildPrompt as sharedBuildPrompt } from '../normalize/prompt-builder.js';
+
+// ── Token-level streaming (`--include-partial-messages`) ────────────────────────────────────────
+//
+// With that flag the CLI interleaves `stream_event` lines into stdout while a block is being
+// generated. Observed sequence for a reply that thinks first (live capture, Claude Code 2.1.x):
+//
+//   message_start(msg_X) → content_block_start(0, thinking) → thinking deltas
+//     → assistant(1 block: thinking) → content_block_stop(0)
+//     → content_block_start(1, text) → text deltas
+//     → assistant(1 block: text)     → content_block_stop(1)
+//     → message_delta → message_stop → result
+//
+// Two consequences drive the design below:
+//  1. Each content block gets its OWN complete `assistant` event carrying a single-element
+//     `content` array. The block's position in that array is therefore always 0 and can NOT be
+//     used to recover the streamed `content_block_index` (here the text block is index 1). The
+//     open text block is what ties them together — see takeTextBlockId.
+//  2. The `assistant` event arrives just BEFORE its block's content_block_stop, so the id must
+//     survive the stop event.
+//
+// Only text streams in v1: `thinking_delta` carries no content anyway (the CLI redacts it to an
+// empty string plus a token estimate) and `input_json_delta` is tool arguments, which Cortex
+// renders from the complete tool_use block.
+
+/** Per-session cursor over the `stream_event` sequence. Cheap and self-healing: every
+ *  `message_start` resets it, so a missed line can at worst drop one block's deltas. */
+export interface StreamDeltaState {
+  /** `message.id` of the message being streamed — the first half of every blockId. */
+  messageId: string | null;
+  /** blockId of the text block currently open, awaiting its complete `assistant` event. */
+  textBlockId: string | null;
+}
+
+export function createStreamDeltaState(): StreamDeltaState {
+  return { messageId: null, textBlockId: null };
+}
+
+/**
+ * Translate one raw stdout line (already JSON-parsed) into an incremental text chunk, advancing
+ * `state`. Returns null for every line that is not a non-empty text delta — including all complete
+ * events, which keep travelling their existing path untouched.
+ *
+ * `blockId` is `${message.id}:${content_block_index}` per the streaming contract: stable for one
+ * assistant text block and shared with the finalizing message via {@link takeTextBlockId}.
+ */
+export function parseStreamEvent(
+  data: any,
+  state: StreamDeltaState,
+): { text: string; blockId: string } | null {
+  if (!data || data.type !== 'stream_event') return null;
+  const ev = data.event;
+  if (!ev || typeof ev.type !== 'string') return null;
+
+  if (ev.type === 'message_start') {
+    state.messageId = typeof ev.message?.id === 'string' ? ev.message.id : null;
+    state.textBlockId = null;
+    return null;
+  }
+  if (ev.type === 'content_block_start') {
+    if (ev.content_block?.type === 'text' && state.messageId && typeof ev.index === 'number') {
+      state.textBlockId = `${state.messageId}:${ev.index}`;
+    }
+    return null;
+  }
+  if (ev.type !== 'content_block_delta') return null;
+  if (ev.delta?.type !== 'text_delta') return null;
+
+  const text = ev.delta.text;
+  if (typeof text !== 'string' || text.length === 0) return null;
+  // No message_start seen (stream joined mid-flight): a blockId would be fabricated and could
+  // never match the finalizing message, so drop the chunk rather than render an orphan row.
+  if (!state.messageId || typeof ev.index !== 'number') return null;
+  const blockId = `${state.messageId}:${ev.index}`;
+  // A delta for a block whose content_block_start was missed still identifies its own block.
+  state.textBlockId = blockId;
+  return { text, blockId };
+}
+
+/**
+ * Consume the blockId of the streamed text block that the complete `assistant` event now being
+ * handled belongs to. Returns null when nothing streamed (kill switch, older CLI, thinking-only
+ * message) — the finalizing path then behaves exactly as before, without a blockId.
+ *
+ * Consumed once: a block's id is handed out to exactly one complete message, so a later event
+ * can never re-adopt a stale id.
+ */
+export function takeTextBlockId(state: StreamDeltaState): string | null {
+  const id = state.textBlockId;
+  state.textBlockId = null;
+  return id;
+}
 
 export function extractAskUserQuestions(data: any, sessionId: string): Array<{ toolUseId: string | null; questions: any[]; sessionId: string }> {
   const questions = [];

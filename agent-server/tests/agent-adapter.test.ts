@@ -157,6 +157,7 @@ void function _normalizedEventExhaustive(e: NormalizedEvent): string {
   switch (e.type) {
     case 'session_started': return e.sessionId;
     case 'assistant_text': return e.text;
+    case 'assistant_delta': return e.blockId;
     case 'tool_use': return e.toolUseId;
     case 'tool_result': return e.toolUseId;
     case 'ask_user_question': return e.toolUseId;

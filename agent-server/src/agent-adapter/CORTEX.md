@@ -7,8 +7,8 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 |---|---|---|
 | `index.ts` | entry | getAdapter(backend) dispatch + centralized symbol export |
 | `types.ts` | contract | AgentAdapter/AgentProcess/SpawnConfig types |
-| `capabilities.ts` | capabilities | Capability enum + per-backend capability set |
-| `normalize/event-types.ts` | event types | NormalizedEvent discriminated union |
+| `capabilities.ts` | capabilities | Capability enum + per-backend capability set (incl. `StreamingDeltas` — the backend republishes token-level assistant text as `assistant_delta`) |
+| `normalize/event-types.ts` | event types | NormalizedEvent discriminated union (incl. `assistant_delta` — an incremental text chunk of a block still being generated, grouped by `blockId` and superseded by the `assistant_text` carrying the same id) |
 | `normalize/event-stream.ts` | queue | createEventStream single-producer FIFO |
 | `normalize/tool-names.ts` | tool name table | canonical ↔ backend-native bidirectional mapping |
 | `normalize/hooks.ts` | hook contract | NormalizedHookSpec + trigger types |
@@ -18,7 +18,7 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `claude/hooks-builder.ts` | builder | buildHooksSettings generates hook configuration |
 | `claude/tool-summarizers.ts` | summarizer | summarizeToolInput tool input rendering |
 | `claude/spawn-args.ts` | args | buildSpawnArgs constructs CLI args (profile `thinking` → `--effort`; print mode also passes `--include-partial-messages` for token-level `stream_event` output, killable with `CORTEX_STREAM_DELTAS=0` via the exported `isStreamDeltasEnabled`) |
-| `claude/event-parser.ts` | parser | stream-json event parsing + plan tracking |
+| `claude/event-parser.ts` | parser | stream-json event parsing + plan tracking + token-level delta extraction (`createStreamDeltaState` / `parseStreamEvent` / `takeTextBlockId`). The CLI sends one complete `assistant` event PER content block, so that block's array position is always 0 and cannot recover the streamed `content_block_index` — `takeTextBlockId` hands the open text block's id to the finalizing message instead, which is what lets the UI replace a preview in place |
 | `claude/bg-task-tracker.ts` | tracker | background-task (run_in_background) running/undelivered dual-set tracking (task_updated terminal statuses count as work-done because CC may never send task_notification — old-CLI same-turn completions / killed tasks) + spontaneous continuation-turn detection (BgTaskTracker / routeLine / isContinuationResult) |
 | `claude/tmux-control.ts` | utility | tmux CLI wrapper (DR-0012 Phase 1, TUI mode foundation) |
 | `claude/jsonl-tail.ts` | utility | session jsonl file tail + NormalizedEvent translation (DR-0012 Phase 1) |

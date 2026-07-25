@@ -425,3 +425,68 @@ test('runWithAdapter: handle.kill() forwards to adapter process.kill()', async (
   // catches it explicitly via assert.rejects.
   await assert.rejects(handle.promise, /Cancelled by user/);
 });
+
+// --- assistant_delta: token-level streaming dispatch (UI-only) ---
+
+test('runWithAdapter: assistant_delta drives onAssistantDelta, interleaved with the complete message in FIFO order', async () => {
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const adapter = makeFakeAdapter('claude', {
+    events: [
+      { type: 'assistant_delta', text: 'Tea ', blockId: 'msg_A:1' },
+      { type: 'assistant_delta', text: 'is a leaf.', blockId: 'msg_A:1' },
+      { type: 'assistant_text', text: 'Tea is a leaf.', blockId: 'msg_A:1' },
+      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
+    ],
+    resultOnResolve: defaultAgentResult('s-delta'),
+    recorded,
+  });
+
+  const order: string[] = [];
+  const deltas: Array<[string, string]> = [];
+  const finals: Array<[string, string | undefined]> = [];
+
+  const handle = runWithAdapter(
+    adapter,
+    'msg',
+    {
+      channel: 'web:abc',
+      onAssistantDelta: (text: string, blockId: string) => { deltas.push([text, blockId]); order.push('delta'); },
+      onAssistantMessage: (text: string, blockId?: string) => { finals.push([text, blockId]); order.push('final'); },
+    },
+    { model: 'm', backend: 'claude', mode: null },
+    undefined,
+  );
+  await handle.promise;
+
+  assert.deepEqual(deltas, [['Tea ', 'msg_A:1'], ['is a leaf.', 'msg_A:1']]);
+  assert.deepEqual(finals, [['Tea is a leaf.', 'msg_A:1']], 'the complete message carries the same blockId');
+  assert.deepEqual(order, ['delta', 'delta', 'final'], 'deltas precede the authoritative message');
+});
+
+test('runWithAdapter: with no onAssistantDelta, deltas are dropped and never reach onAssistantMessage', async () => {
+  // This is the Slack / Feishu / Ink-TUI guarantee: those paths pass no delta callback, so no
+  // partial text can ever reach OutputStream through the assistant-message seam.
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const adapter = makeFakeAdapter('claude', {
+    events: [
+      { type: 'assistant_delta', text: 'par', blockId: 'msg_A:0' },
+      { type: 'assistant_delta', text: 'tial', blockId: 'msg_A:0' },
+      { type: 'assistant_text', text: 'partial', blockId: 'msg_A:0' },
+      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
+    ],
+    resultOnResolve: defaultAgentResult('s-nodelta'),
+    recorded,
+  });
+
+  const msgs: string[] = [];
+  const handle = runWithAdapter(
+    adapter,
+    'msg',
+    { channel: 'C1', onAssistantMessage: (t: string) => msgs.push(t) },
+    { model: 'm', backend: 'claude', mode: null },
+    undefined,
+  );
+  await handle.promise;
+
+  assert.deepEqual(msgs, ['partial'], 'exactly one complete message, no partial text');
+});
