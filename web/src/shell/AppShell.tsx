@@ -13,6 +13,7 @@ import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
 import { PinnedPreviewProvider } from '@/features/media/PinnedPreviewProvider';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
+import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
 // frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
@@ -22,10 +23,12 @@ import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatus
 // overlay (design 7a) stay mounted here so any surface / banner / dispatch row / approval card can
 // open them. PinnedPreviewProvider wraps both previewers because they consult it: while a preview is
 // pinned (docked beside the chat on the workbench) `openMedia`/`openDoc` swap that pane instead of
-// raising their modal.
+// raising their modal. LiveEventsProvider is OUTERMOST: it owns the app's single SSE stream, which
+// every live surface (and the connectivity badge) reads through — see features/live/CORTEX.md.
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
+    <LiveEventsProvider>
     <ConnectionStatusProvider>
       <CurrentProjectProvider>
         <SelectedSessionProvider>
@@ -50,5 +53,6 @@ export function AppShell() {
         </SelectedSessionProvider>
       </CurrentProjectProvider>
     </ConnectionStatusProvider>
+    </LiveEventsProvider>
   );
 }

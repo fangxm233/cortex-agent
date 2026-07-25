@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { useTRPCClient } from '@/lib/trpc';
+import { useLiveEvents } from '@/features/live/LiveEventsProvider';
+import { SYSTEM_LIVE_EVENTS } from '@/features/live/live-events';
 
-// Thin SSE glue: one global `system.notice` subscription. The server publishes these for admin/system
+// Thin glue: `system.notice` off the SHARED live stream. The server publishes these for admin/system
 // broadcasts (startup, restart, profile/config/machine hot-reload, disk, rate-limit) via the
 // encapsulated `emitSystemNotice` seam. Unlike DM replies these carry a server-classified level and
 // no session, so there is no membership gate — every system.notice surfaces as a toast. All shaping
@@ -16,32 +16,22 @@ export interface SystemNoticeMessage {
 }
 
 /**
- * Subscribe to `system.notice` events app-wide and hand each to `onNotice`. Empty-text events are
- * filtered out here. Closes the subscription on unmount. `onNotice` should be stable (useCallback).
+ * Receive `system.notice` events app-wide and hand each to `onNotice`. Empty-text events are
+ * filtered out here.
  */
 export function useSystemNotices(onNotice: (msg: SystemNoticeMessage) => void): void {
-  const client = useTRPCClient();
-
-  useEffect(() => {
-    const sub = client.subscribe.subscribe(
-      { events: ['system.notice'] },
-      {
-        onData: (raw: { type?: string; payload?: unknown }) => {
-          if (raw?.type !== 'system.notice') return;
-          const p = raw.payload as
-            | { level?: 'info' | 'warning' | 'error'; text?: string; title?: string; ts?: string }
-            | undefined;
-          const text = (p?.text ?? '').trim();
-          if (!text) return;
-          onNotice({
-            level: p?.level ?? 'info',
-            text,
-            title: p?.title ?? null,
-            ts: p?.ts ?? null,
-          });
-        },
-      },
-    );
-    return () => sub.unsubscribe();
-  }, [client, onNotice]);
+  useLiveEvents(SYSTEM_LIVE_EVENTS, (raw) => {
+    if (raw.type !== 'system.notice') return;
+    const p = raw.payload as
+      | { level?: 'info' | 'warning' | 'error'; text?: string; title?: string; ts?: string }
+      | undefined;
+    const text = (p?.text ?? '').trim();
+    if (!text) return;
+    onNotice({
+      level: p?.level ?? 'info',
+      text,
+      title: p?.title ?? null,
+      ts: p?.ts ?? null,
+    });
+  });
 }

@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useTRPC, useTRPCClient } from '@/lib/trpc';
+import { useTRPC } from '@/lib/trpc';
+import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
+import { SESSION_LIVE_EVENTS } from '@/features/live/live-events';
 import type { LiveSessionMessage } from './transcript-vm';
 import { resolveRunning, resolveBackgroundRunning } from './transcript-vm';
 
-// Live `session.message` stream for the center chat (S4 chat, task aba0). Opens one SSE subscription
-// scoped to `sessionId` and accumulates each event into a bounded live-tail buffer so the assistant
-// output streams into the transcript immediately, and invalidates the authoritative
-// `sessions.transcript` query so the finalized history reconciles (buildTranscriptRows de-dups the
-// tail against it). Mirrors features/thread/useThreadGetLiveSync + features/execution/
-// useExecutionLogStream — all buffer/row logic lives in the pure transcript-vm (unit-tested); this is
-// the thin React/SSE glue.
+// Live `session.message` feed for the center chat (S4 chat, task aba0). Listens on the SHARED live
+// stream (`features/live/LiveEventsProvider`) scoped to `sessionId` — the scope filter reproduces the
+// server's per-session post-filter client-side, so events for other sessions are dropped exactly as
+// before — and accumulates each event into a bounded live-tail buffer so the assistant output streams
+// into the transcript immediately, then invalidates the authoritative `sessions.transcript` query so
+// the finalized history reconciles (buildTranscriptRows de-dups the tail against it). All buffer/row
+// logic lives in the pure transcript-vm (unit-tested); this is the thin React glue.
 //
 // Running state is snapshot + delta (fix: running was lost on session switch / reload / reconnect):
 //   snapshot — the caller passes SessionInfo.running from sessions.list (authoritative at query time);
@@ -49,7 +51,6 @@ export function useSessionMessageLiveSync(
   snapshotBackgroundRunning?: boolean,
 ): SessionLiveState {
   const trpc = useTRPC();
-  const client = useTRPCClient();
   const queryClient = useQueryClient();
   const [liveTail, setLiveTail] = useState<LiveSessionMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
@@ -63,106 +64,103 @@ export function useSessionMessageLiveSync(
   const [liveTurns, setLiveTurns] = useState<number | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Session switch resets every delta; the snapshot then governs until the first event lands.
   useEffect(() => {
     setLiveTail([]);
     setStreaming(false);
     setStatusRunning(null);
     setStatusBackground(null);
     setLiveTurns(null);
-    if (!sessionId) return;
-
-    // Reconnect recovery: after an SSE drop (sleep, network blip) events are lost for good — on
-    // re-entering the 'pending' (connected) state, refetch the authoritative snapshot + transcript.
-    let wasConnected = false;
-
-    const sub = client.subscribe.subscribe(
-      { events: ['session.message', 'session.status', 'session.turn', 'session.interaction', 'session.rewound'], sessionId },
-      {
-        onConnectionStateChange: (state: { state: string }) => {
-          if (state.state !== 'pending') return;
-          if (wasConnected) {
-            queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-            queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
-          }
-          wasConnected = true;
-        },
-        onData: (raw: { type?: string; payload?: unknown }) => {
-          // Delta running signal — real turn start/end from the agent-runner.
-          if (raw.type === 'session.status') {
-            const s = raw.payload as { running?: boolean; backgroundRunning?: boolean } | undefined;
-            const r = !!s?.running;
-            setStatusRunning(r);
-            // Background-task hold: running stays true but the foreground turn is done and a
-            // background task may still stream a continuation. Cleared whenever running:false lands.
-            setStatusBackground(r && !!s?.backgroundRunning);
-            if (r) {
-              // A fresh turn starts its own turn count — drop the previous run's live value so the
-              // composer doesn't flash the last count before this run's first progress event lands.
-              setLiveTurns(null);
-            } else {
-              // Turn ended — collapse the heuristic immediately so idle is instant, not a 2.5s tail.
-              setStreaming(false);
-              if (idleTimer.current) clearTimeout(idleTimer.current);
-            }
-            // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
-            // edges so the left rail reflects the turn without waiting for a focus refetch.
-            queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-            return;
-          }
-          // Message edit + rewind (sessions.rewind, possibly from ANOTHER client): the transcript
-          // changed SHAPE — the buffered live tail may hold now-superseded messages, so drop it
-          // entirely and refetch the authoritative transcript.
-          if (raw.type === 'session.rewound') {
-            setLiveTail([]);
-            queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
-            queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-            return;
-          }
-          // Interaction entity state change (created / answered / approved / expired / …):
-          // events are hints, queries are truth — refetch the transcript; every connected
-          // client converges on the entity's current status (cards appear, resolve, gray out).
-          if (raw.type === 'session.interaction') {
-            queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
-            queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
-            return;
-          }
-          // Live agent-turn delta — the real turn count that grows as the agent works.
-          if (raw.type === 'session.turn') {
-            const s = raw.payload as { numTurns?: number } | undefined;
-            if (typeof s?.numTurns === 'number') setLiveTurns(s.numTurns);
-            return;
-          }
-          const p = raw.payload as
-            | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; attachments?: LiveSessionMessage['attachments'] }
-            | undefined;
-          if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
-          const msg: LiveSessionMessage = {
-            sessionId: p.sessionId ?? sessionId,
-            role: p.role,
-            text: p.text ?? '',
-            toolName: p.toolName,
-            toolInput: p.toolInput,
-            ts: p.ts ?? new Date().toISOString(),
-            attachments: p.attachments,
-          };
-          setLiveTail((prev) => {
-            const next = [...prev, msg];
-            return next.length > TAIL_CAP ? next.slice(next.length - TAIL_CAP) : next;
-          });
-          setStreaming(true);
-          if (idleTimer.current) clearTimeout(idleTimer.current);
-          idleTimer.current = setTimeout(() => setStreaming(false), STREAM_IDLE_MS);
-          // Reconcile the authoritative history (finalized turns) — the tail de-dups against it.
-          queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
-        },
-      },
-    );
-
     return () => {
-      sub.unsubscribe();
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
-  }, [client, queryClient, trpc, sessionId]);
+  }, [sessionId]);
+
+  // Reconnect recovery: after a stream drop (sleep, network blip) events are lost for good — when the
+  // shared stream reconnects, refetch the authoritative snapshot + transcript. `reconnectEpoch` only
+  // changes on a REAL reconnect (not the first connect), which is what the old per-hook
+  // `wasConnected` latch expressed.
+  const { reconnectEpoch } = useLiveConnection();
+  useEffect(() => {
+    if (reconnectEpoch === 0 || !sessionId) return;
+    queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+    queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+  }, [reconnectEpoch, sessionId, queryClient, trpc]);
+
+  useLiveEvents(
+    SESSION_LIVE_EVENTS,
+    (raw) => {
+      if (!sessionId) return;
+      // Delta running signal — real turn start/end from the agent-runner.
+      if (raw.type === 'session.status') {
+        const s = raw.payload as { running?: boolean; backgroundRunning?: boolean } | undefined;
+        const r = !!s?.running;
+        setStatusRunning(r);
+        // Background-task hold: running stays true but the foreground turn is done and a
+        // background task may still stream a continuation. Cleared whenever running:false lands.
+        setStatusBackground(r && !!s?.backgroundRunning);
+        if (r) {
+          // A fresh turn starts its own turn count — drop the previous run's live value so the
+          // composer doesn't flash the last count before this run's first progress event lands.
+          setLiveTurns(null);
+        } else {
+          // Turn ended — collapse the heuristic immediately so idle is instant, not a 2.5s tail.
+          setStreaming(false);
+          if (idleTimer.current) clearTimeout(idleTimer.current);
+        }
+        // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
+        // edges so the left rail reflects the turn without waiting for a focus refetch.
+        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        return;
+      }
+      // Message edit + rewind (sessions.rewind, possibly from ANOTHER client): the transcript
+      // changed SHAPE — the buffered live tail may hold now-superseded messages, so drop it
+      // entirely and refetch the authoritative transcript.
+      if (raw.type === 'session.rewound') {
+        setLiveTail([]);
+        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        return;
+      }
+      // Interaction entity state change (created / answered / approved / expired / …):
+      // events are hints, queries are truth — refetch the transcript; every connected
+      // client converges on the entity's current status (cards appear, resolve, gray out).
+      if (raw.type === 'session.interaction') {
+        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
+        return;
+      }
+      // Live agent-turn delta — the real turn count that grows as the agent works.
+      if (raw.type === 'session.turn') {
+        const s = raw.payload as { numTurns?: number } | undefined;
+        if (typeof s?.numTurns === 'number') setLiveTurns(s.numTurns);
+        return;
+      }
+      const p = raw.payload as
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; attachments?: LiveSessionMessage['attachments'] }
+        | undefined;
+      if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
+      const msg: LiveSessionMessage = {
+        sessionId: p.sessionId ?? sessionId,
+        role: p.role,
+        text: p.text ?? '',
+        toolName: p.toolName,
+        toolInput: p.toolInput,
+        ts: p.ts ?? new Date().toISOString(),
+        attachments: p.attachments,
+      };
+      setLiveTail((prev) => {
+        const next = [...prev, msg];
+        return next.length > TAIL_CAP ? next.slice(next.length - TAIL_CAP) : next;
+      });
+      setStreaming(true);
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+      idleTimer.current = setTimeout(() => setStreaming(false), STREAM_IDLE_MS);
+      // Reconcile the authoritative history (finalized turns) — the tail de-dups against it.
+      queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+    },
+    { sessionId },
+  );
 
   // Snapshot + delta: event wins once received; snapshot restores state before that; heuristic last.
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);

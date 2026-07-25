@@ -21,7 +21,7 @@ Stage-3 token-summary presentation (`ThreadDetailPage`/`ThreadStepList`/`NestedT
 | `thread-steps.test.ts` | vitest for `thread-steps.ts` (10 tests). |
 | `nested-threads.ts` | **Pure** (kept): `nodeLevel` (child depth→display level, root=1) · `isMaxLevel` (≥5 or truncated) · `countDescendants` · `treeMaxLevel` (clamped ≤5) · `flattenOutline` · `INLINE_MAX_VISIBLE_LEVEL`. Consumed by `thread-detail-vm` + workbench `right-panel-vm`/`RightThreadCard`. |
 | `nested-threads.test.ts` | vitest for `nested-threads.ts` (14 tests). |
-| `useThreadGetLiveSync.ts` | One SSE subscription on `thread.created/step.*/completed/failed` → invalidate `threads.get` for this `threadId` → refetch. Reused by the detail route + workbench inline/right cards. |
+| `useThreadGetLiveSync.ts` | Listener on the SHARED live stream (`features/live`) for `thread.created/step.*/completed/failed` → invalidate `threads.get` for this `threadId` → refetch. Reused by the detail route + workbench inline/right cards — this was the worst offender for connection count (every expanded card opened its own SSE); on the shared stream a card costs a listener, not a connection. |
 
 ## Notes
 

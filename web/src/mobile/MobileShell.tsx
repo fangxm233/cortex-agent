@@ -20,6 +20,7 @@ import { MHotUpdateProvider } from './v3/MHotUpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
+import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 import { useViewportHeight } from './use-viewport-height';
 
 export function MobileShell() {
@@ -44,6 +45,9 @@ export function MobileShell() {
   const showTabBar = isTabRoute(location.pathname);
 
   return (
+    // LiveEventsProvider owns the app's single SSE stream (features/live) — every live surface and the
+    // connectivity badge read through it, so the mobile shell holds one connection, not one per hook.
+    <LiveEventsProvider>
     <ConnectionStatusProvider>
     <MobileProjectProvider>
       <MediaViewerProvider>
@@ -82,5 +86,6 @@ export function MobileShell() {
       </MediaViewerProvider>
     </MobileProjectProvider>
     </ConnectionStatusProvider>
+    </LiveEventsProvider>
   );
 }

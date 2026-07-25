@@ -1,8 +1,7 @@
-import { useEffect } from 'react';
-import { useTRPCClient } from '@/lib/trpc';
+import { useLiveEvents } from '@/features/live/LiveEventsProvider';
 
-// Thin SSE glue for turn-scoped DM notifications. Opens one global subscription to
-// `session.message` + `session.status` (no sessionId scope → all sessions):
+// Thin glue for turn-scoped DM notifications. Listens on the SHARED live stream
+// (`features/live/LiveEventsProvider`) for `session.message` + `session.status`, unscoped (all sessions):
 //   · assistant `session.message` events (non-empty) → `onMessage` (the caller buffers the turn's
 //     latest per session — see turn-buffer.ts);
 //   · `session.status` running:false → `onTurnEnd` (the turn boundary; the caller flushes ONE toast).
@@ -25,37 +24,28 @@ export interface DmNotificationHandlers {
   onTurnEnd: (sessionId: string) => void;
 }
 
+const DM_EVENTS = ['session.message', 'session.status'];
+
 /**
- * Subscribe to assistant `session.message` + turn-boundary `session.status` events app-wide.
- * User/tool messages and empty assistant texts are filtered out here. Closes on unmount. Both
- * handlers should be stable (useCallback) so the subscription is not re-opened each render.
+ * Receive assistant `session.message` + turn-boundary `session.status` events app-wide.
+ * User/tool messages and empty assistant texts are filtered out here.
  */
 export function useDmNotifications({ onMessage, onTurnEnd }: DmNotificationHandlers): void {
-  const client = useTRPCClient();
-
-  useEffect(() => {
-    const sub = client.subscribe.subscribe(
-      { events: ['session.message', 'session.status'] },
-      {
-        onData: (raw: { type?: string; payload?: unknown }) => {
-          if (raw?.type === 'session.message') {
-            const p = raw.payload as
-              | { sessionId?: string; channel?: string; role?: string; text?: string; ts?: string }
-              | undefined;
-            if (!p || p.role !== 'assistant') return;
-            const text = (p.text ?? '').trim();
-            if (!text || !p.sessionId) return;
-            onMessage({ sessionId: p.sessionId, channel: p.channel ?? null, text, ts: p.ts ?? null });
-            return;
-          }
-          if (raw?.type === 'session.status') {
-            const p = raw.payload as { sessionId?: string; running?: boolean } | undefined;
-            if (!p || !p.sessionId || p.running !== false) return;
-            onTurnEnd(p.sessionId);
-          }
-        },
-      },
-    );
-    return () => sub.unsubscribe();
-  }, [client, onMessage, onTurnEnd]);
+  useLiveEvents(DM_EVENTS, (raw) => {
+    if (raw.type === 'session.message') {
+      const p = raw.payload as
+        | { sessionId?: string; channel?: string; role?: string; text?: string; ts?: string }
+        | undefined;
+      if (!p || p.role !== 'assistant') return;
+      const text = (p.text ?? '').trim();
+      if (!text || !p.sessionId) return;
+      onMessage({ sessionId: p.sessionId, channel: p.channel ?? null, text, ts: p.ts ?? null });
+      return;
+    }
+    if (raw.type === 'session.status') {
+      const p = raw.payload as { sessionId?: string; running?: boolean } | undefined;
+      if (!p || !p.sessionId || p.running !== false) return;
+      onTurnEnd(p.sessionId);
+    }
+  });
 }
