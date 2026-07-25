@@ -43,6 +43,7 @@ test('buildSpawnArgs baseline — no optional flags', () => {
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
+    '--replay-user-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
     '--tools', DEFAULT_TOOLS,
@@ -69,6 +70,7 @@ test('buildSpawnArgs with full options — system-prompt, append, model, agent, 
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
+    '--replay-user-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
     '--tools', 'Bash,Read',
@@ -243,6 +245,9 @@ test("buildSpawnArgs mode='tui' — omits -p / stream-json flags, layers TUI bri
   assert.ok(!args.includes('--input-format'), 'tui mode must not pass --input-format');
   assert.ok(!args.includes('--output-format'), 'tui mode must not pass --output-format');
   assert.ok(!args.includes('--verbose'), 'tui mode must not pass --verbose');
+  // Mid-turn injection is a print-mode stdin capability; TUI drives the CLI through tmux keystrokes
+  // and has no stream-json stdin to replay, so the ack flag must not leak into its argv.
+  assert.ok(!args.includes('--replay-user-messages'), 'tui mode must not pass --replay-user-messages');
   // Must contain permission bypass + TUI defaults + session id
   assert.ok(args.includes('--dangerously-skip-permissions'));
   assert.ok(args.includes('--permission-mode'));
@@ -803,6 +808,7 @@ test('ClaudeAdapter.spawn: full AgentSpawnConfig produces expected CLI args (can
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
+    '--replay-user-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
     '--tools', nativeTools,

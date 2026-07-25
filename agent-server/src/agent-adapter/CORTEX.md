@@ -6,19 +6,19 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | filename | role | function |
 |---|---|---|
 | `index.ts` | entry | getAdapter(backend) dispatch + centralized symbol export |
-| `types.ts` | contract | AgentAdapter/AgentProcess/SpawnConfig types |
-| `capabilities.ts` | capabilities | Capability enum + per-backend capability set |
+| `types.ts` | contract | AgentAdapter/AgentProcess/SpawnConfig types + `ContinuationSink` (spontaneous background-task turns) + `InjectionAckSink` (mid-turn injection delivery ack; `foldedIntoTurn` discriminates the two K-010 §8/§9 landing outcomes) + the optional `AgentProcess.injectUserMessage` / `setInjectionAckSink` pair |
+| `capabilities.ts` | capabilities | Capability enum + per-backend capability set (`MidTurnInject` = claude only — print-mode stdin accepts a user message while a turn is in flight; `StreamingDeltas` = claude + pi) |
 | `normalize/event-types.ts` | event types | NormalizedEvent discriminated union |
 | `normalize/event-stream.ts` | queue | createEventStream single-producer FIFO |
 | `normalize/tool-names.ts` | tool name table | canonical ↔ backend-native bidirectional mapping |
 | `normalize/hooks.ts` | hook contract | NormalizedHookSpec + trigger types |
 | `bg-wait.ts` | bg wait | thread-session INLINE background-task wait (waitForBgContinuation merges the spontaneous continuation into the step result; shouldAwaitBgInline gates on threadId+claude+sink+remaining) + shared env gates (isBgContinuationEnabled / getBgGraceMs / getBgMaxWaitMs — single source, re-exported by orchestration bg-continuation/bg-wait-guard) |
-| `claude/adapter.ts` | adapter | ClaudeAdapter + session pool + runClaude + `resolveResumeForPrint` (gates print-mode `--resume` on the transcript existing — fixes the cortex-tui fresh-session "No conversation found" error) + `killSession(channel)` (module-level hard stop, SIGTERM now — the counterpart of the graceful `closeSession`; used by the Stop path to end background tasks still living in a pooled session whose foreground turn already finished) |
+| `claude/adapter.ts` | adapter | ClaudeAdapter + session pool + runClaude + `resolveResumeForPrint` (gates print-mode `--resume` on the transcript existing — fixes the cortex-tui fresh-session "No conversation found" error) + `killSession(channel)` (module-level hard stop, SIGTERM now — the counterpart of the graceful `closeSession`; used by the Stop path to end background tasks still living in a pooled session whose foreground turn already finished) + **mid-turn injection** (`injectUserMessage` writes the same NDJSON user line a turn writes but registers NO turn, so the already-awaited turn promise covers it and no second result is fabricated; returns false with no live process / no active turn so the caller falls back to the conduit queue). Landing is a race the caller cannot control, so both K-010 outcomes are wired: a tool-result boundary folds the message into the running turn (ONE result), while a mid-text-generation landing makes the CLI start a turn of its own AFTER this turn's result — the `--replay-user-messages` echo (`handleReplayEcho`, the ONLY consumer of replay events) acks delivery and, when it fires with no turn in flight, arms `openContinuationTurn` so that spontaneous reply reaches `continuationSink` instead of being dropped. Pending injections also hold the idle timer open and seal the sink on process death |
 | `claude/defaults.ts` | constants | timeout/MCP/tools/hooks constants |
 | `claude/hooks-builder.ts` | builder | buildHooksSettings generates hook configuration |
 | `claude/tool-summarizers.ts` | summarizer | summarizeToolInput tool input rendering |
-| `claude/spawn-args.ts` | args | buildSpawnArgs constructs CLI args (profile `thinking` → `--effort`) |
-| `claude/event-parser.ts` | parser | stream-json event parsing + plan tracking |
+| `claude/spawn-args.ts` | args | buildSpawnArgs constructs CLI args (profile `thinking` → `--effort`; print mode also carries `--replay-user-messages`, whose echo is the mid-turn injection delivery ack — it fires when the CLI CONSUMES a message, not when it was written) |
+| `claude/event-parser.ts` | parser | stream-json event parsing + plan tracking (`formatUserEvent` guards on an array `content` — replay echoes arrive as bare strings) |
 | `claude/bg-task-tracker.ts` | tracker | background-task (run_in_background) running/undelivered dual-set tracking (task_updated terminal statuses count as work-done because CC may never send task_notification — old-CLI same-turn completions / killed tasks) + spontaneous continuation-turn detection (BgTaskTracker / routeLine / isContinuationResult) |
 | `claude/tmux-control.ts` | utility | tmux CLI wrapper (DR-0012 Phase 1, TUI mode foundation) |
 | `claude/jsonl-tail.ts` | utility | session jsonl file tail + NormalizedEvent translation (DR-0012 Phase 1) |

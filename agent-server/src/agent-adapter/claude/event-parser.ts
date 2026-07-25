@@ -34,8 +34,14 @@ export function formatAssistantEvent(data: any): string | null {
 }
 
 export function formatUserEvent(data: any): string | null {
+  const content = data.message?.content;
+  // `user` lines come in two shapes: the tool_result carriers this formatter exists for (block
+  // array), and — since `--replay-user-messages` — the prompt echo, whose content is a bare
+  // string. Without this guard the loop below would iterate that string character by character
+  // (a 40 KB prompt = 40 000 no-op iterations per echo). Mirrors jsonl-tail.ts's guard.
+  if (!Array.isArray(content)) return null;
   const parts: string[] = [];
-  for (const block of (data.message?.content || [])) {
+  for (const block of content) {
     if (block.type !== 'tool_result') continue;
     let inner = block.content || '';
     let preview;
