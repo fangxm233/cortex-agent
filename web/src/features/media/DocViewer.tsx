@@ -5,6 +5,7 @@ import { useDownloadFile } from './useDownloadFile';
 import { useZoom } from './useZoom';
 import { authHeaders } from '@/lib/desktop-config';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { usePinnedPreview } from './PinnedPreviewProvider';
 import { isMarkdownName, type DocKind } from './doc-kind';
 import { clampPage, pageAtScroll, parseJump, type PageBox } from './pdf-pager';
 
@@ -35,8 +36,9 @@ interface DocViewerContextValue {
 // Default to a no-op so presentational components render without a provider in scope (mirrors MediaViewer).
 const DocViewerContext = createContext<DocViewerContextValue>({ openDoc: () => {}, close: () => {} });
 
-/** Text/Markdown body — fetch the file's text (authenticated) and render it. */
-function TextBody({ item }: { item: DocItem }): JSX.Element {
+/** Text/Markdown body — fetch the file's text (authenticated) and render it.
+ *  Exported so the docked `PinnedPreviewPanel` renders the SAME document body as this modal. */
+export function TextBody({ item }: { item: DocItem }): JSX.Element {
   const [text, setText] = useState<string | null>(null);
   const [state, setState] = useState<'loading' | 'ok' | 'toolarge' | 'failed'>('loading');
 
@@ -86,8 +88,9 @@ function TextBody({ item }: { item: DocItem }): JSX.Element {
 }
 
 /** PDF body — pdf.js renders each page to a canvas. Loads pdf.js lazily on first PDF open.
- *  A page pager (counter + prev/next + jump-to-page) tracks the page under the viewport center. */
-function PdfBody({ item }: { item: DocItem }): JSX.Element {
+ *  A page pager (counter + prev/next + jump-to-page) tracks the page under the viewport center.
+ *  Exported so the docked `PinnedPreviewPanel` renders the SAME document body as this modal. */
+export function PdfBody({ item }: { item: DocItem }): JSX.Element {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pagesRef = useRef<HTMLDivElement[]>([]);
@@ -304,7 +307,7 @@ function Centered({ children, failed }: { children: ReactNode; failed?: boolean 
   );
 }
 
-export function DocModal({ item, onClose }: { item: DocItem; onClose: () => void }): JSX.Element {
+export function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void; onPin?: () => void }): JSX.Element {
   const dl = useDownloadFile();
   // Android hardware back (and browser back) close the doc modal instead of navigating a route.
   useBackDismiss(onClose);
@@ -367,6 +370,11 @@ export function DocModal({ item, onClose }: { item: DocItem; onClose: () => void
           <span style={{ font: `600 11.5px ${mono}`, color: 'var(--proto-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
             {item.name}
           </span>
+          {onPin && (
+            <span role="button" title="Pin preview beside the chat" onClick={onPin} style={btnStyle}>
+              ◧
+            </span>
+          )}
           <span
             role="button"
             title="Download"
@@ -406,13 +414,31 @@ const btnStyle: React.CSSProperties = {
 
 export function DocViewerProvider({ children }: { children: ReactNode }): JSX.Element {
   const [item, setItem] = useState<DocItem | null>(null);
-  const openDoc = useCallback((next: DocItem) => setItem(next), []);
+  const pinnedPreview = usePinnedPreview();
+  // While a docked preview is active, opening a document swaps the pane's content — no modal.
+  const openDoc = useCallback(
+    (next: DocItem) => {
+      if (pinnedPreview.active) {
+        pinnedPreview.show(next);
+        return;
+      }
+      setItem(next);
+    },
+    [pinnedPreview],
+  );
   const close = useCallback(() => setItem(null), []);
   const value = useMemo(() => ({ openDoc, close }), [openDoc, close]);
+  // Pinning hands the open document over to the docked pane and dismisses the modal.
+  const onPin = pinnedPreview.canPin
+    ? () => {
+        pinnedPreview.pin(item);
+        setItem(null);
+      }
+    : undefined;
   return (
     <DocViewerContext.Provider value={value}>
       {children}
-      {item && <DocModal item={item} onClose={close} />}
+      {item && <DocModal item={item} onClose={close} onPin={onPin} />}
     </DocViewerContext.Provider>
   );
 }

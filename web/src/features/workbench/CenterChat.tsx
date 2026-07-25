@@ -28,7 +28,9 @@ import { useSelectedSession } from './SelectedSessionProvider';
 
 const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 
-export function CenterChat(): JSX.Element {
+// `grow` is the pane's share of the fluid center region — 1 normally, `1 - split` while a preview
+// is pinned beside the chat (WorkbenchPage owns the split).
+export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   const L = useVocab();
   const trpc = useTRPC();
   const { currentProjectId } = useCurrentProject();
@@ -108,7 +110,9 @@ export function CenterChat(): JSX.Element {
     <div
       data-pane="center"
       style={{
-        flex: 1,
+        flexGrow: grow,
+        flexShrink: 1,
+        flexBasis: 0,
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',

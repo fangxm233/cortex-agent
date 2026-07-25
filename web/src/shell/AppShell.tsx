@@ -11,6 +11,7 @@ import { NotificationProvider } from '@/features/notifications/NotificationProvi
 import { HotUpdateProvider } from '@/features/hot-update/HotUpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
+import { PinnedPreviewProvider } from '@/features/media/PinnedPreviewProvider';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
@@ -19,7 +20,9 @@ import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatus
 // LeftRail was removed (superseded). The global ⌘K command palette (design 6c), the execution
 // log drawer (design 09-exec-logs), the New-schedule overlay (design 7c) and the approval center
 // overlay (design 7a) stay mounted here so any surface / banner / dispatch row / approval card can
-// open them.
+// open them. PinnedPreviewProvider wraps both previewers because they consult it: while a preview is
+// pinned (docked beside the chat on the workbench) `openMedia`/`openDoc` swap that pane instead of
+// raising their modal.
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
@@ -30,14 +33,16 @@ export function AppShell() {
             <ScheduleModalProvider>
               <ApprovalsProvider>
                 <IssuesProvider>
-                  <MediaViewerProvider>
-                    <DocViewerProvider>
-                      <Outlet />
-                      <CommandPalette open={open} onOpenChange={setOpen} />
-                      <NotificationProvider />
-                      <HotUpdateProvider />
-                    </DocViewerProvider>
-                  </MediaViewerProvider>
+                  <PinnedPreviewProvider>
+                    <MediaViewerProvider>
+                      <DocViewerProvider>
+                        <Outlet />
+                        <CommandPalette open={open} onOpenChange={setOpen} />
+                        <NotificationProvider />
+                        <HotUpdateProvider />
+                      </DocViewerProvider>
+                    </MediaViewerProvider>
+                  </PinnedPreviewProvider>
                 </IssuesProvider>
               </ApprovalsProvider>
             </ScheduleModalProvider>
