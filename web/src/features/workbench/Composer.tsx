@@ -463,7 +463,10 @@ export function Composer({
       e.preventDefault();
       doSend();
     } else if (e.key === 'Escape') {
-      setSlashOpen(false);
+      // The slash menu owns Escape while it is open; otherwise Escape is the Stop shortcut the
+      // composer hint has always advertised ("Running · esc to stop") but never implemented.
+      if (slashOpen) { setSlashOpen(false); return; }
+      if (running) { e.preventDefault(); doStop(); }
     }
   };
 

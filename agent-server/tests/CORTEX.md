@@ -68,7 +68,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `core/status-format.test.ts` | Test | buildThreadStatusMessage: task-info lead format / thread-only fallback / text+thread-id truncation / turn count |
 | `core/singleton-lock.test.ts` | Test | tryAcquireSingletonLock/releaseSingletonLock/isProcessAlive against a temp pidfile (fresh/live-holder/stale/corrupt) |
 | `core/auth.test.ts` | Test | core/auth.ts: timingSafeEqualStr (fail-closed) + ensureAuthTokens generation/idempotency/partial/append-to-.env |
-| `core/bg-held-sessions.test.ts` | Test | BgHeldSessions registry (web bg-hold snapshot): mark on running+backgroundRunning, clear on seal / plain turn start / turn end, re-arm keeps held, per-session independence, singleton |
+| `core/bg-held-sessions.test.ts` | Test | BgHeldSessions registry (web bg-hold snapshot): mark on running+backgroundRunning, clear on seal / plain turn start / turn end, re-arm keeps held, per-session independence, singleton; + the Stop-path additions — channel index (`sessionsOnChannel`) and single-fire `setAbort`/`abort` with handles dropped on seal and on clear |
 | `webhook-auth.test.ts` | Test | webhook bearer-token gate: 401 without/with-wrong token, pass with token, /webhook/github exempt (HMAC) |
 | `project-store.test.ts` | Test | ProjectStore list/get/exists/getDefault/resolveFromMessage + scaffolding + cache refresh |
 | `dispatch-utils.test.ts` | Test | Task dispatch commands and env injection |

@@ -441,6 +441,7 @@ export const _test = {
 
 export {
   closeSession,
+  killSession,
   closeSessionsByPrefix,
   closeAllSessions,
   _test as claudeTest,

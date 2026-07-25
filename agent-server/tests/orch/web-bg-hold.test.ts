@@ -26,10 +26,13 @@ function makeHarness() {
     clear: (id: unknown): void => { if (pending && pending.id === id) pending = null; },
   };
 
+  let abort: (() => void) | null = null;
+
   const install = (result: any): boolean =>
     holdWebForBg({
       result,
       registerSink: (s) => { sink = s; },
+      registerAbort: (a) => { abort = a; },
       track: (d) => track.push(d),
       publishStatus: (p) => statuses.push(p),
       publishAssistant: (text) => assistants.push(text),
@@ -41,6 +44,7 @@ function makeHarness() {
     statuses, assistants, tools, track,
     install,
     get sink() { return sink!; },
+    get abort() { return abort; },
     get pendingMs() { return pending?.ms ?? null; },
     fire: () => { if (pending) { const f = pending.fn; pending = null; f(); } },
   };
@@ -128,4 +132,51 @@ test('holdWebForBg: rate-limited continuation → seal idle', () => {
   h.sink.onResult({ rateLimited: true, pendingBackgroundTasks: 1 } as any);
   assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
   assert.deepEqual(h.track, [+1, -1]);
+});
+
+// --- User Stop during the hold. The execution is gone from runningExecutions by the time the hold
+// is installed, so the cancel path reaches the hold through this abort handle instead.
+
+test('holdWebForBg: registers an abort handle while held (Stop has something to call)', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 1 });
+  assert.equal(typeof h.abort, 'function', 'abort handle exposed');
+});
+
+test('holdWebForBg: nothing to hold → no abort handle registered', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0 });
+  assert.equal(h.abort, null);
+});
+
+test('holdWebForBg: abort → seals idle and releases the busy bracket (Stop is not a no-op)', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 1 });
+  h.abort!();
+  assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false }, 'sealed on Stop');
+  assert.deepEqual(h.track, [+1, -1], 'busy bracket balanced');
+  assert.equal(h.pendingMs, null, 'guard timer cleared');
+});
+
+test('holdWebForBg: abort is idempotent and wins over a later interrupt/continuation seal', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 1 });
+  h.abort!();
+  const after = h.statuses.length;
+  h.abort!();
+  // The kill the cancel path issues alongside the abort lands here moments later.
+  h.sink.onResult({ backgroundInterrupted: true } as any);
+  assert.equal(h.statuses.length, after, 'no duplicate status publishes');
+  assert.deepEqual(h.track, [+1, -1], 'bracket released exactly once');
+});
+
+test('holdWebForBg: abort after a max-wait release still seals only once', () => {
+  const h = makeHarness();
+  h.install({ pendingBackgroundTasks: 1 });
+  h.fire(); // max-wait cap: publishes running:false but keeps the sink (not sealed)
+  const after = h.statuses.length;
+  h.abort!();
+  assert.deepEqual(h.statuses.at(-1), { running: false, backgroundRunning: false });
+  assert.equal(h.statuses.length, after + 1, 'abort seals the still-registered hold');
+  assert.deepEqual(h.track, [+1, -1], 'bracket not double-released');
 });

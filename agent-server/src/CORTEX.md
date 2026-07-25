@@ -41,6 +41,7 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 | Path | Function |
 |---|---|
 | `running-executions.ts` | Unified live-execution registry, keyed by executionId (byKey/byThreadId/byChannel) + agent.* event publishing |
+| `bg-held-sessions.ts` | (core/) Web bg-hold registry — mirrors `session.status` backgroundRunning deltas so sessions.list can serve the Background state as a snapshot, indexes each hold by channel, and carries its abort handle so the channel-keyed Stop path can reach a session that has already left running-executions |
 | `conduit-queue.ts` | Per-conduit serial Promise queue |
 | `superseded-edits.ts` | Message edit supersede marker |
 | `busy-tracker.ts` | activeLlmCount + IPC busy/idle (S13: subscriber-as-source-of-truth) |

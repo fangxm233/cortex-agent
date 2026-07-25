@@ -657,6 +657,15 @@ export function closeSession(channel: string, sessionKey?: string): void {
   if (session) session.close();
 }
 
+/** Hard-stop the pooled session for a channel (SIGTERM, same path the foreground Stop takes via
+ *  handle.kill()). Unlike closeSession's graceful stdin-end + 30s grace, this ends the process now
+ *  — used by the Stop path to actually kill background tasks still running inside it after the
+ *  foreground turn ended. Returns false when no live session exists for the key. */
+export function killSession(channel: string, sessionKey?: string): boolean {
+  const session = sessions.get(sessionKey || channel);
+  return session ? session.kill() : false;
+}
+
 /** Close all sessions whose key starts with the given prefix (used by Thread cleanup). */
 export function closeSessionsByPrefix(prefix: string): void {
   for (const [key, session] of sessions) {

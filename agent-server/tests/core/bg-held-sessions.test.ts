@@ -66,6 +66,61 @@ test('clear() empties the registry (test hygiene / restart semantics)', () => {
   assert.equal(t.has('s1'), false);
 });
 
+// --- Stop path: channel index + abort handle (a bg-held session has no live execution, so the
+// channel-keyed cancel path must find it here or Stop silently does nothing).
+
+test('records the channel a hold lives on (reverse lookup for the Stop path)', () => {
+  const t = new BgHeldSessions();
+  t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
+  t.onSessionStatus({ sessionId: 's2', channel: 'web:xyz', running: true, backgroundRunning: true });
+  assert.deepEqual(t.sessionsOnChannel('web:abc'), ['s1']);
+  assert.deepEqual(t.sessionsOnChannel('web:xyz'), ['s2']);
+  assert.deepEqual(t.sessionsOnChannel('web:none'), []);
+  assert.deepEqual(t.sessionsOnChannel(''), []);
+});
+
+test('sessionsOnChannel drops the session once the hold is sealed', () => {
+  const t = new BgHeldSessions();
+  t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
+  t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: false, backgroundRunning: false });
+  assert.deepEqual(t.sessionsOnChannel('web:abc'), []);
+});
+
+test('abort() fires the registered seal exactly once', () => {
+  const t = new BgHeldSessions();
+  let fired = 0;
+  t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
+  t.setAbort('s1', () => { fired++; });
+  assert.equal(t.abort('s1'), true);
+  assert.equal(fired, 1);
+  assert.equal(t.abort('s1'), false, 'single-fire: handle dropped before invoking');
+  assert.equal(fired, 1);
+});
+
+test('abort() on a session with no hold is a no-op', () => {
+  const t = new BgHeldSessions();
+  assert.equal(t.abort('nope'), false);
+});
+
+test('sealing the hold drops its abort handle (no stale abort after the hold ends)', () => {
+  const t = new BgHeldSessions();
+  let fired = 0;
+  t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
+  t.setAbort('s1', () => { fired++; });
+  t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: false });
+  assert.equal(t.abort('s1'), false);
+  assert.equal(fired, 0);
+});
+
+test('clear() drops abort handles too', () => {
+  const t = new BgHeldSessions();
+  t.onSessionStatus({ sessionId: 's1', channel: 'web:abc', running: true, backgroundRunning: true });
+  t.setAbort('s1', () => { throw new Error('must not fire'); });
+  t.clear();
+  assert.equal(t.abort('s1'), false);
+  assert.deepEqual(t.sessionsOnChannel('web:abc'), []);
+});
+
 test('singleton export shares one registry', () => {
   bgHeldSessions.onSessionStatus({ sessionId: 'sx', running: true, backgroundRunning: true });
   assert.equal(bgHeldSessions.has('sx'), true);

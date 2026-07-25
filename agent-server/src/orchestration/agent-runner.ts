@@ -30,6 +30,7 @@ import { createToolTrace } from '@platform/index.js';
 import { setStreamingCallback, clearStreamingCallback, publishPlanSubmitted, publishAskUserRequested } from './routing/hook-bridge.js';
 import { publishSessionMessage, publishSessionStatus, publishSessionTurn } from './session-events.js';
 import { runningExecutions } from '@core/running-executions.js';
+import { bgHeldSessions } from '@core/bg-held-sessions.js';
 import { maybeNotifyCodexLowUsage } from '@domain/costs/codex-usage-monitor.js';
 import { recordResume } from '@domain/costs/resume-registry.js';
 import { getAgent } from '@domain/threads/index.js';
@@ -291,6 +292,9 @@ export class AgentRunner {
         webBgHeld = holdWebForBg({
           result: convResult.result,
           registerSink: (sink) => proc!.setContinuationSink!(sink),
+          // Stop during the hold: the cancel path finds the hold by channel in this registry and
+          // fires the abort to seal it (see core/bg-held-sessions.ts).
+          registerAbort: (abort) => bgHeldSessions.setAbort(sid, abort),
           track: trackPendingTask,
           publishStatus: ({ running, backgroundRunning }) => publishSessionStatus({ sessionId: sid, channel, running, backgroundRunning }),
           publishAssistant: (text) => {

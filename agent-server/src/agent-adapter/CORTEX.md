@@ -13,7 +13,7 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `normalize/tool-names.ts` | tool name table | canonical ↔ backend-native bidirectional mapping |
 | `normalize/hooks.ts` | hook contract | NormalizedHookSpec + trigger types |
 | `bg-wait.ts` | bg wait | thread-session INLINE background-task wait (waitForBgContinuation merges the spontaneous continuation into the step result; shouldAwaitBgInline gates on threadId+claude+sink+remaining) + shared env gates (isBgContinuationEnabled / getBgGraceMs / getBgMaxWaitMs — single source, re-exported by orchestration bg-continuation/bg-wait-guard) |
-| `claude/adapter.ts` | adapter | ClaudeAdapter + session pool + runClaude + `resolveResumeForPrint` (gates print-mode `--resume` on the transcript existing — fixes the cortex-tui fresh-session "No conversation found" error) |
+| `claude/adapter.ts` | adapter | ClaudeAdapter + session pool + runClaude + `resolveResumeForPrint` (gates print-mode `--resume` on the transcript existing — fixes the cortex-tui fresh-session "No conversation found" error) + `killSession(channel)` (module-level hard stop, SIGTERM now — the counterpart of the graceful `closeSession`; used by the Stop path to end background tasks still living in a pooled session whose foreground turn already finished) |
 | `claude/defaults.ts` | constants | timeout/MCP/tools/hooks constants |
 | `claude/hooks-builder.ts` | builder | buildHooksSettings generates hook configuration |
 | `claude/tool-summarizers.ts` | summarizer | summarizeToolInput tool input rendering |

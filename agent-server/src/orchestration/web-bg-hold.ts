@@ -37,6 +37,10 @@ export interface WebBgHoldDeps {
   /** Busy bracket (trackPendingTask). +1 for the whole wait window so a deferred daemon restart
    *  does not fire and kill the Claude child (F1); -1 when the guard settles. */
   track: (delta: number) => void;
+  /** Register the hold's abort handle (user Stop while the hold is up). Invoked once, right after
+   *  the hold is installed, with a function that seals the hold: guard settled (busy bracket
+   *  released) + running:false published. Idempotent with every other seal path. */
+  registerAbort?: (abort: () => void) => void;
   /** Injectable guard factory for tests (defaults to the real startBgWaitGuard). */
   startGuard?: typeof startBgWaitGuard;
   /** Injectable timers forwarded to the guard (tests drive grace/max-wait deterministically). */
@@ -117,5 +121,15 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
   };
 
   deps.registerSink(sink);
+  // Stop button: the foreground execution is already gone from runningExecutions by the time we
+  // get here, so the channel-keyed cancel path has nothing to kill and used to no-op. Expose the
+  // seal so it can end the hold explicitly (the cancel path also kills the backend process that
+  // owns the background task; this makes the UI seal immediate and independent of that death
+  // notification, which the adapter suppresses when no task is still pending).
+  deps.registerAbort?.(() => {
+    if (sealed) return;
+    log.info('web bg-hold cancelled by user Stop — sealing session idle');
+    seal();
+  });
   return true;
 }
