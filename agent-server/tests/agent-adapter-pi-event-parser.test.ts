@@ -99,6 +99,35 @@ test('assistant_text: message_update text_delta with blockId', () => {
   assert.equal(evt.blockId, 'm1');
 });
 
+test('assistant_text: blockId falls back to message.responseId (the real PI field)', () => {
+  // Real PI AssistantMessage has NO `id` — the stable per-message identifier the provider
+  // sets once, before any text_delta, is `responseId` (anthropic msg_… / openai chatcmpl_…).
+  const state = freshState();
+  const events = piRpcLineToNormalized(
+    line({
+      type: 'message_update',
+      message: { role: 'assistant', responseId: 'msg_abc123', timestamp: 1 },
+      assistantMessageEvent: { type: 'text_delta', delta: 'hello', contentIndex: 0 },
+    }),
+    state,
+  );
+  assert.equal(events.length, 1);
+  assert.equal((events[0] as any).blockId, 'msg_abc123');
+});
+
+test('assistant_text: message.id still wins over responseId when both are present', () => {
+  const state = freshState();
+  const events = piRpcLineToNormalized(
+    line({
+      type: 'message_update',
+      message: { id: 'm1', responseId: 'msg_abc123' },
+      assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
+    }),
+    state,
+  );
+  assert.equal((events[0] as any).blockId, 'm1');
+});
+
 test('assistant_text: message_update without blockId', () => {
   const state = freshState();
   const events = piRpcLineToNormalized(

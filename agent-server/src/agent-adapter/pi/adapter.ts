@@ -1,5 +1,5 @@
 // input:  AgentSpawnConfig, session keys, injectable spawner
-// output: PIAdapter + PISession + switch_session API
+// output: PIAdapter + PISession + switch_session API + assistant_delta streaming preview
 // pos:    PI CLI session pool and AgentAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -199,6 +199,13 @@ class PISession {
   private exitPromise: Promise<void>;
   /** Buffer for assistant_text deltas; flushed on message_end / turn_complete / non-text events. */
   private textBuffer = '';
+  /** blockId of the text currently in textBuffer; attached to the flushed assistant_text. */
+  private textBlockId: string | null = null;
+  /**
+   * Streaming preview gate, resolved once at spawn time (CORTEX_STREAM_DELTAS=0 disables it).
+   * Only assistant_delta is suppressed — the buffered whole message is unaffected.
+   */
+  private readonly streamDeltas: boolean;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private turnIdleTimer: ReturnType<typeof setTimeout> | null = null;
   private maxTimer: ReturnType<typeof setTimeout> | null = null;
@@ -224,6 +231,7 @@ class PISession {
     this.registry = opts.registry;
     this.registrySessionDir = opts.registrySessionDir;
     this.onClose = opts.onClose;
+    this.streamDeltas = process.env['CORTEX_STREAM_DELTAS'] !== '0';
 
     this.proc = opts.spawner(DEFAULT_PI_BINARY, opts.cliArgs, {
       cwd: opts.cwd,
@@ -294,12 +302,20 @@ class PISession {
     }, PI_MAX_TIMEOUT);
   }
 
-  /** Flush buffered text as a single assistant_text event. */
+  /**
+   * Flush buffered text as a single assistant_text event, tagged with the blockId its deltas
+   * carried so the UI can replace the streamed preview with this authoritative message.
+   */
   private flushTextBuffer(): void {
     if (this.textBuffer.length > 0) {
-      this.events.push({ type: 'assistant_text', text: this.textBuffer });
+      this.events.push(
+        this.textBlockId !== null
+          ? { type: 'assistant_text', text: this.textBuffer, blockId: this.textBlockId }
+          : { type: 'assistant_text', text: this.textBuffer },
+      );
       this.textBuffer = '';
     }
+    this.textBlockId = null;
   }
 
   private clearTimers(): void {
@@ -442,6 +458,17 @@ class PISession {
       // This matches Claude adapter behavior where onAssistantMessage fires once
       // per complete assistant message block, not per token.
       if (evt.type === 'assistant_text') {
+        const blockId = evt.blockId ?? null;
+        // A different blockId means the previous block ended without an intervening non-text
+        // event; flush it so one assistant_text never mixes text from two blocks.
+        if (this.textBuffer.length > 0 && blockId !== this.textBlockId) this.flushTextBuffer();
+        this.textBlockId = blockId;
+        // Stream the incremental chunk for the live UI preview. Emitted at PI's native
+        // per-token granularity — coalescing happens downstream, before the bus. The buffered
+        // whole message below stays authoritative (Slack, history, transcript).
+        if (this.streamDeltas && blockId !== null) {
+          this.events.push({ type: 'assistant_delta', text: evt.text, blockId });
+        }
         this.textBuffer += evt.text;
       } else {
         this.flushTextBuffer();

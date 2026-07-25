@@ -12,6 +12,7 @@ export interface QuestionSpec {
 export type NormalizedEvent =
   | { type: 'session_started'; sessionId: string; sessionFile?: string }
   | { type: 'assistant_text'; text: string; blockId?: string }
+  | { type: 'assistant_delta'; text: string; blockId: string }
   | { type: 'tool_use'; toolUseId: string; name: string; input: unknown }
   | { type: 'tool_result'; toolUseId: string; ok: boolean; content: string }
   | { type: 'ask_user_question'; toolUseId: string; questions: QuestionSpec[] }

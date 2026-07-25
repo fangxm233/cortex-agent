@@ -14,6 +14,8 @@ export enum Capability {
   SystemPromptOverride = 'system-prompt-override',
   SessionResume = 'session-resume',
   ToolAllowlist = 'tool-allowlist',
+  StreamingDeltas = 'streaming-deltas',
+  MidTurnInject = 'mid-turn-inject',
 }
 
 // Claude: full native support (claude-bridge.ts currently wires all eight; DR-0008 §3.2)
@@ -26,6 +28,8 @@ const CLAUDE_CAPS: Capability[] = [
   Capability.SystemPromptOverride,
   Capability.SessionResume,
   Capability.ToolAllowlist,
+  Capability.StreamingDeltas,
+  Capability.MidTurnInject,
 ];
 
 // Codex: per DR-0008 §3.4 table — MCP via existing buildMcpBlock in codex-bridge.ts; --system-prompt + resume via app-server RPC; no Hooks/Plugins/PlanMode/AskUserQuestion/ToolAllowlist
@@ -49,6 +53,7 @@ const PI_CAPS: Capability[] = [
   Capability.SystemPromptOverride,
   Capability.ToolAllowlist,
   Capability.SessionResume,
+  Capability.StreamingDeltas,
 ];
 
 export const CAPABILITIES_BY_BACKEND: Record<Backend, Set<Capability>> = {
