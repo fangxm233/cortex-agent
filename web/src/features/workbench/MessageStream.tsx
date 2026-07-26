@@ -30,8 +30,9 @@ export interface MessageEditCtx {
 
 // Message stream — 1:1 from prototype.dc.html L131–357. The transcript body (divider / user bubble /
 // tool-call row / assistant text) is driven by REAL data (task aba0): the `rows` are built from the
-// real `sessions.transcript` query + live `session.message` stream by the pure transcript-vm; the
-// last assistant row streams a caret while output is live. Assistant text renders as Markdown.
+// real `sessions.transcript` query + live `session.message` stream by the pure transcript-vm. A
+// reply still being written grows in place with no caret; a mid-turn message the model has not read
+// yet trails the stream with dimmed text. Assistant text renders as Markdown.
 // The stream sticks to the bottom while new content lands, but releases when the user scrolls up
 // (and re-pins once they scroll back to the bottom).
 
