@@ -7,7 +7,8 @@ import type { ChatRow } from './transcript-vm';
 // Token-level streaming renders as text that simply grows — deliberately WITHOUT a caret or any
 // other "still writing" marker (product decision, 2026-07-25). The composer's Running state already
 // says a turn is in flight, and a blinking block in the message column reads as noise next to prose
-// that is visibly extending itself. The mobile stream keeps its own caret; this is desktop only.
+// that is visibly extending itself. (The routed mobile chat renders no caret either — only the
+// previous-generation, unrouted mobile stream still has one.)
 
 // Components consume useVocab() → wrap every render in LangProvider (defaults to en vocab).
 function render(rows: ChatRow[], streamKey?: string): string {
