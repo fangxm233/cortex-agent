@@ -351,6 +351,28 @@ the credentials are picked up.
 
 You can also run this later with `cortex setup-gateway`.
 
+### 2.11 When the backend login expires
+
+Backend credentials expire after a while. When they do, agent runs
+fail with an authentication error such as:
+
+```
+Failed to authenticate. API Error: 401 OAuth access token has expired.
+Re-authenticate to continue.
+```
+
+The fix is the same login flow as above. Open a new terminal and run
+`claude` (or `pi`, depending on the backend you use). Inside that
+session type `/login` and follow the prompts — pick the login method
+that matches your subscription.
+
+![Backend login prompt](./images/backend-login.png)
+
+Once the login finishes, the refreshed credentials are picked up on the
+next agent run. If the endpoint or model changed, re-run
+`cortex setup-gateway` so the `plan` and `execute` profiles point at
+the new backend.
+
 ---
 
 When the wizard finishes you will see:

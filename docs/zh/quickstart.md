@@ -267,6 +267,21 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 
 你也可以稍后通过 `cortex setup-gateway` 运行此步骤。
 
+### 2.11 后端登录过期怎么办
+
+后端凭据会在一段时间后过期。过期后智能体运行会失败并报认证错误，例如：
+
+```
+Failed to authenticate. API Error: 401 OAuth access token has expired.
+Re-authenticate to continue.
+```
+
+处理方法与上面的登录流程相同：新开一个终端，输入 `claude`（或 `pi`，取决于你使用的后端）启动会话，然后在会话里输入 `/login`，按提示选择与你的订阅相符的登录方式。
+
+![后端登录提示](./images/backend-login.png)
+
+登录完成后，刷新的凭据会在下一次智能体运行时被识别。如果端点或模型发生了变化，重新运行 `cortex setup-gateway`，让 `plan` 与 `execute` 配置指向新的后端。
+
 ---
 
 向导完成后你会看到：
