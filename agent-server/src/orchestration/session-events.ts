@@ -66,6 +66,20 @@ export function publishSessionMessageDelta(p: {
   });
 }
 
+/** Emit a `session.message.delivered` event: a message injected into a turn already in flight has
+ *  now been consumed by the model. The injecting publish surfaces the message immediately (so the
+ *  transcript shows it while the turn is still running) but it is only QUEUED inside the backend at
+ *  that point; this event is the backend's own delivery ack, keyed to that message's `ts`. Published
+ *  by mid-turn-inject.ts on the replay echo. No-op when no bus is wired. */
+export function publishSessionMessageDelivered(p: { sessionId: string; channel: string; messageTs: string }): void {
+  jobCtx.bus?.publish({
+    type: 'session.message.delivered',
+    sessionId: p.sessionId,
+    channel: p.channel,
+    messageTs: p.messageTs,
+  });
+}
+
 /** Emit the REAL agent-turn count of a session's in-flight turn (S4 chat composer). Published by the
  *  agent-runner on each `turn_progress` (and the terminal `turn_complete`) during an interactive turn,
  *  so the Web composer shows the live agent turn count that grows as the agent works — not the count of

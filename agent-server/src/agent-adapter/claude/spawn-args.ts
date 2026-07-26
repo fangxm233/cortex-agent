@@ -1,6 +1,7 @@
 // input:  ClaudeSpawnOptions + channel/session env
 // output: buildSpawnArgs + buildClaudeEnv pure functions + isStreamDeltasEnabled kill switch
 // pos:    Construct Claude CLI argv and process environment variables
+//         (print mode carries --replay-user-messages: the mid-turn injection delivery ack)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_MCP_CONFIG, SLACK_MCP_CONFIG, FEISHU_MCP_CONFIG, WEB_MCP_CONFIG, TUI_TOOLS, TUI_BRIDGE_TOOLS, TUI_STRIP_TOOLS } from './defaults.js';
@@ -101,6 +102,13 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
       '--input-format', 'stream-json',
       '--output-format', 'stream-json',
       '--verbose',
+      // Echo every user message back as a `user` event carrying `isReplay: true`, at the moment
+      // the CLI CONSUMES it rather than when it was written. That echo is the delivery
+      // ack for a mid-turn injected message — the only signal that distinguishes "queued in the
+      // CLI" from "in the model's view". Only the injection ack consumes these events; every other
+      // `user` handler ignores replays (they are otherwise indistinguishable from the tool_result
+      // carriers print mode already emits).
+      '--replay-user-messages',
     );
     // Token-level streaming: adds `stream_event` lines (message_start / content_block_start /
     // content_block_delta / …) on top of the complete `assistant` / `result` events, which are

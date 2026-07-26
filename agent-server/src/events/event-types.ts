@@ -19,6 +19,11 @@ export type CortexEvent =
   | { type: 'session.message.delta';  ts: string; sessionId: string; channel: string; blockId: string; text: string; seq: number }
   | { type: 'session.status';         ts: string; sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }
   | { type: 'session.turn';           ts: string; sessionId: string; channel: string; numTurns: number }
+  // Mid-turn injection ack: a message injected into a live turn has now been CONSUMED by the model
+  // (the backend's replay echo). Writing to the backend's stdin only queues it — it may sit there
+  // for seconds — so this is the edge at which the composer flips it from pending to delivered.
+  // `messageTs` is the ts the injecting `session.message` was published with.
+  | { type: 'session.message.delivered'; ts: string; sessionId: string; channel: string; messageTs: string }
   // Message edit + rewind: the session transcript changed shape (turns ≥ turnIndex rolled back).
   // Content-free hint — live clients drop buffered live tails and refetch the transcript.
   | { type: 'session.rewound';        ts: string; sessionId: string; channel: string; turnIndex: number }

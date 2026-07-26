@@ -43,6 +43,7 @@ test('buildSpawnArgs baseline — no optional flags', () => {
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
+    '--replay-user-messages',
     '--include-partial-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
@@ -70,6 +71,7 @@ test('buildSpawnArgs with full options — system-prompt, append, model, agent, 
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
+    '--replay-user-messages',
     '--include-partial-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,
@@ -241,11 +243,14 @@ const streamingBase = {
   needsResume: false,
 };
 
-test('buildSpawnArgs print: --include-partial-messages follows --verbose (token streaming on by default)', () => {
+test('buildSpawnArgs print: --include-partial-messages sits in the print block (token streaming on by default)', () => {
   const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-1' });
   const idx = args.indexOf('--include-partial-messages');
   assert.ok(idx >= 0, '--include-partial-messages must be present by default');
-  assert.equal(args[idx - 1], '--verbose', 'must sit directly after --verbose');
+  // The print block is everything between -p and the permission flags that follow it; the flag's
+  // exact neighbour is not fixed (--replay-user-messages also lives there, for the injection ack).
+  assert.ok(idx > args.indexOf('--verbose'), 'must sit inside the print block, after --verbose');
+  assert.ok(idx < args.indexOf('--dangerously-skip-permissions'), 'must precede the shared flags');
 });
 
 test('buildSpawnArgs print: CORTEX_STREAM_DELTAS=0 kills --include-partial-messages', () => {
@@ -300,6 +305,9 @@ test("buildSpawnArgs mode='tui' — omits -p / stream-json flags, layers TUI bri
   assert.ok(!args.includes('--input-format'), 'tui mode must not pass --input-format');
   assert.ok(!args.includes('--output-format'), 'tui mode must not pass --output-format');
   assert.ok(!args.includes('--verbose'), 'tui mode must not pass --verbose');
+  // Mid-turn injection is a print-mode stdin capability; TUI drives the CLI through tmux keystrokes
+  // and has no stream-json stdin to replay, so the ack flag must not leak into its argv.
+  assert.ok(!args.includes('--replay-user-messages'), 'tui mode must not pass --replay-user-messages');
   // Must contain permission bypass + TUI defaults + session id
   assert.ok(args.includes('--dangerously-skip-permissions'));
   assert.ok(args.includes('--permission-mode'));
@@ -860,6 +868,7 @@ test('ClaudeAdapter.spawn: full AgentSpawnConfig produces expected CLI args (can
     '--input-format', 'stream-json',
     '--output-format', 'stream-json',
     '--verbose',
+    '--replay-user-messages',
     '--include-partial-messages',
     '--dangerously-skip-permissions', '--permission-mode', 'bypassPermissions',
     '--mcp-config', MCP_CONFIG,

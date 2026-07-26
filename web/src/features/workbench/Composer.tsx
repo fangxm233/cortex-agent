@@ -280,7 +280,11 @@ export function Composer({
   const hasText = !!composer.trim();
   const canSend = (hasText || doneAttachments.length > 0) && (!!sessionId || isDraft) && !sendMut.isPending && !createAndSendMut.isPending;
   const composerBorder = slashOpen ? 'var(--proto-accent)' : dragOver ? 'var(--proto-accent)' : 'var(--proto-line-3)';
-  const composerHint = running ? `${L.pillRunning} · ${L.wbEscToStop}` : `⏎ ${L.wbSend} · ⇧⏎ ${L.wbNewline}`;
+  // While running, the hint advertises BOTH actions the composer offers: ⏎ appends the message to
+  // the turn already in flight, esc stops it. It used to name only the stop shortcut even though
+  // ⏎ was live, which made sending mid-turn feel like a slip rather than a choice. The status line
+  // directly above already carries the "Running" label, so the word is not repeated here.
+  const composerHint = running ? `⏎ ${L.wbSend} · ${L.wbEscToStop}` : `⏎ ${L.wbSend} · ⇧⏎ ${L.wbNewline}`;
   const sendBg = canSend ? 'var(--proto-ink)' : 'var(--proto-line-3)';
   // Real agent-turn count; render — when unknown (no run yet / running turn before first progress).
   const turnsText = turns == null ? DASH : `${turns} ${L.wbTurnsUnit}`;
@@ -461,6 +465,10 @@ export function Composer({
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      // Sending while a turn is running is intentional, not a fall-through: the server injects the
+      // text into the live turn instead of queuing it. Gated on canSend so ⏎ on an empty composer
+      // is inert rather than firing a no-op mutation, and so the key and the button agree.
+      if (!canSend) return;
       doSend();
     } else if (e.key === 'Escape') {
       // The slash menu owns Escape while it is open; otherwise Escape is the Stop shortcut the
@@ -939,50 +947,74 @@ export function Composer({
                     </div>
                   </div>
 
-                  {/* Send / Stop button */}
-                  {running ? (
-                    <div
-                      title={`${L.stop} · esc`}
-                      onClick={doStop}
-                      onMouseEnter={() => setBtnHover(true)}
-                      onMouseLeave={() => setBtnHover(false)}
-                      style={{
-                        flex: 'none',
-                        width: 34,
-                        height: 34,
-                        borderRadius: 10,
-                        background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: cancelMut.isPending ? 'default' : 'pointer',
-                        marginTop: hasAttachments ? 2 : 0,
-                      }}
-                    >
-                      <span style={{ width: 11, height: 11, background: 'var(--proto-card)', borderRadius: 2 }} />
-                    </div>
-                  ) : (
+                  {/* Send + Stop.
+                      Send is ALWAYS rendered. While a turn is running the composer still sends —
+                      the server injects the text into the live turn rather than queuing it behind
+                      that turn — but the only affordance for it used to be ⏎, with just a Stop
+                      button on screen. Showing send as the secondary action next to Stop makes the
+                      keyboard behaviour visible instead of accidental. */}
+                  <div
+                    style={{
+                      flex: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      marginTop: hasAttachments ? 2 : 0,
+                    }}
+                  >
                     <div
                       data-action="send"
+                      title={running ? `${L.wbSend} · ⏎` : undefined}
                       onClick={doSend}
                       style={{
                         flex: 'none',
-                        width: 34,
-                        height: 34,
-                        borderRadius: 10,
-                        background: sendBg,
+                        width: running ? 30 : 34,
+                        height: running ? 30 : 34,
+                        borderRadius: running ? 9 : 10,
+                        // Running: outlined/secondary so Stop stays the primary action.
+                        background: running ? 'transparent' : sendBg,
+                        border: running ? `1.5px solid ${canSend ? 'var(--proto-accent-border)' : 'var(--proto-line)'}` : 'none',
+                        boxSizing: 'border-box',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: canSend ? 'pointer' : 'default',
-                        marginTop: hasAttachments ? 2 : 0,
                       }}
                     >
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="var(--ink-solid-fg)" strokeWidth="1.8">
+                      <svg
+                        width={running ? 12 : 14}
+                        height={running ? 12 : 14}
+                        viewBox="0 0 14 14"
+                        fill="none"
+                        stroke={running ? (canSend ? 'var(--proto-accent)' : 'var(--proto-line-3)') : 'var(--ink-solid-fg)'}
+                        strokeWidth="1.8"
+                      >
                         <path d="M7 12V2M3 6l4-4 4 4" />
                       </svg>
                     </div>
-                  )}
+                    {running && (
+                      <div
+                        data-action="stop"
+                        title={`${L.stop} · esc`}
+                        onClick={doStop}
+                        onMouseEnter={() => setBtnHover(true)}
+                        onMouseLeave={() => setBtnHover(false)}
+                        style={{
+                          flex: 'none',
+                          width: 34,
+                          height: 34,
+                          borderRadius: 10,
+                          background: btnHover ? 'var(--ink-solid-hover)' : 'var(--proto-ink)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: cancelMut.isPending ? 'default' : 'pointer',
+                        }}
+                      >
+                        <span style={{ width: 11, height: 11, background: 'var(--proto-card)', borderRadius: 2 }} />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -22,7 +22,9 @@ export enum Capability {
   MidTurnInject = 'mid-turn-inject',
 }
 
-// Claude: full native support (claude-bridge.ts currently wires all eight; DR-0008 §3.2)
+// Claude: full native support (claude-bridge.ts currently wires all eight; DR-0008 §3.2).
+// StreamingDeltas: `--include-partial-messages` token-level output.
+// MidTurnInject: print mode accepts a user message on stdin while a turn is in flight.
 const CLAUDE_CAPS: Capability[] = [
   Capability.Hooks,
   Capability.Plugins,

@@ -143,7 +143,8 @@ test('PI still emits exactly one whole-message assistant_text carrying the same 
   assert.equal(texts[0]!.blockId, 'm1', 'the finalizing message shares the blockId of its deltas');
 
   // The deltas must precede the authoritative complete message.
-  const lastDelta = events.findLastIndex((e) => e.type === 'assistant_delta');
+  // findLastIndex would need lib es2023; the repo targets es2022.
+  const lastDelta = events.reduce((acc, e, i) => (e.type === 'assistant_delta' ? i : acc), -1);
   const textIdx = events.findIndex((e) => e.type === 'assistant_text');
   assert.ok(lastDelta < textIdx, 'all deltas are emitted before the finalizing assistant_text');
 });

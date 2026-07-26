@@ -1,5 +1,5 @@
 // input:  nothing (leaf type-only module)
-// output: AgentAdapter / AgentSpawnConfig / AgentProcess / Backend
+// output: AgentAdapter / AgentSpawnConfig / AgentProcess / Backend / ContinuationSink / InjectionAckSink
 // pos:    Core contract types of the Agent adapter abstraction layer
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -124,6 +124,26 @@ export interface ContinuationSink {
   onResult: (result: AgentResult) => void;
 }
 
+/**
+ * Delivery acknowledgement for mid-turn injected messages.
+ *
+ * A message written to the backend's stdin is only QUEUED — the CLI consumes it at the next
+ * agent-loop boundary, which can be seconds later (measured: a 6s gap in one probe). The CLI's
+ * `--replay-user-messages` echo fires at the moment of consumption and is therefore the only
+ * honest "delivered" signal; nothing else may consume those echoes.
+ *
+ * `foldedIntoTurn` discriminates the two measured landing outcomes, so the caller knows whether
+ * to expect a reply on the running turn or on a spontaneous one:
+ *   - true  — landed on a tool-result boundary and was absorbed by the turn already in flight;
+ *             that turn emits ONE result with its turn count incremented.
+ *   - false — consumed only after the running turn's result, so the CLI starts a turn of its own;
+ *             its reply arrives via {@link ContinuationSink}.
+ */
+export interface InjectionAckSink {
+  /** Fired once per injected message, when the backend reports having consumed it. */
+  onDelivered: (message: { text: string; foldedIntoTurn: boolean }) => void;
+}
+
 export interface AgentProcess {
   sessionKey: string;
   /** May be null at spawn time; adapter fills in asynchronously when the backend assigns a session id. */
@@ -135,6 +155,13 @@ export interface AgentProcess {
   /** Register a sink for spontaneous background-task continuation turns (Claude backend only).
    *  Persists across normal turns; the adapter clears it on session close/kill. */
   setContinuationSink?(sink: ContinuationSink): void;
+  /** Inject a user message into a turn already in flight, without opening a new turn.
+   *  Returns false when the backend cannot inject right now (no live process / no active turn).
+   *  Claude print mode only (Capability.MidTurnInject). */
+  injectUserMessage?(message: UserMessage): boolean;
+  /** Register a sink for mid-turn injection delivery acks (Claude backend only). Persists across
+   *  turns like the continuation sink; the adapter clears it on session close/kill. */
+  setInjectionAckSink?(sink: InjectionAckSink): void;
   close(): Promise<void>;
   kill(): boolean;
 }

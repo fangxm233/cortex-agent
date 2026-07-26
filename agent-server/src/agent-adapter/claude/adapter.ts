@@ -1,7 +1,8 @@
 // input:  user message + session context, AgentSpawnConfig
-// output: runClaude / closeSession / ClaudeAdapter
+// output: runClaude / closeSession / ClaudeAdapter / extractReplayText
 // pos:    Claude CLI session pool and AgentAdapter implementation. Emits both the complete
-//         assistant_text and, while a text block is still being generated, assistant_delta.
+//         assistant_text and, while a text block is still being generated, assistant_delta;
+//         also accepts a user message into a turn already in flight (injectUserMessage).
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn, ChildProcess } from 'child_process';
@@ -14,7 +15,7 @@ import { createLogger } from '@core/log.js';
 import { handleRateLimitEvent } from '@domain/costs/rate-limit-throttle.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
-import type { AgentAdapter, AgentSpawnConfig, AgentProcess, Backend, UserMessage, ContinuationSink } from '../types.js';
+import type { AgentAdapter, AgentSpawnConfig, AgentProcess, Backend, UserMessage, ContinuationSink, InjectionAckSink } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { createEventStream } from '../normalize/event-stream.js';
@@ -135,6 +136,21 @@ function deriveClaudeSpawnOptions(fields: {
   };
 }
 
+/**
+ * Extract the prompt text from a `--replay-user-messages` echo. `message.content` arrives either
+ * as a bare string or as text blocks. Returns null for anything else — notably the tool_result
+ * carriers print mode already emits as `user` lines, which must never be read as a prompt echo.
+ */
+export function extractReplayText(data: any): string | null {
+  const content = data?.message?.content;
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return null;
+  const parts = content
+    .filter((b: any) => b?.type === 'text' && typeof b.text === 'string')
+    .map((b: any) => b.text as string);
+  return parts.length ? parts.join('') : null;
+}
+
 class ClaudeSession {
   private proc: ChildProcess | null = null;
   private rl: Interface | null = null;
@@ -166,6 +182,15 @@ class ClaudeSession {
   private bgTracker = new BgTaskTracker();
   /** Set by orchestration to receive spontaneous background-task continuation turns. */
   private continuationSink: ContinuationSink | null = null;
+  /** Messages injected into an in-flight turn that the CLI has not echoed back yet, in write
+   *  order. Each is popped by its `--replay-user-messages` echo (the delivery ack). */
+  private pendingInjections: { prompt: string; text: string }[] = [];
+  /** Set by orchestration to receive injection delivery acks. */
+  private injectionAck: InjectionAckSink | null = null;
+  /** Set when an injected message was consumed with NO turn in flight — the CLI is about to start
+   *  a turn of its own for it. Consumed by the next assistant line, which opens the
+   *  synthetic turn that captures the reply. */
+  private injectionContinuationArmed = false;
   private alive: boolean = false;
   private needsResume: boolean;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -255,7 +280,11 @@ class ClaudeSession {
     const sink = this.continuationSink;
     if (!sink) return;
     this.continuationSink = null;
-    if (!force && !this.bgTracker.hasPending() && !this.bgTracker.continuationArmed) return;
+    // An injected message that was never echoed back, or one already consumed into a spontaneous
+    // turn that never arrived, is work the caller is still waiting on — seal it like pending
+    // background work rather than dropping the sink silently.
+    const injectionOutstanding = this.pendingInjections.length > 0 || this.injectionContinuationArmed;
+    if (!force && !this.bgTracker.hasPending() && !this.bgTracker.continuationArmed && !injectionOutstanding) return;
     const result: AgentResult = {
       sessionId: this.sessionId,
       total_cost_usd: null, num_turns: null,
@@ -351,12 +380,83 @@ class ClaudeSession {
     this.continuationSink = null;
   }
 
+  /** Register/replace the injection delivery-ack sink. Lifetime mirrors continuationSink. */
+  setInjectionAckSink(sink: InjectionAckSink): void {
+    this.injectionAck = sink;
+  }
+
+  clearInjectionAckSink(): void {
+    this.injectionAck = null;
+  }
+
+  /**
+   * Deliver a user message into the turn already in flight.
+   *
+   * Writes the SAME NDJSON user line a normal turn writes, but registers NO turn: the message is
+   * absorbed by the run already in progress, so the already-awaited turn promise covers it and no
+   * second result is fabricated. Cost/turn accounting stays with the running turn.
+   *
+   * Where it lands is a race the caller cannot control, so both outcomes are wired here:
+   *   - tool-result boundary → folds into the running turn, ONE result. Nothing extra
+   *     to do; the turn's own callbacks carry the reply.
+   *   - mid-text-generation → the CLI drains its queue only after this turn's result and then
+   *     starts a turn of its own. The echo handler arms the existing spontaneous-turn
+   *     path so that reply is captured by continuationSink instead of dropped.
+   *
+   * Returns false when there is no live process or no active turn — the caller then falls back to
+   * the normal queue.
+   */
+  injectUserMessage(message: UserMessage): boolean {
+    if (!this.alive || !this.proc?.stdin) return false;
+    // No turn in flight ⇒ nothing to inject INTO. A message written here would open an untracked
+    // turn whose reply nobody is awaiting; the caller must enqueue it as a normal turn instead.
+    if (!this.currentTurn) return false;
+
+    const files = (message.attachments || []).map((a) => ({
+      mimetype: a.mimeType, localPath: a.path, name: path.basename(a.path),
+    }));
+    const prompt = buildPrompt(message.text, files);
+    try {
+      this.writeTurnStdin(prompt);
+    } catch {
+      // writeTurnStdin already marked the session dead and rejected the in-flight turn — the pipe
+      // is gone, so report "cannot inject" rather than propagating into the caller's routing.
+      return false;
+    }
+    this.pendingInjections.push({ prompt, text: message.text });
+    this.resetIdleTimer();
+    this.bumpTurnIdleTimer();
+    log.info(`Injected mid-turn message into ${this.sessionId.substring(0, 8)} (${prompt.length} chars)`);
+    return true;
+  }
+
+  /**
+   * Handle a `--replay-user-messages` echo. The CLI echoes EVERY user message, so most echoes are
+   * the turn's own opening prompt and must be ignored; only an echo matching the head of the
+   * pending-injection queue is a delivery ack. Nothing else in the system reads these events.
+   */
+  private handleReplayEcho(data: any): void {
+    const text = extractReplayText(data);
+    if (text === null) return;
+    const head = this.pendingInjections[0];
+    if (!head || head.prompt !== text) return; // the turn's own prompt (or a tool_result carrier)
+    this.pendingInjections.shift();
+    // Consumed with no turn in flight ⇒ this is the post-result outcome: the CLI is starting a turn
+    // of its own. Arm the spontaneous-turn capture before its first assistant line arrives.
+    const foldedIntoTurn = !!this.currentTurn;
+    if (!foldedIntoTurn) this.injectionContinuationArmed = true;
+    const ack = this.injectionAck;
+    if (!ack) return;
+    try { ack.onDelivered({ text: head.text, foldedIntoTurn }); }
+    catch (e) { log.warn('injection onDelivered threw:', (e as Error).message); }
+  }
+
   /** Open a synthetic turn to capture the spontaneous continuation the CLI emits after a
    *  background task finishes. Its assistant text / result are routed to continuationSink
    *  (not to a send() promise — there is no caller awaiting it). */
-  private openContinuationTurn(): void {
+  private openContinuationTurn(label = '[background-task continuation]'): void {
     this.bgTracker.disarmContinuation();
-    const streams = this.createTurnStreams('[background-task continuation]');
+    const streams = this.createTurnStreams(label);
     const sink = this.continuationSink;
     this.currentTurn = {
       resolve: (value: any) => { try { sink?.onResult(value as AgentResult); } catch (e) { log.warn('continuation onResult threw:', (e as Error).message); } },
@@ -579,14 +679,23 @@ class ClaudeSession {
         const mode = this.anthropicBaseUrl?.match(/\/m\/([^/]+)\//)?.[1] || undefined;
         handleRateLimitEvent(data.rate_limit_info, mode).catch(e => log.error('handleRateLimitEvent error:', e));
       }
+      // `--replay-user-messages` echo: the CLI's delivery ack for an injected message.
+      // Handled here and nowhere else — it is deliberately NOT fed to turn bookkeeping, background
+      // tracking, or conversation history (a `user` record there would shift every later turn
+      // index and break edit/rewind). Replays are inert for every other consumer.
+      if (data.type === 'user' && data.isReplay) this.handleReplayEcho(data);
       // Track background-task lifecycle on every line (even with no active turn) so the
       // pending count stays accurate across the turn boundary.
       this.bgTracker.observe(data);
-      // No active turn: a background task that just finished re-invokes the model and the
-      // CLI emits a spontaneous continuation turn. Open a synthetic turn for it so its
+      // No active turn, and the model just started speaking anyway: either a background task
+      // finished (bgTracker armed) or an injected message was consumed after this turn's result
+      // Both make the CLI open a turn of its own — open a synthetic turn for it so its
       // output is routed (to continuationSink) instead of being dropped.
-      if (!this.currentTurn && this.continuationSink && routeLine(this.bgTracker, data, false) === 'open-continuation') {
-        this.openContinuationTurn();
+      if (!this.currentTurn && this.continuationSink && data.type === 'assistant'
+          && (this.injectionContinuationArmed || routeLine(this.bgTracker, data, false) === 'open-continuation')) {
+        const fromInjection = this.injectionContinuationArmed;
+        this.injectionContinuationArmed = false;
+        this.openContinuationTurn(fromInjection ? '[injected-message continuation]' : '[background-task continuation]');
       }
       if (data.type === 'result' && this.currentTurn) {
         this.handleResultEvent(this.currentTurn, data);
@@ -611,10 +720,11 @@ class ClaudeSession {
 
   private resetIdleTimer() {
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    // While background tasks are still running, the session must stay alive to receive the
-    // spontaneous continuation turn — even through a long silent wait. Don't arm idle-close
-    // (the overall maxTimer still bounds session lifetime).
-    if (this.bgTracker.hasPending()) {
+    // While background tasks are still running — or an injected message is queued inside the CLI
+    // awaiting its spontaneous turn — the session must stay alive to receive the continuation,
+    // even through a long silent wait. Don't arm idle-close (the overall maxTimer still bounds
+    // session lifetime).
+    if (this.bgTracker.hasPending() || this.pendingInjections.length > 0 || this.injectionContinuationArmed) {
       this.idleTimer = null;
       return;
     }
@@ -1007,6 +1117,8 @@ export class ClaudeAdapter implements AgentAdapter {
       },
       events: stream.iterable,
       setContinuationSink(sink: ContinuationSink): void { session.setContinuationSink(sink); },
+      injectUserMessage(message: UserMessage): boolean { return session.injectUserMessage(message); },
+      setInjectionAckSink(sink: InjectionAckSink): void { session.setInjectionAckSink(sink); },
       // Intentionally does NOT call session.close(): sessions are pooled per sessionKey and
       // reused across runAgentOnce turns. Pool-level cleanup goes through ClaudeAdapter.close(key)
       // or the legacy closeSession / closeSessionsByPrefix exports.
@@ -1132,6 +1244,9 @@ function makeSessionForTest(): ClaudeSession {
   s.bgTracker = new BgTaskTracker();
   s.streamDeltaState = createStreamDeltaState();
   s.continuationSink = null;
+  s.pendingInjections = [];
+  s.injectionAck = null;
+  s.injectionContinuationArmed = false;
   s.currentTurn = null;
   s.idleTimer = null;
   s.turnIdleTimer = null;

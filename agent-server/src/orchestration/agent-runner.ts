@@ -28,8 +28,10 @@ import { buildDurableHooks } from './durable-helpers.js';
 const log = createLogger('agent-runner');
 import { createToolTrace } from '@platform/index.js';
 import { setStreamingCallback, clearStreamingCallback, publishPlanSubmitted, publishAskUserRequested } from './routing/hook-bridge.js';
-import { publishSessionMessage, publishSessionStatus, publishSessionTurn } from './session-events.js';
+import { publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
 import { createSessionDeltaStream } from './delta-coalescer.js';
+import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } from './mid-turn-inject.js';
+import { getStreamingCallback } from './routing/hook-bridge.js';
 import { runningExecutions } from '@core/running-executions.js';
 import { bgHeldSessions } from '@core/bg-held-sessions.js';
 import { maybeNotifyCodexLowUsage } from '@domain/costs/codex-usage-monitor.js';
@@ -48,6 +50,9 @@ const TEMP_DIR = WORKSPACE_DIR;
 type Enqueuer = (channel: string, fn: () => Promise<void>) => boolean;
 type Tracker = (delta: number) => void;
 type Executor = (ctx: AgentRunnerCtx) => Promise<void>;
+/** Attempt mid-turn injection; true ⇒ the message was delivered into the live turn and must NOT
+ *  be queued. Injectable so the routing branch is testable without a live backend. */
+type Injector = (ctx: AgentRunnerCtx) => Promise<boolean>;
 
 interface AgentConfig {
   effectiveMessage: string;
@@ -82,11 +87,13 @@ export class AgentRunner {
   readonly _track: Tracker;
   /** Injectable for unit tests — allows verification of track(-1)-in-finally without spawning Claude. */
   readonly _execute: Executor;
+  readonly _tryInject: Injector;
 
-  constructor(opts: { enqueue?: Enqueuer; track?: Tracker; execute?: Executor } = {}) {
+  constructor(opts: { enqueue?: Enqueuer; track?: Tracker; execute?: Executor; tryInject?: Injector } = {}) {
     this._enqueue = opts.enqueue ?? enqueue;
     this._track = opts.track ?? trackPendingTask;
     this._execute = opts.execute ?? ((ctx) => this._executeReal(ctx));
+    this._tryInject = opts.tryInject ?? ((ctx) => this._tryInjectReal(ctx));
   }
 
   async route(ctx: AgentRunnerCtx): Promise<void> {
@@ -102,6 +109,13 @@ export class AgentRunner {
       await adapter.postMessage(dest, { text: `${Icons.ok} ${t('subtask.replyDelivered')}` }).catch(() => {});
       return;
     }
+    // A plain user message arriving while this channel already has a live turn is delivered INTO
+    // that turn (backend stdin) rather than waiting behind it, when the backend can take it. The
+    // injection path then owns the message end-to-end — its own surfacing, delivery ack and busy
+    // bracket — so we return before the queue machinery. Everything it declines (no live turn,
+    // incapable backend, !command, synthetic wake, backend refusal) falls through to today's
+    // queue behaviour unchanged.
+    if (await this._tryInject(ctx)) return;
     if (conduitQueues.has(channel)) {
       await adapter.markQueued({ conduit: channel, messageId: message.ref.messageId }).catch(() => {});
     }
@@ -114,6 +128,33 @@ export class AgentRunner {
         this._track(-1);
       }
     });
+  }
+
+  /**
+   * Production mid-turn injection: resolve this channel's live turn and session, then hand the
+   * message to `mid-turn-inject`. Ordered cheapest-gate-first because route() is the hot path for
+   * every inbound message — the store lookups only run once a live turn is actually present.
+   */
+  private async _tryInjectReal(ctx: AgentRunnerCtx): Promise<boolean> {
+    try {
+      if (!isInjectableMessage({ text: ctx.userMessage || '', senderId: ctx.message.senderId })) return false;
+      if (!runningExecutions.hasChannel(ctx.channel)) return false;
+      const sessionId = await getSessionAsync(ctx.channel, resolveBackendForChannel(ctx.channel));
+      if (!sessionId) return false;
+      const sessionName = await sessionStore.lookupBySessionId(sessionId);
+      return tryInjectIntoLiveTurn(buildInjectDeps(sessionName), {
+        channel: ctx.channel,
+        sessionId,
+        text: ctx.userMessage || '',
+        senderId: ctx.message.senderId,
+        messageId: ctx.message.ref.messageId,
+        attachments: ctx.message.webAttachments,
+      });
+    } catch (e) {
+      // Never let the injection attempt break routing — fall back to the queue.
+      log.warn('mid-turn injection attempt failed, falling back to the queue:', (e as Error).message);
+      return false;
+    }
   }
 
   private async _executeReal(ctx: AgentRunnerCtx): Promise<void> {
@@ -404,6 +445,42 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     return;
   }
   await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: callbacks.onToolUse, registerContinuationSink });
+}
+
+/**
+ * Production side-effect wiring for {@link tryInjectIntoLiveTurn} — the same history / bus /
+ * busy-gate seams `_executeReal` uses for an ordinary turn, so an injected message and a queued one
+ * land in the transcript identically.
+ */
+function buildInjectDeps(sessionName: string | null): MidTurnInjectDeps {
+  return {
+    getLiveExecutions: (channel) => runningExecutions.getByChannel(channel),
+    getStreamingCallback,
+    appendUser: (sessionId, o) => recordHistory(conversationHistory.appendUser(sessionId, o)),
+    appendAssistant: (sessionId, o) => recordHistory(conversationHistory.appendAssistant(sessionId, o)),
+    appendTool: (sessionId, o) => recordHistory(conversationHistory.appendTool(sessionId, o)),
+    publishMessage: publishSessionMessage,
+    publishDelivered: publishSessionMessageDelivered,
+    publishStatus: publishSessionStatus,
+    beginLedgerTurn: ({ channel, sessionId, text, messageId }) => {
+      // Deliberately NOT initTurnTracking: that also snapshots a session backup, and copying the
+      // backend transcript while the CLI is mid-write could capture a torn file. An injected turn
+      // therefore has no restore point — rewinding TO it degrades to a fresh backend session
+      // (session-rewind's existing missing-backup branch) instead of corrupting turn indices.
+      void conversationLedger.initAndBeginTurn(channel, {
+        sessionId,
+        sessionName,
+        backend: resolveBackendForChannel(channel),
+        profileName: getActiveProfile(channel),
+        userMessageTs: messageId,
+        userMessageText: text,
+        statusMessageTs: '',
+      }).catch((e) => log.error('injected-turn ledger write failed:', (e as Error).message));
+    },
+    track: trackPendingTask,
+    summarizeToolInput: (input) => summarizeToolInputForHistory(input),
+    now: () => new Date().toISOString(),
+  };
 }
 
 /** Set a session's display label from its first user message when it has none yet (best-effort,
