@@ -1,10 +1,16 @@
+// input:  tRPC subscribe client, React Query cache, live-event rules
+// output: LiveEventsProvider, useLiveEvents, useLiveConnection
+// pos:    Shared SSE owner and client-side event fan-out
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useTRPCClient } from '@/lib/trpc';
+import { useQueryClient } from '@tanstack/react-query';
+import { useTRPC, useTRPCClient } from '@/lib/trpc';
 import type { TrpcConnState } from '@/features/connection/connection-status';
 import {
   applyConnState,
   dispatchLiveEvent,
   initialConnAccum,
+  isProfileConfigChanged,
   LIVE_EVENT_TYPES,
   type ConnAccum,
   type LiveEvent,
@@ -51,6 +57,9 @@ const LiveEventsContext = createContext<LiveEventsContextValue>({
 
 export function LiveEventsProvider({ children }: { children: ReactNode }): JSX.Element {
   const client = useTRPCClient();
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [configQueryFilter] = useState(() => trpc.config.get.queryFilter({}));
   const listenersRef = useRef<Set<LiveListener>>(new Set());
   const [conn, setConn] = useState<{ state: TrpcConnState; accum: ConnAccum }>(() => ({
     state: 'connecting',
@@ -68,6 +77,9 @@ export function LiveEventsProvider({ children }: { children: ReactNode }): JSX.E
         onData: (raw: unknown) => {
           const ev = raw as LiveEvent;
           if (!ev || typeof ev.type !== 'string') return;
+          if (isProfileConfigChanged(ev)) {
+            void queryClient.invalidateQueries(configQueryFilter);
+          }
           // Snapshot: a handler may register/unregister listeners while we fan out.
           dispatchLiveEvent([...listenersRef.current], ev);
         },
@@ -79,7 +91,7 @@ export function LiveEventsProvider({ children }: { children: ReactNode }): JSX.E
       },
     );
     return () => sub.unsubscribe();
-  }, [client]);
+  }, [client, configQueryFilter, queryClient]);
 
   // Stable across connection-state changes — otherwise every listener would re-register on each
   // connect/drop (harmless but pointless churn, and it would re-run consumers' effects).

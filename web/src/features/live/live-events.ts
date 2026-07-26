@@ -1,3 +1,7 @@
+// input:  tRPC connection state and UI event envelopes
+// output: shared live-event groups, filters, fan-out, reconnect reducers
+// pos:    Pure rules for the Web shared SSE stream
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { TrpcConnState } from '@/features/connection/connection-status';
 
 // Pure logic for the shared live-event stream (see LiveEventsProvider).
@@ -75,6 +79,9 @@ export const TASK_LIVE_EVENTS = [
 /** Server-classified system broadcasts (restart, hot-reload, disk, rate-limit). */
 export const SYSTEM_LIVE_EVENTS = ['system.notice'] as const;
 
+/** Structured config-change hints. Queries remain the authoritative source. */
+export const CONFIG_LIVE_EVENTS = ['config.changed'] as const;
+
 /**
  * The FIXED union the shared stream subscribes to. Fixed rather than reference-counted over the
  * mounted listeners: the union is small and known, and a dynamic one would tear down and re-open the
@@ -87,7 +94,14 @@ export const LIVE_EVENT_TYPES: readonly string[] = [
   ...THREAD_LIVE_EVENTS,
   ...TASK_LIVE_EVENTS,
   ...SYSTEM_LIVE_EVENTS,
+  ...CONFIG_LIVE_EVENTS,
 ];
+
+/** True only for the structured hint emitted after profiles.json reloads successfully. */
+export function isProfileConfigChanged(ev: LiveEvent): boolean {
+  if (ev.type !== 'config.changed' || !ev.payload || typeof ev.payload !== 'object') return false;
+  return (ev.payload as { section?: unknown }).section === 'profiles';
+}
 
 /** The event's session id, when it carries one. */
 function eventSessionId(ev: LiveEvent): string | null {

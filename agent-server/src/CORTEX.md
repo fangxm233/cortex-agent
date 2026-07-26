@@ -19,7 +19,7 @@ agent-server's TypeScript ESM runtime source, organized by six-layer structure (
 Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/adapters/slack-project-conduits.ts` — owned by the Slack adapter, since project-report rendering is adapter-specific.
 
 ### L2: events/
-`event-bus.ts` `event-types.ts` `event-logger.ts` `event-replay.ts` `index.ts`
+`event-bus.ts` `event-types.ts` (`config.changed` drives UI config snapshot refresh) `event-logger.ts` `event-replay.ts` `index.ts`
 
 ### L3: domain/
 | Subdirectory | Files |
@@ -63,7 +63,7 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 | `status-helpers.ts` | execution / status-message / streaming-VM helpers (pure subset has been sunk to `core/status-format.ts`) |
 
 ### L5: entry/
-`app.ts` (composition root, S13: <200 lines; the Web UI transport-host is loaded on demand via `entry/ui-http-gate.ts`, whose CORTEX_UI_HTTP-gated dynamic `import('./start-ui-http.js')` is the sole runtime edge to @trpc/server+jose — so core stays @trpc-free when the flag is off) `daemon.ts` `start-ui-http.ts` (Web UI wiring: binds domain/ui-service AppRouter → platform/ui-http host; also mounts the `/api/attachments/upload` (15a) + `/api/files/download` (15a/20a file cards, traversal-guarded to WORKSPACE_DIR) custom routes) `ui-http-gate.ts` (the lazy CORTEX_UI_HTTP seam) `startup-helpers.ts` `startup-notify.ts`
+`app.ts` (composition root; publishes `config.changed` after a valid profile hot reload; the Web UI transport-host is loaded on demand via `entry/ui-http-gate.ts`, whose CORTEX_UI_HTTP-gated dynamic `import('./start-ui-http.js')` is the sole runtime edge to @trpc/server+jose — so core stays @trpc-free when the flag is off) `daemon.ts` `start-ui-http.ts` (Web UI wiring: binds domain/ui-service AppRouter → platform/ui-http host; also mounts the `/api/attachments/upload` (15a) + `/api/files/download` (15a/20a file cards, traversal-guarded to WORKSPACE_DIR) custom routes) `ui-http-gate.ts` (the lazy CORTEX_UI_HTTP seam) `startup-helpers.ts` `startup-notify.ts`
 
 The Web UI transport (tRPC AppRouter binding + HTTP/SSE host + same-origin SPA serving) lives
 **in-core**, split by layer: `domain/ui-service/{trpc,app-router}.ts` (the tRPC contract bound over

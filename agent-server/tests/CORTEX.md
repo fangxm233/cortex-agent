@@ -173,7 +173,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `store/execution-repo.test.ts` | Test | ExecutionRepo concurrent mutate, index consistency, flush draining (Pattern B) |
 | `store/schedule-repo.test.ts` | Test | ScheduleRepo concurrent mutate, flush ordering, CRUD, rateLimitThrottle |
 | `store/cost-repo.test.ts` | Test | CostRepo concurrent recordEntry, 90-day prune, flush ordering, budget roundtrip |
-| `store/profile-repo.test.ts` | Test | ProfileRepo concurrent mutate, flush ordering, readSync cache, save/read roundtrip |
+| `store/profile-repo.test.ts` | Test | ProfileRepo concurrency/cache/roundtrip + hot-reload success callback and invalid-JSON suppression |
 | `store/session-registry-repo.test.ts` | Test | SessionRegistryRepo concurrent mutate, flush ordering, cache consistency (Pattern A) |
 | `gateway-manager.test.ts` | Test | Gateway port conflict reuse |
 | `disk-monitor.test.ts` | Test | shouldAlert decision coverage |

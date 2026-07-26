@@ -74,7 +74,7 @@ import { runMigrations, migrateAistatusConfigLocation } from '@store/version-mig
 import { syncManagedHooks } from '@store/hook-sync.js';
 import { syncManagedPlugins } from '@store/plugin-sync.js';
 import { costRepo } from '@store/cost-repo.js';
-import { profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
+import { PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { cleanupAllBackups } from '@domain/sessions/session-backup.js';
 import { createDirectSession } from '@domain/sessions/session-lifecycle.js';
@@ -527,7 +527,9 @@ process.on('SIGTERM', async () => {
   );
   loadThreadConfig();
   startThreadConfigWatcher();
-  _stopProfileWatcher = startProfileWatcher();
+  _stopProfileWatcher = startProfileWatcher(profileRepo, PROFILES_FILE, () => {
+    bus.publish({ type: 'config.changed', section: 'profiles' });
+  });
   threadStore.load();
   await threadStore.markRunningAsFailedOnStartup();
   await threadStore.cleanup();

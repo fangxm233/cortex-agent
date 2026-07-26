@@ -154,13 +154,14 @@ test('ProfileRepo - save() updates both async read() and readSync() cache', asyn
 
 // ── Hot-reload watcher ────────────────────────────────────────
 
-test('startProfileWatcher - invalidates cache and reloads on file change', async (t) => {
+test('startProfileWatcher - invalidates cache, reloads, and reports a valid file change', async (t) => {
   const { repo, filePath } = await createRepo();
   // Warm the sync cache.
   const initial = repo.readSync();
   assert.equal(initial.defaultProfile, 'a');
+  let successfulReloads = 0;
 
-  const stop = startProfileWatcher(repo, filePath);
+  const stop = startProfileWatcher(repo, filePath, () => { successfulReloads++; });
   t.onTestFinished(() => stop());
 
   const updated: ProfilesFile = {
@@ -174,6 +175,7 @@ test('startProfileWatcher - invalidates cache and reloads on file change', async
 
   const fresh = repo.readSync();
   assert.equal(fresh.defaultProfile, 'hot-loaded', 'cache should be refreshed after file change');
+  assert.ok(successfulReloads >= 1, 'a successful reload should be reported');
 });
 
 test('startProfileWatcher - stop function prevents further reloads', async () => {
@@ -196,11 +198,12 @@ test('startProfileWatcher - stop function prevents further reloads', async () =>
   assert.equal(current.defaultProfile, 'a', 'cache should not be updated after watcher is stopped');
 });
 
-test('startProfileWatcher - logs and keeps old cache when reloaded file is invalid JSON', async (t) => {
+test('startProfileWatcher - logs, keeps old cache, and reports no success for invalid JSON', async (t) => {
   const { repo, filePath } = await createRepo();
   const initial = repo.readSync();
+  let successfulReloads = 0;
 
-  const stop = startProfileWatcher(repo, filePath);
+  const stop = startProfileWatcher(repo, filePath, () => { successfulReloads++; });
   t.onTestFinished(() => stop());
 
   // Write invalid JSON to the file.
@@ -211,6 +214,7 @@ test('startProfileWatcher - logs and keeps old cache when reloaded file is inval
   // Cache must still hold the original valid data.
   const current = repo.readSync();
   assert.equal(current.defaultProfile, initial.defaultProfile, 'invalid JSON should not wipe cache');
+  assert.equal(successfulReloads, 0, 'a failed reload must not be reported as successful');
 });
 
 // ── On-disk schema unchanged (byte-level check) ───────────────

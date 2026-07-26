@@ -1,10 +1,16 @@
+// input:  Vitest and shared live-event pure rules
+// output: shared-union, scope, fan-out, and reconnect regression tests
+// pos:    Unit tests for the Web shared SSE event model
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   applyConnState,
   dispatchLiveEvent,
   initialConnAccum,
+  isProfileConfigChanged,
   matchesLiveEvent,
   ASSISTANT_DELTA_EVENTS,
+  CONFIG_LIVE_EVENTS,
   LIVE_EVENT_TYPES,
   SESSION_LIVE_EVENTS,
   SYSTEM_LIVE_EVENTS,
@@ -17,7 +23,7 @@ const ev = (type: string, payload?: Record<string, unknown>): LiveEvent => ({ ty
 
 describe('LIVE_EVENT_TYPES', () => {
   it('is the union of every consumer group — a group event missing here would never reach its hook', () => {
-    for (const t of [...SESSION_LIVE_EVENTS, ...THREAD_LIVE_EVENTS, ...TASK_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS]) {
+    for (const t of [...SESSION_LIVE_EVENTS, ...THREAD_LIVE_EVENTS, ...TASK_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS, ...CONFIG_LIVE_EVENTS]) {
       expect(LIVE_EVENT_TYPES).toContain(t);
     }
   });
@@ -29,6 +35,20 @@ describe('LIVE_EVENT_TYPES', () => {
 describe('SESSION_LIVE_EVENTS', () => {
   it('carries the mid-turn delivery commit — without it a sent message stays dimmed forever', () => {
     expect(SESSION_LIVE_EVENTS).toContain('session.message.delivered');
+  });
+});
+
+describe('CONFIG_LIVE_EVENTS', () => {
+  it('carries the structured config change hint on the shared stream', () => {
+    expect(CONFIG_LIVE_EVENTS).toEqual(['config.changed']);
+    expect(LIVE_EVENT_TYPES).toContain('config.changed');
+  });
+
+  it('recognizes only a profiles config change as a profile refresh hint', () => {
+    expect(isProfileConfigChanged(ev('config.changed', { section: 'profiles' }))).toBe(true);
+    expect(isProfileConfigChanged(ev('config.changed', { section: 'budget' }))).toBe(false);
+    expect(isProfileConfigChanged(ev('system.notice', { section: 'profiles' }))).toBe(false);
+    expect(isProfileConfigChanged(ev('config.changed'))).toBe(false);
   });
 });
 

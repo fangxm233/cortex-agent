@@ -1,13 +1,6 @@
-// input:  profiles.json + JsonRepository
-// output: ProfileRepo (read / readSync / save / mutate / flush) + startProfileWatcher
-// pos:    Profile persistence layer. Based on JsonRepository abstraction (Pattern A), AsyncMutex serializes reads/writes of profiles.json.
-//         Read-heavy, write-light; profile-manager.ts historically used sync readFileSync-driven config reading. To avoid
-//         converting the sync API to async (which would cascade to mode-manager/scheduler/command-handlers/tests and dozens of other call sites),
-//         readSync() is provided: the first read uses readFileSync, then shares the cache; subsequent writes use async save()/mutate()
-//         and update the cache synchronously, ensuring sync reads always see the latest value.
-//         startProfileWatcher() watches profiles.json for changes, invalidates the cache and reloads, making external edits effective immediately.
-//         ValidationException is handled by the caller (profile-manager.ts) to avoid
-//         forming a circular dependency (type-only import).
+// input:  profiles.json, JsonRepository
+// output: ProfileRepo and successful-reload-aware file watcher
+// pos:    Profile persistence, sync caching, and hot reload
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { readFileSync, watch, existsSync, type FSWatcher } from 'fs';
@@ -98,10 +91,12 @@ export function setAdminNotifier(fn: (text: string) => void): void { _adminNotif
  *
  * @param repo     ProfileRepo instance to invalidate on change (defaults to singleton).
  * @param filePath Path to watch (defaults to PROFILES_FILE).
+ * @param onReload Called only after a valid file has replaced the cached profile snapshot.
  */
 export function startProfileWatcher(
   repo: ProfileRepo = profileRepo,
   filePath: string = PROFILES_FILE,
+  onReload?: () => void,
 ): () => void {
   if (!existsSync(filePath)) return () => {};
 
@@ -116,6 +111,7 @@ export function startProfileWatcher(
       JSON.parse(raw); // throws on invalid JSON — cache stays intact
       repo.invalidate();
       repo.readSync(); // re-fill cache from the validated content
+      onReload?.();
       log.info('Hot-reload: profiles.json reloaded');
       _adminNotifier?.(`${Icons.refresh} \`profiles.json\` hot-reloaded`);
     } catch (e) {

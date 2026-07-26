@@ -17,7 +17,7 @@ task-repo.ts responsibilities are limited to I/O + lock + git sync, does not car
 | `project-dir-repo.ts` | persistence | Project → external code directory mapping |
 | `schedule-repo.ts` | persistence | Scheduled task list persistence — ScheduleTask includes target (fresh/channel/session/thread) + fallback (fresh/skip/wait), migrate auto-backfills target=fresh for old records |
 | `cost-repo.ts` | persistence | Cost record persistence |
-| `profile-repo.ts` | persistence | Agent profile persistence |
+| `profile-repo.ts` | persistence | Agent profile persistence + validated hot reload; successful reload callback lets entry publish a typed UI refresh hint, invalid JSON keeps the prior cache |
 | `task-repo.ts` | persistence | load/refresh/flush + read-only queries + runExclusive/commitAndPush. Pure I/O + mutex + git, no domain mutation forwarding |
 | `version-migrations.ts` | startup | `runMigrations()` — version-tracked file migrations (CalVer in `data/versions.json`), run on startup before config load. Supports JSON (parse/serialize) and `format:'text'` migrations (raw markdown, e.g. system prompts / CORTEX.md via `upsertMarkerBlock`; directive-prompt phrasing fixes via `applyReplacements`) |
 | `hook-sync.ts` | startup | `syncManagedHooks()` — refresh version-stamped (`@cortex-hook-version`) hooks in `DATA_DIR/hooks` from defaults when shipped is newer; closes init's copy-if-missing gap so hook code fixes reach existing installs |
