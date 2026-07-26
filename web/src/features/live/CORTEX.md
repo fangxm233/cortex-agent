@@ -45,6 +45,16 @@ shared stream's state + `hasConnected` latch (the pure `deriveConnectionStatus` 
 **Not merged**: `execution/useExecutionLogStream` — a different procedure (`executions.log`),
 executionId-scoped, high-volume, and open only while the log drawer is.
 
+**Also not merged**: `session.message.delta` (token-level assistant streaming), exported here as
+`ASSISTANT_DELTA_EVENTS` but deliberately kept OUT of `LIVE_EVENT_TYPES` — a test asserts the
+exclusion so it can't drift back in. The server hands these out only to a subscription that names
+their session (`SESSION_SCOPED_ONLY` in agent-server `domain/ui-service/subscribe.ts`), because a
+preview is renderable by exactly one surface and an unscoped app-wide stream taking every session's
+previews would fill its 256-slot server queue and drop-oldest the status / thread / task events it
+exists to deliver. They ride `workbench/useAssistantDeltaStream`, opened by the open chat only — the
+same treatment `executions.log` gets. Two connections on a loaded workbench, against the six that
+caused the starvation this directory exists to fix.
+
 ## Reconnect
 
 One stream means one reconnect signal. `reconnectEpoch` changes only on a **re**-connect (never on the

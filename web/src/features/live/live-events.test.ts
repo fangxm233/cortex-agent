@@ -4,6 +4,7 @@ import {
   dispatchLiveEvent,
   initialConnAccum,
   matchesLiveEvent,
+  ASSISTANT_DELTA_EVENTS,
   LIVE_EVENT_TYPES,
   SESSION_LIVE_EVENTS,
   SYSTEM_LIVE_EVENTS,
@@ -22,6 +23,15 @@ describe('LIVE_EVENT_TYPES', () => {
   });
   it('carries no duplicates (one bus subscription per type on the server)', () => {
     expect(new Set(LIVE_EVENT_TYPES).size).toBe(LIVE_EVENT_TYPES.length);
+  });
+});
+
+describe('ASSISTANT_DELTA_EVENTS', () => {
+  it('names the token-level preview event', () => {
+    expect(ASSISTANT_DELTA_EVENTS).toEqual(['session.message.delta']);
+  });
+  it('is deliberately OUTSIDE the shared union — the server only serves it session-scoped', () => {
+    for (const t of ASSISTANT_DELTA_EVENTS) expect(LIVE_EVENT_TYPES).not.toContain(t);
   });
 });
 

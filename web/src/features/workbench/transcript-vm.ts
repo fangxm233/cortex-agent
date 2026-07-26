@@ -16,6 +16,61 @@ export interface LiveSessionMessage {
   ts: string;
   /** Optional file attachments on user messages (15a). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
+  /** Set on an assistant message whose text streamed as `session.message.delta` events first. It
+   *  identifies the preview this message supersedes (see endStreamingBlock). */
+  blockId?: string;
+}
+
+// ── Token-level streaming (`session.message.delta`) ─────────────────────────────────────────────
+//
+// A block being generated arrives as a series of increments sharing one `blockId`, then as the
+// complete `session.message` carrying that same id. The preview is never truth: it exists to make
+// a 20-second wait visible, and is discarded the moment the authoritative text lands.
+
+/** The assistant text block currently being previewed. */
+export interface StreamingBlock {
+  blockId: string;
+  /** Everything received for this block so far. */
+  text: string;
+}
+
+/** A `session.message.delta` payload. `text` is the increment since this block's previous event. */
+export interface AssistantDeltaEvent {
+  blockId?: string;
+  text?: string;
+  seq?: number;
+}
+
+/**
+ * Fold one delta into the preview. A different `blockId` starts a fresh block rather than
+ * concatenating across blocks (the model wrote a second paragraph block, or a new message began);
+ * a malformed event leaves the previous state untouched, so a dropped field can never blank the
+ * bubble mid-stream.
+ */
+export function applyAssistantDelta(
+  prev: StreamingBlock | null,
+  ev: AssistantDeltaEvent,
+): StreamingBlock | null {
+  const { blockId, text } = ev;
+  if (typeof blockId !== 'string' || !blockId) return prev;
+  if (typeof text !== 'string' || !text) return prev;
+  if (!prev || prev.blockId !== blockId) return { blockId, text };
+  return { blockId, text: prev.text + text };
+}
+
+/**
+ * Retire the preview when a complete assistant message arrives. Cleared when it is the same block
+ * (the normal handover) and also when the message carries no blockId at all — a backend that did
+ * not stream must never leave a half-written bubble stranded on screen. A message for a DIFFERENT
+ * block leaves the current preview alone.
+ */
+export function endStreamingBlock(
+  prev: StreamingBlock | null,
+  messageBlockId: string | undefined,
+): StreamingBlock | null {
+  if (!prev) return null;
+  if (!messageBlockId) return null;
+  return messageBlockId === prev.blockId ? null : prev;
 }
 
 export type Attachment = { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' };
@@ -43,6 +98,13 @@ export interface BuildOpts {
    * the EN `dividerLabel` (TODAY / YESTERDAY / "MON D"). Receives the first message ts of the day.
    */
   formatDivider?: (ts: string, now: Date) => string;
+  /**
+   * Text accumulated for the assistant block currently being written (token-level streaming).
+   * Rendered as one extra assistant row at the very end, carrying the streaming caret. The row
+   * disappears the moment the hook retires the preview, which is the same render pass in which the
+   * complete message enters the live tail — so the text never flickers or doubles.
+   */
+  streamingText?: string | null;
 }
 
 /** Map a live `session.message` event into a `TranscriptMessage` (same shape the fetched DTO uses).
@@ -276,6 +338,11 @@ export function buildTranscriptRows(
     else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
   }
   flushTools();
+
+  // The in-flight block, after every persisted/live message and after any tool row of this turn.
+  if (opts.streamingText) {
+    rows.push({ kind: 'assistant', text: opts.streamingText, streaming: true });
+  }
 
   if (opts.streaming) {
     for (let i = rows.length - 1; i >= 0; i--) {

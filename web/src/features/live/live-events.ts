@@ -34,6 +34,22 @@ export const SESSION_LIVE_EVENTS = [
   'session.rewound',
 ] as const;
 
+/**
+ * Token-level assistant streaming. Deliberately NOT part of the shared union below.
+ *
+ * The server delivers `session.message.delta` only to a subscription that names the session it
+ * belongs to (`SESSION_SCOPED_ONLY` in agent-server `domain/ui-service/subscribe.ts`): a preview is
+ * renderable by exactly one surface — the chat showing that session — and an app-wide stream taking
+ * every session's previews would fill its 256-slot server queue and drop-oldest the status / thread
+ * / task events it exists to deliver. The shared stream is unscoped by design, so it could not
+ * receive these anyway.
+ *
+ * They therefore ride a small dedicated subscription owned by the open chat
+ * (`workbench/useAssistantDeltaStream`), the same treatment `executions.log` already gets: id-scoped,
+ * higher-volume, open only while the surface that renders it is.
+ */
+export const ASSISTANT_DELTA_EVENTS = ['session.message.delta'] as const;
+
 /** Thread lifecycle — any of these can change what `threads.list` / `threads.get` returns. */
 export const THREAD_LIVE_EVENTS = [
   'thread.created',

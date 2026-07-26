@@ -9,7 +9,10 @@ import {
   resolveBackgroundRunning,
   resolveTurns,
   rewindStats,
+  applyAssistantDelta,
+  endStreamingBlock,
   type LiveSessionMessage,
+  type StreamingBlock,
 } from './transcript-vm';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
 
@@ -400,5 +403,100 @@ describe('message edit + rewind (desktop 23 / mobile 7)', () => {
   it('rewindStats on the last row → zeros', () => {
     const rows = buildTranscriptRows(twoTurns, []);
     expect(rewindStats(rows, rows.length - 1)).toEqual({ replies: 0, toolCalls: 0 });
+  });
+});
+
+// ── Token-level streaming ────────────────────────────────────────────────────────────────────
+
+describe('applyAssistantDelta — accumulating a block still being written', () => {
+  const delta = (blockId: string, text: string, seq = 0) => ({ blockId, text, seq });
+
+  it('starts a block from nothing', () => {
+    expect(applyAssistantDelta(null, delta('msg_A:1', 'Tea '))).toEqual({ blockId: 'msg_A:1', text: 'Tea ' });
+  });
+
+  it('appends chunks of the same block in arrival order', () => {
+    let s: StreamingBlock | null = null;
+    s = applyAssistantDelta(s, delta('msg_A:1', 'Tea ', 0));
+    s = applyAssistantDelta(s, delta('msg_A:1', 'begins ', 1));
+    s = applyAssistantDelta(s, delta('msg_A:1', 'as a leaf.', 2));
+    expect(s).toEqual({ blockId: 'msg_A:1', text: 'Tea begins as a leaf.' });
+  });
+
+  it('a new blockId replaces the previous block rather than concatenating across blocks', () => {
+    const prev: StreamingBlock = { blockId: 'msg_A:1', text: 'first block' };
+    expect(applyAssistantDelta(prev, delta('msg_A:3', 'second'))).toEqual({ blockId: 'msg_A:3', text: 'second' });
+  });
+
+  it('ignores malformed events instead of rendering a blank bubble', () => {
+    const prev: StreamingBlock = { blockId: 'msg_A:1', text: 'kept' };
+    expect(applyAssistantDelta(prev, { text: 'no id' } as never)).toBe(prev);
+    expect(applyAssistantDelta(prev, { blockId: 'msg_A:1' } as never)).toBe(prev);
+    expect(applyAssistantDelta(null, {} as never)).toBe(null);
+  });
+});
+
+describe('endStreamingBlock — the authoritative message takes over', () => {
+  const streaming: StreamingBlock = { blockId: 'msg_A:1', text: 'partial te' };
+
+  it('clears the preview when the complete message of the SAME block arrives', () => {
+    expect(endStreamingBlock(streaming, 'msg_A:1')).toBe(null);
+  });
+
+  it('clears it for a message carrying no blockId — never leave a ghost preview behind', () => {
+    expect(endStreamingBlock(streaming, undefined)).toBe(null);
+  });
+
+  it('keeps a preview whose own block has not finalized yet', () => {
+    expect(endStreamingBlock(streaming, 'msg_A:0')).toBe(streaming);
+  });
+
+  it('is a no-op when nothing is streaming', () => {
+    expect(endStreamingBlock(null, 'msg_A:1')).toBe(null);
+  });
+});
+
+describe('buildTranscriptRows — the live streaming row', () => {
+  const oneTurn = tx([
+    {
+      turnIndex: 0,
+      messages: [{ type: 'user', text: 'about tea?', toolName: null, toolInput: null, ts: T, elapsedMs: null }],
+    },
+  ]);
+
+  it('appends the accumulating text as a streaming assistant row', () => {
+    const rows = buildTranscriptRows(oneTurn, [], { streamingText: 'Tea begins as a' });
+    const last = rows[rows.length - 1];
+    expect(last).toEqual({ kind: 'assistant', text: 'Tea begins as a', streaming: true });
+  });
+
+  it('adds no row when nothing is streaming', () => {
+    const rows = buildTranscriptRows(oneTurn, []);
+    expect(rows.some((r) => r.kind === 'assistant')).toBe(false);
+  });
+
+  it('adds no row for an empty accumulation (no blank bubble before the first chunk)', () => {
+    const rows = buildTranscriptRows(oneTurn, [], { streamingText: '' });
+    expect(rows.some((r) => r.kind === 'assistant')).toBe(false);
+  });
+
+  it('the complete message replaces the preview — one assistant row, not two', () => {
+    // What the hook produces at handover: the message is in the live tail and streamingText is null.
+    const tail: LiveSessionMessage[] = [
+      { sessionId: 's1', role: 'assistant', text: 'Tea begins as a leaf.', ts: T, blockId: 'msg_A:1' },
+    ];
+    const rows = buildTranscriptRows(oneTurn, tail, { streamingText: null });
+    const assistants = rows.filter((r) => r.kind === 'assistant');
+    expect(assistants).toHaveLength(1);
+    expect(assistants[0]).toEqual({ kind: 'assistant', text: 'Tea begins as a leaf.', streaming: false });
+  });
+
+  it('the streaming row sits last, after any tool calls of the same turn', () => {
+    const tail: LiveSessionMessage[] = [
+      { sessionId: 's1', role: 'tool', text: '', toolName: 'Read', toolInput: 'a.ts', ts: T },
+    ];
+    const rows = buildTranscriptRows(oneTurn, tail, { streamingText: 'now answering' });
+    expect(rows[rows.length - 2].kind).toBe('tools');
+    expect(rows[rows.length - 1]).toEqual({ kind: 'assistant', text: 'now answering', streaming: true });
   });
 });

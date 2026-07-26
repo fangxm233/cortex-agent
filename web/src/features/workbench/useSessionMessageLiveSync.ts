@@ -3,8 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { SESSION_LIVE_EVENTS } from '@/features/live/live-events';
-import type { LiveSessionMessage } from './transcript-vm';
-import { resolveRunning, resolveBackgroundRunning } from './transcript-vm';
+import type { LiveSessionMessage, StreamingBlock } from './transcript-vm';
+import { resolveRunning, resolveBackgroundRunning, applyAssistantDelta, endStreamingBlock } from './transcript-vm';
+import { useAssistantDeltaStream } from './useAssistantDeltaStream';
 
 // Live `session.message` feed for the center chat (S4 chat, task aba0). Listens on the SHARED live
 // stream (`features/live/LiveEventsProvider`) scoped to `sessionId` — the scope filter reproduces the
@@ -43,12 +44,27 @@ export interface SessionLiveState {
   /** The live agent-turn count from the `session.turn` delta (null until the first event for this
    *  session). The caller resolves it against the `SessionInfo.numTurns` snapshot via `resolveTurns`. */
   liveTurns: number | null;
+  /** Text accumulated for the assistant block being written right now, or null when nothing is
+   *  streaming. Pass it to `buildTranscriptRows` as `streamingText`. Always null unless the caller
+   *  opted into deltas — every other surface renders complete messages exactly as before. */
+  streamingText: string | null;
+}
+
+export interface SessionLiveSyncOptions {
+  /**
+   * Render assistant text as it is generated, by opening a session-scoped `session.message.delta`
+   * subscription (see useAssistantDeltaStream). Opt-in per surface: it costs one SSE connection, so
+   * only a chat that actually shows a live preview should ask for it — not thread step cards or
+   * background readers, of which several can be mounted at once.
+   */
+  deltas?: boolean;
 }
 
 export function useSessionMessageLiveSync(
   sessionId: string,
   snapshotRunning?: boolean,
   snapshotBackgroundRunning?: boolean,
+  options: SessionLiveSyncOptions = {},
 ): SessionLiveState {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -62,6 +78,8 @@ export function useSessionMessageLiveSync(
   const [statusBackground, setStatusBackground] = useState<boolean | null>(null);
   // Live agent-turn count from the `session.turn` delta. Null until the first event for this session.
   const [liveTurns, setLiveTurns] = useState<number | null>(null);
+  // The assistant block being previewed token by token (null whenever nothing is streaming).
+  const [streamingBlock, setStreamingBlock] = useState<StreamingBlock | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Session switch resets every delta; the snapshot then governs until the first event lands.
@@ -71,10 +89,17 @@ export function useSessionMessageLiveSync(
     setStatusRunning(null);
     setStatusBackground(null);
     setLiveTurns(null);
+    setStreamingBlock(null);
     return () => {
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
   }, [sessionId]);
+
+  // Token-level preview. Accumulate only — the transcript query is NOT invalidated per delta (a
+  // reply produces dozens of these, and none of them changes persisted history).
+  useAssistantDeltaStream(sessionId, !!options.deltas, (ev) => {
+    setStreamingBlock((prev) => applyAssistantDelta(prev, ev));
+  });
 
   // Reconnect recovery: after a stream drop (sleep, network blip) events are lost for good — when the
   // shared stream reconnects, refetch the authoritative snapshot + transcript. `reconnectEpoch` only
@@ -106,6 +131,9 @@ export function useSessionMessageLiveSync(
         } else {
           // Turn ended — collapse the heuristic immediately so idle is instant, not a 2.5s tail.
           setStreaming(false);
+          // …and drop any preview the turn left behind (cancelled turn, error, a block whose
+          // complete message never arrived). An idle session must never show a live caret.
+          setStreamingBlock(null);
           if (idleTimer.current) clearTimeout(idleTimer.current);
         }
         // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
@@ -118,6 +146,7 @@ export function useSessionMessageLiveSync(
       // entirely and refetch the authoritative transcript.
       if (raw.type === 'session.rewound') {
         setLiveTail([]);
+        setStreamingBlock(null);
         queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         return;
@@ -137,7 +166,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; attachments?: LiveSessionMessage['attachments'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; blockId?: string; attachments?: LiveSessionMessage['attachments'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       const msg: LiveSessionMessage = {
@@ -147,8 +176,14 @@ export function useSessionMessageLiveSync(
         toolName: p.toolName,
         toolInput: p.toolInput,
         ts: p.ts ?? new Date().toISOString(),
+        blockId: p.blockId,
         attachments: p.attachments,
       };
+      // The authoritative text for a previewed block: retire the preview in the SAME state update
+      // that appends the message, so the row is replaced rather than briefly doubled.
+      if (p.role === 'assistant') {
+        setStreamingBlock((prev) => endStreamingBlock(prev, p.blockId));
+      }
       setLiveTail((prev) => {
         const next = [...prev, msg];
         return next.length > TAIL_CAP ? next.slice(next.length - TAIL_CAP) : next;
@@ -165,5 +200,5 @@ export function useSessionMessageLiveSync(
   // Snapshot + delta: event wins once received; snapshot restores state before that; heuristic last.
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
   const backgroundRunning = resolveBackgroundRunning(statusBackground, snapshotBackgroundRunning);
-  return { liveTail, streaming, running, backgroundRunning, liveTurns };
+  return { liveTail, streaming, running, backgroundRunning, liveTurns, streamingText: streamingBlock?.text ?? null };
 }

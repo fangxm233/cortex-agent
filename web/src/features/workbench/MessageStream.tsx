@@ -413,7 +413,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   );
 }
 
-function AssistantBlock({ text, streaming: _streaming, attachments, editCopy, regen }: {
+function AssistantBlock({ text, streaming, attachments, editCopy, regen }: {
   text: string;
   streaming: boolean;
   attachments?: Attachment[];
@@ -429,6 +429,21 @@ function AssistantBlock({ text, streaming: _streaming, attachments, editCopy, re
     >
       {editCopy && regen && <div style={{ marginBottom: 4 }}><RegenNote copy={editCopy} /></div>}
       {text.trim() && <ChatMarkdown text={text} />}
+      {/* Token-level streaming: this text is still arriving. Same caret the mobile stream uses. */}
+      {streaming && (
+        <span
+          aria-hidden="true"
+          style={{
+            display: 'inline-block',
+            width: 7,
+            height: 14,
+            marginLeft: 2,
+            verticalAlign: 'text-bottom',
+            background: 'var(--proto-accent)',
+            animation: 'cxblink 1.1s steps(1) infinite',
+          }}
+        />
+      )}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
     </div>
   );
