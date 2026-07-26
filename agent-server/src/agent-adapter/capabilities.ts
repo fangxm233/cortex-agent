@@ -35,6 +35,8 @@ const CLAUDE_CAPS: Capability[] = [
   // Print mode requests --include-partial-messages and republishes the resulting text deltas as
   // `assistant_delta` normalized events (Web UI preview only).
   Capability.StreamingDeltas,
+  // Print mode accepts a user message written to stdin while a turn is in flight.
+  Capability.MidTurnInject,
 ];
 
 // Codex: per DR-0008 §3.4 table — MCP via existing buildMcpBlock in codex-bridge.ts; --system-prompt + resume via app-server RPC; no Hooks/Plugins/PlanMode/AskUserQuestion/ToolAllowlist
@@ -58,6 +60,7 @@ const PI_CAPS: Capability[] = [
   Capability.SystemPromptOverride,
   Capability.ToolAllowlist,
   Capability.SessionResume,
+  Capability.StreamingDeltas,
 ];
 
 export const CAPABILITIES_BY_BACKEND: Record<Backend, Set<Capability>> = {

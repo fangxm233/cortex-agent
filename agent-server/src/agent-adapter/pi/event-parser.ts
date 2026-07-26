@@ -1,5 +1,5 @@
 // input:  PI --mode rpc stdout JSONL lines
-// output: piRpcLineToNormalized + createPIEventParserState
+// output: piRpcLineToNormalized + createPIEventParserState (text deltas tagged with a blockId)
 // pos:    Pure function translator from PI rpc events to NormalizedEvent
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -97,10 +97,16 @@ export function piRpcLineToNormalized(line: string, state: PIEventParserState): 
         typeof delta === 'string' &&
         delta.length > 0
       ) {
+        // blockId groups every delta of one assistant message and ties them to the finalizing
+        // whole-message assistant_text. PI's AssistantMessage carries no `id`: the stable
+        // per-message identifier is `responseId`, which the provider assigns once when the
+        // stream opens (anthropic msg_… / openai-compatible chatcmpl-…), before any text_delta.
+        // `id` is kept first so any producer that does supply one keeps working.
         const msgObj = ev['message'];
         const blockId =
           msgObj && typeof msgObj === 'object'
-            ? ((msgObj as Record<string, unknown>)['id'] as string | undefined)
+            ? (((msgObj as Record<string, unknown>)['id'] ??
+                (msgObj as Record<string, unknown>)['responseId']) as string | undefined)
             : undefined;
         const result: NormalizedEvent = { type: 'assistant_text', text: delta };
         if (typeof blockId === 'string') (result as any).blockId = blockId;

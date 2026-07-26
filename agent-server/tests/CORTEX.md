@@ -52,6 +52,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-adapter-claude.test.ts` | Test | Claude buildSpawnArgs/hooks/summarizer |
 | `agent-adapter-pi.test.ts` | Test | PI framing/spawn-args/bootstrap/close |
 | `agent-adapter-pi-event-parser.test.ts` | Test | piRpcLineToNormalized full coverage |
+| `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |
 | `agent-adapter-pi-hook-bridge.test.ts` | Test | PI hook-bridge toClaude/normalize |
 | `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
 | `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims + extension_ui |
