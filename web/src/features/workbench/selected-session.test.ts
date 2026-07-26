@@ -1,6 +1,15 @@
+// input:  vitest, selected-session helpers, SessionInfo DTO
+// output: selected-session selection and transition regressions
+// pos:    Pure tests for workbench session-selection state
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
-import { deriveMostRecentSessionId, resolveSelectedSessionId } from './selected-session';
+import {
+  deriveMostRecentSessionId,
+  resolveSelectedSessionId,
+  resolveTransitionProfile,
+  type PendingCreatedSession,
+} from './selected-session';
 
 function sess(id: string, lastUsedAt: string, projectId = 'p1'): SessionInfo {
   return {
@@ -43,5 +52,21 @@ describe('resolveSelectedSessionId', () => {
   });
   it('DRAFT_SENTINEL still passes through even with a pending id', () => {
     expect(resolveSelectedSessionId('__draft__', sessions, 'new')).toBe('__draft__');
+  });
+});
+
+describe('resolveTransitionProfile', () => {
+  const pending: PendingCreatedSession = { sessionId: 'new', profileName: 'sol' };
+
+  it('keeps the chosen draft profile while the new session row is still absent', () => {
+    expect(resolveTransitionProfile(null, pending, 'new')).toBe('sol');
+  });
+
+  it('prefers the authoritative session-list profile once it arrives', () => {
+    expect(resolveTransitionProfile('execute', pending, 'new')).toBe('execute');
+  });
+
+  it('never leaks pending profile metadata into a different session', () => {
+    expect(resolveTransitionProfile(null, pending, 'other')).toBeNull();
   });
 });

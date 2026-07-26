@@ -1,8 +1,16 @@
+// input:  project-scoped sessions/config queries and selected-session rules
+// output: SelectedSessionProvider and useSelectedSession context hook
+// pos:    Cross-pane selected and draft session state owner
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useCurrentProject } from './CurrentProjectProvider';
-import { resolveSelectedSessionId, DRAFT_SENTINEL } from './selected-session';
+import {
+  resolveSelectedSessionId,
+  DRAFT_SENTINEL,
+  type PendingCreatedSession,
+} from './selected-session';
 
 // Cross-pane "selected session" state. A single source of truth for which session the center chat
 // shows, written by the LeftRail session rows (+ the "+ New session" control) and read by CenterChat.
@@ -15,10 +23,9 @@ import { resolveSelectedSessionId, DRAFT_SENTINEL } from './selected-session';
 interface SelectedSessionContextValue {
   selectedSessionId: string | null;
   setSelectedSession: (id: string) => void;
-  /** Select a session that was JUST created (createAndSend). Same as setSelectedSession but marks
-   *  the id as "pending" so it stays selected across the gap before the refetched sessions.list
-   *  contains its row — avoiding a flip to the previous most-recent session. */
+  /** Select a just-created session while retaining its profile until sessions.list catches up. */
   selectCreatedSession: (id: string) => void;
+  pendingCreatedSession: PendingCreatedSession | null;
   /** True when the user is in a "New Conversation" draft (no session created yet). */
   isDraft: boolean;
   /** The user-chosen profile for the draft session (null = use system default). */
@@ -39,10 +46,11 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const [override, setOverride] = useState<string | null>(null);
   const [draftProfile, setDraftProfile] = useState<string | null>(null);
-  // A just-created session (createAndSend) whose row hasn't landed in the refetched list yet.
-  const [pendingCreatedId, setPendingCreatedId] = useState<string | null>(null);
+  // A just-created session whose authoritative sessions.list row has not landed yet.
+  const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
 
   const sessions = sessionsQuery.data ?? [];
+  const pendingCreatedId = pendingCreatedSession?.sessionId ?? null;
   const selectedSessionId = resolveSelectedSessionId(override, sessions, pendingCreatedId);
   const isDraft = selectedSessionId === DRAFT_SENTINEL;
 
@@ -50,14 +58,13 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   // override now resolves it via the normal list-membership path.
   useEffect(() => {
     if (pendingCreatedId && sessions.some((s) => s.sessionId === pendingCreatedId)) {
-      setPendingCreatedId(null);
+      setPendingCreatedSession(null);
     }
   }, [pendingCreatedId, sessions]);
 
-  // A project switch invalidates any pending marker (the new session belongs to the previous
-  // project's list); the override then falls back to the new project's most-recent session.
+  // A project switch invalidates pending metadata from the previous project's new session.
   useEffect(() => {
-    setPendingCreatedId(null);
+    setPendingCreatedSession(null);
   }, [currentProjectId]);
 
   // When entering draft mode, pick up the system default profile if none chosen yet.
@@ -71,22 +78,22 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   }, [isDraft, draftProfile, configQuery.data]);
 
   const setSelectedSession = useCallback((id: string) => {
-    setPendingCreatedId(null);
+    setPendingCreatedSession(null);
     setOverride(id);
   }, []);
   const selectCreatedSession = useCallback((id: string) => {
-    setPendingCreatedId(id);
+    setPendingCreatedSession({ sessionId: id, profileName: draftProfile });
     setOverride(id);
-  }, []);
+  }, [draftProfile]);
   const clearDraft = useCallback(() => {
-    setPendingCreatedId(null);
+    setPendingCreatedSession(null);
     setOverride(null);
     setDraftProfile(null);
   }, []);
 
   const value = useMemo(
-    () => ({ selectedSessionId, setSelectedSession, selectCreatedSession, isDraft, draftProfile, setDraftProfile, clearDraft }),
-    [selectedSessionId, setSelectedSession, selectCreatedSession, isDraft, draftProfile, clearDraft],
+    () => ({ selectedSessionId, setSelectedSession, selectCreatedSession, pendingCreatedSession, isDraft, draftProfile, setDraftProfile, clearDraft }),
+    [selectedSessionId, setSelectedSession, selectCreatedSession, pendingCreatedSession, isDraft, draftProfile, clearDraft],
   );
 
   return <SelectedSessionContext.Provider value={value}>{children}</SelectedSessionContext.Provider>;

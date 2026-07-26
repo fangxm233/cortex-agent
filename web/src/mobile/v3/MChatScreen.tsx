@@ -1,29 +1,7 @@
-// 1b 会话详情 — the mobile chat surface (scheme-mobile.dc.html 1b + in-chat states 1m/1n/1o/1p). A
-// drill page (route /m/session/:sessionId; sessionId === 'new' ⇒ draft, lazy-create on first send).
-// REUSES the desktop chat plumbing wholesale, re-chromed for mobile:
-//   • transcript: sessions.transcript + buildMobileChatRows (+ live session.message tail)
-//   • live sync : useSessionMessageLiveSync (snapshot+delta running / agent-turn count) with the
-//                 `{deltas:true}` opt-in, so the reply is revealed as it is generated rather than
-//                 landing whole — the same token-level stream and the same smooth-reveal pacing the
-//                 desktop chat uses. It also renders the hook's `pendingUser`: a message sent into a
-//                 turn that is already running is held out of the ordered tail until the model reads
-//                 it, and a surface that ignores that list shows nothing at all for a message the
-//                 user just sent. Here it is a dimmed bubble pinned below everything, cleared on
-//                 delivery.
-//   • send      : sessions.send, or sessions.createAndSend when a draft (attachments carried
-//                 through). Send stays reachable while a turn runs (mid-turn injection) — see the
-//                 composer's secondary Send key beside the primary Stop.
-//   • profile   : config.get profiles + session.profileName + sessions.setProfile (1p sheet)
-//   • attach    : the desktop Composer's raw XHR upload → /api/attachments/upload (1o)
-//
-// HONEST GAPS (verified against agent-server/domain/ui-service/app-router.ts + @cortex-agent/ui-contract):
-//   • per-session `$` cost — SessionInfo carries none → OMITTED (never fabricated).
-//   • 1m agent-提问 (AskUserQuestion) + 1n Plan-审批 (ExitPlanMode) — WIRED: interaction cards are
-//     transcript rows (persistent interaction entities, web-interactions-redesign); the backend
-//     broadcasts `session.interaction` state changes and the transcript refetch converges every
-//     client. `useInteractionActions` supplies answer/approve/reject via `sessions.answerQuestion`
-//     / `sessions.respondPlan`, which resolve the blocked MCP tool.
-//   • ⋯ 重命名/导出/归档 — no backend op → inert honest menu.
+// input:  mobile route/session queries, shared chat hooks, mutations
+// output: MChatScreen live mobile conversation container
+// pos:    Mobile session detail state and data orchestration
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -40,6 +18,10 @@ import {
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
+import {
+  resolveTransitionProfile,
+  type PendingCreatedSession,
+} from '@/features/workbench/selected-session';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { threadPill } from '@/features/workbench/thread-card-proto';
 import { buildMobileStepper } from '@/mobile/screens/mobile-session-vm';
@@ -338,17 +320,31 @@ export function MChatScreen(): JSX.Element {
   const profiles = configQuery.data?.profiles?.profiles ?? [];
   const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
   const [draftProfile, setDraftProfile] = useState<string | null>(null);
+  const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
+  const transitionProfile = resolveTransitionProfile(
+    active?.profileName,
+    pendingCreatedSession,
+    sessionId,
+  );
   const effectiveProfile = effectiveProfileName(
-    isDraft ? draftProfile : active?.profileName,
+    isDraft ? draftProfile : transitionProfile,
     profiles,
     defaultProfile,
   );
+
+  useEffect(() => {
+    if (!pendingCreatedSession) return;
+    const authoritativeArrived = active?.sessionId === pendingCreatedSession.sessionId;
+    const movedElsewhere = !isDraft && sessionId !== pendingCreatedSession.sessionId;
+    if (authoritativeArrived || movedElsewhere) setPendingCreatedSession(null);
+  }, [active?.sessionId, isDraft, pendingCreatedSession, sessionId]);
 
   // ── mutations ──
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const createAndSendMut = useMutation(
     trpc.sessions.createAndSend.mutationOptions({
       onSuccess: (data) => {
+        setPendingCreatedSession({ sessionId: data.sessionId, profileName: draftProfile });
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         navigate(`/m/session/${data.sessionId}`, { replace: true });
       },

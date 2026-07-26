@@ -1,3 +1,7 @@
+// input:  active/draft session state, profile config, profile mutations
+// output: ChatHeader with profile picker, status, and session-id menu
+// pos:    Desktop chat header presentation and profile control
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -6,6 +10,7 @@ import { buildProfileOptions, currentBackendOf } from './profile-menu';
 import { ProfileMenu } from './ProfileMenu';
 import { SessionIdModal } from './SessionIdModal';
 import { useSelectedSession } from './SelectedSessionProvider';
+import { resolveTransitionProfile } from './selected-session';
 
 // Chat header — 1:1 from prototype.dc.html L107–130: session title · profile chip · running/idle
 // status pill · ⌘K affordance. `title` is the REAL active session name (task aba0); `running` is
@@ -49,13 +54,17 @@ export function ChatHeader({
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const profiles = configQuery.data?.profiles?.profiles ?? [];
   const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
-  const { draftProfile, setDraftProfile } = useSelectedSession();
+  const { draftProfile, setDraftProfile, pendingCreatedSession } = useSelectedSession();
+  const transitionProfile = resolveTransitionProfile(
+    currentProfile,
+    pendingCreatedSession,
+    sessionId,
+  );
 
-  // The chip reflects the session's active profile, falling back to the config default.
-  // In draft mode, the effective profile is the client-side draft state (no server session).
+  // The pending profile bridges createAndSend success to the sessions.list refetch.
   const effectiveProfile = isDraft
     ? (draftProfile ?? defaultProfile ?? (profiles[0]?.name ?? '—'))
-    : (currentProfile ?? defaultProfile ?? (profiles[0]?.name ?? '—'));
+    : (transitionProfile ?? defaultProfile ?? (profiles[0]?.name ?? '—'));
 
   const currentBackend = useMemo(
     () => currentBackendOf(profiles, effectiveProfile),

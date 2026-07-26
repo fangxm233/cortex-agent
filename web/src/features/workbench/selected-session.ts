@@ -1,3 +1,7 @@
+// input:  SessionInfo DTO and pending-created session metadata
+// output: draft sentinel and pure session/profile resolvers
+// pos:    Workbench selected-session state rules
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 
 // Pure state logic for the cross-pane "selected session" (the session the center chat shows). A
@@ -9,6 +13,11 @@ import type { SessionInfo } from '@cortex-agent/ui-contract';
 /** Sentinel value for the "+ New session" draft placeholder. Not a real session — the session is
  *  created lazily on first message send (task 15b). */
 export const DRAFT_SENTINEL = '__draft__';
+
+export interface PendingCreatedSession {
+  sessionId: string;
+  profileName: string | null;
+}
 
 /** Most-recently-used session id (by lastUsedAt, then createdAt), else null. */
 export function deriveMostRecentSessionId(sessions: SessionInfo[]): string | null {
@@ -36,4 +45,15 @@ export function resolveSelectedSessionId(
   if (pendingCreatedId && override === pendingCreatedId) return pendingCreatedId;
   if (override && sessions.some((s) => s.sessionId === override)) return override;
   return deriveMostRecentSessionId(sessions);
+}
+
+/** Keep draft profile metadata only for its just-created session until the list snapshot arrives. */
+export function resolveTransitionProfile(
+  currentProfile: string | null | undefined,
+  pendingCreated: PendingCreatedSession | null,
+  sessionId: string | null | undefined,
+): string | null {
+  if (currentProfile != null) return currentProfile;
+  if (!sessionId || pendingCreated?.sessionId !== sessionId) return null;
+  return pendingCreated.profileName;
 }
