@@ -88,21 +88,21 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `task-completion.test.ts` | Test | complete/uncomplete + done-when validation |
 | `task-mutations.test.ts` | Test | addTask/batchEdit/decompose |
 | `thread-manager.test.ts` | Test | resolveSystemVars/evaluateTransitions |
-| `thread-runner.test.ts` | Test | buildThreadSummary/initThreadContext |
+| `thread-runner.test.ts` | Test | Runner lifecycle helpers and wait-control selector forwarding |
 | `threads/thread-transcript.test.ts` | Test | createStepTranscriptRecorder: incremental in-order appends keyed by the track sessionId (summarized tool input), shared ts between history entry and live publish (web de-dup contract), synchronous emission-order publishes under slow writes, settle() never rejects + failed append skipped |
 | `threads/thread-live-step-ids.test.ts` | Test | beginStepSession (fresh mint persisted + resume null / legacy migration keeps one id as both keys / settled slot resumes backendSessionId / non-persist fresh per step / thread.step.started) + recordStepResult track/backend decoupling (step + persist-slot fields, thread.step.finished truncation) + thread.created/completed/failed(+cancel→failed) publishes + resolveTargetResumeId (slot/step, new/legacy forms, never a track id) |
 | `conversation-runner.test.ts` | Test | buildConversationPrompt golden-prompt fidelity vs legacy default-thread prompt + `[Session Project]` block injection (project opt) + resolveConversationProject gating (web-only / fresh-only / non-general / unknown-id) |
 | `user-context.test.ts` | Test | loadUserContext env-gate/file-present/absent + USER.md injected into buildConversationPrompt, never into thread steps |
 | `thread-abort.test.ts` | Test | DR-0015 control plane: peekPendingControl/clearPendingControl(abort)/abortThread + THREAD_PROTOCOL_PREAMBLE (tool-based) + regression (artifact "[ABORT]" prose must NOT trigger) |
 | `thread-tree.test.ts` | Test | DR-0014 tree: getRootThreadId/getTreeThreads/summarizeTree/checkSpawnGuards/buildThreadTree/registerChildSpawn |
-| `thread-wait-children.test.ts` | Test | DR-0014/0015 suspend: pendingControl(wait)/tryEnterWaiting/detectSplitFromControl + restart/cleanup semantics |
+| `thread-wait-children.test.ts` | Test | Thread-child inference and explicit wait-set override semantics |
 | `webhook-thread-control.test.ts` | Test | DR-0015: /webhook/thread-op `control` action — abort/split/wait validation + pendingControl persistence + reject-second/terminal/unknown |
 | `manager-qa.test.ts` | Test | DR-0016 up-ask channel: askManager manager-resolution (thread-parent + task-tree) / deliver→resume / top-of-tree origin-session wake (origin agent answers via answer_subtask) + human backstop (tryAnswerFromHuman) / submitAnswer + getAnswer round-trip / buildQuestionNotice / buildOriginSessionNotice |
 | `webhook-manager-qa.test.ts` | Test | DR-0016: /webhook/manager-qa `ask`/`poll`/`answer` HTTP round-trip + unknown thread/question/action validation |
 | `thread-callback-tree.test.ts` | Test | DR-0014 re-entry: notifyThreadParent idempotency+resume / recoverWaitingThreads / buildChildResultNotice |
 | `thread-contract.test.ts` | Test | DR-0014 contracts: buildContractPrompt/buildMissionChain/checkContractBudget |
 | `task-parent-split.test.ts` | Test | DR-0014 task tree: Task.parent round-trip / decompose keepParent / lint parent rules / processSplitOutcome |
-| `thread-wait-tasks.test.ts` | Test | DR-0014 §8: tryEnterWaiting task-children snapshot / restart preservation / cleanup orphan detection |
+| `thread-wait-tasks.test.ts` | Test | Task-child inference, explicit override, restart, and cleanup |
 | `task-node-ledger.test.ts` | Test | DR-0017 W1: core/task-node path helpers + ensureTaskArtifact never-truncate + acceptance-ledger verdict lifecycle (pending re-delivers / accepted blocks / rejected re-opens with rework_round) |
 | `manager-task-artifact.test.ts` | Test | DR-0017 W1: createThread task-keyed artifact for manager-template dispatch threads (placement / pre-existing checkpoint preserved / non-manager & ad-hoc unaffected / cleanupWorkspace spares it) |
 | `task-verdict-cli.test.ts` | Test | DR-0017: `cortex-task verdict` subcommand — accepted/rejected recording + rework_round, --child/--verdict/parent validation, help entry; atomicWriteSync tripwire (real-home refusal + tmp write) |

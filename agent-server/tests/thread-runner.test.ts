@@ -1,6 +1,6 @@
-// input:  node:test, thread-runner internal helper functions, threadStore
-// output: buildThreadSummary/initThreadContext/finalizeThread tests
-// pos:    thread-runner post-refactor regression test for 9 helper functions
+// input:  thread runner helpers, thread store, mock adapter
+// output: runner lifecycle and wait-control regression tests
+// pos:    Verifies thread runtime helpers in isolation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
@@ -15,6 +15,7 @@ import {
   initThreadContext,
   evaluateAndTransition,
   finalizeThread,
+  consumeWaitControl,
   getActiveHandle,
   cancelActiveThread,
   type ThreadRunResult,
@@ -204,6 +205,31 @@ test('evaluateAndTransition returns false for ad-hoc thread (no template)', asyn
   const stepCtx = { agentSlotId: 'main', agentConfig: { slotId: 'main', profile: '__active__', persistSession: false }, isFirstStep: true, multiAgent: false } as any;
   const result = await evaluateAndTransition(id, stepCtx, ctx, makeRunOpts('C-eval-2'));
   assert.equal(result, false);
+});
+
+// --- wait-control boundary ---
+
+test('consumeWaitControl forwards explicit selectors before clearing the control', async () => {
+  const firstId = uniqueThreadId('wait-first');
+  const secondId = uniqueThreadId('wait-second');
+  const parentId = uniqueThreadId('wait-parent');
+  registerTestThread(makeThreadRecord({ id: firstId, channel: 'C-wait', status: 'running' }));
+  registerTestThread(makeThreadRecord({ id: secondId, channel: 'C-wait', status: 'running' }));
+  registerTestThread(makeThreadRecord({
+    id: parentId,
+    channel: 'C-wait',
+    metadata: {
+      waitingOn: [firstId, secondId],
+      childThreadIds: [firstId, secondId],
+      pendingControl: { action: 'wait', onThreads: [secondId], onTasks: null },
+    },
+  }));
+  const control = threadStore.get(parentId)!.metadata!.pendingControl!;
+
+  assert.equal(await consumeWaitControl(parentId, control), true);
+  const updated = threadStore.get(parentId)!;
+  assert.equal(updated.metadata!.pendingControl, null);
+  assert.deepEqual(updated.metadata!.waitingOn, [secondId]);
 });
 
 // --- finalizeThread ---

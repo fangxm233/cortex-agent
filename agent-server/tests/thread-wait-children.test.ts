@@ -1,6 +1,6 @@
-// input:  Node test runner + control-plane (pendingControl wait/split) + thread-repo startup semantics
-// output: peekPendingControl(wait) / tryEnterWaiting / detectSplitFromControl / markRunningAsFailedOnStartup tests
-// pos:    Verify parent-thread suspend/re-entry infrastructure (DR-0014 Phase 1/2 + DR-0015 control plane)
+// input:  thread repo, wait controls, thread state machine
+// output: thread-child wait-set and restart regression tests
+// pos:    Verifies parent suspension on child threads
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, afterAll } from 'vitest';
@@ -133,6 +133,41 @@ test('tryEnterWaiting enters waiting when a child is still active', async () => 
   const updated = threadStore.get(parent.id)!;
   assert.equal(updated.status, 'waiting');
   assert.deepEqual(updated.metadata!.waitingOn, [child.id]);
+});
+
+test('explicit onThreads replaces the inferred thread wait set', async () => {
+  const first = makeThread({ status: 'running' });
+  const second = makeThread({ status: 'running' });
+  const parent = makeThread({ metadata: {
+    waitingOn: [first.id, second.id],
+    childThreadIds: [first.id, second.id],
+  } });
+
+  assert.equal(await tryEnterWaiting(parent.id, { onThreads: [second.id] }), true);
+  assert.deepEqual(threadStore.get(parent.id)!.metadata!.waitingOn, [second.id]);
+});
+
+test('explicit empty onThreads suppresses inferred thread children', async () => {
+  const child = makeThread({ status: 'running' });
+  const parent = makeThread({ metadata: { waitingOn: [child.id], childThreadIds: [child.id] } });
+
+  assert.equal(await tryEnterWaiting(parent.id, { onThreads: [] }), false);
+  assert.deepEqual(threadStore.get(parent.id)!.metadata!.waitingOn, []);
+});
+
+test('explicit onThreads keeps only unique live linked children', async () => {
+  const live = makeThread({ status: 'running' });
+  const done = makeThread({ status: 'completed' });
+  const unrelated = makeThread({ status: 'running' });
+  const parent = makeThread({ metadata: {
+    waitingOn: [live.id, done.id],
+    childThreadIds: [live.id, done.id],
+  } });
+
+  assert.equal(await tryEnterWaiting(parent.id, {
+    onThreads: [live.id, live.id, done.id, unrelated.id, 'thr_missing'],
+  }), true);
+  assert.deepEqual(threadStore.get(parent.id)!.metadata!.waitingOn, [live.id]);
 });
 
 test('tryEnterWaiting filters out terminal and missing children before deciding', async () => {

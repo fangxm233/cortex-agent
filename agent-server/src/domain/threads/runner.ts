@@ -1,6 +1,6 @@
-// input:  domain/threads, mode-manager, hook-runner, handles
-// output: runThread / continueThread / resumeThread / resumeRateLimitedThread / buildThreadSummary
-// pos:    runtime execution engine for the Thread system
+// input:  domain/threads, agent runner, hooks, execution registry
+// output: thread execution, resume, wait-control handling, summaries
+// pos:    Runtime execution engine for the Thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
@@ -23,6 +23,7 @@ import {
   getTemplate,
   readArtifact,
   resolveSystemVars,
+  type PendingControl,
 } from './index.js';
 import { runAgent, getClaudeMode, getActiveBackend, getActiveProfile } from '../agents/index.js';
 import { isApiRateLimitError } from '../agents/config.js';
@@ -666,8 +667,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
       //    in pendingMessages → re-enter the loop immediately so the same agent processes them.
       //  - signal but nothing to wait on or process → fall through to normal transitions.
       if (control?.action === 'wait') {
-        await clearPendingControl(threadId);
-        if (await tryEnterWaiting(threadId)) {
+        if (await consumeWaitControl(threadId, control)) {
           enteredWaiting = true;
           // DR-0014 lock hygiene: release any project lock this execution still holds BEFORE
           // suspending. A manager that ran `decompose --auto-lock` (which does not auto-release)
@@ -769,6 +769,15 @@ async function continueThread(threadId: string, userMessage: string, opts: RunTh
   });
 
   return runThread(threadId, opts);
+}
+
+/** Consume one wait intent exactly once, preserving its explicit target selectors. */
+export async function consumeWaitControl(
+  threadId: string,
+  control: Pick<NonNullable<PendingControl>, 'onTasks' | 'onThreads'>,
+): Promise<boolean> {
+  await clearPendingControl(threadId);
+  return tryEnterWaiting(threadId, control);
 }
 
 // --- Resume a rate-limit-paused thread (auto-resume) ---

@@ -1,11 +1,6 @@
-// input:  McpServer, webhook proxy, CORTEX_THREAD_ID env
-// output: thread_abort / thread_split / thread_wait registrations (DR-0015 control plane)
-// pos:    Self-control of the CALLER'S OWN thread, proxied through the daemon webhook. An agent
-//         signals its own thread (CORTEX_THREAD_ID) and the runner reads metadata.pendingControl at
-//         the step boundary — no artifact string markers. The agent-facing thread spawn/monitor
-//         tools (thread_start + thread_status/result/list/list_templates/cancel) were REMOVED:
-//         delegation is now done via the task system (cortex-task spawn / add) and monitored via the
-//         read-only task_* tools. thread_wait is the suspend primitive paired with cortex-task spawn.
+// input:  MCP server, webhook proxy, thread environment
+// output: thread_abort, thread_split, and thread_wait MCP tools
+// pos:    Self-control tools for the caller's active thread
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -91,10 +86,10 @@ export function registerThreadTools(server: McpServer): void {
 
   server.tool(
     'thread_wait',
-    'Suspend YOUR OWN thread until its awaited children finish (DR-0014 parent suspension). Call this after creating child tasks you depend on (cortex-task spawn) — you are re-entered once ALL awaited children are terminal, with their results injected. If nothing is left to wait on, the thread simply continues. PRECONDITION (DR-0017 checkpoint gate): you must have updated your artifact during this step (delegations & acceptance criteria / decisions / remaining plan / assumptions) — the call is rejected otherwise. After calling, end your step.',
+    'Suspend YOUR OWN thread until its awaited children finish (DR-0014 parent suspension). Call this after creating child tasks you depend on (cortex-task spawn) — you are re-entered once ALL awaited children are terminal, with their results injected. With no selectors, the live wait set is inferred. Supplying either on_tasks or on_threads replaces the inferred set; an omitted category is empty. If nothing is left to wait on, the thread simply continues. PRECONDITION (DR-0017 checkpoint gate): you must have updated your artifact during this step (delegations & acceptance criteria / decisions / remaining plan / assumptions) — the call is rejected otherwise. After calling, end your step.',
     {
-      on_tasks: z.array(z.string()).optional().describe('Optional explicit child task ids to wait on (otherwise inferred from the thread / task tree).'),
-      on_threads: z.array(z.string()).optional().describe('Optional explicit child thread ids to wait on (otherwise inferred from spawned children).'),
+      on_tasks: z.array(z.string()).optional().describe('Explicit child task wait set. Supplying either selector disables inference; an omitted category is empty.'),
+      on_threads: z.array(z.string()).optional().describe('Explicit child thread wait set. Supplying either selector disables inference; an omitted category is empty.'),
     },
     async ({ on_tasks, on_threads }: { on_tasks?: string[]; on_threads?: string[] }) => {
       try {

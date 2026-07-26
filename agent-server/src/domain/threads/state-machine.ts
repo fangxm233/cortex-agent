@@ -1,10 +1,7 @@
-// Thread lifecycle state machine.
-// input:  thread-store, template-loader, prompt-builder, utils, artifact-io
-// output: createThread / addAgentToThread /
-//         resolveNextStep / evaluateTransitions / recordStepResult / completeThread /
-//         failThread / cancelThread / abortThread / tryEnterWaiting /
-//         peekPendingControl / clearPendingControl / detectSplitFromControl (DR-0015 control plane) /
-//         isArtifactUnchangedSinceStepStart (DR-0017 W2 checkpoint gate)
+// input:  thread store, templates, task parser, artifact I/O
+// output: thread lifecycle and control-plane state transitions
+// pos:    Thread state machine and suspension wait-set resolver
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { createHash, randomUUID } from 'crypto';
@@ -556,6 +553,28 @@ function isTerminal(status: ThreadRecord['status']): boolean {
   return status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'aborted';
 }
 
+interface WaitTargets {
+  onTasks?: string[] | null;
+  onThreads?: string[] | null;
+}
+
+function hasExplicitWaitTargets(targets?: WaitTargets): boolean {
+  return targets?.onTasks != null || targets?.onThreads != null;
+}
+
+function uniqueIds(ids: string[]): string[] {
+  return [...new Set(ids)];
+}
+
+function threadWaitCandidates(parent: ThreadRecord, requested?: string[]): string[] {
+  const inferred = parent.metadata?.waitingOn ?? [];
+  const candidates = uniqueIds(requested ?? inferred);
+  if (requested == null) return candidates;
+  const linked = new Set([...(parent.metadata?.childThreadIds ?? []), ...inferred]);
+  return candidates.filter((id) => linked.has(id)
+    || threadStore.get(id)?.metadata?.parentThreadId === parent.id);
+}
+
 /** Live (open, unblocked) child tasks of the given task, read straight from TASKS.yaml via
  *  the zero-dependency core parser — no domain/tasks import (avoids a layer cycle).
  *  Wait set = UNION of parent-linked children and the task's own unmet depends_on: any
@@ -579,43 +598,61 @@ function liveChildTaskIds(taskId: string, taskProject: string): string[] {
   }
 }
 
-/** Try to suspend the thread until its waited-on children finish. Inside a single mutate
- *  (serialized with the callback side via the store mutex), filter waitingOn down to
- *  children that still exist and are non-terminal; additionally (DR-0014 §8) snapshot live
- *  child TASKS (parent === metadata.taskId) into waitingOnTasks. If either list is
- *  non-empty, set status='waiting'. Returns true iff the thread entered waiting.
+function liveTaskWaitIds(taskId: string | undefined, project: string | undefined, requested?: string[]): string[] {
+  if (!taskId || !project || requested?.length === 0) return [];
+  const live = liveChildTaskIds(taskId, project);
+  if (requested == null) return live;
+  const linked = new Set(live);
+  return uniqueIds(requested).filter((id) => linked.has(id));
+}
+
+function resolveWaitSets(thread: ThreadRecord, targets?: WaitTargets): { threads: string[]; tasks: string[] } {
+  const explicit = hasExplicitWaitTargets(targets);
+  return {
+    threads: threadWaitCandidates(thread, explicit ? (targets?.onThreads ?? []) : undefined),
+    tasks: liveTaskWaitIds(
+      thread.metadata?.taskId ?? undefined,
+      thread.metadata?.taskProject ?? undefined,
+      explicit ? (targets?.onTasks ?? []) : undefined,
+    ),
+  };
+}
+
+/** Try to suspend the thread until its waited-on children finish. With no targets, infer
+ *  live task/thread children; supplying either target list replaces the entire inferred set.
+ *  Inside one store mutation, persist both resolved sets and enter waiting when either is non-empty.
+ *  Returns true iff the thread entered waiting.
  *  Either interleaving with the completion callback converges: callback-first → nothing
  *  left to wait on (results already in pendingMessages); runner-first → callback sees
  *  waiting and resumes when both lists empty. The task-side race (a child completing
  *  between the snapshot and the waiting persist, its event missed) is closed by
  *  reconcileWaitingTasks right after suspension. */
-export async function tryEnterWaiting(threadId: string): Promise<boolean> {
+export async function tryEnterWaiting(threadId: string, targets?: WaitTargets): Promise<boolean> {
   const thread = threadStore.get(threadId);
   if (!thread) return false;
-  const hasThreadChildren = !!thread.metadata?.waitingOn?.length;
-  const taskId = thread.metadata?.taskId;
-  const taskProject = thread.metadata?.taskProject;
-  if (!hasThreadChildren && !(taskId && taskProject)) return false;
+  const explicit = hasExplicitWaitTargets(targets);
+  const hasInferredSources = !!thread.metadata?.waitingOn?.length
+    || !!(thread.metadata?.taskId && thread.metadata?.taskProject);
+  if (!explicit && !hasInferredSources) return false;
 
-  const taskChildren = taskId && taskProject ? liveChildTaskIds(taskId, taskProject) : [];
-
+  const waitSets = resolveWaitSets(thread, targets);
+  let liveThreads: string[] = [];
   let entered = false;
   await threadStore.mutate(threadId, (t) => {
     const m = (t.metadata ??= {});
-    const live = (m.waitingOn || []).filter((id) => {
+    liveThreads = waitSets.threads.filter((id) => {
       const child = threadStore.get(id);
       return !!child && !isTerminal(child.status);
     });
-    m.waitingOn = live;
-    m.waitingOnTasks = taskChildren;
-    if (live.length > 0 || taskChildren.length > 0) {
+    m.waitingOn = liveThreads;
+    m.waitingOnTasks = waitSets.tasks;
+    if (liveThreads.length > 0 || waitSets.tasks.length > 0) {
       t.status = 'waiting';
       entered = true;
     }
   });
   if (entered) {
-    const m = threadStore.get(threadId)!.metadata!;
-    log.info(`Thread ${threadId} suspended, waiting on ${m.waitingOn!.length} thread children + ${m.waitingOnTasks!.length} task children`);
+    log.info(`Thread ${threadId} suspended, waiting on ${liveThreads.length} thread children + ${waitSets.tasks.length} task children`);
   }
   return entered;
 }

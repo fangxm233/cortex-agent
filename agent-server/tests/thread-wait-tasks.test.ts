@@ -1,6 +1,6 @@
-// input:  Node test runner + tryEnterWaiting task-children extension + thread-repo semantics
-// output: waitingOnTasks snapshot / restart preservation / cleanup orphan-detection tests
-// pos:    Verify resident-manager suspension on child TASKS (DR-0014 §8 Phase A)
+// input:  task files, thread repo, thread state machine
+// output: task-child wait-set and recovery regression tests
+// pos:    Verifies manager suspension on child tasks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -75,6 +75,67 @@ test('tryEnterWaiting snapshots open child tasks into waitingOnTasks and suspend
   const t = threadStore.get(manager.id)!;
   assert.equal(t.status, 'waiting');
   assert.deepEqual(new Set(t.metadata!.waitingOnTasks), new Set(['bb01', 'cc01']));
+});
+
+test('explicit onTasks replaces the inferred task wait set', async () => {
+  const proj = `_wt_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + taskYaml('aa11') + taskYaml('bb11', { parent: 'aa11' }) + taskYaml('cc11', { parent: 'aa11' }));
+  const manager = makeThread({ metadata: { taskId: 'aa11', taskProject: proj } });
+
+  assert.equal(await tryEnterWaiting(manager.id, { onTasks: ['cc11'] }), true);
+  assert.deepEqual(threadStore.get(manager.id)!.metadata!.waitingOnTasks, ['cc11']);
+});
+
+test('explicit empty onTasks suppresses inferred task children', async () => {
+  const proj = `_wt_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + taskYaml('aa12') + taskYaml('bb12', { parent: 'aa12' }));
+  const manager = makeThread({ metadata: { taskId: 'aa12', taskProject: proj } });
+
+  assert.equal(await tryEnterWaiting(manager.id, { onTasks: [] }), false);
+  assert.deepEqual(threadStore.get(manager.id)!.metadata!.waitingOnTasks, []);
+});
+
+test('explicit onTasks keeps only unique live linked children', async () => {
+  const proj = `_wt_p${seq++}`;
+  makeProject(proj, 'tasks:\n'
+    + taskYaml('aa13')
+    + taskYaml('bb13', { parent: 'aa13' })
+    + taskYaml('cc13', { parent: 'aa13', status: 'done' })
+    + taskYaml('dd13'));
+  const manager = makeThread({ metadata: { taskId: 'aa13', taskProject: proj } });
+
+  assert.equal(await tryEnterWaiting(manager.id, {
+    onTasks: ['bb13', 'bb13', 'cc13', 'dd13', 'ee13'],
+  }), true);
+  assert.deepEqual(threadStore.get(manager.id)!.metadata!.waitingOnTasks, ['bb13']);
+});
+
+test('supplying onTasks also suppresses inferred thread children', async () => {
+  const proj = `_wt_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + taskYaml('aa14') + taskYaml('bb14', { parent: 'aa14' }));
+  const threadChild = makeThread({ status: 'running' });
+  const manager = makeThread({ metadata: {
+    taskId: 'aa14', taskProject: proj,
+    waitingOn: [threadChild.id], childThreadIds: [threadChild.id],
+  } });
+
+  assert.equal(await tryEnterWaiting(manager.id, { onTasks: ['bb14'] }), true);
+  const updated = threadStore.get(manager.id)!;
+  assert.deepEqual(updated.metadata!.waitingOnTasks, ['bb14']);
+  assert.deepEqual(updated.metadata!.waitingOn, []);
+});
+
+test('supplying onThreads also suppresses inferred task children', async () => {
+  const proj = `_wt_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + taskYaml('aa15') + taskYaml('bb15', { parent: 'aa15' }));
+  const manager = makeThread({ metadata: { taskId: 'aa15', taskProject: proj, waitingOn: [] } });
+  const threadChild = makeThread({ status: 'running', metadata: { parentThreadId: manager.id } });
+  await threadStore.mutate(manager.id, (t) => { t.metadata!.childThreadIds = [threadChild.id]; });
+
+  assert.equal(await tryEnterWaiting(manager.id, { onThreads: [threadChild.id] }), true);
+  const updated = threadStore.get(manager.id)!;
+  assert.deepEqual(updated.metadata!.waitingOn, [threadChild.id]);
+  assert.deepEqual(updated.metadata!.waitingOnTasks, []);
 });
 
 test('tryEnterWaiting excludes done and blocked children from the snapshot', async () => {

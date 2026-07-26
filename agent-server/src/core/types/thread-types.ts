@@ -17,7 +17,7 @@ export type ThreadStatus =
   | 'completed'    // all steps done, terminal
   | 'failed'       // unrecoverable error, terminal
   | 'cancelled'    // user cancelled, terminal
-  | 'aborted';     // agent self-aborted via [ABORT] marker in artifact, terminal
+  | 'aborted';     // agent self-aborted via the thread_abort tool, terminal
 
 // --- Stage Definition (optional per-stage prompt for multi-phase agents) ---
 
@@ -417,8 +417,8 @@ export interface ThreadMetadata {
     kind?: string | null;            // abort: too-big | mis-scoped | blocked-external
     diagnosis?: string | null;       // abort: required free-text diagnosis (= thread.abortReason)
     subtasks?: any[] | null;         // split: decompose subtask array (decomposeTask shape)
-    onTasks?: string[] | null;       // wait: explicit task ids to wait on (optional hint)
-    onThreads?: string[] | null;     // wait: explicit thread ids to wait on (optional hint)
+    onTasks?: string[] | null;       // wait: explicit task wait set; any selector disables inference
+    onThreads?: string[] | null;     // wait: explicit thread wait set; any selector disables inference
     requestedAtStep?: number;        // step index at which the agent requested control
   } | null;
 }
