@@ -88,10 +88,14 @@ describe('2b ComposerFullscreen', () => {
     expect(html).toContain('aria-label="Send"');
     expect(html).not.toContain('aria-label="Stop"');
   });
-  it('swaps Send for Stop while the session is running', () => {
+  // Stop takes the primary key while a turn runs, but Send is NOT withdrawn: sending into a live
+  // turn is mid-turn injection, and this editor is one of only two send affordances on the surface
+  // (there is no ⏎-to-send — Enter inserts a newline), so hiding it made injection unreachable from
+  // the expanded composer.
+  it('adds Stop while the session is running, keeping Send reachable beside it', () => {
     const html = renderToStaticMarkup(createElement(ComposerFullscreen, { ...base, running: true, onStop: () => {} }));
     expect(html).toContain('aria-label="Stop"');
-    expect(html).not.toContain('aria-label="Send"');
+    expect(html).toContain('aria-label="Send"');
   });
 });
 

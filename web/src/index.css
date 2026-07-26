@@ -86,6 +86,9 @@
   --ink-solid-bg: #191c22;
   --ink-solid-fg: #ffffff;
   --ink-solid-hover: #32363e;
+  /* provisional text on an ink-solid surface — a message written to the backend that the model has
+     not read yet. The surface itself is unchanged; only the ink softens. */
+  --ink-solid-fg-dim: rgba(255, 255, 255, 0.55);
 
   /* run dot (a touch deeper than the run text) */
   --run-dot: #4655d4;
@@ -200,6 +203,7 @@
   --ink-solid-bg: #ebedf2;
   --ink-solid-fg: #14171b;
   --ink-solid-hover: #d5dae2;
+  --ink-solid-fg-dim: rgba(20, 23, 27, 0.5);
 
   --run-dot: #6e7bec;
 

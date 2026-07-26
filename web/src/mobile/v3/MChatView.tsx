@@ -3,8 +3,16 @@
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards.
+//
+// Two rows carry live state rather than history, and both are drawn the way the desktop chat draws
+// them. The block being written right now (`preview`) is revealed at a steady character rate instead
+// of a delta at a time, through the SHARED pacing rule and frame loop (`features/workbench`
+// reveal-pacing + useRevealedText) — see MAssistantBlock. A message written into a running turn that
+// the model has not read yet (`pending`) is pinned below everything, the preview included, and says
+// so with dimmed text alone: the same ink bubble, full opacity, no icon, badge or spinner.
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { useRevealedText } from '@/features/workbench/useRevealedText';
 import { regenNoteIndexes, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import {
@@ -553,6 +561,31 @@ function ToolCallsRow({
 
 const NOOP = (): void => {};
 
+/**
+ * One assistant block. `preview` marks the block being written RIGHT NOW (the token-level
+ * accumulation) — the only row the smooth reveal paces, using the same rule and the same frame loop
+ * as the desktop chat (`features/workbench/reveal-pacing` + `useRevealedText`). `streaming` cannot
+ * express this: the idle heuristic also flags the last COMPLETE row for a couple of seconds after
+ * the turn's final event, and pacing a settled message would re-type text already read.
+ *
+ * Paced and committed text render through this SAME component instance (the preview row and the
+ * message that supersedes it occupy the same position in the stream), so when the authoritative text
+ * lands the row simply stops being a preview and is drawn whole on that render — it settles without
+ * a remount. No caret either way: the blinking output-position block was removed by request.
+ *
+ * `dropTrailingHr` — assistant messages often end with a `---` separator; on mobile that dangling
+ * horizontal rule reads as cruft, so it is stripped.
+ */
+function MAssistantBlock({ text, preview, streamKey }: {
+  text: string;
+  preview?: boolean;
+  streamKey?: string;
+}): JSX.Element | null {
+  const shown = useRevealedText(text, !!preview, streamKey);
+  if (!shown.trim()) return null;
+  return <ChatMarkdown text={shown} dropTrailingHr />;
+}
+
 /** Interaction row for the mobile stream (scheme 6a/5b/4a-c). Entity rows render the full cards
  *  — pending actionable, resolved sealed in place; expired/cancelled + legacy rows render a
  *  one-line summary. Without handlers the cards render inert. */
@@ -596,10 +629,13 @@ function MInteractionRow({ row, interactions }: { row: Extract<ChatRow, { kind: 
   );
 }
 
-export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editing, onLongPress, onShowOriginal }: {
+export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editing, onLongPress, onShowOriginal, streamKey }: {
   rows: ChatRow[];
   toolCallsUnit: string;
   interactions?: MChatInteractions;
+  /** Identity of the live stream these rows belong to (the session) — a change settles the reveal
+   *  instead of pacing the next chat's reply onward from this one's progress. */
+  streamKey?: string;
   /** Present → the sec-7 edit affordances render (long-press menu, 编辑中/将被回退, 已编辑 note). */
   editCopy?: MChatEditCopy;
   /** 7b edit mode: the held row rings 编辑中, later rows dim under the 将被回退 badge. */
@@ -640,7 +676,11 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
                   {...(hold ?? {})}
                   style={{
                     background: MC.ink,
-                    color: 'var(--ink-solid-fg)',
+                    // A message written into the running turn's backend that the model has not read
+                    // yet dims its TEXT and nothing else — same bubble, full opacity, no icon, badge
+                    // or spinner. The row is provisional, not disabled or failing, and any marker
+                    // heavier than the ink would read as one. It clears the instant it is delivered.
+                    color: row.pending ? MC.inkSolidFgDim : MC.inkSolidFg,
                     borderRadius: '16px 16px 4px 16px',
                     padding: '9px 13px',
                     fontSize: 13.5,
@@ -694,10 +734,7 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
                   {editCopy.regenNote}
                 </div>
               )}
-              {/* dropTrailingHr — assistant messages often end with a `---` separator; on mobile the
-                  trailing horizontal rule reads as dangling cruft, so it is stripped. No streaming
-                  caret: the blinking output-position block was removed by request. */}
-              <ChatMarkdown text={row.text} dropTrailingHr />
+              <MAssistantBlock text={row.text} preview={row.preview} streamKey={streamKey} />
               {row.attachments && row.attachments.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <AttachmentGroup attachments={row.attachments} side="left" />
@@ -926,6 +963,8 @@ export interface MChatViewProps {
   /** 已编辑 tap → original-message sheet. */
   onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
   originalSheet?: { text: string; onClose: () => void } | null;
+  /** Identity of the live stream the rows belong to (the session) — see MChatStream. */
+  streamKey?: string;
   // composer
   composerValue: string;
   onComposerChange: (v: string) => void;
@@ -956,6 +995,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   // streams in — releasing when the user scrolls up, re-pinning once they scroll back down. Mirrors the
   // desktop MessageStream stick-to-bottom behavior.
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   // Suppress auto-scroll briefly after user taps inside the stream (e.g. expanding a tool row),
   // so expanded content doesn't scroll out of view on the next streaming tick.
@@ -974,6 +1014,24 @@ export function MChatView(props: MChatViewProps): JSX.Element {
     const el = scrollRef.current;
     if (el && stickRef.current && Date.now() >= tapFreezeUntil.current) el.scrollTop = el.scrollHeight;
   }, [props.rows, props.systemLines]);
+
+  // …and keep it pinned while the content GROWS between row changes. Token-level streaming reveals
+  // the reply character by character, so the block gets taller many times per row change; without
+  // this the line being written slides under the bottom edge and snaps back only when the next delta
+  // lands, which reads as a twitch under otherwise smooth text. Observing the content box catches
+  // every cause of growth (the reveal, a late-loading image, markdown reflow) and writes scrollTop
+  // directly — no React state, so it costs no render. Mirrors the desktop MessageStream observer,
+  // and respects the same tap freeze as the row effect above.
+  useEffect(() => {
+    const el = scrollRef.current;
+    const content = contentRef.current;
+    if (!el || !content || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      if (stickRef.current && Date.now() >= tapFreezeUntil.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, []);
 
   // 7b edit mode replaces the composer chrome with the accent edit bar; 5a reject mode replaces it
   // with the amber context bar (+ ✕ cancel) + reason chips (scheme L200-211). Otherwise: attachment
@@ -1037,7 +1095,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         {/* Plain-block scroll container (like the desktop MessageStream) with an inner flex-column
             content wrapper — keeps programmatic scrollTop stick-to-bottom reliable in mobile webviews. */}
         <div ref={scrollRef} onScroll={onScroll} onClick={onContentClick} style={{ flex: 1, minHeight: 0, overflow: 'auto', background: MC.canvas }}>
-          <div style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div ref={contentRef} style={{ padding: '14px 14px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
             <MChatStream
               rows={props.rows}
               toolCallsUnit={copy.toolCallsUnit}
@@ -1046,6 +1104,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
               editing={props.editing}
               onLongPress={props.onLongPress}
               onShowOriginal={props.onShowOriginal}
+              streamKey={props.streamKey}
             />
             {props.inlineThreadCard}
             {props.systemLines?.map((t, i) => (

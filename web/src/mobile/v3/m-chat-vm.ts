@@ -8,7 +8,54 @@
 // Interaction cards (提问 5b / plan 审批 6a) are transcript entity rows — their models live in
 // the SHARED features/workbench/interaction-vm (askCardModel/planCardModel + answer reducers);
 // this module only contributes the header status line for a pending interaction.
-import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
+// The chat's ROW LIST is here too (`buildMobileChatRows`): the shared row builder plus the mobile
+// divider vocabulary, the block being written right now, and any message the model has not read yet.
+import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
+import {
+  buildTranscriptRows,
+  type ChatRow,
+  type LiveSessionMessage,
+  type PendingUserMessage,
+} from '@/features/workbench/transcript-vm';
+import { zhDivider } from '@/mobile/screens/mobile-session-vm';
+
+/** What the mobile chat's rows are built from beyond the fetched transcript + live tail. */
+export interface MobileChatRowOpts {
+  /** The session is actively producing output (the live-stream idle heuristic). */
+  streaming?: boolean;
+  /** Text accumulated for the assistant block being written right now (token-level streaming). */
+  streamingText?: string | null;
+  /** Messages written into the running turn's backend that the model has not read yet. */
+  pendingUser?: PendingUserMessage[];
+  /** Injected clock for deterministic day-relative dividers. */
+  now?: Date;
+}
+
+/**
+ * The mobile chat's row list: the shared `buildTranscriptRows` with the mobile 今天/昨天 divider
+ * vocabulary, and — the part that was missing — the block being written right now plus any message
+ * the model has not read yet.
+ *
+ * Both come from the shared live-sync hook, which holds an injected message OUT of the ordered tail
+ * until its delivered event lands (nothing the agent is currently emitting was produced with it).
+ * A surface that does not pass `pendingUser` through therefore renders no row for it at all, and the
+ * message a user sent mid-turn simply vanishes from send until consumption. Ordering is the shared
+ * builder's: the preview sits after everything committed, and the unread messages sit below the
+ * preview, in send order among themselves.
+ */
+export function buildMobileChatRows(
+  transcript: SessionTranscript,
+  liveTail: LiveSessionMessage[],
+  opts: MobileChatRowOpts = {},
+): ChatRow[] {
+  return buildTranscriptRows(transcript, liveTail, {
+    streaming: opts.streaming,
+    streamingText: opts.streamingText,
+    pendingUser: opts.pendingUser,
+    formatDivider: zhDivider,
+    ...(opts.now ? { now: opts.now } : {}),
+  });
+}
 
 export interface ChatHeaderStatus {
   running: boolean;

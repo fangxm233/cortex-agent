@@ -1,9 +1,18 @@
 // 1b 会话详情 — the mobile chat surface (scheme-mobile.dc.html 1b + in-chat states 1m/1n/1o/1p). A
 // drill page (route /m/session/:sessionId; sessionId === 'new' ⇒ draft, lazy-create on first send).
 // REUSES the desktop chat plumbing wholesale, re-chromed for mobile:
-//   • transcript: sessions.transcript + buildTranscriptRows (+ live session.message tail)
-//   • live sync : useSessionMessageLiveSync (snapshot+delta running / agent-turn count)
-//   • send      : sessions.send, or sessions.createAndSend when a draft (attachments carried through)
+//   • transcript: sessions.transcript + buildMobileChatRows (+ live session.message tail)
+//   • live sync : useSessionMessageLiveSync (snapshot+delta running / agent-turn count) with the
+//                 `{deltas:true}` opt-in, so the reply is revealed as it is generated rather than
+//                 landing whole — the same token-level stream and the same smooth-reveal pacing the
+//                 desktop chat uses. It also renders the hook's `pendingUser`: a message sent into a
+//                 turn that is already running is held out of the ordered tail until the model reads
+//                 it, and a surface that ignores that list shows nothing at all for a message the
+//                 user just sent. Here it is a dimmed bubble pinned below everything, cleared on
+//                 delivery.
+//   • send      : sessions.send, or sessions.createAndSend when a draft (attachments carried
+//                 through). Send stays reachable while a turn runs (mid-turn injection) — see the
+//                 composer's secondary Send key beside the primary Stop.
 //   • profile   : config.get profiles + session.profileName + sessions.setProfile (1p sheet)
 //   • attach    : the desktop Composer's raw XHR upload → /api/attachments/upload (1o)
 //
@@ -23,7 +32,6 @@ import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { useMobileProject } from '@/mobile/current-project';
 import {
-  buildTranscriptRows,
   resolveTurns,
   currentTurnElapsedMs,
   formatElapsed,
@@ -34,7 +42,7 @@ import { useInteractionActions } from '@/features/workbench/useInteractionAction
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { threadPill } from '@/features/workbench/thread-card-proto';
-import { buildMobileStepper, zhDivider } from '@/mobile/screens/mobile-session-vm';
+import { buildMobileStepper } from '@/mobile/screens/mobile-session-vm';
 import { MobileThreadStepper } from '@/mobile/screens/MobileThreadStepper';
 import type { AttachmentMeta } from '@/features/workbench/chat-content';
 import { fetchFileObjectUrl } from '@/lib/files';
@@ -58,6 +66,7 @@ import { MChatView, type MChatCopy, type MChatInteractions, type MRejectBar, typ
 import { M_INT_COPY } from './MInteractionCards';
 import type { RejectPlanNavState } from './MPlanReadScreen';
 import {
+  buildMobileChatRows,
   chatHeaderStatus,
   interactionHeaderStatus,
   effectiveProfileName,
@@ -244,7 +253,16 @@ export function MChatScreen(): JSX.Element {
     ...trpc.sessions.transcript.queryOptions({ sessionId }),
     enabled: !!sessionId,
   });
-  const { liveTail, streaming, running, liveTurns } = useSessionMessageLiveSync(sessionId, active?.running);
+  // `deltas: true` — this is the surface that shows a live preview, so it (and only it) opens the
+  // session-scoped delta subscription; the reply then grows token by token instead of landing whole
+  // seconds later. The opt-in costs one SSE connection, so no other consumer of this hook asks for
+  // it — notably the plan reading page (MPlanReadScreen), which renders no chat. `transcript` is
+  // passed back in only so a pending row self-heals if its delivered event is lost to a dropped frame.
+  const { liveTail, streaming, running, liveTurns, streamingText, pendingUser } =
+    useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
+      deltas: true,
+      transcript: transcriptQuery.data ?? null,
+    });
   // Interaction cards are transcript rows (web-interactions-redesign); this hook only supplies
   // the answer/approve/reject actions.
   const interactionActions = useInteractionActions(sessionId);
@@ -254,8 +272,8 @@ export function MChatScreen(): JSX.Element {
   useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
-    () => buildTranscriptRows(transcript, liveTail, { streaming, formatDivider: zhDivider }),
-    [transcript, liveTail, streaming],
+    () => buildMobileChatRows(transcript, liveTail, { streaming, streamingText, pendingUser }),
+    [transcript, liveTail, streaming, streamingText, pendingUser],
   );
   const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
   const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
@@ -671,6 +689,7 @@ export function MChatScreen(): JSX.Element {
         editing={editing}
         onShowOriginal={(edited) => setOriginalSheet({ text: edited.originalText })}
         originalSheet={originalSheet ? { text: originalSheet.text, onClose: () => setOriginalSheet(null) } : null}
+        streamKey={sessionId}
         composerValue={text}
         onComposerChange={setText}
         onSend={onSend}

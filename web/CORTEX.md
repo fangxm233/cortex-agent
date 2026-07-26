@@ -11,7 +11,9 @@ Every color resolves to a CSS variable defined in `src/index.css` (`:root` = lig
 `[data-theme="dark"]` = dark), so the whole UI (desktop + mobile) re-themes when `data-theme`
 flips on `<html>`. The dark palette is a 1:1 encoding of `design/ref/scheme-dark.dc.html`
 (per-level remap: elevation via surface lightness, semantic colors brightened + translucent tint
-bg, ink-solid elements inverted to light-bg/dark-fg — NOT a color inversion). The Tailwind tokens
+bg, ink-solid elements inverted to light-bg/dark-fg — NOT a color inversion; `--ink-solid-fg-dim` is
+the softened on-ink ink used for provisional text, e.g. a chat message the model has not read yet,
+where the surface must stay untouched and only the text may dim). The Tailwind tokens
 (`proto.*`/`state.*`/`pill.*`/`surface.*`) and the mobile `MC` palette both point at these
 variables; raw inline `style` hexes were migrated to `var(--…)`. `src/theme/` owns the persisted
 choice (localStorage `cortex.theme`, default = OS `prefers-color-scheme`), mirroring `src/i18n/`.

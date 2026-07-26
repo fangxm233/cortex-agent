@@ -11,6 +11,7 @@ import {
   SessionIdSheet,
   type MChatCopy,
 } from './MChatView';
+import { ComposerFullscreen } from '@/mobile/ui/kit';
 import type { ProfileSheetItem, PendingAttachmentVM } from './m-chat-vm';
 
 // Neutral fixtures only (守则11 — nimbus/atlas/orchard). The wired data-binding (sessions.transcript
@@ -117,6 +118,101 @@ describe('1b MChatStream', () => {
     expect(html).toContain('scan complete');
     // The blue blinking output-position block was removed by request.
     expect(html).not.toContain('cxblink');
+  });
+});
+
+// A message sent while a turn is running is only QUEUED inside the backend — the model may not read
+// it for seconds, sometimes not before the turn ends. Until then its row says so with DIMMED TEXT and
+// nothing else: the same dark bubble, no icon, no badge, no spinner, no opacity fade. The moment the
+// model reads it the row becomes an ordinary one, so the difference has to be carried by the ink
+// alone. (Mirrors the desktop rule — same bubble, muted ink; the mobile bubble is ink-on-dark, so the
+// muted value is the dimmed on-ink foreground rather than the desktop's muted ink.)
+
+const ON_INK = 'var(--ink-solid-fg)';
+const ON_INK_DIM = 'var(--ink-solid-fg-dim)';
+
+/** The style block of the bubble carrying `text` (the innermost div holding it). */
+function bubbleStyle(html: string, text: string): string {
+  const at = html.indexOf(text);
+  expect(at).toBeGreaterThan(-1);
+  const open = html.lastIndexOf('<div style="', at);
+  return html.slice(open, at);
+}
+
+describe('MChatStream — a user message the model has not read yet', () => {
+  const render = (rows: ChatRow[]): string =>
+    renderToStaticMarkup(<MChatStream rows={rows} toolCallsUnit="次工具调用" />);
+
+  it('renders its text in the dimmed on-ink foreground, not the full-strength one', () => {
+    const style = bubbleStyle(render([{ kind: 'user', text: 'actually, stop', pending: true }]), 'actually, stop');
+    expect(style).toContain(ON_INK_DIM);
+    expect(style).not.toContain(`color:${ON_INK}`);
+  });
+
+  it('renders an ordinary user message in the full-strength on-ink foreground', () => {
+    const style = bubbleStyle(render([{ kind: 'user', text: 'actually, stop' }]), 'actually, stop');
+    expect(style).toContain(ON_INK);
+    expect(style).not.toContain(ON_INK_DIM);
+  });
+
+  it('changes nothing but the ink — same dark bubble, no opacity fade', () => {
+    const pending = bubbleStyle(render([{ kind: 'user', text: 'hold on', pending: true }]), 'hold on');
+    const settled = bubbleStyle(render([{ kind: 'user', text: 'hold on' }]), 'hold on');
+    expect(pending).toContain('var(--m-ink)');
+    expect(pending).not.toContain('opacity');
+    expect(pending.replace(ON_INK_DIM, ON_INK)).toBe(settled);
+  });
+
+  it('carries no spinner, badge or status label', () => {
+    const html = render([{ kind: 'user', text: 'hold on', pending: true }]);
+    expect(html).not.toMatch(/pending|queued|sending|待读|cxblink/i);
+  });
+
+  it('renders attachments on a pending row exactly as usual', () => {
+    const html = render([{
+      kind: 'user', text: 'look at this', pending: true,
+      attachments: [{ name: 'shot.png', path: 'p', size: 12, mimeType: 'image/png', type: 'image' }],
+    }]);
+    expect(html).toContain('shot.png');
+  });
+});
+
+// Token-level streaming: the reply grows instead of landing whole. The reveal itself is rAF-driven
+// and the vitest env here is `node`, so the pacing rule is proven by reveal-pacing.test.ts — what
+// these lock is the ROUTING, i.e. which rows go through the paced path at all. Getting that wrong is
+// what a reader would notice: an already-final reply re-typing itself, or an animation still running
+// after the turn went idle. Still no caret (that was removed by request).
+
+describe('MChatStream — the block being written right now', () => {
+  const LONG = 'Tea begins as a leaf, and ends as a habit.';
+  const render = (rows: ChatRow[], streamKey?: string): string =>
+    renderToStaticMarkup(<MChatStream rows={rows} toolCallsUnit="次工具调用" streamKey={streamKey} />);
+
+  it('paces the live preview instead of dumping the whole buffer on arrival', () => {
+    // The preview row starts empty and is filled by the rAF reveal; with no frames in this env it
+    // stays at its starting point, which is exactly what "not appended whole" looks like.
+    expect(render([{ kind: 'assistant', text: LONG, streaming: true, preview: true }])).not.toContain(LONG);
+  });
+
+  it('shows an authoritative message in full even while the session still reads as streaming', () => {
+    // The handover instant: the complete message has landed and the preview is retired, but the idle
+    // heuristic still flags the row `streaming` for a couple of seconds. Nothing may animate here.
+    expect(render([{ kind: 'assistant', text: LONG, streaming: true }])).toContain(LONG);
+  });
+
+  it('shows a completed message in full', () => {
+    expect(render([{ kind: 'assistant', text: LONG, streaming: false }])).toContain(LONG);
+  });
+
+  it('renders no caret for the block being written', () => {
+    expect(render([{ kind: 'assistant', text: LONG, streaming: true, preview: true }])).not.toContain('cxblink');
+  });
+
+  it('renders the preview under a stream key without disturbing its text', () => {
+    // The per-session isolation is compared by identity inside the reveal; passing one changes
+    // nothing visible here.
+    const rows: ChatRow[] = [{ kind: 'assistant', text: LONG, streaming: true, preview: true }];
+    expect(render(rows, 'session-a')).toBe(render(rows, 'session-b'));
   });
 });
 
@@ -267,17 +363,51 @@ describe('1b MChatView composition', () => {
     expect(html).toContain('hello');
     expect(html).toContain('profile 切换 default → cheap · 下一 turn 生效'); // system line
   });
-  it('shows a Stop button (not Send) while the session is running', () => {
+  // Sending INTO a running turn is the point of mid-turn injection — the server injects the message
+  // into the turn instead of queuing it behind it. A composer that hides Send while running puts that
+  // out of reach on a phone entirely (there is no ⏎-to-send here: Enter inserts a newline by design,
+  // so the button IS the only send path). Stop keeps the primary, far-right key it always had; Send
+  // returns beside it as a secondary one.
+  it('keeps Send reachable beside Stop while the session is running', () => {
     const html = renderToStaticMarkup(
       <MChatView
         {...baseProps}
         status={{ running: true, tone: 'running', text: 'running · 12 turns' }}
         rows={[]}
+        sendEnabled
         onStop={() => {}}
       />,
     );
     expect(html).toContain('aria-label="Stop"');
-    expect(html).not.toContain('aria-label="Send"');
+    expect(html).toContain('aria-label="Send"');
+  });
+  it('leaves the running Send inert when there is nothing to send', () => {
+    const html = renderToStaticMarkup(
+      <MChatView
+        {...baseProps}
+        status={{ running: true, tone: 'running', text: 'running · 12 turns' }}
+        rows={[]}
+        sendEnabled={false}
+        onStop={() => {}}
+      />,
+    );
+    const send = html.slice(html.indexOf('aria-label="Send"'), html.indexOf('aria-label="Stop"'));
+    expect(send).toContain('disabled');
+  });
+  it('arms the running Send when the composer holds something to send', () => {
+    const html = renderToStaticMarkup(
+      <MChatView
+        {...baseProps}
+        status={{ running: true, tone: 'running', text: 'running · 12 turns' }}
+        rows={[]}
+        composerValue="actually, stop"
+        sendEnabled
+        onStop={() => {}}
+      />,
+    );
+    expect(html).toContain('aria-label="Send"');
+    const send = html.slice(html.indexOf('aria-label="Send"'), html.indexOf('aria-label="Stop"'));
+    expect(send).not.toContain('disabled');
   });
   it('shows the Send button (not Stop) when idle', () => {
     const html = renderToStaticMarkup(
@@ -298,6 +428,38 @@ describe('1b MChatView composition', () => {
     expect(html).toContain('IMG_1.jpg');
     expect(html).toContain('64%');
     expect(html).toContain('补充说明…');
+  });
+});
+
+describe('2b full-screen editor — the other send path', () => {
+  // The expanded editor is the composer's second send affordance. It swapped Send for Stop on the
+  // same rule the inline field did, so expanding mid-turn was another dead end.
+  it('keeps Send reachable beside Stop while the session is running', () => {
+    const html = renderToStaticMarkup(
+      <ComposerFullscreen
+        value="actually, stop"
+        placeholder="输入消息"
+        onCollapse={() => {}}
+        running
+        sendEnabled
+        onStop={() => {}}
+      />,
+    );
+    expect(html).toContain('aria-label="Stop"');
+    expect(html).toContain('aria-label="Send"');
+  });
+  it('leaves that Send inert when there is nothing to send', () => {
+    const html = renderToStaticMarkup(
+      <ComposerFullscreen
+        value=""
+        placeholder="输入消息"
+        onCollapse={() => {}}
+        running
+        sendEnabled={false}
+        onStop={() => {}}
+      />,
+    );
+    expect(html.slice(html.indexOf('aria-label="Send"'), html.indexOf('aria-label="Stop"'))).toContain('disabled');
   });
 });
 

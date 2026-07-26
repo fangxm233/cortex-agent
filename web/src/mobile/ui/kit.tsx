@@ -43,6 +43,9 @@ export const MC = {
   // Ink-solid inverse (send/stop key, primary buttons) — light-bg/dark-fg in dark mode.
   inkSolid: 'var(--ink-solid-bg)',
   inkSolidFg: 'var(--ink-solid-fg)',
+  // Softened on-ink ink for provisional text (a message the model has not read yet): the bubble is
+  // untouched, only its text dims.
+  inkSolidFgDim: 'var(--ink-solid-fg-dim)',
 } as const;
 
 export const MONO = "'IBM Plex Mono', ui-monospace, Menlo, monospace";
@@ -600,6 +603,46 @@ function SendGlyph({ size = 16 }: { size?: number }) {
   );
 }
 
+/**
+ * The Send key while a turn is already running — mid-turn injection (the server injects the message
+ * into the live turn rather than queuing it behind it). Stop stays the primary, solid, 46px key it
+ * has always been; this one is deliberately secondary: smaller, outlined, ink-on-card. Both are
+ * reachable, and which is which stays obvious at a glance.
+ *
+ * It shares the composer's single `sendEnabled` predicate with the idle Send key and with the
+ * full-screen editor, so every send affordance on the surface agrees on when a send is possible —
+ * an empty composer is inert rather than firing a no-op mutation.
+ */
+function SecondarySendKey({ enabled, onSend }: { enabled: boolean; onSend?: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Send"
+      disabled={!enabled}
+      onClick={onSend}
+      style={{
+        flex: 'none',
+        width: 38,
+        height: 38,
+        marginBottom: 4,
+        borderRadius: 12,
+        background: MC.card,
+        border: `1.5px solid ${enabled ? MC.ink : 'var(--proto-line-3)'}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxSizing: 'border-box',
+        opacity: enabled ? 1 : 0.45,
+        cursor: enabled ? 'pointer' : 'default',
+      }}
+    >
+      <svg width={15} height={15} viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.8">
+        <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
+      </svg>
+    </button>
+  );
+}
+
 // Auto-grow a textarea to fit its content, capped at `max` (then it scrolls). Reports whether the
 // field is now multi-line (past the single-line pill) so the caller can show the Expand affordance.
 function useAutosize(
@@ -623,8 +666,12 @@ function useAutosize(
 // `above` renders composer chips (profile chip / status line / attachment chips). The field is a
 // growable textarea: a single line reads as the 46px pill; typing rows grows it (radius 14→16) up to
 // a 5-line cap, then it scrolls internally and a top-right Expand button opens the full-screen editor
-// (2b). Enter inserts a newline — sending is the button only. While the session is `running`, Send
-// swaps for a Stop button (white square on ink) so the user can cancel the running agent turn.
+// (2b). Enter inserts a newline — sending is the button only, on this surface and in the full-screen
+// editor. While the session is `running` a Stop button (white square on ink) takes the primary key so
+// the running agent turn can be cancelled, and Send stays reachable as a smaller outlined key to its
+// left — sending INTO a live turn is mid-turn injection, not a mistake, and hiding Send put it out of
+// reach on a phone entirely. Every send affordance is gated by the one `sendEnabled` predicate, so
+// the buttons agree with each other and an empty composer is inert rather than firing a no-op.
 export function MComposer({
   placeholder,
   above,
@@ -748,6 +795,10 @@ export function MComposer({
             </button>
           )}
         </div>
+        {/* Running: the secondary Send sits LEFT of the primary Stop, so Stop keeps the far-right
+            key it has always occupied and the new affordance costs no muscle memory. Idle: the
+            single primary Send. */}
+        {running && <SecondarySendKey enabled={sendEnabled} onSend={onSend} />}
         {running ? (
           <button
             type="button"
@@ -979,6 +1030,34 @@ export function ComposerFullscreen({
           >
             {composerCountLabel(value, lineUnit, charUnit)}
           </span>
+          {/* Same rule as the inline composer: while running, Send stays reachable as a secondary
+              key left of the primary Stop, so expanding the editor mid-turn is not a dead end. */}
+          {running && (
+            <button
+              type="button"
+              aria-label="Send"
+              disabled={!sendEnabled}
+              onClick={onSend}
+              style={{
+                flex: 'none',
+                width: 34,
+                height: 34,
+                borderRadius: 11,
+                background: MC.card,
+                border: `1.5px solid ${sendEnabled ? MC.ink : 'var(--proto-line-3)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxSizing: 'border-box',
+                opacity: sendEnabled ? 1 : 0.45,
+                cursor: sendEnabled ? 'pointer' : 'default',
+              }}
+            >
+              <svg width={14} height={14} viewBox="0 0 16 16" fill="none" stroke={MC.ink} strokeWidth="1.8">
+                <path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" />
+              </svg>
+            </button>
+          )}
           {running ? (
             <button
               type="button"

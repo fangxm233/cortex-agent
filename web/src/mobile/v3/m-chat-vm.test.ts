@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
+import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
 import {
   chatHeaderStatus,
   interactionHeaderStatus,
@@ -7,6 +7,7 @@ import {
   profileChipLabel,
   profileSub,
   buildProfileSheetItems,
+  buildMobileChatRows,
 } from './m-chat-vm';
 
 const profiles: ConfigProfileEntry[] = [
@@ -95,5 +96,74 @@ describe('profileSub / buildProfileSheetItems', () => {
     expect(items.map((i) => i.name)).toEqual(['default', 'cheap', 'deep']);
     expect(items.find((i) => i.current)?.name).toBe('cheap');
     expect(items.filter((i) => i.current)).toHaveLength(1);
+  });
+});
+
+// ── the mobile chat's row model ────────────────────────────────────────────────────────────────
+//
+// The mobile chat renders the SAME rows the desktop chat does — the block being written right now
+// and any message the model has not read yet included. Both used to be dropped on the way in: the
+// screen passed neither to the row builder, so a reply landed whole and a message sent mid-turn was
+// invisible until the model read it. These lock that both reach the rows, and where they sit.
+
+const TS = '2026-07-25T09:12:00.000Z';
+
+function transcriptOf(...texts: string[]): SessionTranscript {
+  return {
+    sessionId: 's1',
+    turns: [{
+      turnIndex: 0,
+      messages: texts.map((text, i) => ({
+        type: 'user' as const,
+        text,
+        toolName: null,
+        toolInput: null,
+        ts: new Date(Date.parse(TS) + i * 1000).toISOString(),
+        elapsedMs: null,
+      })),
+    }],
+  } as SessionTranscript;
+}
+
+describe('buildMobileChatRows', () => {
+  it('labels the day divider with the mobile zh vocabulary', () => {
+    const rows = buildMobileChatRows(transcriptOf('hello'), [], { now: new Date(TS) });
+    expect(rows[0].kind).toBe('divider');
+    expect((rows[0] as { text: string }).text).toContain('今天');
+  });
+
+  it('renders the block being written as the last assistant row, flagged as the live preview', () => {
+    const rows = buildMobileChatRows(transcriptOf('hello'), [], {
+      streamingText: 'Tea begins as a',
+      now: new Date(TS),
+    });
+    expect(rows[rows.length - 1]).toMatchObject({ kind: 'assistant', text: 'Tea begins as a', preview: true });
+  });
+
+  it('pins a message the model has not read yet BELOW everything, including the live preview', () => {
+    const rows = buildMobileChatRows(transcriptOf('hello'), [], {
+      streamingText: 'Tea begins as a',
+      pendingUser: [{ ts: TS, text: 'actually, stop' }],
+      now: new Date(TS),
+    });
+    expect(rows[rows.length - 1]).toMatchObject({ kind: 'user', text: 'actually, stop', pending: true });
+    // …and the preview it must sit below is the row right above it.
+    expect(rows[rows.length - 2]).toMatchObject({ kind: 'assistant', preview: true });
+  });
+
+  it('keeps several unread messages in send order among themselves', () => {
+    const rows = buildMobileChatRows(transcriptOf('hello'), [], {
+      pendingUser: [
+        { ts: TS, text: 'first' },
+        { ts: '2026-07-25T09:12:05.000Z', text: 'second' },
+      ],
+      now: new Date(TS),
+    });
+    expect(rows.slice(-2).map((r) => (r as { text: string }).text)).toEqual(['first', 'second']);
+  });
+
+  it('marks no row pending when nothing is waiting to be read', () => {
+    const rows = buildMobileChatRows(transcriptOf('hello'), [], { now: new Date(TS) });
+    expect(rows.some((r) => r.kind === 'user' && r.pending)).toBe(false);
   });
 });
