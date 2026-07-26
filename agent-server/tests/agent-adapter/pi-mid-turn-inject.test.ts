@@ -1,5 +1,5 @@
-// input:  PIAdapter + stub PI RPC child emitting real message_start/agent_end/response lines
-// output: PI prompt-steering framing, delivery ack, idle-boundary, rejection, and exit guarantees
+// input:  PIAdapter + stub PI RPC lifecycle events
+// output: PI steering, settled-boundary, rejection, and exit guarantees
 // pos:    PI backend mid-turn injection wiring regression (hermetic, no provider)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -145,6 +145,7 @@ test('injection refuses while sendTurn is still switching to the target session'
   pushLine(firstChild!, userStart('opening after switch-back'));
   pushLine(firstChild!, userStart('now safe'));
   pushLine(firstChild!, agentEnd(0.01));
+  pushLine(firstChild!, { type: 'agent_settled' });
   await turn;
 });
 
@@ -167,6 +168,7 @@ test('active PI turn writes attachment-aware prompt RPC with streamingBehavior=s
   pushLine(child, userStart('opening'));
   pushLine(child, userStart('inspect this'));
   pushLine(child, agentEnd(0.01));
+  pushLine(child, { type: 'agent_settled' });
   await turn;
 });
 
@@ -190,6 +192,7 @@ test('opening user event is ignored, then steering messages ack FIFO including d
   ]);
 
   pushLine(child, agentEnd(0.01));
+  pushLine(child, { type: 'agent_settled' });
   await turn;
 });
 
@@ -215,7 +218,32 @@ test('a later rejected duplicate waits for the earlier duplicate delivery before
   pushLine(child, userStart('same'));
   assert.deepEqual(lifecycle, ['delivered:same', 'undelivered:same']);
   pushLine(child, agentEnd(0.01));
+  pushLine(child, { type: 'agent_settled' });
   await turn;
+});
+
+test('post-run compaction stays active until agent_settled and aggregates both PI runs', async (t) => {
+  const { proc, child } = spawnProcess();
+  t.onTestFinished(() => cleanup(proc, child));
+  const turn = proc.send({ text: 'opening' });
+  let settled = false;
+  void turn.finally(() => { settled = true; });
+
+  pushLine(child, userStart('opening'));
+  pushLine(child, agentEnd(0.02));
+  await Promise.resolve();
+  assert.equal(settled, false, 'low-level agent_end is not a Cortex terminal event');
+
+  pushLine(child, { type: 'compaction_start', reason: 'threshold' });
+  pushLine(child, { type: 'compaction_end' });
+  pushLine(child, agentEnd(0.03));
+  await Promise.resolve();
+  assert.equal(settled, false, 'compaction continuation remains inside the active turn');
+
+  pushLine(child, { type: 'agent_settled' });
+  const result = await turn;
+  assert.equal(result.num_turns, 2);
+  assert.equal(result.total_cost_usd, 0.05);
 });
 
 test('idle-boundary first agent_end is suppressed and final result aggregates both PI runs', async (t) => {
@@ -230,11 +258,13 @@ test('idle-boundary first agent_end is suppressed and final result aggregates bo
   pushLine(child, userStart('opening'));
   proc.injectUserMessage?.({ text: 'late steering' });
   pushLine(child, agentEnd(0.02));
+  pushLine(child, { type: 'agent_settled' });
   await Promise.resolve();
   assert.equal(settled, false, 'the old run cannot terminate Cortex while its race-safe prompt is pending');
 
   pushLine(child, userStart('late steering'));
   pushLine(child, agentEnd(0.03));
+  pushLine(child, { type: 'agent_settled' });
   const result = await turn;
   assert.deepEqual(delivered, ['late steering']);
   assert.equal(result.num_turns, 2);
@@ -262,6 +292,7 @@ test('failed steering RPC after a deferred completion seals the message and sett
   proc.injectUserMessage?.({ text: 'rejected steering' });
   const [command] = steeringWrites(child);
   pushLine(child, agentEnd(0.02));
+  pushLine(child, { type: 'agent_settled' });
   pushLine(child, {
     type: 'response', id: command!['id'], command: 'prompt', success: false, error: 'prompt rejected',
   });
@@ -285,6 +316,7 @@ test('stdin write failure refuses injection and removes its local pending entry'
   child.stdin.failWrites = false;
   pushLine(child, userStart('opening'));
   pushLine(child, agentEnd(0.01));
+  pushLine(child, { type: 'agent_settled' });
   await turn;
 });
 

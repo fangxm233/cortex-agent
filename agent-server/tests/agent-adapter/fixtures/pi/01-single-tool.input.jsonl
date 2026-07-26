@@ -4,3 +4,4 @@
 {"type":"tool_execution_end","toolCallId":"tc-01","isError":false,"result":{"content":[{"type":"text","text":"On branch main\nnothing to commit, working tree clean"}]}}
 {"type":"message_update","message":{"id":"msg-01"},"assistantMessageEvent":{"type":"text_delta","delta":" The working tree is clean."}}
 {"type":"agent_end","messages":[{"role":"assistant","usage":{"cost":{"total":0.0089}}}]}
+{"type":"agent_settled"}

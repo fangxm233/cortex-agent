@@ -1,11 +1,24 @@
 // input:  PI --mode rpc stdout JSONL lines
-// output: piRpcLineToNormalized + createPIEventParserState (text deltas tagged with a blockId)
+// output: NormalizedEvents with settled turn completion
 // pos:    Pure function translator from PI rpc events to NormalizedEvent
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '../normalize/tool-names.js';
 import { isPlanFilePath } from '../claude/event-parser.js';
+
+interface PIPendingCompletion {
+  numTurns: number;
+  totalCostUsd: number | null;
+  error: string | null;
+}
+
+interface PIAgentEndSummary extends PIPendingCompletion {
+  provider: string;
+  model: string;
+  tokensIn: number;
+  tokensOut: number;
+}
 
 export interface PIEventParserState {
   /** Set on first successful bootstrap response; also serves as the session_started dedup sentinel. */
@@ -18,10 +31,19 @@ export interface PIEventParserState {
   pendingEnterPlanModeId: string | null;
   /** Cumulative turn count; incremented on each message_end to drive turn_progress. */
   turnProgressCount: number;
+  /** Low-level PI runs accumulated until agent_settled closes the Cortex turn. */
+  pendingCompletion: PIPendingCompletion;
 }
 
 export function createPIEventParserState(): PIEventParserState {
-  return { sessionId: null, pendingPlanPath: null, inPlanMode: false, pendingEnterPlanModeId: null, turnProgressCount: 0 };
+  return {
+    sessionId: null,
+    pendingPlanPath: null,
+    inPlanMode: false,
+    pendingEnterPlanModeId: null,
+    turnProgressCount: 0,
+    pendingCompletion: emptyPendingCompletion(),
+  };
 }
 
 /**
@@ -126,9 +148,12 @@ export function piRpcLineToNormalized(line: string, state: PIEventParserState): 
     return handleToolExecutionEnd(ev, state);
   }
 
-  // --- agent_end → turn_complete ---
+  // --- agent_end → low-level usage; agent_settled → terminal turn_complete ---
   if (type === 'agent_end') {
-    return handleAgentEnd(ev);
+    return handleAgentEnd(ev, state);
+  }
+  if (type === 'agent_settled') {
+    return handleAgentSettled(state);
   }
 
   // --- auto_retry_start → rate_limit ---
@@ -283,68 +308,117 @@ function handleToolExecutionEnd(ev: Record<string, unknown>, state: PIEventParse
   return events;
 }
 
-function handleAgentEnd(ev: Record<string, unknown>): NormalizedEvent[] {
-  const messages = ev['messages'];
-  const msgs: unknown[] = Array.isArray(messages) ? messages : [];
+function emptyPendingCompletion(): PIPendingCompletion {
+  return { numTurns: 0, totalCostUsd: null, error: null };
+}
 
-  // N2H-5: totalCostUsd is null when no messages carry usage.cost.total.
-  let totalCostUsd: number | null = null;
-  let numTurns = 0;
-  // task 1e0b: extract provider/model/token counts for cost_record
-  let provider = '';
-  let model = '';
-  let tokensIn = 0;
-  let tokensOut = 0;
-  // Turn-level error: PI marks a failed assistant message with stopReason "error" (e.g. a gateway
-  // 400). This mirrors Claude's result.is_error — captured here so the adapter can fail the turn
-  // instead of silently resolving it as success.
-  let turnError: string | null = null;
+function emptyAgentEndSummary(): PIAgentEndSummary {
+  return {
+    ...emptyPendingCompletion(),
+    provider: '',
+    model: '',
+    tokensIn: 0,
+    tokensOut: 0,
+  };
+}
 
-  for (const msg of msgs) {
-    const mr = asRecord(msg);
-    if (mr['role'] !== 'assistant') continue;
-    numTurns++;
-    if (turnError === null && mr['stopReason'] === 'error') {
-      const em = mr['errorMessage'];
-      turnError = typeof em === 'string' && em.length > 0 ? em : 'PI agent reported an error during execution';
-    }
-    // First assistant message with a non-empty provider wins
-    if (provider === '' && typeof mr['provider'] === 'string' && mr['provider'].length > 0) {
-      provider = mr['provider'];
-    }
-    if (model === '' && typeof mr['model'] === 'string' && mr['model'].length > 0) {
-      model = mr['model'];
-    }
-    const usage = mr['usage'];
-    if (usage && typeof usage === 'object') {
-      const usageObj = usage as Record<string, unknown>;
-      const input = usageObj['input'];
-      if (typeof input === 'number' && isFinite(input)) tokensIn += input;
-      const output = usageObj['output'];
-      if (typeof output === 'number' && isFinite(output)) tokensOut += output;
-      const costObj = usageObj['cost'];
-      if (costObj && typeof costObj === 'object') {
-        const total = (costObj as Record<string, unknown>)['total'];
-        if (typeof total === 'number' && isFinite(total)) {
-          totalCostUsd = (totalCostUsd ?? 0) + total;
-        }
-      }
-    }
+function handleAgentEnd(
+  ev: Record<string, unknown>,
+  state: PIEventParserState,
+): NormalizedEvent[] {
+  const messages = Array.isArray(ev['messages']) ? ev['messages'] : [];
+  const summary = summarizeAgentEnd(messages);
+  accumulatePendingCompletion(state, summary);
+  if (summary.provider === '') return [];
+  return [{
+    type: 'cost_record',
+    provider: summary.provider,
+    model: summary.model,
+    tokens_in: summary.tokensIn,
+    tokens_out: summary.tokensOut,
+    cost_usd: summary.totalCostUsd,
+  }];
+}
+
+function handleAgentSettled(state: PIEventParserState): NormalizedEvent[] {
+  const completion = state.pendingCompletion;
+  state.pendingCompletion = emptyPendingCompletion();
+  const base = {
+    type: 'turn_complete' as const,
+    numTurns: completion.numTurns,
+    totalCostUsd: completion.totalCostUsd,
+  };
+  return completion.error === null ? [base] : [{ ...base, error: completion.error }];
+}
+
+function summarizeAgentEnd(messages: unknown[]): PIAgentEndSummary {
+  const summary = emptyAgentEndSummary();
+  for (const message of messages) {
+    const record = asRecord(message);
+    if (record['role'] !== 'assistant') continue;
+    summary.numTurns++;
+    captureAssistantIdentity(summary, record);
+    captureAssistantError(summary, record);
+    captureAssistantUsage(summary, record);
   }
+  return summary;
+}
 
-  const result: NormalizedEvent[] = [];
-  // Emit cost_record only when provider is present (i.e., real LLM usage occurred)
-  if (provider !== '') {
-    result.push({ type: 'cost_record', provider, model, tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: totalCostUsd });
+function captureAssistantIdentity(
+  summary: PIAgentEndSummary,
+  message: Record<string, unknown>,
+): void {
+  const provider = message['provider'];
+  const model = message['model'];
+  if (summary.provider === '' && typeof provider === 'string' && provider.length > 0) {
+    summary.provider = provider;
   }
-  // Only attach `error` when the turn actually failed, so success events stay minimal and existing
-  // deepEqual assertions on turn_complete keep passing.
-  result.push(
-    turnError !== null
-      ? { type: 'turn_complete', numTurns, totalCostUsd, error: turnError }
-      : { type: 'turn_complete', numTurns, totalCostUsd },
-  );
-  return result;
+  if (summary.model === '' && typeof model === 'string' && model.length > 0) {
+    summary.model = model;
+  }
+}
+
+function captureAssistantError(
+  summary: PIAgentEndSummary,
+  message: Record<string, unknown>,
+): void {
+  if (summary.error !== null || message['stopReason'] !== 'error') return;
+  const errorMessage = message['errorMessage'];
+  summary.error = typeof errorMessage === 'string' && errorMessage.length > 0
+    ? errorMessage
+    : 'PI agent reported an error during execution';
+}
+
+function captureAssistantUsage(
+  summary: PIAgentEndSummary,
+  message: Record<string, unknown>,
+): void {
+  const usage = message['usage'];
+  if (!usage || typeof usage !== 'object') return;
+  const usageRecord = usage as Record<string, unknown>;
+  const input = usageRecord['input'];
+  const output = usageRecord['output'];
+  if (typeof input === 'number' && isFinite(input)) summary.tokensIn += input;
+  if (typeof output === 'number' && isFinite(output)) summary.tokensOut += output;
+  const cost = asRecord(usageRecord['cost'])['total'];
+  if (typeof cost === 'number' && isFinite(cost)) {
+    summary.totalCostUsd = (summary.totalCostUsd ?? 0) + cost;
+  }
+}
+
+function accumulatePendingCompletion(
+  state: PIEventParserState,
+  summary: PIAgentEndSummary,
+): void {
+  const pending = state.pendingCompletion;
+  pending.numTurns += summary.numTurns;
+  pending.totalCostUsd = sumNullableCosts(pending.totalCostUsd, summary.totalCostUsd);
+  pending.error = summary.error;
+}
+
+function sumNullableCosts(left: number | null, right: number | null): number | null {
+  if (left === null && right === null) return null;
+  return (left ?? 0) + (right ?? 0);
 }
 
 function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[] {

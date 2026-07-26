@@ -4,3 +4,4 @@
 {"type":"tool_execution_end","toolCallId":"tc-e1","isError":true,"result":{"content":[{"type":"text","text":"cat: /nonexistent/path/file.txt: No such file or directory"}]}}
 {"type":"message_update","message":{"id":"msg-c2"},"assistantMessageEvent":{"type":"text_delta","delta":"The file does not exist."}}
 {"type":"agent_end","messages":[{"role":"assistant","usage":{"cost":{"total":0.0065}}}]}
+{"type":"agent_settled"}

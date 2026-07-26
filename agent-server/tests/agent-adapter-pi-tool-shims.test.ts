@@ -1,3 +1,8 @@
+// input:  PIAdapter stub, extension-ui events, tool shim gates
+// output: PI shim behavior through settled RPC turns
+// pos:    PI pseudo-tool and extension-ui integration regression
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -51,6 +56,7 @@ test('A: basic send', async () => {
   await bootstrap(child);
   const turnPromise = proc.send({ text: 'hello' });
   pushLine(child, { type: 'agent_end', messages: [{ role: 'assistant', content: 'ok', usage: { cost: { total: 0.005 } } }] });
+  pushLine(child, { type: 'agent_settled' });
   await Promise.resolve();
   const result = await turnPromise;
   assert.equal(result.sessionId, 'sess-abc');
@@ -68,6 +74,7 @@ test('B: rate limit', async () => {
   pushLine(child, { type: 'auto_retry_start', reason: 'rate limit' });
   await Promise.resolve();
   pushLine(child, { type: 'agent_end', messages: [] });
+  pushLine(child, { type: 'agent_settled' });
   await Promise.resolve();
   const result = await turnPromise;
   assert.equal(result.rateLimited, true);
@@ -126,6 +133,7 @@ test('E: plan flow', async () => {
   proc.sendExtensionUiResponse('ui-confirm-1', { confirmed: true });
   pushLine(child, { type: 'tool_execution_end', toolCallId: 'tc-epm', result: { content: [{ type: 'text', text: 'Plan approved.' }] } });
   pushLine(child, { type: 'agent_end', messages: [{ role: 'assistant', content: 'done', usage: { cost: { total: 0.01 } } }] });
+  pushLine(child, { type: 'agent_settled' });
   await Promise.resolve();
   await Promise.resolve();
 
@@ -152,6 +160,7 @@ test('F: ask_user_question', async () => {
   proc.sendExtensionUiResponse('ui-sel-1', { value: 'Blue' });
   pushLine(child, { type: 'tool_execution_end', toolCallId: 'tc-aq', result: { content: [{ type: 'text', text: 'Blue' }] } });
   pushLine(child, { type: 'agent_end', messages: [] });
+  pushLine(child, { type: 'agent_settled' });
   await Promise.resolve();
   const result = await turnPromise;
   assert.equal(result.askUserQuestions, undefined);

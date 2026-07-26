@@ -4,9 +4,11 @@
 {"type":"tool_execution_end","toolCallId":"tc-a1","isError":false,"result":{"content":[{"type":"text","text":"hello world"}]}}
 {"type":"message_update","message":{"id":"msg-a1"},"assistantMessageEvent":{"type":"text_delta","delta":" File read successfully."}}
 {"type":"agent_end","messages":[{"role":"assistant","usage":{"cost":{"total":0.005}}}]}
+{"type":"agent_settled"}
 {"type":"response","id":"switch-1","command":"switch_session","success":true,"data":{"cancelled":false}}
 {"type":"message_update","message":{"id":"msg-b1"},"assistantMessageEvent":{"type":"text_delta","delta":"Now on the second session."}}
 {"type":"tool_execution_start","toolCallId":"tc-b1","toolName":"bash","args":{"command":"echo done","description":"Print done"}}
 {"type":"tool_execution_end","toolCallId":"tc-b1","isError":false,"result":{"content":[{"type":"text","text":"done"}]}}
 {"type":"message_update","message":{"id":"msg-b1"},"assistantMessageEvent":{"type":"text_delta","delta":" All done."}}
 {"type":"agent_end","messages":[{"role":"assistant","usage":{"cost":{"total":0.007}}}]}
+{"type":"agent_settled"}

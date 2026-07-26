@@ -51,12 +51,12 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-adapter.test.ts` | Test | getAdapter/Capability matrix (including PI MidTurnInject)/tool-names contract |
 | `agent-adapter-claude.test.ts` | Test | Claude buildSpawnArgs/hooks/summarizer |
 | `agent-adapter-pi.test.ts` | Test | PI framing/spawn-args/bootstrap/close |
-| `agent-adapter-pi-event-parser.test.ts` | Test | piRpcLineToNormalized full coverage |
+| `agent-adapter-pi-event-parser.test.ts` | Test | PI event translation + settled-boundary aggregation |
 | `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |
 | `agent-adapter-pi-hook-bridge.test.ts` | Test | PI hook-bridge toClaude/normalize |
 | `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
-| `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims + extension_ui |
-| `pi-cost-record.test.ts` | Test | PI agent_end produces cost integration |
+| `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims + extension_ui settled turns |
+| `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
 | `run-with-adapter.test.ts` | Test | mode-manager event to callback drive + thread-turn inline bg-continuation wait (threadId gate: thread holds+merges, interactive resolves immediately) |
 | `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins: cortex-feishu plugin gated to feishu: channels (exact basename match) |
 | `app.test.ts` | Test | Startup DM + scheduled success flow |
