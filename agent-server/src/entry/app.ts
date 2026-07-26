@@ -63,6 +63,7 @@ import { recoverWaitingThreads, registerTaskTreeSubscribers, reconcileWaitingTas
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { buildInteractiveCallbacks } from '@orch/agent-runner.js';
 import { registerInteractionHandlers, initInteractionHandlers } from '@orch/interactions/interaction-handlers.js';
+import { respondToPlan } from '@orch/interactions/plan-response.js';
 import { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
@@ -464,20 +465,12 @@ process.on('SIGTERM', async () => {
     },
     // Web UI plan-approval: resolve or reject a pending plan by requestId. First-writer-wins;
     // the entity resolve persists + broadcasts, so no separate history/session-message writes.
-    respondPlan: (requestId, approved, feedback) => {
-      const rec = interactionRecords.get(requestId);
-      if (rec && rec.status !== 'pending') return 'already-resolved';
-      const pending = approved ? planApprovals.resolve(requestId) : planApprovals.reject(requestId);
-      if (!pending) return 'not-found';
-      void interactionRecords.resolve({
-        id: requestId,
-        status: approved ? 'approved' : 'rejected',
-        result: feedback ? { feedback } : undefined,
-        resolvedVia: 'web',
-      });
-      resolveHookRequest(requestId, approved ? { approved: true, reason: '' } : { approved: false, reason: feedback || '' });
-      return 'resolved';
-    },
+    respondPlan: (requestId, approved, feedback) => respondToPlan(
+      { planApprovals, interactionRecords },
+      requestId,
+      approved,
+      feedback,
+    ),
   });
   extractTuiAdapter(adapter)?.setUiService(uiService);
 

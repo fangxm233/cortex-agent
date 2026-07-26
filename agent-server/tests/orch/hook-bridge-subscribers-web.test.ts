@@ -1,11 +1,13 @@
-// input:  registerHookBridgeSubscribers + EventBus + MockAdapter + PlanApprovals + InteractionRecords
-// output: regression tests for the web: conduit branch — ask-user.requested / plan.submitted
-//         create persistent interaction records (payload snapshot incl. planContent) instead of
-//         publishing content-carrier events (web-interactions-redesign plan)
+// input:  hook bridge callbacks, EventBus, interaction records
+// output: Web interaction persistence and PI plan snapshot tests
+// pos:    Regression coverage for hook-to-Web interaction delivery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { EventBus } from '../../src/events/event-bus.js';
 import type { CortexEvent } from '../../src/events/event-types.js';
 import { MockAdapter } from '../../src/platform/testing.js';
@@ -13,6 +15,7 @@ import { PlanApprovals } from '../../src/orchestration/interactions/plan-approva
 import { InteractionRecords } from '../../src/orchestration/interactions/interaction-records.js';
 import { registerHookBridgeSubscribers } from '../../src/orchestration/routing/hook-bridge-subscribers.js';
 import { initHookBridge } from '../../src/orchestration/routing/hook-bridge.js';
+import { buildInteractiveCallbacks } from '../../src/orchestration/agent-runner.js';
 
 function makeFakeHistory() {
   const created: any[] = [];
@@ -72,6 +75,26 @@ test('plan.submitted on a web channel creates a plan-approval record with full p
   // The live resolver map is still registered (needed to resolve the blocked MCP tool).
   assert.equal(planApprovals.has('req-plan-1'), true);
   assert.equal(interactions.isPending('req-plan-1'), true);
+});
+
+test('PI plan callback snapshots the full file and preserves its path even with a long summary', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-plan-callback-'));
+  const planPath = path.join(dir, 'plan-regression.md');
+  const fullPlan = '# Full plan\n\n' + 'implementation detail\n'.repeat(20);
+  fs.writeFileSync(planPath, fullPlan);
+  t.onTestFinished(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const { fake } = setup();
+  const callbacks = buildInteractiveCallbacks('web:sess-plan', 'sess-plan');
+  const summary = 's'.repeat(278);
+  callbacks.onPlanWritten({ path: planPath, content: summary, toolUseId: 'tool-exit' });
+  callbacks.onToolUse('exit_plan_mode', { plan: summary });
+  callbacks.onAskUserQuestion({ toolUseId: 'ui-confirm', questions: [] });
+  await flush();
+
+  assert.equal(fake.created.length, 1);
+  assert.equal(fake.created[0].args.payload.planContent, fullPlan);
+  assert.equal(fake.created[0].args.payload.planFilePath, planPath);
 });
 
 test('ask-user.requested on a web channel creates an ask-user record with normalized questions', async () => {

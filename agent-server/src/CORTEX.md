@@ -54,7 +54,7 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 | `dispatch-reconciler.ts` | stale dispatch cleanup timer (S13: extracted from app.ts) |
 | `routing/message-router.ts` | Slack message entry thin layer |
 | `routing/webhook.ts` | GitHub/task-op/hook webhook |
-| `routing/hook-bridge.ts` | PreToolUse hook ↔ EventBus bridge |
+| `routing/hook-bridge.ts` | PreToolUse interaction events including PI plan paths |
 | `routing/hook-bridge-subscribers.ts` | ask-user.requested / plan.submitted subscribers (S13: extracted from app.ts) |
 | `routing/edit-handler.ts` | Slack message edit orchestration |
 | `routing/file-handler.ts` | Slack file download and classification |
@@ -63,7 +63,7 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 | `status-helpers.ts` | execution / status-message / streaming-VM helpers (pure subset has been sunk to `core/status-format.ts`) |
 
 ### L5: entry/
-`app.ts` (composition root; publishes `config.changed` after a valid profile hot reload; the Web UI transport-host is loaded on demand via `entry/ui-http-gate.ts`, whose CORTEX_UI_HTTP-gated dynamic `import('./start-ui-http.js')` is the sole runtime edge to @trpc/server+jose — so core stays @trpc-free when the flag is off) `daemon.ts` `start-ui-http.ts` (Web UI wiring: binds domain/ui-service AppRouter → platform/ui-http host; also mounts the `/api/attachments/upload` (15a) + `/api/files/download` (15a/20a file cards, traversal-guarded to WORKSPACE_DIR) custom routes) `ui-http-gate.ts` (the lazy CORTEX_UI_HTTP seam) `startup-helpers.ts` `startup-notify.ts`
+`app.ts` (composition root; publishes `config.changed` after valid profile reloads and wires Web plan responses through shared delivery; the Web UI transport-host is loaded on demand via `entry/ui-http-gate.ts`, whose CORTEX_UI_HTTP-gated dynamic `import('./start-ui-http.js')` is the sole runtime edge to @trpc/server+jose — so core stays @trpc-free when the flag is off) `daemon.ts` `start-ui-http.ts` (Web UI wiring: binds domain/ui-service AppRouter → platform/ui-http host; also mounts the `/api/attachments/upload` (15a) + `/api/files/download` (15a/20a file cards, traversal-guarded to WORKSPACE_DIR) custom routes) `ui-http-gate.ts` (the lazy CORTEX_UI_HTTP seam) `startup-helpers.ts` `startup-notify.ts`
 
 The Web UI transport (tRPC AppRouter binding + HTTP/SSE host + same-origin SPA serving) lives
 **in-core**, split by layer: `domain/ui-service/{trpc,app-router}.ts` (the tRPC contract bound over

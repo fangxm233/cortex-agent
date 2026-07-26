@@ -8,7 +8,9 @@ Covers API and event publication contracts for running-executions, channel-queue
 | `running-executions.test.ts` | Test | RunningExecutions three-index consistency, kill chain, event publication (Phase 1 Step 1) |
 | `channel-queue.test.ts` | Test | conduitQueues Map + enqueue() serialization and auto-cleanup (S6-B) |
 | `superseded-edits.test.ts` | Test | supersededEdits mark/check/clear API (S6-B) |
-| `plan-approvals.test.ts` | Test | PlanApprovals register/lookup/resolve/reject/clearByChannel + plan.approved event (S6-A) |
+| `plan-approvals.test.ts` | Test | PlanApprovals state transitions and approved event |
+| `plan-response.test.ts` | Test | Web PI approve/reject delivery and retry safety |
+| `hook-bridge-subscribers-web.test.ts` | Test | Web interaction snapshots including full plan and path |
 | `busy-tracker.test.ts` | Test | BusyTracker +1/-1 publish+IPC, multi-publisher aggregate, re-entrant safety (S6-C) |
 | `orchestrator.test.ts` | Test | Orchestrator two-branch decision tree: threadAddMatch / isActiveThread / threadStartMatch -> threadExecutor; no match -> agentRunner (S8-A) |
 | `agent-runner.test.ts` | Test | AgentRunner hourglass reaction, +1/-1 trackPendingTask, enqueue channel, resolveDefaultAgent pure function, singleton contract (S8-A) |

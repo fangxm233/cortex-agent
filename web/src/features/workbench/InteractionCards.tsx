@@ -1,11 +1,7 @@
-// Desktop interaction cards — chrome extracted 1:1 from scheme.dc.html 13b (AskUserQuestion:
-// multi-question, ○/● single- and ☐/☑ multi-select chips, 其他… free text, one 提交回答) and
-// 13c (Plan 审批薄卡: title + plan-file row as the main entry, 请求修改 expands the amber
-// feedback box, sealed 已批准/已驳回 states — the rejected seal is the 4c mobile isomorph, the
-// desktop scheme draws no rejected column). Presentational + controlled: models come from the
-// shared interaction-vm, the answer state is owned by the caller (InteractionRowCard). Honest
-// gaps: no entity source field (`· reviewer` slot omitted); TTL derives from the row ts + the
-// server's 30m constant.
+// input:  interaction view models and localized card copy
+// output: Desktop ask-user and plan-approval cards
+// pos:    Controlled workbench interaction-card presentation
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState } from 'react';
 import {
   type AskCardModel,
@@ -284,7 +280,7 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
   const [feedback, setFeedback] = useState('');
   const canReturn = feedback.trim().length > 0 && !busy;
 
-  const fileRow = model.filePath && (
+  const fileRow = (model.filePath || model.planContent) ? (
     <div
       role="button"
       onClick={onOpenRead}
@@ -295,12 +291,12 @@ export function DeskPlanCard({ model, copy, feedbackOpen, onFeedbackOpen, onAppr
         <path d="M5 6.5h4M5 9h4" />
       </svg>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ font: `500 11px ${mono}`, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.filePath}</div>
+        <div style={{ font: `500 11px ${mono}`, color: 'var(--proto-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{model.filePath ?? `${model.lineCount} lines`}</div>
         <div style={{ fontSize: 10, color: 'var(--proto-muted-3)', marginTop: 2 }}>{copy.fileSub}</div>
       </div>
       <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-accent)', flex: 'none' }}>{copy.readLink}</span>
     </div>
-  );
+  ) : null;
 
   // sealed — 13c right column (approved) / 4c isomorph (rejected)
   if (!pending) {

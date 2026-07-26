@@ -1,6 +1,6 @@
-// input:  HTTP hook requests (AskUserQuestion/ExitPlanMode)
-// output: register/resolve + bus publish
-// pos:    PreToolUse hook ↔ Slack interaction communication bridge (S5: callbacks replaced by EventBus)
+// input:  AskUserQuestion and ExitPlanMode requests
+// output: Hook resolution and typed interaction events
+// pos:    PreToolUse interaction communication bridge
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
@@ -135,9 +135,18 @@ function getStreamingCallback(channel: string): ((text: string) => void) | null 
  * Publish plan.submitted directly (non-blocking, no pendingRequest).
  * Used by PI backend: the resolution goes through sendExtensionUiResponse, not resolveRequest.
  */
-function publishPlanSubmitted(requestId: string, channel: string, sessionId: string, planContent: string, extensionUiId: string, threadId?: string | null): void {
+function publishPlanSubmitted(
+  requestId: string,
+  channel: string,
+  sessionId: string,
+  planContent: string,
+  planFilePath: string | null,
+  extensionUiId: string,
+  threadId?: string | null,
+): void {
   if (!_bus) { log.error('bus not initialised; dropping PI plan.submitted'); return; }
-  _bus.publish({ type: 'plan.submitted', requestId, channel, sessionId, threadId: threadId ?? null, planContent, toolInput: {}, extensionUiId });
+  const toolInput = planFilePath ? { plan_file_path: planFilePath } : {};
+  _bus.publish({ type: 'plan.submitted', requestId, channel, sessionId, threadId: threadId ?? null, planContent, toolInput, extensionUiId });
 }
 
 /**

@@ -1,6 +1,6 @@
-// input:  orch/busy-tracker(trackPendingTask), orch/conduit-queue, orch/interactions/plan-approvals, ask-user-question, hook-bridge, adapter
+// input:  interaction state, plan response delivery, adapter
 // output: registerInteractionHandlers(adapter)
-// pos:    AskUserQuestion + ExitPlanMode interaction handler registration
+// pos:    AskUserQuestion and ExitPlanMode handler registration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { Destination, PlatformAdapter, ActionContext, ModalSubmitContext, ModalFieldValue, QuestionGroup } from '@platform/index.js';
@@ -10,7 +10,7 @@ import type { EventBus } from '@events/index.js';
 import { trackPendingTask } from '../busy-tracker.js';
 import { enqueue } from '../conduit-queue.js';
 import * as askUserQuestion from './ask-user-question.js';
-import { resolveRequest as resolveHookRequest, getStreamingCallback } from '../routing/hook-bridge.js';
+import { getStreamingCallback } from '../routing/hook-bridge.js';
 import { resumeAskUserQuestionGroup } from '../lifecycle.js';
 import { planApprovals } from './plan-approvals.js';
 import { runningExecutions } from '../../core/running-executions.js';
@@ -25,7 +25,7 @@ import { Icons } from '../../core/icons.js';
 import { t } from '../../core/i18n.js';
 import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { cancelThread as cancelThreadById } from '@domain/threads/index.js';
-import type { PendingPlan } from './plan-approvals.js';
+import { deliverPlanResponse } from './plan-response.js';
 import { createLogger } from '@core/log.js';
 
 let _adapter: PlatformAdapter | null = null;
@@ -166,34 +166,12 @@ function dispatchAskUserQuestionResume(group: QuestionGroup & { channel: string;
   });
 }
 
-/**
- * Send extension_ui_response for PI plan approval/rejection.
- * PI's exit_plan_mode shim uses ctx.ui.input() which expects { value: string } or { cancelled: true }.
- * Returns true if the response was sent (PI path), false otherwise (Claude path).
- */
-function tryResolvePIPlan(pending: PendingPlan, value: string | null): boolean {
-  if (!pending.extensionUiId) return false;
-  const exec = runningExecutions.getByChannel(pending.channel).find(e => e.agentProcess) ?? null;
-  if (!exec?.agentProcess) return false;
-  const proc = exec.agentProcess as any;
-  if (typeof proc.sendExtensionUiResponse !== 'function') return false;
-  if (value === null) {
-    proc.sendExtensionUiResponse(pending.extensionUiId, { cancelled: true });
-  } else {
-    proc.sendExtensionUiResponse(pending.extensionUiId, { value });
-  }
-  return true;
-}
-
 function registerExitPlanModeHandlers(adapter: PlatformAdapter): void {
   adapter.onAction('hook_plan_approve', async (ctx: ActionContext) => {
     const requestId = ctx.value;
-    const pending = planApprovals.resolve(requestId);
-    if (!pending) return;
-    // PI path: send extension_ui_response directly; Claude path: resolve pending HTTP request
-    if (!tryResolvePIPlan(pending, '__APPROVED__')) {
-      resolveHookRequest(requestId, { approved: true, reason: '' });
-    }
+    const pending = planApprovals.lookup(requestId);
+    if (!pending || !deliverPlanResponse(requestId, pending, true)) return;
+    planApprovals.resolve(requestId);
     if (ctx.messageRef) {
       await adapter.updateMessage(
         ctx.messageRef,
@@ -214,13 +192,11 @@ function registerExitPlanModeHandlers(adapter: PlatformAdapter): void {
   adapter.onModalSubmit('hook_plan_feedback_submit', async (ctx: ModalSubmitContext) => {
     await ctx.ack();
     const { requestId } = JSON.parse(ctx.privateMetadata);
-    const pending = planApprovals.reject(requestId);
+    const pending = planApprovals.lookup(requestId);
     if (!pending) return;
     const feedback = ctx.values?.feedback?.text?.value || t('interaction.noSpecificFeedback');
-    // PI path: send extension_ui_response directly; Claude path: resolve pending HTTP request
-    if (!tryResolvePIPlan(pending, feedback)) {
-      resolveHookRequest(requestId, { approved: false, reason: feedback });
-    }
+    if (!deliverPlanResponse(requestId, pending, false, feedback)) return;
+    planApprovals.reject(requestId);
     const feedbackText = `${Icons.edit} ${t('interaction.planFeedbackSent', { feedback })}`;
     const streamingCb = getStreamingCallback(pending.channel);
     const feedbackDest: Destination = { type: 'interactive-reply', conduit: pending.channel, sessionId: '' };

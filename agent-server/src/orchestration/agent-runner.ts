@@ -1,6 +1,6 @@
-// input:  conversation-runner, agent-lifecycle, orch/channel-queue, orch/busy-tracker, orch/active-agents
-// output: AgentRunner — plain user-message path: session/status/ledger/callbacks + runConversation (no thread) [S8]
-// pos:    orch/ — sole plain user-message execution path
+// input:  conversation runner, lifecycle, queue, interaction bridge
+// output: AgentRunner and interactive callback wiring
+// pos:    Sole plain user-message execution path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -615,11 +615,11 @@ export function buildInteractiveCallbacks(channel: string, sessionId: string | n
       // pendingPlanContent comes from plan_written event (Write to a plan directory);
       // pendingExitPlanMode comes from tool_use event (LLM called exit_plan_mode directly).
       let planContent = pendingPlanContent ?? pendingExitPlanMode?.plan ?? '';
-      // When a plan file was written, read it for full content (args.plan is often just a summary).
-      if (pendingPlanPath && planContent.length < 200) {
-        try { const fc = readFileSync(pendingPlanPath, 'utf8'); if (fc.trim()) planContent = fc; } catch {}
+      // The file is the authoritative plan snapshot; ExitPlanMode.plan is often only a summary.
+      if (pendingPlanPath) {
+        try { const fileContent = readFileSync(pendingPlanPath, 'utf8'); if (fileContent.trim()) planContent = fileContent; } catch {}
       }
-      publishPlanSubmitted(requestId, channel, sessionId ?? '', planContent, event.toolUseId, threadId);
+      publishPlanSubmitted(requestId, channel, sessionId ?? '', planContent, pendingPlanPath, event.toolUseId, threadId);
       pendingPlanContent = null;
       pendingPlanPath = null;
       pendingExitPlanMode = null;

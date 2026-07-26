@@ -1,3 +1,8 @@
+// input:  interaction card models and server-side React renderer
+// output: Desktop ask-user and plan-card rendering regressions
+// pos:    Verifies actionable and sealed interaction card states
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
@@ -107,6 +112,15 @@ describe('DeskPlanCard — 13c', () => {
     expect(html).toContain('请求修改');
     expect(html).toContain('批准计划');
     expect(html).not.toContain('确认退回');
+  });
+  it('pending snapshot without a file path still exposes the plan reading overlay', () => {
+    const detail = planDetail('pending');
+    detail.payload.planFilePath = null;
+    const html = renderToStaticMarkup(
+      <DeskPlanCard model={planCardModel(detail)} copy={copy} feedbackOpen={false} busy={false} {...handlers} />,
+    );
+    expect(html).toContain('3 lines');
+    expect(html).toContain('阅读 ›');
   });
   it('feedback open: amber input + 反馈必填 hint + 取消/确认退回', () => {
     const html = renderToStaticMarkup(
