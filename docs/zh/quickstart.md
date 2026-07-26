@@ -257,7 +257,13 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 
 ### 2.10 自动检测后端用于网关/配置？
 
-如果你已在其他终端中运行了 `claude login` 和/或 `pi login`，回答 **Yes**。Cortex 会扫描你的 `~/.claude/.credentials.json` 和 `~/.pi/agent/` 来发现端点，并让你选择哪个发现的（mode, model）对成为 `plan` 配置（由执行智能体使用——planner、doc-writer、coder 等），哪个成为 `execute` 配置（由审查智能体使用）。
+如果你已在其他终端中登录过后端，回答 **Yes**。Cortex 会扫描你的 `~/.claude/.credentials.json` 和 `~/.pi/agent/` 来发现端点，并让你选择哪个发现的（mode, model）对成为 `plan` 配置（由执行智能体使用——planner、doc-writer、coder 等），哪个成为 `execute` 配置（由审查智能体使用）。
+
+如果还没有登录：新开一个终端，输入 `claude`（或 `pi`，取决于你在 2.2 中选择的后端）启动会话，然后在会话里输入 `/login`，按提示选择与你的订阅相符的登录方式。
+
+![后端登录提示](./images/backend-login.png)
+
+登录完成后回到向导，回答 **Yes**，凭据即会被识别。
 
 你也可以稍后通过 `cortex setup-gateway` 运行此步骤。
 

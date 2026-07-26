@@ -18,3 +18,4 @@ PNG, 2x resolution for Retina displays, 1200-1600px wide.
 | `slack-first-dm.png` | First DM: hello | Slack DM window showing "hello" sent to Cortex bot and its reply |
 | `slack-create-project.png` | Creating a project via DM | Slack DM showing a project creation message and Cortex's structured reply |
 | `slack-create-task.png` | Creating a task via DM | Slack DM showing a task creation message and Cortex's confirmation reply |
+| `backend-login.png` | Backend `/login` prompt | Terminal showing the login method selection after typing `/login` in a `claude` (or `pi`) session |

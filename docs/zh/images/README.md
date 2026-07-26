@@ -17,3 +17,4 @@
 | `slack-first-dm.png` | 第一条私信：hello | Slack 私信窗口，显示发送给 Cortex 的 "hello" 及其回复 |
 | `slack-create-project.png` | 通过私信创建项目 | Slack 私信显示项目创建消息及 Cortex 的结构化回复 |
 | `slack-create-task.png` | 通过私信创建任务 | Slack 私信显示任务创建消息及 Cortex 的确认回复 |
+| `backend-login.png` | 后端 `/login` 提示 | 终端显示在 `claude`（或 `pi`）会话中输入 `/login` 后的登录方式选择界面 |

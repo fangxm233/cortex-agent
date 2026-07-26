@@ -332,12 +332,22 @@ displayed).
 
 ### 2.10 Auto-detect backends for gateway/profiles?
 
-Answer **Yes** if you already ran `claude login` and/or `pi login` in
-another shell. Cortex scans your `~/.claude/.credentials.json` and
+Answer **Yes** if you already logged in to your backend in another
+shell. Cortex scans your `~/.claude/.credentials.json` and
 `~/.pi/agent/` to discover endpoints and asks you to pick which
 discovered (mode, model) pair becomes the `plan` profile (used by
 executor agents — planner, doc-writer, coder, etc.) and which becomes
 the `execute` profile (used by reviewer agents).
+
+If you have not logged in yet, open a new terminal and run `claude`
+(or `pi`, depending on the backend you selected in step 2.2). Inside
+that session type `/login` and follow the prompts — pick the login
+method that matches your subscription.
+
+![Backend login prompt](./images/backend-login.png)
+
+Once the login finishes, come back to the wizard and answer **Yes** so
+the credentials are picked up.
 
 You can also run this later with `cortex setup-gateway`.
 
