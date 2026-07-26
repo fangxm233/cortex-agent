@@ -5,6 +5,8 @@ import type { Vocab } from '@/i18n';
 // `sessions.transcript` DTO (+ a live `session.message` tail) into the prototype's exact message-row
 // model (prototype.dc.html L145–356). Real data is the only variable — the render (MessageStream)
 // owns every px/hex/font/copy; this module only decides which rows exist and what text they carry.
+// It also says WHICH row is still being written (`preview` on the assistant row) — the one row whose
+// text is still arriving, and therefore the only one the render paces.
 
 /** A live `session.message` event payload (the tRPC subscribe UiEvent.payload for that event). */
 export interface LiveSessionMessage {
@@ -167,7 +169,12 @@ export type ChatRow =
   | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean }
   | { kind: 'tools'; count: number; calls: { kind: string; input: string }[] }
   // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
-  | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[] }
+  // `preview` marks the ONE row that is the block being written right now (the token-level
+  // accumulation), as opposed to a message the backend has committed. `streaming` cannot express
+  // this: the idle heuristic also flags the last COMPLETE assistant row for a couple of seconds
+  // after the final event. Only a preview row is paced by the smooth reveal — pacing a settled
+  // message would re-type text the reader has already seen and leave it animating past turn end.
+  | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[]; preview?: true }
   // `detail` carries the structured interaction entity (pending cards render actionable);
   // absent on legacy rows, which render the old subtype-driven summary.
   | { kind: 'interaction'; subtype: string; text: string; detail?: TranscriptInteractionDetail; ts?: string | null };
@@ -432,8 +439,10 @@ export function buildTranscriptRows(
   flushTools();
 
   // The in-flight block, after every persisted/live message and after any tool row of this turn.
+  // Flagged `preview`: this is the only row whose text is still arriving, so it is the only one the
+  // smooth reveal paces.
   if (opts.streamingText) {
-    rows.push({ kind: 'assistant', text: opts.streamingText, streaming: true });
+    rows.push({ kind: 'assistant', text: opts.streamingText, streaming: true, preview: true });
   }
 
   if (opts.streaming) {

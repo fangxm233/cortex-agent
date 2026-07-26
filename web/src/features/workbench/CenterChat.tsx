@@ -18,7 +18,10 @@ import { useSelectedSession } from './SelectedSessionProvider';
 // and GAP-C (inert send) placeholders:
 //   • transcript: real `sessions.transcript` query (grouped turns) → prototype message rows
 //   • streaming: live `session.message` subscription appends assistant/tool output as it lands, and
-//     invalidates the transcript so the finalized history reconciles (buildTranscriptRows de-dups)
+//     invalidates the transcript so the finalized history reconciles (buildTranscriptRows de-dups).
+//     The block being written is handed to the stream as `streamKey`-scoped preview text, which the
+//     stream reveals at a steady rate instead of a delta at a time; the key is the session, so
+//     switching sessions mid-reply settles the reveal rather than carrying it into the next chat
 //   • send: the composer routes each message through the real `sessions.send` mutate; the reply echoes
 //     back over the same live stream (fire-and-forget)
 // Running is snapshot + delta: SessionInfo.running (sessions.list) restores the true state on
@@ -145,6 +148,7 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         inlineThreadCard={sessionId ? <InlineThreadCardProto sessionId={sessionId} /> : undefined}
         interactionActions={interactionActions}
         edit={edit}
+        streamKey={sessionId}
       />
       <Composer
         sessionId={sessionId}

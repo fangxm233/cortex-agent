@@ -16,6 +16,7 @@ import type { InteractionActions } from './useInteractionActions';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
 import { PlanReadOverlay } from './PlanReadOverlay';
 import { rewindStats, regenNoteIndexes } from './transcript-vm';
+import { stepReveal, rebaseReveal, revealedText } from './reveal-pacing';
 import { M_EDIT_COPY, HoverActionPill, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
 
 /** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
@@ -35,6 +36,16 @@ export interface MessageEditCtx {
 // yet trails the stream with dimmed text. Assistant text renders as Markdown.
 // The stream sticks to the bottom while new content lands, but releases when the user scrolls up
 // (and re-pins once they scroll back to the bottom).
+//
+// The row still being written (`preview`) is revealed at a steady character rate rather than a delta
+// at a time — the deltas arrive about a line at a time, which reads as a staircase instead of as
+// writing. The pacing rule is pure (`reveal-pacing`); the rAF state lives in the assistant block that
+// draws it, so a per-frame update re-renders ONE row and never the transcript. Everything already in
+// the buffer is on its way to the screen, so nothing is predicted: the drawn string is always a
+// prefix of what arrived. Settling needs no special case — the paced text and the committed text
+// share one component instance, so the row simply stops being a preview when the authoritative
+// message lands (or the turn ends, or a rewind arrives) and is drawn whole on that render, with no
+// remount that would replay the block's entry fade.
 
 const mono = "'IBM Plex Mono',monospace";
 
@@ -418,15 +429,84 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   );
 }
 
-function AssistantBlock({ text, attachments, editCopy, regen }: {
+const prefersReducedMotion = (): boolean =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * How much of an assistant block to draw right now.
+ *
+ * For a settled message: all of it. For the live preview (`preview`), the accumulated buffer is
+ * revealed at a steady character rate instead of appearing a delta at a time — see `reveal-pacing`
+ * for the rule and the measured source cadence that motivates it. The revealed string is always a
+ * PREFIX of what has arrived; nothing is ever predicted.
+ *
+ * The rAF state lives HERE, in the block that draws it, so a per-frame update re-renders one row and
+ * never the transcript. The loop is started only while something is left to reveal and is torn down
+ * as soon as it catches up (or the row unmounts).
+ *
+ * Settling is structural rather than a special case, because this hook sits on the SAME component
+ * instance the settled message renders through: the moment the authoritative text lands the row is
+ * simply no longer a preview, so the full text is returned on that very render — no trailing
+ * animation, and no remount that would replay the block's entry fade. Turn end and rewind arrive the
+ * same way (the preview row is withdrawn). A session switch is caught by `streamKey`: a change of
+ * stream identity shows the new buffer at once instead of pacing it from another session's progress.
+ *
+ * `prefers-reduced-motion` opts out entirely — text appears exactly as it arrives.
+ */
+function useRevealedText(text: string, preview: boolean, streamKey?: string): string {
+  const [reduceMotion] = useState(prefersReducedMotion);
+  const [shown, setShown] = useState<{ streamKey?: string; text: string; revealed: number }>(
+    () => ({ streamKey, text, revealed: 0 }),
+  );
+
+  // Rebase before drawing anything, so what is on screen can never stop being a prefix of what has
+  // arrived. Adjusting state during render is React's documented pattern for deriving state from
+  // props; the guard runs it once per change, and the local `revealed` keeps THIS render correct
+  // whether or not React re-invokes the component.
+  const stale = shown.text !== text || shown.streamKey !== streamKey;
+  const revealed = stale ? rebaseReveal(shown, { streamKey, text }) : shown.revealed;
+  if (stale) setShown({ streamKey, text, revealed });
+
+  const paced = preview && !reduceMotion;
+  const behind = paced && revealed < text.length;
+  useEffect(() => {
+    if (!behind) return; // caught up, settled, or opted out — no loop at all
+    let frame = 0;
+    let last = 0;
+    const tick = (now: number): void => {
+      // The first frame after a (re)start has no measurable gap; a long one means the tab was
+      // backgrounded, and `stepReveal` clamps rather than overshooting.
+      const dtMs = last === 0 ? 0 : now - last;
+      last = now;
+      setShown((s) => {
+        const next = stepReveal(s.revealed, s.text.length, dtMs);
+        return next === s.revealed ? s : { streamKey: s.streamKey, text: s.text, revealed: next };
+      });
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [behind]);
+
+  return paced ? revealedText(text, revealed) : text;
+}
+
+function AssistantBlock({ text, attachments, editCopy, regen, preview, streamKey }: {
   text: string;
   attachments?: Attachment[];
   /** Present → the「由编辑重新生成」footnote renders (agent messages carry no copy affordance). */
   editCopy?: MEditCopy;
   /** True → the「由编辑重新生成」footnote renders atop this block. */
   regen?: boolean;
+  /** True → this is the block being written right now, so its text is revealed at a steady rate. */
+  preview?: boolean;
+  /** Identity of the stream the preview belongs to (the session) — a change settles the reveal. */
+  streamKey?: string;
 }): JSX.Element {
   const hasAttachments = !!attachments && attachments.length > 0;
+  const shown = useRevealedText(text, !!preview, streamKey);
   return (
     <div
       style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
@@ -435,7 +515,7 @@ function AssistantBlock({ text, attachments, editCopy, regen }: {
       {/* Token-level streaming carries NO caret here: the text visibly extends itself and the
           composer already reports the running turn, so a blinking block only adds noise. The
           mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
-      {text.trim() && <ChatMarkdown text={text} />}
+      {shown.trim() && <ChatMarkdown text={shown} />}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
     </div>
   );
@@ -544,13 +624,15 @@ export function InteractionRowCard({ row, actions }: {
   return <InteractionSummaryRow tone={v.tone} label={v.label} text={v.text} />;
 }
 
-function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, regen }: {
+function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, regen, streamKey }: {
   row: ChatRow;
   interactionActions?: InteractionActions;
   editCopy?: MEditCopy;
   onStartEdit?: () => void;
   editDisabled?: boolean;
   regen?: boolean;
+  /** Identity of the live stream these rows belong to — see AssistantBlock. */
+  streamKey?: string;
 }): JSX.Element | null {
   switch (row.kind) {
     case 'divider':
@@ -560,7 +642,7 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
     case 'tools':
       return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input }))} />;
     case 'assistant':
-      return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} regen={regen} />;
+      return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} regen={regen} preview={row.preview} streamKey={streamKey} />;
     case 'interaction':
       return <InteractionRowCard row={row} actions={interactionActions} />;
     default:
@@ -574,7 +656,7 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
  *  sec-23 message-edit state when an `edit` context is passed (the workbench center chat): the edited
  *  bubble becomes an in-place EditBox, later rows dim under a「将被回退」badge, and submit fires
  *  the rewind. */
-export function ChatRows({ rows, interactionActions, edit }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx }): JSX.Element {
+export function ChatRows({ rows, interactionActions, edit, streamKey }: { rows: ChatRow[]; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string }): JSX.Element {
   const lang = useLang();
   const editCopy = lang === 'zh' ? M_EDIT_COPY.zh : M_EDIT_COPY.en;
   // The row currently being edited (a user row with a turnIndex). Reset when the row set changes
@@ -596,7 +678,7 @@ export function ChatRows({ rows, interactionActions, edit }: { rows: ChatRow[]; 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {before.map((row, i) => (
-          <Row key={rowKey(row, i)} row={row} interactionActions={interactionActions} />
+          <Row key={rowKey(row, i)} row={row} interactionActions={interactionActions} streamKey={streamKey} />
         ))}
         <EditBox
           initialText={er.text}
@@ -612,7 +694,7 @@ export function ChatRows({ rows, interactionActions, edit }: { rows: ChatRow[]; 
         {after.length > 0 && (
           <RewindTail copy={editCopy}>
             {after.map((row, i) => (
-              <Row key={rowKey(row, editingIdx! + 1 + i)} row={row} interactionActions={interactionActions} />
+              <Row key={rowKey(row, editingIdx! + 1 + i)} row={row} interactionActions={interactionActions} streamKey={streamKey} />
             ))}
           </RewindTail>
         )}
@@ -631,15 +713,17 @@ export function ChatRows({ rows, interactionActions, edit }: { rows: ChatRow[]; 
           regen={regenIdx.has(i)}
           onStartEdit={edit && row.kind === 'user' && row.turnIndex !== undefined ? () => setEditingIdx(i) : undefined}
           editDisabled={edit?.running || edit?.busy}
+          streamKey={streamKey}
         />
       ))}
     </div>
   );
 }
 
-export function MessageStream({ rows, loading, inlineThreadCard, interactionActions, edit }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionActions?: InteractionActions; edit?: MessageEditCtx }): JSX.Element {
+export function MessageStream({ rows, loading, inlineThreadCard, interactionActions, edit, streamKey }: { rows: ChatRow[]; loading: boolean; inlineThreadCard?: React.ReactNode; interactionActions?: InteractionActions; edit?: MessageEditCtx; streamKey?: string }): JSX.Element {
   const populated = rows.length > 0;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   // Whether the view is currently pinned to the bottom. Starts pinned; a user scroll-up releases it,
   // scrolling back to the bottom re-pins it.
   const stickRef = useRef(true);
@@ -657,11 +741,28 @@ export function MessageStream({ rows, loading, inlineThreadCard, interactionActi
     if (el && stickRef.current) el.scrollTop = el.scrollHeight;
   }, [rows, loading]);
 
+  // …and keep it pinned while the content GROWS between row changes. The streamed reply is revealed
+  // character by character, so the block gets taller many times per row change; without this the
+  // line being written slides under the bottom edge (measured: up to one line) and snaps back only
+  // when the next delta arrives, which reads as a twitch under otherwise smooth text. Observing the
+  // content box catches every cause of growth (the reveal, a late-loading image, markdown reflow)
+  // and writes scrollTop directly — no React state, so it costs no render.
+  useEffect(() => {
+    const el = scrollRef.current;
+    const content = contentRef.current;
+    if (!el || !content || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      if (stickRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-      <div style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px' }}>
+      <div ref={contentRef} style={{ width: '100%', maxWidth: 756, margin: '0 auto', padding: '22px 32px 12px' }}>
         {!populated && !loading && <EmptyChat />}
-        <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} />
+        <ChatRows rows={rows} interactionActions={interactionActions} edit={edit} streamKey={streamKey} />
         {inlineThreadCard && <div style={{ marginTop: 16 }}>{inlineThreadCard}</div>}
       </div>
     </div>

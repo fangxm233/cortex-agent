@@ -470,7 +470,7 @@ describe('buildTranscriptRows — the live streaming row', () => {
   it('appends the accumulating text as a streaming assistant row', () => {
     const rows = buildTranscriptRows(oneTurn, [], { streamingText: 'Tea begins as a' });
     const last = rows[rows.length - 1];
-    expect(last).toEqual({ kind: 'assistant', text: 'Tea begins as a', streaming: true });
+    expect(last).toEqual({ kind: 'assistant', text: 'Tea begins as a', streaming: true, preview: true });
   });
 
   it('adds no row when nothing is streaming', () => {
@@ -500,7 +500,57 @@ describe('buildTranscriptRows — the live streaming row', () => {
     ];
     const rows = buildTranscriptRows(oneTurn, tail, { streamingText: 'now answering' });
     expect(rows[rows.length - 2].kind).toBe('tools');
-    expect(rows[rows.length - 1]).toEqual({ kind: 'assistant', text: 'now answering', streaming: true });
+    expect(rows[rows.length - 1]).toEqual({ kind: 'assistant', text: 'now answering', streaming: true, preview: true });
+  });
+});
+
+// ── `preview` — which row is the not-yet-authoritative one ──────────────────────────────────────
+//
+// The smooth reveal paces ONLY the live preview, so the row model has to say which row that is.
+// `streaming` cannot answer it: the idle heuristic also flags the last COMPLETE assistant row for a
+// few seconds after the last event, and pacing an already-final message would re-type text the user
+// has read and leave an animation running after the turn went idle.
+
+describe('buildTranscriptRows — preview marks only the in-flight block', () => {
+  const oneTurn = tx([
+    {
+      turnIndex: 0,
+      messages: [{ type: 'user', text: 'about tea?', toolName: null, toolInput: null, ts: T, elapsedMs: null }],
+    },
+  ]);
+
+  it('marks the accumulating block as the preview', () => {
+    const rows = buildTranscriptRows(oneTurn, [], { streamingText: 'Tea begins as a' });
+    const last = rows[rows.length - 1] as { kind: string; preview?: boolean };
+    expect(last.preview).toBe(true);
+  });
+
+  it('never marks a persisted assistant row as the preview', () => {
+    const persisted = tx([
+      {
+        turnIndex: 0,
+        messages: [
+          { type: 'user', text: 'about tea?', toolName: null, toolInput: null, ts: T, elapsedMs: null },
+          { type: 'assistant', text: 'Tea begins as a leaf.', toolName: null, toolInput: null, ts: T, elapsedMs: null },
+        ],
+      },
+    ]);
+    const rows = buildTranscriptRows(persisted, [], {});
+    const assistants = rows.filter((r) => r.kind === 'assistant') as { preview?: boolean }[];
+    expect(assistants.every((a) => !a.preview)).toBe(true);
+  });
+
+  it('never marks the authoritative message as the preview while the idle heuristic still says streaming', () => {
+    // The handover instant: the complete message is in the live tail, the preview is retired, but
+    // `streaming` stays true until the quiet gap elapses. That row must settle, not animate.
+    const tail: LiveSessionMessage[] = [
+      { sessionId: 's1', role: 'assistant', text: 'Tea begins as a leaf.', ts: T, blockId: 'msg_A:1' },
+    ];
+    const rows = buildTranscriptRows(oneTurn, tail, { streaming: true, streamingText: null });
+    const assistants = rows.filter((r) => r.kind === 'assistant') as { streaming: boolean; preview?: boolean }[];
+    expect(assistants).toHaveLength(1);
+    expect(assistants[0].streaming).toBe(true);
+    expect(assistants[0].preview).toBeUndefined();
   });
 });
 
@@ -593,7 +643,7 @@ describe('buildTranscriptRows — pending user rows are pinned to the bottom', (
       streamingText: 'A bicycle is',
       pendingUser: [{ ts: 'T-write', text: 'stop and say TEXT-INTERRUPTED' }],
     });
-    expect(rows[rows.length - 2]).toEqual({ kind: 'assistant', text: 'A bicycle is', streaming: true });
+    expect(rows[rows.length - 2]).toEqual({ kind: 'assistant', text: 'A bicycle is', streaming: true, preview: true });
     expect(rows[rows.length - 1]).toEqual({ kind: 'user', text: 'stop and say TEXT-INTERRUPTED', pending: true, attachments: undefined, ts: 'T-write' });
   });
 
