@@ -97,6 +97,30 @@ test('logger backpressure — drops oldest event and emits event-logger.dropped 
   assert.ok(jobKeys.includes('k4'), 'k4 (newest) must be present in the log');
 });
 
+// ── (c2) transient events are not logged ─────────────────────────────────
+
+test('logger skips session.message.delta — a preview is never persisted, and it would dominate the log', async () => {
+  const logDir = path.join(tmpDir, 'delta-skip-test');
+  const bus = new EventBus();
+  createEventLogger(bus, { logDir });
+
+  // A single reply produces dozens of these; the authoritative session.message follows and IS logged.
+  for (let i = 0; i < 40; i++) {
+    bus.publish({ type: 'session.message.delta', sessionId: 's1', channel: 'web:c', blockId: 'msg_A:1', text: 'chunk', seq: i });
+  }
+  bus.publish({ type: 'session.message', sessionId: 's1', channel: 'web:c', role: 'assistant', text: 'the whole reply', blockId: 'msg_A:1' });
+
+  await bus.close();
+
+  const files = await fs.readdir(logDir);
+  const content = await fs.readFile(path.join(logDir, files[0]), 'utf8');
+  const lines = content.trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  const types = lines.map((e: any) => e.type);
+
+  assert.ok(!types.includes('session.message.delta'), 'deltas must not reach the event log');
+  assert.ok(types.includes('session.message'), 'the complete message is still logged');
+});
+
 // ── (d) SIGTERM flush writes to disk ─────────────────────────────────────
 
 test('SIGTERM flush — bus.close() drains buffered events to disk', async () => {

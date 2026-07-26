@@ -19,6 +19,10 @@ export interface SessionMessagePayload {
    *  `ts` as the conversation-history entry so the web UI's content-based de-dup
    *  (transcript query vs live-tail) produces identical keys for the same message. */
   ts?: string;
+  /** Set on an assistant message whose text was streamed as `session.message.delta` events first.
+   *  The web chat replaces that block's accumulated preview with this text instead of adding a
+   *  second row. Absent whenever nothing streamed (non-Claude backend, kill switch, older CLI). */
+  blockId?: string;
 }
 
 export function publishSessionMessage(p: SessionMessagePayload): void {
@@ -32,6 +36,31 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.toolInput !== undefined ? { toolInput: p.toolInput } : {}),
     ...(p.attachments !== undefined ? { attachments: p.attachments } : {}),
     ...(p.ts !== undefined ? { ts: p.ts } : {}),
+    ...(p.blockId !== undefined ? { blockId: p.blockId } : {}),
+  });
+}
+
+/** Emit one coalesced chunk of an assistant text block that is still being generated (token-level
+ *  streaming). Published by the agent-runner through the delta coalescer, for Web UI sessions only —
+ *  Slack / Feishu / Ink-TUI render complete messages and never see these. The finalizing
+ *  `session.message` carrying the same `blockId` remains authoritative: the UI replaces the
+ *  accumulated preview with it. Nothing here is persisted. No-op when no bus is wired. */
+export function publishSessionMessageDelta(p: {
+  sessionId: string;
+  channel: string;
+  blockId: string;
+  /** The increment since this block's previous event — never the accumulated total. */
+  text: string;
+  /** 0-based, per blockId; lets a client notice it missed one. */
+  seq: number;
+}): void {
+  jobCtx.bus?.publish({
+    type: 'session.message.delta',
+    sessionId: p.sessionId,
+    channel: p.channel,
+    blockId: p.blockId,
+    text: p.text,
+    seq: p.seq,
   });
 }
 

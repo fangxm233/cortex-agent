@@ -170,6 +170,80 @@ test('subscribe close() signals iterator done', async () => {
   assert.equal(result.done, true);
 });
 
+// ── session.message.delta: the pre-filter that keeps a busy session off everyone else's queue ──
+
+test('a session-scoped subscription receives that session deltas', async () => {
+  const bus = new EventBus();
+  const sub = createSubscription(bus, {
+    events: ['session.message.delta'],
+    sessionId: 'sess-A',
+  });
+
+  bus.publish({ type: 'session.message.delta', sessionId: 'sess-A', channel: 'web:c', blockId: 'b1', text: 'hi', seq: 0 });
+
+  const iter = sub[Symbol.asyncIterator]();
+  const ev = await iter.next();
+  assert.equal(ev.value.type, 'session.message.delta');
+  assert.equal((ev.value.payload as any).text, 'hi');
+  sub.close();
+
+});
+
+test('an UNSCOPED subscription gets no deltas at all, even having asked for the type', async () => {
+  // Deltas are only ever renderable by the client watching that one session. A subscription with
+  // no session scope (the app-wide live stream) would otherwise take every session's deltas into
+  // a 256-slot queue and shed the events it actually needs.
+  const bus = new EventBus();
+  const sub = createSubscription(bus, {
+    events: ['session.message.delta', 'session.status'],
+  });
+
+  bus.publish({ type: 'session.message.delta', sessionId: 'sess-A', channel: 'web:c', blockId: 'b1', text: 'x', seq: 0 });
+  bus.publish({ type: 'session.status', sessionId: 'sess-A', channel: 'web:c', running: false });
+
+  const iter = sub[Symbol.asyncIterator]();
+  const ev = await iter.next();
+  assert.equal(ev.value.type, 'session.status', 'the delta was filtered out before the queue');
+  sub.close();
+});
+
+test('deltas of another session never enter a scoped queue', async () => {
+  const bus = new EventBus();
+  const sub = createSubscription(bus, {
+    events: ['session.message.delta'],
+    sessionId: 'sess-A',
+  });
+
+  bus.publish({ type: 'session.message.delta', sessionId: 'sess-B', channel: 'web:c', blockId: 'b9', text: 'leak?', seq: 0 });
+  bus.publish({ type: 'session.message.delta', sessionId: 'sess-A', channel: 'web:c', blockId: 'b1', text: 'mine', seq: 0 });
+
+  const iter = sub[Symbol.asyncIterator]();
+  const ev = await iter.next();
+  assert.equal((ev.value.payload as any).text, 'mine');
+  sub.close();
+});
+
+test('a delta flood from another session cannot evict a subscriber own events', async () => {
+  // The regression this guards: 300 deltas (> the 256-slot cap) published while a subscriber is
+  // not draining. Without the pre-filter they would push every earlier event out of the queue.
+  const bus = new EventBus();
+  const sub = createSubscription(bus, {
+    events: ['session.message.delta', 'session.message'],
+    sessionId: 'sess-A',
+  });
+
+  bus.publish({ type: 'session.message', sessionId: 'sess-A', channel: 'web:c', role: 'user', text: 'the message that must survive' });
+  for (let i = 0; i < 300; i++) {
+    bus.publish({ type: 'session.message.delta', sessionId: 'sess-B', channel: 'web:c', blockId: 'bB', text: 'noise', seq: i });
+  }
+
+  const iter = sub[Symbol.asyncIterator]();
+  const ev = await iter.next();
+  assert.equal(ev.value.type, 'session.message');
+  assert.equal((ev.value.payload as any).text, 'the message that must survive');
+  sub.close();
+});
+
 test('subscribe close() unblocks pending iterator next()', async () => {
   const bus = new EventBus();
   const sub = createSubscription(bus, {

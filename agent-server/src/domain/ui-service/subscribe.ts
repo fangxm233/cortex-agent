@@ -1,11 +1,23 @@
 // input:  EventBus + SubscribeFilter
 // output: AsyncIterable<UiEvent> & { close() } — bounded queue, overflow emits synthetic dropped event
-// pos:    subscribe primitive for UiService
+// pos:    subscribe primitive for UiService. Scope filters are applied BEFORE enqueueing, and the
+//         high-volume types in SESSION_SCOPED_ONLY require a matching sessionId to be delivered.
 
 import type { EventBus } from '@events/index.js';
 import type { SubscribeFilter, UiEvent } from './types.js';
 
 const QUEUE_CAP = 256;
+
+/**
+ * Event types that a subscription only receives when it names the session they belong to.
+ *
+ * `session.message.delta` is a token-level preview: dozens per reply, and useful to exactly one
+ * client — the one rendering that session's chat. Letting an unscoped subscription (the app's
+ * shared live stream carries every session) take them would fill the 256-slot queue with another
+ * session's previews and drop-oldest away the status / thread / task events it exists to deliver.
+ * So the scope is required rather than optional: no `sessionId` filter, no deltas.
+ */
+const SESSION_SCOPED_ONLY = new Set<string>(['session.message.delta']);
 
 interface AsyncQueue<T> {
   push(item: T): void;
@@ -99,6 +111,12 @@ export function createSubscription(
 
   const subscriptions = eventTypes.map((type) => {
     const sub = bus.subscribe(type as any, (event: any) => {
+      // Pre-filter the scope-required types BEFORE anything reaches the bounded queue, so one
+      // busy session can never shed another subscriber's events (see SESSION_SCOPED_ONLY).
+      if (SESSION_SCOPED_ONLY.has(event.type) && (!sessionId || event.sessionId !== sessionId)) {
+        return;
+      }
+
       // Post-filter by projectId if specified
       if (projectId && event.projectId && event.projectId !== projectId) {
         return;

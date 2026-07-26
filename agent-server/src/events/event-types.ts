@@ -10,7 +10,13 @@ export type CortexEvent =
   // Message / interaction
   | { type: 'message.received';       ts: string; channel: string; user: string; text: string }
   | { type: 'message.edited';         ts: string; channel: string; user: string; text: string }
-  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string }
+  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string }
+  // Token-level preview of an assistant text block still being generated. `text` is the INCREMENT
+  // since the previous event of that `blockId`, never the accumulated total; `seq` starts at 0 per
+  // block. Superseded by the `session.message` carrying the same `blockId`, which is authoritative.
+  // Never persisted (not in conversation history, not in the event log) — a dropped delta costs a
+  // moment of preview, nothing more.
+  | { type: 'session.message.delta';  ts: string; sessionId: string; channel: string; blockId: string; text: string; seq: number }
   | { type: 'session.status';         ts: string; sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }
   | { type: 'session.turn';           ts: string; sessionId: string; channel: string; numTurns: number }
   // Message edit + rewind: the session transcript changed shape (turns ≥ turnIndex rolled back).

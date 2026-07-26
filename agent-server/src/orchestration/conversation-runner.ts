@@ -51,7 +51,10 @@ export interface RunConversationOptions {
   /** Fired once the execution record is created, before the agent starts — lets the caller
    *  attach an execution-scoped Cancel button to the status message. */
   onExecutionStarted?: (executionId: string) => void | Promise<void>;
-  onAssistantMessage?: ((text: string) => void) | null;
+  /** `blockId` is present when the backend streamed this text first (token-level streaming). */
+  onAssistantMessage?: ((text: string, blockId?: string) => void) | null;
+  /** Incremental chunk of a block still being generated. Web chat only — see delta-coalescer. */
+  onAssistantDelta?: ((text: string, blockId: string) => void) | null;
   onProgress?: ((progress: any) => void) | null;
   onFallback?: ((...args: any[]) => Promise<void>) | null;
   onToolUse?: ((name: string, input: any) => void) | null;
@@ -167,6 +170,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     onFallback: opts.onFallback ?? null,
     isUserInitiated: true,
     onAssistantMessage: opts.onAssistantMessage,
+    onAssistantDelta: opts.onAssistantDelta ?? null,
     onProgress: opts.onProgress,
     onToolUse: opts.onToolUse,
     onPlanWritten: opts.onPlanWritten ?? null,

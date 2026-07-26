@@ -29,6 +29,7 @@ const log = createLogger('agent-runner');
 import { createToolTrace } from '@platform/index.js';
 import { setStreamingCallback, clearStreamingCallback, publishPlanSubmitted, publishAskUserRequested } from './routing/hook-bridge.js';
 import { publishSessionMessage, publishSessionStatus, publishSessionTurn } from './session-events.js';
+import { createSessionDeltaStream } from './delta-coalescer.js';
 import { runningExecutions } from '@core/running-executions.js';
 import { bgHeldSessions } from '@core/bg-held-sessions.js';
 import { maybeNotifyCodexLowUsage } from '@domain/costs/codex-usage-monitor.js';
@@ -212,6 +213,10 @@ export class AgentRunner {
     // ContinuationSink was registered to stream the spontaneous continuation. The hold owns the
     // terminal running:false publish, so the finally below must NOT seal the session idle.
     let webBgHeld = false;
+    // Token-level streaming for the Web chat. Null for every other surface (Slack / Feishu /
+    // Ink-TUI / threads) and when the feature is off, so those paths keep receiving complete
+    // messages only. Lives for the turn; sealed in the finally below.
+    const deltaStream = createSessionDeltaStream({ sessionId, channel });
     try {
       const convResult = await runConversation({
         adapter, channel,
@@ -232,12 +237,17 @@ export class AgentRunner {
           }).catch(() => {});
           initStatusBlocks(statusMsg, blocksTemplateWithExec);
         },
-        onAssistantMessage: (text: string) => {
+        onAssistantDelta: deltaStream ? (text: string, blockId: string) => deltaStream.onDelta(text, blockId) : null,
+        onAssistantMessage: (text: string, blockId?: string) => {
+          // Drain this block's preview FIRST: the authoritative message must never be overtaken by
+          // a delta still sitting in the coalescer, or the UI would replace the row and then append
+          // a stale fragment to it.
+          if (blockId) deltaStream?.flush(blockId);
           callbacks.onAssistantMsg(text);
           if (sessionId && text) {
             const ts = new Date().toISOString();
             recordHistory(conversationHistory.appendAssistant(sessionId, { text, ts }));
-            publishSessionMessage({ sessionId, channel, role: 'assistant', text, ts });
+            publishSessionMessage({ sessionId, channel, role: 'assistant', text, ts, ...(blockId ? { blockId } : {}) });
           }
         },
         onProgress: (progress: any) => {
@@ -319,6 +329,8 @@ export class AgentRunner {
         sessionName, sessionId, threadAnchorId, userMessageTs: messageTs, userMessage,
       });
     } finally {
+      // The turn is over (successfully, in error, or cancelled): no preview may outlive it.
+      deltaStream?.dispose();
       // Skip the idle seal when a web bg-hold is active — it owns the terminal running:false
       // publish once the background work finishes (else the session flips to idle immediately and
       // the spontaneous continuation is untracked).

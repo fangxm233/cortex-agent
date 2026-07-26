@@ -27,6 +27,18 @@ const META_EVENTS = new Set<string>([
   'event-logger.dropped',
 ]);
 
+/**
+ * Transient events that are deliberately NOT written to the log.
+ *
+ * `session.message.delta` is a token-level preview of a block the bus also carries complete: dozens
+ * of them per reply, all of it repeated verbatim by the `session.message` that follows. Logging
+ * them would multiply the daily jsonl for zero recoverable information, and would evict real events
+ * from the ring buffer while doing it. They are still published — live subscribers get them.
+ */
+const TRANSIENT_EVENTS = new Set<string>([
+  'session.message.delta',
+]);
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface LogEntry {
@@ -72,6 +84,8 @@ export function createEventLogger(bus: EventBus, opts?: EventLoggerOptions): Eve
     if (disabled) return;
     // Skip meta-events to prevent re-entrant backpressure loops (see META_EVENTS comment above)
     if (META_EVENTS.has(e.type)) return;
+    // Skip high-volume previews that carry nothing the complete event doesn't (see TRANSIENT_EVENTS)
+    if (TRANSIENT_EVENTS.has(e.type)) return;
 
     // Backpressure: drop oldest entry if ring buffer is full
     if (buffer.length >= bufferSize) {
