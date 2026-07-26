@@ -1,5 +1,5 @@
 // input:  running-executions snapshot + the incoming plain user message + injected side effects
-// output: isInjectableMessage / backendSupportsInject / tryInjectIntoLiveTurn
+// output: backend-neutral live-turn routing + delivered/undelivered two-phase commit lifecycle
 // pos:    orch/ — the busy-channel branch of AgentRunner.route (inject into the live turn ⇄ queue)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,8 +7,8 @@
  * Mid-turn user-message injection.
  *
  * A user message arriving while its channel already has a live turn used to wait in
- * `conduit-queue` until that turn finished. When the backend can take it (Claude print mode,
- * `Capability.MidTurnInject`) it is instead written straight into the running turn's stdin, so the
+ * `conduit-queue` until that turn finished. When the backend can take it (Claude print mode or PI
+ * RPC, via `Capability.MidTurnInject`) it is written into the live backend process, so the
  * agent sees it while it is still working rather than minutes later.
  *
  * Two things make this more than a write() call, both measured:
@@ -19,15 +19,15 @@
  *     awaiting it. The adapter routes that spontaneous turn to the continuation sink registered
  *     here, so the reply is streamed instead of dropped.
  *  2. **Writing is not delivering.** A message can sit queued inside the CLI for seconds (measured:
- *     written at 6.0s, read at 12.0s). The `--replay-user-messages` echo fires at the moment of
- *     consumption and is the only honest delivery signal.
+ *     written at 6.0s, read at 12.0s). Each adapter reports the backend's consumption edge; for
+ *     Claude that is `--replay-user-messages`, while PI reports a user `message_start`.
  *
  * Because of (2) the message enters the record in TWO phases:
  *
  *  - **write** — publish the `session.message` with `pending: true` so every connected client can
  *    show it right away, but append nothing. Until the model has read it, everything the agent is
  *    emitting was produced without it, and belongs ABOVE it.
- *  - **consumption** — the echo appends the history record and opens the ledger turn, both stamped
+ *  - **consumption** — the adapter ack appends the history record and opens the ledger turn, stamped
  *    with the consumption time, then publishes `session.message.delivered` carrying the pending
  *    row's key and the new committed key so the client can re-key its row to the one a transcript
  *    refetch will return.
@@ -121,7 +121,7 @@ export function isInjectableMessage(opts: { text: string; senderId: string }): b
   return true;
 }
 
-/** True when the backend declares `Capability.MidTurnInject` (Claude only). */
+/** True when the backend declares `Capability.MidTurnInject`. */
 export function backendSupportsInject(backend: string): boolean {
   return !!CAPABILITIES_BY_BACKEND[backend as Backend]?.has(Capability.MidTurnInject);
 }
@@ -139,7 +139,7 @@ function selectInjectTarget(execs: LiveExecutionLike[]): InjectableProcess | nul
 
 /** An injected message written to the backend but not yet read by the model. */
 interface PendingInjection {
-  /** Matched against the replay echo, which carries the text and nothing else. */
+  /** Matched against the backend lifecycle ack, which carries the original text. */
   text: string;
   /** Write-time ts — the key the pending row is showing under on every connected client. */
   ts: string;
@@ -229,7 +229,7 @@ export function tryInjectIntoLiveTurn(deps: MidTurnInjectDeps, ctx: MidTurnInjec
     // not linger and swallow a LATER injection's ack by matching on the same text first.
     const idx = state.pending.findIndex((p) => p.release === release);
     if (idx !== -1) state.pending.splice(idx, 1);
-    // The window closed. If the echo never came (wedged CLI, process death, cap expiry) this is
+    // The window closed. If no delivery ack came (wedged CLI, process death, cap expiry) this is
     // where the message stopped being pending, so this is where it honestly enters the record —
     // a message the user really sent is never silently dropped. A no-op once already committed.
     commit();
@@ -274,13 +274,18 @@ function registerSinks(
       const idx = state.pending.findIndex((p) => p.text === text);
       if (idx === -1) return;
       const [entry] = state.pending.splice(idx, 1);
-      // The echo IS the consumption instant: the message enters the record here, after everything
-      // the agent emitted while it was still queued.
+      // The backend consumption edge is the commit instant: everything emitted while the message
+      // was queued stays above it in the record.
       entry.commit();
       // Folded into the running turn ⇒ that turn's own machinery carries the reply and holds the
       // gate. Otherwise the CLI is opening a turn of its own, so keep holding until it results.
       if (foldedIntoTurn) entry.release();
       else disposeIfIdle(channel);
+    },
+    onUndelivered: ({ text }) => {
+      const entry = state.pending.find((p) => p.text === text);
+      // `release` removes this entry, commits it at the seal, and is single-fire.
+      entry?.release();
     },
   });
 

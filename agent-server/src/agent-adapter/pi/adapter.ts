@@ -1,24 +1,39 @@
 // input:  AgentSpawnConfig, session keys, injectable spawner
-// output: PIAdapter + PISession + switch_session API + assistant_delta streaming preview
-// pos:    PI CLI session pool and AgentAdapter implementation
+// output: PIAdapter + PISession + switch_session + prompt-steering + assistant_delta preview
+// pos:    PI CLI session pool, live-turn injection, and AgentAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { spawn as defaultSpawn, execSync, type ChildProcess, type SpawnOptions } from 'child_process';
-import { mkdirSync, readdirSync, openSync, readSync, closeSync } from 'fs';
+import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
+import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR, INSTALL_ROOT } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
-import type { AgentAdapter, AgentProcess, AgentSpawnConfig, Backend, UserMessage } from '../types.js';
-import type { AgentResult, AskUserQuestionInfo } from '@core/types/agent-types.js';
+import type { AgentAdapter, AgentProcess, AgentSpawnConfig, Backend, InjectionAckSink, UserMessage } from '../types.js';
+import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildSpawnArgs } from './spawn-args.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, type PIEventParserState } from './event-parser.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR, writeProvidersConfig, buildProviderOverrides, ensureAuthVisible } from './agent-dir.js';
-import { parsePiListModelsOutput } from '@core/gateway-generator.js';
 import { buildPrompt } from '../normalize/prompt-builder.js';
 import { fromCanonical } from '../normalize/tool-names.js';
+import { discoverPIProviders, piSessionFileExists } from './discovery.js';
+import {
+  CLOSE_EXIT_WAIT_MS,
+  DEFAULT_PI_BINARY,
+  EventQueue,
+  PI_IDLE_SESSION_TIMEOUT,
+  PI_MAX_TIMEOUT,
+  PI_TURN_IDLE_TIMEOUT,
+  PISteeringQueue,
+  SWITCH_SESSION_TIMEOUT_MS,
+  parseRpcObject,
+  type PendingPiTurn,
+  type PISessionOptions,
+  type SpawnFn,
+  type SwitchResult,
+} from './session-support.js';
 
 const log = createLogger('pi-adapter');
 
@@ -26,74 +41,6 @@ function buildPromptText(msg: UserMessage): string {
   return buildPrompt(msg.text, msg.attachments ?? []);
 }
 
-/**
- * Discover unique PI provider names by shelling out to `pi --list-models`. Called at spawn time
- * so the multi-provider models.json reflects whatever the user has currently authenticated to.
- *
- * PI writes the table to stderr — merge via 2>&1. Returns empty array on any failure (PI not
- * installed, timeout, parse error); the caller logs a warning and proceeds without overriding
- * models.json, which means the PI subprocess will fall back to direct upstream calls.
- *
- * Uses the user's real ~/.pi/agent/ for discovery (no PI_CODING_AGENT_DIR override) — symmetric
- * with cortex init's gateway-generator.scanPIViaListModels(). ensureAuthVisible() then mirrors
- * the auth file into PI_AGENT_DIR so the actual spawn can see those credentials.
- */
-function discoverPIProviders(): string[] {
-  try {
-    const stdout = execSync('pi --list-models 2>&1', {
-      timeout: 10_000,
-      encoding: 'utf-8',
-      // Intentionally do NOT set PI_CODING_AGENT_DIR — read user's real PI config.
-      env: { ...process.env, PI_CODING_AGENT_DIR: '' },
-    });
-    const models = parsePiListModelsOutput(stdout);
-    const uniq = new Set<string>();
-    for (const m of models) uniq.add(m.provider);
-    return Array.from(uniq);
-  } catch (err) {
-    log.info(`pi --list-models failed at spawn: ${(err as Error).message ?? 'unknown'}`);
-    return [];
-  }
-}
-
-/**
- * Does a PI session file matching `sessionId` exist under `sessionDir`? PI names session files
- * `<timestamp>_<piId>.jsonl` (the full backend id is embedded in the filename), so the filename
- * check is the reliable fast path. As a fallback (naming drift / partial ids) it reads a bounded
- * prefix of each `.jsonl` and matches the header line's `id` field. Any FS error → false (treat as
- * absent, i.e. start fresh — the safe default this guard exists to enforce).
- */
-function piSessionFileExists(sessionDir: string, sessionId: string): boolean {
-  if (!sessionId) return false;
-  let files: string[];
-  try {
-    files = readdirSync(sessionDir).filter((f) => f.endsWith('.jsonl'));
-  } catch {
-    return false;
-  }
-  // Fast path: the backend id is embedded in PI's filename.
-  if (files.some((f) => f.includes(sessionId))) return true;
-  // Fallback: match the header line's `id` field via a bounded prefix read (avoids loading a
-  // potentially large transcript just to inspect the first line).
-  for (const f of files) {
-    let fd: number | null = null;
-    try {
-      fd = openSync(path.join(sessionDir, f), 'r');
-      const buf = Buffer.alloc(8192);
-      const n = readSync(fd, buf, 0, buf.length, 0);
-      const firstLine = buf.toString('utf8', 0, n).split('\n', 1)[0];
-      const obj = JSON.parse(firstLine) as Record<string, unknown>;
-      if (obj && (obj.id === sessionId || obj.sessionId === sessionId)) return true;
-    } catch {
-      /* ignore unreadable / non-JSON header */
-    } finally {
-      if (fd !== null) { try { closeSync(fd); } catch { /* ignore */ } }
-    }
-  }
-  return false;
-}
-
-const DEFAULT_PI_BINARY = 'pi';
 // DEFAULT_SESSION_DIR: sessionId.jsonl files are stored here (convention: <sessionDir>/<sessionId>.jsonl).
 // Sessions stored under logs/sessions-pi/; PI_CODING_AGENT_DIR points to data/ for models.json.
 const DEFAULT_SESSION_DIR = PI_SESSIONS_DIR;
@@ -103,18 +50,6 @@ const DEFAULT_SESSION_DIR = PI_SESSIONS_DIR;
 const MCP_BRIDGE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/mcp-bridge.js');
 const TOOL_SHIMS_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/tool-shims.js');
 const HOOK_BRIDGE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/hook-bridge.js');
-// Per FINDINGS.md §S1, pi rpc exits cleanly on stdin close; observed bootstrap cost ≈ 500 ms.
-// 5 s is a safety margin; if pi does not exit in that window close() falls back to SIGTERM.
-const CLOSE_EXIT_WAIT_MS = 5000;
-// switch_session response timeout: if pi does not ack within this window, reject the pending promise.
-const SWITCH_SESSION_TIMEOUT_MS = 5000;
-const PI_IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
-const PI_TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
-const PI_MAX_TIMEOUT = 30_000_000;
-
-/** Result of a switch_session RPC: ok=true when pi acked, cancelled=true when an in-flight agent was preempted. */
-type SwitchResult = { ok: boolean; cancelled: boolean };
-
 /**
  * PI-specific extension of AgentProcess that exposes sendExtensionUiResponse.
  * Callers that need to respond to ask_user_question events (plan approval, interactive questions)
@@ -127,52 +62,7 @@ export interface PIAgentProcess extends AgentProcess {
   sendExtensionUiResponse(id: string, payload: Record<string, unknown>): void;
 }
 
-type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
-
-interface PISessionOptions {
-  sessionKey: string;
-  sessionDir: string;
-  cliArgs: string[];
-  cwd: string;
-  env: NodeJS.ProcessEnv;
-  spawner: SpawnFn;
-  /** Shared session-path registry; bootstrap handler registers sessionId → path on first session_started. */
-  registry: Map<string, string>;
-  /** sessionDir used to derive paths; passed here so PISession does not need a PIAdapter back-reference. */
-  registrySessionDir: string;
-  /** Called when session self-closes (idle timeout, max timeout) so the adapter can remove it from the pool. */
-  onClose?: (sessionKey: string) => void;
-}
-
-class EventQueue {
-  private readonly pending: NormalizedEvent[] = [];
-  private readonly waiters: ((r: IteratorResult<NormalizedEvent>) => void)[] = [];
-  private closed = false;
-
-  push(evt: NormalizedEvent): void {
-    if (this.closed) return;
-    const waiter = this.waiters.shift();
-    if (waiter) waiter({ value: evt, done: false });
-    else this.pending.push(evt);
-  }
-
-  next(): Promise<IteratorResult<NormalizedEvent>> {
-    const buffered = this.pending.shift();
-    if (buffered) return Promise.resolve({ value: buffered, done: false });
-    if (this.closed) return Promise.resolve({ value: undefined, done: true });
-    return new Promise<IteratorResult<NormalizedEvent>>((resolve) => {
-      this.waiters.push(resolve);
-    });
-  }
-
-  close(): void {
-    if (this.closed) return;
-    this.closed = true;
-    for (const w of this.waiters.splice(0)) {
-      w({ value: undefined, done: true });
-    }
-  }
-}
+type PiTurnComplete = Extract<NormalizedEvent, { type: 'turn_complete' }>;
 
 class PISession {
   readonly sessionKey: string;
@@ -215,16 +105,9 @@ class PISession {
     reject: (e: Error) => void;
   } | null = null;
   private pendingSwitchTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Accumulator for the current in-flight turn. Resolved/rejected by handleRawLine. */
-  private pendingTurn: {
-    resolve: (r: AgentResult) => void;
-    reject: (e: Error) => void;
-    planFilePath: string | null;
-    askUserQuestions: AskUserQuestionInfo[];
-    rateLimited: boolean;
-    numTurns: number | null;
-    totalCostUsd: number | null;
-  } | null = null;
+  /** Accumulator for the current in-flight Cortex turn. Resolved/rejected by handleRawLine. */
+  private pendingTurn: PendingPiTurn | null = null;
+  private readonly steering = new PISteeringQueue();
 
   constructor(opts: PISessionOptions) {
     this.sessionKey = opts.sessionKey;
@@ -260,6 +143,10 @@ class PISession {
           }
           entry.reject(new Error('pi subprocess exited while switch_session was pending'));
         }
+        // Seal every accepted steering message before rejecting the outer turn. This releases
+        // orchestration's pending UI row and busy bracket even when PI dies before consumption.
+        this.steering.abandon();
+        this.steering.clearSink();
         // Reject any pending turn promise if the process exits without a turn_complete.
         if (this.pendingTurn !== null) {
           const t = this.pendingTurn;
@@ -361,125 +248,197 @@ class PISession {
     this.resetIdleTimer();
     this.bumpTurnIdleTimer();
 
-    // Intercept switch_session response BEFORE event-parser: event-parser silently drops
-    // successful non-bootstrap responses (return []), so switch_session acks must be
-    // correlated here to resolve/reject the pending promise.
-    if (this.pendingSwitch !== null) {
-      let obj: unknown = null;
-      try { obj = JSON.parse(line); } catch { /* fall through to event-parser */ }
-      if (obj && typeof obj === 'object') {
-        const r = obj as Record<string, unknown>;
-        if (
-          r['type'] === 'response' &&
-          r['command'] === 'switch_session' &&
-          r['id'] === this.pendingSwitch.id
-        ) {
-          const entry = this.pendingSwitch;
-          this.pendingSwitch = null;
-          if (this.pendingSwitchTimer !== null) {
-            clearTimeout(this.pendingSwitchTimer);
-            this.pendingSwitchTimer = null;
-          }
-          const data = r['data'];
-          const cancelled =
-            data && typeof data === 'object'
-              ? Boolean((data as Record<string, unknown>)['cancelled'])
-              : false;
-          entry.resolve({ ok: r['success'] === true, cancelled });
-          return;
-        }
-      }
-    }
+    const raw = parseRpcObject(line);
+    if (this.handleSwitchResponse(raw)) return;
+    const finishDeferred = this.handleInjectionProtocol(raw);
 
     for (const evt of piRpcLineToNormalized(line, this.parserState)) {
-      if (evt.type === 'session_started' && this.sessionId === null) {
-        this.sessionId = evt.sessionId;
-        this.currentSessionId = evt.sessionId;
-        // Use sessionFile from bootstrap if available; fall back to legacy path guess.
-        if (evt.sessionFile) {
-          this.sessionFile = evt.sessionFile;
-          this.registry.set(evt.sessionId, evt.sessionFile);
-        } else {
-          this.registry.set(evt.sessionId, path.join(this.registrySessionDir, `${evt.sessionId}.jsonl`));
-        }
-      }
-
-      // Accumulate turn result data for pending send() promise.
-      if (this.pendingTurn !== null) {
-        if (evt.type === 'plan_written') {
-          this.pendingTurn.planFilePath = evt.path;
-        } else if (evt.type === 'ask_user_question') {
-          // Do NOT accumulate in pendingTurn.askUserQuestions: PI ask_user_question
-          // events are handled in real-time via the facade event loop → onAskUserQuestion
-          // callback → Slack interaction → sendExtensionUiResponse. Accumulating here
-          // would cause handleAgentSuccess to re-post the already-answered questions
-          // via sendMessages after turn_complete, leaving the agent stuck in
-          // "Waiting for user input" forever.
-        } else if (evt.type === 'rate_limit') {
-          this.pendingTurn.rateLimited = true;
-        } else if (evt.type === 'turn_complete') {
-          // Flush buffered text before resolving the turn so downstream sees all text.
-          this.flushTextBuffer();
-          if (this.turnIdleTimer) { clearTimeout(this.turnIdleTimer); this.turnIdleTimer = null; }
-          const t = this.pendingTurn;
-          this.pendingTurn = null;
-          if (evt.error) {
-            // Turn-level error (e.g. gateway "400 Unknown mode") — fail the turn so the lifecycle
-            // shows ❌ Error and posts the message, matching the Claude adapter's is_error path.
-            // Fall through (no continue) so turn_complete is still pushed to this.events and the
-            // facade event loop terminates cleanly, exactly like the fatal-error branch below.
-            t.reject(new Error(evt.error));
-          } else {
-            const result: AgentResult = {
-              sessionId: this.sessionId,
-              total_cost_usd: evt.totalCostUsd,
-              num_turns: evt.numTurns,
-              rateLimited: t.rateLimited,
-              rateLimitMessage: null,
-              planFilePath: t.planFilePath,
-              enteredPlanMode: false,
-              exitedPlanMode: t.planFilePath !== null,
-              askUserQuestions: t.askUserQuestions.length > 0 ? t.askUserQuestions : undefined,
-              finalOutput: null,
-            };
-            t.resolve(result);
-          }
-        } else if (evt.type === 'error' && evt.fatal) {
-          this.flushTextBuffer();
-          if (this.turnIdleTimer) { clearTimeout(this.turnIdleTimer); this.turnIdleTimer = null; }
-          const t = this.pendingTurn;
-          this.pendingTurn = null;
-          t.reject(new Error(evt.message));
-        }
-      }
-
-      // Buffer assistant_text deltas until a message boundary (turn_progress from
-      // message_end) or a non-text event arrives, then flush as a single event.
-      // This matches Claude adapter behavior where onAssistantMessage fires once
-      // per complete assistant message block, not per token.
-      if (evt.type === 'assistant_text') {
-        const blockId = evt.blockId ?? null;
-        // A different blockId means the previous block ended without an intervening non-text
-        // event; flush it so one assistant_text never mixes text from two blocks.
-        if (this.textBuffer.length > 0 && blockId !== this.textBlockId) this.flushTextBuffer();
-        this.textBlockId = blockId;
-        // Stream the incremental chunk for the live UI preview. Emitted at PI's native
-        // per-token granularity — coalescing happens downstream, before the bus. The buffered
-        // whole message below stays authoritative (Slack, history, transcript).
-        if (this.streamDeltas && blockId !== null) {
-          this.events.push({ type: 'assistant_delta', text: evt.text, blockId });
-        }
-        this.textBuffer += evt.text;
-      } else {
-        this.flushTextBuffer();
-        this.events.push(evt);
-      }
+      this.captureSessionStarted(evt);
+      const output = this.processPendingTurnEvent(evt);
+      if (output !== null) this.emitNormalizedEvent(output);
     }
+
+    if (finishDeferred) {
+      const terminal = this.finishDeferredTurn();
+      if (terminal !== null) this.emitNormalizedEvent(terminal);
+    }
+  }
+
+  /** Correlate switch_session before the generic parser drops its response. */
+  private handleSwitchResponse(raw: Record<string, unknown> | null): boolean {
+    const pending = this.pendingSwitch;
+    if (
+      pending === null || raw?.['type'] !== 'response' ||
+      raw['command'] !== 'switch_session' || raw['id'] !== pending.id
+    ) return false;
+
+    this.pendingSwitch = null;
+    if (this.pendingSwitchTimer !== null) {
+      clearTimeout(this.pendingSwitchTimer);
+      this.pendingSwitchTimer = null;
+    }
+    const data = raw['data'];
+    const cancelled = data && typeof data === 'object'
+      ? Boolean((data as Record<string, unknown>)['cancelled'])
+      : false;
+    pending.resolve({ ok: raw['success'] === true, cancelled });
+    return true;
+  }
+
+  /** Observe PI-only delivery/rejection events that intentionally stay out of NormalizedEvent. */
+  private handleInjectionProtocol(raw: Record<string, unknown> | null): boolean {
+    if (raw?.['type'] === 'message_start' && this.isUserStart(raw['message'])) {
+      const turn = this.pendingTurn;
+      if (turn && !turn.openingUserSeen) turn.openingUserSeen = true;
+      else if (turn) this.steering.consumeNext();
+      return false;
+    }
+    if (!raw || !this.steering.rejectFromResponse(raw)) return false;
+    return !this.steering.hasPending && this.pendingTurn?.deferredCompletion === true;
+  }
+
+  private isUserStart(message: unknown): boolean {
+    return !!message && typeof message === 'object' &&
+      (message as Record<string, unknown>)['role'] === 'user';
+  }
+
+  private captureSessionStarted(evt: NormalizedEvent): void {
+    if (evt.type !== 'session_started' || this.sessionId !== null) return;
+    this.sessionId = evt.sessionId;
+    this.currentSessionId = evt.sessionId;
+    if (evt.sessionFile) {
+      this.sessionFile = evt.sessionFile;
+      this.registry.set(evt.sessionId, evt.sessionFile);
+    } else {
+      this.registry.set(evt.sessionId, path.join(this.registrySessionDir, `${evt.sessionId}.jsonl`));
+    }
+  }
+
+  /** Update the outer send() promise and optionally replace/suppress a terminal event. */
+  private processPendingTurnEvent(evt: NormalizedEvent): NormalizedEvent | null {
+    const turn = this.pendingTurn;
+    if (!turn) return evt;
+    if (evt.type === 'plan_written') turn.planFilePath = evt.path;
+    else if (evt.type === 'rate_limit') turn.rateLimited = true;
+    // ask_user_question is handled live by the facade; accumulating it would post it twice.
+    else if (evt.type === 'ask_user_question') { /* intentionally not accumulated */ }
+    else if (evt.type === 'turn_complete') return this.handleTurnComplete(evt);
+    else if (evt.type === 'error' && evt.fatal) {
+      this.flushTextBuffer();
+      this.clearTurnIdleTimer();
+      this.steering.abandon();
+      this.pendingTurn = null;
+      turn.reject(new Error(evt.message));
+    }
+    return evt;
+  }
+
+  private handleTurnComplete(evt: PiTurnComplete): PiTurnComplete | null {
+    const turn = this.pendingTurn!;
+    this.flushTextBuffer();
+    turn.numTurns += evt.numTurns;
+    if (evt.totalCostUsd !== null) turn.totalCostUsd = (turn.totalCostUsd ?? 0) + evt.totalCostUsd;
+    if (evt.error) {
+      this.steering.abandon();
+      return this.settlePendingTurn(evt.error);
+    }
+    if (this.steering.hasPending) {
+      turn.deferredCompletion = true;
+      return null;
+    }
+    return this.settlePendingTurn();
+  }
+
+  private finishDeferredTurn(): PiTurnComplete | null {
+    if (!this.pendingTurn?.deferredCompletion || this.steering.hasPending) return null;
+    return this.settlePendingTurn();
+  }
+
+  private settlePendingTurn(error?: string): PiTurnComplete {
+    const turn = this.pendingTurn!;
+    this.pendingTurn = null;
+    this.clearTurnIdleTimer();
+    const terminal: PiTurnComplete = error
+      ? { type: 'turn_complete', numTurns: turn.numTurns, totalCostUsd: turn.totalCostUsd, error }
+      : { type: 'turn_complete', numTurns: turn.numTurns, totalCostUsd: turn.totalCostUsd };
+    if (error) turn.reject(new Error(error));
+    else turn.resolve(this.buildAgentResult(turn));
+    return terminal;
+  }
+
+  private buildAgentResult(turn: PendingPiTurn): AgentResult {
+    return {
+      sessionId: this.sessionId,
+      total_cost_usd: turn.totalCostUsd,
+      num_turns: turn.numTurns,
+      rateLimited: turn.rateLimited,
+      rateLimitMessage: null,
+      planFilePath: turn.planFilePath,
+      enteredPlanMode: false,
+      exitedPlanMode: turn.planFilePath !== null,
+      askUserQuestions: turn.askUserQuestions.length > 0 ? turn.askUserQuestions : undefined,
+      finalOutput: null,
+    };
+  }
+
+  private clearTurnIdleTimer(): void {
+    if (!this.turnIdleTimer) return;
+    clearTimeout(this.turnIdleTimer);
+    this.turnIdleTimer = null;
+  }
+
+  /** Buffer deltas into whole assistant messages while preserving Web preview events. */
+  private emitNormalizedEvent(evt: NormalizedEvent): void {
+    if (evt.type !== 'assistant_text') {
+      this.flushTextBuffer();
+      this.events.push(evt);
+      return;
+    }
+    const blockId = evt.blockId ?? null;
+    if (this.textBuffer.length > 0 && blockId !== this.textBlockId) this.flushTextBuffer();
+    this.textBlockId = blockId;
+    if (this.streamDeltas && blockId !== null) {
+      this.events.push({ type: 'assistant_delta', text: evt.text, blockId });
+    }
+    this.textBuffer += evt.text;
   }
 
   send(msg: UserMessage): void {
     if (!this.alive) throw new Error('PISession.send: subprocess is not alive');
-    this.proc.stdin?.write(encodeCommand({ type: 'prompt', message: buildPromptText(msg) }));
+    this.writeOpeningPrompt(buildPromptText(msg));
+  }
+
+  private writeOpeningPrompt(promptText: string): void {
+    const stdin = this.proc.stdin;
+    if (!stdin) throw new Error('PISession: subprocess stdin is unavailable');
+    stdin.write(encodeCommand({ type: 'prompt', message: promptText }));
+    if (this.pendingTurn) this.pendingTurn.promptDispatched = true;
+  }
+
+  /** Queue a message at PI's next agent-loop boundary without opening a new Cortex run. */
+  injectUserMessage(msg: UserMessage): boolean {
+    const stdin = this.proc.stdin;
+    if (
+      !this.alive || !this.pendingTurn?.promptDispatched || !stdin ||
+      stdin.destroyed || stdin.writableEnded
+    ) return false;
+    const entry = this.steering.begin(msg.text);
+    try {
+      stdin.write(encodeCommand({
+        id: entry.id,
+        type: 'prompt',
+        message: buildPromptText(msg),
+        streamingBehavior: 'steer',
+      }));
+      return true;
+    } catch {
+      this.steering.rollback(entry);
+      return false;
+    }
+  }
+
+  setInjectionAckSink(sink: InjectionAckSink): void {
+    this.steering.setSink(sink);
   }
 
   /**
@@ -524,7 +483,7 @@ class PISession {
     if (this.currentSessionId !== targetSessionId) {
       if (targetPath === null) {
         // Can't switch without a path; write prompt to current session as fallback.
-        this.proc.stdin?.write(encodeCommand({ type: 'prompt', message: promptText }));
+        this.writeOpeningPrompt(promptText);
         return { switched: false, cancelled: false };
       }
       const result = await this.sendSwitchSession(targetPath);
@@ -534,12 +493,12 @@ class PISession {
       // BLOCKER-1 fix: write prompt in every branch regardless of result.ok.
       // NTH-A: if result.ok===false (pi rejected switch), the prompt goes to the current
       // (un-switched) session — intentional best-effort, caller can inspect result.ok.
-      this.proc.stdin?.write(encodeCommand({ type: 'prompt', message: promptText }));
+      this.writeOpeningPrompt(promptText);
       return { switched: result.ok, cancelled: result.cancelled };
     }
 
     // Same session: write prompt directly.
-    this.proc.stdin?.write(encodeCommand({ type: 'prompt', message: promptText }));
+    this.writeOpeningPrompt(promptText);
     return { switched: false, cancelled: false };
   }
 
@@ -572,8 +531,11 @@ class PISession {
       planFilePath: null,
       askUserQuestions: [],
       rateLimited: false,
-      numTurns: null,
+      numTurns: 0,
       totalCostUsd: null,
+      promptDispatched: false,
+      openingUserSeen: false,
+      deferredCompletion: false,
     };
     this.startTurnIdleTimer();
   }
@@ -583,6 +545,7 @@ class PISession {
     if (this.pendingTurn !== null) {
       const t = this.pendingTurn;
       this.pendingTurn = null;
+      this.steering.abandon();
       t.reject(err);
     }
   }
@@ -762,6 +725,8 @@ export class PIAdapter implements AgentAdapter {
       sendExtensionUiResponse: (id: string, payload: Record<string, unknown>): void => {
         session.sendExtensionUiResponse(id, payload);
       },
+      injectUserMessage: (msg: UserMessage): boolean => session.injectUserMessage(msg),
+      setInjectionAckSink: (sink: InjectionAckSink): void => session.setInjectionAckSink(sink),
       events: session.eventsIterable,
       close: async () => {
         await session.close();

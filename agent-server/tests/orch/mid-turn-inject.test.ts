@@ -1,5 +1,5 @@
 // input:  Node test runner + orchestration/mid-turn-inject (all side effects injected)
-// output: spec for the route() inject-vs-queue branch + the pending→committed two-phase commit
+// output: backend-neutral inject routing + delivered/undelivered pending→committed two-phase commit
 // pos:    orch/ mid-turn injection routing tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -99,9 +99,9 @@ test('isInjectableMessage: an empty message is not injectable', () => {
   assert.equal(isInjectableMessage({ text: '   ', senderId: 'U1' }), false);
 });
 
-test('backendSupportsInject: claude only', () => {
+test('backendSupportsInject: Claude and PI declare live-turn injection', () => {
   assert.equal(backendSupportsInject('claude'), true);
-  assert.equal(backendSupportsInject('pi'), false);
+  assert.equal(backendSupportsInject('pi'), true);
   assert.equal(backendSupportsInject('codex'), false);
   assert.equal(backendSupportsInject('nonsense'), false);
 });
@@ -117,7 +117,7 @@ test('no live execution on the channel → not injected (falls back to the norma
 
 test('live execution on a backend without MidTurnInject → not injected', () => {
   const proc = fakeProcess();
-  const r = recorder({}, { backend: 'pi', agentProcess: proc });
+  const r = recorder({}, { backend: 'codex', agentProcess: proc });
   assert.equal(tryInjectIntoLiveTurn(r.deps, baseCtx), false);
   assert.deepEqual(proc.injectedTexts, []);
 });
@@ -372,6 +372,20 @@ test('a message the backend never consumed is committed when the injection windo
   } finally {
     vi.useRealTimers();
   }
+});
+
+test('an adapter undelivered ack commits and releases exactly once', () => {
+  const proc = fakeProcess();
+  const r = recorder({}, { backend: 'pi', agentProcess: proc });
+  tryInjectIntoLiveTurn(r.deps, baseCtx);
+
+  proc.ackSink.onUndelivered({ text: 'skip the rest' });
+  proc.ackSink.onUndelivered({ text: 'skip the rest' });
+
+  assert.deepEqual(r.history.map((h) => h.text), ['skip the rest']);
+  assert.equal(r.ledger.length, 1, 'the sealed message takes one ledger turn');
+  assert.equal(r.delivered.length, 1, 'pending UI row is committed once');
+  assert.deepEqual(r.track, [+1, -1], 'undelivered seal cannot leak or double-release the gate');
 });
 
 test('a spontaneous turn ending with an injection still outstanding commits it too', () => {

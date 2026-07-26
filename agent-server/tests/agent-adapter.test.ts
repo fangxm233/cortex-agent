@@ -1,5 +1,5 @@
 // input:  Node test runner + agent-adapter/index exports
-// output: dispatcher/capability/tool-name/exhaustive tests
+// output: dispatcher/capability matrix (including PI mid-turn injection)/tool-name/exhaustive tests
 // pos:    agent-adapter abstraction layer contract lock-down test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -75,6 +75,7 @@ test('CAPABILITIES_BY_BACKEND encodes DR-0008 §3.2 / §3.4 / §5.1 capability m
   assert.equal(p.has(Capability.PlanMode), true);  // Phase 2 §S3: tool-shims + extension_ui_response routing (2026-04-27)
   assert.equal(p.has(Capability.AskUserQuestion), true);  // Phase 2 §S3: tool-shims + extension_ui_response routing (2026-04-27)
   assert.equal(p.has(Capability.SessionResume), true);  // S2 spike passed; switch_session + path registry landed (task 7ca9)
+  assert.equal(p.has(Capability.MidTurnInject), true);  // PI RPC prompt streamingBehavior=steer
 });
 
 test('getAdapter returns the same capability set as CAPABILITIES_BY_BACKEND', () => {

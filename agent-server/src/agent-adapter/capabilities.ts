@@ -1,5 +1,5 @@
 // input:  Backend type from types.ts
-// output: Capability enum + CAPABILITIES_BY_BACKEND matrix
+// output: Capability enum + backend matrix including Claude/PI live-turn injection
 // pos:    Capability declaration matrix per backend
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -52,6 +52,7 @@ const CODEX_CAPS: Capability[] = [
 // MCP enabled by mcp-bridge.ts extension (task 5754): auto-injected via --extension in PIAdapter.spawn();
 // PlanMode/AskUserQuestion: implemented via tool-shims.ts pseudo-tools + extension_ui_response routing (Phase 2 §S3, 2026-04-27);
 // SessionResume: S2 spike confirmed --session <path> resume works (DR-0008 §8 gate ticked, task 7ca9).
+// MidTurnInject: RPC prompt streamingBehavior=steer queues a message at the next agent-loop boundary.
 // Hooks via PI extension bridge per §3.5 — capability declared true because the extension is part of the default PI adapter package.
 const PI_CAPS: Capability[] = [
   Capability.Hooks,
@@ -63,6 +64,7 @@ const PI_CAPS: Capability[] = [
   Capability.ToolAllowlist,
   Capability.SessionResume,
   Capability.StreamingDeltas,
+  Capability.MidTurnInject,
 ];
 
 export const CAPABILITIES_BY_BACKEND: Record<Backend, Set<Capability>> = {
