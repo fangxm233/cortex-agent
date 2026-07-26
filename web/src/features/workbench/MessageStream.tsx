@@ -413,9 +413,8 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   );
 }
 
-function AssistantBlock({ text, streaming, attachments, editCopy, regen }: {
+function AssistantBlock({ text, attachments, editCopy, regen }: {
   text: string;
-  streaming: boolean;
   attachments?: Attachment[];
   /** Present → the「由编辑重新生成」footnote renders (agent messages carry no copy affordance). */
   editCopy?: MEditCopy;
@@ -428,22 +427,10 @@ function AssistantBlock({ text, streaming, attachments, editCopy, regen }: {
       style={{ position: 'relative', animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both', fontSize: 14, lineHeight: 1.65, color: 'var(--proto-ink-2)', minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}
     >
       {editCopy && regen && <div style={{ marginBottom: 4 }}><RegenNote copy={editCopy} /></div>}
+      {/* Token-level streaming carries NO caret here: the text visibly extends itself and the
+          composer already reports the running turn, so a blinking block only adds noise. The
+          mobile stream keeps its own caret (smaller viewport, no persistent status line). */}
       {text.trim() && <ChatMarkdown text={text} />}
-      {/* Token-level streaming: this text is still arriving. Same caret the mobile stream uses. */}
-      {streaming && (
-        <span
-          aria-hidden="true"
-          style={{
-            display: 'inline-block',
-            width: 7,
-            height: 14,
-            marginLeft: 2,
-            verticalAlign: 'text-bottom',
-            background: 'var(--proto-accent)',
-            animation: 'cxblink 1.1s steps(1) infinite',
-          }}
-        />
-      )}
       {hasAttachments && <AgentFileGroup attachments={attachments!} />}
     </div>
   );
@@ -568,7 +555,7 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
     case 'tools':
       return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input }))} />;
     case 'assistant':
-      return <AssistantBlock text={row.text} streaming={row.streaming} attachments={row.attachments} editCopy={editCopy} regen={regen} />;
+      return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} regen={regen} />;
     case 'interaction':
       return <InteractionRowCard row={row} actions={interactionActions} />;
     default:

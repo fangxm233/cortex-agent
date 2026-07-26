@@ -4,10 +4,10 @@ import { LangProvider } from '@/i18n';
 import { MessageStream } from './MessageStream';
 import type { ChatRow } from './transcript-vm';
 
-// The desktop assistant block used to drop its `streaming` flag on the floor, so a reply being
-// written looked identical to a finished one. With token-level streaming the distinction is the
-// point: a caret marks text that is still arriving (same treatment the mobile stream already gives
-// it — `cxblink`, index.css).
+// Token-level streaming renders as text that simply grows — deliberately WITHOUT a caret or any
+// other "still writing" marker (product decision, 2026-07-25). The composer's Running state already
+// says a turn is in flight, and a blinking block in the message column reads as noise next to prose
+// that is visibly extending itself. The mobile stream keeps its own caret; this is desktop only.
 
 // Components consume useVocab() → wrap every render in LangProvider (defaults to en vocab).
 function render(rows: ChatRow[]): string {
@@ -19,10 +19,14 @@ function render(rows: ChatRow[]): string {
 }
 
 describe('MessageStream — streaming assistant row', () => {
-  it('marks a streaming row with the blinking caret', () => {
+  it('renders the partial text of a row still being written', () => {
     const html = render([{ kind: 'assistant', text: 'Tea begins as a', streaming: true }]);
     expect(html).toContain('Tea begins as a');
-    expect(html).toContain('cxblink');
+  });
+
+  it('renders no caret while streaming', () => {
+    const html = render([{ kind: 'assistant', text: 'Tea begins as a', streaming: true }]);
+    expect(html).not.toContain('cxblink');
   });
 
   it('renders no caret once the row is complete', () => {
@@ -31,9 +35,9 @@ describe('MessageStream — streaming assistant row', () => {
     expect(html).not.toContain('cxblink');
   });
 
-  it('shows the caret alone while the very first chunk is still empty-ish', () => {
-    // A one-character preview must still render — the caret is the "it started" signal.
+  it('renders a one-character first chunk as ordinary text', () => {
     const html = render([{ kind: 'assistant', text: 'T', streaming: true }]);
-    expect(html).toContain('cxblink');
+    expect(html).toContain('T');
+    expect(html).not.toContain('cxblink');
   });
 });

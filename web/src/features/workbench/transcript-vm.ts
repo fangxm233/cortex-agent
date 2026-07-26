@@ -100,7 +100,7 @@ export interface BuildOpts {
   formatDivider?: (ts: string, now: Date) => string;
   /**
    * Text accumulated for the assistant block currently being written (token-level streaming).
-   * Rendered as one extra assistant row at the very end, carrying the streaming caret. The row
+   * Rendered as one extra assistant row at the very end, flagged `streaming`. The row
    * disappears the moment the hook retires the preview, which is the same render pass in which the
    * complete message enters the live tail — so the text never flickers or doubles.
    */
@@ -282,7 +282,8 @@ function dayStamp(ts: string): string {
  * Build the ordered prototype chat-row list from the fetched transcript plus any live-tail events not
  * yet reflected in it. Consecutive tool messages collapse into one `tools` row; a `divider` is emitted
  * whenever the local calendar day changes (incl. before the first message); the last assistant row
- * carries the streaming caret when `opts.streaming` is set.
+ * is flagged `streaming` when `opts.streaming` is set (the desktop stream renders no caret for it;
+ * the mobile stream does).
  */
 export function buildTranscriptRows(
   transcript: SessionTranscript,
