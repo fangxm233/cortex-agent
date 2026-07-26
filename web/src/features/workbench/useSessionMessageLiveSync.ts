@@ -1,12 +1,17 @@
+// input:  shared/scoped SSE hooks, React Query, transcript reconciliation helpers
+// output: useSessionMessageLiveSync with authoritative tail and live preview state
+// pos:    React bridge between session events and chat transcript rows
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { SESSION_LIVE_EVENTS } from '@/features/live/live-events';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
-import type { LiveSessionMessage, PendingUserMessage, StreamingBlock } from './transcript-vm';
+import type { LiveSessionMessage, PendingUserMessage, AssistantPreviewState } from './transcript-vm';
 import {
-  resolveRunning, resolveBackgroundRunning, applyAssistantDelta, endStreamingBlock,
+  resolveRunning, resolveBackgroundRunning, initialAssistantPreviewState,
+  applyAssistantPreviewDelta, finalizeAssistantPreview,
   applyDelivered, reconcilePendingUserMessages,
 } from './transcript-vm';
 import { useAssistantDeltaStream } from './useAssistantDeltaStream';
@@ -103,8 +108,9 @@ export function useSessionMessageLiveSync(
   const [statusBackground, setStatusBackground] = useState<boolean | null>(null);
   // Live agent-turn count from the `session.turn` delta. Null until the first event for this session.
   const [liveTurns, setLiveTurns] = useState<number | null>(null);
-  // The assistant block being previewed token by token (null whenever nothing is streaming).
-  const [streamingBlock, setStreamingBlock] = useState<StreamingBlock | null>(null);
+  // The assistant block being previewed plus finalized block ids. The latter span the shared
+  // message stream and scoped delta stream, preventing a late delta from reopening a settled row.
+  const [assistantPreview, setAssistantPreview] = useState<AssistantPreviewState>(initialAssistantPreviewState);
   // Messages written into the running turn's backend that the model has not read yet. Deliberately
   // a separate list, not part of the ordered tail — see SessionLiveState.pendingUser.
   const [pendingUser, setPendingUser] = useState<PendingUserMessage[]>([]);
@@ -125,7 +131,7 @@ export function useSessionMessageLiveSync(
     setStatusRunning(null);
     setStatusBackground(null);
     setLiveTurns(null);
-    setStreamingBlock(null);
+    setAssistantPreview(initialAssistantPreviewState());
     setPending([]);
     return () => {
       if (idleTimer.current) clearTimeout(idleTimer.current);
@@ -145,7 +151,7 @@ export function useSessionMessageLiveSync(
   // Token-level preview. Accumulate only — the transcript query is NOT invalidated per delta (a
   // reply produces dozens of these, and none of them changes persisted history).
   useAssistantDeltaStream(sessionId, !!options.deltas, (ev) => {
-    setStreamingBlock((prev) => applyAssistantDelta(prev, ev));
+    setAssistantPreview((prev) => applyAssistantPreviewDelta(prev, ev));
   });
 
   // Reconnect recovery: after a stream drop (sleep, network blip) events are lost for good — when the
@@ -178,9 +184,9 @@ export function useSessionMessageLiveSync(
         } else {
           // Turn ended — collapse the heuristic immediately so idle is instant, not a 2.5s tail.
           setStreaming(false);
-          // …and drop any preview the turn left behind (cancelled turn, error, a block whose
-          // complete message never arrived). An idle session must never show a live caret.
-          setStreamingBlock(null);
+          // …and seal any preview the turn left behind. Keep its block id tombstoned: status and
+          // delta use different SSE connections, so an already-in-flight late delta may arrive next.
+          setAssistantPreview((prev) => finalizeAssistantPreview(prev, undefined));
           if (idleTimer.current) clearTimeout(idleTimer.current);
         }
         // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
@@ -193,7 +199,7 @@ export function useSessionMessageLiveSync(
       // entirely and refetch the authoritative transcript.
       if (raw.type === 'session.rewound') {
         setLiveTail([]);
-        setStreamingBlock(null);
+        setAssistantPreview((prev) => finalizeAssistantPreview(prev, undefined));
         setPending([]);
         queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
@@ -261,7 +267,7 @@ export function useSessionMessageLiveSync(
       // The authoritative text for a previewed block: retire the preview in the SAME state update
       // that appends the message, so the row is replaced rather than briefly doubled.
       if (p.role === 'assistant') {
-        setStreamingBlock((prev) => endStreamingBlock(prev, p.blockId));
+        setAssistantPreview((prev) => finalizeAssistantPreview(prev, p.blockId));
       }
       setLiveTail((prev) => {
         const next = [...prev, msg];
@@ -279,5 +285,5 @@ export function useSessionMessageLiveSync(
   // Snapshot + delta: event wins once received; snapshot restores state before that; heuristic last.
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
   const backgroundRunning = resolveBackgroundRunning(statusBackground, snapshotBackgroundRunning);
-  return { liveTail, streaming, running, backgroundRunning, liveTurns, streamingText: streamingBlock?.text ?? null, pendingUser };
+  return { liveTail, streaming, running, backgroundRunning, liveTurns, streamingText: assistantPreview.active?.text ?? null, pendingUser };
 }

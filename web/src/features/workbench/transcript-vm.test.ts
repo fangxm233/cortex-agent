@@ -1,3 +1,7 @@
+// input:  transcript-vm pure helpers and neutral session fixtures
+// output: transcript row, streaming handoff, and pending-message regression tests
+// pos:    Workbench transcript view-model specification
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   buildTranscriptRows,
@@ -11,6 +15,9 @@ import {
   rewindStats,
   applyAssistantDelta,
   endStreamingBlock,
+  initialAssistantPreviewState,
+  applyAssistantPreviewDelta,
+  finalizeAssistantPreview,
   applyDelivered,
   reconcilePendingUserMessages,
   type LiveSessionMessage,
@@ -456,6 +463,43 @@ describe('endStreamingBlock — the authoritative message takes over', () => {
 
   it('is a no-op when nothing is streaming', () => {
     expect(endStreamingBlock(null, 'msg_A:1')).toBe(null);
+  });
+});
+
+describe('assistant preview handoff — final messages seal their block', () => {
+  const delta = (blockId: string, text: string, seq = 0) => ({ blockId, text, seq });
+
+  it('does not recreate a preview when the final message arrives before a late delta', () => {
+    let state = initialAssistantPreviewState();
+    state = applyAssistantPreviewDelta(state, delta('msg_A:1', 'Tea begins ', 0));
+    state = finalizeAssistantPreview(state, 'msg_A:1');
+    state = applyAssistantPreviewDelta(state, delta('msg_A:1', 'as a leaf.', 1));
+
+    expect(state.active).toBeNull();
+    expect(state.finalizedBlockIds).toContain('msg_A:1');
+  });
+
+  it('ignores a late delta even when this client saw the final before any preview chunk', () => {
+    let state = finalizeAssistantPreview(initialAssistantPreviewState(), 'msg_A:1');
+    state = applyAssistantPreviewDelta(state, delta('msg_A:1', 'last fragment', 4));
+    expect(state.active).toBeNull();
+  });
+
+  it('still starts the next distinct assistant block', () => {
+    let state = finalizeAssistantPreview(initialAssistantPreviewState(), 'msg_A:1');
+    state = applyAssistantPreviewDelta(state, delta('msg_A:2', 'A new block', 0));
+    expect(state.active).toEqual({ blockId: 'msg_A:2', text: 'A new block' });
+  });
+
+  it('produces one assistant row for the reported cross-SSE arrival order', () => {
+    const tail: LiveSessionMessage[] = [
+      { sessionId: 's1', role: 'assistant', text: 'Tea begins as a leaf.', ts: T, blockId: 'msg_A:1' },
+    ];
+    let state = finalizeAssistantPreview(initialAssistantPreviewState(), 'msg_A:1');
+    state = applyAssistantPreviewDelta(state, delta('msg_A:1', 'as a leaf.', 1));
+    const rows = buildTranscriptRows(tx([]), tail, { streamingText: state.active?.text ?? null });
+
+    expect(rows.filter((row) => row.kind === 'assistant')).toHaveLength(1);
   });
 });
 

@@ -1,3 +1,7 @@
+// input:  Session transcript DTOs, live message events, locale vocabulary
+// output: ChatRow builders and pure live-stream reconciliation state
+// pos:    Workbench transcript view-model and assistant preview handoff
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import type { SessionTranscript, TranscriptMessage, TranscriptInteractionDetail } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
@@ -73,6 +77,39 @@ export function endStreamingBlock(
   if (!prev) return null;
   if (!messageBlockId) return null;
   return messageBlockId === prev.blockId ? null : prev;
+}
+
+const FINALIZED_BLOCK_CAP = 32;
+
+/** Preview state spans both SSE connections: finalized ids stop a late delta from reopening a row. */
+export interface AssistantPreviewState {
+  active: StreamingBlock | null;
+  finalizedBlockIds: readonly string[];
+}
+
+export function initialAssistantPreviewState(): AssistantPreviewState {
+  return { active: null, finalizedBlockIds: [] };
+}
+
+export function applyAssistantPreviewDelta(
+  state: AssistantPreviewState,
+  ev: AssistantDeltaEvent,
+): AssistantPreviewState {
+  const blockId = ev.blockId;
+  if (!blockId || state.finalizedBlockIds.includes(blockId)) return state;
+  const active = applyAssistantDelta(state.active, ev);
+  return active === state.active ? state : { ...state, active };
+}
+
+export function finalizeAssistantPreview(
+  state: AssistantPreviewState,
+  messageBlockId: string | undefined,
+): AssistantPreviewState {
+  const finalizedId = messageBlockId ?? state.active?.blockId;
+  const active = endStreamingBlock(state.active, messageBlockId);
+  if (!finalizedId || state.finalizedBlockIds.includes(finalizedId)) return { ...state, active };
+  const finalizedBlockIds = [...state.finalizedBlockIds, finalizedId].slice(-FINALIZED_BLOCK_CAP);
+  return { active, finalizedBlockIds };
 }
 
 export type Attachment = { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' };
