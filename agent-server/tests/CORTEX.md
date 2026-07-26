@@ -46,6 +46,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 |---|---|---|
 | `agent-adapter/` | Subdirectory | Three-backend fixture-replay tests |
 | `orch/` | Subdirectory | Orch orchestration layer (running-executions / conduit-queue / superseded-edits / plan-approvals / ask-user-question-pi) regression tests |
+| `orchestration/` | Subdirectory | Orchestration units tested in isolation: `agent-file-send` (agent-produced file → workspace copy + transcript message), `session-rewind` (message edit rollback), `delta-coalescer` (token-level streaming: window/char-cap batching, per-block `seq`, the pre-finalize drain, and `createSessionDeltaStream` — the gate proving Slack / Feishu / Ink-TUI / thread channels never stream) |
 | `threads/` | Subdirectory | domain/threads/ domain layer regression tests ([S7]) |
 | `agent-adapter.test.ts` | Test | getAdapter/Capability/tool-names contract |
 | `agent-adapter-claude.test.ts` | Test | Claude buildSpawnArgs/hooks/summarizer |

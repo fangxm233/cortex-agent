@@ -1,5 +1,7 @@
 // input:  session-message payload + the shared EventBus (via job-registry ctx)
 // output: publishSessionMessage — emits a `session.message` CortexEvent for the S4 chat live stream
+//         (+ status / turn / rewound siblings, and publishSessionMessageDelta for the token-level
+//         preview that a `session.message` of the same blockId later supersedes)
 // pos:    orch/ — published at the conversation-history append points in agent-runner. Reads the
 //         bus from the shared job-registry ctx (same seam thread-callback uses), so the repo stays
 //         bus-free (L1) and the publish lives in the orchestration layer. No-op if no bus is wired.

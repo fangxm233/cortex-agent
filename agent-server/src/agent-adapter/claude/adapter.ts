@@ -1,6 +1,7 @@
 // input:  user message + session context, AgentSpawnConfig
 // output: runClaude / closeSession / ClaudeAdapter
-// pos:    Claude CLI session pool and AgentAdapter implementation
+// pos:    Claude CLI session pool and AgentAdapter implementation. Emits both the complete
+//         assistant_text and, while a text block is still being generated, assistant_delta.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn, ChildProcess } from 'child_process';
