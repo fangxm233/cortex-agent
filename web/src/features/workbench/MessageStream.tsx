@@ -345,7 +345,7 @@ function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Ele
   );
 }
 
-function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled }: {
+function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled, pending }: {
   text: string;
   attachments?: AttachmentMeta[];
   ts?: string;
@@ -355,6 +355,10 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   /** Present → the pill carries the edit button (rewind-capable rows only). */
   onStartEdit?: () => void;
   editDisabled?: boolean;
+  /** Written to the backend but not yet read by the model. Only the TEXT dims — the bubble keeps
+   *  its background and full opacity, and nothing else marks the state. The row is provisional, not
+   *  disabled or failing, and an icon/spinner/label would read as either. */
+  pending?: boolean;
 }): JSX.Element {
   const hasAttachments = attachments && attachments.length > 0;
   const [hover, setHover] = useState(false);
@@ -396,7 +400,7 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
               padding: '9px 14px',
               fontSize: 13.5,
               lineHeight: 1.55,
-              color: 'var(--proto-ink)',
+              color: pending ? 'var(--proto-muted)' : 'var(--proto-ink)',
               whiteSpace: 'pre-wrap',
               overflowWrap: 'break-word',
               wordBreak: 'break-word',
@@ -551,7 +555,7 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
     case 'divider':
       return <Divider text={row.text} />;
     case 'user':
-      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} />;
+      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} />;
     case 'tools':
       return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input }))} />;
     case 'assistant':

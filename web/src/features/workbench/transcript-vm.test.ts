@@ -11,7 +11,10 @@ import {
   rewindStats,
   applyAssistantDelta,
   endStreamingBlock,
+  applyDelivered,
+  reconcilePendingUserMessages,
   type LiveSessionMessage,
+  type PendingUserMessage,
   type StreamingBlock,
 } from './transcript-vm';
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
@@ -498,5 +501,131 @@ describe('buildTranscriptRows — the live streaming row', () => {
     const rows = buildTranscriptRows(oneTurn, tail, { streamingText: 'now answering' });
     expect(rows[rows.length - 2].kind).toBe('tools');
     expect(rows[rows.length - 1]).toEqual({ kind: 'assistant', text: 'now answering', streaming: true });
+  });
+});
+
+// ── A message the model has not read yet ────────────────────────────────────────────────────────
+//
+// Sending while a turn is running writes the message into the backend's stdin, which only QUEUES it
+// there — the model may not read it for seconds, or until after the current turn's result. Until it
+// does, the message is not part of the conversation and everything the agent is saying was said
+// without it, so it is held out of the ordered stream and shown as a provisional row at the bottom.
+
+describe('applyDelivered — a pending message entering the stream', () => {
+  const pending: PendingUserMessage[] = [
+    { ts: 'T-write-1', text: 'skip the rest' },
+    { ts: 'T-write-2', text: 'and one more' },
+  ];
+
+  it('re-keys the acked message to the committed ts and hands it to the tail', () => {
+    const out = applyDelivered(pending, { messageTs: 'T-write-1', committedTs: 'T-read-1' });
+    expect(out.committed).toEqual({ sessionId: '', role: 'user', text: 'skip the rest', ts: 'T-read-1', attachments: undefined });
+    expect(out.pending).toEqual([{ ts: 'T-write-2', text: 'and one more' }]);
+  });
+
+  it('carries the attachments across', () => {
+    const att = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
+    const out = applyDelivered([{ ts: 'T1', text: 'look', attachments: att }], { messageTs: 'T1', committedTs: 'T2' });
+    expect(out.committed?.attachments).toEqual(att);
+  });
+
+  it('ignores an ack for a message it is not holding', () => {
+    const out = applyDelivered(pending, { messageTs: 'T-unknown', committedTs: 'T-read' });
+    expect(out.committed).toBe(null);
+    expect(out.pending).toBe(pending);
+  });
+
+  it('falls back to the pending key when the server sent no committed ts', () => {
+    const out = applyDelivered(pending, { messageTs: 'T-write-1' });
+    expect(out.committed?.ts).toBe('T-write-1');
+  });
+
+  it('leaves the other pending messages in send order', () => {
+    const out = applyDelivered(pending, { messageTs: 'T-write-1', committedTs: 'T-read-1' });
+    const out2 = applyDelivered(out.pending, { messageTs: 'T-write-2', committedTs: 'T-read-2' });
+    expect(out2.pending).toEqual([]);
+    expect(out2.committed?.ts).toBe('T-read-2');
+  });
+});
+
+describe('reconcilePendingUserMessages — a lost ack must not strand a dimmed row', () => {
+  const pending: PendingUserMessage[] = [{ ts: '2026-07-07T07:42:00.000Z', text: 'skip the rest' }];
+  const withRecord = (ts: string, text: string): SessionTranscript =>
+    tx([{ turnIndex: 0, messages: [{ type: 'user', text, toolName: null, toolInput: null, ts, elapsedMs: null }] }]);
+
+  it('drops a pending message the refetched transcript already contains', () => {
+    expect(reconcilePendingUserMessages(pending, withRecord('2026-07-07T07:42:06.000Z', 'skip the rest'))).toEqual([]);
+  });
+
+  it('keeps one the transcript does not have yet', () => {
+    expect(reconcilePendingUserMessages(pending, withRecord('2026-07-07T07:42:06.000Z', 'something else'))).toBe(pending);
+  });
+
+  it('keeps it when the only matching record predates the send — that is an older, identical message', () => {
+    expect(reconcilePendingUserMessages(pending, withRecord('2026-07-07T07:00:00.000Z', 'skip the rest'))).toBe(pending);
+  });
+
+  it('two identical sends need two records before both clear', () => {
+    const twice: PendingUserMessage[] = [
+      { ts: '2026-07-07T07:42:00.000Z', text: 'stop' },
+      { ts: '2026-07-07T07:42:01.000Z', text: 'stop' },
+    ];
+    const one = reconcilePendingUserMessages(twice, withRecord('2026-07-07T07:42:06.000Z', 'stop'));
+    expect(one).toHaveLength(1);
+    expect(one[0].ts).toBe('2026-07-07T07:42:01.000Z');
+  });
+
+  it('returns the same list when nothing changed, so a refetch cannot loop the state', () => {
+    expect(reconcilePendingUserMessages(pending, tx([]))).toBe(pending);
+    expect(reconcilePendingUserMessages(pending, undefined)).toBe(pending);
+    const empty: PendingUserMessage[] = [];
+    expect(reconcilePendingUserMessages(empty, withRecord('2026-07-07T07:42:06.000Z', 'x'))).toBe(empty);
+  });
+});
+
+describe('buildTranscriptRows — pending user rows are pinned to the bottom', () => {
+  const oneTurn = tx([
+    { turnIndex: 0, messages: [{ type: 'user', text: 'write the essay', toolName: null, toolInput: null, ts: T, elapsedMs: null }] },
+  ]);
+
+  it('renders below the live streaming preview — the agent has not read it yet', () => {
+    const rows = buildTranscriptRows(oneTurn, [], {
+      streamingText: 'A bicycle is',
+      pendingUser: [{ ts: 'T-write', text: 'stop and say TEXT-INTERRUPTED' }],
+    });
+    expect(rows[rows.length - 2]).toEqual({ kind: 'assistant', text: 'A bicycle is', streaming: true });
+    expect(rows[rows.length - 1]).toEqual({ kind: 'user', text: 'stop and say TEXT-INTERRUPTED', pending: true, attachments: undefined, ts: 'T-write' });
+  });
+
+  it('keeps two pending messages in send order among themselves', () => {
+    const rows = buildTranscriptRows(oneTurn, [], {
+      pendingUser: [{ ts: 'T1', text: 'first' }, { ts: 'T2', text: 'second' }],
+    });
+    expect(rows.slice(-2).map((r) => (r.kind === 'user' ? r.text : r.kind))).toEqual(['first', 'second']);
+  });
+
+  it('carries attachments and never a turnIndex — a pending row is not editable', () => {
+    const att = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
+    const rows = buildTranscriptRows(oneTurn, [], { pendingUser: [{ ts: 'T1', text: 'look', attachments: att }] });
+    const last = rows[rows.length - 1];
+    expect(last.kind === 'user' && last.attachments).toEqual(att);
+    expect(last.kind === 'user' && last.turnIndex).toBeUndefined();
+  });
+
+  it('adds no rows when nothing is pending', () => {
+    expect(buildTranscriptRows(oneTurn, [], { pendingUser: [] })).toEqual(buildTranscriptRows(oneTurn, []));
+  });
+
+  it('once committed, the message is an ordinary row above later output', () => {
+    // What the hook produces at handover: out of `pendingUser`, into the tail under committedTs.
+    const tail: LiveSessionMessage[] = [
+      { sessionId: 's1', role: 'user', text: 'stop', ts: '2026-07-07T07:42:06.000Z' },
+      { sessionId: 's1', role: 'assistant', text: 'TEXT-INTERRUPTED', ts: '2026-07-07T07:42:07.000Z' },
+    ];
+    const rows = buildTranscriptRows(oneTurn, tail, { pendingUser: [] });
+    expect(rows.slice(-2)).toEqual([
+      { kind: 'user', text: 'stop', attachments: undefined, ts: '2026-07-07T07:42:06.000Z' },
+      { kind: 'assistant', text: 'TEXT-INTERRUPTED', streaming: false, attachments: undefined },
+    ]);
   });
 });

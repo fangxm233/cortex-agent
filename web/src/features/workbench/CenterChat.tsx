@@ -59,8 +59,12 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   // `deltas: true` — this is the surface that shows a live preview, so it opens the session-scoped
   // delta subscription. The reply then appears token by token instead of arriving whole after the
   // whole block is generated (measured on a long answer: first text at ~3.6s, complete at ~22s).
-  const { liveTail, streaming, running, backgroundRunning, liveTurns, streamingText } =
-    useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, { deltas: true });
+  // `transcript` is passed back in only so a pending row self-heals if its delivered event is lost.
+  const { liveTail, streaming, running, backgroundRunning, liveTurns, streamingText, pendingUser } =
+    useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
+      deltas: true,
+      transcript: transcriptQuery.data ?? null,
+    });
   // Interaction cards are transcript rows now (web-interactions-redesign) — this hook only
   // provides the answer/approve/reject actions; state lives in the transcript.
   const interactionActions = useInteractionActions(sessionId);
@@ -70,8 +74,8 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
 
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
-    () => buildTranscriptRows(transcript, liveTail, { streaming, streamingText, formatDivider: formatDividerFromVocab(L) }),
-    [transcript, liveTail, streaming, streamingText, L],
+    () => buildTranscriptRows(transcript, liveTail, { streaming, streamingText, pendingUser, formatDivider: formatDividerFromVocab(L) }),
+    [transcript, liveTail, streaming, streamingText, pendingUser, L],
   );
   const turns = turnCount(transcriptQuery.data);
   // The composer status line shows the REAL agent-turn count (the number that grows as the agent

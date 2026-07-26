@@ -1,7 +1,8 @@
 // input:  session-message payload + the shared EventBus (via job-registry ctx)
 // output: publishSessionMessage — emits a `session.message` CortexEvent for the S4 chat live stream
-//         (+ status / turn / rewound siblings, and publishSessionMessageDelta for the token-level
-//         preview that a `session.message` of the same blockId later supersedes)
+//         (+ status / turn / rewound siblings, publishSessionMessageDelta for the token-level
+//         preview that a `session.message` of the same blockId later supersedes, and
+//         publishSessionMessageDelivered which commits a `pending` message into the stream)
 // pos:    orch/ — published at the conversation-history append points in agent-runner. Reads the
 //         bus from the shared job-registry ctx (same seam thread-callback uses), so the repo stays
 //         bus-free (L1) and the publish lives in the orchestration layer. No-op if no bus is wired.
@@ -25,6 +26,10 @@ export interface SessionMessagePayload {
    *  The web chat replaces that block's accumulated preview with this text instead of adding a
    *  second row. Absent whenever nothing streamed (non-Claude backend, kill switch, older CLI). */
   blockId?: string;
+  /** Set on a user message injected into a live turn and not yet read by the model. It carries no
+   *  history entry yet — the client shows it as a provisional row until the matching
+   *  `session.message.delivered` commits it. Absent on every ordinary message. */
+  pending?: boolean;
 }
 
 export function publishSessionMessage(p: SessionMessagePayload): void {
@@ -39,6 +44,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.attachments !== undefined ? { attachments: p.attachments } : {}),
     ...(p.ts !== undefined ? { ts: p.ts } : {}),
     ...(p.blockId !== undefined ? { blockId: p.blockId } : {}),
+    ...(p.pending !== undefined ? { pending: p.pending } : {}),
   });
 }
 
@@ -67,16 +73,20 @@ export function publishSessionMessageDelta(p: {
 }
 
 /** Emit a `session.message.delivered` event: a message injected into a turn already in flight has
- *  now been consumed by the model. The injecting publish surfaces the message immediately (so the
- *  transcript shows it while the turn is still running) but it is only QUEUED inside the backend at
- *  that point; this event is the backend's own delivery ack, keyed to that message's `ts`. Published
- *  by mid-turn-inject.ts on the replay echo. No-op when no bus is wired. */
-export function publishSessionMessageDelivered(p: { sessionId: string; channel: string; messageTs: string }): void {
+ *  now been consumed by the model (or its injection window closed without that happening). The
+ *  injecting publish surfaces the message immediately as a PENDING row — the transcript shows it
+ *  while the turn is still running — but it is only queued inside the backend at that point and
+ *  holds no history entry. This event is the commit: `messageTs` identifies the pending row,
+ *  `committedTs` is the history ts it is re-keyed to, which is also what a transcript refetch
+ *  returns, so the live row and the fetched row dedupe as one. Published by mid-turn-inject.ts.
+ *  No-op when no bus is wired. */
+export function publishSessionMessageDelivered(p: { sessionId: string; channel: string; messageTs: string; committedTs: string }): void {
   jobCtx.bus?.publish({
     type: 'session.message.delivered',
     sessionId: p.sessionId,
     channel: p.channel,
     messageTs: p.messageTs,
+    committedTs: p.committedTs,
   });
 }
 

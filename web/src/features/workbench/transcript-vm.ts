@@ -75,12 +75,96 @@ export function endStreamingBlock(
 
 export type Attachment = { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' };
 
+// ── A user message the model has not read yet (`pending` / `session.message.delivered`) ─────────
+//
+// Sending while a turn is running writes the message into the backend's stdin, which only QUEUES it
+// there: the model reads it at the next agent-loop boundary, which can be seconds away or after the
+// current turn has finished answering something else entirely. Until it is read, the message is not
+// part of the conversation — everything the agent is emitting was produced without it — so it is
+// held OUT of the ordered stream and shown as a provisional row pinned to the bottom. The delivered
+// event is the moment it was read: it enters the stream there, under the ts it was recorded with.
+
+/** An injected message surfaced but not yet read by the model. `ts` is the write-time key the
+ *  `session.message` carried; it is replaced by the committed ts when the delivered event lands. */
+export interface PendingUserMessage {
+  ts: string;
+  text: string;
+  attachments?: Attachment[];
+}
+
+/** A `session.message.delivered` payload. */
+export interface DeliveredEvent {
+  sessionId?: string;
+  /** The pending row's key. */
+  messageTs?: string;
+  /** The conversation-history key it is re-keyed to — what a transcript refetch returns. */
+  committedTs?: string;
+}
+
+/**
+ * Move the acked message out of the pending list and into the ordered stream. The returned
+ * `committed` message is appended to the LIVE TAIL, i.e. after everything already emitted — which is
+ * exactly where the model read it. Keyed by `committedTs` so it dedupes against the same record when
+ * the transcript refetches. An ack for an unknown message changes nothing (a stale ack, or one for a
+ * row this client never saw); a server that sent no `committedTs` falls back to the pending key.
+ */
+export function applyDelivered(
+  pending: PendingUserMessage[],
+  ev: DeliveredEvent,
+): { pending: PendingUserMessage[]; committed: LiveSessionMessage | null } {
+  const { messageTs } = ev;
+  if (!messageTs) return { pending, committed: null };
+  const idx = pending.findIndex((p) => p.ts === messageTs);
+  if (idx === -1) return { pending, committed: null };
+  const entry = pending[idx];
+  return {
+    pending: pending.filter((_, i) => i !== idx),
+    committed: {
+      sessionId: ev.sessionId ?? '',
+      role: 'user',
+      text: entry.text,
+      ts: ev.committedTs || entry.ts,
+      attachments: entry.attachments,
+    },
+  };
+}
+
+/**
+ * Drop pending entries the authoritative transcript already holds. The delta/live streams are lossy
+ * by design, so a delivered event can be lost to a dropped frame — without this the row would stay
+ * dimmed forever even though the message was read and recorded. A record only clears a pending entry
+ * if it was written at or after the send (an identical message sent EARLIER in the session is a
+ * different message), and each record clears at most one entry, so sending the same text twice needs
+ * two records. Returns the input array unchanged when nothing matched, so a refetch cannot loop the
+ * caller's state.
+ */
+export function reconcilePendingUserMessages(
+  pending: PendingUserMessage[],
+  transcript: SessionTranscript | undefined | null,
+): PendingUserMessage[] {
+  if (pending.length === 0 || !transcript) return pending;
+  const records: { text: string; ts: string }[] = [];
+  for (const turn of transcript.turns) {
+    for (const m of turn.messages) {
+      if (m.type === 'user') records.push({ text: m.text ?? '', ts: m.ts });
+    }
+  }
+  const kept: PendingUserMessage[] = [];
+  for (const p of pending) {
+    const i = records.findIndex((r) => r.text === p.text && r.ts >= p.ts);
+    if (i === -1) kept.push(p);
+    else records.splice(i, 1);
+  }
+  return kept.length === pending.length ? pending : kept;
+}
+
 export type ChatRow =
   | { kind: 'divider'; text: string }
   // `turnIndex` is the rewind anchor (sessions.rewind) — absent on live-tail rows (not editable
   // until the transcript reconciles). `edited` backs the「已编辑」badge + original-message card;
-  // `ts` backs its HH:MM stamp.
-  | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string } }
+  // `ts` backs its HH:MM stamp. `pending` marks a message written to the backend but not yet read
+  // by the model: it renders in dimmed ink, pinned below everything the agent is currently saying.
+  | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean }
   | { kind: 'tools'; count: number; calls: { kind: string; input: string }[] }
   // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
   | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[] }
@@ -105,6 +189,13 @@ export interface BuildOpts {
    * complete message enters the live tail — so the text never flickers or doubles.
    */
   streamingText?: string | null;
+  /**
+   * Messages written into the running turn's backend but not yet read by the model. They render as
+   * the LAST rows of the stream — below the streaming preview too — in send order among themselves,
+   * flagged `pending`. Anything the agent says while they sit here was said without them, which is
+   * why they are not merged into the ordered tail until the delivered event moves them there.
+   */
+  pendingUser?: PendingUserMessage[];
 }
 
 /** Map a live `session.message` event into a `TranscriptMessage` (same shape the fetched DTO uses).
@@ -353,6 +444,12 @@ export function buildTranscriptRows(
         break;
       }
     }
+  }
+
+  // Last of all: the messages the model has not read yet. Everything above them — including the
+  // block being written right now — was produced without them, so they cannot sit any higher.
+  for (const p of opts.pendingUser ?? []) {
+    rows.push({ kind: 'user', text: p.text, attachments: p.attachments, ts: p.ts, pending: true });
   }
 
   return rows;

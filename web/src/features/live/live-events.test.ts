@@ -26,6 +26,12 @@ describe('LIVE_EVENT_TYPES', () => {
   });
 });
 
+describe('SESSION_LIVE_EVENTS', () => {
+  it('carries the mid-turn delivery commit — without it a sent message stays dimmed forever', () => {
+    expect(SESSION_LIVE_EVENTS).toContain('session.message.delivered');
+  });
+});
+
 describe('ASSISTANT_DELTA_EVENTS', () => {
   it('names the token-level preview event', () => {
     expect(ASSISTANT_DELTA_EVENTS).toEqual(['session.message.delta']);

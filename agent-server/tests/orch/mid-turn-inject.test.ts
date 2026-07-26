@@ -1,9 +1,9 @@
 // input:  Node test runner + orchestration/mid-turn-inject (all side effects injected)
-// output: spec for the route() inject-vs-queue branch + immediate surfacing + delivery ack
+// output: spec for the route() inject-vs-queue branch + the pending→committed two-phase commit
 // pos:    orch/ mid-turn injection routing tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, beforeEach } from 'vitest';
+import { test, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
@@ -151,63 +151,121 @@ test('an unresolved session id → not injected (nothing to surface the message 
   assert.equal(tryInjectIntoLiveTurn(r.deps, { ...baseCtx, sessionId: null }), false);
 });
 
-// --- The happy path: injected + surfaced immediately ---
+// --- Phase 1 of the commit: surfaced as PENDING, nothing recorded yet ---
 
-test('injects into the live turn and surfaces the message immediately, sharing one ts', () => {
+test('injects into the live turn and surfaces the message immediately, marked pending', () => {
   const proc = fakeProcess();
   const r = recorder({}, { backend: 'claude', agentProcess: proc });
 
   assert.equal(tryInjectIntoLiveTurn(r.deps, baseCtx), true);
 
   assert.deepEqual(proc.injectedTexts, ['skip the rest']);
-  assert.equal(r.history.length, 1);
-  assert.equal(r.history[0].kind, 'user');
-  assert.equal(r.history[0].text, 'skip the rest');
   assert.equal(r.published.length, 1, 'published straight away — not held until a turn starts');
   assert.equal(r.published[0].role, 'user');
   assert.equal(r.published[0].channel, CHANNEL);
-  assert.equal(
-    r.published[0].ts, r.history[0].ts,
-    'history and bus event share one ts so the web content de-dup keys match',
-  );
+  assert.equal(r.published[0].pending, true, 'the model has not read it yet, and the row must say so');
   assert.deepEqual(r.track, [+1], 'the reply window holds the busy gate');
 });
 
-test('records a ledger turn so history user-records and ledger turns stay index-aligned', () => {
+test('writing does not record: no history entry and no ledger turn until the model reads it', () => {
   const proc = fakeProcess();
   const r = recorder({}, { backend: 'claude', agentProcess: proc });
 
   tryInjectIntoLiveTurn(r.deps, baseCtx);
 
-  assert.equal(r.ledger.length, 1, 'rewind indexes ledger turns positionally — a skipped turn would misalign every later edit');
-  assert.equal(r.ledger[0].text, 'skip the rest');
-  assert.equal(r.ledger[0].messageId, 'web_1');
+  assert.deepEqual(r.history, [], 'a queued-inside-the-backend message is not part of the record yet');
+  assert.deepEqual(r.ledger, [], 'and it owns no turn yet');
 });
 
-test('attachments ride along to the backend and into the surfaced message', () => {
+// --- Phase 2: the echo commits it, at the point the model actually read it ---
+
+test('output written before the model read the message is recorded ABOVE it', () => {
+  const proc = fakeProcess();
+  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  tryInjectIntoLiveTurn(r.deps, baseCtx);
+
+  // The turn that was already running keeps writing — it goes through the same history seam. This
+  // paragraph was produced without the model ever having seen the injected message.
+  r.deps.appendAssistant(SESSION, { text: 'still answering the previous question', ts: r.deps.now() });
+
+  proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+
+  assert.deepEqual(
+    r.history.map((h) => h.kind), ['assistant', 'user'],
+    'the record must not claim the agent replied to something it had not read',
+  );
+  assert.equal(r.history[1].text, 'skip the rest');
+});
+
+test('the committed history record is stamped with the consumption time, not the write time', () => {
+  const proc = fakeProcess();
+  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  tryInjectIntoLiveTurn(r.deps, baseCtx);
+  const writeTs = r.published[0].ts;
+
+  proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+
+  assert.equal(r.history.length, 1);
+  assert.notEqual(r.history[0].ts, writeTs, 'the write instant is not when it entered the conversation');
+  assert.equal(r.history[0].ts, r.delivered[0].committedTs, 'history and the delivered ack share the commit key');
+});
+
+test('the ledger turn opens WITH the history record, so rewind indices stay aligned', () => {
+  const proc = fakeProcess();
+  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  tryInjectIntoLiveTurn(r.deps, baseCtx);
+  assert.deepEqual(r.ledger, [], 'no turn while the message is still queued inside the backend');
+
+  proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+
+  assert.equal(r.ledger.length, 1, 'rewind indexes turns positionally — a user record without its turn misaligns every later edit');
+  assert.equal(r.ledger[0].text, 'skip the rest');
+  assert.equal(r.ledger[0].messageId, 'web_1');
+  assert.equal(r.history.filter((h) => h.kind === 'user').length, 1, 'one user record, one ledger turn');
+});
+
+test('attachments ride along to the backend, the pending row, and the committed record', () => {
   const proc = fakeProcess();
   const r = recorder({}, { backend: 'claude', agentProcess: proc });
   const attachments = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
 
   assert.equal(tryInjectIntoLiveTurn(r.deps, { ...baseCtx, attachments }), true);
   assert.deepEqual(r.published[0].attachments, attachments);
+
+  proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
   assert.deepEqual(r.history[0].attachments, attachments);
 });
 
 // --- Fold-in, seen from orchestration ---
 
-test('fold-in ack: flips the message to delivered and releases the busy gate', () => {
+test('fold-in ack: commits the message and releases the busy gate', () => {
   const proc = fakeProcess();
   const r = recorder({}, { backend: 'claude', agentProcess: proc });
   tryInjectIntoLiveTurn(r.deps, baseCtx);
-  const userTs = r.published[0].ts;
+  const pendingTs = r.published[0].ts;
 
   proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
 
-  assert.equal(r.delivered.length, 1, 'the replay echo flips the pending message to delivered');
-  assert.equal(r.delivered[0].messageTs, userTs, 'keyed to the message it acks');
+  assert.equal(r.delivered.length, 1, 'the replay echo commits the pending message');
+  assert.equal(r.delivered[0].messageTs, pendingTs, 'carries the pending row key it replaces');
+  assert.ok(r.delivered[0].committedTs, 'and the new order key the client re-keys the row to');
   assert.equal(r.delivered[0].sessionId, SESSION);
   assert.deepEqual(r.track, [+1, -1], 'folded in ⇒ the running turn owns the reply, gate released');
+});
+
+test('the commit lands before the delivered ack — a refetch triggered by it must find the record', () => {
+  const proc = fakeProcess();
+  const order: string[] = [];
+  const r = recorder({
+    appendUser: () => order.push('history'),
+    beginLedgerTurn: () => order.push('ledger'),
+    publishDelivered: () => order.push('delivered'),
+  }, { backend: 'claude', agentProcess: proc });
+  tryInjectIntoLiveTurn(r.deps, baseCtx);
+
+  proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
+
+  assert.deepEqual(order, ['history', 'ledger', 'delivered']);
 });
 
 // --- Post-result, seen from orchestration ---
@@ -218,7 +276,7 @@ test('post-result ack holds the gate; the spontaneous turn is streamed and then 
   tryInjectIntoLiveTurn(r.deps, baseCtx);
 
   proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
-  assert.equal(r.delivered.length, 1, 'still acked as delivered');
+  assert.equal(r.delivered.length, 1, 'still committed at the echo');
   assert.deepEqual(r.track, [+1], 'gate HELD — the reply has not arrived yet');
 
   // The CLI's own turn now speaks; the sink registered at inject time captures it.
@@ -227,6 +285,10 @@ test('post-result ack holds the gate; the spontaneous turn is streamed and then 
   const assistantRows = r.history.filter((h) => h.kind === 'assistant');
   assert.equal(assistantRows.length, 1, 'reply persisted to the transcript');
   assert.equal(assistantRows[0].text, 'EARLY-STOP');
+  assert.deepEqual(
+    r.history.map((h) => h.kind), ['user', 'assistant'],
+    'the reply the message actually caused is recorded BELOW it',
+  );
   assert.ok(
     r.status.some((s) => s.running === true),
     'the session is re-marked running — a spontaneous turn is real work',
@@ -263,7 +325,7 @@ test('busy gate is released exactly once even if ack and continuation result bot
   assert.deepEqual(r.track, [+1, -1], 'single-fire release — no double decrement');
 });
 
-test('a second injection into the same live turn is surfaced and acked independently', () => {
+test('a second injection into the same live turn is surfaced and committed independently', () => {
   const proc = fakeProcess();
   const r = recorder({}, { backend: 'claude', agentProcess: proc });
 
@@ -271,11 +333,74 @@ test('a second injection into the same live turn is surfaced and acked independe
   assert.equal(tryInjectIntoLiveTurn(r.deps, { ...baseCtx, text: 'and one more', messageId: 'web_2' }), true);
 
   assert.deepEqual(proc.injectedTexts, ['skip the rest', 'and one more']);
-  assert.equal(r.published.filter((p) => p.role === 'user').length, 2);
+  const pendingRows = r.published.filter((p) => p.role === 'user');
+  assert.equal(pendingRows.length, 2);
+  assert.ok(pendingRows.every((p) => p.pending === true), 'both are pending while the model has read neither');
   assert.deepEqual(r.track, [+1, +1]);
 
   proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
   proc.ackSink.onDelivered({ text: 'and one more', foldedIntoTurn: true });
-  assert.equal(r.delivered.length, 2, 'each injected message gets its own delivery ack');
+  assert.equal(r.delivered.length, 2, 'each injected message gets its own commit');
+  assert.deepEqual(
+    r.history.map((h) => h.text), ['skip the rest', 'and one more'],
+    'committed in the order the model read them',
+  );
+  assert.notEqual(r.delivered[0].committedTs, r.delivered[1].committedTs, 'each carries its own order key');
   assert.deepEqual(r.track, [+1, +1, -1, -1]);
+});
+
+// --- Never consumed: the message must still enter the record, at the point it stopped being pending ---
+
+test('a message the backend never consumed is committed when the injection window closes', () => {
+  vi.useFakeTimers();
+  try {
+    const proc = fakeProcess();
+    const r = recorder({ maxWaitMs: 5000 }, { backend: 'claude', agentProcess: proc });
+    tryInjectIntoLiveTurn(r.deps, baseCtx);
+    const pendingTs = r.published[0].ts;
+    assert.deepEqual(r.history, []);
+
+    vi.advanceTimersByTime(5001);
+
+    assert.equal(r.history.length, 1, 'a message the user really sent is never silently lost');
+    assert.equal(r.history[0].text, 'skip the rest');
+    assert.equal(r.ledger.length, 1, 'and it takes its ledger turn with it');
+    assert.equal(r.delivered.length, 1, 'the client is told to stop showing it as pending');
+    assert.equal(r.delivered[0].messageTs, pendingTs);
+    assert.equal(r.delivered[0].committedTs, r.history[0].ts, 'it enters the record where it stopped being pending');
+    assert.deepEqual(r.track, [+1, -1]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('a spontaneous turn ending with an injection still outstanding commits it too', () => {
+  const proc = fakeProcess();
+  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  tryInjectIntoLiveTurn(r.deps, baseCtx);
+  tryInjectIntoLiveTurn(r.deps, { ...baseCtx, text: 'and one more', messageId: 'web_2' });
+  proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
+  assert.equal(r.history.length, 1, 'only the consumed one is committed so far');
+
+  // The turn results with the second message never echoed (process death delivers the same edge).
+  proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
+
+  assert.deepEqual(r.history.map((h) => h.text), ['skip the rest', 'and one more']);
+  assert.equal(r.ledger.length, 2, 'ledger turns keep pace with the user records');
+  assert.equal(r.delivered.length, 2);
+});
+
+test('a committed message is never committed twice, whatever fires afterwards', () => {
+  const proc = fakeProcess();
+  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  tryInjectIntoLiveTurn(r.deps, baseCtx);
+
+  proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
+  proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
+  proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
+  proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
+
+  assert.equal(r.history.filter((h) => h.kind === 'user').length, 1, 'one send, one record');
+  assert.equal(r.ledger.length, 1);
+  assert.equal(r.delivered.length, 1);
 });

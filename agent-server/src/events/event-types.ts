@@ -10,7 +10,10 @@ export type CortexEvent =
   // Message / interaction
   | { type: 'message.received';       ts: string; channel: string; user: string; text: string }
   | { type: 'message.edited';         ts: string; channel: string; user: string; text: string }
-  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string }
+  // `pending` marks a user message written into a live turn's backend stdin but not yet read by the
+  // model. It is NOT in conversation history yet — clients show it as a provisional row pinned below
+  // everything the agent is currently emitting, and `session.message.delivered` later commits it.
+  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string; pending?: boolean }
   // Token-level preview of an assistant text block still being generated. `text` is the INCREMENT
   // since the previous event of that `blockId`, never the accumulated total; `seq` starts at 0 per
   // block. Superseded by the `session.message` carrying the same `blockId`, which is authoritative.
@@ -19,11 +22,14 @@ export type CortexEvent =
   | { type: 'session.message.delta';  ts: string; sessionId: string; channel: string; blockId: string; text: string; seq: number }
   | { type: 'session.status';         ts: string; sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }
   | { type: 'session.turn';           ts: string; sessionId: string; channel: string; numTurns: number }
-  // Mid-turn injection ack: a message injected into a live turn has now been CONSUMED by the model
-  // (the backend's replay echo). Writing to the backend's stdin only queues it — it may sit there
-  // for seconds — so this is the edge at which the composer flips it from pending to delivered.
-  // `messageTs` is the ts the injecting `session.message` was published with.
-  | { type: 'session.message.delivered'; ts: string; sessionId: string; channel: string; messageTs: string }
+  // Mid-turn injection commit: a message injected into a live turn has now been CONSUMED by the
+  // model (the backend's replay echo), or its injection window closed without that ever happening.
+  // Writing to the backend's stdin only queues it — it may sit there for seconds — so this, not the
+  // write, is when it enters conversation history. `messageTs` is the ts the pending
+  // `session.message` was published with (the provisional row's key); `committedTs` is the history
+  // ts, which is what a transcript refetch returns — clients re-key the row to it so the live row
+  // and the fetched row resolve to one.
+  | { type: 'session.message.delivered'; ts: string; sessionId: string; channel: string; messageTs: string; committedTs: string }
   // Message edit + rewind: the session transcript changed shape (turns ≥ turnIndex rolled back).
   // Content-free hint — live clients drop buffered live tails and refetch the transcript.
   | { type: 'session.rewound';        ts: string; sessionId: string; channel: string; turnIndex: number }

@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { SESSION_LIVE_EVENTS } from '@/features/live/live-events';
-import type { LiveSessionMessage, StreamingBlock } from './transcript-vm';
-import { resolveRunning, resolveBackgroundRunning, applyAssistantDelta, endStreamingBlock } from './transcript-vm';
+import type { SessionTranscript } from '@cortex-agent/ui-contract';
+import type { LiveSessionMessage, PendingUserMessage, StreamingBlock } from './transcript-vm';
+import {
+  resolveRunning, resolveBackgroundRunning, applyAssistantDelta, endStreamingBlock,
+  applyDelivered, reconcilePendingUserMessages,
+} from './transcript-vm';
 import { useAssistantDeltaStream } from './useAssistantDeltaStream';
 
 // Live `session.message` feed for the center chat (S4 chat, task aba0). Listens on the SHARED live
@@ -22,6 +26,15 @@ import { useAssistantDeltaStream } from './useAssistantDeltaStream';
 //
 // Each event arrives as a UiEvent wrapper { type:'session.message', ts, payload:{ sessionId, channel,
 // role, text, toolName?, toolInput? } } (subscribe.ts wraps the bus event under `payload`).
+//
+// A message sent while a turn is already running is written into that turn's backend stdin, which
+// only QUEUES it there — the model reads it at the next agent-loop boundary, seconds later or after
+// the current turn's result. Its `session.message` therefore arrives marked `pending` and is kept in
+// `pendingUser`, OUT of the ordered tail: nothing the agent is emitting was produced with it. The
+// `session.message.delivered` event is the moment it was read; it moves the message into the tail
+// under the ts it was recorded with, which is also what a transcript refetch returns, so the two
+// dedupe as one row. A delivered event lost to a dropped frame self-heals — any pending message the
+// refetched transcript already holds is dropped (`reconcilePendingUserMessages`).
 
 const TAIL_CAP = 60; // bound the live buffer; older events reconcile via the transcript refetch
 const STREAM_IDLE_MS = 2500; // treat the session as streaming until this quiet gap after the last event
@@ -48,6 +61,12 @@ export interface SessionLiveState {
    *  streaming. Pass it to `buildTranscriptRows` as `streamingText`. Always null unless the caller
    *  opted into deltas — every other surface renders complete messages exactly as before. */
   streamingText: string | null;
+  /** Messages sent into a turn already running and written to its backend, which the model has not
+   *  read yet. Kept OUT of `liveTail` on purpose: they are not in conversation history and nothing
+   *  the agent is currently emitting was produced with them, so a surface that shows them must pin
+   *  them below its live rows (`buildTranscriptRows` `pendingUser`). Each moves into `liveTail`
+   *  under its committed ts the moment the backend reads it. */
+  pendingUser: PendingUserMessage[];
 }
 
 export interface SessionLiveSyncOptions {
@@ -58,6 +77,12 @@ export interface SessionLiveSyncOptions {
    * background readers, of which several can be mounted at once.
    */
   deltas?: boolean;
+  /**
+   * The authoritative transcript this surface is rendering. Used only to self-heal `pendingUser`: a
+   * `session.message.delivered` lost to a dropped SSE frame would otherwise leave a permanently
+   * dimmed row, so any pending message the refetched transcript already contains is dropped.
+   */
+  transcript?: SessionTranscript | null;
 }
 
 export function useSessionMessageLiveSync(
@@ -80,7 +105,18 @@ export function useSessionMessageLiveSync(
   const [liveTurns, setLiveTurns] = useState<number | null>(null);
   // The assistant block being previewed token by token (null whenever nothing is streaming).
   const [streamingBlock, setStreamingBlock] = useState<StreamingBlock | null>(null);
+  // Messages written into the running turn's backend that the model has not read yet. Deliberately
+  // a separate list, not part of the ordered tail — see SessionLiveState.pendingUser.
+  const [pendingUser, setPendingUser] = useState<PendingUserMessage[]>([]);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mirrors `pendingUser` synchronously. Committing a message has to read the current list AND
+  // append to the tail in one go; doing that from inside a state updater would double-append the
+  // moment React invoked it twice, so the list is read from here and written through `setPending`.
+  const pendingRef = useRef<PendingUserMessage[]>([]);
+  const setPending = useCallback((next: PendingUserMessage[]): void => {
+    pendingRef.current = next;
+    setPendingUser(next);
+  }, []);
 
   // Session switch resets every delta; the snapshot then governs until the first event lands.
   useEffect(() => {
@@ -90,10 +126,21 @@ export function useSessionMessageLiveSync(
     setStatusBackground(null);
     setLiveTurns(null);
     setStreamingBlock(null);
+    setPending([]);
     return () => {
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
-  }, [sessionId]);
+  }, [sessionId, setPending]);
+
+  // Self-heal: the live stream is lossy by design, so a delivered event can be dropped. Any pending
+  // message the authoritative transcript already holds was read and recorded — stop dimming it.
+  // `reconcilePendingUserMessages` returns the same array when nothing matched, so this cannot loop.
+  const transcript = options.transcript;
+  useEffect(() => {
+    if (!transcript) return;
+    const next = reconcilePendingUserMessages(pendingRef.current, transcript);
+    if (next !== pendingRef.current) setPending(next);
+  }, [transcript, setPending]);
 
   // Token-level preview. Accumulate only — the transcript query is NOT invalidated per delta (a
   // reply produces dozens of these, and none of them changes persisted history).
@@ -147,6 +194,7 @@ export function useSessionMessageLiveSync(
       if (raw.type === 'session.rewound') {
         setLiveTail([]);
         setStreamingBlock(null);
+        setPending([]);
         queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         return;
@@ -159,6 +207,24 @@ export function useSessionMessageLiveSync(
         queryClient.invalidateQueries(trpc.sessions.pendingInteraction.queryFilter());
         return;
       }
+      // A message that was only QUEUED inside the backend has now been read by the model (or its
+      // injection window closed). It enters the stream HERE, after everything already emitted, and
+      // under the ts it was recorded with — which is what a transcript refetch returns, so the live
+      // row and the fetched row resolve to one.
+      if (raw.type === 'session.message.delivered') {
+        const p = raw.payload as { messageTs?: string; committedTs?: string } | undefined;
+        if (!p) return;
+        const { pending, committed } = applyDelivered(pendingRef.current, { ...p, sessionId });
+        if (!committed) return; // an ack for a row this client never showed
+        setPending(pending);
+        setLiveTail((tail) => {
+          const next = [...tail, committed];
+          return next.length > TAIL_CAP ? next.slice(next.length - TAIL_CAP) : next;
+        });
+        // It is in conversation history now, so the authoritative transcript has it too.
+        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
+        return;
+      }
       // Live agent-turn delta — the real turn count that grows as the agent works.
       if (raw.type === 'session.turn') {
         const s = raw.payload as { numTurns?: number } | undefined;
@@ -166,9 +232,22 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; blockId?: string; attachments?: LiveSessionMessage['attachments'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; blockId?: string; pending?: boolean; attachments?: LiveSessionMessage['attachments'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
+      // A message written into a running turn's backend, which the model has not read yet. It holds
+      // no history entry, and everything the agent is emitting right now was produced without it —
+      // so it is held out of the ordered tail entirely until its delivered event commits it. It
+      // also settles nothing: it is not agent output, so it neither marks the session streaming nor
+      // invalidates the transcript (there is nothing there to reconcile against).
+      if (p.role === 'user' && p.pending) {
+        setPending([...pendingRef.current, {
+          ts: p.ts ?? new Date().toISOString(),
+          text: p.text ?? '',
+          attachments: p.attachments,
+        }]);
+        return;
+      }
       const msg: LiveSessionMessage = {
         sessionId: p.sessionId ?? sessionId,
         role: p.role,
@@ -200,5 +279,5 @@ export function useSessionMessageLiveSync(
   // Snapshot + delta: event wins once received; snapshot restores state before that; heuristic last.
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
   const backgroundRunning = resolveBackgroundRunning(statusBackground, snapshotBackgroundRunning);
-  return { liveTail, streaming, running, backgroundRunning, liveTurns, streamingText: streamingBlock?.text ?? null };
+  return { liveTail, streaming, running, backgroundRunning, liveTurns, streamingText: streamingBlock?.text ?? null, pendingUser };
 }

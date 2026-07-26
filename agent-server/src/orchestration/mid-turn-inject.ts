@@ -18,9 +18,23 @@
  *     AFTER that turn's result and then starts a turn of its own, whose reply has no caller
  *     awaiting it. The adapter routes that spontaneous turn to the continuation sink registered
  *     here, so the reply is streamed instead of dropped.
- *  2. **Writing is not delivering.** A message can sit queued inside the CLI for seconds. The
- *     `--replay-user-messages` echo fires at the moment of consumption and is the only
- *     honest delivery signal, so it — not the write — is what flips the message to delivered.
+ *  2. **Writing is not delivering.** A message can sit queued inside the CLI for seconds (measured:
+ *     written at 6.0s, read at 12.0s). The `--replay-user-messages` echo fires at the moment of
+ *     consumption and is the only honest delivery signal.
+ *
+ * Because of (2) the message enters the record in TWO phases:
+ *
+ *  - **write** — publish the `session.message` with `pending: true` so every connected client can
+ *    show it right away, but append nothing. Until the model has read it, everything the agent is
+ *    emitting was produced without it, and belongs ABOVE it.
+ *  - **consumption** — the echo appends the history record and opens the ledger turn, both stamped
+ *    with the consumption time, then publishes `session.message.delivered` carrying the pending
+ *    row's key and the new committed key so the client can re-key its row to the one a transcript
+ *    refetch will return.
+ *
+ * If the message is never consumed (wedged CLI, process death, the injection window closing) it is
+ * committed at that seal instead: a message the user really sent is never silently lost, and it
+ * enters the record at the point it stopped being pending rather than at a write time it never had.
  *
  * All side effects are injected so the branch is unit-testable without a backend; production wiring
  * lives in `agent-runner.ts`.
@@ -63,10 +77,11 @@ export interface MidTurnInjectDeps {
   appendTool: (sessionId: string, opts: { toolName: string; toolInput: string; ts: string }) => void;
   publishMessage: (ev: {
     sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; ts: string;
-    toolName?: string; toolInput?: string; attachments?: AttachmentMeta[];
+    toolName?: string; toolInput?: string; attachments?: AttachmentMeta[]; pending?: boolean;
   }) => void;
-  /** Flip an already-surfaced message from pending to delivered (the replay-echo ack). */
-  publishDelivered: (ev: { sessionId: string; channel: string; messageTs: string }) => void;
+  /** Commit an already-surfaced pending message into the stream: `messageTs` is the pending row's
+   *  key, `committedTs` the history/order key it is re-keyed to. */
+  publishDelivered: (ev: { sessionId: string; channel: string; messageTs: string; committedTs: string }) => void;
   publishStatus: (ev: { sessionId: string; channel: string; running: boolean }) => void;
   /** Open a ledger turn for the injected message. */
   beginLedgerTurn: (opts: { channel: string; sessionId: string; text: string; messageId: string }) => void;
@@ -122,10 +137,21 @@ function selectInjectTarget(execs: LiveExecutionLike[]): InjectableProcess | nul
   return null;
 }
 
+/** An injected message written to the backend but not yet read by the model. */
+interface PendingInjection {
+  /** Matched against the replay echo, which carries the text and nothing else. */
+  text: string;
+  /** Write-time ts — the key the pending row is showing under on every connected client. */
+  ts: string;
+  /** Move it into the conversation record (history + ledger turn + the delivered event). Single-fire. */
+  commit: () => void;
+  release: () => void;
+}
+
 /** Per-channel bookkeeping for messages injected into the live turn but not yet replied to. */
 interface ChannelInjectState {
   /** Injected, echo not yet seen — keyed by text so an echo can find its own message's ts. */
-  pending: { text: string; ts: string; release: () => void }[];
+  pending: PendingInjection[];
   /** Every busy-gate release still outstanding on this channel (each single-fire). */
   releases: Set<() => void>;
   /** True once the spontaneous turn has been marked running, so we publish that edge only once. */
@@ -180,6 +206,21 @@ export function tryInjectIntoLiveTurn(deps: MidTurnInjectDeps, ctx: MidTurnInjec
   // in that window and kill the backend mid-reply.
   deps.track(+1);
   let released = false;
+  let committed = false;
+  // Phase 2 of the commit. Everything that puts the message into the durable record happens here,
+  // at the instant it stops being pending — never at write time, when the model has not read it and
+  // whatever the agent is emitting was produced without it. The ledger turn moves WITH the history
+  // record: rewind resolves turn indices positionally over the history's user records, so a record
+  // without its turn (or a turn without its record) shifts every later edit index on the session.
+  const commit = (): void => {
+    if (committed) return;
+    committed = true;
+    const committedTs = deps.now();
+    deps.appendUser(sessionId, { text, ts: committedTs, attachments: ctx.attachments });
+    deps.beginLedgerTurn({ channel: ctx.channel, sessionId, text, messageId: ctx.messageId });
+    // Published last: a client refetching the transcript on this event must find the record.
+    deps.publishDelivered({ sessionId, channel: ctx.channel, messageTs: ts, committedTs });
+  };
   const release = (): void => {
     if (released) return;
     released = true;
@@ -188,6 +229,10 @@ export function tryInjectIntoLiveTurn(deps: MidTurnInjectDeps, ctx: MidTurnInjec
     // not linger and swallow a LATER injection's ack by matching on the same text first.
     const idx = state.pending.findIndex((p) => p.release === release);
     if (idx !== -1) state.pending.splice(idx, 1);
+    // The window closed. If the echo never came (wedged CLI, process death, cap expiry) this is
+    // where the message stopped being pending, so this is where it honestly enters the record —
+    // a message the user really sent is never silently dropped. A no-op once already committed.
+    commit();
     deps.track(-1);
     disposeIfIdle(ctx.channel);
   };
@@ -200,17 +245,12 @@ export function tryInjectIntoLiveTurn(deps: MidTurnInjectDeps, ctx: MidTurnInjec
     }, capMs);
     timer.unref?.();
   }
-  state.pending.push({ text, ts, release });
+  state.pending.push({ text, ts, commit, release });
 
-  // Surface it NOW. A queued message is invisible until its turn starts; an injected one is
-  // already in front of the model, so the transcript must show it immediately. The history append
-  // and the bus event share one ts so the web client's content de-dup resolves them to one row.
-  deps.appendUser(sessionId, { text, ts, attachments: ctx.attachments });
-  deps.publishMessage({ sessionId, channel: ctx.channel, role: 'user', text, ts, attachments: ctx.attachments });
-  // Keep the ledger turn count aligned with the history's user-record count: rewind resolves a
-  // turn index positionally against the ledger, so a user record with no matching ledger turn
-  // would silently shift every later edit on this session.
-  deps.beginLedgerTurn({ channel: ctx.channel, sessionId, text, messageId: ctx.messageId });
+  // Phase 1: surface it NOW, marked pending. A queued message is invisible until its turn starts,
+  // so the message must appear immediately — but as a row the reader can tell the model has not
+  // read yet, pinned below whatever the agent is currently saying rather than inserted above it.
+  deps.publishMessage({ sessionId, channel: ctx.channel, role: 'user', text, ts, attachments: ctx.attachments, pending: true });
 
   registerSinks(deps, ctx.channel, sessionId, proc, state);
   return true;
@@ -234,7 +274,9 @@ function registerSinks(
       const idx = state.pending.findIndex((p) => p.text === text);
       if (idx === -1) return;
       const [entry] = state.pending.splice(idx, 1);
-      deps.publishDelivered({ sessionId, channel, messageTs: entry.ts });
+      // The echo IS the consumption instant: the message enters the record here, after everything
+      // the agent emitted while it was still queued.
+      entry.commit();
       // Folded into the running turn ⇒ that turn's own machinery carries the reply and holds the
       // gate. Otherwise the CLI is opening a turn of its own, so keep holding until it results.
       if (foldedIntoTurn) entry.release();

@@ -25,9 +25,14 @@ export interface LiveScope {
   sessionId?: string;
 }
 
-/** Center-chat session lifecycle (workbench chat, rail dots, DM notifications). */
+/** Center-chat session lifecycle (workbench chat, rail dots, DM notifications).
+ *  `session.message.delivered` commits a message that was written into a running turn's backend but
+ *  not yet read by the model: it moves the provisional row into the stream under the ts the record
+ *  carries. Unlike the token-level preview it is rare and load-bearing, so it rides the shared
+ *  stream — and it is not session-scoped-only on the server, so the shared stream does receive it. */
 export const SESSION_LIVE_EVENTS = [
   'session.message',
+  'session.message.delivered',
   'session.status',
   'session.turn',
   'session.interaction',

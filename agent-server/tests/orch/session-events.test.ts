@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../../src/events/event-bus.js';
 import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
-import { publishSessionMessage, publishSessionMessageDelta } from '../../src/orchestration/session-events.js';
+import { publishSessionMessage, publishSessionMessageDelta, publishSessionMessageDelivered } from '../../src/orchestration/session-events.js';
 
 test('publishSessionMessage emits a session.message event on the shared bus', () => {
   const bus = new EventBus();
@@ -55,6 +55,43 @@ test('publishSessionMessage carries the blockId that ties it to its streamed del
 
   assert.equal(seen[0].blockId, 'msg_A:1');
   assert.ok(!('blockId' in seen[1]), 'a message that never streamed carries no blockId at all');
+});
+
+test('publishSessionMessage marks a message the model has not read yet as pending', () => {
+  const bus = new EventBus();
+  const seen: any[] = [];
+  bus.subscribe('session.message', (e) => { seen.push(e); });
+
+  const prev = jobCtx.bus;
+  jobCtx.bus = bus;
+  try {
+    publishSessionMessage({ sessionId: 's1', channel: 'web:c', role: 'user', text: 'stop', ts: 'T1', pending: true });
+    publishSessionMessage({ sessionId: 's1', channel: 'web:c', role: 'user', text: 'ordinary' });
+  } finally {
+    jobCtx.bus = prev;
+  }
+
+  assert.equal(seen[0].pending, true);
+  assert.ok(!('pending' in seen[1]), 'an ordinary message carries no pending marker at all');
+});
+
+test('publishSessionMessageDelivered carries the pending row key AND the committed order key', () => {
+  const bus = new EventBus();
+  const seen: any[] = [];
+  bus.subscribe('session.message.delivered', (e) => { seen.push(e); });
+
+  const prev = jobCtx.bus;
+  jobCtx.bus = bus;
+  try {
+    publishSessionMessageDelivered({ sessionId: 's1', channel: 'web:c', messageTs: 'T-write', committedTs: 'T-read' });
+  } finally {
+    jobCtx.bus = prev;
+  }
+
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].type, 'session.message.delivered');
+  assert.equal(seen[0].messageTs, 'T-write', 'the row the client is currently showing dimmed');
+  assert.equal(seen[0].committedTs, 'T-read', 'the key a transcript refetch will return it under');
 });
 
 test('publishSessionMessageDelta emits a session.message.delta event', () => {
