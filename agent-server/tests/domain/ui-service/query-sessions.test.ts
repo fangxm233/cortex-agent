@@ -1,5 +1,5 @@
 // input:  session query handlers with injected stores and live registries
-// output: session list/transcript snapshot regression coverage
+// output: session list/context/transcript snapshot regression coverage
 // pos:    ui-service session query specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -9,7 +9,7 @@ import { handleSessionsList, handleSessionsTranscript } from '../../../src/domai
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const mockSessions = [
-  { sessionId: 's1', name: 'cortex-abc', projectId: 'proj1', channel: 'C1', backend: 'claude', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default' },
+  { sessionId: 's1', name: 'cortex-abc', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default', contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
   { sessionId: 's2', name: 'cortex-def', projectId: 'proj2', channel: 'C2', backend: 'codex', kind: 'scheduled' as const, origin: 'scheduled' as const, createdAt: '2026-02-01T00:00:00Z', lastUsedAt: '2026-04-01T00:00:00Z', label: null as string | null, profileName: null },
   { sessionId: 's3', name: 'cortex-ghi', projectId: 'proj1', channel: 'C3', backend: 'claude', kind: 'local' as const, origin: 'thread' as const, createdAt: '2026-03-01T00:00:00Z', lastUsedAt: '2026-05-15T00:00:00Z', label: '[thr_x:main]', profileName: 'pi' },
 ];
@@ -59,6 +59,13 @@ test('sessions.list with projectId returns filtered sessions', async () => {
   assert.equal(result[0].resumable, true);
   assert.equal(result[1].sessionId, 's3');
   assert.equal(result[1].resumable, true);
+});
+
+test('sessions.list exposes persisted context usage and uses null for legacy sessions', async () => {
+  const result = await handleSessionsList(makeDeps(), {});
+  const byId = Object.fromEntries(result.map((session) => [session.sessionId, session.contextUsage]));
+  assert.deepEqual(byId['s1'], mockSessions[0].contextUsage);
+  assert.equal(byId['s2'], null);
 });
 
 test('sessions.list with resumable=true returns only non-scheduled sessions', async () => {

@@ -1,4 +1,4 @@
-// input:  built ui-service declarations with notice/DEBUG/pending details
+// input:  built ui-service declarations with context/notice/DEBUG details
 // output: zero-duplication type-only client contract re-exports
 // pos:    Shared server-to-client compile-time DTO boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -63,6 +63,7 @@ export type {
   TranscriptInteractionDetail,
   TranscriptDebugDetails,
   ChatNoticeLevel,
+  SessionContextUsage,
   // Output DTOs
   ProjectConduitInfo,
   SessionInfo,

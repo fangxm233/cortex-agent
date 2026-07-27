@@ -1,5 +1,5 @@
 // input:  PI --mode rpc stdout JSONL lines
-// output: NormalizedEvents with settled turn completion
+// output: NormalizedEvents with PI context usage and settled completion
 // pos:    Pure function translator from PI rpc events to NormalizedEvent
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -53,8 +53,8 @@ export function createPIEventParserState(): PIEventParserState {
  * returns [] on subsequent bootstrap hits (Option A per Plan Review N2H-3).
  *
  * Dropped events (return []): turn_start, turn_end, message_start, agent_start,
- * queue_update, compaction_end, auto_retry_end, successful non-bootstrap
- * response, message_update without text_delta, fire-and-forget extension_ui_request.
+ * queue_update, compaction_end, auto_retry_end, successful unrelated response,
+ * message_update without text_delta, fire-and-forget extension_ui_request.
  * message_end emits a turn_progress heartbeat (non-terminal, state.turnProgressCount++).
  * compaction_start emits a context_compacted event (user notification); compaction_end is dropped
  * to avoid a duplicate notice.
@@ -72,8 +72,11 @@ export function piRpcLineToNormalized(line: string, state: PIEventParserState): 
   if (typeof ev['type'] !== 'string') return [];
   const type = ev['type'] as string;
 
-  // --- response (bootstrap or failed) ---
+  // --- response (bootstrap, optional context stats, or failed) ---
   if (type === 'response') {
+    if (ev['command'] === 'get_session_stats') {
+      return ev['success'] === true ? contextUsageFromStats(ev['data']) : [];
+    }
     if (
       ev['id'] === 'bootstrap' &&
       ev['command'] === 'get_state' &&
@@ -454,6 +457,27 @@ function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[
   }
 
   return [{ type: 'ask_user_question', toolUseId: id, questions: [spec] }];
+}
+
+function contextUsageFromStats(data: unknown): NormalizedEvent[] {
+  const usage = asRecord(asRecord(data)['contextUsage']);
+  const contextWindow = usage['contextWindow'];
+  if (typeof contextWindow !== 'number' || !Number.isFinite(contextWindow) || contextWindow <= 0) {
+    return [];
+  }
+  const tokens = nullableNonNegativeNumber(usage['tokens']);
+  const percent = nullableNonNegativeNumber(usage['percent']);
+  return [{
+    type: 'context_usage',
+    usedTokens: tokens,
+    contextWindow,
+    percent,
+    accuracy: 'estimate',
+  }];
+}
+
+function nullableNonNegativeNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 /** Safely cast an unknown value to a plain record (returns {} for non-objects). */

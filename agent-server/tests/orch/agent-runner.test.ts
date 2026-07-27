@@ -1,11 +1,11 @@
 // input:  AgentRunner, queue, MockAdapter, agent config
-// output: Queue-marker, injection, busy, and routing regressions
+// output: context persistence, queue-marker, injection, busy, routing regressions
 // pos:    Verifies plain user-message orchestration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { AgentRunner, agentRunner, resolveDefaultAgent, emitTurnProgress } from '../../src/orchestration/agent-runner.js';
+import { AgentRunner, agentRunner, resolveDefaultAgent, emitTurnProgress, persistSessionContextUsage } from '../../src/orchestration/agent-runner.js';
 import { conduitQueues, enqueue } from '../../src/orchestration/conduit-queue.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import { loadConfig } from '../../src/domain/threads/template-loader.js';
@@ -29,6 +29,33 @@ function makeCtx(overrides: Record<string, any> = {}) {
     ...overrides,
   };
 }
+
+test('persistSessionContextUsage writes before publishing the same timestamped snapshot', async () => {
+  const order: string[] = [];
+  let stored: any = null;
+  let published: any = null;
+
+  await persistSessionContextUsage(
+    {
+      sessionName: 'cortex-context', sessionId: 's-context', channel: 'web:context',
+      usage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' },
+    },
+    {
+      now: () => '2026-07-27T12:00:00.000Z',
+      update: async (name, updates) => { order.push(`store:${name}`); stored = updates.contextUsage; },
+      publish: (snapshot) => { order.push('publish'); published = snapshot; },
+    },
+  );
+
+  assert.deepEqual(order, ['store:cortex-context', 'publish']);
+  assert.deepEqual(stored, {
+    usedTokens: 60000, contextWindow: 200000, percent: 30,
+    accuracy: 'estimate', updatedAt: '2026-07-27T12:00:00.000Z',
+  });
+  assert.deepEqual(published, {
+    sessionId: 's-context', channel: 'web:context', ...stored,
+  });
+});
 
 // ── emitTurnProgress: real agent-turn delta for the S4 chat composer ─────────
 

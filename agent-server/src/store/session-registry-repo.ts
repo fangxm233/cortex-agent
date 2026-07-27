@@ -1,5 +1,5 @@
 // input:  session-registry.json + JsonRepository
-// output: SessionRegistryRepo (async generateSessionName / registerSession / updateSession / lookupSession / lookupBySessionId / getById / listRecentSessions / listByProject / listByOrigin / listResumable / markUsed / pruneStale / getActiveSessionName) + deriveSessionOrigin + effectiveBackendSessionId + SessionOrigin type
+// output: SessionRegistryRepo with identity, context snapshots, list/update APIs, and origin helpers
 // pos:    cortex-XXXX short name ↔ session UUID registry persistence layer (Pattern A, JsonRepository)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';
+import type { SessionContextUsage } from '@core/types/agent-types.js';
 
 // Path of the Slack project→channel registry file. Defined here (rather than
 // imported from store/channel-repo.ts) because that file has been removed in
@@ -78,6 +79,8 @@ export interface Session {
   /** When the user last VIEWED this session in a client (web workbench sessions.markRead).
    *  Unread = lastUsedAt > lastReadAt. Absent on legacy records → treated as read. */
   lastReadAt?: string | null;
+  /** Latest backend-reported context occupancy. Optional for legacy/unsupported sessions. */
+  contextUsage?: SessionContextUsage;
 }
 
 export type SessionRegistryData = Record<string, Session>;  // keyed by sessionId (UUID)
@@ -224,7 +227,7 @@ export class SessionRegistryRepo {
     });
   }
 
-  async updateSession(name: string, updates: Partial<Pick<Session, 'sessionId' | 'lastUsedAt' | 'label' | 'profileName' | 'backendSessionId'>>): Promise<void> {
+  async updateSession(name: string, updates: Partial<Pick<Session, 'sessionId' | 'lastUsedAt' | 'label' | 'profileName' | 'backendSessionId' | 'contextUsage'>>): Promise<void> {
     await this._repo.mutate((registry) => {
       // Records are keyed by sessionId; find the target by name.
       for (const record of Object.values(registry)) {
@@ -234,6 +237,7 @@ export class SessionRegistryRepo {
           if (updates.label !== undefined) record.label = updates.label?.substring(0, 60) || null;
           if (updates.profileName !== undefined) record.profileName = updates.profileName;
           if (updates.backendSessionId !== undefined) record.backendSessionId = updates.backendSessionId;
+          if (updates.contextUsage !== undefined) record.contextUsage = updates.contextUsage;
           break;
         }
       }

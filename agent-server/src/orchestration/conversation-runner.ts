@@ -1,5 +1,5 @@
 // input:  agent facade, prompt assembly, registries, project context
-// output: runConversation with prompt, notice, and tool callback seams
+// output: runConversation with prompt, context, notice, and tool callbacks
 // pos:    Plain user-turn execution without thread machinery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
@@ -12,7 +12,7 @@
 // (conversation ledger) are all thread-independent and handled by the caller (agent-runner).
 
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile } from '@platform/index.js';
-import type { AgentResult, ChatNoticeLevel } from '@core/types/agent-types.js';
+import type { AgentResult, ChatNoticeLevel, ContextUsage } from '@core/types/agent-types.js';
 import {
   runAgent, getClaudeMode, getActiveProfile, getDefaultAgent, resolveBackendForChannel,
 } from '@domain/agents/index.js';
@@ -53,6 +53,7 @@ export interface RunConversationOptions {
   /** Incremental chunk of a block still being generated. Web chat only — see delta-coalescer. */
   onAssistantDelta?: ((text: string, blockId: string) => void) | null;
   onProgress?: ((progress: any) => void) | null;
+  onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
   onFallback?: ((...args: any[]) => Promise<void>) | null;
   /** Receives the exact text passed to runAgent, after all fresh-session context is assembled. */
   onPromptBuilt?: ((prompt: string) => void) | null;
@@ -173,6 +174,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     onAssistantMessage: opts.onAssistantMessage,
     onAssistantDelta: opts.onAssistantDelta ?? null,
     onProgress: opts.onProgress,
+    onContextUsage: opts.onContextUsage ?? null,
     onToolUse: opts.onToolUse,
     onToolResult: opts.onToolResult ?? null,
     onPlanWritten: opts.onPlanWritten ?? null,

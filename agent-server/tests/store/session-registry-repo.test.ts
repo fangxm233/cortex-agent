@@ -1,5 +1,5 @@
 // input:  Node test runner, assert, tmp filesystem
-// output: regression tests for SessionRegistryRepo (concurrent mutate, flush ordering, cache consistency, new API methods, name index)
+// output: SessionRegistryRepo concurrency, cache, context snapshot, and API regressions
 // pos:    verifies store/session-registry-repo.ts Pattern A guarantees
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -51,6 +51,23 @@ test('SessionRegistryRepo - 10 concurrent registerSession produce all 10 entries
   for (const name of names) {
     assert.ok(registeredNames.has(name), `missing: ${name}`);
   }
+});
+
+test('SessionRegistryRepo - updateSession persists the latest context usage snapshot', async () => {
+  const { repo } = createRepoWithPath();
+  await repo.registerSession('cortex-context', makeOpts('sess-context', { backend: 'pi' }));
+  const contextUsage = {
+    usedTokens: 60000,
+    contextWindow: 200000,
+    percent: 30,
+    accuracy: 'estimate' as const,
+    updatedAt: '2026-07-27T12:00:00.000Z',
+  };
+
+  await repo.updateSession('cortex-context', { contextUsage });
+  repo.invalidate();
+
+  assert.deepEqual((await repo.getById('sess-context'))?.contextUsage, contextUsage);
 });
 
 // ── (b) Mid-mutate flush resolves after all pending mutations ──

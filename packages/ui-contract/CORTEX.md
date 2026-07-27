@@ -13,7 +13,7 @@ one-directional (acyclic) edge, so `pnpm -w build` orders server → ui-contract
 
 | filename | role | function |
 |---|---|---|
-| `src/dto.ts` | types | Type-only ui-service DTO re-exports, including chat notices, DEBUG details, and durable pending rows |
+| `src/dto.ts` | types | Type-only ui-service DTO re-exports, including `SessionContextUsage`, chat notices, DEBUG details, and pending rows |
 | `src/schemas.ts` | schemas | Runtime + type re-export of `queryInputSchemas` / `mutateInputSchemas` (+ the individual schemas) from `@cortex-agent/server/dist/domain/ui-service/input-schemas.js`. Source of truth lives in agent-server so the tRPC router can consume the schemas without agent-server importing this package (which would close a build cycle) |
 | `src/contract.parity.ts` | guard | Compile-time drift guard: `z.infer<schema>` ≡ `QueryParamMap`/`MutateArgsMap`; typecheck fails if a schema falls out of lock-step |
 | `src/app-router.ts` | types | Type-only re-export of the real `AppRouter` from `@cortex-agent/server/dist/domain/ui-service/app-router.js` (in-core tRPC binding) |

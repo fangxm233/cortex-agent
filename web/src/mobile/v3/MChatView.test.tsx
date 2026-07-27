@@ -1,5 +1,5 @@
 // input:  Mobile chat components, notice rows, view models, server renderer
-// output: Mobile chat chrome, notice, and interaction regressions
+// output: Mobile chat chrome, context, notice, and interaction regressions
 // pos:    Verifies the mobile session-chat presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -363,6 +363,24 @@ describe('1p ProfileSheet', () => {
 });
 
 describe('1b MChatView composition', () => {
+  it('renders PI context usage directly above the mobile composer', () => {
+    const html = renderToStaticMarkup(
+      <MChatView
+        {...baseProps}
+        status={{ running: false, tone: 'idle', text: 'idle' }}
+        rows={[]}
+        contextUsageSupported
+        contextUsage={{
+          usedTokens: 60000, contextWindow: 200000, percent: 30,
+          accuracy: 'estimate', updatedAt: '2026-07-27T12:00:00.000Z',
+        }}
+        contextUsageLang="zh"
+      />,
+    );
+    expect(html).toContain('data-context-usage-bar="mobile"');
+    expect(html).toContain('60k / 200k');
+  });
+
   it('renders header + composer with the profile chip and the ＋ attach affordance', () => {
     const html = renderToStaticMarkup(
       <MChatView

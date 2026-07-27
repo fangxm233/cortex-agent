@@ -12,14 +12,14 @@ agent-server's TypeScript ESM runtime source, organized by six-layer structure (
 | L5 | `entry/` | Entry points: app.ts / daemon.ts / startup-helpers / startup-notify |
 
 ### L0: core/
-`async-mutex.ts` `atomic-write.ts` `json-repository.ts` `paths.ts` `version.ts` `cli-utils.ts` `utils.ts` `status-format.ts` `running-executions.ts` `task-parser.ts` `debug-mode.ts` (single truthy `DEBUG` gate shared by logging, lossless transcript capture, and DTO exposure) `singleton-lock.ts` (PID-file singleton lock shared by daemon.ts/app.ts) `auth.ts` (shared-secret auth: `ensureAuthTokens`/`getClientToken`/`getWebhookToken`/`timingSafeEqualStr`/`AUTH_HEADER` for the WS client + webhook bearer gates; no Cloudflare dependency) `i18n.ts` (zero-dep localization: `t()`/`setLocale`/`getLocale`/`detectSystemLocale`; locale set by entry/app.ts, never reads domain) `locales/` (`en.ts`/`zh.ts` barrels aggregating per-cluster `slices/*`; zh typed `Record<MessageKey,string>` for compile-time parity) `types/agent-types.ts` (agent results + `ChatNoticeLevel`) `types/thread-types.ts`
+`async-mutex.ts` `atomic-write.ts` `json-repository.ts` `paths.ts` `version.ts` `cli-utils.ts` `utils.ts` `status-format.ts` `running-executions.ts` `task-parser.ts` `debug-mode.ts` (single truthy `DEBUG` gate shared by logging, lossless transcript capture, and DTO exposure) `singleton-lock.ts` (PID-file singleton lock shared by daemon.ts/app.ts) `auth.ts` (shared-secret auth: `ensureAuthTokens`/`getClientToken`/`getWebhookToken`/`timingSafeEqualStr`/`AUTH_HEADER` for the WS client + webhook bearer gates; no Cloudflare dependency) `i18n.ts` (zero-dep localization: `t()`/`setLocale`/`getLocale`/`detectSystemLocale`; locale set by entry/app.ts, never reads domain) `locales/` (`en.ts`/`zh.ts` barrels aggregating per-cluster `slices/*`; zh typed `Record<MessageKey,string>` for compile-time parity) `types/agent-types.ts` (agent results + backend-neutral context snapshots + `ChatNoticeLevel`) `types/thread-types.ts`
 
 ### L1: store/
 `in-memory-repository.ts` + 12 repos: `thread-repo` `session-repo` `conversation-ledger-repo` `conversation-history-repo` `pending-injection-repo` (durable unconsumed mid-turn messages) `session-registry-repo` `execution-repo` `project-dir-repo` `schedule-repo` `cost-repo` `profile-repo` `task-repo` + `outbound-queue` (WAL).
 Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/adapters/slack-project-conduits.ts` — owned by the Slack adapter, since project-report rendering is adapter-specific.
 
 ### L2: events/
-`event-bus.ts` `event-types.ts` (session messages carry optional notice levels; `config.changed` refreshes UI config) `event-logger.ts` `event-replay.ts` `index.ts`
+`event-bus.ts` `event-types.ts` (session context snapshots/messages/notices; `config.changed` refreshes UI config) `event-logger.ts` `event-replay.ts` `index.ts`
 
 ### L3: domain/
 | Subdirectory | Files |

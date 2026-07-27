@@ -1,21 +1,21 @@
 // input:  AgentSpawnConfig, session keys, injectable spawner
-// output: PIAdapter sessions, context-aware spawn, steering, previews
+// output: PIAdapter sessions, context stats, spawn, steering, previews
 // pos:    PI CLI session pool and AgentAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
 import { mkdirSync } from 'fs';
 import * as path from 'path';
-import { DATA_DIR, INSTALL_ROOT } from '@core/utils.js';
+import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
-import type { AgentAdapter, AgentProcess, AgentSpawnConfig, Backend, InjectionAckSink, UserMessage } from '../types.js';
+import type { AgentAdapter, AgentSpawnConfig, Backend, InjectionAckSink, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPiEnv, buildSpawnArgs } from './spawn-args.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, type PIEventParserState } from './event-parser.js';
-import { PI_AGENT_DIR, PI_SESSIONS_DIR, writeProvidersConfig, buildProviderOverrides, ensureAuthVisible } from './agent-dir.js';
+import { PI_AGENT_DIR, writeProvidersConfig, buildProviderOverrides, ensureAuthVisible } from './agent-dir.js';
 import { buildPrompt } from '../normalize/prompt-builder.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { discoverPIProviders, piSessionFileExists } from './discovery.js';
@@ -26,40 +26,22 @@ import {
   PI_IDLE_SESSION_TIMEOUT,
   PI_MAX_TIMEOUT,
   PI_TURN_IDLE_TIMEOUT,
+  PIContextUsageProbe,
   PISteeringQueue,
   SWITCH_SESSION_TIMEOUT_MS,
   parseRpcObject,
   type PendingPiTurn,
+  type PIAgentProcess,
   type PISessionOptions,
   type SpawnFn,
   type SwitchResult,
 } from './session-support.js';
-
+import { DEFAULT_SESSION_DIR, HOOK_BRIDGE_PATH, MCP_BRIDGE_PATH, TOOL_SHIMS_PATH } from './defaults.js';
+export type { PIAgentProcess } from './session-support.js';
 const log = createLogger('pi-adapter');
 
 function buildPromptText(msg: UserMessage): string {
   return buildPrompt(msg.text, msg.attachments ?? []);
-}
-
-// DEFAULT_SESSION_DIR: sessionId.jsonl files are stored here (convention: <sessionDir>/<sessionId>.jsonl).
-// Sessions stored under logs/sessions-pi/; PI_CODING_AGENT_DIR points to data/ for models.json.
-const DEFAULT_SESSION_DIR = PI_SESSIONS_DIR;
-// PI extensions point at compiled dist/.js files — PI's extension loader accepts both .ts and .js
-// (pi-coding-agent dist/core/extensions/loader.js:367). Shipping .js avoids depending on src/ in
-// the installed package (package.json#files only ships dist/ + defaults/).
-const MCP_BRIDGE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/mcp-bridge.js');
-const TOOL_SHIMS_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/tool-shims.js');
-const HOOK_BRIDGE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/hook-bridge.js');
-/**
- * PI-specific extension of AgentProcess that exposes sendExtensionUiResponse.
- * Callers that need to respond to ask_user_question events (plan approval, interactive questions)
- * can use this method to send extension_ui_response back to the PI subprocess.
- * Payload fields depend on the dialog method (rpc.md §extension_ui):
- *   select/input/editor: { value: string } or { cancelled: true }
- *   confirm:             { confirmed: boolean } or { cancelled: true }
- */
-export interface PIAgentProcess extends AgentProcess {
-  sendExtensionUiResponse(id: string, payload: Record<string, unknown>): void;
 }
 
 type PiTurnComplete = Extract<NormalizedEvent, { type: 'turn_complete' }>;
@@ -108,6 +90,7 @@ class PISession {
   /** Accumulator for the current in-flight Cortex turn. Resolved/rejected by handleRawLine. */
   private pendingTurn: PendingPiTurn | null = null;
   private readonly steering = new PISteeringQueue();
+  private readonly contextUsageProbe: PIContextUsageProbe;
 
   constructor(opts: PISessionOptions) {
     this.sessionKey = opts.sessionKey;
@@ -121,6 +104,14 @@ class PISession {
       env: opts.env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    this.contextUsageProbe = new PIContextUsageProbe(
+      (command) => {
+        const stdin = this.proc.stdin;
+        if (!stdin || stdin.destroyed || stdin.writableEnded) throw new Error('PI stdin unavailable');
+        stdin.write(encodeCommand(command));
+      },
+      (event) => this.emitNormalizedEvent(event),
+    );
 
     this.proc.stdout?.on('data', (chunk: Buffer | string) => {
       for (const line of this.splitter.push(chunk)) this.handleRawLine(line);
@@ -166,6 +157,7 @@ class PISession {
             fatal: true,
           });
         }
+        this.contextUsageProbe.close();
         this.events.close();
         // Remove stream listeners and destroy streams so stub PassThrough streams
         // (used in tests) don't keep the event loop alive after close.
@@ -209,6 +201,7 @@ class PISession {
     if (this.idleTimer) { clearTimeout(this.idleTimer); this.idleTimer = null; }
     if (this.turnIdleTimer) { clearTimeout(this.turnIdleTimer); this.turnIdleTimer = null; }
     if (this.maxTimer) { clearTimeout(this.maxTimer); this.maxTimer = null; }
+    this.contextUsageProbe.close();
     this.flushTextBuffer();
   }
 
@@ -255,13 +248,19 @@ class PISession {
     for (const evt of piRpcLineToNormalized(line, this.parserState)) {
       this.captureSessionStarted(evt);
       const output = this.processPendingTurnEvent(evt);
-      if (output !== null) this.emitNormalizedEvent(output);
+      if (output !== null) this.emitOrProbeContext(output);
     }
 
     if (finishDeferred) {
       const terminal = this.finishDeferredTurn();
-      if (terminal !== null) this.emitNormalizedEvent(terminal);
+      if (terminal !== null) this.emitOrProbeContext(terminal);
     }
+    this.contextUsageProbe.observe(raw);
+  }
+
+  private emitOrProbeContext(event: NormalizedEvent): void {
+    if (event.type === 'turn_complete') this.contextUsageProbe.deferTerminal(event);
+    else this.emitNormalizedEvent(event);
   }
 
   /** Correlate switch_session before the generic parser drops its response. */

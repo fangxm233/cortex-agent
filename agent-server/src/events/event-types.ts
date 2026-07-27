@@ -1,9 +1,9 @@
-// input:  ChatNoticeLevel
-// output: CortexEvent union including notice and pending-message metadata
+// input:  ChatNoticeLevel and SessionContextUsage
+// output: CortexEvent union including context, notice, and message metadata
 // pos:    Typed event contract for the shared EventBus
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { ChatNoticeLevel } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
 
 // ── User-facing events (§5.1) ────────────────────────────────────────────────
 
@@ -24,6 +24,7 @@ export type CortexEvent =
   | { type: 'session.message.delta';  ts: string; sessionId: string; channel: string; blockId: string; text: string; seq: number }
   | { type: 'session.status';         ts: string; sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }
   | { type: 'session.turn';           ts: string; sessionId: string; channel: string; numTurns: number }
+  | ({ type: 'session.context-usage'; ts: string; sessionId: string; channel: string } & SessionContextUsage)
   // Mid-turn injection commit: a message injected into a live turn has now been CONSUMED by the
   // model (the backend's replay echo), or its injection window closed without that ever happening.
   // Writing to the backend's stdin only queues it — it may sit there for seconds — so this, not the

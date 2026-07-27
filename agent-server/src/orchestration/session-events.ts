@@ -1,11 +1,11 @@
-// input:  session payloads, chat-notice levels, and the shared EventBus
-// output: message/notice/pending/delta/status/turn/rewind publishers
+// input:  session/context payloads, chat notices, and the shared EventBus
+// output: context/message/notice/delta/status/turn/rewind publishers
 // pos:    Orchestration bus seam; missing bus remains a no-op
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
-import type { ChatNoticeLevel } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
 
 export interface SessionMessagePayload {
   sessionId: string;
@@ -36,6 +36,12 @@ export interface SessionMessagePayload {
 /** Tell an open transcript to refetch after sensitive DEBUG metadata is durably persisted.
  *  Deliberately carries no prompt, input, result, or tool id; the transcript query remains the
  *  authenticated and DEBUG-gated source of truth. */
+export function publishSessionContextUsage(
+  p: { sessionId: string; channel: string } & SessionContextUsage,
+): void {
+  jobCtx.bus?.publish({ type: 'session.context-usage', ...p });
+}
+
 export function publishSessionDebugUpdated(p: { sessionId: string; channel: string }): void {
   jobCtx.bus?.publish({ type: 'session.debug.updated', sessionId: p.sessionId, channel: p.channel });
 }

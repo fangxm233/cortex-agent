@@ -49,17 +49,17 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `orchestration/` | Subdirectory | Isolated orchestration unit tests |
 | `platform/` | Subdirectory | Platform composition and transport tests |
 | `threads/` | Subdirectory | Thread domain regression tests |
-| `agent-adapter.test.ts` | Test | getAdapter/Capability matrix (including PI MidTurnInject)/tool-names contract |
+| `agent-adapter.test.ts` | Test | getAdapter/capability/tool-name contract plus exhaustive normalized-event union guard |
 | `agent-adapter-claude.test.ts` | Test | Claude buildSpawnArgs/hooks/summarizer |
-| `agent-adapter-pi.test.ts` | Test | PI framing/spawn args, authoritative context env, bootstrap, and close |
+| `agent-adapter-pi.test.ts` | Test | PI framing/spawn args, context stats terminal ordering, bootstrap, and close |
 | `agent-retry-classification.test.ts` | Test | Transport/HTTP retry classification and cross-provider fallback |
-| `agent-adapter-pi-event-parser.test.ts` | Test | PI event translation + settled-boundary aggregation |
+| `agent-adapter-pi-event-parser.test.ts` | Test | PI context stats/event translation + settled-boundary aggregation |
 | `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |
 | `agent-adapter-pi-hook-bridge.test.ts` | Test | PI hook-bridge toClaude/normalize |
 | `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
 | `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims + extension_ui settled turns |
 | `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
-| `run-with-adapter.test.ts` | Test | Normalized callbacks, typed API-error/compaction notices, tool results, and inline continuation wait |
+| `run-with-adapter.test.ts` | Test | Normalized context/tool/progress callbacks, typed notices, and inline continuation wait |
 | `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins: cortex-feishu plugin gated to feishu: channels (exact basename match) |
 | `app.test.ts` | Test | Startup DM + scheduled success flow |
 | `auto-compound.test.ts` | Test | Compound skip conditions and concatenation |
@@ -126,6 +126,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `interaction-handlers.test.ts` | Test | handleModalSubmit -> bus.publish('ask-user.answered') BLK-1 regression |
 | `orch/interaction-records.test.ts` | Test | InteractionRecords entity service (web-interactions-redesign): create persists+publishes session.interaction pending / resolve first-writer-wins (resolved→already-resolved) / unknown-after-restart / getPendingByChannel payload+TTL scoping / resolvePendingByChannel (!new cancel) / uninitialised fail-soft |
 | `orch/hook-bridge-subscribers-web.test.ts` | Test | web: conduit branch creates interaction entities (plan-approval with FULL planContent snapshot + planApprovals live-resolver kept; ask-user normalized questions); non-web channels create none |
+| `domain/ui-service/query-sessions.test.ts` | Test | Session list identity/running/turn/cost/context snapshots plus transcript pending behavior |
 | `domain/ui-service/query-sessions-transcript.test.ts` | Test | Transcript notice/turn/elapsed/interaction materialization and DEBUG exposure gate |
 | `domain/ui-service/mutate-sessions-interactions.test.ts` | Test | handleAnswerQuestion/handleRespondPlan three-way outcome: resolved/already-resolved → ok{outcome}, not-found → err, invalid-args, not-available |
 | `platform-mock-adapter.test.ts` | Test | MockAdapter messages and marker lifecycle |
@@ -181,7 +182,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `store/schedule-repo.test.ts` | Test | ScheduleRepo concurrent mutate, flush ordering, CRUD, rateLimitThrottle |
 | `store/cost-repo.test.ts` | Test | CostRepo concurrent recordEntry, 90-day prune, flush ordering, budget roundtrip |
 | `store/profile-repo.test.ts` | Test | ProfileRepo concurrency/cache/roundtrip + hot-reload success callback and invalid-JSON suppression |
-| `store/session-registry-repo.test.ts` | Test | SessionRegistryRepo concurrent mutate, flush ordering, cache consistency (Pattern A) |
+| `store/session-registry-repo.test.ts` | Test | SessionRegistryRepo concurrent mutate, context snapshot persistence, flush/cache consistency |
 | `gateway-manager.test.ts` | Test | Gateway port conflict reuse |
 | `disk-monitor.test.ts` | Test | shouldAlert decision coverage |
 | `rate-limit-throttle.test.ts` | Test | Throttle activation/cross-restart/beforeRun + onResume hook (timer-clear / expired-recovery / active-recovery / backward-compat) |

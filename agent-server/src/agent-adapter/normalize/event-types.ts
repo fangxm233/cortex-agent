@@ -1,7 +1,9 @@
 // input:  nothing (leaf type-only module)
-// output: NormalizedEvent discriminated union + QuestionSpec
+// output: NormalizedEvent union with context usage + QuestionSpec
 // pos:    Unified event schema that all adapters translate to
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import type { ContextUsage } from '@core/types/agent-types.js';
 
 export interface QuestionSpec {
   question: string;
@@ -19,6 +21,7 @@ export type NormalizedEvent =
   | { type: 'plan_mode_entered'; toolUseId: string; planFilePath: string }
   | { type: 'plan_written'; toolUseId: string; path: string; content: string }
   | { type: 'context_compacted'; trigger: string; preTokens?: number }
+  | ({ type: 'context_usage' } & ContextUsage)
   | { type: 'rate_limit'; raw: unknown }
   | { type: 'cost_record'; provider: string; model: string; tokens_in: number; tokens_out: number; cost_usd: number | null }
   | { type: 'turn_progress'; numTurns: number }

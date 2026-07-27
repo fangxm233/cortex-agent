@@ -15,7 +15,7 @@ DEBUG coverage here includes byte-identical assembled-prompt capture (`first-tur
 | `hook-bridge-subscribers-web.test.ts` | Test | Web interaction snapshots including full plan and path |
 | `busy-tracker.test.ts` | Test | BusyTracker +1/-1 publish+IPC, multi-publisher aggregate, re-entrant safety (S6-C) |
 | `orchestrator.test.ts` | Test | Orchestrator two-branch decision tree: threadAddMatch / isActiveThread / threadStartMatch -> threadExecutor; no match -> agentRunner (S8-A) |
-| `agent-runner.test.ts` | Test | Queue marker cleanup and plain-turn routing |
+| `agent-runner.test.ts` | Test | Context snapshot persist-before-publish, queue marker cleanup, and plain-turn routing |
 | `mid-turn-inject.test.ts` | Test | Pending commits, markers, and continuation |
 | `mid-turn-inject-persistence.test.ts` | Test | Durable ordering and early-ack marker races |
 | `pending-injection-recovery.test.ts` | Test | Ledger/history/store crash-boundary idempotency, concurrent-order serialization, and startup drain |
@@ -32,4 +32,4 @@ DEBUG coverage here includes byte-identical assembled-prompt capture (`first-tur
 | `seal-thread-status.test.ts` | Test | sealThreadStatus unifies the interactive `!thread` + background/resume terminal seal: text == buildThreadSummary; interactive style attaches SEALED action blocks (Cancel removed), background attaches none; delivery failure propagates (no internal swallow) |
 | `ask-user-question-pi.test.ts` | Test | PI ask-user-question branch: tryResolveHook extension_ui_response routing, multi-question join, incomplete does not resolve early (S3) |
 | `session-lifecycle-characterization.test.ts` | Test | Stage C characterization: resolveSessionName (existing→cached name, unknown→register with label/profileName/backend/projectId, null→generate only) + handleNewCmd (clears all backends + ledger + posts "new conversation") |
-| `session-events.test.ts` | Test | Session notice/message/delta/debug events plus stable pending/delivered identity contract |
+| `session-events.test.ts` | Test | Session context/notice/message/delta/debug events plus stable pending/delivered identity contract |

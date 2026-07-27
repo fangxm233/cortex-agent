@@ -15,7 +15,7 @@ Store 与持久化原语的隔离回归测试。
 | profile-repo.test.ts | 测试 | 覆盖 profile 缓存、并发与热更新 |
 | project-dir-repo.test.ts | 测试 | 覆盖项目目录映射持久化 |
 | schedule-repo.test.ts | 测试 | 覆盖日程存储并发与 CRUD |
-| session-registry-repo.test.ts | 测试 | 覆盖 session registry 缓存一致性 |
+| session-registry-repo.test.ts | 测试 | 覆盖 session registry 缓存一致性与 context usage snapshot 持久化 |
 | session-store.test.ts | 测试 | 覆盖 session store 行为 |
 | task-repo.test.ts | 测试 | 覆盖任务存储锁与 git 同步 |
 | version-migrations.test.ts | 测试 | 覆盖版本迁移幂等与文本迁移 |

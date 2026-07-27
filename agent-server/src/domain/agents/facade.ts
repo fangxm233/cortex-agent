@@ -1,5 +1,5 @@
-// input:  config, adapters, profiles, normalized tool and notice events
-// output: runAgent facade with typed API-error and compaction notices
+// input:  config, adapters, profiles, normalized context/tool/notice events
+// output: runAgent facade with context usage and typed notices
 // pos:    Sole backend-neutral agent execution path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,7 +8,7 @@ import type { AgentAdapter, AgentSpawnConfig, Backend } from '../../agent-adapte
 import { shouldAwaitBgInline, waitForBgContinuation } from '../../agent-adapter/bg-wait.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
-import type { AgentHandle, AgentResult, ChatNoticeLevel } from '@core/types/agent-types.js';
+import type { AgentHandle, AgentResult, ChatNoticeLevel, ContextUsage } from '@core/types/agent-types.js';
 import { recordCost } from '../costs/cost-tracker.js';
 import { configureEnvForMode, isRetryableResult, isRetryableError } from './config.js';
 import { isModeRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
@@ -74,6 +74,7 @@ export interface RunAgentOptions {
   taskId?: string | null;
   taskProject?: string | null;
   onProgress?: ((progress: any) => void) | null;
+  onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
   /** A complete assistant text block. `blockId` ties it to prior deltas; `noticeLevel` turns
    *  system-authored text into semantic chat chrome without changing plain platform output. */
   onAssistantMessage?: ((msg: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => void) | null;
@@ -238,6 +239,14 @@ export function runWithAdapter(
               num_turns: event.numTurns,
               total_cost_usd: null,
               duration_ms: null,
+            });
+            break;
+          case 'context_usage':
+            await options.onContextUsage?.({
+              usedTokens: event.usedTokens,
+              contextWindow: event.contextWindow,
+              percent: event.percent,
+              accuracy: event.accuracy,
             });
             break;
           case 'turn_complete':

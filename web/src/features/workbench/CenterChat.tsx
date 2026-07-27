@@ -1,11 +1,16 @@
+// input:  selected session/query/live context, transcript, and composer state
+// output: desktop center chat with transcript, context bar, and composer
+// pos:    Workbench conversation pane orchestration
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
-import { useVocab } from '@/i18n';
+import { useLang, useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
 import { MessageStream, type MessageEditCtx } from './MessageStream';
 import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { Composer } from './Composer';
+import { ContextUsageControl } from './ContextUsageControl';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
 import { useInteractionActions } from './useInteractionActions';
 import { useMarkSessionRead } from './useMarkSessionRead';
@@ -35,6 +40,7 @@ const EMPTY_TRANSCRIPT = { sessionId: '', turns: [] };
 // is pinned beside the chat (WorkbenchPage owns the split).
 export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   const L = useVocab();
+  const lang = useLang();
   const trpc = useTRPC();
   const { currentProjectId } = useCurrentProject();
   const { selectedSessionId, isDraft, draftProfile } = useSelectedSession();
@@ -63,10 +69,11 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   // delta subscription. The reply then appears token by token instead of arriving whole after the
   // whole block is generated (measured on a long answer: first text at ~3.6s, complete at ~22s).
   // `transcript` is passed back in only so a pending row self-heals if its delivered event is lost.
-  const { liveTail, streaming, running, backgroundRunning, liveTurns, streamingText, pendingUser } =
+  const { liveTail, streaming, running, backgroundRunning, liveTurns, contextUsage, streamingText, pendingUser } =
     useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
       deltas: true,
       transcript: transcriptQuery.data ?? null,
+      contextUsage: active?.contextUsage ?? null,
     });
   // Interaction cards are transcript rows now (web-interactions-redesign) — this hook only
   // provides the answer/approve/reject actions; state lives in the transcript.
@@ -149,6 +156,12 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         interactionActions={interactionActions}
         edit={edit}
         streamKey={sessionId}
+      />
+      <ContextUsageControl
+        usage={contextUsage}
+        supported={active?.backend === 'pi'}
+        variant="desktop"
+        lang={lang}
       />
       <Composer
         sessionId={sessionId}

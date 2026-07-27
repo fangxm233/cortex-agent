@@ -8,7 +8,7 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `index.ts` | entry | getAdapter(backend) dispatch + centralized symbol export |
 | `types.ts` | contract | AgentAdapter/AgentProcess/SpawnConfig types + `ContinuationSink` (assistant text plus id-correlated full tool use/results across spontaneous turns) (spontaneous background-task turns) + backend-neutral `InjectionAckSink` (`onDelivered` consumption edge + optional `onUndelivered` seal; `foldedIntoTurn` says whether the tracked run carries the reply) + optional `AgentProcess.injectUserMessage` / `setInjectionAckSink` |
 | `capabilities.ts` | capabilities | Capability enum + per-backend capability set (`StreamingDeltas` = Claude + PI; `MidTurnInject` = Claude print-mode stdin + PI RPC prompt steering) |
-| `normalize/event-types.ts` | event types | NormalizedEvent discriminated union (incl. `assistant_delta` — an incremental text chunk of a block still being generated, grouped by `blockId` and superseded by the `assistant_text` carrying the same id) |
+| `normalize/event-types.ts` | event types | NormalizedEvent discriminated union, including backend-neutral `context_usage` snapshots and `assistant_delta` streaming blocks |
 | `normalize/event-stream.ts` | queue | createEventStream single-producer FIFO |
 | `normalize/tool-names.ts` | tool name table | canonical ↔ backend-native bidirectional mapping |
 | `normalize/hooks.ts` | hook contract | NormalizedHookSpec + trigger types |
@@ -27,10 +27,11 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `codex/adapter.ts` | adapter | CodexAdapter + RouteRuntime pool |
 | `codex/event-parser.ts` | parser | codexEventToNormalized translation |
 | `pi/agent-dir.ts` | config | PI agent directory constants (data/pi/models.json + logs/sessions-pi/) + multi-provider models.json writer (writeProvidersConfig; re-asserts gateway-lost PI compat via PROVIDER_COMPAT_OVERRIDES, e.g. deepseek supportsDeveloperRole=false) + auth.json symlink/copy mirror (ensureAuthVisible) |
-| `pi/adapter.ts` | adapter | PIAdapter + PISession + switch_session + **mid-turn steering**. An active turn accepts id-correlated `prompt{streamingBehavior:"steer"}` only after its opening prompt was dispatched; the first user `message_start` is the opening prompt and later starts ack steering FIFO. `agent_settled` is deferred across the live-check→idle race so a fallback prompt's reply stays in one Cortex run; turn/cost totals aggregate, rejection/exit seals undelivered entries, and no `ContinuationSink` is needed. Uses `buildPiEnv` for authoritative `CORTEX_*` thread/task context, forwards `CORTEX_PI_ALLOWED_TOOLS`, guards resume targets with `piSessionFileExists`, and emits `assistant_delta` previews (disabled by `CORTEX_STREAM_DELTAS=0`) |
+| `pi/adapter.ts` | adapter | PIAdapter + PISession + switch_session + **mid-turn steering**. After `agent_settled`, an id-correlated `get_session_stats` probe emits `context_usage` before the terminal event (bounded fail-open timeout). Steering, turn/cost aggregation, env/tool gates, resume guards, and `assistant_delta` previews remain supported |
 | `pi/discovery.ts` | helper | Provider discovery (`pi --list-models` without Cortex's private agent-dir override) + bounded session-file existence check (filename fast path, JSONL header fallback) |
-| `pi/session-support.ts` | helper | Small state primitives extracted from the PI adapter: RPC/session timeout constants, async normalized-event queue, shared session/turn types, safe RPC-object parse, and duplicate-safe FIFO steering lifecycle (`PISteeringQueue`) |
-| `pi/event-parser.ts` | parser | piRpcLineToNormalized translation; each low-level `agent_end` records cost and accumulates turns/errors, while only `agent_settled` emits terminal `turn_complete`; text deltas carry `message.id ?? message.responseId` as blockId |
+| `pi/session-support.ts` | helper | PI session primitives: timers, async event queue, process/turn types, safe RPC parse, FIFO steering, and `PIContextUsageProbe` terminal correlation/timeout |
+| `pi/defaults.ts` | defaults | PI session directory and compiled extension paths used by process spawning |
+| `pi/event-parser.ts` | parser | piRpcLineToNormalized translation; validates `get_session_stats.contextUsage` as an estimate, aggregates `agent_end`, and emits terminal completion only at `agent_settled`; text deltas carry stable block ids |
 | `pi/framing.ts` | framing | LF-only NDJSON encoding and splitter |
 | `pi/spawn-args.ts` | args | `buildSpawnArgs` constructs PI CLI args; `buildPiEnv` clears stale context and injects authoritative thread/task/session identity |
 | `pi/mcp-bridge.ts` | extension | Bridge PI to Cortex MCP server |

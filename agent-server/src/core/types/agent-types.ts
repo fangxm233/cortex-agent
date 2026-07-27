@@ -1,9 +1,22 @@
 // input:  nothing (leaf type-only module)
-// output: Agent result/handle/progress and chat-notice level types
+// output: Agent result/handle/progress, context usage, and chat-notice types
 // pos:    Shared type definitions for agent execution and messages
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 export type ChatNoticeLevel = 'info' | 'warning' | 'error';
+
+/** Backend-neutral snapshot of the tokens currently occupying an agent's context window. */
+export interface ContextUsage {
+  usedTokens: number | null;
+  contextWindow: number;
+  percent: number | null;
+  accuracy: 'exact' | 'estimate';
+}
+
+/** Durable/live session form of a context snapshot. */
+export interface SessionContextUsage extends ContextUsage {
+  updatedAt: string;
+}
 
 export interface AskUserQuestionInfo {
   toolUseId: string | null;

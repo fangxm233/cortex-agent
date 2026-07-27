@@ -1,5 +1,5 @@
-// input:  domain types, notice/DEBUG metadata, pending snapshots
-// output: UiService operations, DTOs, interfaces, and dependencies
+// input:  domain types, context/notice/DEBUG metadata, pending snapshots
+// output: UiService operations, context-aware DTOs, interfaces, dependencies
 // pos:    Canonical transport-neutral UI contract
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
@@ -7,8 +7,8 @@ import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { EventBus } from '@events/index.js';
 import type { RunningExecutions } from '@core/running-executions.js';
-import type { ChatNoticeLevel } from '@core/types/agent-types.js';
-export type { ChatNoticeLevel } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
+export type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
 import type { Session } from '@store/session-registry-repo.js';
 import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
@@ -413,6 +413,9 @@ export interface SessionInfo {
   /** The session's active agent profile (registry record). Null when never explicitly set — the
    *  client falls back to the config default. Kept in sync by the shared profile-switch rule. */
   profileName: string | null;
+  /** Latest backend context occupancy, or null until a supported backend reports one. Optional only
+   *  for rolling compatibility with older servers/fixtures; current sessions.list always supplies it. */
+  contextUsage?: SessionContextUsage | null;
   /** Live running snapshot: true while an interactive turn (a non-thread execution) is live on the
    *  session's channel. Authoritative at query time — the client uses this as the snapshot and the
    *  `session.status` event stream as the delta (snapshot + delta), so running state survives

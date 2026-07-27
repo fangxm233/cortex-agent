@@ -1,5 +1,5 @@
 // input:  Node test runner + PIAdapter _test exports
-// output: PI framing/spawn-env/bootstrap/switch_session tests
+// output: PI framing/spawn-env/context-usage/bootstrap/switch_session tests
 // pos:    Hermetic PI adapter and subprocess context regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -328,6 +328,42 @@ test('bootstrap response with missing data.sessionId does not emit session_start
   child.emit('close', 0, null);
   const result = await proc.events[Symbol.asyncIterator]().next();
   assert.equal(result.done, true, 'iterator terminates without emitting session_started');
+});
+
+test('settled PI turn emits context_usage before its terminal event', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'context-order', resume: false });
+  const child = stub.children[0];
+  const iterator = proc.events[Symbol.asyncIterator]();
+
+  emitBootstrap(child, 'context-session');
+  assert.equal((await iterator.next()).value.type, 'session_started');
+
+  const turn = proc.send({ text: 'hello' });
+  child.stdout.emit('data', Buffer.from('{"type":"agent_settled"}\n'));
+  await turn;
+
+  const stats = child.stdin.writeHistory
+    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
+    .find((command) => command.type === 'get_session_stats');
+  assert.ok(stats, 'agent_settled sends one optional stats query');
+
+  child.stdout.emit('data', Buffer.from(JSON.stringify({
+    type: 'response', id: stats.id, command: 'get_session_stats', success: true,
+    data: { contextUsage: { tokens: 60000, contextWindow: 200000, percent: 30 } },
+  }) + '\n'));
+
+  assert.deepEqual((await iterator.next()).value, {
+    type: 'context_usage', usedTokens: 60000, contextWindow: 200000,
+    percent: 30, accuracy: 'estimate',
+  });
+  assert.deepEqual((await iterator.next()).value, {
+    type: 'turn_complete', numTurns: 0, totalCostUsd: null,
+  });
+
+  child.emit('close', 0, null);
+  await proc.close();
 });
 
 // --- Group D: exit-on-stdin-close + adapter session map cleanup ---

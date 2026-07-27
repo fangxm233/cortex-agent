@@ -1,5 +1,5 @@
 // input:  fake adapters, runWithAdapter, and locale state
-// output: callbacks for API-error notices, tools, progress, and kill
+// output: callbacks for context usage, API-error notices, tools, progress, and kill
 // pos:    Verifies backend-neutral event dispatch into agent callbacks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -158,6 +158,33 @@ test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks 
   assert.equal(final, result, 'handle.promise resolves with the exact AgentResult from send()');
   assert.equal(recorded.sendCalls.length, 1);
   assert.equal(recorded.closed, true, 'proc.close() called in the runWithAdapter finally block');
+});
+
+test('runWithAdapter: context_usage reaches the backend-neutral callback before progress', async () => {
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const adapter = makeFakeAdapter('pi', {
+    events: [
+      { type: 'context_usage', usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' },
+      { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 },
+    ],
+    resultOnResolve: defaultAgentResult('s-context'),
+    recorded,
+  });
+  const seen: string[] = [];
+
+  await runWithAdapter(
+    adapter,
+    'msg',
+    {
+      channel: 'web:context',
+      onContextUsage: (usage) => { seen.push(`context:${usage.usedTokens}/${usage.contextWindow}`); },
+      onProgress: () => seen.push('progress'),
+    },
+    { model: 'm', backend: 'pi', mode: null },
+    undefined,
+  ).promise;
+
+  assert.deepEqual(seen, ['context:60000/200000', 'progress']);
 });
 
 test('runWithAdapter: context compaction emits one concise info notice', async (t) => {

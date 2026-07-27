@@ -2,7 +2,8 @@
 // (1b L136-168 · 1o L753-786 · 1p L799-845 · 5a reject composer L200-218). Raw px/hex/font/svg by
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
-// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards.
+// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer
+// also mounts the shared PI context progress control above every edit/reject/default mode.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
 // carry live state rather than history, and both are drawn the way the desktop chat draws
@@ -12,7 +13,9 @@
 // the model has not read yet (`pending`) is pinned below everything, the preview included, and says
 // so with dimmed text alone: the same ink bubble, full opacity, no icon, badge or spinner.
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
+import { ContextUsageControl } from '@/features/workbench/ContextUsageControl';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { regenNoteIndexes, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
@@ -984,6 +987,9 @@ export interface MChatViewProps {
   stopEnabled?: boolean;
   profileChipLabel: string;
   onOpenProfile: () => void;
+  contextUsage?: SessionContextUsage | null;
+  contextUsageSupported?: boolean;
+  contextUsageLang?: 'en' | 'zh';
   attachments: PendingAttachmentVM[];
   onRemoveAttachment: (id: string) => void;
   onPlus: () => void;
@@ -1041,9 +1047,8 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   }, []);
 
   // 7b edit mode replaces the composer chrome with the accent edit bar; 5a reject mode replaces it
-  // with the amber context bar (+ ✕ cancel) + reason chips (scheme L200-211). Otherwise: attachment
-  // chips + profile chip.
-  const above = props.editing && props.editCopy ? (
+  // with the amber feedback bar (+ ✕ cancel) + reason chips. Context usage stays above every mode.
+  const composerMode = props.editing && props.editCopy ? (
     <EditBar title={props.editCopy.editBarTitle} onCancel={props.editing.onCancel} />
   ) : props.rejectBar ? (
     <>
@@ -1086,6 +1091,17 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 7px' }}>
         <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
       </div>
+    </>
+  );
+  const above = (
+    <>
+      <ContextUsageControl
+        usage={props.contextUsage ?? null}
+        supported={!!props.contextUsageSupported}
+        variant="mobile"
+        lang={props.contextUsageLang ?? 'en'}
+      />
+      {composerMode}
     </>
   );
 

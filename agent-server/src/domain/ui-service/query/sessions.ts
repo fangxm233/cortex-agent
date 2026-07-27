@@ -1,5 +1,5 @@
-// input:  session/history/pending stores and the process DEBUG gate
-// output: session list and transcript DTOs with notices and pending rows
+// input:  session/context/history/pending stores and process DEBUG gate
+// output: session list/context and transcript DTO snapshots
 // pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -114,6 +114,7 @@ export async function handleSessionsList(
       resumable: s.kind !== 'scheduled',
       label: s.label ?? null,
       profileName: s.profileName ?? null,
+      contextUsage: s.contextUsage ?? null,
       running,
       backgroundRunning: bgHeld,
       awaitingInput,

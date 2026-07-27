@@ -1,5 +1,5 @@
 // input:  Node test runner + agent-adapter/index exports
-// output: dispatcher/capability matrix (including PI mid-turn injection)/tool-name/exhaustive tests
+// output: dispatcher/capability, tool-name, context-event exhaustive tests
 // pos:    agent-adapter abstraction layer contract lock-down test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -165,6 +165,7 @@ void function _normalizedEventExhaustive(e: NormalizedEvent): string {
     case 'plan_mode_entered': return e.planFilePath;
     case 'plan_written': return e.path;
     case 'context_compacted': return e.trigger;
+    case 'context_usage': return String(e.contextWindow);
     case 'rate_limit': return 'rate_limit';
     case 'cost_record': return e.provider;
     case 'turn_progress': return String(e.numTurns);

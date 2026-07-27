@@ -1,5 +1,5 @@
-// input:  mobile route/session queries, shared chat hooks, mutations
-// output: MChatScreen live mobile conversation container
+// input:  mobile session/context queries, shared chat hooks, mutations
+// output: MChatScreen live conversation and context container
 // pos:    Mobile session detail state and data orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -240,10 +240,11 @@ export function MChatScreen(): JSX.Element {
   // seconds later. The opt-in costs one SSE connection, so no other consumer of this hook asks for
   // it — notably the plan reading page (MPlanReadScreen), which renders no chat. `transcript` is
   // passed back in only so a pending row self-heals if its delivered event is lost to a dropped frame.
-  const { liveTail, streaming, running, liveTurns, streamingText, pendingUser } =
+  const { liveTail, streaming, running, liveTurns, contextUsage, streamingText, pendingUser } =
     useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
       deltas: true,
       transcript: transcriptQuery.data ?? null,
+      contextUsage: active?.contextUsage ?? null,
     });
   // Interaction cards are transcript rows (web-interactions-redesign); this hook only supplies
   // the answer/approve/reject actions.
@@ -695,6 +696,9 @@ export function MChatScreen(): JSX.Element {
         stopEnabled={!cancelMut.isPending}
         profileChipLabel={profileChipLabel(effectiveProfile, profiles)}
         onOpenProfile={() => setProfileOpen(true)}
+        contextUsage={contextUsage}
+        contextUsageSupported={active?.backend === 'pi'}
+        contextUsageLang={lang}
         attachments={attachmentsVM}
         onRemoveAttachment={(id) => setUploads((prev) => {
           const gone = prev.find((u) => u.id === id);

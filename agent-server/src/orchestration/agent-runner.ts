@@ -1,12 +1,12 @@
-// input:  conversation execution, lifecycle, queue, DEBUG/pending stores
-// output: AgentRunner with transcript, injection, and marker lifecycles
+// input:  conversation/context execution, lifecycle, queue, DEBUG stores
+// output: AgentRunner with context, transcript, injection, marker lifecycles
 // pos:    Sole plain user-message and injection path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
-import type { AgentResult, ChatNoticeLevel } from '@core/types/agent-types.js';
+import type { AgentResult, ChatNoticeLevel, ContextUsage, SessionContextUsage } from '@core/types/agent-types.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
 import * as crypto from 'node:crypto';
@@ -30,7 +30,7 @@ import { buildDurableHooks } from './durable-helpers.js';
 const log = createLogger('agent-runner');
 import { createToolTrace } from '@platform/index.js';
 import { setStreamingCallback, clearStreamingCallback, publishPlanSubmitted, publishAskUserRequested } from './routing/hook-bridge.js';
-import { publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
+import { publishSessionContextUsage, publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
 import { createSessionDeltaStream } from './delta-coalescer.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } from './mid-turn-inject.js';
 import { commitPendingInjection } from './pending-injection-recovery.js';
@@ -347,6 +347,9 @@ export class AgentRunner {
             progress,
           );
         },
+        onContextUsage: (usage) => persistSessionContextUsage({
+          sessionName, sessionId, channel, usage,
+        }),
         onFallback: callbacks.onFallback,
         onToolUse: composeToolUse(
           composeToolUse(callbacks.onToolUse, interactiveCallbacks.onToolUse),
@@ -418,6 +421,28 @@ export class AgentRunner {
 export const agentRunner = new AgentRunner();
 
 // --- Helpers ---
+
+export interface SessionContextUsagePersistenceDeps {
+  now: () => string;
+  update: (sessionName: string, updates: { contextUsage: SessionContextUsage }) => Promise<void>;
+  publish: (snapshot: { sessionId: string; channel: string } & SessionContextUsage) => void;
+}
+
+const defaultContextUsagePersistence: SessionContextUsagePersistenceDeps = {
+  now: () => new Date().toISOString(),
+  update: (sessionName, updates) => sessionStore.updateSession(sessionName, updates),
+  publish: publishSessionContextUsage,
+};
+
+/** Persist first, then publish the identical live snapshot so query and event clients converge. */
+export async function persistSessionContextUsage(
+  input: { sessionName: string; sessionId: string; channel: string; usage: ContextUsage },
+  deps: SessionContextUsagePersistenceDeps = defaultContextUsagePersistence,
+): Promise<void> {
+  const contextUsage = { ...input.usage, updatedAt: deps.now() };
+  await deps.update(input.sessionName, { contextUsage });
+  deps.publish({ sessionId: input.sessionId, channel: input.channel, ...contextUsage });
+}
 
 /** Dependencies for {@link emitTurnProgress} — side effects injected for testability. */
 export interface TurnProgressDeps {

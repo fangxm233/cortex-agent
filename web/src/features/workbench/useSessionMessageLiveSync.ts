@@ -1,5 +1,5 @@
-// input:  shared SSE with notices, React Query, durable transcript snapshots
-// output: live session state converging notices and messages across clients
+// input:  shared SSE context/notices, React Query, durable snapshots
+// output: live session state converging context, notices, messages across clients
 // pos:    React bridge from session events to desktop/mobile chat rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -7,13 +7,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLiveConnection, useLiveEvents } from '@/features/live/LiveEventsProvider';
 import { SESSION_LIVE_EVENTS } from '@/features/live/live-events';
-import type { SessionTranscript } from '@cortex-agent/ui-contract';
+import type { SessionContextUsage, SessionTranscript } from '@cortex-agent/ui-contract';
 import type { LiveSessionMessage, PendingUserMessage, AssistantPreviewState } from './transcript-vm';
 import {
   resolveRunning, resolveBackgroundRunning, initialAssistantPreviewState,
   applyAssistantPreviewDelta, finalizeAssistantPreview,
   applyDelivered, reconcilePendingUserMessages,
 } from './transcript-vm';
+import { contextUsageFromLivePayload, resolveContextUsage } from './context-usage';
 import { useAssistantDeltaStream } from './useAssistantDeltaStream';
 
 // Live `session.message` feed for the center chat (S4 chat, task aba0). Listens on the SHARED live
@@ -62,6 +63,8 @@ export interface SessionLiveState {
   /** The live agent-turn count from the `session.turn` delta (null until the first event for this
    *  session). The caller resolves it against the `SessionInfo.numTurns` snapshot via `resolveTurns`. */
   liveTurns: number | null;
+  /** Latest context snapshot: live event when present, else the sessions.list snapshot. */
+  contextUsage: SessionContextUsage | null;
   /** Text accumulated for the assistant block being written right now, or null when nothing is
    *  streaming. Pass it to `buildTranscriptRows` as `streamingText`. Always null unless the caller
    *  opted into deltas — every other surface renders complete messages exactly as before. */
@@ -87,6 +90,8 @@ export interface SessionLiveSyncOptions {
    * after reload/device switch and clears them after a delivery event was missed.
    */
   transcript?: SessionTranscript | null;
+  /** Persisted sessions.list context snapshot, restored before the next live event. */
+  contextUsage?: SessionContextUsage | null;
 }
 
 export function useSessionMessageLiveSync(
@@ -107,6 +112,7 @@ export function useSessionMessageLiveSync(
   const [statusBackground, setStatusBackground] = useState<boolean | null>(null);
   // Live agent-turn count from the `session.turn` delta. Null until the first event for this session.
   const [liveTurns, setLiveTurns] = useState<number | null>(null);
+  const [liveContextUsage, setLiveContextUsage] = useState<SessionContextUsage | null>(null);
   // The assistant block being previewed plus finalized block ids. The latter span the shared
   // message stream and scoped delta stream, preventing a late delta from reopening a settled row.
   const [assistantPreview, setAssistantPreview] = useState<AssistantPreviewState>(initialAssistantPreviewState);
@@ -134,6 +140,7 @@ export function useSessionMessageLiveSync(
     setStatusRunning(null);
     setStatusBackground(null);
     setLiveTurns(null);
+    setLiveContextUsage(null);
     setAssistantPreview(initialAssistantPreviewState());
     deliveredPendingIdsRef.current.clear();
     setPending([]);
@@ -206,6 +213,11 @@ export function useSessionMessageLiveSync(
         // Keep the sessions.list snapshot (running dots, labels, ordering) in sync on BOTH
         // edges so the left rail reflects the turn without waiting for a focus refetch.
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        return;
+      }
+      if (raw.type === 'session.context-usage') {
+        const usage = contextUsageFromLivePayload(raw.payload);
+        if (usage) setLiveContextUsage(usage);
         return;
       }
       // Message edit + rewind (sessions.rewind, possibly from ANOTHER client): the transcript
@@ -320,5 +332,6 @@ export function useSessionMessageLiveSync(
   // Snapshot + delta: event wins once received; snapshot restores state before that; heuristic last.
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
   const backgroundRunning = resolveBackgroundRunning(statusBackground, snapshotBackgroundRunning);
-  return { liveTail, streaming, running, backgroundRunning, liveTurns, streamingText: assistantPreview.active?.text ?? null, pendingUser };
+  const contextUsage = resolveContextUsage(liveContextUsage, options.contextUsage);
+  return { liveTail, streaming, running, backgroundRunning, liveTurns, contextUsage, streamingText: assistantPreview.active?.text ?? null, pendingUser };
 }

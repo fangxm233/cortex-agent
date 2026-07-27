@@ -1,5 +1,5 @@
 // input:  session event publishers and an isolated shared EventBus
-// output: message notice/pending-id/delta/delivery event regressions
+// output: context/message/notice/pending/delta/delivery event regressions
 // pos:    Orchestration session-event contract specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,7 +7,32 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../../src/events/event-bus.js';
 import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
-import { publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelta, publishSessionMessageDelivered } from '../../src/orchestration/session-events.js';
+import { publishSessionContextUsage, publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelta, publishSessionMessageDelivered } from '../../src/orchestration/session-events.js';
+
+test('publishSessionContextUsage emits the complete timestamped snapshot', () => {
+  const bus = new EventBus();
+  const seen: any[] = [];
+  bus.subscribe('session.context-usage', (event) => { seen.push(event); });
+  const prev = jobCtx.bus;
+  jobCtx.bus = bus;
+  try {
+    publishSessionContextUsage({
+      sessionId: 'sess-context', channel: 'web:context', usedTokens: 60000,
+      contextWindow: 200000, percent: 30, accuracy: 'estimate',
+      updatedAt: '2026-07-27T12:00:00.000Z',
+    });
+  } finally {
+    jobCtx.bus = prev;
+  }
+
+  assert.equal(seen.length, 1);
+  assert.deepEqual(seen[0], {
+    type: 'session.context-usage', ts: seen[0].ts,
+    sessionId: 'sess-context', channel: 'web:context', usedTokens: 60000,
+    contextWindow: 200000, percent: 30, accuracy: 'estimate',
+    updatedAt: '2026-07-27T12:00:00.000Z',
+  });
+});
 
 test('publishSessionDebugUpdated emits a content-free transcript refresh hint', () => {
   const bus = new EventBus();

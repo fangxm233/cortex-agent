@@ -1,5 +1,5 @@
 // input:  PI RPC lines, NormalizedEvents, and InjectionAckSink
-// output: session timer constants + EventQueue + PISteeringQueue + parseRpcObject
+// output: PI timers, context probe, EventQueue, steering, RPC parsing
 // pos:    Small state primitives shared by PI session lifecycle code
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,7 +7,7 @@ import type { ChildProcess, SpawnOptions } from 'child_process';
 
 import { createLogger } from '@core/log.js';
 import type { AgentResult, AskUserQuestionInfo } from '@core/types/agent-types.js';
-import type { InjectionAckSink } from '../types.js';
+import type { AgentProcess, InjectionAckSink } from '../types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 
 export const DEFAULT_PI_BINARY = 'pi';
@@ -16,11 +16,16 @@ export const SWITCH_SESSION_TIMEOUT_MS = 5000;
 export const PI_IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
 export const PI_TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
 export const PI_MAX_TIMEOUT = 30_000_000;
+export const PI_CONTEXT_USAGE_TIMEOUT_MS = 1000;
 
 const log = createLogger('pi-adapter');
 
 export type SwitchResult = { ok: boolean; cancelled: boolean };
 export type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
+
+export interface PIAgentProcess extends AgentProcess {
+  sendExtensionUiResponse(id: string, payload: Record<string, unknown>): void;
+}
 
 export interface PISessionOptions {
   sessionKey: string;
@@ -53,6 +58,57 @@ export function parseRpcObject(line: string): Record<string, unknown> | null {
     return value && typeof value === 'object' ? value as Record<string, unknown> : null;
   } catch {
     return null;
+  }
+}
+
+interface PendingContextProbe {
+  id: string;
+  terminal: NormalizedEvent;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+/** Correlates PI's optional end-of-turn stats response without letting telemetry hang a turn. */
+export class PIContextUsageProbe {
+  private pending: PendingContextProbe | null = null;
+  private sequence = 0;
+
+  constructor(
+    private readonly write: (command: Record<string, unknown>) => void,
+    private readonly emit: (event: NormalizedEvent) => void,
+    private readonly timeoutMs = PI_CONTEXT_USAGE_TIMEOUT_MS,
+  ) {}
+
+  deferTerminal(terminal: NormalizedEvent): void {
+    this.release();
+    const id = `context-usage-${++this.sequence}`;
+    const timer = setTimeout(() => this.release(id), this.timeoutMs);
+    timer.unref?.();
+    this.pending = { id, terminal, timer };
+    try {
+      this.write({ id, type: 'get_session_stats' });
+    } catch {
+      this.release(id);
+    }
+  }
+
+  observe(raw: Record<string, unknown> | null): void {
+    if (
+      raw?.['type'] === 'response' && raw['command'] === 'get_session_stats' &&
+      raw['id'] === this.pending?.id
+    ) this.release(this.pending.id);
+  }
+
+  close(): void {
+    if (this.pending) clearTimeout(this.pending.timer);
+    this.pending = null;
+  }
+
+  private release(id?: string): void {
+    const pending = this.pending;
+    if (!pending || (id !== undefined && pending.id !== id)) return;
+    clearTimeout(pending.timer);
+    this.pending = null;
+    this.emit(pending.terminal);
   }
 }
 

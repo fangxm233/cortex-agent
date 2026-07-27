@@ -1,5 +1,5 @@
 // input:  piRpcLineToNormalized + createPIEventParserState
-// output: PI parser coverage including settled terminal boundaries
+// output: PI parser coverage including context usage and settled terminal boundaries
 // pos:    PI rpc → NormalizedEvent translator full coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -80,6 +80,50 @@ test('session_started: bootstrap dedup preserves sessionFile', () => {
   const second = piRpcLineToNormalized(fixture, state);
   assert.deepEqual(second, []);
   assert.equal(state.sessionId, 's-1');
+});
+
+test('context_usage: successful get_session_stats maps the PI estimate', () => {
+  const events = piRpcLineToNormalized(line({
+    type: 'response',
+    id: 'context-1',
+    command: 'get_session_stats',
+    success: true,
+    data: { contextUsage: { tokens: 425353, contextWindow: 1000000, percent: 42.5353 } },
+  }), freshState());
+
+  assert.deepEqual(events, [{
+    type: 'context_usage',
+    usedTokens: 425353,
+    contextWindow: 1000000,
+    percent: 42.5353,
+    accuracy: 'estimate',
+  }]);
+});
+
+test('context_usage: preserves PI nulls immediately after compaction', () => {
+  const events = piRpcLineToNormalized(line({
+    type: 'response', id: 'context-2', command: 'get_session_stats', success: true,
+    data: { contextUsage: { tokens: null, contextWindow: 272000, percent: null } },
+  }), freshState());
+
+  assert.deepEqual(events, [{
+    type: 'context_usage', usedTokens: null, contextWindow: 272000,
+    percent: null, accuracy: 'estimate',
+  }]);
+});
+
+test('context_usage: malformed usage and failed optional stats responses emit nothing', () => {
+  const malformed = piRpcLineToNormalized(line({
+    type: 'response', id: 'context-3', command: 'get_session_stats', success: true,
+    data: { contextUsage: { tokens: 12, contextWindow: 0, percent: 4 } },
+  }), freshState());
+  const failed = piRpcLineToNormalized(line({
+    type: 'response', id: 'context-4', command: 'get_session_stats', success: false,
+    error: 'stats unavailable',
+  }), freshState());
+
+  assert.deepEqual(malformed, []);
+  assert.deepEqual(failed, [], 'optional stats failure is not an agent error');
 });
 
 // ---------------------------------------------------------------------------
