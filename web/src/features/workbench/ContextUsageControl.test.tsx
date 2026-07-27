@@ -24,6 +24,8 @@ describe('ContextUsageControl', () => {
     expect(html).toContain('data-context-usage-track="desktop"');
     expect(html).toContain('width:64px');
     expect(html).toContain('aria-haspopup="dialog"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('data-state="closed"');
     expect(html).toContain('aria-valuenow="30"');
     expect(html).toContain('>30%</span>');
     expect(html).not.toContain('60k / 200k');

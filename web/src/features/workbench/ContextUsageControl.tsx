@@ -1,8 +1,9 @@
-// input:  session context snapshot, support flag, language, surface variant
+// input:  session context snapshot, Radix Modal, language/surface variant
 // output: compact clickable progress/percent and current/max modal
 // pos:    Shared desktop/mobile context usage control
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';
 import { contextUsageViewModel } from './context-usage';
@@ -46,22 +47,22 @@ export function ContextUsageControl({ usage, supported, variant, lang }: Context
   );
 }
 
-interface ContextUsageTriggerProps {
+interface ContextUsageTriggerProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   variant: ContextSurface;
   percent: string;
   progress: number | null;
   label: string;
 }
 
-function ContextUsageTrigger({ variant, percent, progress, label }: ContextUsageTriggerProps): JSX.Element {
+const TRIGGER_STYLE: CSSProperties = { border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' };
+const PERCENT_STYLE: CSSProperties = { minWidth: 26, font: "600 10px 'IBM Plex Mono', ui-monospace, Menlo, monospace", color: 'var(--proto-muted)', textAlign: 'right', whiteSpace: 'nowrap' };
+
+const ContextUsageTrigger = forwardRef<HTMLButtonElement, ContextUsageTriggerProps>(function ContextUsageTrigger(
+  { variant, percent, progress, label, style, ...buttonProps },
+  ref,
+): JSX.Element {
   return (
-    <button
-      type="button"
-      data-context-usage-bar={variant}
-      aria-label={`${label}: ${percent}`}
-      aria-haspopup="dialog"
-      style={{ border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' }}
-    >
+    <button {...buttonProps} ref={ref} type="button" data-context-usage-bar={variant} aria-label={`${label}: ${percent}`} style={{ ...TRIGGER_STYLE, ...style }}>
       <span
         data-context-usage-track={variant}
         role="progressbar"
@@ -73,12 +74,10 @@ function ContextUsageTrigger({ variant, percent, progress, label }: ContextUsage
       >
         <span style={{ display: 'block', height: '100%', width: `${progress ?? 0}%`, borderRadius: 999, background: 'var(--proto-accent)' }} />
       </span>
-      <span style={{ minWidth: 26, font: "600 10px 'IBM Plex Mono', ui-monospace, Menlo, monospace", color: 'var(--proto-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
-        {percent}
-      </span>
+      <span style={PERCENT_STYLE}>{percent}</span>
     </button>
   );
-}
+});
 
 export function ContextUsageDetails({ usage, lang }: { usage: SessionContextUsage | null; lang: ContextLanguage }): JSX.Element {
   const copy = COPY[lang];
