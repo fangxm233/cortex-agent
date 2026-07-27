@@ -1,6 +1,6 @@
-// input:  user/session context, AgentSpawnConfig, Claude print-stream and rate-limit events
-// output: ClaudeAdapter with complete text, deltas, tool events, and Anthropic throttle identity
-// pos:    Claude session pool; preserves full tool data and forwards provider-scoped limit state
+// input:  user/session context, Claude print stream/usage, rate-limit events
+// output: ClaudeAdapter with text, tools, context usage, and throttle events
+// pos:    Claude session pool and normalized print-stream adapter
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn, ChildProcess } from 'child_process';
@@ -14,7 +14,7 @@ import { handleRateLimitEvent } from '@domain/costs/rate-limit-throttle.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import type { AgentAdapter, AgentSpawnConfig, AgentProcess, Backend, UserMessage, ContinuationSink, InjectionAckSink } from '../types.js';
-import type { AgentResult } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import {
@@ -47,6 +47,7 @@ import {
   type StreamDeltaState,
 } from './event-parser.js';
 import { BgTaskTracker, routeLine } from './bg-task-tracker.js';
+import { ClaudeContextUsageTracker } from './context-usage.js';
 
 const log = createLogger('claude-bridge');
 
@@ -73,6 +74,7 @@ interface PendingTurn {
   onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
   onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
+  onContextUsage: ((usage: ContextUsage) => void) | null;
   rawStream: WriteStream;
   txtStream: WriteStream;
   killed: boolean;
@@ -177,6 +179,8 @@ class ClaudeSession {
    *  than turn-scoped because the stream is a property of the process, and every `message_start`
    *  resets it anyway. */
   private streamDeltaState: StreamDeltaState = createStreamDeltaState();
+  /** Current provider-call usage plus configured/result-reconciled context window. */
+  private contextUsageTracker: ClaudeContextUsageTracker;
   /** Tracks in-flight background tasks (run_in_background) for this session. */
   private bgTracker = new BgTaskTracker();
   /** Set by orchestration to receive spontaneous background-task continuation turns. */
@@ -208,6 +212,7 @@ class ClaudeSession {
     this.sessionKey = options.sessionKey || channel;
     this.needsResume = options.needsResume;
     this.modelName = options.model || null;
+    this.contextUsageTracker = new ClaudeContextUsageTracker(this.modelName);
     this.isUserInitiated = options.isUserInitiated || false;
     this.callbackSource = options.callbackSource || null;
     this.scheduleTaskId = options.scheduleTaskId || null;
@@ -364,6 +369,7 @@ class ClaudeSession {
       onToolUse: options.onToolUse || null,
       onToolResult: options.onToolResult || null,
       onCompact: options.onCompact || null,
+      onContextUsage: options.onContextUsage || null,
       rawStream: streams.rawStream,
       txtStream: streams.txtStream,
       killed: false,
@@ -477,6 +483,10 @@ class ClaudeSession {
       onToolUse: sink?.onToolUse ? (name: string, input: any, toolUseId: string) => { try { sink.onToolUse!(name, input, toolUseId); } catch {} } : null,
       onToolResult: sink?.onToolResult ? (toolUseId: string, content: string, isError: boolean) => { try { sink.onToolResult!(toolUseId, content, isError); } catch {} } : null,
       onCompact: null,
+      onContextUsage: sink?.onContextUsage ? (usage: ContextUsage) => {
+        try { sink.onContextUsage!(usage); }
+        catch (e) { log.warn('continuation onContextUsage threw:', (e as Error).message); }
+      } : null,
       rawStream: streams.rawStream,
       txtStream: streams.txtStream,
       killed: false,
@@ -523,6 +533,7 @@ class ClaudeSession {
     onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
     onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
     onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
+    onContextUsage?: ((usage: ContextUsage) => void) | null;
   }): Promise<any> {
     if (!this.alive) {
       this.needsResume = true;
@@ -662,6 +673,14 @@ class ClaudeSession {
     }
   }
 
+  private emitContextUsage(data: unknown): void {
+    const usage = this.contextUsageTracker.observe(data);
+    const callback = this.currentTurn?.onContextUsage;
+    if (!usage || typeof callback !== 'function') return;
+    try { callback(usage); }
+    catch (e) { log.warn('onContextUsage threw:', (e as Error).message); }
+  }
+
   private handleLine(line: string) {
     if (!line) return;
     this.resetIdleTimer();
@@ -677,6 +696,7 @@ class ClaudeSession {
     // are deliberately kept out of the per-turn raw jsonl and the daemon log. Handled first, and
     // separately, because everything below is about complete events.
     if (isJson && parsed?.type === 'stream_event') {
+      this.emitContextUsage(parsed);
       const delta = parseStreamEvent(parsed, this.streamDeltaState);
       if (delta && typeof this.currentTurn?.onAssistantDelta === 'function') {
         try { this.currentTurn.onAssistantDelta(delta.text, delta.blockId); }
@@ -690,8 +710,9 @@ class ClaudeSession {
     try {
       const data = parsed;
       if (!isJson) throw new Error('not json');
-      // Context compaction boundary: Claude emits a system/compact_boundary line the instant it
-      // decides to compact. Surface it to the active turn so observers (e.g. Slack) can notify.
+      // Context compaction boundary: invalidate the old provider-call cursor immediately, then
+      // surface the boundary to the active turn so observers (e.g. Slack) can notify.
+      if (data.type === 'system' && data.subtype === 'compact_boundary') this.emitContextUsage(data);
       if (data.type === 'system' && data.subtype === 'compact_boundary' && this.currentTurn?.onCompact) {
         const meta = data.compact_metadata ?? {};
         try {
@@ -727,6 +748,7 @@ class ClaudeSession {
         this.openContinuationTurn(fromInjection ? '[injected-message continuation]' : '[background-task continuation]');
       }
       if (data.type === 'result' && this.currentTurn) {
+        this.emitContextUsage(data);
         this.handleResultEvent(this.currentTurn, data);
         return;
       }
@@ -1099,6 +1121,8 @@ export class ClaudeAdapter implements AgentAdapter {
               stream.push({ type: 'tool_result', toolUseId, content, ok: !isError }),
             onCompact: (info: { trigger: string; preTokens?: number }) =>
               stream.push({ type: 'context_compacted', trigger: info.trigger, preTokens: info.preTokens }),
+            onContextUsage: (usage: ContextUsage) =>
+              stream.push({ type: 'context_usage', ...usage }),
             onProgress: (p: { num_turns?: number } | null) => {
               stream.push({ type: 'turn_progress', numTurns: p?.num_turns ?? 0 });
             },
@@ -1269,13 +1293,14 @@ export function recoverTuiOrphans(exec?: TmuxExec): { found: string[]; killed: s
  *  testing handleLine / continuation routing. Initializes only the fields the line
  *  handlers touch. Callers should stub createTurnStreams to avoid log file I/O and
  *  register cleanup via t.after(() => session.close()) to clear the idle timer. */
-function makeSessionForTest(): ClaudeSession {
+function makeSessionForTest(modelName: string | null = null): ClaudeSession {
   const s = Object.create(ClaudeSession.prototype) as any;
   s.sessionId = 'test-session';
   s.channel = 'test';
   s.sessionKey = 'test';
   s.bgTracker = new BgTaskTracker();
   s.streamDeltaState = createStreamDeltaState();
+  s.contextUsageTracker = new ClaudeContextUsageTracker(modelName);
   s.continuationSink = null;
   s.pendingInjections = [];
   s.injectionAck = null;

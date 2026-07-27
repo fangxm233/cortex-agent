@@ -1,5 +1,5 @@
-// input:  Node test runner + agent-adapter/bg-wait (fake AgentProcess + injectable timers)
-// output: waitForBgContinuation merge/chain/timeout spec + shouldAwaitBgInline gates
+// input:  bg-wait with fake process, context callbacks, and timers
+// output: continuation merge/context/timeout and gate regressions
 // pos:    thread-session inline background-task wait unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -65,23 +65,29 @@ test('waitForBgContinuation: registers a sink and resolves with the merged resul
   assert.equal(ft.live().length, 0, 'timers cleared');
 });
 
-test('waitForBgContinuation: continuation assistant text and tool calls forward to the step callbacks', async () => {
+test('waitForBgContinuation: continuation text, tools, and context forward to step callbacks', async () => {
   const { proc, sink } = fakeProc();
   const ft = fakeTimers();
   const texts: string[] = [];
   const tools: string[] = [];
+  const contexts: number[] = [];
   const p = waitForBgContinuation({
     proc, baseResult: baseResult(),
     onAssistantText: (t) => texts.push(t),
     onToolUse: (name) => tools.push(name),
+    onContextUsage: (usage) => { contexts.push(usage.contextWindow); },
     graceMs: 1000, maxWaitMs: 5000, timers: ft.timers,
   });
   sink().onAssistantText('bg finished: OK');
   sink().onToolUse?.('Bash', { command: 'tail log' });
+  sink().onContextUsage?.({
+    usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
+  });
   sink().onResult(baseResult({ pendingBackgroundTasks: 0 }));
   await p;
   assert.deepEqual(texts, ['bg finished: OK']);
   assert.deepEqual(tools, ['Bash']);
+  assert.deepEqual(contexts, [1_000_000]);
 });
 
 test('waitForBgContinuation: chained continuation (still remaining) keeps waiting and merges across turns', async () => {

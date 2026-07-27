@@ -1,5 +1,5 @@
-// input:  mid-turn injection with durable/commit/backend seams
-// output: pending commit, continuation, and platform-marker regressions
+// input:  mid-turn injection with durable/backend/context seams
+// output: pending, continuation context, and marker regressions
 // pos:    Verifies the full mid-turn injection lifecycle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -49,6 +49,7 @@ interface Recorder {
   streamed: string[];
   marked: string[];
   unmarked: string[];
+  contexts: any[];
 }
 
 function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recorder {
@@ -61,6 +62,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recor
   const streamed: string[] = [];
   const marked: string[] = [];
   const unmarked: string[] = [];
+  const contexts: any[] = [];
   let clock = 0;
   let pendingId = 0;
   const now = () => `2026-07-25T00:00:0${clock++}.000Z`;
@@ -82,11 +84,12 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recor
     createPendingId: () => `pin-${++pendingId}`,
     markPending: async (record) => { marked.push(record.messageId); },
     unmarkPending: async (record) => { unmarked.push(record.messageId); },
+    onContextUsage: (sessionId, channel, usage) => contexts.push({ sessionId, channel, usage }),
     track: (d) => track.push(d),
     now,
     ...overrides,
   };
-  return { deps, history, published, delivered, status, ledger, track, streamed, marked, unmarked };
+  return { deps, history, published, delivered, status, ledger, track, streamed, marked, unmarked, contexts };
 }
 
 const baseCtx = {
@@ -338,6 +341,23 @@ test('post-result ack holds the gate; the spontaneous turn is streamed and then 
   await proc.continuationSink.onResult({ pendingBackgroundTasks: 0 });
   assert.ok(r.status.some((s) => s.running === false), 'sealed idle when the spontaneous turn ends');
   assert.deepEqual(r.track, [+1, -1], 'busy gate released exactly once');
+});
+
+test('post-result continuation forwards context usage to the session persistence seam', async () => {
+  const proc = fakeProcess();
+  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+  await tryInjectIntoLiveTurn(r.deps, baseCtx);
+  await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: false });
+
+  proc.continuationSink.onContextUsage({
+    usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
+  });
+
+  assert.deepEqual(r.contexts, [{
+    sessionId: SESSION,
+    channel: CHANNEL,
+    usage: { usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact' },
+  }]);
 });
 
 test('post-result continuation routes tool calls to the transcript too', async () => {

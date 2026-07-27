@@ -1,6 +1,6 @@
-// input:  Node test runner + lifecycle.handleAgentSuccess (MockAdapter/MockOutputStream harness)
-// output: background-task waiting-window integration spec — hold + sink, grace auto-seal, interrupted seal
-// pos:    Validate orchestration/lifecycle.ts bg-continuation hold wiring (F1/F2/F5/F6 glue)
+// input:  lifecycle success handler with mock output/context sink
+// output: background hold, context, grace, interruption, and cap regressions
+// pos:    Lifecycle background-continuation integration tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test } from 'vitest';
@@ -29,15 +29,17 @@ function harness() {
   const stream = new MockOutputStream(adapter, { type: 'interactive-reply', conduit: 'slack:D1', sessionId: '' });
   const onAssistantMessage = Object.assign((_t: string) => {}, { stream });
   let sink: ContinuationSink | null = null;
+  const contexts: number[] = [];
   const args = {
     channel: 'slack:D1', adapter: adapter as any, statusMsg: statusMsg as any,
     startTime: Date.now(), userMessage: 'run it in background', executionId: null,
     trigger: 'user', sessionName: 'cortex-test', threadAnchorId: null, userMessageTs: null,
     onAssistantMessage: onAssistantMessage as any, onToolUse: null,
+    onContextUsage: (usage: { contextWindow: number }) => contexts.push(usage.contextWindow),
     registerContinuationSink: (s: ContinuationSink) => { sink = s; },
   };
   const lastStatus = () => (adapter.updated.at(-1)?.content?.text ?? '') as string;
-  return { adapter, args, lastStatus, getSink: () => sink };
+  return { adapter, args, contexts, lastStatus, getSink: () => sink };
 }
 
 function withEnv(t: any, key: string, value: string | undefined) {
@@ -55,6 +57,10 @@ test('undelivered-only completions hold the status waiting and register a sink; 
   const sink = h.getSink();
   assert.ok(sink, 'continuation sink registered for undelivered-only hold');
   assert.match(h.lastStatus(), /Background task running/i, 'status held in waiting state');
+  sink!.onContextUsage?.({
+    usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
+  });
+  assert.deepEqual(h.contexts, [1_000_000], 'continuation context reaches the lifecycle callback');
 
   // The (late) notification arrives and the continuation turn completes.
   sink!.onResult(baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0, total_cost_usd: 0.01, num_turns: 1 }) as any);

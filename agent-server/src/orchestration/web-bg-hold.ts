@@ -1,6 +1,6 @@
-// input:  terminal result, continuation registrar, message/tool-result publishers, busy guard
-// output: web background hold forwarding complete id-correlated tool events before terminal seal
-// pos:    web session.status/message continuation analogue of Slack's status-message hold
+// input:  result, continuation registrar, message/tool/context publishers
+// output: web background hold forwarding continuation state before seal
+// pos:    Web session background-continuation hold
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Why this exists (the gap): the background-task continuation machinery (BgTaskTracker /
@@ -13,7 +13,7 @@
 // Slack status message.
 
 import { createLogger } from '@core/log.js';
-import type { AgentResult } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
 import { startBgWaitGuard, type BgWaitGuard } from './bg-wait-guard.js';
 
@@ -33,6 +33,8 @@ export interface WebBgHoldDeps {
   publishTool: (name: string, input: any, toolUseId: string) => void;
   /** Persist a complete normalized continuation tool result in DEBUG mode. */
   publishToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
+  /** Persist and publish an exact continuation context snapshot. */
+  publishContextUsage?: (usage: ContextUsage) => void;
   /** Busy bracket (trackPendingTask). +1 for the whole wait window so a deferred daemon restart
    *  does not fire and kill the Claude child (F1); -1 when the guard settles. */
   track: (delta: number) => void;
@@ -105,6 +107,7 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
     onAssistantText: (text: string) => { if (text) deps.publishAssistant(text); },
     onToolUse: (name: string, input: any, toolUseId?: string) => deps.publishTool(name, input, toolUseId ?? ''),
     onToolResult: (toolUseId: string, content: string, isError: boolean) => deps.publishToolResult?.(toolUseId, content, isError),
+    onContextUsage: (usage: ContextUsage) => deps.publishContextUsage?.(usage),
     onResult: (cont: AgentResult) => {
       // Process died mid-wait, or rate-limited: seal honestly (never leave the session "running").
       if (cont.backgroundInterrupted || cont.rateLimited) { seal(); return; }

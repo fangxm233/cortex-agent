@@ -59,7 +59,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
 | `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims + extension_ui settled turns |
 | `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
-| `run-with-adapter.test.ts` | Test | Normalized context/tool/progress callbacks, Web session-reset/API notices, and inline continuation wait |
+| `run-with-adapter.test.ts` | Test | Normalized and inline-continuation context callbacks |
 | `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins: cortex-feishu plugin gated to feishu: channels (exact basename match) |
 | `app.test.ts` | Test | Startup DM + scheduled success flow |
 | `auto-compound.test.ts` | Test | Compound skip conditions and concatenation |

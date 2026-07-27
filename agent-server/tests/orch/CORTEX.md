@@ -16,16 +16,16 @@ DEBUG coverage here includes byte-identical assembled-prompt capture (`first-tur
 | `busy-tracker.test.ts` | Test | BusyTracker +1/-1 publish+IPC, multi-publisher aggregate, re-entrant safety (S6-C) |
 | `orchestrator.test.ts` | Test | Orchestrator two-branch decision tree: threadAddMatch / isActiveThread / threadStartMatch -> threadExecutor; no match -> agentRunner (S8-A) |
 | `agent-runner.test.ts` | Test | Context snapshot persist-before-publish, queue marker cleanup, and plain-turn routing |
-| `mid-turn-inject.test.ts` | Test | Pending commits, markers, and continuation |
+| `mid-turn-inject.test.ts` | Test | Pending commits, markers, and continuation context |
 | `mid-turn-inject-persistence.test.ts` | Test | Durable ordering and early-ack marker races |
 | `pending-injection-recovery.test.ts` | Test | Ledger/history/store crash-boundary idempotency, concurrent-order serialization, and startup drain |
 | `agent-runner-wake-guard.test.ts` | Test | 2026-07-05 self-consumption regression: synthetic wakeSession notices (SYNTHETIC_CALLBACK_SENDER) bypass the manager-qa human-answer backstop in route(); real human replies still consumed; buildSyntheticWakeMessage shape sync |
 | `lifecycle-rate-limit.test.ts` | Test | handleAgentError thrown-rate-limit pause branch: throttled + rate-limit error + userMessage → recordResume(direct) + seal, no error post; normal error path otherwise (not throttled / no userMessage / non-rate-limit) |
-| `bg-continuation.test.ts` | Test | buildContinuationSink dispatch (merge text / waiting vs complete vs interrupted; running+undelivered split) + isBgContinuationEnabled / isInteractiveChannel / shouldHoldForBg gating + isWebChannel / shouldHoldWebForBg (web: scope) gating |
-| `web-bg-hold.test.ts` | Test | holdWebForBg (web bg-hold, real bg-wait-guard + injected timers): held-state publish (running+backgroundRunning), busy-bracket balance (+1/-1), continuation streaming (assistant text drops empties / tool call), chained re-arm, grace-timeout seal, max-wait release-but-keep-sink, interrupted/rate-limited seal, defensive no-op when nothing remains, user-Stop abort handle (registered only while held, seals + releases the bracket, idempotent against a later interrupt or a max-wait release) |
+| `bg-continuation.test.ts` | Test | Continuation text/tool/context and terminal dispatch |
+| `web-bg-hold.test.ts` | Test | Web hold status, context forwarding, guards, and seals |
 | `cancel-bg-hold.test.ts` | Test | Stop during a web background hold (regression: the click did nothing because the execution was already torn down) — `cancelBgHolds` no-hold no-op, kill-then-abort ordering, one kill per channel with every hold aborted, seal still fires when the kill throws, end-to-end against the real `bgHeldSessions` (found by channel, sealed, second Stop finds nothing) |
 | `bg-wait-guard.test.ts` | Test | BgWaitGuard busy bracket (+1/-1 exactly once), grace watchdog (undelivered-only), max-wait cap (running), rearm switching, env-tunable durations |
-| `lifecycle-bg-hold.test.ts` | Test | handleAgentSuccess bg-hold integration: undelivered-only hold + sink, grace auto-seal, interrupted seal, max-wait cap seal + late-continuation re-seal |
+| `lifecycle-bg-hold.test.ts` | Test | Lifecycle hold context, grace, interruption, and cap |
 | `turn-notify.test.ts` | Test | isTurnNotifyEnabled / getTurnNotifyThresholdS gating + maybeNotifyTurnComplete dispatch (threshold/scope/disable gates, success metrics vs failure, threadId forwarding, never-throws) |
 | `thread-executor.test.ts` | Test | Thread queue marker cleanup and routing |
 | `thread-detached.test.ts` | Test | runThreadDetached holds the busy gate for the whole fire-and-forget thread AND across the onSettled callback (sync +1, -1 in finally on success/reject, balanced, deferred until callback settles — test e) — regression for restart killing MCP `thread_start` background threads / dropping the completion callback |

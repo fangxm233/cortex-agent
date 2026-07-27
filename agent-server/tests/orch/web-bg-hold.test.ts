@@ -1,7 +1,6 @@
-// input:  Node test runner + orchestration/web-bg-hold (real bg-wait-guard, injected timers)
-// output: holdWebForBg spec — status publishes (running/backgroundRunning), busy bracket balance,
-//         continuation streaming (assistant/tool), chained re-arm, grace/max-wait/interrupt seal
-// pos:    CC web background-task hold unit tests (the web analogue of lifecycle-bg-hold)
+// input:  web background hold with context sink and injected timers
+// output: status/context, guard-balance, chain, timeout, and seal regressions
+// pos:    Web background-task hold unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -16,6 +15,7 @@ function makeHarness() {
   const statuses: Array<{ running: boolean; backgroundRunning: boolean }> = [];
   const assistants: string[] = [];
   const tools: Array<{ name: string; input: any }> = [];
+  const contexts: number[] = [];
   const track: number[] = [];
   let sink: ContinuationSink | null = null;
 
@@ -37,11 +37,12 @@ function makeHarness() {
       publishStatus: (p) => statuses.push(p),
       publishAssistant: (text) => assistants.push(text),
       publishTool: (name, input) => tools.push({ name, input }),
+      publishContextUsage: (usage) => contexts.push(usage.contextWindow),
       guardTimers: timers,
     });
 
   return {
-    statuses, assistants, tools, track,
+    statuses, assistants, tools, contexts, track,
     install,
     get sink() { return sink!; },
     get abort() { return abort; },
@@ -75,14 +76,18 @@ test('holdWebForBg: continuation with 0 remaining → seal (running:false, busy 
   assert.deepEqual(h.track, [+1, -1], 'busy bracket balanced');
 });
 
-test('holdWebForBg: continuation assistant text + tool call stream as session events', () => {
+test('holdWebForBg: continuation assistant text, tool call, and context stream as session events', () => {
   const h = makeHarness();
   h.install({ pendingBackgroundTasks: 1 });
   h.sink.onAssistantText('background done: OK');
   h.sink.onAssistantText('');
   h.sink.onToolUse!('Bash', { command: 'echo hi' });
+  h.sink.onContextUsage?.({
+    usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
+  });
   assert.deepEqual(h.assistants, ['background done: OK'], 'empty text is dropped');
   assert.deepEqual(h.tools, [{ name: 'Bash', input: { command: 'echo hi' } }]);
+  assert.deepEqual(h.contexts, [1_000_000]);
 });
 
 test('holdWebForBg: chained continuation (remaining>0) → re-publish held state, keep waiting', () => {

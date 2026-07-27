@@ -1,10 +1,10 @@
-// input:  continuation contract, OutputStream, AgentResult, id-correlated tool callbacks
-// output: background continuation sink forwarding complete tool uses/results plus gate helpers
-// pos:    CC continuation orchestration (merge into reply, preserve DEBUG data, update waiting status)
+// input:  continuation contract, output stream, result, tool/context callbacks
+// output: background sink forwarding text, tools, context, and terminal state
+// pos:    Claude continuation sink and hold gates
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { OutputStream } from '@platform/index.js';
-import type { AgentResult } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
 import { isBgContinuationEnabled } from '../agent-adapter/bg-wait.js';
 
@@ -18,6 +18,8 @@ export interface ContinuationSinkDeps {
   onToolUse?: ((name: string, input: any, toolUseId?: string) => void) | null;
   /** Optional full normalized result callback paired to onToolUse by toolUseId. */
   onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
+  /** Optional context snapshot callback for the spontaneous provider call. */
+  onContextUsage?: ((usage: ContextUsage) => void) | null;
   /** Called when the continuation result still has background work remaining (chained /
    *  undelivered tasks): keep the status waiting with the combined remaining count. The
    *  split lets the caller re-arm the bg-wait-guard (grace vs max-wait). */
@@ -45,6 +47,7 @@ export function buildContinuationSink(deps: ContinuationSinkDeps): ContinuationS
     onAssistantText: (text: string) => deps.stream.emitText(text),
     onToolUse: deps.onToolUse || undefined,
     onToolResult: deps.onToolResult || undefined,
+    onContextUsage: deps.onContextUsage || undefined,
     onResult: (result: AgentResult) => {
       if (result.backgroundInterrupted) { (deps.onInterrupted ?? deps.onComplete)(result); return; }
       if (result.rateLimited) { deps.onRateLimited(result); return; }

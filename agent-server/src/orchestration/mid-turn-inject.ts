@@ -1,5 +1,5 @@
-// input:  live execution, incoming message, durable pending/commit seams
-// output: durable injected turns, platform markers, continuation forwarding
+// input:  live execution, message, pending/commit/context seams
+// output: durable injected turns, markers, and continuation forwarding
 // pos:    Busy-channel injection branch of AgentRunner.route
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -20,6 +20,7 @@ import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
 import { createLogger } from '@core/log.js';
+import type { ContextUsage } from '@core/types/agent-types.js';
 
 const log = createLogger('mid-turn-inject');
 
@@ -52,6 +53,7 @@ export interface MidTurnInjectDeps {
   }) => void;
   publishDelivered: (ev: { sessionId: string; channel: string; pendingId: string; messageTs: string; committedTs: string }) => void;
   publishStatus: (ev: { sessionId: string; channel: string; running: boolean }) => void;
+  onContextUsage?: (sessionId: string, channel: string, usage: ContextUsage) => void;
   persistPending: (record: PendingInjectionRecord) => Promise<void>;
   commitPending: (record: PendingInjectionRecord) => Promise<{ committedTs: string }>;
   markPending?: (record: PendingInjectionRecord) => Promise<void>;
@@ -405,6 +407,7 @@ function registerSinks(
     onToolResult: (toolUseId, content, isError) => {
       if (deps.captureDebug) deps.appendToolResult?.(sessionId, { toolUseId, content, isError });
     },
+    onContextUsage: (usage) => deps.onContextUsage?.(sessionId, channel, usage),
     onResult: () => handleContinuationResult(deps, state, sessionId, channel),
   });
 }

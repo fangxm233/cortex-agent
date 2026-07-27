@@ -1,5 +1,5 @@
 // input:  conversation/context execution, lifecycle, queue, DEBUG stores
-// output: AgentRunner with context, transcript, injection, marker lifecycles
+// output: AgentRunner with context/continuation persistence and transcripts
 // pos:    Sole plain user-message and injection path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -289,6 +289,14 @@ export class AgentRunner {
           );
         }
       : null;
+    const persistContext = (usage: ContextUsage): Promise<void> => persistSessionContextUsage({
+      sessionName, sessionId, channel, usage,
+    });
+    const persistContinuationContext = (usage: ContextUsage): void => {
+      void persistContext(usage).catch((error) => {
+        log.warn('continuation context persistence failed:', (error as Error).message);
+      });
+    };
     try {
       const convResult = await runConversation({
         adapter, channel,
@@ -347,9 +355,7 @@ export class AgentRunner {
             progress,
           );
         },
-        onContextUsage: (usage) => persistSessionContextUsage({
-          sessionName, sessionId, channel, usage,
-        }),
+        onContextUsage: persistContext,
         onFallback: callbacks.onFallback,
         onToolUse: composeToolUse(
           composeToolUse(callbacks.onToolUse, interactiveCallbacks.onToolUse),
@@ -375,6 +381,7 @@ export class AgentRunner {
         sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId,
         continuationToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
         continuationToolResult: persistToolResult,
+        continuationContextUsage: persistContinuationContext,
         registerContinuationSink: holdForBg ? (sink: ContinuationSink) => proc!.setContinuationSink!(sink) : null,
       });
       // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
@@ -397,6 +404,7 @@ export class AgentRunner {
           },
           publishTool: persistToolUse,
           publishToolResult: persistToolResult ?? undefined,
+          publishContextUsage: persistContinuationContext,
         });
       }
     } catch (error) {
@@ -489,12 +497,13 @@ export function resolveDefaultAgent(agentMessage: string, channel?: string): Age
   };
 }
 
-async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId, continuationToolUse, continuationToolResult, registerContinuationSink = null }: {
+async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId, continuationToolUse, continuationToolResult, continuationContextUsage, registerContinuationSink = null }: {
   result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
   userMessage: string; executionId: string | null; sessionName: string; sessionId: string | null;
   threadAnchorId: string | null; messageTs: string; callbacks: AgentCallbacks; projectId: string;
   continuationToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
   continuationToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
+  continuationContextUsage: ((usage: ContextUsage) => void) | null;
   registerContinuationSink?: ((sink: ContinuationSink) => void) | null;
 }): Promise<void> {
   if (result?.rateLimited) {
@@ -506,7 +515,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     await sealStatus(adapter, statusMsg, fallbackText, buildSealedStatusActionBlocks(fallbackText, { channel, sessionName, isDm: true }));
     return;
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, registerContinuationSink });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, onContextUsage: continuationContextUsage, registerContinuationSink });
 }
 
 /**
@@ -530,6 +539,12 @@ function buildInjectDeps(sessionName: string | null, channel: string, adapter: P
     publishMessage: publishSessionMessage,
     publishDelivered: publishSessionMessageDelivered,
     publishStatus: publishSessionStatus,
+    onContextUsage: (sessionId, usageChannel, usage) => {
+      if (!sessionName) return;
+      void persistSessionContextUsage({
+        sessionName, sessionId, channel: usageChannel, usage,
+      }).catch((error) => log.warn('injected continuation context persistence failed:', (error as Error).message));
+    },
     persistPending: (record) => pendingInjectionRepo.add(record),
     commitPending: (record) => commitPendingInjection(record),
     markPending: (record) => adapter.markQueued({ conduit: record.channel, messageId: record.messageId }),

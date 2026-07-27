@@ -1,12 +1,12 @@
 // input:  nothing (leaf type-only module)
-// output: AgentAdapter contracts including id-correlated lossless tool callbacks in continuation sinks
-// pos:    Core type seam between backend adapters, normalized events, and orchestration
+// output: AgentAdapter contracts with tool/context continuation callbacks
+// pos:    Backend adapter and orchestration contracts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { Capability } from './capabilities.js';
 import type { NormalizedEvent } from './normalize/event-types.js';
 import type { NormalizedHookSpec } from './normalize/hooks.js';
-import type { AgentResult } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
 export type Backend = 'claude' | 'codex' | 'pi';
 
@@ -121,6 +121,8 @@ export interface ContinuationSink {
   onToolUse?: (name: string, input: any, toolUseId?: string) => void;
   /** Optional full normalized tool result from the continuation turn. */
   onToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
+  /** Optional exact context snapshot from the spontaneous provider call. */
+  onContextUsage?: (usage: ContextUsage) => void;
   /** Continuation turn's terminating result. `result.pendingBackgroundTasks` is the number
    *  of background tasks still running (0 ⇒ safe to seal the status as complete). */
   onResult: (result: AgentResult) => void;

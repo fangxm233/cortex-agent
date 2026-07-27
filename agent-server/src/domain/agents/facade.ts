@@ -1,5 +1,5 @@
 // input:  config, adapters, profiles, normalized events
-// output: runAgent facade and typed Web-chat notices
+// output: runAgent facade, context continuations, typed notices
 // pos:    Backend-neutral agent execution and notice policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -422,6 +422,7 @@ export function runWithAdapter(
           onAssistantText: options.onAssistantMessage ?? null,
           onToolUse: options.onToolUse ?? null,
           onToolResult: options.onToolResult ?? null,
+          onContextUsage: options.onContextUsage ?? null,
         });
       }
       return result;

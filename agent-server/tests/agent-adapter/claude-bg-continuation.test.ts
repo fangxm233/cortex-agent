@@ -1,6 +1,6 @@
-// input:  Node test runner + ClaudeSession handleLine wiring (_test.makeSessionForTest)
-// output: spec for background-task pending-count on result + spontaneous continuation routing + compact_boundary → onCompact
-// pos:    CC backend background-task continuation wiring tests (no child process)
+// input:  ClaudeSession line wiring, context events, continuation sink
+// output: background context, continuation, and compaction specs
+// pos:    Claude print spontaneous-continuation wiring tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -28,7 +28,9 @@ const TASK_UPDATED_DONE = JSON.stringify({ type: 'system', subtype: 'task_update
 const TASK_NOTIFICATION = JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'b6vp8rywx', status: 'completed', summary: 'done' });
 const RESULT_FIRST = JSON.stringify({ type: 'result', subtype: 'success', is_error: false, total_cost_usd: 0.02, num_turns: 2, session_id: 'test-session' });
 const ASSISTANT_CONT = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Background task done: DONE' }] } });
-const RESULT_CONT = JSON.stringify({ type: 'result', subtype: 'success', is_error: false, origin: { kind: 'task-notification' }, total_cost_usd: 0.01, num_turns: 1, session_id: 'test-session' });
+const CONTEXT_START = JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: { model: 'claude-opus-5', usage: { input_tokens: 100, cache_creation_input_tokens: 20, cache_read_input_tokens: 300 } } } });
+const CONTEXT_DELTA = JSON.stringify({ type: 'stream_event', event: { type: 'message_delta', usage: { output_tokens: 80 } } });
+const RESULT_CONT = JSON.stringify({ type: 'result', subtype: 'success', is_error: false, origin: { kind: 'task-notification' }, total_cost_usd: 0.01, num_turns: 1, session_id: 'test-session', usage: { iterations: [{ input_tokens: 100, cache_creation_input_tokens: 20, cache_read_input_tokens: 300, output_tokens: 80 }] }, modelUsage: { 'claude-opus-5[1m]': { canonicalModel: 'claude-opus-5', contextWindow: 900000 } } });
 
 test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) => {
   const s: any = _test.makeSessionForTest();
@@ -66,6 +68,31 @@ test('handleLine: spontaneous continuation routes assistant text + final result 
   assert.deepEqual(texts, ['Background task done: DONE'], 'assistant text routed to sink');
   assert.ok(finalResult, 'sink received continuation result');
   assert.equal(finalResult.pendingBackgroundTasks, 0, 'no background tasks remain at continuation end');
+});
+
+test('handleLine: spontaneous continuation forwards final and reconciled context snapshots', (t) => {
+  const s: any = _test.makeSessionForTest('claude-opus-5[1m]');
+  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
+  t.onTestFinished(() => s.close());
+
+  const contexts: Array<{ usedTokens: number; contextWindow: number }> = [];
+  s.setContinuationSink({
+    onAssistantText: () => {},
+    onContextUsage: (usage: { usedTokens: number; contextWindow: number }) => contexts.push(usage),
+    onResult: () => {},
+  });
+
+  s.handleLine(TASK_STARTED);
+  s.handleLine(TASK_NOTIFICATION);
+  s.handleLine(CONTEXT_START); // seeds the tracker before the synthetic turn opens
+  s.handleLine(ASSISTANT_CONT); // opens the synthetic continuation turn
+  s.handleLine(CONTEXT_DELTA); // first callback-visible exact boundary
+  s.handleLine(RESULT_CONT); // provider-reported window correction
+
+  assert.deepEqual(contexts.map((usage) => [usage.usedTokens, usage.contextWindow]), [
+    [500, 1_000_000],
+    [500, 900_000],
+  ]);
 });
 
 test('handleLine: assistant with no active turn and NO continuation armed is dropped (no sink call)', (t) => {

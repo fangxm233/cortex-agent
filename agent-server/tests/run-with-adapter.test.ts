@@ -1,5 +1,5 @@
-// input:  fake adapters, runWithAdapter, resume ids, locale
-// output: normalized callback and typed-notice regressions
+// input:  fake adapters, continuation context, resume ids, locale
+// output: normalized/continuation callbacks and typed-notice regressions
 // pos:    Backend-neutral event dispatch tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -498,6 +498,7 @@ test('runWithAdapter: thread turn with pending background task waits for the con
   const adapter = makeSinkCapableAdapter('claude', spec);
   const texts: string[] = [];
   const toolResults: any[] = [];
+  const contextWindows: number[] = [];
 
   const handle = runWithAdapter(
     adapter, 'msg',
@@ -506,6 +507,7 @@ test('runWithAdapter: thread turn with pending background task waits for the con
       threadId: 'thr_abc',
       onAssistantMessage: (t: string) => texts.push(t),
       onToolResult: (toolUseId: string, content: string, isError: boolean) => toolResults.push({ toolUseId, content, isError }),
+      onContextUsage: (usage) => { contextWindows.push(usage.contextWindow); },
     },
     { model: 'm', backend: 'claude', mode: null },
     undefined,
@@ -521,6 +523,7 @@ test('runWithAdapter: thread turn with pending background task waits for the con
   // Background task completes → spontaneous continuation turn ends.
   spec.sinks[0].onToolResult('toolu-bg', 'complete background output', false);
   spec.sinks[0].onAssistantText('bg result: PASS');
+  spec.sinks[0].onContextUsage({ usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact' });
   spec.sinks[0].onResult({ ...defaultAgentResult('s-thr-bg'), total_cost_usd: 0.02, num_turns: 2, finalOutput: 'bg result: PASS', pendingBackgroundTasks: 0 });
 
   const final = await handle.promise;
@@ -528,6 +531,7 @@ test('runWithAdapter: thread turn with pending background task waits for the con
   assert.equal(final.finalOutput, 'bg result: PASS', 'continuation output becomes the step output');
   assert.deepEqual(texts, ['bg result: PASS'], 'continuation text forwarded to the step stream');
   assert.deepEqual(toolResults, [{ toolUseId: 'toolu-bg', content: 'complete background output', isError: false }], 'continuation tool results use the same callback path');
+  assert.deepEqual(contextWindows, [1_000_000], 'continuation context uses the same callback path');
 });
 
 test('runWithAdapter: interactive turn (no threadId) with pending background task resolves immediately', async () => {

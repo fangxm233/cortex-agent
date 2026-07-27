@@ -1,6 +1,6 @@
-// input:  Node test runner + orchestration/bg-continuation builder
-// output: buildContinuationSink dispatch spec (merge text / waiting vs complete)
-// pos:    CC background-task continuation orchestration unit tests
+// input:  background continuation builder with tool/context callbacks
+// output: sink text/tool/context and terminal dispatch regressions
+// pos:    Background continuation orchestration unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -69,6 +69,22 @@ test('isBgContinuationEnabled: default ON, opt-out via CORTEX_BG_CONTINUATION=0/
     if (prev === undefined) delete process.env.CORTEX_BG_CONTINUATION;
     else process.env.CORTEX_BG_CONTINUATION = prev;
   }
+});
+
+test('buildContinuationSink: context usage is forwarded when provided', () => {
+  const { stream } = makeStream();
+  const windows: number[] = [];
+  const sink = buildContinuationSink({
+    stream,
+    onContextUsage: (usage) => windows.push(usage.contextWindow),
+    onWaiting: () => {},
+    onComplete: () => {},
+    onRateLimited: () => {},
+  });
+  sink.onContextUsage?.({
+    usedTokens: 500, contextWindow: 1_000_000, percent: 0.05, accuracy: 'exact',
+  });
+  assert.deepEqual(windows, [1_000_000]);
 });
 
 test('buildContinuationSink: onToolUse is forwarded to the sink when provided', () => {
