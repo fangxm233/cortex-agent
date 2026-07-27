@@ -1,11 +1,7 @@
-// input:  session-message payload + the shared EventBus (via job-registry ctx)
-// output: publishSessionMessage — emits a `session.message` CortexEvent for the S4 chat live stream
-//         (+ status / turn / rewound siblings, publishSessionMessageDelta for the token-level
-//         preview that a `session.message` of the same blockId later supersedes, and
-//         publishSessionMessageDelivered which commits a `pending` message into the stream)
-// pos:    orch/ — published at the conversation-history append points in agent-runner. Reads the
-//         bus from the shared job-registry ctx (same seam thread-callback uses), so the repo stays
-//         bus-free (L1) and the publish lives in the orchestration layer. No-op if no bus is wired.
+// input:  session lifecycle payloads + the shared EventBus (via job-registry ctx)
+// output: message/delta/status/turn/rewind publishers plus content-free DEBUG refresh hints
+// pos:    orchestration bus seam; persistence remains bus-free and missing bus is a no-op
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
@@ -30,6 +26,13 @@ export interface SessionMessagePayload {
    *  history entry yet — the client shows it as a provisional row until the matching
    *  `session.message.delivered` commits it. Absent on every ordinary message. */
   pending?: boolean;
+}
+
+/** Tell an open transcript to refetch after sensitive DEBUG metadata is durably persisted.
+ *  Deliberately carries no prompt, input, result, or tool id; the transcript query remains the
+ *  authenticated and DEBUG-gated source of truth. */
+export function publishSessionDebugUpdated(p: { sessionId: string; channel: string }): void {
+  jobCtx.bus?.publish({ type: 'session.debug.updated', sessionId: p.sessionId, channel: p.channel });
 }
 
 export function publishSessionMessage(p: SessionMessagePayload): void {

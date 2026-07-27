@@ -1,6 +1,6 @@
-// input:  running-executions snapshot + the incoming plain user message + injected side effects
-// output: backend-neutral live-turn routing + delivered/undelivered two-phase commit lifecycle
-// pos:    orch/ — the busy-channel branch of AgentRunner.route (inject into the live turn ⇄ queue)
+// input:  live execution, incoming message, lossless DEBUG/tool side-effect seams
+// output: injected-turn two-phase commit plus id-correlated spontaneous tool event forwarding
+// pos:    busy-channel branch of AgentRunner.route (inject into live turn ⇄ queue)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 /**
@@ -72,9 +72,10 @@ export interface MidTurnInjectDeps {
   /** The channel's live assistant-output callback. Captured at inject time, while the running turn
    *  still owns it — the spontaneous turn arrives after that turn cleared it. */
   getStreamingCallback: (channel: string) => ((text: string) => void) | null;
-  appendUser: (sessionId: string, opts: { text: string; ts: string; attachments?: AttachmentMeta[] }) => void;
+  appendUser: (sessionId: string, opts: { text: string; ts: string; attachments?: AttachmentMeta[]; agentMessage?: string }) => void;
   appendAssistant: (sessionId: string, opts: { text: string; ts: string }) => void;
-  appendTool: (sessionId: string, opts: { toolName: string; toolInput: string; ts: string }) => void;
+  appendTool: (sessionId: string, opts: { toolName: string; toolInput: string; ts: string; toolUseId?: string; fullInput?: unknown }) => void;
+  appendToolResult?: (sessionId: string, opts: { toolUseId: string; content: string; isError: boolean }) => void;
   publishMessage: (ev: {
     sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; ts: string;
     toolName?: string; toolInput?: string; attachments?: AttachmentMeta[]; pending?: boolean;
@@ -89,6 +90,8 @@ export interface MidTurnInjectDeps {
   track: (delta: number) => void;
   now: () => string;
   summarizeToolInput?: (input: unknown) => string;
+  /** Frozen at injection time so one message is captured consistently. */
+  captureDebug?: boolean;
   maxWaitMs?: number;
 }
 
@@ -216,7 +219,12 @@ export function tryInjectIntoLiveTurn(deps: MidTurnInjectDeps, ctx: MidTurnInjec
     if (committed) return;
     committed = true;
     const committedTs = deps.now();
-    deps.appendUser(sessionId, { text, ts: committedTs, attachments: ctx.attachments });
+    deps.appendUser(sessionId, {
+      text,
+      ts: committedTs,
+      attachments: ctx.attachments,
+      ...(deps.captureDebug ? { agentMessage: text } : {}),
+    });
     deps.beginLedgerTurn({ channel: ctx.channel, sessionId, text, messageId: ctx.messageId });
     // Published last: a client refetching the transcript on this event must find the record.
     deps.publishDelivered({ sessionId, channel: ctx.channel, messageTs: ts, committedTs });
@@ -302,11 +310,19 @@ function registerSinks(
       deps.appendAssistant(sessionId, { text, ts });
       deps.publishMessage({ sessionId, channel, role: 'assistant', text, ts });
     },
-    onToolUse: (name: string, input: unknown) => {
+    onToolUse: (name: string, input: unknown, toolUseId: string) => {
       const ts = deps.now();
       const toolInput = deps.summarizeToolInput ? deps.summarizeToolInput(input) : '';
-      deps.appendTool(sessionId, { toolName: name, toolInput, ts });
+      deps.appendTool(sessionId, {
+        toolName: name,
+        toolInput,
+        ts,
+        ...(deps.captureDebug ? { toolUseId, fullInput: input } : {}),
+      });
       deps.publishMessage({ sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts });
+    },
+    onToolResult: (toolUseId: string, content: string, isError: boolean) => {
+      if (deps.captureDebug) deps.appendToolResult?.(sessionId, { toolUseId, content, isError });
     },
     onResult: () => {
       state.continuationRunning = false;

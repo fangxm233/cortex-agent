@@ -1,3 +1,8 @@
+// input:  desktop ChatRows including optional lossless DEBUG details and interaction/edit state
+// output: scroll-stable desktop transcript with hover/focus user/tool inspectors
+// pos:    workbench-only message presentation; mobile has separate renderers and no DEBUG controls
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useEffect, useRef, useState } from 'react';
 import { useLang, useVocab } from '@/i18n';
 import type { ChatRow, Attachment } from './transcript-vm';
@@ -17,6 +22,7 @@ import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
 import { PlanReadOverlay } from './PlanReadOverlay';
 import { rewindStats, regenNoteIndexes } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
+import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { M_EDIT_COPY, HoverActionPill, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
 
 /** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
@@ -358,7 +364,7 @@ function AgentFileGroup({ attachments }: { attachments: Attachment[] }): JSX.Ele
   );
 }
 
-function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled, pending }: {
+function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, editDisabled, pending, debug }: {
   text: string;
   attachments?: AttachmentMeta[];
   ts?: string;
@@ -372,14 +378,19 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
    *  its background and full opacity, and nothing else marks the state. The row is provisional, not
    *  disabled or failing, and an icon/spinner/label would read as either. */
   pending?: boolean;
+  /** Present only when the server returned DEBUG-gated exact adapter input. */
+  debug?: { agentMessage: string };
 }): JSX.Element {
   const hasAttachments = attachments && attachments.length > 0;
   const [hover, setHover] = useState(false);
+  const [debugDetail, setDebugDetail] = useState<DebugDetail | null>(null);
   return (
     <div
+      className="group"
       onMouseEnter={editCopy ? () => setHover(true) : undefined}
       onMouseLeave={editCopy ? () => setHover(false) : undefined}
       style={{
+        position: 'relative',
         alignSelf: 'flex-end',
         maxWidth: '75%',
         display: 'flex',
@@ -424,6 +435,12 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
           </div>
         </div>
       )}
+      {debug ? (
+        <div style={{ position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)', paddingLeft: 8, display: 'flex' }}>
+          <DebugInspectButton onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }} />
+        </div>
+      ) : null}
+      <DebugDetailsModal detail={debugDetail} onClose={() => setDebugDetail(null)} />
       {/* 已编辑 badge + hover original card (sec-23 right column) */}
       {editCopy && edited && <EditedBadge edited={edited} ts={ts} copy={editCopy} />}
     </div>
@@ -575,9 +592,9 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
     case 'divider':
       return <Divider text={row.text} />;
     case 'user':
-      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} />;
+      return <UserBubble text={row.text} attachments={row.attachments} ts={row.ts} edited={row.edited} editCopy={editCopy} onStartEdit={onStartEdit} editDisabled={editDisabled} pending={row.pending} debug={row.debug} />;
     case 'tools':
-      return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input }))} />;
+      return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input, ...(c.debug ? { debug: c.debug } : {}) }))} />;
     case 'assistant':
       return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} regen={regen} preview={row.preview} streamKey={streamKey} />;
     case 'interaction':

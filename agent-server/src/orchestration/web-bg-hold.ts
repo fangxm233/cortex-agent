@@ -1,9 +1,6 @@
-// input:  terminal AgentResult + injected publishers / sink registrar / busy bracket (+ guard factory)
-// output: holdWebForBg — hold a web session open for its spontaneous background-task continuation
-// pos:    orch/ — the WEB analogue of lifecycle.ts's Slack status-message bg-hold. Slack holds by
-//         editing a status message; web holds by keeping the session.status event stream live
-//         (running:true, backgroundRunning:true) and streaming the continuation as session.message
-//         events, then sealing running:false when the background work finishes.
+// input:  terminal result, continuation registrar, message/tool-result publishers, busy guard
+// output: web background hold forwarding complete id-correlated tool events before terminal seal
+// pos:    web session.status/message continuation analogue of Slack's status-message hold
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Why this exists (the gap): the background-task continuation machinery (BgTaskTracker /
@@ -33,7 +30,9 @@ export interface WebBgHoldDeps {
   /** Append + publish a continuation assistant message (history record + session.message). */
   publishAssistant: (text: string) => void;
   /** Append + publish a continuation tool call (history record + session.message). */
-  publishTool: (name: string, input: any) => void;
+  publishTool: (name: string, input: any, toolUseId: string) => void;
+  /** Persist a complete normalized continuation tool result in DEBUG mode. */
+  publishToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
   /** Busy bracket (trackPendingTask). +1 for the whole wait window so a deferred daemon restart
    *  does not fire and kill the Claude child (F1); -1 when the guard settles. */
   track: (delta: number) => void;
@@ -104,7 +103,8 @@ export function holdWebForBg(deps: WebBgHoldDeps): boolean {
 
   const sink: ContinuationSink = {
     onAssistantText: (text: string) => { if (text) deps.publishAssistant(text); },
-    onToolUse: (name: string, input: any) => deps.publishTool(name, input),
+    onToolUse: (name: string, input: any, toolUseId?: string) => deps.publishTool(name, input, toolUseId ?? ''),
+    onToolResult: (toolUseId: string, content: string, isError: boolean) => deps.publishToolResult?.(toolUseId, content, isError),
     onResult: (cont: AgentResult) => {
       // Process died mid-wait, or rate-limited: seal honestly (never leave the session "running").
       if (cont.backgroundInterrupted || cont.rateLimited) { seal(); return; }

@@ -1,11 +1,39 @@
-import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before paths bind
-// input:  src/store/conversation-history-repo.js
-// output: Unit tests — per-session JSONL append, read-time turn grouping + streaming dedup
-// pos:    Guards Cortex's backend-independent conversation history store
+// input:  isolated per-session JSONL plus visible/debug history append APIs
+// output: turn grouping, streaming dedup, rewind, interaction, and DEBUG correlation regressions
+// pos:    backend-independent conversation-history store specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME before paths bind
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { ConversationHistoryRepo } from '../../src/store/conversation-history-repo.js';
+
+test('DEBUG prompt and tool metadata round-trip without replacing the compact transcript fields', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-debug';
+  const fullInput = { command: 'printf "secret\\n"', timeout: 120000, nested: { all: ['values'] } };
+  await repo.appendUser(sid, { text: 'short user text' });
+  await repo.appendUserPrompt(sid, { agentMessage: '[USER context]\nshort user text\n[Session Project]\nalpha' });
+  await repo.appendTool(sid, { toolName: 'Bash', toolInput: 'printf "secret\\n"', toolUseId: 'toolu-debug-1', fullInput });
+  await repo.appendToolResult(sid, { toolUseId: 'toolu-debug-1', content: 'line 1\nline 2\nfull result', isError: false });
+
+  const h = await repo.getHistory(sid);
+  assert.ok(h);
+  assert.equal(h!.events.length, 2, 'debug sidecar records are merged rather than rendered as rows');
+  assert.equal(h!.events[0].text, 'short user text');
+  assert.equal(h!.events[0].debug?.agentMessage, '[USER context]\nshort user text\n[Session Project]\nalpha');
+  assert.equal(h!.events[1].toolInput, 'printf "secret\\n"', 'compact summary remains available');
+  assert.deepEqual(h!.events[1].debug?.toolInput, fullInput);
+  assert.deepEqual(h!.events[1].debug?.toolResult, { content: 'line 1\nline 2\nfull result', isError: false });
+});
+
+test('orphan DEBUG metadata is ignored instead of creating visible transcript rows', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-debug-orphan';
+  await repo.appendUserPrompt(sid, { agentMessage: 'no user row' });
+  await repo.appendToolResult(sid, { toolUseId: 'missing', content: 'no tool row', isError: true });
+  assert.equal(await repo.getHistory(sid), null);
+});
 
 test('records user + assistant + tool events grouped by turn (derived on read)', async () => {
   const repo = new ConversationHistoryRepo();

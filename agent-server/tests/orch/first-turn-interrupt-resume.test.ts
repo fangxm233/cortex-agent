@@ -1,13 +1,7 @@
-// input:  conversation-runner (runConversation), routing/commands/cancel (cancelChannelRuns),
-//         session-registry-repo + session repo singletons (isolated CORTEX_HOME)
-// output: regression tests for the first-message-interrupt resume bug
-// pos:    guards the two halves of the fix:
-//         (1) runConversation persists the backend session id when the turn settles — INCLUDING
-//             a kill/cancel/error on the session's FIRST turn, which previously only persisted on
-//             handleAgentSuccess, so the next message started a brand-new backend session;
-//         (2) cancelLive no longer rebinds the channel session to the BACKEND id (pre-decoupling
-//             leftover) — the channel must stay bound to the stable track id, otherwise the next
-//             message minted a whole new session record.
+// input:  conversation runner, cancel routing, isolated track/backend session registries
+// output: exact assembled-prompt capture plus first-turn interrupt/resume regression coverage
+// pos:    orchestration contract for prompt identity and stable tracking across cancellation
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, expect, vi } from 'vitest';
 import assert from 'node:assert/strict';
@@ -87,6 +81,21 @@ test('first-turn kill persists the spawn-time backend session id (resume works o
 
   const rec = await sessionStore.getById('TRACK-1');
   assert.equal(rec?.backendSessionId, 'B-claude-1');
+});
+
+test('runConversation exposes the exact assembled prompt passed to the agent', async () => {
+  let capturedPrompt: string | null = null;
+  mockRunAgent.mockReturnValueOnce(makeCancelledHandle('B-prompt'));
+
+  await expect(runConversation(baseOpts({
+    trackSessionId: 'TRACK-PROMPT',
+    backendSessionId: 'B-existing',
+    sessionName: 'cortex-prompt',
+    onPromptBuilt: (prompt: string) => { capturedPrompt = prompt; },
+  }))).rejects.toMatchObject({ cancelled: true });
+
+  assert.equal(capturedPrompt, mockRunAgent.mock.calls.at(-1)?.[0], 'capture sees byte-for-byte adapter input');
+  assert.equal(capturedPrompt, 'hello', 'resumed direct turns send the user text without fresh-session context');
 });
 
 test('interrupt on a RESUMED turn leaves the stored backend session id untouched', async () => {

@@ -1,7 +1,7 @@
-// input:  Session transcript DTOs, live message events, locale vocabulary
-// output: ChatRow builders and pure live-stream reconciliation state
-// pos:    Workbench transcript view-model and assistant preview handoff
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  transcript DTOs (including optional DEBUG detail), live events, locale vocabulary
+// output: desktop ChatRows preserving lossless inspector data plus live reconciliation state
+// pos:    Workbench transcript view-model and assistant preview/pending handoff
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { SessionTranscript, TranscriptMessage, TranscriptInteractionDetail } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
@@ -197,14 +197,19 @@ export function reconcilePendingUserMessages(
   return kept.length === pending.length ? pending : kept;
 }
 
+export interface DebugToolDetail {
+  toolInput: unknown;
+  toolResult?: { content: string; isError: boolean };
+}
+
 export type ChatRow =
   | { kind: 'divider'; text: string }
   // `turnIndex` is the rewind anchor (sessions.rewind) — absent on live-tail rows (not editable
   // until the transcript reconciles). `edited` backs the「已编辑」badge + original-message card;
   // `ts` backs its HH:MM stamp. `pending` marks a message written to the backend but not yet read
   // by the model: it renders in dimmed ink, pinned below everything the agent is currently saying.
-  | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean }
-  | { kind: 'tools'; count: number; calls: { kind: string; input: string }[] }
+  | { kind: 'user'; text: string; attachments?: Attachment[]; turnIndex?: number; ts?: string; edited?: { originalText: string; originalTs: string }; pending?: boolean; debug?: { agentMessage: string } }
+  | { kind: 'tools'; count: number; calls: { kind: string; input: string; debug?: DebugToolDetail }[] }
   // `attachments` carries agent-sent files (20a) — rendered as left-aligned file cards under the text.
   // `preview` marks the ONE row that is the block being written right now (the token-level
   // accumulation), as opposed to a message the backend has committed. `streaming` cannot express
@@ -440,7 +445,7 @@ export function buildTranscriptRows(
 
   const rows: ChatRow[] = [];
   let curDay: string | null = null;
-  let toolBuf: { kind: string; input: string }[] = [];
+  let toolBuf: { kind: string; input: string; debug?: DebugToolDetail }[] = [];
 
   const flushTools = (): void => {
     if (toolBuf.length === 0) return;
@@ -457,7 +462,14 @@ export function buildTranscriptRows(
       curDay = day;
     }
     if (m.type === 'tool') {
-      toolBuf.push({ kind: m.toolName ?? '', input: m.toolInput ?? '' });
+      const debug = (m as TranscriptMessage & { debug?: { toolInput?: unknown; toolResult?: { content: string; isError: boolean } } }).debug;
+      toolBuf.push({
+        kind: m.toolName ?? '',
+        input: m.toolInput ?? '',
+        ...(debug && (debug.toolInput !== undefined || debug.toolResult !== undefined)
+          ? { debug: { toolInput: debug.toolInput, ...(debug.toolResult !== undefined ? { toolResult: debug.toolResult } : {}) } }
+          : {}),
+      });
       continue;
     }
     flushTools();
@@ -469,6 +481,7 @@ export function buildTranscriptRows(
         ...(m.turnIndex !== undefined ? { turnIndex: m.turnIndex } : {}),
         ...(m.ts ? { ts: m.ts } : {}),
         ...((m as any).edited !== undefined ? { edited: (m as any).edited } : {}),
+        ...((m as any).debug?.agentMessage !== undefined ? { debug: { agentMessage: (m as any).debug.agentMessage } } : {}),
       });
     }
     else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });

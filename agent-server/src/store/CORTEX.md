@@ -4,6 +4,8 @@ Persistence layer (L1) — 12 store modules: 11 data repos + outbound-queue WAL 
 `JsonRepository` and `atomicWrite` (the underlying base + primitive) live in `core/` — they are zero-dependency utilities consumed by both `store/` repos and platform adapter conduit stores.
 task-repo.ts responsibilities are limited to I/O + lock + git sync, does not carry any domain mutation forwarding (mutations have been migrated to domain/tasks/mutator.ts).
 
+`conversation-history-repo.ts` also accepts DEBUG-only append data: the exact agent message, unabridged structured tool input, and full normalized tool result. Prompt/result sidecars merge into the visible user/tool rows at read time by position/toolUseId and never create rows or alter turn indexes.
+
 | filename | role | function |
 |---|---|---|
 | `in-memory-repository.ts` | base | In-memory implementation for testing |

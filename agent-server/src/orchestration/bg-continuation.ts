@@ -1,6 +1,6 @@
-// input:  ContinuationSink contract (agent-adapter) + OutputStream + AgentResult
-// output: buildContinuationSink + scope/feature gating helpers
-// pos:    CC background-task continuation orchestration (merge into reply + waiting status)
+// input:  continuation contract, OutputStream, AgentResult, id-correlated tool callbacks
+// output: background continuation sink forwarding complete tool uses/results plus gate helpers
+// pos:    CC continuation orchestration (merge into reply, preserve DEBUG data, update waiting status)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { OutputStream } from '@platform/index.js';
@@ -15,7 +15,9 @@ export interface ContinuationSinkDeps {
   /** Optional callback for tool_use events from the continuation turn. When set,
    *  forwarded to the ContinuationSink so the adapter can route continuation tool
    *  calls to the originating turn's ToolTrace (Slack tool traces + history). */
-  onToolUse?: ((name: string, input: any) => void) | null;
+  onToolUse?: ((name: string, input: any, toolUseId?: string) => void) | null;
+  /** Optional full normalized result callback paired to onToolUse by toolUseId. */
+  onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   /** Called when the continuation result still has background work remaining (chained /
    *  undelivered tasks): keep the status waiting with the combined remaining count. The
    *  split lets the caller re-arm the bg-wait-guard (grace vs max-wait). */
@@ -42,6 +44,7 @@ export function buildContinuationSink(deps: ContinuationSinkDeps): ContinuationS
   return {
     onAssistantText: (text: string) => deps.stream.emitText(text),
     onToolUse: deps.onToolUse || undefined,
+    onToolResult: deps.onToolResult || undefined,
     onResult: (result: AgentResult) => {
       if (result.backgroundInterrupted) { (deps.onInterrupted ?? deps.onComplete)(result); return; }
       if (result.rateLimited) { deps.onRateLimited(result); return; }

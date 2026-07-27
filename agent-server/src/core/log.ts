@@ -1,11 +1,12 @@
-// input:  nothing (leaf module)
+// input:  shared process-wide DEBUG gate
 // output: createLogger() factory
-// pos:    centralized logging — console + daily-rotating file sink
+// pos:    centralized logging — console + daily-rotating file sink, DEBUG-gated debug level
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { LOGS_DIR } from './paths.js';
+import { isDebugMode } from './debug-mode.js';
 
 // Prevent EPIPE/SIGPIPE from killing the process when stderr/stdout is a broken
 // pipe (e.g. terminal closed, journald restart, parent process exited).
@@ -146,7 +147,7 @@ export function createLogger(mod: string): Logger {
     info:  (...args) => write('INFO', mod, args),
     warn:  (...args) => write('WARN', mod, args),
     error: (...args) => write('ERROR', mod, args),
-    debug: (...args) => { if (process.env.DEBUG) write('DEBUG', mod, args); },
+    debug: (...args) => { if (isDebugMode()) write('DEBUG', mod, args); },
   };
 }
 

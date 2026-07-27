@@ -139,7 +139,7 @@ channel.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DEBUG` | — | Enable debug-level log output |
+| `DEBUG` | — | Enable server-wide debug mode. In addition to debug-level logs, the desktop transcript shows hover inspectors for the exact agent message and each tool call's complete input/result. Any non-empty value enables it; restart agent-server after changing it |
 | `CORTEX_EVENT_LOG` | `on` | Set to `off` to disable event-bus logging |
 | `CORTEX_SHOW_TOOL_CALLS` | — | Inline tool-call rendering in VirtualMessage tails |
 | `CORTEX_DISABLE_USER_CONTEXT` | — | Set to `1` to disable injecting `USER.md` context into direct conversation turns (injected by default; multi-agent thread steps never receive it) |
@@ -149,6 +149,8 @@ channel.
 | `CORTEX_TURN_NOTIFY` | `on` | When a long-running turn finishes, Cortex posts a fresh message to the conversation so you get a push notification (the inline status seals to "✓ Done" with an edit, which Slack and Feishu do not notify on). Both success and failure are announced. Set to `0`/`false`/`off`/`no` to disable |
 | `CORTEX_TURN_NOTIFY_THRESHOLD_S` | `60` | Minimum turn duration, in seconds, before a completion notification is posted. Shorter turns stay quiet |
 | `CORTEX_AUTO_RESUME` | `on` | When a usage-limit window resets, Cortex automatically continues the conversations and threads that the limit interrupted, injecting a note to pick up where they left off. Set to `0`/`false` to leave interrupted work paused for manual continuation |
+
+`DEBUG` persists unabridged prompts, tool parameters, and tool results in per-session conversation-history files. These values can contain secrets, private file contents, or large outputs, and storage grows with their full size. Enable this mode only on a trusted development server and turn it off when inspection is complete. Turning it off immediately removes debug fields and buttons from transcript responses, but it does not delete records captured earlier.
 
 ### Task dispatch
 

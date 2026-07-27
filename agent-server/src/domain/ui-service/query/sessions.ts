@@ -1,6 +1,7 @@
-// input:  UiServiceDeps + SessionsListParams / SessionsTranscriptParams
-// output: handleSessionsList → SessionInfo[]; handleSessionsTranscript → SessionTranscript
-// pos:    query handlers for 'sessions.list' and 'sessions.transcript'
+// input:  session query dependencies/params + shared process-wide DEBUG gate
+// output: session list and transcript DTOs with conditionally exposed lossless debug details
+// pos:    authoritative query boundary for session metadata and sensitive transcript fields
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type {
   UiServiceDeps,
@@ -14,6 +15,7 @@ import type {
   SessionsPendingInteraction,
 } from '../types.js';
 import { effectiveBackendSessionId } from '@store/session-registry-repo.js';
+import { isDebugMode } from '@core/debug-mode.js';
 
 export async function handleSessionsList(
   deps: UiServiceDeps,
@@ -216,6 +218,9 @@ export async function handleSessionsTranscript(
       ...((ev.type === 'user' || ev.type === 'assistant') && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
       // Edit+rewind marker (sessions.rewind): backs the「已编辑」badge + original-message card.
       ...(ev.type === 'user' && ev.edited !== undefined ? { edited: ev.edited } : {}),
+      // Defense in depth: debug records may remain on disk after DEBUG is turned off, but the
+      // authenticated transcript API must not expose them unless the process-wide mode is active.
+      ...(isDebugMode() && ev.debug !== undefined ? { debug: ev.debug } : {}),
       ...(ev.type === 'interaction' && (entitySubtype ?? ev.subtype) ? { subtype: entitySubtype ?? ev.subtype } : {}),
       ...(interaction !== undefined ? { interaction } : {}),
     });

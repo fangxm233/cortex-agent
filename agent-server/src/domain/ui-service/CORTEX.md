@@ -9,6 +9,8 @@ at runtime. The HTTP/SSE transport-host lives in `platform/ui-http`; the wiring 
 Consumed directly by the M5 TUI dashboard (createUiService), and — via the AppRouter over this facade —
 by the Web UI.
 
+`sessions.transcript` is the sensitive-data boundary for DEBUG inspectors: optional exact agent-message/full tool input/result fields are emitted only while the shared process-wide DEBUG gate is active. Records may remain on disk after the flag is disabled, but the DTO omits them.
+
 | filename | role | function |
 |---|---|---|
 | `types.ts` | types | Result, QueryScope, MutateOp, SubscribeFilter, UiEvent, UiService interface, DTOs |

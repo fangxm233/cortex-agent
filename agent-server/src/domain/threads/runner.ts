@@ -1,6 +1,6 @@
-// input:  domain/threads, agent runner, hooks, execution registry
-// output: thread execution, resume, wait-control handling, summaries
-// pos:    Runtime execution engine for the Thread system
+// input:  thread state, agent facade, hooks, execution registry, DEBUG transcript recorder
+// output: thread execution with complete prompt/tool correlation across foreground/continuations
+// pos:    Runtime engine for thread steps, resume, controls, and transcript lifecycle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
@@ -116,7 +116,8 @@ interface StepContext {
 interface StepCallbacks {
   onAssistantMessage: ((text: string) => void) | null | undefined;
   onProgress: ((progress: any) => void) | null;
-  onToolUse: ((name: string, input: any) => void) | null;
+  onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+  onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
 }
 
 type StepInfo = Pick<StepContext, 'agentSlotId' | 'agentConfig' | 'isFirstStep' | 'multiAgent' | 'stage'>;
@@ -257,6 +258,8 @@ async function buildStepConfig(
       ...(ev.toolInput !== undefined ? { toolInput: ev.toolInput } : {}),
       ts: ev.ts,
     });
+  }, () => {
+    jobCtx.bus?.publish({ type: 'session.debug.updated', sessionId: trackSessionId, channel: opts.channel });
   });
   // The step prompt opens the turn — recorded now so a reload mid-step shows it.
   recorder.recordUser(prompt);
@@ -299,10 +302,10 @@ function setupStepCallbacks(
   const streamAssistantMessage = toolTrace
     ? (text: string) => { toolTrace.flush(); baseAssistantMessage(text); }
     : baseAssistantMessage;
-  const traceToolUse = toolTrace ? (name: string, input: any) => toolTrace.onToolUse(name, input) : null;
-  const composedToolUse: ((name: string, input: any) => void) | null =
+  const traceToolUse = toolTrace ? (name: string, input: any, _toolUseId: string) => toolTrace.onToolUse(name, input) : null;
+  const composedToolUse: ((name: string, input: any, toolUseId: string) => void) | null =
     traceToolUse && callerOnToolUse
-      ? (name: string, input: any) => { traceToolUse(name, input); callerOnToolUse(name, input); }
+      ? (name: string, input: any, toolUseId: string) => { traceToolUse(name, input, toolUseId); callerOnToolUse(name, input); }
       : (traceToolUse ?? callerOnToolUse);
 
   // Transcript recording: mirror the direct path — every assistant message + tool call is
@@ -315,9 +318,12 @@ function setupStepCallbacks(
     streamAssistantMessage(text);
     if (text) recorder.recordAssistant(text);
   };
-  const onToolUse = (name: string, input: any) => {
-    composedToolUse?.(name, input);
-    recorder.recordTool(name, input);
+  const onToolUse = (name: string, input: any, toolUseId: string) => {
+    composedToolUse?.(name, input, toolUseId);
+    recorder.recordTool(name, input, toolUseId);
+  };
+  const onToolResult = (toolUseId: string, content: string, isError: boolean) => {
+    recorder.recordToolResult(toolUseId, content, isError);
   };
 
   // onProgress: caller override (e.g. scheduler's buildUserProcessingMessage) takes precedence;
@@ -347,7 +353,7 @@ function setupStepCallbacks(
   slot.status = 'running';
   threadStore.set(threadRecord);
 
-  return { onAssistantMessage, onProgress, onToolUse };
+  return { onAssistantMessage, onProgress, onToolUse, onToolResult };
 }
 
 /** Run the agent, manage handle, await result; fail execution + rethrow on error.
@@ -388,6 +394,7 @@ async function executeAndAwaitAgent(
     onAssistantMessage: callbacks.onAssistantMessage,
     onProgress: callbacks.onProgress,
     onToolUse: callbacks.onToolUse,
+    onToolResult: callbacks.onToolResult,
     onPlanWritten: opts.onPlanWritten ?? null,
     onAskUserQuestion: opts.onAskUserQuestion ?? null,
   });

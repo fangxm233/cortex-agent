@@ -1,5 +1,5 @@
 // input:  Vitest and shared live-event pure rules
-// output: shared-union, scope, fan-out, and reconnect regression tests
+// output: shared-union, DEBUG refresh, scope, fan-out, and reconnect regression tests
 // pos:    Unit tests for the Web shared SSE event model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -35,6 +35,10 @@ describe('LIVE_EVENT_TYPES', () => {
 describe('SESSION_LIVE_EVENTS', () => {
   it('carries the mid-turn delivery commit — without it a sent message stays dimmed forever', () => {
     expect(SESSION_LIVE_EVENTS).toContain('session.message.delivered');
+  });
+  it('carries the content-free DEBUG refresh hint so prompt/results appear after persistence', () => {
+    expect(SESSION_LIVE_EVENTS).toContain('session.debug.updated');
+    expect(LIVE_EVENT_TYPES).toContain('session.debug.updated');
   });
 });
 

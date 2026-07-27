@@ -1,6 +1,6 @@
-// input:  nothing (leaf module)
-// output: UiService types — Result, QueryScope, MutateOp, DTOs, UiService interface, UiServiceDeps
-// pos:    leaf types module, depends only on domain types pulled in by query/mutate handlers
+// input:  domain source types plus optional lossless DEBUG transcript metadata
+// output: UiService contract — Result, operations, DTOs, interfaces, dependencies
+// pos:    canonical transport-neutral types, including the DEBUG-gated transcript shape
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
@@ -482,6 +482,15 @@ export interface TranscriptInteractionDetail {
   resolvedVia?: string;
 }
 
+export interface TranscriptDebugDetails {
+  /** Exact message sent to the agent for a user turn. */
+  agentMessage?: string;
+  /** Unabridged structured tool-call input. */
+  toolInput?: unknown;
+  /** Full correlated normalized tool result. */
+  toolResult?: { content: string; isError: boolean };
+}
+
 export interface TranscriptMessage {
   type: 'user' | 'assistant' | 'tool' | 'interaction';
   /** user / assistant / interaction text; null for tool events. */
@@ -490,6 +499,8 @@ export interface TranscriptMessage {
   toolName: string | null;
   /** compact tool input summary (tool events only). */
   toolInput: string | null;
+  /** Sensitive lossless data. Present only in responses produced while server DEBUG is enabled. */
+  debug?: TranscriptDebugDetails;
   /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (legacy rows)
    *  or derived from kind+status for entity rows (display compat). */
   subtype?: string;

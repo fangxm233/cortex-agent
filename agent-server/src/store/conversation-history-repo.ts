@@ -1,17 +1,6 @@
-// input:  store/conversation-history/<sessionId>.jsonl, sessionId, message events
-// output: ConversationHistoryRepo — Cortex's own backend-independent conversation history
-// pos:    One append-only JSONL file PER SESSION under a directory (keyed by sessionId,
-//         persistent across reconnects). Records the FULL conversation — user inputs, every
-//         assistant message, every tool call — as the canonical display source for the TUI.
-//         Backend-agnostic: fed from the orchestration layer's unified callbacks.
-//
-//         Why per-session JSONL (not one big JSON file): writes are pure O(1) appends — a
-//         single line per event, no read-modify-rewrite of the whole store. Turn grouping
-//         and streaming-growth dedup are computed at READ time, so the write path never has
-//         to inspect prior state. Scales to thousands of sessions / long histories.
-//         Interaction ENTITIES (web-interactions-redesign): created (pending + payload snapshot)
-//         and resolved (final status + result) records share an `id` and merge into one event
-//         at read time; legacy {subtype,text} interaction lines still parse.
+// input:  per-session JSONL, visible events, interactions/edit markers, optional DEBUG sidecars
+// output: backend-independent history with turn grouping and correlated lossless debug metadata
+// pos:    L1 append-only canonical transcript store; all grouping/merging occurs at read time
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -23,6 +12,15 @@ const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 // --- Types ---
 
 export type HistoryEventType = 'user' | 'assistant' | 'tool' | 'interaction';
+
+export interface HistoryDebugDetails {
+  /** Exact text handed to the adapter for this user turn. */
+  agentMessage?: string;
+  /** Unabridged structured input for a tool call. */
+  toolInput?: unknown;
+  /** Full normalized result correlated to the tool call by backend tool-use id. */
+  toolResult?: { content: string; isError: boolean };
+}
 
 // ── Interaction entity types (web-interactions-redesign) ─────────────────────
 // An interaction (ask-user question / plan approval) is a first-class persisted entity:
@@ -60,6 +58,8 @@ export interface HistoryEvent {
   toolName?: string;
   /** compact tool input summary (tool events only). */
   toolInput?: string;
+  /** Sensitive lossless fields captured only by DEBUG-enabled orchestration. */
+  debug?: HistoryDebugDetails;
   /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (LEGACY interaction rows only). */
   subtype?: string;
   /** Interaction entity fields (interaction rows with an id; merged created+resolved on read). */
@@ -85,7 +85,7 @@ export interface HistoryEvent {
  *  edited user event's re-send; on read it attaches to the NEXT user event as `edited` and is
  *  never emitted as an event itself. */
 interface RawEvent {
-  type: HistoryEventType | 'edit-marker';
+  type: HistoryEventType | 'edit-marker' | 'debug-user-prompt' | 'debug-tool-result';
   /** edit-marker lines only. */
   originalText?: string;
   /** edit-marker lines only. */
@@ -93,6 +93,11 @@ interface RawEvent {
   text?: string;
   toolName?: string;
   toolInput?: string;
+  /** DEBUG-only correlation and lossless payload fields. */
+  toolUseId?: string;
+  fullInput?: unknown;
+  agentMessage?: string;
+  isError?: boolean;
   /** interaction subtype (LEGACY interaction lines only). */
   subtype?: string;
   /** Interaction entity fields (created / resolved lines). */
@@ -169,13 +174,19 @@ export class ConversationHistoryRepo {
   /** Append a user message — starts a new turn (turn boundaries are derived on read).
    *  An optional `ts` override lets the caller share a single timestamp with the
    *  EventBus event so the web UI's content-based de-dup produces identical keys. */
-  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }): Promise<void> {
+  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[]; agentMessage?: string }): Promise<void> {
     return this.append(sessionId, {
       type: 'user',
       text: opts.text,
       ts: opts.ts ?? nowIso(),
       attachments: opts.attachments,
+      agentMessage: opts.agentMessage,
     });
+  }
+
+  /** Attach the exact adapter message after prompt assembly to the preceding visible user row. */
+  appendUserPrompt(sessionId: string, opts: { agentMessage: string; ts?: string }): Promise<void> {
+    return this.append(sessionId, { type: 'debug-user-prompt', agentMessage: opts.agentMessage, ts: opts.ts ?? nowIso() });
   }
 
   /** Append an assistant message. Streaming partials are collapsed at read time.
@@ -188,8 +199,26 @@ export class ConversationHistoryRepo {
 
   /** Append a tool call.
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event. */
-  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string }): Promise<void> {
-    return this.append(sessionId, { type: 'tool', toolName: opts.toolName, toolInput: opts.toolInput ?? '', ts: opts.ts ?? nowIso() });
+  appendTool(sessionId: string, opts: { toolName: string; toolInput?: string; ts?: string; toolUseId?: string; fullInput?: unknown }): Promise<void> {
+    return this.append(sessionId, {
+      type: 'tool',
+      toolName: opts.toolName,
+      toolInput: opts.toolInput ?? '',
+      ts: opts.ts ?? nowIso(),
+      toolUseId: opts.toolUseId,
+      fullInput: opts.fullInput,
+    });
+  }
+
+  /** Append a full normalized tool result; read-time correlation keeps it on the tool row. */
+  appendToolResult(sessionId: string, opts: { toolUseId: string; content: string; isError: boolean; ts?: string }): Promise<void> {
+    return this.append(sessionId, {
+      type: 'debug-tool-result',
+      toolUseId: opts.toolUseId,
+      text: opts.content,
+      isError: opts.isError,
+      ts: opts.ts ?? nowIso(),
+    });
   }
 
   /** Append an interaction CREATED record (status pending, full payload snapshot).
@@ -278,6 +307,9 @@ export class ConversationHistoryRepo {
     // Interaction entity merge: id → the created row already pushed into `events`.
     // A later resolved line with the same id updates that row in place (position kept).
     const interactionById = new Map<string, HistoryEvent>();
+    // DEBUG sidecars merge into visible rows and never affect transcript ordering or turn indexes.
+    const toolByUseId = new Map<string, HistoryEvent>();
+    let lastUser: HistoryEvent | null = null;
     let turnIndex = -1;
     // Pending edit-marker: attaches to the NEXT user event as `edited` (never emitted itself).
     let pendingEdit: { originalText: string; originalTs: string } | null = null;
@@ -288,12 +320,27 @@ export class ConversationHistoryRepo {
 
       if (ev.type === 'edit-marker') {
         pendingEdit = { originalText: ev.originalText ?? '', originalTs: ev.originalTs ?? '' };
+      } else if (ev.type === 'debug-user-prompt') {
+        if (lastUser && ev.agentMessage !== undefined) {
+          lastUser.debug = { ...(lastUser.debug ?? {}), agentMessage: ev.agentMessage };
+        }
+      } else if (ev.type === 'debug-tool-result') {
+        const tool = ev.toolUseId ? toolByUseId.get(ev.toolUseId) : undefined;
+        if (tool) {
+          tool.debug = {
+            ...(tool.debug ?? {}),
+            toolResult: { content: ev.text ?? '', isError: ev.isError === true },
+          };
+        }
       } else if (ev.type === 'user') {
         turnIndex++;
-        events.push({
+        const user: HistoryEvent = {
           type: 'user', text: ev.text ?? '', ts: ev.ts, turnIndex, attachments: ev.attachments,
           ...(pendingEdit ? { edited: pendingEdit } : {}),
-        });
+          ...(ev.agentMessage !== undefined ? { debug: { agentMessage: ev.agentMessage } } : {}),
+        };
+        events.push(user);
+        lastUser = user;
         pendingEdit = null;
       } else if (ev.type === 'assistant') {
         const tIdx = Math.max(0, turnIndex);
@@ -317,7 +364,16 @@ export class ConversationHistoryRepo {
           events.push({ type: 'assistant', text, ts: ev.ts, turnIndex: tIdx, ...(hasAttachments ? { attachments: ev.attachments } : {}) });
         }
       } else if (ev.type === 'tool') {
-        events.push({ type: 'tool', toolName: ev.toolName ?? '', toolInput: ev.toolInput ?? '', ts: ev.ts, turnIndex: Math.max(0, turnIndex) });
+        const tool: HistoryEvent = {
+          type: 'tool',
+          toolName: ev.toolName ?? '',
+          toolInput: ev.toolInput ?? '',
+          ts: ev.ts,
+          turnIndex: Math.max(0, turnIndex),
+          ...(ev.fullInput !== undefined ? { debug: { toolInput: ev.fullInput } } : {}),
+        };
+        events.push(tool);
+        if (ev.toolUseId) toolByUseId.set(ev.toolUseId, tool);
       } else if (ev.type === 'interaction') {
         if (ev.id) {
           const prior = interactionById.get(ev.id);

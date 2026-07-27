@@ -1,10 +1,7 @@
-// Vocabulary table — the single source for both languages.
-// Group A keys + copy are ported 1:1 from the interactive prototype's dict();
-// Group B are the status-pill labels (prototype pill()); Group C is the mobile
-// shell chrome supplement; Group J is the desktop i18n migration (workbench /
-// tasks / overview / settings) — every desktop surface reads from here.
-// The active language is a user-controlled, persisted toggle (see lang.ts /
-// LangProvider), NOT viewport-driven. `en` is the shape of record; `zh` must match.
+// input:  user-selected language and product copy keys for desktop/mobile surfaces
+// output: shape-checked English/Chinese vocabulary, including desktop DEBUG inspector labels
+// pos:    single source of localized UI copy; active selection is owned by LangProvider
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 export const en = {
   // ── Group A: prototype dict() ──
@@ -176,6 +173,13 @@ export const en = {
   wbEmptyTitle: 'Start with one message',
   wbEmptyBody: 'This project is empty. Just chat — describe the mission and the agent runs project_init (mission.md · TASKS.yaml · memory scaffold · git).',
   wbEmptyHint: 'Everything else — tasks, threads, cross-machine runs — starts from this chat',
+  wbDebugInspect: 'Inspect DEBUG data',
+  wbDebugAgentMessage: 'AGENT MESSAGE',
+  wbDebugParameters: 'PARAMETERS',
+  wbDebugResult: 'RESULT',
+  wbDebugSuccess: 'SUCCESS',
+  wbDebugError: 'ERROR',
+  wbDebugPending: 'PENDING',
   wbAttach: '＋ attach',
   wbAttachPlaceholder: 'Add a message or drop more files',
   wbAttachHint: 'paste or drop files',
@@ -719,6 +723,13 @@ export const zh: Record<keyof Vocab, string> = {
   wbEmptyTitle: '从一条消息开始',
   wbEmptyBody: '这个项目还是空的。直接聊——描述目标，agent 会运行 project_init（mission.md · TASKS.yaml · 记忆脚手架 · git）。',
   wbEmptyHint: '其余的一切——任务、线程、跨机运行——都从这个对话开始',
+  wbDebugInspect: '查看 DEBUG 数据',
+  wbDebugAgentMessage: '实际 AGENT 消息',
+  wbDebugParameters: '完整参数',
+  wbDebugResult: '完整结果',
+  wbDebugSuccess: '成功',
+  wbDebugError: '错误',
+  wbDebugPending: '等待中',
   wbAttach: '＋ 附件',
   wbAttachPlaceholder: '输入消息或拖入更多文件',
   wbAttachHint: '粘贴或拖入文件',

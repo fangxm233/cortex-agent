@@ -1,8 +1,7 @@
-// Re-exported ui-service contract types (zero-duplication, DR-0018 §2).
-// Source of truth: agent-server/src/domain/ui-service/types.ts. We import the
-// BUILT declarations so the frontend shares one definition and cannot drift.
-// All re-exports are type-only → fully erased at build, no runtime coupling to
-// agent-server (the frontend never bundles backend code).
+// input:  built agent-server ui-service declarations including optional DEBUG transcript details
+// output: zero-duplication type-only client contract re-exports (DR-0018 §2)
+// pos:    shared server→desktop/mobile compile-time DTO boundary; no frontend runtime coupling
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 export type {
   // Result envelope
@@ -62,6 +61,7 @@ export type {
   InteractionStatus,
   InteractionQuestion,
   TranscriptInteractionDetail,
+  TranscriptDebugDetails,
   // Output DTOs
   ProjectConduitInfo,
   SessionInfo,

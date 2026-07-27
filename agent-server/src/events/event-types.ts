@@ -1,5 +1,5 @@
 // input:  nothing (leaf module)
-// output: CortexEvent union type — all event variants for the EventBus
+// output: CortexEvent union type — all event variants including content-free DEBUG refresh hints
 // pos:    events/ layer, only depends on nothing
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -33,6 +33,9 @@ export type CortexEvent =
   // Message edit + rewind: the session transcript changed shape (turns ≥ turnIndex rolled back).
   // Content-free hint — live clients drop buffered live tails and refetch the transcript.
   | { type: 'session.rewound';        ts: string; sessionId: string; channel: string; turnIndex: number }
+  // Sensitive DEBUG data stays in the authoritative transcript query. This content-free hint only
+  // asks an open client to refetch after prompt/result sidecars are durably appended.
+  | { type: 'session.debug.updated';  ts: string; sessionId: string; channel: string }
   | { type: 'plan.submitted';         ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; planContent: string; toolInput: any; dryRun?: boolean; extensionUiId?: string }
   | { type: 'plan.approved';          ts: string; channel: string; executionId: string }
   | { type: 'ask-user.requested';     ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; questions: any[]; dryRun?: boolean; extensionUiId?: string }

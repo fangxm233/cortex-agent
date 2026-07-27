@@ -1,7 +1,6 @@
-// input:  node:test, domain/threads/thread-transcript helpers
-// output: unit coverage for createStepTranscriptRecorder (live per-event append + publish)
-// pos:    verifies thread steps record conversation-history INCREMENTALLY (per event, shared ts)
-//         so the web UI can render a running step's transcript (snapshot) + live stream (delta)
+// input:  thread transcript recorder, fake history writer, DEBUG environment gate
+// output: ordered live append and lossless prompt/tool/result correlation regression coverage
+// pos:    thread-step transcript recorder specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -20,6 +19,7 @@ function makeFakeHistory(): { writer: HistoryWriter; calls: Call[] } {
     appendUser: async (sessionId, opts) => { calls.push({ fn: 'user', sessionId, arg: opts }); },
     appendAssistant: async (sessionId, opts) => { calls.push({ fn: 'assistant', sessionId, arg: opts }); },
     appendTool: async (sessionId, opts) => { calls.push({ fn: 'tool', sessionId, arg: opts }); },
+    appendToolResult: async (sessionId, opts) => { calls.push({ fn: 'tool-result', sessionId, arg: opts }); },
   };
   return { writer, calls };
 }
@@ -40,6 +40,28 @@ test('recorder appends user/assistant/tool incrementally, in order, keyed by the
   assert.equal(calls[2].arg.toolName, 'Bash');
   assert.equal(calls[2].arg.toolInput, 'ls -la', 'tool input is summarized to its primary field');
   assert.equal(calls[3].arg.text, 'done');
+});
+
+test('DEBUG recorder preserves the complete step prompt, tool input, result, and update ordering', async (t) => {
+  const previous = process.env.DEBUG;
+  process.env.DEBUG = '1';
+  t.onTestFinished(() => {
+    if (previous === undefined) delete process.env.DEBUG;
+    else process.env.DEBUG = previous;
+  });
+  const { writer, calls } = makeFakeHistory();
+  const debugUpdates: string[] = [];
+  const rec = createStepTranscriptRecorder(writer, 'track-debug', undefined, () => debugUpdates.push('updated'));
+  rec.recordUser('full step prompt\nwith context');
+  rec.recordTool('Bash', { command: 'echo complete', timeout: 120000 }, 'toolu-thread');
+  rec.recordToolResult('toolu-thread', 'complete\nresult', true);
+  await rec.settle();
+
+  assert.equal(calls[0].arg.agentMessage, 'full step prompt\nwith context');
+  assert.deepEqual(calls[1].arg.fullInput, { command: 'echo complete', timeout: 120000 });
+  assert.equal(calls[1].arg.toolUseId, 'toolu-thread');
+  assert.deepEqual(calls[2].arg, { toolUseId: 'toolu-thread', content: 'complete\nresult', isError: true });
+  assert.deepEqual(debugUpdates, ['updated', 'updated', 'updated'], 'prompt, tool input, and result refresh only after each DEBUG append settles');
 });
 
 test('recorder shares one ts per event between the history append and the live publish (web de-dup contract)', async () => {
@@ -66,6 +88,7 @@ test('recorder publishes live events synchronously in emission order even while 
     appendUser: async () => { await gate; },
     appendAssistant: async () => { await gate; },
     appendTool: async () => { await gate; },
+    appendToolResult: async () => { await gate; },
   };
   const published: string[] = [];
   const rec = createStepTranscriptRecorder(writer, 'track-3', (ev) => published.push(ev.role));
@@ -84,6 +107,7 @@ test('a failing history write does not reject settle and later events still appe
     appendUser: async (sessionId, opts) => { calls.push({ fn: 'user', sessionId, arg: opts }); },
     appendAssistant: async () => { throw new Error('disk full'); },
     appendTool: async (sessionId, opts) => { calls.push({ fn: 'tool', sessionId, arg: opts }); },
+    appendToolResult: async (sessionId, opts) => { calls.push({ fn: 'tool-result', sessionId, arg: opts }); },
   };
   const rec = createStepTranscriptRecorder(writer, 'track-4');
   rec.recordUser('p');

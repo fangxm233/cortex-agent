@@ -1,7 +1,7 @@
-// input:  shared/scoped SSE hooks, React Query, transcript reconciliation helpers
-// output: useSessionMessageLiveSync with authoritative tail and live preview state
-// pos:    React bridge between session events and chat transcript rows
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  shared/scoped SSE hooks, React Query, transcript reconciliation and DEBUG refresh hints
+// output: live session state with authoritative transcript invalidation after durable debug writes
+// pos:    React bridge between session events and desktop/mobile chat transcript rows
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -203,6 +203,12 @@ export function useSessionMessageLiveSync(
         setPending([]);
         queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        return;
+      }
+      // Full prompt/tool results never ride SSE. This content-free hint fires only after the
+      // DEBUG sidecar is durable, so the authoritative query can safely reveal the inspector data.
+      if (raw.type === 'session.debug.updated') {
+        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         return;
       }
       // Interaction entity state change (created / answered / approved / expired / …):

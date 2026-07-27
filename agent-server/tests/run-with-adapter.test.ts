@@ -1,6 +1,6 @@
 // input:  Node test runner + fake adapter stubs + runWithAdapter
-// output: event→callback + AgentResult + kill semantics tests
-// pos:    Verify mode-manager adapter event-driven path
+// output: event→callback (including correlated tool results) + AgentResult + kill semantics tests
+// pos:    Verify mode-manager adapter event-driven path and lossless DEBUG callback propagation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -126,7 +126,8 @@ test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks 
   });
 
   const assistantMsgs: string[] = [];
-  const toolCalls: Array<{ name: string; input: any }> = [];
+  const toolCalls: Array<{ name: string; input: any; toolUseId?: string }> = [];
+  const toolResults: Array<{ toolUseId: string; content: string; isError: boolean }> = [];
   const progressCalls: Array<{ num_turns: number | null; total_cost_usd: number | null; duration_ms: number | null }> = [];
 
   const handle = runWithAdapter(
@@ -135,7 +136,8 @@ test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks 
     {
       channel: 'C1',
       onAssistantMessage: (t: string) => assistantMsgs.push(t),
-      onToolUse: (name: string, input: any) => toolCalls.push({ name, input }),
+      onToolUse: (name: string, input: any, toolUseId?: string) => toolCalls.push({ name, input, toolUseId }),
+      onToolResult: (toolUseId: string, content: string, isError: boolean) => toolResults.push({ toolUseId, content, isError }),
       onProgress: (p: any) => progressCalls.push(p),
     },
     { model: 'm', backend: 'claude', mode: null },
@@ -148,11 +150,40 @@ test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks 
   assert.equal(toolCalls.length, 1);
   assert.equal(toolCalls[0].name, 'Bash');
   assert.deepEqual(toolCalls[0].input, { command: 'ls' });
+  assert.equal(toolCalls[0].toolUseId, 't1', 'the correlation id is preserved');
+  assert.deepEqual(toolResults, [], 'no result callback is invented without a tool_result event');
   assert.equal(progressCalls.length, 1, 'onProgress fires exactly once on turn_complete');
   assert.deepEqual(progressCalls[0], { num_turns: 2, total_cost_usd: 0.01, duration_ms: null });
   assert.equal(final, result, 'handle.promise resolves with the exact AgentResult from send()');
   assert.equal(recorded.sendCalls.length, 1);
   assert.equal(recorded.closed, true, 'proc.close() called in the runWithAdapter finally block');
+});
+
+test('runWithAdapter: tool_result preserves full multiline content, error status, and correlation id', async () => {
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const adapter = makeFakeAdapter('claude', {
+    events: [
+      { type: 'tool_use', toolUseId: 'toolu-result', name: 'Read', input: { file_path: '/secret/full.ts' } },
+      { type: 'tool_result', toolUseId: 'toolu-result', content: 'first line\nsecond line\nthird line', ok: false },
+      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
+    ],
+    resultOnResolve: defaultAgentResult('s-result'),
+    recorded,
+  });
+  const seen: any[] = [];
+
+  await runWithAdapter(
+    adapter,
+    'msg',
+    {
+      channel: 'C1',
+      onToolResult: (toolUseId: string, content: string, isError: boolean) => seen.push({ toolUseId, content, isError }),
+    },
+    { model: 'm', backend: 'claude', mode: null },
+    undefined,
+  ).promise;
+
+  assert.deepEqual(seen, [{ toolUseId: 'toolu-result', content: 'first line\nsecond line\nthird line', isError: true }]);
 });
 
 // --- FIFO ordering: tool_use then assistant_text fires callbacks in that order (T2 plan-review) ---
@@ -330,10 +361,16 @@ test('runWithAdapter: thread turn with pending background task waits for the con
   };
   const adapter = makeSinkCapableAdapter('claude', spec);
   const texts: string[] = [];
+  const toolResults: any[] = [];
 
   const handle = runWithAdapter(
     adapter, 'msg',
-    { channel: 'thread-x', threadId: 'thr_abc', onAssistantMessage: (t: string) => texts.push(t) },
+    {
+      channel: 'thread-x',
+      threadId: 'thr_abc',
+      onAssistantMessage: (t: string) => texts.push(t),
+      onToolResult: (toolUseId: string, content: string, isError: boolean) => toolResults.push({ toolUseId, content, isError }),
+    },
     { model: 'm', backend: 'claude', mode: null },
     undefined,
   );
@@ -346,6 +383,7 @@ test('runWithAdapter: thread turn with pending background task waits for the con
   assert.equal(spec.sinks.length, 1, 'continuation sink registered on the process');
 
   // Background task completes → spontaneous continuation turn ends.
+  spec.sinks[0].onToolResult('toolu-bg', 'complete background output', false);
   spec.sinks[0].onAssistantText('bg result: PASS');
   spec.sinks[0].onResult({ ...defaultAgentResult('s-thr-bg'), total_cost_usd: 0.02, num_turns: 2, finalOutput: 'bg result: PASS', pendingBackgroundTasks: 0 });
 
@@ -353,6 +391,7 @@ test('runWithAdapter: thread turn with pending background task waits for the con
   assert.ok(Math.abs((final.total_cost_usd ?? 0) - 0.03) < 1e-9, 'continuation cost merged into the step result');
   assert.equal(final.finalOutput, 'bg result: PASS', 'continuation output becomes the step output');
   assert.deepEqual(texts, ['bg result: PASS'], 'continuation text forwarded to the step stream');
+  assert.deepEqual(toolResults, [{ toolUseId: 'toolu-bg', content: 'complete background output', isError: false }], 'continuation tool results use the same callback path');
 });
 
 test('runWithAdapter: interactive turn (no threadId) with pending background task resolves immediately', async () => {

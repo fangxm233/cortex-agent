@@ -1,6 +1,6 @@
-// input:  orch/busy-tracker(trackPendingTask), orch/channel-queue, orch/superseded-edits, orch/active-agents, orch/interactions/plan-approvals, orch/turn-notify, status-helpers
-// output: handleAgentSuccess/Error, reprocessMessage
-// pos:    Agent runtime lifecycle handling (success/failure/approval/resume)
+// input:  runtime result, status/queue services, continuation text and id-correlated tool callbacks
+// output: success/error lifecycle handling including bounded background continuation finalization
+// pos:    Agent runtime lifecycle for completion, failure, approval, resume, and DEBUG-preserving holds
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { createLogger } from '@core/log.js';
 import { Icons } from '../core/icons.js';
@@ -42,7 +42,7 @@ const log = createLogger('lifecycle');
 
 // --- Agent success handler ---
 
-export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger = 'user', sessionName = null, threadAnchorId = null, userMessageTs = null, projectId = 'general', onAssistantMessage = null, onToolUse = null, registerContinuationSink = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; userMessage: string; executionId: string | null; trigger?: string; sessionName?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; projectId?: string; onAssistantMessage?: ((text: string) => void) | null; onToolUse?: ((name: string, input: any) => void) | null; registerContinuationSink?: ((sink: ContinuationSink) => void) | null }): Promise<void> {
+export async function handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger = 'user', sessionName = null, threadAnchorId = null, userMessageTs = null, projectId = 'general', onAssistantMessage = null, onToolUse = null, onToolResult = null, registerContinuationSink = null }: { result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; userMessage: string; executionId: string | null; trigger?: string; sessionName?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; projectId?: string; onAssistantMessage?: ((text: string) => void) | null; onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null; onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null; registerContinuationSink?: ((sink: ContinuationSink) => void) | null }): Promise<void> {
   // Decoupling: `result.sessionId` is the BACKEND's own session id (Claude self-generated / PI
   // bootstrap id), not the tracking id. Store it as the resume target on the STABLE track record
   // (keyed by sessionName) — do NOT rebind the channel or the registry key to it. The channel stays
@@ -109,6 +109,7 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
     const sink = buildContinuationSink({
       stream,
       onToolUse: onToolUse || null,
+      onToolResult: onToolResult || null,
       onWaiting: (remaining, split) => {
         guard.rearm(split?.running ?? remaining, split?.undelivered ?? 0);
         void writeStatus(adapter, statusMsg, waitingText(remaining));

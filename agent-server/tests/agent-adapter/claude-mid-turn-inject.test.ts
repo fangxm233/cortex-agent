@@ -1,6 +1,6 @@
 // input:  Node test runner + ClaudeSession inject/replay wiring (_test.makeSessionForTest)
-// output: spec for injectUserMessage + --replay-user-messages ack + both landing outcomes
-// pos:    CC backend mid-turn injection wiring tests (no child process)
+// output: spec for injectUserMessage, lossless tool callbacks, --replay-user-messages ack + both landing outcomes
+// pos:    CC backend print-stream and mid-turn injection wiring tests (no child process)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -16,7 +16,7 @@ function fakeTurn(capture: { value?: any; error?: any; resolves?: number }) {
     reject: (e: any) => { capture.error = e; },
     resultData: null, planFilePath: null, enteredPlanMode: false, exitedPlanMode: false,
     askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0,
-    onProgress: null, onAssistantMessage: null, onToolUse: null, onCompact: null,
+    onProgress: null, onAssistantMessage: null, onToolUse: null, onToolResult: null, onCompact: null,
     rawStream: FAKE_STREAM, txtStream: FAKE_STREAM, killed: false,
   };
 }
@@ -230,6 +230,39 @@ test('replay echo does not increment turn count, finalOutput, or background-task
   assert.equal(s.bgTracker.pendingCount, 0);
   assert.equal(s.bgTracker.undeliveredCount, 0);
   assert.equal(s.bgTracker.continuationArmed, false, 'an echo cannot arm the background-task path');
+});
+
+test('print stream preserves complete tool input/result data and the real tool-use id', (t) => {
+  const { s } = sessionWithStdin(t);
+  const turn = fakeTurn({});
+  const toolUses: any[] = [];
+  const toolResults: any[] = [];
+  turn.onToolUse = (name: string, input: any, toolUseId: string) => toolUses.push({ name, input, toolUseId });
+  turn.onToolResult = (toolUseId: string, content: string, isError: boolean) => toolResults.push({ toolUseId, content, isError });
+  s.currentTurn = turn;
+
+  s.handleLine(JSON.stringify({
+    type: 'assistant',
+    message: { content: [{ type: 'tool_use', id: 'toolu-full', name: 'Bash', input: { command: 'echo complete', timeout: 120000 } }] },
+  }));
+  s.handleLine(JSON.stringify({
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu-full', content: 'line 1\nline 2', is_error: true }] },
+  }));
+  const mixedContent = [
+    { type: 'text', text: 'caption' },
+    { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'abc' } },
+  ];
+  s.handleLine(JSON.stringify({
+    type: 'user',
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu-mixed', content: mixedContent }] },
+  }));
+
+  assert.deepEqual(toolUses, [{ name: 'Bash', input: { command: 'echo complete', timeout: 120000 }, toolUseId: 'toolu-full' }]);
+  assert.deepEqual(toolResults, [
+    { toolUseId: 'toolu-full', content: 'line 1\nline 2', isError: true },
+    { toolUseId: 'toolu-mixed', content: JSON.stringify(mixedContent), isError: false },
+  ]);
 });
 
 test('pre-existing tool_result user lines are unaffected by the replay handling', (t) => {

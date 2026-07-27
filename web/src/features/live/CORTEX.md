@@ -18,7 +18,7 @@ origins** (`http://127.0.0.1:3005`, LAN access, the vite dev server) — the age
 The server was already capable of this: `createSubscription` (agent-server
 `domain/ui-service/subscribe.ts`) takes a list of event types and post-filters by
 session/project/execution id. One stream carrying the union was always supported; only the client
-side had to change. The later profile-refresh path adds only a typed `config.changed` hint on the server; it still reuses this same stream.
+side had to change. The later profile-refresh path adds only a typed `config.changed` hint on the server; it still reuses this same stream. `session.debug.updated` is likewise content-free and triggers an authoritative transcript refetch only after lossless DEBUG metadata is durable.
 
 | path | role |
 |---|---|
@@ -29,7 +29,7 @@ side had to change. The later profile-refresh path adds only a typed `config.cha
 
 | hook / provider | events | scope |
 |---|---|---|
-| `workbench/useSessionMessageLiveSync` | session.message / message.delivered / status / turn / interaction / rewound | `{ sessionId }` — the open chat |
+| `workbench/useSessionMessageLiveSync` | session.message / message.delivered / status / turn / interaction / rewound / debug.updated | `{ sessionId }` — the open chat |
 | `workbench/useSessionsLiveSync` | session.status / interaction | global (rail dots) |
 | `workbench/useThreadsLiveSync` | thread lifecycle | global (`threads.list`) |
 | `thread/useThreadGetLiveSync` | thread lifecycle | global (`threads.get` for one id) |

@@ -1,6 +1,7 @@
-// input:  config, agent-adapter, profile-manager, agent-types
-// output: runAgent / runAgentOnce / runWithAdapter + fallback chain + bridge helper re-exports
-// pos:    domain/agents — sole agent execution path [S11]
+// input:  config, agent adapters, profiles, normalized id-correlated tool events
+// output: runAgent execution facade with lossless tool-use/result callback forwarding
+// pos:    domain/agents — sole backend-neutral agent execution path [S11]
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { getAdapter } from '../../agent-adapter/index.js';
 import type { AgentAdapter, AgentSpawnConfig, Backend } from '../../agent-adapter/index.js';
@@ -75,7 +76,8 @@ export interface RunAgentOptions {
   /** An incremental text chunk of a block still being generated (never the accumulated total).
    *  Opt-in: callers that leave it unset receive complete messages only, exactly as before. */
   onAssistantDelta?: ((text: string, blockId: string) => void) | null;
-  onToolUse?: ((name: string, input: any) => void) | null;
+  onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
+  onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   onFallback?: (current: AgentConfig, next: AgentConfig, result: AgentResult | null, error?: Error) => Promise<void>;
   [key: string]: any;
 }
@@ -222,7 +224,10 @@ export function runWithAdapter(
             options.onAssistantDelta?.(event.text, event.blockId);
             break;
           case 'tool_use':
-            options.onToolUse?.(event.name, event.input);
+            options.onToolUse?.(event.name, event.input, event.toolUseId);
+            break;
+          case 'tool_result':
+            options.onToolResult?.(event.toolUseId, event.content, !event.ok);
             break;
           case 'turn_progress':
             options.onProgress?.({
@@ -296,6 +301,7 @@ export function runWithAdapter(
           baseResult: result,
           onAssistantText: options.onAssistantMessage ?? null,
           onToolUse: options.onToolUse ?? null,
+          onToolResult: options.onToolResult ?? null,
         });
       }
       return result;

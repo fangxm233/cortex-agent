@@ -1,3 +1,8 @@
+// input:  session histories with optional sensitive DEBUG details and UI query dependencies
+// output: transcript grouping, elapsed, interaction, and DEBUG exposure/suppression regressions
+// pos:    authoritative sessions.transcript handler specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
@@ -9,6 +14,33 @@ function makeDeps(history: SessionHistory | null): UiServiceDeps {
     conversationHistory: { getHistory: async () => history },
   } as unknown as UiServiceDeps;
 }
+
+test('sessions.transcript exposes full debug metadata only while DEBUG is enabled', async (t) => {
+  const previous = process.env.DEBUG;
+  t.onTestFinished(() => {
+    if (previous === undefined) delete process.env.DEBUG;
+    else process.env.DEBUG = previous;
+  });
+  const history: SessionHistory = {
+    sessionId: 'sess-debug',
+    events: [
+      { type: 'user', text: 'visible', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0, debug: { agentMessage: 'system context\nvisible' } },
+      { type: 'tool', toolName: 'Bash', toolInput: 'echo …', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0, debug: { toolInput: { command: 'echo full' }, toolResult: { content: 'full\noutput', isError: false } } },
+    ],
+  } as SessionHistory;
+
+  delete process.env.DEBUG;
+  const hidden = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-debug' });
+  assert.ok(hidden.turns[0].messages.every((message) => !('debug' in message)), 'disabled responses contain no sensitive debug key');
+
+  process.env.DEBUG = '1';
+  const visible = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-debug' });
+  assert.deepEqual(visible.turns[0].messages[0].debug, { agentMessage: 'system context\nvisible' });
+  assert.deepEqual(visible.turns[0].messages[1].debug, {
+    toolInput: { command: 'echo full' },
+    toolResult: { content: 'full\noutput', isError: false },
+  });
+});
 
 test('sessions.transcript groups user/assistant/tool events by turn', async () => {
   const history: SessionHistory = {

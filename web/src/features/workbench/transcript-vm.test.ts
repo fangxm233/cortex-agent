@@ -1,7 +1,7 @@
 // input:  transcript-vm pure helpers and neutral session fixtures
-// output: transcript row, streaming handoff, and pending-message regression tests
-// pos:    Workbench transcript view-model specification
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// output: transcript row, DEBUG detail, streaming handoff, and pending-message regression tests
+// pos:    Workbench transcript view-model specification including lossless inspector data
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
   buildTranscriptRows,
@@ -78,6 +78,27 @@ describe('buildTranscriptRows', () => {
         { kind: 'read', input: 'a.md' },
         { kind: 'bash', input: 'ls' },
       ],
+    });
+  });
+
+  it('preserves DEBUG agent messages and complete per-tool input/results on their rows', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [
+        { type: 'user', text: 'visible', toolName: null, toolInput: null, ts: T, elapsedMs: null, debug: { agentMessage: 'context\nvisible' } } as any,
+        { type: 'tool', text: null, toolName: 'Bash', toolInput: 'echo …', ts: T, elapsedMs: 0, debug: { toolInput: { command: 'echo full', timeout: 120000 }, toolResult: { content: 'line 1\nline 2', isError: false } } } as any,
+      ] }]),
+      [],
+    );
+
+    expect(rows[1]).toMatchObject({ kind: 'user', debug: { agentMessage: 'context\nvisible' } });
+    expect(rows[2]).toEqual({
+      kind: 'tools',
+      count: 1,
+      calls: [{
+        kind: 'Bash',
+        input: 'echo …',
+        debug: { toolInput: { command: 'echo full', timeout: 120000 }, toolResult: { content: 'line 1\nline 2', isError: false } },
+      }],
     });
   });
 

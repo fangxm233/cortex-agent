@@ -58,7 +58,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
 | `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims + extension_ui settled turns |
 | `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
-| `run-with-adapter.test.ts` | Test | mode-manager event to callback drive + thread-turn inline bg-continuation wait (threadId gate: thread holds+merges, interactive resolves immediately) |
+| `run-with-adapter.test.ts` | Test | mode-manager normalized event→callback drive, id-correlated full tool result propagation, and thread-turn inline bg-continuation forwarding/wait |
 | `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins: cortex-feishu plugin gated to feishu: channels (exact basename match) |
 | `app.test.ts` | Test | Startup DM + scheduled success flow |
 | `auto-compound.test.ts` | Test | Compound skip conditions and concatenation |
@@ -69,6 +69,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `cortex-run-cli-dispatch.test.ts` | Test | cortex-run.ts CLI dispatch (sendCommand pathway) |
 | `daemon.test.ts` | Test | Import has no side effects |
 | `core/status-format.test.ts` | Test | buildThreadStatusMessage: task-info lead format / thread-only fallback / text+thread-id truncation / turn count |
+| `core/debug-mode.test.ts` | Test | Shared process-wide `DEBUG` truthiness contract used by logging, transcript capture, and DTO exposure |
 | `core/singleton-lock.test.ts` | Test | tryAcquireSingletonLock/releaseSingletonLock/isProcessAlive against a temp pidfile (fresh/live-holder/stale/corrupt) |
 | `core/auth.test.ts` | Test | core/auth.ts: timingSafeEqualStr (fail-closed) + ensureAuthTokens generation/idempotency/partial/append-to-.env |
 | `core/bg-held-sessions.test.ts` | Test | BgHeldSessions registry (web bg-hold snapshot): mark on running+backgroundRunning, clear on seal / plain turn start / turn end, re-arm keeps held, per-session independence, singleton; + the Stop-path additions — channel index (`sessionsOnChannel`) and single-fire `setAbort`/`abort` with handles dropped on seal and on clear |
@@ -90,7 +91,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `task-mutations.test.ts` | Test | addTask/batchEdit/decompose |
 | `thread-manager.test.ts` | Test | resolveSystemVars/evaluateTransitions |
 | `thread-runner.test.ts` | Test | Runner lifecycle helpers and wait-control selector forwarding |
-| `threads/thread-transcript.test.ts` | Test | createStepTranscriptRecorder: incremental in-order appends keyed by the track sessionId (summarized tool input), shared ts between history entry and live publish (web de-dup contract), synchronous emission-order publishes under slow writes, settle() never rejects + failed append skipped |
+| `threads/thread-transcript.test.ts` | Test | createStepTranscriptRecorder: incremental in-order appends keyed by track sessionId, shared-ts live publish, DEBUG exact prompt/full input/result correlation, post-persistence refresh ordering, and fail-soft writes |
 | `threads/thread-live-step-ids.test.ts` | Test | beginStepSession (fresh mint persisted + resume null / legacy migration keeps one id as both keys / settled slot resumes backendSessionId / non-persist fresh per step / thread.step.started) + recordStepResult track/backend decoupling (step + persist-slot fields, thread.step.finished truncation) + thread.created/completed/failed(+cancel→failed) publishes + resolveTargetResumeId (slot/step, new/legacy forms, never a track id) |
 | `conversation-runner.test.ts` | Test | buildConversationPrompt golden-prompt fidelity vs legacy default-thread prompt + `[Session Project]` block injection (project opt) + resolveConversationProject gating (web-only / fresh-only / non-general / unknown-id) |
 | `user-context.test.ts` | Test | loadUserContext env-gate/file-present/absent + USER.md injected into buildConversationPrompt, never into thread steps |
@@ -124,6 +125,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `interaction-handlers.test.ts` | Test | handleModalSubmit -> bus.publish('ask-user.answered') BLK-1 regression |
 | `orch/interaction-records.test.ts` | Test | InteractionRecords entity service (web-interactions-redesign): create persists+publishes session.interaction pending / resolve first-writer-wins (resolved→already-resolved) / unknown-after-restart / getPendingByChannel payload+TTL scoping / resolvePendingByChannel (!new cancel) / uninitialised fail-soft |
 | `orch/hook-bridge-subscribers-web.test.ts` | Test | web: conduit branch creates interaction entities (plan-approval with FULL planContent snapshot + planApprovals live-resolver kept; ask-user normalized questions); non-web channels create none |
+| `domain/ui-service/query-sessions-transcript.test.ts` | Test | Transcript turn/elapsed/interaction materialization plus DEBUG-on exact detail exposure and DEBUG-off sensitive-field suppression |
 | `domain/ui-service/mutate-sessions-interactions.test.ts` | Test | handleAnswerQuestion/handleRespondPlan three-way outcome: resolved/already-resolved → ok{outcome}, not-found → err, invalid-args, not-available |
 | `platform-mock-adapter.test.ts` | Test | MockAdapter 17 method coverage |
 | `output-stream.test.ts` | Test | SlackOutputStream/FeishuOutputStream/MockOutputStream unit tests (46 cases) |

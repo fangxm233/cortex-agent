@@ -2,6 +2,8 @@ Please update me when files in this folder change
 
 DR-0008 §4.5 fixture-replay tests. Lock down three-backend NormalizedEvent sequences.
 
+`claude-mid-turn-inject.test.ts` additionally locks print-stream losslessness: native tool-use ids, full structured inputs, multiline error/success result carriers, and mixed text/non-text result arrays reach the callback seam without dropped blocks.
+
 | filename | role | function |
 |---|---|---|
 | `replay-harness.ts` | Utility | parseClaudeLine/parseCodexRpc/replayPi + golden |

@@ -1,6 +1,8 @@
-// Static content that is NOT part of the real S4 chat data path (task aba0). The transcript body
-// (divider / user / tool-calls / assistant) is now driven by the real `sessions.transcript` query +
-// live `session.message` stream (see transcript-vm.ts / MessageStream.tsx). What remains here:
+// input:  workbench static content plus tool-call display/DEBUG detail shapes
+// output: ToolCall metadata and static slash/approval/profile content
+// pos:    non-transcript content module; ToolCallsRow consumes the optional lossless detail shape
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// What remains here:
 //   • the tool-call label helper + type (shared by ToolCallsRow)
 //   • the composer slash-command menu (18-slash-menu) — verbatim EN copy from the prototype; running
 //     a menu item now dispatches its '/cmd' as a real slash command via sessions.send (task 970d,
@@ -12,6 +14,10 @@ export interface ToolCall {
   label: string;
   kind: string;
   input: string;
+  debug?: {
+    toolInput: unknown;
+    toolResult?: { content: string; isError: boolean };
+  };
 }
 
 /** Attachment metadata shared between composer and message display (15a). */

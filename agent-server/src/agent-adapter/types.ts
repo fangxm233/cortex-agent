@@ -1,6 +1,6 @@
 // input:  nothing (leaf type-only module)
-// output: AgentAdapter / AgentSpawnConfig / AgentProcess / Backend / continuation + injection lifecycle sinks
-// pos:    Core contract types of the Agent adapter abstraction layer
+// output: AgentAdapter contracts including id-correlated lossless tool callbacks in continuation sinks
+// pos:    Core type seam between backend adapters, normalized events, and orchestration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { Capability } from './capabilities.js';
@@ -117,8 +117,10 @@ export interface AgentSpawnConfig {
 export interface ContinuationSink {
   /** Assistant text from the continuation turn (append to the original reply). */
   onAssistantText: (text: string) => void;
-  /** Optional tool_use trace from the continuation turn. */
-  onToolUse?: (name: string, input: any) => void;
+  /** Optional tool_use trace from the continuation turn, preserving its correlation id. */
+  onToolUse?: (name: string, input: any, toolUseId?: string) => void;
+  /** Optional full normalized tool result from the continuation turn. */
+  onToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
   /** Continuation turn's terminating result. `result.pendingBackgroundTasks` is the number
    *  of background tasks still running (0 ⇒ safe to seal the status as complete). */
   onResult: (result: AgentResult) => void;

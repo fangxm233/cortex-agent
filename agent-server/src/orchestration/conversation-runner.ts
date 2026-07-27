@@ -1,9 +1,6 @@
-// input:  domain/agents (runAgent + config getters), domain/threads (agent-slot + prompt assembly),
-//         domain/executions/registry, core/running-executions, domain/projects
-// output: runConversation — executes a single plain user-conversation turn WITHOUT a thread
-//         + resolveConversationProject — gate for the first-turn [Session Project] prompt block
-//           (web: channel + fresh session + non-general user project)
-// pos:    orch/ — dedicated execution path for plain user messages (replaces the default-thread wrapper)
+// input:  agent facade, prompt assembly, execution/session registries, project context
+// output: runConversation plus exact assembled-prompt and id-correlated tool callback seams
+// pos:    plain user turn execution without thread machinery; prompt capture occurs before spawn
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Why this exists: plain user chat messages used to be wrapped in a `templateName:'default'`
@@ -57,7 +54,10 @@ export interface RunConversationOptions {
   onAssistantDelta?: ((text: string, blockId: string) => void) | null;
   onProgress?: ((progress: any) => void) | null;
   onFallback?: ((...args: any[]) => Promise<void>) | null;
-  onToolUse?: ((name: string, input: any) => void) | null;
+  /** Receives the exact text passed to runAgent, after all fresh-session context is assembled. */
+  onPromptBuilt?: ((prompt: string) => void) | null;
+  onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
+  onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   onPlanWritten?: ((event: { path: string; content: string; toolUseId: string }) => void) | null;
   onAskUserQuestion?: ((event: any) => void) | null;
 }
@@ -118,6 +118,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     // on the session's first turn (see resolveConversationProject for the exact gating).
     project: resolveConversationProject({ channel: opts.channel, projectId: opts.projectId, isFreshSession }),
   });
+  opts.onPromptBuilt?.(prompt);
   // Attribute cost/execution to the session's bound project (from the registry record), NOT a
   // re-derivation from the message text. A session created under project X stays project X even if
   // no message ever mentions X literally (that mismatch previously dumped everything into 'general').
@@ -173,6 +174,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     onAssistantDelta: opts.onAssistantDelta ?? null,
     onProgress: opts.onProgress,
     onToolUse: opts.onToolUse,
+    onToolResult: opts.onToolResult ?? null,
     onPlanWritten: opts.onPlanWritten ?? null,
     onAskUserQuestion: opts.onAskUserQuestion ?? null,
   });

@@ -1,6 +1,6 @@
-// input:  conversation runner, lifecycle, queue, interaction bridge
-// output: AgentRunner and interactive callback wiring
-// pos:    Sole plain user-message execution path
+// input:  conversation execution, lifecycle, queue, DEBUG gate, normalized tool callbacks
+// output: AgentRunner with live transcript writes and lossless DEBUG prompt/tool correlation
+// pos:    Sole plain user-message path, including injected and background continuation turns
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -20,6 +20,7 @@ import { handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecy
 import { buildSessionTag, buildUserProcessingMessage, makeFallbackNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { readFileSync } from 'fs';
 import { createLogger } from '@core/log.js';
+import { isDebugMode } from '@core/debug-mode.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
@@ -28,7 +29,7 @@ import { buildDurableHooks } from './durable-helpers.js';
 const log = createLogger('agent-runner');
 import { createToolTrace } from '@platform/index.js';
 import { setStreamingCallback, clearStreamingCallback, publishPlanSubmitted, publishAskUserRequested } from './routing/hook-bridge.js';
-import { publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
+import { publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
 import { createSessionDeltaStream } from './delta-coalescer.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } from './mid-turn-inject.js';
 import { getStreamingCallback } from './routing/hook-bridge.js';
@@ -69,7 +70,7 @@ interface AgentCallbacks {
   onFallback: (...args: any[]) => Promise<void>;
   onAssistantMsg: ((text: string) => void) & { stream?: OutputStream };
   onProgress: (progress: any) => void;
-  onToolUse: ((name: string, input: any) => void) | null;
+  onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
 }
 
 export interface AgentRunnerCtx {
@@ -142,7 +143,7 @@ export class AgentRunner {
       const sessionId = await getSessionAsync(ctx.channel, resolveBackendForChannel(ctx.channel));
       if (!sessionId) return false;
       const sessionName = await sessionStore.lookupBySessionId(sessionId);
-      return tryInjectIntoLiveTurn(buildInjectDeps(sessionName), {
+      return tryInjectIntoLiveTurn(buildInjectDeps(sessionName, ctx.channel), {
         channel: ctx.channel,
         sessionId,
         text: ctx.userMessage || '',
@@ -258,6 +259,29 @@ export class AgentRunner {
     // Ink-TUI / threads) and when the feature is off, so those paths keep receiving complete
     // messages only. Lives for the turn; sealed in the finally below.
     const deltaStream = createSessionDeltaStream({ sessionId, channel });
+    const debugEnabled = isDebugMode();
+    const persistToolUse = (name: string, input: any, toolUseId: string): void => {
+      const toolInput = summarizeToolInputForHistory(input);
+      const ts = new Date().toISOString();
+      recordHistory(
+        conversationHistory.appendTool(sessionId, {
+          toolName: name,
+          toolInput,
+          ts,
+          ...(debugEnabled ? { toolUseId, fullInput: input } : {}),
+        }),
+        debugEnabled ? () => publishSessionDebugUpdated({ sessionId, channel }) : undefined,
+      );
+      publishSessionMessage({ sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts });
+    };
+    const persistToolResult = debugEnabled
+      ? (toolUseId: string, content: string, isError: boolean): void => {
+          recordHistory(
+            conversationHistory.appendToolResult(sessionId, { toolUseId, content, isError }),
+            () => publishSessionDebugUpdated({ sessionId, channel }),
+          );
+        }
+      : null;
     try {
       const convResult = await runConversation({
         adapter, channel,
@@ -291,6 +315,12 @@ export class AgentRunner {
             publishSessionMessage({ sessionId, channel, role: 'assistant', text, ts, ...(blockId ? { blockId } : {}) });
           }
         },
+        onPromptBuilt: debugEnabled ? (prompt: string) => {
+          recordHistory(
+            conversationHistory.appendUserPrompt(sessionId, { agentMessage: prompt }),
+            () => publishSessionDebugUpdated({ sessionId, channel }),
+          );
+        } : null,
         onProgress: (progress: any) => {
           callbacks.onProgress(progress);
           // S4 chat: surface the REAL agent-turn count live (snapshot on the running execution +
@@ -309,13 +339,9 @@ export class AgentRunner {
         onFallback: callbacks.onFallback,
         onToolUse: composeToolUse(
           composeToolUse(callbacks.onToolUse, interactiveCallbacks.onToolUse),
-          sessionId ? (name: string, input: any) => {
-            const toolInput = summarizeToolInputForHistory(input);
-            const ts = new Date().toISOString();
-            recordHistory(conversationHistory.appendTool(sessionId, { toolName: name, toolInput, ts }));
-            publishSessionMessage({ sessionId, channel, role: 'tool', text: '', toolName: name, toolInput, ts });
-          } : null,
+          persistToolUse,
         ),
+        onToolResult: persistToolResult,
         onPlanWritten: interactiveCallbacks.onPlanWritten,
         onAskUserQuestion: interactiveCallbacks.onAskUserQuestion,
       });
@@ -333,6 +359,8 @@ export class AgentRunner {
         result: convResult.result, channel, adapter, statusMsg, startTime, userMessage,
         executionId: convResult.executionId,
         sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId,
+        continuationToolUse: composeToolUse(callbacks.onToolUse, persistToolUse),
+        continuationToolResult: persistToolResult,
         registerContinuationSink: holdForBg ? (sink: ContinuationSink) => proc!.setContinuationSink!(sink) : null,
       });
       // Web background-task hold: the Slack/Feishu status-message hold (above) never fires for a
@@ -353,12 +381,8 @@ export class AgentRunner {
             recordHistory(conversationHistory.appendAssistant(sid, { text, ts }));
             publishSessionMessage({ sessionId: sid, channel, role: 'assistant', text, ts });
           },
-          publishTool: (name, input) => {
-            const toolInput = summarizeToolInputForHistory(input);
-            const ts = new Date().toISOString();
-            recordHistory(conversationHistory.appendTool(sid, { toolName: name, toolInput, ts }));
-            publishSessionMessage({ sessionId: sid, channel, role: 'tool', text: '', toolName: name, toolInput, ts });
-          },
+          publishTool: persistToolUse,
+          publishToolResult: persistToolResult ?? undefined,
         });
       }
     } catch (error) {
@@ -429,10 +453,12 @@ export function resolveDefaultAgent(agentMessage: string, channel?: string): Age
   };
 }
 
-async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId, registerContinuationSink = null }: {
+async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, sessionName, sessionId, threadAnchorId, messageTs, callbacks, projectId, continuationToolUse, continuationToolResult, registerContinuationSink = null }: {
   result: AgentResult; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number;
   userMessage: string; executionId: string | null; sessionName: string; sessionId: string | null;
   threadAnchorId: string | null; messageTs: string; callbacks: AgentCallbacks; projectId: string;
+  continuationToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+  continuationToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   registerContinuationSink?: ((sink: ContinuationSink) => void) | null;
 }): Promise<void> {
   if (result?.rateLimited) {
@@ -444,7 +470,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     await sealStatus(adapter, statusMsg, fallbackText, buildSealedStatusActionBlocks(fallbackText, { channel, sessionName, isDm: true }));
     return;
   }
-  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: callbacks.onToolUse, registerContinuationSink });
+  await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, registerContinuationSink });
 }
 
 /**
@@ -452,13 +478,20 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
  * busy-gate seams `_executeReal` uses for an ordinary turn, so an injected message and a queued one
  * land in the transcript identically.
  */
-function buildInjectDeps(sessionName: string | null): MidTurnInjectDeps {
+function buildInjectDeps(sessionName: string | null, channel: string): MidTurnInjectDeps {
   return {
     getLiveExecutions: (channel) => runningExecutions.getByChannel(channel),
     getStreamingCallback,
     appendUser: (sessionId, o) => recordHistory(conversationHistory.appendUser(sessionId, o)),
     appendAssistant: (sessionId, o) => recordHistory(conversationHistory.appendAssistant(sessionId, o)),
-    appendTool: (sessionId, o) => recordHistory(conversationHistory.appendTool(sessionId, o)),
+    appendTool: (sessionId, o) => recordHistory(
+      conversationHistory.appendTool(sessionId, o),
+      o.fullInput !== undefined ? () => publishSessionDebugUpdated({ sessionId, channel }) : undefined,
+    ),
+    appendToolResult: (sessionId, o) => recordHistory(
+      conversationHistory.appendToolResult(sessionId, o),
+      () => publishSessionDebugUpdated({ sessionId, channel }),
+    ),
     publishMessage: publishSessionMessage,
     publishDelivered: publishSessionMessageDelivered,
     publishStatus: publishSessionStatus,
@@ -479,6 +512,7 @@ function buildInjectDeps(sessionName: string | null): MidTurnInjectDeps {
     },
     track: trackPendingTask,
     summarizeToolInput: (input) => summarizeToolInputForHistory(input),
+    captureDebug: isDebugMode(),
     now: () => new Date().toISOString(),
   };
 }
@@ -548,19 +582,19 @@ async function downloadFiles(files: PlatformFileRef[] | undefined, hasFiles: boo
 }
 
 /** Fire-and-forget history append; never let a logging write break the turn. */
-function recordHistory(p: Promise<unknown>): void {
-  void p.catch((e) => log.error('conversation-history write failed:', (e as Error).message));
+function recordHistory(p: Promise<unknown>, onPersisted?: () => void): void {
+  void p.then(() => onPersisted?.()).catch((e) => log.error('conversation-history write failed:', (e as Error).message));
 }
 
 /** Compose two optional onToolUse callbacks so both fire on each tool_use event. */
 function composeToolUse(
-  a: ((name: string, input: any) => void) | null,
-  b: ((name: string, input: any) => void) | null,
-): ((name: string, input: any) => void) | null {
+  a: ((name: string, input: any, toolUseId: string) => void) | null,
+  b: ((name: string, input: any, toolUseId: string) => void) | null,
+): ((name: string, input: any, toolUseId: string) => void) | null {
   if (!a && !b) return null;
   if (!a) return b;
   if (!b) return a;
-  return (name, input) => { a(name, input); b(name, input); };
+  return (name, input, toolUseId) => { a(name, input, toolUseId); b(name, input, toolUseId); };
 }
 
 /**

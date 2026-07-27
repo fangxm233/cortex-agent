@@ -3,6 +3,8 @@ Please update me when files in this folder change
 orch/ — Orchestration layer. Coordinates platform message routing, per-channel queue, agent lifecycle
 and plan approval state. Depends on core / store / events / domain / platform, must not be imported by domain layer.
 
+Process-wide DEBUG capture is coordinated here: `conversation-runner` exposes the exact assembled prompt; `agent-runner`, `mid-turn-inject`, `lifecycle`, `bg-continuation`, and `web-bg-hold` persist complete id-correlated tool data across ordinary, injected, and background turns; `session-events` emits only the content-free refresh hint after durable prompt/input/result writes.
+
 | filename | role | function |
 |---|---|---|
 | `conduit-queue.ts` | singleton | per-conduit serial Promise queue (conduitQueues Map + enqueue(), [S6-B]) |

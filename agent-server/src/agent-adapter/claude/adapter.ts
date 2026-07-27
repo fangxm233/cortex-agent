@@ -1,8 +1,6 @@
-// input:  user message + session context, AgentSpawnConfig
-// output: runClaude / closeSession / ClaudeAdapter / extractReplayText
-// pos:    Claude CLI session pool and AgentAdapter implementation. Emits both the complete
-//         assistant_text and, while a text block is still being generated, assistant_delta;
-//         also accepts a user message into a turn already in flight (injectUserMessage).
+// input:  user/session context, AgentSpawnConfig, Claude print-stream JSON events
+// output: ClaudeAdapter with complete text, deltas, and lossless id-correlated tool events
+// pos:    Claude session pool; preserves full tool data across normal/injected/continuation turns
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn, ChildProcess } from 'child_process';
@@ -72,7 +70,8 @@ interface PendingTurn {
   /** Incremental text chunk while a block is still being generated (never the accumulated total).
    *  Web UI preview only — the complete message above stays authoritative. */
   onAssistantDelta: ((text: string, blockId: string) => void) | null;
-  onToolUse: ((name: string, input: any) => void) | null;
+  onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+  onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
   rawStream: WriteStream;
   txtStream: WriteStream;
@@ -363,6 +362,7 @@ class ClaudeSession {
       onAssistantMessage: options.onAssistantMessage || null,
       onAssistantDelta: options.onAssistantDelta || null,
       onToolUse: options.onToolUse || null,
+      onToolResult: options.onToolResult || null,
       onCompact: options.onCompact || null,
       rawStream: streams.rawStream,
       txtStream: streams.txtStream,
@@ -474,7 +474,8 @@ class ClaudeSession {
       // A spontaneous background-task continuation has no caller awaiting it and reaches the UI
       // through the sink's complete messages only — nothing streams a preview for it.
       onAssistantDelta: null,
-      onToolUse: sink?.onToolUse ? (name: string, input: any) => { try { sink.onToolUse!(name, input); } catch {} } : null,
+      onToolUse: sink?.onToolUse ? (name: string, input: any, toolUseId: string) => { try { sink.onToolUse!(name, input, toolUseId); } catch {} } : null,
+      onToolResult: sink?.onToolResult ? (toolUseId: string, content: string, isError: boolean) => { try { sink.onToolResult!(toolUseId, content, isError); } catch {} } : null,
       onCompact: null,
       rawStream: streams.rawStream,
       txtStream: streams.txtStream,
@@ -519,7 +520,8 @@ class ClaudeSession {
     onProgress?: ((progress: any) => void) | null;
     onAssistantMessage?: ((text: string, blockId?: string) => void) | null;
     onAssistantDelta?: ((text: string, blockId: string) => void) | null;
-    onToolUse?: ((name: string, input: any) => void) | null;
+    onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
+    onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
     onCompact?: ((info: { trigger: string; preTokens?: number }) => void) | null;
   }): Promise<any> {
     if (!this.alive) {
@@ -601,6 +603,30 @@ class ClaudeSession {
     else turn.reject(result.error);
   }
 
+  /** Preserve the complete result carrier that print mode emits as a `user` content block. */
+  private handleToolResultEvent(turn: PendingTurn, data: any): void {
+    if (typeof turn.onToolResult !== 'function') return;
+    const content = data.message?.content;
+    if (!Array.isArray(content)) return;
+    for (const block of content) {
+      if (!block || block.type !== 'tool_result') continue;
+      const toolUseId = typeof block.tool_use_id === 'string' ? block.tool_use_id : '';
+      let resultContent: string;
+      if (typeof block.content === 'string') {
+        resultContent = block.content;
+      } else if (Array.isArray(block.content)) {
+        const allText = block.content.every((item: any) => item?.type === 'text' && typeof item.text === 'string');
+        resultContent = allText
+          ? block.content.map((item: any) => item.text).join('\n')
+          : JSON.stringify(block.content);
+      } else {
+        resultContent = JSON.stringify(block.content ?? '');
+      }
+      try { turn.onToolResult(toolUseId, resultContent, block.is_error === true); }
+      catch (e) { log.warn('onToolResult threw:', (e as Error).message); }
+    }
+  }
+
   private handleAssistantEvent(turn: PendingTurn, data: any): void {
     turn.turnCount += 1;
     for (const block of (data.message?.content || [])) {
@@ -616,7 +642,7 @@ class ClaudeSession {
           turn.exitedPlanMode = true;
         }
         if (typeof turn.onToolUse === 'function') {
-          try { turn.onToolUse(block.name || '?', block.input || {}); }
+          try { turn.onToolUse(block.name || '?', block.input || {}, typeof block.id === 'string' ? block.id : ''); }
           catch (e) { log.warn('onToolUse threw:', (e as Error).message); }
         }
       }
@@ -684,6 +710,7 @@ class ClaudeSession {
       // tracking, or conversation history (a `user` record there would shift every later turn
       // index and break edit/rewind). Replays are inert for every other consumer.
       if (data.type === 'user' && data.isReplay) this.handleReplayEcho(data);
+      if (data.type === 'user' && !data.isReplay && this.currentTurn) this.handleToolResultEvent(this.currentTurn, data);
       // Track background-task lifecycle on every line (even with no active turn) so the
       // pending count stays accurate across the turn boundary.
       this.bgTracker.observe(data);
@@ -844,7 +871,8 @@ export interface RunClaudeOptions {
   isUserInitiated?: boolean;
   onProgress?: any;
   onAssistantMessage?: any;
-  onToolUse?: ((name: string, input: any) => void) | null;
+  onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
+  onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   sessionKey?: string | null;
   claudeAgent?: string | null;
   systemPrompt?: string | null;
@@ -886,6 +914,7 @@ export function runClaude(userMessage: string, opts: RunClaudeOptions) {
     onProgress: opts.onProgress ?? null,
     onAssistantMessage: opts.onAssistantMessage ?? null,
     onToolUse: opts.onToolUse ?? null,
+    onToolResult: opts.onToolResult ?? null,
   });
   return { promise, kill() { return session.kill(); }, sessionId: effectiveSessionId };
 }
@@ -1062,8 +1091,10 @@ export class ClaudeAdapter implements AgentAdapter {
             // before the complete message that supersedes it.
             onAssistantDelta: (text: string, blockId: string) =>
               stream.push({ type: 'assistant_delta', text, blockId }),
-            onToolUse: (name: string, input: any) =>
-              stream.push({ type: 'tool_use', toolUseId: '', name, input }),
+            onToolUse: (name: string, input: any, toolUseId: string) =>
+              stream.push({ type: 'tool_use', toolUseId, name, input }),
+            onToolResult: (toolUseId: string, content: string, isError: boolean) =>
+              stream.push({ type: 'tool_result', toolUseId, content, ok: !isError }),
             onCompact: (info: { trigger: string; preTokens?: number }) =>
               stream.push({ type: 'context_compacted', trigger: info.trigger, preTokens: info.preTokens }),
             onProgress: (p: { num_turns?: number } | null) => {

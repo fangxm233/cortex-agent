@@ -1,8 +1,32 @@
+// input:  session event publishers and an isolated shared EventBus
+// output: message/delta/delivery plus content-free DEBUG refresh event regression coverage
+// pos:    orchestration session-event contract specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../../src/events/event-bus.js';
 import { ctx as jobCtx } from '../../src/domain/scheduling/job-registry.js';
-import { publishSessionMessage, publishSessionMessageDelta, publishSessionMessageDelivered } from '../../src/orchestration/session-events.js';
+import { publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelta, publishSessionMessageDelivered } from '../../src/orchestration/session-events.js';
+
+test('publishSessionDebugUpdated emits a content-free transcript refresh hint', () => {
+  const bus = new EventBus();
+  const seen: any[] = [];
+  bus.subscribe('session.debug.updated', (event) => { seen.push(event); });
+  const prev = jobCtx.bus;
+  jobCtx.bus = bus;
+  try {
+    publishSessionDebugUpdated({ sessionId: 'sess-debug', channel: 'web:debug' });
+  } finally {
+    jobCtx.bus = prev;
+  }
+
+  assert.equal(seen.length, 1);
+  assert.deepEqual(Object.keys(seen[0]).sort(), ['channel', 'sessionId', 'ts', 'type']);
+  assert.equal(seen[0].type, 'session.debug.updated');
+  assert.equal(seen[0].sessionId, 'sess-debug');
+  assert.ok(!JSON.stringify(seen[0]).includes('secret'), 'no prompt, input, or result content enters the event bus');
+});
 
 test('publishSessionMessage emits a session.message event on the shared bus', () => {
   const bus = new EventBus();

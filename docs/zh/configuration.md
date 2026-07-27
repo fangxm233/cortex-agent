@@ -123,7 +123,7 @@ $CORTEX_HOME/
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
-| `DEBUG` | — | 启用调试级日志输出 |
+| `DEBUG` | — | 启用 agent-server 全局调试模式。除调试级日志外，desktop 会在 transcript 中提供 hover 检查按钮，用于查看实际发送给 agent 的完整消息，以及每次工具调用的完整参数和结果。任意非空值都会启用；修改后需重启 agent-server |
 | `CORTEX_EVENT_LOG` | `on` | 设置为 `off` 以禁用事件总线日志 |
 | `CORTEX_SHOW_TOOL_CALLS` | — | 在 VirtualMessage 尾部内联渲染工具调用 |
 | `CORTEX_DISABLE_USER_CONTEXT` | — | 设置为 `1` 以禁用将 `USER.md` 上下文注入普通直接对话轮次（默认注入；多 agent thread 步骤不会收到） |
@@ -133,6 +133,8 @@ $CORTEX_HOME/
 | `CORTEX_TURN_NOTIFY` | `on` | 当一个耗时较长的回合结束时，Cortex 向会话发送一条新消息，让你收到推送通知（内联状态是以编辑方式封口为「✓ 完成」，而 Slack 与飞书都不会对消息编辑推送）。成功和失败都会提醒。设置为 `0`/`false`/`off`/`no` 以关闭 |
 | `CORTEX_TURN_NOTIFY_THRESHOLD_S` | `60` | 触发完成提醒所需的最短回合时长（秒）。更短的回合保持静默 |
 | `CORTEX_AUTO_RESUME` | `on` | 当用量限制窗口重置后，Cortex 自动继续被该限制中断的对话与线程，并注入一条提示让其从中断处接着做。设置为 `0`/`false` 可让被中断的工作保持暂停、由人工继续 |
+
+`DEBUG` 会把未截断的 prompt、工具参数和工具结果持久化到各 session 的 conversation-history 文件中。这些内容可能包含密钥、私有文件内容或体积很大的输出，存储占用也会按完整内容持续增长。仅应在可信的开发服务器上临时启用，检查完成后及时关闭。关闭后 transcript 响应会立即停止返回调试字段，相关按钮也会消失，但此前已写入的记录不会被自动删除。
 
 ### 任务派发
 
