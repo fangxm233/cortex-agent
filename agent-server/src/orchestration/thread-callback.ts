@@ -1,9 +1,7 @@
-// input:  terminal thread record (threadStore), interactive runner, outbound queue, live adapter
-// output: fireThreadCallback / notifyThreadParent / recoverWaitingThreads / buildChildResultNotice / wakeSession / closeResumedTaskLoop / sweepWaitingManagers / startWaitingManagerSweep / computeStuckWaitSet / buildDeadlockNotice
-// pos:    completion callback for MCP thread_start; closes the loop when a spawned thread finishes.
-//         DR-0014: thread-parent children deliver results into the parent's pendingMessages and
-//         resume the suspended parent when its last awaited child turns terminal.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  thread store, agent runner, outbound queue, adapter
+// output: thread/task callbacks and waiting-manager recovery helpers
+// pos:    Child-result delivery and suspended-parent resumption
+// >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
 import { agentRunner } from './agent-runner.js';
@@ -56,10 +54,6 @@ export function buildChildResultNotice(child: ThreadRecord): string {
   const cost = `$${(child.totalCostUsd || 0).toFixed(4)}`;
   const label = child.templateName || child.activeAgent || 'thread';
   const contract = child.metadata?.contract;
-  const parent = child.metadata?.parentThreadId ? threadStore.get(child.metadata.parentThreadId) : null;
-  const childCount = parent?.metadata?.childThreadIds?.length ?? 0;
-  const maxChildren = parseInt(process.env.CORTEX_THREAD_MAX_CHILDREN || '8', 10) || 8;
-
   const lines = [
     `[Child thread done] ${child.id} (${label}) status=${child.status} | ${cost}`,
   ];
@@ -75,8 +69,7 @@ export function buildChildResultNotice(child: ThreadRecord): string {
   lines.push('Acceptance (mandatory — do NOT trust the child\'s self-reported summary):');
   lines.push('1. Read the actual deliverable; check it against done_when item by item; for code, run the tests.');
   lines.push('2. Passes → distill the key conclusions into your artifact and continue your plan.');
-  lines.push('3. Fails → write out the expected/actual gap and your failure hypothesis, then thread_start again with a revised contract' +
-    ` (you have used ${childCount}/${maxChildren} child-thread slots; thread_start is rejected once the quota is exhausted).`);
+  lines.push('3. Fails → write out the expected/actual gap and your failure hypothesis; if CORTEX_TASK_ID is set, create a replacement child with cortex-task spawn and call thread_wait; otherwise call thread_abort.');
   lines.push('4. Cannot judge, or a directional question → call the thread_abort tool (with a one-line diagnosis) to escalate to your manager.');
   return lines.join('\n');
 }

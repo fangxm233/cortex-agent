@@ -96,13 +96,13 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `threads/thread-live-step-ids.test.ts` | Test | beginStepSession (fresh mint persisted + resume null / legacy migration keeps one id as both keys / settled slot resumes backendSessionId / non-persist fresh per step / thread.step.started) + recordStepResult track/backend decoupling (step + persist-slot fields, thread.step.finished truncation) + thread.created/completed/failed(+cancel→failed) publishes + resolveTargetResumeId (slot/step, new/legacy forms, never a track id) |
 | `conversation-runner.test.ts` | Test | buildConversationPrompt golden-prompt fidelity vs legacy default-thread prompt + `[Session Project]` block injection (project opt) + resolveConversationProject gating (web-only / fresh-only / non-general / unknown-id) |
 | `user-context.test.ts` | Test | loadUserContext env-gate/file-present/absent + USER.md injected into buildConversationPrompt, never into thread steps |
-| `thread-abort.test.ts` | Test | DR-0015 control plane: peekPendingControl/clearPendingControl(abort)/abortThread + THREAD_PROTOCOL_PREAMBLE (tool-based) + regression (artifact "[ABORT]" prose must NOT trigger) |
+| `thread-abort.test.ts` | Test | Thread control and task-only protocol preamble regressions |
 | `thread-tree.test.ts` | Test | DR-0014 tree: getRootThreadId/getTreeThreads/summarizeTree/checkSpawnGuards/buildThreadTree/registerChildSpawn |
 | `thread-wait-children.test.ts` | Test | Thread-child inference and explicit wait-set override semantics |
 | `webhook-thread-control.test.ts` | Test | DR-0015: /webhook/thread-op `control` action — abort/split/wait validation + pendingControl persistence + reject-second/terminal/unknown |
 | `manager-qa.test.ts` | Test | DR-0016 up-ask channel: askManager manager-resolution (thread-parent + task-tree) / deliver→resume / top-of-tree origin-session wake (origin agent answers via answer_subtask) + human backstop (tryAnswerFromHuman) / submitAnswer + getAnswer round-trip / buildQuestionNotice / buildOriginSessionNotice |
 | `webhook-manager-qa.test.ts` | Test | DR-0016: /webhook/manager-qa `ask`/`poll`/`answer` HTTP round-trip + unknown thread/question/action validation |
-| `thread-callback-tree.test.ts` | Test | DR-0014 re-entry: notifyThreadParent idempotency+resume / recoverWaitingThreads / buildChildResultNotice |
+| `thread-callback-tree.test.ts` | Test | Child result delivery and task-only retry guidance |
 | `thread-contract.test.ts` | Test | DR-0014 contracts: buildContractPrompt/buildMissionChain/checkContractBudget |
 | `task-parent-split.test.ts` | Test | DR-0014 task tree: Task.parent round-trip / decompose keepParent / lint parent rules / processSplitOutcome |
 | `thread-wait-tasks.test.ts` | Test | Task-child inference, explicit override, restart, and cleanup |

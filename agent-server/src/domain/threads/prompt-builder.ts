@@ -1,6 +1,7 @@
-// Prompt assembly and agent slot config resolution.
-// input:  template-loader, artifact-io, thread-store, thread-types
-// output: buildStepPrompt / buildConversationPrompt (incl. optional [Session Project] prefix block) / resolveSystemVars / resolveAgentSlotConfig / resolveTemplateAgents / resolveTemplateProfiles / formatEndpoint / pickStepTemplate
+// input:  template-loader, artifact-io, thread store, thread types
+// output: thread prompts, slot configs, profile and endpoint helpers
+// pos:    Thread prompt assembly and agent slot resolution
+// >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
 import { getAgent, getTemplate, resolveFileRef } from './template-loader.js';
@@ -142,10 +143,10 @@ export const THREAD_PROTOCOL_PREAMBLE = [
   'disagreements with the plan are not abort cases.',
   'Decomposition: if your task is actually several independently verifiable units, call the',
   '`thread_split` tool with the subtasks instead of grinding through it.',
-  'Delegation (DR-0014): you may spawn child threads via the `thread_start` tool (pass a contract:',
-  'goal / done_when / deliverable_path / budget_usd). After spawning awaited children, call the',
-  '`thread_wait` tool to suspend; you are re-entered once ALL awaited children finish, with their',
-  'results injected. Acceptance before trust: verify each child deliverable against its done_when',
+  'Task-backed delegation (DR-0014): when CORTEX_TASK_ID is set, create child tasks with',
+  '`cortex-task spawn`, then call `thread_wait` to suspend; you are re-entered once ALL awaited',
+  'children finish, with their results injected. Acceptance before trust: verify each child',
+  'deliverable against its done_when',
   'yourself (read files, run tests) — never accept a child\'s self-report as evidence.',
   'Checkpoint gate (DR-0017): thread_wait is REJECTED unless you updated your artifact during the',
   'current step — write your checkpoint (delegations & acceptance criteria / decisions made /',

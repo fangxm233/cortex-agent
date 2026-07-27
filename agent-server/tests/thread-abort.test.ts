@@ -267,10 +267,11 @@ test('THREAD_PROTOCOL_PREAMBLE teaches the thread_abort tool (not the old artifa
   assert.doesNotMatch(THREAD_PROTOCOL_PREAMBLE, /\[ABORT/, 'must not instruct writing the old [ABORT] marker');
 });
 
-test('THREAD_PROTOCOL_PREAMBLE teaches the thread_wait / thread_split tools and acceptance discipline (DR-0014/0015)', () => {
+test('THREAD_PROTOCOL_PREAMBLE teaches task-based delegation without the removed thread_start tool', () => {
   assert.match(THREAD_PROTOCOL_PREAMBLE, /thread_wait/);
   assert.match(THREAD_PROTOCOL_PREAMBLE, /thread_split/);
-  assert.match(THREAD_PROTOCOL_PREAMBLE, /thread_start/);
+  assert.match(THREAD_PROTOCOL_PREAMBLE, /cortex-task spawn/);
+  assert.doesNotMatch(THREAD_PROTOCOL_PREAMBLE, /thread_start/);
   assert.doesNotMatch(THREAD_PROTOCOL_PREAMBLE, /\[WAIT_CHILDREN\]/, 'must not instruct writing the old marker');
   // Acceptance-before-trust: child results must be verified against the contract.
   assert.match(THREAD_PROTOCOL_PREAMBLE, /verif/i);
