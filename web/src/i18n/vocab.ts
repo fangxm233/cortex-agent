@@ -1,5 +1,5 @@
 // input:  user-selected language and product copy keys for desktop/mobile surfaces
-// output: shape-checked English/Chinese vocabulary, including desktop DEBUG inspector labels
+// output: shape-checked EN/ZH vocabulary including DEBUG labels/counts
 // pos:    single source of localized UI copy; active selection is owned by LangProvider
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -177,6 +177,7 @@ export const en = {
   wbDebugAgentMessage: 'AGENT MESSAGE',
   wbDebugParameters: 'PARAMETERS',
   wbDebugResult: 'RESULT',
+  wbDebugCharacters: 'CHARACTERS',
   wbDebugSuccess: 'SUCCESS',
   wbDebugError: 'ERROR',
   wbDebugPending: 'PENDING',
@@ -727,6 +728,7 @@ export const zh: Record<keyof Vocab, string> = {
   wbDebugAgentMessage: '实际 AGENT 消息',
   wbDebugParameters: '完整参数',
   wbDebugResult: '完整结果',
+  wbDebugCharacters: '字符',
   wbDebugSuccess: '成功',
   wbDebugError: '错误',
   wbDebugPending: '等待中',

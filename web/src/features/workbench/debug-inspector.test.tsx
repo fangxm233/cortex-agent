@@ -1,6 +1,6 @@
-// input:  DEBUG detail presentational components and transcript rows
-// output: regression coverage for hover-only controls and unabridged modal content
-// pos:    Desktop-only DEBUG transcript inspector specification
+// input:  DEBUG rows, detail components, localized modal sizing
+// output: regressions for collapsed chrome, counts, and full details
+// pos:    desktop DEBUG transcript inspector specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
@@ -8,7 +8,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { LangProvider } from '@/i18n';
 import { MessageStream } from './MessageStream';
 import { ToolCallsRow } from './ToolCallsRow';
-import { DebugDetailsContent, DebugInspectButton, formatDebugValue } from './DebugDetailsModal';
+import { modalContentClass } from '@/design/Modal';
+import {
+  DEBUG_MODAL_SIZE,
+  DebugDetailsContent,
+  DebugInspectButton,
+  characterCount,
+  formatDebugValue,
+} from './DebugDetailsModal';
 import type { ChatRow } from './transcript-vm';
 
 function render(node: React.ReactNode): string {
@@ -45,13 +52,14 @@ describe('desktop DEBUG inspector controls', () => {
     expect(html).not.toContain('display:inline-flex');
   });
 
-  it('renders one hover-only inspector button for each tool call carrying DEBUG data', () => {
+  it('keeps DEBUG metadata invisible until the tool row is expanded', () => {
     const html = render(<ToolCallsRow calls={[
       { label: 'Read', kind: 'Read', input: 'a.ts', debug: { toolInput: { file_path: '/full/a.ts' } } },
       { label: 'Bash', kind: 'Bash', input: 'echo …', debug: { toolInput: { command: 'echo full' }, toolResult: { content: 'all output', isError: false } } },
     ]} />);
-    expect((html.match(/aria-label="Inspect DEBUG data"/g) ?? []).length).toBe(2);
-    expect(html).toContain('group-hover:opacity-100');
+    expect(html).not.toContain('aria-label="Inspect DEBUG data"');
+    expect(html).toContain('padding:1px 6px');
+    expect(html).not.toContain('display:inline-flex');
   });
 
   it('button is a real keyboard-focusable control rather than a decorative icon', () => {
@@ -60,42 +68,66 @@ describe('desktop DEBUG inspector controls', () => {
     expect(html).toContain('type="button"');
     expect(html).toContain('focus-visible:opacity-100');
   });
+
+  it('offers a compact button that does not set expanded tool-row height', () => {
+    const html = render(<DebugInspectButton compact onClick={() => {}} />);
+    expect(html).toContain('h-[18px]');
+    expect(html).toContain('min-w-[22px]');
+    expect(html).not.toContain('h-[24px]');
+  });
 });
 
 describe('DEBUG detail content', () => {
-  it('renders the complete multiline agent message without truncation', () => {
-    const full = 'system context\nline two\nline three';
+  it('renders the complete multiline agent message with its character count', () => {
+    const full = 'system context\nline two\nline 😀';
     const html = render(<DebugDetailsContent detail={{ kind: 'user', agentMessage: full }} />);
     expect(html).toContain('system context');
     expect(html).toContain('line two');
-    expect(html).toContain('line three');
+    expect(html).toContain('line 😀');
+    expect(html).toContain(`${characterCount(full)} CHARACTERS`);
     expect(html).not.toContain('…');
   });
 
-  it('renders complete structured parameters and full successful result', () => {
+  it('renders complete structured parameters and result with separate character counts', () => {
+    const toolInput = { command: 'printf "secret\\n"', timeout: 120000, nested: { keep: true } };
+    const result = 'first line\nsecond line';
     const html = render(<DebugDetailsContent detail={{
       kind: 'tool',
       toolName: 'Bash',
-      toolInput: { command: 'printf "secret\\n"', timeout: 120000, nested: { keep: true } },
-      toolResult: { content: 'first line\nsecond line', isError: false },
+      toolInput,
+      toolResult: { content: result, isError: false },
     }} />);
     expect(html).toContain('&quot;timeout&quot;: 120000');
     expect(html).toContain('&quot;keep&quot;: true');
     expect(html).toContain('first line');
     expect(html).toContain('second line');
+    expect(html).toContain(`${characterCount(formatDebugValue(toolInput))} CHARACTERS`);
+    expect(html).toContain(`${characterCount(result)} CHARACTERS`);
     expect(html).toContain('SUCCESS');
   });
 
-  it('distinguishes error and pending tool results', () => {
+  it('distinguishes error and pending tool results without counting pending UI copy', () => {
     const failed = render(<DebugDetailsContent detail={{ kind: 'tool', toolName: 'Read', toolInput: {}, toolResult: { content: 'permission denied', isError: true } }} />);
     const pending = render(<DebugDetailsContent detail={{ kind: 'tool', toolName: 'Read', toolInput: {} }} />);
     expect(failed).toContain('ERROR');
     expect(failed).toContain('permission denied');
+    expect((failed.match(/CHARACTERS/g) ?? []).length).toBe(2);
     expect(pending).toContain('PENDING');
+    expect((pending.match(/CHARACTERS/g) ?? []).length).toBe(1);
+  });
+
+  it('counts Unicode code points rather than UTF-16 code units', () => {
+    expect(characterCount('A😀中')).toBe(3);
   });
 
   it('formats strings verbatim and objects as readable JSON', () => {
     expect(formatDebugValue('a\nb')).toBe('a\nb');
     expect(formatDebugValue({ a: 1 })).toBe('{\n  "a": 1\n}');
+  });
+
+  it('uses the wide modal size without changing the default modal width', () => {
+    expect(modalContentClass(DEBUG_MODAL_SIZE)).toContain('max-w-3xl');
+    expect(modalContentClass(DEBUG_MODAL_SIZE)).not.toContain('max-w-lg');
+    expect(modalContentClass()).toContain('max-w-lg');
   });
 });
