@@ -16,7 +16,6 @@ import { buildPiEnv, buildSpawnArgs } from './spawn-args.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, type PIEventParserState } from './event-parser.js';
 import { PI_AGENT_DIR, writeProvidersConfig, buildProviderOverrides, ensureAuthVisible } from './agent-dir.js';
-import { buildPrompt } from '../normalize/prompt-builder.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { discoverPIProviders, piSessionFileExists } from './discovery.js';
 import {
@@ -29,6 +28,8 @@ import {
   PIContextUsageProbe,
   PISteeringQueue,
   SWITCH_SESSION_TIMEOUT_MS,
+  buildPromptText,
+  isPIContextSampleBoundary,
   parseRpcObject,
   type PendingPiTurn,
   type PIAgentProcess,
@@ -39,13 +40,7 @@ import {
 import { DEFAULT_SESSION_DIR, HOOK_BRIDGE_PATH, MCP_BRIDGE_PATH, TOOL_SHIMS_PATH } from './defaults.js';
 export type { PIAgentProcess } from './session-support.js';
 const log = createLogger('pi-adapter');
-
-function buildPromptText(msg: UserMessage): string {
-  return buildPrompt(msg.text, msg.attachments ?? []);
-}
-
 type PiTurnComplete = Extract<NormalizedEvent, { type: 'turn_complete' }>;
-
 class PISession {
   readonly sessionKey: string;
   /** Session ID assigned at bootstrap (immutable after first session_started). */
@@ -256,6 +251,7 @@ class PISession {
       if (terminal !== null) this.emitOrProbeContext(terminal);
     }
     this.contextUsageProbe.observe(raw);
+    if (this.pendingTurn && isPIContextSampleBoundary(raw)) this.contextUsageProbe.requestSnapshot();
   }
 
   private emitOrProbeContext(event: NormalizedEvent): void {
@@ -388,6 +384,10 @@ class PISession {
 
   /** Buffer deltas into whole assistant messages while preserving Web preview events. */
   private emitNormalizedEvent(evt: NormalizedEvent): void {
+    if (evt.type === 'context_usage') {
+      this.events.push(evt);
+      return;
+    }
     if (evt.type !== 'assistant_text') {
       this.flushTextBuffer();
       this.events.push(evt);

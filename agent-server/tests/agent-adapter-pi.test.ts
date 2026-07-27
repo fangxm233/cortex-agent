@@ -1,5 +1,5 @@
 // input:  Node test runner + PIAdapter _test exports
-// output: PI framing/spawn-env/context-usage/bootstrap/switch_session tests
+// output: PI framing/spawn-env/live context usage/bootstrap/switch tests
 // pos:    Hermetic PI adapter and subprocess context regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -328,6 +328,65 @@ test('bootstrap response with missing data.sessionId does not emit session_start
   child.emit('close', 0, null);
   const result = await proc.events[Symbol.asyncIterator]().next();
   assert.equal(result.done, true, 'iterator terminates without emitting session_started');
+});
+
+test('PI turn emits live context_usage during streaming without flushing partial text', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'context-live', resume: false });
+  const child = stub.children[0];
+  const iterator = proc.events[Symbol.asyncIterator]();
+
+  emitBootstrap(child, 'context-live-session');
+  await iterator.next();
+  let turnSettled = false;
+  const turn = proc.send({ text: 'hello' }).then((result) => { turnSettled = true; return result; });
+
+  child.stdout.emit('data', Buffer.from(JSON.stringify({
+    type: 'message_update', message: { id: 'm-live' },
+    assistantMessageEvent: { type: 'text_delta', delta: 'partial' },
+  }) + '\n'));
+  assert.deepEqual((await iterator.next()).value, {
+    type: 'assistant_delta', text: 'partial', blockId: 'm-live',
+  });
+
+  const liveStats = child.stdin.writeHistory
+    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
+    .find((command) => command.type === 'get_session_stats');
+  assert.ok(liveStats, 'streaming output triggers a throttled stats query before settle');
+  child.stdout.emit('data', Buffer.from(JSON.stringify({
+    type: 'response', id: liveStats.id, command: 'get_session_stats', success: true,
+    data: { contextUsage: { tokens: 60100, contextWindow: 200000, percent: 30.05 } },
+  }) + '\n'));
+
+  assert.deepEqual((await iterator.next()).value, {
+    type: 'context_usage', usedTokens: 60100, contextWindow: 200000,
+    percent: 30.05, accuracy: 'estimate',
+  });
+  assert.equal(turnSettled, false, 'live context snapshot does not settle the turn');
+
+  child.stdout.emit('data', Buffer.from('{"type":"message_end"}\n'));
+  assert.deepEqual((await iterator.next()).value, {
+    type: 'assistant_text', text: 'partial', blockId: 'm-live',
+  });
+  assert.equal((await iterator.next()).value.type, 'turn_progress');
+
+  child.stdout.emit('data', Buffer.from('{"type":"agent_settled"}\n'));
+  await turn;
+  const finalStats = child.stdin.writeHistory
+    .map((frame) => JSON.parse(frame.trim()) as Record<string, unknown>)
+    .filter((command) => command.type === 'get_session_stats')
+    .at(-1)!;
+  assert.notEqual(finalStats.id, liveStats.id);
+  child.stdout.emit('data', Buffer.from(JSON.stringify({
+    type: 'response', id: finalStats.id, command: 'get_session_stats', success: true,
+    data: { contextUsage: { tokens: 60200, contextWindow: 200000, percent: 30.1 } },
+  }) + '\n'));
+  assert.equal((await iterator.next()).value.type, 'context_usage');
+  assert.equal((await iterator.next()).value.type, 'turn_complete');
+
+  child.emit('close', 0, null);
+  await proc.close();
 });
 
 test('settled PI turn emits context_usage before its terminal event', async () => {

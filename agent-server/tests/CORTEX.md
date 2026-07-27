@@ -51,7 +51,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `threads/` | Subdirectory | Thread domain regression tests |
 | `agent-adapter.test.ts` | Test | getAdapter/capability/tool-name contract plus exhaustive normalized-event union guard |
 | `agent-adapter-claude.test.ts` | Test | Claude buildSpawnArgs/hooks/summarizer |
-| `agent-adapter-pi.test.ts` | Test | PI framing/spawn args, context stats terminal ordering, bootstrap, and close |
+| `agent-adapter-pi.test.ts` | Test | PI framing/spawn args, live context sampling without partial-text flush, final terminal ordering, bootstrap, and close |
 | `agent-retry-classification.test.ts` | Test | Transport/HTTP retry classification and cross-provider fallback |
 | `agent-adapter-pi-event-parser.test.ts` | Test | PI context stats/event translation + settled-boundary aggregation |
 | `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |

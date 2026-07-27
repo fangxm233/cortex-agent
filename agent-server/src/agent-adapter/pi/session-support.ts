@@ -7,8 +7,9 @@ import type { ChildProcess, SpawnOptions } from 'child_process';
 
 import { createLogger } from '@core/log.js';
 import type { AgentResult, AskUserQuestionInfo } from '@core/types/agent-types.js';
-import type { AgentProcess, InjectionAckSink } from '../types.js';
+import type { AgentProcess, InjectionAckSink, UserMessage } from '../types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
+import { buildPrompt } from '../normalize/prompt-builder.js';
 
 export const DEFAULT_PI_BINARY = 'pi';
 export const CLOSE_EXIT_WAIT_MS = 5000;
@@ -17,6 +18,7 @@ export const PI_IDLE_SESSION_TIMEOUT = 65 * 60 * 1000;
 export const PI_TURN_IDLE_TIMEOUT = 60 * 60 * 1000;
 export const PI_MAX_TIMEOUT = 30_000_000;
 export const PI_CONTEXT_USAGE_TIMEOUT_MS = 1000;
+export const PI_CONTEXT_USAGE_SAMPLE_MS = 2000;
 
 const log = createLogger('pi-adapter');
 
@@ -52,6 +54,10 @@ export interface PendingPiTurn {
   deferredCompletion: boolean;
 }
 
+export function buildPromptText(message: UserMessage): string {
+  return buildPrompt(message.text, message.attachments ?? []);
+}
+
 export function parseRpcObject(line: string): Record<string, unknown> | null {
   try {
     const value = JSON.parse(line) as unknown;
@@ -61,53 +67,92 @@ export function parseRpcObject(line: string): Record<string, unknown> | null {
   }
 }
 
+export function isPIContextSampleBoundary(raw: Record<string, unknown> | null): boolean {
+  return raw?.['type'] === 'message_update' || raw?.['type'] === 'message_end';
+}
+
 interface PendingContextProbe {
   id: string;
-  terminal: NormalizedEvent;
   timer: ReturnType<typeof setTimeout>;
 }
 
-/** Correlates PI's optional end-of-turn stats response without letting telemetry hang a turn. */
+interface PendingTerminalProbe extends PendingContextProbe {
+  terminal: NormalizedEvent;
+}
+
+/** Throttles live PI stats while independently correlating the final terminal-gating request. */
 export class PIContextUsageProbe {
-  private pending: PendingContextProbe | null = null;
+  private livePending: PendingContextProbe | null = null;
+  private terminalPending: PendingTerminalProbe | null = null;
+  private lastLiveRequestAt: number | null = null;
   private sequence = 0;
 
   constructor(
     private readonly write: (command: Record<string, unknown>) => void,
     private readonly emit: (event: NormalizedEvent) => void,
     private readonly timeoutMs = PI_CONTEXT_USAGE_TIMEOUT_MS,
+    private readonly sampleMs = PI_CONTEXT_USAGE_SAMPLE_MS,
   ) {}
 
-  deferTerminal(terminal: NormalizedEvent): void {
-    this.release();
-    const id = `context-usage-${++this.sequence}`;
-    const timer = setTimeout(() => this.release(id), this.timeoutMs);
+  requestSnapshot(): void {
+    const now = Date.now();
+    if (
+      this.livePending ||
+      (this.lastLiveRequestAt !== null && now - this.lastLiveRequestAt < this.sampleMs)
+    ) return;
+    const id = this.nextId();
+    const timer = setTimeout(() => this.clearLive(id), this.timeoutMs);
     timer.unref?.();
-    this.pending = { id, terminal, timer };
+    this.lastLiveRequestAt = now;
+    this.livePending = { id, timer };
     try {
       this.write({ id, type: 'get_session_stats' });
     } catch {
-      this.release(id);
+      this.clearLive(id);
+    }
+  }
+
+  deferTerminal(terminal: NormalizedEvent): void {
+    this.releaseTerminal();
+    const id = this.nextId();
+    const timer = setTimeout(() => this.releaseTerminal(id), this.timeoutMs);
+    timer.unref?.();
+    this.terminalPending = { id, terminal, timer };
+    try {
+      this.write({ id, type: 'get_session_stats' });
+    } catch {
+      this.releaseTerminal(id);
     }
   }
 
   observe(raw: Record<string, unknown> | null): void {
-    if (
-      raw?.['type'] === 'response' && raw['command'] === 'get_session_stats' &&
-      raw['id'] === this.pending?.id
-    ) this.release(this.pending.id);
+    if (raw?.['type'] !== 'response' || raw['command'] !== 'get_session_stats') return;
+    if (raw['id'] === this.livePending?.id) this.clearLive(this.livePending.id);
+    if (raw['id'] === this.terminalPending?.id) this.releaseTerminal(this.terminalPending.id);
   }
 
   close(): void {
-    if (this.pending) clearTimeout(this.pending.timer);
-    this.pending = null;
+    if (this.livePending) clearTimeout(this.livePending.timer);
+    if (this.terminalPending) clearTimeout(this.terminalPending.timer);
+    this.livePending = null;
+    this.terminalPending = null;
   }
 
-  private release(id?: string): void {
-    const pending = this.pending;
+  private nextId(): string {
+    return `context-usage-${++this.sequence}`;
+  }
+
+  private clearLive(id: string): void {
+    if (this.livePending?.id !== id) return;
+    clearTimeout(this.livePending.timer);
+    this.livePending = null;
+  }
+
+  private releaseTerminal(id?: string): void {
+    const pending = this.terminalPending;
     if (!pending || (id !== undefined && pending.id !== id)) return;
     clearTimeout(pending.timer);
-    this.pending = null;
+    this.terminalPending = null;
     this.emit(pending.terminal);
   }
 }
