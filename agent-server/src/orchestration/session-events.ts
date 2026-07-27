@@ -1,5 +1,5 @@
 // input:  session lifecycle payloads + the shared EventBus (via job-registry ctx)
-// output: message/delta/status/turn/rewind publishers plus content-free DEBUG refresh hints
+// output: message/pending-id/delta/status/turn/rewind publishers
 // pos:    orchestration bus seam; persistence remains bus-free and missing bus is a no-op
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -26,6 +26,8 @@ export interface SessionMessagePayload {
    *  history entry yet — the client shows it as a provisional row until the matching
    *  `session.message.delivered` commits it. Absent on every ordinary message. */
   pending?: boolean;
+  /** Durable active-record identity; stable across reloads/devices until delivery. */
+  pendingId?: string;
 }
 
 /** Tell an open transcript to refetch after sensitive DEBUG metadata is durably persisted.
@@ -48,6 +50,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.ts !== undefined ? { ts: p.ts } : {}),
     ...(p.blockId !== undefined ? { blockId: p.blockId } : {}),
     ...(p.pending !== undefined ? { pending: p.pending } : {}),
+    ...(p.pendingId !== undefined ? { pendingId: p.pendingId } : {}),
   });
 }
 
@@ -83,11 +86,12 @@ export function publishSessionMessageDelta(p: {
  *  `committedTs` is the history ts it is re-keyed to, which is also what a transcript refetch
  *  returns, so the live row and the fetched row dedupe as one. Published by mid-turn-inject.ts.
  *  No-op when no bus is wired. */
-export function publishSessionMessageDelivered(p: { sessionId: string; channel: string; messageTs: string; committedTs: string }): void {
+export function publishSessionMessageDelivered(p: { sessionId: string; channel: string; pendingId: string; messageTs: string; committedTs: string }): void {
   jobCtx.bus?.publish({
     type: 'session.message.delivered',
     sessionId: p.sessionId,
     channel: p.channel,
+    pendingId: p.pendingId,
     messageTs: p.messageTs,
     committedTs: p.committedTs,
   });

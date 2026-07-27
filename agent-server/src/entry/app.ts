@@ -1,6 +1,6 @@
-// input:  .env, PlatformAdapter, all extracted modules
-// output: Cortex agent server main entry — composition root only
-// pos:    agent-server main entry and wiring hub (S13: composition root, business branches in orchestration/)
+// input:  .env, PlatformAdapter, stores, orchestration modules
+// output: server composition root with durable-state startup recovery
+// pos:    agent-server main entry and wiring hub
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
 import { mkdirSync, promises as fsPromises } from 'fs';
@@ -40,6 +40,7 @@ import { threadStore } from '@store/thread-repo.js';
 import { sessionRepo, registerConduitProvider } from '@store/session-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
+import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { executionRepo } from '@store/execution-repo.js';
 import { loadConfig as loadThreadConfig, startConfigWatcher as startThreadConfigWatcher, setAdminNotifier as setConfigNotifier, migrateThreadTemplatesToDir, mergeThreadTemplates } from '@domain/threads/index.js';
 import { startMemoryWatcher } from '@domain/memory/watcher.js';
@@ -91,6 +92,7 @@ import { initOutboundQueue, getOutboundQueue } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
 import { sendWebUserMessage } from '../orchestration/session-send.js';
 import { rewindWebSession } from '../orchestration/session-rewind.js';
+import { recoverPendingInjections } from '../orchestration/pending-injection-recovery.js';
 import { createTuiSessionService } from '@domain/tui-session/index.js';
 import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
@@ -291,7 +293,7 @@ process.on('SIGTERM', async () => {
   // `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves orphan .tmp.* siblings.
   // Daemon gives 5s before SIGKILL — well over the time needed to flush a few MB of JSON.
   try {
-    await Promise.allSettled([bus.close(), oq.flush(), threadStore.flush(), sessionRepo.flush(), conversationLedger.flush(), conversationHistory.flush(), taskStore.flush(), executionRepo.flush(), projectDirRepo.flush(), scheduleRepo.flush(), costRepo.flush(), profileRepo.flush(), sessionStore.flush()]);
+    await Promise.allSettled([bus.close(), oq.flush(), threadStore.flush(), sessionRepo.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), taskStore.flush(), executionRepo.flush(), projectDirRepo.flush(), scheduleRepo.flush(), costRepo.flush(), profileRepo.flush(), sessionStore.flush()]);
   } catch {}
   await stopGateway(); process.exit(0);
 });
@@ -331,6 +333,14 @@ process.on('SIGTERM', async () => {
     (record) => record.kind === 'dispatch' && !!record.dispatch?.machine && record.dispatch.machine !== 'local',
   );
 
+  // A server restart closes every in-process injection window. Commit any durable orphan before
+  // the UI transport starts so the first transcript snapshot cannot expose a forever-pending row.
+  const recoveredPending = await recoverPendingInjections().catch((error) => {
+    log.error(`recoverPendingInjections failed: ${(error as Error).message}`);
+    return 0;
+  });
+  if (recoveredPending > 0) log.info(`Recovered ${recoveredPending} pending injected message(s)`);
+
   // ── Wire UI service into the TUI gateway ────────────────────────────────
   //
   // UI service (M3) provides store-backed query/mutate/subscribe capabilities
@@ -367,6 +377,7 @@ process.on('SIGTERM', async () => {
     runningExecutions,
     costSummary: getCostSummary,
     conversationHistory,
+    pendingInjections: pendingInjectionRepo,
     // S4 chat send: inject a genuine user turn into a session via the orchestration send path.
     // Injected here (entry layer) so the ui-service domain never imports orchestration.
     sendSessionMessage: ({ channel, text, attachments }) => sendWebUserMessage({ channel, text, attachments, adapter }),

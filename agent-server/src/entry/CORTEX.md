@@ -4,7 +4,7 @@ Agent-server 进程与 CLI 入口；负责组合依赖并启动运行时边界�
 
 | filename | role | function |
 |---|---|---|
-| app.ts | 入口 | 组合并启动 agent server 与可选 Web UI |
+| app.ts | 入口 | 恢复持久化运行态并组合启动服务与 Web UI |
 | cli.ts | 入口 | Cortex CLI 命令分发 |
 | daemon.ts | 入口 | 守护进程监督与热重启 |
 | doctor-cli.ts | 入口 | 运行环境诊断 CLI |

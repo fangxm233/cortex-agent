@@ -1,5 +1,5 @@
 // input:  session event publishers and an isolated shared EventBus
-// output: message/delta/delivery plus content-free DEBUG refresh event regression coverage
+// output: message/pending-id/delta/delivery event regression coverage
 // pos:    orchestration session-event contract specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -81,7 +81,7 @@ test('publishSessionMessage carries the blockId that ties it to its streamed del
   assert.ok(!('blockId' in seen[1]), 'a message that never streamed carries no blockId at all');
 });
 
-test('publishSessionMessage marks a message the model has not read yet as pending', () => {
+test('publishSessionMessage marks a message the model has not read yet with a stable pending id', () => {
   const bus = new EventBus();
   const seen: any[] = [];
   bus.subscribe('session.message', (e) => { seen.push(e); });
@@ -89,17 +89,19 @@ test('publishSessionMessage marks a message the model has not read yet as pendin
   const prev = jobCtx.bus;
   jobCtx.bus = bus;
   try {
-    publishSessionMessage({ sessionId: 's1', channel: 'web:c', role: 'user', text: 'stop', ts: 'T1', pending: true });
+    publishSessionMessage({ sessionId: 's1', channel: 'web:c', role: 'user', text: 'stop', ts: 'T1', pending: true, pendingId: 'pin-1' });
     publishSessionMessage({ sessionId: 's1', channel: 'web:c', role: 'user', text: 'ordinary' });
   } finally {
     jobCtx.bus = prev;
   }
 
   assert.equal(seen[0].pending, true);
+  assert.equal(seen[0].pendingId, 'pin-1');
   assert.ok(!('pending' in seen[1]), 'an ordinary message carries no pending marker at all');
+  assert.ok(!('pendingId' in seen[1]), 'an ordinary message carries no pending identity');
 });
 
-test('publishSessionMessageDelivered carries the pending row key AND the committed order key', () => {
+test('publishSessionMessageDelivered carries stable pending identity and both row keys', () => {
   const bus = new EventBus();
   const seen: any[] = [];
   bus.subscribe('session.message.delivered', (e) => { seen.push(e); });
@@ -107,13 +109,14 @@ test('publishSessionMessageDelivered carries the pending row key AND the committ
   const prev = jobCtx.bus;
   jobCtx.bus = bus;
   try {
-    publishSessionMessageDelivered({ sessionId: 's1', channel: 'web:c', messageTs: 'T-write', committedTs: 'T-read' });
+    publishSessionMessageDelivered({ sessionId: 's1', channel: 'web:c', pendingId: 'pin-1', messageTs: 'T-write', committedTs: 'T-read' });
   } finally {
     jobCtx.bus = prev;
   }
 
   assert.equal(seen.length, 1);
   assert.equal(seen[0].type, 'session.message.delivered');
+  assert.equal(seen[0].pendingId, 'pin-1');
   assert.equal(seen[0].messageTs, 'T-write', 'the row the client is currently showing dimmed');
   assert.equal(seen[0].committedTs, 'T-read', 'the key a transcript refetch will return it under');
 });

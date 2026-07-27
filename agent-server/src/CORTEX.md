@@ -15,7 +15,7 @@ agent-server's TypeScript ESM runtime source, organized by six-layer structure (
 `async-mutex.ts` `atomic-write.ts` `json-repository.ts` `paths.ts` `version.ts` `cli-utils.ts` `utils.ts` `status-format.ts` `running-executions.ts` `task-parser.ts` `debug-mode.ts` (single truthy `DEBUG` gate shared by logging, lossless transcript capture, and DTO exposure) `singleton-lock.ts` (PID-file singleton lock shared by daemon.ts/app.ts) `auth.ts` (shared-secret auth: `ensureAuthTokens`/`getClientToken`/`getWebhookToken`/`timingSafeEqualStr`/`AUTH_HEADER` for the WS client + webhook bearer gates; no Cloudflare dependency) `i18n.ts` (zero-dep localization: `t()`/`setLocale`/`getLocale`/`detectSystemLocale`; locale set by entry/app.ts, never reads domain) `locales/` (`en.ts`/`zh.ts` barrels aggregating per-cluster `slices/*`; zh typed `Record<MessageKey,string>` for compile-time parity) `types/agent-types.ts` `types/thread-types.ts`
 
 ### L1: store/
-`in-memory-repository.ts` + 11 repos: `thread-repo` `session-repo` `conversation-ledger-repo` `session-registry-repo` `execution-repo` `project-dir-repo` `schedule-repo` `cost-repo` `profile-repo` `task-repo` + `outbound-queue` (WAL)
+`in-memory-repository.ts` + 12 repos: `thread-repo` `session-repo` `conversation-ledger-repo` `conversation-history-repo` `pending-injection-repo` (durable unconsumed mid-turn messages) `session-registry-repo` `execution-repo` `project-dir-repo` `schedule-repo` `cost-repo` `profile-repo` `task-repo` + `outbound-queue` (WAL).
 Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/adapters/slack-project-conduits.ts` — owned by the Slack adapter, since project-report rendering is adapter-specific.
 
 ### L2: events/
@@ -48,6 +48,7 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 | `orchestrator.ts` | Two-branch decision tree (thread-match / default) |
 | `agent-file-send.ts` | `sendAgentFile` (20a): copy an agent-produced file into `workspace/outputs/<sessionId>/`, append it as an assistant message carrying file attachments (persisted for `sessions.transcript`) + publish a shared-ts `session.message`. Invoked by the `/webhook/ui-file` route on behalf of the web-only `send_file` MCP tool |
 | `agent-runner.ts` | runAgent + lifecycle wrapper |
+| `pending-injection-recovery.ts` | Idempotent pending-message commit and startup recovery |
 | `thread-executor.ts` | Thread routing wrapper |
 | `lifecycle.ts` | Agent success/failure/recovery/retry |
 | `resume-dispatcher.ts` | rate-limit auto-resume: drains resume-registry on throttle clear (or on startup if orphans remain with no active throttle), re-enters interrupted direct sessions (agentRunner.route, serial per channel) / threads (resumeRateLimitedThread, fired concurrently — channel-parallel-safe, only skipped when a live direct session holds the channel; each detached thread resume holds the daemon busy gate via track ±1 across run+settle so a pending .restart cannot fire mid-resume, 2026-07-09 fix) |

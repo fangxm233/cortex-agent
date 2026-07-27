@@ -1,3 +1,8 @@
+// input:  session query handlers with injected stores and live registries
+// output: session list/transcript snapshot regression coverage
+// pos:    ui-service session query specification
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleSessionsList, handleSessionsTranscript } from '../../../src/domain/ui-service/query/sessions.js';
@@ -422,4 +427,70 @@ test('sessions.transcript maps agent-sent file attachments onto assistant messag
   // user message with no attachments must not gain an attachments key
   const userMsg = result.turns[0].messages.find((m) => m.type === 'user')!;
   assert.equal(userMsg.attachments, undefined);
+});
+
+test('sessions.transcript returns durable pending messages even before committed history exists', async () => {
+  const attachments = [{ name: 'note.txt', path: 'workspace/attachments/s1/note.txt', size: 4, mimeType: 'text/plain', type: 'file' as const }];
+  const deps = makeDeps({
+    conversationHistory: { getHistory: async () => null },
+    pendingInjections: {
+      listBySession: async (sessionId: string) => sessionId === 's1' ? [{
+        id: 'pin-1', sessionId: 's1', channel: 'web:s1', messageId: 'web-1',
+        sessionName: 'cortex-nimbus', backend: 'claude', profileName: 'default',
+        text: 'change direction', attachments, createdAt: '2026-05-01T00:00:03.000Z',
+      }] : [],
+    },
+  } as any);
+
+  const result = await handleSessionsTranscript(deps, { sessionId: 's1' });
+  assert.deepEqual(result.turns, []);
+  assert.deepEqual(result.pendingUserMessages, [{
+    id: 'pin-1', text: 'change direction', ts: '2026-05-01T00:00:03.000Z', attachments,
+  }]);
+});
+
+test('sessions.transcript defaults pendingUserMessages to an empty snapshot', async () => {
+  const result = await handleSessionsTranscript(makeDeps(), { sessionId: 's1' });
+  assert.deepEqual(result.pendingUserMessages, []);
+});
+
+test('sessions.transcript reads active pending before history to avoid a cross-store handoff gap', async () => {
+  let pendingRead = false;
+  const deps = makeDeps({
+    pendingInjections: {
+      listBySession: async () => {
+        pendingRead = true;
+        return [];
+      },
+    },
+    conversationHistory: {
+      getHistory: async () => {
+        assert.equal(pendingRead, true, 'pending-before-history makes remove-after-append observable on one side');
+        return null;
+      },
+    },
+  } as any);
+  await handleSessionsTranscript(deps, { sessionId: 's1' });
+});
+
+test('sessions.transcript suppresses an active record whose committed history row already landed', async () => {
+  const pending = {
+    id: 'pin-race', sessionId: 's1', channel: 'web:s1', messageId: 'web-race',
+    sessionName: 'cortex-nimbus', backend: 'claude', profileName: 'default',
+    text: 'change direction', createdAt: '2026-05-01T00:00:03.000Z',
+  };
+  const deps = makeDeps({
+    conversationHistory: {
+      getHistory: async () => ({
+        sessionId: 's1',
+        committedSourceIds: ['pin-race'],
+        events: [{ type: 'user' as const, text: pending.text, ts: '2026-05-01T00:00:04.000Z', turnIndex: 0 }],
+      }),
+    },
+    pendingInjections: { listBySession: async () => [pending] },
+  } as any);
+
+  const result = await handleSessionsTranscript(deps, { sessionId: 's1' });
+  assert.equal(result.turns[0].messages[0].text, pending.text);
+  assert.deepEqual(result.pendingUserMessages, [], 'one send must never render as committed + pending');
 });

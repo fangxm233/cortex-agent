@@ -28,6 +28,7 @@ Source code in src/, configuration/data in root directory, logs in logs/.
 | `sessions.json` | Data | channel -> Claude/Codex session |
 | `session-registry.json` | Data | cortex-XXXX short name mapping |
 | `conversation-ledger.json` | Data | Turn sequence and message edit rollback (gitignored) |
+| `data/pending-injections.json` | Data | Durable active records for unconsumed mid-turn messages |
 | `data/pi/` | Data | PI private configuration directory (PI_CODING_AGENT_DIR points here; contains auto-generated models.json) |
 | `logs/` | Directory | Daemon + raw/txt LLM logs |
 | `tasks/` | Directory | Reserved |

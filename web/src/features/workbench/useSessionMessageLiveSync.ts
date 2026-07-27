@@ -1,5 +1,5 @@
-// input:  shared/scoped SSE hooks, React Query, transcript reconciliation and DEBUG refresh hints
-// output: live session state with authoritative transcript invalidation after durable debug writes
+// input:  shared SSE, React Query, durable pending/transcript snapshots
+// output: live session state converging across reloads and devices
 // pos:    React bridge between session events and desktop/mobile chat transcript rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -38,8 +38,8 @@ import { useAssistantDeltaStream } from './useAssistantDeltaStream';
 // `pendingUser`, OUT of the ordered tail: nothing the agent is emitting was produced with it. The
 // `session.message.delivered` event is the moment it was read; it moves the message into the tail
 // under the ts it was recorded with, which is also what a transcript refetch returns, so the two
-// dedupe as one row. A delivered event lost to a dropped frame self-heals — any pending message the
-// refetched transcript already holds is dropped (`reconcilePendingUserMessages`).
+// dedupe as one row. The transcript also carries the server's durable active-pending snapshot, so a
+// reload/device switch rehydrates missed pending events and a missed delivery converges on refetch.
 
 const TAIL_CAP = 60; // bound the live buffer; older events reconcile via the transcript refetch
 const STREAM_IDLE_MS = 2500; // treat the session as streaming until this quiet gap after the last event
@@ -83,9 +83,8 @@ export interface SessionLiveSyncOptions {
    */
   deltas?: boolean;
   /**
-   * The authoritative transcript this surface is rendering. Used only to self-heal `pendingUser`: a
-   * `session.message.delivered` lost to a dropped SSE frame would otherwise leave a permanently
-   * dimmed row, so any pending message the refetched transcript already contains is dropped.
+   * The authoritative transcript this surface is rendering. Its pending snapshot rehydrates rows
+   * after reload/device switch and clears them after a delivery event was missed.
    */
   transcript?: SessionTranscript | null;
 }
@@ -119,6 +118,10 @@ export function useSessionMessageLiveSync(
   // append to the tail in one go; doing that from inside a state updater would double-append the
   // moment React invoked it twice, so the list is read from here and written through `setPending`.
   const pendingRef = useRef<PendingUserMessage[]>([]);
+  // A delivery SSE can overtake an older transcript HTTP response that still contains the active
+  // record. Keep stable-id tombstones until a newer snapshot omits them, so that stale response
+  // cannot resurrect an already-committed pending row.
+  const deliveredPendingIdsRef = useRef(new Set<string>());
   const setPending = useCallback((next: PendingUserMessage[]): void => {
     pendingRef.current = next;
     setPendingUser(next);
@@ -132,6 +135,7 @@ export function useSessionMessageLiveSync(
     setStatusBackground(null);
     setLiveTurns(null);
     setAssistantPreview(initialAssistantPreviewState());
+    deliveredPendingIdsRef.current.clear();
     setPending([]);
     return () => {
       if (idleTimer.current) clearTimeout(idleTimer.current);
@@ -143,10 +147,20 @@ export function useSessionMessageLiveSync(
   // `reconcilePendingUserMessages` returns the same array when nothing matched, so this cannot loop.
   const transcript = options.transcript;
   useEffect(() => {
-    if (!transcript) return;
-    const next = reconcilePendingUserMessages(pendingRef.current, transcript);
+    if (!transcript || transcript.sessionId !== sessionId) return;
+    if (transcript.pendingUserMessages !== undefined) {
+      const activeIds = new Set(transcript.pendingUserMessages.map((message) => message.id));
+      for (const id of deliveredPendingIdsRef.current) {
+        if (!activeIds.has(id)) deliveredPendingIdsRef.current.delete(id);
+      }
+    }
+    const next = reconcilePendingUserMessages(
+      pendingRef.current,
+      transcript,
+      deliveredPendingIdsRef.current,
+    );
     if (next !== pendingRef.current) setPending(next);
-  }, [transcript, setPending]);
+  }, [sessionId, transcript, setPending]);
 
   // Token-level preview. Accumulate only — the transcript query is NOT invalidated per delta (a
   // reply produces dozens of these, and none of them changes persisted history).
@@ -224,16 +238,19 @@ export function useSessionMessageLiveSync(
       // under the ts it was recorded with — which is what a transcript refetch returns, so the live
       // row and the fetched row resolve to one.
       if (raw.type === 'session.message.delivered') {
-        const p = raw.payload as { messageTs?: string; committedTs?: string } | undefined;
+        const p = raw.payload as { pendingId?: string; messageTs?: string; committedTs?: string } | undefined;
         if (!p) return;
+        if (p.pendingId) deliveredPendingIdsRef.current.add(p.pendingId);
         const { pending, committed } = applyDelivered(pendingRef.current, { ...p, sessionId });
-        if (!committed) return; // an ack for a row this client never showed
-        setPending(pending);
-        setLiveTail((tail) => {
-          const next = [...tail, committed];
-          return next.length > TAIL_CAP ? next.slice(next.length - TAIL_CAP) : next;
-        });
-        // It is in conversation history now, so the authoritative transcript has it too.
+        if (committed) {
+          setPending(pending);
+          setLiveTail((tail) => {
+            const next = [...tail, committed];
+            return next.length > TAIL_CAP ? next.slice(next.length - TAIL_CAP) : next;
+          });
+        }
+        // Always refetch: another device may receive the commit without ever mounting the chat that
+        // saw its pending event. The durable transcript is the convergence source in that case.
         queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         return;
       }
@@ -244,20 +261,29 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; blockId?: string; pending?: boolean; attachments?: LiveSessionMessage['attachments'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; attachments?: LiveSessionMessage['attachments'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
       // no history entry, and everything the agent is emitting right now was produced without it —
       // so it is held out of the ordered tail entirely until its delivered event commits it. It
-      // also settles nothing: it is not agent output, so it neither marks the session streaming nor
-      // invalidates the transcript (there is nothing there to reconcile against).
+      // also settles nothing: it is not agent output, so it does not mark the session streaming.
+      // It does invalidate the transcript because phase one is already durable and other devices
+      // use that snapshot to recover a pending event they never observed live.
       if (p.role === 'user' && p.pending) {
-        setPending([...pendingRef.current, {
+        const entry: PendingUserMessage = {
+          id: p.pendingId,
           ts: p.ts ?? new Date().toISOString(),
           text: p.text ?? '',
           attachments: p.attachments,
-        }]);
+        };
+        const duplicate = entry.id
+          ? pendingRef.current.some((item) => item.id === entry.id)
+          : pendingRef.current.some((item) => item.ts === entry.ts);
+        if (!duplicate) setPending([...pendingRef.current, entry]);
+        // Phase one was persisted before this event, so snapshot readers and later devices can now
+        // converge even if this mounted client disappears before delivery.
+        queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
         return;
       }
       const msg: LiveSessionMessage = {

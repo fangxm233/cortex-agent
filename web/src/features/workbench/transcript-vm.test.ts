@@ -1,5 +1,5 @@
-// input:  transcript-vm pure helpers and neutral session fixtures
-// output: transcript row, DEBUG detail, streaming handoff, and pending-message regression tests
+// input:  transcript-vm helpers, durable pending snapshots, neutral fixtures
+// output: row, DEBUG, streaming, stable-id pending regressions
 // pos:    Workbench transcript view-model specification including lossless inspector data
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -661,6 +661,16 @@ describe('applyDelivered — a pending message entering the stream', () => {
     expect(out2.pending).toEqual([]);
     expect(out2.committed?.ts).toBe('T-read-2');
   });
+
+  it('uses stable pendingId before the legacy timestamp key, so identical timestamps stay independent', () => {
+    const sameTs: PendingUserMessage[] = [
+      { id: 'pin-1', ts: 'T-write', text: 'same' },
+      { id: 'pin-2', ts: 'T-write', text: 'same' },
+    ];
+    const out = applyDelivered(sameTs, { pendingId: 'pin-2', messageTs: 'T-write', committedTs: 'T-read' });
+    expect(out.pending).toEqual([{ id: 'pin-1', ts: 'T-write', text: 'same' }]);
+    expect(out.committed?.ts).toBe('T-read');
+  });
 });
 
 describe('reconcilePendingUserMessages — a lost ack must not strand a dimmed row', () => {
@@ -695,6 +705,32 @@ describe('reconcilePendingUserMessages — a lost ack must not strand a dimmed r
     expect(reconcilePendingUserMessages(pending, undefined)).toBe(pending);
     const empty: PendingUserMessage[] = [];
     expect(reconcilePendingUserMessages(empty, withRecord('2026-07-07T07:42:06.000Z', 'x'))).toBe(empty);
+  });
+
+  it('rehydrates pending rows from the authoritative transcript snapshot after reload/device switch', () => {
+    const snapshot = {
+      sessionId: 's1',
+      turns: [],
+      pendingUserMessages: [
+        { id: 'pin-1', text: 'change direction', ts: '2026-07-07T08:00:00.000Z' },
+        { id: 'pin-2', text: 'same text', ts: '2026-07-07T08:00:01.000Z' },
+      ],
+    } as any;
+    expect(reconcilePendingUserMessages([], snapshot)).toEqual(snapshot.pendingUserMessages);
+  });
+
+  it('treats an explicit empty pending snapshot as authoritative after another device commits', () => {
+    const local: PendingUserMessage[] = [{ id: 'pin-1', ts: '2026-07-07T08:00:00.000Z', text: 'change direction' }];
+    const snapshot = { sessionId: 's1', turns: [], pendingUserMessages: [] } as any;
+    expect(reconcilePendingUserMessages(local, snapshot)).toEqual([]);
+  });
+
+  it('does not resurrect a delivered id from a stale pending snapshot response', () => {
+    const stale = {
+      sessionId: 's1', turns: [],
+      pendingUserMessages: [{ id: 'pin-1', text: 'change direction', ts: '2026-07-07T08:00:00.000Z' }],
+    } as any;
+    expect(reconcilePendingUserMessages([], stale, new Set(['pin-1']))).toEqual([]);
   });
 });
 

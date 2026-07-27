@@ -1,5 +1,5 @@
-// input:  transcript DTOs (including optional DEBUG detail), live events, locale vocabulary
-// output: desktop ChatRows preserving lossless inspector data plus live reconciliation state
+// input:  transcript DTOs with durable pending snapshot, live events, locale vocabulary
+// output: ChatRows plus stable-id pending/live reconciliation state
 // pos:    Workbench transcript view-model and assistant preview/pending handoff
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { SessionTranscript, TranscriptMessage, TranscriptInteractionDetail } from '@cortex-agent/ui-contract';
@@ -126,6 +126,8 @@ export type Attachment = { name: string; path: string; size: number; mimeType: s
 /** An injected message surfaced but not yet read by the model. `ts` is the write-time key the
  *  `session.message` carried; it is replaced by the committed ts when the delivered event lands. */
 export interface PendingUserMessage {
+  /** Stable durable identity. Absent only for live events from older servers. */
+  id?: string;
   ts: string;
   text: string;
   attachments?: Attachment[];
@@ -134,6 +136,8 @@ export interface PendingUserMessage {
 /** A `session.message.delivered` payload. */
 export interface DeliveredEvent {
   sessionId?: string;
+  /** Stable durable identity. When present it takes precedence over the legacy timestamp key. */
+  pendingId?: string;
   /** The pending row's key. */
   messageTs?: string;
   /** The conversation-history key it is re-keyed to — what a transcript refetch returns. */
@@ -151,9 +155,11 @@ export function applyDelivered(
   pending: PendingUserMessage[],
   ev: DeliveredEvent,
 ): { pending: PendingUserMessage[]; committed: LiveSessionMessage | null } {
-  const { messageTs } = ev;
-  if (!messageTs) return { pending, committed: null };
-  const idx = pending.findIndex((p) => p.ts === messageTs);
+  const { messageTs, pendingId } = ev;
+  if (!pendingId && !messageTs) return { pending, committed: null };
+  const idx = pendingId
+    ? pending.findIndex((p) => p.id === pendingId)
+    : pending.findIndex((p) => p.ts === messageTs);
   if (idx === -1) return { pending, committed: null };
   const entry = pending[idx];
   return {
@@ -180,8 +186,19 @@ export function applyDelivered(
 export function reconcilePendingUserMessages(
   pending: PendingUserMessage[],
   transcript: SessionTranscript | undefined | null,
+  deliveredIds?: ReadonlySet<string>,
 ): PendingUserMessage[] {
-  if (pending.length === 0 || !transcript) return pending;
+  if (!transcript) return pending;
+  // Current servers include an explicit durable snapshot (including []); it is authoritative for
+  // reload, session switch, reconnect, and another device's commit. A delivered-id tombstone blocks
+  // an older in-flight snapshot response from resurrecting a row after its later SSE commit. Undefined
+  // means an older server, where the legacy committed-row reconciliation below is the only signal.
+  if (transcript.pendingUserMessages !== undefined) {
+    return transcript.pendingUserMessages
+      .filter((message) => !deliveredIds?.has(message.id))
+      .map((message) => ({ ...message }));
+  }
+  if (pending.length === 0) return pending;
   const records: { text: string; ts: string }[] = [];
   for (const turn of transcript.turns) {
     for (const m of turn.messages) {

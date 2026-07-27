@@ -1,5 +1,5 @@
-// input:  built agent-server ui-service declarations including optional DEBUG transcript details
-// output: zero-duplication type-only client contract re-exports (DR-0018 §2)
+// input:  built ui-service declarations including DEBUG and pending transcript details
+// output: zero-duplication type-only client contract re-exports
 // pos:    shared server→desktop/mobile compile-time DTO boundary; no frontend runtime coupling
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -66,6 +66,7 @@ export type {
   ProjectConduitInfo,
   SessionInfo,
   SessionTranscript,
+  PendingTranscriptUserMessage,
   TranscriptTurn,
   TranscriptMessage,
   ThreadInfo,

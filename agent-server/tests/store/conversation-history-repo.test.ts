@@ -1,5 +1,5 @@
-// input:  isolated per-session JSONL plus visible/debug history append APIs
-// output: turn grouping, streaming dedup, rewind, interaction, and DEBUG correlation regressions
+// input:  isolated per-session JSONL plus visible/debug/source-id APIs
+// output: grouping, idempotency, rewind, interaction, DEBUG regressions
 // pos:    backend-independent conversation-history store specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME before paths bind
@@ -119,6 +119,19 @@ test('concurrent appends to the same session do not interleave/corrupt lines', a
   await repo.flush();
   const h = await repo.getHistory(sid);
   assert.equal(h!.events.length, 20, 'all 20 lines parsed (none corrupted)');
+});
+
+test('user source ids stay internal and support idempotent pending-message recovery', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-source-id';
+  await repo.appendUser(sid, { text: 'committed once', sourceId: 'pin-1' });
+
+  assert.equal(await repo.hasUserSourceId(sid, 'pin-1'), true);
+  assert.equal(await repo.hasUserSourceId(sid, 'pin-missing'), false);
+  const h = await repo.getHistory(sid);
+  assert.equal(h!.events.length, 1);
+  assert.deepEqual(h!.committedSourceIds, ['pin-1']);
+  assert.ok(!('sourceId' in h!.events[0]), 'internal recovery ids never leak into transcript events');
 });
 
 // ── Interaction entity records (web-interactions-redesign plan) ──────────────

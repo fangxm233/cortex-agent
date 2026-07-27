@@ -1,5 +1,5 @@
-// input:  session query dependencies/params + shared process-wide DEBUG gate
-// output: session list and transcript DTOs with conditionally exposed lossless debug details
+// input:  session/history/pending stores + shared process-wide DEBUG gate
+// output: session list and transcript DTOs with durable pending snapshots
 // pos:    authoritative query boundary for session metadata and sensitive transcript fields
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -159,12 +159,30 @@ function interactionSubtype(kind: string, status: string): string {
   return status === 'answered' ? 'ask-user-answered' : `ask-user-${status}`;
 }
 
+async function pendingUserSnapshot(
+  deps: UiServiceDeps,
+  sessionId: string,
+): Promise<NonNullable<SessionTranscript['pendingUserMessages']>> {
+  const records = await deps.pendingInjections?.listBySession(sessionId) ?? [];
+  return records.map((record) => ({
+    id: record.id,
+    text: record.text,
+    ts: record.createdAt,
+    ...(record.attachments ? { attachments: record.attachments } : {}),
+  }));
+}
+
 export async function handleSessionsTranscript(
   deps: UiServiceDeps,
   params: SessionsTranscriptParams,
 ): Promise<SessionTranscript> {
+  // Read active state first, then committed history. Commit order is history → active remove, so
+  // this sequence must observe the message on at least one side of that cross-store handoff.
+  const pendingSnapshot = await pendingUserSnapshot(deps, params.sessionId);
   const history = await deps.conversationHistory.getHistory(params.sessionId);
-  if (!history) return { sessionId: params.sessionId, turns: [] };
+  if (!history) return { sessionId: params.sessionId, turns: [], pendingUserMessages: pendingSnapshot };
+  const committedIds = new Set(history.committedSourceIds ?? []);
+  const pendingUserMessages = pendingSnapshot.filter((message) => !committedIds.has(message.id));
 
   const byTurn = new Map<number, TranscriptTurn>();
   const order: number[] = [];
@@ -227,7 +245,11 @@ export async function handleSessionsTranscript(
     prevMs = curValid ? curMs : null;
   }
 
-  return { sessionId: history.sessionId, turns: order.map((i) => byTurn.get(i)!) };
+  return {
+    sessionId: history.sessionId,
+    turns: order.map((i) => byTurn.get(i)!),
+    pendingUserMessages,
+  };
 }
 
 // ── sessions.pendingInteraction ───────────────────────────────────

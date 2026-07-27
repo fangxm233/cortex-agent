@@ -1,5 +1,5 @@
 // input:  per-session JSONL, visible events, interactions/edit markers, optional DEBUG sidecars
-// output: backend-independent history with turn grouping and correlated lossless debug metadata
+// output: history grouping plus internal source-id idempotency queries
 // pos:    L1 append-only canonical transcript store; all grouping/merging occurs at read time
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -110,11 +110,15 @@ interface RawEvent {
   ts: string;
   /** Optional file attachments (user events from web composer). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
+  /** Internal idempotency key for a recovered pending injection. Never emitted by getHistory. */
+  sourceId?: string;
 }
 
 export interface SessionHistory {
   sessionId: string;
   events: HistoryEvent[];
+  /** Internal committed pending ids used to suppress a cross-store handoff duplicate. */
+  committedSourceIds?: string[];
 }
 
 function nowIso(): string {
@@ -174,13 +178,14 @@ export class ConversationHistoryRepo {
   /** Append a user message — starts a new turn (turn boundaries are derived on read).
    *  An optional `ts` override lets the caller share a single timestamp with the
    *  EventBus event so the web UI's content-based de-dup produces identical keys. */
-  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[]; agentMessage?: string }): Promise<void> {
+  appendUser(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[]; agentMessage?: string; sourceId?: string }): Promise<void> {
     return this.append(sessionId, {
       type: 'user',
       text: opts.text,
       ts: opts.ts ?? nowIso(),
       attachments: opts.attachments,
       agentMessage: opts.agentMessage,
+      sourceId: opts.sourceId,
     });
   }
 
@@ -304,6 +309,7 @@ export class ConversationHistoryRepo {
     }
 
     const events: HistoryEvent[] = [];
+    const committedSourceIds = new Set<string>();
     // Interaction entity merge: id → the created row already pushed into `events`.
     // A later resolved line with the same id updates that row in place (position kept).
     const interactionById = new Map<string, HistoryEvent>();
@@ -334,6 +340,7 @@ export class ConversationHistoryRepo {
         }
       } else if (ev.type === 'user') {
         turnIndex++;
+        if (ev.sourceId) committedSourceIds.add(ev.sourceId);
         const user: HistoryEvent = {
           type: 'user', text: ev.text ?? '', ts: ev.ts, turnIndex, attachments: ev.attachments,
           ...(pendingEdit ? { edited: pendingEdit } : {}),
@@ -408,7 +415,26 @@ export class ConversationHistoryRepo {
     }
 
     if (events.length === 0) return null;
-    return { sessionId, events };
+    return { sessionId, events, committedSourceIds: [...committedSourceIds] };
+  }
+
+  /** True when a recovered pending injection has already appended its committed user row. */
+  async hasUserSourceId(sessionId: string, sourceId: string): Promise<boolean> {
+    await (this.writeChains.get(sessionId) ?? Promise.resolve()).catch(() => {});
+    let raw: string;
+    try {
+      raw = await fs.readFile(sessionFile(sessionId), 'utf8');
+    } catch {
+      return false;
+    }
+    for (const line of raw.split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        const event = JSON.parse(line) as RawEvent;
+        if (event.type === 'user' && event.sourceId === sourceId) return true;
+      } catch { /* malformed lines are ignored like getHistory */ }
+    }
+    return false;
   }
 
   /**

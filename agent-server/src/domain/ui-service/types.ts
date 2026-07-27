@@ -1,6 +1,6 @@
-// input:  domain source types plus optional lossless DEBUG transcript metadata
+// input:  domain source types, DEBUG metadata, durable pending snapshots
 // output: UiService contract — Result, operations, DTOs, interfaces, dependencies
-// pos:    canonical transport-neutral types, including the DEBUG-gated transcript shape
+// pos:    canonical transport-neutral types, including the transcript shape
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
@@ -528,9 +528,19 @@ export interface TranscriptTurn {
   messages: TranscriptMessage[];
 }
 
+export interface PendingTranscriptUserMessage {
+  id: string;
+  text: string;
+  ts: string;
+  attachments?: AttachmentMeta[];
+}
+
 export interface SessionTranscript {
   sessionId: string;
   turns: TranscriptTurn[];
+  /** Durable messages accepted into a live backend turn but not consumed by the model yet.
+   *  Optional for rolling compatibility with older servers; current servers always return it. */
+  pendingUserMessages?: PendingTranscriptUserMessage[];
 }
 
 export interface ThreadInfo {
@@ -1248,6 +1258,15 @@ export interface UiServiceDeps {
     /** First user message text — used to title a label-less session in `sessions.list`. Optional so
      *  facade/test fixtures need not provide it (the handler skips titling when absent). */
     getFirstUserText?(sessionId: string): Promise<string | null>;
+  };
+  /** Durable active pending-injection snapshot joined into `sessions.transcript`. */
+  pendingInjections?: {
+    listBySession(sessionId: string): Promise<{
+      id: string;
+      text: string;
+      createdAt: string;
+      attachments?: AttachmentMeta[];
+    }[]>;
   };
   /**
    * Inject a genuine user turn into a session and route it through the agent (S4 chat send).

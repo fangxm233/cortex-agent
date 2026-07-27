@@ -1,5 +1,5 @@
-// input:  conversation execution, lifecycle, queue, DEBUG gate, normalized tool callbacks
-// output: AgentRunner with live transcript writes and lossless DEBUG prompt/tool correlation
+// input:  conversation execution, lifecycle, queue, DEBUG gate, pending store
+// output: AgentRunner with live/durable transcript and injection wiring
 // pos:    Sole plain user-message path, including injected and background continuation turns
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -14,6 +14,7 @@ import { getSessionAsync, setSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore, effectiveBackendSessionId } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
 import { conversationHistory, summarizeToolInputForHistory } from '@store/conversation-history-repo.js';
+import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
 import { handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecycle.js';
@@ -32,6 +33,7 @@ import { setStreamingCallback, clearStreamingCallback, publishPlanSubmitted, pub
 import { publishSessionDebugUpdated, publishSessionMessage, publishSessionMessageDelivered, publishSessionStatus, publishSessionTurn } from './session-events.js';
 import { createSessionDeltaStream } from './delta-coalescer.js';
 import { isInjectableMessage, tryInjectIntoLiveTurn, type MidTurnInjectDeps } from './mid-turn-inject.js';
+import { commitPendingInjection } from './pending-injection-recovery.js';
 import { getStreamingCallback } from './routing/hook-bridge.js';
 import { runningExecutions } from '@core/running-executions.js';
 import { bgHeldSessions } from '@core/bg-held-sessions.js';
@@ -146,6 +148,8 @@ export class AgentRunner {
       return tryInjectIntoLiveTurn(buildInjectDeps(sessionName, ctx.channel), {
         channel: ctx.channel,
         sessionId,
+        sessionName,
+        profileName: getActiveProfile(ctx.channel),
         text: ctx.userMessage || '',
         senderId: ctx.message.senderId,
         messageId: ctx.message.ref.messageId,
@@ -482,7 +486,6 @@ function buildInjectDeps(sessionName: string | null, channel: string): MidTurnIn
   return {
     getLiveExecutions: (channel) => runningExecutions.getByChannel(channel),
     getStreamingCallback,
-    appendUser: (sessionId, o) => recordHistory(conversationHistory.appendUser(sessionId, o)),
     appendAssistant: (sessionId, o) => recordHistory(conversationHistory.appendAssistant(sessionId, o)),
     appendTool: (sessionId, o) => recordHistory(
       conversationHistory.appendTool(sessionId, o),
@@ -495,21 +498,8 @@ function buildInjectDeps(sessionName: string | null, channel: string): MidTurnIn
     publishMessage: publishSessionMessage,
     publishDelivered: publishSessionMessageDelivered,
     publishStatus: publishSessionStatus,
-    beginLedgerTurn: ({ channel, sessionId, text, messageId }) => {
-      // Deliberately NOT initTurnTracking: that also snapshots a session backup, and copying the
-      // backend transcript while the CLI is mid-write could capture a torn file. An injected turn
-      // therefore has no restore point — rewinding TO it degrades to a fresh backend session
-      // (session-rewind's existing missing-backup branch) instead of corrupting turn indices.
-      void conversationLedger.initAndBeginTurn(channel, {
-        sessionId,
-        sessionName,
-        backend: resolveBackendForChannel(channel),
-        profileName: getActiveProfile(channel),
-        userMessageTs: messageId,
-        userMessageText: text,
-        statusMessageTs: '',
-      }).catch((e) => log.error('injected-turn ledger write failed:', (e as Error).message));
-    },
+    persistPending: (record) => pendingInjectionRepo.add(record),
+    commitPending: (record) => commitPendingInjection(record),
     track: trackPendingTask,
     summarizeToolInput: (input) => summarizeToolInputForHistory(input),
     captureDebug: isDebugMode(),

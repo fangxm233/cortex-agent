@@ -1,5 +1,5 @@
-// input:  session histories with optional sensitive DEBUG details and UI query dependencies
-// output: transcript grouping, elapsed, interaction, and DEBUG exposure/suppression regressions
+// input:  session histories, durable pending snapshots, UI query dependencies
+// output: transcript grouping, pending, interaction, and DEBUG regressions
 // pos:    authoritative sessions.transcript handler specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -108,7 +108,7 @@ test('sessions.transcript elapsedMs is null when a ts is unparseable', async () 
 
 test('sessions.transcript returns empty turns for an absent history', async () => {
   const out = await handleSessionsTranscript(makeDeps(null), { sessionId: 'nope' });
-  assert.deepEqual(out, { sessionId: 'nope', turns: [] });
+  assert.deepEqual(out, { sessionId: 'nope', turns: [], pendingUserMessages: [] });
 });
 
 // ── Interaction entity materialization (web-interactions-redesign plan) ──────
