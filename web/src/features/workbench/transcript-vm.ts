@@ -1,5 +1,5 @@
-// input:  transcript DTOs with notices/pending, live events, vocabulary
-// output: ChatRows with notice, preview, and pending reconciliation
+// input:  transcript DTOs with DEBUG warnings, notices, pending data
+// output: ChatRows preserving warnings, previews, and reconciliation
 // pos:    Shared desktop/mobile transcript view-model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { SessionTranscript, TranscriptMessage, TranscriptInteractionDetail, ChatNoticeLevel } from '@cortex-agent/ui-contract';
@@ -218,6 +218,7 @@ export function reconcilePendingUserMessages(
 export interface DebugToolDetail {
   toolInput: unknown;
   toolResult?: { content: string; isError: boolean };
+  overCharacterThreshold?: true;
 }
 
 export type ChatRow =
@@ -482,12 +483,16 @@ export function buildTranscriptRows(
       curDay = day;
     }
     if (m.type === 'tool') {
-      const debug = (m as TranscriptMessage & { debug?: { toolInput?: unknown; toolResult?: { content: string; isError: boolean } } }).debug;
+      const debug = (m as TranscriptMessage & { debug?: DebugToolDetail }).debug;
       toolBuf.push({
         kind: m.toolName ?? '',
         input: m.toolInput ?? '',
         ...(debug && (debug.toolInput !== undefined || debug.toolResult !== undefined)
-          ? { debug: { toolInput: debug.toolInput, ...(debug.toolResult !== undefined ? { toolResult: debug.toolResult } : {}) } }
+          ? { debug: {
+              toolInput: debug.toolInput,
+              ...(debug.toolResult !== undefined ? { toolResult: debug.toolResult } : {}),
+              ...(debug.overCharacterThreshold === true ? { overCharacterThreshold: true as const } : {}),
+            } }
           : {}),
       });
       continue;

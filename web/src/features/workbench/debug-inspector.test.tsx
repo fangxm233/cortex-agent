@@ -1,5 +1,5 @@
-// input:  DEBUG rows, detail components, localized modal sizing
-// output: regressions for collapsed chrome, counts, and full details
+// input:  DEBUG rows, server warnings, details, modal sizing
+// output: badge warning, chrome, count, and full-detail regressions
 // pos:    desktop DEBUG transcript inspector specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LangProvider } from '@/i18n';
 import { MessageStream } from './MessageStream';
-import { ToolCallsRow } from './ToolCallsRow';
+import { ToolCallsRow, toolWarningStyle } from './ToolCallsRow';
 import { modalContentClass } from '@/design/Modal';
 import {
   DEBUG_MODAL_SIZE,
@@ -52,14 +52,26 @@ describe('desktop DEBUG inspector controls', () => {
     expect(html).not.toContain('display:inline-flex');
   });
 
-  it('keeps DEBUG metadata invisible until the tool row is expanded', () => {
+  it('keeps DEBUG controls hidden when collapsed and marks oversized tool badges amber', () => {
     const html = render(<ToolCallsRow calls={[
       { label: 'Read', kind: 'Read', input: 'a.ts', debug: { toolInput: { file_path: '/full/a.ts' } } },
-      { label: 'Bash', kind: 'Bash', input: 'echo …', debug: { toolInput: { command: 'echo full' }, toolResult: { content: 'all output', isError: false } } },
+      { label: 'Bash', kind: 'Bash', input: 'echo …', debug: { toolInput: { command: 'echo full' }, toolResult: { content: 'all output', isError: false }, overCharacterThreshold: true } },
     ]} />);
     expect(html).not.toContain('aria-label="Inspect DEBUG data"');
     expect(html).toContain('padding:1px 6px');
     expect(html).not.toContain('display:inline-flex');
+    expect(html).toContain('background:var(--proto-amber-bg)');
+    expect(html).toContain('border:1px solid var(--proto-amber-border)');
+    expect(html).toContain('color:var(--proto-amber-fg)');
+  });
+
+  it('shares one amber palette between collapsed and expanded tool badges', () => {
+    expect(toolWarningStyle(true)).toEqual({
+      background: 'var(--proto-amber-bg)',
+      border: '1px solid var(--proto-amber-border)',
+      color: 'var(--proto-amber-fg)',
+    });
+    expect(toolWarningStyle(false)).toEqual({});
   });
 
   it('button is a real keyboard-focusable control rather than a decorative icon', () => {

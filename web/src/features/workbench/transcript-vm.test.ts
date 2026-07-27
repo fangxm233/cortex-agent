@@ -1,5 +1,5 @@
-// input:  transcript helpers, notice metadata, pending snapshots, neutral fixtures
-// output: notice rows, DEBUG, streaming, and stable-id pending regressions
+// input:  transcript helpers, DEBUG warnings, notices, pending fixtures
+// output: warning, notice, streaming, and pending-row regressions
 // pos:    Workbench transcript view-model specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -108,7 +108,7 @@ describe('buildTranscriptRows', () => {
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [
         { type: 'user', text: 'visible', toolName: null, toolInput: null, ts: T, elapsedMs: null, debug: { agentMessage: 'context\nvisible' } } as any,
-        { type: 'tool', text: null, toolName: 'Bash', toolInput: 'echo …', ts: T, elapsedMs: 0, debug: { toolInput: { command: 'echo full', timeout: 120000 }, toolResult: { content: 'line 1\nline 2', isError: false } } } as any,
+        { type: 'tool', text: null, toolName: 'Bash', toolInput: 'echo …', ts: T, elapsedMs: 0, debug: { toolInput: { command: 'echo full', timeout: 120000 }, toolResult: { content: 'line 1\nline 2', isError: false }, overCharacterThreshold: true } } as any,
       ] }]),
       [],
     );
@@ -120,7 +120,7 @@ describe('buildTranscriptRows', () => {
       calls: [{
         kind: 'Bash',
         input: 'echo …',
-        debug: { toolInput: { command: 'echo full', timeout: 120000 }, toolResult: { content: 'line 1\nline 2', isError: false } },
+        debug: { toolInput: { command: 'echo full', timeout: 120000 }, toolResult: { content: 'line 1\nline 2', isError: false }, overCharacterThreshold: true },
       }],
     });
   });

@@ -140,6 +140,7 @@ channel.
 | Variable | Default | Purpose |
 |---|---|---|
 | `DEBUG` | — | Enable server-wide debug mode. In addition to debug-level logs, the desktop transcript shows hover inspectors for the exact agent message and each tool call's complete input/result. Any non-empty value enables it; restart agent-server after changing it |
+| `CORTEX_DEBUG_TOOL_WARNING_CHARS` | `10000` | In DEBUG transcripts, mark a tool-name badge amber when its formatted complete parameters plus complete result strictly exceed this Unicode character count. Positive integers only; invalid values use the default. Restart agent-server after changing it |
 | `CORTEX_EVENT_LOG` | `on` | Set to `off` to disable event-bus logging |
 | `CORTEX_SHOW_TOOL_CALLS` | — | Inline tool-call rendering in VirtualMessage tails |
 | `CORTEX_DISABLE_USER_CONTEXT` | — | Set to `1` to disable injecting `USER.md` context into direct conversation turns (injected by default; multi-agent thread steps never receive it) |

@@ -1,5 +1,5 @@
-// input:  session histories with notices/pending/debug data and query dependencies
-// output: transcript notice, grouping, pending, interaction, and DEBUG regressions
+// input:  histories, pending data, DEBUG gate and warning env
+// output: transcript grouping, interactions, DEBUG and warning tests
 // pos:    Authoritative sessions.transcript handler specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -15,11 +15,14 @@ function makeDeps(history: SessionHistory | null): UiServiceDeps {
   } as unknown as UiServiceDeps;
 }
 
-test('sessions.transcript exposes full debug metadata only while DEBUG is enabled', async (t) => {
+test('sessions.transcript exposes debug metadata and derives large-tool warnings from server env', async (t) => {
   const previous = process.env.DEBUG;
+  const previousThreshold = process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS;
   t.onTestFinished(() => {
     if (previous === undefined) delete process.env.DEBUG;
     else process.env.DEBUG = previous;
+    if (previousThreshold === undefined) delete process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS;
+    else process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = previousThreshold;
   });
   const history: SessionHistory = {
     sessionId: 'sess-debug',
@@ -34,12 +37,22 @@ test('sessions.transcript exposes full debug metadata only while DEBUG is enable
   assert.ok(hidden.turns[0].messages.every((message) => !('debug' in message)), 'disabled responses contain no sensitive debug key');
 
   process.env.DEBUG = '1';
+  process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = '1000';
   const visible = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-debug' });
   assert.deepEqual(visible.turns[0].messages[0].debug, { agentMessage: 'system context\nvisible' });
   assert.deepEqual(visible.turns[0].messages[1].debug, {
     toolInput: { command: 'echo full' },
     toolResult: { content: 'full\noutput', isError: false },
   });
+
+  process.env.CORTEX_DEBUG_TOOL_WARNING_CHARS = '10';
+  const warned = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-debug' });
+  assert.deepEqual(warned.turns[0].messages[1].debug, {
+    toolInput: { command: 'echo full' },
+    toolResult: { content: 'full\noutput', isError: false },
+    overCharacterThreshold: true,
+  });
+  assert.ok(!('overCharacterThreshold' in history.events[1].debug!), 'derived warning is not persisted');
 });
 
 test('sessions.transcript groups user/assistant/tool events by turn', async () => {

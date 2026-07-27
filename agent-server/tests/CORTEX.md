@@ -70,7 +70,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `cortex-run-cli-dispatch.test.ts` | Test | cortex-run.ts CLI dispatch (sendCommand pathway) |
 | `daemon.test.ts` | Test | Import has no side effects |
 | `core/status-format.test.ts` | Test | buildThreadStatusMessage: task-info lead format / thread-only fallback / text+thread-id truncation / turn count |
-| `core/debug-mode.test.ts` | Test | Shared process-wide `DEBUG` truthiness contract used by logging, transcript capture, and DTO exposure |
+| `core/debug-mode.test.ts` | Test | Shared `DEBUG` truthiness plus env threshold parsing, Unicode tool-payload counts, and strict warning boundary |
 | `core/singleton-lock.test.ts` | Test | tryAcquireSingletonLock/releaseSingletonLock/isProcessAlive against a temp pidfile (fresh/live-holder/stale/corrupt) |
 | `core/auth.test.ts` | Test | core/auth.ts: timingSafeEqualStr (fail-closed) + ensureAuthTokens generation/idempotency/partial/append-to-.env |
 | `core/bg-held-sessions.test.ts` | Test | BgHeldSessions registry (web bg-hold snapshot): mark on running+backgroundRunning, clear on seal / plain turn start / turn end, re-arm keeps held, per-session independence, singleton; + the Stop-path additions — channel index (`sessionsOnChannel`) and single-fire `setAbort`/`abort` with handles dropped on seal and on clear |
@@ -127,7 +127,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `orch/interaction-records.test.ts` | Test | InteractionRecords entity service (web-interactions-redesign): create persists+publishes session.interaction pending / resolve first-writer-wins (resolved→already-resolved) / unknown-after-restart / getPendingByChannel payload+TTL scoping / resolvePendingByChannel (!new cancel) / uninitialised fail-soft |
 | `orch/hook-bridge-subscribers-web.test.ts` | Test | web: conduit branch creates interaction entities (plan-approval with FULL planContent snapshot + planApprovals live-resolver kept; ask-user normalized questions); non-web channels create none |
 | `domain/ui-service/query-sessions.test.ts` | Test | Session list identity/running/turn/cost/context snapshots plus transcript pending behavior |
-| `domain/ui-service/query-sessions-transcript.test.ts` | Test | Transcript notice/turn/elapsed/interaction materialization and DEBUG exposure gate |
+| `domain/ui-service/query-sessions-transcript.test.ts` | Test | Transcript notice/turn/interaction materialization, DEBUG exposure gate, and runtime tool-size warning derivation |
 | `domain/ui-service/mutate-sessions-interactions.test.ts` | Test | handleAnswerQuestion/handleRespondPlan three-way outcome: resolved/already-resolved → ok{outcome}, not-found → err, invalid-args, not-available |
 | `platform-mock-adapter.test.ts` | Test | MockAdapter messages and marker lifecycle |
 | `composite-adapter-noop-fallback.test.ts` | Test | Unknown conduit operations stay no-op |

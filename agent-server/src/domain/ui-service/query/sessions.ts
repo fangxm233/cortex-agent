@@ -1,5 +1,5 @@
-// input:  session/context/history/pending stores and process DEBUG gate
-// output: session list/context and transcript DTO snapshots
+// input:  session/history stores plus process DEBUG size policy
+// output: session snapshots and warning-annotated transcript DTOs
 // pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -15,7 +15,8 @@ import type {
   SessionsPendingInteraction,
 } from '../types.js';
 import { effectiveBackendSessionId } from '@store/session-registry-repo.js';
-import { isDebugMode } from '@core/debug-mode.js';
+import type { HistoryEvent } from '@store/conversation-history-repo.js';
+import { isDebugMode, isDebugToolOverWarningThreshold } from '@core/debug-mode.js';
 
 export async function handleSessionsList(
   deps: UiServiceDeps,
@@ -154,6 +155,12 @@ export async function handleSessionsList(
  *  hook-bridge / ask-user 30-minute TTLs). */
 const INTERACTION_TTL_MS = 30 * 60 * 1000;
 
+function transcriptDebugDetails(ev: HistoryEvent): TranscriptMessage['debug'] {
+  if (!isDebugMode() || ev.debug === undefined) return undefined;
+  if (ev.type !== 'tool' || !isDebugToolOverWarningThreshold(ev.debug)) return ev.debug;
+  return { ...ev.debug, overCharacterThreshold: true };
+}
+
 /** Legacy-compatible subtype derived from kind+status (old clients render InteractionRow off it). */
 function interactionSubtype(kind: string, status: string): string {
   if (kind === 'plan-approval') return status === 'approved' ? 'plan-approved' : status === 'rejected' ? 'plan-rejected' : `plan-${status}`;
@@ -224,6 +231,7 @@ export async function handleSessionsTranscript(
       entitySubtype = interactionSubtype(interaction.kind, interaction.status);
     }
 
+    const debug = transcriptDebugDetails(ev);
     turn.messages.push({
       type: ev.type as TranscriptMessage['type'],
       text: ev.type === 'tool' ? null : (ev.text ?? ''),
@@ -238,9 +246,9 @@ export async function handleSessionsTranscript(
       ...(ev.type === 'assistant' && ev.noticeLevel !== undefined ? { noticeLevel: ev.noticeLevel } : {}),
       // Edit+rewind marker (sessions.rewind): backs the「已编辑」badge + original-message card.
       ...(ev.type === 'user' && ev.edited !== undefined ? { edited: ev.edited } : {}),
-      // Defense in depth: debug records may remain on disk after DEBUG is turned off, but the
-      // authenticated transcript API must not expose them unless the process-wide mode is active.
-      ...(isDebugMode() && ev.debug !== undefined ? { debug: ev.debug } : {}),
+      // Defense in depth: persisted debug records stay hidden when DEBUG is off. Large-tool
+      // warnings are derived here from the current agent-server env and never written to history.
+      ...(debug !== undefined ? { debug } : {}),
       ...(ev.type === 'interaction' && (entitySubtype ?? ev.subtype) ? { subtype: entitySubtype ?? ev.subtype } : {}),
       ...(interaction !== undefined ? { interaction } : {}),
     });

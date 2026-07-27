@@ -1,6 +1,6 @@
-// input:  workbench static content plus tool-call display/DEBUG detail shapes
-// output: ToolCall metadata and static slash/approval/profile content
-// pos:    non-transcript content module; ToolCallsRow consumes the optional lossless detail shape
+// input:  static content plus tool-call DEBUG/warning shapes
+// output: ToolCall metadata and slash/approval/profile content
+// pos:    non-transcript workbench content and display types
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 // What remains here:
 //   • the tool-call label helper + type (shared by ToolCallsRow)
@@ -17,6 +17,7 @@ export interface ToolCall {
   debug?: {
     toolInput: unknown;
     toolResult?: { content: string; isError: boolean };
+    overCharacterThreshold?: true;
   };
 }
 

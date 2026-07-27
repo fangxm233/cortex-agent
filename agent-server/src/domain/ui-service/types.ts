@@ -1,5 +1,5 @@
-// input:  domain types, provider throttle state, context/notice/DEBUG metadata, pending snapshots
-// output: UiService operations, rate-limit DTOs, context-aware DTOs, interfaces, dependencies
+// input:  domain types, context/notices, DEBUG warnings, pending data
+// output: transport-neutral UI operations, DTOs, and dependencies
 // pos:    Canonical transport-neutral UI contract
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
@@ -497,6 +497,8 @@ export interface TranscriptDebugDetails {
   toolInput?: unknown;
   /** Full correlated normalized tool result. */
   toolResult?: { content: string; isError: boolean };
+  /** Derived at query time from the agent-server warning threshold; never persisted. */
+  overCharacterThreshold?: true;
 }
 
 export interface TranscriptMessage {

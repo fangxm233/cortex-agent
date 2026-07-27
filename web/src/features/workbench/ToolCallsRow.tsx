@@ -1,5 +1,5 @@
-// input:  tool calls with optional lossless DEBUG details
-// output: ordinary collapsed chips and expanded DEBUG inspectors
+// input:  tool calls with DEBUG details and server size warnings
+// output: collapsed/expanded badges plus DEBUG inspectors
 // pos:    desktop workbench tool-call presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -35,6 +35,15 @@ const inputStyle: CSSProperties = {
 };
 
 type Inspect = (event: MouseEvent<HTMLButtonElement>, call: ToolCall) => void;
+
+export function toolWarningStyle(warned: boolean): CSSProperties {
+  if (!warned) return {};
+  return {
+    background: 'var(--proto-amber-bg)',
+    border: '1px solid var(--proto-amber-border)',
+    color: 'var(--proto-amber-fg)',
+  };
+}
 
 function detailFor(call: ToolCall): DebugDetail | null {
   if (!call.debug) return null;
@@ -74,7 +83,11 @@ function CollapsedToolCalls({ calls, text, hover, onExpand, onHover }: {
       <div onClick={onExpand} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={collapsedRowStyle(hover)}>
         <span style={{ fontSize: 9, color: 'var(--proto-faint)' }}>▸</span>
         <span>{text}</span>
-        {calls.map((call, index) => <span key={index} style={chipStyle}>{call.label}</span>)}
+        {calls.map((call, index) => (
+          <span key={index} style={{ ...chipStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>
+            {call.label}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -86,7 +99,7 @@ function ExpandedToolCall({ call, onInspect }: {
 }): JSX.Element {
   return (
     <div className={call.debug ? 'group' : undefined} style={expandedCallStyle}>
-      <span style={kindStyle}>{call.kind}</span>
+      <span style={{ ...kindStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>{call.kind}</span>
       <span style={{ ...inputStyle, ...(call.debug ? { minWidth: 0, flex: 1 } : {}) }}>{call.input}</span>
       {call.debug ? <DebugInspectButton compact onClick={(event) => onInspect(event, call)} /> : null}
     </div>
