@@ -1,6 +1,6 @@
-// input:  agents/config, facade fallback, stub AgentProcess
-// output: transient-error classification and provider fallback regressions
-// pos:    Agent fallback policy tests for transport and HTTP failures
+// input:  agents/config, facade, stub AgentProcess events
+// output: retry classification and typed-notice regressions
+// pos:    Agent fallback and terminal notice policy tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, vi } from 'vitest';
@@ -25,15 +25,25 @@ const SUCCESS_RESULT: AgentResult = {
   finalOutput: 'fallback-ok',
 };
 
-function makeProcess(outcome: AgentResult | Error): AgentProcess {
+function makeProcess(
+  outcome: AgentResult | (Error & { cancelled?: boolean }),
+  events: Array<{ type: 'assistant_text'; text: string }> = [],
+  eventTiming: 'before-result' | 'after-result' = 'before-result',
+): AgentProcess {
   return {
     sessionKey: 'retry-test',
     sessionId: null,
     send: async () => {
-      if (outcome instanceof Error) throw outcome;
+      if (outcome instanceof Error) {
+        if (eventTiming === 'before-result') await new Promise((resolve) => setTimeout(resolve, 0));
+        throw outcome;
+      }
       return outcome;
     },
-    events: (async function* () {})(),
+    events: (async function* () {
+      if (eventTiming === 'after-result') await new Promise((resolve) => setTimeout(resolve, 0));
+      yield* events;
+    })(),
     close: async () => {},
     kill: () => true,
   };
@@ -49,6 +59,18 @@ function installFallbackProfile(): void {
         provider: 'deepseek',
         mode: 'deepseek',
         fallback: [{ model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' }],
+      },
+    },
+  }));
+  profileRepo.invalidate();
+}
+
+function installSingleProfile(): void {
+  writeFileSync(PROFILES_FILE, JSON.stringify({
+    defaultProfile: 'single-test',
+    profiles: {
+      'single-test': {
+        model: 'deepseek-v4-pro', backend: 'pi', provider: 'deepseek', mode: 'deepseek',
       },
     },
   }));
@@ -86,35 +108,149 @@ for (const message of [
   });
 }
 
-test('runAgent switches once to the configured fallback after the observed gateway 502', async () => {
+test('runAgent switches once to the configured fallback and emits one warning notice', async () => {
   installFallbackProfile();
   const primary = vi.spyOn(getAdapter('pi'), 'spawn')
     .mockReturnValue(makeProcess(new Error('502: Upstream connection error: TypeError: fetch failed')));
   const fallback = vi.spyOn(getAdapter('claude'), 'spawn')
     .mockReturnValue(makeProcess(SUCCESS_RESULT));
   const transitions: string[] = [];
+  const notices: Array<{ text: string; level?: string }> = [];
 
   const result = await runAgent('test', {
     profileName: 'retry-test',
+    channel: 'web:retry',
     onFallback: async (_current, next) => { transitions.push(next.model); },
+    onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
   }).promise;
 
   assert.equal(result.finalOutput, 'fallback-ok');
   assert.equal(primary.mock.calls.length, 1);
   assert.equal(fallback.mock.calls.length, 1);
   assert.deepEqual(transitions, ['claude-sonnet-4-6']);
+  assert.deepEqual(notices, [{
+    text: 'Model fallback: deepseek-v4-pro/deepseek → claude-sonnet-4-6/plan.',
+    level: 'warning',
+  }]);
 });
 
-test('runAgent does not fallback after a deterministic authentication failure', async () => {
+test('runAgent emits one terminal error notice for a deterministic authentication failure', async () => {
   installFallbackProfile();
   vi.spyOn(getAdapter('pi'), 'spawn')
     .mockReturnValue(makeProcess(new Error('HTTP 401 unauthorized')));
   const fallback = vi.spyOn(getAdapter('claude'), 'spawn')
     .mockReturnValue(makeProcess(SUCCESS_RESULT));
+  const notices: Array<{ text: string; level?: string }> = [];
 
   await assert.rejects(
-    runAgent('test', { profileName: 'retry-test' }).promise,
+    runAgent('test', {
+      profileName: 'retry-test',
+      channel: 'web:retry',
+      onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+    }).promise,
     /401 unauthorized/,
   );
   assert.equal(fallback.mock.calls.length, 0);
+  assert.deepEqual(notices, [{ text: 'Error: HTTP 401 unauthorized', level: 'error' }]);
+});
+
+test('runAgent does not duplicate an API Error event when the attempt terminates with the same error', async () => {
+  installFallbackProfile();
+  const message = 'API Error: 400 invalid_request';
+  vi.spyOn(getAdapter('pi'), 'spawn')
+    .mockReturnValue(makeProcess(new Error(message), [{ type: 'assistant_text', text: message }], 'after-result'));
+  const fallback = vi.spyOn(getAdapter('claude'), 'spawn')
+    .mockReturnValue(makeProcess(SUCCESS_RESULT));
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  await assert.rejects(
+    runAgent('test', {
+      profileName: 'retry-test',
+      channel: 'web:retry',
+      onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+    }).promise,
+    /invalid_request/,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  assert.equal(fallback.mock.calls.length, 0);
+  assert.deepEqual(notices, [{ text: message, level: 'error' }]);
+});
+
+test('runAgent resets terminal-error deduplication when moving to a fallback attempt', async () => {
+  installFallbackProfile();
+  const firstError = 'API Error: Unable to connect to API (ECONNRESET)';
+  vi.spyOn(getAdapter('pi'), 'spawn')
+    .mockReturnValue(makeProcess(new Error(firstError), [{ type: 'assistant_text', text: firstError }]));
+  vi.spyOn(getAdapter('claude'), 'spawn')
+    .mockReturnValue(makeProcess(new Error('HTTP 401 unauthorized')));
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  await assert.rejects(
+    runAgent('test', {
+      profileName: 'retry-test',
+      channel: 'web:retry',
+      onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+    }).promise,
+    /401 unauthorized/,
+  );
+
+  assert.deepEqual(notices, [
+    { text: firstError, level: 'error' },
+    { text: 'Model fallback: deepseek-v4-pro/deepseek → claude-sonnet-4-6/plan.', level: 'warning' },
+    { text: 'Error: HTTP 401 unauthorized', level: 'error' },
+  ]);
+});
+
+test('runAgent single-config kill suppresses a generic process-exit error notice', async () => {
+  installSingleProfile();
+  vi.spyOn(getAdapter('pi'), 'spawn')
+    .mockReturnValue(makeProcess(new Error('pi exited with code 143')));
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  const handle = runAgent('test', {
+    profileName: 'single-test',
+    channel: 'web:retry',
+    onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+  });
+  handle.kill();
+  await assert.rejects(handle.promise, /code 143/);
+
+  assert.deepEqual(notices, []);
+});
+
+test('runAgent does not synthesize terminal chat notices for non-Web channels', async () => {
+  installFallbackProfile();
+  vi.spyOn(getAdapter('pi'), 'spawn')
+    .mockReturnValue(makeProcess(new Error('HTTP 401 unauthorized')));
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  await assert.rejects(
+    runAgent('test', {
+      profileName: 'retry-test',
+      channel: 'slack:C1',
+      onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+    }).promise,
+    /401 unauthorized/,
+  );
+
+  assert.deepEqual(notices, []);
+});
+
+test('runAgent does not turn user cancellation into an error notice', async () => {
+  installFallbackProfile();
+  const cancelled = Object.assign(new Error('Cancelled by user'), { cancelled: true });
+  vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(cancelled));
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  await assert.rejects(
+    runAgent('test', {
+      profileName: 'retry-test',
+      channel: 'web:retry',
+      onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+    }).promise,
+    /Cancelled by user/,
+  );
+
+  assert.deepEqual(notices, []);
 });

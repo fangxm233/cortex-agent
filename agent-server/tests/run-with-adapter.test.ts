@@ -1,6 +1,6 @@
-// input:  fake adapters, runWithAdapter, and locale state
-// output: callbacks for context usage, API-error notices, tools, progress, and kill
-// pos:    Verifies backend-neutral event dispatch into agent callbacks
+// input:  fake adapters, runWithAdapter, resume ids, locale
+// output: normalized callback and typed-notice regressions
+// pos:    Backend-neutral event dispatch tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -251,6 +251,50 @@ test('runWithAdapter: a leading API Error becomes an error notice without reclas
     { text: 'API Error: Unable to connect to API (ECONNRESET)', level: 'error' },
     { text: 'The log mentions API Error: timeout.', level: undefined },
   ]);
+});
+
+test('runWithAdapter: changed backend identity on resume emits one warning, same/fresh starts emit none', async (t) => {
+  const previousLocale = getLocale();
+  t.onTestFinished(() => setLocale(previousLocale));
+  setLocale('en');
+
+  const collect = async (
+    requestedSessionId: string | null,
+    startedSessionId: string,
+    channel = 'web:session',
+  ) => {
+    const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+    const adapter = makeFakeAdapter('pi', {
+      events: [
+        { type: 'session_started', sessionId: startedSessionId },
+        { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
+      ],
+      resultOnResolve: defaultAgentResult(startedSessionId),
+      recorded,
+    });
+    const notices: Array<{ text: string; level?: string }> = [];
+
+    await runWithAdapter(
+      adapter,
+      'msg',
+      {
+        channel,
+        sessionId: requestedSessionId,
+        onAssistantMessage: (text: string, _blockId?: string, level?: string) => notices.push({ text, level }),
+      },
+      { model: 'm', backend: 'pi', mode: null },
+      undefined,
+    ).promise;
+    return notices;
+  };
+
+  assert.deepEqual(await collect('backend-old', 'backend-new'), [{
+    text: 'Previous backend session was unavailable; started a fresh session.',
+    level: 'warning',
+  }]);
+  assert.deepEqual(await collect('backend-same', 'backend-same'), []);
+  assert.deepEqual(await collect(null, 'backend-new'), []);
+  assert.deepEqual(await collect('backend-old', 'backend-new', 'slack:C1'), []);
 });
 
 test('runWithAdapter: tool_result preserves full multiline content, error status, and correlation id', async () => {

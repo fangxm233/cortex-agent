@@ -23,8 +23,10 @@ export const statusEn = {
   // --- Turn-completion notification ---
   'notify.turnComplete': 'Turn complete',
   'notify.turnFailed': 'Turn failed',
-  // --- Context compaction notification ---
+  // --- Semantic chat notices ---
   'notify.contextCompacted': 'Context auto-compacted.',
+  'notify.agentFallback': 'Model fallback: ${from} → ${to}.',
+  'notify.backendSessionReset': 'Previous backend session was unavailable; started a fresh session.',
   // --- Execution report ---
   'status.noRunningExecutions': 'No running executions.',
   'status.runningExecutions': 'Running executions: ${count}',
@@ -55,8 +57,10 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   // --- Turn-completion notification ---
   'notify.turnComplete': '回合完成',
   'notify.turnFailed': '回合失败',
-  // --- Context compaction notification ---
+  // --- Semantic chat notices ---
   'notify.contextCompacted': '上下文已自动压缩。',
+  'notify.agentFallback': '模型回退：${from} → ${to}。',
+  'notify.backendSessionReset': '之前的后端会话不可用，已启动新会话。',
   // --- Execution report ---
   'status.noRunningExecutions': '没有正在运行的执行。',
   'status.runningExecutions': '正在运行的执行：${count}',

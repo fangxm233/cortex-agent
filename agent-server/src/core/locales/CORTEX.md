@@ -12,7 +12,7 @@ Locale data consumed by `core/i18n.ts`'s `t(key, params)`. Zero-dependency leaf 
 
 ## Slices
 
-`lang` (`!lang` command) · `status` (status/lifecycle prefixes + concise context-compaction notice + `btn.*` labels) · `commands` (all `!command` replies, help text) · `scheduling` (`!schedule` domain replies) · `interactions` (plan approvals, update prompt, modal/`interactive-builder` labels) · `startup` (startup-notify) · `init` (cortex init wizard + config output).
+`lang` (`!lang` command) · `status` (status/lifecycle prefixes + concise semantic chat notices for compaction, fallback, and backend-session reset + `btn.*` labels) · `commands` (all `!command` replies, help text) · `scheduling` (`!schedule` domain replies) · `interactions` (plan approvals, update prompt, modal/`interactive-builder` labels) · `startup` (startup-notify) · `init` (cortex init wizard + config output).
 
 ## Rules
 

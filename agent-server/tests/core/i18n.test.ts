@@ -79,12 +79,25 @@ describe('i18n', () => {
     assert.equal(t('totally.unknown.key' as any), 'totally.unknown.key');
   });
 
-  it('context-compaction notice is concise in both locales', () => {
+  it('chat notice copy is concise and interpolated in both locales', () => {
     setLocale('en');
     assert.equal(t('notify.contextCompacted'), 'Context auto-compacted.');
+    assert.equal(
+      t('notify.agentFallback', { from: 'primary/api', to: 'backup/plan' }),
+      'Model fallback: primary/api → backup/plan.',
+    );
+    assert.equal(
+      t('notify.backendSessionReset'),
+      'Previous backend session was unavailable; started a fresh session.',
+    );
 
     setLocale('zh');
     assert.equal(t('notify.contextCompacted'), '上下文已自动压缩。');
+    assert.equal(
+      t('notify.agentFallback', { from: 'primary/api', to: 'backup/plan' }),
+      '模型回退：primary/api → backup/plan。',
+    );
+    assert.equal(t('notify.backendSessionReset'), '之前的后端会话不可用，已启动新会话。');
   });
 
   it('en and zh expose the exact same key set (parity)', () => {

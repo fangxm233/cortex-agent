@@ -1,6 +1,6 @@
-// input:  config, adapters, profiles, normalized context/tool/notice events
-// output: runAgent facade with context usage and typed notices
-// pos:    Sole backend-neutral agent execution path
+// input:  config, adapters, profiles, normalized events
+// output: runAgent facade and typed Web-chat notices
+// pos:    Backend-neutral agent execution and notice policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { getAdapter } from '../../agent-adapter/index.js';
@@ -21,6 +21,104 @@ const log = createLogger('facade');
 
 function assistantNoticeLevel(text: string): ChatNoticeLevel | undefined {
   return text.startsWith('API Error:') ? 'error' : undefined;
+}
+
+function configLabel(config: AgentConfig): string {
+  return `${config.model}/${config.mode || 'default'}`;
+}
+
+function terminalErrorText(message: string): string {
+  return message.startsWith('API Error:') ? message : t('status.errorBody', { message });
+}
+
+/** Track error notices within one provider attempt so terminal handling is durable but not noisy.
+ *  runWithAdapter drains its event loop before rejecting, so any API Error from that attempt has
+ *  already reached this tracker. A fallback starts a new dedupe window because its terminal
+ *  failure must not be hidden by the previous provider's notice. */
+class AttemptNoticeTracker {
+  readonly options: RunAgentOptions;
+  private readonly forward: RunAgentOptions['onAssistantMessage'];
+  private readonly generateNotices: boolean;
+  private attemptHasErrorNotice = false;
+
+  constructor(private readonly original: RunAgentOptions) {
+    this.forward = original.onAssistantMessage ?? null;
+    this.generateNotices = original.channel?.startsWith('web:') === true;
+    this.options = this.forward
+      ? { ...original, onAssistantMessage: (text, blockId, level) => this.observe(text, blockId, level) }
+      : original;
+  }
+
+  private observe(text: string, blockId?: string, level?: ChatNoticeLevel): void {
+    if (level === 'error') this.attemptHasErrorNotice = true;
+    this.forward?.(text, blockId, level);
+  }
+
+  private emitTerminal(message: string, displayText = terminalErrorText(message)): void {
+    if (!this.generateNotices || !this.forward || this.attemptHasErrorNotice) return;
+    this.attemptHasErrorNotice = true;
+    this.forward(displayText, undefined, 'error');
+  }
+
+  async transitionToFallback(
+    current: AgentConfig,
+    next: AgentConfig,
+    result: AgentResult | null,
+    error?: Error,
+  ): Promise<void> {
+    await this.original.onFallback?.(current, next, result, error);
+    if (this.generateNotices) {
+      this.observe(t('notify.agentFallback', {
+        from: configLabel(current), to: configLabel(next),
+      }), undefined, 'warning');
+    }
+    this.attemptHasErrorNotice = false;
+  }
+
+  emitTerminalError(error: unknown): void {
+    const value = error as { message?: unknown; cancelled?: boolean } | null | undefined;
+    if (value?.cancelled) return;
+    const message = typeof value?.message === 'string' && value.message.length > 0
+      ? value.message
+      : String(error);
+    this.emitTerminal(message);
+  }
+
+  emitTerminalRateLimit(result: AgentResult): void {
+    const detail = result.rateLimitMessage;
+    if (typeof detail === 'string' && detail.startsWith('API Error:')) this.emitTerminal(detail);
+    else this.emitTerminal(t('status.rateLimitedExhausted'), t('status.rateLimitedExhausted'));
+  }
+}
+
+function rateLimitedResult(mode: string): AgentResult {
+  return {
+    sessionId: null, total_cost_usd: null, num_turns: null,
+    rateLimited: true, rateLimitMessage: `Mode ${mode} is rate-limited`,
+    planFilePath: null, enteredPlanMode: false, exitedPlanMode: false, finalOutput: null,
+  };
+}
+
+function withTerminalNotices(handle: AgentHandle, notices: AttemptNoticeTracker): AgentHandle {
+  let killed = false;
+  return {
+    promise: handle.promise.then(
+      (result) => {
+        if (result.rateLimited) notices.emitTerminalRateLimit(result);
+        return result;
+      },
+      (error) => {
+        if (!killed) notices.emitTerminalError(error);
+        throw error;
+      },
+    ),
+    kill: () => {
+      killed = true;
+      return handle.kill();
+    },
+    get sessionId(): string | null { return handle.sessionId; },
+    get agentProcess() { return handle.agentProcess; },
+  };
 }
 
 // --- Types ---
@@ -220,6 +318,19 @@ export function runWithAdapter(
     try {
       for await (const event of proc.events) {
         switch (event.type) {
+          case 'session_started': {
+            // A resumed backend may recover from a missing/stale target by creating a new session.
+            // The changed identity is structured evidence of context discontinuity; same-id resume
+            // and ordinary fresh starts stay silent.
+            const changedWebResume = options.channel?.startsWith('web:')
+              && spawnConfig.resume
+              && spawnConfig.sessionId
+              && event.sessionId !== spawnConfig.sessionId;
+            if (changedWebResume) {
+              options.onAssistantMessage?.(t('notify.backendSessionReset'), undefined, 'warning');
+            }
+            break;
+          }
           case 'assistant_text':
             options.onAssistantMessage?.(event.text, event.blockId, assistantNoticeLevel(event.text));
             break;
@@ -349,28 +460,22 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
     { model: profileConfig.model, backend: profileConfig.backend, mode: profileConfig.mode, provider: profileConfig.provider, extraEnv: profileConfig.extraEnv, extraOption: profileConfig.extraOption, claudeBackend: profileConfig.claudeBackend, thinking: profileConfig.thinking },
     ...(profileConfig.fallback || []),
   ];
+  const notices = new AttemptNoticeTracker(options);
+  const trackedOptions = notices.options;
 
-  // Single config — no fallback wrapper needed
+  // Single config — only terminal notice wrapping is needed.
   if (configs.length <= 1) {
     const effectiveMode = configs[0].mode || 'api';
     if (isModeRateLimited(effectiveMode) && !options.isUserInitiated) {
+      const result = rateLimitedResult(effectiveMode);
+      notices.emitTerminalRateLimit(result);
       return {
-        promise: Promise.resolve({
-          sessionId: null,
-          total_cost_usd: null,
-          num_turns: null,
-          rateLimited: true,
-          rateLimitMessage: `Mode ${effectiveMode} is rate-limited`,
-          planFilePath: null,
-          enteredPlanMode: false,
-          exitedPlanMode: false,
-          finalOutput: null,
-        }),
+        promise: Promise.resolve(result),
         kill: () => false,
         sessionId: null,
       };
     }
-    return runAgentOnce(message, options, configs[0]);
+    return withTerminalNotices(runAgentOnce(message, trackedOptions, configs[0]), notices);
   }
 
   // Multiple configs — wrap with fallback chain
@@ -382,26 +487,20 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
       const config = configs[i];
       const isLast = i === configs.length - 1;
 
-      const attemptOptions: RunAgentOptions = i === 0 ? options : { ...options, sessionId: null };
+      const attemptOptions: RunAgentOptions = i === 0
+        ? trackedOptions
+        : { ...trackedOptions, sessionId: null };
 
       // Pre-flight: skip modes already known rate-limited without spawning CLI
       const effectiveMode = config.mode || 'api';
       if (isModeRateLimited(effectiveMode) && !options.isUserInitiated) {
         if (isLast) {
-          return {
-            sessionId: null,
-            total_cost_usd: null,
-            num_turns: null,
-            rateLimited: true,
-            rateLimitMessage: `Mode ${effectiveMode} is rate-limited`,
-            planFilePath: null,
-            enteredPlanMode: false,
-            exitedPlanMode: false,
-            finalOutput: null,
-          };
+          const result = rateLimitedResult(effectiveMode);
+          notices.emitTerminalRateLimit(result);
+          return result;
         }
         log.info(`${config.model}/${effectiveMode} rate-limited, skipping to fallback[${i}]`);
-        if (options.onFallback) await options.onFallback(config, configs[i + 1], null);
+        await notices.transitionToFallback(config, configs[i + 1], null);
         continue;
       }
 
@@ -410,24 +509,26 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
       try {
         const result: AgentResult = await currentHandle.promise;
         if (!isRetryableResult(result) || isLast) {
+          if (result.rateLimited) notices.emitTerminalRateLimit(result);
           return result;
         }
         const modeLabel = config.mode || 'api';
         log.info(`${config.model}/${modeLabel} rate limited, trying fallback[${i}]`);
-        if (options.onFallback) {
-          await options.onFallback(config, configs[i + 1], result);
-        }
+        await notices.transitionToFallback(config, configs[i + 1], result);
       } catch (error) {
         if (killed) throw error;
-        if (!isRetryableError(error as Error) || isLast) throw error;
+        if (!isRetryableError(error as Error) || isLast) {
+          notices.emitTerminalError(error);
+          throw error;
+        }
         const modeLabel = config.mode || 'api';
         log.info(`${config.model}/${modeLabel} retryable error, trying fallback[${i}]`);
-        if (options.onFallback) {
-          await options.onFallback(config, configs[i + 1], null, error as Error);
-        }
+        await notices.transitionToFallback(config, configs[i + 1], null, error as Error);
       }
     }
-    throw new Error('All fallback configs exhausted without result');
+    const error = new Error('All fallback configs exhausted without result');
+    notices.emitTerminalError(error);
+    throw error;
   })();
 
   return {

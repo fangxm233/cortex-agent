@@ -1,6 +1,6 @@
-// input:  Node test runner + facade.ts + rate-limit-throttle
-// output: allConfigsRateLimited + runAgent pre-flight skip tests
-// pos:    Validate facade pre-flight check and rate-limit-aware export
+// input:  facade.ts, rate-limit-throttle, MockAdapter
+// output: pre-flight rate-limit and terminal-notice regressions
+// pos:    Facade pre-flight policy tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Rate-limit-throttle is a mutable singleton (module-level state). Tests use regular
@@ -90,13 +90,19 @@ test('runAgent single-config path skips runAgentOnce when mode rate-limited', as
   t.onTestFinished(() => rl._testReset());
 
   const facade = await import('../src/domain/agents/facade.js');
-  const handle = facade.runAgent('test', { profileName: 'scan' });
+  const notices: Array<{ text: string; level?: string }> = [];
+  const handle = facade.runAgent('test', {
+    profileName: 'scan',
+    channel: 'web:rate-limit',
+    onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+  });
   const result = await handle.promise;
 
   assert.equal(result.rateLimited, true);
   assert.ok(result.rateLimitMessage?.includes('plan'));
   // No adapter was spawned — synthetic return
   assert.equal(result.sessionId, null);
+  assert.deepEqual(notices, [{ text: 'Rate limited — all fallbacks exhausted', level: 'error' }]);
 });
 
 test('runAgent fallback loop skips rate-limited configs and returns synthetic result when all exhausted', async (t) => {
