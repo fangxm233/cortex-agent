@@ -1,5 +1,5 @@
 // input:  ChatNoticeLevel and plain notice text
-// output: token-driven info/warning/error chat message box
+// output: full-width token-driven info/warning/error notice box
 // pos:    Shared semantic notice renderer for desktop and mobile chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { CSSProperties } from 'react';
@@ -41,7 +41,7 @@ export interface ChatNoticeProps {
 export function ChatNotice({ level, text }: ChatNoticeProps): JSX.Element {
   const tone = TONES[level];
   const style: CSSProperties = {
-    display: 'flex', alignItems: 'flex-start', gap: 9, width: '100%', maxWidth: 620,
+    display: 'flex', alignItems: 'flex-start', gap: 9, width: '100%',
     margin: '0 auto', padding: '9px 12px', boxSizing: 'border-box', borderRadius: 9,
     border: `1px solid ${tone.border}`, background: tone.bg, color: tone.fg,
     fontSize: 12.5, lineHeight: 1.55, overflowWrap: 'anywhere',

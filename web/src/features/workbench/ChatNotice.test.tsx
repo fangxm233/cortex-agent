@@ -1,5 +1,5 @@
 // input:  ChatNotice and desktop MessageStream renderers
-// output: info/warning/error semantics and transcript integration regressions
+// output: notice tone, width, and transcript integration regressions
 // pos:    Shared chat-notice presentation contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it } from 'vitest';
@@ -24,6 +24,12 @@ describe('ChatNotice', () => {
     expect(html).toContain(bg);
     expect(html).toContain(fg);
     expect(html).toContain(`${level} text`);
+  });
+
+  it('fills the desktop transcript width without a narrower independent cap', () => {
+    const html = renderNotice('info');
+    expect(html).toContain('width:100%');
+    expect(html).not.toContain('max-width');
   });
 
   it('renders a notice row inside the desktop message stream', () => {
