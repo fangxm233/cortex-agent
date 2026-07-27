@@ -45,6 +45,14 @@ describe('DeskAskCard — 13b pending', () => {
     expect(html).toContain('需要你拍板');
     expect(html).toContain('AskUserQuestion');
     expect(html).toContain('阻塞中 · TTL');
+    expect(html).toContain('Agent 暂停中 · 提交后继续');
+  });
+  it('names the paused/resuming actor as agent in both locales', () => {
+    expect(D_INT_COPY.zh.planTtl).toBe('Agent 暂停中 · TTL');
+    expect(D_INT_COPY.zh.approvedFoot).toBe('· Agent 继续执行');
+    expect(D_INT_COPY.en.askFootnote).toBe('Agent paused · continues after submit');
+    expect(D_INT_COPY.en.planTtl).toBe('Agent paused · TTL');
+    expect(D_INT_COPY.en.approvedFoot).toBe('· agent continues');
   });
   it('renders ALL questions with 单选/多选 tags and ○/☐ chips + 其他… chip', () => {
     expect(html).toContain('Seed-6 在结论表里怎么处理？');
@@ -103,7 +111,7 @@ describe('DeskPlanCard — 13c', () => {
     );
     expect(html).toContain('PLAN · 等待批准');
     expect(html).toContain('ExitPlanMode');
-    expect(html).toContain('线程暂停中 · TTL');
+    expect(html).toContain('Agent 暂停中 · TTL');
     expect(html).toContain('2×4 消融矩阵');
     expect(html).toContain('plans/plan-ablation.md');
     expect(html).toContain('已写入 · 批准前建议通读全文');
@@ -132,13 +140,13 @@ describe('DeskPlanCard — 13c', () => {
     expect(html).toContain('确认退回');
     expect(html).not.toContain('批准计划');
   });
-  it('approved sealed: green pill + 由你批准 + 线程继续执行 + 查看计划 ›, no buttons', () => {
+  it('approved sealed: green pill + 由你批准 + Agent 继续执行 + 查看计划 ›, no buttons', () => {
     const html = renderToStaticMarkup(
       <DeskPlanCard model={planCardModel(planDetail('approved'), '2026-07-16T07:41:00Z')} copy={copy} feedbackOpen={false} busy={false} {...handlers} />,
     );
     expect(html).toContain('✓ 计划已批准');
     expect(html).toContain('由你批准');
-    expect(html).toContain('· 线程继续执行');
+    expect(html).toContain('· Agent 继续执行');
     expect(html).toContain('查看计划 ›');
     expect(html).not.toContain('批准计划');
   });

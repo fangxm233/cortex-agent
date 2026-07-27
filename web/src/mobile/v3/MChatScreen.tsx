@@ -591,7 +591,7 @@ export function MChatScreen(): JSX.Element {
   // Header status = running snapshot + real agent-turn count + current/last-turn elapsed + last-run
   // cost — same progressive readout as the desktop composer (running: time+turns; idle-after-a-turn:
   // +cost; fresh: bare idle). A draft or never-run session shows just `idle`. A pending interaction
-  // overrides the whole line with the amber 线程已暂停 state (scheme 5a/5b/6a).
+  // overrides the whole line with the amber Agent 已暂停 state (scheme 5a/5b/6a).
   const cost = active?.costUsd ?? null;
   const hasRun = !isDraft && turns != null;
   const status = pendingInteraction

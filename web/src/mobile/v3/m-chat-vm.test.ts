@@ -1,3 +1,7 @@
+// input:  Mobile chat view models and Vitest
+// output: Mobile chat status/profile/row-model regressions
+// pos:    Verifies mobile chat pure presentation logic
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
 import {
@@ -45,19 +49,19 @@ describe('chatHeaderStatus', () => {
 });
 
 describe('interactionHeaderStatus (scheme-mobile 5a/5b/6a header line)', () => {
-  it('pending plan → 计划待批 · 线程已暂停 with the amber waiting tone', () => {
+  it('pending plan → 计划待批 · Agent 已暂停 with the amber waiting tone', () => {
     const s = interactionHeaderStatus('plan-approval', 0, 1, 'zh');
     expect(s.tone).toBe('waiting');
     expect(s.running).toBe(false);
-    expect(s.text).toBe('计划待批 · 线程已暂停');
-    expect(interactionHeaderStatus('plan-approval', 0, 1, 'en').text).toBe('plan pending · thread paused');
+    expect(s.text).toBe('计划待批 · Agent 已暂停');
+    expect(interactionHeaderStatus('plan-approval', 0, 1, 'en').text).toBe('plan pending · agent paused');
   });
   it('pending ask with several questions → 等待你的回答 k/n (k = current 1-based)', () => {
-    expect(interactionHeaderStatus('ask-user', 1, 3, 'zh').text).toBe('等待你的回答 2/3 · 线程已暂停');
-    expect(interactionHeaderStatus('ask-user', 0, 3, 'en').text).toBe('awaiting your answer 1/3 · thread paused');
+    expect(interactionHeaderStatus('ask-user', 1, 3, 'zh').text).toBe('等待你的回答 2/3 · Agent 已暂停');
+    expect(interactionHeaderStatus('ask-user', 0, 3, 'en').text).toBe('awaiting your answer 1/3 · agent paused');
   });
   it('single-question ask omits the k/n counter', () => {
-    expect(interactionHeaderStatus('ask-user', 0, 1, 'zh').text).toBe('等待你的回答 · 线程已暂停');
+    expect(interactionHeaderStatus('ask-user', 0, 1, 'zh').text).toBe('等待你的回答 · Agent 已暂停');
   });
 });
 

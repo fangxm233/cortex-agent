@@ -1,15 +1,7 @@
-// Pure view-model for the 1b 会话详情 chat surface (scheme-mobile.dc.html 1b/1m/1n/1o/1p). Maps the
-// real DTOs (SessionInfo / SessionTranscript / ConfigProfiles) into the scheme's slot model; the view
-// owns every px/hex/font. Real data is the only variable — a field with NO DTO source is deliberately
-// omitted, never fabricated.
-//
-// HONEST-GAP NOTE (verified against agent-server/domain/ui-service/app-router.ts + ui-contract):
-//   • per-session `$` cost — SessionInfo carries none → OMITTED from the header/status lines.
-// Interaction cards (提问 5b / plan 审批 6a) are transcript entity rows — their models live in
-// the SHARED features/workbench/interaction-vm (askCardModel/planCardModel + answer reducers);
-// this module only contributes the header status line for a pending interaction.
-// The chat's ROW LIST is here too (`buildMobileChatRows`): the shared row builder plus the mobile
-// divider vocabulary, the block being written right now, and any message the model has not read yet.
+// input:  Session DTOs and shared transcript/interaction view models
+// output: Mobile chat rows, status, profile, and attachment view models
+// pos:    Pure presentation logic for the mobile session chat
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
 import {
   buildTranscriptRows,
@@ -66,8 +58,8 @@ export interface ChatHeaderStatus {
    *   • fresh / never-run → bare `idle`
    * `turns`/`cost` render as `—` when unknown.
    * A pending interaction overrides the whole line (interactionHeaderStatus, scheme §5/§6):
-   *   • plan  → `计划待批 · 线程已暂停`
-   *   • ask   → `等待你的回答 k/n · 线程已暂停`
+   *   • plan  → `计划待批 · Agent 已暂停`
+   *   • ask   → `等待你的回答 k/n · Agent 已暂停`
    */
   text: string;
   /** Header dot: running = blue pulse · waiting = amber (pending interaction) · idle = grey. */
@@ -105,8 +97,8 @@ export function chatHeaderStatus(
 }
 
 /**
- * Header status while a pending interaction blocks the thread (scheme-mobile 5a/5b/6a):
- * amber dot + `计划待批 · 线程已暂停` (plan) or `等待你的回答 k/n · 线程已暂停` (ask, k =
+ * Header status while a pending interaction blocks the active agent (scheme-mobile 5a/5b/6a):
+ * amber dot + `计划待批 · Agent 已暂停` (plan) or `等待你的回答 k/n · Agent 已暂停` (ask, k =
  * current question 1-based; the counter is omitted for a single question).
  */
 export function interactionHeaderStatus(
@@ -117,13 +109,13 @@ export function interactionHeaderStatus(
 ): ChatHeaderStatus {
   const zh = lang === 'zh';
   if (kind === 'plan-approval') {
-    return { running: false, tone: 'waiting', text: zh ? '计划待批 · 线程已暂停' : 'plan pending · thread paused' };
+    return { running: false, tone: 'waiting', text: zh ? '计划待批 · Agent 已暂停' : 'plan pending · agent paused' };
   }
   const counter = total > 1 ? ` ${Math.min(answered + 1, total)}/${total}` : '';
   return {
     running: false,
     tone: 'waiting',
-    text: zh ? `等待你的回答${counter} · 线程已暂停` : `awaiting your answer${counter} · thread paused`,
+    text: zh ? `等待你的回答${counter} · Agent 已暂停` : `awaiting your answer${counter} · agent paused`,
   };
 }
 

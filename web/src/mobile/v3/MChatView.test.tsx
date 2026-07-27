@@ -1,3 +1,7 @@
+// input:  Mobile chat components, view models, and server-side renderer
+// output: Mobile chat chrome and interaction rendering regressions
+// pos:    Verifies the mobile session-chat presentation
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ChatRow } from '@/features/workbench/transcript-vm';
@@ -91,9 +95,9 @@ describe('1b MChatHeader', () => {
   });
   it('waiting (pending interaction) → amber dot + amber text, no pulse (scheme 6a header)', () => {
     const html = renderToStaticMarkup(
-      <MChatHeader title="atlas" status={{ running: false, tone: 'waiting', text: '计划待批 · 线程已暂停' }} onBack={() => {}} onMore={() => {}} />,
+      <MChatHeader title="atlas" status={{ running: false, tone: 'waiting', text: '计划待批 · Agent 已暂停' }} onBack={() => {}} onMore={() => {}} />,
     );
-    expect(html).toContain('计划待批 · 线程已暂停');
+    expect(html).toContain('计划待批 · Agent 已暂停');
     expect(html).toContain('var(--m-amber)'); // amber dot
     expect(html).toContain('var(--m-amber-text)'); // amber status text
     expect(html).not.toContain('cxpulse');
@@ -302,7 +306,7 @@ describe('5a reject-feedback composer mode', () => {
     const html = renderToStaticMarkup(
       <MChatView
         {...baseProps}
-        status={{ running: false, tone: 'waiting', text: '计划待批 · 线程已暂停' }}
+        status={{ running: false, tone: 'waiting', text: '计划待批 · Agent 已暂停' }}
         rows={[]}
         rejectBar={{
           title: '驳回「DR 扫描」— 说明原因后发送',
