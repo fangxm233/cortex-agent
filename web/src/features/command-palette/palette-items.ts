@@ -1,11 +1,15 @@
+// input:  Session/thread/task DTOs, i18n vocab keys
+// output: Command-palette rows, modal and navigation targets
+// pos:    Pure command-palette row mapping and filtering
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import type { SessionInfo, ThreadInfo, TaskInfo } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
 // Pure mapping from the three real tRPC query results (sessions.list / threads.list /
 // tasks.list) into the prototype's ⌘K flat-row item model (prototype.dc.html L1304–1311 +
 // the `allCmdk` demo shape L2489–2499). Each row = glyph badge + label + sub + right-aligned
-// kbd tag; the palette navigates via React Router. §8.3: the row structure is 1:1 with the
-// prototype, real entities are the only variable. Threads route to their detail page
+// kbd tag; page rows navigate via React Router and modal rows open in place. §8.3: the row
+// structure is 1:1 with the prototype, real entities are the only variable. Threads route to their detail page
 // `/threads/:id` (F2); sessions/tasks target their section route (detail surfaces are Stage 4/5),
 // carrying the entity id in `focusId`.
 
@@ -37,7 +41,8 @@ export interface CmdkCommand {
   label: string;
   sub: string;
   kbd: string;
-  route: string;
+  route?: string;
+  modal?: 'settings';
   keywords: string[];
   /** Vocab key resolved to the localized label at the render site (nav rows only). */
   labelKey: keyof Vocab;
@@ -54,7 +59,8 @@ export interface PaletteRow {
   label: string;
   sub: string;
   kbd: string;
-  route: string;
+  route?: string;
+  modal?: 'settings';
   focusId?: string;
   keywords: string[];
   labelKey?: keyof Vocab;
@@ -111,9 +117,8 @@ export function buildCmdkItems({ sessions, threads, tasks }: CmdkSources): CmdkI
 }
 
 // Static navigation command rows (prototype OV/ST legs + section jumps). The prototype also lists
-// Approvals + New schedule, but those are modal overlays not yet built (Stage R2+, plan §8.6) —
-// deferred here (no route to jump to), same class as the file-search deferral (no fs-read scope,
-// Stage 6). Settings sub-copy is verbatim from the prototype (L2496).
+// Approvals + New schedule, but those commands remain deferred here. Settings is an in-place modal
+// target rather than a route; its sub-copy is verbatim from the prototype (L2496).
 export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
   {
     id: 'nav:overview',
@@ -167,7 +172,7 @@ export const NAV_COMMAND_ITEMS: CmdkCommand[] = [
     sub: 'platform · profiles · budget · machines…',
     subKey: 'cpSubSettings',
     kbd: 'modal',
-    route: '/settings',
+    modal: 'settings',
     keywords: ['config'],
   },
 ];
@@ -179,7 +184,8 @@ function commandToRow(c: CmdkCommand): PaletteRow {
     label: c.label,
     sub: c.sub,
     kbd: c.kbd,
-    route: c.route,
+    ...(c.route ? { route: c.route } : {}),
+    ...(c.modal ? { modal: c.modal } : {}),
     keywords: c.keywords,
     labelKey: c.labelKey,
     subKey: c.subKey,

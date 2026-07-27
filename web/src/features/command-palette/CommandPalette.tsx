@@ -1,9 +1,14 @@
+// input:  cmdk, tRPC query data, router and Settings provider
+// output: Global searchable command-palette overlay
+// pos:    Dispatches page navigation and in-place modal commands
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
+import { useSettings } from '@/features/settings/SettingsProvider';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
 
 // ⌘K command palette — 1:1 rebuild from prototype.dc.html L1295–1315 (task c967). The overlay
@@ -130,6 +135,7 @@ function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const trpc = useTRPC();
   const navigate = useNavigate();
+  const { open: openSettings } = useSettings();
   const L = useVocab();
   const [query, setQuery] = useState('');
 
@@ -159,9 +165,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     [query, sessionsQuery.data, threadsQuery.data, tasksQuery.data],
   );
 
-  const go = (route: string, focusId?: string) => {
-    navigate(route, focusId ? { state: { focusId } } : undefined);
+  const go = (row: PaletteRow) => {
     onOpenChange(false);
+    if (row.modal === 'settings') {
+      openSettings();
+      return;
+    }
+    if (row.route) navigate(row.route, row.focusId ? { state: { focusId: row.focusId } } : undefined);
   };
 
   return (
@@ -201,7 +211,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       <Command.List style={BODY_STYLE}>
         <Command.Empty style={EMPTY_STYLE}>{L.cpNoResults}</Command.Empty>
         {rows.map((row) => (
-          <Row key={row.id} row={row} onSelect={() => go(row.route, row.focusId)} />
+          <Row key={row.id} row={row} onSelect={() => go(row)} />
         ))}
       </Command.List>
 

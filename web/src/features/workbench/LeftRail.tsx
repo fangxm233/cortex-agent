@@ -1,3 +1,7 @@
+// input:  tRPC data, shared project/session/modal contexts
+// output: Desktop project/session navigation rail
+// pos:    Owns workbench navigation and global-overlay triggers
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -21,6 +25,7 @@ import {
 } from './left-rail-projects';
 import { NewProjectModal } from './NewProjectModal';
 import { useApprovals } from '@/features/approvals/ApprovalsProvider';
+import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useVocab } from '@/i18n';
@@ -61,6 +66,7 @@ export function LeftRail(): JSX.Element {
   const trpc = useTRPC();
   const theme = useTheme();
   const setTheme = useSetTheme();
+  const { open: openSettings } = useSettings();
   const L = useVocab();
   // Live UI↔server connectivity for the daemon badge (green connected / amber (re)connecting /
   // red disconnected) — replaces the former always-green hard-code.
@@ -781,7 +787,7 @@ export function LeftRail(): JSX.Element {
         </span>
         <span
           {...hp('settings')}
-          onClick={() => navigate('/settings')}
+          onClick={openSettings}
           style={{ fontSize: 11.5, color: isHover('settings') ? 'var(--proto-ink)' : 'var(--proto-muted-2)', cursor: 'pointer' }}
         >
           {L.settings}

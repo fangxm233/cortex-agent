@@ -1,3 +1,7 @@
+// input:  Command-palette mappers and neutral DTO fixtures
+// output: Regression coverage for palette rows and targets
+// pos:    Pure command-palette behavior tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo, ThreadInfo, TaskInfo } from '@cortex-agent/ui-contract';
 import { buildCmdkItems, NAV_COMMAND_ITEMS, selectPaletteRows } from './palette-items';
@@ -141,17 +145,19 @@ describe('buildCmdkItems', () => {
 });
 
 describe('NAV_COMMAND_ITEMS', () => {
-  it('exposes Overview and Settings nav rows (prototype OV/ST legs)', () => {
+  it('exposes Overview as a page and Settings as an in-place modal', () => {
     const byId = Object.fromEntries(NAV_COMMAND_ITEMS.map((c) => [c.id, c]));
     expect(byId['nav:overview']).toMatchObject({ glyph: 'OV', route: '/overview' });
-    expect(byId['nav:settings']).toMatchObject({ glyph: 'ST', route: '/settings' });
+    expect(byId['nav:settings']).toMatchObject({ glyph: 'ST', modal: 'settings' });
+    expect(byId['nav:settings']).not.toHaveProperty('route');
   });
 
-  it('every nav item has a unique id, a route, a glyph and a kbd tag', () => {
+  it('every nav item has a unique id, one target, a glyph and a kbd tag', () => {
     const ids = NAV_COMMAND_ITEMS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const c of NAV_COMMAND_ITEMS) {
-      expect(c.route.startsWith('/')).toBe(true);
+      expect(Number(!!c.route) + Number(!!c.modal)).toBe(1);
+      if (c.route) expect(c.route.startsWith('/')).toBe(true);
       expect(c.glyph.length).toBeGreaterThan(0);
       expect(c.kbd.length).toBeGreaterThan(0);
     }

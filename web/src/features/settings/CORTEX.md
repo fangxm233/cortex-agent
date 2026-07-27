@@ -3,6 +3,8 @@
 The **Settings modal** overlay, rebuilt **1:1** from `design/ref/prototype.dc.html` L721–1088 (script
 L2379–2797) and diffed vs `design/proto-shots/14-settings.png` (plan §8.5 settings row). A 1080×680
 centered Radix-Dialog card: 48px header + **210px left nav (10 panels)** + `var(--proto-alt)` content area.
+`SettingsProvider` keeps one modal instance in `AppShell`; LeftRail and the Command Palette open it
+in place, so the current route and mounted workbench remain unchanged.
 
 The first nav entry is **Appearance** (`AppearancePanel.tsx`) — the two device-local settings:
 interface **language** (EN/中, `src/i18n` `useLang`/`useSetLang`, localStorage `cortex.lang`) and the
@@ -26,7 +28,7 @@ Wired to the **real** `config.get` query (redacted `~/.cortex/config` snapshot) 
 | `settings-render.test.tsx` | vitest `react-dom/server` render checks for the 8 panels (real data + placeholders, no cleartext leak) + the b983 wired affordances (default-profile select, approval-gated Reconnect/Add-machine buttons; inert without a handler). |
 | `BudgetPanel.tsx` | Budget panel 12c — **live write**: DAILY chip → `config.set(budget)` mutation → invalidate `config.get` (change→read-back). WARN AT + over-budget policy inert (no budget.json field). today/month from `cost.summary`; daily/monthly denominators from budget.json. |
 | `SettingsModal.tsx` | Radix Dialog shell (backdrop scrim + `cxmodal` anim + focus-trap/Esc) + header + 210px nav + content; binds `config.get` + `cost.summary`, switches the 9 panels client-side. **Owns the b983 action wiring** (the panels are pure): a `config.set` `profiles` mutation (→ invalidate `config.get`) and an `approvals.request` mutation, threaded to Profiles / Platform / Machines as `onSetDefaultProfile` / `onReconnect` / `onAddMachine`. |
-| `SettingsRoute.tsx` | Route `/settings` = `<WorkbenchPage/>` behind + `<SettingsModal open onClose→/workbench/>` (prototype `modal:'settings'` over a dimmed workbench). LeftRail Settings + ⌘K Settings both already navigate here. |
+| `SettingsProvider.tsx` | Global `open`/`close` context mounted in `AppShell`; preserves the underlying route and workbench instance while Settings is open. |
 
 ## Real data vs honest placeholders (no fabricated numbers)
 

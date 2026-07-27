@@ -2,15 +2,16 @@
 
 Global command palette on `cmdk`, **rebuilt 1:1 from the prototype** (`prototype.dc.html`
 L1295–1315, proto-shot `01-cmdk-palette.png`) — task c967, design §8.6 Stage R2. ⌘K / Ctrl+K
-opens the overlay; it searches **real** sessions/threads/tasks over tRPC and navigates via React
-Router. Keyboard-reachable end-to-end. Mounted globally in `shell/AppShell`.
+opens the overlay; it searches **real** sessions/threads/tasks over tRPC, navigates to pages via
+React Router, and opens Settings in place via `SettingsProvider`. Keyboard-reachable end-to-end.
+Mounted globally in `shell/AppShell`.
 
 | path | role |
 |---|---|
-| `palette-items.ts` | Pure mappers. `buildCmdkItems({ sessions, threads, tasks }) → CmdkItem[]` maps the three tRPC results into the prototype flat-row model (`glyph` SE/TH/TK · `label` · `sub` · right-aligned `kbd` session/thread/task · `route` · `focusId` · `keywords`). `NAV_COMMAND_ITEMS` = static nav rows (OV Overview / WB Workbench / TK Tasks / TH Threads / ST Settings — prototype OV/ST legs + section jumps). `selectPaletteRows(query, sources, opts)` = the prototype substring filter (`(label+sub+keywords).includes(q)`) with **caps** (empty query → nav + N recent entities/kind; typing → all matches capped) — feeding cmdk every real entity blows up the DOM and stalls the shared batched fetch. |
+| `palette-items.ts` | Pure mappers. `buildCmdkItems({ sessions, threads, tasks }) → CmdkItem[]` maps the three tRPC results into the prototype flat-row model (`glyph` SE/TH/TK · `label` · `sub` · right-aligned `kbd` session/thread/task · navigation or modal target · `keywords`). `NAV_COMMAND_ITEMS` = static page rows plus the ST Settings modal command. `selectPaletteRows(query, sources, opts)` filters and caps real rows. |
 | `palette-items.test.ts` | vitest unit tests for `buildCmdkItems` / `NAV_COMMAND_ITEMS` / `selectPaletteRows` (TDD — written first, watched fail). |
 | `useCommandPalette.ts` | Global ⌘K/Ctrl+K keydown hook (one window listener, cleaned up on unmount) → controlled `{ open, setOpen }`. Unchanged. |
-| `CommandPalette.tsx` | The `Command.Dialog` — 1:1 overlay chrome (exact inline styles/px/hex/font/weight from the prototype: search icon, `Jump to session / thread / task / file…` input, `esc` tag, flat rows, footer `↑↓ navigate · ⏎ open · esc dismiss`). `shouldFilter={false}` + controlled input → we own filtering via `selectPaletteRows`. Fetches `sessions/threads/tasks.list` (`enabled` while open, `staleTime`) via `useTRPC`; on select `navigate(route, { state: { focusId } })` + close. Panel/backdrop/row CSS live in `index.css` (`.cmdk-panel`/`.cmdk-backdrop`/`.cmdk-row`) since cmdk's Dialog exposes only classNames. |
+| `CommandPalette.tsx` | The `Command.Dialog` — 1:1 overlay chrome with controlled filtering. Fetches `sessions/threads/tasks.list` while open; page rows navigate, while ST closes the palette and calls `useSettings().open()` without changing route. |
 
 ## Notes
 
@@ -27,7 +28,7 @@ Router. Keyboard-reachable end-to-end. Mounted globally in `shell/AppShell`.
   rendering them all both breaks the panel height AND (with the workbench's live SSE saturating the
   HTTP/1.1 connection pool) stalls the palette's on-open batched fetch in headless-Chrome. Caps keep
   the DOM small; `staleTime` avoids a duplicate `sessions.list({})` refetch that entangled the batch.
-- **Navigation** targets the entity's section route (threads → `/threads/:id`; sessions → `/workbench`;
-  tasks → `/tasks`), carrying the entity id in `location.state.focusId` for a future detail surface.
+- **Targets**: entity/page rows navigate through React Router and carry `location.state.focusId` where
+  applicable; Settings closes the palette and opens `SettingsProvider` without changing location.
 - cmdk (`^1.1.1`) provides ↑/↓/Enter selection + focus trap; the underlying Radix Dialog provides
   Esc/overlay close + focus restore. `Command.Input` autofocuses on open.

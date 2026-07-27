@@ -1,3 +1,7 @@
+// input:  React Router, desktop/mobile shell detection, pages
+// output: Desktop SPA router
+// pos:    Maps page routes; modal overlays stay in AppShell
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createBrowserRouter, createHashRouter, Navigate } from 'react-router-dom';
 import { isNativeShell } from '@/lib/desktop-config';
 import { AppShell } from '@/shell/AppShell';
@@ -10,7 +14,6 @@ import { ThreadDetailRoute } from '@/features/thread/ThreadDetailRoute';
 import { OverviewPage } from '@/features/overview/OverviewPage';
 import { MemoryPage } from '@/features/memory/MemoryPage';
 import { SkillsPage } from '@/features/skills/SkillsPage';
-import { SettingsRoute } from '@/features/settings/SettingsRoute';
 
 // Any native Tauri shell (desktop OR Android) loads the SPA via an asset protocol at
 // `/index.html`, which a BrowserRouter cannot match (→ "404 Not Found"). Use a
@@ -30,7 +33,6 @@ export const router = createRouter([
       { path: 'overview', element: <OverviewPage /> },
       { path: 'memory', element: <MemoryPage /> },
       { path: 'skills', element: <SkillsPage /> },
-      { path: 'settings', element: <SettingsRoute /> },
       { path: 'kit', element: <KitPage /> },
       { path: 'base', element: <BaseDemoPage /> },
     ],
