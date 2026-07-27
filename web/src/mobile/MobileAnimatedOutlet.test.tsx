@@ -1,5 +1,10 @@
+// input:  vitest, react-dom/server, MobileAnimatedOutlet
+// output: transition planning and layer-identity regression tests
+// pos:    mobile route-transition behavior regression tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, it, expect } from 'vitest';
-import { planTransition, slideAnimClasses } from './MobileAnimatedOutlet';
+import { AnimatedOutletLayers, planTransition, slideAnimClasses } from './MobileAnimatedOutlet';
 
 // Pure logic of the mobile route-transition wrapper (the vitest env is `node`, so the DOM
 // enter/exit is proven in the live headless harness — see mobile CORTEX.md). These lock the
@@ -47,5 +52,27 @@ describe('slideAnimClasses', () => {
       incoming: 'animate-slide-in-left',
       outgoing: 'animate-slide-out-right',
     });
+  });
+});
+
+describe('AnimatedOutletLayers', () => {
+  const current = { key: '/m/session/chat', element: <div>chat</div> };
+  const previous = { key: '/m/sessions', element: <div>sessions</div> };
+
+  it('keeps the current keyed layer in both steady and transitioning trees', () => {
+    const steady = renderToStaticMarkup(
+      <AnimatedOutletLayers current={current} previous={null} dir="forward" onSettled={() => {}} />,
+    );
+    const transitioning = renderToStaticMarkup(
+      <AnimatedOutletLayers current={current} previous={previous} dir="forward" onSettled={() => {}} />,
+    );
+
+    for (const html of [steady, transitioning]) {
+      expect(html).toContain('data-route-layer="current"');
+      expect(html).toContain('data-route-key="/m/session/chat"');
+      expect(html).toContain('>chat</div>');
+    }
+    expect(steady).not.toContain('data-route-layer="previous"');
+    expect(transitioning).toContain('data-route-layer="previous"');
   });
 });
