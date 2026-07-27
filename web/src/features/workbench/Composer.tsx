@@ -1,4 +1,8 @@
-import { useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
+// input:  session/composer state, tRPC mutations, media and draft hooks
+// output: desktop message composer with status row and attachments
+// pos:    Workbench message input and turn-control surface
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
@@ -15,6 +19,7 @@ import { docKindOf } from '@/features/media/doc-kind';
 import { fetchFileObjectUrl } from '@/lib/files';
 import { draftStorageKey, loadDraft, saveDraft, clearDraft } from './composer-draft';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
+import { ComposerStatusLine } from './ComposerStatusLine';
 
 // Composer — extended with file attachment support (15a 附件输入与消息).
 // Three entry points for files: "+ attach" button · paste (clipboard images) · drag & drop.
@@ -130,6 +135,7 @@ export function Composer({
   isDraft = false,
   draftProfile = null,
   projectId = 'general',
+  statusAccessory,
 }: {
   sessionId: string;
   running: boolean;
@@ -145,6 +151,7 @@ export function Composer({
   isDraft?: boolean;
   draftProfile?: string | null;
   projectId?: string;
+  statusAccessory?: ReactNode;
 }): JSX.Element {
   const trpc = useTRPC();
   const L = useVocab();
@@ -770,51 +777,14 @@ export function Composer({
           </div>
         )}
 
-        {/* Running / idle status line */}
-        {running ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              font: `500 11px ${mono}`,
-              color: 'var(--proto-muted-2)',
-              padding: '8px 2px 10px',
-            }}
-          >
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                // Accent blue for both a live turn and a background hold — a background task is not a
-                // user action, so it no longer shows amber (amber is reserved for「需要你」). The
-                // Background/Running label still distinguishes the two states.
-                background: 'var(--proto-accent)',
-                animation: 'cxpulse 1.6s ease-in-out infinite',
-              }}
-            />
-            <span>
-              {backgroundRunning ? L.pillBackground : L.pillRunning} · {elapsed} · {turnsText}
-            </span>
-          </div>
-        ) : (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              font: `500 11px ${mono}`,
-              color: 'var(--proto-faint)',
-              padding: '8px 2px 10px',
-            }}
-          >
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--proto-line-3)' }} />
-            <span>
-              {hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle}
-            </span>
-          </div>
-        )}
+        {/* Running / idle status line with its optional right-aligned accessory. */}
+        <ComposerStatusLine
+          running={running}
+          text={running
+            ? `${backgroundRunning ? L.pillBackground : L.pillRunning} · ${elapsed} · ${turnsText}`
+            : (hasRun ? `${L.wbIdle} · ${elapsed} · ${turnsText} · ${costText}` : L.wbIdle)}
+          accessory={statusAccessory}
+        />
 
         {/* Composer card — doubles as drop zone (15a) */}
         <div

@@ -1,10 +1,9 @@
-// input:  session/profile/context state, config, profile mutations
-// output: ChatHeader with status, compact context, profile/id controls
+// input:  active/draft session state, profile config, profile mutations
+// output: ChatHeader with profile picker, status, and session-id menu
 // pos:    Desktop chat header presentation and profile control
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { buildProfileOptions, currentBackendOf } from './profile-menu';
@@ -12,7 +11,6 @@ import { ProfileMenu } from './ProfileMenu';
 import { SessionIdModal } from './SessionIdModal';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { resolveTransitionProfile } from './selected-session';
-import { ContextUsageControl } from './ContextUsageControl';
 
 // Chat header — 1:1 from prototype.dc.html L107–130: session title · profile chip · running/idle
 // status pill · ⌘K affordance. `title` is the REAL active session name (task aba0); `running` is
@@ -34,9 +32,6 @@ export function ChatHeader({
   sessionName,
   currentProfile,
   hasHistory,
-  contextUsage,
-  contextUsageSupported,
-  contextUsageLang,
   isDraft = false,
 }: {
   title: string;
@@ -51,9 +46,6 @@ export function ChatHeader({
   sessionName: string | null;
   currentProfile: string | null;
   hasHistory: boolean;
-  contextUsage: SessionContextUsage | null;
-  contextUsageSupported: boolean;
-  contextUsageLang: 'en' | 'zh';
   isDraft?: boolean;
 }): JSX.Element {
   const trpc = useTRPC();
@@ -234,11 +226,6 @@ export function ChatHeader({
         </span>
       )}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 14, color: 'var(--proto-muted-2)' }}>
-        {(contextUsageSupported || contextUsage !== null) ? (
-          <span data-context-usage-position="header" style={{ display: 'inline-flex' }}>
-            <ContextUsageControl usage={contextUsage} supported={contextUsageSupported} variant="desktop" lang={contextUsageLang} />
-          </span>
-        ) : null}
         <span
           onClick={onCmdK}
           onMouseEnter={() => setCmdkHover(true)}
