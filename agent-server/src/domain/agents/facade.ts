@@ -1,5 +1,5 @@
 // input:  config, adapters, profiles, normalized tool and notice events
-// output: runAgent facade with typed notice and lossless tool callbacks
+// output: runAgent facade with typed API-error and compaction notices
 // pos:    Sole backend-neutral agent execution path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -18,6 +18,10 @@ import { loadCortexRules } from '../memory/rules-loader.js';
 import { t } from '../../core/i18n.js';
 
 const log = createLogger('facade');
+
+function assistantNoticeLevel(text: string): ChatNoticeLevel | undefined {
+  return text.startsWith('API Error:') ? 'error' : undefined;
+}
 
 // --- Types ---
 
@@ -216,7 +220,7 @@ export function runWithAdapter(
       for await (const event of proc.events) {
         switch (event.type) {
           case 'assistant_text':
-            options.onAssistantMessage?.(event.text, event.blockId);
+            options.onAssistantMessage?.(event.text, event.blockId, assistantNoticeLevel(event.text));
             break;
           case 'assistant_delta':
             // Token-level preview. Only surfaces where a caller opted in by passing the callback —

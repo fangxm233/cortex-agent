@@ -1,5 +1,5 @@
 // input:  fake adapters, runWithAdapter, and locale state
-// output: event callbacks including typed notices, tool results, and kill semantics
+// output: callbacks for API-error notices, tools, progress, and kill
 // pos:    Verifies backend-neutral event dispatch into agent callbacks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -194,6 +194,36 @@ test('runWithAdapter: context compaction emits one concise info notice', async (
   ).promise;
 
   assert.deepEqual(notices, [{ text: 'Context auto-compacted.', level: 'info' }]);
+});
+
+test('runWithAdapter: a leading API Error becomes an error notice without reclassifying prose', async () => {
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const adapter = makeFakeAdapter('claude', {
+    events: [
+      { type: 'assistant_text', text: 'API Error: Unable to connect to API (ECONNRESET)' },
+      { type: 'assistant_text', text: 'The log mentions API Error: timeout.' },
+      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
+    ],
+    resultOnResolve: defaultAgentResult('s-api-error'),
+    recorded,
+  });
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  await runWithAdapter(
+    adapter,
+    'msg',
+    {
+      channel: 'web:session',
+      onAssistantMessage: (text: string, _blockId?: string, level?: string) => notices.push({ text, level }),
+    },
+    { model: 'm', backend: 'claude', mode: null },
+    undefined,
+  ).promise;
+
+  assert.deepEqual(notices, [
+    { text: 'API Error: Unable to connect to API (ECONNRESET)', level: 'error' },
+    { text: 'The log mentions API Error: timeout.', level: undefined },
+  ]);
 });
 
 test('runWithAdapter: tool_result preserves full multiline content, error status, and correlation id', async () => {
