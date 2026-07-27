@@ -1,0 +1,9 @@
+name = "cortex-deepseek-relay"
+main = "src/index.ts"
+compatibility_date = "2026-07-26"
+workers_dev = true
+preview_urls = false
+
+[[routes]]
+pattern = "deepseek-relay.fangxm.me"
+custom_domain = true

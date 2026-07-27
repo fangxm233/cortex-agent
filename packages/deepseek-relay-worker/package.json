@@ -1,0 +1,20 @@
+{
+  "name": "@cortex-agent/deepseek-relay-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Authenticated Cloudflare Worker relay from Cortex to the DeepSeek API.",
+  "scripts": {
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/index.test.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.114.0"
+  }
+}
