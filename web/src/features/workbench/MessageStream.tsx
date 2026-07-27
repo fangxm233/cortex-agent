@@ -383,13 +383,10 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
   debug?: { agentMessage: string };
 }): JSX.Element {
   const hasAttachments = attachments && attachments.length > 0;
-  const [hover, setHover] = useState(false);
   const [debugDetail, setDebugDetail] = useState<DebugDetail | null>(null);
   return (
     <div
       className="group"
-      onMouseEnter={editCopy ? () => setHover(true) : undefined}
-      onMouseLeave={editCopy ? () => setHover(false) : undefined}
       style={{
         position: 'relative',
         alignSelf: 'flex-end',
@@ -401,6 +398,28 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
         animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
       }}
     >
+      {/* One message-level pill owns copy, edit, and DEBUG inspect. It sits to the left so the
+          right-aligned row never extends the transcript's scroll width. */}
+      {editCopy && (text || debug) && (
+        <div
+          className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
+          style={{ position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)', paddingRight: 8, display: 'flex' }}
+        >
+          <HoverActionPill
+            text={text}
+            copy={editCopy}
+            showCopy={!!text}
+            onEdit={text ? onStartEdit : undefined}
+            editDisabled={editDisabled}
+            extraAction={debug ? (
+              <DebugInspectButton
+                className="!h-[26px] !min-w-[26px] !border-0 !bg-transparent !px-0 !shadow-none"
+                onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }}
+              />
+            ) : undefined}
+          />
+        </div>
+      )}
       {/* Attachments above the bubble */}
       {hasAttachments && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -409,15 +428,8 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
           ))}
         </div>
       )}
-      {/* Text bubble — hover floats the copy/edit pill to its left (sec-23: 不遮内容).
-          The pill is absolutely positioned so it never consumes the bubble's width. */}
       {text && (
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', maxWidth: '100%' }}>
-          {editCopy && hover && (
-            <div style={{ position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)', paddingRight: 8, display: 'flex' }}>
-              <HoverActionPill text={text} copy={editCopy} onEdit={onStartEdit} editDisabled={editDisabled} />
-            </div>
-          )}
           <div
             style={{
               background: 'var(--proto-gray)',
@@ -436,11 +448,6 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
           </div>
         </div>
       )}
-      {debug ? (
-        <div style={{ position: 'absolute', left: '100%', top: '50%', transform: 'translateY(-50%)', paddingLeft: 8, display: 'flex' }}>
-          <DebugInspectButton onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }} />
-        </div>
-      ) : null}
       <DebugDetailsModal detail={debugDetail} onClose={() => setDebugDetail(null)} />
       {/* 已编辑 badge + hover original card (sec-23 right column) */}
       {editCopy && edited && <EditedBadge edited={edited} ts={ts} copy={editCopy} />}

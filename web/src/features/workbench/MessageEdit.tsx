@@ -1,7 +1,12 @@
+// input:  message text, edit callbacks, optional message actions
+// output: Desktop message actions and rewind presentation
+// pos:    Desktop user-message edit and action chrome
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useEffect, useRef, useState } from 'react';
 
 // Message edit + rewind — desktop chrome, 1:1 from scheme.dc.html sec-23 (23a). Pieces used by
-// MessageStream: the hover copy/edit pill, the in-place bubble edit box (Esc 取消 · ⌘↩ 发送并回退),
+// MessageStream: the hover action pill, the in-place bubble edit box (Esc 取消 · ⌘↩ 发送并回退),
 // the amber discard note + the「将被回退」dimmed-tail wrapper, the「已编辑」badge with the hover
 // original-message card, and the「由编辑重新生成」regen footnote. All logic that computes WHAT is
 // discarded lives in transcript-vm (`rewindStats`); these are presentation + local interaction only.
@@ -75,15 +80,17 @@ function TipBubble({ text, side = 'center' }: { text: string; side?: 'center' | 
 }
 
 /**
- * Hover action pill (23a): copy (+ optional edit). Copy flips to a green ✓ + tooltip for 1.5s.
- * Edit greys out while `editDisabled` (running) with an explanatory tooltip on hover.
+ * Hover action pill (23a): copy, optional edit, and an optional composed message action. Copy flips
+ * to a green ✓ + tooltip for 1.5s; edit greys out while running. Attachment-only rows can hide copy.
  */
-export function HoverActionPill({ text, copy, onEdit, editDisabled }: {
+export function HoverActionPill({ text, copy, onEdit, editDisabled, showCopy = true, extraAction }: {
   text: string;
   copy: MEditCopy;
   /** Present → the edit button renders (user messages only). */
   onEdit?: () => void;
   editDisabled?: boolean;
+  showCopy?: boolean;
+  extraAction?: React.ReactNode;
 }): JSX.Element {
   const [copied, setCopied] = useState(false);
   const [editHover, setEditHover] = useState(false);
@@ -107,17 +114,19 @@ export function HoverActionPill({ text, copy, onEdit, editDisabled }: {
     >
       {copied && <TipBubble text={copy.copied} />}
       {editHover && editDisabled && <TipBubble text={copy.editDisabled} side="right" />}
-      <span
-        role="button"
-        title={copied ? undefined : copy.copy}
-        onClick={doCopy}
-        style={{
-          width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', ...(copied ? { background: 'var(--proto-success-bg)' } : {}),
-        }}
-      >
-        {copied ? <span style={{ color: 'var(--proto-success)', fontSize: 11, fontWeight: 700 }}>✓</span> : <CopyIcon />}
-      </span>
+      {showCopy && (
+        <span
+          role="button"
+          title={copied ? undefined : copy.copy}
+          onClick={doCopy}
+          style={{
+            width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', ...(copied ? { background: 'var(--proto-success-bg)' } : {}),
+          }}
+        >
+          {copied ? <span style={{ color: 'var(--proto-success)', fontSize: 11, fontWeight: 700 }}>✓</span> : <CopyIcon />}
+        </span>
+      )}
       {onEdit && (
         <span
           role="button"
@@ -133,6 +142,7 @@ export function HoverActionPill({ text, copy, onEdit, editDisabled }: {
           <EditIcon />
         </span>
       )}
+      {extraAction}
     </div>
   );
 }

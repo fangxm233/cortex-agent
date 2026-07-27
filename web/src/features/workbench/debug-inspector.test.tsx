@@ -1,12 +1,13 @@
-// input:  DEBUG rows, server warnings, details, modal sizing
-// output: badge warning, chrome, count, and full-detail regressions
-// pos:    desktop DEBUG transcript inspector specification
+// input:  DEBUG rows, message actions, server warnings, details
+// output: embedded inspector, warning, and full-detail regressions
+// pos:    Desktop DEBUG transcript inspector specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LangProvider } from '@/i18n';
 import { MessageStream } from './MessageStream';
+import { HoverActionPill, M_EDIT_COPY } from './MessageEdit';
 import { ToolCallsRow, toolWarningStyle } from './ToolCallsRow';
 import { modalContentClass } from '@/design/Modal';
 import {
@@ -23,12 +24,27 @@ function render(node: React.ReactNode): string {
 }
 
 describe('desktop DEBUG inspector controls', () => {
-  it('renders a hover/focus-only button for a user row with an exact agent message', () => {
+  it('renders a hover/focus-only button for a user row without placing it beyond the right edge', () => {
     const rows: ChatRow[] = [{ kind: 'user', text: 'visible', debug: { agentMessage: 'context\nvisible' } }];
     const html = render(<MessageStream rows={rows} loading={false} />);
     expect(html).toContain('aria-label="Inspect DEBUG data"');
     expect(html).toContain('opacity-0');
     expect(html).toContain('group-hover:opacity-100');
+    expect(html).not.toContain('left:100%');
+  });
+
+  it('embeds the inspector in the same action pill as copy and edit', () => {
+    const html = render(
+      <HoverActionPill
+        text="visible"
+        copy={M_EDIT_COPY.en}
+        onEdit={() => {}}
+        extraAction={<DebugInspectButton onClick={() => {}} />}
+      />,
+    );
+    expect(html).toContain('title="Copy"');
+    expect(html).toContain('title="Edit message"');
+    expect(html).toContain('aria-label="Inspect DEBUG data"');
   });
 
   it('still renders the inspector for an attachment-only user message', () => {
