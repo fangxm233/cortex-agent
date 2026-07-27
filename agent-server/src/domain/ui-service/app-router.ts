@@ -1,4 +1,4 @@
-// input:  UiService (injected) + ui-service zod input schemas + tRPC init (./trpc.js)
+// input:  UiService (injected) + ui-service zod schemas including rate-limit status + tRPC init
 // output: createAppRouter(uiService): AppRouter — the typed client↔server contract
 //         mirroring ui-service query/mutate/subscribe. AppRouter type re-exported by
 //         @cortex-agent/ui-contract for the browser client.
@@ -58,6 +58,7 @@ import {
   skillsListInput,
   threadTemplatesGetInput,
   systemDaemonStatusInput,
+  systemRateLimitStatusInput,
   systemRestartInput,
 } from './input-schemas.js';
 import type {
@@ -231,6 +232,7 @@ export function createAppRouter(uiService: UiService) {
     }),
     system: router({
       daemonStatus: makeQuery(uiService, 'system.daemonStatus', systemDaemonStatusInput),
+      rateLimitStatus: makeQuery(uiService, 'system.rateLimitStatus', systemRateLimitStatusInput),
       restart: makeMutation(uiService, 'system.restart', systemRestartInput),
     }),
     subscribe: publicProcedure

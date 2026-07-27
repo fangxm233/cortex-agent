@@ -8,7 +8,7 @@ Cortex is an autonomous research agent system for robotics and AI/ML. It runs as
 |-----------|---------|
 | `agent-server/` | Main server application (TypeScript, Node.js >=20). Slack/Feishu bot, LLM orchestration, scheduling, task system, MCP tools. See [agent-server/CORTEX.md](agent-server/CORTEX.md). |
 | `client/` | Remote agent client (TypeScript, Node.js >=20). Connects to agent-server via WebSocket, executes bash/read/write/edit/glob/grep commands locally, supports cortex-run for long-running task execution. See [client/src/CORTEX.md](client/src/CORTEX.md). |
-| `web/` | Web SPA (Vite + React 18, tRPC client). Built to `web/dist` which is served same-origin by agent-server's in-core Web UI transport-host (`platform/ui-http`, opt-in via `CORTEX_UI_HTTP`) and by the desktop shell. On publish, `web/dist` is staged into the server package (prepack) and shipped in its `files`. |
+| `web/` | Web SPA (Vite + React 18, tRPC client), including active-only provider throttle status on desktop and mobile Projects. Built to `web/dist`, served by the in-core UI host and desktop shell. |
 | `desktop/` | Tauri v2 desktop shell. Loads `web/dist` via asset protocol in a native webview. Exposes `get_connection_config` / `set_connection_config` Tauri commands plus `window.__CORTEX_DESKTOP_CONFIG` for injecting `{serverUrl, token}` into the SPA. See [desktop/CORTEX.md](desktop/CORTEX.md). |
 | `packages/` | Shared/deployment packages: `ui-contract` provides Web UI tRPC types; `deepseek-relay-worker` is the authenticated, fixed-upstream Cloudflare Worker used when lab2 cannot reach DeepSeek directly. |
 | `context/` | Structured knowledge repository for research projects (experiments, knowledge entries, patterns). |
@@ -54,7 +54,7 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 | `profiles.json` | Named agent profile list |
 | `budget.json` | Daily/monthly budget limits |
 | `costs.jsonl` | Per-call cost records (90-day rolling) |
-| `schedules.json` | Persistent scheduled task list |
+| `schedules.json` | Scheduled tasks, provider/window throttle records, and pending global resume queue |
 | `sessions.json` | Channel-to-agent session mapping |
 | `executions.json` | Unified execution registry |
 | `thread-templates.json` | Agent definitions and orchestration templates |

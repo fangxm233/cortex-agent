@@ -1,5 +1,5 @@
-// input:  ScheduleRepo, runner callback
-// output: Scheduler class + duration helpers
+// input:  ScheduleRepo, runner callback, persisted provider throttle records
+// output: Scheduler class + duration helpers + throttle persistence passthrough
 // pos:    scheduled task scheduler (hot-reload + preCheck skip). Persistence delegated to store/schedule-repo.ts.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -10,7 +10,7 @@ import { Icons } from '../../core/icons.js';
 import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { getDefaultProfileName } from '../agents/profile-manager.js';
-import { ScheduleRepo, scheduleRepo, SCHEDULES_FILE, type ScheduleTask } from '@store/schedule-repo.js';
+import { ScheduleRepo, scheduleRepo, SCHEDULES_FILE, type ScheduleTask, type PersistedRateLimitThrottle } from '@store/schedule-repo.js';
 
 const log = createLogger('scheduler');
 
@@ -430,11 +430,11 @@ class Scheduler {
     this._onGuardBlocked = fn;
   }
 
-  async getRateLimitThrottle(): Promise<{ resetsAt: number; activatedAt: number; modes?: string[] } | null> {
+  async getRateLimitThrottle(): Promise<PersistedRateLimitThrottle | null> {
     return this._repo.getRateLimitThrottle();
   }
 
-  async setRateLimitThrottle(meta: { resetsAt: number; activatedAt: number; modes?: string[] } | null): Promise<void> {
+  async setRateLimitThrottle(meta: PersistedRateLimitThrottle | null): Promise<void> {
     await this._withWriteGuard(() => this._repo.setRateLimitThrottle(meta));
   }
 

@@ -1,23 +1,8 @@
-// 1e 项目 — the current project's info + the project switcher (scheme-mobile.dc.html 1e L286-352).
-// The 项目 tab owns the global scope: switching a project re-points 会话/线程/任务 (via useMobileProject)
-// and lands on the sessions tab. Real tRPC: projects.list, cost.summary (scoped + global), threads.list
-// (unscoped → per-project counts), approvals.list (pending), machines.list.
-//
-// REAL-vs-GAP field map (honest):
-//  · Header daemon status  → REAL live UI<->server connectivity (useConnectionStatus, the tRPC SSE
-//    link state): green connected / amber (re)connecting / red disconnected — no longer inferred from a
-//    query succeeding.
-//  · Current name/avatar   → REAL: project id (ProjectConduitInfo has no display name) + projectInitials.
-//  · 线程运行中 / 线程暂停等待 → REAL: threads.list filtered by projectId + status (running / waiting).
-//  · N 需要你 / 审批 · N 待处理 → GLOBAL pending-approval count. GAP: ApprovalInfo has no projectId, so
-//    this cannot be scoped to the current project — it is the system-wide pending count.
-//  · Phase 2 · M2.3         → OMITTED. GAP: no DTO source (not fabricated).
-//  · Budget row today/week/month/dailyBudget/forecastToday → REAL cost.summary fields (scoped by
-//    projectId). GAP caveat: dailyBudget is the global budget.json cap, not per-project (by contract).
-//  · 机器 · N 台正常         → REAL: machines.list online count (MachineInfo.online).
-//  · Switcher per-project running → REAL (threads.list); 今日 $ → REAL global cost.summary byProject
-//    bucket; null-safe (omitted, never a fabricated $0). Per-project 需要你 → OMITTED (see approvals GAP).
-import { useMemo, useState } from 'react';
+// input:  project queries, live connectivity, provider rate-limit status, navigation
+// output: mobile Projects screen with active-only limit sheet and project actions
+// pos:    Data/container owner for the Projects tab
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -37,6 +22,7 @@ import { MProjectView, type MProjectCopy } from './MProjectView';
 import { threadCountsForProject, onlineMachineCount, buildProjectSwitchRows } from './m-project-vm';
 import { MNewProjectView } from './MNewProjectView';
 import { canCreate, type MNewProjectCopy } from './m-new-project-vm';
+import { MobileRateLimitSheet, useRateLimitStatus } from '@/features/rate-limit';
 
 const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   en: {
@@ -152,6 +138,11 @@ export function MProjectScreen() {
   const onlineMachines = onlineMachineCount(machines);
   // Real UI<->server connectivity (SSE link) — supersedes the former query-inferred boolean.
   const connStatus = useConnectionStatus();
+  const rateLimitStatus = useRateLimitStatus();
+  const [rateLimitOpen, setRateLimitOpen] = useState(false);
+  useEffect(() => {
+    if (!rateLimitStatus) setRateLimitOpen(false);
+  }, [rateLimitStatus]);
 
   const current = useMemo(() => {
     if (!currentProjectId) return null;
@@ -231,6 +222,8 @@ export function MProjectScreen() {
         issues={issues}
         onlineMachines={onlineMachines}
         switchRows={switchRows}
+        rateLimitStatus={rateLimitStatus}
+        onOpenRateLimit={() => setRateLimitOpen(true)}
         onIssues={() => navigate('/m/issues')}
         onApprovals={() => navigate('/m/approvals')}
         onMemory={() => navigate('/m/memory')}
@@ -242,6 +235,9 @@ export function MProjectScreen() {
         }}
         onNewProject={() => { setNewProjectName(''); setNewProjectOpen(true); }}
       />
+      {rateLimitOpen && rateLimitStatus && (
+        <MobileRateLimitSheet status={rateLimitStatus} onClose={() => setRateLimitOpen(false)} />
+      )}
       {newProjectOpen && (
         <MNewProjectView
           name={newProjectName}

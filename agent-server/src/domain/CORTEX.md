@@ -6,6 +6,7 @@ Currently only has threads/ subdirectory; subsequent S8-S11 will gradually add a
 | subdirectory | status | function |
 |---|---|---|
 | `system/` | [DR-0013] DONE | Server auto-update: UpdatePrompt interface, update state persistence. `system-notice.ts` = the encapsulated admin/system broadcast seam: `emitSystemNotice(adapter, {text,level?,title?})` posts to the platform admin channel AND publishes a `system.notice` EventBus event (Web toast source); `publishSystemNotice` is the bus-only half. Routed from startup/restart (entry/startup-notify), profile/config/machine + client hot-reload (entry/app), disk-monitor, rate-limit-throttle, codex-usage-monitor |
+| `costs/` | active | Cost tracking plus provider-scoped rate-limit throttle. Each provider owns independent windows/modes; legacy singleton state migrates to Anthropic, nearest-window expiry prunes independently, and the final provider clear drains the global resume queue. |
 | `threads/` | [S7] DONE | Thread lifecycle, prompt building, config loading, artifact I/O |
 | `agents/` | [S11] DONE | Agent execution facade, bridge exports, gateway routing, and fallback policy. The normalized callback seam dispatches backend-neutral context usage, typed notices, tool ids/results, and progress. `profile-switch.ts` owns the shared same-backend switch rule |
 | `tasks/` | [S2] DONE | Task system: parser (read path, core in core/task-parser.ts), mutator (write path, 17 mutations), dispatcher, archiver, recommendation |

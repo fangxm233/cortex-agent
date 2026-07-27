@@ -1,4 +1,4 @@
-// input:  built ui-service declarations with context/notice/DEBUG details
+// input:  built ui-service declarations with provider throttle/context/notice details
 // output: zero-duplication type-only client contract re-exports
 // pos:    Shared server-to-client compile-time DTO boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -121,6 +121,10 @@ export type {
   SystemDaemonStatusParams,
   SystemDaemonStatus,
   DaemonProcessInfo,
+  SystemRateLimitStatusParams,
+  SystemRateLimitStatus,
+  RateLimitProviderInfo,
+  RateLimitWindowInfo,
   SystemRestartArgs,
   SystemRestartReturn,
   // Mapped contract

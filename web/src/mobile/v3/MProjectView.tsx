@@ -1,13 +1,15 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1e L286-352)
-// 1e 项目 — presentational. Current-project card (blue) + amber approval bar + info list + project
-// switcher + new-project card + footer. All numbers are supplied real by the container; this file only
-// lays out the scheme's raw chrome. GAPs are documented at the VM (m-project-vm.ts) and container.
+// @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
+// input:  project data, connectivity, and active-only provider throttle view
+// output: Projects tab with rate-limit trigger immediately before daemon status
+// pos:    Presentational mobile Projects surface
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { MScreen, MTabHeader, MScrollBody, MCard, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
 import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { mConnTone, mConnPulse } from './m-connection';
 import type { MProjectSwitchRow } from './m-project-vm';
+import { MobileRateLimitStatus, type RateLimitView } from '@/features/rate-limit';
 
 export interface MProjectCopy {
   title: string;
@@ -68,6 +70,8 @@ export interface MProjectViewProps {
   issues: MProjectIssues;
   onlineMachines: number;
   switchRows: MProjectSwitchRow[];
+  rateLimitStatus: RateLimitView | null;
+  onOpenRateLimit: () => void;
   onIssues: () => void;
   onApprovals: () => void;
   onMemory: () => void;
@@ -423,7 +427,15 @@ export function MProjectView(props: MProjectViewProps) {
     <MScreen
       label="1e 项目"
       header={
-        <MTabHeader title={copy.title} trailing={<DaemonStatus status={connStatus} copy={copy} />} />
+        <MTabHeader
+          title={copy.title}
+          trailing={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <MobileRateLimitStatus status={props.rateLimitStatus} onOpen={props.onOpenRateLimit} />
+              <DaemonStatus status={connStatus} copy={copy} />
+            </div>
+          }
+        />
       }
     >
       <MScrollBody gap={10}>

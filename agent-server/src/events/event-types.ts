@@ -1,5 +1,5 @@
-// input:  ChatNoticeLevel and SessionContextUsage
-// output: CortexEvent union including context, notice, and message metadata
+// input:  ChatNoticeLevel, SessionContextUsage, and system state-change hints
+// output: CortexEvent union including context, notices, throttle changes, and message metadata
 // pos:    Typed event contract for the shared EventBus
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -77,6 +77,7 @@ export type CortexEvent =
   | { type: 'llm.active-count-delta'; ts: string; delta: number }
   | { type: 'scheduler.tick';         ts: string; jobKey: string }
   | { type: 'rate-limit.breach';      ts: string; provider: string; percent: number }
+  | { type: 'rate-limit.changed';     ts: string }
 
     // ── Meta-events (EventBus / EventLogger infrastructure) ───────────────────
   // Audit

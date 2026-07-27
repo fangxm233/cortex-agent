@@ -1,7 +1,13 @@
+// input:  mobile Projects props including active/null provider rate-limit views
+// output: static-render assertions for project content and header status ordering
+// pos:    Presentational regression coverage for MProjectView
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProjectView';
+import { buildRateLimitView } from '@/features/rate-limit/rate-limit-vm';
 
 const copy: MProjectCopy = {
   title: '项目',
@@ -84,6 +90,8 @@ function baseProps(over: Partial<MProjectViewProps> = {}): MProjectViewProps {
       },
     ],
     issues: { count: 4, previews: ['EXP-023 验证集 return 回落', 'gpu-02 磁盘剩余 6%'] },
+    rateLimitStatus: null,
+    onOpenRateLimit: noop,
     onIssues: noop,
     onApprovals: noop,
     onMemory: noop,
@@ -119,6 +127,19 @@ describe('MProjectView', () => {
     expect(html).toContain('项目');
     expect(html).toContain('daemon 已连接');
     expect(html).toContain('var(--m-done)');
+  });
+
+  it('shows rate-limit status immediately before daemon only while active', () => {
+    const rateLimitStatus = buildRateLimitView({
+      providers: [{
+        provider: 'anthropic', displayName: 'Anthropic',
+        windows: [{ type: 'seven_day', utilization: 0.97, resetsAt: 1_800_003_600, activatedAt: 1 }],
+      }],
+    }, 1_800_000_000, 'en');
+    const active = render({ rateLimitStatus });
+    expect(active).toContain('Anthropic · 7d · 1h');
+    expect(active.indexOf('Anthropic · 7d · 1h')).toBeLessThan(active.indexOf('daemon 已连接'));
+    expect(render({ rateLimitStatus: null })).not.toContain('Rate limit status');
   });
 
   it('shows the reconnecting state (amber pulsing dot) when the link is reconnecting', () => {

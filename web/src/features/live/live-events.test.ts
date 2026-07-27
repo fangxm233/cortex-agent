@@ -1,5 +1,5 @@
 // input:  Vitest and shared live-event pure rules
-// output: shared-union, context/DEBUG refresh, scope, fan-out, reconnect tests
+// output: shared-union, rate-limit/context refresh, scope, fan-out, reconnect tests
 // pos:    Unit tests for the Web shared SSE event model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -11,6 +11,7 @@ import {
   matchesLiveEvent,
   ASSISTANT_DELTA_EVENTS,
   CONFIG_LIVE_EVENTS,
+  RATE_LIMIT_LIVE_EVENTS,
   LIVE_EVENT_TYPES,
   SESSION_LIVE_EVENTS,
   SYSTEM_LIVE_EVENTS,
@@ -23,7 +24,7 @@ const ev = (type: string, payload?: Record<string, unknown>): LiveEvent => ({ ty
 
 describe('LIVE_EVENT_TYPES', () => {
   it('is the union of every consumer group — a group event missing here would never reach its hook', () => {
-    for (const t of [...SESSION_LIVE_EVENTS, ...THREAD_LIVE_EVENTS, ...TASK_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS, ...CONFIG_LIVE_EVENTS]) {
+    for (const t of [...SESSION_LIVE_EVENTS, ...THREAD_LIVE_EVENTS, ...TASK_LIVE_EVENTS, ...SYSTEM_LIVE_EVENTS, ...CONFIG_LIVE_EVENTS, ...RATE_LIMIT_LIVE_EVENTS]) {
       expect(LIVE_EVENT_TYPES).toContain(t);
     }
   });
@@ -41,6 +42,13 @@ describe('SESSION_LIVE_EVENTS', () => {
     expect(LIVE_EVENT_TYPES).toContain('session.context-usage');
     expect(SESSION_LIVE_EVENTS).toContain('session.debug.updated');
     expect(LIVE_EVENT_TYPES).toContain('session.debug.updated');
+  });
+});
+
+describe('RATE_LIMIT_LIVE_EVENTS', () => {
+  it('carries the content-free throttle refresh hint on the shared stream', () => {
+    expect(RATE_LIMIT_LIVE_EVENTS).toEqual(['rate-limit.changed']);
+    expect(LIVE_EVENT_TYPES).toContain('rate-limit.changed');
   });
 });
 

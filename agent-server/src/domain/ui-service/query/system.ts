@@ -1,14 +1,19 @@
-// input:  STORE_DIR paths (daemon.pid, daemon-child.pid), /proc for uptime
-// output: handleSystemDaemonStatus(params) → SystemDaemonStatus
-// pos:    query handler for 'system.daemonStatus'. Reads the daemon's PID files from
-//         STORE_DIR (shared between daemon and app.js via DATA_DIR) to report process
-//         liveness and uptime. Gracefully degrades on non-Linux or stale PIDs.
+// input:  STORE_DIR process files, /proc uptime, active provider throttle state
+// output: system daemon status and provider/window rate-limit snapshots
+// pos:    system UI queries; process health plus active-only throttle truth
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
-import type { SystemDaemonStatus, DaemonProcessInfo, SystemDaemonStatusParams } from '../types.js';
+import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
+import type {
+  SystemDaemonStatus,
+  DaemonProcessInfo,
+  SystemDaemonStatusParams,
+  SystemRateLimitStatus,
+  SystemRateLimitStatusParams,
+} from '../types.js';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -127,4 +132,15 @@ export async function handleSystemDaemonStatus(
     processes,
     lastRestart: { at: lastRestartAt, reason: lastRestartReason },
   };
+}
+
+export async function handleSystemRateLimitStatus(
+  _params: SystemRateLimitStatusParams,
+): Promise<SystemRateLimitStatus> {
+  const providers = getThrottleState().providers.map((provider) => ({
+    provider: provider.provider,
+    displayName: provider.displayName,
+    windows: provider.windows.map((window) => ({ ...window })),
+  }));
+  return { providers };
 }

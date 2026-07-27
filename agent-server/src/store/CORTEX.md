@@ -18,7 +18,7 @@ task-repo.ts responsibilities are limited to I/O + lock + git sync, does not car
 | `session-registry-repo.ts` | persistence | Session registry identity/origin persistence plus optional latest backend context snapshot (`contextUsage`, timestamped). Also carries resumability, profile/backend ids, origin filtering, and `lastReadAt` unread tracking |
 | `execution-repo.ts` | persistence | Execution registry persistence |
 | `project-dir-repo.ts` | persistence | Project → external code directory mapping |
-| `schedule-repo.ts` | persistence | Scheduled task list persistence — ScheduleTask includes target (fresh/channel/session/thread) + fallback (fresh/skip/wait), migrate auto-backfills target=fresh for old records |
+| `schedule-repo.ts` | persistence | Scheduled task list persistence — ScheduleTask includes target/fallback; rate-limit persistence stores independent provider/window records while accepting the legacy singleton shape; resumeQueue remains global. |
 | `cost-repo.ts` | persistence | Cost record persistence |
 | `profile-repo.ts` | persistence | Agent profile persistence + validated hot reload; successful reload callback lets entry publish a typed UI refresh hint, invalid JSON keeps the prior cache |
 | `task-repo.ts` | persistence | load/refresh/flush + read-only queries + runExclusive/commitAndPush. Pure I/O + mutex + git, no domain mutation forwarding |

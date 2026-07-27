@@ -14,7 +14,7 @@ Source code in src/, configuration/data in root directory, logs in logs/.
 | `profiles.json` | Configuration | Named agent profile list |
 | `budget.json` | Configuration | Daily/monthly budget limit |
 | `costs.jsonl` | Data | Cost record per call (90-day rolling, JSONL format) |
-| `schedules.json` | Data | Persistent scheduled task list |
+| `schedules.json` | Data | Scheduled tasks plus provider/window rate-limit throttle state and the global resume queue |
 | `update-state.json` | Data | Skipped-version persistence for server auto-update (DR-0013) |
 | `orient-state.json` | Data | Old compound hierarchical state (legacy) |
 | `pending-tasks.json` | Data | Pending task tracking (gitignored) |

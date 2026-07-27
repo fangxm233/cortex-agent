@@ -1,5 +1,5 @@
-// input:  tRPC data, shared project/session/modal contexts
-// output: Desktop project/session navigation rail
+// input:  tRPC data, provider throttle status, shared project/session/modal contexts
+// output: Desktop project/session rail with active-only rate-limit popover
 // pos:    Owns workbench navigation and global-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -35,18 +35,7 @@ import { useSessionsLiveSync } from './useSessionsLiveSync';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { connectionDot, connectionLabelKey } from '@/features/connection/connection-status';
 import { BUILD_STAMP } from '@/lib/build-info';
-
-// LEFT RAIL — 22a dual-zone rebuild (scheme.dc.html §22a, L37–150). Top zone: PROJECTS always
-// expanded — one row per project ordered by MOST RECENT ACTIVITY (persistent, from the session
-// registry's lastUsedAt; ⌘1–9 follow this order, ⌘1 = most recently active), single click
-// switches, the active row expands one sub-entry line (Overview + today-cost readout); per-row badges =
-// real running-thread count (threads.list) + one attention count (unread + awaiting user action;
-// amber when action exists). Draggable divider. Bottom zone: current project's SESSIONS with the
-// project-name echo + "+ New" moved into the zone header. Data gaps rendered honestly (flagged in
-// CORTEX.md): no per-row amber approval dot (ApprovalInfo has no projectId — the bottom pill stays
-// the all-projects aggregate); idle rows show a real last-activity age derived from the unscoped
-// sessions.list. Active-row sub-entry line = the Overview route + a direct today-cost readout
-// (real cost.summary.today for the active project); the former Tasks/Cost link entries were removed.
+import { DesktopRateLimitStatus, useRateLimitStatus } from '@/features/rate-limit';
 const mono = "'IBM Plex Mono',monospace";
 const ZONE_H_KEY = 'cortex.railProjectsH';
 
@@ -71,6 +60,7 @@ export function LeftRail(): JSX.Element {
   // Live UI↔server connectivity for the daemon badge (green connected / amber (re)connecting /
   // red disconnected) — replaces the former always-green hard-code.
   const connStatus = useConnectionStatus();
+  const rateLimitStatus = useRateLimitStatus();
   const connDot = connectionDot(connStatus);
   const connLabel = L[connectionLabelKey(connStatus)];
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
@@ -305,30 +295,24 @@ export function LeftRail(): JSX.Element {
           </svg>
         </div>
         <div style={{ fontWeight: 650, fontSize: 14, color: 'var(--proto-ink)', letterSpacing: '-.01em' }}>Cortex</div>
-        <div
-          onClick={() => setDaemonOpen(true)}
-          title={L.dmDaemon}
-          style={{
-            marginLeft: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            fontSize: 10,
-            color: connDot.color,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          <span
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <DesktopRateLimitStatus status={rateLimitStatus} />
+          <div
+            onClick={() => setDaemonOpen(true)}
+            title={L.dmDaemon}
             style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: connDot.color,
-              ...(connDot.pulse ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
+              display: 'flex', alignItems: 'center', gap: 5, fontSize: 10,
+              color: connDot.color, fontWeight: 600, cursor: 'pointer', flex: 'none',
             }}
-          />
-          {connLabel}
+          >
+            <span
+              style={{
+                width: 6, height: 6, borderRadius: '50%', background: connDot.color,
+                ...(connDot.pulse ? { animation: 'cxpulse 1.6s ease-in-out infinite' } : {}),
+              }}
+            />
+            {connLabel}
+          </div>
         </div>
       </div>
 

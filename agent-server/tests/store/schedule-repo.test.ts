@@ -1,6 +1,6 @@
-// input:  Node test runner, assert, tmp filesystem
-// output: regression tests for ScheduleRepo (concurrent mutate, flush ordering, CRUD)
-// pos:    verifies store/schedule-repo.ts Pattern A guarantees
+// input:  Vitest, temporary filesystem, legacy and provider throttle records
+// output: ScheduleRepo concurrency, CRUD, and throttle round-trip assertions
+// pos:    Persistence regression coverage for schedules.json
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
@@ -9,7 +9,12 @@ import fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { ScheduleRepo, CHANNEL_REGISTRY_FILE, type ScheduleTask } from '../../src/store/schedule-repo.js';
+import {
+  ScheduleRepo,
+  CHANNEL_REGISTRY_FILE,
+  type ScheduleTask,
+  type PersistedRateLimitThrottle,
+} from '../../src/store/schedule-repo.js';
 
 // ── Shared tmp directory ───────────────────────────────────────
 
@@ -167,7 +172,7 @@ test('ScheduleRepo - rateLimitThrottle get/set roundtrip', async () => {
 
   // Get
   const got = await repo.getRateLimitThrottle();
-  assert.ok(got);
+  assert.ok(got && 'resetsAt' in got);
   assert.equal(got.resetsAt, 1234567890);
 
   // Clear
@@ -182,7 +187,30 @@ test('ScheduleRepo - rateLimitThrottle persists alongside tasks', async () => {
 
   const data = await repo.read();
   assert.equal(data.tasks.length, 1);
-  assert.equal(data.rateLimitThrottle?.resetsAt, 999);
+  assert.ok(data.rateLimitThrottle && 'resetsAt' in data.rateLimitThrottle);
+  assert.equal(data.rateLimitThrottle.resetsAt, 999);
+});
+
+test('ScheduleRepo - provider throttle state round-trips without collapsing reset times', async () => {
+  const repo = createRepo();
+  const state: PersistedRateLimitThrottle = {
+    providers: [
+      {
+        provider: 'anthropic', displayName: 'Anthropic', modes: ['plan'],
+        windows: [{ type: 'seven_day', utilization: 0.97, resetsAt: 200, activatedAt: 10 }],
+      },
+      {
+        provider: 'openai-codex', displayName: 'OpenAI', modes: ['codex'],
+        windows: [{ type: 'five_hour', utilization: 0.95, resetsAt: 100, activatedAt: 20 }],
+      },
+    ],
+  };
+
+  await repo.setRateLimitThrottle(state);
+  const got = await repo.getRateLimitThrottle();
+  assert.ok(got && 'providers' in got);
+  assert.deepEqual(got, state);
+  assert.deepEqual(got.providers.map((provider) => provider.windows[0].resetsAt), [200, 100]);
 });
 
 // ── Resume queue get/set roundtrip ────────────────────────────
@@ -218,7 +246,8 @@ test('ScheduleRepo - resumeQueue persists alongside tasks and throttle', async (
 
   const data = await repo.read();
   assert.equal(data.tasks.length, 1);
-  assert.equal(data.rateLimitThrottle?.resetsAt, 999);
+  assert.ok(data.rateLimitThrottle && 'resetsAt' in data.rateLimitThrottle);
+  assert.equal(data.rateLimitThrottle.resetsAt, 999);
   assert.equal(data.resumeQueue?.length, 1);
 });
 

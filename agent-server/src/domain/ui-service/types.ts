@@ -1,5 +1,5 @@
-// input:  domain types, context/notice/DEBUG metadata, pending snapshots
-// output: UiService operations, context-aware DTOs, interfaces, dependencies
+// input:  domain types, provider throttle state, context/notice/DEBUG metadata, pending snapshots
+// output: UiService operations, rate-limit DTOs, context-aware DTOs, interfaces, dependencies
 // pos:    Canonical transport-neutral UI contract
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
@@ -44,7 +44,8 @@ export type QueryScope =
   | 'machines.list'
   | 'skills.list'
   | 'threadTemplates.get'
-  | 'system.daemonStatus';
+  | 'system.daemonStatus'
+  | 'system.rateLimitStatus';
 
 // ── Mutate ops ────────────────────────────────────────────────────
 
@@ -197,6 +198,8 @@ export type SkillsListParams = Record<string, never>;
 export type ThreadTemplatesGetParams = Record<string, never>;
 
 export type SystemDaemonStatusParams = Record<string, never>;
+
+export type SystemRateLimitStatusParams = Record<string, never>;
 
 // ── Mutate args ───────────────────────────────────────────────────
 
@@ -1039,6 +1042,25 @@ export interface SystemDaemonStatus {
   lastRestart: { at: string | null; reason: string | null };
 }
 
+// ── system.rateLimitStatus DTO ────────────────────────────────────
+
+export interface RateLimitWindowInfo {
+  type: string;
+  utilization: number | null;
+  resetsAt: number;
+  activatedAt: number;
+}
+
+export interface RateLimitProviderInfo {
+  provider: string;
+  displayName: string;
+  windows: RateLimitWindowInfo[];
+}
+
+export interface SystemRateLimitStatus {
+  providers: RateLimitProviderInfo[];
+}
+
 // ── system.restart DTO ────────────────────────────────────────────
 
 export interface SystemRestartArgs {
@@ -1145,6 +1167,7 @@ export interface QueryParamMap {
   'skills.list': SkillsListParams;
   'threadTemplates.get': ThreadTemplatesGetParams;
   'system.daemonStatus': SystemDaemonStatusParams;
+  'system.rateLimitStatus': SystemRateLimitStatusParams;
 }
 
 export interface QueryReturnMap {
@@ -1169,6 +1192,7 @@ export interface QueryReturnMap {
   'skills.list': SkillGroup[];
   'threadTemplates.get': ThreadTemplateEntry[];
   'system.daemonStatus': SystemDaemonStatus;
+  'system.rateLimitStatus': SystemRateLimitStatus;
 }
 
 export interface MutateArgsMap {

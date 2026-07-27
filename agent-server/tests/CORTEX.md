@@ -137,7 +137,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `feishu-client.test.ts` | Test | Lark SDK logs stay off protocol stdout |
 | `composite-adapter.test.ts` | Test | CompositeAdapter fan-out routing, interactive-reply isolation, capability merging, extractTuiAdapter, FanOutOutputStream, project-report all-primary fan-out + per-platform DM fallback (18 cases) |
 | `platform/ui-http-lazy-load.test.ts` | Test | Runtime guard (plan §11 single-package merge): with `CORTEX_UI_HTTP` unset, loading + invoking the gate (`entry/ui-http-gate.ts`) must NOT eager-load `@trpc/server` or `jose`. A child process registers a `module.register` resolve hook (`ui-http-lazy-hooks.mjs`, driven by `ui-http-lazy-driver.mjs`) that records resolved specifiers; the positive control (`LAZY_MODE=load`) proves the hook records trpc/jose when the transport IS loaded. Replaces the old `no-trpc-dep.test.ts` (now void — trpc/jose are legitimate core deps) |
-| `platform/ui-http-app-router.test.ts` | Test | tRPC AppRouter routing (every query/mutation → correct scope/op, Result unwrap) + Err→TRPCError mapping + subscription passthrough over a FAKE UiService (migrated from the ui-server package) |
+| `platform/ui-http-app-router.test.ts` | Test | tRPC AppRouter routing, including `system.rateLimitStatus`, Result unwrap, error mapping, and subscription passthrough over a fake UiService. |
 | `platform/ui-http-server.test.ts` | Test | Transport-host: 127.0.0.1 bind, x-cortex-token 401 gate, HTTP query roundtrip, SSE one-event, SPA stub (present/absent/traversal/malformed-URL→400), clean close(), CORS allow-list — FAKE tRPC router, ephemeral port |
 | `platform/ui-http-access-jwt.test.ts` | Test | Dual-path auth gate: valid x-cortex-token; valid RS256 + ES256 Cloudflare Access JWT; bad-sig/wrong-aud/wrong-iss/expired/no-creds → 401; `accessVerifierFromEnv` secure-degrade — synthetic jose keypairs + local JWKS |
 | `platform/ui-http-wiring.test.ts` | Test | `startUiHttpServer` wiring: env gate (null when off), default port 3004, token 401, HTTP query/mutate roundtrip, SSE, close, CORS via `CORTEX_UI_CORS_ORIGINS`, frontend OTA routes mounted (manifest/bundle reachable + token-gated 401) — FAKE UiService |
@@ -180,13 +180,14 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `update-state.test.ts` | Test | update-state.ts round-trip / missing-file / malformed-json coverage ([DR-0013]) |
 | `server-update-check.test.ts` | Test | compareCalVer (4 CalVer + suffix + cross-digit), isUpdateDevMode (3 cases), checkServerUpdate (11 branches, all deps injectable) ([DR-0013]) |
 | `store/execution-repo.test.ts` | Test | ExecutionRepo concurrent mutate, index consistency, flush draining (Pattern B) |
-| `store/schedule-repo.test.ts` | Test | ScheduleRepo concurrent mutate, flush ordering, CRUD, rateLimitThrottle |
+| `store/schedule-repo.test.ts` | Test | ScheduleRepo concurrency/CRUD plus legacy and provider-array rate-limit persistence round trips. |
 | `store/cost-repo.test.ts` | Test | CostRepo concurrent recordEntry, 90-day prune, flush ordering, budget roundtrip |
 | `store/profile-repo.test.ts` | Test | ProfileRepo concurrency/cache/roundtrip + hot-reload success callback and invalid-JSON suppression |
 | `store/session-registry-repo.test.ts` | Test | SessionRegistryRepo concurrent mutate, context snapshot persistence, flush/cache consistency |
 | `gateway-manager.test.ts` | Test | Gateway port conflict reuse |
 | `disk-monitor.test.ts` | Test | shouldAlert decision coverage |
-| `rate-limit-throttle.test.ts` | Test | Throttle activation/cross-restart/beforeRun + onResume hook (timer-clear / expired-recovery / active-recovery / backward-compat) |
+| `rate-limit-throttle.test.ts` | Test | Provider/window throttle thresholds, independent expiry/mode release, final-provider resume, change hints, restart persistence, and legacy Anthropic migration. |
+| `domain/ui-service/query-system-rate-limit.test.ts` | Test | Active provider/window projection and honest empty state for `system.rateLimitStatus`. |
 | `resume-registry.test.ts` | Test | Rate-limit resume registry: dedupe (direct→channel, thread→threadId), drain, persistence roundtrip/hydrate |
 | `orch/resume-dispatcher.test.ts` | Test | Auto-resume dispatch: direct→route (serial, channelBusy skip) / thread→continueThread (concurrent, only skip on live direct session; multiple threads same channel all resume) + settleResumedThread fires once AFTER each resumed run returns (seals the frozen status message; never fires for guard-skipped threads) + guards (stale/missing/terminal) + CORTEX_AUTO_RESUME flag/drain + busy-gate bracket (2026-07-09 regression: track +1 sync at fire / -1 after run AND settle, leak-free on rejection, no track for guard-skipped or direct entries, balanced across concurrent resumes) |
 | `orch/lifecycle-rate-limit.test.ts` | Test | handleAgentError thrown-rate-limit pause branch: throttled + rate-limit error + userMessage → recordResume(direct) + seal, no error post; falls through to normal error path when not throttled / no userMessage / non-rate-limit error |

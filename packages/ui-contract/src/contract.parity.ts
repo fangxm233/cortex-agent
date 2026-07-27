@@ -1,9 +1,7 @@
-// Compile-time drift guard (no runtime effect). Asserts that each zod input
-// schema's inferred type is mutually assignable to the corresponding
-// QueryParamMap / MutateArgsMap entry in agent-server. If the backend contract
-// changes (a field added/removed/retyped) and a schema is not updated in
-// lock-step, `pnpm typecheck` fails here. This is the anti-drift test for the
-// contract package.
+// input:  shared zod schemas and agent-server query/mutation maps
+// output: compile-time exact-parity guards including system.rateLimitStatus
+// pos:    Anti-drift boundary for the shared UI contract
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { z } from 'zod';
 import type { QueryParamMap, MutateArgsMap, ExecutionsLogParams } from './dto.js';
@@ -45,6 +43,7 @@ import type {
   skillsListInput,
   threadTemplatesGetInput,
   systemDaemonStatusInput,
+  systemRateLimitStatusInput,
   systemRestartInput,
 } from './schemas.js';
 
@@ -80,6 +79,7 @@ const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = tr
 const _skillsList: QueryParity<'skills.list', typeof skillsListInput> = true;
 const _threadTemplatesGet: QueryParity<'threadTemplates.get', typeof threadTemplatesGetInput> = true;
 const _systemDaemonStatus: QueryParity<'system.daemonStatus', typeof systemDaemonStatusInput> = true;
+const _systemRateLimitStatus: QueryParity<'system.rateLimitStatus', typeof systemRateLimitStatusInput> = true;
 
 // ── Mutate ops ────────────────────────────────────────────────────
 const _projectsCreate: MutateParity<'projects.create', typeof projectsCreateInput> = true;
@@ -121,5 +121,5 @@ export const _contractParityChecked = [
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
   _configSet, _executionsLog,
-  _systemDaemonStatus, _systemRestart,
+  _systemDaemonStatus, _systemRateLimitStatus, _systemRestart,
 ] as const;

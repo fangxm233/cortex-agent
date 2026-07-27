@@ -1,4 +1,4 @@
-// input:  tRPC state and UI events including context and DEBUG hints
+// input:  tRPC state and UI events including throttle, context, and DEBUG hints
 // output: shared live-event groups, filters, fan-out, reconnect reducers
 // pos:    Pure rules for the Web shared SSE stream
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -84,6 +84,9 @@ export const SYSTEM_LIVE_EVENTS = ['system.notice'] as const;
 /** Structured config-change hints. Queries remain the authoritative source. */
 export const CONFIG_LIVE_EVENTS = ['config.changed'] as const;
 
+/** Provider rate-limit state changed; consumers refetch the authoritative snapshot. */
+export const RATE_LIMIT_LIVE_EVENTS = ['rate-limit.changed'] as const;
+
 /**
  * The FIXED union the shared stream subscribes to. Fixed rather than reference-counted over the
  * mounted listeners: the union is small and known, and a dynamic one would tear down and re-open the
@@ -97,6 +100,7 @@ export const LIVE_EVENT_TYPES: readonly string[] = [
   ...TASK_LIVE_EVENTS,
   ...SYSTEM_LIVE_EVENTS,
   ...CONFIG_LIVE_EVENTS,
+  ...RATE_LIMIT_LIVE_EVENTS,
 ];
 
 /** True only for the structured hint emitted after profiles.json reloads successfully. */

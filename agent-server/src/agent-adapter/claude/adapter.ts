@@ -1,6 +1,6 @@
-// input:  user/session context, AgentSpawnConfig, Claude print-stream JSON events
-// output: ClaudeAdapter with complete text, deltas, and lossless id-correlated tool events
-// pos:    Claude session pool; preserves full tool data across normal/injected/continuation turns
+// input:  user/session context, AgentSpawnConfig, Claude print-stream and rate-limit events
+// output: ClaudeAdapter with complete text, deltas, tool events, and Anthropic throttle identity
+// pos:    Claude session pool; preserves full tool data and forwards provider-scoped limit state
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn, ChildProcess } from 'child_process';
@@ -703,7 +703,9 @@ class ClaudeSession {
       }
       if (data.type === 'rate_limit_event' && data.rate_limit_info) {
         const mode = this.anthropicBaseUrl?.match(/\/m\/([^/]+)\//)?.[1] || undefined;
-        handleRateLimitEvent(data.rate_limit_info, mode).catch(e => log.error('handleRateLimitEvent error:', e));
+        handleRateLimitEvent(data.rate_limit_info, {
+          provider: 'anthropic', displayName: 'Anthropic', mode,
+        }).catch(e => log.error('handleRateLimitEvent error:', e));
       }
       // `--replay-user-messages` echo: the CLI's delivery ack for an injected message.
       // Handled here and nowhere else — it is deliberately NOT fed to turn bookkeeping, background

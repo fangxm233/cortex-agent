@@ -1,5 +1,5 @@
-// input:  UiServiceDeps
-// output: createUiService(deps): UiService — facade routing scope/op strings to per-module handlers
+// input:  UiServiceDeps and transport-neutral query/mutation handlers
+// output: createUiService(deps): UiService including live provider throttle snapshots
 // pos:    transport-agnostic UI service facade
 
 import type { UiServiceDeps, UiService, QueryScope, MutateOp, Result } from './types.js';
@@ -18,7 +18,7 @@ import { handleConfigGet } from './query/config.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleSkillsList } from './query/skills.js';
 import { handleThreadTemplatesGet } from './query/thread-templates.js';
-import { handleSystemDaemonStatus } from './query/system.js';
+import { handleSystemDaemonStatus, handleSystemRateLimitStatus } from './query/system.js';
 import { handleConfigSet } from './mutate/config.js';
 import { handleCreateProject } from './mutate/projects.js';
 import { handleCreateSession, handleSendSession, handleCancelSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRewindSession } from './mutate/sessions.js';
@@ -68,6 +68,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'skills.list': (deps, params) => handleSkillsList(deps, params),
   'threadTemplates.get': (deps, params) => handleThreadTemplatesGet(deps, params),
   'system.daemonStatus': (_deps, params) => handleSystemDaemonStatus(params),
+  'system.rateLimitStatus': (_deps, params) => handleSystemRateLimitStatus(params),
 };
 
 const mutateHandlers: Record<string, MutateHandler> = {

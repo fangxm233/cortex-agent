@@ -1,5 +1,5 @@
-// input:  .env, PlatformAdapter, stores, orchestration modules
-// output: server composition root with durable-state startup recovery
+// input:  .env, PlatformAdapter, stores, orchestration modules, provider throttle state
+// output: server composition root with durable recovery and live rate-limit refresh hints
 // pos:    agent-server main entry and wiring hub
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
@@ -568,7 +568,8 @@ process.on('SIGTERM', async () => {
   await initRateLimitThrottle(adapter, {
     save: (state) => scheduleRepo.setRateLimitThrottle(state),
     load: () => scheduleRepo.getRateLimitThrottle(),
-  }, () => { void dispatchPendingResumes(adapter); });
+  }, () => { void dispatchPendingResumes(adapter); },
+  () => { bus.publish({ type: 'rate-limit.changed' }); });
   if (!isThrottled() && getResumeCount() > 0) {
     log.info(`Startup: ${getResumeCount()} pending resume(s), no active throttle — draining`);
     void dispatchPendingResumes(adapter);

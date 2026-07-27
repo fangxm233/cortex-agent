@@ -1,3 +1,8 @@
+// input:  runtime shared zod schema maps
+// output: scope completeness and valid/invalid parse assertions
+// pos:    Runtime UI-contract guard including system.rateLimitStatus
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { queryInputSchemas, mutateInputSchemas } from './schemas.js';
@@ -6,7 +11,7 @@ const QUERY_SCOPES = [
   'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
   'threads.get', 'tasks.list', 'tasks.verification', 'schedules.list', 'executions.list', 'executions.get',
   'memory.tree', 'memory.file', 'approvals.list', 'issues.list', 'cost.summary', 'config.get', 'machines.list',
-  'skills.list', 'threadTemplates.get', 'system.daemonStatus',
+  'skills.list', 'threadTemplates.get', 'system.daemonStatus', 'system.rateLimitStatus',
 ] as const;
 
 const MUTATE_OPS = [
@@ -35,6 +40,7 @@ test('every MutateOp has an input schema', () => {
 
 test('query schemas accept valid input', () => {
   assert.deepEqual(queryInputSchemas['projects.list'].parse({}), {});
+  assert.deepEqual(queryInputSchemas['system.rateLimitStatus'].parse({}), {});
   assert.equal(
     queryInputSchemas['tasks.list'].parse({ projectId: 'p', status: 'open', actionable: true }).status,
     'open',

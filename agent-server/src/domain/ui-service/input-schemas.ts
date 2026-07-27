@@ -91,6 +91,8 @@ export const threadTemplatesGetInput = z.object({});
 
 export const systemDaemonStatusInput = z.object({});
 
+export const systemRateLimitStatusInput = z.object({});
+
 // ── Subscription input schemas ────────────────────────────────────
 // Subscriptions are not part of the query/mutate keyed maps; their input schemas live here too so
 // the AppRouter and the browser (@cortex-agent/ui-contract) share one source of truth (B2-C).
@@ -319,6 +321,7 @@ export const queryInputSchemas = {
   'skills.list': skillsListInput,
   'threadTemplates.get': threadTemplatesGetInput,
   'system.daemonStatus': systemDaemonStatusInput,
+  'system.rateLimitStatus': systemRateLimitStatusInput,
 } satisfies Record<QueryScope, z.ZodType>;
 
 export const mutateInputSchemas = {

@@ -1,4 +1,9 @@
-import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
+// input:  isolated test home, fake UiService, typed tRPC caller
+// output: AppRouter scope/op routing, unwrapping, and subscription assertions
+// pos:    Transport-contract regression coverage including rate-limit status
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import '../_test-home.js'; // MUST be first import: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { TRPCError } from '@trpc/server';
@@ -90,6 +95,7 @@ const QUERY_CASES: Array<{ scope: QueryScope; call: (c: any) => Promise<unknown>
   { scope: 'executions.get', call: (c) => c.executions.get({ executionId: 'e1' }), input: {} },
   { scope: 'cost.summary', call: (c) => c.cost.summary({}), input: {} },
   { scope: 'skills.list', call: (c) => c.skills.list({}), input: {} },
+  { scope: 'system.rateLimitStatus', call: (c) => c.system.rateLimitStatus({}), input: {} },
 ];
 
 test('every query routes to the correct scope and unwraps Result.data', async () => {
@@ -133,8 +139,8 @@ test('every mutation routes to the correct op and unwraps Result.data', async ()
   }
 });
 
-test('coverage: exactly 10 queries + 14 mutations exercised', () => {
-  assert.equal(QUERY_CASES.length, 10);
+test('coverage: exactly 11 queries + 14 mutations exercised', () => {
+  assert.equal(QUERY_CASES.length, 11);
   assert.equal(MUTATE_CASES.length, 14);
 });
 

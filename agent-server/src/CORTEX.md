@@ -15,11 +15,11 @@ agent-server's TypeScript ESM runtime source, organized by six-layer structure (
 `async-mutex.ts` `atomic-write.ts` `json-repository.ts` `paths.ts` `version.ts` `cli-utils.ts` `utils.ts` `status-format.ts` `running-executions.ts` `task-parser.ts` `debug-mode.ts` (single truthy `DEBUG` gate shared by logging, lossless transcript capture, and DTO exposure) `singleton-lock.ts` (PID-file singleton lock shared by daemon.ts/app.ts) `auth.ts` (shared-secret auth: `ensureAuthTokens`/`getClientToken`/`getWebhookToken`/`timingSafeEqualStr`/`AUTH_HEADER` for the WS client + webhook bearer gates; no Cloudflare dependency) `i18n.ts` (zero-dep localization: `t()`/`setLocale`/`getLocale`/`detectSystemLocale`; locale set by entry/app.ts, never reads domain) `locales/` (`en.ts`/`zh.ts` barrels aggregating per-cluster `slices/*`; zh typed `Record<MessageKey,string>` for compile-time parity) `types/agent-types.ts` (agent results + backend-neutral context snapshots + `ChatNoticeLevel`) `types/thread-types.ts`
 
 ### L1: store/
-`in-memory-repository.ts` + 12 repos: `thread-repo` `session-repo` `conversation-ledger-repo` `conversation-history-repo` `pending-injection-repo` (durable unconsumed mid-turn messages) `session-registry-repo` `execution-repo` `project-dir-repo` `schedule-repo` `cost-repo` `profile-repo` `task-repo` + `outbound-queue` (WAL).
+`in-memory-repository.ts` + 12 repos: `thread-repo` `session-repo` `conversation-ledger-repo` `conversation-history-repo` `pending-injection-repo` (durable unconsumed mid-turn messages) `session-registry-repo` `execution-repo` `project-dir-repo` `schedule-repo` `cost-repo` `profile-repo` `task-repo` + `outbound-queue` (WAL). `schedule-repo` persists independent provider/window throttle records and still accepts the legacy singleton record during migration.
 Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/adapters/slack-project-conduits.ts` — owned by the Slack adapter, since project-report rendering is adapter-specific.
 
 ### L2: events/
-`event-bus.ts` `event-types.ts` (session context snapshots/messages/notices; `config.changed` refreshes UI config) `event-logger.ts` `event-replay.ts` `index.ts`
+`event-bus.ts` `event-types.ts` (session context/messages/notices; `config.changed` refreshes UI config; `rate-limit.changed` refreshes provider throttle status) `event-logger.ts` `event-replay.ts` `index.ts`
 
 ### L3: domain/
 | Subdirectory | Files |
@@ -28,7 +28,7 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 | `sessions/` | `session.ts` `session-registry.ts` `session-backup.ts` `session-hooks.ts` (unified onNew/onMessageEnd hook pipeline — spawn + OutputStream display + optional agent injection) |
 | `tasks/` | `parser.ts` `lint.ts` `archiver.ts` `dispatcher.ts` `dispatch-utils.ts` `pending-tracker.ts` `claim-recovery.ts` `store.ts` `recommendation/` `system/` |
 | `executions/` | `registry.ts` |
-| `costs/` | `cost-tracker.ts` `gateway-manager.ts` `rate-limit-parser.ts` `rate-limit-throttle.ts` `resume-registry.ts` (records sessions/threads interrupted by a rate limit, for auto-resume) `codex-usage-monitor.ts` `codex-event-format.ts` |
+| `costs/` | `cost-tracker.ts` `gateway-manager.ts` `rate-limit-parser.ts` `rate-limit-throttle.ts` (provider-scoped windows, independent expiry, legacy Anthropic migration) `resume-registry.ts` (global resume queue drains after the final provider clears) `codex-usage-monitor.ts` `codex-event-format.ts` |
 | `scheduling/` | `scheduler.ts` `runner.ts` `job-registry.ts` `schedule-command.ts` `schedule-cli.ts` `jobs/` (includes `target-dispatch.ts` 4-way fresh/channel/session/thread decision) |
 | `memory/` | `index-regen.ts` `consolidate.ts` `watcher.ts` `skill-scanner.ts` `claude-md-scanner.ts` `claude-md-injector.ts` `user-context.ts` (USER.md → plain-conversation injection) |
 | `monitor/` | `gpu-monitor.ts` `disk-monitor.ts` |

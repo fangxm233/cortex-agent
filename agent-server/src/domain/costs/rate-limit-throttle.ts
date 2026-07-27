@@ -1,9 +1,7 @@
-// input:  rate_limit_event + persistence + slack client + optional onResume hook
-// output: init/handleRateLimitEvent/isThrottled/isModeRateLimited/getThrottleState
-// pos:    Pure state tracker — no scheduler coupling. Mode-level rate limit tracking.
-//         onResume (injected) fires when the window clears (timer path + expired-on-restart),
-//         decoupling the resume dispatch (orchestration) from this domain module.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  provider rate-limit events, persistence, platform adapter
+// output: provider/window throttle state, mode gates, reset callbacks
+// pos:    Provider-scoped rate-limit state machine
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { PlatformAdapter } from '@platform/index.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
@@ -12,7 +10,6 @@ import { Icons } from '../../core/icons.js';
 
 const log = createLogger('rate-limit-throttle');
 
-/** Per-type utilization thresholds. Unknown types fall back to DEFAULT_THRESHOLD. */
 const TYPE_THRESHOLDS: Record<string, number> = {
   five_hour: 0.90,
   seven_day: 0.95,
@@ -21,26 +18,109 @@ const TYPE_THRESHOLDS: Record<string, number> = {
 const DEFAULT_THRESHOLD = 0.90;
 const RESUME_BUFFER_MS = 5_000;
 
-// --- Module state ---
+export interface RateLimitSource {
+  provider: string;
+  displayName: string;
+  mode?: string;
+}
+
+export interface RateLimitWindowState {
+  type: string;
+  utilization: number | null;
+  resetsAt: number;
+  activatedAt: number;
+}
+
+export interface ProviderThrottleState {
+  provider: string;
+  displayName: string;
+  modes: string[];
+  windows: RateLimitWindowState[];
+}
+
+export interface RateLimitThrottleState {
+  providers: ProviderThrottleState[];
+}
+
+export interface LegacyThrottleState {
+  resetsAt: number;
+  activatedAt: number;
+  modes?: string[];
+  types?: string[];
+}
+
+export type PersistedThrottleState = RateLimitThrottleState | LegacyThrottleState;
+
+export interface ThrottlePersistence {
+  save: (state: RateLimitThrottleState | null) => Promise<void>;
+  load: () => Promise<PersistedThrottleState | null>;
+}
+
+export interface ThrottleStateView extends RateLimitThrottleState {
+  isThrottled: boolean;
+  resetsAt: number | null;
+  rateLimitedModes: string[];
+  rateLimitedTypes: string[];
+}
+
+interface RateLimitInfo {
+  status?: string;
+  resetsAt?: number;
+  rateLimitType?: string;
+  utilization?: number;
+  isUsingOverage?: boolean;
+  surpassedThreshold?: number;
+}
+
 let _adapter: PlatformAdapter | null = null;
 let _persistence: ThrottlePersistence | null = null;
 let _onResume: (() => void) | null = null;
-let _isThrottled = false;
-let _resetsAt: number | null = null; // Unix seconds
+let _onChange: (() => void) | null = null;
 let _resumeTimer: ReturnType<typeof setTimeout> | null = null;
-const _rateLimitedModes = new Set<string>();
-const _rateLimitedTypes = new Set<string>();
+const _providers = new Map<string, ProviderThrottleState>();
 
-// --- Types ---
-export interface ThrottlePersistence {
-  save: (state: { resetsAt: number; activatedAt: number; modes: string[]; types: string[] } | null) => Promise<void>;
-  load: () => Promise<{ resetsAt: number; activatedAt: number; modes?: string[]; types?: string[] } | null>;
+function cloneProvider(provider: ProviderThrottleState): ProviderThrottleState {
+  return {
+    ...provider,
+    modes: [...provider.modes].sort(),
+    windows: provider.windows.map((window) => ({ ...window })).sort((a, b) => a.resetsAt - b.resetsAt),
+  };
 }
 
-// --- Logging (handled by createLogger) ---
+function snapshot(): ProviderThrottleState[] {
+  return [..._providers.values()].map(cloneProvider).sort((a, b) => a.provider.localeCompare(b.provider));
+}
 
-// --- Admin DM (fire-and-forget) ---
-function sendDM(text: string) {
+function allWindows(): RateLimitWindowState[] {
+  return snapshot().flatMap((provider) => provider.windows);
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values)].sort();
+}
+
+function persistableState(): RateLimitThrottleState | null {
+  const providers = snapshot();
+  return providers.length > 0 ? { providers } : null;
+}
+
+async function persist(): Promise<void> {
+  await _persistence?.save(persistableState());
+}
+
+function fireChange(): void {
+  try { _onChange?.(); } catch (error) {
+    log.error(`onChange hook failed: ${(error as Error).message}`);
+  }
+}
+
+function fireResume(): void {
+  try { _onResume?.(); } catch (error) {
+    log.error(`onResume hook failed: ${(error as Error).message}`);
+  }
+}
+
+function sendDM(text: string): void {
   if (!_adapter) return;
   void emitSystemNotice(_adapter, { text, level: 'warning', title: 'Rate limit' });
 }
@@ -60,146 +140,209 @@ function formatRemaining(epochSec: number): string {
   return `${totalSec}s`;
 }
 
-// --- Timer ---
-function clearThrottle(): void {
-  _isThrottled = false;
-  _resetsAt = null;
-  _rateLimitedModes.clear();
-  _rateLimitedTypes.clear();
-  _resumeTimer = null;
-  sendDM(`${Icons.ok} Rate limit throttle cleared.`);
-  _persistence?.save(null).catch(e => {
-    log.error(`Failed to persist cleared throttle: ${(e as Error).message}`);
-  });
-  fireResume();
-}
-
-/** Notify the (optional) resume hook that the rate-limit window has ended. Errors are
- *  swallowed so a faulty resume path can never break the throttle state machine. */
-function fireResume(): void {
-  if (!_onResume) return;
-  try {
-    _onResume();
-  } catch (e) {
-    log.error(`onResume hook failed: ${(e as Error).message}`);
-  }
-}
-
-function scheduleResumeTimer(): void {
-  if (_resumeTimer) clearTimeout(_resumeTimer);
-  const delayMs = Math.max(0, (_resetsAt! * 1000) - Date.now()) + RESUME_BUFFER_MS;
-  log.info(`Resume scheduled in ${(delayMs / 1000 / 60).toFixed(1)} min`);
-  _resumeTimer = setTimeout(() => {
-    clearThrottle();
-  }, delayMs);
-}
-
-// --- Public API ---
-
-async function initRateLimitThrottle(adapter: PlatformAdapter, persistence: ThrottlePersistence, onResume?: () => void): Promise<void> {
-  _adapter = adapter;
-  _persistence = persistence;
-  _onResume = onResume ?? null;
-
-  // Recover throttle state from disk (survives restart)
-  const persisted = await persistence.load();
-  if (persisted) {
-    const now = Date.now();
-    if (persisted.resetsAt * 1000 + RESUME_BUFFER_MS > now) {
-      _isThrottled = true;
-      _resetsAt = persisted.resetsAt;
-      if (persisted.modes) {
-        for (const m of persisted.modes) _rateLimitedModes.add(m);
-      }
-      if (persisted.types) {
-        for (const t of persisted.types) _rateLimitedTypes.add(t);
-      }
-      log.info(`Restored throttle from disk: ${persisted.modes?.length ?? 0} mode(s), ${persisted.types?.length ?? 0} type(s) rate-limited, resetsAt=${new Date(_resetsAt * 1000).toISOString()}`);
-      scheduleResumeTimer();
-    } else {
-      log.info(`Throttle expired during downtime (resetsAt was ${new Date(persisted.resetsAt * 1000).toISOString()}). Clearing.`);
-      await persistence.save(null);
-      // The window already reset while the process was down — resume anything that was
-      // recorded before the restart.
-      fireResume();
-    }
-  }
-
-  log.info('Initialized');
-}
-
-interface RateLimitInfo {
-  status?: string;
-  resetsAt?: number;
-  rateLimitType?: string;
-  utilization?: number;
-  isUsingOverage?: boolean;
-  surpassedThreshold?: number;
-}
-
 function thresholdFor(type: string): number {
   return TYPE_THRESHOLDS[type] ?? DEFAULT_THRESHOLD;
 }
 
-async function handleRateLimitEvent(info: RateLimitInfo, mode?: string): Promise<void> {
-  if (!info || !_persistence) return;
-  const type = info.rateLimitType;
-  if (!type) return;
-  const threshold = thresholdFor(type);
-  if (typeof info.utilization !== 'number' || info.utilization < threshold) return;
-  if (!info.resetsAt) return;
+function normalizeSource(source?: string | RateLimitSource): RateLimitSource {
+  if (typeof source === 'string') return { provider: source, displayName: source, mode: source };
+  if (source?.provider) return source;
+  return { provider: 'unknown', displayName: 'Unknown provider' };
+}
 
-  if (_isThrottled) {
-    _rateLimitedTypes.add(type);
-    if (info.resetsAt > (_resetsAt || 0)) {
-      log.info(`Extending throttle (${type}): resetsAt ${_resetsAt} → ${info.resetsAt}`);
-      _resetsAt = info.resetsAt;
-      if (mode) _rateLimitedModes.add(mode);
-      await _persistence.save({ resetsAt: _resetsAt, activatedAt: Date.now(), modes: [..._rateLimitedModes], types: [..._rateLimitedTypes] });
-      scheduleResumeTimer();
-    }
-    return;
+function normalizeProvider(raw: ProviderThrottleState): ProviderThrottleState | null {
+  if (!raw?.provider || !Array.isArray(raw.windows)) return null;
+  const windows = raw.windows.filter((window) => window?.type && Number.isFinite(window.resetsAt));
+  if (windows.length === 0) return null;
+  return {
+    provider: raw.provider,
+    displayName: raw.displayName || raw.provider,
+    modes: Array.isArray(raw.modes) ? uniqueSorted(raw.modes.filter(Boolean)) : [],
+    windows: windows.map((window) => ({
+      type: window.type,
+      utilization: Number.isFinite(window.utilization) ? window.utilization : null,
+      resetsAt: window.resetsAt,
+      activatedAt: Number.isFinite(window.activatedAt) ? window.activatedAt : Date.now(),
+    })),
+  };
+}
+
+function fromLegacy(raw: LegacyThrottleState): ProviderThrottleState[] {
+  if (!Number.isFinite(raw.resetsAt)) return [];
+  const types = raw.types?.length ? raw.types : ['unknown'];
+  return [{
+    provider: 'anthropic',
+    displayName: 'Anthropic',
+    modes: uniqueSorted(raw.modes ?? []),
+    windows: types.map((type) => ({
+      type,
+      utilization: null,
+      resetsAt: raw.resetsAt,
+      activatedAt: raw.activatedAt,
+    })),
+  }];
+}
+
+function normalizePersisted(raw: PersistedThrottleState): ProviderThrottleState[] {
+  const providerState = raw as RateLimitThrottleState;
+  if (Array.isArray(providerState.providers)) {
+    return providerState.providers.map(normalizeProvider).filter((provider): provider is ProviderThrottleState => provider !== null);
   }
+  return fromLegacy(raw as LegacyThrottleState);
+}
 
-  _isThrottled = true;
-  _resetsAt = info.resetsAt;
-  _rateLimitedTypes.add(type);
-  if (mode) _rateLimitedModes.add(mode);
-  log.info(`Throttle activated (${type}): utilization=${info.utilization}, resetsAt=${new Date(_resetsAt * 1000).toISOString()}, mode=${mode ?? '(none)'}`);
+function windowIsActive(window: RateLimitWindowState, now = Date.now()): boolean {
+  return window.resetsAt * 1000 + RESUME_BUFFER_MS > now;
+}
 
+function loadActiveProviders(raw: PersistedThrottleState): void {
+  for (const provider of normalizePersisted(raw)) {
+    const windows = provider.windows.filter((window) => windowIsActive(window));
+    if (windows.length > 0) _providers.set(provider.provider, { ...provider, windows });
+  }
+}
+
+function nextExpiryMs(): number | null {
+  const resets = allWindows().map((window) => window.resetsAt * 1000 + RESUME_BUFFER_MS);
+  return resets.length > 0 ? Math.min(...resets) : null;
+}
+
+function scheduleResumeTimer(): void {
+  if (_resumeTimer) clearTimeout(_resumeTimer);
+  const expiry = nextExpiryMs();
+  if (expiry === null) { _resumeTimer = null; return; }
+  const delayMs = Math.max(0, expiry - Date.now());
+  log.info(`Next provider reset check in ${(delayMs / 1000 / 60).toFixed(1)} min`);
+  _resumeTimer = setTimeout(() => { void expireWindows(expiry); }, delayMs);
+}
+
+function pruneExpired(now: number): string[] {
+  const cleared: string[] = [];
+  for (const [key, provider] of _providers) {
+    provider.windows = provider.windows.filter((window) => windowIsActive(window, now));
+    if (provider.windows.length > 0) continue;
+    _providers.delete(key);
+    cleared.push(provider.displayName);
+  }
+  return cleared;
+}
+
+async function expireWindows(scheduledExpiry?: number): Promise<void> {
+  _resumeTimer = null;
+  const before = allWindows().length;
+  const effectiveNow = Math.max(Date.now(), scheduledExpiry ?? 0);
+  const cleared = pruneExpired(effectiveNow);
+  const changed = allWindows().length !== before;
+  if (!changed) { scheduleResumeTimer(); return; }
+  await persist().catch((error) => log.error(`Failed to persist throttle expiry: ${(error as Error).message}`));
+  for (const provider of cleared) sendDM(`${Icons.ok} ${provider} rate limit throttle cleared.`);
+  fireChange();
+  if (_providers.size === 0) fireResume();
+  else scheduleResumeTimer();
+}
+
+async function initRateLimitThrottle(
+  adapter: PlatformAdapter,
+  persistence: ThrottlePersistence,
+  onResume?: () => void,
+  onChange?: () => void,
+): Promise<void> {
+  _adapter = adapter;
+  _persistence = persistence;
+  _onResume = onResume ?? null;
+  _onChange = onChange ?? null;
+  const persisted = await persistence.load();
+  if (!persisted) { log.info('Initialized'); return; }
+
+  loadActiveProviders(persisted);
+  if (_providers.size === 0) {
+    await persistence.save(null);
+    fireResume();
+  } else {
+    await persist();
+    scheduleResumeTimer();
+  }
+  log.info(`Initialized — ${_providers.size} provider throttle(s) restored`);
+}
+
+function upsertWindow(provider: ProviderThrottleState, info: Required<Pick<RateLimitInfo, 'rateLimitType' | 'utilization' | 'resetsAt'>>): boolean {
+  const existing = provider.windows.find((window) => window.type === info.rateLimitType);
+  if (!existing) {
+    provider.windows.push({
+      type: info.rateLimitType,
+      utilization: info.utilization,
+      resetsAt: info.resetsAt,
+      activatedAt: Date.now(),
+    });
+    return true;
+  }
+  const nextReset = Math.max(existing.resetsAt, info.resetsAt);
+  const nextUtilization = info.utilization;
+  const changed = nextReset !== existing.resetsAt || nextUtilization !== existing.utilization;
+  existing.resetsAt = nextReset;
+  existing.utilization = nextUtilization;
+  return changed;
+}
+
+async function handleRateLimitEvent(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
+  if (!info || !_persistence || !info.rateLimitType || !info.resetsAt) return;
+  if (typeof info.utilization !== 'number' || info.utilization < thresholdFor(info.rateLimitType)) return;
+
+  const source = normalizeSource(rawSource);
+  let provider = _providers.get(source.provider);
+  const isNewProvider = !provider;
+  if (!provider) {
+    provider = { provider: source.provider, displayName: source.displayName, modes: [], windows: [] };
+    _providers.set(source.provider, provider);
+  }
+  const modeAdded = !!source.mode && !provider.modes.includes(source.mode);
+  if (modeAdded) provider.modes.push(source.mode!);
+  const windowChanged = upsertWindow(provider, {
+    rateLimitType: info.rateLimitType,
+    utilization: info.utilization,
+    resetsAt: info.resetsAt,
+  });
+  if (!isNewProvider && !modeAdded && !windowChanged) return;
+
+  await persist();
   scheduleResumeTimer();
-  await _persistence.save({ resetsAt: _resetsAt, activatedAt: Date.now(), modes: [..._rateLimitedModes], types: [..._rateLimitedTypes] });
-
-  const resetStr = formatResetTime(_resetsAt);
-  const remainingStr = formatRemaining(_resetsAt);
-  const typeNote = type ? ` [${type}]` : '';
-  const modeNote = mode ? ` (mode: ${mode})` : '';
-  sendDM(`${Icons.warning} Rate limit throttle activated${typeNote} — utilization ${(info.utilization * 100).toFixed(0)}%${modeNote}.\nAuto-resume at ${resetStr} (in ${remainingStr}).`);
+  fireChange();
+  log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
+  if (isNewProvider) {
+    sendDM(`${Icons.warning} ${source.displayName} rate limit throttle activated [${info.rateLimitType}] — utilization ${(info.utilization * 100).toFixed(0)}%.
+Auto-resume at ${formatResetTime(info.resetsAt)} (in ${formatRemaining(info.resetsAt)}).`);
+  }
 }
 
 function isThrottled(): boolean {
-  return _isThrottled;
+  return _providers.size > 0;
 }
 
 function isModeRateLimited(mode: string): boolean {
-  return _isThrottled && _rateLimitedModes.has(mode);
+  return snapshot().some((provider) => provider.modes.includes(mode));
 }
 
-function getThrottleState(): { isThrottled: boolean; resetsAt: number | null; rateLimitedModes: string[]; rateLimitedTypes: string[] } {
-  return { isThrottled: _isThrottled, resetsAt: _resetsAt, rateLimitedModes: [..._rateLimitedModes], rateLimitedTypes: [..._rateLimitedTypes] };
+function getThrottleState(): ThrottleStateView {
+  const providers = snapshot();
+  const windows = providers.flatMap((provider) => provider.windows);
+  const resetsAt = windows.length > 0 ? Math.max(...windows.map((window) => window.resetsAt)) : null;
+  return {
+    isThrottled: providers.length > 0,
+    resetsAt,
+    rateLimitedModes: uniqueSorted(providers.flatMap((provider) => provider.modes)),
+    rateLimitedTypes: uniqueSorted(windows.map((window) => window.type)),
+    providers,
+  };
 }
 
-// --- Test helpers ---
 function _testReset(): void {
   if (_resumeTimer) clearTimeout(_resumeTimer);
-  _isThrottled = false;
-  _resetsAt = null;
+  _providers.clear();
   _resumeTimer = null;
-  _rateLimitedModes.clear();
-  _rateLimitedTypes.clear();
   _adapter = null;
   _persistence = null;
   _onResume = null;
+  _onChange = null;
 }
 
 export { initRateLimitThrottle, handleRateLimitEvent, isThrottled, isModeRateLimited, getThrottleState, _testReset };
