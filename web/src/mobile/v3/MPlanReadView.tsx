@@ -144,7 +144,7 @@ export function MPlanReadView({ model, copy, onBack, onApprove, onReject }: MPla
               style={{ flex: 1.3, height: 48, borderRadius: 13, background: MC.ink, color: 'var(--ink-solid-fg)', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, cursor: 'pointer' }}
             >
               <span style={{ fontSize: 14, fontWeight: 600 }}>{copy.approve}</span>
-              {approveSub && <span style={{ font: `400 9px ${MONO}`, color: 'rgba(255,255,255,.55)' }}>{approveSub}</span>}
+              {approveSub && <span style={{ font: `400 9px ${MONO}`, color: MC.inkSolidFgDim }}>{approveSub}</span>}
             </button>
             <button
               type="button"
