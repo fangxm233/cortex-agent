@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadDispatchInfo, TaskInfo } from '@cortex-agent/ui-contract';
+import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadDispatchInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
@@ -24,6 +24,8 @@ import {
   subtaskActivity,
   type ActivityTone,
 } from './right-panel-vm';
+
+type ThreadSubtaskInfo = ThreadDetail['subtasks'][number];
 
 const NODE_ICON = (
   <svg width="13" height="13" viewBox="0 0 14 14" fill="none" strokeWidth="1.6">
@@ -138,7 +140,7 @@ function CortexRunCard({ run, onOpen }: { run: ThreadDispatchInfo; onOpen: (exec
   );
 }
 
-function SubtaskCard({ task }: { task: TaskInfo }) {
+function SubtaskCard({ task }: { task: ThreadSubtaskInfo }) {
   const state = subtaskActivity(task);
   return (
     <div
@@ -167,7 +169,7 @@ export function ThreadActivityRows({
   onOpenRun,
 }: {
   runs: ThreadDispatchInfo[];
-  subtasks: TaskInfo[];
+  subtasks: ThreadSubtaskInfo[];
   onOpenRun: (executionId: string) => void;
 }) {
   if (runs.length === 0 && subtasks.length === 0) return null;

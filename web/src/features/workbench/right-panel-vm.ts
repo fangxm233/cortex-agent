@@ -8,10 +8,11 @@ import type {
   ThreadStepDetail,
   ThreadDetail,
   ThreadDispatchInfo,
-  TaskInfo,
   MachineInfo,
 } from '@cortex-agent/ui-contract';
 import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
+
+type ThreadSubtaskInfo = ThreadDetail['subtasks'][number];
 
 export interface Pill {
   bg: string;
@@ -84,7 +85,7 @@ export function runActivity(status: string): ActivityState {
   return { label: status || 'Unknown', tone: 'idle' };
 }
 
-export function subtaskActivity(task: TaskInfo): ActivityState {
+export function subtaskActivity(task: ThreadSubtaskInfo): ActivityState {
   if (task.status === 'done') return { label: 'Done', tone: 'done' };
   if (task.blockedBy) return { label: 'Blocked', tone: 'failed' };
   if (task.claimedBy) return { label: 'Running', tone: 'running' };

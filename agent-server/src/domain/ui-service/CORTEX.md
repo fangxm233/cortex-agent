@@ -13,7 +13,7 @@ by the Web UI.
 
 | filename | role | function |
 |---|---|---|
-| `types.ts` | types | UI operations/events/DTOs, including timestamped session context usage, transcript notices, and thread run/subtask activity |
+| `types.ts` | types | UI operations/events/DTOs, including timestamped session context usage, transcript notices, thread runs, and compact direct-subtask activity |
 | `trpc.ts` | tRPC init | Shared `initTRPC.create()` — `router` / `publicProcedure` / `createCallerFactory` (transport-agnostic; `@trpc/server` CORE only, no http/ws adapter) |
 | `app-router.ts` | tRPC router | `createAppRouter(uiService): AppRouter` — mirrors the full ui-service contract (query + mutation + subscriptions) over the injected UiService; unwraps `Result`, maps `Err`→`TRPCError`. Consumes the sibling `input-schemas` + `types`. `AppRouter` type re-exported by `@cortex-agent/ui-contract` (from the built dist) for the browser client |
 | `input-schemas.ts` | schemas | Source-of-truth zod input schema per QueryScope / MutateOp + `queryInputSchemas` / `mutateInputSchemas` keyed maps. Consumed by the sibling `app-router.ts` + re-exported (runtime) by `@cortex-agent/ui-contract` for the browser. Kept here (not in ui-contract) so the router can consume it without agent-server importing ui-contract, which would close a workspace build cycle |

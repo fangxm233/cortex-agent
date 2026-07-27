@@ -625,6 +625,15 @@ export interface ThreadArtifactRefs {
   taskProject: string | null;
 }
 
+export interface ThreadSubtaskInfo {
+  id: string;
+  text: string;
+  status: 'open' | 'done';
+  actionable: boolean;
+  claimedBy: string | null;
+  blockedBy: string | null;
+}
+
 export interface ThreadDetail {
   id: string;
   templateName: string;
@@ -644,7 +653,7 @@ export interface ThreadDetail {
   steps: ThreadStepDetail[];
   agentFlow: ThreadAgentFlow | null;
   dispatches: ThreadDispatchInfo[];
-  subtasks: TaskInfo[];
+  subtasks: ThreadSubtaskInfo[];
   children: ThreadChildNode[];
   artifacts: ThreadArtifactRefs;
 }
