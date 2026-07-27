@@ -1,6 +1,6 @@
 // input:  ./adapter.js + ./types.js
-// output: MockAdapter + recorded message/modal types
-// pos:    In-memory mock adapter for unit tests
+// output: MockAdapter + recorded message/modal/marker types
+// pos:    In-memory platform adapter for unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter } from './adapter.js';
@@ -42,6 +42,10 @@ export interface DeletedMessage {
 }
 
 export interface MarkedQueued {
+  ref: MessageRef;
+}
+
+export interface MarkedUnqueued {
   ref: MessageRef;
 }
 
@@ -149,6 +153,7 @@ export class MockAdapter implements PlatformAdapter {
   updated: UpdatedMessage[] = [];
   deleted: DeletedMessage[] = [];
   marksQueued: MarkedQueued[] = [];
+  marksUnqueued: MarkedUnqueued[] = [];
   uploads: UploadedFile[] = [];
   modals: OpenedModal[] = [];
 
@@ -240,6 +245,10 @@ export class MockAdapter implements PlatformAdapter {
 
   async markQueued(ref: MessageRef): Promise<void> {
     this.marksQueued.push({ ref });
+  }
+
+  async unmarkQueued(ref: MessageRef): Promise<void> {
+    this.marksUnqueued.push({ ref });
   }
 
   async uploadFile(destination: Destination, filePath: string, opts?: FileUploadOpts): Promise<void> {
@@ -370,6 +379,7 @@ export class MockAdapter implements PlatformAdapter {
     this.updated = [];
     this.deleted = [];
     this.marksQueued = [];
+    this.marksUnqueued = [];
     this.uploads = [];
     this.modals = [];
     this.nextId = 1000;

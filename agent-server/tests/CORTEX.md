@@ -46,8 +46,9 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 |---|---|---|
 | `agent-adapter/` | Subdirectory | Three-backend fixture replay plus Claude/PI live-turn injection lifecycle tests |
 | `orch/` | Subdirectory | Orch orchestration layer (running-executions / conduit-queue / superseded-edits / plan-approvals / ask-user-question-pi) regression tests |
-| `orchestration/` | Subdirectory | Orchestration units tested in isolation: `agent-file-send` (agent-produced file → workspace copy + transcript message), `session-rewind` (message edit rollback), `delta-coalescer` (token-level streaming: window/char-cap batching, per-block `seq`, the pre-finalize drain, and `createSessionDeltaStream` — the gate proving Slack / Feishu / Ink-TUI / thread channels never stream) |
-| `threads/` | Subdirectory | domain/threads/ domain layer regression tests ([S7]) |
+| `orchestration/` | Subdirectory | Isolated orchestration unit tests |
+| `platform/` | Subdirectory | Platform composition and transport tests |
+| `threads/` | Subdirectory | Thread domain regression tests |
 | `agent-adapter.test.ts` | Test | getAdapter/Capability matrix (including PI MidTurnInject)/tool-names contract |
 | `agent-adapter-claude.test.ts` | Test | Claude buildSpawnArgs/hooks/summarizer |
 | `agent-adapter-pi.test.ts` | Test | PI framing/spawn args, authoritative context env, bootstrap, and close |
@@ -127,9 +128,12 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `orch/hook-bridge-subscribers-web.test.ts` | Test | web: conduit branch creates interaction entities (plan-approval with FULL planContent snapshot + planApprovals live-resolver kept; ask-user normalized questions); non-web channels create none |
 | `domain/ui-service/query-sessions-transcript.test.ts` | Test | Transcript notice/turn/elapsed/interaction materialization and DEBUG exposure gate |
 | `domain/ui-service/mutate-sessions-interactions.test.ts` | Test | handleAnswerQuestion/handleRespondPlan three-way outcome: resolved/already-resolved → ok{outcome}, not-found → err, invalid-args, not-available |
-| `platform-mock-adapter.test.ts` | Test | MockAdapter 17 method coverage |
-| `output-stream.test.ts` | Test | SlackOutputStream/FeishuOutputStream/MockOutputStream unit tests (46 cases) |
-| `feishu-client.test.ts` | Test | stderrLogger routes all lark SDK logs to stderr (MCP stdout protocol safety) |
+| `platform-mock-adapter.test.ts` | Test | MockAdapter messages and marker lifecycle |
+| `composite-adapter-noop-fallback.test.ts` | Test | Unknown conduit operations stay no-op |
+| `slack-adapter-prefix.test.ts` | Test | Slack prefixes and hourglass lifecycle |
+| `feishu-adapter.test.ts` | Test | Feishu messages and OnIt lifecycle |
+| `output-stream.test.ts` | Test | Platform output stream regressions |
+| `feishu-client.test.ts` | Test | Lark SDK logs stay off protocol stdout |
 | `composite-adapter.test.ts` | Test | CompositeAdapter fan-out routing, interactive-reply isolation, capability merging, extractTuiAdapter, FanOutOutputStream, project-report all-primary fan-out + per-platform DM fallback (18 cases) |
 | `platform/ui-http-lazy-load.test.ts` | Test | Runtime guard (plan §11 single-package merge): with `CORTEX_UI_HTTP` unset, loading + invoking the gate (`entry/ui-http-gate.ts`) must NOT eager-load `@trpc/server` or `jose`. A child process registers a `module.register` resolve hook (`ui-http-lazy-hooks.mjs`, driven by `ui-http-lazy-driver.mjs`) that records resolved specifiers; the positive control (`LAZY_MODE=load`) proves the hook records trpc/jose when the transport IS loaded. Replaces the old `no-trpc-dep.test.ts` (now void — trpc/jose are legitimate core deps) |
 | `platform/ui-http-app-router.test.ts` | Test | tRPC AppRouter routing (every query/mutation → correct scope/op, Result unwrap) + Err→TRPCError mapping + subscription passthrough over a FAKE UiService (migrated from the ui-server package) |

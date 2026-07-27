@@ -1,7 +1,6 @@
 // input:  domain/threads, thread-runner, orch/channel-queue, orch/busy-tracker
-// output: ThreadExecutor — handles thread-add / thread-continue / thread-start sub-paths [S8];
-//         runThreadDetached — fire-and-forget run that holds the busy gate for the whole pipeline
-// pos:    orch/ — sole thread-routing execution path; runThreadDetached is the MCP thread_start path
+// output: ThreadExecutor with queue markers plus detached thread runner
+// pos:    Sole thread-routing execution path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -107,18 +106,21 @@ export class ThreadExecutor {
       return;
     }
 
-    if (conduitQueues.has(channel)) {
-      await adapter.markQueued({ conduit: channel, messageId: message.ref.messageId }).catch(() => {});
-    }
+    const markerRef = conduitQueues.has(channel)
+      ? { conduit: channel, messageId: message.ref.messageId }
+      : null;
+    if (markerRef) await adapter.markQueued(markerRef).catch(() => {});
     this._track(+1);
+    this._enqueue(channel, () => this._runQueued(ctx, markerRef));
+  }
 
-    this._enqueue(channel, async () => {
-      try {
-        await this._execute(ctx);
-      } finally {
-        this._track(-1);
-      }
-    });
+  private async _runQueued(ctx: ThreadExecCtx, markerRef: MessageRef | null): Promise<void> {
+    try {
+      await this._execute(ctx);
+    } finally {
+      if (markerRef) await ctx.adapter.unmarkQueued(markerRef).catch(() => {});
+      this._track(-1);
+    }
   }
 
   private async _executeReal(ctx: ThreadExecCtx): Promise<void> {

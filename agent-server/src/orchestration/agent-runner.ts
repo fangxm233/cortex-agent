@@ -1,5 +1,5 @@
 // input:  conversation execution, lifecycle, queue, DEBUG/pending stores
-// output: AgentRunner with typed notices and live/durable transcript wiring
+// output: AgentRunner with transcript, injection, and marker lifecycles
 // pos:    Sole plain user-message and injection path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -119,18 +119,21 @@ export class AgentRunner {
     // incapable backend, !command, synthetic wake, backend refusal) falls through to today's
     // queue behaviour unchanged.
     if (await this._tryInject(ctx)) return;
-    if (conduitQueues.has(channel)) {
-      await adapter.markQueued({ conduit: channel, messageId: message.ref.messageId }).catch(() => {});
-    }
+    const markerRef = conduitQueues.has(channel)
+      ? { conduit: channel, messageId: message.ref.messageId }
+      : null;
+    if (markerRef) await adapter.markQueued(markerRef).catch(() => {});
     this._track(+1);
+    this._enqueue(channel, () => this._runQueued(ctx, markerRef));
+  }
 
-    this._enqueue(channel, async () => {
-      try {
-        await this._execute(ctx);
-      } finally {
-        this._track(-1);
-      }
-    });
+  private async _runQueued(ctx: AgentRunnerCtx, markerRef: MessageRef | null): Promise<void> {
+    try {
+      await this._execute(ctx);
+    } finally {
+      if (markerRef) await ctx.adapter.unmarkQueued(markerRef).catch(() => {});
+      this._track(-1);
+    }
   }
 
   /**
@@ -145,7 +148,7 @@ export class AgentRunner {
       const sessionId = await getSessionAsync(ctx.channel, resolveBackendForChannel(ctx.channel));
       if (!sessionId) return false;
       const sessionName = await sessionStore.lookupBySessionId(sessionId);
-      return tryInjectIntoLiveTurn(buildInjectDeps(sessionName, ctx.channel), {
+      return tryInjectIntoLiveTurn(buildInjectDeps(sessionName, ctx.channel, ctx.adapter), {
         channel: ctx.channel,
         sessionId,
         sessionName,
@@ -486,7 +489,7 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
  * busy-gate seams `_executeReal` uses for an ordinary turn, so an injected message and a queued one
  * land in the transcript identically.
  */
-function buildInjectDeps(sessionName: string | null, channel: string): MidTurnInjectDeps {
+function buildInjectDeps(sessionName: string | null, channel: string, adapter: PlatformAdapter): MidTurnInjectDeps {
   return {
     getLiveExecutions: (channel) => runningExecutions.getByChannel(channel),
     getStreamingCallback,
@@ -504,6 +507,8 @@ function buildInjectDeps(sessionName: string | null, channel: string): MidTurnIn
     publishStatus: publishSessionStatus,
     persistPending: (record) => pendingInjectionRepo.add(record),
     commitPending: (record) => commitPendingInjection(record),
+    markPending: (record) => adapter.markQueued({ conduit: record.channel, messageId: record.messageId }),
+    unmarkPending: (record) => adapter.unmarkQueued({ conduit: record.channel, messageId: record.messageId }),
     track: trackPendingTask,
     summarizeToolInput: (input) => summarizeToolInputForHistory(input),
     captureDebug: isDebugMode(),

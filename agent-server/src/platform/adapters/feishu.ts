@@ -1,6 +1,6 @@
 // input:  @larksuiteoapi/node-sdk, ../adapter.js, ../types.js
-// output: FeishuAdapter + FeishuAdapterConfig
-// pos:    Feishu platform PlatformAdapter implementation
+// output: FeishuAdapter with messages, files, cards, and markers
+// pos:    Feishu PlatformAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as lark from '@larksuiteoapi/node-sdk';
@@ -70,6 +70,7 @@ export class FeishuAdapter implements PlatformAdapter {
   private actionHandlers = new Map<string, (ctx: ActionContext) => Promise<void>>();
   private modalHandlers = new Map<string, (ctx: ModalSubmitContext) => Promise<void>>();
   private _adminAutoDetected = false;
+  private queuedReactionIds = new Map<string, string>();
 
   constructor(config: FeishuAdapterConfig) {
     this.config = config;
@@ -309,22 +310,37 @@ export class FeishuAdapter implements PlatformAdapter {
 
   // --- Queue backpressure ---
 
-  private async _addHourglassReaction(ref: MessageRef): Promise<void> {
-    try {
-      await this.client.im.v1.messageReaction.create({
-        path: { message_id: ref.messageId },
-        // Feishu has no 'hourglass' emoji_type (err 231001 "reaction type is
-        // invalid"). 'OnIt' (处理中) is a valid type and the right semantic fit
-        // for a "queued / working on it" indicator.
-        data: { reaction_type: { emoji_type: 'OnIt' } },
-      });
-    } catch {
-      // Best-effort: emoji name may not map to Feishu's emoji set
-    }
+  private _reactionKey(ref: MessageRef): string {
+    return `${this._unwrap(ref.conduit)}:${ref.messageId}`;
   }
 
   async markQueued(ref: MessageRef): Promise<void> {
-    await this._addHourglassReaction(ref);
+    try {
+      const result = await this.client.im.v1.messageReaction.create({
+        path: { message_id: ref.messageId },
+        // Feishu rejects `hourglass` with 231001; OnIt is the closest valid type.
+        data: { reaction_type: { emoji_type: 'OnIt' } },
+      });
+      const reactionId = result?.data?.reaction_id;
+      if (reactionId) this.queuedReactionIds.set(this._reactionKey(ref), reactionId);
+    } catch {
+      // Best-effort: a reaction failure never blocks the agent turn.
+    }
+  }
+
+  async unmarkQueued(ref: MessageRef): Promise<void> {
+    const key = this._reactionKey(ref);
+    const reactionId = this.queuedReactionIds.get(key);
+    if (!reactionId) return;
+    try {
+      await this.client.im.v1.messageReaction.delete({
+        path: { message_id: ref.messageId, reaction_id: reactionId },
+      });
+    } catch {
+      // Best-effort: deletion failure never blocks the agent turn.
+    } finally {
+      this.queuedReactionIds.delete(key);
+    }
   }
 
   // --- Files ---

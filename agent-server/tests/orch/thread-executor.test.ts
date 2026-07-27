@@ -1,9 +1,6 @@
 // input:  ThreadExecutor class
 // output: unit tests — thread routing coordination [S8-A]
-// pos:    verifies (a) +1/-1 trackPendingTask via injectable track; (b) enqueue called;
-//         (c) hourglass when queue exists; (d) threadExecutor singleton exists;
-//         (e) route() works without existing queue (no addReaction);
-//         (f) ThreadExecutor default constructor uses real enqueue
+// pos:    verifies queue marker lifecycle, busy tracking, buffering, and defaults
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -86,10 +83,12 @@ test('(c) route() calls addReaction(hourglass) when channel already has a runnin
   enqueue(channel, () => priorBlock);
 
   const enqueueCalls: string[] = [];
+  const enqueueFns: Array<() => Promise<void>> = [];
   const adapter = new MockAdapter();
   const executor = new ThreadExecutor({
-    enqueue: (ch, _fn) => { enqueueCalls.push(ch); return true; },
+    enqueue: (ch, fn) => { enqueueCalls.push(ch); enqueueFns.push(fn); return true; },
     track: () => {},
+    execute: async () => {},
   });
 
   const ctx = makeCtx(channel, { adapter, threadStartMatch: ['!thread coder hi', 'coder', 'hi'] as any });
@@ -100,6 +99,11 @@ test('(c) route() calls addReaction(hourglass) when channel already has a runnin
   assert.equal(adapter.marksQueued[0].ref.conduit, channel, 'markQueued called with correct channel');
   assert.equal(adapter.marksQueued[0].ref.messageId, 'M1', 'markQueued called with correct messageId');
   assert.equal(enqueueCalls.length, 1, 'enqueue was called');
+  assert.equal(adapter.marksUnqueued.length, 0, 'marker stays while the turn is pending');
+
+  await enqueueFns[0]();
+  assert.equal(adapter.marksUnqueued.length, 1, 'turn completion removes the marker');
+  assert.deepEqual(adapter.marksUnqueued[0].ref, { conduit: channel, messageId: 'M1' });
 
   unlockPrior();
   const tail = conduitQueues.get(channel);

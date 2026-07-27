@@ -1,6 +1,6 @@
 // input:  @slack/bolt, @slack/web-api, ../adapter.js, ../types.js
-// output: SlackAdapter + SlackAdapterConfig
-// pos:    Slack platform PlatformAdapter implementation
+// output: SlackAdapter with messages, files, and reaction markers
+// pos:    Slack PlatformAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { App } from '@slack/bolt';
@@ -505,19 +505,21 @@ export class SlackAdapter implements PlatformAdapter {
 
   // --- Queue backpressure ---
 
-  private async _addHourglassReaction(ref: MessageRef): Promise<void> {
+  private async _setHourglassReaction(ref: MessageRef, add: boolean): Promise<void> {
     const channel = this._unwrap(ref.conduit);
-    await this.rateLimitedCall('reactions.add', channel, () =>
-      this.client.reactions.add({
-        channel,
-        name: 'hourglass',
-        timestamp: ref.messageId,
-      })
+    const method = add ? 'reactions.add' : 'reactions.remove';
+    const payload = { channel, name: 'hourglass', timestamp: ref.messageId };
+    await this.rateLimitedCall(method, channel, () =>
+      add ? this.client.reactions.add(payload) : this.client.reactions.remove(payload)
     );
   }
 
   async markQueued(ref: MessageRef): Promise<void> {
-    await this._addHourglassReaction(ref);
+    await this._setHourglassReaction(ref, true);
+  }
+
+  async unmarkQueued(ref: MessageRef): Promise<void> {
+    await this._setHourglassReaction(ref, false);
   }
 
   // --- Files ---

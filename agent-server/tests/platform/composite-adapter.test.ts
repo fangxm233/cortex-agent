@@ -1,6 +1,7 @@
-// input:  CompositeAdapter + FanOutOutputStream + extractTuiAdapter + MockAdapter + TuiGatewayAdapter
-// output: Composite adapter unit tests
-// pos:    Verify fan-out routing, interactive-reply isolation, capabilities merging, extractTuiAdapter, FanOutOutputStream
+// input:  CompositeAdapter, MockAdapter, TuiGatewayAdapter
+// output: Composite routing, fan-out, and marker lifecycle tests
+// pos:    Verifies multi-platform adapter composition
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
@@ -303,7 +304,7 @@ function prefixAdapter(prefix: string): MockAdapter {
   return a;
 }
 
-test('CompositeAdapter: routes update/delete/permalink/markQueued by conduit prefix', async () => {
+test('CompositeAdapter: routes update/delete/permalink/marker lifecycle by conduit prefix', async () => {
   const slack = prefixAdapter('slack:');
   const feishu = prefixAdapter('feishu:');
   const composite = new CompositeAdapter([slack, feishu]);
@@ -312,6 +313,7 @@ test('CompositeAdapter: routes update/delete/permalink/markQueued by conduit pre
   await composite.updateMessage({ conduit: 'feishu:oc_1', messageId: 'm2' }, { text: 'u' });
   await composite.deleteMessage({ conduit: 'feishu:oc_2', messageId: 'm3' });
   await composite.markQueued({ conduit: 'slack:C2', messageId: 'm4' });
+  await composite.unmarkQueued({ conduit: 'slack:C2', messageId: 'm4' });
   const link = await composite.getPermalink({ conduit: 'feishu:oc_3', messageId: 'm5' });
 
   assert.equal(slack.updated.length, 1);
@@ -321,7 +323,9 @@ test('CompositeAdapter: routes update/delete/permalink/markQueued by conduit pre
   assert.equal(slack.deleted.length, 0);
   assert.equal(feishu.deleted.length, 1);
   assert.equal(slack.marksQueued.length, 1);
+  assert.equal(slack.marksUnqueued.length, 1);
   assert.equal(feishu.marksQueued.length, 0);
+  assert.equal(feishu.marksUnqueued.length, 0);
   assert.ok(link?.includes('feishu:oc_3'));
 });
 

@@ -1,6 +1,6 @@
 // input:  ../adapter.js, ../types.js, ../output-stream.js, ./tui/index.js
-// output: CompositeAdapter + FanOutOutputStream + extractTuiAdapter
-// pos:    Composite adapter — wraps N sub-adapters (Slack/Feishu/TUI) behind one PlatformAdapter surface; routes by conduit prefix
+// output: CompositeAdapter, FanOutOutputStream, extractTuiAdapter
+// pos:    Routes platform operations and marker lifecycle by conduit
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter } from '../adapter.js';
@@ -148,6 +148,7 @@ function createNoopAdapter(): PlatformAdapter {
     }),
     openModal: async () => {},
     markQueued: async () => {},
+    unmarkQueued: async () => {},
     uploadFile: async () => {},
     downloadFile: async () => ({ localPath: '', mimetype: '', name: '' }),
     getPermalink: async () => null,
@@ -325,6 +326,10 @@ export class CompositeAdapter implements PlatformAdapter {
 
   async markQueued(ref: MessageRef): Promise<void> {
     await this._adapterForRef(ref).markQueued(ref);
+  }
+
+  async unmarkQueued(ref: MessageRef): Promise<void> {
+    await this._adapterForRef(ref).unmarkQueued(ref);
   }
 
   async uploadFile(destination: Destination, filePath: string, opts?: FileUploadOpts): Promise<void> {

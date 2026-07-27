@@ -1,6 +1,6 @@
 // input:  mid-turn injection with deferred durable-store and backend-ack seams
-// output: persist-before-publish and ack-latch ordering regressions
-// pos:    durable phase-one ordering specification for pending injection
+// output: persistence, early-ack, and platform-marker ordering regressions
+// pos:    Specifies durable phase-one ordering for pending injection
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { beforeEach, test } from 'vitest';
@@ -39,6 +39,8 @@ function harness(persist: Promise<void>) {
     persistPending: async () => { order.push('persist-start'); await persist; order.push('persist-end'); },
     commitPending: async () => { order.push('commit'); return { committedTs: 'T-commit' }; },
     createPendingId: () => 'pin-1',
+    markPending: async () => { order.push('mark'); },
+    unmarkPending: async () => { order.push('unmark'); },
     track: (delta) => { order.push(`track:${delta}`); },
     now: () => 'T-write',
   } as MidTurnInjectDeps;
@@ -59,7 +61,7 @@ test('accepted injection is durably stored before its pending event is published
   assert.deepEqual(h.order, ['track:1', 'persist-start']);
   gate.resolve();
   assert.equal(await attempt, true);
-  assert.deepEqual(h.order, ['track:1', 'persist-start', 'persist-end', 'publish:pin-1']);
+  assert.deepEqual(h.order, ['track:1', 'persist-start', 'persist-end', 'mark', 'publish:pin-1']);
 });
 
 test('an ack arriving during the durable write is latched until pending has been published', async () => {
@@ -75,8 +77,8 @@ test('an ack arriving during the durable write is latched until pending has been
   await ack;
 
   assert.deepEqual(h.order, [
-    'track:1', 'persist-start', 'persist-end', 'publish:pin-1',
-    'commit', 'delivered:pin-1', 'track:-1',
+    'track:1', 'persist-start', 'persist-end', 'mark', 'publish:pin-1',
+    'commit', 'delivered:pin-1', 'unmark', 'track:-1',
   ]);
 });
 
@@ -89,4 +91,5 @@ test('a failed active-store write falls back to a committed transcript instead o
     'track:1', 'persist-start', 'commit', 'delivered:pin-1',
   ]);
   assert.ok(!h.order.some((item) => item.startsWith('publish:')), 'nothing is called pending unless phase one is durable');
+  assert.ok(!h.order.includes('mark'), 'a non-durable pending state gets no platform marker');
 });

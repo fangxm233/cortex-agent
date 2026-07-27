@@ -1,6 +1,6 @@
 // input:  Node test runner + SlackAdapter conduit prefixing
-// output: Verify `slack:` prefix is added on outbound conduits and stripped on inbound
-// pos:    Regression tests for multi-platform conduit prefixing (Slack + Feishu + TUI coexistence)
+// output: Slack conduit prefix and queue-marker API regression tests
+// pos:    Verifies Slack SDK calls receive bare channel identifiers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -115,6 +115,29 @@ test('SlackAdapter.onAction: channelId, messageRef.conduit and triggerId are pre
   assert.equal(ctx!.channelId, 'slack:C7');
   assert.equal(ctx!.messageRef?.conduit, 'slack:C7');
   assert.equal(ctx!.triggerId, 'slack:tg');
+});
+
+// ── queue marker lifecycle uses one symmetric Slack reaction ──────
+
+test('SlackAdapter queue marker adds and removes hourglass on the inbound message', async () => {
+  const a = makeAdapter();
+  const calls: Array<{ op: string; payload: any }> = [];
+  a.rateLimiter = { acquire: async () => {}, reportThrottled: () => {} };
+  a.client = {
+    reactions: {
+      add: async (payload: any) => { calls.push({ op: 'add', payload }); },
+      remove: async (payload: any) => { calls.push({ op: 'remove', payload }); },
+    },
+  };
+  const ref = { conduit: 'slack:C55', messageId: '171.22' };
+
+  await a.markQueued(ref);
+  await a.unmarkQueued(ref);
+
+  assert.deepEqual(calls, [
+    { op: 'add', payload: { channel: 'C55', name: 'hourglass', timestamp: '171.22' } },
+    { op: 'remove', payload: { channel: 'C55', name: 'hourglass', timestamp: '171.22' } },
+  ]);
 });
 
 // ── project conduit registry: store stays bare, surface is prefixed ──

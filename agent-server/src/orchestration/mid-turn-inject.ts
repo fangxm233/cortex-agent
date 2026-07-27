@@ -1,6 +1,6 @@
 // input:  live execution, incoming message, durable pending/commit seams
-// output: persisted injected-turn lifecycle plus spontaneous tool forwarding
-// pos:    busy-channel branch of AgentRunner.route (inject into live turn ⇄ queue)
+// output: durable injected turns, platform markers, continuation forwarding
+// pos:    Busy-channel injection branch of AgentRunner.route
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 /**
@@ -54,6 +54,8 @@ export interface MidTurnInjectDeps {
   publishStatus: (ev: { sessionId: string; channel: string; running: boolean }) => void;
   persistPending: (record: PendingInjectionRecord) => Promise<void>;
   commitPending: (record: PendingInjectionRecord) => Promise<{ committedTs: string }>;
+  markPending?: (record: PendingInjectionRecord) => Promise<void>;
+  unmarkPending?: (record: PendingInjectionRecord) => Promise<void>;
   createPendingId?: () => string;
   track: (delta: number) => void;
   now: () => string;
@@ -112,6 +114,7 @@ interface PendingInjection {
   activate: () => void;
   /** Move it into the conversation record (history + ledger turn + the delivered event). Single-fire. */
   commit: () => Promise<boolean>;
+  mark: () => void;
   release: () => Promise<void>;
   isReleased: () => boolean;
 }
@@ -149,6 +152,9 @@ class PendingLifecycle implements PendingInjection {
   private readonly active: Promise<void>;
   private commitPromise: Promise<boolean> | null = null;
   private releasePromise: Promise<void> | null = null;
+  private markerPromise: Promise<void> = Promise.resolve();
+  private markerStarted = false;
+  private markerCleared = false;
 
   constructor(
     readonly record: PendingInjectionRecord,
@@ -162,6 +168,24 @@ class PendingLifecycle implements PendingInjection {
 
   activate = (): void => { this.activeResolve(); };
   isReleased = (): boolean => this.releasePromise !== null;
+
+  mark = (): void => {
+    if (this.markerStarted || !this.deps.markPending) return;
+    this.markerStarted = true;
+    try {
+      this.markerPromise = this.deps.markPending(this.record).catch(() => {});
+    } catch {
+      this.markerPromise = Promise.resolve();
+    }
+  };
+
+  private clearMarker(): void {
+    if (!this.markerStarted || this.markerCleared || !this.deps.unmarkPending) return;
+    this.markerCleared = true;
+    this.markerPromise = this.markerPromise
+      .then(() => this.deps.unmarkPending!(this.record))
+      .catch(() => {});
+  }
 
   commit = (): Promise<boolean> => {
     if (!this.commitPromise) {
@@ -178,6 +202,7 @@ class PendingLifecycle implements PendingInjection {
     await this.active;
     try {
       const { committedTs } = await this.deps.commitPending(this.record);
+      this.clearMarker();
       this.deps.publishDelivered({
         sessionId: this.record.sessionId, channel: this.record.channel,
         pendingId: this.record.id, messageTs: this.ts, committedTs,
@@ -253,6 +278,7 @@ async function persistAndSurface(
     await entry.commit();
     return;
   }
+  entry.mark();
   deps.publishMessage({
     sessionId: entry.record.sessionId, channel: entry.record.channel, role: 'user',
     text: entry.record.text, ts: entry.ts, attachments: entry.record.attachments,

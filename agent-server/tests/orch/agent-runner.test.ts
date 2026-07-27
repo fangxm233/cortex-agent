@@ -1,9 +1,6 @@
-// input:  AgentRunner class, resolveDefaultAgent
-// output: unit tests — routing coordination + resolveDefaultAgent config [S8-A]
-// pos:    verifies (a) hourglass reaction when queue exists; (a2) mid-turn injection pre-empts the
-//         queue / declining falls back to it; (b) +1/-1 trackPendingTask;
-//         (c) enqueue called for channel; (d) resolveDefaultAgent with no agent;
-//         (e) resolveDefaultAgent with directive; (f) agentRunner singleton exists
+// input:  AgentRunner, queue, MockAdapter, agent config
+// output: Queue-marker, injection, busy, and routing regressions
+// pos:    Verifies plain user-message orchestration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -81,10 +78,12 @@ test('(a) route() calls addReaction(hourglass) when channel already has a queue'
   enqueue(channel, () => promise);
 
   const enqueueCalls: string[] = [];
+  const enqueueFns: Array<() => Promise<void>> = [];
   const trackCalls: number[] = [];
   const runner = new AgentRunner({
-    enqueue: (ch, _fn) => { enqueueCalls.push(ch); return true; },
+    enqueue: (ch, fn) => { enqueueCalls.push(ch); enqueueFns.push(fn); return true; },
     track: (d) => { trackCalls.push(d); },
+    execute: async () => {},
   });
 
   const adapter = new MockAdapter();
@@ -99,6 +98,10 @@ test('(a) route() calls addReaction(hourglass) when channel already has a queue'
 
   assert.equal(enqueueCalls.length, 1, 'enqueue was called for the channel');
   assert.equal(enqueueCalls[0], channel);
+  assert.equal(adapter.marksUnqueued.length, 0, 'marker stays while its turn is pending');
+
+  await enqueueFns[0]();
+  assert.deepEqual(adapter.marksUnqueued, [{ ref: { conduit: channel, messageId: 'M1' } }], 'turn completion removes the marker');
 
   // Clean up: unblock the prior queue and drain
   unlockPrior();
@@ -107,6 +110,30 @@ test('(a) route() calls addReaction(hourglass) when channel already has a queue'
 });
 
 // ── (a2) mid-turn injection takes precedence over the queue ──────────────────
+
+test('(a) queued marker is removed even when the queued turn fails', async () => {
+  const channel = freshChannel();
+  let unlockPrior!: () => void;
+  const prior = new Promise<void>((resolve) => { unlockPrior = resolve; });
+  enqueue(channel, () => prior);
+
+  const enqueueFns: Array<() => Promise<void>> = [];
+  const adapter = new MockAdapter();
+  const runner = new AgentRunner({
+    enqueue: (_ch, fn) => { enqueueFns.push(fn); return true; },
+    track: () => {},
+    execute: async () => { throw new Error('controlled failure'); },
+  });
+  await runner.route(makeCtx({ channel, adapter }) as any);
+  await assert.rejects(enqueueFns[0], /controlled failure/);
+
+  assert.equal(adapter.marksQueued.length, 1);
+  assert.equal(adapter.marksUnqueued.length, 1, 'failure cleanup removes the marker exactly once');
+
+  unlockPrior();
+  const tail = conduitQueues.get(channel);
+  if (tail) await tail;
+});
 
 test('(a2) route() injects into the live turn instead of queuing it behind that turn', async () => {
   const channel = freshChannel();

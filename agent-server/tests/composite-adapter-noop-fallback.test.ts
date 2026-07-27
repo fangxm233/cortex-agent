@@ -1,6 +1,6 @@
 // input:  Node test runner + CompositeAdapter + MockAdapter
-// output: Verify unknown conduits (e.g. web:*) are handled gracefully by the no-op fallback
-// pos:    Regression test: postMessage/updateMessage no longer throw for unowned conduits
+// output: Unknown-conduit no-op coverage including marker add/remove
+// pos:    Verifies Web conduits never leak into real platform adapters
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -58,16 +58,17 @@ test('CompositeAdapter.deleteMessage with unowned conduit does not throw', async
   assert.equal(mock.deleted.length, 0);
 });
 
-test('CompositeAdapter.markQueued with unowned conduit does not throw', async () => {
+test('CompositeAdapter marker add/remove with unowned conduit do not throw', async () => {
   const mock = new MockAdapter();
   mock.ownsConduitFn = (c) => !c.startsWith('web:');
   const comp = new CompositeAdapter([mock]);
 
-  await comp.markQueued(
-    { conduit: 'web:test-uuid-1234', messageId: 'noop_1_1234567890' },
-  );
+  const ref = { conduit: 'web:test-uuid-1234', messageId: 'noop_1_1234567890' };
+  await comp.markQueued(ref);
+  await comp.unmarkQueued(ref);
 
   assert.equal(mock.marksQueued.length, 0);
+  assert.equal(mock.marksUnqueued.length, 0);
 });
 
 test('CompositeAdapter.ownsConduit: web conduits are not owned by any real adapter', () => {

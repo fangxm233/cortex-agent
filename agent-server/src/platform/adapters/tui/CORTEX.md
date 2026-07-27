@@ -6,7 +6,7 @@ Bridges WS connections (M4 protocol) to the PlatformAdapter interface.
 | filename | role | function |
 |---|---|---|
 | `index.ts` | barrel | Re-export TuiGatewayAdapter, TuiConnection, helpers |
-| `tui-gateway.ts` | adapter | TuiGatewayAdapter — PlatformAdapter impl + TuiAdapterControls (setBus/setUiService/setSessionService/setConduitQueue), WS server, handshake, inbound dispatch, outbound translation, keepalive. **Lazy session creation**: a no-resume handshake mints NO session (emits no `session.switched`) so merely opening the TUI never creates an empty `cortex-XXXX`; the first `msg.user` calls `_ensureSession` to mint + announce it. Resume handshakes (reconnect carries `resume.sessionId`) still re-attach via the session service. `lookupConduit()` exposes in-memory state for app.ts's conduit provider. No @store/@orch imports. |
+| `tui-gateway.ts` | adapter | Bridges TUI WebSocket traffic and PlatformAdapter operations |
 | `tui-connection.ts` | connection | Per-WS connection — conduitId, activeSessionId, activeProjectId, send/close |
 | `tui-conduit-state.ts` | store | In-memory Map<conduitId, TuiConduitState> with helpers |
 | `tui-output-stream.ts` | output stream | TuiOutputStream — no coalescing, emits stream.* WS frames |

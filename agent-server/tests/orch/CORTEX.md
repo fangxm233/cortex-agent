@@ -15,9 +15,9 @@ DEBUG coverage here includes byte-identical assembled-prompt capture (`first-tur
 | `hook-bridge-subscribers-web.test.ts` | Test | Web interaction snapshots including full plan and path |
 | `busy-tracker.test.ts` | Test | BusyTracker +1/-1 publish+IPC, multi-publisher aggregate, re-entrant safety (S6-C) |
 | `orchestrator.test.ts` | Test | Orchestrator two-branch decision tree: threadAddMatch / isActiveThread / threadStartMatch -> threadExecutor; no match -> agentRunner (S8-A) |
-| `agent-runner.test.ts` | Test | AgentRunner hourglass reaction, +1/-1 trackPendingTask, enqueue channel, resolveDefaultAgent pure function, singleton contract (S8-A) |
-| `mid-turn-inject.test.ts` | Test | Injection gates, durable two-phase lifecycle, consumption ordering, undelivered seals, continuation output, and busy-gate balance |
-| `mid-turn-inject-persistence.test.ts` | Test | Persist-before-publish, active-store failure fallback, and early-ack latch ordering |
+| `agent-runner.test.ts` | Test | Queue marker cleanup and plain-turn routing |
+| `mid-turn-inject.test.ts` | Test | Pending commits, markers, and continuation |
+| `mid-turn-inject-persistence.test.ts` | Test | Durable ordering and early-ack marker races |
 | `pending-injection-recovery.test.ts` | Test | Ledger/history/store crash-boundary idempotency, concurrent-order serialization, and startup drain |
 | `agent-runner-wake-guard.test.ts` | Test | 2026-07-05 self-consumption regression: synthetic wakeSession notices (SYNTHETIC_CALLBACK_SENDER) bypass the manager-qa human-answer backstop in route(); real human replies still consumed; buildSyntheticWakeMessage shape sync |
 | `lifecycle-rate-limit.test.ts` | Test | handleAgentError thrown-rate-limit pause branch: throttled + rate-limit error + userMessage → recordResume(direct) + seal, no error post; normal error path otherwise (not throttled / no userMessage / non-rate-limit) |
@@ -27,7 +27,7 @@ DEBUG coverage here includes byte-identical assembled-prompt capture (`first-tur
 | `bg-wait-guard.test.ts` | Test | BgWaitGuard busy bracket (+1/-1 exactly once), grace watchdog (undelivered-only), max-wait cap (running), rearm switching, env-tunable durations |
 | `lifecycle-bg-hold.test.ts` | Test | handleAgentSuccess bg-hold integration: undelivered-only hold + sink, grace auto-seal, interrupted seal, max-wait cap seal + late-continuation re-seal |
 | `turn-notify.test.ts` | Test | isTurnNotifyEnabled / getTurnNotifyThresholdS gating + maybeNotifyTurnComplete dispatch (threshold/scope/disable gates, success metrics vs failure, threadId forwarding, never-throws) |
-| `thread-executor.test.ts` | Test | ThreadExecutor +1/-1 trackPendingTask, enqueue channel, hourglass reaction, singleton contract (S8-A) |
+| `thread-executor.test.ts` | Test | Thread queue marker cleanup and routing |
 | `thread-detached.test.ts` | Test | runThreadDetached holds the busy gate for the whole fire-and-forget thread AND across the onSettled callback (sync +1, -1 in finally on success/reject, balanced, deferred until callback settles — test e) — regression for restart killing MCP `thread_start` background threads / dropping the completion callback |
 | `seal-thread-status.test.ts` | Test | sealThreadStatus unifies the interactive `!thread` + background/resume terminal seal: text == buildThreadSummary; interactive style attaches SEALED action blocks (Cancel removed), background attaches none; delivery failure propagates (no internal swallow) |
 | `ask-user-question-pi.test.ts` | Test | PI ask-user-question branch: tryResolveHook extension_ui_response routing, multi-question join, incomplete does not resolve early (S3) |

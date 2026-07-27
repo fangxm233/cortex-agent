@@ -1,6 +1,6 @@
-// input:  ws, protocol.ts, PlatformAdapter, TuiConnection, TuiOutputStream, conduit-state, conduit-queue
-// output: TuiGatewayAdapter (PlatformAdapter v2 + TuiAdapterControls) + WebSocket server
-// pos:    TUI adapter — bridges WS connections to PlatformAdapter interface
+// input:  ws, protocol, PlatformAdapter, TUI connection/state modules
+// output: TuiGatewayAdapter, controls, and WebSocket server
+// pos:    Bridges TUI WebSocket sessions to PlatformAdapter
 // >>> If I am updated, update the folder's CORTEX.md <<<
 
 import { WebSocketServer, WebSocket } from 'ws';
@@ -403,6 +403,10 @@ export class TuiGatewayAdapter implements PlatformAdapter, TuiAdapterControls {
       ref,
       seq: 0,
     });
+  }
+
+  async unmarkQueued(_ref: MessageRef): Promise<void> {
+    // TUI has no remove-marker protocol frame; this task only closes reaction platforms.
   }
 
   async uploadFile(destination: Destination, filePath: string, _opts?: FileUploadOpts): Promise<void> {

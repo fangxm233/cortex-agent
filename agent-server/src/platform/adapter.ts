@@ -1,6 +1,6 @@
 // input:  ./types.js platform-agnostic message types
-// output: PlatformAdapter interface (22 methods: 17 core + openOutputStream + 4 conduit methods)
-// pos:    Single abstraction boundary between core modules and messaging platform
+// output: PlatformAdapter interface with symmetric queue-marker lifecycle
+// pos:    Boundary between orchestration and messaging platforms
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type {
@@ -51,6 +51,7 @@ export interface PlatformAdapter {
 
   // --- Queue backpressure ---
   markQueued(ref: MessageRef): Promise<void>;
+  unmarkQueued(ref: MessageRef): Promise<void>;
 
   // --- Files ---
   uploadFile(destination: Destination, filePath: string, opts?: FileUploadOpts): Promise<void>;

@@ -1,6 +1,6 @@
 // input:  mid-turn injection with durable/commit/backend seams
-// output: routing plus persisted pending→committed lifecycle regressions
-// pos:    orch/ mid-turn injection routing tests
+// output: pending commit, continuation, and platform-marker regressions
+// pos:    Verifies the full mid-turn injection lifecycle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeEach, vi } from 'vitest';
@@ -47,6 +47,8 @@ interface Recorder {
   ledger: any[];
   track: number[];
   streamed: string[];
+  marked: string[];
+  unmarked: string[];
 }
 
 function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recorder {
@@ -57,6 +59,8 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recor
   const ledger: any[] = [];
   const track: number[] = [];
   const streamed: string[] = [];
+  const marked: string[] = [];
+  const unmarked: string[] = [];
   let clock = 0;
   let pendingId = 0;
   const now = () => `2026-07-25T00:00:0${clock++}.000Z`;
@@ -76,11 +80,13 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recor
       return { committedTs };
     },
     createPendingId: () => `pin-${++pendingId}`,
+    markPending: async (record) => { marked.push(record.messageId); },
+    unmarkPending: async (record) => { unmarked.push(record.messageId); },
     track: (d) => track.push(d),
     now,
     ...overrides,
   };
-  return { deps, history, published, delivered, status, ledger, track, streamed };
+  return { deps, history, published, delivered, status, ledger, track, streamed, marked, unmarked };
 }
 
 const baseCtx = {
@@ -175,6 +181,29 @@ test('injects into the live turn and surfaces the message immediately, marked pe
   assert.deepEqual(r.track, [+1], 'the reply window holds the busy gate');
 });
 
+test('durable pending state adds a platform marker before the message is consumed', async () => {
+  const proc = fakeProcess();
+  const r = recorder({}, { backend: 'claude', agentProcess: proc });
+
+  await tryInjectIntoLiveTurn(r.deps, baseCtx);
+
+  assert.deepEqual(r.marked, ['web_1']);
+  assert.deepEqual(r.unmarked, [], 'the marker remains while the model has not read the message');
+});
+
+test('platform marker failures never reject an accepted injection or its commit', async () => {
+  const proc = fakeProcess();
+  const r = recorder({
+    markPending: async () => { throw new Error('mark failed'); },
+    unmarkPending: async () => { throw new Error('unmark failed'); },
+  }, { backend: 'claude', agentProcess: proc });
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), true);
+  await assert.doesNotReject(proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true }));
+  assert.equal(r.delivered.length, 1, 'durable delivery is independent of cosmetic reactions');
+  assert.deepEqual(r.track, [+1, -1]);
+});
+
 test('writing does not record: no history entry and no ledger turn until the model reads it', async () => {
   const proc = fakeProcess();
   const r = recorder({}, { backend: 'claude', agentProcess: proc });
@@ -258,6 +287,7 @@ test('fold-in ack: commits the message and releases the busy gate', async () => 
   assert.equal(r.delivered[0].messageTs, pendingTs, 'carries the pending row key it replaces');
   assert.ok(r.delivered[0].committedTs, 'and the new order key the client re-keys the row to');
   assert.equal(r.delivered[0].sessionId, SESSION);
+  assert.deepEqual(r.unmarked, ['web_1'], 'the consumption commit removes the platform marker');
   assert.deepEqual(r.track, [+1, -1], 'folded in ⇒ the running turn owns the reply, gate released');
 });
 
@@ -379,6 +409,7 @@ test('a message the backend never consumed is committed when the injection windo
     assert.equal(r.delivered.length, 1, 'the client is told to stop showing it as pending');
     assert.equal(r.delivered[0].messageTs, pendingTs);
     assert.equal(r.delivered[0].committedTs, r.history[0].ts, 'it enters the record where it stopped being pending');
+    assert.deepEqual(r.unmarked, ['web_1'], 'window seal removes the marker too');
     assert.deepEqual(r.track, [+1, -1]);
   } finally {
     vi.useRealTimers();
@@ -396,6 +427,7 @@ test('an adapter undelivered ack commits and releases exactly once', async () =>
   assert.deepEqual(r.history.map((h) => h.text), ['skip the rest']);
   assert.equal(r.ledger.length, 1, 'the sealed message takes one ledger turn');
   assert.equal(r.delivered.length, 1, 'pending UI row is committed once');
+  assert.deepEqual(r.unmarked, ['web_1'], 'undelivered commit removes the marker once');
   assert.deepEqual(r.track, [+1, -1], 'undelivered seal cannot leak or double-release the gate');
 });
 
