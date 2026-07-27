@@ -32,7 +32,7 @@ side had to change. The later profile-refresh path adds only a typed `config.cha
 | `workbench/useSessionMessageLiveSync` | session.message / message.delivered / status / turn / interaction / rewound / debug.updated | `{ sessionId }` — the open chat |
 | `workbench/useSessionsLiveSync` | session.status / interaction | global (rail dots) |
 | `workbench/useThreadsLiveSync` | thread lifecycle | global (`threads.list`) |
-| `thread/useThreadGetLiveSync` | thread lifecycle | global (`threads.get` for one id) |
+| `thread/useThreadGetLiveSync` | thread + task lifecycle | global (`threads.get` for one id, including direct subtasks) |
 | `tasks/useTasksLiveSync` | task lifecycle | global (`tasks.list`) |
 | `notifications/useDmNotifications` | session.message / status | global (toast queue) |
 | `notifications/useSystemNotices` | system.notice | global |

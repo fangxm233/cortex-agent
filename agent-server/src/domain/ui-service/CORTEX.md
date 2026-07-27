@@ -13,7 +13,7 @@ by the Web UI.
 
 | filename | role | function |
 |---|---|---|
-| `types.ts` | types | UI operations/events/DTOs, including optional timestamped `SessionInfo.contextUsage` and transcript notice levels |
+| `types.ts` | types | UI operations/events/DTOs, including timestamped session context usage, transcript notices, and thread run/subtask activity |
 | `trpc.ts` | tRPC init | Shared `initTRPC.create()` — `router` / `publicProcedure` / `createCallerFactory` (transport-agnostic; `@trpc/server` CORE only, no http/ws adapter) |
 | `app-router.ts` | tRPC router | `createAppRouter(uiService): AppRouter` — mirrors the full ui-service contract (query + mutation + subscriptions) over the injected UiService; unwraps `Result`, maps `Err`→`TRPCError`. Consumes the sibling `input-schemas` + `types`. `AppRouter` type re-exported by `@cortex-agent/ui-contract` (from the built dist) for the browser client |
 | `input-schemas.ts` | schemas | Source-of-truth zod input schema per QueryScope / MutateOp + `queryInputSchemas` / `mutateInputSchemas` keyed maps. Consumed by the sibling `app-router.ts` + re-exported (runtime) by `@cortex-agent/ui-contract` for the browser. Kept here (not in ui-contract) so the router can consume it without agent-server importing ui-contract, which would close a workspace build cycle |
@@ -22,8 +22,8 @@ by the Web UI.
 | `index.ts` | barrel | re-exports createUiService and public types |
 | `query/projects.ts` | query | projects.list handler |
 | `query/sessions.ts` | query | sessions.list exposes persisted context snapshots; transcript preserves notice levels and joins durable pending rows without handoff duplicates |
-| `query/threads.ts` | query | threads.list + threads.get (detail: steps/agent-flow/dispatches/child-tree≤5/artifacts, DR-0018 §6.3 B1) handlers. threads.list takes an optional **`sessionId`**: when present it resolves the session→channel (`sessionStore.getById`) and returns only threads running on that channel (a thread spawned from a chat runs on its originating channel), so the inline chat thread card shows THIS conversation's thread, not a random global one; unknown session → `[]`. Omitted → the unscoped list (right panel / threads tab / palette) |
-| `query/tasks.ts` | query | tasks.list handler |
+| `query/threads.ts` | query | threads.list + threads.get handlers. Detail includes steps/agent-flow, real task-linked cortex-runs (`dispatch.runName`) attributed to their launch step, direct subtasks, child-thread tree≤5, and artifacts. threads.list accepts optional `sessionId` and scopes through session→channel; unknown session returns `[]`. |
+| `query/tasks.ts` | query | Shared task→TaskInfo mapper and tasks.list handler |
 | `query/task-verification.ts` | query | tasks.verification handler (§12 C item 11) — single-task done-when EVIDENCE (real `completed-note` / `completed-at` / status + the most-recent terminal execution joined by taskId and its `finalOutput`) + the full per-task execution/dispatch history (`executionRegistry.getAll()` filtered by `dispatch.taskId`, newest first). Not found / project mismatch → `not-found`. Every unsourced field is an honest `null` / `[]`, never fabricated |
 | `query/schedules.ts` | query | schedules.list handler |
 | `query/executions.ts` | query | executions.list + executions.get handlers |

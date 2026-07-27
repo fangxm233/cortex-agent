@@ -1,3 +1,8 @@
+// input:  legacy mobile thread views and DTO fixtures
+// output: legacy mobile thread render tests
+// pos:    Verifies legacy mobile thread presentation
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ThreadInfo, ThreadDetail, ThreadChildNode } from '@cortex-agent/ui-contract';
@@ -70,6 +75,7 @@ const detail: ThreadDetail = {
   ],
   agentFlow: null,
   dispatches: [],
+  subtasks: [],
   children: [l2],
   artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null },
 };

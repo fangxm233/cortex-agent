@@ -1,9 +1,16 @@
-// Pure view-model helpers for the workbench right panel (Threads/Tasks/Machines), rebuilt 1:1 from
-// prototype.dc.html L1091–1276 + its component script (pill() L1838–1849, thread/step VMs L2160–2328).
-// Framework-free so the mapping from real tRPC DTOs → the prototype's exact values is unit-tested in
-// isolation (TDD). Consumed by RightPanel.tsx / RightThreadCard.tsx.
+// input:  ui-contract DTOs, nested-thread helpers
+// output: right-panel formatting and status view models
+// pos:    Pure view-model helpers for the workbench right panel
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 
-import type { ThreadInfo, ThreadStepDetail, ThreadDetail, MachineInfo } from '@cortex-agent/ui-contract';
+import type {
+  ThreadInfo,
+  ThreadStepDetail,
+  ThreadDetail,
+  ThreadDispatchInfo,
+  TaskInfo,
+  MachineInfo,
+} from '@cortex-agent/ui-contract';
 import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
 
 export interface Pill {
@@ -61,6 +68,28 @@ export function stepMeta(step: ThreadStepDetail): string {
   if (step.durationS != null) parts.push(formatDurationS(step.durationS));
   if (step.costUsd != null) parts.push(formatCost(step.costUsd));
   return parts.join(' · ');
+}
+
+export type ActivityTone = 'running' | 'done' | 'failed' | 'idle';
+export interface ActivityState { label: string; tone: ActivityTone }
+
+export function cortexRunLabel(run: ThreadDispatchInfo): string {
+  return run.runName ? `cortex-run ${run.runName}` : 'cortex-run';
+}
+
+export function runActivity(status: string): ActivityState {
+  if (status === 'running') return { label: 'Running', tone: 'running' };
+  if (status === 'completed') return { label: 'Done', tone: 'done' };
+  if (status === 'failed' || status === 'cancelled') return { label: 'Failed', tone: 'failed' };
+  return { label: status || 'Unknown', tone: 'idle' };
+}
+
+export function subtaskActivity(task: TaskInfo): ActivityState {
+  if (task.status === 'done') return { label: 'Done', tone: 'done' };
+  if (task.blockedBy) return { label: 'Blocked', tone: 'failed' };
+  if (task.claimedBy) return { label: 'Running', tone: 'running' };
+  if (task.actionable) return { label: 'Open', tone: 'idle' };
+  return { label: 'Waiting', tone: 'idle' };
 }
 
 /** Relative age of an ISO timestamp: "just now" / "42m" / "3h" / "2d". */

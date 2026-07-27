@@ -1,19 +1,17 @@
+// input:  ThreadDetail DTO, tRPC hooks, right-panel view models
+// output: RightThreadCard
+// pos:    Expanded thread card in the workbench right panel
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import type {
-  ThreadInfo,
-  ThreadDetail,
-  ThreadStepDetail,
-  ThreadChildNode,
-  ThreadDispatchInfo,
-} from '@cortex-agent/ui-contract';
+import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadDispatchInfo, TaskInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
 import { dispatchesForStep } from '@/features/thread/thread-steps';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
-import { nodeLevel } from '@/features/thread/nested-threads';
 import {
   threadPill,
   stepDotKind,
@@ -21,12 +19,11 @@ import {
   threadMetaLine,
   depthInfo,
   formatCost,
+  cortexRunLabel,
+  runActivity,
+  subtaskActivity,
+  type ActivityTone,
 } from './right-panel-vm';
-
-// One thread card — 1:1 from prototype.dc.html L1115–1185. A running (or user-opened) card fetches
-// threads.get to render the real vertical step-tree (dot+tail grid, active-step child sub-cards) +
-// footer (Pause / Cancel / Detail + Σcost). Collapsed cards render the header only (prototype simple
-// threads). Cancel drives a real threads.cancel mutation → live threads.list refetch.
 
 const NODE_ICON = (
   <svg width="13" height="13" viewBox="0 0 14 14" fill="none" strokeWidth="1.6">
@@ -89,118 +86,63 @@ function StepDot({ kind, hasTail }: { kind: 'done' | 'running' | 'pending'; hasT
   );
 }
 
-// A sub-thread child row (prototype L1158–1166): the inner "▸ name Lx ● meta" rows under a sub-card.
-function ChildRow({ node }: { node: ThreadChildNode }) {
-  const L = useVocab();
-  const navigate = useNavigate();
+const ACTIVITY_COLORS: Record<ActivityTone, string> = {
+  running: 'var(--proto-accent)',
+  done: 'var(--proto-success)',
+  failed: 'var(--proto-danger)',
+  idle: 'var(--proto-faint)',
+};
+
+function ActivityDot({ tone }: { tone: ActivityTone }) {
+  return (
+    <span
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: '50%',
+        background: ACTIVITY_COLORS[tone],
+        flex: 'none',
+        animation: tone === 'running' ? 'cxpulse 1.6s ease-in-out infinite' : undefined,
+      }}
+    />
+  );
+}
+
+function CortexRunCard({ run, onOpen }: { run: ThreadDispatchInfo; onOpen: (executionId: string) => void }) {
+  const state = runActivity(run.status);
+  const meta = [run.machine, run.taskId ? `task ${run.taskId}` : null].filter(Boolean).join(' · ');
   return (
     <div
+      data-cortex-run={run.runName ?? ''}
+      onClick={() => onOpen(run.executionId)}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 7,
-        border: '1px solid var(--proto-line-2)',
-        background: 'var(--proto-card)',
-        borderRadius: 7,
-        padding: '5.5px 9px',
-        marginTop: 6,
-      }}
-    >
-      <span style={{ color: 'var(--proto-faint)', fontSize: 9 }}>▸</span>
-      <span style={{ font: "600 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>
-        {node.templateName ?? node.id}
-      </span>
-      <span style={{ font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>
-        L{nodeLevel(node)}
-      </span>
-      {node.status === 'running' && (
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: 'var(--proto-accent)',
-            animation: 'cxpulse 1.6s ease-in-out infinite',
-          }}
-        />
-      )}
-      <span style={{ fontSize: 9.5, color: 'var(--proto-muted-3)' }}>{formatCost(node.costUsd)}</span>
-      <span
-        onClick={() => navigate(`/threads/${node.id}`)}
-        style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
-      >
-        {L.rpOpen} ›
-      </span>
-    </div>
-  );
-}
-
-// A sub-card in the active step (prototype L1147–1170): a subthread, expandable to its child rows.
-function SubthreadCard({ node }: { node: ThreadChildNode }) {
-  const [expanded, setExpanded] = useState(false);
-  const pill = threadPill(node.status);
-  const running = node.status === 'running';
-  const iconColor = running ? 'var(--proto-accent)' : 'var(--proto-muted-2)';
-  return (
-    <div
-      style={{
-        border: '1px solid ' + (running ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'),
-        background: running ? 'var(--proto-rail)' : 'var(--proto-rail)',
+        border: `1px solid ${state.tone === 'running' ? 'var(--proto-accent-bg)' : 'var(--proto-line-2)'}`,
+        background: 'var(--proto-rail)',
         borderRadius: 8,
+        padding: '7px 10px',
+        cursor: 'pointer',
       }}
     >
-      <div
-        onClick={() => setExpanded((e) => !e)}
-        style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 10px', cursor: 'pointer' }}
-      >
-        <span style={{ color: 'var(--proto-muted-2)', fontSize: 9 }}>{expanded ? '▾' : '▸'}</span>
-        <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke={iconColor} strokeWidth="1.8">
-          <path d="M7 1.5v5M7 6.5 3.5 10M7 6.5l3.5 3.5" />
-          <circle cx="7" cy="1.5" r="1.4" fill={iconColor} stroke="none" />
-          <circle cx="3.5" cy="11" r="1.4" fill={iconColor} stroke="none" />
-          <circle cx="10.5" cy="11" r="1.4" fill={iconColor} stroke="none" />
-        </svg>
-        <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>
-          {node.templateName ?? node.id}
-        </span>
-        <span style={{ font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>L{nodeLevel(node)}</span>
-        <span
-          style={{
-            marginLeft: 'auto',
-            fontSize: 9.5,
-            fontWeight: 600,
-            padding: '1.5px 7px',
-            borderRadius: 999,
-            background: pill.bg,
-            color: pill.fg,
-          }}
-        >
-          {pill.text}
-        </span>
-      </div>
-      {expanded && (
-        <div style={{ padding: '0 10px 8px 27px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--proto-muted)' }}>
-            <span>{node.id}</span>
-            <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
-              {formatCost(node.costUsd)}
-            </span>
-          </div>
-          {node.children.map((ch) => (
-            <ChildRow key={ch.id} node={ch} />
-          ))}
-        </div>
-      )}
+      <ActivityDot tone={state.tone} />
+      <span style={{ minWidth: 0, font: "600 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {cortexRunLabel(run)}
+      </span>
+      {meta && <span style={{ flex: 'none', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>{meta}</span>}
+      <span style={{ marginLeft: 'auto', flex: 'none', font: "500 9.5px 'IBM Plex Mono',monospace", color: ACTIVITY_COLORS[state.tone] }}>
+        {run.cost != null ? formatCost(run.cost) : state.label}
+      </span>
     </div>
   );
 }
 
-// A machine-dispatch sub-card in the active step (prototype's Execute-step children).
-function DispatchCard({ dispatch }: { dispatch: ThreadDispatchInfo }) {
-  const { open } = useExecutionLogDrawer();
+function SubtaskCard({ task }: { task: TaskInfo }) {
+  const state = subtaskActivity(task);
   return (
     <div
-      onClick={() => open(dispatch.executionId)}
+      data-subtask-id={task.id}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -209,16 +151,30 @@ function DispatchCard({ dispatch }: { dispatch: ThreadDispatchInfo }) {
         background: 'var(--proto-rail)',
         borderRadius: 8,
         padding: '7px 10px',
-        cursor: 'pointer',
       }}
     >
-      <span style={{ font: "600 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>
-        {dispatch.executionId}
-      </span>
-      <span style={{ fontSize: 10.5, color: 'var(--proto-muted)' }}>{dispatch.machine ?? 'local'}</span>
-      <span style={{ marginLeft: 'auto', font: "400 9px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
-        {dispatch.type}
-      </span>
+      <ActivityDot tone={state.tone} />
+      <span style={{ flex: 'none', font: "600 10.5px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>task {task.id}</span>
+      <span style={{ minWidth: 0, fontSize: 9.5, color: 'var(--proto-muted-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.text}</span>
+      <span style={{ marginLeft: 'auto', flex: 'none', fontSize: 9.5, fontWeight: 600, color: ACTIVITY_COLORS[state.tone] }}>{state.label}</span>
+    </div>
+  );
+}
+
+export function ThreadActivityRows({
+  runs,
+  subtasks,
+  onOpenRun,
+}: {
+  runs: ThreadDispatchInfo[];
+  subtasks: TaskInfo[];
+  onOpenRun: (executionId: string) => void;
+}) {
+  if (runs.length === 0 && subtasks.length === 0) return null;
+  return (
+    <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {runs.map((run) => <CortexRunCard key={run.executionId} run={run} onOpen={onOpenRun} />)}
+      {subtasks.map((task) => <SubtaskCard key={task.id} task={task} />)}
     </div>
   );
 }
@@ -227,17 +183,19 @@ function StepRow({
   step,
   isLast,
   detail,
+  onOpenRun,
 }: {
   step: ThreadStepDetail;
   isLast: boolean;
   detail: ThreadDetail;
+  onOpenRun: (executionId: string) => void;
 }) {
   const L = useVocab();
   const kind = stepDotKind(step);
   const active = kind === 'running';
-  const dispatches = active ? dispatchesForStep(detail, step) : [];
-  const subthreads = active ? detail.children : [];
-  const hasSubs = dispatches.length > 0 || subthreads.length > 0;
+  const runs = active ? dispatchesForStep(detail, step) : [];
+  const subtasks = active ? (detail.subtasks ?? []) : [];
+  const hasActivities = runs.length > 0 || subtasks.length > 0;
   const meta = stepMeta(step);
   return (
     <>
@@ -263,16 +221,7 @@ function StepRow({
             {meta}
           </span>
         </div>
-        {hasSubs && (
-          <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {dispatches.map((d) => (
-              <DispatchCard key={d.executionId} dispatch={d} />
-            ))}
-            {subthreads.map((n) => (
-              <SubthreadCard key={n.id} node={n} />
-            ))}
-          </div>
-        )}
+        {hasActivities && <ThreadActivityRows runs={runs} subtasks={subtasks} onOpenRun={onOpenRun} />}
       </div>
     </>
   );
@@ -283,6 +232,7 @@ function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string
   const trpc = useTRPC();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { open: openRun } = useExecutionLogDrawer();
   useThreadGetLiveSync(threadId);
   const cancel = useMutation(
     trpc.threads.cancel.mutationOptions({
@@ -303,6 +253,7 @@ function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string
                 step={step}
                 isLast={step.stepIndex === detail.steps.length - 1}
                 detail={detail}
+                onOpenRun={openRun}
               />
             ))}
           </div>

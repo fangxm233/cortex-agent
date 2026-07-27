@@ -596,7 +596,9 @@ export interface ThreadDispatchInfo {
   machine: string | null;
   type: 'local' | 'dispatch';
   agentSlotId: string | null;
+  stepIndex: number | null;
   taskId: string | null;
+  runName: string | null;
   startedAt: string;
   finishedAt: string | null;
   durationMs: number | null;
@@ -642,6 +644,7 @@ export interface ThreadDetail {
   steps: ThreadStepDetail[];
   agentFlow: ThreadAgentFlow | null;
   dispatches: ThreadDispatchInfo[];
+  subtasks: TaskInfo[];
   children: ThreadChildNode[];
   artifacts: ThreadArtifactRefs;
 }

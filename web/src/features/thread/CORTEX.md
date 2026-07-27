@@ -17,21 +17,19 @@ Stage-3 token-summary presentation (`ThreadDetailPage`/`ThreadStepList`/`NestedT
 | `ThreadStepChat.tsx` | Per-step chat: fetches the step's own `sessions.transcript` (keyed by `ThreadStepDetail.sessionId`), builds rows with the workbench pure `buildTranscriptRows`, and renders them via the reused presentational `ChatRows` — so a step's assistant output is Markdown (`ChatMarkdown`) with collapsed tool-call rows (`ToolCallsRow`), exactly like the center chat. For the running (`live`) step it also opens `useSessionMessageLiveSync` so output streams in real time; completed steps show the reconciled history only. |
 | `ThreadArtifactPanel.tsx` | 1:1 THREAD ARTIFACT card (L488–520): header (path · live badge · updated · Open ↗) + REFERENCES body (real refs) + WRITTEN BY footer (from steps). **GAP-artifact-body**: the rich body (RESULT/METRICS/tail) needs the artifact file content → fs-read scope (plan §2.1, Stage 6); refs + written-by are real, a muted note points at the Memory viewer. `data-thread-artifact`. |
 | `thread-detail-render.test.tsx` | `react-dom/server` render checks of `ThreadPipeline` + `ThreadArtifactPanel` (browser E2E environment-blocked — persistent SSE; live proof is the CDP harness below). |
-| `thread-steps.ts` | **Pure** (kept): `selectActiveStep` · `dispatchesForStep` (join by `agentSlotId`) · `activeStepChildren` · `stepSummaryParts`. Consumed by `thread-detail-vm` + workbench `RightThreadCard`/`thread-card-proto`. |
+| `thread-steps.ts` | **Pure**: `selectActiveStep` · `dispatchesForStep` (exact `stepIndex`, so reused agent slots do not merge stages) · `activeStepChildren` · `stepSummaryParts`. Consumed by thread detail and workbench cards. |
 | `thread-steps.test.ts` | vitest for `thread-steps.ts` (10 tests). |
 | `nested-threads.ts` | **Pure** (kept): `nodeLevel` (child depth→display level, root=1) · `isMaxLevel` (≥5 or truncated) · `countDescendants` · `treeMaxLevel` (clamped ≤5) · `flattenOutline` · `INLINE_MAX_VISIBLE_LEVEL`. Consumed by `thread-detail-vm` + workbench `right-panel-vm`/`RightThreadCard`. |
 | `nested-threads.test.ts` | vitest for `nested-threads.ts` (14 tests). |
-| `useThreadGetLiveSync.ts` | Listener on the SHARED live stream (`features/live`) for `thread.created/step.*/completed/failed` → invalidate `threads.get` for this `threadId` → refetch. Reused by the detail route + workbench inline/right cards — this was the worst offender for connection count (every expanded card opened its own SSE); on the shared stream a card costs a listener, not a connection. |
+| `useThreadGetLiveSync.ts` | Shared-stream listener for thread and task lifecycle events; invalidates one `threads.get` cache so steps, cortex-runs, and direct subtask states stay live without another SSE connection. |
 
 ## Notes
 
 - **Host**: the detail view is reached via the workbench right-panel "Detail" link, the ⌘K palette
   (Thread items route to `/threads/:id`), and 2b drill-down. It renders inside `AppShell` (global ⌘K
   preserved) as a full-viewport frame with the real Left Rail.
-- **No backend change**: consumes only the existing `threads.get` (B1) + `threads.cancel` + `subscribe`.
-- **Data-driven, not stage-name-matched**: the active step surfaces whatever children the DTO carries
-  (dispatches/subthreads). `ThreadChildNode` has no owning-step field → subthreads attributed at thread
-  level under the active step.
+- `threads.get` supplies cortex-runs with an exact launch `stepIndex`; selectors never infer ownership from a stage name or a reused agent slot.
+- Direct subtasks are thread-level data and appear under the active step; the contract intentionally exposes only one task level.
 - **Depth / B1 off-by-one**: clamped to `MAX_LEVEL`=5 (`x/5` meter), truncated nodes marked max — a
   B1 concern, not this view.
 - **Step chat (per-step transcript)**: each step's expanded content is the full agent conversation for
@@ -42,8 +40,7 @@ Stage-3 token-summary presentation (`ThreadDetailPage`/`ThreadStepList`/`NestedT
   change (the `sessionId` was already on `ThreadStepDetail`).
 - **Flagged gaps** (paired stage): **GAP-artifact-body** (RESULT/METRICS need fs-read — Stage 6);
   **GAP-P** Pause (no threads pause MutateOp); ancestor crumb names ride the drill trail (real, no new
-  scope). Local coder threads persist **no subthreads/dispatches**, so the SUB-THREADS + nested-crumb
-  (05) paths are **unit + render tested**, not live (same env as F1/F2).
+  scope). The SUB-THREADS + nested-crumb (05) paths are **unit + render tested**, not live (same env as F1/F2).
 - **Verified live** (task 4450): real dist ui-http-server + real `threadStore`/`taskStore`/
   `sessionStore`/`getCostSummary` (133 real threads) serving built `web/dist` behind `x-cortex-token`;
   headless-Chrome CDP at 1440×900 (token via `Network.setExtraHTTPHeaders`) → gate 401(no)/200(yes);

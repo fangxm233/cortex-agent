@@ -1,3 +1,8 @@
+// input:  thread detail DTO fixtures and view-model builder
+// output: thread-detail view-model regression tests
+// pos:    Verifies desktop thread-detail derivations
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type {
   ThreadDetail,
@@ -47,7 +52,9 @@ function dispatch(p: Partial<ThreadDispatchInfo> & { executionId: string }): Thr
     machine: p.machine ?? null,
     type: p.type ?? 'local',
     agentSlotId: p.agentSlotId ?? null,
+    stepIndex: p.stepIndex ?? null,
     taskId: p.taskId ?? null,
+    runName: p.runName ?? null,
     startedAt: p.startedAt ?? '2026-07-06T00:00:00.000Z',
     finishedAt: p.finishedAt ?? null,
     durationMs: p.durationMs ?? null,
@@ -75,6 +82,7 @@ function detail(p: Partial<ThreadDetail>): ThreadDetail {
     steps: p.steps ?? [],
     agentFlow: p.agentFlow ?? null,
     dispatches: p.dispatches ?? [],
+    subtasks: p.subtasks ?? [],
     children: p.children ?? [],
     artifacts: p.artifacts ?? {
       artifactPath: null,
@@ -131,7 +139,7 @@ describe('buildThreadDetailVm', () => {
       step({ stepIndex: 2, stage: 'Review', status: 'running', agentSlotId: 'slot-2', executionId: 'exec_31b0', costUsd: 0.38, durationS: 252, sessionId: 'cortex-review', sessionName: 'cortex-review' }),
       step({ stepIndex: 3, stage: 'Commit', status: 'pending' }),
     ],
-    dispatches: [dispatch({ executionId: 'exec_31b0', agentSlotId: 'slot-2', machine: 'local', type: 'local' })],
+    dispatches: [dispatch({ executionId: 'exec_31b0', agentSlotId: 'slot-2', stepIndex: 1, machine: 'local', type: 'local' })],
     children: [
       child({ id: 'thr_b7f3', templateName: 'verify-metrics', status: 'running', depth: 0, costUsd: 0.11, activeAgent: 'analyst' }),
       child({ id: 'thr_c1', templateName: 'check-claims', status: 'completed', depth: 0, costUsd: 0.12 }),

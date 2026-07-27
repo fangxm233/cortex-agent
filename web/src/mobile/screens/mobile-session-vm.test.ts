@@ -1,3 +1,8 @@
+// input:  mobile session view models and thread DTO fixtures
+// output: mobile session view-model regression tests
+// pos:    Verifies legacy mobile session derivations
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { ThreadDetail, ApprovalInfo } from '@cortex-agent/ui-contract';
 import {
@@ -105,6 +110,7 @@ function detail(over: Partial<ThreadDetail> = {}): ThreadDetail {
     ],
     agentFlow: null,
     dispatches: [],
+    subtasks: [],
     children: [
       {
         id: 'thr_c1',

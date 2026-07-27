@@ -1,3 +1,8 @@
+// input:  mobile thread-list view model and DTO fixtures
+// output: mobile thread-list derivation tests
+// pos:    Verifies mobile thread-list mapping
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadChildNode } from '@cortex-agent/ui-contract';
 import {
@@ -79,6 +84,7 @@ function detail(over: Partial<ThreadDetail>): ThreadDetail {
     steps: [],
     agentFlow: null,
     dispatches: [],
+    subtasks: [],
     children: [],
     artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null },
     ...over,

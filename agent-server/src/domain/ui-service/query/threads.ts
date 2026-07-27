@@ -1,6 +1,7 @@
-// input:  UiServiceDeps + ThreadsListParams / ThreadsGetParams
-// output: handleThreadsList → ThreadInfo[]; handleThreadsGet → ThreadDetail
-// pos:    query handlers for 'threads.list' and 'threads.get'
+// input:  UiServiceDeps, thread query params, task DTO mapper
+// output: handleThreadsList, handleThreadsGet
+// pos:    Thread list/detail query handlers
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type {
   UiServiceDeps,
@@ -12,7 +13,9 @@ import type {
   ThreadAgentFlow,
   ThreadDispatchInfo,
   ThreadChildNode,
+  TaskInfo,
 } from '../types.js';
+import { toTaskInfo } from './tasks.js';
 
 // Detail status vocabulary matches ThreadInfo (6 values). ThreadRecord additionally has
 // 'rate_limited', which we collapse to 'waiting' so the frontend keeps one status set
@@ -81,7 +84,8 @@ export async function handleThreadsGet(
 
   const steps = buildSteps(t);
   const agentFlow = buildAgentFlow(t);
-  const dispatches = buildDispatches(deps, t.id);
+  const dispatches = buildDispatches(deps, t, steps);
+  const subtasks = buildSubtasks(deps, t);
   const children = buildChildTree(deps, t.metadata?.childThreadIds ?? [], 0, new Set([t.id]));
 
   return {
@@ -105,6 +109,7 @@ export async function handleThreadsGet(
     steps,
     agentFlow,
     dispatches,
+    subtasks,
     children,
     artifacts: {
       artifactPath: t.artifactPath ?? null,
@@ -172,30 +177,70 @@ function buildAgentFlow(t: any): ThreadAgentFlow | null {
   };
 }
 
-// No execution index by threadId — filter the full registry on execution.thread.threadId.
-function buildDispatches(deps: UiServiceDeps, threadId: string): ThreadDispatchInfo[] {
-  const all = deps.executionRegistry.getAll();
-  return all
-    .filter((e: any) => e.thread?.threadId === threadId)
+function findLaunchStep(steps: ThreadStepDetail[], thread: any, startedAt: string) {
+  const launchedAt = Date.parse(startedAt);
+  if (!Number.isFinite(launchedAt)) return null;
+
+  const completed = steps.find((step) => {
+    const start = step.startedAt ? Date.parse(step.startedAt) : NaN;
+    const end = step.endedAt ? Date.parse(step.endedAt) : NaN;
+    return Number.isFinite(start) && Number.isFinite(end) && launchedAt >= start && launchedAt < end;
+  });
+  if (completed) return completed;
+
+  const active = steps.find((step) => step.status === 'running');
+  if (!active) return null;
+  const priorEnd = steps.reduce((latest, step) => {
+    const end = step.endedAt ? Date.parse(step.endedAt) : NaN;
+    return Number.isFinite(end) ? Math.max(latest, end) : latest;
+  }, Date.parse(thread.createdAt));
+  return launchedAt >= priorEnd ? active : null;
+}
+
+function toThreadDispatch(e: any, step: ThreadStepDetail): ThreadDispatchInfo {
+  const startedAt = e.runtime?.startedAt || '';
+  const finishedAt = e.runtime?.endedAt || null;
+  const endMs = finishedAt ? Date.parse(finishedAt) : null;
+  return {
+    executionId: e.id,
+    status: e.status,
+    machine: e.dispatch.machine ?? null,
+    type: 'dispatch',
+    agentSlotId: step.agentSlotId,
+    stepIndex: step.stepIndex,
+    taskId: e.dispatch.taskId,
+    runName: e.dispatch.runName,
+    startedAt,
+    finishedAt,
+    durationMs: endMs ? endMs - Date.parse(startedAt) : null,
+    cost: e.metrics?.costUsd ?? null,
+  };
+}
+
+// Real cortex-runs have a runName and owning task but no caller-thread field. Launch time is the
+// remaining provenance seam: attribute only runs launched inside one of this thread's step windows.
+function buildDispatches(
+  deps: UiServiceDeps,
+  thread: any,
+  steps: ThreadStepDetail[],
+): ThreadDispatchInfo[] {
+  const taskId = thread.metadata?.taskId;
+  if (!taskId) return [];
+  return deps.executionRegistry.getAll()
+    .filter((e: any) => e.dispatch?.taskId === taskId && e.dispatch?.runName)
     .sort((a: any, b: any) => (a.runtime?.startedAt || '').localeCompare(b.runtime?.startedAt || ''))
-    .map((e: any): ThreadDispatchInfo => {
-      const startedAt = e.runtime?.startedAt || '';
-      const finishedAt = e.runtime?.endedAt || null;
-      const startMs = new Date(startedAt).getTime();
-      const endMs = finishedAt ? new Date(finishedAt).getTime() : null;
-      return {
-        executionId: e.id,
-        status: e.status,
-        machine: e.dispatch?.machine ?? null,
-        type: e.kind === 'dispatch' ? 'dispatch' : 'local',
-        agentSlotId: e.thread?.agentSlotId ?? null,
-        taskId: e.dispatch?.taskId ?? null,
-        startedAt,
-        finishedAt,
-        durationMs: endMs ? endMs - startMs : null,
-        cost: e.metrics?.costUsd ?? null,
-      };
+    .flatMap((e: any): ThreadDispatchInfo[] => {
+      const step = findLaunchStep(steps, thread, e.runtime?.startedAt || '');
+      return step ? [toThreadDispatch(e, step)] : [];
     });
+}
+
+function buildSubtasks(deps: UiServiceDeps, thread: any): TaskInfo[] {
+  const taskId = thread.metadata?.taskId;
+  if (!taskId) return [];
+  deps.taskStore.refresh();
+  const project = thread.metadata?.taskProject ?? thread.projectId;
+  return deps.taskStore.getAll(project).filter((task: any) => task.parent === taskId).map(toTaskInfo);
 }
 
 // Recurse over metadata.childThreadIds, depth-capped at MAX_CHILD_DEPTH (≤5 levels).

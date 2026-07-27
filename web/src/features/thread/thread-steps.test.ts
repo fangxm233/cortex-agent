@@ -1,3 +1,8 @@
+// input:  thread detail DTO fixtures and step selectors
+// output: thread-step selector regression tests
+// pos:    Verifies active-step child and summary derivations
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, expect, it } from 'vitest';
 import type {
   ThreadDetail,
@@ -39,7 +44,9 @@ function dispatch(partial: Partial<ThreadDispatchInfo>): ThreadDispatchInfo {
     machine: null,
     type: 'dispatch',
     agentSlotId: null,
+    stepIndex: null,
     taskId: null,
+    runName: null,
     startedAt: '2026-07-06T00:00:00Z',
     finishedAt: null,
     durationMs: null,
@@ -94,6 +101,7 @@ function detail(partial: Partial<ThreadDetail>): ThreadDetail {
     steps: [],
     agentFlow: null,
     dispatches: [],
+    subtasks: [],
     children: [],
     artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null },
     ...partial,
@@ -120,13 +128,15 @@ describe('selectActiveStep', () => {
 });
 
 describe('dispatchesForStep', () => {
-  it('keeps only dispatches whose agentSlotId matches the step slot', () => {
-    const s = step({ agentSlotId: 'slot-1', status: 'running' });
-    const mine = dispatch({ executionId: 'e1', agentSlotId: 'slot-1' });
-    const other = dispatch({ executionId: 'e2', agentSlotId: 'slot-2' });
+  it('joins by exact stepIndex when one agent slot serves multiple stages', () => {
+    const plan = step({ stepIndex: 0, agentSlotId: 'coder', stage: 'plan' });
+    const implement = step({ stepIndex: 1, agentSlotId: 'coder', stage: 'implement', status: 'running' });
+    const planRun = dispatch({ executionId: 'e-plan', agentSlotId: 'coder', stepIndex: 0 });
+    const implementRun = dispatch({ executionId: 'e-implement', agentSlotId: 'coder', stepIndex: 1 });
     const unlinked = dispatch({ executionId: 'e3', agentSlotId: null });
-    const d = detail({ dispatches: [mine, other, unlinked] });
-    expect(dispatchesForStep(d, s)).toEqual([mine]);
+    const d = detail({ dispatches: [planRun, implementRun, unlinked] });
+    expect(dispatchesForStep(d, plan)).toEqual([planRun]);
+    expect(dispatchesForStep(d, implement)).toEqual([implementRun]);
   });
 });
 
@@ -134,8 +144,8 @@ describe('activeStepChildren', () => {
   it('bundles matched dispatches + thread subthreads + agentFlow for the active step', () => {
     const s0 = step({ stepIndex: 0, status: 'completed', agentSlotId: 'slot-0' });
     const s1 = step({ stepIndex: 1, status: 'running', agentSlotId: 'slot-1' });
-    const mine = dispatch({ executionId: 'e1', agentSlotId: 'slot-1', machine: 'lab2' });
-    const other = dispatch({ executionId: 'e2', agentSlotId: 'slot-0' });
+    const mine = dispatch({ executionId: 'e1', agentSlotId: 'slot-1', stepIndex: 1, machine: 'lab2' });
+    const other = dispatch({ executionId: 'e2', agentSlotId: 'slot-0', stepIndex: 0 });
     const sub = child({ id: 'thr_sub' });
     const d = detail({
       steps: [s0, s1],

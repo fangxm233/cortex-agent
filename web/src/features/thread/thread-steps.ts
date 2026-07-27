@@ -1,6 +1,7 @@
-// Pure selectors + formatters for the inline thread card (design 11a) and the shared
-// ThreadStepList primitive. Frame-work-free so they can be unit-tested in isolation (TDD).
-// Source DTO: ThreadDetail from threads.get (design §6.3 B1).
+// input:  ThreadDetail DTOs
+// output: active-step, cortex-run, child, and summary selectors
+// pos:    Shared pure selectors for thread detail/card surfaces
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type {
   ThreadDetail,
@@ -15,12 +16,12 @@ export function selectActiveStep(detail: ThreadDetail): ThreadStepDetail | null 
   return detail.steps.find((s) => s.status === 'running') ?? null;
 }
 
-/** Machine dispatches attributed to a step, joined by agent slot (the only per-step link in the DTO). */
+/** Cortex-runs attributed to the exact launch step. */
 export function dispatchesForStep(
   detail: ThreadDetail,
   step: ThreadStepDetail,
 ): ThreadDispatchInfo[] {
-  return detail.dispatches.filter((d) => d.agentSlotId === step.agentSlotId);
+  return detail.dispatches.filter((run) => run.stepIndex === step.stepIndex);
 }
 
 export interface ActiveStepChildren {

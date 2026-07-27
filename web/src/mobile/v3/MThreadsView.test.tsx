@@ -1,3 +1,8 @@
+// input:  mobile v3 thread views and DTO fixtures
+// output: mobile v3 thread render tests
+// pos:    Verifies mobile thread-list presentation
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail } from '@cortex-agent/ui-contract';
@@ -46,7 +51,7 @@ function detail(over: Partial<ThreadDetail>): ThreadDetail {
     status: 'running', projectId: 'nimbus', createdAt: '2026-07-15T11:18:00Z',
     updatedAt: '2026-07-15T12:00:00Z', totalSteps: 4, artifactPath: null, endedAt: null, error: null,
     abortReason: null, activeAgent: null, activeStage: null, totalCostUsd: 2.31, steps: [],
-    agentFlow: null, dispatches: [], children: [],
+    agentFlow: null, dispatches: [], subtasks: [], children: [],
     artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null }, ...over,
   };
 }

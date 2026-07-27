@@ -1,5 +1,18 @@
+// input:  right-panel view models and DTO fixtures
+// output: right-panel formatting/status regression tests
+// pos:    Verifies thread, activity, and machine view models
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, expect, it } from 'vitest';
-import type { ThreadInfo, ThreadStepDetail, ThreadDetail, ThreadChildNode, MachineInfo } from '@cortex-agent/ui-contract';
+import type {
+  ThreadInfo,
+  ThreadStepDetail,
+  ThreadDetail,
+  ThreadChildNode,
+  ThreadDispatchInfo,
+  TaskInfo,
+  MachineInfo,
+} from '@cortex-agent/ui-contract';
 import {
   threadPill,
   stepDotKind,
@@ -11,6 +24,8 @@ import {
   depthInfo,
   machinePill,
   onlineMachineCount,
+  cortexRunLabel,
+  subtaskActivity,
 } from './right-panel-vm';
 
 function step(partial: Partial<ThreadStepDetail>): ThreadStepDetail {
@@ -83,6 +98,7 @@ function detail(partial: Partial<ThreadDetail>): ThreadDetail {
     steps: [],
     agentFlow: null,
     dispatches: [],
+    subtasks: [],
     children: [],
     artifacts: { artifactPath: null, workspacePath: null, taskId: null, taskProject: null },
     ...partial,
@@ -113,6 +129,30 @@ describe('stepDotKind', () => {
     expect(stepDotKind(step({ status: 'completed' }))).toBe('done');
     expect(stepDotKind(step({ status: 'running' }))).toBe('running');
     expect(stepDotKind(step({ status: 'pending' }))).toBe('pending');
+  });
+});
+
+describe('activity row view models', () => {
+  it('labels a real run by cortex-run name, never by execution id', () => {
+    const run: ThreadDispatchInfo = {
+      executionId: 'exec_dispatch_hidden', status: 'running', machine: 'lab2', type: 'dispatch',
+      agentSlotId: null, stepIndex: 0, taskId: 'ab12', runName: 'root-sweep',
+      startedAt: '2026-07-06T00:00:00Z', finishedAt: null, durationMs: null, cost: null,
+    };
+    expect(cortexRunLabel(run)).toBe('cortex-run root-sweep');
+    expect(cortexRunLabel(run)).not.toContain(run.executionId);
+  });
+
+  it('maps direct subtask lifecycle to compact scheme-3a status', () => {
+    const base: TaskInfo = {
+      id: 'cd34', text: 'Direct child', project: 'p', status: 'open', priority: 'medium',
+      actionable: true, claimedBy: null, blockedBy: null, dependsOn: [], plan: null,
+      template: 'coder-review', why: null, doneWhen: null,
+    };
+    expect(subtaskActivity(base)).toEqual({ label: 'Open', tone: 'idle' });
+    expect(subtaskActivity({ ...base, actionable: false, claimedBy: 'task-dispatcher' })).toEqual({ label: 'Running', tone: 'running' });
+    expect(subtaskActivity({ ...base, actionable: false, blockedBy: 'failed' })).toEqual({ label: 'Blocked', tone: 'failed' });
+    expect(subtaskActivity({ ...base, status: 'done', actionable: false })).toEqual({ label: 'Done', tone: 'done' });
   });
 });
 

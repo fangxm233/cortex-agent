@@ -1,3 +1,8 @@
+// input:  mobile thread-detail view model and DTO fixtures
+// output: mobile thread-detail derivation tests
+// pos:    Verifies mobile thread-detail mapping
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type {
   ThreadDetail,
@@ -80,8 +85,9 @@ function detail(over: Partial<ThreadDetail> = {}): ThreadDetail {
     ],
     agentFlow,
     dispatches: [
-      { executionId: 'exec-1', status: 'running', machine: 'node-01', type: 'dispatch', agentSlotId: 'slot-b', taskId: null, startedAt: new Date(T0).toISOString(), finishedAt: null, durationMs: null, cost: null },
+      { executionId: 'exec-1', status: 'running', machine: 'node-01', type: 'dispatch', agentSlotId: 'slot-b', stepIndex: 1, taskId: null, runName: 'audit-run', startedAt: new Date(T0).toISOString(), finishedAt: null, durationMs: null, cost: null },
     ],
+    subtasks: [],
     children: [],
     artifacts,
     ...over,

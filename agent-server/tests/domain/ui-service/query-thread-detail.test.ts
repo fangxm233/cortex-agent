@@ -1,10 +1,15 @@
+// input:  threads.get handler and mock domain stores
+// output: thread detail query regression tests
+// pos:    Verifies thread steps, runs, direct subtasks, and children
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleThreadsGet } from '../../../src/domain/ui-service/query/threads.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 // A 6-level chain (root + 6 descendants) to exercise the ≤5-level depth cap, plus a
-// running thread with one completed step + a synthesized active step, machine dispatches,
+// running thread with one completed step + a synthesized active step, task-linked cortex-runs,
 // and a rate_limited thread for status mapping.
 const iso = (ms: number) => new Date(ms).toISOString();
 const t0 = Date.parse('2026-06-01T00:00:00Z');
@@ -48,12 +53,48 @@ const threads: Record<string, any> = {
 const mockExecutions = [
   {
     id: 'exec_root_0', kind: 'dispatch', status: 'completed', channel: 'C1', project: 'proj1',
-    source: { trigger: 'dispatch' }, backend: 'claude', billingMode: 'api',
+    source: { trigger: 'task-dispatch' }, backend: 'claude', billingMode: 'api',
     session: { sessionId: 's-coder' }, thread: { threadId: 'thr_root', agentSlotId: 'coder' },
-    dispatch: { taskId: 'ab12', machine: 'server-nvidia' }, scheduleTaskId: null,
+    dispatch: null, scheduleTaskId: null,
     runtime: { startedAt: iso(t0), updatedAt: iso(t0 + 12000), endedAt: iso(t0 + 12000) },
     metrics: { costUsd: 0.02, numTurns: 4, durationS: 12 },
     text: { label: 'coder step', finalOutput: 'done', error: null },
+  },
+  {
+    id: 'exec_run_old', kind: 'dispatch', status: 'completed', channel: null, project: 'proj1',
+    source: { trigger: 'dispatch' }, backend: 'claude', billingMode: 'api',
+    session: { sessionId: null }, thread: null,
+    dispatch: { taskId: 'ab12', machine: 'lab1', runName: 'old-sweep' }, scheduleTaskId: null,
+    runtime: { startedAt: iso(t0 - 1000), updatedAt: iso(t0 - 500), endedAt: iso(t0 - 500) },
+    metrics: { costUsd: null, numTurns: null, durationS: null },
+    text: { label: null, finalOutput: null, error: null },
+  },
+  {
+    id: 'exec_run_coder', kind: 'dispatch', status: 'completed', channel: null, project: 'proj1',
+    source: { trigger: 'dispatch' }, backend: 'claude', billingMode: 'api',
+    session: { sessionId: null }, thread: null,
+    dispatch: { taskId: 'ab12', machine: 'lab1', runName: 'coder-sweep' }, scheduleTaskId: null,
+    runtime: { startedAt: iso(t0 + 5000), updatedAt: iso(t0 + 9000), endedAt: iso(t0 + 9000) },
+    metrics: { costUsd: null, numTurns: null, durationS: null },
+    text: { label: null, finalOutput: null, error: null },
+  },
+  {
+    id: 'exec_run_root', kind: 'dispatch', status: 'running', channel: null, project: 'proj1',
+    source: { trigger: 'dispatch' }, backend: 'claude', billingMode: 'api',
+    session: { sessionId: null }, thread: null,
+    dispatch: { taskId: 'ab12', machine: 'lab2', runName: 'root-sweep' }, scheduleTaskId: null,
+    runtime: { startedAt: iso(t0 + 13000), updatedAt: iso(t0 + 13000), endedAt: null },
+    metrics: { costUsd: null, numTurns: null, durationS: null },
+    text: { label: null, finalOutput: null, error: null },
+  },
+  {
+    id: 'exec_run_child', kind: 'dispatch', status: 'running', channel: null, project: 'proj1',
+    source: { trigger: 'dispatch' }, backend: 'claude', billingMode: 'api',
+    session: { sessionId: null }, thread: null,
+    dispatch: { taskId: 'cd34', machine: 'lab2', runName: 'child-sweep' }, scheduleTaskId: null,
+    runtime: { startedAt: iso(t0 + 14000), updatedAt: iso(t0 + 14000), endedAt: null },
+    metrics: { costUsd: null, numTurns: null, durationS: null },
+    text: { label: null, finalOutput: null, error: null },
   },
   {
     id: 'exec_other', kind: 'local', status: 'running', channel: 'C9', project: 'proj9',
@@ -66,12 +107,19 @@ const mockExecutions = [
   },
 ];
 
+const mockTasks = [
+  { id: 'ab12', text: 'Root task', project: 'cortex-self', parent: null, status: 'open', priority: 'high', template: 'manager', why: '', done_when: '', depends_on: ['cd34'], plan: '', claimed_by: 'task-dispatcher', blocked_by: null, paused: false },
+  { id: 'cd34', text: 'Direct child', project: 'cortex-self', parent: 'ab12', status: 'open', priority: 'medium', template: 'coder-review', why: '', done_when: '', depends_on: [], plan: '', claimed_by: 'task-dispatcher', blocked_by: null, paused: false },
+  { id: 'de56', text: 'Grandchild', project: 'cortex-self', parent: 'cd34', status: 'open', priority: 'low', template: 'coder-review', why: '', done_when: '', depends_on: [], plan: '', claimed_by: null, blocked_by: null, paused: false },
+  { id: 'ef78', text: 'Unrelated child', project: 'cortex-self', parent: 'ffff', status: 'done', priority: 'low', template: 'worker', why: '', done_when: '', depends_on: [], plan: '', claimed_by: null, blocked_by: null, paused: false },
+];
+
 function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
   return {
     projectStore: { list: () => [], get: () => undefined, exists: () => false, getDefault: () => ({ id: 'general', name: 'general', kind: 'general' as const, contextDir: '/g' }), createProject: () => ({ ok: false, code: 'invalid-name' as const, message: 'stub' }) },
     sessionStore: { listByProject: async () => [], listByOrigin: async () => [], listResumable: async () => [], getById: async () => null },
     threadStore: { getAll: () => Object.values(threads), get: (id: string) => threads[id] ?? null },
-    taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
+    taskStore: { getAll: () => mockTasks, getById: (id: string) => mockTasks.find(t => t.id === id) ?? null, load: () => {}, refresh: () => {} },
     scheduler: { list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
     executionRegistry: { getExecution: (id: string) => mockExecutions.find(e => e.id === id) ?? null, getAll: () => mockExecutions, cancelExecution: () => null },
     executionLogTailer: { startTail: () => {}, stopTail: () => {}, refCount: () => 0 },
@@ -144,17 +192,30 @@ test('threads.get agentFlow is null for a terminal thread with no active slot', 
   assert.equal(d.agentFlow, null);
 });
 
-test('threads.get joins machine dispatches by threadId, excluding unrelated executions', async () => {
+test('threads.get returns only owning-thread cortex-runs and attributes each to its launch step', async () => {
   const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_root' });
-  assert.equal(d.dispatches.length, 1);
-  const disp = d.dispatches[0];
-  assert.equal(disp.executionId, 'exec_root_0');
-  assert.equal(disp.machine, 'server-nvidia');
-  assert.equal(disp.type, 'dispatch');
-  assert.equal(disp.agentSlotId, 'coder');
-  assert.equal(disp.taskId, 'ab12');
-  assert.equal(disp.cost, 0.02);
-  assert.ok(disp.durationMs && disp.durationMs > 0);
+  assert.deepEqual(d.dispatches.map(run => run.executionId), ['exec_run_coder', 'exec_run_root']);
+
+  const [coderRun, reviewerRun] = d.dispatches;
+  assert.equal(coderRun.runName, 'coder-sweep');
+  assert.equal(coderRun.agentSlotId, 'coder');
+  assert.equal(coderRun.stepIndex, 0);
+
+  assert.equal(reviewerRun.runName, 'root-sweep');
+  assert.equal(reviewerRun.machine, 'lab2');
+  assert.equal(reviewerRun.type, 'dispatch');
+  assert.equal(reviewerRun.agentSlotId, 'reviewer');
+  assert.equal(reviewerRun.stepIndex, 1);
+  assert.equal(reviewerRun.taskId, 'ab12');
+  assert.equal(reviewerRun.status, 'running');
+  assert.equal(reviewerRun.cost, null);
+});
+
+test('threads.get returns direct subtasks only', async () => {
+  const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_root' });
+  assert.deepEqual(d.subtasks.map(t => t.id), ['cd34']);
+  assert.equal(d.subtasks[0].text, 'Direct child');
+  assert.equal(d.subtasks[0].claimedBy, 'task-dispatcher');
 });
 
 test('threads.get builds a nested child tree capped at 5 levels', async () => {
