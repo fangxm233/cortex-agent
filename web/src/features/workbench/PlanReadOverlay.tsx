@@ -122,7 +122,7 @@ export function PlanReadOverlay({ model, copy, lang = 'zh', onClose, onApprove, 
                 style={{ fontSize: 12, fontWeight: 600, borderRadius: 8, padding: '8px 18px', color: 'var(--ink-solid-fg)', background: 'var(--proto-ink)', cursor: 'pointer', flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}
               >
                 <span>{copy.approvePlan}</span>
-                {approveSub && <span style={{ font: `400 9px ${mono}`, color: 'rgba(255,255,255,.55)' }}>{approveSub}</span>}
+                {approveSub && <span style={{ font: `400 9px ${mono}`, color: 'var(--ink-solid-fg-dim)' }}>{approveSub}</span>}
               </span>
             </div>
           ) : (
