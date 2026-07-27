@@ -1,9 +1,8 @@
 // input:  session context snapshot, support flag, language, surface variant
-// output: clickable context progress bar and accessible current/max modal
+// output: compact clickable progress/percent and current/max modal
 // pos:    Shared desktop/mobile context usage control
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { CSSProperties } from 'react';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { Modal } from '@/design/Modal';
 import { contextUsageViewModel } from './context-usage';
@@ -13,13 +12,13 @@ type ContextSurface = 'desktop' | 'mobile';
 
 const COPY = {
   en: {
-    label: 'CONTEXT', unavailable: 'Unavailable', title: 'Context usage',
+    title: 'Context usage',
     current: 'Current context', limit: 'Context limit', usage: 'Usage', tokens: 'tokens',
     estimate: 'PI reports this value as an estimate.',
     waiting: 'Context usage becomes available after the next PI turn completes.',
   },
   zh: {
-    label: '上下文', unavailable: '暂不可用', title: '上下文用量',
+    title: '上下文用量',
     current: '当前上下文', limit: '上下文上限', usage: '使用率', tokens: 'tokens',
     estimate: '此数值由 PI 估算。',
     waiting: '下一次 PI turn 完成后将显示上下文用量。',
@@ -37,53 +36,47 @@ export function ContextUsageControl({ usage, supported, variant, lang }: Context
   if (!supported && usage === null) return null;
   const copy = COPY[lang];
   const vm = contextUsageViewModel(usage);
-  const wrapperStyle: CSSProperties = variant === 'desktop'
-    ? { width: '100%', maxWidth: 756, margin: '0 auto', padding: '0 32px 8px', boxSizing: 'border-box', flex: 'none' }
-    : { width: '100%', padding: '0 2px 7px', boxSizing: 'border-box' };
+  return (
+    <Modal
+      title={copy.title}
+      trigger={<ContextUsageTrigger variant={variant} percent={vm.percentLabel} progress={vm.progress} label={copy.usage} />}
+    >
+      <ContextUsageDetails usage={usage} lang={lang} />
+    </Modal>
+  );
+}
 
-  const trigger = (
+interface ContextUsageTriggerProps {
+  variant: ContextSurface;
+  percent: string;
+  progress: number | null;
+  label: string;
+}
+
+function ContextUsageTrigger({ variant, percent, progress, label }: ContextUsageTriggerProps): JSX.Element {
+  return (
     <button
       type="button"
       data-context-usage-bar={variant}
-      aria-label={`${copy.title}: ${vm.compact}`}
+      aria-label={`${label}: ${percent}`}
       aria-haspopup="dialog"
-      style={{
-        width: '100%', border: '1px solid var(--proto-line-3)', background: 'var(--proto-card)',
-        borderRadius: variant === 'mobile' ? 11 : 10, padding: variant === 'mobile' ? '7px 10px' : '7px 11px',
-        display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 9,
-        color: 'var(--proto-ink)', cursor: 'pointer', boxSizing: 'border-box', textAlign: 'left',
-      }}
+      style={{ border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' }}
     >
-      <span style={{ font: "600 10px 'IBM Plex Mono', ui-monospace, Menlo, monospace", letterSpacing: '.04em', color: 'var(--proto-muted)' }}>
-        {copy.label}
-      </span>
       <span
+        data-context-usage-track={variant}
         role="progressbar"
-        aria-label={copy.usage}
+        aria-label={label}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={vm.progress ?? undefined}
-        style={{ height: 5, borderRadius: 999, background: 'var(--proto-accent-bg)', overflow: 'hidden' }}
+        aria-valuenow={progress ?? undefined}
+        style={{ display: 'block', width: variant === 'desktop' ? 64 : 48, height: 4, borderRadius: 999, background: 'var(--proto-line-3)', overflow: 'hidden' }}
       >
-        <span style={{ display: 'block', height: '100%', width: `${vm.progress ?? 0}%`, borderRadius: 999, background: 'var(--proto-accent)' }} />
+        <span style={{ display: 'block', height: '100%', width: `${progress ?? 0}%`, borderRadius: 999, background: 'var(--proto-accent)' }} />
       </span>
-      <span style={{ display: 'flex', alignItems: 'baseline', gap: 7, whiteSpace: 'nowrap' }}>
-        <span style={{ font: "600 10px 'IBM Plex Mono', ui-monospace, Menlo, monospace", color: usage ? 'var(--proto-ink)' : 'var(--proto-muted)' }}>
-          {vm.compact}
-        </span>
-        <span style={{ fontSize: 10, color: 'var(--proto-muted)' }}>
-          {usage ? vm.percentLabel : copy.unavailable}
-        </span>
+      <span style={{ minWidth: 26, font: "600 10px 'IBM Plex Mono', ui-monospace, Menlo, monospace", color: 'var(--proto-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+        {percent}
       </span>
     </button>
-  );
-
-  return (
-    <div style={wrapperStyle}>
-      <Modal title={copy.title} trigger={trigger}>
-        <ContextUsageDetails usage={usage} lang={lang} />
-      </Modal>
-    </div>
   );
 }
 

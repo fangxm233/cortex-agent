@@ -2,8 +2,8 @@
 // (1b L136-168 · 1o L753-786 · 1p L799-845 · 5a reject composer L200-218). Raw px/hex/font/svg by
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
-// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer
-// also mounts the shared PI context progress control above every edit/reject/default mode.
+// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The header
+// places the shared compact PI context progress control beside its status line.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
 // carry live state rather than history, and both are drawn the way the desktop chat draws
@@ -219,57 +219,43 @@ export function EditBar({ title, onCancel }: { title: string; onCancel: () => vo
 }
 
 // ── 1b header — ‹ back · title + status line · ⋯ menu ─────────────────────────
-export function MChatHeader({
-  title,
-  status,
-  onBack,
-  onMore,
-}: {
+interface MChatHeaderProps {
   title: string;
   status: ChatHeaderStatus;
   onBack: () => void;
   onMore: () => void;
-}): JSX.Element {
+  contextUsage?: SessionContextUsage | null;
+  contextUsageSupported?: boolean;
+  contextUsageLang?: 'en' | 'zh';
+}
+
+export function MChatHeader(props: MChatHeaderProps): JSX.Element {
   return (
-    <MDrillHeader onBack={onBack} trailing={<MMoreButton onClick={onMore} />}>
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 15,
-            fontWeight: 650,
-            color: MC.ink,
-            letterSpacing: '-.01em',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {title}
+    <MDrillHeader onBack={props.onBack} trailing={<MMoreButton onClick={props.onMore} />}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 15, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {props.title}
         </div>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            font: `400 10px ${MONO}`,
-            // 6a/5a header: a pending interaction turns the whole status line amber.
-            color: status.tone === 'waiting' ? MC.amberText : MC.muted,
-            marginTop: 1,
-          }}
-        >
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: status.tone === 'waiting' ? MC.amber : status.running ? MC.run : 'var(--proto-line-3)',
-              animation: status.running ? 'cxpulse 1.6s ease-in-out infinite' : undefined,
-            }}
-          />
-          {status.text}
-        </div>
+        <MChatStatusLine {...props} />
       </div>
     </MDrillHeader>
+  );
+}
+
+function MChatStatusLine({ status, contextUsage, contextUsageSupported = false, contextUsageLang = 'en' }: MChatHeaderProps): JSX.Element {
+  const showContext = contextUsageSupported || contextUsage != null;
+  return (
+    <div data-chat-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `400 10px ${MONO}`, color: status.tone === 'waiting' ? MC.amberText : MC.muted, marginTop: 1 }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: status.tone === 'waiting' ? MC.amber : status.running ? MC.run : 'var(--proto-line-3)', animation: status.running ? 'cxpulse 1.6s ease-in-out infinite' : undefined, flex: 'none' }} />
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{status.text}</span>
+      </span>
+      {showContext ? (
+        <span data-context-usage-position="header" style={{ marginLeft: 'auto', display: 'inline-flex', flex: 'none' }}>
+          <ContextUsageControl usage={contextUsage ?? null} supported={contextUsageSupported} variant="mobile" lang={contextUsageLang} />
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -1047,7 +1033,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   }, []);
 
   // 7b edit mode replaces the composer chrome with the accent edit bar; 5a reject mode replaces it
-  // with the amber feedback bar (+ ✕ cancel) + reason chips. Context usage stays above every mode.
+  // with the amber feedback bar (+ ✕ cancel) + reason chips. Context usage stays in the header.
   const composerMode = props.editing && props.editCopy ? (
     <EditBar title={props.editCopy.editBarTitle} onCancel={props.editing.onCancel} />
   ) : props.rejectBar ? (
@@ -1093,24 +1079,22 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       </div>
     </>
   );
-  const above = (
-    <>
-      <ContextUsageControl
-        usage={props.contextUsage ?? null}
-        supported={!!props.contextUsageSupported}
-        variant="mobile"
-        lang={props.contextUsageLang ?? 'en'}
-      />
-      {composerMode}
-    </>
-  );
+  const above = composerMode;
 
   return (
     <div
       data-screen-label="1b 会话详情"
       style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: MC.canvas }}
     >
-      <MChatHeader title={props.title} status={props.status} onBack={props.onBack} onMore={props.onMoreToggle} />
+      <MChatHeader
+        title={props.title}
+        status={props.status}
+        onBack={props.onBack}
+        onMore={props.onMoreToggle}
+        contextUsage={props.contextUsage}
+        contextUsageSupported={props.contextUsageSupported}
+        contextUsageLang={props.contextUsageLang}
+      />
       {/* Body region — a position:relative frame holding the scroll transcript + composer. The
           full-screen editor (2b) mounts as an absolute overlay of THIS region, so it covers the
           transcript + composer while leaving the header untouched. */}

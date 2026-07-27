@@ -1,5 +1,5 @@
 // input:  selected session/query/live context, transcript, and composer state
-// output: desktop center chat with transcript, context bar, and composer
+// output: desktop chat with header context indicator, transcript, composer
 // pos:    Workbench conversation pane orchestration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useMemo } from 'react';
@@ -10,7 +10,6 @@ import { ChatHeader } from './ChatHeader';
 import { MessageStream, type MessageEditCtx } from './MessageStream';
 import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { Composer } from './Composer';
-import { ContextUsageControl } from './ContextUsageControl';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
 import { useInteractionActions } from './useInteractionActions';
 import { useMarkSessionRead } from './useMarkSessionRead';
@@ -147,6 +146,9 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         sessionName={active?.name ?? null}
         currentProfile={active?.profileName ?? null}
         hasHistory={hasHistory}
+        contextUsage={contextUsage}
+        contextUsageSupported={active?.backend === 'pi'}
+        contextUsageLang={lang}
         isDraft={isDraft}
       />
       <MessageStream
@@ -156,12 +158,6 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         interactionActions={interactionActions}
         edit={edit}
         streamKey={sessionId}
-      />
-      <ContextUsageControl
-        usage={contextUsage}
-        supported={active?.backend === 'pi'}
-        variant="desktop"
-        lang={lang}
       />
       <Composer
         sessionId={sessionId}

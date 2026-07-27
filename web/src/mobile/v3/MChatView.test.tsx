@@ -47,6 +47,14 @@ const copy: MChatCopy = {
   charUnit: '字',
 };
 
+const usage = {
+  usedTokens: 60000,
+  contextWindow: 200000,
+  percent: 30,
+  accuracy: 'estimate' as const,
+  updatedAt: '2026-07-27T12:00:00.000Z',
+};
+
 const baseProps = {
   title: 'nimbus review',
   copy,
@@ -92,6 +100,24 @@ describe('1b MChatHeader', () => {
     );
     expect(html).toContain('idle · 3 turns');
     expect(html).not.toContain('cxpulse');
+  });
+  it('places compact context usage at the right of the status header row', () => {
+    const html = renderToStaticMarkup(
+      <MChatHeader
+        title="atlas"
+        status={{ running: false, tone: 'idle', text: 'idle · 3 turns' }}
+        onBack={() => {}}
+        onMore={() => {}}
+        contextUsage={usage}
+        contextUsageSupported
+        contextUsageLang="en"
+      />,
+    );
+    expect(html).toContain('data-chat-status-line="true"');
+    expect(html).toContain('data-context-usage-position="header"');
+    expect(html).toContain('data-context-usage-bar="mobile"');
+    expect(html).toContain('idle · 3 turns');
+    expect(html).not.toContain('60k / 200k');
   });
   it('waiting (pending interaction) → amber dot + amber text, no pulse (scheme 6a header)', () => {
     const html = renderToStaticMarkup(
@@ -363,7 +389,7 @@ describe('1p ProfileSheet', () => {
 });
 
 describe('1b MChatView composition', () => {
-  it('renders PI context usage directly above the mobile composer', () => {
+  it('renders compact PI context usage in the mobile header instead of above the composer', () => {
     const html = renderToStaticMarkup(
       <MChatView
         {...baseProps}
@@ -377,8 +403,10 @@ describe('1b MChatView composition', () => {
         contextUsageLang="zh"
       />,
     );
+    expect(html).toContain('data-context-usage-position="header"');
     expect(html).toContain('data-context-usage-bar="mobile"');
-    expect(html).toContain('60k / 200k');
+    expect(html).toContain('>30%</span>');
+    expect(html).not.toContain('60k / 200k');
   });
 
   it('renders header + composer with the profile chip and the ＋ attach affordance', () => {

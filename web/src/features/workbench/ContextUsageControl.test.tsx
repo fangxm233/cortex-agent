@@ -1,5 +1,5 @@
 // input:  ContextUsageControl/Details with PI snapshots and language variants
-// output: desktop/mobile bar and current/max modal-content render regressions
+// output: compact header bar/percentage and detail modal render regressions
 // pos:    Shared context usage presentation contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -16,23 +16,31 @@ const usage = {
 };
 
 describe('ContextUsageControl', () => {
-  it('renders a clickable desktop progress bar with compact current/max values', () => {
+  it('renders only a short clickable progress bar and percentage on desktop', () => {
     const html = renderToStaticMarkup(
       <ContextUsageControl usage={usage} supported variant="desktop" lang="en" />,
     );
     expect(html).toContain('data-context-usage-bar="desktop"');
+    expect(html).toContain('data-context-usage-track="desktop"');
+    expect(html).toContain('width:64px');
     expect(html).toContain('aria-haspopup="dialog"');
-    expect(html).toContain('60k / 200k');
     expect(html).toContain('aria-valuenow="30"');
+    expect(html).toContain('>30%</span>');
+    expect(html).not.toContain('60k / 200k');
+    expect(html).not.toContain('>CONTEXT<');
+    expect(html).not.toContain('border:1px solid var(--proto-line-3)');
   });
 
-  it('renders an honest unavailable PI bar and hides an unsupported empty session', () => {
+  it('renders an empty short mobile track without unavailable copy and hides unsupported empty sessions', () => {
     const pi = renderToStaticMarkup(
       <ContextUsageControl usage={null} supported variant="mobile" lang="zh" />,
     );
     expect(pi).toContain('data-context-usage-bar="mobile"');
-    expect(pi).toContain('暂不可用');
-    expect(pi).toContain('— / —');
+    expect(pi).toContain('data-context-usage-track="mobile"');
+    expect(pi).toContain('width:48px');
+    expect(pi).toContain('>—</span>');
+    expect(pi).not.toContain('暂不可用');
+    expect(pi).not.toContain('— / —');
 
     const unsupported = renderToStaticMarkup(
       <ContextUsageControl usage={null} supported={false} variant="desktop" lang="en" />,
