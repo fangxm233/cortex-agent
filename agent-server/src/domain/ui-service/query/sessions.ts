@@ -1,6 +1,6 @@
-// input:  session/history/pending stores + shared process-wide DEBUG gate
-// output: session list and transcript DTOs with durable pending snapshots
-// pos:    authoritative query boundary for session metadata and sensitive transcript fields
+// input:  session/history/pending stores and the process DEBUG gate
+// output: session list and transcript DTOs with notices and pending rows
+// pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type {
@@ -234,6 +234,7 @@ export async function handleSessionsTranscript(
       // deep-equality with the DTO shape (pre-existing red test, fixed in passing). Both user
       // uploads (15a) and agent-sent files (20a, assistant events) carry attachments.
       ...((ev.type === 'user' || ev.type === 'assistant') && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
+      ...(ev.type === 'assistant' && ev.noticeLevel !== undefined ? { noticeLevel: ev.noticeLevel } : {}),
       // Edit+rewind marker (sessions.rewind): backs the「已编辑」badge + original-message card.
       ...(ev.type === 'user' && ev.edited !== undefined ? { edited: ev.edited } : {}),
       // Defense in depth: debug records may remain on disk after DEBUG is turned off, but the

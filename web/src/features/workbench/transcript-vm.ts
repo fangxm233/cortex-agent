@@ -1,8 +1,8 @@
-// input:  transcript DTOs with durable pending snapshot, live events, locale vocabulary
-// output: ChatRows plus stable-id pending/live reconciliation state
-// pos:    Workbench transcript view-model and assistant preview/pending handoff
+// input:  transcript DTOs with notices/pending, live events, vocabulary
+// output: ChatRows with notice, preview, and pending reconciliation
+// pos:    Shared desktop/mobile transcript view-model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import type { SessionTranscript, TranscriptMessage, TranscriptInteractionDetail } from '@cortex-agent/ui-contract';
+import type { SessionTranscript, TranscriptMessage, TranscriptInteractionDetail, ChatNoticeLevel } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
 // Pure view-model for the workbench center-chat transcript (S4 chat, task aba0). Maps the real
@@ -19,6 +19,7 @@ export interface LiveSessionMessage {
   text: string;
   toolName?: string;
   toolInput?: string;
+  noticeLevel?: ChatNoticeLevel;
   ts: string;
   /** Optional file attachments on user messages (15a). */
   attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[];
@@ -234,6 +235,7 @@ export type ChatRow =
   // after the final event. Only a preview row is paced by the smooth reveal — pacing a settled
   // message would re-type text the reader has already seen and leave it animating past turn end.
   | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[]; preview?: true }
+  | { kind: 'notice'; level: ChatNoticeLevel; text: string }
   // `detail` carries the structured interaction entity (pending cards render actionable);
   // absent on legacy rows, which render the old subtype-driven summary.
   | { kind: 'interaction'; subtype: string; text: string; detail?: TranscriptInteractionDetail; ts?: string | null };
@@ -277,6 +279,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessage {
     ts: m.ts,
     elapsedMs: null,
     attachments: m.attachments,
+    ...(m.noticeLevel ? { noticeLevel: m.noticeLevel } : {}),
   };
 }
 
@@ -396,7 +399,7 @@ function msgKey(m: TranscriptMessage): string {
   // Interaction entities have a stable id — key on it so a status change (pending → approved)
   // REPLACES the row instead of duplicating it.
   if (m.type === 'interaction' && m.interaction?.id) return `interaction|${m.interaction.id}`;
-  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}`;
+  return `${m.type}|${m.ts}|${m.text ?? ''}|${m.toolName ?? ''}|${m.toolInput ?? ''}|${m.noticeLevel ?? ''}`;
 }
 
 // Relative-day label matching the prototype divider vocabulary (TODAY / YESTERDAY / "MON D"),
@@ -500,8 +503,11 @@ export function buildTranscriptRows(
         ...((m as any).edited !== undefined ? { edited: (m as any).edited } : {}),
         ...((m as any).debug?.agentMessage !== undefined ? { debug: { agentMessage: (m as any).debug.agentMessage } } : {}),
       });
+    } else if (m.type === 'assistant' && m.noticeLevel) {
+      rows.push({ kind: 'notice', level: m.noticeLevel, text: m.text ?? '' });
+    } else {
+      rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
     }
-    else rows.push({ kind: 'assistant', text: m.text ?? '', streaming: false, attachments: (m as any).attachments });
   }
   flushTools();
 

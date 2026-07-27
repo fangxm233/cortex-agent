@@ -1,6 +1,6 @@
-// input:  shared SSE, React Query, durable pending/transcript snapshots
-// output: live session state converging across reloads and devices
-// pos:    React bridge between session events and desktop/mobile chat transcript rows
+// input:  shared SSE with notices, React Query, durable transcript snapshots
+// output: live session state converging notices and messages across clients
+// pos:    React bridge from session events to desktop/mobile chat rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -261,7 +261,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; attachments?: LiveSessionMessage['attachments'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; attachments?: LiveSessionMessage['attachments'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
@@ -292,22 +292,25 @@ export function useSessionMessageLiveSync(
         text: p.text ?? '',
         toolName: p.toolName,
         toolInput: p.toolInput,
+        noticeLevel: p.noticeLevel,
         ts: p.ts ?? new Date().toISOString(),
         blockId: p.blockId,
         attachments: p.attachments,
       };
       // The authoritative text for a previewed block: retire the preview in the SAME state update
       // that appends the message, so the row is replaced rather than briefly doubled.
-      if (p.role === 'assistant') {
+      if (p.role === 'assistant' && !p.noticeLevel) {
         setAssistantPreview((prev) => finalizeAssistantPreview(prev, p.blockId));
       }
       setLiveTail((prev) => {
         const next = [...prev, msg];
         return next.length > TAIL_CAP ? next.slice(next.length - TAIL_CAP) : next;
       });
-      setStreaming(true);
-      if (idleTimer.current) clearTimeout(idleTimer.current);
-      idleTimer.current = setTimeout(() => setStreaming(false), STREAM_IDLE_MS);
+      if (!p.noticeLevel) {
+        setStreaming(true);
+        if (idleTimer.current) clearTimeout(idleTimer.current);
+        idleTimer.current = setTimeout(() => setStreaming(false), STREAM_IDLE_MS);
+      }
       // Reconcile the authoritative history (finalized turns) — the tail de-dups against it.
       queryClient.invalidateQueries(trpc.sessions.transcript.queryFilter({ sessionId }));
     },

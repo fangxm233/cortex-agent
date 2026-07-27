@@ -1,12 +1,14 @@
-// input:  domain source types, DEBUG metadata, durable pending snapshots
-// output: UiService contract — Result, operations, DTOs, interfaces, dependencies
-// pos:    canonical transport-neutral types, including the transcript shape
+// input:  domain types, notice/DEBUG metadata, pending snapshots
+// output: UiService operations, DTOs, interfaces, and dependencies
+// pos:    Canonical transport-neutral UI contract
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { EventBus } from '@events/index.js';
 import type { RunningExecutions } from '@core/running-executions.js';
+import type { ChatNoticeLevel } from '@core/types/agent-types.js';
+export type { ChatNoticeLevel } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
 import type { Session } from '@store/session-registry-repo.js';
 import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
@@ -501,6 +503,8 @@ export interface TranscriptMessage {
   toolInput: string | null;
   /** Sensitive lossless data. Present only in responses produced while server DEBUG is enabled. */
   debug?: TranscriptDebugDetails;
+  /** Semantic chat-notice styling for system-authored assistant messages. */
+  noticeLevel?: ChatNoticeLevel;
   /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (legacy rows)
    *  or derived from kind+status for entity rows (display compat). */
   subtype?: string;

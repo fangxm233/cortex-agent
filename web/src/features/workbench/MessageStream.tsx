@@ -1,6 +1,6 @@
-// input:  desktop ChatRows including optional lossless DEBUG details and interaction/edit state
-// output: scroll-stable desktop transcript with hover/focus user/tool inspectors
-// pos:    workbench-only message presentation; mobile has separate renderers and no DEBUG controls
+// input:  desktop ChatRows with notices, DEBUG details, interactions, and edits
+// output: scroll-stable transcript with semantic notices and message inspectors
+// pos:    Desktop workbench message presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useEffect, useRef, useState } from 'react';
@@ -24,6 +24,7 @@ import { rewindStats, regenNoteIndexes } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { M_EDIT_COPY, HoverActionPill, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
+import { ChatNotice } from './ChatNotice';
 
 /** Edit+rewind context passed from CenterChat (sessions.rewind). Absent → chat is read-only
  *  w.r.t. editing (the thread step chat), hover copy still works. */
@@ -597,6 +598,8 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
       return <ToolCallsRow calls={row.calls.map((c) => ({ label: c.kind, kind: c.kind, input: c.input, ...(c.debug ? { debug: c.debug } : {}) }))} />;
     case 'assistant':
       return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} regen={regen} preview={row.preview} streamKey={streamKey} />;
+    case 'notice':
+      return <ChatNotice level={row.level} text={row.text} />;
     case 'interaction':
       return <InteractionRowCard row={row} actions={interactionActions} />;
     default:

@@ -4,7 +4,7 @@ Store 与持久化原语的隔离回归测试。
 
 | filename | role | function |
 |---|---|---|
-| conversation-history-repo.test.ts | 测试 | 覆盖历史追加、source-id 幂等、DEBUG 关联与截断 |
+| conversation-history-repo.test.ts | 测试 | 覆盖 notice 保留、历史追加、source-id 幂等、DEBUG 关联与截断 |
 | pending-injection-repo.test.ts | 测试 | 覆盖 pending record 持久化、并发、隔离与移除 |
 | cost-repo.test.ts | 测试 | 覆盖成本记录并发与预算读写 |
 | execution-repo.test.ts | 测试 | 覆盖执行记录并发与索引一致性 |

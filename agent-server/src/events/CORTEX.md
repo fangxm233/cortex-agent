@@ -7,7 +7,7 @@ Only depends on core/, constructed and connected by entry/app.ts, not yet connec
 
 | filename | role | function |
 |---|---|---|
-| `event-types.ts` | types | CortexEvent union, including stable pending-message identities, delivery handoff timestamps, streaming deltas, session lifecycle, task/thread, system, and meta events |
+| `event-types.ts` | types | CortexEvent union with chat-notice levels, pending identities, deltas, lifecycle, and system/meta events |
 | `event-bus.ts` | core | EventBus: subscribe / publish (synchronous fan-out) / registerCloseHook / close() |
 | `event-logger.ts` | observability | createEventLogger: ring buffer 1024, 100ms flush, daily rolling jsonl, 14-day retention, CORTEX_EVENT_LOG=off escape hatch. Skips META_EVENTS (re-entrancy) and TRANSIENT_EVENTS — `session.message.delta`, dozens per reply and fully repeated by the complete `session.message`, so logging it would multiply the daily jsonl and evict real events from the ring buffer |
 | `event-replay.ts` | debug | CLI: `node events/event-replay.ts --date YYYY-MM-DD [--type xxx]` |

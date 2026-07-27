@@ -1,6 +1,6 @@
 // input:  session event publishers and an isolated shared EventBus
-// output: message/pending-id/delta/delivery event regression coverage
-// pos:    orchestration session-event contract specification
+// output: message notice/pending-id/delta/delivery event regressions
+// pos:    Orchestration session-event contract specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -51,6 +51,28 @@ test('publishSessionMessage emits a session.message event on the shared bus', ()
   assert.ok(typeof seen[0].ts === 'string');
   assert.equal(seen[1].role, 'tool');
   assert.equal(seen[1].toolName, 'Read');
+});
+
+test('publishSessionMessage carries an optional notice level', () => {
+  const bus = new EventBus();
+  const seen: any[] = [];
+  bus.subscribe('session.message', (event) => { seen.push(event); });
+
+  const prev = jobCtx.bus;
+  jobCtx.bus = bus;
+  try {
+    publishSessionMessage({
+      sessionId: 'sess-notice',
+      channel: 'web:notice',
+      role: 'assistant',
+      text: 'Context auto-compacted.',
+      noticeLevel: 'info',
+    });
+  } finally {
+    jobCtx.bus = prev;
+  }
+
+  assert.equal(seen[0].noticeLevel, 'info');
 });
 
 test('publishSessionMessage is a no-op when no bus is wired', () => {

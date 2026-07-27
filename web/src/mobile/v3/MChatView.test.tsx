@@ -1,5 +1,5 @@
-// input:  Mobile chat components, view models, and server-side renderer
-// output: Mobile chat chrome and interaction rendering regressions
+// input:  Mobile chat components, notice rows, view models, server renderer
+// output: Mobile chat chrome, notice, and interaction regressions
 // pos:    Verifies the mobile session-chat presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -122,6 +122,18 @@ describe('1b MChatStream', () => {
     expect(html).toContain('scan complete');
     // The blue blinking output-position block was removed by request.
     expect(html).not.toContain('cxblink');
+  });
+
+  it('renders a shared info notice instead of assistant prose', () => {
+    const notice = renderToStaticMarkup(
+      <MChatStream
+        rows={[{ kind: 'notice', level: 'info', text: 'Context auto-compacted.' }]}
+        toolCallsUnit="次工具调用"
+      />,
+    );
+    expect(notice).toContain('data-chat-notice="info"');
+    expect(notice).toContain('role="status"');
+    expect(notice).toContain('Context auto-compacted.');
   });
 });
 

@@ -1,6 +1,6 @@
-// input:  Node test runner + core/i18n module + en/zh locales
-// output: t() lookup / interpolation / fallback + setLocale/getLocale + en↔zh key parity
-// pos:    Unit tests for the zero-dependency i18n layer (L0)
+// input:  core i18n module and en/zh locale tables
+// output: lookup, concise notice, fallback, locale, and parity regressions
+// pos:    Unit specification for the zero-dependency i18n layer
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it, afterEach } from 'vitest';
@@ -79,22 +79,12 @@ describe('i18n', () => {
     assert.equal(t('totally.unknown.key' as any), 'totally.unknown.key');
   });
 
-  it('context-compaction notice renders in the active locale, not hardcoded zh', () => {
+  it('context-compaction notice is concise in both locales', () => {
     setLocale('en');
-    const enMsg = t('notify.contextCompacted', { trigger: 'auto', tokens: '' });
-    assert.match(enMsg, /Context auto-compacted/);
-    assert.ok(!/[一-鿿]/.test(enMsg), 'English locale must not contain Chinese characters');
-    assert.ok(!enMsg.includes('${'), 'no unresolved placeholders');
+    assert.equal(t('notify.contextCompacted'), 'Context auto-compacted.');
 
     setLocale('zh');
-    const zhMsg = t('notify.contextCompacted', { trigger: 'auto', tokens: '' });
-    assert.ok(/[一-鿿]/.test(zhMsg), 'zh locale renders Chinese');
-
-    // Token suffix interpolates preTokens in both locales.
-    setLocale('en');
-    const suffix = t('notify.contextCompactedTokens', { preTokens: 1234 });
-    assert.match(suffix, /1234/);
-    assert.ok(!suffix.includes('${'), 'no unresolved placeholders');
+    assert.equal(t('notify.contextCompacted'), '上下文已自动压缩。');
   });
 
   it('en and zh expose the exact same key set (parity)', () => {

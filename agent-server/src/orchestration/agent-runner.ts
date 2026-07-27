@@ -1,12 +1,12 @@
-// input:  conversation execution, lifecycle, queue, DEBUG gate, pending store
-// output: AgentRunner with live/durable transcript and injection wiring
-// pos:    Sole plain user-message path, including injected and background continuation turns
+// input:  conversation execution, lifecycle, queue, DEBUG/pending stores
+// output: AgentRunner with typed notices and live/durable transcript wiring
+// pos:    Sole plain user-message and injection path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
-import type { AgentResult } from '@core/types/agent-types.js';
+import type { AgentResult, ChatNoticeLevel } from '@core/types/agent-types.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
 import * as crypto from 'node:crypto';
@@ -307,7 +307,7 @@ export class AgentRunner {
           initStatusBlocks(statusMsg, blocksTemplateWithExec);
         },
         onAssistantDelta: deltaStream ? (text: string, blockId: string) => deltaStream.onDelta(text, blockId) : null,
-        onAssistantMessage: (text: string, blockId?: string) => {
+        onAssistantMessage: (text: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => {
           // Drain this block's preview FIRST: the authoritative message must never be overtaken by
           // a delta still sitting in the coalescer, or the UI would replace the row and then append
           // a stale fragment to it.
@@ -315,8 +315,12 @@ export class AgentRunner {
           callbacks.onAssistantMsg(text);
           if (sessionId && text) {
             const ts = new Date().toISOString();
-            recordHistory(conversationHistory.appendAssistant(sessionId, { text, ts }));
-            publishSessionMessage({ sessionId, channel, role: 'assistant', text, ts, ...(blockId ? { blockId } : {}) });
+            recordHistory(conversationHistory.appendAssistant(sessionId, { text, ts, noticeLevel }));
+            publishSessionMessage({
+              sessionId, channel, role: 'assistant', text, ts,
+              ...(blockId ? { blockId } : {}),
+              ...(noticeLevel ? { noticeLevel } : {}),
+            });
           }
         },
         onPromptBuilt: debugEnabled ? (prompt: string) => {

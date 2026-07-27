@@ -1,6 +1,6 @@
-// input:  transcript-vm helpers, durable pending snapshots, neutral fixtures
-// output: row, DEBUG, streaming, stable-id pending regressions
-// pos:    Workbench transcript view-model specification including lossless inspector data
+// input:  transcript helpers, notice metadata, pending snapshots, neutral fixtures
+// output: notice rows, DEBUG, streaming, and stable-id pending regressions
+// pos:    Workbench transcript view-model specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import {
@@ -53,6 +53,29 @@ describe('buildTranscriptRows', () => {
     expect(rows[0].kind).toBe('divider');
     expect(rows[1]).toEqual({ kind: 'user', text: 'hi there', turnIndex: 0, ts: T });
     expect(rows[2]).toEqual({ kind: 'assistant', text: 'hello back', streaming: false });
+  });
+
+  it('maps fetched and live assistant notices to notice rows', () => {
+    const fetched = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [{
+        type: 'assistant',
+        text: 'Context auto-compacted.',
+        toolName: null,
+        toolInput: null,
+        noticeLevel: 'info',
+        ts: T,
+        elapsedMs: null,
+      }] }]),
+      [],
+    );
+    const live = buildTranscriptRows(
+      tx([]),
+      [{ sessionId: 's1', role: 'assistant', text: 'Heads up', noticeLevel: 'warning', ts: T }],
+    );
+
+    expect(fetched[1]).toEqual({ kind: 'notice', level: 'info', text: 'Context auto-compacted.' });
+    expect(live[1]).toEqual({ kind: 'notice', level: 'warning', text: 'Heads up' });
+    expect(fetched.some((row) => row.kind === 'assistant')).toBe(false);
   });
 
   it('consecutive tool messages collapse into one tools row with each call', () => {
@@ -201,6 +224,13 @@ describe('liveToMessage', () => {
   it('maps an assistant live event to an assistant TranscriptMessage', () => {
     const m = liveToMessage({ sessionId: 's1', role: 'assistant', text: 'hi', ts: T });
     expect(m).toEqual({ type: 'assistant', text: 'hi', toolName: null, toolInput: null, ts: T, elapsedMs: null });
+  });
+
+  it('preserves notice level on an assistant live event', () => {
+    const m = liveToMessage({
+      sessionId: 's1', role: 'assistant', text: 'Heads up', noticeLevel: 'error', ts: T,
+    });
+    expect(m.noticeLevel).toBe('error');
   });
 });
 

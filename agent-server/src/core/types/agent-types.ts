@@ -1,7 +1,9 @@
 // input:  nothing (leaf type-only module)
-// output: AgentResult / AgentHandle / AgentProgress types
-// pos:    Shared type definitions for agent run results and progress
+// output: Agent result/handle/progress and chat-notice level types
+// pos:    Shared type definitions for agent execution and messages
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+export type ChatNoticeLevel = 'info' | 'warning' | 'error';
 
 export interface AskUserQuestionInfo {
   toolUseId: string | null;

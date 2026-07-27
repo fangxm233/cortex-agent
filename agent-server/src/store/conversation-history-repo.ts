@@ -1,11 +1,12 @@
-// input:  per-session JSONL, visible events, interactions/edit markers, optional DEBUG sidecars
-// output: history grouping plus internal source-id idempotency queries
-// pos:    L1 append-only canonical transcript store; all grouping/merging occurs at read time
+// input:  session JSONL, notice metadata, interactions, DEBUG sidecars
+// output: grouped history with notice and source-id preservation
+// pos:    Append-only canonical transcript store
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { STORE_DIR } from '@core/paths.js';
+import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 
 const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
@@ -54,6 +55,8 @@ export interface HistoryEvent {
   type: HistoryEventType;
   /** user / assistant message text (omitted for tool events). */
   text?: string;
+  /** Semantic chat notice styling for system-authored assistant messages. */
+  noticeLevel?: ChatNoticeLevel;
   /** tool name (tool events only). */
   toolName?: string;
   /** compact tool input summary (tool events only). */
@@ -91,6 +94,7 @@ interface RawEvent {
   /** edit-marker lines only. */
   originalTs?: string;
   text?: string;
+  noticeLevel?: ChatNoticeLevel;
   toolName?: string;
   toolInput?: string;
   /** DEBUG-only correlation and lossless payload fields. */
@@ -198,8 +202,11 @@ export class ConversationHistoryRepo {
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event.
    *  Optional `attachments` carry agent-sent files (20a) — the assistant-side mirror of the user
    *  composer's uploads. Present only for the file-send path; ordinary assistant text omits it. */
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }): Promise<void> {
-    return this.append(sessionId, { type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso(), attachments: opts.attachments });
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[]; noticeLevel?: ChatNoticeLevel }): Promise<void> {
+    return this.append(sessionId, {
+      type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso(),
+      attachments: opts.attachments, noticeLevel: opts.noticeLevel,
+    });
   }
 
   /** Append a tool call.
@@ -359,8 +366,10 @@ export class ConversationHistoryRepo {
         const hasAttachments = ev.attachments !== undefined;
         const canCollapse =
           !hasAttachments &&
+          ev.noticeLevel === undefined &&
           !!last &&
           last.type === 'assistant' &&
+          last.noticeLevel === undefined &&
           last.turnIndex === tIdx &&
           last.attachments === undefined &&
           typeof last.text === 'string' &&
@@ -368,7 +377,11 @@ export class ConversationHistoryRepo {
         if (canCollapse) {
           if (text.length >= last!.text!.length) { last!.text = text; last!.ts = ev.ts; }
         } else {
-          events.push({ type: 'assistant', text, ts: ev.ts, turnIndex: tIdx, ...(hasAttachments ? { attachments: ev.attachments } : {}) });
+          events.push({
+            type: 'assistant', text, ts: ev.ts, turnIndex: tIdx,
+            ...(hasAttachments ? { attachments: ev.attachments } : {}),
+            ...(ev.noticeLevel ? { noticeLevel: ev.noticeLevel } : {}),
+          });
         }
       } else if (ev.type === 'tool') {
         const tool: HistoryEvent = {

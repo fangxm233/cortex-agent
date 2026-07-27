@@ -1,6 +1,6 @@
-// input:  isolated per-session JSONL plus visible/debug/source-id APIs
-// output: grouping, idempotency, rewind, interaction, DEBUG regressions
-// pos:    backend-independent conversation-history store specification
+// input:  isolated session JSONL plus visible/debug/notice/source-id APIs
+// output: grouping, notice preservation, idempotency, rewind, and DEBUG regressions
+// pos:    Backend-independent conversation-history store specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first import — repoints CORTEX_HOME before paths bind
 
@@ -62,6 +62,21 @@ test('assistant message can carry file attachments (agent-sent files, 20a)', asy
   const h = await repo.getHistory(sid);
   const assistant = h!.events.find(e => e.type === 'assistant');
   assert.deepEqual(assistant!.attachments, attachments, 'assistant attachments survive round-trip');
+});
+
+test('assistant notice level round-trips and prevents prefix collapse with prose', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-notice';
+  await repo.appendUser(sid, { text: 'q' });
+  await repo.appendAssistant(sid, { text: 'Context' });
+  await repo.appendAssistant(sid, { text: 'Context auto-compacted.', noticeLevel: 'info' });
+
+  const h = await repo.getHistory(sid);
+  const assistants = h!.events.filter((event) => event.type === 'assistant');
+  assert.equal(assistants.length, 2, 'notice stays distinct from prefix-related assistant prose');
+  assert.equal(assistants[0].noticeLevel, undefined);
+  assert.equal(assistants[1].noticeLevel, 'info');
+  assert.equal(assistants[1].text, 'Context auto-compacted.');
 });
 
 test('assistant messages without attachments have undefined attachments (no empty-array pollution)', async () => {

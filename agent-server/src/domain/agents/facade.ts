@@ -1,6 +1,6 @@
-// input:  config, agent adapters, profiles, normalized id-correlated tool events
-// output: runAgent execution facade with lossless tool-use/result callback forwarding
-// pos:    domain/agents — sole backend-neutral agent execution path [S11]
+// input:  config, adapters, profiles, normalized tool and notice events
+// output: runAgent facade with typed notice and lossless tool callbacks
+// pos:    Sole backend-neutral agent execution path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { getAdapter } from '../../agent-adapter/index.js';
@@ -8,7 +8,7 @@ import type { AgentAdapter, AgentSpawnConfig, Backend } from '../../agent-adapte
 import { shouldAwaitBgInline, waitForBgContinuation } from '../../agent-adapter/bg-wait.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
-import type { AgentHandle, AgentResult } from '@core/types/agent-types.js';
+import type { AgentHandle, AgentResult, ChatNoticeLevel } from '@core/types/agent-types.js';
 import { recordCost } from '../costs/cost-tracker.js';
 import { configureEnvForMode, isRetryableResult, isRetryableError } from './config.js';
 import { isModeRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
@@ -70,9 +70,9 @@ export interface RunAgentOptions {
   taskId?: string | null;
   taskProject?: string | null;
   onProgress?: ((progress: any) => void) | null;
-  /** A complete assistant text block. `blockId` (when the backend streamed it) identifies the block
-   *  whose deltas preceded this message, so a live preview can be replaced rather than duplicated. */
-  onAssistantMessage?: ((msg: string, blockId?: string) => void) | null;
+  /** A complete assistant text block. `blockId` ties it to prior deltas; `noticeLevel` turns
+   *  system-authored text into semantic chat chrome without changing plain platform output. */
+  onAssistantMessage?: ((msg: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => void) | null;
   /** An incremental text chunk of a block still being generated (never the accumulated total).
    *  Opt-in: callers that leave it unset receive complete messages only, exactly as before. */
   onAssistantDelta?: ((text: string, blockId: string) => void) | null;
@@ -260,14 +260,10 @@ export function runWithAdapter(
             }).catch(err => log.warn('recordCost failed:', (err as Error)?.message ?? err));
             break;
           case 'context_compacted':
-            // Notify the user that the context was compacted. Off by default; opt in via
-            // CORTEX_NOTIFY_COMPACTION=1. Reuses onAssistantMessage so the notice reaches the
-            // user through the same channel as normal assistant output.
+            // Off by default; when enabled, preserve the text path used by every platform while
+            // giving chat clients explicit presentation semantics instead of an emoji convention.
             if (process.env.CORTEX_NOTIFY_COMPACTION === '1') {
-              const tokens = event.preTokens
-                ? t('notify.contextCompactedTokens', { preTokens: event.preTokens })
-                : '';
-              options.onAssistantMessage?.(`🗜️ ${t('notify.contextCompacted', { trigger: event.trigger, tokens })}`);
+              options.onAssistantMessage?.(t('notify.contextCompacted'), undefined, 'info');
             }
             break;
           case 'plan_written':

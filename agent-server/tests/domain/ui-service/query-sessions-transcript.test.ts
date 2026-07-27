@@ -1,6 +1,6 @@
-// input:  session histories, durable pending snapshots, UI query dependencies
-// output: transcript grouping, pending, interaction, and DEBUG regressions
-// pos:    authoritative sessions.transcript handler specification
+// input:  session histories with notices/pending/debug data and query dependencies
+// output: transcript notice, grouping, pending, interaction, and DEBUG regressions
+// pos:    Authoritative sessions.transcript handler specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -69,6 +69,19 @@ test('sessions.transcript groups user/assistant/tool events by turn', async () =
 
   assert.equal(out.turns[1].turnIndex, 1);
   assert.equal(out.turns[1].messages.length, 2);
+});
+
+test('sessions.transcript exposes an assistant notice level', async () => {
+  const history: SessionHistory = {
+    sessionId: 'sess-notice',
+    events: [
+      { type: 'user', text: 'hi', ts: '2026-07-07T00:00:00.000Z', turnIndex: 0 },
+      { type: 'assistant', text: 'Heads up', noticeLevel: 'warning', ts: '2026-07-07T00:00:01.000Z', turnIndex: 0 },
+    ],
+  };
+
+  const out = await handleSessionsTranscript(makeDeps(history), { sessionId: 'sess-notice' });
+  assert.equal(out.turns[0].messages[1].noticeLevel, 'warning');
 });
 
 test('sessions.transcript derives per-message elapsedMs from ts deltas (chronological, first=null)', async () => {

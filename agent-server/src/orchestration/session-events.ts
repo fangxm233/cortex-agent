@@ -1,10 +1,11 @@
-// input:  session lifecycle payloads + the shared EventBus (via job-registry ctx)
-// output: message/pending-id/delta/status/turn/rewind publishers
-// pos:    orchestration bus seam; persistence remains bus-free and missing bus is a no-op
+// input:  session payloads, chat-notice levels, and the shared EventBus
+// output: message/notice/pending/delta/status/turn/rewind publishers
+// pos:    Orchestration bus seam; missing bus remains a no-op
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
+import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 
 export interface SessionMessagePayload {
   sessionId: string;
@@ -22,6 +23,8 @@ export interface SessionMessagePayload {
    *  The web chat replaces that block's accumulated preview with this text instead of adding a
    *  second row. Absent whenever nothing streamed (non-Claude backend, kill switch, older CLI). */
   blockId?: string;
+  /** Semantic presentation for system-authored assistant messages in chat clients. */
+  noticeLevel?: ChatNoticeLevel;
   /** Set on a user message injected into a live turn and not yet read by the model. It carries no
    *  history entry yet — the client shows it as a provisional row until the matching
    *  `session.message.delivered` commits it. Absent on every ordinary message. */
@@ -49,6 +52,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.attachments !== undefined ? { attachments: p.attachments } : {}),
     ...(p.ts !== undefined ? { ts: p.ts } : {}),
     ...(p.blockId !== undefined ? { blockId: p.blockId } : {}),
+    ...(p.noticeLevel !== undefined ? { noticeLevel: p.noticeLevel } : {}),
     ...(p.pending !== undefined ? { pending: p.pending } : {}),
     ...(p.pendingId !== undefined ? { pendingId: p.pendingId } : {}),
   });

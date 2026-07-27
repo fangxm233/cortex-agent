@@ -4,7 +4,8 @@
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards.
 //
-// Two rows carry live state rather than history, and both are drawn the way the desktop chat draws
+// Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
+// carry live state rather than history, and both are drawn the way the desktop chat draws
 // them. The block being written right now (`preview`) is revealed at a steady character rate instead
 // of a delta at a time, through the SHARED pacing rule and frame loop (`features/workbench`
 // reveal-pacing + useRevealedText) — see MAssistantBlock. A message written into a running turn that
@@ -13,6 +14,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
+import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { regenNoteIndexes, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import {
@@ -720,6 +722,11 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
           {row.kind === 'tools' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
               <ToolCallsRow count={row.count} calls={row.calls} unit={toolCallsUnit} />
+            </div>
+          )}
+          {row.kind === 'notice' && (
+            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+              <ChatNotice level={row.level} text={row.text} />
             </div>
           )}
           {row.kind === 'assistant' && (

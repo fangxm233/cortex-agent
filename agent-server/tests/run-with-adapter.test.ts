@@ -1,6 +1,6 @@
-// input:  Node test runner + fake adapter stubs + runWithAdapter
-// output: event→callback (including correlated tool results) + AgentResult + kill semantics tests
-// pos:    Verify mode-manager adapter event-driven path and lossless DEBUG callback propagation
+// input:  fake adapters, runWithAdapter, and locale state
+// output: event callbacks including typed notices, tool results, and kill semantics
+// pos:    Verifies backend-neutral event dispatch into agent callbacks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -11,6 +11,7 @@ import type { AgentAdapter, AgentProcess, AgentSpawnConfig, Backend, UserMessage
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
+import { getLocale, setLocale } from '../src/core/i18n.js';
 
 const { runWithAdapter } = modeManagerTest;
 
@@ -157,6 +158,42 @@ test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks 
   assert.equal(final, result, 'handle.promise resolves with the exact AgentResult from send()');
   assert.equal(recorded.sendCalls.length, 1);
   assert.equal(recorded.closed, true, 'proc.close() called in the runWithAdapter finally block');
+});
+
+test('runWithAdapter: context compaction emits one concise info notice', async (t) => {
+  const previousFlag = process.env.CORTEX_NOTIFY_COMPACTION;
+  const previousLocale = getLocale();
+  t.onTestFinished(() => {
+    if (previousFlag === undefined) delete process.env.CORTEX_NOTIFY_COMPACTION;
+    else process.env.CORTEX_NOTIFY_COMPACTION = previousFlag;
+    setLocale(previousLocale);
+  });
+  process.env.CORTEX_NOTIFY_COMPACTION = '1';
+  setLocale('en');
+
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const adapter = makeFakeAdapter('claude', {
+    events: [
+      { type: 'context_compacted', trigger: 'overflow', preTokens: 48000 },
+      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
+    ],
+    resultOnResolve: defaultAgentResult('s-compact'),
+    recorded,
+  });
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  await runWithAdapter(
+    adapter,
+    'msg',
+    {
+      channel: 'C1',
+      onAssistantMessage: (text: string, _blockId?: string, level?: string) => notices.push({ text, level }),
+    },
+    { model: 'm', backend: 'claude', mode: null },
+    undefined,
+  ).promise;
+
+  assert.deepEqual(notices, [{ text: 'Context auto-compacted.', level: 'info' }]);
 });
 
 test('runWithAdapter: tool_result preserves full multiline content, error status, and correlation id', async () => {
@@ -317,7 +354,7 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
   ).promise;
   assert.deepEqual(offMsgs, [], 'no compaction notice when flag is off');
 
-  // ON: exactly one notification carrying trigger + token count.
+  // ON: exactly one concise notification; backend trigger/token details stay internal.
   process.env.CORTEX_NOTIFY_COMPACTION = '1';
   const onMsgs: string[] = [];
   await runWithAdapter(
@@ -325,9 +362,7 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
     { channel: 'C1', onAssistantMessage: (m: string) => onMsgs.push(m) },
     { model: 'm', backend: 'claude', mode: null }, undefined,
   ).promise;
-  assert.equal(onMsgs.length, 1, 'one compaction notice when flag is on');
-  assert.match(onMsgs[0], /auto/);
-  assert.match(onMsgs[0], /37418/);
+  assert.deepEqual(onMsgs, ['Context auto-compacted.']);
 });
 
 // --- Thread-session inline background-task wait (2026-07-10) ---

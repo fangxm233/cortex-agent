@@ -58,7 +58,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
 | `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims + extension_ui settled turns |
 | `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
-| `run-with-adapter.test.ts` | Test | mode-manager normalized event→callback drive, id-correlated full tool result propagation, and thread-turn inline bg-continuation forwarding/wait |
+| `run-with-adapter.test.ts` | Test | Normalized event callbacks, concise typed compaction notices, full tool results, and inline continuation wait |
 | `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins: cortex-feishu plugin gated to feishu: channels (exact basename match) |
 | `app.test.ts` | Test | Startup DM + scheduled success flow |
 | `auto-compound.test.ts` | Test | Compound skip conditions and concatenation |
@@ -125,7 +125,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `interaction-handlers.test.ts` | Test | handleModalSubmit -> bus.publish('ask-user.answered') BLK-1 regression |
 | `orch/interaction-records.test.ts` | Test | InteractionRecords entity service (web-interactions-redesign): create persists+publishes session.interaction pending / resolve first-writer-wins (resolved→already-resolved) / unknown-after-restart / getPendingByChannel payload+TTL scoping / resolvePendingByChannel (!new cancel) / uninitialised fail-soft |
 | `orch/hook-bridge-subscribers-web.test.ts` | Test | web: conduit branch creates interaction entities (plan-approval with FULL planContent snapshot + planApprovals live-resolver kept; ask-user normalized questions); non-web channels create none |
-| `domain/ui-service/query-sessions-transcript.test.ts` | Test | Transcript turn/elapsed/interaction materialization plus DEBUG-on exact detail exposure and DEBUG-off sensitive-field suppression |
+| `domain/ui-service/query-sessions-transcript.test.ts` | Test | Transcript notice/turn/elapsed/interaction materialization and DEBUG exposure gate |
 | `domain/ui-service/mutate-sessions-interactions.test.ts` | Test | handleAnswerQuestion/handleRespondPlan three-way outcome: resolved/already-resolved → ok{outcome}, not-found → err, invalid-args, not-available |
 | `platform-mock-adapter.test.ts` | Test | MockAdapter 17 method coverage |
 | `output-stream.test.ts` | Test | SlackOutputStream/FeishuOutputStream/MockOutputStream unit tests (46 cases) |

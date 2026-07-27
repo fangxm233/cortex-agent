@@ -1,6 +1,6 @@
-// input:  agent facade, prompt assembly, execution/session registries, project context
-// output: runConversation plus exact assembled-prompt and id-correlated tool callback seams
-// pos:    plain user turn execution without thread machinery; prompt capture occurs before spawn
+// input:  agent facade, prompt assembly, registries, project context
+// output: runConversation with prompt, notice, and tool callback seams
+// pos:    Plain user-turn execution without thread machinery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Why this exists: plain user chat messages used to be wrapped in a `templateName:'default'`
@@ -12,7 +12,7 @@
 // (conversation ledger) are all thread-independent and handled by the caller (agent-runner).
 
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile } from '@platform/index.js';
-import type { AgentResult } from '@core/types/agent-types.js';
+import type { AgentResult, ChatNoticeLevel } from '@core/types/agent-types.js';
 import {
   runAgent, getClaudeMode, getActiveProfile, getDefaultAgent, resolveBackendForChannel,
 } from '@domain/agents/index.js';
@@ -48,8 +48,8 @@ export interface RunConversationOptions {
   /** Fired once the execution record is created, before the agent starts — lets the caller
    *  attach an execution-scoped Cancel button to the status message. */
   onExecutionStarted?: (executionId: string) => void | Promise<void>;
-  /** `blockId` is present when the backend streamed this text first (token-level streaming). */
-  onAssistantMessage?: ((text: string, blockId?: string) => void) | null;
+  /** `blockId` identifies prior deltas; `noticeLevel` marks system-authored chat notices. */
+  onAssistantMessage?: ((text: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => void) | null;
   /** Incremental chunk of a block still being generated. Web chat only — see delta-coalescer. */
   onAssistantDelta?: ((text: string, blockId: string) => void) | null;
   onProgress?: ((progress: any) => void) | null;
