@@ -24,7 +24,10 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/workbench/session-groups';
-import { unreadCountByProject } from '@/features/workbench/project-menu';
+import {
+  awaitingInputCountByProject,
+  unreadCountByProject,
+} from '@/features/workbench/project-menu';
 import { lastActivityByProject } from '@/features/workbench/left-rail-projects';
 import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
 import { useThreadsLiveSync } from '@/features/workbench/useThreadsLiveSync';
@@ -120,8 +123,8 @@ export function MProjectScreen() {
   useSessionsLiveSync();
   useThreadsLiveSync();
   const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
-  // UNSCOPED direct sessions (all projects) → per-project unread counts for the switcher badge +
-  // unread-first ordering. Kept fresh by useSessionsLiveSync (same as the desktop LeftRail).
+  // UNSCOPED direct sessions (all projects) → per-project unread + awaiting-action badge counts.
+  // Recency still owns ordering; useSessionsLiveSync keeps both attention signals fresh.
   const allSessionsQuery = useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' }));
   const scopedCostQuery = useQuery({
     ...trpc.cost.summary.queryOptions({ projectId: currentProjectId ?? undefined }),
@@ -167,6 +170,10 @@ export function MProjectScreen() {
     () => unreadCountByProject(allSessionsQuery.data ?? []),
     [allSessionsQuery.data],
   );
+  const actionCounts = useMemo(
+    () => awaitingInputCountByProject(allSessionsQuery.data ?? []),
+    [allSessionsQuery.data],
+  );
   // Persistent recency signal (session-registry lastUsedAt) → most-recently-active projects first.
   const lastActivity = useMemo(
     () => lastActivityByProject(allSessionsQuery.data ?? []),
@@ -181,8 +188,17 @@ export function MProjectScreen() {
         globalCostQuery.data?.byProject,
         unreadCounts,
         lastActivity,
+        actionCounts,
       ),
-    [projects, currentProjectId, threads, globalCostQuery.data, unreadCounts, lastActivity],
+    [
+      projects,
+      currentProjectId,
+      threads,
+      globalCostQuery.data,
+      unreadCounts,
+      lastActivity,
+      actionCounts,
+    ],
   );
 
   // ── new-project bottom sheet (inline overlay, same pattern as profile picker in MChatScreen) ──

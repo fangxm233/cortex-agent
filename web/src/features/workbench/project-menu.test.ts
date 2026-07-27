@@ -3,6 +3,8 @@ import type { ProjectConduitInfo, ThreadInfo } from '@cortex-agent/ui-contract';
 import {
   runningCountByProject,
   unreadCountByProject,
+  awaitingInputCountByProject,
+  projectAttentionBadge,
   buildSwitchList,
   switchRowMeta,
   projMenuSubLabel,
@@ -86,16 +88,36 @@ describe('projMenuSubLabel', () => {
   });
 });
 
-describe('unreadCountByProject', () => {
+describe('project attention counts', () => {
+  const s = (projectId: string, unread: boolean, awaitingInput = false) =>
+    ({ projectId, unread, awaitingInput }) as never;
+
   it('counts unread sessions per project', () => {
-    const s = (projectId: string, unread: boolean) => ({ projectId, unread }) as never;
     expect(
       unreadCountByProject([s('p1', true), s('p1', true), s('p2', false), s('p3', true)]),
     ).toEqual({ p1: 2, p3: 1 });
   });
 
-  it('empty input → empty map', () => {
+  it('counts sessions awaiting user input per project', () => {
+    expect(
+      awaitingInputCountByProject([
+        s('p1', false, true),
+        s('p1', true, true),
+        s('p2', true, false),
+        s('p3', false, true),
+      ]),
+    ).toEqual({ p1: 2, p3: 1 });
+  });
+
+  it('combines unread + action counts and lets action win the badge tone', () => {
+    expect(projectAttentionBadge(2, 1)).toEqual({ count: 3, tone: 'action' });
+    expect(projectAttentionBadge(2, 0)).toEqual({ count: 2, tone: 'unread' });
+    expect(projectAttentionBadge(0, 0)).toEqual({ count: 0, tone: null });
+  });
+
+  it('empty input → empty maps', () => {
     expect(unreadCountByProject([])).toEqual({});
+    expect(awaitingInputCountByProject([])).toEqual({});
   });
 });
 

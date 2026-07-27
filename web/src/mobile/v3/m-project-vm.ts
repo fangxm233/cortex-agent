@@ -9,6 +9,10 @@
 import type { ThreadInfo, ProjectConduitInfo, CostSummary } from '@cortex-agent/ui-contract';
 import { projectInitials } from '@/features/workbench/session-groups';
 import { sortProjectsByActivity } from '@/features/workbench/left-rail-projects';
+import {
+  projectAttentionBadge,
+  type ProjectAttentionBadgeTone,
+} from '@/features/workbench/project-menu';
 
 const ACTIVE_THREAD_STATUSES: ReadonlySet<ThreadInfo['status']> = new Set(['running', 'waiting']);
 
@@ -46,9 +50,14 @@ export interface MProjectSwitchRow {
   /** Real today $ from the global cost summary's byProject bucket; null when the project has no
    *  bucket (honest — never a fabricated $0). */
   todayCost: number | null;
-  /** Unread direct-session count for this project (0 = none). Drives the switcher badge + ordering
-   *  — mirrors the desktop ProjectMenu (buildSwitchList). */
+  /** Unread direct-session count for this project. */
   unread: number;
+  /** Sessions blocked on a pending ask-user question or plan approval. */
+  actionRequired: number;
+  /** Combined unread + action count shown in the single switch-row badge. */
+  badgeCount: number;
+  /** Action takes the amber tone; unread-only stays run blue. */
+  badgeTone: ProjectAttentionBadgeTone;
 }
 
 /**
@@ -58,8 +67,9 @@ export interface MProjectSwitchRow {
  * touched last floats to the top; projects with no known activity sink to the bottom in stable order.
  * `lastActivity` comes from `lastActivityByProject` over an UNSCOPED direct sessions.list — the same
  * persistent session-registry signal the desktop rail uses, so the order survives server/app restarts.
- * `unreadCounts` still badges each row but no longer drives ordering. Per-project approval / needs-you
- * counts are NOT derivable (ApprovalInfo has no projectId) → deliberately absent.
+ * `unreadCounts` still contributes to each row's attention badge but no longer drives ordering.
+ * Session actions come from SessionInfo.awaitingInput; markdown approval counts remain absent because
+ * ApprovalInfo has no projectId.
  */
 export function buildProjectSwitchRows(
   projects: ProjectConduitInfo[],
@@ -68,6 +78,7 @@ export function buildProjectSwitchRows(
   globalByProject: CostSummary['byProject'] | undefined,
   unreadCounts: Record<string, number> = {},
   lastActivity: Record<string, number> = {},
+  actionCounts: Record<string, number> = {},
 ): MProjectSwitchRow[] {
   const others = projects.filter((p) => p.id !== currentId);
   return sortProjectsByActivity(others, lastActivity).map((p) => {
@@ -76,12 +87,18 @@ export function buildProjectSwitchRows(
       0,
     );
     const bucket = globalByProject?.[p.id];
+    const unread = unreadCounts[p.id] ?? 0;
+    const actionRequired = actionCounts[p.id] ?? 0;
+    const badge = projectAttentionBadge(unread, actionRequired);
     return {
       id: p.id,
       initials: projectInitials(p.id),
       running,
       todayCost: bucket ? bucket.today : null,
-      unread: unreadCounts[p.id] ?? 0,
+      unread,
+      actionRequired,
+      badgeCount: badge.count,
+      badgeTone: badge.tone,
     };
   });
 }

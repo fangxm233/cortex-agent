@@ -74,8 +74,14 @@ function baseProps(over: Partial<MProjectViewProps> = {}): MProjectViewProps {
     pendingApprovals: 2,
     onlineMachines: 3,
     switchRows: [
-      { id: 'atlas', initials: 'AT', running: 1, todayCost: 0.87, unread: 0 },
-      { id: 'orchard', initials: 'OR', running: 0, todayCost: null, unread: 0 },
+      {
+        id: 'atlas', initials: 'AT', running: 1, todayCost: 0.87,
+        unread: 0, actionRequired: 0, badgeCount: 0, badgeTone: null,
+      },
+      {
+        id: 'orchard', initials: 'OR', running: 0, todayCost: null,
+        unread: 0, actionRequired: 0, badgeCount: 0, badgeTone: null,
+      },
     ],
     issues: { count: 4, previews: ['EXP-023 验证集 return 回落', 'gpu-02 磁盘剩余 6%'] },
     onIssues: noop,
@@ -181,15 +187,34 @@ describe('MProjectView', () => {
     expect(html).toContain('空闲');
   });
 
-  it('badges a switch row that has unread sessions (accent count), and none when unread=0', () => {
+  it('badges unread-only switch rows with the combined count in the accent tone', () => {
     const withUnread = render({
-      switchRows: [{ id: 'atlas', initials: 'AT', running: 0, todayCost: null, unread: 3 }],
+      switchRows: [{
+        id: 'atlas', initials: 'AT', running: 0, todayCost: null,
+        unread: 3, actionRequired: 0, badgeCount: 3, badgeTone: 'unread',
+      } as never],
     });
-    expect(withUnread).toContain('aria-label="unread"');
+    expect(withUnread).toMatch(
+      /aria-label="project attention" style="[^"]*background:var\(--m-run\)/,
+    );
     expect(withUnread).toContain('>3<');
+  });
 
-    const noUnread = render();
-    expect(noUnread).not.toContain('aria-label="unread"');
+  it('adds action to unread and turns the same badge amber when action is required', () => {
+    const withAction = render({
+      switchRows: [{
+        id: 'atlas', initials: 'AT', running: 0, todayCost: null,
+        unread: 2, actionRequired: 1, badgeCount: 3, badgeTone: 'action',
+      } as never],
+    });
+    expect(withAction).toMatch(
+      /aria-label="project attention" style="[^"]*background:var\(--m-amber\)/,
+    );
+    expect(withAction).toContain('>3<');
+  });
+
+  it('hides the project attention badge when unread + action is zero', () => {
+    expect(render()).not.toContain('aria-label="project attention"');
   });
 
   it('renders the 新建项目 dashed card without the removed hint/footer copy', () => {

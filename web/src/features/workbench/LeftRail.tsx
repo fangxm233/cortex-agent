@@ -4,7 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { groupSessions, sessionMeta, groupLabel } from './session-groups';
-import { runningCountByProject, unreadCountByProject } from './project-menu';
+import {
+  awaitingInputCountByProject,
+  runningCountByProject,
+  unreadCountByProject,
+} from './project-menu';
 import { formatCost } from './right-panel-vm';
 import {
   buildProjectRailRows,
@@ -31,8 +35,8 @@ import { BUILD_STAMP } from '@/lib/build-info';
 // expanded — one row per project ordered by MOST RECENT ACTIVITY (persistent, from the session
 // registry's lastUsedAt; ⌘1–9 follow this order, ⌘1 = most recently active), single click
 // switches, the active row expands one sub-entry line (Overview + today-cost readout); per-row badges =
-// real running-thread count (threads.list) + unread-session count (honest addition, kept from the
-// retired switcher popover). Draggable divider. Bottom zone: current project's SESSIONS with the
+// real running-thread count (threads.list) + one attention count (unread + awaiting user action;
+// amber when action exists). Draggable divider. Bottom zone: current project's SESSIONS with the
 // project-name echo + "+ New" moved into the zone header. Data gaps rendered honestly (flagged in
 // CORTEX.md): no per-row amber approval dot (ApprovalInfo has no projectId — the bottom pill stays
 // the all-projects aggregate); idle rows show a real last-activity age derived from the unscoped
@@ -101,6 +105,10 @@ export function LeftRail(): JSX.Element {
     () => unreadCountByProject(allSessionsQuery.data ?? []),
     [allSessionsQuery.data],
   );
+  const actionCounts = useMemo(
+    () => awaitingInputCountByProject(allSessionsQuery.data ?? []),
+    [allSessionsQuery.data],
+  );
   const lastActivity = useMemo(
     () => lastActivityByProject(allSessionsQuery.data ?? []),
     [allSessionsQuery.data],
@@ -114,8 +122,16 @@ export function LeftRail(): JSX.Element {
   );
   const projectRows = useMemo(
     () =>
-      buildProjectRailRows(sortedProjects, activeProjectId, runningCounts, unreadCounts, lastActivity, Date.now()),
-    [sortedProjects, activeProjectId, runningCounts, unreadCounts, lastActivity],
+      buildProjectRailRows(
+        sortedProjects,
+        activeProjectId,
+        runningCounts,
+        unreadCounts,
+        lastActivity,
+        Date.now(),
+        actionCounts,
+      ),
+    [sortedProjects, activeProjectId, runningCounts, unreadCounts, lastActivity, actionCounts],
   );
 
   // New-project modal (kept from the retired switcher popover, task c551).
@@ -383,15 +399,15 @@ export function LeftRail(): JSX.Element {
                           {row.running}
                         </span>
                       )}
-                      {row.unread > 0 && (
+                      {row.badgeCount > 0 && (
                         <span
-                          data-unread-badge={row.id}
+                          data-project-attention-badge={row.id}
                           style={{
                             minWidth: 14,
                             height: 14,
                             padding: '0 4px',
                             borderRadius: 7,
-                            background: 'var(--proto-accent)',
+                            background: row.badgeTone === 'action' ? 'var(--proto-amber)' : 'var(--proto-accent)',
                             color: 'var(--ink-solid-fg)',
                             font: `600 9px ${mono}`,
                             display: 'inline-flex',
@@ -399,7 +415,7 @@ export function LeftRail(): JSX.Element {
                             justifyContent: 'center',
                           }}
                         >
-                          {row.unread}
+                          {row.badgeCount}
                         </span>
                       )}
                     </span>
@@ -506,15 +522,15 @@ export function LeftRail(): JSX.Element {
                       {row.running}
                     </span>
                   )}
-                  {row.unread > 0 && (
+                  {row.badgeCount > 0 && (
                     <span
-                      data-unread-badge={row.id}
+                      data-project-attention-badge={row.id}
                       style={{
                         minWidth: 14,
                         height: 14,
                         padding: '0 4px',
                         borderRadius: 7,
-                        background: 'var(--proto-accent)',
+                        background: row.badgeTone === 'action' ? 'var(--proto-amber)' : 'var(--proto-accent)',
                         color: 'var(--ink-solid-fg)',
                         font: `600 9px ${mono}`,
                         display: 'inline-flex',
@@ -522,7 +538,7 @@ export function LeftRail(): JSX.Element {
                         justifyContent: 'center',
                       }}
                     >
-                      {row.unread}
+                      {row.badgeCount}
                     </span>
                   )}
                   {row.idleAge !== null ? (

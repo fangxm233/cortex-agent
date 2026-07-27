@@ -27,6 +27,26 @@ export function unreadCountByProject(sessions: SessionInfo[]): Record<string, nu
   return counts;
 }
 
+/** Sessions needing user action per project — pending ask-user questions or plan approvals. */
+export function awaitingInputCountByProject(sessions: SessionInfo[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const s of sessions) {
+    if (s.awaitingInput) counts[s.projectId] = (counts[s.projectId] ?? 0) + 1;
+  }
+  return counts;
+}
+
+export type ProjectAttentionBadgeTone = 'unread' | 'action' | null;
+
+/** One project badge: unread + action, with action taking visual priority. */
+export function projectAttentionBadge(
+  unread: number,
+  actionRequired: number,
+): { count: number; tone: ProjectAttentionBadgeTone } {
+  const count = unread + actionRequired;
+  return { count, tone: actionRequired > 0 ? 'action' : count > 0 ? 'unread' : null };
+}
+
 export interface SwitchProjectRow {
   id: string;
   running: number;

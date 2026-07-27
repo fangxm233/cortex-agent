@@ -391,17 +391,16 @@ function SwitchRow({
           )}
         </div>
       </div>
-      {/* Unread badge (honest addition, mirrors desktop ProjectMenu): an accent count pill flags a
-          project with unread sessions; these rows also sort first (buildProjectSwitchRows). */}
-      {row.unread > 0 && (
+      {/* One attention badge: unread + awaiting-input sessions; any action turns it amber. */}
+      {row.badgeCount > 0 && (
         <span
-          aria-label="unread"
+          aria-label="project attention"
           style={{
             minWidth: 18,
             height: 18,
             padding: '0 6px',
             borderRadius: 999,
-            background: MC.run,
+            background: row.badgeTone === 'action' ? MC.amber : MC.run,
             color: 'var(--ink-solid-fg)',
             font: `600 10px ${MONO}`,
             display: 'flex',
@@ -410,7 +409,7 @@ function SwitchRow({
             flex: 'none',
           }}
         >
-          {row.unread}
+          {row.badgeCount}
         </span>
       )}
       <span style={{ fontSize: 13, color: MC.faint, flex: 'none' }}>›</span>

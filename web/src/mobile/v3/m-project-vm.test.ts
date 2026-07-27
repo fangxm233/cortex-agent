@@ -82,6 +82,30 @@ describe('buildProjectSwitchRows', () => {
     expect(rows.find((r) => r.id === 'atlas')?.unread).toBe(0);
   });
 
+  it('adds unread + action counts and lets action win the badge tone', () => {
+    const rows = buildProjectSwitchRows(
+      projects,
+      'nimbus',
+      threads,
+      byProject,
+      { orchard: 2, atlas: 1 },
+      {},
+      { orchard: 1 },
+    );
+    expect(rows.find((r) => r.id === 'orchard')).toMatchObject({
+      unread: 2,
+      actionRequired: 1,
+      badgeCount: 3,
+      badgeTone: 'action',
+    });
+    expect(rows.find((r) => r.id === 'atlas')).toMatchObject({
+      unread: 1,
+      actionRequired: 0,
+      badgeCount: 1,
+      badgeTone: 'unread',
+    });
+  });
+
   it('orders rows by most recent activity (parity with the desktop LeftRail)', () => {
     // orchard was active more recently than atlas → orchard sorts ahead despite trailing in the list.
     const activity = {

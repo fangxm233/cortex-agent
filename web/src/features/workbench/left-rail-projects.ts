@@ -1,5 +1,6 @@
 import type { ProjectConduitInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { projectInitials } from './session-groups';
+import { projectAttentionBadge, type ProjectAttentionBadgeTone } from './project-menu';
 
 // Pure view-model for the 22a dual-zone left rail PROJECTS zone (scheme.dc.html §22a, L37–150).
 // Design contract: project rows are ordered by MOST RECENT ACTIVITY (the project whose newest
@@ -8,8 +9,8 @@ import { projectInitials } from './session-groups';
 // degrades to raw filesystem order. ⌘1–9 follow the visible (activity) order — ⌘1 is the most recently
 // active project. A row's trailing slot shows its status badges + hotkey when it has any (mock rows
 // TR/LO), else the last-activity age (mock row PP "3d").
-// DATA GAP (flagged): the mock's per-row amber "approval pending" dot has no backing field —
-// ApprovalInfo carries no projectId — so rows carry running/unread only; the bottom pill stays
+// DATA GAP (flagged): the mock's per-row PENDING_APPROVALS dot has no project field. Rows can still
+// carry session-scoped action counts via SessionInfo.awaitingInput; the markdown approval pill stays
 // the all-projects aggregate.
 
 export interface ProjectRailRow {
@@ -18,8 +19,14 @@ export interface ProjectRailRow {
   active: boolean;
   /** Active thread count (running+waiting) — the blue pulse badge. */
   running: number;
-  /** Unread session count — the accent count badge (honest addition, kept from the switcher). */
+  /** Unread session count, retained separately for title emphasis. */
   unread: number;
+  /** Sessions blocked on a pending ask-user question or plan approval. */
+  actionRequired: number;
+  /** Combined unread + action count shown in the single project badge. */
+  badgeCount: number;
+  /** Action takes the amber tone; unread-only stays accent blue. */
+  badgeTone: ProjectAttentionBadgeTone;
   /** '⌘1'…'⌘9' by list order for the first nine rows; null past that or when idleAge shows. */
   hotkey: string | null;
   /** Last-activity age ('3d') — only for badge-less idle rows with a known timestamp. */
@@ -98,12 +105,15 @@ export function buildProjectRailRows(
   unreadCounts: Record<string, number>,
   lastActivity: Record<string, number>,
   nowMs: number,
+  actionCounts: Record<string, number> = {},
 ): ProjectRailRow[] {
   return projects.map((p, i) => {
     const active = p.id === activeId;
     const running = runningCounts[p.id] ?? 0;
     const unread = unreadCounts[p.id] ?? 0;
-    const hasBadge = running > 0 || unread > 0;
+    const actionRequired = actionCounts[p.id] ?? 0;
+    const badge = projectAttentionBadge(unread, actionRequired);
+    const hasBadge = running > 0 || badge.count > 0;
     const activityMs = lastActivity[p.id];
     // The active row never shows an age — its trailing sub-line carries the ⌘k echo instead.
     const idleAge =
@@ -114,6 +124,9 @@ export function buildProjectRailRows(
       active,
       running,
       unread,
+      actionRequired,
+      badgeCount: badge.count,
+      badgeTone: badge.tone,
       hotkey: idleAge === null && i < 9 ? '⌘' + (i + 1) : null,
       idleAge,
     };

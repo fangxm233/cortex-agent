@@ -156,6 +156,21 @@ describe('buildProjectRailRows', () => {
     expect(rows[2]).toMatchObject({ running: 1 });
   });
 
+  it('adds unread + action counts and marks the badge as action-toned when any action exists', () => {
+    const rows = buildProjectRailRows(
+      projects,
+      'quad-nav-sim2real',
+      {},
+      { tactile: 2, 'lab-ops': 1 },
+      { 'paper-pipeline': NOW - 3 * 86_400_000 },
+      NOW,
+      { tactile: 1, 'paper-pipeline': 1 },
+    );
+    expect(rows[1]).toMatchObject({ unread: 2, actionRequired: 1, badgeCount: 3, badgeTone: 'action' });
+    expect(rows[2]).toMatchObject({ unread: 1, actionRequired: 0, badgeCount: 1, badgeTone: 'unread' });
+    expect(rows[3]).toMatchObject({ unread: 0, actionRequired: 1, badgeCount: 1, badgeTone: 'action', idleAge: null });
+  });
+
   it('assigns ⌘1–⌘9 hotkeys by list order, none past the ninth', () => {
     const many = Array.from({ length: 11 }, (_, i) => project('p' + i));
     const rows = buildProjectRailRows(many, null, {}, {}, {}, NOW);
