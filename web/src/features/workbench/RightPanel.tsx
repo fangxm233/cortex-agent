@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { TasksPanel } from '@/features/tasks/TasksPanel';
+import { actionableOpenCount } from '@/features/tasks/group-tasks';
 import { RightThreadCard } from './RightThreadCard';
 import { RightMachinesTab } from './RightMachinesTab';
-import { actionableCount, formatCost, onlineMachineCount } from './right-panel-vm';
+import { formatCost, onlineMachineCount } from './right-panel-vm';
 import { threadScopeFilter, type Scope } from './scope';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
 import { useCurrentProject } from './CurrentProjectProvider';
@@ -80,10 +81,15 @@ export function RightPanel(): JSX.Element {
   // projectId) so the panel shows only THIS project's threads and tasks. Machines are cross-project.
   const projectId = activeProjectId ?? undefined;
   const activeThreadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter('active'), projectId }));
-  const openTasksQuery = useQuery(trpc.tasks.list.queryOptions({ status: 'open', projectId }));
+  // Same unfiltered query TasksPanel runs (identical input → react-query dedupes it, no extra
+  // request), counted the same way, so the tab badge and the panel's chip can never disagree: both
+  // are the open (not-done) count — in-progress dispatches, blocked, waiting-deps and pending
+  // included. The former badge counted only strictly-claimable tasks and read as a second, smaller
+  // truth beside the chip.
+  const tasksQuery = useQuery(trpc.tasks.list.queryOptions({ ...(projectId ? { projectId } : {}) }));
   const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
   const activeThreadCount = activeThreadsQuery.data?.length ?? 0;
-  const actionable = openTasksQuery.data ? actionableCount(openTasksQuery.data) : 0;
+  const openTaskCount = tasksQuery.data ? actionableOpenCount(tasksQuery.data) : 0;
   // Machines tab badge = ONLINE machines, not the total in the registry (task: show online count).
   const machineCount = onlineMachineCount(machinesQuery.data);
 
@@ -121,7 +127,7 @@ export function RightPanel(): JSX.Element {
         />
         <TabButton
           label={L.tasks}
-          count={String(actionable)}
+          count={String(openTaskCount)}
           countColor="var(--proto-muted-2)"
           active={tab === 'tasks'}
           onClick={() => setTab('tasks')}

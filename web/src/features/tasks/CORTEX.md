@@ -7,7 +7,7 @@ routed through the daemon. Proves the full stack end-to-end.
 
 | path | role |
 |---|---|
-| `group-tasks.ts` | Pure `groupTasks(TaskInfo[]) → TaskGroup[]` — buckets tasks into fixed-order lifecycle groups (in-progress → actionable → waiting-deps → blocked → done), omitting empty groups, stable input order. `actionableOpenCount()` for the tab badge. `LIFECYCLE_ORDER` canonical. |
+| `group-tasks.ts` | Pure `groupTasks(TaskInfo[]) → TaskGroup[]` — buckets tasks into fixed-order lifecycle groups (in-progress → actionable → waiting-deps → blocked → done), omitting empty groups, stable input order. `actionableOpenCount()` = the OPEN (not-done) count — every non-done task whatever its bucket (in-progress / blocked / waiting-deps / pending), NOT the strict `TaskInfo.actionable` predicate. It backs both the panel's Actionable/All chip and the workbench right-panel **Tasks** tab badge, which is why the two agree. `LIFECYCLE_ORDER` canonical. |
 | `group-tasks.test.ts` | vitest unit test for the lifecycle grouping logic (12 tests, TDD — written first). |
 | `useTasksLiveSync.ts` | Listens on the app's SHARED live stream (`features/live`) for `task.claimed/completed/blocked/dispatched` and invalidates the `tasks.list` query on each event → refetch → re-render. (It used to open its own SSE — see `features/live/CORTEX.md` for why every hook sharing one stream matters.) |
 | `TasksPanel.tsx` | Reusable data-driven body: `tasks.list` query + live-sync. **Built-in Actionable/All filter** (replaces old external Active/History scope). No "+ Task" button. No done-when display in the list. Consumed by `TasksPage` and `features/workbench/RightPanel`. |

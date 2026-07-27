@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ThreadInfo, ThreadStepDetail, ThreadDetail, ThreadChildNode, TaskInfo, MachineInfo } from '@cortex-agent/ui-contract';
+import type { ThreadInfo, ThreadStepDetail, ThreadDetail, ThreadChildNode, MachineInfo } from '@cortex-agent/ui-contract';
 import {
   threadPill,
   stepDotKind,
@@ -9,7 +9,6 @@ import {
   formatAge,
   threadMetaLine,
   depthInfo,
-  actionableCount,
   machinePill,
   onlineMachineCount,
 } from './right-panel-vm';
@@ -219,27 +218,5 @@ describe('onlineMachineCount — Machines tab badge counts ONLINE only, not tota
   it('empty / undefined → 0', () => {
     expect(onlineMachineCount([])).toBe(0);
     expect(onlineMachineCount(undefined)).toBe(0);
-  });
-});
-
-describe('actionableCount', () => {
-  it('counts actionable open tasks', () => {
-    const t = (actionable: boolean): TaskInfo => ({
-      id: 'x',
-      text: 't',
-      project: 'p',
-      status: 'open',
-      priority: 'medium',
-      actionable,
-      claimedBy: null,
-      blockedBy: null,
-      dependsOn: [],
-      plan: null,
-      template: 'coder-review',
-      why: null,
-      doneWhen: null,
-    });
-    expect(actionableCount([t(true), t(false), t(true)])).toBe(2);
-    expect(actionableCount([])).toBe(0);
   });
 });

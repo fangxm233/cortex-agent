@@ -3,7 +3,7 @@
 // Framework-free so the mapping from real tRPC DTOs → the prototype's exact values is unit-tested in
 // isolation (TDD). Consumed by RightPanel.tsx / RightThreadCard.tsx.
 
-import type { ThreadInfo, ThreadStepDetail, ThreadDetail, TaskInfo, MachineInfo } from '@cortex-agent/ui-contract';
+import type { ThreadInfo, ThreadStepDetail, ThreadDetail, MachineInfo } from '@cortex-agent/ui-contract';
 import { treeMaxLevel, MAX_LEVEL } from '@/features/thread/nested-threads';
 
 export interface Pill {
@@ -96,11 +96,6 @@ export interface DepthInfo {
 export function depthInfo(detail: ThreadDetail): DepthInfo {
   const filled = treeMaxLevel(detail.children);
   return { filled, total: MAX_LEVEL, text: `${filled}/${MAX_LEVEL}` };
-}
-
-/** Count of actionable open tasks (prototype actionableCount / Tasks-tab count). */
-export function actionableCount(tasks: TaskInfo[]): number {
-  return tasks.filter((t) => t.actionable).length;
 }
 
 /** Count of machines currently online (the Machines-tab badge = online, not total). */

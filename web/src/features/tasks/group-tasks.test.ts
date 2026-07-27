@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { groupTasks, LIFECYCLE_ORDER } from './group-tasks';
+import { groupTasks, actionableOpenCount, LIFECYCLE_ORDER } from './group-tasks';
 
 function t(partial: Partial<TaskInfo> & Pick<TaskInfo, 'id'>): TaskInfo {
   return {
@@ -109,5 +109,36 @@ describe('groupTasks — design 4a lifecycle grouping', () => {
 
   it('exposes the canonical lifecycle order', () => {
     expect(LIFECYCLE_ORDER).toEqual(['in-progress', 'actionable', 'waiting-deps', 'blocked', 'done']);
+  });
+});
+
+// Single source for BOTH the panel's Actionable/All chip and the right-panel Tasks tab badge:
+// every task that is not done, whatever lifecycle bucket it sits in.
+describe('actionableOpenCount — the open (not-done) count behind the Tasks badge', () => {
+  it('counts every non-done task, including in-progress / blocked / waiting-deps', () => {
+    const all = [
+      t({ id: 'a', claimedBy: 'agent' }),       // in-progress (a running dispatch)
+      t({ id: 'b', actionable: true }),          // actionable
+      t({ id: 'c', blockedBy: 'needs approval' }), // blocked
+      t({ id: 'd' }),                            // waiting-deps / paused / pending
+      t({ id: 'e', status: 'done' }),            // excluded
+    ];
+    expect(actionableOpenCount(all)).toBe(4);
+  });
+
+  it('equals the sum of every non-done lifecycle group', () => {
+    const all = [
+      t({ id: 'a', claimedBy: 'agent' }),
+      t({ id: 'b', actionable: true }),
+      t({ id: 'c', status: 'done' }),
+    ];
+    const nonDone = groupTasks(all)
+      .filter((g) => g.kind !== 'done')
+      .reduce((sum, g) => sum + g.tasks.length, 0);
+    expect(actionableOpenCount(all)).toBe(nonDone);
+  });
+
+  it('empty input → 0', () => {
+    expect(actionableOpenCount([])).toBe(0);
   });
 });
