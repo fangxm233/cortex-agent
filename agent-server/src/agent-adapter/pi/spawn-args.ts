@@ -1,7 +1,9 @@
-// input:  PISpawnOptions (session/prompt/skill/extension paths)
-// output: buildSpawnArgs(opts) → pi CLI argv string[]
-// pos:    Pure function to construct pi CLI arguments
+// input:  PI spawn options, AgentSpawnConfig context
+// output: PI CLI argv and authoritative subprocess environment
+// pos:    Pure PI argument and environment construction
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import type { AgentSpawnConfig } from '../types.js';
 
 export interface PISpawnOptions {
   sessionDir: string;
@@ -33,6 +35,61 @@ export interface PISpawnOptions {
 /** Strip context-window suffix like "[1m]" from model strings (e.g. "deepseek-v4-flash[1m]" → "deepseek-v4-flash"). */
 function stripModelSuffix(model: string): string {
   return model.replace(/\[.*?\]$/, '');
+}
+
+export interface PIEnvOptions {
+  sessionId?: string | null;
+  channel?: string | null;
+  callbackSource?: string | null;
+  scheduleTaskId?: string | null;
+  extraEnv?: Record<string, string> | null;
+  context?: AgentSpawnConfig['cortexContext'];
+  piAgentDir: string;
+  allowedTools?: string | null;
+}
+
+const RESET_CONTEXT_KEYS = [
+  'CORTEX_SESSION_ID', 'CORTEX_THREAD_ID', 'CORTEX_PROFILE',
+  'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', 'CORTEX_EXECUTION_ID',
+  'CORTEX_THREAD_DEPTH', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT',
+  'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
+  'CORTEX_PI_ALLOWED_TOOLS',
+] as const;
+
+function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void {
+  if (value !== undefined && value !== null && value !== '') env[key] = String(value);
+}
+
+function applyContext(env: NodeJS.ProcessEnv, options: PIEnvOptions): void {
+  const context = options.context;
+  setOptional(env, 'CORTEX_SESSION_ID', context?.trackSessionId ?? options.sessionId);
+  setOptional(env, 'CORTEX_CALLBACK_SOURCE', options.callbackSource);
+  setOptional(env, 'CORTEX_SCHEDULE_TASK_ID', options.scheduleTaskId);
+  setOptional(env, 'CORTEX_THREAD_ID', context?.threadId);
+  setOptional(env, 'CORTEX_PROFILE', context?.profile);
+  setOptional(env, 'CORTEX_PROJECT', context?.project);
+  setOptional(env, 'CORTEX_SESSION_NAME', context?.sessionName);
+  setOptional(env, 'CORTEX_EXECUTION_ID', context?.executionId);
+  setOptional(env, 'CORTEX_THREAD_DEPTH', context?.threadDepth);
+  setOptional(env, 'CORTEX_TASK_ID', context?.taskId);
+  setOptional(env, 'CORTEX_TASK_PROJECT', context?.taskProject);
+}
+
+export function buildPiEnv(
+  options: PIEnvOptions,
+  inheritedEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...inheritedEnv, ...(options.extraEnv ?? {}) };
+  for (const key of RESET_CONTEXT_KEYS) delete env[key];
+  env.PI_CODING_AGENT_DIR = options.piAgentDir;
+  env.CORTEX_BACKEND = 'pi';
+  if (options.channel) {
+    env.SLACK_CHANNEL = options.channel;
+    env.FEISHU_CHANNEL = options.channel;
+  }
+  setOptional(env, 'CORTEX_PI_ALLOWED_TOOLS', options.allowedTools);
+  applyContext(env, options);
+  return env;
 }
 
 export function buildSpawnArgs(opts: PISpawnOptions): string[] {

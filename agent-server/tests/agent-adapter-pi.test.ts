@@ -1,6 +1,6 @@
 // input:  Node test runner + PIAdapter _test exports
-// output: PI framing/spawn-args/bootstrap/switch_session tests
-// pos:    Hermetic PI adapter regression (stub spawner)
+// output: PI framing/spawn-env/bootstrap/switch_session tests
+// pos:    Hermetic PI adapter and subprocess context regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -13,7 +13,7 @@ import { mkdirSync } from 'node:fs';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { PIAdapter, _test as piTest } from '../src/agent-adapter/pi/adapter.js';
 import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/framing.js';
-import { buildSpawnArgs } from '../src/agent-adapter/pi/spawn-args.js';
+import { buildPiEnv, buildSpawnArgs } from '../src/agent-adapter/pi/spawn-args.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
 
 // Writable temp session dir used by Group G tests (avoids root-level paths that fail with EACCES).
@@ -163,6 +163,74 @@ test('buildSpawnArgs emits no --skill when pluginDirs is empty or undefined', ()
   assert.ok(!a.includes('--skill'));
   const b = buildSpawnArgs({ sessionDir: '/x' });
   assert.ok(!b.includes('--skill'));
+});
+
+// --- Group B2: PI subprocess context env ---
+
+test('spawn forwards authoritative Cortex thread context to the PI subprocess', () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn);
+  const proc = adapter.spawn({
+    sessionId: 'backend-session',
+    sessionKey: 'context-env',
+    resume: false,
+    callbackSource: 'thread',
+    scheduleTaskId: 'schedule-1',
+    env: { CORTEX_THREAD_ID: 'spoofed', CUSTOM_ENV: 'kept' },
+    cortexContext: {
+      threadId: 'thr_test',
+      profile: 'deepseek-pro',
+      project: 'vr-security',
+      sessionName: 'cortex-test',
+      trackSessionId: 'tracked-session',
+      executionId: 'exec-test',
+      threadDepth: 2,
+      taskId: 'ab1a',
+      taskProject: 'vr-security',
+    },
+  });
+
+  const env = stub.calls[0].opts.env as NodeJS.ProcessEnv;
+  assert.equal(env.CORTEX_THREAD_ID, 'thr_test');
+  assert.equal(env.CORTEX_PROFILE, 'deepseek-pro');
+  assert.equal(env.CORTEX_PROJECT, 'vr-security');
+  assert.equal(env.CORTEX_SESSION_NAME, 'cortex-test');
+  assert.equal(env.CORTEX_SESSION_ID, 'tracked-session');
+  assert.equal(env.CORTEX_EXECUTION_ID, 'exec-test');
+  assert.equal(env.CORTEX_THREAD_DEPTH, '2');
+  assert.equal(env.CORTEX_TASK_ID, 'ab1a');
+  assert.equal(env.CORTEX_TASK_PROJECT, 'vr-security');
+  assert.equal(env.CORTEX_CALLBACK_SOURCE, 'thread');
+  assert.equal(env.CORTEX_SCHEDULE_TASK_ID, 'schedule-1');
+  assert.equal(env.CORTEX_BACKEND, 'pi');
+  assert.equal(env.CUSTOM_ENV, 'kept');
+
+  stub.children[0].emit('close', 0, null);
+  void proc.close();
+});
+
+test('buildPiEnv removes stale optional Cortex context from the parent env', () => {
+  const stale = {
+    CORTEX_THREAD_ID: 'stale-thread',
+    CORTEX_PROFILE: 'stale-profile',
+    CORTEX_PROJECT: 'stale-project',
+    CORTEX_SESSION_NAME: 'stale-name',
+    CORTEX_EXECUTION_ID: 'stale-execution',
+    CORTEX_THREAD_DEPTH: '9',
+    CORTEX_TASK_ID: 'stale-task',
+    CORTEX_TASK_PROJECT: 'stale-task-project',
+    CORTEX_CALLBACK_SOURCE: 'stale-callback',
+    CORTEX_SCHEDULE_TASK_ID: 'stale-schedule',
+  };
+  const env = buildPiEnv({
+    sessionId: null,
+    piAgentDir: '/pi-agent',
+  }, stale);
+
+  for (const key of Object.keys(stale)) assert.equal(env[key], undefined, key);
+  assert.equal(env.CORTEX_SESSION_ID, undefined);
+  assert.equal(env.CORTEX_BACKEND, 'pi');
+  assert.equal(env.PI_CODING_AGENT_DIR, '/pi-agent');
 });
 
 // --- D1: --provider passed through from profile mode, not hardcoded ---

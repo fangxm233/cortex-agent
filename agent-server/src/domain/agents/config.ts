@@ -1,6 +1,7 @@
-// input:  mode.json, profiles.json, env, gateway
-// output: loadMode/switchMode/setActiveBackend/setActiveProfile + all config helpers
-// pos:    domain/agents — mode/profile/backend/agent switching and adapter dispatch [S11]
+// input:  mode/profile stores, environment, gateway health
+// output: agent mode selection and retry error classifiers
+// pos:    Agent runtime configuration and failure policy
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { readFileSync, writeFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
@@ -260,8 +261,16 @@ export function isRetryableResult(result: { rateLimited?: boolean } | null): boo
   return result?.rateLimited === true;
 }
 
+const PERMANENT_PROVIDER_ERROR = /(?:invalid[_ ]request|unauthorized|authentication|forbidden|not found|request body too large|context(?: window|_length).*exceed|insufficient[_ ](?:balance|quota)|billing|quota exhausted)/i;
+const TRANSIENT_HTTP_STATUS = /(?:^(?:error\s*)?(?:408|500|502|503|504)\b|\bhttp(?: status)?\s*[:=]?\s*(?:408|500|502|503|504)\b|\bstatus(?: code)?\s*[:=]?\s*(?:408|500|502|503|504)\b)/i;
+const TRANSIENT_TRANSPORT_ERROR = /(?:fetch failed|econnreset|econnrefused|etimedout|eai_again|enotfound|socket hang up|connection (?:reset|refused|terminated)|upstream connection error|temporary failure in name resolution|(?:request|connection|connect|network|socket|tls|upstream).*tim(?:ed? out|eout))/i;
+
 export function isRetryableError(error: Error | null | undefined): boolean {
-  return isApiRateLimitError(error?.message);
+  const message = error?.message;
+  if (!message || PERMANENT_PROVIDER_ERROR.test(message)) return false;
+  return isApiRateLimitError(message)
+    || TRANSIENT_HTTP_STATUS.test(message)
+    || TRANSIENT_TRANSPORT_ERROR.test(message);
 }
 
 export function configureEnvForMode(mode: string, metadata?: Record<string, string>): string | undefined {

@@ -1,6 +1,6 @@
 // input:  AgentSpawnConfig, session keys, injectable spawner
-// output: PIAdapter + PISession + switch_session + prompt-steering + assistant_delta preview
-// pos:    PI CLI session pool, live-turn injection, and AgentAdapter implementation
+// output: PIAdapter sessions, context-aware spawn, steering, previews
+// pos:    PI CLI session pool and AgentAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
@@ -12,7 +12,7 @@ import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import type { AgentAdapter, AgentProcess, AgentSpawnConfig, Backend, InjectionAckSink, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
-import { buildSpawnArgs } from './spawn-args.js';
+import { buildPiEnv, buildSpawnArgs } from './spawn-args.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, type PIEventParserState } from './event-parser.js';
 import { PI_AGENT_DIR, PI_SESSIONS_DIR, writeProvidersConfig, buildProviderOverrides, ensureAuthVisible } from './agent-dir.js';
@@ -662,11 +662,6 @@ export class PIAdapter implements AgentAdapter {
       }
     }
 
-    const env: Record<string, string | undefined> = { ...process.env, ...(config.env ?? {}), PI_CODING_AGENT_DIR: PI_AGENT_DIR };
-    if (config.channel) {
-      env.SLACK_CHANNEL = config.channel;
-      env.FEISHU_CHANNEL = config.channel;
-    }
     // Forward the agent's tool allowlist (Claude-native names) so tool-shims.ts can gate which
     // pseudo-tools it registers — mirroring the Claude backend's `--tools` allowlist. Without this,
     // thread-dispatched agents (whose config excludes AskUserQuestion/EnterPlanMode/ExitPlanMode)
@@ -675,7 +670,16 @@ export class PIAdapter implements AgentAdapter {
       ?? (config.tools && config.tools.length > 0
         ? config.tools.map((t) => fromCanonical('claude', t)).filter((n): n is string => !!n).join(',')
         : undefined);
-    if (allowedTools) env.CORTEX_PI_ALLOWED_TOOLS = allowedTools;
+    const env = buildPiEnv({
+      sessionId: config.sessionId,
+      channel: config.channel,
+      callbackSource: config.callbackSource,
+      scheduleTaskId: config.scheduleTaskId,
+      extraEnv: config.env,
+      context: config.cortexContext,
+      piAgentDir: PI_AGENT_DIR,
+      allowedTools,
+    });
     const cwd = config.cwd ?? DATA_DIR;
 
     const session = new PISession({
