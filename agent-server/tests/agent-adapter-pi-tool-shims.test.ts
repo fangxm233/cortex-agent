@@ -1,9 +1,9 @@
-// input:  PIAdapter stub, retry/extension-ui events, tool shim gates
-// output: PI shim instructions, retry behavior, and settled RPC turns
-// pos:    PI pseudo-tool, retry, and extension-ui integration regression
+// input:  PIAdapter stub, fetch responses, extension-ui events
+// output: PI shim, WebFetch, retry, and settled-turn tests
+// pos:    PI pseudo-tool and local WebFetch regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, vi } from 'vitest';
+import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
@@ -16,6 +16,17 @@ import toolShims, { makeToolGate } from '../src/agent-adapter/pi/tool-shims.js';
 
 const SESSION_DIR = pathJoin(tmpdir(), 'pi-shims-test-' + process.pid);
 mkdirSync(SESSION_DIR, { recursive: true });
+
+const WEB_FETCH_MAX_REDIRECTS = 5;
+const WEB_FETCH_TIMEOUT_MS = 30_000;
+const WEB_FETCH_MAX_BYTES = 5 * 1024 * 1024;
+const WEB_FETCH_MAX_CHARACTERS = 100_000;
+const WEB_FETCH_TRUNCATION_MARKER = '\n\n[Content truncated: WebFetch size limit exceeded.]';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 
 function makeStubChild(): any {
   const emitter = new EventEmitter() as any;
@@ -255,7 +266,7 @@ const CODER_TOOLS = 'Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,Web
 test('I: makeToolGate — unset/empty env allows all pseudo-tools', () => {
   for (const env of [undefined, '', '   ']) {
     const gate = makeToolGate(env);
-    for (const label of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'TodoWrite']) {
+    for (const label of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'TodoWrite', 'WebFetch']) {
       assert.equal(gate(label), true, `${label} should be allowed when env=${JSON.stringify(env)}`);
     }
   }
@@ -264,6 +275,7 @@ test('I: makeToolGate — unset/empty env allows all pseudo-tools', () => {
 test('I2: makeToolGate — coder allowlist excludes the three interaction tools', () => {
   const gate = makeToolGate(CODER_TOOLS);
   assert.equal(gate('TodoWrite'), true);
+  assert.equal(gate('WebFetch'), true);
   assert.equal(gate('AskUserQuestion'), false);
   assert.equal(gate('EnterPlanMode'), false);
   assert.equal(gate('ExitPlanMode'), false);
@@ -276,7 +288,7 @@ test('I3: makeToolGate — trims surrounding whitespace in entries', () => {
   assert.equal(gate('ExitPlanMode'), false);
 });
 
-test('J: toolShims registers only allowed pseudo-tools under a coder allowlist', () => {
+test('J: toolShims registers only allowed tools under a coder allowlist', () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
   process.env.CORTEX_PI_ALLOWED_TOOLS = CODER_TOOLS;
   try {
@@ -286,19 +298,20 @@ test('J: toolShims registers only allowed pseudo-tools under a coder allowlist',
     assert.ok(!registered.includes('enter_plan_mode'), 'enter_plan_mode must NOT be registered');
     assert.ok(!registered.includes('exit_plan_mode'), 'exit_plan_mode must NOT be registered');
     assert.ok(registered.includes('todo_write'), 'todo_write must remain registered');
+    assert.ok(registered.includes('web_fetch'), 'web_fetch must remain registered');
   } finally {
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
   }
 });
 
-test('J2: toolShims registers all four pseudo-tools when env is unset', () => {
+test('J2: toolShims registers all shim tools when env is unset', () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
   delete process.env.CORTEX_PI_ALLOWED_TOOLS;
   try {
     const { pi, registered } = makeMockPi();
     toolShims(pi);
-    for (const n of ['ask_user_question', 'enter_plan_mode', 'exit_plan_mode', 'todo_write']) {
+    for (const n of ['ask_user_question', 'enter_plan_mode', 'exit_plan_mode', 'todo_write', 'web_fetch']) {
       assert.ok(registered.includes(n), `${n} should be registered when no allowlist is set`);
     }
   } finally {
@@ -327,6 +340,220 @@ test('J3: enter_plan_mode requires writing plan content to the provided file', a
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
   }
+});
+
+function makeWebFetchTool(): any {
+  const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
+  delete process.env.CORTEX_PI_ALLOWED_TOOLS;
+  try {
+    const { pi, definitions } = makeMockPi();
+    toolShims(pi);
+    const tool = definitions.get('web_fetch');
+    assert.ok(tool, 'web_fetch should be registered');
+    return tool;
+  } finally {
+    if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
+    else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
+  }
+}
+
+function executeWebFetch(tool: any, params: Record<string, unknown>, signal?: AbortSignal) {
+  return tool.execute('tc-web-fetch', params, signal, undefined, {});
+}
+
+function mockPendingFetch(): ReturnType<typeof vi.spyOn> {
+  return vi.spyOn(globalThis, 'fetch').mockImplementation((_input: any, init?: RequestInit) => (
+    new Promise((_resolve, reject) => {
+      const signal = init?.signal;
+      if (signal?.aborted) {
+        reject(signal.reason);
+        return;
+      }
+      signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+    })
+  ) as Promise<Response>);
+}
+
+test('J4: toolShims excludes WebFetch when the allowlist omits it', () => {
+  const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
+  process.env.CORTEX_PI_ALLOWED_TOOLS = 'Read,Grep';
+  try {
+    const { pi, registered } = makeMockPi();
+    toolShims(pi);
+    assert.ok(!registered.includes('web_fetch'));
+  } finally {
+    if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
+    else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
+  }
+});
+
+test('J5: WebFetch preserves HTML headings, links, tables, and code while removing inactive content', async () => {
+  const tool = makeWebFetchTool();
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(`
+    <html><head><style>.hidden { color: red; }</style><script>bad()</script></head>
+    <body>
+      <h1>Example heading</h1>
+      <p>Visit <a href="/docs">the docs</a> and call <code>inline()</code>.</p>
+      <table><thead><tr><th>Name</th><th>Value</th></tr></thead>
+      <tbody><tr><td>alpha</td><td>1</td></tr></tbody></table>
+      <pre><code>const answer = 42;</code></pre>
+      <noscript>noscript text</noscript><iframe>iframe text</iframe>
+    </body></html>
+  `, { headers: { 'content-type': 'text/html; charset=utf-8' } }));
+
+  const result = await executeWebFetch(tool, { url: 'https://example.test/page' });
+  const text = result.content[0].text;
+  assert.match(text, /^# Example heading/m);
+  assert.match(text, /\[the docs\]\(\/docs\)/);
+  assert.match(text, /\|\s*Name\s*\|\s*Value\s*\|/);
+  assert.match(text, /`inline\(\)`/);
+  assert.match(text, /```\s*\nconst answer = 42;\s*\n```/);
+  for (const removed of ['bad()', '.hidden', 'noscript text', 'iframe text']) {
+    assert.ok(!text.includes(removed), `${removed} should be removed`);
+  }
+});
+
+test('J6: WebFetch passes JSON and plain text through and ignores the compatibility prompt', async () => {
+  const tool = makeWebFetchTool();
+  const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(new Response('{"ok":true}', {
+      headers: { 'content-type': 'application/problem+json' },
+    }))
+    .mockResolvedValueOnce(new Response('plain text\nunchanged', {
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    }));
+
+  const json = await executeWebFetch(tool, {
+    url: 'https://example.test/data',
+    prompt: 'Summarize this with another model',
+  });
+  const text = await executeWebFetch(tool, { url: 'https://example.test/plain' });
+  assert.equal(json.content[0].text, '{"ok":true}');
+  assert.equal(text.content[0].text, 'plain text\nunchanged');
+  assert.equal(fetchSpy.mock.calls.length, 2);
+});
+
+test('J7: WebFetch accepts loopback HTTP but rejects non-HTTP protocols before fetching', async () => {
+  const tool = makeWebFetchTool();
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('local', {
+    headers: { 'content-type': 'text/plain' },
+  }));
+
+  const local = await executeWebFetch(tool, { url: 'http://127.0.0.1/private' });
+  assert.equal(local.content[0].text, 'local');
+  await assert.rejects(
+    executeWebFetch(tool, { url: 'file:///etc/passwd' }),
+    /only supports http and https/i,
+  );
+  assert.equal(fetchSpy.mock.calls.length, 1);
+});
+
+test('J8: WebFetch follows relative redirects manually and enforces the redirect cap', async () => {
+  const tool = makeWebFetchTool();
+  const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(new Response(null, {
+      status: 302,
+      headers: { location: '/final' },
+    }))
+    .mockResolvedValueOnce(new Response('done', {
+      headers: { 'content-type': 'text/plain' },
+    }));
+
+  const result = await executeWebFetch(tool, { url: 'https://example.test/start' });
+  assert.equal(result.content[0].text, 'done');
+  assert.equal(fetchSpy.mock.calls[1][0], 'https://example.test/final');
+  assert.equal(fetchSpy.mock.calls[0][1]?.redirect, 'manual');
+
+  fetchSpy.mockReset();
+  fetchSpy.mockResolvedValue(new Response(null, {
+    status: 302,
+    headers: { location: '/again' },
+  }));
+  await assert.rejects(
+    executeWebFetch(tool, { url: 'https://example.test/loop' }),
+    /redirect limit.*5/i,
+  );
+  assert.equal(fetchSpy.mock.calls.length, WEB_FETCH_MAX_REDIRECTS + 1);
+});
+
+test('J9: WebFetch enforces its timeout and propagates parent cancellation', async () => {
+  vi.useFakeTimers();
+  const tool = makeWebFetchTool();
+  mockPendingFetch();
+
+  const timeoutPromise = executeWebFetch(tool, { url: 'https://example.test/slow' });
+  const timeoutRejection = assert.rejects(timeoutPromise, /timed out.*30000 ms/i);
+  await vi.advanceTimersByTimeAsync(WEB_FETCH_TIMEOUT_MS);
+  await timeoutRejection;
+
+  const controller = new AbortController();
+  const cancelledPromise = executeWebFetch(
+    tool,
+    { url: 'https://example.test/cancelled' },
+    controller.signal,
+  );
+  const cancelledRejection = assert.rejects(cancelledPromise, /abort/i);
+  controller.abort();
+  await cancelledRejection;
+});
+
+test('J10: WebFetch truncates oversized text with an explicit marker and cancels the body', async () => {
+  const tool = makeWebFetchTool();
+  let bodyCancelled = false;
+  const oversizedChunk = new TextEncoder().encode('x'.repeat(WEB_FETCH_MAX_BYTES + 1));
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(oversizedChunk);
+    },
+    cancel() {
+      bodyCancelled = true;
+    },
+  });
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body, {
+    headers: { 'content-type': 'text/plain' },
+  }));
+
+  const result = await executeWebFetch(tool, { url: 'https://example.test/large' });
+  const text = result.content[0].text;
+  assert.equal(text.slice(0, -WEB_FETCH_TRUNCATION_MARKER.length).length, WEB_FETCH_MAX_CHARACTERS);
+  assert.ok(text.endsWith(WEB_FETCH_TRUNCATION_MARKER));
+  assert.equal(bodyCancelled, true);
+});
+
+test('J11: WebFetch rejects HTTP errors, missing media types, and binary content explicitly', async () => {
+  const tool = makeWebFetchTool();
+  let binaryBodyCancelled = false;
+  const binaryBody = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array([0, 1, 2]));
+    },
+    cancel() {
+      binaryBodyCancelled = true;
+    },
+  });
+  vi.spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(new Response('not found', {
+      status: 404,
+      headers: { 'content-type': 'text/plain' },
+    }))
+    .mockResolvedValueOnce(new Response(new TextEncoder().encode('unknown')))
+    .mockResolvedValueOnce(new Response(binaryBody, {
+      headers: { 'content-type': 'application/octet-stream' },
+    }));
+
+  await assert.rejects(
+    executeWebFetch(tool, { url: 'https://example.test/missing' }),
+    /http 404/i,
+  );
+  await assert.rejects(
+    executeWebFetch(tool, { url: 'https://example.test/no-type' }),
+    /missing content-type/i,
+  );
+  await assert.rejects(
+    executeWebFetch(tool, { url: 'https://example.test/file.bin' }),
+    /unsupported binary content-type.*application\/octet-stream/i,
+  );
+  assert.equal(binaryBodyCancelled, true);
 });
 
 test('K: spawn forwards rawTools allowlist to the subprocess env', async () => {
