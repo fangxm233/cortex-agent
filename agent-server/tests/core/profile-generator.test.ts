@@ -48,7 +48,7 @@ test('generateProfiles: empty endpoints returns minimal plan-only profile', () =
 
 // ─── No auto-generated provider-specific profiles ────────────────
 
-test('generateProfiles: never generates deepseek-pro / deepseek-flash / codex profiles', () => {
+test('generateProfiles: never generates provider-specific tier profiles', () => {
   const result = generateProfiles([ANTHROPIC_PLAN, DEEPSEEK, OPENAI_CODEX]);
   for (const name of Object.keys(result.profiles)) {
     assert.ok(name === 'plan' || name === 'execute',

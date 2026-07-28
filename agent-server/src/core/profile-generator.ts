@@ -1,10 +1,7 @@
-// input:  DiscoveredEndpoint[], explicit (mode, model) choices, optional fallback chains
-// output: generateProfiles / mergeProfilesJson / writeProfilesJson / listChoices
-//         — produce profiles.json content from discovered models
-// pos:    init-time profiles.json auto-generation. Names are always 'plan' / 'execute' (no tier/provider
-//         suffix). User explicitly picks (mode, model) for each profile and optionally chooses fallback
-//         chains via interactive multi-select in `cortex init`. No tier classification, no auto-generated
-//         deepseek-pro / codex / etc. — PI is the source of model truth.
+// input:  Discovered endpoints and explicit model/fallback choices
+// output: Profile generation, merge, write, and choice helpers
+// pos:    Generates Claude/PI profiles from discovered models
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import * as path from 'path';
@@ -20,7 +17,7 @@ interface ProfileEntry {
   model: string;
   backend: string;
   mode: string;
-  /** PI `--provider` (= gateway endpoint group). Required for backend='pi'; omitted for claude/codex. */
+  /** PI `--provider` (= gateway endpoint group). Required for PI; omitted for Claude. */
   provider?: string;
   fallback?: ProfileEntry[];
   extraEnv?: Record<string, string>;
@@ -112,7 +109,7 @@ function makeProfileEntry(m: ModelEntry): ProfileEntry {
   // PI backends require an explicit `provider` (the PI `--provider` / gateway endpoint group).
   // For discovered PI providers, endpoint === provider name (discoverEndpoints sets mode = endpoint
   // = provider), so the gateway URL `/m/<mode>/<provider>` lands on the generated `<endpoint>:
-  // { <mode>: ... }` route. claude/codex backends carry no provider.
+  // { <mode>: ... }` route. Claude profiles carry no provider.
   if (m.backend === 'pi') {
     entry.provider = m.endpoint;
   }
@@ -156,7 +153,7 @@ export function listChoices(endpoints: DiscoveredEndpoint[]): ModelChoice[] {
  * - If `planChoice` is omitted, picks the first lexicographic (mode, model) tuple.
  * - Same default rule for `execute`.
  * - Fallback chains are taken verbatim from `planFallback` / `executeFallback` (no auto-derivation).
- * - No tier classification, no auto-generated deepseek-pro / codex / etc. — users explicitly choose
+ * - No tier classification or auto-generated provider tiers — users explicitly choose
  *   what they want via cortex init's interactive UI.
  */
 export function generateProfiles(

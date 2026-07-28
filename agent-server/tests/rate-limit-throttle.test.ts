@@ -236,16 +236,16 @@ test('adds new mode on extended throttle', async (t) => {
   assert.ok(mod.isModeRateLimited('plan'));
 
   // Extension with a different mode
-  await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.97, resetsAt: baseReset + 600 }, 'codex');
-  assert.ok(mod.isModeRateLimited('codex'));
+  await mod.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.97, resetsAt: baseReset + 600 }, 'execute');
+  assert.ok(mod.isModeRateLimited('execute'));
 
   // Both modes tracked
   assert.ok(mod.isModeRateLimited('plan'));
-  assert.ok(mod.isModeRateLimited('codex'));
+  assert.ok(mod.isModeRateLimited('execute'));
 
   // Persistence includes both provider/mode records
   const saved = persistence.getSaved();
-  assert.deepEqual(saved.providers.flatMap((p: any) => p.modes).sort(), ['codex', 'plan']);
+  assert.deepEqual(saved.providers.flatMap((p: any) => p.modes).sort(), ['execute', 'plan']);
 });
 
 test('isModeRateLimited returns false when not throttled', async (t) => {
@@ -394,7 +394,7 @@ test('tracks two providers with independent windows and persists provider record
   );
   await mod.handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.96, resetsAt: now + 120 },
-    { provider: 'openai-codex', displayName: 'OpenAI', mode: 'codex' } as any,
+    { provider: 'openai-codex', displayName: 'OpenAI', mode: 'subscription' } as any,
   );
 
   const state = mod.getThrottleState() as any;
@@ -402,7 +402,7 @@ test('tracks two providers with independent windows and persists provider record
   assert.equal(state.providers.find((p: any) => p.provider === 'anthropic').windows[0].resetsAt, now + 600);
   assert.equal(state.providers.find((p: any) => p.provider === 'openai-codex').windows[0].resetsAt, now + 120);
   assert.ok(mod.isModeRateLimited('plan'));
-  assert.ok(mod.isModeRateLimited('codex'));
+  assert.ok(mod.isModeRateLimited('subscription'));
   assert.equal(persistence.getSaved().providers.length, 2);
 });
 

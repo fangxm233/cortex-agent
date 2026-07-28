@@ -1,6 +1,6 @@
-// input:  claude/codex/pi JSONL fixture lines + paths
-// output: parseClaudeLine + replay* / golden helpers
-// pos:    Three-backend NormalizedEvent fixture-replay infrastructure
+// input:  Claude/PI JSONL fixture lines and paths
+// output: Claude/PI replay and golden helpers
+// pos:    Normalized-event fixture replay infrastructure
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -13,7 +13,6 @@ import {
   extractAskUserQuestions,
   isPlanFilePath,
 } from '../../src/agent-adapter/claude/event-parser.js';
-import { codexEventToNormalized } from '../../src/agent-adapter/codex/event-parser.js';
 import {
   piRpcLineToNormalized,
   createPIEventParserState,
@@ -195,47 +194,21 @@ export function parseClaudeLineToNormalized(
   return [];
 }
 
-// --- Codex JSON-RPC → NormalizedEvent translator (wraps 5de7's narrow function) ---
-
-export interface CodexRpcLine {
-  method: string;
-  params: unknown;
-}
-
-/**
- * Drive 5de7's codexEventToNormalized over a JSONL line encoded as { method, params }.
- * The function returns NormalizedEvent | null; null is filtered here. session_started /
- * turn_complete / tool_use / tool_result are NOT emitted (deferred to task f7cf per the
- * header of src/agent-adapter/codex/event-parser.ts); the golden reflects that reality.
- */
-export function parseCodexRpcLine(line: string): NormalizedEvent[] {
-  if (!line) return [];
-  let obj: CodexRpcLine;
-  try {
-    obj = JSON.parse(line) as CodexRpcLine;
-  } catch {
-    return [];
-  }
-  if (!obj || typeof obj.method !== 'string') return [];
-  const evt = codexEventToNormalized(obj.method, obj.params as Record<string, unknown>);
-  return evt ? [evt] : [];
-}
-
 // --- Fixture loading / replay / assertion ---
 
 function readLines(filePath: string): string[] {
   return readFileSync(filePath, 'utf8').split('\n').filter((l) => l.length > 0);
 }
 
-export function inputPath(backend: 'claude' | 'codex' | 'pi', name: string): string {
+export function inputPath(backend: 'claude' | 'pi', name: string): string {
   return path.join(FIXTURES_DIR, backend, `${name}.input.jsonl`);
 }
 
-export function goldenPath(backend: 'claude' | 'codex' | 'pi', name: string): string {
+export function goldenPath(backend: 'claude' | 'pi', name: string): string {
   return path.join(FIXTURES_DIR, backend, `${name}.golden.json`);
 }
 
-export function listFixtures(backend: 'claude' | 'codex' | 'pi'): string[] {
+export function listFixtures(backend: 'claude' | 'pi'): string[] {
   const dir = path.join(FIXTURES_DIR, backend);
   const entries = readdirSync(dir);
   return entries
@@ -254,15 +227,6 @@ export function replayClaudeFixture(name: string): NormalizedEvent[] {
   return out;
 }
 
-export function replayCodexFixture(name: string): NormalizedEvent[] {
-  const lines = readLines(inputPath('codex', name));
-  const out: NormalizedEvent[] = [];
-  for (const line of lines) {
-    for (const evt of parseCodexRpcLine(line)) out.push(evt);
-  }
-  return out;
-}
-
 export function replayPiFixture(name: string): NormalizedEvent[] {
   const lines = readLines(inputPath('pi', name));
   const state = createPIEventParserState();
@@ -273,7 +237,7 @@ export function replayPiFixture(name: string): NormalizedEvent[] {
   return out;
 }
 
-export function loadGolden(backend: 'claude' | 'codex' | 'pi', name: string): NormalizedEvent[] {
+export function loadGolden(backend: 'claude' | 'pi', name: string): NormalizedEvent[] {
   const raw = readFileSync(goldenPath(backend, name), 'utf8');
   return JSON.parse(raw) as NormalizedEvent[];
 }
@@ -285,7 +249,7 @@ export function loadGolden(backend: 'claude' | 'codex' | 'pi', name: string): No
  */
 export function assertMatchesGolden(
   observed: NormalizedEvent[],
-  backend: 'claude' | 'codex' | 'pi',
+  backend: 'claude' | 'pi',
   name: string,
 ): void {
   const gp = goldenPath(backend, name);

@@ -148,7 +148,7 @@ async function processEdit({ channel, adapter, originalTs, newText, turnIndex, c
   // in memory; restoring the JSONL on disk is a no-op unless we kill that process so the
   // next runAgent spawns a fresh one with `--resume <sessionId>`. Without this, the
   // edited message is appended as turn N+1 instead of replacing turn N — the symptom the
-  // user reported. PI/codex spawn a new subprocess per turn, so close is a no-op for them
+  // user reported. PI spawns a new subprocess per turn, so close is a no-op for it
   // (the wiring still calls through but the function-level no-ops handle that branch).
   closePooledSession?.(channel, backend);
 

@@ -12,7 +12,7 @@ import {
   normalizeSkillCommandPrefix,
 } from '../src/domain/memory/skill-scanner.js';
 
-test('getDisplaySkillNames surfaces plugin skills and excludes codex-only skills', () => {
+test('getDisplaySkillNames surfaces plugin skills and excludes namespaced-only aliases', () => {
   const skills = [...getDisplaySkillNames()];
 
   assert.ok(skills.includes('code-standards'), 'expected cortex-coder:code-standards to be discovered');

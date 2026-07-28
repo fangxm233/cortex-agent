@@ -1,11 +1,10 @@
-// input:  backend label ('claude' | 'codex' | 'pi')
-// output: getAdapter(backend) + re-exports of adapter surface
+// input:  backend label ('claude' | 'pi')
+// output: getAdapter(backend) and adapter-surface re-exports
 // pos:    Unified entry point for the Agent adapter system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { AgentAdapter, Backend } from './types.js';
 import { ClaudeAdapter } from './claude/adapter.js';
-import { CodexAdapter } from './codex/adapter.js';
 import { PIAdapter } from './pi/adapter.js';
 
 export * from './types.js';
@@ -16,7 +15,6 @@ export * from './normalize/tool-names.js';
 
 const ADAPTERS: Record<Backend, AgentAdapter> = {
   claude: new ClaudeAdapter(),
-  codex: new CodexAdapter(),
   pi: new PIAdapter(),
 };
 

@@ -5,7 +5,7 @@ Also holds operator display preferences and the admin system broadcast seam.
 
 | filename | role | function |
 |---|---|---|
-| doctor.ts | core | runs install health checks and safe fixes |
+| doctor.ts | core | checks Claude/PI installs and system health |
 | github-release.ts | client | fetches release notes for a version |
 | install-cli.ts | cli | installs the latest Cortex release |
 | preferences.ts | config | reads and writes operator display language |

@@ -41,14 +41,6 @@ const CLAUDE_TOOL_MAP: NativeMap = {
   agent: 'Agent',
 };
 
-const CODEX_TOOL_MAP: NativeMap = {
-  bash: 'shell',
-  read: 'read_file',
-  write: 'write_file',
-  edit: 'apply_patch',
-  grep: 'grep',
-};
-
 const PI_TOOL_MAP: NativeMap = {
   bash: 'bash',
   read: 'read',
@@ -67,14 +59,12 @@ const PI_TOOL_MAP: NativeMap = {
 
 const FORWARD_BY_BACKEND: Record<Backend, NativeMap> = {
   claude: CLAUDE_TOOL_MAP,
-  codex: CODEX_TOOL_MAP,
   pi: PI_TOOL_MAP,
 };
 
 // reverse maps computed once at module load
 const REVERSE_BY_BACKEND: Record<Backend, Map<string, CanonicalToolName>> = {
   claude: buildReverse(CLAUDE_TOOL_MAP),
-  codex: buildReverse(CODEX_TOOL_MAP),
   pi: buildReverse(PI_TOOL_MAP),
 };
 

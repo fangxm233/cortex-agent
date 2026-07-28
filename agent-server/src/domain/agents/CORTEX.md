@@ -1,6 +1,6 @@
 Please update me when files in this folder change
 
-Agent runtime domain — picks the backend, model, and profile for a channel and runs its agent turns.
+Agent runtime domain — selects Claude/PI profiles and runs provider-attributed agent turns.
 
 | filename | role | function |
 |---|---|---|

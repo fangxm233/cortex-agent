@@ -38,7 +38,7 @@ test('sessionStore - migrate old fixture: re-key, projectId backfill, dedup, ide
   // Old-format fixture: name-keyed, no name/projectId fields; includes duplicate sessionId
   const oldFormat = {
     'cortex-abc': { sessionId: 'sess-abc', channel: 'C001', backend: 'claude', kind: 'local', createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-06-01T00:00:00.000Z', label: 'first', profileName: null },
-    'cortex-def': { sessionId: 'sess-def', channel: 'C002', backend: 'codex', kind: 'scheduled', createdAt: '2025-02-01T00:00:00.000Z', lastUsedAt: '2025-06-02T00:00:00.000Z', label: null, profileName: 'dev' },
+    'cortex-def': { sessionId: 'sess-def', channel: 'C002', backend: 'pi', kind: 'scheduled', createdAt: '2025-02-01T00:00:00.000Z', lastUsedAt: '2025-06-02T00:00:00.000Z', label: null, profileName: 'dev' },
     // Duplicate sessionId — should be deduped keeping the newer one
     'cortex-dup-old': { sessionId: 'sess-dup', channel: 'C001', backend: 'claude', kind: 'local', createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-01-01T00:00:00.000Z', label: 'old', profileName: null },
     'cortex-dup-new': { sessionId: 'sess-dup', channel: 'C001', backend: 'claude', kind: 'local', createdAt: '2025-06-01T00:00:00.000Z', lastUsedAt: '2025-06-01T00:00:00.000Z', label: 'new', profileName: null },

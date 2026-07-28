@@ -71,7 +71,7 @@ test('resolveSessionName generates a name without registering when sessionId is 
 
 test('handleNewCmd clears sessions for all backends and the ledger', async () => {
   const channel = 'c0-newcmd';
-  const ALL_BACKENDS = ['claude', 'pi', 'codex'];
+  const ALL_BACKENDS = ['claude', 'pi'];
 
   // Seed sessions for all backends
   for (const b of ALL_BACKENDS) {

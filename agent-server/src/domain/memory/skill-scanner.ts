@@ -1,11 +1,11 @@
-// input:  DATA_DIR/.claude/skills + DATA_DIR/plugins/*/skills + DATA_DIR/.codex/skills/.system
+// input:  DATA_DIR/.claude/skills and DATA_DIR/plugins/*/skills
 // output: getKnown/Display/Groups + normalize prefix
 // pos:    skill discovery and command prefix normalization
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { readdirSync, existsSync } from 'fs';
 import * as path from 'path';
-import { DATA_DIR, WORKSPACE_DIR, PLUGINS_DIR } from '@core/utils.js';
+import { DATA_DIR, PLUGINS_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('skill-scanner');
@@ -15,8 +15,6 @@ const SKILL_SCAN_CACHE_MS = 60 * 1000;
 // and editable by the user. INSTALL_ROOT/.claude is immutable package code, not scanned here.
 const CLAUDE_SKILL_ROOT = path.join(DATA_DIR, '.claude', 'skills');
 const PLUGINS_ROOT = PLUGINS_DIR;
-const CODEX_SYSTEM_SKILL_ROOT = path.join(DATA_DIR, '.codex', 'skills', '.system');
-const CODEX_ROUTE_ROOT = path.join(WORKSPACE_DIR, 'codex-routes');
 
 let cachedDisplayGroups = [];
 let cachedDisplayGroupsAt = 0;
@@ -107,13 +105,6 @@ function getKnownSkillNames() {
       names.add(`${plugin}:${skill}`);
     }
   }
-  for (const name of collectSkillNamesFromRoot(CODEX_SYSTEM_SKILL_ROOT)) names.add(name);
-  for (const routeDir of listSubdirectories(CODEX_ROUTE_ROOT)) {
-    for (const name of collectSkillNamesFromRoot(path.join(routeDir, '.codex', 'skills', '.system'))) {
-      names.add(name);
-    }
-  }
-
   cachedKnownNames = names;
   cachedKnownNamesAt = now;
   return names;

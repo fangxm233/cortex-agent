@@ -26,7 +26,7 @@ async function makeFixture(): Promise<{ configDir: string; hooksDir: string }> {
       defaultProfile: 'plan',
       profiles: {
         plan: { model: 'm1', backend: 'claude', mode: 'plan', thinking: 'high' },
-        fast: { model: 'm2', backend: 'codex', mode: 'plan' },
+        fast: { model: 'm2', backend: 'pi', mode: 'plan' },
       },
     }),
   );
@@ -83,7 +83,7 @@ test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hoo
   assert.equal(snap.profiles!.defaultProfile, 'plan');
   assert.deepEqual(snap.profiles!.profiles, [
     { name: 'plan', model: 'm1', backend: 'claude', mode: 'plan', thinking: 'high' },
-    { name: 'fast', model: 'm2', backend: 'codex', mode: 'plan', thinking: null },
+    { name: 'fast', model: 'm2', backend: 'pi', mode: 'plan', thinking: null },
   ]);
 
   const lab2 = snap.machines.find((m) => m.name === 'lab2');

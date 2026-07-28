@@ -1,5 +1,0 @@
-{"method":"turn/started","params":{"turn":{"id":"turn-02"}}}
-{"method":"item/started","params":{"item":{"type":"commandExecution","id":"item-03","command":"false"}}}
-{"method":"item/completed","params":{"item":{"type":"commandExecution","id":"item-03","command":"false","exitCode":1,"aggregatedOutput":""}}}
-{"method":"thread/error","params":{"message":"UsageLimitExceeded"}}
-{"method":"turn/completed","params":{"turn":{"id":"turn-02","status":"failed","error":{"message":"UsageLimitExceeded","codexErrorInfo":"UsageLimitExceeded"}}}}

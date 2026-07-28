@@ -108,9 +108,8 @@ class AttemptNoticeTracker {
   }
 }
 
-const DEFAULT_PROVIDER_BY_BACKEND: Record<string, string> = {
+const DEFAULT_PROVIDER_BY_BACKEND: Partial<Record<Backend, string>> = {
   claude: 'anthropic',
-  codex: 'openai-codex',
 };
 
 function resolveRateLimitProvider(config: Pick<AgentConfig, 'backend' | 'provider'>): string {
@@ -172,7 +171,7 @@ function withTerminalNotices(handle: AgentHandle, notices: AttemptNoticeTracker)
 
 export interface AgentConfig {
   model: string;
-  backend: string;
+  backend: Backend;
   mode: string | null;
   /** Opaque rate-limit provider identity; for PI it also selects the request protocol. */
   provider?: string | null;
@@ -332,7 +331,7 @@ function buildSpawnConfig(
     anthropicBaseUrl,
     // PI-specific routing: provider name (= profile mode) + gateway base URL. PI adapter writes
     // a multi-provider models.json (writeProvidersConfig) so every PI provider lands on the
-    // gateway. Claude / codex adapters ignore these fields.
+    // gateway. Claude ignores these fields.
     // PI routing: `provider` is the --provider (protocol; required for pi, validated at load — no
     // default). The gateway sub-path `/m/<mode>/<provider>` is derived from the profile's logical
     // `mode` (gateway.yaml owns the route).
@@ -735,7 +734,7 @@ export const _test = {
   filterChannelScopedPlugins,
 };
 
-// --- Bridge helper re-exports (replacing claude-bridge.ts / codex-bridge.ts) ---
+// --- Claude bridge helper re-exports ---
 
 export {
   closeSession,
@@ -744,5 +743,4 @@ export {
   closeAllSessions,
   _test as claudeTest,
 } from '../../agent-adapter/claude/adapter.js';
-export { shutdownCodex, buildMcpBlock } from '../../agent-adapter/codex/adapter.js';
 export { getCurrentPlanFilePath } from '../../agent-adapter/claude/event-parser.js';

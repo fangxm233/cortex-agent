@@ -45,7 +45,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 
 ### cortex-thread
 
-暴露线程生命周期控制面和 manager 问答。对于仍维护的 Claude 和 PI 后端，仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；它们的直接会话永远不会获得这些工具。已弃用的 Codex adapter 不在本次权限拆分范围内并保持不变。
+暴露线程生命周期控制面和 manager 问答。对于 Claude 和 PI，仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；直接会话永远不会获得这些工具。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -159,7 +159,7 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 - **直接/用户会话**加载 `mcp-config.json`（core + tasks + ext），再追加符合条件的平台和交互分层；永不加载 `mcp-config-thread.json`。
 - **线程/模板会话**加载 `mcp-config-core.json`、`mcp-config-tasks.json` 和 `mcp-config-thread.json`；不加载仅直接会话使用的 ext、平台或 TUI bridge 分层。
 
-线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 始终连接 core、tasks 和 ext；仅当 `CORTEX_THREAD_ID` 存在时，`shouldLoadThreadControl()` 才追加 cortex-thread。平台服务器继续由来源频道谓词门控。已弃用的 Codex adapter 不在本次拆分范围内，保留原有 MCP 组合。
+线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 始终连接 core、tasks 和 ext；仅当 `CORTEX_THREAD_ID` 存在时，`shouldLoadThreadControl()` 才追加 cortex-thread。平台服务器继续由来源频道谓词门控。
 
 ## MCP 工具如何与 agent-server 通信
 
@@ -196,7 +196,7 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Cortex 应用以下控制：
 
-1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。Claude 直接会话永不获得 cortex-thread；Claude 线程会话追加它并排除 ext。PI 仅在存在 thread id 时追加 cortex-thread，并保留 ext 始终加载的现有行为。已弃用的 Codex 不在本次拆分范围内并保持不变。
+1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。Claude 直接会话永不获得 cortex-thread；Claude 线程会话追加它并排除 ext。PI 仅在存在 thread id 时追加 cortex-thread，并保留 ext 始终加载的现有行为。
 
 2. **Claude Code 的第三方 MCP 被禁用** — `~/.cortex/.claude/settings.json` 中的设置 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 Claude 从其自身的目录自动发现 MCP 服务器。Cortex 通过自己的配置文件独占管理 MCP 服务器。
 
@@ -223,7 +223,6 @@ MCP 服务器进程接收 agent server 环境变量的一个子集：
 | `CORTEX_TUI_MODE` | 在 TUI 模式下设为 `'1'` | tui-server |
 | `CORTEX_CALLBACK_SOURCE` | 可选回调元数据 | cortex-ext |
 | `CORTEX_SCHEDULE_TASK_ID` | 可选调度任务 ID | cortex-ext |
-| `CORTEX_ROUTE_CONTEXT_FILE` | 每回合上下文文件路径 | cortex-ext（Codex 路由） |
 | `ANTHROPIC_BASE_URL` | 可选 API 基础 URL 覆盖 | 模型路由 |
 
 ## 安全考量

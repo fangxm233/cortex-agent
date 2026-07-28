@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Backend-neutral schema layer: the event, hook, tool-name, and prompt shapes every adapter converts to.
-Shared by the Claude, Codex, and PI adapters and by Cortex orchestration.
+Shared by the Claude and PI adapters and by Cortex orchestration.
 
 | filename | role | function |
 |---|---|---|

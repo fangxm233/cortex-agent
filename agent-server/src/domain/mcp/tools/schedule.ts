@@ -1,16 +1,13 @@
-// input:  McpServer + scheduleRepo + Scheduler (for timing math) + cortex_context resolver
-// output: cortex_schedule_{add,list,get,remove,pause,resume} tool registrations
-// pos:    MCP entry that lets the running LLM CRUD scheduled tasks without shelling out
-//         to bin/schedule. Resolves __current__ shorthand (current-project/current-thread)
-//         against the live execution context at create time so the persisted
-//         record always shows real project/thread IDs.
+// input:  McpServer, schedule store, scheduler, execution context
+// output: cortex_schedule_* tool registrations
+// pos:    Provides scheduled-task CRUD to MCP callers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { Scheduler, parseDuration } from '../../scheduling/scheduler.js';
 import { scheduleRepo, channelToProjectId, type ScheduleTarget, type ScheduleTask } from '@store/schedule-repo.js';
-import { resolveCortexContext, type ContextToolDeps } from './context.js';
+import { resolveCortexContext } from './context.js';
 
 // --- Target shorthand resolver (extracted for unit tests) ---
 
@@ -132,8 +129,8 @@ const addInputShape = {
   projectId: z.string().optional().describe('Project id for the schedule. If omitted, resolved from channel via channel-registry.'),
 };
 
-async function runScheduleAdd(input: z.infer<z.ZodObject<typeof addInputShape>>, deps: ContextToolDeps): Promise<unknown> {
-  const ctxSnapshot = await resolveCortexContext(deps);
+async function runScheduleAdd(input: z.infer<z.ZodObject<typeof addInputShape>>): Promise<unknown> {
+  const ctxSnapshot = await resolveCortexContext();
   const target = resolveTargetShorthand(input.target as TargetSpec, ctxSnapshot);
 
   // Resolve channel: explicit > target.channel (when not fresh) > current-context channel.
@@ -185,14 +182,14 @@ async function runScheduleAdd(input: z.infer<z.ZodObject<typeof addInputShape>>,
 
 // --- Tool registrations ---
 
-export function registerScheduleTools(server: McpServer, deps: ContextToolDeps): void {
+export function registerScheduleTools(server: McpServer): void {
   server.tool(
     'cortex_schedule_add',
     'Create a scheduled task. Supports interval/daily/weekly/once. target shorthand "current-project" | "current-thread" | "fresh" auto-resolves to concrete IDs against the running agent context — no need to call cortex_context first unless you need an explicit ID.',
     addInputShape,
     async (input) => {
       try {
-        const result = await runScheduleAdd(input, deps);
+        const result = await runScheduleAdd(input);
         return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       } catch (e) {
         return { content: [{ type: 'text', text: `Failed to add schedule: ${(e as Error).message}` }], isError: true };

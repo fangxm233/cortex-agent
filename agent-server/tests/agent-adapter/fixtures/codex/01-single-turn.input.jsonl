@@ -1,7 +1,0 @@
-{"method":"turn/started","params":{"turn":{"id":"turn-01"}}}
-{"method":"item/started","params":{"item":{"type":"commandExecution","id":"item-01","command":"ls"}}}
-{"method":"item/completed","params":{"item":{"type":"commandExecution","id":"item-01","command":"ls","exitCode":0,"aggregatedOutput":"README.md"}}}
-{"method":"thread/tokenUsage/updated","params":{"tokenUsage":{"total":{"inputTokens":120,"outputTokens":30,"totalTokens":150}}}}
-{"method":"account/rateLimits/updated","params":{"rateLimits":{"limitId":"5h","primary":{"used":0.1}}}}
-{"method":"item/completed","params":{"item":{"type":"agentMessage","id":"item-02","text":"  Listed files.  "}}}
-{"method":"turn/completed","params":{"turn":{"id":"turn-01","status":"completed"}}}

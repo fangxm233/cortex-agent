@@ -1,9 +1,6 @@
-// input:  injected DoctorDeps (env, paths, fs probes, gateway probe) + FixActuators
-// output: runDiagnostics(deps) → DoctorReport; applySafeFixes(report, deps, fix) → FixOutcome[]
-//         createDefaultDoctorDeps / createDefaultFixActuators — real-environment wiring
-// pos:    Pure diagnostic engine for `cortex doctor`. Health-checks the whole install
-//         (runtime, backend/login, messaging platform, gateway). No side effects in the
-//         diagnostic path; all writes go through injected FixActuators (--fix only).
+// input:  Environment, filesystem, process, and gateway probes
+// output: Doctor reports, default probes, and safe-fix actuators
+// pos:    Runs install-wide health diagnostics for cortex doctor
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
@@ -126,7 +123,7 @@ function sectionRuntime(deps: DoctorDeps): DoctorSection {
   const modeText = deps.readText(path.join(deps.paths.STORE_DIR, 'mode.json'));
   let backend = 'claude';
   try { if (modeText) { const m = JSON.parse(modeText); if (typeof m.backend === 'string') backend = m.backend; } } catch { /* fall back to claude */ }
-  const bin = backend === 'pi' ? 'pi' : backend === 'codex' ? 'codex' : 'claude';
+  const bin = backend === 'pi' ? 'pi' : 'claude';
   checks.push(deps.commandExists(bin)
     ? { id: 'backend-binary', label: 'Backend binary', status: 'pass', detail: `${bin} found on PATH (backend: ${backend})` }
     : { id: 'backend-binary', label: 'Backend binary', status: 'warn', detail: `${bin} not on PATH (backend: ${backend})`, hint: `Install/login the ${bin} CLI` });

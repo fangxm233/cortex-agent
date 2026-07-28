@@ -25,8 +25,8 @@ describe('Capability.StreamingDeltas', () => {
     assert.ok(CAPABILITIES_BY_BACKEND.claude.has(Capability.StreamingDeltas));
   });
 
-  test('Codex does not — it is out of scope for streaming', () => {
-    assert.ok(!CAPABILITIES_BY_BACKEND.codex.has(Capability.StreamingDeltas));
+  test('PI declares it for RPC message updates', () => {
+    assert.ok(CAPABILITIES_BY_BACKEND.pi.has(Capability.StreamingDeltas));
   });
 
   test('the enum value is the stable wire string', () => {

@@ -119,7 +119,7 @@ test('isInjectableMessage: an empty message is not injectable', () => {
 test('backendSupportsInject: Claude and PI declare live-turn injection', () => {
   assert.equal(backendSupportsInject('claude'), true);
   assert.equal(backendSupportsInject('pi'), true);
-  assert.equal(backendSupportsInject('codex'), false);
+  assert.equal(backendSupportsInject('unknown'), false);
   assert.equal(backendSupportsInject('nonsense'), false);
 });
 
@@ -134,7 +134,7 @@ test('no live execution on the channel → not injected (falls back to the norma
 
 test('live execution on a backend without MidTurnInject → not injected', async () => {
   const proc = fakeProcess();
-  const r = recorder({}, { backend: 'codex', agentProcess: proc });
+  const r = recorder({}, { backend: 'unknown', agentProcess: proc });
   assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), false);
   assert.deepEqual(proc.injectedTexts, []);
 });

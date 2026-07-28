@@ -10,7 +10,7 @@ import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const mockSessions = [
   { sessionId: 's1', name: 'cortex-abc', projectId: 'proj1', channel: 'C1', backend: 'pi', kind: 'local' as const, origin: 'direct' as const, createdAt: '2026-01-01T00:00:00Z', lastUsedAt: '2026-05-01T00:00:00Z', label: 'dev', profileName: 'default', contextUsage: { usedTokens: 60000, contextWindow: 200000, percent: 30, accuracy: 'estimate' as const, updatedAt: '2026-07-27T12:00:00.000Z' } },
-  { sessionId: 's2', name: 'cortex-def', projectId: 'proj2', channel: 'C2', backend: 'codex', kind: 'scheduled' as const, origin: 'scheduled' as const, createdAt: '2026-02-01T00:00:00Z', lastUsedAt: '2026-04-01T00:00:00Z', label: null as string | null, profileName: null },
+  { sessionId: 's2', name: 'cortex-def', projectId: 'proj2', channel: 'C2', backend: 'pi', kind: 'scheduled' as const, origin: 'scheduled' as const, createdAt: '2026-02-01T00:00:00Z', lastUsedAt: '2026-04-01T00:00:00Z', label: null as string | null, profileName: null },
   { sessionId: 's3', name: 'cortex-ghi', projectId: 'proj1', channel: 'C3', backend: 'claude', kind: 'local' as const, origin: 'thread' as const, createdAt: '2026-03-01T00:00:00Z', lastUsedAt: '2026-05-15T00:00:00Z', label: '[thr_x:main]', profileName: 'pi' },
 ];
 
@@ -74,7 +74,7 @@ test('sessions.list exposes server-derived manual compaction support per session
   }), {});
   const byId = Object.fromEntries(result.map((session) => [session.sessionId, session.contextCompactionSupported]));
   assert.equal(byId['s1'], true);
-  assert.equal(byId['s2'], false);
+  assert.equal(byId['s2'], true);
   assert.equal(byId['s3'], false);
 });
 

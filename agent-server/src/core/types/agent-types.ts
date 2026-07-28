@@ -38,8 +38,6 @@ export interface AgentResult {
   exitedPlanMode: boolean;
   askUserQuestions?: AskUserQuestionInfo[];
   finalOutput: string | null;
-  codexRateLimits?: Record<string, unknown>;
-  codexRawLogPath?: string | null;
   /** Number of background tasks (run_in_background) still running when this turn's
    *  result fired. >0 means the CC backend will spontaneously emit a continuation turn
    *  once they finish; orchestration holds the status in a "waiting" state instead of

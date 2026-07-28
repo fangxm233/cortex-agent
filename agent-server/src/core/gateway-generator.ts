@@ -1,12 +1,7 @@
-// input:  fs, path, os, yaml, `pi --list-models` output
-// output: discoverEndpoints / generateGatewayYaml / parsePiListModelsOutput
-//         + merge-aware: readGatewayYaml / discoveredToEndpointMap / mergeGatewayConfig /
-//           serializeGatewayYaml / writeMergedGatewayYaml / validateProfilesAgainstGateway
-//         — spawns pi --list-models, produces & merges gateway.yaml (add-only: never clobbers
-//           hand-maintained modes/keys), validates profile↔gateway mode coupling
-// pos:    init-time gateway config auto-generation. PI model metadata is owned by the PI agent
-//         (we shell out to `pi --list-models` rather than maintain provider/model whitelists).
-//         Claude plan mode is included when the backends filter includes 'claude' (or is omitted).
+// input:  Filesystem, YAML, and PI model discovery output
+// output: Gateway discovery, merge, serialization, and validation helpers
+// pos:    Generates gateway config from Claude and PI model sources
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { writeFileSync, copyFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
 import { execSync } from 'child_process';
@@ -647,7 +642,7 @@ export function validateProfilesAgainstGateway(
     let endpoint: string | undefined;
     if (backend === 'claude') endpoint = 'anthropic';
     else if (backend === 'pi') endpoint = provider;
-    else return; // codex / unknown backends don't route through gateway modes here
+    else return; // Unknown backends do not route through gateway modes here.
 
     if (backend === 'pi' && !provider) {
       issues.push({ profile: label, mode, reason: `pi profile is missing a provider (cannot resolve gateway endpoint)` });

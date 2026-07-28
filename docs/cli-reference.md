@@ -71,7 +71,7 @@ Health-check the whole installation in one pass and report what is wrong.
 The default run is read-only and safe at any time. It inspects four areas:
 
 - Runtime & process — Node version, `git` on PATH, the configured backend
-  binary (`claude` / `pi` / `codex`), and whether the daemon is running.
+  binary (`claude` / `pi`), and whether the daemon is running.
 - Backend install / login — data directories exist and are writable, `.env`
   is present, the WebSocket/webhook auth tokens are set, `ANTHROPIC_API_KEY`
   status, and that `mode.json`, `profiles.json`, and `mcp-config.json` are

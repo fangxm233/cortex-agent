@@ -84,14 +84,14 @@ test('getSessionAsync falls back to legacy bare-channel key when no backend-pref
   await fs.writeFile(SESSIONS_FILE, JSON.stringify({ 'C-session-fallback': 'legacy-sid' }));
   sessionRepo.invalidate();
   // No backend-prefixed entry yet → getSession should return the legacy value.
-  assert.equal(await sessionRepo.getSessionAsync('C-session-fallback', 'codex'), 'legacy-sid');
+  assert.equal(await sessionRepo.getSessionAsync('C-session-fallback', 'pi'), 'legacy-sid');
 });
 
 test('deleteSessionAsync removes only the backend:channel key, leaving unrelated channels untouched', async () => {
   await fs.writeFile(SESSIONS_FILE, JSON.stringify({
     'claude:C-del-1': 'sid-A',
     'claude:C-del-2': 'sid-B',
-    'codex:C-del-1': 'sid-C',
+    'pi:C-del-1': 'sid-C',
   }));
   sessionRepo.invalidate();
 
@@ -99,7 +99,7 @@ test('deleteSessionAsync removes only the backend:channel key, leaving unrelated
   const raw = JSON.parse(await fs.readFile(SESSIONS_FILE, 'utf8'));
   assert.equal('claude:C-del-1' in raw, false);
   assert.equal(raw['claude:C-del-2'], 'sid-B');
-  assert.equal(raw['codex:C-del-1'], 'sid-C');
+  assert.equal(raw['pi:C-del-1'], 'sid-C');
 });
 
 test('deleteSessionAsync also removes the legacy bare-channel key for the same channel', async () => {
@@ -140,13 +140,13 @@ test('setSessionAsync does not touch a key that happens to contain a colon (trea
 
 test('different backends keep independent session ids for the same channel', async () => {
   await sessionRepo.setSessionAsync('C-multi', 'claude-sid', 'claude');
-  await sessionRepo.setSessionAsync('C-multi', 'codex-sid', 'codex');
+  await sessionRepo.setSessionAsync('C-multi', 'pi-sid', 'pi');
   assert.equal(await sessionRepo.getSessionAsync('C-multi', 'claude'), 'claude-sid');
-  assert.equal(await sessionRepo.getSessionAsync('C-multi', 'codex'), 'codex-sid');
+  assert.equal(await sessionRepo.getSessionAsync('C-multi', 'pi'), 'pi-sid');
 
   await sessionRepo.deleteSessionAsync('C-multi', 'claude');
   assert.equal(await sessionRepo.getSessionAsync('C-multi', 'claude'), undefined);
-  assert.equal(await sessionRepo.getSessionAsync('C-multi', 'codex'), 'codex-sid', 'codex session should survive claude delete');
+  assert.equal(await sessionRepo.getSessionAsync('C-multi', 'pi'), 'pi-sid', 'PI session should survive Claude deletion');
 });
 
 test('getSessionAsync recovers from corrupt sessions.json by backing up the bad bytes to a .corrupt.<ts> sibling', async () => {

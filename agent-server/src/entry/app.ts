@@ -13,7 +13,7 @@ import type { PlatformAdapter } from '@platform/index.js';
 import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
 import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_DIR } from '@core/utils.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
-import { closeAllSessions, closeSession as closeClaudePooledSession, shutdownCodex } from '@domain/agents/index.js';
+import { closeAllSessions, closeSession as closeClaudePooledSession } from '@domain/agents/index.js';
 import { closeAllAdapters } from '../agent-adapter/index.js';
 import { recoverTuiOrphans } from '../agent-adapter/claude/adapter.js';
 import { startWebhookServer } from '@orch/routing/webhook.js';
@@ -260,9 +260,7 @@ const handleMessageEdit = createEditHandler({
   // Claude CLI runs in stream-json mode and pools the subprocess per channel; an alive
   // pooled process keeps the conversation history in memory and ignores the rolled-back
   // JSONL on disk. Close it here so the next runAgent spawns a fresh process with
-  // `--resume <sessionId>`. PI/codex spawn fresh subprocesses per turn, so the close is
-  // a no-op for them (we still call through for symmetry — adapter exits early when
-  // there's nothing to close).
+  // `--resume <sessionId>`. PI spawns a fresh subprocess per turn, so the close is a no-op.
   closePooledSession: (channel, backend) => {
     if (backend === 'claude') closeClaudePooledSession(channel);
   },
@@ -283,7 +281,7 @@ let _uiHttpServer: { close: () => Promise<void> } | null = null;
 
 // --- Graceful shutdown ---
 process.on('SIGTERM', async () => {
-  closeAllSessions(); shutdownCodex(); closeAllAdapters().catch(() => {}); stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
+  closeAllSessions(); closeAllAdapters().catch(() => {}); stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
   await _uiHttpServer?.close().catch(() => {});
   stopDiskMonitor();
   // Stop scheduler timers BEFORE draining repo writes — otherwise a late-firing

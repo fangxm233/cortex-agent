@@ -1,7 +1,7 @@
 # 后端
 
 
-后端是 Cortex 对特定编程智能体 CLI 的适配器。Cortex 不直接调用 LLM API。它将编程智能体（Claude Code、PI 或 Codex）作为子进程启动，向其发送消息，并消费标准化的事件流。每个后端实现 `agent-server/src/agent-adapter/types.ts` 中定义的 `AgentAdapter` 接口。
+后端是 Cortex 对特定编程智能体 CLI 的适配器。Cortex 不直接调用 LLM API。它将编程智能体（Claude Code 或 PI）作为子进程启动，向其发送消息，并消费标准化的事件流。每个后端实现 `agent-server/src/agent-adapter/types.ts` 中定义的 `AgentAdapter` 接口。
 
 ## 支持的后端
 
@@ -9,7 +9,6 @@
 |---|---|---|---|---|
 | Claude Code | 已支持 | `claude` | `@anthropic-ai/claude-code` | 完整（8/8 能力） |
 | PI | 已支持 | `pi` | `@mariozechner/pi-coding-agent` | 完整（8/8 能力） |
-| Codex | 计划中 | `codex` | — | 部分（3/8 能力） |
 
 ## 后端如何工作
 
@@ -23,16 +22,16 @@
 
 Cortex 定义了后端可能支持的八种能力。编排层在尝试后端特定操作之前检查这些能力。
 
-| 能力 | Claude Code | PI | Codex | 描述 |
-|---|---|---|---|---|
-| `hooks` | 是 | 是 | 否 | 通过 hook-bridge 的 PreToolUse/PostToolUse/Stop 钩子 |
-| `plugins` | 是 | 是 | 否 | 通过 `--skill` 或等效方式的角色限定技能插件 |
-| `mcp` | 是 | 是 | 是 | MCP 工具服务器集成 |
-| `plan-mode` | 是 | 是 | 否 | EnterPlanMode/ExitPlanMode 工具支持 |
-| `ask-user-question` | 是 | 是 | 否 | AskUserQuestion 工具支持 |
-| `system-prompt-override` | 是 | 是 | 是 | 自定义系统提示注入 |
-| `session-resume` | 是 | 是 | 是 | 恢复已有会话 |
-| `tool-allowlist` | 是 | 是 | 否 | 将可用工具限制为子集 |
+| 能力 | Claude Code | PI | 描述 |
+|---|---|---|---|
+| `hooks` | 是 | 是 | 通过 hook-bridge 的 PreToolUse/PostToolUse/Stop 钩子 |
+| `plugins` | 是 | 是 | 通过 `--skill` 或等效方式的角色限定技能插件 |
+| `mcp` | 是 | 是 | MCP 工具服务器集成 |
+| `plan-mode` | 是 | 是 | EnterPlanMode/ExitPlanMode 工具支持 |
+| `ask-user-question` | 是 | 是 | AskUserQuestion 工具支持 |
+| `system-prompt-override` | 是 | 是 | 自定义系统提示注入 |
+| `session-resume` | 是 | 是 | 恢复已有会话 |
+| `tool-allowlist` | 是 | 是 | 将可用工具限制为子集 |
 
 ## Claude Code
 
@@ -55,9 +54,7 @@ Claude Code 适配器会话池按键频道以重用会话。费用报告从 `mes
 
 PI 会话使用 `--session <path>` 进行恢复，使用 `--system-prompt` 覆盖系统提示。适配器处理 PI 事件流的 LF-only NDJSON 帧格式。
 
-## Codex
-
-Codex 目前支持三种能力：MCP、系统提示覆盖和会话恢复。适配器存在于代码库中，但此后端标记为计划中而非已支持。
+PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是受支持的 PI provider（包括 `openai-codex-responses` API kind）；使用它的 profile 仍须设置 `"backend": "pi"`。
 
 ## 选择后端
 
@@ -79,13 +76,13 @@ Codex 目前支持三种能力：MCP、系统提示覆盖和会话恢复。适�
 }
 ```
 
-`backend` 字段接受 `"claude"`、`"pi"` 或 `"codex"`。如果省略，默认为 `"claude"`。
+`backend` 字段只接受 `"claude"` 或 `"pi"`。如果省略，默认为 `"claude"`。
 
 线程模板也可以为每个智能体指定配置，允许同一管道中的不同智能体使用不同的后端。模板配置参见 [threads.md](./threads.md)。
 
 ## 思考档位
 
-可选的 `thinking` 配置字段设置后端的推理深度。每个后端以其原生标志接收：Claude Code 为 `--effort <level>`（`low`/`medium`/`high`/`xhigh`/`max`），PI 为 `--thinking <level>`（`off`/`minimal`/`low`/`medium`/`high`/`xhigh`）。Codex 没有思考档位传递，在 codex 配置上声明该字段会导致校验失败。字段缺省时不传递任何标志，后端使用自身默认值，因此现有配置行为不变。fallback 条目不继承主配置的值——每条自行声明。
+可选的 `thinking` 配置字段设置后端的推理深度。每个后端以其原生标志接收：Claude Code 为 `--effort <level>`（`low`/`medium`/`high`/`xhigh`/`max`），PI 为 `--thinking <level>`（`off`/`minimal`/`low`/`medium`/`high`/`xhigh`）。字段缺省时不传递任何标志，后端使用自身默认值，因此现有配置行为不变。fallback 条目不继承主配置的值——每条自行声明。
 
 ## 回退行为
 
@@ -123,7 +120,6 @@ Codex 目前支持三种能力：MCP、系统提示覆盖和会话恢复。适�
 
 - **Claude Code** — 从 `message.usage` 令牌计数（输入/输出）逆向推导 USD 费用，使用 Anthropic 发布的每模型定价。费用写入 `$CORTEX_HOME/data/costs.jsonl`。
 - **PI** — 费用报告取决于 PI 编程智能体的提供商配置。适配器捕获 PI 发出的任何费用元数据。
-- **Codex** — 费用报告尚未实现。
 
 所有费用记录遵循相同的 JSONL 格式，并受 90 天滚动保留窗口的约束。通过 MCP 工具的费用查询汇总所有后端——`cost_query` 工具参见 [mcp.md](./mcp.md)。
 

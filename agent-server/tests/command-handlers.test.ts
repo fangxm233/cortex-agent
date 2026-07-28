@@ -11,6 +11,8 @@ import * as path from 'path';
 import * as os from 'os';
 
 import { registerCommands as createCommandDispatcher } from '../src/orchestration/routing/commands/index.js';
+import { handleBackendCmd } from '../src/orchestration/routing/commands/mode.js';
+import { getActiveBackend, setActiveBackend } from '../src/domain/agents/config.js';
 import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
 import { costRepo } from '../src/store/cost-repo.js';
 import { MockAdapter } from '../src/platform/testing.js';
@@ -73,6 +75,17 @@ function withTempCostData(t, entries) {
   });
 }
 
+
+test('!backend selects PI and reports the live backend label', async (t) => {
+  const previous = getActiveBackend();
+  t.onTestFinished(() => setActiveBackend(previous));
+  const adapter = new MockAdapter();
+
+  await handleBackendCmd('C-backend', adapter, '!backend pi');
+
+  assert.equal(getActiveBackend(), 'pi');
+  assert.match(adapter.posted[0].content.text, /PI/);
+});
 
 test('!cost <project> filters report to the requested project scope', async (t) => {
   const now = new Date().toISOString();
@@ -432,7 +445,7 @@ test('!thread cancel with nothing running shows "Nothing running"', async (t) =>
 test('!thread list --running shows running threads across channels', async (t) => {
   const adapter = new MockAdapter();
   runningExecutions.register({ threadId: 'thr_a1111111', channel: 'C1', agentSlotId: null, executionId: 'exec-1', kill: () => true, backend: 'test' });
-  runningExecutions.register({ threadId: 'thr_b2222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => true, backend: 'codex' });
+  runningExecutions.register({ threadId: 'thr_b2222222', channel: 'C2', agentSlotId: null, executionId: 'exec-2', kill: () => true, backend: 'pi' });
   t.onTestFinished(() => { runningExecutions.remove('exec-1'); runningExecutions.remove('exec-2'); });
 
   const dispatchCommand = createCommandDispatcher({ scheduler: null });

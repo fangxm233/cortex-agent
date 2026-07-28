@@ -9,7 +9,6 @@ import assert from 'node:assert/strict';
 import {
   parseClaudeLineToNormalized,
   createClaudeParserState,
-  parseCodexRpcLine,
 } from './replay-harness.js';
 import type { NormalizedEvent } from '../../src/agent-adapter/normalize/event-types.js';
 
@@ -194,40 +193,6 @@ test('parseClaudeLineToNormalized: user tool_result with is_error=true → ok=fa
   assert.deepStrictEqual(events, [
     { type: 'tool_result', toolUseId: 'tu-a', ok: false, content: 'boom' },
   ]);
-});
-
-// --- Codex parser edges (wraps 5de7's narrow codexEventToNormalized) ---
-
-test('parseCodexRpcLine: item/completed agentMessage → assistant_text; commandExecution → [] (Phase 3 deferred)', () => {
-  const agent = parseCodexRpcLine(
-    JSON.stringify({ method: 'item/completed', params: { item: { type: 'agentMessage', text: 'hi' } } }),
-  );
-  assert.deepStrictEqual(agent, [{ type: 'assistant_text', text: 'hi' }]);
-
-  const exec = parseCodexRpcLine(
-    JSON.stringify({
-      method: 'item/completed',
-      params: { item: { type: 'commandExecution', command: 'ls', exitCode: 0 } },
-    }),
-  );
-  assert.deepStrictEqual(exec, []);
-});
-
-test('parseCodexRpcLine: unknown method and malformed line → []', () => {
-  assert.deepStrictEqual(parseCodexRpcLine('{"not":"valid-method"}'), []);
-  assert.deepStrictEqual(parseCodexRpcLine('not-json'), []);
-  assert.deepStrictEqual(parseCodexRpcLine(''), []);
-  assert.deepStrictEqual(
-    parseCodexRpcLine(JSON.stringify({ method: 'turn/started', params: {} })),
-    [],
-  );
-});
-
-test('parseCodexRpcLine: thread/error → non-fatal error event', () => {
-  const events = parseCodexRpcLine(
-    JSON.stringify({ method: 'thread/error', params: { message: 'boom' } }),
-  );
-  assert.deepStrictEqual(events, [{ type: 'error', message: 'boom', fatal: false }]);
 });
 
 // --- Runtime enumeration of NormalizedEvent discriminators ---

@@ -166,7 +166,6 @@ describe('resetChannelSession', () => {
     // Seed: write sessions for all backends + init conversation
     await setSessionAsync(channel, 'sid-reset-claude', 'claude');
     await setSessionAsync(channel, 'sid-reset-pi', 'pi');
-    await setSessionAsync(channel, 'sid-reset-codex', 'codex');
     await conversationLedger.initConversation(channel, {
       sessionId: 'sid-reset-claude',
       sessionName: 'cortex-reset',

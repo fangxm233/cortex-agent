@@ -15,7 +15,7 @@ const mockExecutions = [
   },
   {
     id: 'exec_2', kind: 'dispatch', status: 'completed', channel: 'C2', project: 'proj2',
-    source: { trigger: 'dispatch' }, backend: 'codex', billingMode: 'api',
+    source: { trigger: 'dispatch' }, backend: 'pi', billingMode: 'api',
     session: { sessionId: 's2' }, thread: null,
     dispatch: { taskId: 't1', machine: 'server1' }, scheduleTaskId: 'sch1',
     runtime: { startedAt: new Date(now - 120000).toISOString(), updatedAt: new Date(now - 1000).toISOString(), endedAt: new Date(now - 1000).toISOString() },

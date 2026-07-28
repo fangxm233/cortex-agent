@@ -29,7 +29,6 @@ import { buildContinuationSink } from './bg-continuation.js';
 import { startBgWaitGuard } from './bg-wait-guard.js';
 import { recordCost } from '@domain/costs/cost-tracker.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
-import { maybeNotifyCodexLowUsage } from '@domain/costs/codex-usage-monitor.js';
 import { recordResume } from '@domain/costs/resume-registry.js';
 import { isApiRateLimitError } from '@domain/agents/config.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
@@ -348,7 +347,6 @@ export async function resumeAskUserQuestionGroup({ adapter, group, responseText 
     runningExecutions.register({ threadId: group.threadId ?? null, channel: group.channel, agentSlotId: null, executionId, kill: () => handle.kill(), backend: askBackend });
     const result = await handle.promise;
     runningExecutions.complete(executionId, result?.total_cost_usd ?? 0);
-    await maybeNotifyCodexLowUsage({ adapter, result });
     await handleAgentSuccess({ result, channel: group.channel, adapter, statusMsg, startTime, userMessage: responseText, executionId, trigger: 'ask-user-question', sessionName: askSessionName, projectId: askProjectId, onAssistantMessage: onAssistantMsg });
   } catch (error) {
     await handleAgentError({ error: error as { message: string; cancelled?: boolean }, channel: group.channel, adapter, statusMsg, startTime, executionId, effectiveSessionId: handle?.sessionId });
@@ -421,7 +419,6 @@ async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, ses
     const result = await handle.promise;
     runningExecutions.complete(executionId, result?.total_cost_usd ?? 0);
     clearStreamingCallback(channel);
-    await maybeNotifyCodexLowUsage({ adapter, result });
 
     if (result?.rateLimited) {
       // Record the interrupted edit-retry conversation for auto-resume when the window resets.

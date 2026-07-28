@@ -15,16 +15,16 @@ import {
   type NormalizedEvent,
 } from '../src/agent-adapter/index.js';
 
-test('getAdapter dispatches to claude/codex/pi adapters with matching backend tag', () => {
+test('getAdapter dispatches to the claude and pi adapters only', () => {
   const claude = getAdapter('claude');
-  const codex = getAdapter('codex');
   const pi = getAdapter('pi');
   assert.equal(claude.backend, 'claude');
-  assert.equal(codex.backend, 'codex');
   assert.equal(pi.backend, 'pi');
+  assert.deepEqual(Object.keys(CAPABILITIES_BY_BACKEND).sort(), ['claude', 'pi']);
 });
 
-test('getAdapter throws on unknown backend', () => {
+test('getAdapter rejects removed and unknown backends', () => {
+  assert.throws(() => getAdapter('codex' as unknown as Backend), /Unknown backend/);
   assert.throws(() => getAdapter('unknown' as unknown as Backend), /Unknown backend/);
 });
 
@@ -40,13 +40,10 @@ test('Capability enum string values are stable (DR-0008 §3.2 contract)', () => 
   assert.equal(Capability.ToolAllowlist, 'tool-allowlist');
 });
 
-test('CAPABILITIES_BY_BACKEND encodes DR-0008 §3.2 / §3.4 / §5.1 capability matrix', () => {
-  // Independent assertions against DR text — NOT comparing the constant to itself.
+test('CAPABILITIES_BY_BACKEND encodes the Claude and PI capability matrix', () => {
   const c = CAPABILITIES_BY_BACKEND.claude;
-  const x = CAPABILITIES_BY_BACKEND.codex;
   const p = CAPABILITIES_BY_BACKEND.pi;
 
-  // Claude: full native support per DR §3.2 + claude-bridge.ts current behavior
   assert.equal(c.has(Capability.Hooks), true);
   assert.equal(c.has(Capability.Plugins), true);
   assert.equal(c.has(Capability.MCP), true);
@@ -56,30 +53,19 @@ test('CAPABILITIES_BY_BACKEND encodes DR-0008 §3.2 / §3.4 / §5.1 capability m
   assert.equal(c.has(Capability.SessionResume), true);
   assert.equal(c.has(Capability.ToolAllowlist), true);
 
-  // Codex: per DR §3.4 lacks Plugins/PlanMode/AskUserQuestion/Hooks/ToolAllowlist; has MCP via existing buildMcpBlock
-  assert.equal(x.has(Capability.MCP), true);
-  assert.equal(x.has(Capability.SystemPromptOverride), true);
-  assert.equal(x.has(Capability.SessionResume), true);
-  assert.equal(x.has(Capability.Hooks), false);
-  assert.equal(x.has(Capability.Plugins), false);
-  assert.equal(x.has(Capability.PlanMode), false);
-  assert.equal(x.has(Capability.AskUserQuestion), false);
-  assert.equal(x.has(Capability.ToolAllowlist), false);
-
-  // PI: per DR §5.1 native --skill (Plugins) + --system-prompt + permission YOLO; MCP enabled via mcp-bridge.ts extension (task 5754); PlanMode/AskUserQuestion shimmed in Phase 2; SessionResume confirmed by S2 spike + task 7ca9 switch_session landing
   assert.equal(p.has(Capability.Hooks), true);
   assert.equal(p.has(Capability.Plugins), true);
   assert.equal(p.has(Capability.SystemPromptOverride), true);
   assert.equal(p.has(Capability.ToolAllowlist), true);
-  assert.equal(p.has(Capability.MCP), true);  // enabled via mcp-bridge extension (task 5754)
-  assert.equal(p.has(Capability.PlanMode), true);  // Phase 2 §S3: tool-shims + extension_ui_response routing (2026-04-27)
-  assert.equal(p.has(Capability.AskUserQuestion), true);  // Phase 2 §S3: tool-shims + extension_ui_response routing (2026-04-27)
-  assert.equal(p.has(Capability.SessionResume), true);  // S2 spike passed; switch_session + path registry landed (task 7ca9)
-  assert.equal(p.has(Capability.MidTurnInject), true);  // PI RPC prompt streamingBehavior=steer
+  assert.equal(p.has(Capability.MCP), true);
+  assert.equal(p.has(Capability.PlanMode), true);
+  assert.equal(p.has(Capability.AskUserQuestion), true);
+  assert.equal(p.has(Capability.SessionResume), true);
+  assert.equal(p.has(Capability.MidTurnInject), true);
 });
 
 test('getAdapter returns the same capability set as CAPABILITIES_BY_BACKEND', () => {
-  for (const backend of ['claude', 'codex', 'pi'] as const) {
+  for (const backend of ['claude', 'pi'] as const) {
     const adapter = getAdapter(backend);
     assert.equal(adapter.capabilities, CAPABILITIES_BY_BACKEND[backend]);
   }
@@ -96,12 +82,11 @@ test('toCanonical / fromCanonical round-trip per DR-0008 §3.4 tool table', () =
   assert.equal(toCanonical('claude', 'ExitPlanMode'), 'exit_plan_mode');
   assert.equal(fromCanonical('claude', 'exit_plan_mode'), 'ExitPlanMode');
 
-  // Codex side: shell ↔ bash, lacks Glob/WebFetch/WebSearch/AskUserQuestion/ExitPlanMode/TodoWrite/Skill/Agent
-  assert.equal(toCanonical('codex', 'shell'), 'bash');
-  assert.equal(fromCanonical('codex', 'bash'), 'shell');
-  assert.equal(fromCanonical('codex', 'glob'), null);
-  assert.equal(fromCanonical('codex', 'web_fetch'), null);
-  assert.equal(fromCanonical('codex', 'ask_user_question'), null);
+  // PI side uses canonical names directly.
+  assert.equal(toCanonical('pi', 'bash'), 'bash');
+  assert.equal(fromCanonical('pi', 'bash'), 'bash');
+  assert.equal(fromCanonical('pi', 'glob'), 'glob');
+  assert.equal(fromCanonical('pi', 'ask_user_question'), 'ask_user_question');
 
   // MCP tool names pass through unchanged on every backend (DR §3.4 last row)
   assert.equal(toCanonical('claude', 'mcp__cortex__remote_bash'), 'mcp__cortex__remote_bash');
@@ -113,30 +98,11 @@ test('toCanonical / fromCanonical round-trip per DR-0008 §3.4 tool table', () =
 });
 
 test('PIAdapter exposes the real AgentAdapter contract (no spawn side effects)', async () => {
-  // Codex dropped in task 5de7; Claude dropped in task e0b6; PI dropped in task 6a07. All three
-  // adapters now implement the real AgentAdapter contract; no Phase-1 stubs remain. spawn itself is
-  // not exercised here because it fork-execs `pi --mode rpc` and would require the binary to be on
-  // PATH — `tests/agent-adapter-pi.test.ts` drives spawn with an injected spawner.
   const adapter = getAdapter('pi');
   assert.deepEqual(adapter.listSessions(), [], 'listSessions returns empty array before any spawn');
   assert.equal(adapter.kill('nonexistent'), false, 'kill on unknown key returns false');
   await assert.doesNotReject(adapter.close('nonexistent'), 'close on unknown key resolves');
   assert.equal(adapter.backend, 'pi');
-});
-
-test('CodexAdapter exposes the real AgentAdapter contract (no spawn side effects)', async () => {
-  // Replaces the codex case in the stub-strict iteration above. After task 5de7 the codex
-  // adapter is no longer a Phase-1 stub: spawn/close/kill/listSessions are real and must
-  // not throw "Not implemented". We verify the no-side-effect surface (listSessions/close/kill
-  // for unknown keys); spawn itself is deliberately not exercised here because it allocates
-  // an event queue and adapter session — `tests/codex-bridge.test.ts` covers the integration-side
-  // smoke (buildMcpBlock path arithmetic, which is the riskiest piece of the relocation).
-  const adapter = getAdapter('codex');
-  assert.deepEqual(adapter.listSessions(), [], 'listSessions returns empty array before any spawn');
-  assert.equal(adapter.kill('nonexistent'), false, 'kill on unknown key returns false');
-  await assert.doesNotReject(adapter.close('nonexistent'), 'close on unknown key resolves');
-  // Capability surface is unchanged; CAPABILITIES_BY_BACKEND test above already pins it.
-  assert.equal(adapter.backend, 'codex');
 });
 
 test('ClaudeAdapter exposes the real AgentAdapter contract (no spawn side effects)', async () => {

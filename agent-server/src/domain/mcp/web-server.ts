@@ -1,8 +1,6 @@
-// input:  MCP SDK, UI-file registrar, and route-context file path
-// output: Web-UI-specific MCP stdio service assembled from production registration
-// pos:    standalone platform server loaded
-//         ONLY for Web-UI-originated sessions (channel carries the `web:` prefix) — Claude via
-//         mcp-config-web.json layering. Not loaded for Slack/Feishu/thread sessions.
+// input:  MCP SDK and the Web UI file registrar
+// output: Web-specific MCP stdio service
+// pos:    Serves file delivery tools to Web-originated sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -14,24 +12,11 @@ import { CORTEX_VERSION } from '@core/version.js';
 
 const log = createLogger('mcp-web');
 
-// --- Config from env / CLI args ---
-
-function getCliArg(name: string): string | null {
-  const idx = process.argv.indexOf(name);
-  if (idx !== -1 && idx + 1 < process.argv.length) return process.argv[idx + 1];
-  const prefixed = process.argv.find(a => a.startsWith(`${name}=`));
-  if (prefixed) return prefixed.slice(name.length + 1);
-  return null;
-}
-
-const routeContextFile: string | null =
-  getCliArg('--route-context-file') || process.env.CORTEX_ROUTE_CONTEXT_FILE || null;
-
 // --- McpServer + tool registration ---
 
 const server = new McpServer({ name: 'cortex-web', version: CORTEX_VERSION });
 
-registerUiFileTools(server, { routeContextFile });
+registerUiFileTools(server);
 
 // --- Start (called by barrel when run as standalone) ---
 

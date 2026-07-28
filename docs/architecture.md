@@ -27,7 +27,7 @@ L5  entry/         → everything (composition root)
 
 Two additional directories sit outside the layer hierarchy because they are imported across multiple layers:
 
-- **`agent-adapter/`** — the three-LLM-backend abstraction (Claude Code, Codex, PI)
+- **`agent-adapter/`** — the two-LLM-backend abstraction (Claude Code and PI)
 - **`platform/`** — the messaging platform abstraction (Slack)
 
 ### Layer 0: `core/` — Zero-Dependency Foundation
@@ -146,15 +146,14 @@ layer) is detailed in [hooks.md](./hooks.md).
 
 ## LLM Backend Adapter
 
-The `agent-adapter/` directory abstracts three LLM backends behind a unified interface:
+The `agent-adapter/` directory abstracts two LLM backends behind a unified interface:
 
 | Backend | Adapter | Notes |
 |---------|---------|-------|
 | Claude Code | `claude/adapter.ts` | Session pool, `stream-json` mode, TUI mode (tmux + JSONL tail). Spawn-args builder, event parser |
-| Codex | `codex/adapter.ts` | RouteRuntime pool, event parser |
 | PI | `pi/adapter.ts` | PISession, MCP bridge, hook bridge, tool shims |
 
-A normalization layer (`normalize/`) converts backend-specific events into a unified `NormalizedEvent` stream. The `capabilities.ts` file declares a `Capability` enum with per-backend capability sets (e.g., `Capability.Plugins` is supported by Claude and PI but not Codex).
+A normalization layer (`normalize/`) converts backend-specific events into a unified `NormalizedEvent` stream. The `capabilities.ts` file declares a `Capability` enum with capability sets for Claude and PI.
 
 ## Platform Adapter
 

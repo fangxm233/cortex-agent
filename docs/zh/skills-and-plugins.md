@@ -162,7 +162,6 @@ plugins/
 
 - **Claude Code**：`--plugin-dir <path>` 标志
 - **PI**：`--skill <path>` 标志
-- **Codex**：不支持插件（`Capability.Plugins` 功能不可用）
 
 后端本身处理扫描目录中的 `SKILL.md` 文件并通过 `Skill` 工具使其可用。
 
@@ -172,8 +171,6 @@ Cortex 扫描多个根目录以查找 `SKILL.md` 文件：
 
 1. `{DATA_DIR}/plugins/` — 主插件目录（按插件名称组织）
 2. `{DATA_DIR}/.claude/skills/` — 用户可修改的技能根目录
-3. `{DATA_DIR}/.codex/skills/.system/` — Codex 系统技能
-4. `{WORKSPACE_DIR}/codex-routes/` — Codex 路由技能
 
 发现是递归的：任何包含 `SKILL.md` 的子目录都被视为技能。结果缓存有 60 秒 TTL。
 

@@ -37,7 +37,6 @@ import { commitPendingInjection } from './pending-injection-recovery.js';
 import { getStreamingCallback } from './routing/hook-bridge.js';
 import { runningExecutions } from '@core/running-executions.js';
 import { bgHeldSessions } from '@core/bg-held-sessions.js';
-import { maybeNotifyCodexLowUsage } from '@domain/costs/codex-usage-monitor.js';
 import { recordResume } from '@domain/costs/resume-registry.js';
 import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { getAgent } from '@domain/threads/index.js';
@@ -375,7 +374,6 @@ export class AgentRunner {
       const canSink = typeof proc?.setContinuationSink === 'function';
       const holdForBg = shouldHoldForBg(convResult.result, channel, canSink);
       if (!holdForBg) clearStreamingCallback(channel);
-      await maybeNotifyCodexLowUsage({ adapter, result: convResult.result });
       await handleDefaultAgentResult({
         result: convResult.result, channel, adapter, statusMsg, startTime, userMessage,
         executionId: convResult.executionId,

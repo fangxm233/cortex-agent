@@ -33,7 +33,6 @@ const server = new McpServer({ name: 'cortex-slack', version: CORTEX_VERSION });
 registerSlackTools(server, {
   slack,
   fallbackChannel,
-  routeContextFile: null,
   branchMachine,
   callbackSource: fallbackCallbackSource,
 });

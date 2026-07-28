@@ -1,4 +1,4 @@
-// input:  McpServer, Feishu LarkClient, route-context file path
+// input:  McpServer and Feishu LarkClient
 // output: feishu_send_file tool registration
 // pos:    MCP tool for uploading files to Feishu
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -9,15 +9,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { guard, ok, unwrap, type FeishuToolDeps } from './types.js';
 import type { LarkClient } from './client.js';
-
-function readRouteContext(routeContextFile: string | null): Record<string, any> | null {
-  if (!routeContextFile) return null;
-  try {
-    return JSON.parse(fs.readFileSync(routeContextFile, 'utf8'));
-  } catch {
-    return null;
-  }
-}
 
 function resolveReadableFilePath(filePathInput: string): { resolved: string; size: number } {
   const resolved = path.isAbsolute(filePathInput)

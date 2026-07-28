@@ -200,7 +200,7 @@ test('ScheduleRepo - provider throttle state round-trips without collapsing rese
         windows: [{ type: 'seven_day', utilization: 0.97, resetsAt: 200, activatedAt: 10 }],
       },
       {
-        provider: 'openai-codex', displayName: 'OpenAI', modes: ['codex'],
+        provider: 'openai-codex', displayName: 'OpenAI', modes: ['subscription'],
         windows: [{ type: 'five_hour', utilization: 0.95, resetsAt: 100, activatedAt: 20 }],
       },
     ],

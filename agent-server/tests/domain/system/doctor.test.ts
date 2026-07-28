@@ -1,8 +1,7 @@
-// input:  node:test, src/domain/system/doctor
-// output: Test results for runDiagnostics + applySafeFixes (fully injected deps)
-// pos:    Verifies the doctor diagnostic engine — section/check statuses, counts,
-//         gateway in-use vs idle logic, and idempotent safe-fix actuation.
-// >>> If I am updated, update the parent folder's CORTEX.md <<<
+// input:  Injected doctor environment and filesystem probes
+// output: Diagnostic reports and safe-fix assertions
+// pos:    Doctor engine regression tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
@@ -91,6 +90,18 @@ describe('runDiagnostics — all green', () => {
     assert.equal(checks['auth-tokens'].status, 'pass');
     assert.equal(checks['slack-creds'].status, 'pass');
     assert.equal(checks['anthropic-key'].status, 'pass');
+  });
+
+  it('checks the PI binary for a PI mode file', async () => {
+    const deps = baseDeps();
+    const readText = deps.readText;
+    const checked: string[] = [];
+    deps.readText = (p) => p === '/s/mode.json' ? '{"backend":"pi"}' : readText(p);
+    deps.commandExists = (bin) => { checked.push(bin); return true; };
+
+    await runDiagnostics(deps);
+
+    assert.ok(checked.includes('pi'));
   });
 });
 

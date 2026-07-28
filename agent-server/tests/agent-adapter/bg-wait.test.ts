@@ -183,7 +183,7 @@ test('shouldAwaitBgInline: only thread turns, claude backend, sink capability, w
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', r, true), true, 'thread turn with running task waits');
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }), true), true, 'undelivered-only also waits');
     assert.equal(shouldAwaitBgInline('claude', null, r, true), false, 'interactive turn (no threadId) handled by lifecycle hold instead');
-    assert.equal(shouldAwaitBgInline('codex', 'thr_1', r, true), false, 'non-claude backend never waits');
+    assert.equal(shouldAwaitBgInline('pi', 'thr_1', r, true), false, 'non-claude backend never waits');
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', r, false), false, 'no sink capability');
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', baseResult({ pendingBackgroundTasks: 0 }), true), false, 'nothing remaining');
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', baseResult({ rateLimited: true }), true), false, 'rate-limited turn goes to the retry path');

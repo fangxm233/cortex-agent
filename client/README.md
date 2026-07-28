@@ -139,7 +139,7 @@ variable reference, file layout, and precedence rules are in
 | [Slack Setup](./docs/slack-setup.md) | App creation, token collection, Socket Mode, scopes |
 | [Configuration](./docs/configuration.md) | Full `.env` reference, `profiles.json`, file layout, hot-reload |
 | [CLI Reference](./docs/cli-reference.md) | `cortex`, `cortex-task`, `cortex-run` — every subcommand and flag |
-| [Backends](./docs/backends.md) | Claude Code vs PI vs Codex, feature matrix, fallback, cost reporting |
+| [Backends](./docs/backends.md) | Claude Code vs PI, feature matrix, fallback, cost reporting |
 | [Architecture](./docs/architecture.md) | Server layers, WS protocol, event bus |
 | [Threads](./docs/threads.md) | Multi-agent pipelines, templates, transitions, hooks |
 | [Tasks](./docs/tasks.md) | TASKS.yaml format, lifecycle, dispatch, cortex-run watchdog |

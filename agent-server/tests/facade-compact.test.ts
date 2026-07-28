@@ -41,10 +41,6 @@ test('support is limited to PI and Claude print with a matching fixed profile', 
     () => profile({ backend: 'claude', claudeBackend: 'tui' }),
   ), false);
   assert.equal(isSessionCompactionSupported(
-    { backend: 'codex', profileName: 'codex' },
-    () => profile({ backend: 'codex' }),
-  ), false);
-  assert.equal(isSessionCompactionSupported(
     { backend: 'pi', profileName: 'wrong' },
     () => profile({ backend: 'claude' }),
   ), false);

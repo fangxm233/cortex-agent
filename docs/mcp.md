@@ -63,10 +63,9 @@ The server implementation is at `agent-server/src/domain/mcp/tasks-server.ts`.
 
 ### cortex-thread
 
-Exposes the thread lifecycle control plane and manager Q&A. For the maintained
-Claude and PI backends, it is loaded only when `CORTEX_THREAD_ID` identifies an
-active thread; their direct sessions never receive these tools. The deprecated
-Codex adapter is unchanged by this privilege split.
+Exposes the thread lifecycle control plane and manager Q&A. For Claude and PI,
+it is loaded only when `CORTEX_THREAD_ID` identifies an active thread; direct
+sessions never receive these tools.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -203,8 +202,7 @@ context:
 The thread branch is marked by `session.cortexContext.useCoreMcp`. In the PI
 bridge, core, tasks, and ext are always connected; `shouldLoadThreadControl()`
 adds cortex-thread only when `CORTEX_THREAD_ID` is present. Platform-specific
-servers remain gated by their source-channel predicates. The deprecated Codex
-adapter is outside this split and retains its existing MCP composition.
+servers remain gated by their source-channel predicates.
 
 ## How MCP tools communicate with agent-server
 
@@ -263,8 +261,7 @@ internals and remote machines. Cortex applies the following controls:
    because backend tool allowlists do not filter individual MCP tools. Claude
    direct sessions never receive cortex-thread, while Claude thread sessions
    add it and exclude ext. PI adds cortex-thread only for a present thread id
-   and retains its existing always-on ext behavior. Deprecated Codex is outside
-   this split and remains unchanged.
+   and retains its existing always-on ext behavior.
 
 2. **Claude Code's third-party MCP is disabled** — the setting
    `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`
@@ -303,7 +300,6 @@ The MCP server processes receive a subset of the agent server's environment:
 | `CORTEX_TUI_MODE` | Set to `'1'` in TUI mode | tui-server |
 | `CORTEX_CALLBACK_SOURCE` | Optional callback metadata | cortex-ext |
 | `CORTEX_SCHEDULE_TASK_ID` | Optional schedule task ID | cortex-ext |
-| `CORTEX_ROUTE_CONTEXT_FILE` | Per-turn context file path | cortex-ext (Codex routing) |
 | `ANTHROPIC_BASE_URL` | Optional API base URL override | Model routing |
 
 ## Security considerations

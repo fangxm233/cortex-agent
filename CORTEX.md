@@ -28,7 +28,7 @@ The server follows a six-layer structure (`agent-server/src/`):
 | L4 | `orchestration/` | Message routing, agent runner, lifecycle, 15 !commands, interactions |
 | L5 | `entry/` | Entry points: app.ts (composition root), daemon.ts (process supervisor), CLI |
 
-The server supports three LLM backends via `agent-adapter/`: Claude Code, Codex, and PI. Platform adapters in `platform/` support Slack and Feishu/Lark.
+The server supports two LLM backends via `agent-adapter/`: Claude Code and PI. Platform adapters in `platform/` support Slack and Feishu/Lark.
 
 ## Client Architecture
 
