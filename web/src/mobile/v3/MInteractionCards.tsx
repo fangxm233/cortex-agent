@@ -1,9 +1,9 @@
+// input:  React, mobile palette, shared interaction view models
+// output: Mobile ask-user and plan-approval card components
+// pos:    Mobile chat interaction-card presentation
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 interaction cards, chrome extracted 1:1 from
-// scheme-mobile.dc.html sec-6 (6a 薄审批卡 L85-129) · sec-5 (5b 多问题 L224-267, 5a 压暗态
-// L192-198) · sec-4 (4a 已答 L278-315 · 4b 已批准 L319-372 · 4c 已驳回 L375-410). Raw px/hex by
-// design §8.3. Pure + presentational: models come from the shared interaction-vm; the container
-// (MChatScreen / MessageStream) owns data + mutations. Honest gaps: the `来自 X` footer source has
-// no entity field → omitted; the TTL countdown derives from the row ts + the server's 30m constant.
+// scheme-mobile.dc.html sec-4/5/6. Raw px/hex by design §8.3.
 import { useState } from 'react';
 import { MC, MONO } from '@/mobile/ui/kit';
 import {
@@ -231,11 +231,11 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
                       {q.multiSelect && (
                         <span style={{ fontSize: 12, fontWeight: 700, color: selected ? MC.run : MC.faint, flex: 'none' }}>{selected ? '☑' : '☐'}</span>
                       )}
-                      <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.ink }}>{o.label}</span>
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.ink, minWidth: 0, flex: 1, overflowWrap: 'anywhere' }}>{o.label}</span>
                       {isDefault ? (
                         <span style={{ marginLeft: 'auto', fontSize: 9.5, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: MC.runBg, color: MC.run, flex: 'none' }}>{copy.defaultBadge}</span>
                       ) : o.description ? (
-                        <span style={{ marginLeft: 'auto', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)', flex: 'none' }}>{o.description}</span>
+                        <span style={{ marginLeft: 'auto', minWidth: 0, maxWidth: '55%', font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)', flex: '0 1 auto', textAlign: 'right', lineHeight: 1.35, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{o.description}</span>
                       ) : null}
                     </button>
                   );

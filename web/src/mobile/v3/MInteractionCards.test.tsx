@@ -1,3 +1,7 @@
+// input:  React SSR, mobile interaction cards, UI contract fixtures
+// output: Mobile ask-user and plan-card rendering regressions
+// pos:    Mobile interaction-card rendering contract tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MAskCard, MPlanCard, M_INT_COPY } from './MInteractionCards';
@@ -75,6 +79,27 @@ describe('MAskCard — 5b 多问题逐问推进', () => {
     expect(html).toContain('Agent 提问');
     expect(html).not.toContain('· 1/1');
     expect(html).not.toContain('后按默认继续'); // no ts → no fabricated TTL
+  });
+  it('constrains long option descriptions so the label and meta can wrap inside the button', () => {
+    const detail: TranscriptInteractionDetail = {
+      id: 'req-long-description', kind: 'ask-user', status: 'pending',
+      payload: {
+        questions: [{
+          question: '如何授权部署？',
+          header: 'Auth',
+          options: [
+            { label: 'Wrangler 登录' },
+            { label: 'API Token', description: '在运行环境中设置最小权限 `CLOUDFLARE_API_TOKEN`' },
+          ],
+          multiSelect: false,
+        }],
+      },
+    };
+    const html = renderToStaticMarkup(
+      <MAskCard model={askCardModel(detail)!} state={emptyAskAnswers} copy={copy} {...askHandlers} />,
+    );
+    expect(html).toMatch(/<span style="[^"]*min-width:0;flex:1;overflow-wrap:anywhere[^"]*">API Token<\/span>/);
+    expect(html).toMatch(/<span style="[^"]*max-width:55%[^"]*flex:0 1 auto[^"]*overflow-wrap:anywhere[^"]*">在运行环境中设置最小权限/);
   });
   it('renders a 确认 commit affordance for a multi-select current question', () => {
     let state = commitAnswer(emptyAskAnswers, '评审基线用哪组？', 'nimbus baseline');
