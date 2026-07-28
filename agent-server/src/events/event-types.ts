@@ -1,5 +1,5 @@
 // input:  ChatNoticeLevel, SessionContextUsage, and system state-change hints
-// output: CortexEvent union including context, notices, throttle changes, and message metadata
+// output: CortexEvent union including context/compact/notices/lifecycle
 // pos:    Typed event contract for the shared EventBus
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -25,6 +25,7 @@ export type CortexEvent =
   | { type: 'session.status';         ts: string; sessionId: string; channel: string; running: boolean; backgroundRunning?: boolean }
   | { type: 'session.turn';           ts: string; sessionId: string; channel: string; numTurns: number }
   | ({ type: 'session.context-usage'; ts: string; sessionId: string; channel: string } & SessionContextUsage)
+  | { type: 'session.context-compacted'; ts: string; sessionId: string; channel: string; status: 'compacted'; contextUsage: SessionContextUsage | null }
   // Mid-turn injection commit: a message injected into a live turn has now been CONSUMED by the
   // model (the backend's replay echo), or its injection window closed without that ever happening.
   // Writing to the backend's stdin only queues it — it may sit there for seconds — so this, not the

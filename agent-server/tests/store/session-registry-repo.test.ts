@@ -70,6 +70,21 @@ test('SessionRegistryRepo - updateSession persists the latest context usage snap
   assert.deepEqual((await repo.getById('sess-context'))?.contextUsage, contextUsage);
 });
 
+// ── Context snapshot update by stable id ───────────────────────
+
+test('SessionRegistryRepo - updateContextUsage sets and clears a snapshot by stable session id', async () => {
+  const { repo } = createRepoWithPath();
+  await repo.registerSession('cortex-context-id', makeOpts('sess-context-id', { backend: 'pi' }));
+  const usage = {
+    usedTokens: 12000, contextWindow: 200000, percent: 6,
+    accuracy: 'estimate' as const, updatedAt: '2026-07-28T01:00:00.000Z',
+  };
+  await repo.updateContextUsage('sess-context-id', usage);
+  assert.deepEqual((await repo.getById('sess-context-id'))?.contextUsage, usage);
+  await repo.updateContextUsage('sess-context-id', null);
+  assert.equal((await repo.getById('sess-context-id'))?.contextUsage, undefined);
+});
+
 // ── (b) Mid-mutate flush resolves after all pending mutations ──
 
 test('SessionRegistryRepo - flush() resolves only after all pending mutations (FIFO on mutex)', async () => {

@@ -1,5 +1,5 @@
 // input:  shared SSE context/notices, React Query, durable snapshots
-// output: live session state converging context, notices, messages across clients
+// output: live session state converging compact/context/messages
 // pos:    React bridge from session events to desktop/mobile chat rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -218,6 +218,15 @@ export function useSessionMessageLiveSync(
       if (raw.type === 'session.context-usage') {
         const usage = contextUsageFromLivePayload(raw.payload);
         if (usage) setLiveContextUsage(usage);
+        return;
+      }
+      if (raw.type === 'session.context-compacted') {
+        const payload = raw.payload as { contextUsage?: unknown } | undefined;
+        const usage = payload?.contextUsage === null
+          ? null
+          : contextUsageFromLivePayload(payload?.contextUsage);
+        setLiveContextUsage(usage);
+        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
         return;
       }
       // Message edit + rewind (sessions.rewind, possibly from ANOTHER client): the transcript

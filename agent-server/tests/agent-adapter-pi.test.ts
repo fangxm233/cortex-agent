@@ -1,5 +1,5 @@
 // input:  Node test runner + PIAdapter _test exports
-// output: PI framing/spawn-env/live context usage/bootstrap/switch tests
+// output: PI framing/spawn/context/bootstrap/compact/switch tests
 // pos:    Hermetic PI adapter and subprocess context regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -760,6 +760,110 @@ test('G-6: sendTurn no-op when same session; auto-switches and writes prompt whe
   child2.emit('close', 0, null);
   await proc1.close();
   await proc2.close();
+});
+
+test('compact waits for bootstrap, sends correlated RPC, then returns post-compact stats', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-ok', resume: false } as any);
+  const child = stub.children[0];
+
+  const compactPromise = proc.compact!();
+  assert.equal(child.stdin.writeHistory.length, 1, 'bootstrap remains the only pre-ready frame');
+
+  child.stdout.write(Buffer.from(
+    '{"type":"response","id":"bootstrap","command":"get_state","success":true,"data":{"sessionId":"pi-compact"}}\n',
+  ));
+  await new Promise((resolve) => setImmediate(resolve));
+  const compactFrame = JSON.parse(child.stdin.writeHistory[1].trim()) as Record<string, unknown>;
+  assert.equal(compactFrame.type, 'compact');
+  assert.equal(typeof compactFrame.id, 'string');
+
+  child.stdout.write(Buffer.from(JSON.stringify({
+    type: 'response', id: compactFrame.id, command: 'compact', success: true,
+    data: {
+      summary: 'short summary', tokensBefore: 120000, estimatedTokensAfter: 18000,
+      usage: { input: 120000, output: 900, cacheRead: 10, cacheWrite: 20, cost: { total: 0.42 } },
+    },
+  }) + '\n'));
+  await new Promise((resolve) => setImmediate(resolve));
+  const statsFrame = JSON.parse(child.stdin.writeHistory[2].trim()) as Record<string, unknown>;
+  assert.equal(statsFrame.type, 'get_session_stats');
+
+  child.stdout.write(Buffer.from(JSON.stringify({
+    type: 'response', id: statsFrame.id, command: 'get_session_stats', success: true,
+    data: { contextUsage: { tokens: 19000, contextWindow: 200000, percent: 9.5 } },
+  }) + '\n'));
+
+  assert.deepEqual(await compactPromise, {
+    status: 'compacted',
+    tokensBefore: 120000,
+    estimatedTokensAfter: 18000,
+    contextUsage: { usedTokens: 19000, contextWindow: 200000, percent: 9.5, accuracy: 'estimate' },
+    usage: { inputTokens: 120000, outputTokens: 900, cacheReadTokens: 10, cacheWriteTokens: 20, costUsd: 0.42 },
+  });
+
+  const close = proc.close();
+  child.emit('close', 0);
+  await close;
+});
+
+test('compact maps PI no-history response to not-needed without requesting stats', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-empty', resume: false } as any);
+  const child = stub.children[0];
+  const compactPromise = proc.compact!();
+  emitBootstrap(child, 'pi-empty');
+  await new Promise((resolve) => setImmediate(resolve));
+  const frame = JSON.parse(child.stdin.writeHistory[1].trim()) as Record<string, unknown>;
+  child.stdout.write(Buffer.from(JSON.stringify({
+    type: 'response', id: frame.id, command: 'compact', success: false,
+    error: 'No messages to compact',
+  }) + '\n'));
+
+  assert.deepEqual(await compactPromise, {
+    status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null,
+    contextUsage: null, usage: null,
+  });
+  assert.equal(child.stdin.writeHistory.length, 2);
+  const close = proc.close();
+  child.emit('close', 0);
+  await close;
+});
+
+test('compact rejects a correlated PI failure response', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-failed', resume: false } as any);
+  const child = stub.children[0];
+  const compactPromise = proc.compact!();
+  emitBootstrap(child, 'pi-failed');
+  await new Promise((resolve) => setImmediate(resolve));
+  const frame = JSON.parse(child.stdin.writeHistory[1].trim()) as Record<string, unknown>;
+  child.stdout.write(Buffer.from(JSON.stringify({
+    type: 'response', id: frame.id, command: 'compact', success: false,
+    error: 'compaction exploded',
+  }) + '\n'));
+
+  await assert.rejects(compactPromise, /compaction exploded/);
+  const close = proc.close();
+  child.emit('close', 0);
+  await close;
+});
+
+test('compact rejects promptly when the PI subprocess exits', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'compact-exit', resume: false } as any);
+  const child = stub.children[0];
+  const compactPromise = proc.compact!();
+  emitBootstrap(child, 'pi-exit');
+  await new Promise((resolve) => setImmediate(resolve));
+  child.emit('close', 17, null);
+
+  await assert.rejects(compactPromise, /pi exited with code 17/i);
+  await proc.close();
 });
 
 test('G-7: spawn with resume=true + known sessionId passes --session flag', async () => {

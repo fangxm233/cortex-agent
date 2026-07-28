@@ -1,5 +1,5 @@
 // input:  isolated test home, fake UiService, typed tRPC caller
-// output: AppRouter scope/op routing, unwrapping, and subscription assertions
+// output: AppRouter routing including session compact and errors
 // pos:    Transport-contract regression coverage including rate-limit status
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -115,6 +115,7 @@ const MUTATE_CASES: Array<{ op: MutateOp; call: (c: any) => Promise<unknown>; }>
   { op: 'projects.create', call: (c) => c.projects.create({ name: 'nimbus' }) },
   { op: 'sessions.send', call: (c) => c.sessions.send({ sessionId: 's1', text: 'hi' }) },
   { op: 'sessions.cancel', call: (c) => c.sessions.cancel({ sessionId: 's1' }) },
+  { op: 'sessions.compact', call: (c) => c.sessions.compact({ sessionId: 's1' }) },
   { op: 'threads.cancel', call: (c) => c.threads.cancel({ threadId: 't1' }) },
   { op: 'executions.cancel', call: (c) => c.executions.cancel({ executionId: 'e1' }) },
   { op: 'schedules.pause', call: (c) => c.schedules.pause({ scheduleId: 's1' }) },
@@ -139,9 +140,9 @@ test('every mutation routes to the correct op and unwraps Result.data', async ()
   }
 });
 
-test('coverage: exactly 11 queries + 14 mutations exercised', () => {
+test('coverage: exactly 11 queries + 15 mutations exercised', () => {
   assert.equal(QUERY_CASES.length, 11);
-  assert.equal(MUTATE_CASES.length, 14);
+  assert.equal(MUTATE_CASES.length, 15);
 });
 
 // ── Err → TRPCError mapping ──────────────────────────────────────────────────────────

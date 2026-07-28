@@ -1,5 +1,5 @@
 // input:  built agent-server ui-service input schemas
-// output: runtime/type schema re-exports including system.rateLimitStatus
+// output: runtime/type schemas including session compact/rate limits
 // pos:    Shared browser/server input validation boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -10,6 +10,7 @@ export {
   sessionsTranscriptInput,
   sessionsCreateInput,
   sessionsSendInput,
+  sessionsCompactInput,
   sessionsSetProfileInput,
   threadsListInput,
   threadsGetInput,

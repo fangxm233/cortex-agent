@@ -1,4 +1,4 @@
-// input:  unscoped session lifecycle, interaction, and context live events
+// input:  unscoped lifecycle, interaction, context/compact events
 // output: sessions.list cache invalidation for rail and later session selection
 // pos:    Rail-wide snapshot convergence hook
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -14,7 +14,9 @@ import { useLiveEvents } from '@/features/live/LiveEventsProvider';
  * row's running dot (SessionInfo.running) AND the amber awaiting-input dot (SessionInfo.awaitingInput)
  * re-fetch live. Mirrors useThreadsLiveSync.
  */
-const RAIL_EVENTS = ['session.status', 'session.interaction', 'session.context-usage'];
+const RAIL_EVENTS = [
+  'session.status', 'session.interaction', 'session.context-usage', 'session.context-compacted',
+];
 
 export function useSessionsLiveSync(): void {
   const trpc = useTRPC();

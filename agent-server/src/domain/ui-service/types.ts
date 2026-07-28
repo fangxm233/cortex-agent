@@ -1,7 +1,7 @@
 // input:  domain types, context/notices, DEBUG warnings, pending data
-// output: transport-neutral UI operations, DTOs, and dependencies
+// output: UI operations/DTOs including manual session compact
 // pos:    Canonical transport-neutral UI contract
-// >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
@@ -54,6 +54,7 @@ export type MutateOp =
   | 'sessions.create'
   | 'sessions.send'
   | 'sessions.cancel'
+  | 'sessions.compact'
   | 'sessions.setProfile'
   | 'sessions.createAndSend'
   | 'sessions.markRead'
@@ -233,6 +234,10 @@ export interface SessionsSendArgs {
 }
 
 export interface SessionsCancelArgs {
+  sessionId: string;
+}
+
+export interface SessionsCompactArgs {
   sessionId: string;
 }
 
@@ -419,6 +424,8 @@ export interface SessionInfo {
   /** Latest backend context occupancy, or null until a supported backend reports one. Optional only
    *  for rolling compatibility with older servers/fixtures; current sessions.list always supplies it. */
   contextUsage?: SessionContextUsage | null;
+  /** True only for PI and Claude print sessions under their fixed profile. */
+  contextCompactionSupported?: boolean;
   /** Live running snapshot: true while an interactive turn (a non-thread execution) is live on the
    *  session's channel. Authoritative at query time — the client uses this as the snapshot and the
    *  `session.status` event stream as the delta (snapshot + delta), so running state survives
@@ -1099,6 +1106,11 @@ export interface SessionsCancelReturn {
   count: number;
 }
 
+export interface SessionsCompactReturn {
+  status: 'compacted' | 'not-needed';
+  contextUsage: SessionContextUsage | null;
+}
+
 export interface SessionsSetProfileReturn {
   /** The profile now active on the session. */
   profileName: string;
@@ -1202,6 +1214,7 @@ export interface MutateArgsMap {
   'sessions.create': SessionsCreateArgs;
   'sessions.send': SessionsSendArgs;
   'sessions.cancel': SessionsCancelArgs;
+  'sessions.compact': SessionsCompactArgs;
   'sessions.setProfile': SessionsSetProfileArgs;
   'sessions.createAndSend': SessionsCreateAndSendArgs;
   'sessions.markRead': SessionsMarkReadArgs;
@@ -1233,6 +1246,7 @@ export interface MutateReturnMap {
   'sessions.create': SessionsCreateReturn;
   'sessions.send': SessionsSendReturn;
   'sessions.cancel': SessionsCancelReturn;
+  'sessions.compact': SessionsCompactReturn;
   'sessions.setProfile': SessionsSetProfileReturn;
   'sessions.createAndSend': SessionsCreateAndSendReturn;
   'sessions.markRead': void;
@@ -1297,6 +1311,13 @@ export interface UiServiceDeps {
      *  facade/test fixtures need not provide it (the handler no-ops when absent). */
     markRead?(sessionId: string): Promise<void>;
   };
+  /** Capability hint for sessions.list; execution revalidates inside orchestration. */
+  supportsSessionCompaction?: (session: Session) => boolean;
+  /** Idle-only manual context compaction, injected at the entry layer. */
+  compactSession?: (opts: { sessionId: string }) => Promise<
+    | { ok: true; status: 'compacted' | 'not-needed'; contextUsage: SessionContextUsage | null }
+    | { ok: false; reason: 'not-found' | 'unsupported' | 'running' }
+  >;
   /** Backend-independent conversation history — read source for `sessions.transcript` (S4 chat). */
   conversationHistory: {
     getHistory(sessionId: string): Promise<SessionHistory | null>;

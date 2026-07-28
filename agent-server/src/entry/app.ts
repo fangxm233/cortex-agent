@@ -1,5 +1,5 @@
 // input:  .env, PlatformAdapter, stores, orchestration modules, provider throttle state
-// output: server composition root with durable recovery and live rate-limit refresh hints
+// output: server wiring including session compact controls and UI hints
 // pos:    agent-server main entry and wiring hub
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
@@ -81,7 +81,7 @@ import { sessionStore } from '@store/session-registry-repo.js';
 import { cleanupAllBackups } from '@domain/sessions/session-backup.js';
 import { createDirectSession } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
-import { resolveBackendForChannel, switchChannelProfile } from '@domain/agents/index.js';
+import { isSessionCompactionSupported, resolveBackendForChannel, switchChannelProfile } from '@domain/agents/index.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
 import { loadMachinesFromFile, startMachineRegistryWatcher, stopMachineRegistryWatcher, setAdminNotifier as setMachineNotifier, getMachineRegistry } from '@domain/tasks/dispatch-utils.js';
 import { EventBus, createEventLogger } from '@events/index.js';
@@ -92,6 +92,7 @@ import { initOutboundQueue, getOutboundQueue } from '@store/outbound-queue.js';
 import { createUiService } from '@domain/ui-service/index.js';
 import { sendWebUserMessage } from '../orchestration/session-send.js';
 import { rewindWebSession } from '../orchestration/session-rewind.js';
+import { compactActiveSessionContext, compactSessionContext } from '../orchestration/session-compact.js';
 import { recoverPendingInjections } from '../orchestration/pending-injection-recovery.js';
 import { createTuiSessionService } from '@domain/tui-session/index.js';
 import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
@@ -243,6 +244,7 @@ const dispatchCommand = registerCommands({
   scheduler,
   cancelDispatchedTask,
   getExecutionStatusReport: buildExecutionStatusReport,
+  compactSessionByChannel: compactActiveSessionContext,
   commandRouter,
 });
 
@@ -392,6 +394,10 @@ process.on('SIGTERM', async () => {
     // channel-cancel path (same code the no-arg/`--all` !cancel command uses). Injected here so the
     // ui-service domain never imports orchestration.
     cancelSessionRun: ({ channel }) => cancelChannelRuns(channel),
+    // Manual context compact: both the Web mutation and !compact command share the idle-only
+    // orchestration coordinator; sessions.list receives the matching display capability hint.
+    supportsSessionCompaction: (session) => isSessionCompactionSupported(session),
+    compactSession: ({ sessionId }) => compactSessionContext(sessionId),
     // Message edit + rewind (sessions.rewind, desktop design 23 / mobile 7): roll the session back
     // to the edited turn and re-send. Injected here so the ui-service domain never imports
     // orchestration.

@@ -1,6 +1,7 @@
-// input:  UiServiceDeps and transport-neutral query/mutation handlers
-// output: createUiService(deps): UiService including live provider throttle snapshots
-// pos:    transport-agnostic UI service facade
+// input:  UiServiceDeps and query/mutation handlers
+// output: createUiService with sessions.compact routing
+// pos:    Transport-neutral UI-service dispatcher
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { UiServiceDeps, UiService, QueryScope, MutateOp, Result } from './types.js';
 import { handleProjectsList } from './query/projects.js';
@@ -21,7 +22,7 @@ import { handleThreadTemplatesGet } from './query/thread-templates.js';
 import { handleSystemDaemonStatus, handleSystemRateLimitStatus } from './query/system.js';
 import { handleConfigSet } from './mutate/config.js';
 import { handleCreateProject } from './mutate/projects.js';
-import { handleCreateSession, handleSendSession, handleCancelSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRewindSession } from './mutate/sessions.js';
+import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
 import { handleCancelExecution } from './mutate/executions.js';
 import {
@@ -76,6 +77,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'sessions.create': (deps, args) => handleCreateSession(deps, args),
   'sessions.send': (deps, args) => handleSendSession(deps, args),
   'sessions.cancel': (deps, args) => handleCancelSession(deps, args),
+  'sessions.compact': (deps, args) => handleCompactSession(deps, args),
   'sessions.setProfile': (deps, args) => handleSetProfile(deps, args),
   'sessions.createAndSend': (deps, args) => handleCreateAndSend(deps, args),
   'sessions.markRead': (deps, args) => handleMarkReadSession(deps, args),

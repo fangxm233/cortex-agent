@@ -1,5 +1,5 @@
-// input:  selected session/query/live context, transcript, and composer state
-// output: desktop chat with transcript, status-row context, composer
+// input:  selected session, transcript/live state, compact mutation
+// output: desktop chat with context modal controls and composer
 // pos:    Workbench conversation pane orchestration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useMemo } from 'react';
@@ -11,6 +11,7 @@ import { MessageStream, type MessageEditCtx } from './MessageStream';
 import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { Composer } from './Composer';
 import { ContextUsageControl } from './ContextUsageControl';
+import { useSessionCompact } from './useSessionCompact';
 import { useSessionMessageLiveSync } from './useSessionMessageLiveSync';
 import { useInteractionActions } from './useInteractionActions';
 import { useMarkSessionRead } from './useMarkSessionRead';
@@ -98,6 +99,10 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   // A session "has history" once it carries at least one turn — the switch rule uses this to allow
   // only same-backend profile switches on a live conversation. Live streaming counts too.
   const hasHistory = turns > 0 || liveTail.length > 0;
+  const compactAction = useSessionCompact(sessionId, {
+    running,
+    hasBackendHistory: !!active?.backendSessionId,
+  });
 
   // Message edit + rewind (sec-23): submit fires the real `sessions.rewind` mutation; the
   // transcript + rail refetch on settle (and again on the `session.rewound` event / regeneration
@@ -167,12 +172,13 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         isDraft={isDraft}
         draftProfile={draftProfile}
         projectId={currentProjectId ?? 'general'}
-        statusAccessory={(active?.backend === 'pi' || contextUsage !== null) ? (
+        statusAccessory={(active?.contextCompactionSupported || contextUsage !== null) ? (
           <ContextUsageControl
             usage={contextUsage}
-            supported={active?.backend === 'pi'}
+            supported={!!active?.contextCompactionSupported}
             variant="desktop"
             lang={lang}
+            compactAction={active?.contextCompactionSupported ? compactAction : undefined}
           />
         ) : undefined}
       />

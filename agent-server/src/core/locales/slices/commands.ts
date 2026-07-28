@@ -1,7 +1,7 @@
 // input:  nothing (leaf data slice)
-// output: commandsEn / commandsZh — message slice (filled by i18n extraction)
-// pos:    one locale slice; aggregated by core/locales/en.ts & zh.ts barrels
-// >>> Keep en and zh keys in lockstep (zh typed against keyof typeof commandsEn) <<<
+// output: English/Chinese command messages including !compact
+// pos:    Localized message table for orchestration commands
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 export const commandsEn = {
   // --- cancel ---
@@ -14,6 +14,14 @@ export const commandsEn = {
   'cmd.cancel.cancelledSessionPreserved': 'Cancelled. Session preserved — next message will resume.',
   'cmd.cancel.runningTasks': 'Running tasks (${n}):',
   'cmd.cancel.cancelButton': 'Cancel ${id}',
+
+  // --- compact ---
+  'cmd.compact.unavailable': 'Session compaction is not available in this process.',
+  'cmd.compact.completed': 'Context compacted.',
+  'cmd.compact.notNeeded': 'Nothing to compact.',
+  'cmd.compact.running': 'Session is running — stop it before compacting context.',
+  'cmd.compact.unsupported': 'This session backend does not support manual context compaction.',
+  'cmd.compact.noSession': 'No active session to compact.',
 
   // --- mode / backend / model / profile / skills / agent ---
   'cmd.mode.switched': 'Switched to *${mode}* mode',
@@ -156,6 +164,7 @@ export const commandsEn = {
   'cmd.help.catThreads': 'Threads',
   'cmd.help.session.new': '`!new` — start a new conversation; runs pre-close hook (`!newq` to skip)',
   'cmd.help.session.cancel': '`!cancel [taskId]` — stop current task, or a dispatched task by id',
+  'cmd.help.session.compact': '`!compact` — compact the active session context while idle',
   'cmd.help.session.resume': '`!resume [cortex-XXXX]` — list recent sessions, or switch to one',
   'cmd.help.config.mode': '`!mode` — toggle API / Plan mode',
   'cmd.help.config.backend': '`!backend` — toggle Claude Code / Codex backend',
@@ -264,6 +273,14 @@ export const commandsZh: Record<keyof typeof commandsEn, string> = {
   'cmd.cancel.cancelledSessionPreserved': '已取消。会话已保留——下一条消息将继续。',
   'cmd.cancel.runningTasks': '运行中的任务（${n}）：',
   'cmd.cancel.cancelButton': '取消 ${id}',
+
+  // --- compact ---
+  'cmd.compact.unavailable': '当前进程未提供会话压缩能力。',
+  'cmd.compact.completed': '上下文已压缩。',
+  'cmd.compact.notNeeded': '当前没有可压缩的内容。',
+  'cmd.compact.running': '会话正在运行，请先停止当前 turn 再压缩上下文。',
+  'cmd.compact.unsupported': '此会话后端不支持手动压缩上下文。',
+  'cmd.compact.noSession': '当前没有可压缩的活动会话。',
 
   // --- mode / backend / model / profile / skills / agent ---
   'cmd.mode.switched': '已切换到 *${mode}* 模式',
@@ -406,6 +423,7 @@ export const commandsZh: Record<keyof typeof commandsEn, string> = {
   'cmd.help.catThreads': '线程',
   'cmd.help.session.new': '`!new` — 开始新对话；运行预关闭钩子（`!newq` 跳过）',
   'cmd.help.session.cancel': '`!cancel [taskId]` — 停止当前任务，或按 id 停止已派发任务',
+  'cmd.help.session.compact': '`!compact` — 在会话空闲时压缩活动上下文',
   'cmd.help.session.resume': '`!resume [cortex-XXXX]` — 列出最近会话，或切换到某个会话',
   'cmd.help.config.mode': '`!mode` — 切换 API / Plan 模式',
   'cmd.help.config.backend': '`!backend` — 切换 Claude Code / Codex 后端',

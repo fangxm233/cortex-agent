@@ -1,5 +1,5 @@
 // input:  session/history stores plus process DEBUG size policy
-// output: session snapshots and warning-annotated transcript DTOs
+// output: session snapshots with compact support and transcript DTOs
 // pos:    Authoritative query boundary for session transcripts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -116,6 +116,7 @@ export async function handleSessionsList(
       label: s.label ?? null,
       profileName: s.profileName ?? null,
       contextUsage: s.contextUsage ?? null,
+      contextCompactionSupported: deps.supportsSessionCompaction?.(s) ?? false,
       running,
       backgroundRunning: bgHeld,
       awaitingInput,

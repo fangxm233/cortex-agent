@@ -1,11 +1,16 @@
-// input:  ContextUsageControl/Details with PI snapshots and language variants
+// input:  context usage modal and manual compact action states
 // output: compact header bar/percentage and detail modal render regressions
 // pos:    Shared context usage presentation contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { ContextUsageControl, ContextUsageDetails } from './ContextUsageControl';
+import {
+  ContextCompactFooter,
+  ContextUsageControl,
+  ContextUsageDetails,
+  type ContextCompactAction,
+} from './ContextUsageControl';
 
 const usage = {
   usedTokens: 60000,
@@ -52,18 +57,64 @@ describe('ContextUsageControl', () => {
 });
 
 describe('ContextUsageDetails', () => {
-  it('shows full current and maximum token values plus PI estimate disclosure', () => {
+  it('shows full values plus a backend-neutral estimate disclosure', () => {
     const html = renderToStaticMarkup(<ContextUsageDetails usage={usage} lang="en" />);
     expect(html).toContain('Current context');
     expect(html).toContain('60,000 tokens');
     expect(html).toContain('Context limit');
     expect(html).toContain('200,000 tokens');
-    expect(html).toContain('PI reports this value as an estimate');
+    expect(html).toContain('The backend reports this value as an estimate');
   });
 
-  it('explains when the first PI snapshot is not available yet', () => {
+  it('explains when the first snapshot is not available yet', () => {
     const html = renderToStaticMarkup(<ContextUsageDetails usage={null} lang="zh" />);
     expect(html).toContain('当前上下文');
-    expect(html).toContain('下一次 PI turn 完成后');
+    expect(html).toContain('下一次 turn 完成后');
+  });
+});
+
+describe('ContextCompactFooter', () => {
+  const action: ContextCompactAction = {
+    onCompact: () => {}, pending: false, disabled: false,
+    status: null, error: null, disabledReason: null,
+  };
+
+  it('renders the idle Compact button in English', () => {
+    const html = renderToStaticMarkup(<ContextCompactFooter action={action} lang="en" />);
+    expect(html).toContain('data-context-compact-action');
+    expect(html).toContain('Compact context');
+    expect(html).not.toContain('disabled=""');
+  });
+
+  it('disables the action while pending or session-running and explains why', () => {
+    const pending = renderToStaticMarkup(
+      <ContextCompactFooter action={{ ...action, pending: true }} lang="en" />,
+    );
+    expect(pending).toContain('Compacting…');
+    expect(pending).toContain('disabled');
+
+    const running = renderToStaticMarkup(
+      <ContextCompactFooter action={{ ...action, disabled: true, disabledReason: 'running' }} lang="zh" />,
+    );
+    expect(running).toContain('请先停止当前 turn');
+    expect(running).toContain('disabled');
+  });
+
+  it('announces compacted, not-needed, and server error outcomes in the modal', () => {
+    const compacted = renderToStaticMarkup(
+      <ContextCompactFooter action={{ ...action, status: 'compacted' }} lang="en" />,
+    );
+    expect(compacted).toContain('Context compacted');
+    expect(compacted).toContain('aria-live="polite"');
+
+    const noop = renderToStaticMarkup(
+      <ContextCompactFooter action={{ ...action, status: 'not-needed' }} lang="en" />,
+    );
+    expect(noop).toContain('Nothing to compact');
+
+    const failed = renderToStaticMarkup(
+      <ContextCompactFooter action={{ ...action, error: 'backend unavailable' }} lang="en" />,
+    );
+    expect(failed).toContain('backend unavailable');
   });
 });

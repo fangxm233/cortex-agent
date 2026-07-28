@@ -1,5 +1,5 @@
 // input:  user/session context, Claude print stream/usage, rate-limit events
-// output: ClaudeAdapter with text, tools, context usage, and throttle events
+// output: ClaudeAdapter with turns, usage, manual compact, and events
 // pos:    Claude session pool and normalized print-stream adapter
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -13,7 +13,7 @@ import { createLogger } from '@core/log.js';
 import { handleRateLimitEvent } from '@domain/costs/rate-limit-throttle.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
-import type { AgentAdapter, AgentSpawnConfig, AgentProcess, Backend, UserMessage, ContinuationSink, InjectionAckSink } from '../types.js';
+import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentSpawnConfig, AgentProcess, Backend, UserMessage, ContinuationSink, InjectionAckSink } from '../types.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { createEventStream } from '../normalize/event-stream.js';
@@ -555,6 +555,41 @@ class ClaudeSession {
     this.turnIdleTimer = null;
     this.resetIdleTimer();
     return result;
+  }
+
+  /** Invoke Claude Code's local slash handler without recording a Cortex user turn. */
+  async compact(): Promise<AgentCompactResult> {
+    let confirmed = false;
+    let tokensBefore: number | null = null;
+    const result = await this.sendMessage('/compact', {
+      onCompact: (info) => {
+        confirmed = true;
+        tokensBefore = typeof info.preTokens === 'number' ? info.preTokens : null;
+      },
+    });
+    if (result.finalOutput?.trim() === 'Error: No messages to compact') {
+      return {
+        status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null,
+        contextUsage: null, usage: null,
+      };
+    }
+    if (!confirmed) throw new Error('Claude did not confirm compaction with compact_boundary');
+    return {
+      status: 'compacted', tokensBefore, estimatedTokensAfter: null,
+      contextUsage: null, usage: this.compactUsage(result),
+    };
+  }
+
+  private compactUsage(result: AgentResult): AgentCompactUsage | null {
+    const tokens = this.lastTokenUsage;
+    if (!tokens && !result.total_cost_usd) return null;
+    return {
+      inputTokens: tokens?.input ?? 0,
+      outputTokens: tokens?.output ?? 0,
+      cacheReadTokens: tokens?.cacheRead ?? 0,
+      cacheWriteTokens: tokens?.cacheCreation ?? 0,
+      costUsd: result.total_cost_usd,
+    };
   }
 
   private bumpTurnIdleTimer(): void {
@@ -1173,6 +1208,7 @@ export class ClaudeAdapter implements AgentAdapter {
         }
       },
       events: stream.iterable,
+      compact: (): Promise<AgentCompactResult> => session.compact(),
       setContinuationSink(sink: ContinuationSink): void { session.setContinuationSink(sink); },
       injectUserMessage(message: UserMessage): boolean { return session.injectUserMessage(message); },
       setInjectionAckSink(sink: InjectionAckSink): void { session.setInjectionAckSink(sink); },

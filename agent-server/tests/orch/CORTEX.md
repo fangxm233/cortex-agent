@@ -8,7 +8,7 @@ DEBUG coverage here includes byte-identical assembled-prompt capture (`first-tur
 | filename | role | function |
 |---|---|---|
 | `running-executions.test.ts` | Test | RunningExecutions three-index consistency, kill chain, event publication (Phase 1 Step 1) |
-| `channel-queue.test.ts` | Test | conduitQueues Map + enqueue() serialization and auto-cleanup (S6-B) |
+| `channel-queue.test.ts` | Test | Queue serialization, awaited results, and automatic cleanup |
 | `superseded-edits.test.ts` | Test | supersededEdits mark/check/clear API (S6-B) |
 | `plan-approvals.test.ts` | Test | PlanApprovals state transitions and approved event |
 | `plan-response.test.ts` | Test | Web PI approve/reject delivery and retry safety |

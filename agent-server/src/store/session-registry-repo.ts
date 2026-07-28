@@ -1,6 +1,6 @@
 // input:  session-registry.json + JsonRepository
-// output: SessionRegistryRepo with identity, context snapshots, list/update APIs, and origin helpers
-// pos:    cortex-XXXX short name ↔ session UUID registry persistence layer (Pattern A, JsonRepository)
+// output: SessionRegistryRepo identity/context set-clear/list APIs
+// pos:    Stable session identity and context snapshot store
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'fs';
@@ -240,6 +240,18 @@ export class SessionRegistryRepo {
           if (updates.contextUsage !== undefined) record.contextUsage = updates.contextUsage;
           break;
         }
+      }
+      return { next: registry, result: undefined };
+    });
+  }
+
+  /** Set or clear a context snapshot by the stable Cortex session id. */
+  async updateContextUsage(sessionId: string, usage: SessionContextUsage | null): Promise<void> {
+    await this._repo.mutate((registry) => {
+      const record = registry[sessionId];
+      if (record) {
+        if (usage === null) delete record.contextUsage;
+        else record.contextUsage = usage;
       }
       return { next: registry, result: undefined };
     });

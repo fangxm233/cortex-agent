@@ -1,3 +1,8 @@
+// input:  command dependencies, platform adapter, command handlers
+// output: registerCommands dispatcher including exact !compact
+// pos:    Orchestration command registry and dispatcher
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../../core/icons.js';
 import { t } from '../../../core/i18n.js';
@@ -13,6 +18,7 @@ import { createTasksHandler } from './task.js';
 import { handleModeCmd, handleBackendCmd, handleModelCmd, createProfileHandler, handleSkillsCmd, createAgentHandler } from './mode.js';
 import { createStatusHandler, createHelpHandler } from './status.js';
 import { createCancelHandler } from './cancel.js';
+import { createCompactHandler, type CompactSessionByChannel } from './compact.js';
 import { handleNvidiaSmiCmd, handleNvtopCmd } from './nvtop.js';
 import { handleNewCmd, createResumeHandler } from './session.js';
 import { handleProjectsCmd, createRegisterHandler, createProjectDirHandler, handleUnregisterCmd } from './channel.js';
@@ -30,6 +36,7 @@ export interface CommandDeps {
   cancelDispatchedTask?: ((opts: { taskId: string; channel: string }) => Promise<{ ok: boolean; message: string }>) | null;
   getExecutionStatusReport?: (() => string) | null;
   commandRouter?: CommandActionRouter;
+  compactSessionByChannel?: CompactSessionByChannel | null;
 }
 
 type Handler = (channel: string, adapter: PlatformAdapter, trimmedMessage: string, threadAnchorId?: string | null) => Promise<CommandResult | void>;
@@ -85,6 +92,7 @@ export function registerCommands(deps: CommandDeps) {
   const router = deps.commandRouter;
   const handleCancelCmd = createCancelHandler(deps.cancelDispatchedTask ?? null, router);
   const handleStatusCmd = createStatusHandler(deps.getExecutionStatusReport ?? null, router);
+  const handleCompactCmd = createCompactHandler(deps.compactSessionByChannel ?? null);
   const handleHelpCmd = createHelpHandler(router);
   const handleDevicesCmdInteractive = createDevicesHandler(router);
   const handleTasksCmdInteractive = createTasksHandler(router);
@@ -100,6 +108,7 @@ export function registerCommands(deps: CommandDeps) {
     '!new':      (ch, ad, _msg, threadAnchorId) => handleNewCmd(ch, ad, {}, threadAnchorId),
     '!newq':     (ch, ad, _msg, threadAnchorId) => handleNewCmd(ch, ad, { skipHook: true }, threadAnchorId),
     '!cancel':   (ch, ad, msg) => handleCancelCmd(ch, ad, msg),
+    '!compact':  (ch) => handleCompactCmd(ch),
     '!mode':     (ch, ad, _msg) => handleModeCmd(ch, ad),
     '!skills':   (ch, ad, _msg) => handleSkillsCmd(ch, ad),
     '!status':   (ch, ad, _msg) => handleStatusCmd(ch, ad),

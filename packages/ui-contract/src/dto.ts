@@ -1,5 +1,5 @@
 // input:  built ui-service declarations with provider throttle/context/notice details
-// output: zero-duplication type-only client contract re-exports
+// output: type-only client contract including session compact DTOs
 // pos:    Shared server-to-client compile-time DTO boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -36,6 +36,7 @@ export type {
   ProjectCreateArgs,
   SessionsCreateArgs,
   SessionsSendArgs,
+  SessionsCompactArgs,
   SessionsSetProfileArgs,
   ThreadsCancelArgs,
   ExecutionsCancelArgs,
@@ -103,6 +104,7 @@ export type {
   ProjectCreateReturn,
   SessionsCreateReturn,
   SessionsSendReturn,
+  SessionsCompactReturn,
   SessionsSetProfileReturn,
   ThreadsCancelReturn,
   ExecutionsCancelReturn,

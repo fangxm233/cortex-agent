@@ -1,12 +1,7 @@
-// input:  zod + ui-service scope/op unions (./types.js)
-// output: zod input schema per QueryScope / MutateOp + keyed maps (queryInputSchemas /
-//         mutateInputSchemas). Single source of truth; consumed by the tRPC AppRouter
-//         and re-exported (runtime) by @cortex-agent/ui-contract for the browser.
-// pos:    leaf schema module for the ui-service contract. Kept HERE (not in ui-contract)
-//         so the router can consume it without agent-server importing ui-contract — that
-//         import would close a workspace build cycle (ui-contract re-exports agent-server
-//         types). Contract stays acyclic: agent-server ← ui-contract ← web.
-// >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
+// input:  zod and ui-service scope/op unions
+// output: input schemas/maps including sessions.compact
+// pos:    Runtime validation source for the UI contract
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { z } from 'zod';
 import type { QueryScope, MutateOp } from './types.js';
@@ -126,6 +121,10 @@ export const sessionsSendInput = z.object({
 });
 
 export const sessionsCancelInput = z.object({
+  sessionId: z.string(),
+});
+
+export const sessionsCompactInput = z.object({
   sessionId: z.string(),
 });
 
@@ -329,6 +328,7 @@ export const mutateInputSchemas = {
   'sessions.create': sessionsCreateInput,
   'sessions.send': sessionsSendInput,
   'sessions.cancel': sessionsCancelInput,
+  'sessions.compact': sessionsCompactInput,
   'sessions.setProfile': sessionsSetProfileInput,
   'sessions.createAndSend': sessionsCreateAndSendInput,
   'sessions.markRead': sessionsMarkReadInput,

@@ -3,7 +3,7 @@
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer
-// meta row places compact context usage right-aligned beside the profile selector.
+// meta row places the context modal and manual compact action beside the profile selector.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
 // carry live state rather than history, and both are drawn the way the desktop chat draws
@@ -15,7 +15,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
-import { ContextUsageControl } from '@/features/workbench/ContextUsageControl';
+import { ContextUsageControl, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { regenNoteIndexes, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
@@ -967,6 +967,7 @@ export interface MChatViewProps {
   contextUsage?: SessionContextUsage | null;
   contextUsageSupported?: boolean;
   contextUsageLang?: 'en' | 'zh';
+  contextCompactAction?: ContextCompactAction;
   attachments: PendingAttachmentVM[];
   onRemoveAttachment: (id: string) => void;
   onPlus: () => void;
@@ -1073,6 +1074,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
               supported={!!props.contextUsageSupported}
               variant="mobile"
               lang={props.contextUsageLang ?? 'en'}
+              compactAction={props.contextCompactAction}
             />
           </span>
         ) : null}

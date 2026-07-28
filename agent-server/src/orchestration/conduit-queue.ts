@@ -1,5 +1,5 @@
 // input:  nothing (leaf module)
-// output: conduitQueues Map + enqueue() — per-conduit serial work queue
+// output: conduitQueues, enqueue(), and enqueueAndWait()
 // pos:    orch/ layer [S6-B]
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -30,4 +30,17 @@ export function enqueue(conduitId: string, fn: () => Promise<void>): boolean {
     if (conduitQueues.get(conduitId) === next) conduitQueues.delete(conduitId);
   });
   return hadExisting;
+}
+
+/** Append work and resolve with its value while the underlying void queue remains failure-safe. */
+export function enqueueAndWait<T>(conduitId: string, fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    enqueue(conduitId, async () => {
+      try {
+        resolve(await fn());
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
 }

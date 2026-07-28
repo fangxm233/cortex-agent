@@ -1,5 +1,5 @@
 // input:  Node test runner + command-handlers + deps
-// output: !cost/!cancel/!status/!schedule/!nvtop tests
+// output: !cost/!cancel/!compact/!status/!schedule/!nvtop tests
 // pos:    Command handler regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -675,6 +675,42 @@ function makeDispatchThreadRecord(id: string, channel: string, overrides: Record
     ...overrides,
   };
 }
+
+test('!compact is exact and delegates to the shared channel coordinator', async () => {
+  const adapter = new MockAdapter();
+  const calls: string[] = [];
+  const dispatchCommand = createCommandDispatcher({
+    scheduler: null,
+    compactSessionByChannel: async ({ channel }) => {
+      calls.push(channel);
+      return { ok: true, status: 'compacted', contextUsage: null };
+    },
+  });
+  assert.equal(dispatchCommand('!compact', 'Ccompact', adapter), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, ['Ccompact']);
+  assert.match(adapter.posted[0].content.text, /context compacted/i);
+
+  assert.equal(dispatchCommand('!compact now', 'Ccompact', adapter), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, ['Ccompact'], 'arguments must not prefix-match the exact command');
+  assert.match(adapter.posted[1].content.text, /unknown command/i);
+});
+
+test('!compact reports busy and !help advertises the exact command', async () => {
+  const adapter = new MockAdapter();
+  const dispatchCommand = createCommandDispatcher({
+    scheduler: null,
+    compactSessionByChannel: async () => ({ ok: false, reason: 'running' }),
+  });
+  dispatchCommand('!compact', 'Ccompact-busy', adapter);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(adapter.posted[0].content.text, /stop.*before compacting|running/i);
+
+  dispatchCommand('!help', 'Ccompact-busy', adapter);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(adapter.posted[1].content.text, /!compact/);
+});
 
 test('!dispatch --profile updates profileOverride on running dispatch thread', async (t) => {
   const threadId = threadStore.generateId();

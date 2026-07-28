@@ -4,7 +4,7 @@ Agent-server 进程与 CLI 入口；负责组合依赖并启动运行时边界�
 
 | filename | role | function |
 |---|---|---|
-| app.ts | 入口 | 恢复持久化运行态、组合服务与 Web UI，并将 provider throttle 变化发布为 `rate-limit.changed` |
+| app.ts | 入口 | 组合运行时、Web UI、!compact 与会话 compact 控制 |
 | cli.ts | 入口 | Cortex CLI 命令分发 |
 | daemon.ts | 入口 | 守护进程监督与热重启 |
 | doctor-cli.ts | 入口 | 运行环境诊断 CLI |

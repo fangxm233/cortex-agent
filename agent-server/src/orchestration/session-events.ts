@@ -1,5 +1,5 @@
 // input:  session/context payloads, chat notices, and the shared EventBus
-// output: context/message/notice/delta/status/turn/rewind publishers
+// output: context/compact/message/status/turn/rewind publishers
 // pos:    Orchestration bus seam; missing bus remains a no-op
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -40,6 +40,15 @@ export function publishSessionContextUsage(
   p: { sessionId: string; channel: string } & SessionContextUsage,
 ): void {
   jobCtx.bus?.publish({ type: 'session.context-usage', ...p });
+}
+
+export function publishSessionContextCompacted(p: {
+  sessionId: string;
+  channel: string;
+  status: 'compacted';
+  contextUsage: SessionContextUsage | null;
+}): void {
+  jobCtx.bus?.publish({ type: 'session.context-compacted', ...p });
 }
 
 export function publishSessionDebugUpdated(p: { sessionId: string; channel: string }): void {

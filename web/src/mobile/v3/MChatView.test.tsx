@@ -394,6 +394,10 @@ describe('1b MChatView composition', () => {
         contextUsageSupported
         contextUsage={usage}
         contextUsageLang="zh"
+        contextCompactAction={{
+          onCompact: () => {}, pending: false, disabled: false,
+          status: null, error: null, disabledReason: null,
+        }}
       />,
     );
     expect(html).toContain('data-mobile-composer-meta-row="true"');
@@ -402,6 +406,7 @@ describe('1b MChatView composition', () => {
     expect(html.indexOf('default · sonnet-4.5')).toBeLessThan(html.indexOf('data-context-usage-position="composer-profile"'));
     expect(html).not.toContain('data-context-usage-position="header"');
     expect(html).toContain('data-context-usage-bar="mobile"');
+    expect(html).toContain('data-context-compact-enabled="true"');
     expect(html).toContain('>30%</span>');
     expect(html).not.toContain('60k / 200k');
   });

@@ -1,5 +1,5 @@
 // input:  Node test runner + agent-adapter/claude/* modules
-// output: Claude CLI args / hooks / summarizer regression tests
+// output: Claude CLI args/hooks/summarizer/manual-compact tests
 // pos:    ClaudeAdapter pure-function spec-fidelity lock-down
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -845,6 +845,70 @@ test('setActivePlanFile / getCurrentPlanFilePath / clearActivePlanFile round-tri
   assert.equal(getCurrentPlanFilePath('sess-1'), null);
   // null / empty sessionId short-circuits
   assert.equal(getCurrentPlanFilePath(''), null);
+});
+
+function compactTestSession(): { session: any; writes: string[]; cleanup: () => void } {
+  const session = adapterTest.makeSessionForTest() as any;
+  const writes: string[] = [];
+  const stream = { write: () => true, end: () => {} };
+  session.proc = { stdin: { write: (line: string) => { writes.push(line); return true; } }, exitCode: null };
+  session.createTurnStreams = () => ({ rawStream: stream, txtStream: stream });
+  return {
+    session,
+    writes,
+    cleanup: () => {
+      if (session.idleTimer) clearTimeout(session.idleTimer);
+      if (session.turnIdleTimer) clearTimeout(session.turnIdleTimer);
+      if (session.maxTimer) clearTimeout(session.maxTimer);
+    },
+  };
+}
+
+function claudeResult(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    type: 'result', subtype: 'success', is_error: false, session_id: 'test-session',
+    total_cost_usd: 0.08, num_turns: 0, result: '', duration_ms: 1, duration_api_ms: 1,
+    usage: { input_tokens: 1000, output_tokens: 200, cache_creation_input_tokens: 30, cache_read_input_tokens: 40 },
+    modelUsage: { 'claude-sonnet-4-5': {} },
+    ...overrides,
+  });
+}
+
+test('Claude print compact sends exact /compact frame and requires compact_boundary', async (t) => {
+  const { session, writes, cleanup } = compactTestSession();
+  t.onTestFinished(cleanup);
+  const promise = session.compact();
+  const frame = JSON.parse(writes[0]);
+  assert.equal(frame.message.content, '/compact');
+  session.handleLine(JSON.stringify({
+    type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'manual', pre_tokens: 64000 },
+  }));
+  session.handleLine(claudeResult());
+  assert.deepEqual(await promise, {
+    status: 'compacted', tokensBefore: 64000, estimatedTokensAfter: null, contextUsage: null,
+    usage: { inputTokens: 1000, outputTokens: 200, cacheReadTokens: 40, cacheWriteTokens: 30, costUsd: 0.08 },
+  });
+});
+
+test('Claude print compact maps the local no-history response to not-needed', async (t) => {
+  const { session, cleanup } = compactTestSession();
+  t.onTestFinished(cleanup);
+  const promise = session.compact();
+  session.handleLine(JSON.stringify({
+    type: 'assistant', message: { content: [{ type: 'text', text: 'Error: No messages to compact' }] },
+  }));
+  session.handleLine(claudeResult({ total_cost_usd: 0, usage: undefined, modelUsage: undefined }));
+  assert.deepEqual(await promise, {
+    status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null, contextUsage: null, usage: null,
+  });
+});
+
+test('Claude print compact rejects an unconfirmed result', async (t) => {
+  const { session, cleanup } = compactTestSession();
+  t.onTestFinished(cleanup);
+  const promise = session.compact();
+  session.handleLine(claudeResult());
+  await assert.rejects(promise, /did not confirm compaction/i);
 });
 
 // --- ClaudeAdapter.spawn — AgentSpawnConfig → CLI args parity (Blocker fix from Plan Review iter 1) ---

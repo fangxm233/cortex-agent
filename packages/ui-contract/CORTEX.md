@@ -13,12 +13,12 @@ one-directional (acyclic) edge, so `pnpm -w build` orders server → ui-contract
 
 | filename | role | function |
 |---|---|---|
-| `src/dto.ts` | types | Type-only ui-service DTO re-exports, including provider/window rate-limit status, session context, thread activity, notices, DEBUG details, and pending rows. |
-| `src/schemas.ts` | schemas | Runtime + type re-export of `queryInputSchemas` / `mutateInputSchemas` (+ the individual schemas) from `@cortex-agent/server/dist/domain/ui-service/input-schemas.js`. Source of truth lives in agent-server so the tRPC router can consume the schemas without agent-server importing this package (which would close a build cycle) |
-| `src/contract.parity.ts` | guard | Compile-time drift guard: `z.infer<schema>` ≡ `QueryParamMap`/`MutateArgsMap`; typecheck fails if a schema falls out of lock-step |
+| `src/dto.ts` | types | Type-only DTO exports including session compact capability/results. |
+| `src/schemas.ts` | schemas | Runtime schema exports including sessions.compact. |
+| `src/contract.parity.ts` | guard | Compile-time schema/map parity including sessions.compact. |
 | `src/app-router.ts` | types | Type-only re-export of the real `AppRouter` from `@cortex-agent/server/dist/domain/ui-service/app-router.js` (in-core tRPC binding) |
 | `src/index.ts` | barrel | Public entry: re-exports dto + schemas + AppRouter |
-| `src/schemas.test.ts` | test | Runtime zod parse/reject tests + map completeness, including `system.rateLimitStatus`. |
+| `src/schemas.test.ts` | test | Runtime schema completeness including sessions.compact and rate limits. |
 
 ## Notes
 

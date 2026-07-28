@@ -1,5 +1,5 @@
 // input:  nothing (leaf type-only module)
-// output: AgentAdapter contracts with tool/context continuation callbacks
+// output: AgentAdapter contracts with context/compact callbacks
 // pos:    Backend adapter and orchestration contracts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -143,6 +143,22 @@ export interface InjectionAckSink {
   onUndelivered?: (message: { text: string }) => void;
 }
 
+export interface AgentCompactUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  costUsd: number | null;
+}
+
+export interface AgentCompactResult {
+  status: 'compacted' | 'not-needed';
+  tokensBefore: number | null;
+  estimatedTokensAfter: number | null;
+  contextUsage: ContextUsage | null;
+  usage: AgentCompactUsage | null;
+}
+
 export interface AgentProcess {
   sessionKey: string;
   /** May be null at spawn time; adapter fills in asynchronously when the backend assigns a session id. */
@@ -151,6 +167,8 @@ export interface AgentProcess {
   send(message: UserMessage): Promise<AgentResult>;
   /** Async iterable of normalized events. Iterator returns done after close(). */
   events: AsyncIterable<NormalizedEvent>;
+  /** Run backend-native manual context compaction without creating a conversational turn. */
+  compact?(): Promise<AgentCompactResult>;
   /** Register a sink for spontaneous background-task continuation turns (Claude backend only).
    *  Persists across normal turns; the adapter clears it on session close/kill. */
   setContinuationSink?(sink: ContinuationSink): void;

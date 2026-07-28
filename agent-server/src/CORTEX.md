@@ -42,7 +42,8 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 |---|---|
 | `running-executions.ts` | Unified live-execution registry, keyed by executionId (byKey/byThreadId/byChannel) + agent.* event publishing |
 | `bg-held-sessions.ts` | (core/) Web bg-hold registry — mirrors `session.status` backgroundRunning deltas so sessions.list can serve the Background state as a snapshot, indexes each hold by channel, and carries its abort handle so the channel-keyed Stop path can reach a session that has already left running-executions |
-| `conduit-queue.ts` | Per-conduit serial Promise queue |
+| `conduit-queue.ts` | Per-conduit serial queue with awaited control results |
+| `session-compact.ts` | Idle-only native session context compaction coordinator |
 | `superseded-edits.ts` | Message edit supersede marker |
 | `busy-tracker.ts` | activeLlmCount + IPC busy/idle (S13: subscriber-as-source-of-truth) |
 | `orchestrator.ts` | Two-branch decision tree (thread-match / default) |
@@ -59,7 +60,7 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 | `routing/hook-bridge-subscribers.ts` | ask-user.requested / plan.submitted subscribers (S13: extracted from app.ts) |
 | `routing/edit-handler.ts` | Slack message edit orchestration |
 | `routing/file-handler.ts` | Slack file download and classification |
-| `routing/commands/` | 14 !command handlers |
+| `routing/commands/` | 15 !command handlers, including exact `!compact` |
 | `interactions/` | ask-user-question / plan-handler / plan-approvals / interaction-handlers |
 | `status-helpers.ts` | execution / status-message / streaming-VM helpers (pure subset has been sunk to `core/status-format.ts`) |
 

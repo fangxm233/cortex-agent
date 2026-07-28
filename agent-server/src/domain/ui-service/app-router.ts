@@ -1,14 +1,7 @@
-// input:  UiService (injected) + ui-service zod schemas including rate-limit status + tRPC init
-// output: createAppRouter(uiService): AppRouter — the typed client↔server contract
-//         mirroring ui-service query/mutate/subscribe. AppRouter type re-exported by
-//         @cortex-agent/ui-contract for the browser client.
-// pos:    Web UI tRPC contract, in-core (domain/ui-service; transport-agnostic — @trpc/server CORE
-//         only, no http/ws adapter; the HTTP/SSE transport-host injects this router). Pure contract
-//         mirror over the injected UiService — no auth (that is an HTTP-layer gate in the
-//         transport-host). Lives beside the ui-service facade it mirrors (domain→domain). Reached
-//         only via the entry/start-ui-http wiring, which is loaded on demand behind CORTEX_UI_HTTP,
-//         so @trpc stays runtime-lazy for Slack/TUI-only installs.
-// >>> If I am updated, update CORTEX.md <<<
+// input:  UiService, zod operation schemas, and tRPC init
+// output: createAppRouter with query/mutation/subscription routes
+// pos:    Typed tRPC mirror of the transport-neutral UI service
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
@@ -21,6 +14,7 @@ import {
   sessionsCreateInput,
   sessionsSendInput,
   sessionsCancelInput,
+  sessionsCompactInput,
   sessionsSetProfileInput,
   sessionsCreateAndSendInput,
   sessionsMarkReadInput,
@@ -90,6 +84,7 @@ const ERR_CODE_MAP: Record<string, TRPCError['code']> = {
   'already-exists': 'CONFLICT',
   'backend-locked': 'CONFLICT',
   'session-running': 'CONFLICT',
+  'not-available': 'BAD_REQUEST',
   'task-lock-busy': 'CONFLICT',
   'internal': 'INTERNAL_SERVER_ERROR',
 };
@@ -151,6 +146,7 @@ export function createAppRouter(uiService: UiService) {
       create: makeMutation(uiService, 'sessions.create', sessionsCreateInput),
       send: makeMutation(uiService, 'sessions.send', sessionsSendInput),
       cancel: makeMutation(uiService, 'sessions.cancel', sessionsCancelInput),
+      compact: makeMutation(uiService, 'sessions.compact', sessionsCompactInput),
       setProfile: makeMutation(uiService, 'sessions.setProfile', sessionsSetProfileInput),
       createAndSend: makeMutation(uiService, 'sessions.createAndSend', sessionsCreateAndSendInput),
       markRead: makeMutation(uiService, 'sessions.markRead', sessionsMarkReadInput),

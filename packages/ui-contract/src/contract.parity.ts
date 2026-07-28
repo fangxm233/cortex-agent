@@ -1,5 +1,5 @@
 // input:  shared zod schemas and agent-server query/mutation maps
-// output: compile-time exact-parity guards including system.rateLimitStatus
+// output: exact-parity guards including session compact/rate limits
 // pos:    Anti-drift boundary for the shared UI contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -12,6 +12,7 @@ import type {
   sessionsTranscriptInput,
   sessionsCreateInput,
   sessionsSendInput,
+  sessionsCompactInput,
   sessionsSetProfileInput,
   threadsListInput,
   threadsGetInput,
@@ -85,6 +86,7 @@ const _systemRateLimitStatus: QueryParity<'system.rateLimitStatus', typeof syste
 const _projectsCreate: MutateParity<'projects.create', typeof projectsCreateInput> = true;
 const _sessionsCreate: MutateParity<'sessions.create', typeof sessionsCreateInput> = true;
 const _sessionsSend: MutateParity<'sessions.send', typeof sessionsSendInput> = true;
+const _sessionsCompact: MutateParity<'sessions.compact', typeof sessionsCompactInput> = true;
 const _sessionsSetProfile: MutateParity<'sessions.setProfile', typeof sessionsSetProfileInput> = true;
 const _threadsCancel: MutateParity<'threads.cancel', typeof threadsCancelInput> = true;
 const _executionsCancel: MutateParity<'executions.cancel', typeof executionsCancelInput> = true;
@@ -116,7 +118,7 @@ export const _contractParityChecked = [
   _projectsList, _sessionsList, _sessionsTranscript, _threadsList, _threadsGet, _tasksList, _schedulesList,
   _executionsList, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _costSummary, _configGet,
   _machinesList, _skillsList, _threadTemplatesGet,
-  _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsSetProfile, _threadsCancel, _executionsCancel,
+  _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _threadsCancel, _executionsCancel,
   _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _tasksClaim,
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,

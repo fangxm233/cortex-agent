@@ -3,6 +3,7 @@
 // pos:    Pure function translator from PI rpc events to NormalizedEvent
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '../normalize/tool-names.js';
 import { isPlanFilePath } from '../claude/event-parser.js';
@@ -455,20 +456,23 @@ function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[
 }
 
 function contextUsageFromStats(data: unknown): NormalizedEvent[] {
+  const usage = piContextUsageFromStats(data);
+  return usage ? [{ type: 'context_usage', ...usage }] : [];
+}
+
+/** Validate a get_session_stats payload for both event and control-call consumers. */
+export function piContextUsageFromStats(data: unknown): ContextUsage | null {
   const usage = asRecord(asRecord(data)['contextUsage']);
   const contextWindow = usage['contextWindow'];
   if (typeof contextWindow !== 'number' || !Number.isFinite(contextWindow) || contextWindow <= 0) {
-    return [];
+    return null;
   }
-  const tokens = nullableNonNegativeNumber(usage['tokens']);
-  const percent = nullableNonNegativeNumber(usage['percent']);
-  return [{
-    type: 'context_usage',
-    usedTokens: tokens,
+  return {
+    usedTokens: nullableNonNegativeNumber(usage['tokens']),
     contextWindow,
-    percent,
+    percent: nullableNonNegativeNumber(usage['percent']),
     accuracy: 'estimate',
-  }];
+  };
 }
 
 function nullableNonNegativeNumber(value: unknown): number | null {

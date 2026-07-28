@@ -1,3 +1,8 @@
+// input:  execution status, command router, localized help copy
+// output: status/help handlers including !compact help
+// pos:    Status and categorized help command presentation
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import type { PlatformAdapter } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
@@ -65,6 +70,7 @@ function getHelpCategories(): Record<string, { label: string; commands: string[]
       commands: [
         t('cmd.help.session.new'),
         t('cmd.help.session.cancel'),
+        t('cmd.help.session.compact'),
         t('cmd.help.session.resume'),
       ],
     },

@@ -1,5 +1,5 @@
 // input:  runtime shared zod schema maps
-// output: scope completeness and valid/invalid parse assertions
+// output: scope completeness including session compact schema assertions
 // pos:    Runtime UI-contract guard including system.rateLimitStatus
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -15,7 +15,7 @@ const QUERY_SCOPES = [
 ] as const;
 
 const MUTATE_OPS = [
-  'projects.create', 'sessions.create', 'sessions.send', 'sessions.cancel', 'sessions.setProfile',
+  'projects.create', 'sessions.create', 'sessions.send', 'sessions.cancel', 'sessions.compact', 'sessions.setProfile',
   'sessions.createAndSend', 'sessions.markRead', 'sessions.answerQuestion', 'sessions.respondPlan',
   'sessions.rewind',
   'threads.cancel', 'executions.cancel', 'schedules.pause', 'schedules.resume',
@@ -119,6 +119,8 @@ test('mutate schemas require their mandatory fields', () => {
   // sessions.cancel requires sessionId
   assert.deepEqual(mutateInputSchemas['sessions.cancel'].parse({ sessionId: 'sess-1' }), { sessionId: 'sess-1' });
   assert.throws(() => mutateInputSchemas['sessions.cancel'].parse({}));
+  assert.deepEqual(mutateInputSchemas['sessions.compact'].parse({ sessionId: 'sess-1' }), { sessionId: 'sess-1' });
+  assert.throws(() => mutateInputSchemas['sessions.compact'].parse({}));
   // missing required id
   assert.throws(() => mutateInputSchemas['threads.cancel'].parse({}));
   assert.throws(() => mutateInputSchemas['tasks.claim'].parse({ projectId: 'p' }));

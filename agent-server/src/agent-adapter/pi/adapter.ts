@@ -1,5 +1,5 @@
 // input:  AgentSpawnConfig, session keys, injectable spawner
-// output: PIAdapter sessions, context stats, spawn, steering, previews
+// output: PIAdapter sessions, context stats, manual compact, steering
 // pos:    PI CLI session pool and AgentAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -9,12 +9,12 @@ import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
-import type { AgentAdapter, AgentSpawnConfig, Backend, InjectionAckSink, UserMessage } from '../types.js';
+import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentSpawnConfig, Backend, InjectionAckSink, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPiEnv, buildSpawnArgs } from './spawn-args.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
-import { piRpcLineToNormalized, createPIEventParserState, type PIEventParserState } from './event-parser.js';
+import { piRpcLineToNormalized, createPIEventParserState, piContextUsageFromStats, type PIEventParserState } from './event-parser.js';
 import { PI_AGENT_DIR, writeProvidersConfig, buildProviderOverrides, ensureAuthVisible } from './agent-dir.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { discoverPIProviders, piSessionFileExists } from './discovery.js';
@@ -26,6 +26,7 @@ import {
   PI_MAX_TIMEOUT,
   PI_TURN_IDLE_TIMEOUT,
   PIContextUsageProbe,
+  PI_CONTEXT_USAGE_TIMEOUT_MS,
   PISteeringQueue,
   SWITCH_SESSION_TIMEOUT_MS,
   buildPromptText,
@@ -41,6 +42,68 @@ import { DEFAULT_SESSION_DIR, HOOK_BRIDGE_PATH, MCP_BRIDGE_PATH, TOOL_SHIMS_PATH
 export type { PIAgentProcess } from './session-support.js';
 const log = createLogger('pi-adapter');
 type PiTurnComplete = Extract<NormalizedEvent, { type: 'turn_complete' }>;
+type CompactBase = Omit<AgentCompactResult, 'contextUsage'>;
+
+interface ReadyWaiter {
+  resolve: () => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+interface PendingCompact {
+  id: string;
+  statsId: string | null;
+  base: CompactBase | null;
+  resolve: (result: AgentCompactResult) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function compactUsage(data: Record<string, unknown>): AgentCompactUsage | null {
+  const usage = record(data['usage']);
+  if (Object.keys(usage).length === 0) return null;
+  return {
+    inputTokens: numberOrNull(usage['input']) ?? 0,
+    outputTokens: numberOrNull(usage['output']) ?? 0,
+    cacheReadTokens: numberOrNull(usage['cacheRead']) ?? 0,
+    cacheWriteTokens: numberOrNull(usage['cacheWrite']) ?? 0,
+    costUsd: numberOrNull(record(usage['cost'])['total']),
+  };
+}
+
+function compactBase(data: unknown): CompactBase {
+  const value = record(data);
+  return {
+    status: 'compacted',
+    tokensBefore: numberOrNull(value['tokensBefore']),
+    estimatedTokensAfter: numberOrNull(value['estimatedTokensAfter']),
+    usage: compactUsage(value),
+  };
+}
+
+function rpcErrorMessage(raw: Record<string, unknown>): string {
+  const error = raw['error'];
+  if (typeof error === 'string') return error;
+  const nested = record(error)['message'];
+  if (typeof nested === 'string') return nested;
+  const dataMessage = record(raw['data'])['message'];
+  return typeof dataMessage === 'string' ? dataMessage : 'PI compact failed';
+}
+
+function isNothingToCompact(message: string): boolean {
+  return /no messages to compact/i.test(message);
+}
+
 class PISession {
   readonly sessionKey: string;
   /** Session ID assigned at bootstrap (immutable after first session_started). */
@@ -86,6 +149,9 @@ class PISession {
   private pendingTurn: PendingPiTurn | null = null;
   private readonly steering = new PISteeringQueue();
   private readonly contextUsageProbe: PIContextUsageProbe;
+  private readonly readyWaiters: ReadyWaiter[] = [];
+  private pendingCompact: PendingCompact | null = null;
+  private compactSequence = 0;
 
   constructor(opts: PISessionOptions) {
     this.sessionKey = opts.sessionKey;
@@ -119,6 +185,9 @@ class PISession {
     this.exitPromise = new Promise<void>((resolve) => {
       this.proc.once('close', (code: number | null) => {
         this.alive = false;
+        const exitError = new Error(this.stderrTail || `pi exited with code ${code ?? 0}`);
+        this.settleReadyWaiters(exitError);
+        this.rejectCompact(exitError);
         // Reject any pending switch_session promise on unexpected subprocess exit.
         if (this.pendingSwitch !== null) {
           const entry = this.pendingSwitch;
@@ -223,6 +292,120 @@ class PISession {
     this.startTurnIdleTimer();
   }
 
+  private waitForBootstrap(): Promise<void> {
+    if (this.sessionId !== null) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const waiter = {} as ReadyWaiter;
+      waiter.resolve = resolve;
+      waiter.reject = reject;
+      waiter.timer = setTimeout(() => {
+        const index = this.readyWaiters.indexOf(waiter);
+        if (index !== -1) this.readyWaiters.splice(index, 1);
+        reject(new Error('PI compact timed out waiting for bootstrap'));
+      }, SWITCH_SESSION_TIMEOUT_MS);
+      waiter.timer.unref?.();
+      this.readyWaiters.push(waiter);
+    });
+  }
+
+  private settleReadyWaiters(error?: Error): void {
+    for (const waiter of this.readyWaiters.splice(0)) {
+      clearTimeout(waiter.timer);
+      if (error) waiter.reject(error);
+      else waiter.resolve();
+    }
+  }
+
+  async compact(): Promise<AgentCompactResult> {
+    if (this.pendingCompact) throw new Error('PI compact already in progress');
+    await this.waitForBootstrap();
+    const id = `compact-${++this.compactSequence}`;
+    return new Promise<AgentCompactResult>((resolve, reject) => {
+      const timer = setTimeout(
+        () => this.rejectCompact(new Error('PI compact timed out')),
+        PI_TURN_IDLE_TIMEOUT,
+      );
+      timer.unref?.();
+      this.pendingCompact = { id, statsId: null, base: null, resolve, reject, timer };
+      try {
+        this.proc.stdin?.write(encodeCommand({ id, type: 'compact' }));
+      } catch (error) {
+        this.rejectCompact(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  private handleCompactResponse(raw: Record<string, unknown> | null): boolean {
+    const pending = this.pendingCompact;
+    if (!pending || raw?.['type'] !== 'response') return false;
+    if (raw['command'] === 'compact' && raw['id'] === pending.id) {
+      this.handleCompactCommandResponse(raw);
+      return true;
+    }
+    if (raw['command'] === 'get_session_stats' && raw['id'] === pending.statsId) {
+      this.handleCompactStatsResponse(raw);
+      return true;
+    }
+    return false;
+  }
+
+  private handleCompactCommandResponse(raw: Record<string, unknown>): void {
+    if (raw['success'] === true) {
+      this.requestCompactStats(compactBase(raw['data']));
+      return;
+    }
+    const message = rpcErrorMessage(raw);
+    if (isNothingToCompact(message)) {
+      this.resolveCompact({
+        status: 'not-needed', tokensBefore: null, estimatedTokensAfter: null,
+        contextUsage: null, usage: null,
+      });
+      return;
+    }
+    this.rejectCompact(new Error(message));
+  }
+
+  private requestCompactStats(base: CompactBase): void {
+    const pending = this.pendingCompact;
+    if (!pending) return;
+    pending.base = base;
+    pending.statsId = `compact-stats-${++this.compactSequence}`;
+    clearTimeout(pending.timer);
+    pending.timer = setTimeout(
+      () => this.resolveCompact({ ...base, contextUsage: null }),
+      PI_CONTEXT_USAGE_TIMEOUT_MS,
+    );
+    pending.timer.unref?.();
+    try {
+      this.proc.stdin?.write(encodeCommand({ id: pending.statsId, type: 'get_session_stats' }));
+    } catch {
+      this.resolveCompact({ ...base, contextUsage: null });
+    }
+  }
+
+  private handleCompactStatsResponse(raw: Record<string, unknown>): void {
+    const base = this.pendingCompact?.base;
+    if (!base) return;
+    const contextUsage = raw['success'] === true ? piContextUsageFromStats(raw['data']) : null;
+    this.resolveCompact({ ...base, contextUsage });
+  }
+
+  private resolveCompact(result: AgentCompactResult): void {
+    const pending = this.pendingCompact;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingCompact = null;
+    pending.resolve(result);
+  }
+
+  private rejectCompact(error: Error): void {
+    const pending = this.pendingCompact;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingCompact = null;
+    pending.reject(error);
+  }
+
   get eventsIterable(): AsyncIterable<NormalizedEvent> {
     return {
       [Symbol.asyncIterator]: (): AsyncIterator<NormalizedEvent> => ({
@@ -237,6 +420,7 @@ class PISession {
     this.bumpTurnIdleTimer();
 
     const raw = parseRpcObject(line);
+    if (this.handleCompactResponse(raw)) return;
     if (this.handleSwitchResponse(raw)) return;
     const finishDeferred = this.handleInjectionProtocol(raw);
 
@@ -301,6 +485,7 @@ class PISession {
     if (evt.type !== 'session_started' || this.sessionId !== null) return;
     this.sessionId = evt.sessionId;
     this.currentSessionId = evt.sessionId;
+    this.settleReadyWaiters();
     if (evt.sessionFile) {
       this.sessionFile = evt.sessionFile;
       this.registry.set(evt.sessionId, evt.sessionFile);
@@ -723,6 +908,7 @@ export class PIAdapter implements AgentAdapter {
           }
         });
       },
+      compact: (): Promise<AgentCompactResult> => session.compact(),
       sendExtensionUiResponse: (id: string, payload: Record<string, unknown>): void => {
         session.sendExtensionUiResponse(id, payload);
       },

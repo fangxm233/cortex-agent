@@ -50,8 +50,8 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `platform/` | Subdirectory | Platform composition and transport tests |
 | `threads/` | Subdirectory | Thread domain regression tests |
 | `agent-adapter.test.ts` | Test | getAdapter/capability/tool-name contract plus exhaustive normalized-event union guard |
-| `agent-adapter-claude.test.ts` | Test | Claude buildSpawnArgs/hooks/summarizer |
-| `agent-adapter-pi.test.ts` | Test | PI framing/spawn args, live context sampling without partial-text flush, final terminal ordering, bootstrap, and close |
+| `agent-adapter-claude.test.ts` | Test | Claude args/hooks plus exact slash-frame manual compact outcomes |
+| `agent-adapter-pi.test.ts` | Test | PI framing/context/bootstrap plus correlated compact and post-stats |
 | `agent-retry-classification.test.ts` | Test | Transport/provider-guidance retry classification plus Web-chat fallback, terminal, dedupe, and cancellation notice policy |
 | `agent-adapter-pi-event-parser.test.ts` | Test | PI event translation, internal-retry dropping, and settled-boundary aggregation |
 | `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |
@@ -60,12 +60,13 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-adapter-pi-tool-shims.test.ts` | Test | PI shims, plan-file instruction, and retries |
 | `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
 | `run-with-adapter.test.ts` | Test | Normalized and inline-continuation context callbacks |
-| `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins: cortex-feishu plugin gated to feishu: channels (exact basename match) |
+| `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins channel gating |
+| `facade-compact.test.ts` | Test | Manual compact support, resume spawn, close, and cost recording |
 | `app.test.ts` | Test | Startup DM + scheduled success flow |
 | `auto-compound.test.ts` | Test | Compound skip conditions and concatenation |
 | `codex-bridge.test.ts` | Test | Codex MCP config tsx loader |
 | `codex-event-parser.test.ts` | Test | codexEventToNormalized pure function |
-| `command-handlers.test.ts` | Test | !cancel/!cost/!status/!schedule/!nvtop |
+| `command-handlers.test.ts` | Test | !cancel/!compact/!cost/!status/!schedule/!nvtop |
 | `restart-command.test.ts` | Test | `triggerServerRestart` daemon-alive/missing-pid/dead-process branches + `!restart` routing posts a reply |
 | `cortex-run-cli-dispatch.test.ts` | Test | cortex-run.ts CLI dispatch (sendCommand pathway) |
 | `daemon.test.ts` | Test | Import has no side effects |
@@ -94,7 +95,8 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `thread-runner.test.ts` | Test | Runner lifecycle helpers and wait-control selector forwarding |
 | `threads/thread-transcript.test.ts` | Test | createStepTranscriptRecorder: incremental in-order appends keyed by track sessionId, shared-ts live publish, DEBUG exact prompt/full input/result correlation, post-persistence refresh ordering, and fail-soft writes |
 | `threads/thread-live-step-ids.test.ts` | Test | beginStepSession (fresh mint persisted + resume null / legacy migration keeps one id as both keys / settled slot resumes backendSessionId / non-persist fresh per step / thread.step.started) + recordStepResult track/backend decoupling (step + persist-slot fields, thread.step.finished truncation) + thread.created/completed/failed(+cancel→failed) publishes + resolveTargetResumeId (slot/step, new/legacy forms, never a track id) |
-| `conversation-runner.test.ts` | Test | buildConversationPrompt golden-prompt fidelity vs legacy default-thread prompt + `[Session Project]` block injection (project opt) + resolveConversationProject gating (web-only / fresh-only / non-general / unknown-id) |
+| `conversation-runner.test.ts` | Test | Conversation prompt and project-context behavior |
+| `orchestration/session-compact.test.ts` | Test | Idle guards, native compact, snapshots, and semantic event effects |
 | `user-context.test.ts` | Test | loadUserContext env-gate/file-present/absent + USER.md injected into buildConversationPrompt, never into thread steps |
 | `thread-abort.test.ts` | Test | Thread control and task-only protocol preamble regressions |
 | `thread-tree.test.ts` | Test | DR-0014 tree: getRootThreadId/getTreeThreads/summarizeTree/checkSpawnGuards/buildThreadTree/registerChildSpawn |
@@ -128,7 +130,8 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `orch/hook-bridge-subscribers-web.test.ts` | Test | web: conduit branch creates interaction entities (plan-approval with FULL planContent snapshot + planApprovals live-resolver kept; ask-user normalized questions); non-web channels create none |
 | `domain/ui-service/query-sessions.test.ts` | Test | Session list identity/running/turn/cost/context snapshots plus transcript pending behavior |
 | `domain/ui-service/query-sessions-transcript.test.ts` | Test | Transcript notice/turn/interaction materialization, DEBUG exposure gate, and runtime tool-size warning derivation |
-| `domain/ui-service/mutate-sessions-interactions.test.ts` | Test | handleAnswerQuestion/handleRespondPlan three-way outcome: resolved/already-resolved → ok{outcome}, not-found → err, invalid-args, not-available |
+| `domain/ui-service/mutate-sessions-interactions.test.ts` | Test | Session interaction mutation outcome mapping |
+| `ui-service-compact.test.ts` | Test | sessions.compact success and error mapping |
 | `platform-mock-adapter.test.ts` | Test | MockAdapter messages and marker lifecycle |
 | `composite-adapter-noop-fallback.test.ts` | Test | Unknown conduit operations stay no-op |
 | `slack-adapter-prefix.test.ts` | Test | Slack prefixes and hourglass lifecycle |

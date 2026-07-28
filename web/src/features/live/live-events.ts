@@ -1,4 +1,4 @@
-// input:  tRPC state and UI events including throttle, context, and DEBUG hints
+// input:  tRPC state and UI events including compact/context hints
 // output: shared live-event groups, filters, fan-out, reconnect reducers
 // pos:    Pure rules for the Web shared SSE stream
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -40,6 +40,7 @@ export const SESSION_LIVE_EVENTS = [
   'session.status',
   'session.turn',
   'session.context-usage',
+  'session.context-compacted',
   'session.interaction',
   'session.rewound',
   'session.debug.updated',

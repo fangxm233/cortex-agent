@@ -1,5 +1,5 @@
-// input:  mobile session/context queries, shared chat hooks, mutations
-// output: MChatScreen live conversation and context container
+// input:  mobile session/context queries, chat/compact hooks, mutations
+// output: MChatScreen live conversation with context controls
 // pos:    Mobile session detail state and data orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -18,6 +18,7 @@ import {
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
+import { useSessionCompact } from '@/features/workbench/useSessionCompact';
 import {
   resolveTransitionProfile,
   type PendingCreatedSession,
@@ -246,6 +247,10 @@ export function MChatScreen(): JSX.Element {
       transcript: transcriptQuery.data ?? null,
       contextUsage: active?.contextUsage ?? null,
     });
+  const compactAction = useSessionCompact(sessionId, {
+    running,
+    hasBackendHistory: !!active?.backendSessionId,
+  });
   // Interaction cards are transcript rows (web-interactions-redesign); this hook only supplies
   // the answer/approve/reject actions.
   const interactionActions = useInteractionActions(sessionId);
@@ -697,8 +702,9 @@ export function MChatScreen(): JSX.Element {
         profileChipLabel={profileChipLabel(effectiveProfile, profiles)}
         onOpenProfile={() => setProfileOpen(true)}
         contextUsage={contextUsage}
-        contextUsageSupported={active?.backend === 'pi'}
+        contextUsageSupported={!!active?.contextCompactionSupported}
         contextUsageLang={lang}
+        contextCompactAction={active?.contextCompactionSupported ? compactAction : undefined}
         attachments={attachmentsVM}
         onRemoveAttachment={(id) => setUploads((prev) => {
           const gone = prev.find((u) => u.id === id);

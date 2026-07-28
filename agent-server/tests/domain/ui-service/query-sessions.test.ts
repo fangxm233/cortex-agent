@@ -1,5 +1,5 @@
 // input:  session query handlers with injected stores and live registries
-// output: session list/context/transcript snapshot regression coverage
+// output: session list/context/compact/transcript snapshot coverage
 // pos:    ui-service session query specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -66,6 +66,16 @@ test('sessions.list exposes persisted context usage and uses null for legacy ses
   const byId = Object.fromEntries(result.map((session) => [session.sessionId, session.contextUsage]));
   assert.deepEqual(byId['s1'], mockSessions[0].contextUsage);
   assert.equal(byId['s2'], null);
+});
+
+test('sessions.list exposes server-derived manual compaction support per session', async () => {
+  const result = await handleSessionsList(makeDeps({
+    supportsSessionCompaction: (session) => session.backend === 'pi',
+  }), {});
+  const byId = Object.fromEntries(result.map((session) => [session.sessionId, session.contextCompactionSupported]));
+  assert.equal(byId['s1'], true);
+  assert.equal(byId['s2'], false);
+  assert.equal(byId['s3'], false);
 });
 
 test('sessions.list with resumable=true returns only non-scheduled sessions', async () => {

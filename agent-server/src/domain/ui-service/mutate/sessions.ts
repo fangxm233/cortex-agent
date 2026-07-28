@@ -1,7 +1,7 @@
-// input:  UiServiceDeps + { sessionId, text }
-// output: handleSendSession → Ok<{accepted:true}> | Err
-// pos:    mutate handler for 'sessions.send' (S4 chat)
-//
+// input:  UiServiceDeps and session mutation arguments
+// output: create/send/cancel/compact/profile/rewind handlers
+// pos:    UI-service session mutation handlers
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 // Injects a genuine user turn into an existing session. Resolves the session's conduit/channel
 // (via sessionStore) and hands off to the injected `sendSessionMessage` callback, which is wired
 // in the entry layer to the orchestration send path (agentRunner.route). Fire-and-forget: the
@@ -15,6 +15,8 @@ import type {
   SessionsSendArgs,
   SessionsSendReturn,
   SessionsCancelArgs,
+  SessionsCompactArgs,
+  SessionsCompactReturn,
   SessionsMarkReadArgs,
   SessionsCancelReturn,
   SessionsSetProfileArgs,
@@ -78,6 +80,36 @@ export async function handleCancelSession(
 
 // Unread tracking: stamp the session's registry lastReadAt=now — the user viewed this session in
 // the workbench. `sessions.list` computes `unread = lastUsedAt > lastReadAt` against this stamp.
+export async function handleCompactSession(
+  deps: UiServiceDeps,
+  args: SessionsCompactArgs,
+): Promise<Result<SessionsCompactReturn>> {
+  const session = await deps.sessionStore.getById(args.sessionId);
+  if (!session) {
+    return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+  }
+  if (!deps.compactSession) {
+    return { ok: false, code: 'not-available', message: 'Session compaction is not available' };
+  }
+  const outcome = await deps.compactSession({ sessionId: args.sessionId });
+  if (!('reason' in outcome)) {
+    return { ok: true, data: { status: outcome.status, contextUsage: outcome.contextUsage } };
+  }
+  if (outcome.reason === 'running') {
+    return {
+      ok: false, code: 'session-running',
+      message: 'Session is running — stop it before compacting context',
+    };
+  }
+  if (outcome.reason === 'unsupported') {
+    return {
+      ok: false, code: 'not-available',
+      message: 'This session backend does not support manual context compaction',
+    };
+  }
+  return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+}
+
 export async function handleMarkReadSession(
   deps: UiServiceDeps,
   args: SessionsMarkReadArgs,

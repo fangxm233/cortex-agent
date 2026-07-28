@@ -6,14 +6,14 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | filename | role | function |
 |---|---|---|
 | `index.ts` | entry | getAdapter(backend) dispatch + centralized symbol export |
-| `types.ts` | contract | Adapter/process contracts plus tool/context continuation sinks |
+| `types.ts` | contract | Adapter/process contracts plus manual compact results and sinks |
 | `capabilities.ts` | capabilities | Capability enum + per-backend capability set (`StreamingDeltas` = Claude + PI; `MidTurnInject` = Claude print-mode stdin + PI RPC prompt steering) |
 | `normalize/event-types.ts` | event types | NormalizedEvent discriminated union, including backend-neutral `context_usage` snapshots and `assistant_delta` streaming blocks |
 | `normalize/event-stream.ts` | queue | createEventStream single-producer FIFO |
 | `normalize/tool-names.ts` | tool name table | canonical ↔ backend-native bidirectional mapping |
 | `normalize/hooks.ts` | hook contract | NormalizedHookSpec + trigger types |
 | `bg-wait.ts` | bg wait | Inline continuation wait forwarding text, tools, and context |
-| `claude/adapter.ts` | adapter | Claude print sessions, normalized events, injection, and continuations |
+| `claude/adapter.ts` | adapter | Claude print turns, exact `/compact`, injection, and continuations |
 | `claude/context-usage.ts` | tracker | Tracks provider-call usage and reconciles model context windows |
 | `claude/defaults.ts` | constants | timeout/MCP/tools/hooks constants |
 | `claude/hooks-builder.ts` | builder | Generates Claude hooks, including CORTEX Read/Edit injection |
@@ -28,11 +28,11 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `codex/adapter.ts` | adapter | CodexAdapter + RouteRuntime pool |
 | `codex/event-parser.ts` | parser | codexEventToNormalized translation |
 | `pi/agent-dir.ts` | config | PI agent directory constants (data/pi/models.json + logs/sessions-pi/) + multi-provider models.json writer (writeProvidersConfig; re-asserts gateway-lost PI compat via PROVIDER_COMPAT_OVERRIDES, e.g. deepseek supportsDeveloperRole=false) + auth.json symlink/copy mirror (ensureAuthVisible) |
-| `pi/adapter.ts` | adapter | PIAdapter + PISession + switch_session + **mid-turn steering**. `message_update`/`message_end` drive throttled live `get_session_stats` snapshots without flushing partial text; `agent_settled` gates terminal outcome and PI retry lifecycle never latches a Cortex rate-limit result. Steering, turn/cost aggregation, env/tool gates, resume guards, and previews remain supported |
+| `pi/adapter.ts` | adapter | PI sessions, correlated manual compact/stats, switching, steering, and turns |
 | `pi/discovery.ts` | helper | Provider discovery (`pi --list-models` without Cortex's private agent-dir override) + bounded session-file existence check (filename fast path, JSONL header fallback) |
 | `pi/session-support.ts` | helper | PI session primitives: timers, prompt assembly, event queue, process/turn types, safe RPC parse, FIFO steering, and `PIContextUsageProbe` (2s live throttle/single-flight + independent final correlation/timeout) |
 | `pi/defaults.ts` | defaults | PI session directory and compiled extension paths used by process spawning |
-| `pi/event-parser.ts` | parser | piRpcLineToNormalized translation; validates `get_session_stats.contextUsage`, drops PI-internal retry lifecycle events, aggregates `agent_end`, and emits terminal completion only at `agent_settled`; text deltas carry stable block ids |
+| `pi/event-parser.ts` | parser | PI event translation and shared context-stats payload validation |
 | `pi/framing.ts` | framing | LF-only NDJSON encoding and splitter |
 | `pi/spawn-args.ts` | args | `buildSpawnArgs` constructs PI CLI args; `buildPiEnv` clears stale context and injects authoritative thread/task/session identity |
 | `pi/mcp-bridge.ts` | extension | Bridge PI to Cortex MCP server |

@@ -1,10 +1,10 @@
 // input:  config, adapters, profiles, normalized events
-// output: runAgent facade, context continuations, typed notices
+// output: runAgent/manual-compact facade, continuations, notices
 // pos:    Backend-neutral agent execution and notice policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { getAdapter } from '../../agent-adapter/index.js';
-import type { AgentAdapter, AgentSpawnConfig, Backend } from '../../agent-adapter/index.js';
+import type { AgentAdapter, AgentCompactResult, AgentSpawnConfig, Backend } from '../../agent-adapter/index.js';
 import { shouldAwaitBgInline, waitForBgContinuation } from '../../agent-adapter/bg-wait.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
@@ -440,6 +440,128 @@ export function runWithAdapter(
     get sessionId(): string | null { return proc.sessionId; },
     agentProcess: proc,
   };
+}
+
+export interface CompactAgentRequest {
+  sessionId: string;
+  backend: Backend;
+  backendSessionId: string;
+  channel: string;
+  profileName: string | null;
+  projectId: string;
+  sessionName: string;
+}
+
+interface CompactCostEntry {
+  project: string;
+  trigger: string;
+  cost_usd: number | null;
+  backend: string;
+  mode: string;
+  source: string;
+  input_tokens: number;
+  output_tokens: number;
+  provider?: string;
+  model?: string;
+}
+
+export interface CompactAgentDeps {
+  resolveProfile: (profileName: string | null) => ResolvedProfileConfig;
+  getAdapter: (backend: Backend) => AgentAdapter;
+  configureMode: (mode: string, metadata?: Record<string, string>) => string | undefined;
+  recordCost: (entry: CompactCostEntry) => Promise<void>;
+}
+
+const compactAgentDeps: CompactAgentDeps = {
+  resolveProfile: resolveProfileConfig,
+  getAdapter,
+  configureMode: configureEnvForMode,
+  recordCost,
+};
+
+function supportsCompactProfile(backend: string, profile: ResolvedProfileConfig): boolean {
+  if (profile.backend !== backend) return false;
+  if (backend === 'pi') return true;
+  return backend === 'claude' && profile.claudeBackend !== 'tui';
+}
+
+export function isSessionCompactionSupported(
+  session: { backend: string; profileName: string | null },
+  resolve: CompactAgentDeps['resolveProfile'] = resolveProfileConfig,
+): boolean {
+  try {
+    return supportsCompactProfile(session.backend, resolve(session.profileName));
+  } catch {
+    return false;
+  }
+}
+
+function compactAgentConfig(profile: ResolvedProfileConfig): AgentConfig {
+  return {
+    model: profile.model,
+    backend: profile.backend,
+    mode: profile.mode,
+    provider: profile.provider,
+    extraEnv: profile.extraEnv,
+    extraOption: profile.extraOption,
+    claudeBackend: profile.claudeBackend,
+    thinking: profile.thinking,
+  };
+}
+
+function compactCostEntry(
+  request: CompactAgentRequest,
+  profile: ResolvedProfileConfig,
+  result: AgentCompactResult,
+): CompactCostEntry | null {
+  if (!result.usage) return null;
+  return {
+    project: request.projectId,
+    trigger: 'manual-compact',
+    cost_usd: result.usage.costUsd,
+    backend: request.backend,
+    mode: profile.mode || 'api',
+    source: 'estimate',
+    input_tokens: result.usage.inputTokens,
+    output_tokens: result.usage.outputTokens,
+    ...(profile.provider ? { provider: profile.provider } : {}),
+    ...(profile.model ? { model: profile.model } : {}),
+  };
+}
+
+export async function compactAgentContext(
+  request: CompactAgentRequest,
+  deps: CompactAgentDeps = compactAgentDeps,
+): Promise<AgentCompactResult> {
+  const profile = deps.resolveProfile(request.profileName);
+  if (!supportsCompactProfile(request.backend, profile)) {
+    throw new Error(`${request.backend} profile does not support manual context compaction`);
+  }
+  const config = compactAgentConfig(profile);
+  const baseUrl = deps.configureMode(profile.mode || 'api', {
+    project: request.projectId,
+    trigger: 'manual-compact',
+  });
+  const proc = deps.getAdapter(request.backend).spawn(buildSpawnConfig({
+    sessionId: request.backendSessionId,
+    trackSessionId: request.sessionId,
+    sessionKey: request.channel,
+    channel: request.channel,
+    profileName: request.profileName,
+    project: request.projectId,
+    trigger: 'manual-compact',
+    sessionName: request.sessionName,
+    isUserInitiated: true,
+  }, config, baseUrl));
+  try {
+    if (!proc.compact) throw new Error(`${request.backend} process does not support manual context compaction`);
+    const result = await proc.compact();
+    const cost = compactCostEntry(request, profile, result);
+    if (cost) await deps.recordCost(cost);
+    return result;
+  } finally {
+    await proc.close().catch(() => {});
+  }
 }
 
 export function runAgentOnce(message: string, options: RunAgentOptions, config: AgentConfig): AgentHandle {

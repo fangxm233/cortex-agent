@@ -1,10 +1,11 @@
 // input:  orch/channel-queue.ts
-// output: regression tests — serialization guarantee + queue cleanup [S6-B]
-// pos:    verifies per-channel serial ordering and absence of Map memory leaks
+// output: serialization, cleanup, and awaited-result tests
+// pos:    Per-channel queue behavior regression coverage
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { conduitQueues, enqueue } from '../../src/orchestration/conduit-queue.js';
+import { conduitQueues, enqueue, enqueueAndWait } from '../../src/orchestration/conduit-queue.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,19 @@ test('queue cleanup — Map entry is deleted after fn resolves (no memory leak)'
 });
 
 // ── (d) serialization with multiple channels — no cross-channel interference ──
+
+test('enqueueAndWait returns the queued function result and keeps the queue occupied', async () => {
+  const channel = freshChannel();
+  const deferred = makeDeferred();
+  const resultPromise = enqueueAndWait(channel, async () => {
+    assert.equal(conduitQueues.has(channel), true);
+    await deferred.promise;
+    return 42;
+  });
+  await tick();
+  deferred.resolve();
+  assert.equal(await resultPromise, 42);
+});
 
 test('two channels run independently (no cross-channel serialization)', async () => {
   const ch1 = freshChannel();
