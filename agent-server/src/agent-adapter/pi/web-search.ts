@@ -12,7 +12,7 @@ import type {
   ToolDefinition,
 } from './pi-ext-types.js';
 
-export const WEB_SEARCH_MAX_USES = 8;
+export const WEB_SEARCH_MAX_USES = 3;
 
 const WEB_SEARCH_USER_AGENT = 'cortex-agent/pi-web-search';
 const negativeCapabilities = new Set<string>();
@@ -42,12 +42,19 @@ interface SearchRequest {
 interface SearchResponse {
   text: string;
   urls: string[];
+  queries: string[];
+}
+
+interface SearchBackend {
+  buildRequest: RequestBuilder;
+  sendsDomainFields: boolean;
 }
 
 type RequestBuilder = (
   model: ExtensionModel,
   auth: ResolvedRequestAuth & { ok: true },
   params: WebSearchParams,
+  sendDomainFields: boolean,
 ) => SearchRequest;
 
 function joinEndpoint(baseUrl: string, suffix: string): string {
@@ -60,8 +67,8 @@ function capabilityKey(model: ExtensionModel): string {
 
 function unavailable(model: ExtensionModel): Error {
   return new Error(
-    `WebSearch unavailable for ${model.provider}:${model.api}; ` +
-    'the active model API does not expose server-side search.',
+    `WebSearch unavailable for model "${model.id}" (api: ${model.api}); ` +
+    'its provider does not expose server-side search for this API.',
   );
 }
 
@@ -112,13 +119,20 @@ function searchPrompt(params: WebSearchParams): string {
   return lines.join('\n');
 }
 
-function anthropicTool(params: WebSearchParams): Record<string, unknown> {
+function anthropicTool(
+  params: WebSearchParams,
+  sendDomainFields: boolean,
+): Record<string, unknown> {
   return {
     type: 'web_search_20250305',
     name: 'web_search',
     max_uses: WEB_SEARCH_MAX_USES,
-    ...(params.allowed_domains?.length ? { allowed_domains: params.allowed_domains } : {}),
-    ...(params.blocked_domains?.length ? { blocked_domains: params.blocked_domains } : {}),
+    ...(sendDomainFields && params.allowed_domains?.length
+      ? { allowed_domains: params.allowed_domains }
+      : {}),
+    ...(sendDomainFields && params.blocked_domains?.length
+      ? { blocked_domains: params.blocked_domains }
+      : {}),
   };
 }
 
@@ -126,6 +140,7 @@ function buildAnthropicRequest(
   model: ExtensionModel,
   auth: ResolvedRequestAuth & { ok: true },
   params: WebSearchParams,
+  sendDomainFields: boolean,
 ): SearchRequest {
   const headers = mergedHeaders(model, auth, 'application/json');
   setAnthropicAuth(headers, auth.apiKey);
@@ -134,7 +149,7 @@ function buildAnthropicRequest(
     model: model.id,
     max_tokens: model.maxTokens,
     messages: [{ role: 'user', content: searchPrompt(params) }],
-    tools: [anthropicTool(params)],
+    tools: [anthropicTool(params, sendDomainFields)],
   };
   return {
     url: joinEndpoint(model.baseUrl, '/v1/messages'),
@@ -143,13 +158,8 @@ function buildAnthropicRequest(
   };
 }
 
-function responsesTool(params: WebSearchParams): Record<string, unknown> {
-  return {
-    type: 'web_search',
-    ...(params.allowed_domains?.length
-      ? { filters: { allowed_domains: params.allowed_domains } }
-      : {}),
-  };
+function responsesTool(): Record<string, unknown> {
+  return { type: 'web_search' };
 }
 
 function responsesBody(model: ExtensionModel, params: WebSearchParams): Record<string, unknown> {
@@ -162,7 +172,7 @@ function responsesBody(model: ExtensionModel, params: WebSearchParams): Record<s
     store: false,
     stream: true,
     tool_choice: 'auto',
-    tools: [responsesTool(params)],
+    tools: [responsesTool()],
   };
 }
 
@@ -170,6 +180,7 @@ function buildResponsesRequest(
   model: ExtensionModel,
   auth: ResolvedRequestAuth & { ok: true },
   params: WebSearchParams,
+  _sendDomainFields: boolean,
 ): SearchRequest {
   const headers = mergedHeaders(model, auth, 'text/event-stream');
   setBearerAuth(headers, auth.apiKey);
@@ -184,6 +195,7 @@ function buildAzureResponsesRequest(
   model: ExtensionModel,
   auth: ResolvedRequestAuth & { ok: true },
   params: WebSearchParams,
+  _sendDomainFields: boolean,
 ): SearchRequest {
   const headers = mergedHeaders(model, auth, 'text/event-stream');
   setAzureAuth(headers, auth.apiKey);
@@ -236,6 +248,7 @@ function buildCodexRequest(
   model: ExtensionModel,
   auth: ResolvedRequestAuth & { ok: true },
   params: WebSearchParams,
+  _sendDomainFields: boolean,
 ): SearchRequest {
   const headers = mergedHeaders(model, auth, 'text/event-stream');
   const token = bearerToken(headers, auth.apiKey);
@@ -261,12 +274,19 @@ function buildCodexRequest(
   };
 }
 
-const requestBuilders: Record<string, RequestBuilder> = {
-  'anthropic-messages': buildAnthropicRequest,
-  'openai-responses': buildResponsesRequest,
-  'azure-openai-responses': buildAzureResponsesRequest,
-  'openai-codex-responses': buildCodexRequest,
+const searchBackends: Record<string, SearchBackend> = {
+  'anthropic-messages': { buildRequest: buildAnthropicRequest, sendsDomainFields: true },
+  'openai-responses': { buildRequest: buildResponsesRequest, sendsDomainFields: false },
+  'azure-openai-responses': {
+    buildRequest: buildAzureResponsesRequest,
+    sendsDomainFields: false,
+  },
+  'openai-codex-responses': { buildRequest: buildCodexRequest, sendsDomainFields: false },
 };
+
+function resolveSearchBackend(model: ExtensionModel): SearchBackend | null {
+  return searchBackends[model.api] ?? null;
+}
 
 function collectUrls(value: unknown): string[] {
   const urls = new Set<string>();
@@ -283,6 +303,33 @@ function collectUrls(value: unknown): string[] {
     queue.push(...Object.values(record));
   }
   return [...urls];
+}
+
+function queryValues(value: unknown): string[] {
+  if (!value || typeof value !== 'object') return [];
+  const record = value as Record<string, unknown>;
+  if (typeof record.query === 'string') return [record.query];
+  if (!Array.isArray(record.queries)) return [];
+  return record.queries.filter((query): query is string => typeof query === 'string');
+}
+
+function collectQueries(value: unknown): string[] {
+  const queries = new Set<string>();
+  const queue: unknown[] = [value];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (Array.isArray(current)) {
+      queue.push(...current);
+      continue;
+    }
+    if (!current || typeof current !== 'object') continue;
+    const record = current as Record<string, unknown>;
+    const querySource = record.type === 'server_tool_use' ? record.input
+      : record.type === 'web_search_call' ? record.action : undefined;
+    for (const query of queryValues(querySource)) queries.add(query);
+    queue.push(...Object.values(record));
+  }
+  return [...queries];
 }
 
 function textUrls(text: string): string[] {
@@ -337,12 +384,20 @@ function parseResponseEvents(events: Record<string, unknown>[]): SearchResponse 
     .map((event) => typeof event.delta === 'string' ? event.delta : '')
     .join('');
   const completed = responseTexts(events).join('\n');
-  return { text: deltas || completed, urls: collectUrls(events) };
+  return {
+    text: deltas || completed,
+    urls: collectUrls(events),
+    queries: collectQueries(events),
+  };
 }
 
 async function parseAnthropicResponse(response: Response): Promise<SearchResponse> {
   const payload = await response.json() as Record<string, unknown>;
-  return { text: anthropicText(payload), urls: collectUrls(payload) };
+  return {
+    text: anthropicText(payload),
+    urls: collectUrls(payload),
+    queries: collectQueries(payload),
+  };
 }
 
 async function parseResponsesResponse(response: Response): Promise<SearchResponse> {
@@ -351,34 +406,46 @@ async function parseResponsesResponse(response: Response): Promise<SearchRespons
     return parseResponseEvents(parseSseEvents(await response.text()));
   }
   const payload = await response.json() as Record<string, unknown>;
-  return { text: responseTexts(payload).join('\n'), urls: collectUrls(payload) };
+  return {
+    text: responseTexts(payload).join('\n'),
+    urls: collectUrls(payload),
+    queries: collectQueries(payload),
+  };
 }
 
 function isCapabilityMiss(status: number, body: string): boolean {
   return status === 400 && /(unknown variant|invalid_request)/i.test(body);
 }
 
-async function throwHttpError(
-  response: Response,
-  model: ExtensionModel,
-): Promise<never> {
-  const body = await response.text();
-  if (isCapabilityMiss(response.status, body)) {
+function isDomainFieldError(status: number, body: string): boolean {
+  return status === 400 && /(allowed_domains|blocked_domains)/i.test(body);
+}
+
+function throwHttpError(status: number, body: string, model: ExtensionModel): never {
+  if (isCapabilityMiss(status, body)) {
     negativeCapabilities.add(capabilityKey(model));
     throw unavailable(model);
   }
   const details = body.trim().slice(0, 500);
-  throw new Error(`WebSearch HTTP ${response.status}${details ? `: ${details}` : ''}`);
+  throw new Error(`WebSearch HTTP ${status}${details ? `: ${details}` : ''}`);
 }
 
-function formatResult(result: SearchResponse): string {
+function formatResult(result: SearchResponse, degradedDomains: boolean): string {
   const text = result.text.trim();
   if (!text) throw new Error('WebSearch unavailable: the provider returned no search result.');
   const urls = [...new Set([...result.urls, ...textUrls(text)])];
   if (urls.length === 0) {
     throw new Error('WebSearch provider response did not include a source URL.');
   }
-  return `${text}\n\nSources:\n${urls.map((url) => `- ${url}`).join('\n')}`;
+  const queries = [...new Set(result.queries.map((query) => query.trim()).filter(Boolean))];
+  if (queries.length === 0) {
+    throw new Error('WebSearch provider response did not include the executed query.');
+  }
+  const degradation = degradedDomains
+    ? '\n\nDomain filtering was applied through the query prompt after provider field rejection.'
+    : '';
+  return `${text}${degradation}\n\nQueries:\n${queries.map((query) => `- ${query}`).join('\n')}` +
+    `\n\nSources:\n${urls.map((url) => `- ${url}`).join('\n')}`;
 }
 
 async function resolveAuth(
@@ -391,17 +458,48 @@ async function resolveAuth(
   return auth;
 }
 
+async function fetchWithDomainFallback(
+  request: SearchRequest,
+  retryRequest: SearchRequest | undefined,
+  model: ExtensionModel,
+  signal: AbortSignal | undefined,
+): Promise<{ response: Response; degradedDomains: boolean }> {
+  const response = await fetch(request.url, { ...request.init, signal });
+  if (response.ok) return { response, degradedDomains: false };
+  const body = await response.text();
+  if (!retryRequest || !isDomainFieldError(response.status, body)) {
+    return throwHttpError(response.status, body, model);
+  }
+  const retried = await fetch(retryRequest.url, { ...retryRequest.init, signal });
+  return { response: retried, degradedDomains: true };
+}
+
+async function parseProviderResponse(
+  response: Response,
+  responseType: SearchRequest['responseType'],
+): Promise<SearchResponse> {
+  return responseType === 'anthropic'
+    ? parseAnthropicResponse(response)
+    : parseResponsesResponse(response);
+}
+
 async function executeProviderSearch(
   request: SearchRequest,
+  retryRequest: SearchRequest | undefined,
   model: ExtensionModel,
   signal: AbortSignal | undefined,
 ): Promise<string> {
-  const response = await fetch(request.url, { ...request.init, signal });
-  if (!response.ok) return throwHttpError(response, model);
-  const parsed = request.responseType === 'anthropic'
-    ? await parseAnthropicResponse(response)
-    : await parseResponsesResponse(response);
-  return formatResult(parsed);
+  const result = await fetchWithDomainFallback(request, retryRequest, model, signal);
+  if (!result.response.ok) {
+    const body = await result.response.text();
+    return throwHttpError(result.response.status, body, model);
+  }
+  const parsed = await parseProviderResponse(result.response, request.responseType);
+  return formatResult(parsed, result.degradedDomains);
+}
+
+function hasDomainConstraints(params: WebSearchParams): boolean {
+  return !!params.allowed_domains?.length || !!params.blocked_domains?.length;
 }
 
 async function runWebSearch(
@@ -411,10 +509,14 @@ async function runWebSearch(
 ): Promise<string> {
   const model = ctx.model;
   if (!model) throw new Error('WebSearch unavailable: PI has no active model.');
-  const builder = requestBuilders[model.api];
-  if (!builder || negativeCapabilities.has(capabilityKey(model))) throw unavailable(model);
+  const backend = resolveSearchBackend(model);
+  if (!backend || negativeCapabilities.has(capabilityKey(model))) throw unavailable(model);
   const auth = await resolveAuth(ctx, model);
-  return executeProviderSearch(builder(model, auth, params), model, signal);
+  const request = backend.buildRequest(model, auth, params, backend.sendsDomainFields);
+  const retry = backend.sendsDomainFields && hasDomainConstraints(params)
+    ? backend.buildRequest(model, auth, params, false)
+    : undefined;
+  return executeProviderSearch(request, retry, model, signal);
 }
 
 export const webSearchTool: ToolDefinition<typeof WebSearchParameters> = {

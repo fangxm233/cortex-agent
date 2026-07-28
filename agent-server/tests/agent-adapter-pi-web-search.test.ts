@@ -53,9 +53,13 @@ function executeSearch(ctx: any, params: Record<string, unknown> = { query: QUER
   return webSearchTool.execute('tc-web-search', params as any, undefined, undefined, ctx);
 }
 
-function sseResponse(text: string, url: string): Response {
+function sseResponse(text: string, url: string, query = QUERY): Response {
   const events = [
     { type: 'response.output_text.delta', delta: text },
+    {
+      type: 'response.output_item.done',
+      item: { type: 'web_search_call', action: { type: 'search', query } },
+    },
     {
       type: 'response.output_text.annotation.added',
       annotation: { type: 'url_citation', title: 'Release documentation', url },
@@ -83,6 +87,7 @@ test('dispatches anthropic-messages through model.baseUrl and returns source URL
   });
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
     content: [
+      { type: 'server_tool_use', name: 'web_search', input: { query: 'runtime release status' } },
       {
         type: 'web_search_tool_result',
         content: [
@@ -112,11 +117,12 @@ test('dispatches anthropic-messages through model.baseUrl and returns source URL
   assert.deepEqual(body.tools, [{
     type: 'web_search_20250305',
     name: 'web_search',
-    max_uses: 8,
+    max_uses: 3,
     allowed_domains: ['docs.example.test'],
     blocked_domains: ['archive.example.test'],
   }]);
   assert.match(result.content[0].text, /current release is 24\.1\.0/i);
+  assert.match(result.content[0].text, /Queries:\n- runtime release status/);
   assert.equal(result.content[0].text.match(new RegExp(SOURCE_URL, 'g'))?.length, 1);
 });
 
@@ -129,6 +135,7 @@ test('uses bearer authentication for Anthropic OAuth tokens', async () => {
   });
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
     content: [
+      { type: 'server_tool_use', input: { query: 'oauth search query' } },
       { type: 'web_search_tool_result', content: [{ url: SOURCE_URL }] },
       { type: 'text', text: 'Authenticated search result.' },
     ],
@@ -164,11 +171,10 @@ test.each([
   assert.equal(new Headers(init.headers).get(authHeader), authValue);
   const body = JSON.parse(String(init.body));
   assert.equal(body.stream, true);
-  assert.deepEqual(body.tools, [{
-    type: 'web_search',
-    filters: { allowed_domains: ['docs.example.test'] },
-  }]);
+  assert.deepEqual(body.tools, [{ type: 'web_search' }]);
+  assert.match(body.input[0].content[0].text, /Only use these domains: docs\.example\.test/);
   assert.match(result.content[0].text, /current release is 24\.1\.0/i);
+  assert.match(result.content[0].text, /Queries:\n- current stable runtime release/);
   assert.match(result.content[0].text, new RegExp(SOURCE_URL));
 });
 
@@ -202,6 +208,41 @@ test('dispatches openai-codex-responses with account and beta headers', async ()
   assert.match(result.content[0].text, new RegExp(SOURCE_URL));
 });
 
+test('retries once without Anthropic domain fields when a 400 names them', async () => {
+  const ctx = makeContext({
+    api: 'anthropic-messages',
+    provider: 'domain-filter-compatible',
+  });
+  const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      type: 'error',
+      error: { type: 'invalid_request_error', message: 'allowed_domains is not supported' },
+    }), { status: 400, headers: { 'content-type': 'application/json' } }))
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      content: [
+        { type: 'server_tool_use', input: { query: 'degraded domain query' } },
+        { type: 'web_search_tool_result', content: [{ url: SOURCE_URL }] },
+        { type: 'text', text: 'Search succeeded after dropping the wire field.' },
+      ],
+    }), { headers: { 'content-type': 'application/json' } }));
+
+  const result = await executeSearch(ctx, {
+    query: QUERY,
+    allowed_domains: ['docs.example.test'],
+    blocked_domains: ['archive.example.test'],
+  });
+
+  assert.equal(fetchSpy.mock.calls.length, 2);
+  const firstBody = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body));
+  const retryBody = JSON.parse(String((fetchSpy.mock.calls[1][1] as RequestInit).body));
+  assert.deepEqual(firstBody.tools[0].allowed_domains, ['docs.example.test']);
+  assert.equal(retryBody.tools[0].allowed_domains, undefined);
+  assert.equal(retryBody.tools[0].blocked_domains, undefined);
+  assert.match(retryBody.messages[0].content, /Only use these domains: docs\.example\.test/);
+  assert.match(result.content[0].text, /Domain filtering was applied through the query prompt/i);
+  assert.match(result.content[0].text, /Queries:\n- degraded domain query/);
+});
+
 test('negative-caches unknown search variants per provider:api', async () => {
   const firstCtx = makeContext({
     api: 'anthropic-messages',
@@ -218,6 +259,7 @@ test('negative-caches unknown search variants per provider:api', async () => {
     }), { status: 400, headers: { 'content-type': 'application/json' } }))
     .mockResolvedValueOnce(new Response(JSON.stringify({
       content: [
+        { type: 'server_tool_use', input: { query: 'second provider query' } },
         { type: 'web_search_tool_result', content: [{ url: SOURCE_URL }] },
         { type: 'text', text: 'Search succeeded for the second provider.' },
       ],
@@ -236,7 +278,7 @@ test('unsupported APIs and auth failures return explicit errors without empty re
   const fetchSpy = vi.spyOn(globalThis, 'fetch');
   await assert.rejects(
     executeSearch(makeContext({ api: 'openai-completions', provider: 'unsupported-provider' })),
-    /websearch unavailable.*openai-completions/i,
+    /websearch unavailable.*search-model.*openai-completions/i,
   );
   await assert.rejects(
     executeSearch(makeContext({
@@ -247,6 +289,21 @@ test('unsupported APIs and auth failures return explicit errors without empty re
     /credential expired/i,
   );
   assert.equal(fetchSpy.mock.calls.length, 0);
+});
+
+test('rejects successful provider responses that carry no executed query', async () => {
+  const ctx = makeContext({
+    api: 'anthropic-messages',
+    provider: 'no-query-provider',
+  });
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+    content: [
+      { type: 'web_search_tool_result', content: [{ url: SOURCE_URL }] },
+      { type: 'text', text: 'A sourced result without query provenance.' },
+    ],
+  }), { headers: { 'content-type': 'application/json' } }));
+
+  await assert.rejects(executeSearch(ctx), /executed quer/i);
 });
 
 test('rejects successful provider responses that carry no source URL', async () => {
