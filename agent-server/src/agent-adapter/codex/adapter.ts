@@ -1,7 +1,7 @@
-// input:  session context, Codex RPC, auth, MCP sidecars
-// output: CodexAdapter lifecycle, turns, and configuration
-// pos:    Codex app-server backend adapter
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  user message + session context, ~/.codex/auth.json
+// output: runCodex / CodexAdapter / shutdownCodex
+// pos:    Codex app-server lifecycle and AgentAdapter implementation
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn } from 'child_process';
 import type { ChildProcess } from 'child_process';
@@ -95,21 +95,21 @@ function closeStream(stream: WriteStream | null): Promise<void> {
 
 // --- Per-route runtime config ---
 
-const CORTEX_MCP_SECTION_HEADERS = new Set(
-  ['cortex', 'cortex-core', 'cortex-tasks', 'cortex-thread', 'cortex-ext']
-    .flatMap((name) => [`[mcp_servers.${name}]`, `[mcp_servers.${name}.env]`]),
-);
-
 function stripCortexMcpSections(tomlText: string): string {
+  const lines = tomlText.split('\n');
   const filtered = [];
   let inCortexSection = false;
-  for (const line of tomlText.split('\n')) {
+  for (const line of lines) {
     const trimmed = line.trim();
-    if (CORTEX_MCP_SECTION_HEADERS.has(trimmed)) {
+    if (trimmed === '[mcp_servers.cortex]' || trimmed === '[mcp_servers.cortex.env]'
+        || trimmed === '[mcp_servers.cortex-core]' || trimmed === '[mcp_servers.cortex-core.env]'
+        || trimmed === '[mcp_servers.cortex-ext]' || trimmed === '[mcp_servers.cortex-ext.env]') {
       inCortexSection = true;
       continue;
     }
-    if (inCortexSection && trimmed.startsWith('[')) inCortexSection = false;
+    if (inCortexSection && trimmed.startsWith('[')) {
+      inCortexSection = false;
+    }
     if (!inCortexSection) filtered.push(line);
   }
   return filtered.join('\n').trimEnd();
@@ -162,8 +162,6 @@ function buildMcpBlock(channel: string, sessionId: string | null, callbackSource
   // Point at compiled .js MCP servers so the installed package (which only ships dist/+defaults/)
   // can locate them. The tsx loader is no longer needed for plain JS.
   const coreServerPath = path.join(INSTALL_ROOT, 'dist', 'domain', 'mcp', 'core-server.js');
-  const tasksServerPath = path.join(INSTALL_ROOT, 'dist', 'domain', 'mcp', 'tasks-server.js');
-  const threadServerPath = path.join(INSTALL_ROOT, 'dist', 'domain', 'mcp', 'thread-server.js');
   const extServerPath = path.join(INSTALL_ROOT, 'dist', 'domain', 'mcp', 'server.js');
   const escapedPath = (p: string) => p.replace(/\\/g, '/');
 
@@ -180,21 +178,14 @@ function buildMcpBlock(channel: string, sessionId: string | null, callbackSource
       .map(([k, v]) => `${k} = "${String(v).replace(/"/g, '\\"')}"`)
       .join('\n');
 
-  const section = (name: string, serverPath: string, extraEnv: Record<string, string> = {}) => {
-    return `\n[mcp_servers.${name}]\ncommand = "node"\nargs = ["${escapedPath(serverPath)}", "--route-context-file", "${escapedPath(routeContextPath)}"]\n\n[mcp_servers.${name}.env]\n${formatEnv(extraEnv)}\n`;
-  };
-  const alwaysOn = section('cortex-core', coreServerPath)
-    + section('cortex-tasks', tasksServerPath);
+  const coreSection = `\n[mcp_servers.cortex-core]\ncommand = "node"\nargs = ["${escapedPath(coreServerPath)}", "--route-context-file", "${escapedPath(routeContextPath)}"]\n\n[mcp_servers.cortex-core.env]\n${formatEnv({})}\n`;
 
-  if (context?.threadId) {
-    return alwaysOn + section('cortex-thread', threadServerPath);
-  }
+  // Thread sessions: core server only (remote_* tools)
+  if (context?.threadId) return coreSection;
 
-  return alwaysOn + section('cortex-ext', extServerPath, {
-    SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN || '',
-    SLACK_CHANNEL: channel || '',
-    FEISHU_CHANNEL: channel || '',
-  });
+  // Direct sessions: core + ext (everything else)
+  const extSection = `\n[mcp_servers.cortex-ext]\ncommand = "node"\nargs = ["${escapedPath(extServerPath)}", "--route-context-file", "${escapedPath(routeContextPath)}"]\n\n[mcp_servers.cortex-ext.env]\n${formatEnv({ SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN || '', SLACK_CHANNEL: channel || '', FEISHU_CHANNEL: channel || '' })}\n`;
+  return coreSection + extSection;
 }
 
 // ============================================================
@@ -995,7 +986,5 @@ export class CodexAdapter implements AgentAdapter {
     return Array.from(this.openSessions.keys());
   }
 }
-
-export const _test = { stripCortexMcpSections };
 
 export { runCodex, CancelledError, shutdownCodex, buildMcpBlock };
