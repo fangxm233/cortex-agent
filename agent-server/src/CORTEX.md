@@ -5,7 +5,7 @@ orchestration, to the process entry points.
 
 | filename | role | function |
 |---|---|---|
-| agent-adapter/ | subdir | Backend adapters for Claude, Codex and PI |
+| agent-adapter/ | subdir | Backend adapters for Claude and PI |
 | core/ | subdir | Zero-dependency utilities, paths and types |
 | domain/ | subdir | Business logic of every server capability |
 | entry/ | subdir | Process and command-line entry points |

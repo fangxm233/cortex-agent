@@ -1,6 +1,6 @@
 Please update me when files in this folder change
 
-Agent adapter tests: Claude, Codex, and PI streams normalized into shared events, plus session behaviour.
+Agent adapter tests: Claude and PI streams normalized into shared events, plus session behaviour.
 
 | filename | role | function |
 |---|---|---|
@@ -17,7 +17,6 @@ Agent adapter tests: Claude, Codex, and PI streams normalized into shared events
 | claude-stream-deltas.test.ts | test | token-level assistant delta parsing |
 | claude-tmux-control.test.ts | test | tmux control argv and tempfile building |
 | claude-tui-resume.test.ts | test | TUI first-turn resume guard |
-| codex-adapter.test.ts | test | Codex JSON-RPC to normalized event replay |
 | fixtures/ | subdir | recorded backend streams and golden outputs |
 | normalize-assistant-delta.test.ts | test | delta event union and backend capability |
 | normalize.test.ts | test | normalized event parser edge cases |

@@ -1,6 +1,7 @@
-// input:  session-registry-repo (sessionStore), session-repo (sessions.json), conversation-ledger-repo, session-backup, setActiveProfile
-// output: registerNamedSession / attachExistingSession / resetChannelSession — shared session lifecycle primitives
-// pos:    domain/sessions — centralized session lifecycle for agent-runner, tui-session-service, and commands/session
+// input:  Session stores, conversation ledger, profile state
+// output: Session register, attach, create, and reset primitives
+// pos:    Central session lifecycle shared by chat and TUI
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as crypto from 'node:crypto';
 import { setSessionAsync, deleteSessionAsync } from './session.js';
@@ -10,7 +11,7 @@ import { resolveProfileConfig } from '@domain/agents/profile-manager.js';
 import * as sessionBackup from './session-backup.js';
 import type { SessionOrigin } from '@store/session-registry-repo.js';
 
-export const SESSION_BACKENDS = ['claude', 'pi', 'codex'] as const;
+export const SESSION_BACKENDS = ['claude', 'pi'] as const;
 
 export interface SessionRegistryWriter {
   generateSessionName(): Promise<string>;

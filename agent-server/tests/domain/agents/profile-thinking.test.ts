@@ -1,8 +1,6 @@
 // input:  Node test runner + domain/agents/profile-manager + domain/agents/facade
-// output: Lock down the optional `thinking` profile field — per-backend value validation
-//         (claude → --effort levels, pi → --thinking levels, codex unsupported),
-//         resolution to ResolvedProfileConfig, and propagation into AgentSpawnConfig.
-// pos:    profile thinking-level passthrough regression tests
+// output: Claude/PI profile validation and spawn-config propagation
+// pos:    Profile thinking and backend validation regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -59,11 +57,11 @@ test('validateProfilesFile rejects pi profile with claude-only thinking=max', ()
   }), /thinking/);
 });
 
-test('validateProfilesFile rejects codex profile with thinking (unsupported backend)', () => {
+test('validateProfilesFile rejects the removed codex backend', () => {
   assert.throws(() => validateProfilesFile({
     defaultProfile: 'd',
-    profiles: { d: { model: 'm', backend: 'codex', thinking: 'high' } },
-  }), /thinking/);
+    profiles: { d: { model: 'm', backend: 'codex' } },
+  }), /invalid backend: codex/);
 });
 
 test('validateProfilesFile rejects non-string thinking', () => {
@@ -155,4 +153,14 @@ test('buildSpawnConfig omits thinking when unset (backward compat)', () => {
     undefined,
   );
   assert.equal(spawn.thinking, undefined);
+});
+
+test('buildSpawnConfig preserves the openai-codex provider for a PI profile', () => {
+  const spawn = facadeTest.buildSpawnConfig(
+    { sessionKey: 'k' },
+    { model: 'gpt-5.4-mini', backend: 'pi', mode: 'openai-codex', provider: 'openai-codex' },
+    undefined,
+  );
+  assert.equal(spawn.piProvider, 'openai-codex');
+  assert.equal(spawn.piGatewayPath, '/m/openai-codex/openai-codex');
 });

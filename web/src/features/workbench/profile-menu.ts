@@ -1,3 +1,8 @@
+// input:  Configured profiles and current session backend
+// output: Profile picker options and backend-switch gating
+// pos:    Workbench profile menu view model
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 
 // Profile-picker options, built from the REAL configured profiles (config.get → ConfigProfiles).
@@ -11,7 +16,7 @@ export interface ProfileOption {
   /** Sub-label: the profile's model · thinking (when set) · backend. */
   sub: string;
   active: boolean;
-  /** The profile's backend (claude / codex / pi). */
+  /** The profile's backend (claude / pi). */
   backend: string;
   /** True when this option can't be selected for the current (live) session — a cross-backend move. */
   disabled: boolean;

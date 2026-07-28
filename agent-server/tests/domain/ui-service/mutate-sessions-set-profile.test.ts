@@ -46,8 +46,8 @@ test('sessions.setProfile maps unknown-profile to invalid-args', async () => {
 
 test('sessions.setProfile maps a cross-backend block to backend-locked (CONFLICT)', async () => {
   const sink: Array<{ channel: string; name: string }> = [];
-  const outcome: SwitchOutcome = { ok: false, name: 'codex', currentBackend: 'claude', targetBackend: 'codex', backendChanged: true, reason: 'cross-backend-live-session' };
-  const res = await handleSetProfile(makeDeps(session('web:sess-1'), outcome, sink), { sessionId: 'sess-1', profileName: 'codex' });
+  const outcome: SwitchOutcome = { ok: false, name: 'execute', currentBackend: 'claude', targetBackend: 'pi', backendChanged: true, reason: 'cross-backend-live-session' };
+  const res = await handleSetProfile(makeDeps(session('web:sess-1'), outcome, sink), { sessionId: 'sess-1', profileName: 'execute' });
   assert.equal(res.ok, false);
   if (!res.ok) {
     assert.equal(res.code, 'backend-locked');

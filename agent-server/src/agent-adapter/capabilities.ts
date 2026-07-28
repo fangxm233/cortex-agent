@@ -1,5 +1,5 @@
 // input:  Backend type from types.ts
-// output: Capability enum + backend matrix including Claude/PI live-turn injection
+// output: Capability enum and Claude/PI capability matrix
 // pos:    Capability declaration matrix per backend
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -41,13 +41,6 @@ const CLAUDE_CAPS: Capability[] = [
   Capability.MidTurnInject,
 ];
 
-// Codex: per DR-0008 §3.4 table — MCP via existing buildMcpBlock in codex-bridge.ts; --system-prompt + resume via app-server RPC; no Hooks/Plugins/PlanMode/AskUserQuestion/ToolAllowlist
-const CODEX_CAPS: Capability[] = [
-  Capability.MCP,
-  Capability.SystemPromptOverride,
-  Capability.SessionResume,
-];
-
 // PI: per DR-0008 §5.1 capability matrix — --skill for Plugins, --system-prompt for SystemPromptOverride, tool-allowlist via adapter;
 // MCP enabled by mcp-bridge.ts extension (task 5754): auto-injected via --extension in PIAdapter.spawn();
 // PlanMode/AskUserQuestion: implemented via tool-shims.ts pseudo-tools + extension_ui_response routing (Phase 2 §S3, 2026-04-27);
@@ -69,6 +62,5 @@ const PI_CAPS: Capability[] = [
 
 export const CAPABILITIES_BY_BACKEND: Record<Backend, Set<Capability>> = {
   claude: new Set(CLAUDE_CAPS),
-  codex: new Set(CODEX_CAPS),
   pi: new Set(PI_CAPS),
 };

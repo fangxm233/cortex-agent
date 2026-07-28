@@ -11,6 +11,7 @@ import { STORE_DIR, CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/ut
 import { getProfileModel, resolveProfileConfig } from './profile-manager.js';
 import { GATEWAY_URL, isGatewayHealthy } from '../costs/gateway-manager.js';
 import { createLogger } from '@core/log.js';
+import type { Backend } from '../../agent-adapter/types.js';
 
 const log = createLogger('config');
 
@@ -115,8 +116,9 @@ export function loadMode(): string {
   return DEFAULT_CLAUDE_MODE;
 }
 
-export function loadBackend(): string {
-  return loadModeFile().backend || 'claude';
+export function loadBackend(): Backend {
+  const backend = loadModeFile().backend;
+  return backend === 'pi' ? 'pi' : 'claude';
 }
 
 function loadClaudeModel(): string {
@@ -137,7 +139,7 @@ function loadDefaultAgent(): string | null {
 }
 
 let claudeMode: string = loadMode();
-let activeBackend: string = loadBackend();
+let activeBackend: Backend = loadBackend();
 let claudeModel: string = loadClaudeModel();
 let activeProfile: string | null = loadActiveProfile();
 let channelProfiles: Record<string, string> = loadChannelProfiles();
@@ -146,7 +148,7 @@ process.env.CORTEX_CLAUDE_MODEL = claudeModel;
 
 function saveModeFile(
   mode: string,
-  backend: string,
+  backend: Backend,
   model: string = claudeModel,
   profile: string | null = activeProfile,
   agent: string | null = defaultAgent,
@@ -164,10 +166,10 @@ export function saveMode(mode: string): void {
 }
 
 export function getClaudeMode(): string { return claudeMode; }
-export function getActiveBackend(): string { return activeBackend; }
+export function getActiveBackend(): Backend { return activeBackend; }
 export function getClaudeModel(): string { return claudeModel; }
 
-export function setActiveBackend(backend: string): void {
+export function setActiveBackend(backend: Backend): void {
   activeBackend = backend;
   saveModeFile(claudeMode, activeBackend, claudeModel);
 }
@@ -199,7 +201,7 @@ export function getActiveProfile(channel?: string): string | null {
  * Falls back to global activeBackend when the channel has no profile or the profile lookup
  * fails (e.g. profile was renamed/removed since channelProfiles was last persisted).
  */
-export function resolveBackendForChannel(channel?: string): string {
+export function resolveBackendForChannel(channel?: string): Backend {
   const profileName = getActiveProfile(channel);
   if (profileName) {
     try {

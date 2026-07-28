@@ -37,7 +37,7 @@ YAML keys use kebab-case (`done-when`, `depends-on`, `claimed-by`, etc.) which a
 ```yaml
 - id: f7cf
   text: "Replace backend dispatch with unified adapter.runWithAdapter"
-  why: "Two separate dispatch paths for Claude and Codex are a maintenance burden"
+  why: "Duplicated backend dispatch paths are a maintenance burden"
   done-when: "mode-manager.ts uses runWithAdapter for both backends; fixture replay tests green"
   priority: high
   status: open

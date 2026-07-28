@@ -242,6 +242,25 @@ test('buildSpawnArgs: explicit provider opt is passed as --provider', () => {
   assert.equal(args[idx + 1], 'openai-codex');
 });
 
+test('PIAdapter spawns an openai-codex provider profile through PI', () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn);
+  const proc = adapter.spawn({
+    sessionId: null,
+    sessionKey: 'openai-codex-profile',
+    resume: false,
+    model: 'gpt-5.4-mini',
+    piProvider: 'openai-codex',
+  });
+
+  assert.equal(stub.calls[0].cmd, 'pi');
+  const providerIndex = stub.calls[0].args.indexOf('--provider');
+  assert.ok(providerIndex >= 0, '--provider must be present');
+  assert.equal(stub.calls[0].args[providerIndex + 1], 'openai-codex');
+  stub.children[0].emit('close', 0, null);
+  void proc.close();
+});
+
 test('buildSpawnArgs: provider opt is NOT defaulted to "anthropic" when only model given', () => {
   // Old behavior: always pushed --provider anthropic when model was set. New behavior: omit --provider.
   const args = buildSpawnArgs({ sessionDir: '/x', model: 'claude-opus-4-7' });

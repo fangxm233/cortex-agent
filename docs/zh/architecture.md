@@ -28,7 +28,7 @@ L5  entry/         → 所有层（组合根）
 
 另外两个目录位于层次结构之外，因为它们被多个层导入：
 
-- **`agent-adapter/`** — 三个 LLM 后端的抽象（Claude Code、Codex、PI）
+- **`agent-adapter/`** — 两个 LLM 后端的抽象（Claude Code 和 PI）
 - **`platform/`** — 消息平台抽象（Slack）
 
 ### 第 0 层：`core/` — 零依赖基础
@@ -146,15 +146,14 @@ L5  entry/         → 所有层（组合根）
 
 ## LLM 后端适配器
 
-`agent-adapter/` 目录在统一接口后抽象三个 LLM 后端：
+`agent-adapter/` 目录在统一接口后抽象两个 LLM 后端：
 
 | 后端 | 适配器 | 备注 |
 |---------|---------|-------|
 | Claude Code | `claude/adapter.ts` | 会话池、`stream-json` 模式、TUI 模式（tmux + JSONL tail）。spawn-args 构建器、事件解析器 |
-| Codex | `codex/adapter.ts` | RouteRuntime 池、事件解析器 |
 | PI | `pi/adapter.ts` | PISession、MCP 桥接、钩子桥接、工具填充 |
 
-标准化层（`normalize/`）将后端特定事件转换为统一的 `NormalizedEvent` 流。`capabilities.ts` 文件声明带有每后端能力集的 `Capability` 枚举（例如，`Capability.Plugins` 由 Claude 和 PI 支持，但 Codex 不支持）。
+标准化层（`normalize/`）将后端特定事件转换为统一的 `NormalizedEvent` 流。`capabilities.ts` 文件声明 Claude 和 PI 的 `Capability` 能力集。
 
 ## 平台适配器
 

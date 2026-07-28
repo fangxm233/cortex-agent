@@ -141,7 +141,7 @@ test('SessionRegistryRepo - migrate converts name-keyed old format to sessionId-
   // Write old-format JSON: name-keyed, values without name/projectId fields.
   const oldFormat = {
     'cortex-abc': { sessionId: 'sess-abc', channel: 'C001', backend: 'claude', kind: 'local', createdAt: '2025-01-01T00:00:00.000Z', lastUsedAt: '2025-06-01T00:00:00.000Z', label: 'first', profileName: null },
-    'cortex-def': { sessionId: 'sess-def', channel: 'C002', backend: 'codex', kind: 'scheduled', createdAt: '2025-02-01T00:00:00.000Z', lastUsedAt: '2025-06-02T00:00:00.000Z', label: null, profileName: 'dev' },
+    'cortex-def': { sessionId: 'sess-def', channel: 'C002', backend: 'pi', kind: 'scheduled', createdAt: '2025-02-01T00:00:00.000Z', lastUsedAt: '2025-06-02T00:00:00.000Z', label: null, profileName: 'dev' },
   };
   await fs.writeFile(filePath, JSON.stringify(oldFormat, null, 2));
 

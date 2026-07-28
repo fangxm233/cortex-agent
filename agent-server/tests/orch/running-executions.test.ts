@@ -185,7 +185,7 @@ test('register with executionId publishes agent.started', () => {
 test('complete publishes agent.completed with cost + durationMs and removes entry', async () => {
   const bus = new EventBus();
   const exec = new RunningExecutions(bus);
-  exec.register(makeInput({ channel: 'C123', executionId: 'exec-2', backend: 'codex' }));
+  exec.register(makeInput({ channel: 'C123', executionId: 'exec-2', backend: 'pi' }));
 
   await new Promise((r) => setTimeout(r, 5));
 

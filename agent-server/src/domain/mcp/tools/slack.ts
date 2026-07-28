@@ -1,4 +1,4 @@
-// input:  McpServer, Slack WebClient, route-context file path
+// input:  McpServer, Slack WebClient, fallback channel
 // output: slack_send_file tool registration
 // pos:    MCP tool for uploading files to Slack
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -14,7 +14,6 @@ import { Icons } from '../../../core/icons.js';
 export interface SlackToolDeps {
   slack: WebClient | null;
   fallbackChannel: string | undefined;
-  routeContextFile: string | null;
   branchMachine: string | undefined;
   callbackSource: string | undefined;
 }
@@ -34,15 +33,6 @@ function createRateLimiter(): TokenBucketRateLimiter {
 function _envNum(key: string, def: number): number {
   const v = process.env[key];
   return v ? Number(v) : def;
-}
-
-function readRouteContext(routeContextFile: string | null): Record<string, any> | null {
-  if (!routeContextFile) return null;
-  try {
-    return JSON.parse(fs.readFileSync(routeContextFile, 'utf8'));
-  } catch {
-    return null;
-  }
 }
 
 function withReplyPrefix(text: string | undefined, { branchMachine, callbackSource }: { branchMachine?: string; callbackSource?: string }): string | undefined {
@@ -140,8 +130,7 @@ export function registerSlackTools(server: McpServer, deps: SlackToolDeps): void
       file_path: string; file_name?: string; title?: string; comment?: string;
     }) => {
       try {
-        const routeCtx = readRouteContext(deps.routeContextFile);
-        const channel = routeCtx?.channel || deps.fallbackChannel;
+        const channel = deps.fallbackChannel;
         if (!channel) throw new Error('No routing channel available');
         if (!deps.slack) throw new Error('Missing SLACK_BOT_TOKEN');
 

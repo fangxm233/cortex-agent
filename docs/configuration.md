@@ -202,12 +202,12 @@ uses. For a comparison of available backends, see
 | `defaultProfile` | string | yes | Name of the default profile when none is specified |
 | `profiles` | object | yes | Map of profile name to profile entry |
 | `profiles.<name>.model` | string | yes | Model identifier (e.g. `claude-sonnet-4-20250514`) |
-| `profiles.<name>.backend` | string | no | Backend: `claude`, `pi`, or `codex` (default: `claude`) |
+| `profiles.<name>.backend` | string | no | Backend: `claude` or `pi` (default: `claude`) |
 | `profiles.<name>.mode` | string | no | Operational mode identifier (free-form, e.g. `plan`, `execute`) |
 | `profiles.<name>.extraEnv` | object | no | Extra environment variables passed to the backend process. Keys must match `^[A-Z_][A-Z0-9_]*$`. |
 | `profiles.<name>.extraOption` | object | no | Extra CLI flags passed to the backend. Keys must start with `--`. |
 | `profiles.<name>.claudeBackend` | string | no | Claude adapter mode: `print` (default, uses `-p` + stream-json) or `tui` (interactive Claude under tmux + jsonl tail). Ignored for non-claude backends. |
-| `profiles.<name>.thinking` | string | no | Thinking level, in the backend's native value set: for `claude` one of `low`/`medium`/`high`/`xhigh`/`max` (passed as `--effort`), for `pi` one of `off`/`minimal`/`low`/`medium`/`high`/`xhigh` (passed as `--thinking`). Not supported for `codex`. Absent → no flag is passed. Fallback entries do not inherit it — each declares its own. |
+| `profiles.<name>.thinking` | string | no | Thinking level, in the backend's native value set: for `claude` one of `low`/`medium`/`high`/`xhigh`/`max` (passed as `--effort`), for `pi` one of `off`/`minimal`/`low`/`medium`/`high`/`xhigh` (passed as `--thinking`). Absent → no flag is passed. Fallback entries do not inherit it — each declares its own. |
 | `profiles.<name>.fallback` | array | no | Ordered list of fallback profile entries. If the primary backend fails, Cortex tries each fallback in order. Each fallback inherits unspecified fields from the primary. |
 
 ### Profile resolution
@@ -224,11 +224,10 @@ At agent spawn time, Cortex resolves the profile through this chain:
 
 ### Validation rules
 
-Profile names must match `^[a-zA-Z0-9_-]+$`. Backend must be one of
-`claude`, `codex`, or `pi`. `claudeBackend` must be `print` or `tui`
-if specified. `thinking`, if specified, must be a value from the entry's
-backend value set (see the fields table); declaring it on a `codex`
-profile is an error. Unknown fields are silently ignored.
+Profile names must match `^[a-zA-Z0-9_-]+$`. Backend must be `claude`
+or `pi`. `claudeBackend` must be `print` or `tui` if specified.
+`thinking`, if specified, must be a value from the entry's backend value
+set (see the fields table). Unknown fields are silently ignored.
 
 ## settings.json
 

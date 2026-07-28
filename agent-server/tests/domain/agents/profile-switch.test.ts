@@ -1,3 +1,8 @@
+// input:  Profile backend identities and history state
+// output: Profile-switch allow/block decisions
+// pos:    Cross-backend profile switch policy tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { decideProfileSwitch } from '../../../src/domain/agents/profile-switch.js';
@@ -8,7 +13,7 @@ test('fresh session (no history) allows a same-backend switch', () => {
 });
 
 test('fresh session (no history) allows a cross-backend switch', () => {
-  const d = decideProfileSwitch({ currentBackend: 'claude', targetBackend: 'codex', hasHistory: false });
+  const d = decideProfileSwitch({ currentBackend: 'claude', targetBackend: 'pi', hasHistory: false });
   assert.deepEqual(d, { allowed: true, backendChanged: true });
 });
 
@@ -18,7 +23,7 @@ test('live session (has history) allows a same-backend switch, no reset implied'
 });
 
 test('live session (has history) BLOCKS a cross-backend switch', () => {
-  const d = decideProfileSwitch({ currentBackend: 'claude', targetBackend: 'codex', hasHistory: true });
+  const d = decideProfileSwitch({ currentBackend: 'claude', targetBackend: 'pi', hasHistory: true });
   assert.deepEqual(d, { allowed: false, reason: 'cross-backend-live-session' });
 });
 

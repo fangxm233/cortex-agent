@@ -1,3 +1,8 @@
+// input:  Agent config/profile state and platform adapter
+// output: Mode, backend, model, profile, skill, and agent commands
+// pos:    Handles chat commands that select agent configuration
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import type { Destination, PlatformAdapter } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
 import { Icons } from '../../../core/icons.js';
@@ -33,11 +38,11 @@ export async function handleModeCmd(channel: string, adapter: PlatformAdapter): 
 
 export async function handleBackendCmd(channel: string, adapter: PlatformAdapter, trimmedMessage: string): Promise<void> {
   const arg = trimmedMessage.split(/\s+/)[1];
-  const newBackend = (arg === 'claude' || arg === 'codex') ? arg : (getActiveBackend() === 'claude' ? 'codex' : 'claude');
+  const newBackend = (arg === 'claude' || arg === 'pi') ? arg : (getActiveBackend() === 'claude' ? 'pi' : 'claude');
   setActiveBackend(newBackend);
   const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
   await adapter.postMessage(dest, {
-    text: `${Icons.refresh} ${t('cmd.backend.switched', { backend: newBackend === 'claude' ? t('cmd.backend.claudeLabel') : t('cmd.backend.codexLabel') })}`,
+    text: `${Icons.refresh} ${t('cmd.backend.switched', { backend: newBackend === 'claude' ? t('cmd.backend.claudeLabel') : t('cmd.backend.piLabel') })}`,
   });
 }
 

@@ -38,7 +38,7 @@ YAML 键使用 kebab-case（`done-when`、`depends-on`、`claimed-by` 等），�
 ```yaml
 - id: f7cf
   text: "用统一的 adapter.runWithAdapter 替换后端分发"
-  why: "Claude 和 Codex 的两条独立分发路径是维护负担"
+  why: "重复的后端分发路径会增加维护负担"
   done-when: "mode-manager.ts 对两个后端使用 runWithAdapter；fixture 回放测试通过"
   priority: high
   status: open

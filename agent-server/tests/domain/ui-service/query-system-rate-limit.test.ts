@@ -44,7 +44,7 @@ test('system.rateLimitStatus returns active provider windows without collapsing 
   );
   await handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.94, resetsAt: nowSec + 300 },
-    { provider: 'openai-codex', displayName: 'OpenAI', mode: 'codex' },
+    { provider: 'openai-codex', displayName: 'OpenAI', mode: 'subscription' },
   );
   await initResumeRegistry({ save: async () => {}, load: async () => [] });
   recordResume({ kind: 'direct', provider: 'anthropic', channel: 'C1', userMessage: 'a', recordedAt: 1 });

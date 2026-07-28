@@ -8,7 +8,7 @@ import type { NormalizedEvent } from './normalize/event-types.js';
 import type { NormalizedHookSpec } from './normalize/hooks.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
-export type Backend = 'claude' | 'codex' | 'pi';
+export type Backend = 'claude' | 'pi';
 
 export interface UserMessage {
   text: string;
@@ -46,11 +46,11 @@ export interface AgentSpawnConfig {
   cwd?: string;
 
   // --- Claude-specific passthroughs (task f7cf); other backends ignore these ---
-  /** DR-0008 Phase 3 cleanup target. Channel identifier; Claude uses for session-pool key fallback, Codex for route key. */
+  /** Channel identifier used for Claude session-pool key fallback. */
   channel?: string;
   /** DR-0008 Phase 3 cleanup target. Claude `--agent` CLI flag. */
   claudeAgent?: string;
-  /** DR-0008 Phase 3 cleanup target. MCP env + log context; both Claude and Codex read it. */
+  /** MCP environment and Claude log context. */
   callbackSource?: string;
   /** DR-0008 Phase 3 cleanup target. Forwarded to MCP env + Claude log context. */
   scheduleTaskId?: string;
@@ -80,13 +80,11 @@ export interface AgentSpawnConfig {
   claudeBackend?: 'print' | 'tui';
 
   /** Thinking level from the active profile's `thinking` field (backend-native value, validated at
-   *  profile load). Claude adapter passes it as `--effort <level>`, PI adapter as `--thinking <level>`;
-   *  codex ignores it. Absent → no flag is passed (backward compatible). */
+   *  profile load). Claude passes `--effort <level>`; PI passes `--thinking <level>`. */
   thinking?: string;
 
-  /** Cortex execution context surfaced to the MCP server child as CORTEX_THREAD_ID/PROFILE/PROJECT/SESSION_NAME env vars
-   *  (and into Codex route-context.json). Read by mcp tools/context.ts and tools/schedule.ts so LLMs running inside
-   *  the agent can self-discover their thread / profile / project / session-name without guessing. */
+  /** Cortex execution context surfaced to MCP children as CORTEX_* environment variables so
+   *  agents can discover their thread, profile, project, and session without guessing. */
   cortexContext?: {
     threadId?: string | null;
     profile?: string | null;

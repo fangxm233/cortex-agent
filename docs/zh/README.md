@@ -98,7 +98,7 @@ Cortex 按影响范围分类操作。系统在工具调用层强制执行这一�
 | [Slack Setup](./slack-setup.md) | 应用创建、令牌收集、Socket Mode、作用域 |
 | [Configuration](./configuration.md) | 完整 `.env` 参考、`profiles.json`、文件布局、热重载 |
 | [CLI Reference](./cli-reference.md) | `cortex`、`cortex-task`、`cortex-run` — 每个子命令和标志 |
-| [Backends](./backends.md) | Claude Code vs PI vs Codex，功能矩阵，回退，费用报告 |
+| [Backends](./backends.md) | Claude Code vs PI，功能矩阵，回退，费用报告 |
 | [Architecture](./architecture.md) | 服务器层、WS 协议、事件总线 |
 | [Threads](./threads.md) | 多智能体管道、模板、转换、钩子 |
 | [Tasks](./tasks.md) | TASKS.yaml 格式、生命周期、分发、cortex-run 看门狗 |

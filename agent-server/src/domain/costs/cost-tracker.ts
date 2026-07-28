@@ -33,8 +33,8 @@ export interface CostEntry {
   source: string;
   input_tokens?: number;
   output_tokens?: number;
-  provider?: string;  // PI: LLM provider name (e.g. 'anthropic'), absent for claude/codex
-  model?: string;     // PI: exact model id (e.g. 'claude-sonnet-4-20250514'), absent for claude/codex
+  provider?: string;  // PI provider name; absent for Claude
+  model?: string;     // PI model id; absent for Claude
 }
 
 interface PeriodBucket {

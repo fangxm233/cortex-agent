@@ -26,9 +26,6 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cli.test.ts | test | cortex CLI help text and subcommand routing |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
 | client-manager.test.ts | test | remote client handshake, auth and commands |
-| codex-bridge.test.ts | test | Codex MCP privilege composition and cleanup |
-| codex-event-parser.test.ts | test | Codex JSON-RPC to normalized events |
-| codex-spawn-args.test.ts | test | Codex system prompt from CORTEX.md chain |
 | command-handlers.test.ts | test | !cost, !cancel, !status and other bang commands |
 | command-interactive.test.ts | test | interactive command router and handlers |
 | composite-adapter-noop-fallback.test.ts | test | unknown conduit operations stay no-op |

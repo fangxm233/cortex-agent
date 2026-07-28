@@ -7,7 +7,7 @@ import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 const now = Date.now();
 const knownRecord = {
   id: 'exec_known', kind: 'dispatch', status: 'completed', channel: 'C2', project: 'proj2',
-  source: { trigger: 'dispatch' }, backend: 'codex', billingMode: 'api',
+  source: { trigger: 'dispatch' }, backend: 'pi', billingMode: 'api',
   session: { sessionId: 's2' }, thread: { threadId: 'thr_9', agentSlotId: 'main' },
   dispatch: {
     taskId: 't1', taskHash: 'h1', machine: 'server1', scheduleTaskId: 'sch1',

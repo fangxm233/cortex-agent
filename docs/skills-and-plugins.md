@@ -161,7 +161,6 @@ Plugins are passed to the LLM backend at spawn time:
 
 - **Claude Code**: `--plugin-dir <path>` flags
 - **PI**: `--skill <path>` flags
-- **Codex**: No plugin support (the `Capability.Plugins` feature is not available)
 
 The backend itself handles scanning the directories for `SKILL.md` files and making them available via the `Skill` tool.
 
@@ -171,8 +170,6 @@ Cortex scans multiple roots for `SKILL.md` files:
 
 1. `{DATA_DIR}/plugins/` — the main plugin directory (organized by plugin name)
 2. `{DATA_DIR}/.claude/skills/` — user-modifiable skills root
-3. `{DATA_DIR}/.codex/skills/.system/` — Codex system skills
-4. `{WORKSPACE_DIR}/codex-routes/` — Codex route skills
 
 Discovery is recursive: any subdirectory containing a `SKILL.md` is treated as a skill. Results are cached with a 60-second TTL.
 

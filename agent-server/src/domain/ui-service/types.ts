@@ -14,6 +14,7 @@ import type { Session } from '@store/session-registry-repo.js';
 import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
 import type { LogLocation } from '@domain/executions/log-tailer.js';
 import type { SessionHistory } from '@store/conversation-history-repo.js';
+import type { Backend } from '../../agent-adapter/types.js';
 
 // ── Result ────────────────────────────────────────────────────────
 
@@ -803,10 +804,9 @@ export interface ConfigBudget {
 export interface ConfigProfileEntry {
   name: string;
   model: string | null;
-  backend: string | null;
+  backend: Backend | null;
   mode: string | null;
-  /** Thinking level (backend-native value: claude --effort / pi --thinking). null when the profile
-   *  declares none (or the backend has no thinking passthrough, e.g. codex). */
+  /** Thinking level (backend-native value: claude --effort / pi --thinking). */
   thinking: string | null;
 }
 

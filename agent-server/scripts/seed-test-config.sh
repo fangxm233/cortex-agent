@@ -48,8 +48,7 @@ cat > "$CONFIG_DIR/profiles.json" <<'PROFILES'
       ]
     },
     "scan":    { "model": "claude-sonnet-4-6", "backend": "claude", "mode": "plan" },
-    "qa":      { "model": "claude-sonnet-4-6", "backend": "claude", "mode": "plan" },
-    "codex":   { "model": "gpt-5.4",            "backend": "codex", "mode": "plan" }
+    "qa":      { "model": "claude-sonnet-4-6", "backend": "claude", "mode": "plan" }
   }
 }
 PROFILES

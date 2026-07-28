@@ -19,7 +19,6 @@ import { isValidDispatchPrompt, hasRunningExecutionForSchedule } from '../../tas
 import { allConfigsRateLimited } from '../../agents/facade.js';
 import { createThread } from '../../threads/index.js';
 import { runThread as runThreadExec, continueThread } from '../../threads/runner.js';
-import { maybeNotifyCodexLowUsage } from '../../costs/codex-usage-monitor.js';
 import { buildUserProcessingMessage, computeElapsed, buildSessionTag } from '@core/status-format.js';
 import { finalizeThreadSuccess, buildProgressUpdater } from './_shared.js';
 import { planScheduledDispatch, type DispatchPlan } from './target-dispatch.js';
@@ -128,7 +127,6 @@ async function runScheduledTaskAsync({ normalizedMessage, message, projectId, sc
   try {
     const threadResult = await dispatchByPlan({ plan, normalizedMessage, message, scheduleTaskId, effectiveProfile, statusMsg, startTime, sessionName, projectReportDest, projectId });
     const result = threadResult.lastAgentResult as any;
-    await maybeNotifyCodexLowUsage({ adapter, result });
 
     // Rate-limit pause: the runner already recorded the thread for auto-resume and left it in
     // 'rate_limited'. Don't treat it as a failure — just reflect the paused state.

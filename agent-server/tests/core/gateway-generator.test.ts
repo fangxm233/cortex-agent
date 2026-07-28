@@ -446,7 +446,7 @@ test('validateProfilesAgainstGateway: passes when all modes exist', () => {
 test('validateProfilesAgainstGateway: checks fallback entries too', () => {
   const dir = tmpDir();
   writeProfiles(dir, {
-    codex: { model: 'm', backend: 'codex', mode: 'plan', fallback: [{ model: 'm', backend: 'pi', mode: 'nope', provider: 'deepseek' }] },
+    plan: { model: 'm', backend: 'claude', mode: 'plan', fallback: [{ model: 'm', backend: 'pi', mode: 'nope', provider: 'deepseek' }] },
   });
   const issues = validateProfilesAgainstGateway(GW, dir);
   assert.equal(issues.length, 1);
