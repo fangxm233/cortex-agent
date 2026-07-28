@@ -17,6 +17,6 @@ Extends PI with Cortex MCP tools, hooks, interaction shims, WebFetch, and provid
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |
 | hook-bridge.ts | bridge | forwards PI tool events into Cortex hooks |
 | web-fetch.ts | tool | fetches bounded HTTP(S) text and cleans redirects |
-| web-search.ts | tool | dispatches search through the active model API |
+| web-search.ts | tool | validates search via the active model API |
 | tool-shims.ts | bridge | gates interaction, todo, and web tools |
 | pi-ext-types.ts | types | type stub for the PI extension API |
