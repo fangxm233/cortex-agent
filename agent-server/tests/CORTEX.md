@@ -17,7 +17,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-tool-shims.test.ts | test | PI pseudo-tool shims, retries, extension UI |
 | agent-adapter-pi.test.ts | test | PI framing, spawn, context and compact |
 | agent-adapter.test.ts | test | adapter dispatch, capability and tool names |
-| agent-retry-classification.test.ts | test | retry classification and terminal notices |
+| agent-retry-classification.test.ts | test | retry classification and auto-resume notices |
 | app.test.ts | test | startup DM notification behaviour |
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | claim-recovery.test.ts | test | orphaned task claim recovery policy |

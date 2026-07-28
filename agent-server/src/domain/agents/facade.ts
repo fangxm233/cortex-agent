@@ -1,5 +1,5 @@
 // input:  config, adapters, profiles, normalized events
-// output: provider-attributed agent runs, compact control, notices
+// output: provider-attributed runs, compact control, resume notices
 // pos:    Backend-neutral agent execution and notice policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -10,8 +10,8 @@ import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, ContextUsage } from '@core/types/agent-types.js';
 import { recordCost } from '../costs/cost-tracker.js';
-import { configureEnvForMode, isRetryableResult, isRetryableError } from './config.js';
-import { isProviderModeRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
+import { configureEnvForMode, isApiRateLimitError, isRetryableResult, isRetryableError } from './config.js';
+import { isProviderModeRateLimited, isProviderRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { createLogger } from '@core/log.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
@@ -60,6 +60,15 @@ class AttemptNoticeTracker {
     this.forward(displayText, undefined, 'error');
   }
 
+  private emitAutoResume(provider: string | undefined): boolean {
+    if (!this.original.isUserInitiated || !isProviderRateLimited(provider)) return false;
+    if (this.generateNotices && this.forward && !this.attemptHasErrorNotice) {
+      this.attemptHasErrorNotice = true;
+      this.forward(t('notify.rateLimitAutoResume'), undefined, 'warning');
+    }
+    return true;
+  }
+
   async transitionToFallback(
     current: AgentConfig,
     next: AgentConfig,
@@ -76,15 +85,23 @@ class AttemptNoticeTracker {
   }
 
   emitTerminalError(error: unknown): void {
-    const value = error as { message?: unknown; cancelled?: boolean } | null | undefined;
+    const value = error as {
+      message?: unknown;
+      cancelled?: boolean;
+      rateLimitProvider?: string;
+    } | null | undefined;
     if (value?.cancelled) return;
     const message = typeof value?.message === 'string' && value.message.length > 0
       ? value.message
       : String(error);
-    this.emitTerminal(message);
+    const resumableDirectError = this.original.trigger !== 'edit-retry'
+      && isApiRateLimitError(message)
+      && this.emitAutoResume(value?.rateLimitProvider);
+    if (!resumableDirectError) this.emitTerminal(message);
   }
 
   emitTerminalRateLimit(result: AgentResult): void {
+    if (this.emitAutoResume(result.rateLimitProvider)) return;
     const detail = result.rateLimitMessage;
     if (typeof detail === 'string' && detail.startsWith('API Error:')) this.emitTerminal(detail);
     else this.emitTerminal(t('status.rateLimitedExhausted'), t('status.rateLimitedExhausted'));

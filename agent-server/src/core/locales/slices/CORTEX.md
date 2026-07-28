@@ -11,4 +11,4 @@ Each file carries the English and Simplified Chinese text for that cluster.
 | lang.ts | data | messages for the language switch command |
 | scheduling.ts | data | messages for the schedule commands |
 | startup.ts | data | messages for server startup notices |
-| status.ts | data | status, lifecycle, and button label text |
+| status.ts | data | status, lifecycle, notice and button label text |

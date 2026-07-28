@@ -1,5 +1,5 @@
 // input:  agents/config, facade, stub AgentProcess events
-// output: retry classification and typed-notice regressions
+// output: retry classification and auto-resume notice regressions
 // pos:    Agent fallback and terminal notice policy tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -12,6 +12,12 @@ import { getAdapter } from '../src/agent-adapter/index.js';
 import type { AgentProcess } from '../src/agent-adapter/types.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
 import { profileRepo, PROFILES_FILE } from '../src/store/profile-repo.js';
+import {
+  handleRateLimitEvent,
+  initRateLimitThrottle,
+  _testReset as throttleReset,
+} from '../src/domain/costs/rate-limit-throttle.js';
+import { MockAdapter } from '../src/platform/testing.js';
 
 const SUCCESS_RESULT: AgentResult = {
   sessionId: 'fallback-session',
@@ -23,6 +29,13 @@ const SUCCESS_RESULT: AgentResult = {
   enteredPlanMode: false,
   exitedPlanMode: false,
   finalOutput: 'fallback-ok',
+};
+
+const RATE_LIMIT_RESULT: AgentResult = {
+  ...SUCCESS_RESULT,
+  rateLimited: true,
+  rateLimitMessage: 'rate limit exceeded',
+  finalOutput: null,
 };
 
 function makeProcess(
@@ -75,6 +88,18 @@ function installSingleProfile(): void {
     },
   }));
   profileRepo.invalidate();
+}
+
+async function activateProviderThrottle(provider = 'deepseek'): Promise<void> {
+  throttleReset();
+  await initRateLimitThrottle(new MockAdapter({ adminChannel: 'admin' }) as any, {
+    save: async () => {},
+    load: async () => null,
+  });
+  await handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 300 },
+    { provider, displayName: provider, mode: 'deepseek' },
+  );
 }
 
 for (const message of [
@@ -155,6 +180,67 @@ test('runAgent emits one terminal error notice for a deterministic authenticatio
   );
   assert.equal(fallback.mock.calls.length, 0);
   assert.deepEqual(notices, [{ text: 'Error: HTTP 401 unauthorized', level: 'error' }]);
+});
+
+test('runAgent shows a warning when a user chat rate-limit result will auto-resume', async (t) => {
+  installSingleProfile();
+  await activateProviderThrottle();
+  t.onTestFinished(() => throttleReset());
+  vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(RATE_LIMIT_RESULT));
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  const result = await runAgent('test', {
+    profileName: 'single-test',
+    channel: 'web:retry',
+    isUserInitiated: true,
+    onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+  }).promise;
+
+  assert.equal(result.rateLimited, true);
+  assert.deepEqual(notices, [{
+    text: 'Rate limited — this chat will resume automatically when the limit resets.',
+    level: 'warning',
+  }]);
+});
+
+test('runAgent shows the auto-resume warning for a thrown user-chat rate-limit error', async (t) => {
+  installSingleProfile();
+  await activateProviderThrottle();
+  t.onTestFinished(() => throttleReset());
+  vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(new Error('HTTP 429 rate limit exceeded')));
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  await assert.rejects(
+    runAgent('test', {
+      profileName: 'single-test',
+      channel: 'web:retry',
+      isUserInitiated: true,
+      onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+    }).promise,
+    /rate limit exceeded/,
+  );
+
+  assert.deepEqual(notices, [{
+    text: 'Rate limited — this chat will resume automatically when the limit resets.',
+    level: 'warning',
+  }]);
+});
+
+test('runAgent keeps a non-resumable rate-limit result as an error notice', async (t) => {
+  throttleReset();
+  t.onTestFinished(() => throttleReset());
+  installSingleProfile();
+  vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(RATE_LIMIT_RESULT));
+  const notices: Array<{ text: string; level?: string }> = [];
+
+  await runAgent('test', {
+    profileName: 'single-test',
+    channel: 'web:retry',
+    isUserInitiated: true,
+    onAssistantMessage: (text, _blockId, level) => notices.push({ text, level }),
+  }).promise;
+
+  assert.deepEqual(notices, [{ text: 'Rate limited', level: 'error' }]);
 });
 
 test('runAgent does not duplicate an API Error event when the attempt terminates with the same error', async () => {

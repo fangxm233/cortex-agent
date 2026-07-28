@@ -27,6 +27,7 @@ export const statusEn = {
   'notify.contextCompacted': 'Context auto-compacted.',
   'notify.agentFallback': 'Model fallback: ${from} → ${to}.',
   'notify.backendSessionReset': 'Previous backend session was unavailable; started a fresh session.',
+  'notify.rateLimitAutoResume': 'Rate limited — this chat will resume automatically when the limit resets.',
   // --- Execution report ---
   'status.noRunningExecutions': 'No running executions.',
   'status.runningExecutions': 'Running executions: ${count}',
@@ -61,6 +62,7 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'notify.contextCompacted': '上下文已自动压缩。',
   'notify.agentFallback': '模型回退：${from} → ${to}。',
   'notify.backendSessionReset': '之前的后端会话不可用，已启动新会话。',
+  'notify.rateLimitAutoResume': '触发限流，解除后此对话将自动续跑。',
   // --- Execution report ---
   'status.noRunningExecutions': '没有正在运行的执行。',
   'status.runningExecutions': '正在运行的执行：${count}',
