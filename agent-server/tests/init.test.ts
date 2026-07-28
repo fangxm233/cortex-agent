@@ -1,7 +1,7 @@
-// input:  init module
-// output: verify path resolution, env generation, config generation, safeCopy idempotency,
-//         backend detection, gateway usage config generation
-// pos:    Validate cortex init pure logic before filesystem integration
+// input:  init module and temporary filesystem
+// output: init path, env, config, and platform behavior verification
+// pos:    Cortex init pure-logic tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -72,6 +72,27 @@ test('generateConfigs preserves an existing preferences.json without --force', (
   // ...unless --force is passed.
   generateConfigs(paths, baseAnswers('en'), true);
   assert.equal(JSON.parse(fs.readFileSync(prefsPath, 'utf8')).lang, 'en');
+});
+
+test('generateConfigs writes isolated task and thread MCP configs', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-init-mcp-'));
+  const paths = getResolvedPaths(home);
+  fs.mkdirSync(paths.CONFIG_DIR, { recursive: true });
+  fs.mkdirSync(paths.STORE_DIR, { recursive: true });
+
+  try {
+    generateConfigs(paths, baseAnswers('en'), false);
+    const tasks = JSON.parse(
+      fs.readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-tasks.json'), 'utf8'),
+    );
+    const thread = JSON.parse(
+      fs.readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-thread.json'), 'utf8'),
+    );
+    assert.deepEqual(Object.keys(tasks.mcpServers), ['cortex-tasks']);
+    assert.deepEqual(Object.keys(thread.mcpServers), ['cortex-thread']);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
 // ─── getResolvedPaths ───────────────────────────────────────────

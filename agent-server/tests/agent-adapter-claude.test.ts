@@ -1,7 +1,7 @@
-// input:  Node test runner + agent-adapter/claude/* modules
-// output: Claude CLI args/hooks/summarizer/manual-compact tests
-// pos:    ClaudeAdapter pure-function spec-fidelity lock-down
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Claude adapter modules and Node assertions
+// output: CLI args, env, hooks, parsing, and compact verification
+// pos:    Claude adapter behavior tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -13,7 +13,18 @@ import {
   SESSION_START_HOOKS,
 } from '../src/agent-adapter/claude/hooks-builder.js';
 import { summarizeToolInput } from '../src/agent-adapter/claude/tool-summarizers.js';
-import { DEFAULT_TOOLS, MCP_CONFIG, CORE_MCP_CONFIG, TUI_TOOLS, TUI_BRIDGE_TOOLS, TUI_MCP_CONFIG, FEISHU_MCP_CONFIG, WEB_MCP_CONFIG } from '../src/agent-adapter/claude/defaults.js';
+import {
+  CORE_MCP_CONFIG,
+  DEFAULT_TOOLS,
+  FEISHU_MCP_CONFIG,
+  MCP_CONFIG,
+  TASKS_MCP_CONFIG,
+  THREAD_MCP_CONFIG,
+  TUI_BRIDGE_TOOLS,
+  TUI_MCP_CONFIG,
+  TUI_TOOLS,
+  WEB_MCP_CONFIG,
+} from '../src/agent-adapter/claude/defaults.js';
 import {
   extractAskUserQuestions,
   setActivePlanFile,
@@ -52,6 +63,33 @@ test('buildSpawnArgs baseline — no optional flags', () => {
     '--session-id', 'uuid-aaa',
   ];
   assert.deepEqual(args, expected);
+});
+
+test('buildSpawnArgs direct session never loads the thread-control layer', () => {
+  const args = buildSpawnArgs({
+    tools: null,
+    needsResume: false,
+    sessionId: 'uuid-direct',
+  });
+  assert.ok(args.includes(MCP_CONFIG));
+  assert.ok(!args.includes(CORE_MCP_CONFIG));
+  assert.ok(!args.includes(TASKS_MCP_CONFIG));
+  assert.ok(!args.includes(THREAD_MCP_CONFIG));
+});
+
+test('buildSpawnArgs thread session layers core, tasks, and thread configs', () => {
+  const args = buildSpawnArgs({
+    tools: null,
+    needsResume: false,
+    sessionId: 'uuid-thread',
+    mcpConfigPath: CORE_MCP_CONFIG,
+  });
+  const start = args.indexOf('--mcp-config');
+  assert.deepEqual(
+    args.slice(start + 1, start + 4),
+    [CORE_MCP_CONFIG, TASKS_MCP_CONFIG, THREAD_MCP_CONFIG],
+  );
+  assert.ok(!args.includes(MCP_CONFIG));
 });
 
 test('buildSpawnArgs with full options — system-prompt, append, model, agent, plugin-dir (×2), outputStyle, resume', () => {
@@ -314,6 +352,7 @@ test("buildSpawnArgs mode='tui' — omits -p / stream-json flags, layers TUI bri
   assert.ok(args.includes('bypassPermissions'));
   // MCP loading mirrors print mode (full MCP_CONFIG) AND additionally layers the TUI bridge.
   assert.ok(args.includes(MCP_CONFIG), 'tui non-thread loads the same base MCP set as print mode');
+  assert.ok(!args.includes(THREAD_MCP_CONFIG), 'direct tui must not load thread control');
   assert.ok(args.includes(TUI_MCP_CONFIG), 'tui non-thread also loads the cortex-tui-bridge server');
   assert.ok(args.includes(TUI_TOOLS));
   assert.ok(args.includes('--session-id'));
@@ -334,9 +373,11 @@ test("buildSpawnArgs mode='tui' — thread/core session (mcpConfigPath=CORE_MCP_
     mode: 'tui',
     mcpConfigPath: CORE_MCP_CONFIG,
   });
-  assert.ok(args.includes(CORE_MCP_CONFIG), 'thread tui loads only the core MCP server set');
+  assert.ok(args.includes(CORE_MCP_CONFIG), 'thread tui loads the remote execution server');
+  assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread tui loads read-only task monitoring');
+  assert.ok(args.includes(THREAD_MCP_CONFIG), 'thread tui loads its control plane');
   assert.ok(!args.includes(TUI_MCP_CONFIG), 'thread tui must NOT load the cortex-tui-bridge server');
-  assert.ok(!args.includes(MCP_CONFIG), 'thread tui must not fall back to the full MCP set');
+  assert.ok(!args.includes(MCP_CONFIG), 'thread tui must not fall back to the direct MCP set');
   // No bridge → fall back to the standard tool whitelist (not TUI_TOOLS, which references bridge tools).
   assert.ok(!args.includes(TUI_TOOLS), 'thread tui must not whitelist the bridge tools');
 });
@@ -488,6 +529,7 @@ test('buildSpawnArgs print + isUserInitiated — layers TUI bridge MCP config an
   assert.ok(args.includes('-p'), 'print mode preserved');
   const i = args.indexOf('--mcp-config');
   assert.equal(args[i + 1], MCP_CONFIG, 'base full config first');
+  assert.ok(!args.includes(THREAD_MCP_CONFIG), 'direct print must not load thread control');
   assert.ok(args.includes(TUI_MCP_CONFIG), 'user-initiated print session also loads the cortex-tui-bridge server');
   // Tools: base DEFAULT_TOOLS retained + the 3 bridge tools appended
   const tools = args[args.indexOf('--tools') + 1].split(',');
@@ -511,6 +553,8 @@ test('buildSpawnArgs print + isUserInitiated + core (CORE_MCP_CONFIG) — thread
     mcpConfigPath: CORE_MCP_CONFIG,
     isUserInitiated: true,
   });
+  assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread session gets task monitoring');
+  assert.ok(args.includes(THREAD_MCP_CONFIG), 'thread session gets thread control');
   assert.ok(!args.includes(TUI_MCP_CONFIG), 'thread/core sessions must NOT load the tui bridge');
   const tools = args[args.indexOf('--tools') + 1].split(',');
   for (const t of TUI_BRIDGE_TOOLS) {

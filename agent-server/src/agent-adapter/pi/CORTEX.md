@@ -13,8 +13,8 @@ Extends PI with Cortex MCP tools, hooks, and interaction pseudo-tools.
 | discovery.ts | core | finds PI providers and session files |
 | event-parser.ts | parser | translates PI events to normalized events |
 | framing.ts | codec | encodes and splits PI newline JSON records |
-| mcp-bridge.ts | bridge | exposes Cortex MCP tools inside PI |
-| mcp-bridge-logic.ts | core | decides tool loading and maps tool content |
+| mcp-bridge.ts | bridge | composes privilege-scoped MCP tools in PI |
+| mcp-bridge-logic.ts | core | decides server loading and maps tool content |
 | hook-bridge.ts | bridge | forwards PI tool events into Cortex hooks |
 | tool-shims.ts | bridge | adds interaction and todo pseudo-tools |
 | pi-ext-types.ts | types | type stub for the PI extension API |

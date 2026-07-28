@@ -395,9 +395,11 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── preferences.json        # operator UI language
 │   ├── budget.json             # daily/monthly budget limits
 │   ├── machines.json           # this machine's capabilities (gpuCount, path)
-│   ├── mcp-config.json         # main MCP server entry
-│   ├── mcp-config-core.json    # subset for restricted contexts
-│   ├── mcp-config-tui.json     # subset for TUI mode
+│   ├── mcp-config.json         # direct-session MCP servers
+│   ├── mcp-config-core.json    # remote execution/time layer
+│   ├── mcp-config-tasks.json   # read-only task-monitoring layer
+│   ├── mcp-config-thread.json  # thread-control layer
+│   ├── mcp-config-tui.json     # TUI interaction layer
 │   ├── profiles.json           # named (backend, model) profiles
 │   ├── session-hooks.json      # session-level hook pipeline
 │   └── thread-templates.json   # multi-agent thread definitions

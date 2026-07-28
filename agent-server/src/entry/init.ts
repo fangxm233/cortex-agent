@@ -1,13 +1,7 @@
-// input:  @clack/prompts, fs, path, os, yaml, @core/config-generator
-// output: runInit — interactive CORTEX_HOME initialization
-// pos:    cortex init subcommand — backend selection & install, multi-select interaction
-//         platforms (Slack/Feishu, walked one-by-one), gateway usage opt-in,
-//         creates directory structure, generates .env (CORTEX_PLATFORM as a comma list),
-//         copies default configs, auto-generates mcp-config.json and mode.json
-//
-// INSTALL_ROOT is computed from import.meta.url (agent-server dir, 2 levels up from dist/entry/).
-// DATA_DIR is resolved via the --home arg, $CORTEX_HOME env, or ~/.cortex/ default.
-// Run with: node dist/entry/cli.js init [--home <path>] [--force]
+// input:  prompts, filesystem, config builders, platform setup
+// output: runInit and initialization helpers
+// pos:    Cortex home initialization command
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { mkdirSync, writeFileSync, copyFileSync, existsSync, readFileSync, readdirSync } from 'fs';
 import { randomBytes } from 'crypto';
@@ -19,7 +13,13 @@ import { createInterface } from 'readline/promises';
 import { stdin as processStdin } from 'process';
 import * as clack from '@clack/prompts';
 import * as yaml from 'yaml';
-import { buildFullConfig, buildCoreConfig, buildTuiConfig } from '@core/config-generator.js';
+import {
+  buildCoreConfig,
+  buildFullConfig,
+  buildTasksConfig,
+  buildThreadConfig,
+  buildTuiConfig,
+} from '@core/config-generator.js';
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway } from '@core/gateway-generator.js';
 import { generateProfiles, mergeProfilesJson, writeProfilesJson, listChoices } from '@core/profile-generator.js';
 import { mergeThreadTemplates } from '@domain/threads/index.js';
@@ -1276,11 +1276,22 @@ function deployHooks(paths: InitPaths, force: boolean): void {
   }
 }
 
+function writeMcpConfigs(configDir: string): void {
+  const configs: Array<[string, object]> = [
+    ['mcp-config.json', buildFullConfig(INSTALL_ROOT)],
+    ['mcp-config-core.json', buildCoreConfig(INSTALL_ROOT)],
+    ['mcp-config-tasks.json', buildTasksConfig(INSTALL_ROOT)],
+    ['mcp-config-thread.json', buildThreadConfig(INSTALL_ROOT)],
+    ['mcp-config-tui.json', buildTuiConfig(INSTALL_ROOT)],
+  ];
+  for (const [fileName, config] of configs) {
+    writeFileSync(path.join(configDir, fileName), JSON.stringify(config, null, 2));
+  }
+}
+
 export function generateConfigs(paths: InitPaths, answers: InitAnswers, force: boolean): void {
   // MCP configs — always regenerate (machine-specific, in .gitignore)
-  writeFileSync(path.join(paths.CONFIG_DIR, 'mcp-config.json'), JSON.stringify(buildFullConfig(INSTALL_ROOT), null, 2));
-  writeFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-core.json'), JSON.stringify(buildCoreConfig(INSTALL_ROOT), null, 2));
-  writeFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-tui.json'), JSON.stringify(buildTuiConfig(INSTALL_ROOT), null, 2));
+  writeMcpConfigs(paths.CONFIG_DIR);
 
   // mode.json — skip if exists (user may have customized)
   const modeJsonPath = path.join(paths.STORE_DIR, 'mode.json');

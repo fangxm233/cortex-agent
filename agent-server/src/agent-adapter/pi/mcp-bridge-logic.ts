@@ -1,7 +1,7 @@
-// input:  source channel identifiers and MCP CallToolResult content items
-// output: platform-server loading decisions and lossless PI text-content mapping
-// pos:    pure policy/codec layer consumed by the PI MCP bridge and behavior tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  session environment and MCP result content
+// output: MCP loading predicates and PI text-content mapping
+// pos:    Pure policy and codec layer for the PI MCP bridge
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 /** Load platform-specific tools only for sessions originating from that platform. */
 export function shouldLoadSlack(channel: string | undefined): boolean {
@@ -14,6 +14,10 @@ export function shouldLoadFeishu(channel: string | undefined): boolean {
 
 export function shouldLoadWeb(channel: string | undefined): boolean {
   return !!channel && channel.startsWith('web:');
+}
+
+export function shouldLoadThreadControl(threadId: string | undefined): boolean {
+  return !!threadId;
 }
 
 type PiTextContent = { type: 'text'; text: string };

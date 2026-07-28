@@ -18,9 +18,11 @@ $CORTEX_HOME/
 │   ├── thread-templates.json     # Agent definitions and orchestration templates
 │   ├── machines.json             # Machine registry for remote clients
 │   ├── budget.json               # Daily/monthly budget limits
-│   ├── mcp-config.json           # Full MCP server configuration
-│   ├── mcp-config-core.json      # Core-only MCP (remote_* tools)
-│   ├── mcp-config-tui.json       # TUI-mode MCP configuration
+│   ├── mcp-config.json           # Direct-session MCP configuration
+│   ├── mcp-config-core.json      # Remote execution/time layer
+│   ├── mcp-config-tasks.json     # Read-only task-monitoring layer
+│   ├── mcp-config-thread.json    # Thread-control layer
+│   ├── mcp-config-tui.json       # TUI interaction layer
 │   └── session-hooks.json        # Session-level hook configuration
 ├── data/
 │   ├── mode.json                 # Current runtime mode and profile

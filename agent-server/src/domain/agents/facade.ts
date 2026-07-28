@@ -1,7 +1,7 @@
-// input:  config, adapters, profiles, normalized events
-// output: provider-attributed runs, compact control, resume notices
-// pos:    Backend-neutral agent execution and notice policy
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  configuration, adapters, profiles, normalized events
+// output: attributed runs, compact control, and resume notices
+// pos:    Backend-neutral agent execution facade
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { getAdapter } from '../../agent-adapter/index.js';
 import type { AgentAdapter, AgentCompactResult, AgentSpawnConfig, Backend } from '../../agent-adapter/index.js';
@@ -208,8 +208,8 @@ export interface RunAgentOptions {
   sessionName?: string | null;
   /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
   executionId?: string | null;
-  /** When true, load only core MCP server (remote_* tools). Used by template thread sessions.
-   *  Default (undefined/false) loads full MCP config with cortex-ext tools. */
+  /** When true, load the restricted core + tasks + thread MCP composition.
+   *  Default (undefined/false) loads the direct core + tasks + ext composition. */
   useCoreMcp?: boolean;
   /** Recursion depth of the owning thread, surfaced to the spawned agent as CORTEX_THREAD_DEPTH
    *  so the thread_start MCP tool can forward it for the depth guard. */

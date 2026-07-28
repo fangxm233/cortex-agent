@@ -304,9 +304,11 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 │   ├── preferences.json        # 操作者界面语言
 │   ├── budget.json             # 每日/每月预算限制
 │   ├── machines.json           # 本机能力（gpuCount、路径）
-│   ├── mcp-config.json         # 主 MCP 服务器入口
-│   ├── mcp-config-core.json    # 受限上下文的子集
-│   ├── mcp-config-tui.json     # TUI 模式的子集
+│   ├── mcp-config.json         # 直接会话 MCP 服务器
+│   ├── mcp-config-core.json    # 远程执行/时间分层
+│   ├── mcp-config-tasks.json   # 只读任务监控分层
+│   ├── mcp-config-thread.json  # 线程控制分层
+│   ├── mcp-config-tui.json     # TUI 交互分层
 │   ├── profiles.json           # 命名的（后端、模型）配置
 │   ├── session-hooks.json      # 会话级钩子管道
 │   └── thread-templates.json   # 多智能体线程定义

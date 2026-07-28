@@ -1,7 +1,7 @@
-// input:  PI ExtensionAPI, MCP clients, and pure platform/content bridge policy
-// output: discovered Cortex tools registered into PI with transparent call forwarding
-// pos:    PI extension lifecycle; paths and process handles stay private
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  PI extension API, MCP clients, loading policy
+// output: Cortex MCP tools forwarded into PI
+// pos:    PI MCP subprocess and tool-registration bridge
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ExtensionAPI } from './pi-ext-types.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -14,6 +14,7 @@ import {
   mapMcpContent,
   shouldLoadFeishu,
   shouldLoadSlack,
+  shouldLoadThreadControl,
   shouldLoadWeb,
 } from './mcp-bridge-logic.js';
 
@@ -21,10 +22,10 @@ import {
 // In ESM contexts (agent-server tests via tsx), derive it from import.meta.url instead.
 // eslint-disable-next-line no-undef
 const _dirname: string = (typeof __dirname === 'string' ? __dirname : null) ?? dirname(fileURLToPath(import.meta.url));
-// Once compiled, this file lives at dist/agent-adapter/pi/mcp-bridge.js; sibling MCP servers
-// live at dist/domain/mcp/{core-server,server,slack-server,feishu-server}.js. Point at the compiled .js so the
-// installed package (which does not ship src/) can locate them.
+// Point at compiled siblings because installed packages do not ship src/.
 const CORE_SERVER_PATH = resolve(_dirname, '../../domain/mcp/core-server.js');
+const TASKS_SERVER_PATH = resolve(_dirname, '../../domain/mcp/tasks-server.js');
+const THREAD_SERVER_PATH = resolve(_dirname, '../../domain/mcp/thread-server.js');
 const EXT_SERVER_PATH = resolve(_dirname, '../../domain/mcp/server.js');
 const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
 const FEISHU_SERVER_PATH = resolve(_dirname, '../../domain/mcp/feishu-server.js');
@@ -58,6 +59,8 @@ async function spawnMcpClient(serverPath: string, serverName: string): Promise<M
 
 export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
   let coreHandle: McpClientHandle | null = null;
+  let tasksHandle: McpClientHandle | null = null;
+  let threadHandle: McpClientHandle | null = null;
   let extHandle: McpClientHandle | null = null;
   let slackHandle: McpClientHandle | null = null;
   let feishuHandle: McpClientHandle | null = null;
@@ -68,13 +71,21 @@ export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
   const loadSlack = shouldLoadSlack(process.env.SLACK_CHANNEL);
   const loadFeishu = shouldLoadFeishu(process.env.SLACK_CHANNEL);
   const loadWeb = shouldLoadWeb(process.env.SLACK_CHANNEL);
+  const loadThreadControl = shouldLoadThreadControl(process.env.CORTEX_THREAD_ID);
 
   async function ensureAllConnected(): Promise<void> {
-    // Spawn core server (remote_* tools) — always loaded
+    // Core remote/time and read-only task monitoring are always loaded.
     if (!coreHandle) {
       coreHandle = await spawnMcpClient(CORE_SERVER_PATH, 'core').catch(() => null);
     }
-    // Spawn ext server (everything else: cost, context, schedule)
+    if (!tasksHandle) {
+      tasksHandle = await spawnMcpClient(TASKS_SERVER_PATH, 'tasks').catch(() => null);
+    }
+    // Thread lifecycle and manager Q&A are available only inside a Cortex thread.
+    if (loadThreadControl && !threadHandle) {
+      threadHandle = await spawnMcpClient(THREAD_SERVER_PATH, 'thread').catch(() => null);
+    }
+    // Spawn ext server (cost, context, schedule).
     if (!extHandle) {
       extHandle = await spawnMcpClient(EXT_SERVER_PATH, 'ext').catch(() => null);
     }
@@ -136,9 +147,10 @@ export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
       return;  // Don't crash PI if MCP servers fail to start
     }
 
-    // Register from core server (remote_*)
+    // Register the always-on privilege surfaces first, then optional thread/platform surfaces.
     if (coreHandle) await registerToolsFrom(coreHandle);
-    // Register from ext server (cost, context, schedule)
+    if (tasksHandle) await registerToolsFrom(tasksHandle);
+    if (threadHandle) await registerToolsFrom(threadHandle);
     if (extHandle) await registerToolsFrom(extHandle);
     // Register from slack server (slack_send_file) — Slack-originated sessions only
     if (slackHandle) await registerToolsFrom(slackHandle);
@@ -153,12 +165,22 @@ export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
   // Clean up MCP subprocesses when the PI session ends.
   pi.on('session_shutdown', async (_event, _ctx) => {
     toolsRegistered = false;
-    for (const h of [coreHandle, extHandle, slackHandle, feishuHandle, webHandle]) {
+    for (const h of [
+      coreHandle,
+      tasksHandle,
+      threadHandle,
+      extHandle,
+      slackHandle,
+      feishuHandle,
+      webHandle,
+    ]) {
       if (h) {
         try { await h.transport.close(); } catch { /* best-effort */ }
       }
     }
     coreHandle = null;
+    tasksHandle = null;
+    threadHandle = null;
     extHandle = null;
     slackHandle = null;
     feishuHandle = null;
