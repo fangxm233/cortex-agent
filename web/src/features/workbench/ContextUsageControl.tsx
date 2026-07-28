@@ -1,5 +1,5 @@
 // input:  context snapshot, manual compact action, modal/surface
-// output: shared context bar/modal with compact footer feedback
+// output: shared context modal with Compact/压缩 action
 // pos:    Shared desktop/mobile context usage control
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -18,7 +18,7 @@ const COPY = {
     current: 'Current context', limit: 'Context limit', usage: 'Usage', tokens: 'tokens',
     estimate: 'The backend reports this value as an estimate.',
     waiting: 'Context usage becomes available after the next turn completes.',
-    compact: 'Compact context', compacting: 'Compacting…', compacted: 'Context compacted.',
+    compact: 'Compact', compacting: 'Compacting…', compacted: 'Context compacted.',
     notNeeded: 'Nothing to compact.', running: 'Stop the current turn before compacting.',
     noHistory: 'No conversation history to compact.',
   },
@@ -27,7 +27,7 @@ const COPY = {
     current: '当前上下文', limit: '上下文上限', usage: '使用率', tokens: 'tokens',
     estimate: '此数值由后端估算。',
     waiting: '下一次 turn 完成后将显示上下文用量。',
-    compact: '压缩上下文', compacting: '压缩中…', compacted: '上下文已压缩。',
+    compact: '压缩', compacting: '压缩中…', compacted: '上下文已压缩。',
     notNeeded: '当前没有可压缩内容。', running: '请先停止当前 turn，再压缩上下文。',
     noHistory: '当前没有可压缩的会话历史。',
   },

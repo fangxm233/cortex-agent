@@ -1,5 +1,5 @@
 // input:  context usage modal and manual compact action states
-// output: compact header bar/percentage and detail modal render regressions
+// output: context modal and Compact/压缩 action label regressions
 // pos:    Shared context usage presentation contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -79,11 +79,14 @@ describe('ContextCompactFooter', () => {
     status: null, error: null, disabledReason: null,
   };
 
-  it('renders the idle Compact button in English', () => {
-    const html = renderToStaticMarkup(<ContextCompactFooter action={action} lang="en" />);
-    expect(html).toContain('data-context-compact-action');
-    expect(html).toContain('Compact context');
-    expect(html).not.toContain('disabled=""');
+  it('renders the idle action as Compact in English and 压缩 in Chinese', () => {
+    const english = renderToStaticMarkup(<ContextCompactFooter action={action} lang="en" />);
+    expect(english).toContain('data-context-compact-action');
+    expect(english).toContain('>Compact</button>');
+    expect(english).not.toContain('disabled=""');
+
+    const chinese = renderToStaticMarkup(<ContextCompactFooter action={action} lang="zh" />);
+    expect(chinese).toContain('>压缩</button>');
   });
 
   it('disables the action while pending or session-running and explains why', () => {
