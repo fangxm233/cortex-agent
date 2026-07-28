@@ -1,7 +1,7 @@
-// input:  PI MCP bridge logic plus a compiled ext-server transport
-// output: content mapping, channel-loading policy, and cost_query call behavior
-// pos:    bridge behavior tests; tool/export inventories and build-path smoke checks are excluded
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  PI MCP bridge logic and compiled MCP transport
+// output: content mapping, loading policy, and stdio call verification
+// pos:    PI MCP bridge behavior tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -13,6 +13,7 @@ import {
   mapMcpContent,
   shouldLoadFeishu,
   shouldLoadSlack,
+  shouldLoadThreadControl,
   shouldLoadWeb,
 } from '../src/agent-adapter/pi/mcp-bridge-logic.js';
 
@@ -94,6 +95,17 @@ test('shouldLoadSlack: false for feishu / bare / empty channels', () => {
   assert.equal(shouldLoadSlack('C0123'), false);
   assert.equal(shouldLoadSlack(''), false);
   assert.equal(shouldLoadSlack(undefined), false);
+});
+
+// --- shouldLoadThreadControl: gate lifecycle tools on thread context ---
+
+test('shouldLoadThreadControl: true when CORTEX_THREAD_ID is present', () => {
+  assert.equal(shouldLoadThreadControl('thr_abc123'), true);
+});
+
+test('shouldLoadThreadControl: false for empty or missing thread ids', () => {
+  assert.equal(shouldLoadThreadControl(''), false);
+  assert.equal(shouldLoadThreadControl(undefined), false);
 });
 
 // Real transport integration: invoking one tool exercises server startup, registration, RPC, and mapping.

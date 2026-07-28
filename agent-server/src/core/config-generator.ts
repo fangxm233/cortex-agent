@@ -1,6 +1,7 @@
-// input:  fs, path, SERVER_ROOT, CONFIG_DIR
-// output: generateMcpConfig — writes mcp-config.json to config dir
-// pos:    Startup-time MCP config auto-generation (P4)
+// input:  filesystem paths and server install roots
+// output: MCP config builders and startup file generation
+// pos:    MCP server configuration generator
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { writeFileSync } from 'fs';
 import * as path from 'path';
@@ -11,6 +12,8 @@ const log = createLogger('config-generator');
 
 const MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config.json');
 const CORE_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-core.json');
+const TASKS_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
+const THREAD_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 const TUI_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tui.json');
 const SLACK_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-slack.json');
 const FEISHU_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-feishu.json');
@@ -29,21 +32,40 @@ function serverEntry(script: string, serverRoot: string) {
   };
 }
 
-/** Full MCP config with both servers — loaded by user-initiated (direct) sessions. */
+/** Direct-session config: always-on tools plus direct-only Cortex management. */
 export function buildFullConfig(serverRoot: string): object {
   return {
     mcpServers: {
       'cortex-core': serverEntry('dist/domain/mcp/core-server.js', serverRoot),
+      'cortex-tasks': serverEntry('dist/domain/mcp/tasks-server.js', serverRoot),
       'cortex-ext': serverEntry('dist/domain/mcp/server.js', serverRoot),
     },
   };
 }
 
-/** Core-only MCP config — loaded by thread sessions (only remote_* tools). */
+/** Remote execution and time tools, isolated for restricted composition. */
 export function buildCoreConfig(serverRoot: string): object {
   return {
     mcpServers: {
       'cortex-core': serverEntry('dist/domain/mcp/core-server.js', serverRoot),
+    },
+  };
+}
+
+/** Read-only task monitoring, loaded for every agent session. */
+export function buildTasksConfig(serverRoot: string): object {
+  return {
+    mcpServers: {
+      'cortex-tasks': serverEntry('dist/domain/mcp/tasks-server.js', serverRoot),
+    },
+  };
+}
+
+/** Thread lifecycle control, loaded only for thread sessions. */
+export function buildThreadConfig(serverRoot: string): object {
+  return {
+    mcpServers: {
+      'cortex-thread': serverEntry('dist/domain/mcp/thread-server.js', serverRoot),
     },
   };
 }
@@ -101,6 +123,12 @@ export function generateMcpConfig(): void {
 
   writeFileSync(CORE_MCP_CONFIG_PATH, JSON.stringify(buildCoreConfig(SERVER_ROOT), null, 2));
   log.info(`Generated core MCP config at ${CORE_MCP_CONFIG_PATH}`);
+
+  writeFileSync(TASKS_MCP_CONFIG_PATH, JSON.stringify(buildTasksConfig(SERVER_ROOT), null, 2));
+  log.info(`Generated tasks MCP config at ${TASKS_MCP_CONFIG_PATH}`);
+
+  writeFileSync(THREAD_MCP_CONFIG_PATH, JSON.stringify(buildThreadConfig(SERVER_ROOT), null, 2));
+  log.info(`Generated thread MCP config at ${THREAD_MCP_CONFIG_PATH}`);
 
   writeFileSync(TUI_MCP_CONFIG_PATH, JSON.stringify(buildTuiConfig(SERVER_ROOT), null, 2));
   log.info(`Generated TUI MCP config at ${TUI_MCP_CONFIG_PATH}`);

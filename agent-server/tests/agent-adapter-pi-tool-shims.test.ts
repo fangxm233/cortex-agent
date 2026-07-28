@@ -1,6 +1,6 @@
 // input:  PIAdapter stub, fetch responses, extension-ui events
-// output: PI shim, WebFetch media/redirect, retry tests
-// pos:    PI pseudo-tool and local WebFetch regression coverage
+// output: PI shims, web media/gates, retry and turn tests
+// pos:    PI pseudo-tool and local web regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterEach, test, vi } from 'vitest';
@@ -266,7 +266,9 @@ const CODER_TOOLS = 'Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,Web
 test('I: makeToolGate — unset/empty env allows all pseudo-tools', () => {
   for (const env of [undefined, '', '   ']) {
     const gate = makeToolGate(env);
-    for (const label of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'TodoWrite', 'WebFetch']) {
+    for (const label of [
+      'AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'TodoWrite', 'WebFetch', 'WebSearch',
+    ]) {
       assert.equal(gate(label), true, `${label} should be allowed when env=${JSON.stringify(env)}`);
     }
   }
@@ -276,6 +278,7 @@ test('I2: makeToolGate — coder allowlist excludes the three interaction tools'
   const gate = makeToolGate(CODER_TOOLS);
   assert.equal(gate('TodoWrite'), true);
   assert.equal(gate('WebFetch'), true);
+  assert.equal(gate('WebSearch'), true);
   assert.equal(gate('AskUserQuestion'), false);
   assert.equal(gate('EnterPlanMode'), false);
   assert.equal(gate('ExitPlanMode'), false);
@@ -299,6 +302,7 @@ test('J: toolShims registers only allowed tools under a coder allowlist', () => 
     assert.ok(!registered.includes('exit_plan_mode'), 'exit_plan_mode must NOT be registered');
     assert.ok(registered.includes('todo_write'), 'todo_write must remain registered');
     assert.ok(registered.includes('web_fetch'), 'web_fetch must remain registered');
+    assert.ok(registered.includes('web_search'), 'web_search must remain registered');
   } finally {
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
@@ -311,7 +315,9 @@ test('J2: toolShims registers all shim tools when env is unset', () => {
   try {
     const { pi, registered } = makeMockPi();
     toolShims(pi);
-    for (const n of ['ask_user_question', 'enter_plan_mode', 'exit_plan_mode', 'todo_write', 'web_fetch']) {
+    for (const n of [
+      'ask_user_question', 'enter_plan_mode', 'exit_plan_mode', 'todo_write', 'web_fetch', 'web_search',
+    ]) {
       assert.ok(registered.includes(n), `${n} should be registered when no allowlist is set`);
     }
   } finally {
@@ -391,13 +397,14 @@ function makeTrackedBody(content: string | Uint8Array, closeAfterStart = false) 
   };
 }
 
-test('J4: toolShims excludes WebFetch when the allowlist omits it', () => {
+test('J4: toolShims excludes web tools when the allowlist omits them', () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
   process.env.CORTEX_PI_ALLOWED_TOOLS = 'Read,Grep';
   try {
     const { pi, registered } = makeMockPi();
     toolShims(pi);
     assert.ok(!registered.includes('web_fetch'));
+    assert.ok(!registered.includes('web_search'));
   } finally {
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;

@@ -10,7 +10,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | auth.ts | core | issues and checks shared-secret auth tokens |
 | bg-held-sessions.ts | state | tracks sessions held running in background |
 | cli-utils.ts | util | formats CLI help and errors, reads stdin |
-| config-generator.ts | config | generates the MCP config file at startup |
+| config-generator.ts | config | generates privilege-scoped MCP config files |
 | debug-mode.ts | config | reports DEBUG state and tool size limits |
 | gateway-generator.ts | config | discovers models and builds gateway.yaml |
 | i18n.ts | core | resolves localized messages by key |

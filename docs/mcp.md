@@ -1,9 +1,10 @@
 # MCP — Model Context Protocol
 
-Cortex ships three bundled MCP (Model Context Protocol) servers that give the
-agent access to remote machines, Cortex's own scheduling and cost systems, and
-Slack. This document explains what each server provides, how they are
-configured, and how to add third-party MCP servers.
+Cortex ships privilege-scoped and platform-scoped MCP (Model Context Protocol)
+servers that give agents access to remote machines, task monitoring, thread
+control, scheduling, costs, and platform integrations. This document explains
+what each server provides, how they are composed, and how to add third-party
+MCP servers.
 
 ## What MCP is
 
@@ -31,9 +32,9 @@ by reading shared files), and the result flows back to the agent.
 
 ### cortex-core
 
-Exposes tools for interacting with remote machines. This is the only server
-loaded by thread/template sessions — thread agents get remote machine access
-but not platform-specific, cost, or schedule tools.
+Exposes remote-machine operations and the read-only clock. It is loaded in all
+sessions. Keeping the `cortex-core` server name preserves the canonical
+`mcp__cortex-core__remote_*` names used by existing clients and skills.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -43,23 +44,44 @@ but not platform-specific, cost, or schedule tools.
 | `remote_edit` | `device`, `file_path`, `old_string`, `new_string`, `replace_all?` | Edit a file on a remote device by string replacement |
 | `remote_glob` | `device`, `pattern`, `path?` | Find files matching a glob pattern on a remote device |
 | `remote_grep` | `device`, `pattern`, `path?`, `glob?`, `type?`, `output_mode?`, `-A?`, `-B?`, `-C?`, `-i?`, `-n?`, `head_limit?`, `offset?`, `multiline?` | Search file contents on a remote device using ripgrep |
-| `thread_abort` | `kind`, `diagnosis` | Escalate YOUR OWN thread when the task is too-big / mis-scoped / blocked-external (terminal `aborted`) |
-| `thread_split` | `subtasks` | Decompose YOUR OWN task into children (keep-parent join) that flow through the dispatch queue |
-| `thread_wait` | `on_tasks?`, `on_threads?` | Suspend YOUR OWN thread until awaited children finish; pair with `cortex-task spawn` |
+| `current_time` | `timezone?` | Get the current date/time; optional IANA timezone (defaults to server local). Returns Unix epoch, UTC ISO, and localized wall-clock with offset |
+
+The server implementation is at `agent-server/src/domain/mcp/core-server.ts`.
+
+### cortex-tasks
+
+Exposes read-only task monitoring and is loaded in all sessions.
+
+| Tool | Parameters | Description |
+|---|---|---|
 | `task_status` | `task_id`, `project?` | Read a task's lifecycle state (status, actionable, claimed_by, blocked_by, deps, parent) |
 | `task_result` | `task_id`, `project?` | Read a task's outcome (done/blocked, done_when, completion note, block reason) |
 | `task_list` | `project?`, `status?`, `parent?`, `limit?` | List tasks (optionally by status or parent) |
-| `current_time` | `timezone?` | Get the current date/time; optional IANA timezone (defaults to server local). Returns Unix epoch, UTC ISO, and localized wall-clock with offset |
 
-The server implementation is at
-`agent-server/src/domain/mcp/core-server.ts`. Tools are implemented in
-`agent-server/src/domain/mcp/tools/`.
+The server implementation is at `agent-server/src/domain/mcp/tasks-server.ts`.
+
+### cortex-thread
+
+Exposes the thread lifecycle control plane and manager Q&A. It is loaded only
+when `CORTEX_THREAD_ID` identifies an active thread; direct sessions never
+receive these tools.
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `thread_abort` | `kind`, `diagnosis` | Escalate YOUR OWN thread when the task is too-big / mis-scoped / blocked-external (terminal `aborted`) |
+| `thread_split` | `subtasks` | Decompose YOUR OWN task into children (keep-parent join) that flow through the dispatch queue |
+| `thread_wait` | `on_tasks?`, `on_threads?` | Suspend YOUR OWN thread until awaited children finish; pair with `cortex-task spawn` |
+| `ask_manager` | `question` | Ask the planning manager a blocking clarification question |
+| `answer_subtask` | `question_id`, `answer` | Answer a clarification question from a child task |
+
+The server implementation is at `agent-server/src/domain/mcp/thread-server.ts`.
+Tool registrars remain in `agent-server/src/domain/mcp/tools/`.
 
 ### cortex-ext
 
 Exposes Cortex management tools: scheduling, cost queries, and context
-resolution. This server is only loaded by direct/user-initiated sessions —
-thread agents do not get these tools.
+resolution. Claude and Codex load it only for direct/user sessions; the PI
+bridge retains its existing behavior of loading cortex-ext in all sessions.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -109,9 +131,9 @@ The tool is in `agent-server/src/domain/mcp/feishu/file.ts`.
 
 ### cortex-tui-bridge
 
-Only loaded in TUI (terminal UI) mode. Replaces Claude Code's native
-`EnterPlanMode`, `ExitPlanMode`, and `AskUserQuestion` tools with MCP
-equivalents that route through Slack instead of the terminal.
+Loaded for interactive TUI sessions and user-initiated Claude print sessions.
+It replaces Claude Code's native `EnterPlanMode`, `ExitPlanMode`, and
+`AskUserQuestion` tools with MCP equivalents routed through Cortex.
 
 | Tool | Description |
 |---|---|
@@ -132,9 +154,11 @@ origin platform.
 
 | File | Loaded by | Servers |
 |---|---|---|
-| `~/.cortex/config/mcp-config.json` | Direct/user-initiated sessions | cortex-core + cortex-ext + platform-specific (cortex-slack or cortex-feishu) |
-| `~/.cortex/config/mcp-config-core.json` | Thread/template sessions | cortex-core only |
-| `~/.cortex/config/mcp-config-tui.json` | TUI mode sessions | cortex-tui-bridge only |
+| `~/.cortex/config/mcp-config.json` | Direct-session base | cortex-core + cortex-tasks + cortex-ext |
+| `~/.cortex/config/mcp-config-core.json` | Thread-session layer | cortex-core only |
+| `~/.cortex/config/mcp-config-tasks.json` | Thread-session layer | cortex-tasks only |
+| `~/.cortex/config/mcp-config-thread.json` | Thread-session-only layer | cortex-thread only |
+| `~/.cortex/config/mcp-config-tui.json` | Interaction layering (on-demand) | cortex-tui-bridge only |
 | `~/.cortex/config/mcp-config-slack.json` | Slack-specific layering (on-demand) | cortex-slack |
 
 Each file follows Claude Code's standard MCP config format:
@@ -145,6 +169,11 @@ Each file follows Claude Code's standard MCP config format:
     "cortex-core": {
       "command": "node",
       "args": ["/path/to/core-server.js"],
+      "cwd": "/path/to/cwd"
+    },
+    "cortex-tasks": {
+      "command": "node",
+      "args": ["/path/to/tasks-server.js"],
       "cwd": "/path/to/cwd"
     },
     "cortex-ext": {
@@ -163,18 +192,18 @@ that the tools read.
 
 ### How the right config gets selected
 
-In `agent-adapter/claude/spawn-args.ts`, the MCP config path is selected based
-on session context:
+In `agent-adapter/claude/spawn-args.ts`, MCP configs are composed from session
+context:
 
-- **TUI mode**: loads `mcp-config-tui.json` (cortex-tui-bridge only)
-- **Print mode, user-initiated sessions**: loads `mcp-config.json` (cortex-core + cortex-ext + platform-specific)
-- **Thread/template sessions**: loads `mcp-config-core.json` (cortex-core only)
+- **Direct/user sessions** load `mcp-config.json` (core + tasks + ext), then add eligible platform and interaction layers. They never load `mcp-config-thread.json`.
+- **Thread/template sessions** load `mcp-config-core.json`, `mcp-config-tasks.json`, and `mcp-config-thread.json`. They do not load direct-only ext, platform, or TUI-bridge layers.
 
-Platform-specific servers (cortex-slack, cortex-feishu) are loaded dynamically
-in the Claude and PI adapters based on the session's originating platform. The
-thread session override happens via `session.cortexContext.useCoreMcp`, which
-ensures thread agents only get remote machine tools, not platform-specific,
-cost, or scheduling tools.
+The thread branch is marked by `session.cortexContext.useCoreMcp`. In the PI
+bridge, core, tasks, and ext are always connected; `shouldLoadThreadControl()`
+adds cortex-thread only when `CORTEX_THREAD_ID` is present. Codex generates the
+same privilege composition in its per-route TOML: direct = core + tasks + ext,
+thread = core + tasks + thread. Platform-specific servers remain gated by
+their source-channel predicates.
 
 ## How MCP tools communicate with agent-server
 
@@ -196,13 +225,15 @@ execution registry). Instead, they communicate through two paths:
 ## Adding a third-party MCP server
 
 To add a third-party MCP server (e.g., a database connector, a web search
-tool, or a custom research tool), add it to `~/.cortex/config/mcp-config.json`
-(and `mcp-config-core.json` if thread agents should also have it):
+tool, or a custom research tool), add it to `~/.cortex/config/mcp-config.json`.
+If thread agents should also have it, add it to one of the thread-composed
+config builders rather than the direct config only:
 
 ```json
 {
   "mcpServers": {
     "cortex-core": { "command": "node", "args": ["..."], "cwd": "..." },
+    "cortex-tasks": { "command": "node", "args": ["..."], "cwd": "..." },
     "cortex-ext": { "command": "node", "args": ["..."], "cwd": "..." },
     "my-custom-server": {
       "command": "python",
@@ -214,9 +245,8 @@ tool, or a custom research tool), add it to `~/.cortex/config/mcp-config.json`
 ```
 
 **Important**: the config files are regenerated on every server restart. To
-persist custom MCP server entries, you must modify the generator in
-`agent-server/src/core/config-generator.ts` (the `buildFullConfig()` and/or
-`buildCoreConfig()` functions) rather than editing the JSON files directly.
+persist custom MCP server entries, modify the appropriate builder in
+`agent-server/src/core/config-generator.ts` rather than editing generated JSON.
 
 The type system already supports third-party MCP servers through the
 `AgentSpawnConfig.mcpServers` field (per-backend `McpServerConfig` array), but
@@ -228,9 +258,11 @@ MCP configuration still flows through the `--mcp-config` CLI flag.
 MCP tools cross the trust boundary from the agent process into agent-server
 internals and remote machines. Cortex applies the following controls:
 
-1. **Tool availability** — the agent's tool list (controlled per profile and
-   per thread template) determines which MCP tools appear to the agent. Thread
-   agents load only `cortex-core` (no Slack, no cost, no scheduling).
+1. **Server-level availability** — MCP privileges are separated by server
+   because backend tool allowlists do not filter individual MCP tools. Direct
+   sessions never receive cortex-thread; thread sessions add it only when they
+   carry thread context. Claude and Codex also exclude ext from thread sessions,
+   while PI retains its existing always-on ext behavior.
 
 2. **Claude Code's third-party MCP is disabled** — the setting
    `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`
@@ -262,7 +294,7 @@ The MCP server processes receive a subset of the agent server's environment:
 | `SLACK_BOT_TOKEN` | process.env | cortex-ext |
 | `CORTEX_SESSION_ID` | Session context | tui-server, context tools |
 | `CORTEX_SESSION_NAME` | Session context | context tools |
-| `CORTEX_THREAD_ID` | Thread context | context tools |
+| `CORTEX_THREAD_ID` | Thread context | cortex-thread tools, PI loading predicate, context tools |
 | `CORTEX_PROFILE` | Session context | context tools |
 | `CORTEX_PROJECT` | Session context | context tools |
 | `CORTEX_EXECUTION_ID` | Execution context | task lock hooks |

@@ -18,6 +18,8 @@ data/pi/
 # Machine-specific (generated per host)
 mcp-config.json
 mcp-config-core.json
+mcp-config-tasks.json
+mcp-config-thread.json
 
 .claude/settings.local.json
 

@@ -1,26 +1,35 @@
 // input:  config-generator module
-// output: verify MCP config builder functions produce correct structure
-// pos:    Validate config-generator pure logic (builders only, no filesystem)
+// output: MCP config builder structure verification
+// pos:    Config-generator pure-logic tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { buildFullConfig, buildCoreConfig, buildTuiConfig, buildFeishuConfig, buildWebConfig } from '../../src/core/config-generator.js';
+import {
+  buildCoreConfig,
+  buildFeishuConfig,
+  buildFullConfig,
+  buildTasksConfig,
+  buildThreadConfig,
+  buildTuiConfig,
+  buildWebConfig,
+} from '../../src/core/config-generator.js';
 
 // ─── buildFullConfig ────────────────────────────────────────────
 
-test('buildFullConfig returns cortex-core and cortex-ext servers', () => {
+test('buildFullConfig returns always-on direct servers without thread control', () => {
   const config = buildFullConfig('/test/server') as any;
   assert.ok(config.mcpServers);
   const keys = Object.keys(config.mcpServers);
-  assert.equal(keys.length, 2);
-  assert.ok(keys.includes('cortex-core'));
-  assert.ok(keys.includes('cortex-ext'));
+  assert.deepEqual(keys.sort(), ['cortex-core', 'cortex-ext', 'cortex-tasks']);
+  assert.ok(!keys.includes('cortex-thread'));
 });
 
 test('buildFullConfig uses provided serverRoot as cwd', () => {
   const config = buildFullConfig('/my/server/root') as any;
   assert.equal(config.mcpServers['cortex-core'].cwd, '/my/server/root');
+  assert.equal(config.mcpServers['cortex-tasks'].cwd, '/my/server/root');
   assert.equal(config.mcpServers['cortex-ext'].cwd, '/my/server/root');
 });
 
@@ -28,6 +37,12 @@ test('buildFullConfig cortex-core points to core-server.js (absolute path)', () 
   const config = buildFullConfig('/test') as any;
   assert.equal(config.mcpServers['cortex-core'].command, 'node');
   assert.deepEqual(config.mcpServers['cortex-core'].args, ['/test/dist/domain/mcp/core-server.js']);
+});
+
+test('buildFullConfig cortex-tasks points to tasks-server.js (absolute path)', () => {
+  const config = buildFullConfig('/test') as any;
+  assert.equal(config.mcpServers['cortex-tasks'].command, 'node');
+  assert.deepEqual(config.mcpServers['cortex-tasks'].args, ['/test/dist/domain/mcp/tasks-server.js']);
 });
 
 test('buildFullConfig cortex-ext points to server.js (absolute path)', () => {
@@ -51,7 +66,29 @@ test('buildCoreConfig uses provided serverRoot as cwd', () => {
   assert.equal(config.mcpServers['cortex-core'].cwd, '/my/server/root');
 });
 
-// ─── buildTuiConfig (DR-0012) ───────────────────────────────────
+// ─── Privilege-layer configs ────────────────────────────────────
+
+test('buildTasksConfig returns only cortex-tasks', () => {
+  const config = buildTasksConfig('/test/server') as any;
+  assert.deepEqual(Object.keys(config.mcpServers), ['cortex-tasks']);
+  assert.deepEqual(
+    config.mcpServers['cortex-tasks'].args,
+    ['/test/server/dist/domain/mcp/tasks-server.js'],
+  );
+  assert.equal(config.mcpServers['cortex-tasks'].cwd, '/test/server');
+});
+
+test('buildThreadConfig returns only cortex-thread', () => {
+  const config = buildThreadConfig('/test/server') as any;
+  assert.deepEqual(Object.keys(config.mcpServers), ['cortex-thread']);
+  assert.deepEqual(
+    config.mcpServers['cortex-thread'].args,
+    ['/test/server/dist/domain/mcp/thread-server.js'],
+  );
+  assert.equal(config.mcpServers['cortex-thread'].cwd, '/test/server');
+});
+
+// ─── buildTuiConfig ─────────────────────────────────────────────
 
 test('buildTuiConfig returns only cortex-tui-bridge server', () => {
   const config = buildTuiConfig('/test/server') as any;

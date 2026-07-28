@@ -14,7 +14,8 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP content mapping and channel policy |
 | agent-adapter-pi-streaming.test.ts | test | PI assistant delta streaming emission |
-| agent-adapter-pi-tool-shims.test.ts | test | PI pseudo-tools, WebFetch media/redirect, retries |
+| agent-adapter-pi-tool-shims.test.ts | test | PI web gates, WebFetch media/redirect, retries |
+| agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, provenance and fallback |
 | agent-adapter-pi.test.ts | test | PI framing, spawn, context and compact |
 | agent-adapter.test.ts | test | adapter dispatch, capability and tool names |
 | agent-retry-classification.test.ts | test | retry classification and auto-resume notices |
@@ -25,7 +26,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cli.test.ts | test | cortex CLI help text and subcommand routing |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
 | client-manager.test.ts | test | remote client handshake, auth and commands |
-| codex-bridge.test.ts | test | Codex MCP sidecar config generation |
+| codex-bridge.test.ts | test | Codex MCP privilege composition and cleanup |
 | codex-event-parser.test.ts | test | Codex JSON-RPC to normalized events |
 | codex-spawn-args.test.ts | test | Codex system prompt from CORTEX.md chain |
 | command-handlers.test.ts | test | !cost, !cancel, !status and other bang commands |
