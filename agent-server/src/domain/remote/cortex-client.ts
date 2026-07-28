@@ -325,32 +325,10 @@ function handleRead(params: any): { content?: string; error?: string; image?: { 
 
 // --- Tool: Write ---
 
-// Diff snapshot helpers: capture pre-write/edit content for net-diff reconstruction in mcp-server.
-// 1 MiB cap + NUL-byte guard keeps RPC payloads bounded; oversize/binary => null + truncated flag.
-const DIFF_SNAPSHOT_MAX_BYTES = 1024 * 1024;
-
-function captureOriginalFile(filePath: string): { originalFile: string | null; originalFileTruncated: boolean } {
-  try {
-    if (!fs.existsSync(filePath)) return { originalFile: null, originalFileTruncated: false };
-    const stat = fs.statSync(filePath);
-    if (!stat.isFile()) return { originalFile: null, originalFileTruncated: false };
-    if (stat.size > DIFF_SNAPSHOT_MAX_BYTES) return { originalFile: null, originalFileTruncated: true };
-    const buf = fs.readFileSync(filePath);
-    if (buf.includes(0)) return { originalFile: null, originalFileTruncated: true };
-    return { originalFile: buf.toString('utf8'), originalFileTruncated: false };
-  } catch {
-    return { originalFile: null, originalFileTruncated: false };
-  }
-}
-
 interface FileMutationResult {
   success?: boolean;
   error?: string;
   cortexMDs?: CortexMDEntry[];
-  originalFile?: string | null;
-  originalFileTruncated?: boolean;
-  newContent?: string;
-  newContentTruncated?: boolean;
 }
 
 function handleWrite(params: any): FileMutationResult {
@@ -365,9 +343,6 @@ function handleWrite(params: any): FileMutationResult {
 
     let content: string = params.content;
 
-    // Snapshot pre-write content (if any) for net-diff reconstruction upstream.
-    const snapshot = captureOriginalFile(filePath);
-
     // Preserve existing file's line ending style
     if (fs.existsSync(filePath)) {
       try {
@@ -380,14 +355,9 @@ function handleWrite(params: any): FileMutationResult {
     }
 
     fs.writeFileSync(filePath, content, 'utf8');
-    const newContentTruncated = Buffer.byteLength(content, 'utf8') > DIFF_SNAPSHOT_MAX_BYTES;
     return {
       success: true,
       cortexMDs: safeScanCortexMDs(filePath),
-      originalFile: snapshot.originalFile,
-      originalFileTruncated: snapshot.originalFileTruncated,
-      newContent: newContentTruncated ? undefined : content,
-      newContentTruncated,
     };
   } catch (err) {
     return { error: (err as Error).message };
@@ -417,24 +387,10 @@ function handleEdit(params: any): FileMutationResult {
       return { error: 'old_string is required' };
     }
 
-    // Snapshot the pre-edit content (normalized to \n) for net-diff reconstruction upstream.
-    // 1 MiB cap + NUL-byte guard mirrors captureOriginalFile to keep RPC payloads bounded.
-    const oversize = rawBuf.length > DIFF_SNAPSHOT_MAX_BYTES;
-    const isBinary = rawBuf.includes(0);
-    const originalFile = (oversize || isBinary) ? null : content;
-    const originalFileTruncated = oversize || isBinary;
-
-    const buildResult = (newContentNorm: string): FileMutationResult => {
-      const newContentTruncated = originalFileTruncated || Buffer.byteLength(newContentNorm, 'utf8') > DIFF_SNAPSHOT_MAX_BYTES;
-      return {
-        success: true,
-        cortexMDs: safeScanCortexMDs(filePath),
-        originalFile,
-        originalFileTruncated,
-        newContent: newContentTruncated ? undefined : newContentNorm,
-        newContentTruncated,
-      };
-    };
+    const buildResult = (): FileMutationResult => ({
+      success: true,
+      cortexMDs: safeScanCortexMDs(filePath),
+    });
 
     if (params.replace_all) {
       if (!content.includes(oldStr)) {
@@ -443,7 +399,7 @@ function handleEdit(params: any): FileMutationResult {
       const result = content.split(oldStr).join(newStr);
       const final = originalLineEnding === '\r\n' ? result.replace(/\n/g, '\r\n') : result;
       fs.writeFileSync(filePath, final, encoding);
-      return buildResult(result);
+      return buildResult();
     }
 
     // Uniqueness check
@@ -460,7 +416,7 @@ function handleEdit(params: any): FileMutationResult {
     const result = content.replace(oldStr, () => newStr);
     const final = originalLineEnding === '\r\n' ? result.replace(/\n/g, '\r\n') : result;
     fs.writeFileSync(filePath, final, encoding);
-    return buildResult(result);
+    return buildResult();
   } catch (err) {
     return { error: (err as Error).message };
   }

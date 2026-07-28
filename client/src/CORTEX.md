@@ -4,7 +4,7 @@
 
 | File | Purpose |
 |------|---------|
-| `client.ts` | WebSocket client — receives commands from agent-server, executes locally, returns results |
+| `client.ts` | WebSocket client — executes commands and returns compact mutation results |
 | `auth-headers.ts` | `resolveClientToken`/`buildClientHeaders` — WS bearer token (`x-cortex-token`) from cortex-client.json `clientToken` or `CORTEX_CLIENT_TOKEN` env |
 | `server-url.ts` | `resolveServerUrl` — WS URL the client dials: `CORTEX_SERVER_URL` env > config `serverUrl` (tunnel route, e.g. wss://cortex.fangxm.me) > `ws://serverHost:serverPort` |
 | `cortex-run-watcher.ts` | Standalone watchdog — spawns user command, detects stalls, writes state/output/result, touches callback.pending |

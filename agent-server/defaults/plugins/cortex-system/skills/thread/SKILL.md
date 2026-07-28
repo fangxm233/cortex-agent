@@ -2,7 +2,7 @@
 name: thread
 description: "Use when working with the Cortex thread system — understanding thread architecture, writing or modifying thread config (the per-entity JSON files under config/thread-templates/ — agents, templates, shells; plus transitions and hooks fields within templates), debugging thread execution, or when the user asks about multi-agent pipelines, agent orchestration, or the !thread command. Also trigger when modifying prompts/directives/, prompts/systemPrompts/, or prompts/promptTemplates/ files that feed into threads."
 author: Cortex
-version: 1.0.0
+version: 1.0.1
 allowed-tools:
   - Read
   - Write
@@ -10,7 +10,7 @@ allowed-tools:
   - Bash
   - Grep
   - Glob
-date: 2026-04-12
+date: 2026-07-28
 ---
 
 # Thread System
@@ -307,8 +307,7 @@ The `promptTemplate` field supports these variables, resolved at step execution 
 | `{{input}}` | The original user message that started the thread |
 | `{{artifactPath}}` | Absolute path to the workspace's `artifact.md` file |
 | `{{previousOutput}}` | The full output from the last completed agent step |
-| `{{modifiedFiles}}` | Bullet list of files edited/written by the previous agent (from session-activity logs) |
-| `{{modifiedFilesWithDiff}}` | Same files plus a fenced ```diff``` block per file showing the previous agent's net change. Covers local Edit/Write **and** remote `mcp__cortex__remote_edit/write`. Reconstructed without trusting `record[i>0].originalFile` so other agents touching the same file between/after operations don't pollute attribution. Falls back to raw hunks + warning when external interleaving breaks patch context. |
+| `{{modifiedFiles}}` | Bullet list of files edited/written by the previous agent (from path-only session-activity logs) |
 | `{{currentDateTime}}` | Current timestamp in Asia/Shanghai timezone |
 
 Conditional blocks are supported:
@@ -415,9 +414,7 @@ Agents in a thread communicate through three mechanisms:
 
 2. **Output passing** (`{{previousOutput}}`): The full text output of the previous agent step is available to the next agent via this variable.
 
-3. **Modified files list** (`{{modifiedFiles}}`): A bullet list of files the previous agent edited/wrote, extracted from session-activity JSONL logs.
-
-4. **Modified files with diff** (`{{modifiedFilesWithDiff}}`): Same files plus a per-file fenced ```diff``` block showing the previous agent's net change. Covers local Edit/Write **and** remote `mcp__cortex__remote_edit/write` (uses the diff snapshot embedded by mcp-server in the tool response). Reconstruction never re-reads disk and never trusts `record[i>0].originalFile`, so other agents touching the same file between or after the previous agent's operations don't pollute attribution. When external interleaving breaks patch context, the variable falls back to raw hunks plus a warning.
+3. **Modified files list** (`{{modifiedFiles}}`): A bullet list of files the previous agent edited/wrote, extracted from path-only session-activity JSONL logs.
 
 For ad-hoc threads (no template), the previous agent's output is automatically injected into the next agent's prompt even without `{{previousOutput}}` in the template.
 

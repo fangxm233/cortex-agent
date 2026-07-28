@@ -58,7 +58,7 @@ Each agent in the `agents` map is an independent entity with its own identity, t
 | `persistSession` | boolean | `true`: reuse the same LLM session across iterations (preserves conversation context). `false`: fresh session each step |
 | `directive` | string? | Agent role/identity, prepended to the prompt. Supports `file:filename.md` references |
 | `systemPrompt` | string? | Full system prompt override. Supports `file:` references |
-| `promptTemplate` | string? | Template with `{{input}}`, `{{artifactPath}}`, `{{previousOutput}}`, `{{modifiedFiles}}`, `{{modifiedFilesWithDiff}}`, `{{currentDateTime}}` variables. Supports `file:` references |
+| `promptTemplate` | string? | Template with `{{input}}`, `{{artifactPath}}`, `{{previousOutput}}`, `{{modifiedFiles}}`, `{{currentDateTime}}` variables. Supports `file:` references |
 | `claudeAgent` | string? | Claude Code agent name (`--agent` flag, loads from `.claude/agents/`) |
 | `outputStyle` | string? | Claude Code output style |
 | `tools` | string? | Comma-separated tool list (overrides defaults) |
@@ -401,10 +401,9 @@ tmp/threads/thr_a1b2c3d4/
 
 The artifact path is available to all agents via the `{{artifactPath}}` template variable. Agents communicate by reading what previous agents wrote and appending their own findings.
 
-Agents can also read files modified by previous agents:
+Agents can also identify files modified by previous agents:
 - `{{previousOutput}}` — the complete output from the last completed step
-- `{{modifiedFiles}}` — list of files edited by the previous agent (extracted from session activity logs)
-- `{{modifiedFilesWithDiff}}` — file list with per-file diff blocks reconstructed from session activity JSONL
+- `{{modifiedFiles}}` — list of files edited by the previous agent (extracted from path-only session activity logs)
 
 ### Task-Keyed Manager Artifact (DR-0017)
 
@@ -492,7 +491,6 @@ Agent prompts support template variables that are resolved at runtime:
 | `{{artifactPath}}` | Absolute path to `artifact.md` |
 | `{{previousOutput}}` | Full output from the last completed step |
 | `{{modifiedFiles}}` | Files edited by the previous agent |
-| `{{modifiedFilesWithDiff}}` | Files with inline diffs from previous agent |
 | `{{currentDateTime}}` | Current date and time in ISO format |
 
 ## Plugin Loading

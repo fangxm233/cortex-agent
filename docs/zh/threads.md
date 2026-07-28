@@ -59,7 +59,7 @@
 | `persistSession` | boolean | `true`：在迭代间重用相同的 LLM 会话（保留对话上下文）。`false`：每个步骤使用新会话 |
 | `directive` | string? | 智能体角色/身份，添加到提示之前。支持 `file:filename.md` 引用 |
 | `systemPrompt` | string? | 完整系统提示覆盖。支持 `file:` 引用 |
-| `promptTemplate` | string? | 带 `{{input}}`、`{{artifactPath}}`、`{{previousOutput}}`、`{{modifiedFiles}}`、`{{modifiedFilesWithDiff}}`、`{{currentDateTime}}` 变量的模板。支持 `file:` 引用 |
+| `promptTemplate` | string? | 带 `{{input}}`、`{{artifactPath}}`、`{{previousOutput}}`、`{{modifiedFiles}}`、`{{currentDateTime}}` 变量的模板。支持 `file:` 引用 |
 | `claudeAgent` | string? | Claude Code 智能体名称（`--agent` 标志，从 `.claude/agents/` 加载） |
 | `outputStyle` | string? | Claude Code 输出风格 |
 | `tools` | string? | 逗号分隔的工具列表（覆盖默认值） |
@@ -402,10 +402,9 @@ tmp/threads/thr_a1b2c3d4/
 
 产物路径对所有智能体通过 `{{artifactPath}}` 模板变量可用。智能体通过读取之前智能体写入的内容并追加自己的发现来进行通信。
 
-智能体还可以读取之前智能体修改的文件：
+智能体还可以识别之前智能体修改的文件：
 - `{{previousOutput}}` — 上一个已完成步骤的完整输出
-- `{{modifiedFiles}}` — 上一个智能体编辑的文件列表（从会话活动日志中提取）
-- `{{modifiedFilesWithDiff}}` — 文件列表，带有从会话活动 JSONL 重建的每文件 diff 块
+- `{{modifiedFiles}}` — 上一个智能体编辑的文件列表（从只记录路径的会话活动日志中提取）
 
 ### 任务定址的 manager 产物（DR-0017）
 
@@ -493,7 +492,6 @@ Cortex 内部使用三种类型的线程记录：
 | `{{artifactPath}}` | `artifact.md` 的绝对路径 |
 | `{{previousOutput}}` | 上一个已完成步骤的完整输出 |
 | `{{modifiedFiles}}` | 上一个智能体编辑的文件 |
-| `{{modifiedFilesWithDiff}}` | 上一个智能体的文件中带内联 diff |
 | `{{currentDateTime}}` | ISO 格式的当前日期和时间 |
 
 ## 插件加载

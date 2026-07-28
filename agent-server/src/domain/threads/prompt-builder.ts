@@ -5,7 +5,7 @@
 
 import { threadStore } from '@store/thread-repo.js';
 import { getAgent, getTemplate, resolveFileRef } from './template-loader.js';
-import { getModifiedFilesFromSession, getSessionFileChanges, renderModifiedFilesWithDiff } from './artifact-io.js';
+import { getModifiedFilesFromSession } from './artifact-io.js';
 import { getDefaultAgent } from '../agents/index.js';
 import { loadUserContext } from '../memory/user-context.js';
 import type {
@@ -157,13 +157,11 @@ export const THREAD_PROTOCOL_PREAMBLE = [
 
 function buildPromptVars(thread: import('@core/types/thread-types.js').ThreadRecord, lastStep: AgentStep | undefined): Record<string, string> {
   const prevModifiedFiles = getModifiedFilesFromSession(lastStep?.sessionId);
-  const prevFileChanges = getSessionFileChanges(lastStep?.sessionId);
   return {
     input: thread.userMessage,
     artifactPath: thread.artifactPath,
     previousOutput: lastStep?.output || '',
     modifiedFiles: prevModifiedFiles.length > 0 ? prevModifiedFiles.map(f => `- ${f}`).join('\n') : '',
-    modifiedFilesWithDiff: renderModifiedFilesWithDiff(prevFileChanges),
     ...getSystemVars(),
   };
 }
@@ -253,7 +251,6 @@ export function buildConversationPrompt(
     artifactPath: '',
     previousOutput: '',
     modifiedFiles: '',
-    modifiedFilesWithDiff: '',
     ...getSystemVars(),
   };
   let prompt = applyPromptTemplate(templateStr, vars);

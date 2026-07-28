@@ -1,6 +1,6 @@
-// input:  Node test runner + thread-manager API + templates
-// output: resolveSystemVars + evaluateTransitions + create
-// pos:    Verify thread-manager pure helpers and orchestration
+// input:  vitest, thread APIs, session activity fixtures
+// output: Prompt variables, transitions, and creation regressions
+// pos:    Thread helper and orchestration behavioral tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
@@ -11,17 +11,17 @@ import * as path from 'node:path';
 import { DATA_DIR } from '../src/core/utils.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
+  buildStepPrompt,
   cleanupWorkspace,
   createThread,
   evaluateTransitions,
   getModifiedFilesFromSession,
-  getSessionFileChanges,
   getSessionKey,
   isAdHocThread,
   isDefaultThread,
   listAgents,
   loadConfig,
-  renderModifiedFilesWithDiff,
+  resolveAgentSlotConfig,
   resolveSystemVars,
 } from '../src/domain/threads/index.js';
 
@@ -155,276 +155,53 @@ test('getModifiedFilesFromSession trims leading/trailing whitespace from file pa
   }
 });
 
-// --- getSessionFileChanges (net diff reconstruction) ---
+test('buildStepPrompt keeps the modified file list but drops obsolete inline change content', () => {
+  const sessionId = uniqueSessionId();
+  writeSessionLog(sessionId, JSON.stringify({
+    ts: new Date().toISOString(),
+    tool: 'Edit',
+    event: 'edit_file',
+    file_path: '/srv/private.md',
+    originalFile: 'PRIVATE_BEFORE\n',
+    structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-PRIVATE_BEFORE', '+PRIVATE_AFTER'] }],
+  }));
+  const anyAgent = listAgents()[0];
+  const thread = createThread('C-compact-prompt', {
+    agentName: anyAgent.name,
+    userMessage: 'review',
+    userMessageTs: 'ts',
+  });
+  trackThreadId(thread.id);
+  const stored = threadStore.get(thread.id)!;
+  stored.steps.push({
+    stepIndex: 0,
+    agentSlotId: anyAgent.name,
+    stage: null,
+    executionId: null,
+    sessionId,
+    sessionName: null,
+    input: '',
+    output: 'done',
+    costUsd: 0,
+    numTurns: 1,
+    durationS: 0,
+    startedAt: null,
+    endedAt: null,
+  });
+  threadStore.set(stored);
+  const config = {
+    ...resolveAgentSlotConfig(anyAgent.name)!,
+    persistSession: false,
+    promptTemplate: 'Files:\n{{modifiedFiles}}',
+  };
 
-interface MutationLine {
-  ts: string;
-  tool: 'Edit' | 'Write';
-  event: 'edit_file' | 'write_file';
-  file_path: string;
-  device?: string;
-  originalFile?: string | null;
-  structuredPatch?: Array<{ oldStart: number; oldLines: number; newStart: number; newLines: number; lines: string[] }>;
-  writtenContent?: string;
-  diffDegraded?: boolean;
-}
-
-function jsonl(lines: MutationLine[]): string {
-  return lines.map(l => JSON.stringify(l)).join('\n');
-}
-
-function ts(seq: number): string {
-  return new Date(2026, 0, 1, 0, 0, seq).toISOString();
-}
-
-// Helper to build hunks for a single-line edit replacing one line in a 3-line file.
-function singleLineHunks(beforeContext: string, oldLine: string, newLine: string, afterContext: string): MutationLine['structuredPatch'] {
-  return [{
-    oldStart: 1, oldLines: 3, newStart: 1, newLines: 3,
-    lines: [` ${beforeContext}`, `-${oldLine}`, `+${newLine}`, ` ${afterContext}`],
-  }];
-}
-
-test('getSessionFileChanges returns [] for null/missing session', () => {
-  assert.deepEqual(getSessionFileChanges(null), []);
-  assert.deepEqual(getSessionFileChanges(uniqueSessionId()), []);
-});
-
-test('getSessionFileChanges single Edit produces net unified diff', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([{
-    ts: ts(1), tool: 'Edit', event: 'edit_file', file_path: '/x/a.txt',
-    originalFile: 'a\nb\nc\n',
-    structuredPatch: singleLineHunks('a', 'b', 'BEE', 'c'),
-  }]));
   try {
-    const changes = getSessionFileChanges(id);
-    assert.equal(changes.length, 1);
-    assert.equal(changes[0].mode, 'net');
-    assert.match(changes[0].unifiedDiff, /-b/);
-    assert.match(changes[0].unifiedDiff, /\+BEE/);
+    const prompt = buildStepPrompt(thread.id, config);
+    assert.match(prompt, /- \/srv\/private\.md/);
+    assert.doesNotMatch(prompt, /PRIVATE_BEFORE|PRIVATE_AFTER|```diff/);
   } finally {
-    removeSessionLog(id);
+    removeSessionLog(sessionId);
   }
-});
-
-test('getSessionFileChanges multi-Edit on same file accumulates to net baseline→final', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Edit', event: 'edit_file', file_path: '/x/a.txt',
-      originalFile: 'a\nb\nc\n',
-      structuredPatch: singleLineHunks('a', 'b', 'BEE', 'c') },
-    { ts: ts(2), tool: 'Edit', event: 'edit_file', file_path: '/x/a.txt',
-      originalFile: 'a\nBEE\nc\n', // truthful intermediate (we ignore this anyway)
-      structuredPatch: [{ oldStart: 1, oldLines: 3, newStart: 1, newLines: 3,
-        lines: [' a', ' BEE', '-c', '+SEE'] }] },
-  ]));
-  try {
-    const [c] = getSessionFileChanges(id);
-    assert.equal(c.mode, 'net');
-    assert.match(c.unifiedDiff, /-b/);
-    assert.match(c.unifiedDiff, /\+BEE/);
-    assert.match(c.unifiedDiff, /-c/);
-    assert.match(c.unifiedDiff, /\+SEE/);
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getSessionFileChanges ignores record[i>0].originalFile when reconstructing — external interleaved edit not attributed', () => {
-  const id = uniqueSessionId();
-  // Truth: agent edited b->BEE, then later edited c->SEE. An external agent inserted "MID" between
-  // record[0] and record[1], polluting record[1].originalFile. Reconstruction should NOT include MID.
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Edit', event: 'edit_file', file_path: '/x/a.txt',
-      originalFile: 'a\nb\nc\n',
-      structuredPatch: singleLineHunks('a', 'b', 'BEE', 'c') },
-    // Even if originalFile here lies (claims "a\nBEE\nMID\nc\n"), our algorithm uses applied-state
-    // from baseline, not this field. The hunks are still based on the same context lines (BEE/c).
-    { ts: ts(2), tool: 'Edit', event: 'edit_file', file_path: '/x/a.txt',
-      originalFile: 'a\nBEE\nMID\nc\n',
-      structuredPatch: [{ oldStart: 1, oldLines: 3, newStart: 1, newLines: 3,
-        lines: [' a', ' BEE', '-c', '+SEE'] }] },
-  ]));
-  try {
-    const [c] = getSessionFileChanges(id);
-    assert.equal(c.mode, 'net');
-    assert.doesNotMatch(c.unifiedDiff, /MID/, 'external edit must not appear in net diff');
-    assert.match(c.unifiedDiff, /\+BEE/);
-    assert.match(c.unifiedDiff, /\+SEE/);
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getSessionFileChanges Write→Edit yields baseline→edited content', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Write', event: 'write_file', file_path: '/x/a.txt',
-      originalFile: 'pre\n', writtenContent: 'a\nb\nc\n',
-      structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 3,
-        lines: ['-pre', '+a', '+b', '+c'] }] },
-    { ts: ts(2), tool: 'Edit', event: 'edit_file', file_path: '/x/a.txt',
-      originalFile: 'a\nb\nc\n',
-      structuredPatch: singleLineHunks('a', 'b', 'BEE', 'c') },
-  ]));
-  try {
-    const [c] = getSessionFileChanges(id);
-    assert.equal(c.mode, 'net');
-    // baseline = 'pre\n' from first record; final state = 'a\nBEE\nc\n'
-    assert.match(c.unifiedDiff, /-pre/);
-    assert.match(c.unifiedDiff, /\+BEE/);
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getSessionFileChanges Edit→Write yields baseline→writtenContent (Edit collapsed)', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Edit', event: 'edit_file', file_path: '/x/a.txt',
-      originalFile: 'a\nb\nc\n',
-      structuredPatch: singleLineHunks('a', 'b', 'BEE', 'c') },
-    { ts: ts(2), tool: 'Write', event: 'write_file', file_path: '/x/a.txt',
-      originalFile: 'a\nBEE\nc\n', writtenContent: 'COMPLETELY\nNEW\n',
-      structuredPatch: [] },
-  ]));
-  try {
-    const [c] = getSessionFileChanges(id);
-    assert.equal(c.mode, 'net');
-    assert.match(c.unifiedDiff, /-a/);
-    assert.match(c.unifiedDiff, /-c/);
-    assert.match(c.unifiedDiff, /\+COMPLETELY/);
-    assert.match(c.unifiedDiff, /\+NEW/);
-    assert.doesNotMatch(c.unifiedDiff, /BEE/, 'intermediate Edit must be collapsed under final Write');
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getSessionFileChanges Write→Write keeps only last writtenContent', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Write', event: 'write_file', file_path: '/x/a.txt',
-      originalFile: 'orig\n', writtenContent: 'first\n', structuredPatch: [] },
-    { ts: ts(2), tool: 'Write', event: 'write_file', file_path: '/x/a.txt',
-      originalFile: 'first\n', writtenContent: 'second\n', structuredPatch: [] },
-  ]));
-  try {
-    const [c] = getSessionFileChanges(id);
-    assert.equal(c.mode, 'net');
-    assert.match(c.unifiedDiff, /-orig/);
-    assert.match(c.unifiedDiff, /\+second/);
-    assert.doesNotMatch(c.unifiedDiff, /\+first/);
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getSessionFileChanges create→Edit baseline is empty (full add)', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Write', event: 'write_file', file_path: '/x/new.md',
-      originalFile: null, writtenContent: 'a\nb\n', structuredPatch: [] },
-    { ts: ts(2), tool: 'Edit', event: 'edit_file', file_path: '/x/new.md',
-      originalFile: 'a\nb\n',
-      structuredPatch: [{ oldStart: 1, oldLines: 2, newStart: 1, newLines: 2,
-        lines: [' a', '-b', '+B'] }] },
-  ]));
-  try {
-    const [c] = getSessionFileChanges(id);
-    assert.equal(c.mode, 'net');
-    assert.match(c.unifiedDiff, /\+a/);
-    assert.match(c.unifiedDiff, /\+B/);
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getSessionFileChanges degrades to raw hunks when patch context is broken (Write→external→Edit)', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Write', event: 'write_file', file_path: '/x/a.txt',
-      originalFile: '', writtenContent: 'short\n', structuredPatch: [] },
-    // External overwrote file to "TOTALLY\nDIFFERENT\nlines\n"; agent's next Edit hunks reference
-    // those new lines. State accumulator only has 'short\n' so apply will fail (even with fuzz).
-    { ts: ts(2), tool: 'Edit', event: 'edit_file', file_path: '/x/a.txt',
-      originalFile: 'TOTALLY\nDIFFERENT\nlines\n',
-      structuredPatch: [{ oldStart: 1, oldLines: 3, newStart: 1, newLines: 3,
-        lines: [' TOTALLY', '-DIFFERENT', '+CHANGED', ' lines'] }] },
-  ]));
-  try {
-    const [c] = getSessionFileChanges(id);
-    assert.equal(c.mode, 'degraded');
-    assert.match(c.unifiedDiff, /external concurrent modification/);
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getSessionFileChanges yields no-diff when records lack snapshot fields (legacy compat)', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Edit', event: 'edit_file', file_path: '/x/legacy.txt' } as MutationLine,
-  ]));
-  try {
-    const [c] = getSessionFileChanges(id);
-    assert.equal(c.mode, 'no-diff');
-    assert.equal(c.unifiedDiff, '');
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getSessionFileChanges diffDegraded flag short-circuits to no-diff', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Write', event: 'write_file', file_path: '/x/big.bin',
-      originalFile: null, structuredPatch: [], diffDegraded: true } as MutationLine,
-  ]));
-  try {
-    const [c] = getSessionFileChanges(id);
-    assert.equal(c.mode, 'no-diff');
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('getSessionFileChanges groups by (device, file_path); same path on two devices stays separate', () => {
-  const id = uniqueSessionId();
-  writeSessionLog(id, jsonl([
-    { ts: ts(1), tool: 'Edit', event: 'edit_file', file_path: '/srv/x.md', device: 'lab',
-      originalFile: 'a\n',
-      structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-a', '+A'] }] },
-    { ts: ts(2), tool: 'Edit', event: 'edit_file', file_path: '/srv/x.md', // local, no device
-      originalFile: 'a\n',
-      structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-a', '+B'] }] },
-  ]));
-  try {
-    const changes = getSessionFileChanges(id);
-    assert.equal(changes.length, 2);
-    const labChange = changes.find(c => c.device === 'lab')!;
-    const localChange = changes.find(c => !c.device)!;
-    assert.match(labChange.unifiedDiff, /\+A/);
-    assert.match(localChange.unifiedDiff, /\+B/);
-  } finally {
-    removeSessionLog(id);
-  }
-});
-
-test('renderModifiedFilesWithDiff includes device tag for remote files and degraded tag', () => {
-  const out = renderModifiedFilesWithDiff([
-    { file_path: '/local.md', mode: 'net', unifiedDiff: '--- a\n+++ b\n@@ -1 +1 @@\n-x\n+y\n' },
-    { file_path: '/srv/x.md', device: 'lab', mode: 'degraded', unifiedDiff: 'raw stuff' },
-    { file_path: '/big.bin', mode: 'no-diff', unifiedDiff: '' },
-  ]);
-  assert.match(out, /### \/local\.md\n```diff/);
-  assert.match(out, /### \/srv\/x\.md \(device: lab\) \[diff unavailable: external concurrent modification\]/);
-  assert.match(out, /### \/big\.bin \[diff unavailable: snapshot missing\]/);
-});
-
-test('renderModifiedFilesWithDiff returns empty string when there are no changes', () => {
-  assert.equal(renderModifiedFilesWithDiff([]), '');
 });
 
 // --- thread predicates ---

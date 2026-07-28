@@ -90,7 +90,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `task-state.test.ts` | Test | Claim/pause/approve state transitions |
 | `task-completion.test.ts` | Test | complete/uncomplete + done-when validation |
 | `task-mutations.test.ts` | Test | addTask/batchEdit/decompose |
-| `thread-manager.test.ts` | Test | resolveSystemVars/evaluateTransitions |
+| `thread-manager.test.ts` | Test | Prompt variables, modified-file paths, and transitions |
 | `thread-runner.test.ts` | Test | Runner lifecycle helpers and wait-control selector forwarding |
 | `threads/thread-transcript.test.ts` | Test | createStepTranscriptRecorder: incremental in-order appends keyed by track sessionId, shared-ts live publish, DEBUG exact prompt/full input/result correlation, post-persistence refresh ordering, and fail-soft writes |
 | `threads/thread-live-step-ids.test.ts` | Test | beginStepSession (fresh mint persisted + resume null / legacy migration keeps one id as both keys / settled slot resumes backendSessionId / non-persist fresh per step / thread.step.started) + recordStepResult track/backend decoupling (step + persist-slot fields, thread.step.finished truncation) + thread.created/completed/failed(+cancel→failed) publishes + resolveTargetResumeId (slot/step, new/legacy forms, never a track id) |
@@ -157,7 +157,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `client-hot-reload.test.ts` | Test | `updateClientReleaseLocal` (release-mode local same-machine client update): already-at-latest no-op, kill→npmUpdate→restart ordering, unknown installed version, npmUpdate-throws error capture, restart-fail partial |
 | `cortex-run-callback-handler.test.ts` | Test | task-callback handler (DR-0011 §4.4): idempotency, skipVerify, ghost callback, blockTask note |
 | `mcp-server.test.ts` | Test | Import safety and startup hints |
-| `domain/mcp/tools-registration.test.ts` | Test | All MCP tool names registered (ext: 9; core: 6 remote_* + current_time + thread_abort/split/wait + task_status/result/list) |
+| `domain/mcp/tools-registration.test.ts` | Test | MCP registration and compact remote mutation responses |
 | `domain/mcp/time-tool.test.ts` | Test | current_time handler: valid tz payload, default tz, invalid-tz error |
 | `domain/mcp/task-monitor-tool.test.ts` | Test | task_status/task_result/task_list handlers read TASKS.yaml (status/terminal/parent filter) |
 | `domain/mcp/server.test.ts` | Test | Server module loads without Slack env + no wildcard registration ([S10-A]) |
@@ -169,7 +169,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `mode-manager.test.ts` | Test | Per-request mode URL routing + per-mode ANTHROPIC_API_KEY retention (plan deletes for OAuth; non-plan keeps key/placeholder so CC starts without login) + config.js import is side-effect free (no env mutation in CLI processes) |
 | `gateway-per-request-mode.test.ts` | Test | Gateway /m/{mode}/ prefix and token |
 | `memory-index-regen.test.ts` | Test | Index rebuild lifecycle partitioning |
-| `session-activity-tracker.test.ts` | Test | sideband diff + inline marker fallback |
+| `session-activity-tracker.test.ts` | Test | Path-only Read/Edit/Write/Skill activity logging |
 | `recommendation-extractor.test.ts` | Test | Recommendation extraction and dedup |
 | `skill-scanner.test.ts` | Test | Plugin skill discovery and namespacing |
 | `schedule-cli.test.ts` | Test | scheduler API + schedule CLI |

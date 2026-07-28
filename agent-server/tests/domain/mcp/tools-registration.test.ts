@@ -1,10 +1,11 @@
-// input:  TOOL_NAMES from domain/mcp/server + domain/mcp/core-server
-// output: every MCP tool name is registered at module evaluation time
-// pos:    regression guard — split may change tool registration shape
+// input:  MCP tool registries, mocked remote-command fetch
+// output: Tool-name and compact mutation-response regressions
+// pos:    MCP registration and remote mutation contract tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import { registerTaskOpsTools } from '../../../src/domain/mcp/tools/task-ops.js';
 
 test('ext-server (server.ts) registers 9 non-remote tool names (excluding platform-specific slack_send_file)', async () => {
   const mod = await import('../../../src/domain/mcp/server.js');
@@ -78,4 +79,42 @@ test('core-server (core-server.ts) registers 6 remote_* tools, current_time, 3 t
   assert.deepEqual([...names].sort(), [...expected].sort());
   assert.equal(names.length, 15);
   assert.equal(new Set(names).size, 15, 'no duplicate tool names');
+});
+
+function captureRemoteMutationHandlers(): Map<string, (...args: any[]) => Promise<any>> {
+  const handlers = new Map<string, (...args: any[]) => Promise<any>>();
+  const fakeServer = {
+    tool: (...args: any[]) => handlers.set(args[0], args.at(-1)),
+  };
+  registerTaskOpsTools(fakeServer as any);
+  return handlers;
+}
+
+test('remote_write and remote_edit return compact confirmations without file snapshots', async () => {
+  const canary = 'PRIVATE_FILE_CONTENT_CANARY';
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+    json: async () => ({
+      success: true,
+      data: {
+        success: true,
+        cortexMDs: [],
+        originalFile: canary,
+        newContent: `${canary}-after`,
+      },
+    }),
+  } as Response);
+  const handlers = captureRemoteMutationHandlers();
+
+  const written = await handlers.get('remote_write')!(
+    { device: 'lab', file_path: '/srv/x.md', content: 'after' },
+    {},
+  );
+  const edited = await handlers.get('remote_edit')!(
+    { device: 'lab', file_path: '/srv/x.md', old_string: 'before', new_string: 'after' },
+    {},
+  );
+
+  assert.deepEqual(written, { content: [{ type: 'text', text: 'File written: /srv/x.md' }] });
+  assert.deepEqual(edited, { content: [{ type: 'text', text: 'File edited: /srv/x.md' }] });
+  assert.doesNotMatch(JSON.stringify([written, edited]), new RegExp(canary));
 });

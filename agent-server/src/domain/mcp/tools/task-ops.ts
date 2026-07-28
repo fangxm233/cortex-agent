@@ -1,5 +1,5 @@
-// input:  McpServer, webhook proxy, image processing, diff sideband
-// output: remote_bash/read/write/edit/glob/grep tool registrations
+// input:  McpServer, webhook proxy, image processing
+// output: Compact remote operation tool registrations
 // pos:    MCP tools for remote device operations via cortex-client
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -9,7 +9,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { pathToFileURL } from 'url';
-import * as Diff from 'diff';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { cortexMDContentBlocks, type CortexMDEntry } from './cortex-md.js';
 
@@ -61,8 +60,6 @@ const RESULT_SIZE_THRESHOLDS: Record<string, number> = {
   remote_bash: 30_000,
   remote_grep: 20_000,
   remote_glob: 100_000,
-  remote_edit: 100_000,
-  remote_write: 100_000,
   remote_read: Infinity,
 };
 
@@ -201,134 +198,6 @@ async function processImage(
   };
 }
 
-// --- Diff marker sideband ---
-//
-// remote_write/remote_edit produce a diff payload (originalFile/structuredPatch/writtenContent)
-// that the session-activity-tracker hook needs, but it's wasteful/harmful to put into the
-// agent-visible tool_result content (can reach ~140 KB on large files, blowing the Claude Code
-// 25k-token tool response limit). We persist it to a sideband file keyed by the Claude Code
-// tool_use_id (available in the MCP request _meta as 'claudecode/toolUseId'), and the hook
-// reads + unlinks by the same key. If toolUseId is absent (non-Claude-Code client), we fall
-// back to the legacy inline text-block marker so functionality degrades gracefully.
-
-const DIFF_MARKERS_DIR = path.join(WORKSPACE_DIR, 'diff-markers');
-const DIFF_MARKERS_TTL_MS = 10 * 60 * 1000;
-
-type DiffResult = {
-  originalFile?: string | null;
-  originalFileTruncated?: boolean;
-  newContent?: string;
-  newContentTruncated?: boolean;
-} | undefined;
-
-/** Build the diff payload (shared between sideband-file and legacy inline-block paths).
- *  Returns null when there is nothing to record (e.g. cortex-client returned nothing). */
-function buildDiffPayload(
-  device: string,
-  filePath: string,
-  tool: 'write' | 'edit',
-  result: DiffResult,
-): Record<string, unknown> | null {
-  if (!result) return null;
-  const degraded = !!(result.originalFileTruncated || result.newContentTruncated);
-  const originalFile = result.originalFile ?? null;
-  const newContent = result.newContent;
-
-  let structuredPatch: Diff.ParsedDiff['hunks'] | null = null;
-  let writtenContent: string | null = null;
-
-  if (!degraded && typeof newContent === 'string') {
-    if (tool === 'write') writtenContent = newContent;
-    if (typeof originalFile === 'string') {
-      try {
-        // Cast required because @types/diff exposes both sync (ParsedDiff) and callback (void) overloads,
-        // and TS picks the latter when no options are provided.
-        const sp = Diff.structuredPatch(filePath, filePath, originalFile, newContent, '', '') as unknown as Diff.ParsedDiff;
-        structuredPatch = sp.hunks;
-      } catch {
-        // structuredPatch failure leaves patch null; consumer treats as raw write
-      }
-    } else if (originalFile === null && tool === 'write') {
-      // Create-from-nothing: emit empty hunks; tracker uses writtenContent as full state.
-      structuredPatch = [];
-    }
-  }
-
-  return {
-    device,
-    file_path: filePath,
-    tool,
-    originalFile,
-    structuredPatch,
-    writtenContent,
-    degraded,
-  };
-}
-
-/** Sanitize a toolUseId so it can't escape the sideband dir (defence in depth — Claude Code
- *  tool_use_ids are `toolu_<base64url>` but this makes the write safe even if that changes). */
-function isSafeToolUseId(id: unknown): id is string {
-  return typeof id === 'string' && id.length > 0 && id.length <= 128 && /^[A-Za-z0-9_-]+$/.test(id);
-}
-
-function sidebandPathFor(toolUseId: string): string {
-  return path.join(DIFF_MARKERS_DIR, `${toolUseId}.json`);
-}
-
-/** Persist the diff payload to the sideband file keyed by toolUseId. Returns true on success
- *  (caller should skip emitting the legacy inline block). Silently returns false on any failure
- *  so the tool call itself is never broken by tracking bookkeeping. */
-function persistDiffPayload(
-  toolUseId: string,
-  device: string,
-  filePath: string,
-  tool: 'write' | 'edit',
-  result: DiffResult,
-): boolean {
-  const payload = buildDiffPayload(device, filePath, tool, result);
-  if (!payload) return false;
-  try {
-    fs.mkdirSync(DIFF_MARKERS_DIR, { recursive: true });
-    const target = sidebandPathFor(toolUseId);
-    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(payload), 'utf8');
-    fs.renameSync(tmp, target);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Legacy inline marker — retained as a fallback when toolUseId is unavailable. */
-function inlineDiffMarkerBlock(
-  device: string,
-  filePath: string,
-  tool: 'write' | 'edit',
-  result: DiffResult,
-): { type: 'text'; text: string } | null {
-  const payload = buildDiffPayload(device, filePath, tool, result);
-  if (!payload) return null;
-  return { type: 'text', text: `<!--cortex-diff-data\n${JSON.stringify(payload)}\n-->` };
-}
-
-/** Remove stale sideband files (orphans from hook failures). Best-effort, swallows errors. */
-function sweepStaleDiffMarkers(): void {
-  try {
-    if (!fs.existsSync(DIFF_MARKERS_DIR)) return;
-    const now = Date.now();
-    for (const name of fs.readdirSync(DIFF_MARKERS_DIR)) {
-      const p = path.join(DIFF_MARKERS_DIR, name);
-      try {
-        const st = fs.statSync(p);
-        if (!st.isFile()) continue;
-        if (now - st.mtimeMs > DIFF_MARKERS_TTL_MS) fs.rmSync(p, { force: true });
-      } catch { /* ignore */ }
-    }
-  } catch { /* ignore */ }
-}
-
-sweepStaleDiffMarkers();
-
 export function registerTaskOpsTools(server: McpServer): void {
 
   // --- remote_bash ---
@@ -463,25 +332,16 @@ export function registerTaskOpsTools(server: McpServer): void {
     },
     async ({ device, file_path, content }: {
       device: string; file_path: string; content: string;
-    }, extra: any) => {
+    }) => {
       try {
         if (!isAbsoluteFilePath(file_path)) {
           return { content: [{ type: 'text', text: 'file_path must be absolute' }], isError: true };
         }
         const result = await proxySendCommand(device, 'write', { file_path, content });
         const cmdBlocks = cortexMDContentBlocks(device, result?.cortexMDs, file_path);
-        const blocks: Array<{ type: 'text'; text: string }> = [{ type: 'text', text: `File written: ${file_path}` }];
-        const toolUseId = (extra?._meta as Record<string, unknown> | undefined)?.['claudecode/toolUseId'];
-        const persisted = isSafeToolUseId(toolUseId)
-          ? persistDiffPayload(toolUseId, device, file_path, 'write', result)
-          : false;
-        if (!persisted) {
-          // Legacy fallback: inline text marker for non-Claude-Code clients (or if persistence failed).
-          const diffBlock = inlineDiffMarkerBlock(device, file_path, 'write', result);
-          if (diffBlock) blocks.push(diffBlock);
-        }
-        blocks.push(...cmdBlocks);
-        return { content: blocks };
+        return {
+          content: [{ type: 'text', text: `File written: ${file_path}` }, ...cmdBlocks],
+        };
       } catch (e) {
         return { content: [{ type: 'text', text: `remote_write error: ${(e as Error).message}` }], isError: true };
       }
@@ -502,24 +362,16 @@ export function registerTaskOpsTools(server: McpServer): void {
     },
     async ({ device, file_path, old_string, new_string, replace_all }: {
       device: string; file_path: string; old_string: string; new_string: string; replace_all?: boolean;
-    }, extra: any) => {
+    }) => {
       try {
         if (!isAbsoluteFilePath(file_path)) {
           return { content: [{ type: 'text', text: 'file_path must be absolute' }], isError: true };
         }
         const result = await proxySendCommand(device, 'edit', { file_path, old_string, new_string, replace_all: replace_all || false });
         const cmdBlocks = cortexMDContentBlocks(device, result?.cortexMDs, file_path);
-        const blocks: Array<{ type: 'text'; text: string }> = [{ type: 'text', text: `File edited: ${file_path}` }];
-        const toolUseId = (extra?._meta as Record<string, unknown> | undefined)?.['claudecode/toolUseId'];
-        const persisted = isSafeToolUseId(toolUseId)
-          ? persistDiffPayload(toolUseId, device, file_path, 'edit', result)
-          : false;
-        if (!persisted) {
-          const diffBlock = inlineDiffMarkerBlock(device, file_path, 'edit', result);
-          if (diffBlock) blocks.push(diffBlock);
-        }
-        blocks.push(...cmdBlocks);
-        return { content: blocks };
+        return {
+          content: [{ type: 'text', text: `File edited: ${file_path}` }, ...cmdBlocks],
+        };
       } catch (e) {
         return { content: [{ type: 'text', text: `remote_edit error: ${(e as Error).message}` }], isError: true };
       }

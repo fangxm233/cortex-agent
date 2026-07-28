@@ -1,8 +1,7 @@
-// Cortex remote agent client.
-// Connects to @cortex-agent/server via WebSocket, receives commands (bash/read/write/edit/glob/grep),
-// executes them locally, and returns results.
-//
-// Config is read from ~/.cortex/config/cortex-client.json (written by agent-server during deployment).
+// input:  WebSocket commands, cortex-client config
+// output: Remote command results and cortex-run callbacks
+// pos:    Standalone cortex-client daemon entry point
+// >>> If I am updated, update my header comment and parent CORTEX.md <<<
 import WebSocket from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -393,30 +392,10 @@ function handleRead(params: any): { content?: string; error?: string; image?: { 
 
 // --- Tool: Write ---
 
-const DIFF_SNAPSHOT_MAX_BYTES = 1024 * 1024;
-
-function captureOriginalFile(filePath: string): { originalFile: string | null; originalFileTruncated: boolean } {
-  try {
-    if (!fs.existsSync(filePath)) return { originalFile: null, originalFileTruncated: false };
-    const stat = fs.statSync(filePath);
-    if (!stat.isFile()) return { originalFile: null, originalFileTruncated: false };
-    if (stat.size > DIFF_SNAPSHOT_MAX_BYTES) return { originalFile: null, originalFileTruncated: true };
-    const buf = fs.readFileSync(filePath);
-    if (buf.includes(0)) return { originalFile: null, originalFileTruncated: true };
-    return { originalFile: buf.toString('utf8'), originalFileTruncated: false };
-  } catch {
-    return { originalFile: null, originalFileTruncated: false };
-  }
-}
-
 interface FileMutationResult {
   success?: boolean;
   error?: string;
   cortexMDs?: CortexMDEntry[];
-  originalFile?: string | null;
-  originalFileTruncated?: boolean;
-  newContent?: string;
-  newContentTruncated?: boolean;
 }
 
 function handleWrite(params: any): FileMutationResult {
@@ -431,8 +410,6 @@ function handleWrite(params: any): FileMutationResult {
 
     let content: string = params.content;
 
-    const snapshot = captureOriginalFile(filePath);
-
     if (fs.existsSync(filePath)) {
       try {
         const existing = fs.readFileSync(filePath, 'utf8');
@@ -444,14 +421,9 @@ function handleWrite(params: any): FileMutationResult {
     }
 
     fs.writeFileSync(filePath, content, 'utf8');
-    const newContentTruncated = Buffer.byteLength(content, 'utf8') > DIFF_SNAPSHOT_MAX_BYTES;
     return {
       success: true,
       cortexMDs: safeScanCortexMDs(filePath),
-      originalFile: snapshot.originalFile,
-      originalFileTruncated: snapshot.originalFileTruncated,
-      newContent: newContentTruncated ? undefined : content,
-      newContentTruncated,
     };
   } catch (err) {
     return { error: (err as Error).message };
@@ -480,22 +452,10 @@ function handleEdit(params: any): FileMutationResult {
       return { error: 'old_string is required' };
     }
 
-    const oversize = rawBuf.length > DIFF_SNAPSHOT_MAX_BYTES;
-    const isBinary = rawBuf.includes(0);
-    const originalFile = (oversize || isBinary) ? null : content;
-    const originalFileTruncated = oversize || isBinary;
-
-    const buildResult = (newContentNorm: string): FileMutationResult => {
-      const newContentTruncated = originalFileTruncated || Buffer.byteLength(newContentNorm, 'utf8') > DIFF_SNAPSHOT_MAX_BYTES;
-      return {
-        success: true,
-        cortexMDs: safeScanCortexMDs(filePath),
-        originalFile,
-        originalFileTruncated,
-        newContent: newContentTruncated ? undefined : newContentNorm,
-        newContentTruncated,
-      };
-    };
+    const buildResult = (): FileMutationResult => ({
+      success: true,
+      cortexMDs: safeScanCortexMDs(filePath),
+    });
 
     if (params.replace_all) {
       if (!content.includes(oldStr)) {
@@ -504,7 +464,7 @@ function handleEdit(params: any): FileMutationResult {
       const result = content.split(oldStr).join(newStr);
       const final = originalLineEnding === '\r\n' ? result.replace(/\n/g, '\r\n') : result;
       fs.writeFileSync(filePath, final, encoding);
-      return buildResult(result);
+      return buildResult();
     }
 
     const firstIdx = content.indexOf(oldStr);
@@ -519,7 +479,7 @@ function handleEdit(params: any): FileMutationResult {
     const result = content.replace(oldStr, () => newStr);
     const final = originalLineEnding === '\r\n' ? result.replace(/\n/g, '\r\n') : result;
     fs.writeFileSync(filePath, final, encoding);
-    return buildResult(result);
+    return buildResult();
   } catch (err) {
     return { error: (err as Error).message };
   }

@@ -43,7 +43,6 @@
     "@slack/web-api": "^7.14.1",
     "@trpc/server": "^11",
     "aistatus": "^0.0.7",
-    "diff": "^7.0.0",
     "dotenv": "^16.4.7",
     "ink": "^5.2.1",
     "ink-text-input": "^6.0.0",
@@ -60,7 +59,6 @@
   },
   "devDependencies": {
     "@sinclair/typebox": "^0.34.49",
-    "@types/diff": "^7.0.2",
     "@types/react": "^18.3.29",
     "@types/ws": "^8.18.1",
     "dependency-cruiser": "^17.3.10",

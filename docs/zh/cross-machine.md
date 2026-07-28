@@ -285,7 +285,7 @@ agent-server 中的 `client-manager.ts` 模块管理远程客户端生命周期�
 
 ### write 和 edit
 
-`write` 创建或覆盖文件，必要时创建父目录。`edit` 查找并替换已有文件中的字符串。两个操作都产生"diff sidecar"——写入 `~/.cortex/data/diff-markers/` 的 diff 标记文件，`session-activity-tracker` 钩子读取它以重建活动日志的更改。
+`write` 创建或覆盖文件，必要时创建父目录。`edit` 查找并替换已有文件中的字符串。操作成功后返回简短确认；会话活动只记录目标路径和设备，不复制文件内容。
 
 ### glob 和 grep
 

@@ -359,10 +359,9 @@ Paths must be absolute.
 ### write and edit
 
 `write` creates or overwrites a file, creating parent directories if needed.
-`edit` finds and replaces a string in an existing file. Both operations
-produce a "diff sidecar" — a diff marker file written to
-`~/.cortex/data/diff-markers/` — that the `session-activity-tracker` hook
-reads to reconstruct the change for the activity log.
+`edit` finds and replaces a string in an existing file. Successful mutations
+return a compact confirmation; session activity records the target path and
+device without copying file contents.
 
 ### glob and grep
 

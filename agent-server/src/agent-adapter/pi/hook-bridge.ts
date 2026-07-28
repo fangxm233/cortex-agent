@@ -192,10 +192,6 @@ export function handlePostToolUse(
     // Extract plain text from PI's content[] array — matches Claude Code's tool_output string.
     tool_output: extractToolOutput(content),
     // Pass PI's details object as tool_response.
-    // Phase 2 note: PI's EditToolDetails = { diff, firstChangedLine } — it does NOT have
-    // originalFile or structuredPatch, so session-activity-tracker.extractLocalMutation()
-    // will return {} for PI Edit/Write. The {{modifiedFilesWithDiff}} variable is degraded
-    // for PI sessions until Phase 3 adds proper diff extraction.
     tool_response: details ?? null,
     is_error: isError,
   };

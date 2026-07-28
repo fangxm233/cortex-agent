@@ -6,7 +6,7 @@ External callers should import from index.ts, not reference sub-files directly.
 | filename | role | function |
 |---|---|---|
 | `utils.ts` | utility | isDefaultThread / isAdHocThread / getSessionKey / parseTarget / resolveStageName / resolveTargetResumeId (hook targetAgent backend `--resume` target, track/backend-decoupling + legacy aware) |
-| `artifact-io.ts` | I/O | readArtifact / cleanupWorkspace / getModifiedFilesFromSession / getSessionFileChanges / renderModifiedFilesWithDiff / FileChange |
+| `artifact-io.ts` | I/O | Artifact reads, cleanup, and modified-file path lookup |
 | `template-loader.ts` | config | loadConfig (DR-0017 D6 Phase 2.5: directory form `config/thread-templates/{agents,templates,shells}/` preferred, legacy single file fallback; expands shell-binding templates via shell-templates, fail-soft per entry) / migrateThreadTemplatesToDir (one-time single-file → dir split + `.migrated-bak`) / mergeThreadTemplates (per-file copy-if-missing defaults dir → user dir) / startConfigWatcher (watches each entity subdir) / stopConfigWatcher / getTemplate / getAgent / listTemplates / listTemplateNames / listAgents / resolveFileRef |
 | `shell-templates.ts` | config | isShellBinding / expandShell — DR-0017 D6 Phase 2.5: GENERIC interpolation of a shell binding + a pure-JSON ShellDefinition (`shells/*.json`) into a full ThreadTemplate (`{param}` → agent name, `{param.entryStage}` → agent entryStage); no per-shell hardcoded expander; 7 validation semantics preserved |
 | `prompt-builder.ts` | build | Agent prompts, task-only protocol preamble, slot/profile resolution |
@@ -22,7 +22,7 @@ External callers should import from index.ts, not reference sub-files directly.
 
 ```
 utils.ts          → threadStore, thread-types
-artifact-io.ts    → threadStore, REPO_ROOT, fs, diff
+artifact-io.ts    → threadStore, DATA_DIR, fs
 shell-templates.ts → thread-types (pure)
 template-loader.ts → DATA_DIR, REPO_ROOT, template-resolver, shell-templates, thread-types
 prompt-builder.ts  → template-loader, artifact-io, threadStore, thread-types, memory/user-context
