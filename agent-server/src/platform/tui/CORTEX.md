@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
-Terminal wire protocol types, guards, and codecs.
+TUI protocol layer. Contract between M1 (TUI gateway adapter) and M5 (Ink client).
 
 | filename | role | function |
 |---|---|---|
-| protocol.ts | protocol | Encodes and validates terminal protocol data |
+| `protocol.ts` | types + wire | M4 `TuiFrame` discriminated union, representative runtime guards, parse/encode codec, and protocol version. Runtime guard behavior is tested without maintaining duplicate frame-type/guard inventories. |

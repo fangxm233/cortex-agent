@@ -1,16 +1,16 @@
-Please update me when files in this folder change
+一旦此文件夹有文件变化，请更新我
 
-Process and command-line entry points that compose server dependencies.
+Agent-server 进程与 CLI 入口；负责组合依赖并启动运行时边界。
 
 | filename | role | function |
 |---|---|---|
-| app.ts | entry | Composes and starts the server runtime |
-| cli.ts | entry | Dispatches command-line subcommands |
-| daemon.ts | entry | Supervises and restarts the server process |
-| doctor-cli.ts | entry | Runs diagnostics from the command line |
-| feishu-login.ts | entry | Runs the Feishu login flow |
-| init.ts | entry | Initializes the Cortex data directory |
-| start-ui-http.ts | entry | Starts the UI HTTP transport |
-| startup-helpers.ts | helper | Prepares startup configuration and logs |
-| startup-notify.ts | notice | Sends startup and restart notices |
-| ui-http-gate.ts | gate | Loads the UI transport when enabled |
+| app.ts | 入口 | 组合运行时、Web UI、!compact 与会话 compact 控制 |
+| cli.ts | 入口 | Cortex CLI 命令分发 |
+| daemon.ts | 入口 | 守护进程监督与热重启 |
+| doctor-cli.ts | 入口 | 运行环境诊断 CLI |
+| feishu-login.ts | 入口 | 飞书登录辅助流程 |
+| init.ts | 入口 | 初始化用户目录与配置 |
+| start-ui-http.ts | 适配 | 绑定 UI service 到 HTTP/SSE 服务 |
+| startup-helpers.ts | 工具 | 启动前日志清理与 MCP 配置准备 |
+| startup-notify.ts | 适配 | 发送启动与重启通知 |
+| ui-http-gate.ts | 适配 | 按环境变量延迟加载 Web UI transport |

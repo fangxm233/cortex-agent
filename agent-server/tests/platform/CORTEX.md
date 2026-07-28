@@ -1,21 +1,21 @@
-Please update me when files in this folder change
+一旦此文件夹有文件变化，请更新我
 
-Platform adapter, protocol, and HTTP transport regressions.
+平台组合、TUI 协议与 Web UI transport 的隔离回归测试。
 
 | filename | role | function |
 |---|---|---|
-| adapter-factory.test.ts | test | Tests adapter factory behavior |
-| composite-adapter.test.ts | test | Tests composite behavior |
-| tui-gateway.test.ts | test | Tests TUI behavior |
-| tui-protocol.test.ts | test | Tests TUI behavior |
-| tui-transcript.test.ts | test | Tests TUI behavior |
-| ui-http-access-jwt.test.ts | test | Tests UI HTTP access behavior |
-| ui-http-app-router.test.ts | test | Tests UI HTTP app behavior |
-| ui-http-lazy-driver.mjs | driver | Drives UI transport lazy-load tests |
-| ui-http-lazy-hooks.mjs | hook | Records modules loaded by UI transport tests |
-| ui-http-lazy-load.test.ts | test | Tests UI HTTP lazy load behavior |
-| ui-http-same-origin-spa.test.ts | test | Tests UI HTTP same origin spa behavior |
-| ui-http-server.test.ts | test | Tests UI HTTP behavior |
-| ui-http-wiring.test.ts | test | Tests UI HTTP wiring behavior |
-| ui-ota.test.ts | test | Tests UI behavior |
-| zip-writer.test.ts | test | Tests zip behavior |
+| adapter-factory.test.ts | 测试 | 覆盖 adapter 环境选择与组合 |
+| composite-adapter.test.ts | 测试 | 覆盖多平台路由与 marker 生命周期 |
+| tui-gateway.test.ts | 测试 | 覆盖 TUI gateway 行为 |
+| tui-protocol.test.ts | 测试 | 覆盖 TUI wire protocol |
+| tui-transcript.test.ts | 测试 | 覆盖 TUI transcript 转换 |
+| ui-http-access-jwt.test.ts | 测试 | 覆盖 Access JWT 鉴权 |
+| ui-http-app-router.test.ts | 测试 | 逐路由执行并验证 tRPC query/mutation 映射、Result 解包与错误转换；不维护固定路由数量断言 |
+| ui-http-lazy-driver.mjs | 工具 | 驱动 transport lazy-load 测试 |
+| ui-http-lazy-hooks.mjs | 工具 | 记录 lazy-load module resolve |
+| ui-http-lazy-load.test.ts | 测试 | 覆盖 transport 延迟加载 |
+| ui-http-same-origin-spa.test.ts | 测试 | 覆盖同源 SPA 托管 |
+| ui-http-server.test.ts | 测试 | 覆盖 HTTP/SSE transport |
+| ui-http-wiring.test.ts | 测试 | 覆盖 transport composition wiring |
+| ui-ota.test.ts | 测试 | 覆盖 desktop UI OTA routes |
+| zip-writer.test.ts | 测试 | 覆盖 deterministic ZIP encoder |

@@ -1,19 +1,20 @@
 Please update me when files in this folder change
 
-Platform contracts, output streams, UI transport, and adapters.
+Platform abstraction layer. Core modules decouple from Slack / Feishu etc. via the PlatformAdapter interface.
+Specific SDK calls are encapsulated in the adapters/ subdirectory.
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | Adapts platform to shared contracts |
-| index.ts | entry | Exports the directory public API |
-| interactive-builder.ts | builder | Builds interactive platform forms |
-| output-stream-chunk.ts | module | Chunks output stream data |
-| output-stream-helpers.ts | helper | Provides output stream helpers |
-| output-stream.ts | streaming | Streams output data |
-| testing.ts | testing | Provides platform test doubles |
-| tool-trace.ts | module | Renders tool traces |
-| types.ts | types | Defines platform types |
-| adapters/ | directory | Contains adapters modules |
-| tui/ | directory | Contains tui modules |
-| ui-http/ | directory | Contains ui http modules |
-| utils/ | directory | Contains utils modules |
+| `adapters/` | subdirectory | Concrete platform adapter implementations |
+| `index.ts` | export | Re-export interfaces, types, and factory |
+| `adapter.ts` | interface | PlatformAdapter contract, including marker add/remove lifecycle |
+| `types.ts` | types | MessageRef/RichBlock/ModalDefinition, etc. |
+| `output-stream.ts` | interface | OutputStream / MutableRegion / OpenOutputStreamOpts types |
+| `output-stream-chunk.ts` | utility | Shared length-based chunking (`chunkText`, `needsSplit`, `countTables`, `countHorizontalRules`) |
+| `output-stream-helpers.ts` | helper | `postOnce` free function (one-shot message post via transient OutputStream) |
+| `interactive-builder.ts` | builder | AskUserQuestion / ExitPlanMode component building |
+| `tool-trace.ts` | UI helper | tool_use compact traces rendered via OutputStream openMutable/update |
+| `testing.ts` | testing | Records messages, streams, and marker add/remove calls |
+| `tui/` | subdirectory | TUI protocol types + wire format (M4: TuiFrame union + guards + parseFrame/encodeFrame) |
+| `ui-http/` | subdirectory | Web UI HTTP/SSE transport-host: `ui-http-server.ts` (standalone tRPC host + dual-path auth gate + same-origin SPA static + auth-gated `customRoutes` matched by pathname so query-param routes like `/api/files/download?path=…` resolve) + `access-jwt.ts` (Cloudflare Access JWT verify via `jose`) + `ui-ota.ts` (desktop frontend OTA: `/api/ui-ota/manifest.json` + `/api/ui-ota/bundle.zip` custom routes, content-addressed version, built from spaDir + cached, auth-gated like tRPC) + `zip-writer.ts` (dependency-free deterministic ZIP encoder via zlib, consumed by the desktop shell's Rust `zip` crate). Core+external deps only (router injected); the wiring that binds the domain AppRouter + mounts OTA lives in `entry/start-ui-http.ts`. Loaded on demand behind CORTEX_UI_HTTP |
+| `adapters/index.ts` | factory | `createPrimaryAdaptersFromEnv` (comma-list CORTEX_PLATFORM) + `createAdapterFromEnv` — multi-platform composition + TUI auto-enable |

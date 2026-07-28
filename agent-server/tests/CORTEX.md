@@ -1,152 +1,209 @@
 Please update me when files in this folder change
 
-Behavioral server regressions for runtime, state, protocols, and failures.
+agent-server TypeScript ESM regression tests. Reference production code from here via ../src/*.js.
+Runs under **vitest** (`vitest.config.ts`): one shared Vite server transpiles each module once
+and caches it, so the suite no longer pays a per-file `tsx` cold-start. A `.js`→`.ts` pre-resolver
+(config) lets NodeNext `../src/foo.js` imports resolve to `foo.ts`; `tests/_vitest-setup.ts` gives
+each test file its own temp `CORTEX_HOME`; `tests/module-loader.ts` `importFresh` re-imports a single
+module fresh (query-string cache-bust) while keeping transitive singletons shared.
+
+Test API is vitest's: `import { test, describe, it, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'`
+(no default `test` export; node:test `before`/`after` → `beforeAll`/`afterAll`). `node:assert/strict`
+still works and is used throughout. Fake timers use `vi.useFakeTimers`/`advanceTimersByTime`; spies use
+`vi.spyOn` (auto-restored via `restoreMocks: true`).
+
+The maintained suite tests runtime behavior, persistence, protocol/security boundaries, state transitions, concurrency, and error paths. Export inventories, singleton/API-shape smoke assertions, source-text matching, and fixed presentation values are intentionally excluded. Contract routing tables remain when they execute and verify each route rather than merely counting declarations.
+
+## Cleanup Discipline: register cleanup for long-lived resources, don't write it at the end of the test body
+
+If the module under test holds long-lived resources such as timer/interval/listener/child process (typical examples:
+`rate-limit-throttle._resumeTimer`, `disk-monitor._timer`),
+the test **must** register cleanup with `t.onTestFinished(() => mod._testReset())` (the vitest context
+teardown; the node:test `t.after()` equivalent) instead of writing `mod._testReset()` at the end of each test body.
+
+Reason: when an assertion fails, code at the end of the test body does not execute; residual `setTimeout`/`setInterval` will cause the Node event loop
+to refuse to exit, and the suite hangs after the last test. `t.onTestFinished()` runs in all three cases (pass/fail/throw)
+and is the only safe cleanup location. The `afterEach` global hook or `try/finally` also work — choose any of the three.
+
+Reference implementation: the `freshModuleWithCleanup(t)` helper in `tests/rate-limit-throttle.test.ts`.
+
+## Note: Tests must not modify files actually in production use, must not actually send content, to avoid issues
+
+### Isolation is enforced (tripwire), not just convention
+`atomicWrite` (the primitive every JSON store writes through) **throws** if a test process
+(`NODE_TEST_CONTEXT` set) attempts to write under the real `~/.cortex`. This turns silent
+production pollution into an immediate failure. Production is unaffected (guard is no-op when
+`NODE_TEST_CONTEXT` is unset). Regression: `tests/core/atomic-write-guard.test.ts`.
+
+How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT` so the guard stays armed):
+- Full suite: `npm test` (run-tests.sh seeds an isolated CORTEX_HOME; the vitest setupFile clones it
+  per test file).
+- One file: `npm run test:file tests/path/to/x.test.ts` (`vitest run <file>`; the setupFile repoints
+  CORTEX_HOME at a per-file temp before `paths.ts` binds).
+- Integration (forked servers): `npm run test:integration` (`vitest.integration.config.ts`, 120s timeout, serial).
+- If you see `atomicWrite blocked: …`, a file wrote to production without isolating — run it via `test:file`
+  so the setupFile applies, rather than a raw `vitest`/`tsx` invocation that skips it.
 
 | filename | role | function |
 |---|---|---|
-| _combined-debug.test.ts | test | Tests combined debug behavior |
-| _plan-debug.test.ts | test | Tests plan debug behavior |
-| _test-home.ts | helper | Creates isolated test home directories |
-| _vitest-setup.ts | setup | Configures per-test runtime isolation |
-| agent-adapter-claude.test.ts | test | Tests agent adapter Claude behavior |
-| agent-adapter-pi-agent-dir.test.ts | test | Tests agent adapter PI agent dir behavior |
-| agent-adapter-pi-event-parser.test.ts | test | Tests agent adapter PI event behavior |
-| agent-adapter-pi-hook-bridge.test.ts | test | Tests agent adapter PI hook behavior |
-| agent-adapter-pi-mcp-bridge.test.ts | test | Tests agent adapter PI MCP behavior |
-| agent-adapter-pi-streaming.test.ts | test | Tests agent adapter PI streaming behavior |
-| agent-adapter-pi-tool-shims.test.ts | test | Tests agent adapter PI tool behavior |
-| agent-adapter-pi.test.ts | test | Tests agent adapter PI behavior |
-| agent-adapter.test.ts | test | Tests agent behavior |
-| agent-retry-classification.test.ts | test | Tests agent retry classification behavior |
-| app.test.ts | test | Tests app behavior |
-| auto-compound.test.ts | test | Tests auto compound behavior |
-| claim-recovery.test.ts | test | Tests claim behavior |
-| cli-utils.test.ts | test | Tests CLI behavior |
-| cli.test.ts | test | Tests CLI behavior |
-| client-hot-reload.test.ts | test | Tests client hot reload behavior |
-| client-manager.test.ts | test | Tests client behavior |
-| codex-bridge.test.ts | test | Tests Codex behavior |
-| codex-event-parser.test.ts | test | Tests Codex event behavior |
-| codex-spawn-args.test.ts | test | Tests Codex spawn behavior |
-| command-handlers.test.ts | test | Tests command behavior |
-| command-interactive.test.ts | test | Tests command interactive behavior |
-| composite-adapter-noop-fallback.test.ts | test | Tests composite adapter noop fallback behavior |
-| conversation-runner.test.ts | test | Tests conversation behavior |
-| cortex-client-config.test.ts | test | Tests cortex client behavior |
-| cortex-md-injector-hook.test.ts | test | Tests CORTEX.md injector hook behavior |
-| cortex-md-injector.test.ts | test | Tests CORTEX.md behavior |
-| cortex-md-scanner.test.ts | test | Tests CORTEX.md behavior |
-| cortex-run-callback-handler.test.ts | test | Tests cortex run callback behavior |
-| cortex-run-cli-dispatch.test.ts | test | Tests cortex run CLI behavior |
-| daemon.test.ts | test | Tests daemon behavior |
-| disk-monitor.test.ts | test | Tests disk behavior |
-| dispatch-utils.test.ts | test | Tests dispatch behavior |
-| execution-lock-release.test.ts | test | Tests execution lock behavior |
-| execution-log-tailer.test.ts | test | Tests execution log behavior |
-| facade-compact.test.ts | test | Tests facade compact behavior |
-| facade-plugin-gating.test.ts | test | Tests facade plugin gating behavior |
-| facade.test.ts | test | Tests facade behavior |
-| feishu-adapter.test.ts | test | Tests Feishu behavior |
-| feishu-client.test.ts | test | Tests Feishu behavior |
-| feishu-device-login.test.ts | test | Tests Feishu device login behavior |
-| feishu-login-cli.test.ts | test | Tests Feishu login behavior |
-| feishu-output-stream.test.ts | test | Tests Feishu output behavior |
-| feishu-user-auth.test.ts | test | Tests Feishu user behavior |
-| feishu-user-mode.test.ts | test | Tests Feishu user mode behavior |
-| gateway-manager.test.ts | test | Tests gateway behavior |
-| gateway-per-request-mode.test.ts | test | Tests gateway per request mode behavior |
-| gpu-slot-scheduling.test.ts | test | Tests GPU slot scheduling behavior |
-| hook-bridge.test.ts | test | Tests hook behavior |
-| init.test.ts | test | Tests init behavior |
-| integration-init-startup.test.ts | test | Tests integration init startup behavior |
-| interaction-handlers.test.ts | test | Tests interaction behavior |
-| lang-command.test.ts | test | Tests lang behavior |
-| machines-query.test.ts | test | Tests machines query behavior |
-| manager-qa.test.ts | test | Tests manager qa behavior |
-| manager-rotation.test.ts | test | Tests manager rotation behavior |
-| manager-task-artifact.test.ts | test | Tests manager task artifact behavior |
-| memory-index-regen.test.ts | test | Tests memory index behavior |
-| message-router.test.ts | test | Tests message behavior |
-| mode-manager.test.ts | test | Tests mode behavior |
-| module-loader.ts | loader | Provides module test support |
-| output-stream.test.ts | test | Tests output behavior |
-| pi-cost-record.test.ts | test | Tests PI cost record behavior |
-| platform-mock-adapter.test.ts | test | Tests platform mock behavior |
-| preferences.test.ts | test | Tests preferences behavior |
-| project-store.test.ts | test | Tests project behavior |
-| rate-limit-throttle.test.ts | test | Tests rate limit behavior |
-| rate-limiter.test.ts | test | Tests rate behavior |
-| recommendation-extractor.test.ts | test | Tests recommendation behavior |
-| restart-command.test.ts | test | Tests restart behavior |
-| resume-registry.test.ts | test | Tests resume behavior |
-| run-with-adapter.test.ts | test | Tests run with behavior |
-| schedule-cli.test.ts | test | Tests schedule behavior |
-| scheduled-runner-jobs.test.ts | test | Tests scheduled runner jobs behavior |
-| scheduled-target-dispatch.test.ts | test | Tests scheduled target behavior |
-| scheduler-precheck.test.ts | test | Tests scheduler precheck behavior |
-| server-update-check.test.ts | test | Tests server update behavior |
-| session-activity-tracker.test.ts | test | Tests session activity behavior |
-| session-backup.test.ts | test | Tests session behavior |
-| session-hooks-inject-isolation.test.ts | test | Tests session hooks inject isolation behavior |
-| session-hooks-profile-resolution.test.ts | test | Tests session hooks profile resolution behavior |
-| session.test.ts | test | Tests session behavior |
-| skill-scanner.test.ts | test | Tests skill behavior |
-| slack-adapter-classification.test.ts | test | Tests Slack adapter classification behavior |
-| slack-adapter-prefix.test.ts | test | Tests Slack adapter prefix behavior |
-| slack-adapter-throttle.test.ts | test | Tests Slack adapter behavior |
-| slack-message.test.ts | test | Tests Slack message behavior |
-| slack-output-stream.test.ts | test | Tests Slack output behavior |
-| status-helpers.test.ts | test | Tests status behavior |
-| task-abort-outcome.test.ts | test | Tests task abort outcome behavior |
-| task-completion.test.ts | test | Tests task behavior |
-| task-dispatcher.test.ts | test | Tests task behavior |
-| task-id-utils.test.ts | test | Tests task id behavior |
-| task-lifecycle.test.ts | test | Tests task behavior |
-| task-lint.test.ts | test | Tests task behavior |
-| task-mutations.test.ts | test | Tests task mutations behavior |
-| task-node-ledger.test.ts | test | Tests task node behavior |
-| task-origin-wake.test.ts | test | Tests task origin wake behavior |
-| task-parent-split.test.ts | test | Tests task parent split behavior |
-| task-parser.test.ts | test | Tests task behavior |
-| task-state.test.ts | test | Tests task behavior |
-| task-store.test.ts | test | Tests task behavior |
-| task-verdict-cli.test.ts | test | Tests task verdict behavior |
-| template-resolver.test.ts | test | Tests template behavior |
-| thread-abort.test.ts | test | Tests thread abort behavior |
-| thread-callback-tree.test.ts | test | Tests thread callback behavior |
-| thread-coder-review.e2e.test.ts | test | Tests the coder-review end-to-end flow |
-| thread-contract.test.ts | test | Tests thread contract behavior |
-| thread-extra-hooks.test.ts | test | Tests thread extra behavior |
-| thread-ledger-dedupe.test.ts | test | Tests thread ledger dedupe behavior |
-| thread-manager.test.ts | test | Tests thread behavior |
-| thread-resume-statusmsg.test.ts | test | Tests thread resume statusmsg behavior |
-| thread-resume-task-loop.test.ts | test | Tests thread resume task loop behavior |
-| thread-runner.test.ts | test | Tests thread behavior |
-| thread-stages.test.ts | test | Tests thread stages behavior |
-| thread-statusmsg-seal.test.ts | test | Tests thread statusmsg seal behavior |
-| thread-task-bridge.test.ts | test | Tests thread task behavior |
-| thread-tree.test.ts | test | Tests thread behavior |
-| thread-wait-checkpoint-gate.test.ts | test | Tests thread wait checkpoint gate behavior |
-| thread-wait-children.test.ts | test | Tests thread wait children behavior |
-| thread-wait-deadlock.test.ts | test | Tests thread wait deadlock behavior |
-| thread-wait-tasks.test.ts | test | Tests thread wait tasks behavior |
-| tool-trace.test.ts | test | Tests tool behavior |
-| ui-service-compact.test.ts | test | Tests UI service compact behavior |
-| update-prompt-slack.test.ts | test | Tests update prompt Slack behavior |
-| update-prompt.test.ts | test | Tests update behavior |
-| update-state.test.ts | test | Tests update behavior |
-| user-context.test.ts | test | Tests user behavior |
-| webhook-auth.test.ts | test | Tests webhook behavior |
-| webhook-manager-qa.test.ts | test | Tests webhook manager qa behavior |
-| webhook-thread-control.test.ts | test | Tests webhook thread behavior |
-| agent-adapter/ | directory | Contains agent adapter modules |
-| core/ | directory | Contains core modules |
-| domain/ | directory | Contains domain modules |
-| entry/ | directory | Contains entry modules |
-| events/ | directory | Contains events modules |
-| orch/ | directory | Contains orch modules |
-| orchestration/ | directory | Contains orchestration modules |
-| platform/ | directory | Contains platform modules |
-| store/ | directory | Contains store modules |
-| threads/ | directory | Contains threads modules |
-| tui/ | directory | Contains tui modules |
+| `agent-adapter/` | Subdirectory | Three-backend fixture replay plus Claude/PI live-turn injection lifecycle tests |
+| `orch/` | Subdirectory | Orch orchestration layer (running-executions / conduit-queue / superseded-edits / plan-approvals / ask-user-question-pi) regression tests |
+| `orchestration/` | Subdirectory | Isolated orchestration unit tests |
+| `platform/` | Subdirectory | Platform composition and transport tests |
+| `threads/` | Subdirectory | Thread domain regression tests |
+| `agent-adapter.test.ts` | Test | getAdapter/capability/tool-name contract plus exhaustive normalized-event union guard |
+| `agent-adapter-claude.test.ts` | Test | Claude args/hooks plus exact slash-frame manual compact outcomes |
+| `agent-adapter-pi.test.ts` | Test | PI framing/context/bootstrap plus correlated compact and post-stats |
+| `agent-retry-classification.test.ts` | Test | Transport/provider-guidance retry classification plus Web-chat fallback, terminal, dedupe, and cancellation notice policy |
+| `agent-adapter-pi-event-parser.test.ts` | Test | PI event translation, internal-retry dropping, and settled-boundary aggregation |
+| `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |
+| `agent-adapter-pi-hook-bridge.test.ts` | Test | PI hook lifecycle plus CORTEX Read/Edit injection |
+| `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI bridge content mapping, platform-origin policy, and one real cost-query transport call; no tool inventory |
+| `agent-adapter-pi-tool-shims.test.ts` | Test | PI shims, plan-file instruction, and retries |
+| `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
+| `run-with-adapter.test.ts` | Test | Normalized and inline-continuation context callbacks |
+| `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins channel gating |
+| `facade-compact.test.ts` | Test | Manual compact support, resume spawn, close, and cost recording |
+| `app.test.ts` | Test | Startup DM + scheduled success flow |
+| `auto-compound.test.ts` | Test | Compound skip conditions and concatenation |
+| `codex-bridge.test.ts` | Test | Codex MCP config tsx loader |
+| `codex-event-parser.test.ts` | Test | codexEventToNormalized pure function |
+| `command-handlers.test.ts` | Test | !cancel/!compact/!cost/!status/!schedule/!nvtop |
+| `restart-command.test.ts` | Test | `triggerServerRestart` daemon-alive/missing-pid/dead-process branches + `!restart` routing posts a reply |
+| `cortex-run-cli-dispatch.test.ts` | Test | cortex-run.ts CLI dispatch (sendCommand pathway) |
+| `daemon.test.ts` | Test | Import has no side effects |
+| `core/status-format.test.ts` | Test | buildThreadStatusMessage: task-info lead format / thread-only fallback / text+thread-id truncation / turn count |
+| `core/debug-mode.test.ts` | Test | Shared `DEBUG` truthiness plus env threshold parsing, Unicode tool-payload counts, and strict warning boundary |
+| `core/singleton-lock.test.ts` | Test | tryAcquireSingletonLock/releaseSingletonLock/isProcessAlive against a temp pidfile (fresh/live-holder/stale/corrupt) |
+| `core/auth.test.ts` | Test | core/auth.ts: timingSafeEqualStr (fail-closed) + ensureAuthTokens generation/idempotency/partial/append-to-.env |
+| `core/bg-held-sessions.test.ts` | Test | BgHeldSessions registry (web bg-hold snapshot): mark on running+backgroundRunning, clear on seal / plain turn start / turn end, re-arm keeps held, per-session independence, singleton; + the Stop-path additions — channel index (`sessionsOnChannel`) and single-fire `setAbort`/`abort` with handles dropped on seal and on clear |
+| `webhook-auth.test.ts` | Test | webhook bearer-token gate: 401 without/with-wrong token, pass with token, /webhook/github exempt (HMAC) |
+| `project-store.test.ts` | Test | ProjectStore list/get/exists/getDefault/resolveFromMessage + scaffolding + cache refresh |
+| `dispatch-utils.test.ts` | Test | Task dispatch commands and env injection |
+| `execution-lock-release.test.ts` | Test | Auto lock-release on terminal execution transitions (complete/fail/cancel/stale) |
+| `task-dispatcher.test.ts` | Test | Pre-filter + schedule guard + dispatch gate (incl. per-task template-profile rate-limit filtering) |
+| `task-store.test.ts` | Test | runExclusive serialization and error propagation (verified through re-export path) |
+| `store/task-repo.test.ts` | Test | TaskRepo concurrent add, state serialization, flush draining |
+| `store/plugin-sync.test.ts` | Test | syncManagedPlugins/parsePluginVersion: new-plugin deploy / version-newer skill refresh / legacy-unversioned adoption / same-version no-write / no-downgrade / unversioned-default skip / user-added-file preservation |
+| `gpu-slot-scheduling.test.ts` | Test | Per-GPU slot scheduling |
+| `task-parser.test.ts` | Test | Task CLI read path query/lint/health |
+| `task-lint.test.ts` | Test | lintTasks unknown-template error unit coverage |
+| `task-lifecycle.test.ts` | Test | Task CLI write path lifecycle |
+| `task-id-utils.test.ts` | Test | Hash generation/backfill/collision check |
+| `task-state.test.ts` | Test | Claim/pause/approve state transitions |
+| `task-completion.test.ts` | Test | complete/uncomplete + done-when validation |
+| `task-mutations.test.ts` | Test | addTask/batchEdit/decompose |
+| `thread-manager.test.ts` | Test | Prompt variables, modified-file paths, and transitions |
+| `thread-runner.test.ts` | Test | Runner lifecycle helpers and wait-control selector forwarding |
+| `threads/thread-transcript.test.ts` | Test | createStepTranscriptRecorder: incremental in-order appends keyed by track sessionId, shared-ts live publish, DEBUG exact prompt/full input/result correlation, post-persistence refresh ordering, and fail-soft writes |
+| `threads/thread-live-step-ids.test.ts` | Test | beginStepSession (fresh mint persisted + resume null / legacy migration keeps one id as both keys / settled slot resumes backendSessionId / non-persist fresh per step / thread.step.started) + recordStepResult track/backend decoupling (step + persist-slot fields, thread.step.finished truncation) + thread.created/completed/failed(+cancel→failed) publishes + resolveTargetResumeId (slot/step, new/legacy forms, never a track id) |
+| `conversation-runner.test.ts` | Test | Conversation prompt and project-context behavior |
+| `orchestration/session-compact.test.ts` | Test | Idle guards, native compact, snapshots, and semantic event effects |
+| `user-context.test.ts` | Test | loadUserContext env-gate/file-present/absent + USER.md injected into buildConversationPrompt, never into thread steps |
+| `thread-abort.test.ts` | Test | Thread control and task-only protocol preamble regressions |
+| `thread-tree.test.ts` | Test | DR-0014 tree: getRootThreadId/getTreeThreads/summarizeTree/checkSpawnGuards/buildThreadTree/registerChildSpawn |
+| `thread-wait-children.test.ts` | Test | Thread-child inference and explicit wait-set override semantics |
+| `webhook-thread-control.test.ts` | Test | DR-0015: /webhook/thread-op `control` action — abort/split/wait validation + pendingControl persistence + reject-second/terminal/unknown |
+| `manager-qa.test.ts` | Test | DR-0016 up-ask channel: askManager manager-resolution (thread-parent + task-tree) / deliver→resume / top-of-tree origin-session wake (origin agent answers via answer_subtask) + human backstop (tryAnswerFromHuman) / submitAnswer + getAnswer round-trip / buildQuestionNotice / buildOriginSessionNotice |
+| `webhook-manager-qa.test.ts` | Test | DR-0016: /webhook/manager-qa `ask`/`poll`/`answer` HTTP round-trip + unknown thread/question/action validation |
+| `thread-callback-tree.test.ts` | Test | Child result delivery and task-only retry guidance |
+| `thread-contract.test.ts` | Test | DR-0014 contracts: buildContractPrompt/buildMissionChain/checkContractBudget |
+| `task-parent-split.test.ts` | Test | DR-0014 task tree: Task.parent round-trip / decompose keepParent / lint parent rules / processSplitOutcome |
+| `thread-wait-tasks.test.ts` | Test | Task-child inference, explicit override, restart, and cleanup |
+| `task-node-ledger.test.ts` | Test | DR-0017 W1: core/task-node path helpers + ensureTaskArtifact never-truncate + acceptance-ledger verdict lifecycle (pending re-delivers / accepted blocks / rejected re-opens with rework_round) |
+| `manager-task-artifact.test.ts` | Test | DR-0017 W1: createThread task-keyed artifact for manager-template dispatch threads (placement / pre-existing checkpoint preserved / non-manager & ad-hoc unaffected / cleanupWorkspace spares it) |
+| `task-verdict-cli.test.ts` | Test | DR-0017: `cortex-task verdict` subcommand — accepted/rejected recording + rework_round, --child/--verdict/parent validation, help entry; atomicWriteSync tripwire (real-home refusal + tmp write) |
+| `manager-rotation.test.ts` | Test | DR-0017 W3: step-count rotation — threshold/base semantics, non-manager exempt, slot session cleared, rehydration notice (artifact path + cortex-task tree + ledger pendings, accepted excluded), resume-path integration (rotate-then-resume / below-threshold untouched) |
+| `thread-wait-checkpoint-gate.test.ts` | Test | DR-0017 W2: checkpoint gate — createThread/recordStepResult baseline recording / isArtifactUnchangedSinceStepStart fail-open cases / webhook wait rejected-with-hint vs accepted-after-edit / abort exempt / legacy no-baseline passes |
+| `thread-ledger-dedupe.test.ts` | Test | DR-0017 W1: notifyTaskParentThreads × acceptance-ledger — pending ledger entry on delivery / accepted child not re-delivered to a new incarnation (but un-waited + resume) / un-verdicted re-delivers / same-incarnation dedupe intact / no-taskId legacy path |
+| `thread-task-bridge.test.ts` | Test | DR-0014 §8: notifyTaskParentThreads / reconcileWaitingTasks race closer / recovery keeps open task children |
+| `thread-wait-deadlock.test.ts` | Test | Wait-set deadlock guard: computeStuckWaitSet (direct/transitive blocked deps, runnable/in-flight/terminal/missing escapes, cycle termination) + buildDeadlockNotice + integration (blocked child among stuck siblings wakes with deadlock notice; persistent stuckWakeKey dedup across restart; distinct stall re-wakes; sweep covers pre-suspend blocked deps; normal resume clears marker) |
+| `claim-recovery.test.ts` | Test | recoverOrphanedClaims policy: dispatcher-claim orphan unclaimed / manual claims + done/pending/blocked skipped / waiting+rate_limited thread protects claim, failed does not / remote-tracked skipped / fail-soft sweep |
+| `thread-resume-task-loop.test.ts` | Test | 2026-06-29 fix: closeResumedTaskLoop re-emits task.completed/task.blocked when a task-dispatch thread re-enters via a resume path (rate-limit or DR-0014) that bypasses the dispatch cycle — terminal+done→completed, terminal+blocked→blocked, no-op for non-terminal / non-dispatch / still-open; + sweepWaitingManagers periodic disk-driven backstop (delivers an already-done child the fast paths missed and resumes; keeps waiting on still-open) |
+| `task-origin-wake.test.ts` | Test | Problem 1: notifyTaskOriginSession wakes the origin channel on task complete/blocked; defers to thread-parent path; single-fire |
+| `task-abort-outcome.test.ts` | Test | DR-0014 §8: processAbortOutcome worker escalation (aborted thread → block task; fixes aborted-as-success bug) |
+| `thread-statusmsg-seal.test.ts` | Test | DR-0014 §8: sealSuspendedStatusMsg refreshes the stale "suspended" status message after resume |
+| `thread-resume-statusmsg.test.ts` | Test | buildResumeOptions restores statusMsg from metadata.statusMsgRef (2026-06-23 fix: rate-limit/suspended resume kept updating the live status message instead of freezing at "Paused — rate limited") |
+| `thread-stages.test.ts` | Test | Thread step stage progression |
+| `thread-coder-review.e2e.test.ts` | Test | coder/reviewer two-stage e2e |
+| `thread-extra-hooks.test.ts` | Test | per-call extraHooks serial injection |
+| `interaction-handlers.test.ts` | Test | handleModalSubmit -> bus.publish('ask-user.answered') BLK-1 regression |
+| `orch/interaction-records.test.ts` | Test | InteractionRecords entity service (web-interactions-redesign): create persists+publishes session.interaction pending / resolve first-writer-wins (resolved→already-resolved) / unknown-after-restart / getPendingByChannel payload+TTL scoping / resolvePendingByChannel (!new cancel) / uninitialised fail-soft |
+| `orch/hook-bridge-subscribers-web.test.ts` | Test | web: conduit branch creates interaction entities (plan-approval with FULL planContent snapshot + planApprovals live-resolver kept; ask-user normalized questions); non-web channels create none |
+| `domain/ui-service/query-sessions.test.ts` | Test | Session list identity/running/turn/cost/context snapshots plus transcript pending behavior |
+| `domain/ui-service/query-sessions-transcript.test.ts` | Test | Transcript notice/turn/interaction materialization, DEBUG exposure gate, and runtime tool-size warning derivation |
+| `domain/ui-service/mutate-sessions-interactions.test.ts` | Test | Session interaction mutation outcome mapping |
+| `ui-service-compact.test.ts` | Test | sessions.compact success and error mapping |
+| `platform-mock-adapter.test.ts` | Test | MockAdapter messages and marker lifecycle |
+| `composite-adapter-noop-fallback.test.ts` | Test | Unknown conduit operations stay no-op |
+| `slack-adapter-prefix.test.ts` | Test | Slack prefixes and hourglass lifecycle |
+| `feishu-adapter.test.ts` | Test | Feishu messages and OnIt lifecycle |
+| `output-stream.test.ts` | Test | Platform output stream regressions |
+| `feishu-client.test.ts` | Test | Lark SDK logs stay off protocol stdout |
+| `composite-adapter.test.ts` | Test | CompositeAdapter fan-out routing, interactive-reply isolation, capability merging, extractTuiAdapter, FanOutOutputStream, project-report all-primary fan-out + per-platform DM fallback (18 cases) |
+| `platform/ui-http-lazy-load.test.ts` | Test | Runtime guard (plan §11 single-package merge): with `CORTEX_UI_HTTP` unset, loading + invoking the gate (`entry/ui-http-gate.ts`) must NOT eager-load `@trpc/server` or `jose`. A child process registers a `module.register` resolve hook (`ui-http-lazy-hooks.mjs`, driven by `ui-http-lazy-driver.mjs`) that records resolved specifiers; the positive control (`LAZY_MODE=load`) proves the hook records trpc/jose when the transport IS loaded. Replaces the old `no-trpc-dep.test.ts` (now void — trpc/jose are legitimate core deps) |
+| `platform/ui-http-app-router.test.ts` | Test | tRPC AppRouter routing, including `system.rateLimitStatus`, Result unwrap, error mapping, and subscription passthrough over a fake UiService. |
+| `platform/ui-http-server.test.ts` | Test | Transport-host: 127.0.0.1 bind, x-cortex-token 401 gate, HTTP query roundtrip, SSE one-event, SPA stub (present/absent/traversal/malformed-URL→400), clean close(), CORS allow-list — FAKE tRPC router, ephemeral port |
+| `platform/ui-http-access-jwt.test.ts` | Test | Dual-path auth gate: valid x-cortex-token; valid RS256 + ES256 Cloudflare Access JWT; bad-sig/wrong-aud/wrong-iss/expired/no-creds → 401; `accessVerifierFromEnv` secure-degrade — synthetic jose keypairs + local JWKS |
+| `platform/ui-http-wiring.test.ts` | Test | `startUiHttpServer` wiring: env gate (null when off), default port 3004, token 401, HTTP query/mutate roundtrip, SSE, close, CORS via `CORTEX_UI_CORS_ORIGINS`, frontend OTA routes mounted (manifest/bundle reachable + token-gated 401) — FAKE UiService |
+| `platform/zip-writer.test.ts` | Test | Dependency-free ZIP encoder (desktop OTA unit A): crc32 known-answer vectors, LFH/CDH/EOCD signatures, per-entry DEFLATE round-trip, entry count, determinism, name-sort, empty-file/nested-path |
+| `platform/ui-ota.test.ts` | Test | `createOtaRoutes` (desktop OTA unit A): no-SPA→no routes, manifest shape (version/sha256/size/url) + content-type, bundle application/zip matching manifest size+sha256, content-addressed version (stable/changes), 405 method guard |
+| `platform/ui-http-same-origin-spa.test.ts` | Test | Single port serves index.html (from `CORTEX_UI_SPA_DIR` default-spaDir resolution) AND the token-gated `/trpc` — FAKE UiService |
+| `message-router.test.ts` | Test | Message routing branches |
+| `session.test.ts` | Test | session.ts backend:channel CRUD |
+| `session-hooks-profile-resolution.test.ts` | Test | resolveOnNewProfileName priority (registry > ledger) — regression for "Invalid signature in thinking block" caused by thread vs user session profile mismatch |
+| `domain/agents/profile-thinking.test.ts` | Test | Profile `thinking` field: per-backend value validation (claude --effort / pi --thinking / codex unsupported), resolveProfileConfig propagation (no fallback inheritance), buildSpawnConfig passthrough |
+| `session-hooks-inject-isolation.test.ts` | Test | onNewInjectSessionKey isolation + runHookInjection: onNew pre-close turn runs on an isolated pool key (≠ channel) and is closed after (incl. on failure); onMessageEnd stays on the channel live slot — regression for the `!new` + onNew memory-hook session-resurrection race |
+| `client-manager.test.ts` | Test | client-manager handshake/sendCommand + WS bearer-token verifyClient (reject no/wrong token, accept valid) + `buildRemoteSpawnCommand` cmd.exe-wrap + token-injection + retry-on-spawn-failure regressions + `buildRemoteInstallCommand` (dev hot-reload install cmd: default `npm install -g <tgz>` / `{tgz}` placeholder substitution / no-placeholder append / blank-fallback) |
+| `machines-query.test.ts` | Test | machines.list handler: online/offline/liveRuns/windows-os/empty-registry (5 cases) |
+| `domain/ui-service/query-thread-detail.test.ts` | Test | threads.get steps, real cortex-runs, direct subtasks, child tree, artifacts |
+| `domain/ui-service/mutate-sessions-markread.test.ts` | Test | sessions.markRead handler: stamps sessionStore.markRead + ok; unknown session → not-found, no write |
+| `domain/ui-service/query-skills.test.ts` | Test | skills.list handler: returns empty array / user-owned group (plugin=null) with sorted skill names / plugin groups / independent copy guarantee (4 cases; uses clearSkillScanCache to bust 60s in-process cache) |
+| `client-hot-reload.test.ts` | Test | `updateClientReleaseLocal` (release-mode local same-machine client update): already-at-latest no-op, kill→npmUpdate→restart ordering, unknown installed version, npmUpdate-throws error capture, restart-fail partial |
+| `cortex-run-callback-handler.test.ts` | Test | task-callback handler (DR-0011 §4.4): idempotency, skipVerify, ghost callback, blockTask note |
+| `domain/mcp/tools-registration.test.ts` | Test | Remote write/edit confirmations stay compact and do not leak file snapshots |
+| `domain/mcp/time-tool.test.ts` | Test | current_time handler: valid tz payload, default tz, invalid-tz error |
+| `domain/mcp/task-monitor-tool.test.ts` | Test | task_status/task_result/task_list handlers read TASKS.yaml (status/terminal/parent filter) |
+| `domain/mcp/cortex-schedule.test.ts` | Test | resolveTargetShorthand: __current__ to concrete ID 12-way resolution and error paths |
+| `scheduled-target-dispatch.test.ts` | Test | planScheduledDispatch: fresh/channel/session/thread + fallback decision tree |
+| `cortex-md-scanner.test.ts` | Test | CORTEX ancestor scanning and physical host identity |
+| `cortex-md-injector.test.ts` | Test | Shared local/remote CORTEX cache dedup and invalidation |
+| `cortex-md-injector-hook.test.ts` | Test | Hook Read/Edit/session injection and MCP cache sharing |
+| `mode-manager.test.ts` | Test | Per-request mode URL routing + per-mode ANTHROPIC_API_KEY retention (plan deletes for OAuth; non-plan keeps key/placeholder so CC starts without login) + config.js import is side-effect free (no env mutation in CLI processes) |
+| `gateway-per-request-mode.test.ts` | Test | Gateway /m/{mode}/ prefix and token |
+| `memory-index-regen.test.ts` | Test | Index rebuild lifecycle partitioning |
+| `session-activity-tracker.test.ts` | Test | Path-only Read/Edit/Write/Skill activity logging |
+| `recommendation-extractor.test.ts` | Test | Recommendation extraction and dedup |
+| `skill-scanner.test.ts` | Test | Plugin skill discovery and namespacing |
+| `schedule-cli.test.ts` | Test | scheduler API + schedule CLI |
+| `slack-message.test.ts` | Test | mergeSubstantialOutput merging |
+| `slack-adapter-throttle.test.ts` | Test | SlackAdapter.updateMessage per-message throttle + 429 retry-after |
+| `status-helpers.test.ts` | Test | writeStatus/sealStatus serialization + status button payloads (cancel/newq env-gate) |
+| `tool-trace.test.ts` | Test | Tool lines merge via OutputStream mutable region |
+| `update-prompt.test.ts` | Test | 8-path coverage: 3-button registration, click paths, stale, re-prompt, timeout ([DR-0013]) |
+| `update-state.test.ts` | Test | update-state.ts round-trip / missing-file / malformed-json coverage ([DR-0013]) |
+| `server-update-check.test.ts` | Test | compareCalVer (4 CalVer + suffix + cross-digit), isUpdateDevMode (3 cases), checkServerUpdate (11 branches, all deps injectable) ([DR-0013]) |
+| `store/execution-repo.test.ts` | Test | ExecutionRepo concurrent mutate, index consistency, flush draining (Pattern B) |
+| `store/schedule-repo.test.ts` | Test | ScheduleRepo concurrency/CRUD plus legacy and provider-array rate-limit persistence round trips. |
+| `store/cost-repo.test.ts` | Test | CostRepo concurrent recordEntry, 90-day prune, flush ordering, budget roundtrip |
+| `store/profile-repo.test.ts` | Test | ProfileRepo concurrency/cache/roundtrip + hot-reload success callback and invalid-JSON suppression |
+| `store/session-registry-repo.test.ts` | Test | SessionRegistryRepo concurrent mutate, context snapshot persistence, flush/cache consistency |
+| `gateway-manager.test.ts` | Test | Gateway port conflict reuse |
+| `disk-monitor.test.ts` | Test | shouldAlert decision coverage |
+| `rate-limit-throttle.test.ts` | Test | Provider/window throttle thresholds, independent expiry/mode release, final-provider resume, change hints, restart persistence, and legacy Anthropic migration. |
+| `domain/ui-service/query-system-rate-limit.test.ts` | Test | Active provider/window projection and honest empty state for `system.rateLimitStatus`. |
+| `resume-registry.test.ts` | Test | Rate-limit resume registry: dedupe (direct→channel, thread→threadId), drain, persistence roundtrip/hydrate |
+| `orch/resume-dispatcher.test.ts` | Test | Auto-resume dispatch: direct→route (serial, channelBusy skip) / thread→continueThread (concurrent, only skip on live direct session; multiple threads same channel all resume) + settleResumedThread fires once AFTER each resumed run returns (seals the frozen status message; never fires for guard-skipped threads) + guards (stale/missing/terminal) + CORTEX_AUTO_RESUME flag/drain + busy-gate bracket (2026-07-09 regression: track +1 sync at fire / -1 after run AND settle, leak-free on rejection, no track for guard-skipped or direct entries, balanced across concurrent resumes) |
+| `orch/lifecycle-rate-limit.test.ts` | Test | handleAgentError thrown-rate-limit pause branch: throttled + rate-limit error + userMessage → recordResume(direct) + seal, no error post; falls through to normal error path when not throttled / no userMessage / non-rate-limit error |
+| `scheduler-precheck.test.ts` | Test | preCheck exit code and env |
+| `cli-utils.test.ts` | Test | formatHelp/formatError |
+| `domain/system/doctor.test.ts` | Test | doctor engine: runDiagnostics section/check statuses + gateway in-use-vs-idle logic + applySafeFixes idempotent actuation |
+| `entry/doctor-cli.test.ts` | Test | `cortex doctor` CLI: help/text/json output, exit-code mapping, --fix re-run |
+| `template-resolver.test.ts` | Test | Template variables/block/conditional |
+| `threads/domain-threads-smoke.test.ts` | Test | domain/threads/ import smoke: parseTarget / resolveStageName / resolveSystemVars / THREAD_PROTOCOL_PREAMBLE |
+| `threads/resolve-template-profiles.test.ts` | Test | resolveTemplateProfiles: hardcoded profiles, `__active__` mapping, dedup, unknown template fail-open |
+| `threads/shell-template.test.ts` | Test | DR-0017 D6 Phase 2.5: isShellBinding + generic expandShell interpolation (golden equivalence for doc/execute, structural for analyst/surveyor/writer), maxTotalSteps override, default description, all 7 validation error branches |
+| `threads/thread-config-dir.test.ts` | Test | DR-0017 D6 Phase 2.5: loadConfig directory form — golden equivalence (dir ≡ same-content single file), dir-over-file precedence, fail-soft (name≠filename / broken or unknown shell binding), migrateThreadTemplatesToDir (split + `.migrated-bak` + idempotent), mergeThreadTemplates per-file copy-if-missing |
+| `threads/template-merge.test.ts` | Test | DR-0017 D6 Phase 2.5: mergeThreadTemplates directory form — per-file copy-if-missing (defaults dir → user dir), preserves existing user files, no-op when complete / when defaults dir absent |
+| `threads/thread-rate-limit-resume.test.ts` | Test | rate-limit thread pause/resume contract: recordStepOutcome records resume + pauses (rate_limited) without advancing the step; markThreadRateLimited; buildThreadSummary paused headline; markRunningAsFailedOnStartup/cleanup treatment of rate_limited |
+| `module-loader.ts` | Utility | ESM fresh import + root path helper |

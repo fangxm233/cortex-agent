@@ -1,15 +1,47 @@
-Please update me when files in this folder change
+# ui-service/ — M3 Cortex UI Service
 
-Transport-neutral UI queries, mutations, subscriptions, and router.
+Transport-agnostic facade over domain modules providing `query`, `mutate`, and `subscribe` primitives,
+**plus** the tRPC contract bound over it (`trpc.ts` + `app-router.ts`, in-core here since the plan §11
+single-package merge — reversing the Stage-9 §9.1 split to `@cortex-agent/ui-server`). The facade
+itself is @trpc-free; only `trpc.ts`/`app-router.ts` pull `@trpc/server`, and they are reached only
+through `entry/start-ui-http.ts` behind the CORTEX_UI_HTTP gate, so Slack/TUI-only core loads no @trpc
+at runtime. The HTTP/SSE transport-host lives in `platform/ui-http`; the wiring in `entry/start-ui-http`.
+Consumed directly by the M5 TUI dashboard (createUiService), and — via the AppRouter over this facade —
+by the Web UI.
+
+`sessions.transcript` is the sensitive-data boundary for DEBUG inspectors: optional exact agent-message/full tool input/result fields are emitted only while the shared process-wide DEBUG gate is active. Tool warnings are derived at query time from the agent-server character threshold and are never persisted. Records may remain on disk after the flag is disabled, but the DTO omits them.
 
 | filename | role | function |
 |---|---|---|
-| app-router.ts | router | Maps UI operations into tRPC procedures |
-| index.ts | entry | Exports the directory public API |
-| input-schemas.ts | schema | Validates input data |
-| subscribe.ts | events | Streams filtered UI domain events |
-| trpc.ts | router | Creates shared tRPC router primitives |
-| types.ts | types | Defines UI service types |
-| ui-service.ts | service | Dispatches transport-neutral UI operations |
-| mutate/ | directory | Contains UI mutation handlers |
-| query/ | directory | Contains read-only UI handlers |
+| `types.ts` | types | UI operations/DTOs, including session compact capability and results. |
+| `trpc.ts` | tRPC init | Shared `initTRPC.create()` — `router` / `publicProcedure` / `createCallerFactory` (transport-agnostic; `@trpc/server` CORE only, no http/ws adapter) |
+| `app-router.ts` | tRPC router | Mirrors UI queries, mutations including sessions.compact, and subscriptions. |
+| `input-schemas.ts` | schemas | Runtime input schemas and keyed maps, including sessions.compact. |
+| `ui-service.ts` | facade | Routes query/mutation keys, including sessions.compact, to handlers. |
+| `subscribe.ts` | subscribe | EventBus → AsyncIterable&lt;UiEvent&gt; with bounded queue (cap 256, drop-oldest + synthetic `ui-subscribe.dropped`); post-filters by projectId, (B2-C) executionId, and (S4) sessionId — scopes `session.message` to one session (no cross-session leak). `SESSION_SCOPED_ONLY` types (`session.message.delta`) go further: they are dropped BEFORE the queue unless the subscription names their session, so an app-wide stream is never flooded with another session's token-level previews and never drop-oldests the events it exists to deliver |
+| `index.ts` | barrel | re-exports createUiService and public types |
+| `query/projects.ts` | query | projects.list handler |
+| `query/sessions.ts` | query | Exposes session compact support/context and materializes transcripts. |
+| `query/threads.ts` | query | threads.list + threads.get handlers. Detail includes steps/agent-flow, real task-linked cortex-runs (`dispatch.runName`) attributed to their launch step, direct subtasks, child-thread tree≤5, and artifacts. threads.list accepts optional `sessionId` and scopes through session→channel; unknown session returns `[]`. |
+| `query/tasks.ts` | query | Shared task→TaskInfo mapper and tasks.list handler |
+| `query/task-verification.ts` | query | tasks.verification handler (§12 C item 11) — single-task done-when EVIDENCE (real `completed-note` / `completed-at` / status + the most-recent terminal execution joined by taskId and its `finalOutput`) + the full per-task execution/dispatch history (`executionRegistry.getAll()` filtered by `dispatch.taskId`, newest first). Not found / project mismatch → `not-found`. Every unsourced field is an honest `null` / `[]`, never fabricated |
+| `query/schedules.ts` | query | schedules.list handler |
+| `query/executions.ts` | query | executions.list + executions.get handlers |
+| `query/memory.ts` | query | memory.tree (project memory tree: top-level files + memory dirs w/ entry counts AND each dir's real `.md` `entries` list [name/sizeBytes/modifiedAt, sorted, index.md/CORTEX.md excluded, `entryCount === entries.length`] so a client can enumerate+open files under a dir without a second round-trip — mobile 1j accordion) + memory.file (raw file content + metadata + `lineDiff` = real working-tree-vs-HEAD line counts via `git diff --numstat` + `blame` = real per-line `git blame` [short commit hash + task ref parsed from the commit subject, a 4-hex id after a `task`/`manager`/`gate` keyword — else honest `null`], both `null` when not a git repo / git unavailable / binary — honest placeholder, never fabricated) handlers — read-only, path-restricted to the project root; rejects `..` traversal / absolute paths / symlink escape. Pure exports `parseTaskRef` / `parseBlamePorcelain` are unit-tested |
+| `query/approvals.ts` | query | approvals.list handler + pure `parseApprovals` (PENDING_APPROVALS.md → ApprovalInfo[], missing fields null, status filter); path via `deps.approvalsPath`. §12 C item 13: captures the OPTIONAL freeform `Provenance` bullet → `provenance` (verbatim, the only real origin/from carrier — neither writer emits a structured origin/task field) + derives `taskRef` (4-hex, reusing memory.ts `parseTaskRef`); honest `null` when absent, never fabricated. The prototype's `ttl` slot has ZERO source (the markdown queue has no expiry concept; the 30-min hook-bridge plan TTL is a different channel) → deliberately no `ttl` field |
+| `query/issues.ts` | query | issues.list handler + pure `parseIssues` (per-project `<contextDir>/ISSUES.md` → IssueInfo[]) + `issueLineId` + `resolveIssuesPath`. Real-world-tolerant parser (design sec-24): entries are column-0 `- **<title>** (<freeform paren>)` bullets, `date` = first YYYY-MM-DD in the parens (honest null), `body` = raw freeform sub-bullet lines verbatim. No status/source/files fields exist in the markdown → deliberately not DTO fields, never fabricated |
+| `query/cost.ts` | query | cost.summary handler |
+| `query/config.ts` | query | config.get handler — redacted snapshot of `~/.cortex/config` (budget/profiles/machines/mcp/thread-templates/hooks/.env) for the settings panel (Stage 7); pure `readConfigSnapshot(configDir, hooksDir)` + thin handler. SECURITY: `.env` values + machine `ssh` are never returned, only redacted markers |
+| `query/machines.ts` | query | machines.list handler — joined view of `getMachineRegistry()` (static config: cortexPath/gpuCount/ssh presence/os) + `getOnlineDevices()` (live WebSocket state: online/connectedAt/lastHeartbeat/capabilities) + `executionRegistry.getAll()` (running dispatch count per machine = liveRuns). SECURITY: ssh presence flag only, never raw user@host |
+| `query/skills.ts` | query | skills.list handler — delegates to `getDisplaySkillGroups()` (skill-scanner, 60s cache); maps each group to a `SkillGroup` DTO with an independent copy of the skills array (no shared cache reference). No deps used — pure fs read via the injected skill-scanner |
+| `query/system.ts` | query | `system.daemonStatus` process health plus `system.rateLimitStatus`, an active-only projection of authoritative provider/window throttle records; inactive returns `{providers:[]}`. |
+| `query/thread-templates.ts` | query | threadTemplates.get handler — reads real JSON body from each `config/thread-templates/{templates,agents,shells}/*.json` file; returns `ThreadTemplateEntry[]` with `kind`, `name`, `description` (from body.description or null), `body` (full parsed object or null on parse error); sorted by filename within kind, order: templates → agents → shells. Pure export `readThreadTemplates(configDir)` is unit-tested |
+| `mutate/projects.ts` | mutate | projects.create handler (reuses ProjectStore.createProject; maps invalid-name/already-exists → Err) |
+| `mutate/sessions.ts` | mutate | Handles session create/send/cancel/compact/profile/read/rewind actions. |
+| `mutate/threads.ts` | mutate | threads.cancel handler |
+| `mutate/executions.ts` | mutate | executions.cancel handler |
+| `mutate/schedules.ts` | mutate | schedules.{pause,resume,remove,add} handlers (add: reuses injected scheduler.add + schedule-repo backfill of target/fallback, returns the created ScheduleInfo) |
+| `mutate/tasks.ts` | mutate | tasks.{claim,unclaim,complete,block,unblock} handlers |
+| `mutate/config.ts` | mutate | config.set handler — safe atomic write of two whitelisted sections: `budget` (pure `writeBudget`, zod-validate + atomicWrite) and `profiles` (pure `writeDefaultProfile` — re-points `defaultProfile` to an EXISTING profile only, preserving all other fields; unknown/absent → invalid-args). Thin handler switches on section (safeParse→invalid-args, IO→internal). Any other section rejected |
+| `mutate/issues.ts` | mutate | issues.{handle,delete} handlers (design sec-24: 在列表即待处理，处理/删除即离场). Pure `removeIssueEntry` (byte-preserving block removal, unknown id → not-found) + `buildIssuePrompt`. delete = remove the entry from `<contextDir>/ISSUES.md` (atomicWriteSync). handle = `createDirectSession({projectId})` + `sendSessionMessage` with the issue full text as the first user turn, THEN remove the entry (a failed create keeps the issue listed); returns `{sessionId}`. Audit = the automatic `ui.mutate-invoked` publish |
+| `mutate/approvals.ts` | mutate | approvals.{approve,reject,request} handlers. approve/reject: pure `applyApprovalDecision` (flips only the target entry's Status line w/ timestamp + reject feedback; idempotent; unknown id → not-found). request (task b983 "approval gate"): pure `buildApprovalEntry` (closed `kind` enum → need-approval-format markdown; server-constructed prose; machineName sanitized so no markdown injection) + `handleRequestApproval` (safeParse→invalid-args; append-only enqueue, create-if-missing, preserves prior entries). NONE execute the underlying operation |
