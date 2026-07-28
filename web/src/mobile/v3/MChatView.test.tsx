@@ -101,23 +101,19 @@ describe('1b MChatHeader', () => {
     expect(html).toContain('idle · 3 turns');
     expect(html).not.toContain('cxpulse');
   });
-  it('places compact context usage at the right of the status header row', () => {
+  it('keeps the top status header focused on session status', () => {
     const html = renderToStaticMarkup(
       <MChatHeader
         title="atlas"
         status={{ running: false, tone: 'idle', text: 'idle · 3 turns' }}
         onBack={() => {}}
         onMore={() => {}}
-        contextUsage={usage}
-        contextUsageSupported
-        contextUsageLang="en"
       />,
     );
     expect(html).toContain('data-chat-status-line="true"');
-    expect(html).toContain('data-context-usage-position="header"');
-    expect(html).toContain('data-context-usage-bar="mobile"');
     expect(html).toContain('idle · 3 turns');
-    expect(html).not.toContain('60k / 200k');
+    expect(html).not.toContain('data-context-usage-position');
+    expect(html).not.toContain('data-context-usage-bar');
   });
   it('waiting (pending interaction) → amber dot + amber text, no pulse (scheme 6a header)', () => {
     const html = renderToStaticMarkup(
@@ -389,21 +385,22 @@ describe('1p ProfileSheet', () => {
 });
 
 describe('1b MChatView composition', () => {
-  it('renders compact PI context usage in the mobile header instead of above the composer', () => {
+  it('right-aligns compact context usage beside the profile selector above the composer', () => {
     const html = renderToStaticMarkup(
       <MChatView
         {...baseProps}
         status={{ running: false, tone: 'idle', text: 'idle' }}
         rows={[]}
         contextUsageSupported
-        contextUsage={{
-          usedTokens: 60000, contextWindow: 200000, percent: 30,
-          accuracy: 'estimate', updatedAt: '2026-07-27T12:00:00.000Z',
-        }}
+        contextUsage={usage}
         contextUsageLang="zh"
       />,
     );
-    expect(html).toContain('data-context-usage-position="header"');
+    expect(html).toContain('data-mobile-composer-meta-row="true"');
+    expect(html).toContain('data-context-usage-position="composer-profile"');
+    expect(html).toContain('margin-left:auto');
+    expect(html.indexOf('default · sonnet-4.5')).toBeLessThan(html.indexOf('data-context-usage-position="composer-profile"'));
+    expect(html).not.toContain('data-context-usage-position="header"');
     expect(html).toContain('data-context-usage-bar="mobile"');
     expect(html).toContain('>30%</span>');
     expect(html).not.toContain('60k / 200k');

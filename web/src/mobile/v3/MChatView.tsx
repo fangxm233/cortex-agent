@@ -2,8 +2,8 @@
 // (1b L136-168 · 1o L753-786 · 1p L799-845 · 5a reject composer L200-218). Raw px/hex/font/svg by
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
-// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The header
-// places the shared compact PI context progress control beside its status line.
+// Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer
+// meta row places compact context usage right-aligned beside the profile selector.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
 // carry live state rather than history, and both are drawn the way the desktop chat draws
@@ -224,9 +224,6 @@ interface MChatHeaderProps {
   status: ChatHeaderStatus;
   onBack: () => void;
   onMore: () => void;
-  contextUsage?: SessionContextUsage | null;
-  contextUsageSupported?: boolean;
-  contextUsageLang?: 'en' | 'zh';
 }
 
 export function MChatHeader(props: MChatHeaderProps): JSX.Element {
@@ -242,19 +239,13 @@ export function MChatHeader(props: MChatHeaderProps): JSX.Element {
   );
 }
 
-function MChatStatusLine({ status, contextUsage, contextUsageSupported = false, contextUsageLang = 'en' }: MChatHeaderProps): JSX.Element {
-  const showContext = contextUsageSupported || contextUsage != null;
+function MChatStatusLine({ status }: MChatHeaderProps): JSX.Element {
   return (
     <div data-chat-status-line="true" style={{ display: 'flex', alignItems: 'center', gap: 8, font: `400 10px ${MONO}`, color: status.tone === 'waiting' ? MC.amberText : MC.muted, marginTop: 1 }}>
       <span style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0 }}>
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: status.tone === 'waiting' ? MC.amber : status.running ? MC.run : 'var(--proto-line-3)', animation: status.running ? 'cxpulse 1.6s ease-in-out infinite' : undefined, flex: 'none' }} />
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{status.text}</span>
       </span>
-      {showContext ? (
-        <span data-context-usage-position="header" style={{ marginLeft: 'auto', display: 'inline-flex', flex: 'none' }}>
-          <ContextUsageControl usage={contextUsage ?? null} supported={contextUsageSupported} variant="mobile" lang={contextUsageLang} />
-        </span>
-      ) : null}
     </div>
   );
 }
@@ -1033,7 +1024,7 @@ export function MChatView(props: MChatViewProps): JSX.Element {
   }, []);
 
   // 7b edit mode replaces the composer chrome with the accent edit bar; 5a reject mode replaces it
-  // with the amber feedback bar (+ ✕ cancel) + reason chips. Context usage stays in the header.
+  // with the amber feedback bar (+ ✕ cancel) + reason chips. Default mode keeps profile + context.
   const composerMode = props.editing && props.editCopy ? (
     <EditBar title={props.editCopy.editBarTitle} onCancel={props.editing.onCancel} />
   ) : props.rejectBar ? (
@@ -1072,10 +1063,19 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           ))}
         </div>
       )}
-      {/* Composer chrome above the input: the profile chip only. The running/idle status line was
-          removed — that readout now lives in the header (see chatHeaderStatus). */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 7px' }}>
+      {/* Composer meta row: profile on the left, compact context usage right-aligned. */}
+      <div data-mobile-composer-meta-row="true" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px 7px' }}>
         <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
+        {(props.contextUsageSupported || props.contextUsage != null) ? (
+          <span data-context-usage-position="composer-profile" style={{ marginLeft: 'auto', display: 'inline-flex', flex: 'none' }}>
+            <ContextUsageControl
+              usage={props.contextUsage ?? null}
+              supported={!!props.contextUsageSupported}
+              variant="mobile"
+              lang={props.contextUsageLang ?? 'en'}
+            />
+          </span>
+        ) : null}
       </div>
     </>
   );
@@ -1091,9 +1091,6 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         status={props.status}
         onBack={props.onBack}
         onMore={props.onMoreToggle}
-        contextUsage={props.contextUsage}
-        contextUsageSupported={props.contextUsageSupported}
-        contextUsageLang={props.contextUsageLang}
       />
       {/* Body region — a position:relative frame holding the scroll transcript + composer. The
           full-screen editor (2b) mounts as an absolute overlay of THIS region, so it covers the
