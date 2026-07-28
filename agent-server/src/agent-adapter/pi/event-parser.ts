@@ -53,7 +53,7 @@ export function createPIEventParserState(): PIEventParserState {
  * returns [] on subsequent bootstrap hits (Option A per Plan Review N2H-3).
  *
  * Dropped events (return []): turn_start, turn_end, message_start, agent_start,
- * queue_update, compaction_end, auto_retry_end, successful unrelated response,
+ * queue_update, compaction_end, auto_retry_start/end, successful unrelated response,
  * message_update without text_delta, fire-and-forget extension_ui_request.
  * message_end emits a turn_progress heartbeat (non-terminal, state.turnProgressCount++).
  * compaction_start emits a context_compacted event (user notification); compaction_end is dropped
@@ -159,11 +159,6 @@ export function piRpcLineToNormalized(line: string, state: PIEventParserState): 
     return handleAgentSettled(state);
   }
 
-  // --- auto_retry_start → rate_limit ---
-  if (type === 'auto_retry_start') {
-    return [{ type: 'rate_limit', raw: ev }];
-  }
-
   // --- compaction_start → context_compacted (user notification) ---
   // compaction_end is intentionally dropped below to avoid a duplicate notice.
   if (type === 'compaction_start') {
@@ -194,7 +189,7 @@ export function piRpcLineToNormalized(line: string, state: PIEventParserState): 
   }
 
   // Silently drop all other events (turn_start/end, message_start/end, agent_start,
-  // queue_update, compaction_end, auto_retry_end, successful non-bootstrap response).
+  // queue_update, compaction_end, auto_retry_start/end, successful non-bootstrap response).
   return [];
 }
 

@@ -1,6 +1,6 @@
-// input:  PIAdapter stub, extension-ui events, tool shim gates
-// output: PI shim behavior through settled RPC turns
-// pos:    PI pseudo-tool and extension-ui integration regression
+// input:  PIAdapter stub, retry/extension-ui events, tool shim gates
+// output: PI shim and retry behavior through settled RPC turns
+// pos:    PI pseudo-tool, retry, and extension-ui integration regression
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -64,20 +64,43 @@ test('A: basic send', async () => {
   await proc.close();
 });
 
-test('B: rate limit', async () => {
+test('B: successful PI auto-retry does not mark the settled turn rate-limited', async () => {
   const s = makeStubSpawner();
   const adapter = new PIAdapter(s.spawn, SESSION_DIR);
   const proc = adapter.spawn({ sessionKey: 'k2', sessionId: null, resume: false });
   const child = s.children[0];
   await bootstrap(child);
   const turnPromise = proc.send({ text: 'do stuff' });
-  pushLine(child, { type: 'auto_retry_start', reason: 'rate limit' });
-  await Promise.resolve();
-  pushLine(child, { type: 'agent_end', messages: [] });
+  const transientError = 'Codex error: An error occurred while processing your request. You can retry your request.';
+  pushLine(child, { type: 'agent_end', messages: [{
+    role: 'assistant', stopReason: 'error', errorMessage: transientError,
+  }] });
+  pushLine(child, { type: 'auto_retry_start', attempt: 1, errorMessage: transientError });
+  pushLine(child, { type: 'auto_retry_end', success: true, attempt: 1 });
+  pushLine(child, { type: 'agent_end', messages: [{ role: 'assistant', stopReason: 'stop' }] });
   pushLine(child, { type: 'agent_settled' });
   await Promise.resolve();
   const result = await turnPromise;
-  assert.equal(result.rateLimited, true);
+  assert.equal(result.rateLimited, false);
+  child.emit('close', 0);
+  await proc.close();
+});
+
+test('B2: exhausted PI auto-retry rejects with the final provider error', async () => {
+  const s = makeStubSpawner();
+  const adapter = new PIAdapter(s.spawn, SESSION_DIR);
+  const proc = adapter.spawn({ sessionKey: 'k2-failed', sessionId: null, resume: false });
+  const child = s.children[0];
+  await bootstrap(child);
+  const turnPromise = proc.send({ text: 'do stuff' });
+  const rejection = assert.rejects(turnPromise, /You can retry your request/);
+  const finalError = 'Codex error: An error occurred while processing your request. You can retry your request.';
+  pushLine(child, { type: 'agent_end', messages: [{
+    role: 'assistant', stopReason: 'error', errorMessage: finalError,
+  }] });
+  pushLine(child, { type: 'auto_retry_end', success: false, attempt: 3, finalError });
+  pushLine(child, { type: 'agent_settled' });
+  await rejection;
   child.emit('close', 0);
   await proc.close();
 });

@@ -46,7 +46,6 @@ export interface PendingPiTurn {
   reject: (error: Error) => void;
   planFilePath: string | null;
   askUserQuestions: AskUserQuestionInfo[];
-  rateLimited: boolean;
   numTurns: number;
   totalCostUsd: number | null;
   promptDispatched: boolean;

@@ -28,11 +28,11 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `codex/adapter.ts` | adapter | CodexAdapter + RouteRuntime pool |
 | `codex/event-parser.ts` | parser | codexEventToNormalized translation |
 | `pi/agent-dir.ts` | config | PI agent directory constants (data/pi/models.json + logs/sessions-pi/) + multi-provider models.json writer (writeProvidersConfig; re-asserts gateway-lost PI compat via PROVIDER_COMPAT_OVERRIDES, e.g. deepseek supportsDeveloperRole=false) + auth.json symlink/copy mirror (ensureAuthVisible) |
-| `pi/adapter.ts` | adapter | PIAdapter + PISession + switch_session + **mid-turn steering**. `message_update`/`message_end` drive throttled live `get_session_stats` snapshots without flushing partial text; `agent_settled` still gates terminal on an independent final snapshot. Steering, turn/cost aggregation, env/tool gates, resume guards, and previews remain supported |
+| `pi/adapter.ts` | adapter | PIAdapter + PISession + switch_session + **mid-turn steering**. `message_update`/`message_end` drive throttled live `get_session_stats` snapshots without flushing partial text; `agent_settled` gates terminal outcome and PI retry lifecycle never latches a Cortex rate-limit result. Steering, turn/cost aggregation, env/tool gates, resume guards, and previews remain supported |
 | `pi/discovery.ts` | helper | Provider discovery (`pi --list-models` without Cortex's private agent-dir override) + bounded session-file existence check (filename fast path, JSONL header fallback) |
 | `pi/session-support.ts` | helper | PI session primitives: timers, prompt assembly, event queue, process/turn types, safe RPC parse, FIFO steering, and `PIContextUsageProbe` (2s live throttle/single-flight + independent final correlation/timeout) |
 | `pi/defaults.ts` | defaults | PI session directory and compiled extension paths used by process spawning |
-| `pi/event-parser.ts` | parser | piRpcLineToNormalized translation; validates `get_session_stats.contextUsage` as an estimate, aggregates `agent_end`, and emits terminal completion only at `agent_settled`; text deltas carry stable block ids |
+| `pi/event-parser.ts` | parser | piRpcLineToNormalized translation; validates `get_session_stats.contextUsage`, drops PI-internal retry lifecycle events, aggregates `agent_end`, and emits terminal completion only at `agent_settled`; text deltas carry stable block ids |
 | `pi/framing.ts` | framing | LF-only NDJSON encoding and splitter |
 | `pi/spawn-args.ts` | args | `buildSpawnArgs` constructs PI CLI args; `buildPiEnv` clears stale context and injects authoritative thread/task/session identity |
 | `pi/mcp-bridge.ts` | extension | Bridge PI to Cortex MCP server |

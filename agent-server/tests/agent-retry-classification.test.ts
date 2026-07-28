@@ -87,6 +87,7 @@ for (const message of [
   'connect ECONNREFUSED 127.0.0.1:443',
   'getaddrinfo EAI_AGAIN api.deepseek.com',
   'network request timed out',
+  'Codex error: An error occurred while processing your request. You can retry your request. Request ID: req_123',
 ]) {
   test(`isRetryableError accepts transient failure: ${message}`, () => {
     assert.equal(isRetryableError(new Error(message)), true);
@@ -108,10 +109,12 @@ for (const message of [
   });
 }
 
-test('runAgent switches once to the configured fallback and emits one warning notice', async () => {
+test('runAgent falls back after PI exhausts a generic provider-retry error', async () => {
   installFallbackProfile();
   const primary = vi.spyOn(getAdapter('pi'), 'spawn')
-    .mockReturnValue(makeProcess(new Error('502: Upstream connection error: TypeError: fetch failed')));
+    .mockReturnValue(makeProcess(new Error(
+      'Codex error: An error occurred while processing your request. You can retry your request. Request ID: req_123',
+    )));
   const fallback = vi.spyOn(getAdapter('claude'), 'spawn')
     .mockReturnValue(makeProcess(SUCCESS_RESULT));
   const transitions: string[] = [];

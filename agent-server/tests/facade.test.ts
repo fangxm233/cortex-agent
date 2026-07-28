@@ -102,7 +102,7 @@ test('runAgent single-config path skips runAgentOnce when mode rate-limited', as
   assert.ok(result.rateLimitMessage?.includes('plan'));
   // No adapter was spawned — synthetic return
   assert.equal(result.sessionId, null);
-  assert.deepEqual(notices, [{ text: 'Rate limited — all fallbacks exhausted', level: 'error' }]);
+  assert.deepEqual(notices, [{ text: 'Rate limited', level: 'error' }]);
 });
 
 test('runAgent fallback loop skips rate-limited configs and returns synthetic result when all exhausted', async (t) => {

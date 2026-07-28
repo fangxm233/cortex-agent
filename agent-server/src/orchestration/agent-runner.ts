@@ -511,8 +511,8 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
     // resets (rate-limit-throttle onResume → resume-dispatcher).
     recordResume({ kind: 'direct', channel, userMessage, recordedAt: Date.now() });
     const { elapsedStr } = computeElapsed(startTime);
-    const fallbackText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}Rate limited — all fallbacks exhausted (${elapsedStr})`;
-    await sealStatus(adapter, statusMsg, fallbackText, buildSealedStatusActionBlocks(fallbackText, { channel, sessionName, isDm: true }));
+    const rateLimitText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
+    await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
   }
   await handleAgentSuccess({ result, channel, adapter, statusMsg, startTime, userMessage, executionId, trigger: 'user', sessionName, threadAnchorId, userMessageTs: messageTs, projectId, onAssistantMessage: callbacks.onAssistantMsg, onToolUse: continuationToolUse, onToolResult: continuationToolResult, onContextUsage: continuationContextUsage, registerContinuationSink });

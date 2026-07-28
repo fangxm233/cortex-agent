@@ -486,18 +486,23 @@ test('plan_written: content falls back to args.content if args.plan missing', ()
 });
 
 // ---------------------------------------------------------------------------
-// 7. rate_limit — auto_retry_start
+// 7. PI internal retry lifecycle — never a terminal Cortex event
 // ---------------------------------------------------------------------------
 
-test('rate_limit: auto_retry_start', () => {
+test('auto_retry_start and auto_retry_end are non-terminal lifecycle events', () => {
   const state = freshState();
-  const events = piRpcLineToNormalized(
-    line({ type: 'auto_retry_start', attempt: 1, errorMessage: '529 overloaded' }),
-    state,
+  assert.deepEqual(
+    piRpcLineToNormalized(line({
+      type: 'auto_retry_start',
+      attempt: 1,
+      errorMessage: 'Codex error: Our servers are currently overloaded.',
+    }), state),
+    [],
   );
-  assert.equal(events.length, 1);
-  assert.equal(events[0]?.type, 'rate_limit');
-  assert.ok((events[0] as any).raw);
+  assert.deepEqual(
+    piRpcLineToNormalized(line({ type: 'auto_retry_end', success: true, attempt: 1 }), state),
+    [],
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -707,7 +712,6 @@ test('edge: unknown event type → []', () => {
   assert.deepEqual(piRpcLineToNormalized(line({ type: 'queue_update', data: {} }), state), []);
   assert.deepEqual(piRpcLineToNormalized(line({ type: 'turn_start' }), state), []);
   assert.deepEqual(piRpcLineToNormalized(line({ type: 'compaction_end', reason: 'threshold' }), state), []);
-  assert.deepEqual(piRpcLineToNormalized(line({ type: 'auto_retry_end' }), state), []);
   assert.deepEqual(piRpcLineToNormalized(line({ type: 'agent_start' }), state), []);
 });
 

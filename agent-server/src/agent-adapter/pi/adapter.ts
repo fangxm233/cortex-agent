@@ -314,7 +314,6 @@ class PISession {
     const turn = this.pendingTurn;
     if (!turn) return evt;
     if (evt.type === 'plan_written') turn.planFilePath = evt.path;
-    else if (evt.type === 'rate_limit') turn.rateLimited = true;
     // ask_user_question is handled live by the facade; accumulating it would post it twice.
     else if (evt.type === 'ask_user_question') { /* intentionally not accumulated */ }
     else if (evt.type === 'turn_complete') return this.handleTurnComplete(evt);
@@ -366,7 +365,7 @@ class PISession {
       sessionId: this.sessionId,
       total_cost_usd: turn.totalCostUsd,
       num_turns: turn.numTurns,
-      rateLimited: turn.rateLimited,
+      rateLimited: false,
       rateLimitMessage: null,
       planFilePath: turn.planFilePath,
       enteredPlanMode: false,
@@ -529,7 +528,6 @@ class PISession {
       reject,
       planFilePath: null,
       askUserQuestions: [],
-      rateLimited: false,
       numTurns: 0,
       totalCostUsd: null,
       promptDispatched: false,

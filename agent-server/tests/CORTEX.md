@@ -52,12 +52,12 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-adapter.test.ts` | Test | getAdapter/capability/tool-name contract plus exhaustive normalized-event union guard |
 | `agent-adapter-claude.test.ts` | Test | Claude buildSpawnArgs/hooks/summarizer |
 | `agent-adapter-pi.test.ts` | Test | PI framing/spawn args, live context sampling without partial-text flush, final terminal ordering, bootstrap, and close |
-| `agent-retry-classification.test.ts` | Test | Transport/HTTP retry classification plus Web-chat fallback, terminal, dedupe, and cancellation notice policy |
-| `agent-adapter-pi-event-parser.test.ts` | Test | PI context stats/event translation + settled-boundary aggregation |
+| `agent-retry-classification.test.ts` | Test | Transport/provider-guidance retry classification plus Web-chat fallback, terminal, dedupe, and cancellation notice policy |
+| `agent-adapter-pi-event-parser.test.ts` | Test | PI event translation, internal-retry dropping, and settled-boundary aggregation |
 | `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |
 | `agent-adapter-pi-hook-bridge.test.ts` | Test | PI hook-bridge toClaude/normalize |
 | `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
-| `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims + extension_ui settled turns |
+| `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims, auto-retry terminal semantics, and extension_ui settled turns |
 | `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
 | `run-with-adapter.test.ts` | Test | Normalized and inline-continuation context callbacks |
 | `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins: cortex-feishu plugin gated to feishu: channels (exact basename match) |
