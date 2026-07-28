@@ -33,7 +33,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 
 ### cortex-tasks
 
-暴露只读任务监控工具，并在所有会话中加载。
+暴露只读任务监控工具，并在仍维护的 Claude 和 PI 后端的所有会话中加载。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -45,7 +45,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 
 ### cortex-thread
 
-暴露线程生命周期控制面和 manager 问答。仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；直接会话永远不会获得这些工具。
+暴露线程生命周期控制面和 manager 问答。对于 Claude 和 PI，仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；直接会话永远不会获得这些工具。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -196,7 +196,7 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Cortex 应用以下控制：
 
-1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。直接会话永不获得 cortex-thread；线程会话仅在携带线程上下文时追加它。Claude 在线程会话中排除 ext，PI 则保留 ext 始终加载的现有行为。
+1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。Claude 直接会话永不获得 cortex-thread；Claude 线程会话追加它并排除 ext。PI 仅在存在 thread id 时追加 cortex-thread，并保留 ext 始终加载的现有行为。
 
 2. **Claude Code 的第三方 MCP 被禁用** — `~/.cortex/.claude/settings.json` 中的设置 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 Claude 从其自身的目录自动发现 MCP 服务器。Cortex 通过自己的配置文件独占管理 MCP 服务器。
 

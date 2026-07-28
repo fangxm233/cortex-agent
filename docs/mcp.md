@@ -50,7 +50,8 @@ The server implementation is at `agent-server/src/domain/mcp/core-server.ts`.
 
 ### cortex-tasks
 
-Exposes read-only task monitoring and is loaded in all sessions.
+Exposes read-only task monitoring and is loaded in all maintained Claude and PI
+sessions.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -62,9 +63,9 @@ The server implementation is at `agent-server/src/domain/mcp/tasks-server.ts`.
 
 ### cortex-thread
 
-Exposes the thread lifecycle control plane and manager Q&A. It is loaded only
-when `CORTEX_THREAD_ID` identifies an active thread; direct sessions never
-receive these tools.
+Exposes the thread lifecycle control plane and manager Q&A. For Claude and PI,
+it is loaded only when `CORTEX_THREAD_ID` identifies an active thread; direct
+sessions never receive these tools.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -257,10 +258,10 @@ MCP tools cross the trust boundary from the agent process into agent-server
 internals and remote machines. Cortex applies the following controls:
 
 1. **Server-level availability** — MCP privileges are separated by server
-   because backend tool allowlists do not filter individual MCP tools. Direct
-   sessions never receive cortex-thread; thread sessions add it only when they
-   carry thread context. Claude excludes ext from thread sessions, while PI
-   retains its existing always-on ext behavior.
+   because backend tool allowlists do not filter individual MCP tools. Claude
+   direct sessions never receive cortex-thread, while Claude thread sessions
+   add it and exclude ext. PI adds cortex-thread only for a present thread id
+   and retains its existing always-on ext behavior.
 
 2. **Claude Code's third-party MCP is disabled** — the setting
    `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`
