@@ -1,5 +1,5 @@
 // input:  Node test runner + resume-dispatcher (deps injected)
-// output: direct/thread dispatch + guard (busy/missing/non-paused) + flag/drain tests
+// output: provider-ready direct/thread dispatch and guard tests
 // pos:    Validate orchestration/resume-dispatcher.ts auto-resume behavior
 // >>> If I am updated, update my require first <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
@@ -12,9 +12,10 @@ import type { ResumeEntry } from '../../src/domain/costs/resume-registry.js';
 const NOW = 1_000_000_000_000;
 
 function baseDeps(entries: ResumeEntry[], overrides: any = {}) {
-  const calls = { route: [] as any[], resume: [] as any[], built: [] as any[], settled: [] as string[], taken: 0 };
+  const calls = { route: [] as any[], resume: [] as any[], built: [] as any[], settled: [] as string[], taken: 0, active: [] as string[] };
   const deps = {
-    takeAll: () => { calls.taken++; return entries; },
+    takeReady: (active: string[]) => { calls.taken++; calls.active = active; return entries; },
+    activeProviders: () => [],
     route: async (ctx: any) => { calls.route.push(ctx); },
     resumeThread: async (threadId: string, opts: any) => { calls.resume.push({ threadId, opts }); },
     settleResumedThread: async (threadId: string) => { calls.settled.push(threadId); },
@@ -54,7 +55,7 @@ test('buildResumeReminder is wrapped in a system-reminder', () => {
 test('direct entry routes a synthetic system-reminder message', async () => {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const { deps, calls } = baseDeps([
-    { kind: 'direct', channel: 'C1', userMessage: 'orig', recordedAt: NOW },
+    { kind: 'direct', provider: 'provider-a', channel: 'C1', userMessage: 'orig', recordedAt: NOW },
   ]);
   await dispatchPendingResumes(adapter as any, deps);
 
@@ -69,7 +70,20 @@ test('direct entry routes a synthetic system-reminder message', async () => {
   assert.equal(ctx.message.ref.conduit, 'C1');
 });
 
-test('thread entry resumes a rate_limited thread with rebuilt options', async () => {
+test('dispatcher asks the registry for entries ready against the active provider set', async () => {
+  const adapter = new MockAdapter({ adminChannel: 'admin' });
+  const { deps, calls } = baseDeps(
+    [{ kind: 'direct', provider: 'provider-a', channel: 'C1', userMessage: 'orig', recordedAt: NOW }],
+    { activeProviders: () => ['provider-b'] },
+  );
+
+  await dispatchPendingResumes(adapter as any, deps);
+
+  assert.deepEqual(calls.active, ['provider-b']);
+  assert.equal(calls.route.length, 1);
+});
+
+test('thread entry resumes a rate_limited thread with rebuilt options',  async () => {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const { deps, calls } = baseDeps([
     { kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW },
@@ -288,7 +302,7 @@ test('multiple thread resumes hold and release the gate in balance', async () =>
   assert.ok(peak >= 1, 'gate was actually held');
 });
 
-test('takeAll is invoked exactly once per dispatch', async () => {
+test('readiness drain is invoked exactly once per dispatch', async () => {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
   const { deps, calls } = baseDeps([
     { kind: 'direct', channel: 'C1', userMessage: 'a', recordedAt: NOW },

@@ -1,5 +1,5 @@
 // input:  nothing (leaf type-only module)
-// output: Agent result/handle/progress, context usage, and chat-notice types
+// output: Agent results with provider identity, handles, and usage types
 // pos:    Shared type definitions for agent execution and messages
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -30,6 +30,9 @@ export interface AgentResult {
   num_turns: number | null;
   rateLimited: boolean;
   rateLimitMessage: string | null;
+  /** Opaque provider key used by provider-scoped throttle and resume bookkeeping. Set by the
+   *  agent facade for every attempt, including successful turns whose continuation may fail. */
+  rateLimitProvider?: string;
   planFilePath: string | null;
   enteredPlanMode: boolean;
   exitedPlanMode: boolean;

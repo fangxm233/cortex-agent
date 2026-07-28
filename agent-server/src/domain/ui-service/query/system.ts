@@ -1,5 +1,5 @@
 // input:  STORE_DIR process files, /proc uptime, active provider throttle state
-// output: system daemon status and provider/window rate-limit snapshots
+// output: daemon status and provider throttle snapshots with wait counts
 // pos:    system UI queries; process health plus active-only throttle truth
 // >>> If I am updated, update CORTEX.md and the parent folder's CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
+import { getResumeCountsByProvider } from '@domain/costs/resume-registry.js';
 import type {
   SystemDaemonStatus,
   DaemonProcessInfo,
@@ -137,9 +138,12 @@ export async function handleSystemDaemonStatus(
 export async function handleSystemRateLimitStatus(
   _params: SystemRateLimitStatusParams,
 ): Promise<SystemRateLimitStatus> {
+  const waiting = getResumeCountsByProvider();
   const providers = getThrottleState().providers.map((provider) => ({
     provider: provider.provider,
     displayName: provider.displayName,
+    waitingSessions: waiting[provider.provider]?.sessions ?? 0,
+    waitingThreads: waiting[provider.provider]?.threads ?? 0,
     windows: provider.windows.map((window) => ({ ...window })),
   }));
   return { providers };

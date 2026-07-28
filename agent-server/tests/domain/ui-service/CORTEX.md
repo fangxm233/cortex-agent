@@ -32,7 +32,7 @@ Scopes covered are approvals, config, executions, issues, memory, projects, sche
 | query-sessions-transcript.test.ts | test | Covers transcript turns and interactions |
 | query-sessions.test.ts | test | Covers session list filters and run state |
 | query-skills.test.ts | test | Covers skills list grouping by source |
-| query-system-rate-limit.test.ts | test | Covers rate-limit status windows |
+| query-system-rate-limit.test.ts | test | Covers throttle windows and waiting counts |
 | query-task-verification.test.ts | test | Covers task evidence and dispatch history |
 | query-tasks.test.ts | test | Covers task list filters and fields |
 | query-thread-detail.test.ts | test | Covers thread steps, runs and child tree |

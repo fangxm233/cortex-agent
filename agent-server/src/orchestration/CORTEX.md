@@ -6,7 +6,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | filename | role | function |
 |---|---|---|
 | agent-file-send.ts | chat | delivers an agent-produced file into a session |
-| agent-runner.ts | core | routes plain user turns to the agent |
+| agent-runner.ts | core | Routes provider-attributed plain user turns |
 | bg-continuation.ts | helper | forwards background continuation output |
 | bg-wait-guard.ts | guard | bounds the background task waiting window |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |
@@ -15,12 +15,12 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | delta-coalescer.ts | stream | batches assistant text deltas for web sessions |
 | dispatch-reconciler.ts | timer | cleans up stale dispatch executions |
 | durable-helpers.ts | util | builds durable post and update hooks |
-| lifecycle.ts | core | finalizes turn success, failure, and continuation |
+| lifecycle.ts | core | Finalizes provider-attributed turn outcomes |
 | manager-qa.ts | channel | relays subtask questions to managers and humans |
 | mid-turn-inject.ts | core | injects user messages into a running turn |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
-| resume-dispatcher.ts | runner | resumes sessions and threads after rate limits |
+| resume-dispatcher.ts | runner | Resumes work after its provider clears |
 | session-compact.ts | control | compacts an idle session's context |
 | session-events.ts | events | publishes session state events on the bus |
 | session-rewind.ts | chat | rewinds a web session to an edited turn |

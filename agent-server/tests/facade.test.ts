@@ -1,5 +1,5 @@
 // input:  facade.ts, rate-limit-throttle, MockAdapter
-// output: pre-flight rate-limit and terminal-notice regressions
+// output: provider identity, exact pre-flight, notice regressions
 // pos:    Facade pre-flight policy tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
@@ -33,7 +33,7 @@ async function initThrottle(modes: string[]) {
   for (let i = 0; i < modes.length; i++) {
     await rl.handleRateLimitEvent(
       { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: baseReset + i * 60 },
-      modes[i],
+      { provider: 'anthropic', displayName: 'Anthropic', mode: modes[i] },
     );
   }
   return rl;
@@ -100,6 +100,7 @@ test('runAgent single-config path skips runAgentOnce when mode rate-limited', as
 
   assert.equal(result.rateLimited, true);
   assert.ok(result.rateLimitMessage?.includes('plan'));
+  assert.equal(result.rateLimitProvider, 'anthropic');
   // No adapter was spawned — synthetic return
   assert.equal(result.sessionId, null);
   assert.deepEqual(notices, [{ text: 'Rate limited', level: 'error' }]);
@@ -118,7 +119,33 @@ test('runAgent fallback loop skips rate-limited configs and returns synthetic re
   assert.equal(result.rateLimited, true);
   // Last attempted mode was 'plan' (third config)
   assert.ok(result.rateLimitMessage?.includes('plan'));
+  assert.equal(result.rateLimitProvider, 'anthropic');
   assert.equal(result.sessionId, null);
+});
+
+test('provider identity accepts arbitrary configured providers and generic backend fallback', async () => {
+  const facade = await import('../src/domain/agents/facade.js');
+  assert.equal(facade._test.resolveRateLimitProvider({ backend: 'pi', provider: 'provider-z' } as any), 'provider-z');
+  assert.equal(facade._test.resolveRateLimitProvider({ backend: 'custom-backend', provider: null } as any), 'custom-backend');
+});
+
+test('provider wrapper attributes results and retryable thrown errors', async () => {
+  const facade = await import('../src/domain/agents/facade.js');
+  const baseResult = {
+    sessionId: 's', total_cost_usd: 0, num_turns: 1,
+    rateLimited: false, rateLimitMessage: null, planFilePath: null,
+    enteredPlanMode: false, exitedPlanMode: false, finalOutput: null,
+  };
+  const wrappedResult = facade._test.withRateLimitProvider({
+    promise: Promise.resolve(baseResult), kill: () => false, sessionId: 's',
+  } as any, 'provider-z');
+  assert.equal((await wrappedResult.promise).rateLimitProvider, 'provider-z');
+
+  const error = new Error('rate limit exceeded');
+  const wrappedError = facade._test.withRateLimitProvider({
+    promise: Promise.reject(error), kill: () => false, sessionId: null,
+  } as any, 'provider-z');
+  await assert.rejects(wrappedError.promise, (caught: any) => caught.rateLimitProvider === 'provider-z');
 });
 
 test('runAgent fallback loop calls onFallback for each skipped config', async (t) => {

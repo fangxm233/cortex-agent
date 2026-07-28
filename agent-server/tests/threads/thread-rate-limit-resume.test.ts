@@ -1,5 +1,5 @@
 // input:  node:test + runner recordStepOutcome chokepoint + state-machine + thread-repo recovery
-// output: rate-limit thread pause/record contract (the integration gap the unit tests missed)
+// output: provider-attributed thread pause, record, and resume contract
 // pos:    asserts the REAL interruption point records a resume + leaves the thread resumable
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons to a temp CORTEX_HOME
@@ -38,7 +38,10 @@ const makeOpts = (thread: ThreadRecord) => ({ channel: thread.channel }) as any;
 
 async function activateThrottle() {
   await throttle.initRateLimitThrottle(new MockAdapter({ adminChannel: 'admin' }) as any, { save: async () => {}, load: async () => null } as any);
-  await throttle.handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.99, resetsAt: Math.floor(Date.now() / 1000) + 3000 }, 'plan');
+  await throttle.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.99, resetsAt: Math.floor(Date.now() / 1000) + 3000 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'plan' },
+  );
 }
 
 function cleanup(t: { onTestFinished: (fn: () => unknown) => void }) {
@@ -50,10 +53,11 @@ test('markThreadRateLimited pauses without terminalizing (idempotent)', async (t
   const thr = makeThread('thr_mark');
   await threadStore.set(thr);
 
-  assert.equal(await markThreadRateLimited('thr_mark'), true);
+  assert.equal(await markThreadRateLimited('thr_mark', 'provider-a'), true);
   let r = threadStore.get('thr_mark')!;
   assert.equal(r.status, 'rate_limited');
   assert.equal(r.metadata?.interruptedByRateLimit, true);
+  assert.equal(r.metadata?.rateLimitProvider, 'provider-a');
   assert.equal(r.endedAt, null);
   assert.ok(r.error);
 
@@ -61,6 +65,7 @@ test('markThreadRateLimited pauses without terminalizing (idempotent)', async (t
   assert.equal(await markThreadRateLimited('thr_mark'), true);
   r = threadStore.get('thr_mark')!;
   assert.equal(r.status, 'rate_limited');
+  assert.equal(r.metadata?.rateLimitProvider, 'provider-a');
 
   await threadStore.delete('thr_mark');
 });
@@ -74,11 +79,12 @@ test('recordStepOutcome: rate-limited while throttled pauses + records resume + 
   await threadStore.set(thr);
   const ctx = makeCtx(thr);
 
-  await recordStepOutcome('thr_grace', stepCtx(), { rateLimited: true }, ctx, makeOpts(thr));
+  await recordStepOutcome('thr_grace', stepCtx(), { rateLimited: true, rateLimitProvider: 'provider-a' }, ctx, makeOpts(thr));
 
   const r = threadStore.get('thr_grace')!;
   assert.equal(r.status, 'rate_limited', 'thread paused');
   assert.equal(r.metadata?.interruptedByRateLimit, true);
+  assert.equal(r.metadata?.rateLimitProvider, 'provider-a');
   assert.equal(r.endedAt, null, 'not terminal');
   assert.equal(r.currentStepIndex, 0, 'step index NOT advanced');
   assert.equal(r.steps.length, 0, 'no bogus step recorded');
@@ -88,8 +94,28 @@ test('recordStepOutcome: rate-limited while throttled pauses + records resume + 
   assert.equal(entries.length, 1);
   assert.equal(entries[0].kind, 'thread');
   assert.equal((entries[0] as any).threadId, 'thr_grace');
+  assert.equal((entries[0] as any).provider, 'provider-a');
 
   await threadStore.delete('thr_grace');
+});
+
+test('recordStepOutcome: another provider throttle does not pause this provider result', async (t) => {
+  cleanup(t);
+  await activateThrottle();
+
+  const thr = makeThread('thr_other_provider');
+  await threadStore.set(thr);
+  const ctx = makeCtx(thr);
+
+  await recordStepOutcome(
+    'thr_other_provider', stepCtx(),
+    { rateLimited: true, rateLimitProvider: 'provider-b' },
+    ctx, makeOpts(thr),
+  );
+
+  assert.equal(threadStore.get('thr_other_provider')!.status, 'running');
+  assert.equal(resumeRegistry.getResumeCount(), 0);
+  await threadStore.delete('thr_other_provider');
 });
 
 test('recordStepOutcome: rate-limited but NOT throttled falls through to terminal path (no resume)', async (t) => {

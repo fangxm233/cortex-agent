@@ -15,7 +15,7 @@ and the persisted registries for sessions, tasks, schedules and costs.
 | plugin-sync.test.ts | test | Covers managed plugin deploy and refresh rules |
 | profile-repo.test.ts | test | Covers profile reads, writes and file watching |
 | project-dir-repo.test.ts | test | Covers per-machine project directory mapping |
-| schedule-repo.test.ts | test | Covers schedule CRUD, throttle and migration |
+| schedule-repo.test.ts | test | Covers schedules, throttles and resume queues |
 | session-registry-repo.test.ts | test | Covers session lookup, prune and migration |
 | session-store.test.ts | test | Covers session migration and prune references |
 | task-repo.test.ts | test | Covers task store locking, flush and round-trip |

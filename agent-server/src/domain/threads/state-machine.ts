@@ -1,5 +1,5 @@
 // input:  thread store, templates, task parser, artifact I/O
-// output: thread lifecycle and control-plane state transitions
+// output: thread lifecycle, provider pauses, and control transitions
 // pos:    Thread state machine and suspension wait-set resolver
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -712,14 +712,20 @@ export async function failThread(threadId: string, error: string): Promise<boole
  *  thread keeps its currentStepIndex/agents and is re-entered (from the interrupted step)
  *  by the resume-dispatcher when the rate-limit window resets. Does NOT set endedAt.
  *  Idempotent. */
-export async function markThreadRateLimited(threadId: string, note?: string): Promise<boolean> {
+export async function markThreadRateLimited(
+  threadId: string,
+  provider?: string | null,
+  note?: string,
+): Promise<boolean> {
   const thread = threadStore.get(threadId);
   if (!thread) return false;
 
   await threadStore.mutate(threadId, (t) => {
     t.status = 'rate_limited';
     t.error = note ?? 'Paused — interrupted by API rate limit';
-    (t.metadata ??= {}).interruptedByRateLimit = true;
+    const metadata = t.metadata ??= {};
+    metadata.interruptedByRateLimit = true;
+    if (provider !== undefined) metadata.rateLimitProvider = provider;
   });
   log.info(`Rate-limit paused thread ${threadId}`);
   return true;

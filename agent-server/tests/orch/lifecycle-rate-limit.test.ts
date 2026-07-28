@@ -1,5 +1,5 @@
 // input:  Node test runner + lifecycle.handleAgentError (shares throttle/resume singletons)
-// output: thrown rate-limit error pause-and-resume branch (throttled+userMessage) vs normal error
+// output: provider-attributed error pause and unrelated-provider guards
 // pos:    Validate orchestration/lifecycle.ts direct/TUI thrown-rate-limit recovery (parity with thread path)
 // >>> If I am updated, update my require first <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
@@ -16,7 +16,10 @@ const RL_MSG = "API Error: Server is temporarily limiting requests · This reque
 async function activateThrottle(adapter: MockAdapter) {
   await initRateLimitThrottle(adapter as any, stub as any);
   // five_hour + utilization >= 0.90 + resetsAt → throttle active (isThrottled() true)
-  await handleRateLimitEvent({ rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 300 }, 'plan');
+  await handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 300 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'plan' },
+  );
   // Activation fires an admin DM through this same adapter — clear it so assertions below only
   // observe handleAgentError's own posts/updates.
   adapter.posted.length = 0;
@@ -25,7 +28,7 @@ async function activateThrottle(adapter: MockAdapter) {
 
 function baseArgs(adapter: MockAdapter, overrides: Record<string, unknown> = {}) {
   return {
-    error: { message: RL_MSG },
+    error: { message: RL_MSG, rateLimitProvider: 'provider-a' },
     channel: 'C1', adapter: adapter as any,
     statusMsg: { conduit: 'C1', messageId: 's1' } as any,
     startTime: Date.now(),
@@ -47,8 +50,23 @@ test('throttled + rate-limit error + userMessage → pause & record direct resum
   const entries = takeAllResumes();
   assert.equal(entries[0].kind, 'direct');
   assert.equal((entries[0] as any).channel, 'C1');
+  assert.equal((entries[0] as any).provider, 'provider-a');
   assert.equal(adapter.posted.length, 0, 'no error body posted — paused, not failed');
   assert.ok(adapter.updated.length >= 1, 'status sealed via updateMessage');
+});
+
+test('a different active provider does not pause this provider error', async (t) => {
+  t.onTestFinished(() => { throttleReset(); resumeReset(); });
+  const adapter = new MockAdapter({ adminChannel: 'admin' });
+  await initResumeRegistry({ save: async () => {}, load: async () => [] });
+  await activateThrottle(adapter);
+
+  await handleAgentError(baseArgs(adapter, {
+    error: { message: RL_MSG, rateLimitProvider: 'provider-b' },
+  }) as any);
+
+  assert.equal(getResumeCount(), 0);
+  assert.equal(adapter.posted.length, 1, 'unrelated provider throttle cannot promise an auto-resume');
 });
 
 test('NOT throttled + rate-limit error → normal error path, no resume', async (t) => {

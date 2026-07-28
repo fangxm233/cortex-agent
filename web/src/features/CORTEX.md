@@ -21,7 +21,7 @@ Cross-cutting concerns that any surface can pull in (live stream, media preview,
 | media/ | subdir | Image, video and document previewers |
 | live/ | subdir | The single live event stream and fan-out |
 | connection/ | subdir | Connectivity status for the daemon badge |
-| rate-limit/ | subdir | Provider throttle status and countdown |
+| rate-limit/ | subdir | Provider throttle times and waiting counts |
 | hot-update/ | subdir | Staged frontend update prompt |
 | kit/ | subdir | Design-system gallery page |
 | base-demo/ | subdir | Visual base specimen page |

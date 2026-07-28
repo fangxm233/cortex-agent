@@ -20,4 +20,4 @@ Handlers return DTOs only and never change state.
 | machines.ts | query | lists machines with live connection state |
 | skills.ts | query | lists available skill groups |
 | thread-templates.ts | query | returns every thread template definition |
-| system.ts | query | reports daemon health and rate-limit state |
+| system.ts | query | Reports throttle windows and waiting counts |

@@ -1,5 +1,5 @@
 // input:  active rate-limit view model and desktop/mobile open-close callbacks
-// output: amber compact controls, desktop popover details, mobile bottom sheet
+// output: throttle controls with provider wait counts and reset details
 // pos:    Shared active-only provider rate-limit presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -112,6 +112,9 @@ export function RateLimitDetails({
             <span style={{ marginLeft: 'auto', font: `600 9px ${MONO}`, color: amber }}>
               {provider.recoveryCountdown}
             </span>
+          </div>
+          <div style={{ marginTop: 4, color: muted, font: `500 9px ${MONO}` }}>
+            {provider.waitingLabel}
           </div>
           {provider.windows.map((window) => (
             <div

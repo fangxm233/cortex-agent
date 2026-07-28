@@ -1,5 +1,5 @@
 // input:  authoritative provider/window throttle snapshot, epoch time, UI language
-// output: active-only compact label and deterministic provider/window detail rows
+// output: active provider countdowns and pending-work detail rows
 // pos:    Pure rate-limit presentation model shared by desktop and mobile
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -19,6 +19,9 @@ export interface RateLimitProviderView {
   displayName: string;
   recoveryAt: number;
   recoveryCountdown: string;
+  waitingSessions: number;
+  waitingThreads: number;
+  waitingLabel: string;
   windows: RateLimitWindowView[];
 }
 
@@ -45,9 +48,17 @@ export function formatRateLimitCountdown(seconds: number): string {
   return `${minutes}m`;
 }
 
+function waitingLabel(sessions: number, threads: number, lang: Lang): string {
+  if (lang === 'zh') return `${sessions} 个会话 · ${threads} 个线程等待恢复`;
+  const sessionWord = sessions === 1 ? 'session' : 'sessions';
+  const threadWord = threads === 1 ? 'thread' : 'threads';
+  return `${sessions} ${sessionWord} · ${threads} ${threadWord} waiting`;
+}
+
 function buildProvider(
   raw: SystemRateLimitStatus['providers'][number],
   nowSec: number,
+  lang: Lang,
 ): RateLimitProviderView | null {
   const windows = raw.windows
     .filter((window) => window.resetsAt > nowSec)
@@ -61,11 +72,16 @@ function buildProvider(
     }));
   if (windows.length === 0) return null;
   const recoveryAt = Math.max(...windows.map((window) => window.resetsAt));
+  const waitingSessions = raw.waitingSessions ?? 0;
+  const waitingThreads = raw.waitingThreads ?? 0;
   return {
     provider: raw.provider,
     displayName: raw.displayName,
     recoveryAt,
     recoveryCountdown: formatRateLimitCountdown(recoveryAt - nowSec),
+    waitingSessions,
+    waitingThreads,
+    waitingLabel: waitingLabel(waitingSessions, waitingThreads, lang),
     windows,
   };
 }
@@ -86,7 +102,7 @@ export function buildRateLimitView(
   lang: Lang,
 ): RateLimitView | null {
   const providers = (status?.providers ?? [])
-    .map((provider) => buildProvider(provider, nowSec))
+    .map((provider) => buildProvider(provider, nowSec, lang))
     .filter((provider): provider is RateLimitProviderView => provider !== null)
     .sort((a, b) => a.displayName.localeCompare(b.displayName) || a.provider.localeCompare(b.provider));
   if (providers.length === 0) return null;

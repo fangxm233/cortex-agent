@@ -18,14 +18,14 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | hook-bridge-subscribers-web.test.ts | test | Covers hook to Web interaction delivery |
 | interaction-records.test.ts | test | Covers interaction create and resolve lifecycle |
 | lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, grace and wait cap |
-| lifecycle-rate-limit.test.ts | test | Covers rate-limit pause and resume on error |
+| lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |
 | mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |
 | mid-turn-inject.test.ts | test | Covers the mid-turn injection lifecycle |
 | orchestrator.test.ts | test | Covers thread versus agent routing choice |
 | pending-injection-recovery.test.ts | test | Covers injection idempotency and startup drain |
 | plan-approvals.test.ts | test | Covers plan approval state transitions |
 | plan-response.test.ts | test | Covers Web plan approve and reject delivery |
-| resume-dispatcher.test.ts | test | Covers auto-resume dispatch and skip guards |
+| resume-dispatcher.test.ts | test | Covers provider-ready dispatch and guards |
 | running-executions.test.ts | test | Covers execution registry indices and events |
 | seal-thread-status.test.ts | test | Covers terminal thread status sealing |
 | session-events.test.ts | test | Covers session event publication contract |

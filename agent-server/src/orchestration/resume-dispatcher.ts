@@ -1,23 +1,12 @@
-// input:  rate-limit-throttle onResume → resume-registry (takeAllResumes) + agentRunner / resumeRateLimitedThread
-// output: dispatchPendingResumes — wakes sessions/threads interrupted by a rate limit
-// pos:    orch/ — runs when the rate-limit window resets (or on startup if the queue has orphans
-//         and no throttle is active). Direct sessions are re-entered with a <system-reminder> and
-//         serialized per channel; threads (status 'rate_limited') are re-run from the interrupted
-//         step via resumeRateLimitedThread, fired concurrently (channel-parallel-safe) and only
-//         skipped if a live direct session holds the channel. Options rebuilt by buildResumeOptions
-//         (dispatch onEnd hook + destination). After the resumed run returns, settleResumedThread
-//         seals the live status message to its terminal summary, cascades the completion callback,
-//         and closeResumedTaskLoop re-emits task.completed/task.blocked (the dispatch cycle that
-//         normally publishes it is bypassed on resume) — mirrors the DR-0014 suspended-parent
-//         onSettled; otherwise the status message freezes and a waiting manager never wakes.
-//         Each fire-and-forget thread resume holds the daemon busy gate (track ±1, run+settle)
-//         so a pending .restart cannot fire mid-resume (2026-07-09 fix). All deps injectable
-//         for tests.
+// input:  active provider throttles, ready resume entries, thread runtime
+// output: provider-ready direct and thread resume dispatch
+// pos:    Re-enters interrupted work after its provider clears
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter, IncomingMessage } from '@platform/index.js';
 import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js';
-import { takeAllResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
+import { takeReadyResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
+import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { agentRunner } from './agent-runner.js';
 import { resumeRateLimitedThread } from '@domain/threads/runner.js';
 import { buildResumeOptions, sealSuspendedStatusMsg, fireThreadCallback, closeResumedTaskLoop } from './thread-callback.js';
@@ -52,7 +41,8 @@ export function buildResumeReminder(): string {
 }
 
 export interface ResumeDeps {
-  takeAll: () => ResumeEntry[];
+  takeReady: (activeProviders: string[]) => ResumeEntry[];
+  activeProviders: () => string[];
   route: (ctx: Parameters<typeof agentRunner.route>[0]) => Promise<void>;
   resumeThread: (threadId: string, opts: RunThreadOptions) => Promise<unknown>;
   /** Settle a resumed thread once its run returns: refresh the live status message to its
@@ -80,7 +70,8 @@ export interface ResumeDeps {
 
 function defaultDeps(): ResumeDeps {
   return {
-    takeAll: takeAllResumes,
+    takeReady: takeReadyResumes,
+    activeProviders: () => getThrottleState().providers.map((provider) => provider.provider),
     route: (ctx) => agentRunner.route(ctx),
     resumeThread: (id, opts) => resumeRateLimitedThread(id, opts),
     settleResumedThread: async (id) => {
@@ -104,18 +95,19 @@ function entryKey(e: ResumeEntry): string {
   return e.kind === 'thread' ? `thread ${e.threadId}` : `direct ${e.channel}`;
 }
 
-/** Drain the resume registry and re-enter each interrupted target. Called by the
- *  rate-limit-throttle onResume hook when the window resets. Never throws. */
+/** Drain entries whose provider is no longer active and re-enter each target.
+ *  Called after provider clears and during startup reconciliation. Never throws. */
 export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides: Partial<ResumeDeps> = {}): Promise<void> {
   const deps = { ...defaultDeps(), ...overrides };
 
+  const activeProviders = deps.activeProviders();
   if (!isAutoResumeEnabled()) {
-    const drained = deps.takeAll(); // drain so stale entries don't pile up across windows
-    if (drained.length > 0) log.info(`Auto-resume disabled — dropped ${drained.length} pending entry(ies)`);
+    const drained = deps.takeReady(activeProviders);
+    if (drained.length > 0) log.info(`Auto-resume disabled — dropped ${drained.length} ready entry(ies)`);
     return;
   }
 
-  const entries = deps.takeAll();
+  const entries = deps.takeReady(activeProviders);
   if (entries.length === 0) return;
   log.info(`Rate-limit window reset — resuming ${entries.length} interrupted target(s)`);
 
@@ -151,7 +143,7 @@ export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides
 
 /** Returns a human reason to skip, or null to proceed. Staleness is deliberately NOT a skip
  *  reason: a rate-limit window (e.g. a seven_day limit) can legitimately exceed any fixed age
- *  cutoff, so an entry is resumed whenever its window resets regardless of how long it waited.
+ *  cutoff, so an entry is resumed whenever its provider resets regardless of wait duration.
  *  Only live-state guards apply. */
 function guardSkipReason(entry: ResumeEntry, deps: ResumeDeps): string | null {
   if (entry.kind === 'direct') {

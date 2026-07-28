@@ -1,5 +1,5 @@
 // input:  config, adapters, profiles, normalized events
-// output: runAgent/manual-compact facade, continuations, notices
+// output: provider-attributed agent runs, compact control, notices
 // pos:    Backend-neutral agent execution and notice policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -11,7 +11,7 @@ import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, ContextUsage } from '@core/types/agent-types.js';
 import { recordCost } from '../costs/cost-tracker.js';
 import { configureEnvForMode, isRetryableResult, isRetryableError } from './config.js';
-import { isModeRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
+import { isProviderModeRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { createLogger } from '@core/log.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
@@ -91,10 +91,40 @@ class AttemptNoticeTracker {
   }
 }
 
-function rateLimitedResult(mode: string): AgentResult {
+const DEFAULT_PROVIDER_BY_BACKEND: Record<string, string> = {
+  claude: 'anthropic',
+  codex: 'openai-codex',
+};
+
+function resolveRateLimitProvider(config: Pick<AgentConfig, 'backend' | 'provider'>): string {
+  return config.provider || DEFAULT_PROVIDER_BY_BACKEND[config.backend] || config.backend;
+}
+
+function withRateLimitProvider(handle: AgentHandle, provider: string): AgentHandle {
+  return {
+    promise: handle.promise.then(
+      (result) => ({ ...result, rateLimitProvider: result.rateLimitProvider || provider }),
+      (error) => {
+        if (isRetryableError(error as Error)) {
+          (error as Error & { rateLimitProvider?: string }).rateLimitProvider ??= provider;
+        }
+        throw error;
+      },
+    ),
+    kill: () => handle.kill(),
+    get sessionId(): string | null { return handle.sessionId ?? null; },
+    get agentProcess() { return handle.agentProcess; },
+  };
+}
+
+function configIsRateLimited(config: AgentConfig): boolean {
+  return isProviderModeRateLimited(resolveRateLimitProvider(config), config.mode || 'api');
+}
+
+function rateLimitedResult(mode: string, provider: string): AgentResult {
   return {
     sessionId: null, total_cost_usd: null, num_turns: null,
-    rateLimited: true, rateLimitMessage: `Mode ${mode} is rate-limited`,
+    rateLimited: true, rateLimitMessage: `Mode ${mode} is rate-limited`, rateLimitProvider: provider,
     planFilePath: null, enteredPlanMode: false, exitedPlanMode: false, finalOutput: null,
   };
 }
@@ -127,7 +157,7 @@ export interface AgentConfig {
   model: string;
   backend: string;
   mode: string | null;
-  /** PI `--provider` (protocol). null → defaults to "anthropic". Only used for backend='pi'. */
+  /** Opaque rate-limit provider identity; for PI it also selects the request protocol. */
   provider?: string | null;
   extraEnv?: Record<string, string>;
   extraOption?: Record<string, string>;
@@ -574,7 +604,8 @@ export function runAgentOnce(message: string, options: RunAgentOptions, config: 
     Object.keys(metadata).length > 0 ? metadata : undefined,
   );
   const adapter = getAdapter(config.backend as Backend);
-  return runWithAdapter(adapter, message, options, config, anthropicBaseUrl);
+  const handle = runWithAdapter(adapter, message, options, config, anthropicBaseUrl);
+  return withRateLimitProvider(handle, resolveRateLimitProvider(config));
 }
 
 export function runAgent(message: string, options: RunAgentOptions = {}): AgentHandle {
@@ -589,8 +620,8 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
   // Single config — only terminal notice wrapping is needed.
   if (configs.length <= 1) {
     const effectiveMode = configs[0].mode || 'api';
-    if (isModeRateLimited(effectiveMode) && !options.isUserInitiated) {
-      const result = rateLimitedResult(effectiveMode);
+    if (configIsRateLimited(configs[0]) && !options.isUserInitiated) {
+      const result = rateLimitedResult(effectiveMode, resolveRateLimitProvider(configs[0]));
       notices.emitTerminalRateLimit(result);
       return {
         promise: Promise.resolve(result),
@@ -616,9 +647,9 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
 
       // Pre-flight: skip modes already known rate-limited without spawning CLI
       const effectiveMode = config.mode || 'api';
-      if (isModeRateLimited(effectiveMode) && !options.isUserInitiated) {
+      if (configIsRateLimited(config) && !options.isUserInitiated) {
         if (isLast) {
-          const result = rateLimitedResult(effectiveMode);
+          const result = rateLimitedResult(effectiveMode, resolveRateLimitProvider(config));
           notices.emitTerminalRateLimit(result);
           return result;
         }
@@ -671,9 +702,8 @@ export function allConfigsRateLimited(profileName: string | null): boolean {
   if (!isThrottled()) return false;
   try {
     const config = resolveProfileConfig(profileName);
-    const primaryMode = config.mode || 'api';
-    const allModes = [primaryMode, ...config.fallback.map(f => f.mode || primaryMode)];
-    return allModes.every(m => isModeRateLimited(m));
+    const configs: AgentConfig[] = [config, ...config.fallback];
+    return configs.every((candidate) => configIsRateLimited(candidate));
   } catch {
     return false;
   }
@@ -682,6 +712,8 @@ export function allConfigsRateLimited(profileName: string | null): boolean {
 // Exposed for tests/run-with-adapter.test.ts; not intended as a public API.
 export const _test = {
   runWithAdapter,
+  resolveRateLimitProvider,
+  withRateLimitProvider,
   buildSpawnConfig,
   filterChannelScopedPlugins,
 };

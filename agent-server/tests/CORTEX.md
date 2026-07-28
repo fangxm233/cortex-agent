@@ -49,7 +49,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | execution-log-tailer.test.ts | test | live execution log tailing and refcounts |
 | facade-compact.test.ts | test | manual context compact via agent facade |
 | facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
-| facade.test.ts | test | agent facade rate-limit pre-flight policy |
+| facade.test.ts | test | provider identity and exact pre-flight gates |
 | feishu-adapter.test.ts | test | Feishu message, card and reaction mapping |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
@@ -81,11 +81,11 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | platform-mock-adapter.test.ts | test | mock adapter platform contract coverage |
 | preferences.test.ts | test | operator display preferences store |
 | project-store.test.ts | test | project lookup, scaffolding and cache |
-| rate-limit-throttle.test.ts | test | provider throttle state and resume |
+| rate-limit-throttle.test.ts | test | provider windows, gates and clear callbacks |
 | rate-limiter.test.ts | test | token bucket rate limiter behaviour |
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
-| resume-registry.test.ts | test | rate-limit resume registry bookkeeping |
+| resume-registry.test.ts | test | provider-ready drains and waiting counts |
 | run-with-adapter.test.ts | test | normalized event dispatch and callbacks |
 | schedule-cli.test.ts | test | schedule API and CLI mutations |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |

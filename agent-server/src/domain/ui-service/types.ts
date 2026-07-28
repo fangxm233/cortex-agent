@@ -1,5 +1,5 @@
 // input:  domain types, context/notices, DEBUG warnings, pending data
-// output: UI operations/DTOs including manual session compact
+// output: UI DTOs including provider throttle wait counts
 // pos:    Canonical transport-neutral UI contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -1063,6 +1063,8 @@ export interface RateLimitWindowInfo {
 export interface RateLimitProviderInfo {
   provider: string;
   displayName: string;
+  waitingSessions: number;
+  waitingThreads: number;
   windows: RateLimitWindowInfo[];
 }
 

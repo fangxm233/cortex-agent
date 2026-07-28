@@ -1,5 +1,5 @@
 // input:  result, status/queue services, continuation tool/context callbacks
-// output: lifecycle handling with bounded background continuation finalization
+// output: provider-attributed lifecycle and continuation finalization
 // pos:    Agent completion, failure, and continuation lifecycle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { createLogger } from '@core/log.js';
@@ -32,7 +32,7 @@ import type { ContinuationSink } from '../agent-adapter/types.js';
 import { maybeNotifyCodexLowUsage } from '@domain/costs/codex-usage-monitor.js';
 import { recordResume } from '@domain/costs/resume-registry.js';
 import { isApiRateLimitError } from '@domain/agents/config.js';
-import { isThrottled } from '@domain/costs/rate-limit-throttle.js';
+import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { normalizeSkillCommandPrefix } from '@domain/memory/skill-scanner.js';
 import { getOutboundQueue } from '@store/outbound-queue.js';
 import { buildDurableHooks, durablePost } from './durable-helpers.js';
@@ -120,7 +120,10 @@ export async function handleAgentSuccess({ result, channel, adapter, statusMsg, 
         if (finalized) return;
         finalized = true;
         // Record for auto-resume when the rate-limit window resets.
-        recordResume({ kind: 'direct', channel, userMessage, recordedAt: Date.now() });
+        const provider = contResult.rateLimitProvider ?? result?.rateLimitProvider ?? null;
+        if (isProviderRateLimited(provider)) {
+          recordResume({ kind: 'direct', provider, channel, userMessage, recordedAt: Date.now() });
+        }
         const { elapsedStr: fullElapsed } = computeElapsed(startTime);
         const metrics = formatMetricsSuffix({ costUsd: (result?.total_cost_usd ?? 0) + (contResult?.total_cost_usd ?? 0), numTurns: (result?.num_turns ?? 0) + (contResult?.num_turns ?? 0) });
         const rateLimitText = `${Icons.warning} ${sessionTag}${t('status.rateLimitedExhausted')} (${fullElapsed}${metrics})`;
@@ -247,7 +250,7 @@ async function backfillLedgerSessionId(result: { sessionId?: string | null }, ch
 
 // --- Agent error handler ---
 
-export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName = null, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<void> {
+export async function handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName = null, sessionId = null, effectiveSessionId = null, threadAnchorId = null, userMessageTs = null, userMessage = null }: { error: { message: string; cancelled?: boolean; rateLimitProvider?: string }; channel: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; executionId: string | null; sessionName?: string | null; sessionId?: string | null; effectiveSessionId?: string | null; threadAnchorId?: string | null; userMessageTs?: string | null; userMessage?: string | null }): Promise<void> {
   if (executionId) runningExecutions.fail(executionId, error.message);
   const resolvedSessionId = effectiveSessionId || sessionId;
   const sessionTag = buildSessionTag(sessionName, resolvedSessionId);
@@ -276,9 +279,12 @@ export async function handleAgentError({ error, channel, adapter, statusMsg, sta
   // path (agent-runner handleDefaultAgentResult / edit-retry below). runningExecutions.fail already
   // ran at the top. Only when a userMessage is available (direct/TUI turns) — manager-qa / edit
   // callers without it fall through to the normal error path.
-  if (userMessage && isApiRateLimitError(error.message) && isThrottled()) {
+  if (userMessage && isApiRateLimitError(error.message) && isProviderRateLimited(error.rateLimitProvider)) {
     finalizeLocalExecution({ executionId, status: 'failed', error: { message: 'Rate limited' }, durationS: elapsedS });
-    recordResume({ kind: 'direct', channel, userMessage, recordedAt: Date.now() });
+    recordResume({
+      kind: 'direct', provider: error.rateLimitProvider ?? null,
+      channel, userMessage, recordedAt: Date.now(),
+    });
     const rateLimitText = `${Icons.warning} ${sessionTag}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));
     return;
@@ -419,7 +425,12 @@ async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, ses
 
     if (result?.rateLimited) {
       // Record the interrupted edit-retry conversation for auto-resume when the window resets.
-      recordResume({ kind: 'direct', channel, userMessage: text, recordedAt: Date.now() });
+      if (isProviderRateLimited(result.rateLimitProvider)) {
+        recordResume({
+          kind: 'direct', provider: result.rateLimitProvider ?? null,
+          channel, userMessage: text, recordedAt: Date.now(),
+        });
+      }
       const { elapsedStr } = computeElapsed(startTime);
       const rateLimitText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
       await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));

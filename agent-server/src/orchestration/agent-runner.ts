@@ -1,5 +1,5 @@
 // input:  conversation/context execution, lifecycle, queue, DEBUG stores
-// output: AgentRunner with context/continuation persistence and transcripts
+// output: Provider-attributed runs, continuations, and transcripts
 // pos:    Sole plain user-message and injection path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -39,6 +39,7 @@ import { runningExecutions } from '@core/running-executions.js';
 import { bgHeldSessions } from '@core/bg-held-sessions.js';
 import { maybeNotifyCodexLowUsage } from '@domain/costs/codex-usage-monitor.js';
 import { recordResume } from '@domain/costs/resume-registry.js';
+import { isProviderRateLimited } from '@domain/costs/rate-limit-throttle.js';
 import { getAgent } from '@domain/threads/index.js';
 import { runConversation } from './conversation-runner.js';
 import { tryAnswerFromHuman } from './manager-qa.js';
@@ -509,7 +510,12 @@ async function handleDefaultAgentResult({ result, channel, adapter, statusMsg, s
   if (result?.rateLimited) {
     // Record the interrupted conversation so it auto-resumes when the rate-limit window
     // resets (rate-limit-throttle onResume → resume-dispatcher).
-    recordResume({ kind: 'direct', channel, userMessage, recordedAt: Date.now() });
+    if (isProviderRateLimited(result.rateLimitProvider)) {
+      recordResume({
+        kind: 'direct', provider: result.rateLimitProvider ?? null,
+        channel, userMessage, recordedAt: Date.now(),
+      });
+    }
     const { elapsedStr } = computeElapsed(startTime);
     const rateLimitText = `${Icons.warning} ${buildSessionTag(sessionName, sessionId)}${t('status.rateLimitedExhausted')} (${elapsedStr})`;
     await sealStatus(adapter, statusMsg, rateLimitText, buildSealedStatusActionBlocks(rateLimitText, { channel, sessionName, isDm: true }));

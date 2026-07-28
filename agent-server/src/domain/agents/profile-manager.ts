@@ -1,5 +1,5 @@
 // input:  profiles.json config file (I/O delegated to store/profile-repo.ts)
-// output: load/list/get/resolveProfile + validate helpers
+// output: provider-aware profile resolution and validation
 // pos:    named agent profile resolution and fallback config chain. Business validation (validateProfilesFile) stays in this file,
 //         JSON I/O goes through profileRepo (Pattern A, DR-s12-gate). Public API maintains sync semantics.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -13,9 +13,8 @@ export interface ProfileEntry {
    *  upstream URL + keys for each mode. (For claude the endpoint is "anthropic"; for pi it is the
    *  `provider` below.) */
   mode?: string;
-  /** PI `--provider` (protocol family, e.g. "anthropic", "openai-codex"). Only meaningful for
-   *  backend='pi'; defaults to "anthropic" when omitted. Decoupled from `mode`: `mode` selects the
-   *  gateway route, `provider` selects the PI request protocol + the gateway endpoint segment. */
+  /** Opaque provider identity used by rate-limit isolation. For backend='pi' it also selects the
+   *  PI request protocol and gateway endpoint; PI profiles must declare it explicitly. */
   provider?: string;
   extraEnv?: Record<string, string>;
   extraOption?: Record<string, string>;
@@ -45,7 +44,7 @@ export interface ResolvedProfileConfig {
   model: string;
   backend: string;
   mode: string | null;
-  /** PI `--provider` (protocol). null → adapter defaults to "anthropic". Ignored for non-pi backends. */
+  /** Opaque rate-limit provider identity; for PI it is also the required request protocol. */
   provider: string | null;
   extraEnv: Record<string, string>;
   extraOption: Record<string, string>;

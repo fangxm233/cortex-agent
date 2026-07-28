@@ -1,5 +1,5 @@
 // input:  provider rate-limit events, persistence, platform adapter
-// output: provider/window throttle state, mode gates, reset callbacks
+// output: provider/window state, exact gates, provider-clear callbacks
 // pos:    Provider-scoped rate-limit state machine
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -74,7 +74,7 @@ interface RateLimitInfo {
 
 let _adapter: PlatformAdapter | null = null;
 let _persistence: ThrottlePersistence | null = null;
-let _onResume: (() => void) | null = null;
+let _onResume: ((providers: string[]) => void) | null = null;
 let _onChange: (() => void) | null = null;
 let _resumeTimer: ReturnType<typeof setTimeout> | null = null;
 const _providers = new Map<string, ProviderThrottleState>();
@@ -114,8 +114,8 @@ function fireChange(): void {
   }
 }
 
-function fireResume(): void {
-  try { _onResume?.(); } catch (error) {
+function fireResume(providers: string[]): void {
+  try { _onResume?.(providers); } catch (error) {
     log.error(`onResume hook failed: ${(error as Error).message}`);
   }
 }
@@ -216,13 +216,13 @@ function scheduleResumeTimer(): void {
   _resumeTimer = setTimeout(() => { void expireWindows(expiry); }, delayMs);
 }
 
-function pruneExpired(now: number): string[] {
-  const cleared: string[] = [];
+function pruneExpired(now: number): Array<{ provider: string; displayName: string }> {
+  const cleared: Array<{ provider: string; displayName: string }> = [];
   for (const [key, provider] of _providers) {
     provider.windows = provider.windows.filter((window) => windowIsActive(window, now));
     if (provider.windows.length > 0) continue;
     _providers.delete(key);
-    cleared.push(provider.displayName);
+    cleared.push({ provider: key, displayName: provider.displayName });
   }
   return cleared;
 }
@@ -235,16 +235,16 @@ async function expireWindows(scheduledExpiry?: number): Promise<void> {
   const changed = allWindows().length !== before;
   if (!changed) { scheduleResumeTimer(); return; }
   await persist().catch((error) => log.error(`Failed to persist throttle expiry: ${(error as Error).message}`));
-  for (const provider of cleared) sendDM(`${Icons.ok} ${provider} rate limit throttle cleared.`);
+  for (const provider of cleared) sendDM(`${Icons.ok} ${provider.displayName} rate limit throttle cleared.`);
   fireChange();
-  if (_providers.size === 0) fireResume();
-  else scheduleResumeTimer();
+  if (cleared.length > 0) fireResume(cleared.map((provider) => provider.provider));
+  scheduleResumeTimer();
 }
 
 async function initRateLimitThrottle(
   adapter: PlatformAdapter,
   persistence: ThrottlePersistence,
-  onResume?: () => void,
+  onResume?: (providers: string[]) => void,
   onChange?: () => void,
 ): Promise<void> {
   _adapter = adapter;
@@ -257,7 +257,7 @@ async function initRateLimitThrottle(
   loadActiveProviders(persisted);
   if (_providers.size === 0) {
     await persistence.save(null);
-    fireResume();
+    fireResume([]);
   } else {
     await persist();
     scheduleResumeTimer();
@@ -318,6 +318,15 @@ function isThrottled(): boolean {
   return _providers.size > 0;
 }
 
+function isProviderRateLimited(provider: string | null | undefined): boolean {
+  if (!provider) return _providers.size > 0;
+  return _providers.has(provider);
+}
+
+function isProviderModeRateLimited(provider: string, mode: string): boolean {
+  return _providers.get(provider)?.modes.includes(mode) ?? false;
+}
+
 function isModeRateLimited(mode: string): boolean {
   return snapshot().some((provider) => provider.modes.includes(mode));
 }
@@ -345,4 +354,13 @@ function _testReset(): void {
   _onChange = null;
 }
 
-export { initRateLimitThrottle, handleRateLimitEvent, isThrottled, isModeRateLimited, getThrottleState, _testReset };
+export {
+  initRateLimitThrottle,
+  handleRateLimitEvent,
+  isThrottled,
+  isProviderRateLimited,
+  isProviderModeRateLimited,
+  isModeRateLimited,
+  getThrottleState,
+  _testReset,
+};

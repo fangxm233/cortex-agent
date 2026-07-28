@@ -9,5 +9,5 @@ Cost domain — tracks spend against budgets and pauses work when a provider rat
 | cost-tracker.ts | core | Records spend and checks budgets |
 | gateway-manager.ts | core | Manages the local usage gateway process |
 | rate-limit-parser.ts | util | Parses provider rate-limit data |
-| rate-limit-throttle.ts | core | Tracks throttle state and gates agent modes |
-| resume-registry.ts | core | Tracks work interrupted by rate limits |
+| rate-limit-throttle.ts | core | Tracks provider windows and exact mode gates |
+| resume-registry.ts | core | Tracks provider-attributed interrupted work |

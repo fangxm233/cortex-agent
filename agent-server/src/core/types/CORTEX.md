@@ -4,5 +4,5 @@ Shared type definitions for agent execution and the thread system, imported acro
 
 | filename | role | function |
 |---|---|---|
-| agent-types.ts | types | agent result, handle, and progress types |
-| thread-types.ts | types | thread, template, hook, and stage types |
+| agent-types.ts | types | Defines provider-attributed agent results and handles |
+| thread-types.ts | types | Defines thread state including provider pauses |

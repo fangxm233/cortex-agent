@@ -1,5 +1,5 @@
 // input:  Vitest, temporary filesystem, legacy and provider throttle records
-// output: ScheduleRepo concurrency, CRUD, and throttle round-trip assertions
+// output: ScheduleRepo CRUD, provider throttle, and resume persistence tests
 // pos:    Persistence regression coverage for schedules.json
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -223,15 +223,17 @@ test('ScheduleRepo - getResumeQueue defaults to empty array', async () => {
 test('ScheduleRepo - resumeQueue get/set roundtrip', async () => {
   const repo = createRepo();
   const entries = [
-    { kind: 'direct' as const, channel: 'C1', userMessage: 'hi', recordedAt: 100 },
-    { kind: 'thread' as const, threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: 200 },
+    { kind: 'direct' as const, provider: 'provider-a', channel: 'C1', userMessage: 'hi', recordedAt: 100 },
+    { kind: 'thread' as const, provider: 'provider-b', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: 200 },
   ];
   await repo.setResumeQueue(entries);
 
   const got = await repo.getResumeQueue();
   assert.equal(got.length, 2);
   assert.equal(got[0].channel, 'C1');
+  assert.equal(got[0].provider, 'provider-a');
   assert.equal((got[1] as { threadId: string }).threadId, 'thr_a');
+  assert.equal(got[1].provider, 'provider-b');
 
   // Clear
   await repo.setResumeQueue([]);
@@ -242,7 +244,7 @@ test('ScheduleRepo - resumeQueue persists alongside tasks and throttle', async (
   const repo = createRepo();
   await repo.addTask(makeTask({ id: 't1', message: 'task 1' }));
   await repo.setRateLimitThrottle({ resetsAt: 999, activatedAt: 888 });
-  await repo.setResumeQueue([{ kind: 'direct', channel: 'C1', userMessage: 'hi', recordedAt: 100 }]);
+  await repo.setResumeQueue([{ kind: 'direct', provider: 'provider-a', channel: 'C1', userMessage: 'hi', recordedAt: 100 }]);
 
   const data = await repo.read();
   assert.equal(data.tasks.length, 1);

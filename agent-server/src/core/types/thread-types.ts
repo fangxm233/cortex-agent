@@ -1,5 +1,5 @@
 // input:  thread-templates.json, runtime thread state
-// output: TypeScript types and schema for Thread/Agent/Template/Hook/Stage
+// output: Thread types with provider-scoped pause metadata
 // pos:    shared type definitions for the Thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -401,6 +401,8 @@ export interface ThreadMetadata {
   /** Set when the thread was paused (status==='rate_limited') by an API rate limit, so the
    *  resume path and startup recovery can tell a rate-limit pause apart from a real failure. */
   interruptedByRateLimit?: boolean;
+  /** Opaque provider key whose active throttle owns this pause. Used for restart reconciliation. */
+  rateLimitProvider?: string | null;
   /** Destination kind decided at spawn time, so re-entry can rebuild RunThreadOptions. */
   resumeDest?: 'interactive-reply' | 'project-report' | null;
   /** Live status message persisted at suspension so the post-resume settle can refresh it

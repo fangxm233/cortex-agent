@@ -12,8 +12,8 @@ Consumed by the orchestration and UI layers through the index barrel.
 | template-resolver.ts | config | expands vars and blocks in prompt templates |
 | shell-templates.ts | config | turns a shell binding into a full template |
 | prompt-builder.ts | build | assembles agent prompts and slot configs |
-| state-machine.ts | state | drives thread lifecycle and control state |
-| runner.ts | runtime | runs, suspends, and resumes thread steps |
+| state-machine.ts | state | Drives lifecycle and stores provider pauses |
+| runner.ts | runtime | Runs and resumes provider-attributed steps |
 | hook-runner.ts | hook | runs lifecycle hook scripts and hook agents |
 | thread-transcript.ts | record | records each step's conversation to history |
 | tree.ts | tree | tracks thread trees and spawn resource guards |

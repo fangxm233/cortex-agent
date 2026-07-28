@@ -5,7 +5,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 
 | filename | role | function |
 |---|---|---|
-| app.ts | entry | wires and starts the agent-server runtime |
+| app.ts | entry | Wires runtime and provider-scoped recovery |
 | cli.ts | entry | dispatches the cortex command line |
 | daemon.ts | entry | supervises and restarts the app process |
 | doctor-cli.ts | cli | runs environment diagnostics and safe fixes |

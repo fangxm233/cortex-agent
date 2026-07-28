@@ -155,29 +155,36 @@ Example:
 ## Usage-limit throttling and auto-resume
 
 The fallback chain handles individual failed calls. A separate mechanism
-handles the rolling usage limit that providers enforce over a multi-hour
-window. When a backend reports that the five-hour usage window is exhausted
-and every configured fallback has also been spent, Cortex stops sending new
-work against that limit until the window resets, and records each piece of
-work that was interrupted — both direct conversations and threads.
+handles rolling usage windows. Provider identifiers are opaque strings, so
+the throttle can track any number of providers without a fixed provider
+enum. Each provider keeps its own window types and reset times. A provider
+and route mode are gated without blocking another provider that happens to
+use the same mode name.
 
-Cortex reads the reset time the provider reports and lifts the throttle a few
-seconds after the window opens again. At that point it reopens each
-interrupted unit of work and injects a short note telling the agent the limit
-has cleared and to continue where it left off. A direct conversation resumes
-in its own channel with the prior context intact; a thread continues from its
-last step. Resumes are staggered a few seconds apart so they do not
-immediately exhaust the freshly reset window.
+Interrupted direct conversations and threads are stored with the provider
+that limited them. When one provider fully recovers, Cortex resumes only that
+provider's work; entries belonging to other active providers remain queued.
+A direct conversation resumes in its own channel with the prior context
+intact, while a thread reruns its interrupted step. Resume starts are
+staggered so a freshly opened window is not immediately exhausted.
 
-The throttle state and the list of interrupted work persist in
-`schedules.json`, so a restart during the window loses nothing: on startup
-Cortex re-arms the timer, or resumes immediately if the window already passed
-while it was down. Work that has gone stale (recorded more than six hours
-earlier), a channel that already has a live agent, or a thread that has since
-finished are skipped rather than resumed.
+The active rate-limit details show the waiting direct-session and thread
+counts for each provider. The provider key is the isolation boundary:
+multiple accounts or quota pools reported under the same provider key share
+one provider record, and same-type windows retain the later reset time.
+Automatic recovery also requires a reset-bearing provider event. The Claude
+print adapter supplies that event; an adapter that only reports a failed call
+or low remaining usage does not create a timed throttle by itself.
+
+Throttle windows and provider-attributed resume entries persist in
+`schedules.json`. On startup Cortex re-arms active timers and immediately
+resumes entries whose provider window expired during downtime, even when a
+different provider remains limited. Provider-less entries from older data
+wait until every active provider clears. A busy direct channel or a thread
+that has since finished is skipped; elapsed age alone does not discard work.
 
 Auto-resume is on by default. Set `CORTEX_AUTO_RESUME=0` in the `.env` file to
-leave interrupted work paused for manual continuation instead.
+drop ready resume entries instead of dispatching them automatically.
 
 ## Cost reporting
 

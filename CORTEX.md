@@ -54,7 +54,7 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 | `profiles.json` | Named agent profile list |
 | `budget.json` | Daily/monthly budget limits |
 | `costs.jsonl` | Per-call cost records (90-day rolling) |
-| `schedules.json` | Scheduled tasks, provider/window throttle records, and pending global resume queue |
+| `schedules.json` | Scheduled tasks, provider/window throttles, and provider-attributed resume queue |
 | `sessions.json` | Channel-to-agent session mapping |
 | `executions.json` | Unified execution registry |
 | `thread-templates.json` | Agent definitions and orchestration templates |

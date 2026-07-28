@@ -1,5 +1,5 @@
 // input:  .env, PlatformAdapter, stores, orchestration modules, provider throttle state
-// output: server wiring including session compact controls and UI hints
+// output: server wiring with provider-scoped throttle recovery
 // pos:    agent-server main entry and wiring hub
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
@@ -68,7 +68,7 @@ import { respondToPlan } from '@orch/interactions/plan-response.js';
 import { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
-import { initRateLimitThrottle, isThrottled } from '@domain/costs/rate-limit-throttle.js';
+import { initRateLimitThrottle } from '@domain/costs/rate-limit-throttle.js';
 import { initResumeRegistry, getResumeCount, recordResume } from '@domain/costs/resume-registry.js';
 import { dispatchPendingResumes } from '../orchestration/resume-dispatcher.js';
 import { scheduleRepo } from '@store/schedule-repo.js';
@@ -558,15 +558,19 @@ process.on('SIGTERM', async () => {
   //    represented in the queue — dropped by a prior dispatcher skip, or a queue/throttle desync
   //    across restart — is re-queued (idempotent, dedupe by threadId). 3) Arm the throttle; its
   //    restart-recovery may fire onResume synchronously, draining the (already-reconciled) queue.
-  //    4) If nothing is throttled and entries remain, drain now so a clean window resumes them.
+  //    4) Evaluate any remaining entries against the restored active-provider set.
   await initResumeRegistry({
     save: (entries) => scheduleRepo.setResumeQueue(entries),
     load: () => scheduleRepo.getResumeQueue(),
-  });
+  }, () => { bus.publish({ type: 'rate-limit.changed' }); });
   let reQueuedRateLimited = 0;
   for (const t of threadStore.getAll()) {
     if (t.status === 'rate_limited') {
-      recordResume({ kind: 'thread', threadId: t.id, channel: t.channel, userMessage: t.userMessage ?? '', recordedAt: Date.now() });
+      recordResume({
+        kind: 'thread', provider: t.metadata?.rateLimitProvider ?? null,
+        threadId: t.id, channel: t.channel,
+        userMessage: t.userMessage ?? '', recordedAt: Date.now(),
+      });
       reQueuedRateLimited++;
     }
   }
@@ -576,8 +580,8 @@ process.on('SIGTERM', async () => {
     load: () => scheduleRepo.getRateLimitThrottle(),
   }, () => { void dispatchPendingResumes(adapter); },
   () => { bus.publish({ type: 'rate-limit.changed' }); });
-  if (!isThrottled() && getResumeCount() > 0) {
-    log.info(`Startup: ${getResumeCount()} pending resume(s), no active throttle — draining`);
+  if (getResumeCount() > 0) {
+    log.info(`Startup: evaluating ${getResumeCount()} pending provider resume(s)`);
     void dispatchPendingResumes(adapter);
   }
 

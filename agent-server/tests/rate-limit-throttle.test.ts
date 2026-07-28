@@ -406,41 +406,86 @@ test('tracks two providers with independent windows and persists provider record
   assert.equal(persistence.getSaved().providers.length, 2);
 });
 
-test('expires providers independently but fires onResume only after the final provider clears', async (t) => {
+test('expires providers independently and reports each provider as soon as it clears', async (t) => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
   vi.setSystemTime(new Date('2026-07-27T20:00:00.000Z'));
   const mod = await freshModuleWithCleanup(t);
   const persistence = makePersistenceStub();
-  let resumes = 0;
+  const cleared: string[][] = [];
   let changes = 0;
   await mod.initRateLimitThrottle(
     makeAdapterStub(),
     persistence as any,
-    () => { resumes++; },
+    (providers: string[]) => { cleared.push(providers); },
     () => { changes++; },
   );
   const now = Math.floor(Date.now() / 1000);
 
   await mod.handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 1 },
-    { provider: 'anthropic', displayName: 'Anthropic', mode: 'plan' } as any,
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'shared' } as any,
   );
   await mod.handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 60 },
-    { provider: 'openai-codex', displayName: 'OpenAI', mode: 'codex' } as any,
+    { provider: 'provider-b', displayName: 'Provider B', mode: 'shared' } as any,
   );
 
   await vi.advanceTimersByTimeAsync(7_000);
   const midway = mod.getThrottleState() as any;
-  assert.deepEqual(midway.providers.map((p: any) => p.provider), ['openai-codex']);
-  assert.equal(mod.isModeRateLimited('plan'), false);
-  assert.equal(mod.isModeRateLimited('codex'), true);
-  assert.equal(resumes, 0);
+  assert.deepEqual(midway.providers.map((p: any) => p.provider), ['provider-b']);
+  assert.equal(mod.isProviderModeRateLimited('provider-a', 'shared'), false);
+  assert.equal(mod.isProviderModeRateLimited('provider-b', 'shared'), true);
+  assert.deepEqual(cleared, [['provider-a']]);
 
   await vi.advanceTimersByTimeAsync(60_000);
   assert.equal((mod.getThrottleState() as any).providers.length, 0);
-  assert.equal(resumes, 1);
+  assert.deepEqual(cleared, [['provider-a'], ['provider-b']]);
   assert.ok(changes >= 4, 'activation + each provider expiry should publish changes');
+});
+
+test('does not report a provider ready until all of its window types clear', async (t) => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-27T21:00:00.000Z'));
+  const mod = await freshModuleWithCleanup(t);
+  const cleared: string[][] = [];
+  await mod.initRateLimitThrottle(
+    makeAdapterStub(),
+    makePersistenceStub() as any,
+    (providers: string[]) => { cleared.push(providers); },
+  );
+  const now = Math.floor(Date.now() / 1000);
+  const source = { provider: 'provider-a', displayName: 'Provider A', mode: 'shared' } as any;
+
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 1 },
+    source,
+  );
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'seven_day', utilization: 0.99, resetsAt: now + 60 },
+    source,
+  );
+
+  await vi.advanceTimersByTimeAsync(7_000);
+  assert.deepEqual(cleared, []);
+  assert.equal((mod.getThrottleState() as any).providers[0].windows.length, 1);
+
+  await vi.advanceTimersByTimeAsync(60_000);
+  assert.deepEqual(cleared, [['provider-a']]);
+});
+
+test('provider-aware mode gates do not collide when providers share a mode name', async (t) => {
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any);
+  const reset = Math.floor(Date.now() / 1000) + 300;
+
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: reset },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'shared' } as any,
+  );
+
+  assert.equal(mod.isProviderModeRateLimited('provider-a', 'shared'), true);
+  assert.equal(mod.isProviderModeRateLimited('provider-b', 'shared'), false);
+  assert.equal(mod.isProviderModeRateLimited('provider-a', 'other'), false);
 });
 
 test('groups multiple active window types under one provider', async (t) => {
