@@ -1,6 +1,6 @@
 // input:  PI WebSearch tool, stubbed provider HTTP responses
-// output: WebSearch dispatch, provenance, and fallback tests
-// pos:    PI server-side WebSearch regression coverage
+// output: WebSearch dispatch, terminal, and fallback tests
+// pos:    PI WebSearch response validation regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -53,8 +53,18 @@ function executeSearch(ctx: any, params: Record<string, unknown> = { query: QUER
   return webSearchTool.execute('tc-web-search', params as any, undefined, undefined, ctx);
 }
 
-function sseResponse(text: string, url: string, query = QUERY): Response {
-  const events = [
+function sseEventsResponse(events: Record<string, unknown>[]): Response {
+  const body = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('') +
+    'data: [DONE]\n\n';
+  return new Response(body, { headers: { 'content-type': 'text/event-stream' } });
+}
+
+function successfulResponseEvents(
+  text: string,
+  url: string,
+  query = QUERY,
+): Record<string, unknown>[] {
+  return [
     { type: 'response.output_text.delta', delta: text },
     {
       type: 'response.output_item.done',
@@ -64,10 +74,31 @@ function sseResponse(text: string, url: string, query = QUERY): Response {
       type: 'response.output_text.annotation.added',
       annotation: { type: 'url_citation', title: 'Release documentation', url },
     },
-    { type: 'response.completed', response: { status: 'completed' } },
   ];
-  const body = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('') + 'data: [DONE]\n\n';
-  return new Response(body, { headers: { 'content-type': 'text/event-stream' } });
+}
+
+function sseResponse(text: string, url: string, query = QUERY): Response {
+  return sseEventsResponse([
+    ...successfulResponseEvents(text, url, query),
+    { type: 'response.completed', response: { status: 'completed' } },
+  ]);
+}
+
+function jsonResponsesPayload(status?: string): Record<string, unknown> {
+  return {
+    ...(status ? { status } : {}),
+    output: [
+      { type: 'web_search_call', action: { type: 'search', query: QUERY } },
+      {
+        type: 'message',
+        content: [{
+          type: 'output_text',
+          text: 'The current release is 24.1.0.',
+          annotations: [{ type: 'url_citation', url: SOURCE_URL }],
+        }],
+      },
+    ],
+  };
 }
 
 function encodeJwt(accountId: string): string {
@@ -272,6 +303,100 @@ test('negative-caches unknown search variants per provider:api', async () => {
   const result = await executeSearch(secondProviderCtx);
   assert.equal(fetchSpy.mock.calls.length, 2, 'different provider should probe independently');
   assert.match(result.content[0].text, new RegExp(SOURCE_URL));
+});
+
+test('does not negative-cache unrelated invalid_request errors', async () => {
+  const ctx = makeContext({
+    api: 'openai-responses',
+    provider: 'non-capability-error-provider',
+  });
+  const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    .mockResolvedValueOnce(new Response(JSON.stringify({
+      type: 'invalid_request_error',
+      message: 'store must be omitted for this model',
+    }), { status: 400, headers: { 'content-type': 'application/json' } }))
+    .mockResolvedValueOnce(sseResponse('Search succeeded on retry.', SOURCE_URL));
+
+  await assert.rejects(executeSearch(ctx), /HTTP 400.*store must be omitted/i);
+  const result = await executeSearch(ctx);
+
+  assert.equal(fetchSpy.mock.calls.length, 2, 'non-capability errors must be probed again');
+  assert.match(result.content[0].text, /Search succeeded on retry/);
+});
+
+test.each([
+  [
+    'response.failed',
+    {
+      type: 'response.failed',
+      response: {
+        status: 'failed',
+        error: { code: 'server_error', message: 'search failed after partial output' },
+      },
+    },
+    /server_error.*search failed after partial output/i,
+  ],
+  [
+    'error',
+    { type: 'error', code: 'stream_error', message: 'provider stream failed' },
+    /stream_error.*provider stream failed/i,
+  ],
+])('rejects %s after valid-looking partial SSE output', async (_type, terminal, expected) => {
+  const ctx = makeContext({
+    api: 'openai-responses',
+    provider: `failed-stream-provider-${_type}`,
+  });
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseEventsResponse([
+    ...successfulResponseEvents('Partial answer.', SOURCE_URL),
+    terminal as Record<string, unknown>,
+  ]));
+
+  await assert.rejects(executeSearch(ctx), expected as RegExp);
+});
+
+test('rejects Responses SSE output without a successful terminal event', async () => {
+  const ctx = makeContext({
+    api: 'openai-responses',
+    provider: 'unterminated-stream-provider',
+  });
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(sseEventsResponse(
+    successfulResponseEvents('Partial answer.', SOURCE_URL),
+  ));
+
+  await assert.rejects(executeSearch(ctx), /terminal response/i);
+});
+
+test('accepts a completed JSON Responses payload', async () => {
+  const ctx = makeContext({
+    api: 'openai-responses',
+    provider: 'completed-json-provider',
+  });
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+    JSON.stringify(jsonResponsesPayload('completed')),
+    { headers: { 'content-type': 'application/json' } },
+  ));
+
+  const result = await executeSearch(ctx);
+
+  assert.match(result.content[0].text, /current release is 24\.1\.0/i);
+  assert.match(result.content[0].text, new RegExp(SOURCE_URL));
+});
+
+test.each([
+  ['failed', { code: 'server_error', message: 'JSON search failed' }, /server_error.*JSON search failed/i],
+  [undefined, undefined, /terminal status/i],
+])('rejects a JSON Responses payload with status %s', async (status, error, expected) => {
+  const ctx = makeContext({
+    api: 'openai-responses',
+    provider: `invalid-json-status-${status ?? 'missing'}`,
+  });
+  const payload = { ...jsonResponsesPayload(status), ...(error ? { error } : {}) };
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+    JSON.stringify(payload),
+    { headers: { 'content-type': 'application/json' } },
+  ));
+
+  await assert.rejects(executeSearch(ctx), expected as RegExp);
 });
 
 test('unsupported APIs and auth failures return explicit errors without empty results', async () => {

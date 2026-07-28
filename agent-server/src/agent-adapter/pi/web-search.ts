@@ -1,6 +1,6 @@
 // input:  TypeBox, PI model context, provider HTTP APIs
-// output: API-dispatched PI WebSearch tool definition
-// pos:    PI server-side search side-call dispatcher
+// output: Validated API-dispatched PI WebSearch tool
+// pos:    PI server-side search request and response adapter
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { randomUUID } from 'node:crypto';
@@ -15,6 +15,11 @@ import type {
 export const WEB_SEARCH_MAX_USES = 3;
 
 const WEB_SEARCH_USER_AGENT = 'cortex-agent/pi-web-search';
+const TERMINAL_RESPONSE_EVENTS = new Set([
+  'response.completed',
+  'response.done',
+  'response.incomplete',
+]);
 const negativeCapabilities = new Set<string>();
 
 const WebSearchParameters = Type.Object({
@@ -378,7 +383,61 @@ function parseSseEvents(body: string): Record<string, unknown>[] {
   return events;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : undefined;
+}
+
+function providerErrorDetails(value: unknown): string {
+  const record = asRecord(value);
+  if (!record) return typeof value === 'string' ? value : '';
+  const error = asRecord(record.error) ?? record;
+  const code = typeof error.code === 'string' ? error.code : '';
+  const message = typeof error.message === 'string' ? error.message : '';
+  if (code || message) return [code, message].filter(Boolean).join(': ');
+  const incomplete = asRecord(record.incomplete_details);
+  if (typeof incomplete?.reason === 'string') return incomplete.reason;
+  return JSON.stringify(value).slice(0, 500);
+}
+
+function throwResponsesFailure(context: string, value: unknown): never {
+  const details = providerErrorDetails(value);
+  throw new Error(`WebSearch Responses ${context}${details ? `: ${details}` : ''}`);
+}
+
+function validateCompletedResponse(
+  response: Record<string, unknown>,
+  context: string,
+): void {
+  const status = typeof response.status === 'string' ? response.status : undefined;
+  if (status === 'completed' && !response.error) return;
+  if (!status) throwResponsesFailure(`${context} has no successful terminal status`, response.error);
+  throwResponsesFailure(`${context} terminal status "${status}"`, response);
+}
+
+function assertResponseEventSucceeded(event: Record<string, unknown>): void {
+  if (event.type === 'error') throwResponsesFailure('stream error', event);
+  if (event.type === 'response.failed') {
+    throwResponsesFailure('stream failed', event.response ?? event);
+  }
+}
+
+function terminalResponse(event: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (typeof event.type !== 'string' || !TERMINAL_RESPONSE_EVENTS.has(event.type)) return undefined;
+  return asRecord(event.response) ?? {};
+}
+
+function validateResponseEvents(events: Record<string, unknown>[]): void {
+  let terminal: Record<string, unknown> | undefined;
+  for (const event of events) {
+    assertResponseEventSucceeded(event);
+    terminal = terminalResponse(event) ?? terminal;
+  }
+  if (!terminal) throw new Error('WebSearch Responses stream ended before a terminal response.');
+  validateCompletedResponse(terminal, 'stream');
+}
+
 function parseResponseEvents(events: Record<string, unknown>[]): SearchResponse {
+  validateResponseEvents(events);
   const deltas = events
     .filter((event) => event.type === 'response.output_text.delta')
     .map((event) => typeof event.delta === 'string' ? event.delta : '')
@@ -406,6 +465,7 @@ async function parseResponsesResponse(response: Response): Promise<SearchRespons
     return parseResponseEvents(parseSseEvents(await response.text()));
   }
   const payload = await response.json() as Record<string, unknown>;
+  validateCompletedResponse(payload, 'JSON payload');
   return {
     text: responseTexts(payload).join('\n'),
     urls: collectUrls(payload),
@@ -414,7 +474,8 @@ async function parseResponsesResponse(response: Response): Promise<SearchRespons
 }
 
 function isCapabilityMiss(status: number, body: string): boolean {
-  return status === 400 && /(unknown variant|invalid_request)/i.test(body);
+  const identifiesSearchTool = /(web[_ -]?search|tools?(?:\.\d+)?\.type)/i.test(body);
+  return status === 400 && identifiesSearchTool && /unknown variant/i.test(body);
 }
 
 function isDomainFieldError(status: number, body: string): boolean {
