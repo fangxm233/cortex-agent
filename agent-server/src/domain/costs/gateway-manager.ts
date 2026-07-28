@@ -130,14 +130,16 @@ async function spawnGateway() {
 
   const gatewayLogStream = getLogStream();
 
-  const dumpDir = path.join(LOG_DIR, 'api-dumps');
-  mkdirSync(dumpDir, { recursive: true });
+  // API dumps are OFF by default: the gateway writes one full request/response JSON per call with
+  // no retention, which grew to 66 GB / 111k files in three months and filled the disk (ENOSPC
+  // killed running threads). The env spread below still honours an explicitly exported
+  // GATEWAY_DUMP_DIR, so debugging remains one `export` away — it is just never on by accident.
   const GATEWAY_CONFIG_PATH = path.join(os.homedir(), '.aistatus', 'gateway.yaml');
   child = spawnProcess(process.execPath, [GATEWAY_CLI_PATH, 'start', '-c', GATEWAY_CONFIG_PATH, '-p', String(GATEWAY_PORT)], {
     cwd: DATA_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
-    env: { ...process.env, GATEWAY_DUMP_DIR: dumpDir },
+    env: { ...process.env },
   });
 
   // Pipe gateway stdout/stderr to log file
