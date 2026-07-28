@@ -1,10 +1,10 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1f L354-385)
-// Pure presentational view for the 1f 审批队列 screen (render-testable without the tRPC / router
-// providers). The FIRST pending card (or whichever id is expanded) renders expanded with the inline
-// 批准 / 拒绝并反馈 decision; the rest render collapsed as `点开看 diff ›` rows that, when tapped, swap
-// which card is expanded. Real data throughout — the scheme's `APR-0007` / quad-nav are mocks; the
-// `$12.40 / 日预算` estimate has no DTO field so we render the real reason/impact/command text and
-// never fabricate `$` numbers.
+// input:  React, mobile UI kit, mobile approval view model
+// output: MApprovalsView and approval presentation types
+// pos:    Mobile approval queue presentational view
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3
+// The first pending card renders expanded with reject / approve actions; remaining cards collapse.
+// Real data fills reason, impact, command, and provenance without fabricated estimates.
 import { type ReactNode } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MC, MONO } from '@/mobile/ui/kit';
 import type { MApprovalsVm, MApprovalCard } from './m-approvals-vm';
@@ -195,13 +195,13 @@ function ExpandedCard({
           {copy.paused}
         </div>
       </div>
-      {/* decision buttons (scheme L372-375) */}
+      {/* decision buttons follow the desktop order: reject, then approve */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 14px 14px' }}>
-        <DecisionButton kind="ink" busy={busy} onClick={() => onApprove(card.id)}>
-          {copy.approve}
-        </DecisionButton>
         <DecisionButton kind="outline" busy={busy} onClick={() => onReject(card.id)}>
           {copy.reject}
+        </DecisionButton>
+        <DecisionButton kind="ink" busy={busy} onClick={() => onApprove(card.id)}>
+          {copy.approve}
         </DecisionButton>
       </div>
     </MCard>

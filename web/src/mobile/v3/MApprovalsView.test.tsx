@@ -1,3 +1,7 @@
+// input:  Vitest, React SSR, mobile approval view and VM
+// output: Mobile approval view regression coverage
+// pos:    Mobile approval queue render tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
@@ -70,6 +74,15 @@ describe('MApprovalsView', () => {
     expect(html).toContain('批准');
     expect(html).toContain('拒绝并反馈');
     expect(html).toContain('12 分钟'); // real relative queued time
+  });
+
+  it('matches the desktop decision order: reject first, approve second', () => {
+    const html = render([apr({})]);
+    const rejectButton = html.indexOf('>拒绝并反馈</button>');
+    const approveButton = html.indexOf('>批准</button>');
+    expect(rejectButton).toBeGreaterThan(-1);
+    expect(approveButton).toBeGreaterThan(-1);
+    expect(rejectButton).toBeLessThan(approveButton);
   });
 
   it('shows a real command mono block when present (no fabricated $ estimate)', () => {
