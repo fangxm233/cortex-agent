@@ -4,6 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ThreadDetail } from '@cortex-agent/ui-contract';
+import type { ToolCallOverflowLayout } from '@/features/workbench/tool-call-overflow';
 
 function hhmm(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -93,7 +94,13 @@ export interface ToolChips {
   overflow: number;
 }
 
-/** First two tool names + overflow count for the collapsed tool-calls row (scheme L2950). */
-export function toolChips(calls: { kind: string; input: string }[]): ToolChips {
-  return { names: calls.slice(0, 2).map((c) => c.kind), overflow: Math.max(0, calls.length - 2) };
+/** Width-derived visible tool names + overflow count for the collapsed tool-calls row. */
+export function toolChips(
+  calls: { kind: string; input: string }[],
+  layout: ToolCallOverflowLayout,
+): ToolChips {
+  return {
+    names: calls.slice(0, layout.visibleCount).map((call) => call.kind),
+    overflow: layout.hiddenCount,
+  };
 }

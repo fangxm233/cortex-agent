@@ -4,6 +4,7 @@
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer
 // meta row places the context bottom sheet trigger and Compact action beside the profile selector.
+// Collapsed tool calls share Desktop width measurement and end hidden items with numeric +N.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
 // carry live state rather than history, and both are drawn the way the desktop chat draws
@@ -23,6 +24,7 @@ import {
   type ContextCompactAction,
 } from '@/features/workbench/ContextUsageControl';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
+import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { regenNoteIndexes, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
@@ -497,52 +499,82 @@ function AttachmentGroup({ attachments, side = 'right' }: { attachments: Attachm
 }
 
 // ── collapsed/expandable tool-call row (scheme 1b L146; tap to expand) ─────────
-function ToolCallsRow({
-  count,
-  calls,
-  unit,
-}: {
+const MOBILE_TOOL_GAP = 6;
+const mobileToolChipStyle = {
+  font: `400 10px ${MONO}`, background: 'var(--proto-card)',
+  border: '1px solid var(--proto-line-2)', padding: '1px 6px', borderRadius: 4, flex: 'none',
+} as const;
+const mobileToolStripStyle = {
+  display: 'flex', alignItems: 'center', gap: MOBILE_TOOL_GAP,
+  flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative',
+} as const;
+const mobileToolMeasureStyle = {
+  ...mobileToolStripStyle,
+  position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
+  width: 'max-content', overflow: 'visible',
+} as const;
+
+function MobileToolChip({ name }: { name: string }): JSX.Element {
+  return <span style={mobileToolChipStyle}>{name}</span>;
+}
+
+function CollapsedToolCalls({ count, calls, unit, onExpand }: {
+  count: number;
+  calls: { kind: string; input: string }[];
+  unit: string;
+  onExpand: () => void;
+}): JSX.Element {
+  const labels = calls.map((call) => call.kind);
+  const { containerRef, measureRef, layout } = useToolCallOverflow(labels, MOBILE_TOOL_GAP);
+  const chips = toolChips(calls, layout);
+  return (
+    <div onClick={onExpand} style={{ display: 'flex', alignItems: 'center', gap: MOBILE_TOOL_GAP, fontSize: 11, color: 'var(--proto-muted-3)', flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden', cursor: 'pointer' }}>
+      <span style={{ fontSize: 8.5, flex: 'none' }}>▸</span>
+      <span style={{ flex: 'none' }}>{count} {unit}</span>
+      <span ref={containerRef} style={mobileToolStripStyle}>
+        {chips.names.map((name, index) => <MobileToolChip key={index} name={name} />)}
+        {chips.overflow > 0 ? <span style={{ flex: 'none' }}>+{chips.overflow}</span> : null}
+        <span ref={measureRef} aria-hidden="true" style={mobileToolMeasureStyle}>
+          {labels.map((name, index) => <MobileToolChip key={index} name={name} />)}
+          <span style={{ flex: 'none' }}>+{calls.length}</span>
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function ExpandedToolCalls({ count, calls, unit, onCollapse }: {
+  count: number;
+  calls: { kind: string; input: string }[];
+  unit: string;
+  onCollapse: () => void;
+}): JSX.Element {
+  return (
+    <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8, overflow: 'hidden' }}>
+      <div onClick={onCollapse} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--proto-muted-3)', padding: '6px 11px', cursor: 'pointer' }}>
+        <span style={{ fontSize: 8.5 }}>▾</span>
+        <span>{count} {unit}</span>
+      </div>
+      {calls.map((call, index) => (
+        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5.5px 11px', borderTop: '1px solid var(--proto-line-soft)' }}>
+          <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>{call.kind}</span>
+          <span style={{ font: `400 10.5px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{call.input}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ToolCallsRow({ count, calls, unit }: {
   count: number;
   calls: { kind: string; input: string }[];
   unit: string;
 }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
-  const chips = toolChips(calls);
   if (!expanded) {
-    return (
-      <div
-        onClick={() => setExpanded(true)}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--proto-muted-3)', flexWrap: 'wrap', cursor: 'pointer' }}
-      >
-        <span style={{ fontSize: 8.5 }}>▸</span>
-        <span>
-          {count} {unit}
-        </span>
-        {chips.names.map((name, i) => (
-          <span key={i} style={{ font: `400 10px ${MONO}`, background: 'var(--proto-card)', border: '1px solid var(--proto-line-2)', padding: '1px 6px', borderRadius: 4 }}>
-            {name}
-          </span>
-        ))}
-        {chips.overflow > 0 && <span>+{chips.overflow}</span>}
-      </div>
-    );
+    return <CollapsedToolCalls count={count} calls={calls} unit={unit} onExpand={() => setExpanded(true)} />;
   }
-  return (
-    <div style={{ background: 'var(--proto-rail)', border: '1px solid var(--proto-line-2)', borderRadius: 8, overflow: 'hidden' }}>
-      <div onClick={() => setExpanded(false)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--proto-muted-3)', padding: '6px 11px', cursor: 'pointer' }}>
-        <span style={{ fontSize: 8.5 }}>▾</span>
-        <span>
-          {count} {unit}
-        </span>
-      </div>
-      {calls.map((c, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5.5px 11px', borderTop: '1px solid var(--proto-line-soft)' }}>
-          <span style={{ font: `600 9px ${MONO}`, color: 'var(--proto-muted)', background: 'var(--proto-gray)', padding: '1.5px 7px', borderRadius: 5, flex: 'none' }}>{c.kind}</span>
-          <span style={{ font: `400 10.5px ${MONO}`, color: MC.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{c.input}</span>
-        </div>
-      ))}
-    </div>
-  );
+  return <ExpandedToolCalls count={count} calls={calls} unit={unit} onCollapse={() => setExpanded(false)} />;
 }
 
 // ── the message stream (reuses ChatMarkdown; renders attachments above/below bubbles) ──

@@ -3,15 +3,12 @@
 // pos:    desktop workbench tool-call presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react';
+import { useState, type CSSProperties, type MouseEvent } from 'react';
 import { useVocab } from '@/i18n';
 import type { ToolCall } from './chat-content';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
-import {
-  toolCallOverflowLayout,
-  toolCallOverflowText,
-  type ToolCallOverflowLayout,
-} from './tool-call-overflow';
+import { toolCallOverflowText } from './tool-call-overflow';
+import { useToolCallOverflow } from './useToolCallOverflow';
 
 const mono = "'IBM Plex Mono',monospace";
 const COLLAPSED_GAP = 7;
@@ -85,50 +82,6 @@ function collapsedRowStyle(hover: boolean): CSSProperties {
   };
 }
 
-function measuredWidths(measure: HTMLSpanElement, count: number): { chipWidths: number[]; overflowWidth: number } {
-  const children = Array.from(measure.children) as HTMLElement[];
-  return {
-    chipWidths: children.slice(0, count).map((child) => child.getBoundingClientRect().width),
-    overflowWidth: children[count]?.getBoundingClientRect().width ?? 0,
-  };
-}
-
-function sameLayout(left: ToolCallOverflowLayout, right: ToolCallOverflowLayout): boolean {
-  return left.visibleCount === right.visibleCount && left.hiddenCount === right.hiddenCount;
-}
-
-function observeToolCallWidth(container: HTMLSpanElement, recalculate: () => void): () => void {
-  let active = true;
-  const guardedRecalculate = (): void => { if (active) recalculate(); };
-  guardedRecalculate();
-  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(guardedRecalculate);
-  observer?.observe(container);
-  void document.fonts?.ready.then(guardedRecalculate);
-  return () => { active = false; observer?.disconnect(); };
-}
-
-function useToolCallOverflow(calls: ToolCall[]): {
-  containerRef: RefObject<HTMLSpanElement>;
-  measureRef: RefObject<HTMLSpanElement>;
-  layout: ToolCallOverflowLayout;
-} {
-  const containerRef = useRef<HTMLSpanElement>(null);
-  const measureRef = useRef<HTMLSpanElement>(null);
-  const [layout, setLayout] = useState<ToolCallOverflowLayout>({ visibleCount: calls.length, hiddenCount: 0 });
-  const labels = calls.map((call) => call.label).join('\0');
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const measure = measureRef.current;
-    if (!container || !measure) return;
-    return observeToolCallWidth(container, () => {
-      const widths = measuredWidths(measure, calls.length);
-      const next = toolCallOverflowLayout({ availableWidth: container.clientWidth, ...widths, gap: COLLAPSED_GAP });
-      setLayout((current) => sameLayout(current, next) ? current : next);
-    });
-  }, [calls.length, labels]);
-  return { containerRef, measureRef, layout };
-}
-
 function expandedBoxStyle(hover: boolean): CSSProperties {
   return {
     background: 'var(--proto-rail)',
@@ -152,7 +105,7 @@ function CollapsedToolCalls({ calls, text, hover, onExpand, onHover }: {
   onExpand: () => void;
   onHover: (hovered: boolean) => void;
 }): JSX.Element {
-  const { containerRef, measureRef, layout } = useToolCallOverflow(calls);
+  const { containerRef, measureRef, layout } = useToolCallOverflow(calls.map((call) => call.label), COLLAPSED_GAP);
   const overflowText = toolCallOverflowText(layout.hiddenCount);
   return (
     <div style={{ margin: '-8px 0' }}>

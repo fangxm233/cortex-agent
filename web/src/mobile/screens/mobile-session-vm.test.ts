@@ -130,17 +130,30 @@ describe('buildMobileStepper', () => {
 });
 
 describe('toolChips', () => {
-  it('shows the first two tool names + overflow count', () => {
-    const chips = toolChips([
-      { kind: 'read', input: 'a' },
-      { kind: 'threads.status', input: 'b' },
-      { kind: 'grep', input: 'c' },
-      { kind: 'edit', input: 'd' },
-    ]);
-    expect(chips.names).toEqual(['read', 'threads.status']);
-    expect(chips.overflow).toBe(2);
+  const calls = [
+    { kind: 'read', input: 'a' },
+    { kind: 'threads.status', input: 'b' },
+    { kind: 'grep', input: 'c' },
+    { kind: 'edit', input: 'd' },
+  ];
+
+  it('uses the width-derived visible prefix instead of a fixed two-chip cap', () => {
+    const chips = toolChips(calls, { visibleCount: 3, hiddenCount: 1 });
+    expect(chips.names).toEqual(['read', 'threads.status', 'grep']);
+    expect(chips.overflow).toBe(1);
   });
-  it('no overflow when ≤ 2 calls', () => {
-    expect(toolChips([{ kind: 'read', input: 'a' }]).overflow).toBe(0);
+
+  it('can show fewer chips on a narrower row', () => {
+    expect(toolChips(calls, { visibleCount: 1, hiddenCount: 3 })).toEqual({
+      names: ['read'],
+      overflow: 3,
+    });
+  });
+
+  it('returns every name when the row fits', () => {
+    expect(toolChips(calls, { visibleCount: 4, hiddenCount: 0 })).toEqual({
+      names: ['read', 'threads.status', 'grep', 'edit'],
+      overflow: 0,
+    });
   });
 });
