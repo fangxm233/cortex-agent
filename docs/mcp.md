@@ -80,8 +80,8 @@ Tool registrars remain in `agent-server/src/domain/mcp/tools/`.
 ### cortex-ext
 
 Exposes Cortex management tools: scheduling, cost queries, and context
-resolution. Claude and Codex load it only for direct/user sessions; the PI
-bridge retains its existing behavior of loading cortex-ext in all sessions.
+resolution. Claude loads it only for direct/user sessions; the PI bridge
+retains its existing behavior of loading cortex-ext in all sessions.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -200,10 +200,8 @@ context:
 
 The thread branch is marked by `session.cortexContext.useCoreMcp`. In the PI
 bridge, core, tasks, and ext are always connected; `shouldLoadThreadControl()`
-adds cortex-thread only when `CORTEX_THREAD_ID` is present. Codex generates the
-same privilege composition in its per-route TOML: direct = core + tasks + ext,
-thread = core + tasks + thread. Platform-specific servers remain gated by
-their source-channel predicates.
+adds cortex-thread only when `CORTEX_THREAD_ID` is present. Platform-specific
+servers remain gated by their source-channel predicates.
 
 ## How MCP tools communicate with agent-server
 
@@ -261,8 +259,8 @@ internals and remote machines. Cortex applies the following controls:
 1. **Server-level availability** — MCP privileges are separated by server
    because backend tool allowlists do not filter individual MCP tools. Direct
    sessions never receive cortex-thread; thread sessions add it only when they
-   carry thread context. Claude and Codex also exclude ext from thread sessions,
-   while PI retains its existing always-on ext behavior.
+   carry thread context. Claude excludes ext from thread sessions, while PI
+   retains its existing always-on ext behavior.
 
 2. **Claude Code's third-party MCP is disabled** — the setting
    `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`
