@@ -1,5 +1,5 @@
 // input:  Mobile chat components, notice rows, view models, server renderer
-// output: Mobile chat chrome, context, notice, and interaction regressions
+// output: Mobile chat chrome, context sheet, and interaction regressions
 // pos:    Verifies the mobile session-chat presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -73,6 +73,9 @@ const baseProps = {
   sendEnabled: false,
   profileChipLabel: 'default · sonnet-4.5',
   onOpenProfile: () => {},
+  contextUsageOpen: false,
+  onContextUsageOpen: () => {},
+  onContextUsageClose: () => {},
   attachments: [] as PendingAttachmentVM[],
   onRemoveAttachment: () => {},
   onPlus: () => {},
@@ -406,9 +409,36 @@ describe('1b MChatView composition', () => {
     expect(html.indexOf('default · sonnet-4.5')).toBeLessThan(html.indexOf('data-context-usage-position="composer-profile"'));
     expect(html).not.toContain('data-context-usage-position="header"');
     expect(html).toContain('data-context-usage-bar="mobile"');
+    expect(html).toContain('data-context-usage-presentation="sheet-trigger"');
     expect(html).toContain('data-context-compact-enabled="true"');
     expect(html).toContain('>30%</span>');
+    expect(html).not.toContain('aria-haspopup="dialog"');
     expect(html).not.toContain('60k / 200k');
+  });
+
+  it('opens context details and Compact in a profile-style mobile bottom sheet', () => {
+    const html = renderToStaticMarkup(
+      <MChatView
+        {...baseProps}
+        status={{ running: false, tone: 'idle', text: 'idle' }}
+        rows={[]}
+        contextUsageSupported
+        contextUsage={usage}
+        contextUsageLang="zh"
+        contextUsageOpen
+        contextCompactAction={{
+          onCompact: () => {}, pending: false, disabled: false,
+          status: null, error: null, disabledReason: null,
+        }}
+      />,
+    );
+    expect(html).toContain('data-mobile-context-usage-sheet="true"');
+    expect(html).toContain('上下文用量');
+    expect(html).toContain('当前上下文');
+    expect(html).toContain('60,000 tokens');
+    expect(html).toContain('200,000 tokens');
+    expect(html).toContain('data-context-compact-action');
+    expect(html).not.toContain('aria-modal="true"');
   });
 
   it('renders header + composer with the profile chip and the ＋ attach affordance', () => {

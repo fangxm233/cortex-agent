@@ -1,6 +1,6 @@
-// input:  context snapshot, manual compact action, modal/surface
-// output: shared context modal with Compact/压缩 action
-// pos:    Shared desktop/mobile context usage control
+// input:  context snapshot, compact action, modal/surface
+// output: shared context bar/details and desktop context modal
+// pos:    Cross-surface context usage presentation primitives
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { forwardRef, type ButtonHTMLAttributes, type CSSProperties } from 'react';
@@ -47,24 +47,25 @@ export interface ContextCompactAction {
 export interface ContextUsageControlProps {
   usage: SessionContextUsage | null;
   supported: boolean;
-  variant: ContextSurface;
+  variant: 'desktop';
   lang: ContextLanguage;
   compactAction?: ContextCompactAction;
 }
 
+export function contextUsageTitle(lang: ContextLanguage): string {
+  return COPY[lang].title;
+}
+
 export function ContextUsageControl({ usage, supported, variant, lang, compactAction }: ContextUsageControlProps): JSX.Element | null {
   if (!supported && usage === null) return null;
-  const copy = COPY[lang];
-  const vm = contextUsageViewModel(usage);
   return (
     <Modal
-      title={copy.title}
+      title={contextUsageTitle(lang)}
       trigger={(
-        <ContextUsageTrigger
+        <ContextUsageBar
+          usage={usage}
           variant={variant}
-          percent={vm.percentLabel}
-          progress={vm.progress}
-          label={copy.usage}
+          lang={lang}
           data-context-compact-enabled={compactAction ? 'true' : undefined}
         />
       )}
@@ -75,34 +76,35 @@ export function ContextUsageControl({ usage, supported, variant, lang, compactAc
   );
 }
 
-interface ContextUsageTriggerProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+export interface ContextUsageBarProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
+  usage: SessionContextUsage | null;
   variant: ContextSurface;
-  percent: string;
-  progress: number | null;
-  label: string;
+  lang: ContextLanguage;
 }
 
 const TRIGGER_STYLE: CSSProperties = { border: 0, background: 'transparent', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--proto-muted)', cursor: 'pointer', flex: 'none' };
 const PERCENT_STYLE: CSSProperties = { minWidth: 26, font: "600 10px 'IBM Plex Mono', ui-monospace, Menlo, monospace", color: 'var(--proto-muted)', textAlign: 'right', whiteSpace: 'nowrap' };
 
-const ContextUsageTrigger = forwardRef<HTMLButtonElement, ContextUsageTriggerProps>(function ContextUsageTrigger(
-  { variant, percent, progress, label, style, ...buttonProps },
+export const ContextUsageBar = forwardRef<HTMLButtonElement, ContextUsageBarProps>(function ContextUsageBar(
+  { usage, variant, lang, style, ...buttonProps },
   ref,
 ): JSX.Element {
+  const copy = COPY[lang];
+  const vm = contextUsageViewModel(usage);
   return (
-    <button {...buttonProps} ref={ref} type="button" data-context-usage-bar={variant} aria-label={`${label}: ${percent}`} style={{ ...TRIGGER_STYLE, ...style }}>
+    <button {...buttonProps} ref={ref} type="button" data-context-usage-bar={variant} data-context-usage-presentation={variant === 'mobile' ? 'sheet-trigger' : 'modal-trigger'} aria-label={`${copy.usage}: ${vm.percentLabel}`} style={{ ...TRIGGER_STYLE, ...style }}>
       <span
         data-context-usage-track={variant}
         role="progressbar"
-        aria-label={label}
+        aria-label={copy.usage}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={progress ?? undefined}
+        aria-valuenow={vm.progress ?? undefined}
         style={{ display: 'block', width: variant === 'desktop' ? 64 : 48, height: 4, borderRadius: 999, background: 'var(--proto-line-3)', overflow: 'hidden' }}
       >
-        <span style={{ display: 'block', height: '100%', width: `${progress ?? 0}%`, borderRadius: 999, background: 'var(--proto-accent)' }} />
+        <span style={{ display: 'block', height: '100%', width: `${vm.progress ?? 0}%`, borderRadius: 999, background: 'var(--proto-accent)' }} />
       </span>
-      <span style={PERCENT_STYLE}>{percent}</span>
+      <span style={PERCENT_STYLE}>{vm.percentLabel}</span>
     </button>
   );
 });

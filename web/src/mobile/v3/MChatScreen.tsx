@@ -1,5 +1,5 @@
 // input:  mobile session/context queries, chat/compact hooks, mutations
-// output: MChatScreen live conversation with context controls
+// output: MChatScreen live chat with mobile context-sheet state
 // pos:    Mobile session detail state and data orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -391,6 +391,7 @@ export function MChatScreen(): JSX.Element {
   const preEditText = useRef('');
   const [attachMenuOpen, setAttachMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [contextUsageOpen, setContextUsageOpen] = useState(false);
   const [systemLines, setSystemLines] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftUploadId = useRef<string | null>(null);
@@ -705,6 +706,9 @@ export function MChatScreen(): JSX.Element {
         contextUsageSupported={!!active?.contextCompactionSupported}
         contextUsageLang={lang}
         contextCompactAction={active?.contextCompactionSupported ? compactAction : undefined}
+        contextUsageOpen={contextUsageOpen}
+        onContextUsageOpen={() => setContextUsageOpen(true)}
+        onContextUsageClose={() => setContextUsageOpen(false)}
         attachments={attachmentsVM}
         onRemoveAttachment={(id) => setUploads((prev) => {
           const gone = prev.find((u) => u.id === id);

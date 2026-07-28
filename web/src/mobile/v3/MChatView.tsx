@@ -3,7 +3,7 @@
 // design §8.3 — the mobile palette is not in the light `proto.*` token set. Pure + presentational:
 // every field is a prop, no tRPC. The container (MChatScreen) owns data + mutations + live sync.
 // Interaction cards (6a plan / 5b ask / 4a-c sealed) live in MInteractionCards. The composer
-// meta row places the context modal and manual compact action beside the profile selector.
+// meta row places the context bottom sheet trigger and Compact action beside the profile selector.
 //
 // Live rows and semantic notices are drawn the same way as their desktop counterparts. Two rows
 // carry live state rather than history, and both are drawn the way the desktop chat draws
@@ -15,7 +15,13 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
-import { ContextUsageControl, type ContextCompactAction } from '@/features/workbench/ContextUsageControl';
+import {
+  ContextCompactFooter,
+  ContextUsageBar,
+  ContextUsageDetails,
+  contextUsageTitle,
+  type ContextCompactAction,
+} from '@/features/workbench/ContextUsageControl';
 import { useRevealedText } from '@/features/workbench/useRevealedText';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
 import { regenNoteIndexes, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
@@ -856,6 +862,37 @@ function ComposerChip({ a, onRemove }: { a: PendingAttachmentVM; onRemove: () =>
   );
 }
 
+// ── Context usage bottom sheet ────────────────────────────────────────────────
+export function ContextUsageSheet({
+  usage,
+  lang,
+  compactAction,
+  onClose,
+}: {
+  usage: SessionContextUsage | null;
+  lang: 'en' | 'zh';
+  compactAction?: ContextCompactAction;
+  onClose: () => void;
+}): JSX.Element {
+  return (
+    <MBottomSheet onClose={onClose}>
+      <div data-mobile-context-usage-sheet="true">
+        <div style={{ fontSize: 17, fontWeight: 700, color: MC.ink, letterSpacing: '-.01em', padding: '0 2px 10px' }}>
+          {contextUsageTitle(lang)}
+        </div>
+        <div style={{ background: 'var(--proto-card)', border: `1px solid ${MC.hairline}`, borderRadius: 13, padding: '12px 13px' }}>
+          <ContextUsageDetails usage={usage} lang={lang} />
+        </div>
+        {compactAction ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 2px 0' }}>
+            <ContextCompactFooter action={compactAction} lang={lang} />
+          </div>
+        ) : null}
+      </div>
+    </MBottomSheet>
+  );
+}
+
 // ── 1p Profile bottom sheet (scheme L821-845) ─────────────────────────────────
 export function ProfileSheet({ items, copy, onClose, onPick }: { items: ProfileSheetItem[]; copy: MChatCopy; onClose: () => void; onPick: (name: string) => void }): JSX.Element {
   return (
@@ -968,6 +1005,9 @@ export interface MChatViewProps {
   contextUsageSupported?: boolean;
   contextUsageLang?: 'en' | 'zh';
   contextCompactAction?: ContextCompactAction;
+  contextUsageOpen: boolean;
+  onContextUsageOpen: () => void;
+  onContextUsageClose: () => void;
   attachments: PendingAttachmentVM[];
   onRemoveAttachment: (id: string) => void;
   onPlus: () => void;
@@ -1069,12 +1109,12 @@ export function MChatView(props: MChatViewProps): JSX.Element {
         <ProfileChip label={props.profileChipLabel} onClick={props.onOpenProfile} />
         {(props.contextUsageSupported || props.contextUsage != null) ? (
           <span data-context-usage-position="composer-profile" style={{ marginLeft: 'auto', display: 'inline-flex', flex: 'none' }}>
-            <ContextUsageControl
+            <ContextUsageBar
               usage={props.contextUsage ?? null}
-              supported={!!props.contextUsageSupported}
               variant="mobile"
               lang={props.contextUsageLang ?? 'en'}
-              compactAction={props.contextCompactAction}
+              onClick={props.onContextUsageOpen}
+              data-context-compact-enabled={props.contextCompactAction ? 'true' : undefined}
             />
           </span>
         ) : null}
@@ -1171,6 +1211,14 @@ export function MChatView(props: MChatViewProps): JSX.Element {
       {props.profileSheet && (
         <ProfileSheet items={props.profileSheet.items} copy={copy} onClose={props.profileSheet.onClose} onPick={props.profileSheet.onPick} />
       )}
+      {props.contextUsageOpen && (props.contextUsageSupported || props.contextUsage != null) ? (
+        <ContextUsageSheet
+          usage={props.contextUsage ?? null}
+          lang={props.contextUsageLang ?? 'en'}
+          compactAction={props.contextCompactAction}
+          onClose={props.onContextUsageClose}
+        />
+      ) : null}
     </div>
   );
 }

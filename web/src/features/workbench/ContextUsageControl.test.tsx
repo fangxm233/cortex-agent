@@ -1,5 +1,5 @@
-// input:  context usage modal and manual compact action states
-// output: context modal and Compact/压缩 action label regressions
+// input:  context bar/modal and manual compact action states
+// output: shared bar, desktop modal, and compact action regressions
 // pos:    Shared context usage presentation contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   ContextCompactFooter,
+  ContextUsageBar,
   ContextUsageControl,
   ContextUsageDetails,
   type ContextCompactAction,
@@ -38,14 +39,16 @@ describe('ContextUsageControl', () => {
     expect(html).not.toContain('border:1px solid var(--proto-line-3)');
   });
 
-  it('renders an empty short mobile track without unavailable copy and hides unsupported empty sessions', () => {
+  it('renders an empty mobile bar as a direct sheet trigger and hides unsupported empty sessions', () => {
     const pi = renderToStaticMarkup(
-      <ContextUsageControl usage={null} supported variant="mobile" lang="zh" />,
+      <ContextUsageBar usage={null} variant="mobile" lang="zh" />,
     );
     expect(pi).toContain('data-context-usage-bar="mobile"');
     expect(pi).toContain('data-context-usage-track="mobile"');
+    expect(pi).toContain('data-context-usage-presentation="sheet-trigger"');
     expect(pi).toContain('width:48px');
     expect(pi).toContain('>—</span>');
+    expect(pi).not.toContain('aria-haspopup="dialog"');
     expect(pi).not.toContain('暂不可用');
     expect(pi).not.toContain('— / —');
 
