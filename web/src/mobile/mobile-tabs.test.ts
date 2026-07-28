@@ -1,23 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MOBILE_TABS, activeTabId, isTabRoute, tabBadge } from './mobile-tabs';
-
-describe('MOBILE_TABS (v3)', () => {
-  it('is the 4 bottom tabs in scheme order: sessions / threads / tasks / project', () => {
-    expect(MOBILE_TABS.map((t) => t.id)).toEqual(['sessions', 'threads', 'tasks', 'project']);
-  });
-
-  it('every tab has an /m-namespaced path and a vocab label key', () => {
-    for (const t of MOBILE_TABS) {
-      expect(t.path.startsWith('/m/')).toBe(true);
-      expect(typeof t.labelKey).toBe('string');
-      expect(t.labelKey.length).toBeGreaterThan(0);
-    }
-  });
-
-  it('the label key matches the tab id (会话/线程/任务/项目 come from useVocab)', () => {
-    expect(MOBILE_TABS.map((t) => t.labelKey)).toEqual(['sessions', 'threads', 'tasks', 'project']);
-  });
-});
+import { activeTabId, isTabRoute, tabBadge } from './mobile-tabs';
 
 describe('activeTabId (v3)', () => {
   it('resolves each tab path to its own id', () => {

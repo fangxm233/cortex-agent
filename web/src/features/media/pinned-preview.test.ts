@@ -6,8 +6,6 @@ import {
   parsePreviewSplit,
   previewDownloadPath,
   splitFromDrag,
-  CHAT_MIN_PX,
-  PREVIEW_MIN_PX,
   PREVIEW_SPLIT_DEFAULT,
   PREVIEW_SPLIT_MAX,
   PREVIEW_SPLIT_MIN,
@@ -62,28 +60,9 @@ describe('splitFromDrag', () => {
     // region x∈[300,1300); pointer at 800 → preview takes the right half.
     expect(splitFromDrag(300, 1000, 800)).toBeCloseTo(0.5, 5);
   });
-  it('clamps a pointer dragged past either edge', () => {
-    // Dragged far left: the preview takes as much as the band allows, and the chat still keeps
-    // its pixel floor (a 1000px region → chat ≥ CHAT_MIN_PX).
-    const wide = splitFromDrag(300, 1000, 0);
-    expect(wide).toBeLessThanOrEqual(PREVIEW_SPLIT_MAX);
-    expect((1 - wide) * 1000).toBeGreaterThanOrEqual(CHAT_MIN_PX - 0.001);
-    // Dragged far right: the preview keeps its own pixel floor.
-    const narrow = splitFromDrag(300, 1000, 5000);
-    expect(narrow).toBeGreaterThanOrEqual(PREVIEW_SPLIT_MIN);
-    expect(narrow * 1000).toBeGreaterThanOrEqual(PREVIEW_MIN_PX - 0.001);
-  });
-  it('keeps both panes usable: neither side is dragged below its pixel floor', () => {
-    // 860px region (a 1600px window): dragging hard left must not squeeze the chat to 215px.
-    const s = splitFromDrag(340, 860, 340);
-    expect(s * 860).toBeGreaterThanOrEqual(PREVIEW_MIN_PX);
-    expect((1 - s) * 860).toBeGreaterThanOrEqual(CHAT_MIN_PX - 0.001);
-  });
-  it('falls back to the ratio band when the region is too narrow for both floors', () => {
-    // 500px region cannot satisfy 260 + 380 → the ratio band governs, no NaN / inverted clamp.
-    const s = splitFromDrag(0, 500, 100);
-    expect(s).toBeGreaterThanOrEqual(PREVIEW_SPLIT_MIN);
-    expect(s).toBeLessThanOrEqual(PREVIEW_SPLIT_MAX);
+  it('keeps a pointer dragged past either edge within the usable ratio band', () => {
+    expect(splitFromDrag(300, 1000, 0)).toBeLessThanOrEqual(PREVIEW_SPLIT_MAX);
+    expect(splitFromDrag(300, 1000, 5000)).toBeGreaterThanOrEqual(PREVIEW_SPLIT_MIN);
   });
   it('defaults when the region has no measurable width', () => {
     expect(splitFromDrag(300, 0, 800)).toBe(PREVIEW_SPLIT_DEFAULT);

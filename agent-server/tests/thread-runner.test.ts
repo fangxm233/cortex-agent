@@ -336,11 +336,6 @@ test('finalizeThread returns null executionId when no steps exist', async () => 
 
 // --- Re-exports delegate to running-executions ---
 
-test('getActiveHandle / cancelActiveThread proxy to runningExecutions', () => {
-  assert.equal(typeof getActiveHandle, 'function');
-  assert.equal(typeof cancelActiveThread, 'function');
-});
-
 test('getActiveHandle returns null for unknown channel (pass-through delegation)', () => {
   const result = getActiveHandle('channel-does-not-exist-' + Math.random());
   assert.equal(result, null);

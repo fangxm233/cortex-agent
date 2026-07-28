@@ -110,10 +110,3 @@ test('(e) threadAddMatch takes precedence over threadStartMatch for thread routi
   assert.equal(threadSpy.calls.length, 1);
   assert.equal(agentSpy.calls.length, 0);
 });
-
-// ── (f) default orchestrator singleton is importable ─────────────────────────
-
-test('(f) orchestrator singleton has a handleMessage method', async () => {
-  const { orchestrator } = await import('../../src/orchestration/orchestrator.js');
-  assert.equal(typeof orchestrator.handleMessage, 'function');
-});

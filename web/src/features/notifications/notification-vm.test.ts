@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AUTO_DISMISS_MS,
   PREVIEW_MAX,
   buildNotification,
   buildSystemNotice,
@@ -98,14 +97,10 @@ describe('buildSystemNotice', () => {
   });
 });
 
-describe('isTransient / AUTO_DISMISS_MS', () => {
+describe('isTransient', () => {
   it('info auto-dismisses; warning and error stay resident', () => {
     expect(isTransient('info')).toBe(true);
     expect(isTransient('warning')).toBe(false);
     expect(isTransient('error')).toBe(false);
-  });
-
-  it('auto-dismiss is 6s per scheme 18a', () => {
-    expect(AUTO_DISMISS_MS).toBe(6000);
   });
 });

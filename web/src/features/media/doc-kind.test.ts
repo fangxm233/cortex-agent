@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { docKindOf, isDocPreviewable, isMarkdownName } from './doc-kind';
+import { docKindOf, isMarkdownName } from './doc-kind';
 
 describe('docKindOf', () => {
   it('classifies PDF by extension and mimeType', () => {
@@ -40,13 +40,6 @@ describe('docKindOf', () => {
   });
 });
 
-describe('isDocPreviewable', () => {
-  it('mirrors docKindOf non-null', () => {
-    expect(isDocPreviewable('a.pdf')).toBe(true);
-    expect(isDocPreviewable('a.md')).toBe(true);
-    expect(isDocPreviewable('a.zip')).toBe(false);
-  });
-});
 
 describe('isMarkdownName', () => {
   it('detects markdown extensions only', () => {

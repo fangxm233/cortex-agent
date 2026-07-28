@@ -15,7 +15,7 @@
 
 ## cortex-run-watcher
 
-CLI entry bundled into `client/dist/cortex-run-watcher.js`. Spawned via `node dist/cortex-run-watcher.js` (not exposed as PATH bin).
+CLI entry bundled into `client/dist/cortex-run-watcher.js`. Spawned via `node dist/cortex-run-watcher.js` (not exposed as PATH bin). Its tests exercise parsing, GPU selection, stall decisions, state/result persistence, process-group termination, launch/cancel, orphan recovery, callbacks, and acknowledgements; redundant export-inventory assertions are omitted.
 
 ### Usage
 

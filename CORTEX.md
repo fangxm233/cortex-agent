@@ -86,7 +86,7 @@ Tests live colocated near source or in `tests/` directories:
 - `agent-server/tests/` — server tests (vitest; `vitest.config.ts` + `vitest.integration.config.ts`)
 - `client/` — client tests (Node built-in runner with `tsx`)
 
-Run server tests: `cd agent-server && npm test`
+Run server tests: `cd agent-server && npm test`. The maintained suite favors runtime behavior, contracts, persistence, concurrency, and error paths over fixed visual values, export inventories, or source-text assertions.
 
 ### When TDD Does Not Apply
 

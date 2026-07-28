@@ -1,6 +1,6 @@
 // input:  lossless user/tool DEBUG detail, localized labels, Modal
-// output: inspector control plus wide, character-counted detail dialog
-// pos:    desktop DEBUG detail presentation; omitted from mobile surfaces
+// output: inspector control and character-counted dialog; chrome stays internal
+// pos:    desktop DEBUG behavior surface; only pure formatting helpers are exported
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { MouseEvent } from 'react';
@@ -16,7 +16,7 @@ export type DebugDetail =
       toolResult?: { content: string; isError: boolean };
     };
 
-export const DEBUG_MODAL_SIZE = 'wide' as const;
+const DEBUG_MODAL_SIZE = 'wide' as const;
 
 export function characterCount(value: string): number {
   return Array.from(value).length;
@@ -51,8 +51,7 @@ function DebugBlock({ label, status, count, children }: {
   );
 }
 
-/** Exported separately so complete-value rendering is testable without a browser portal. */
-export function DebugDetailsContent({ detail }: { detail: DebugDetail }): JSX.Element {
+function DebugDetailsContent({ detail }: { detail: DebugDetail }): JSX.Element {
   const L = useVocab();
   if (detail.kind === 'user') {
     return <DebugBlock label={L.wbDebugAgentMessage} count={characterCount(detail.agentMessage)}>{detail.agentMessage}</DebugBlock>;

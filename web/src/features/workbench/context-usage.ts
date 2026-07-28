@@ -1,6 +1,6 @@
-// input:  persisted/live context snapshots, raw SSE payloads, backend identity
-// output: validated snapshot resolution and context-usage presentation values
-// pos:    Pure shared model for desktop/mobile context usage UI
+// input:  persisted/live context snapshots and raw SSE payloads
+// output: validated snapshot resolution plus usage labels and fractions
+// pos:    shared context model; surfaces own their visibility policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
@@ -37,13 +37,6 @@ export function contextUsageFromLivePayload(payload: unknown): SessionContextUsa
     typeof updatedAt !== 'string'
   ) return null;
   return { usedTokens, contextWindow, percent, accuracy, updatedAt };
-}
-
-export function shouldShowContextUsage(
-  backend: string | null | undefined,
-  usage: SessionContextUsage | null,
-): boolean {
-  return backend === 'pi' || usage !== null;
 }
 
 export function contextUsageViewModel(usage: SessionContextUsage | null): ContextUsageViewModel {

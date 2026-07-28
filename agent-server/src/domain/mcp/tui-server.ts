@@ -1,6 +1,6 @@
-// input:  MCP SDK + tui-plan + tui-ask tool modules + agent-server webhook
-// output: MCP stdio service for TUI-mode Claude — exposes cortex_plan_enter / cortex_plan_exit / cortex_ask_user
-// pos:    DR-0012 Phase 3 — cortex-tui-bridge MCP server, loaded ONLY by Claude TUI sessions
+// input:  MCP SDK, TUI plan/ask registrars, route identity, and webhook transport
+// output: Claude-TUI bridge stdio service assembled from production registrations
+// pos:    DR-0012 bridge loaded only by Claude TUI sessions; no exported name inventory
 // NOTE: "TUI" here refers to Claude CLI's Ink terminal mode (DR-0012), not to the upcoming Cortex TUI.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -71,14 +71,6 @@ const server = new McpServer({ name: 'cortex-tui-bridge', version: CORTEX_VERSIO
 
 registerTuiPlanTools(server, deps);
 registerTuiAskTools(server, deps);
-
-// --- Exported tool name list (for verification) ---
-
-export const TOOL_NAMES: readonly string[] = [
-  'cortex_plan_enter',
-  'cortex_plan_exit',
-  'cortex_ask_user',
-];
 
 // --- Start (called by barrel when run as standalone) ---
 

@@ -66,13 +66,15 @@ function detail(p: Partial<ThreadDetail>): ThreadDetail {
 }
 
 describe('threadPill', () => {
-  it('maps thread statuses to the prototype pill pairs', () => {
-    expect(threadPill('running')).toEqual({ bg: '#EEF0FA', color: '#4655D4', text: 'Running' });
-    expect(threadPill('waiting')).toEqual({ bg: '#F7ECCE', color: '#8A5B06', text: 'Waiting' });
-    expect(threadPill('completed')).toEqual({ bg: '#E9F4EE', color: '#23854F', text: 'Done' });
-    expect(threadPill('failed')).toEqual({ bg: '#FBEDEB', color: '#C03D33', text: 'Failed' });
-    expect(threadPill('cancelled')).toEqual({ bg: '#F1F2F5', color: '#8A93A2', text: 'Cancelled' });
-    expect(threadPill('aborted')).toEqual({ bg: '#F1F2F5', color: '#8A93A2', text: 'Cancelled' });
+  it.each([
+    ['running', 'Running'],
+    ['waiting', 'Waiting'],
+    ['completed', 'Done'],
+    ['failed', 'Failed'],
+    ['cancelled', 'Cancelled'],
+    ['aborted', 'Cancelled'],
+  ] as const)('maps %s to its semantic label', (status, label) => {
+    expect(threadPill(status).text).toBe(label);
   });
 });
 

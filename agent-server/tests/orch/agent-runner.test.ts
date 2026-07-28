@@ -5,7 +5,7 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { AgentRunner, agentRunner, resolveDefaultAgent, emitTurnProgress, persistSessionContextUsage } from '../../src/orchestration/agent-runner.js';
+import { AgentRunner, resolveDefaultAgent, emitTurnProgress, persistSessionContextUsage } from '../../src/orchestration/agent-runner.js';
 import { conduitQueues, enqueue } from '../../src/orchestration/conduit-queue.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import { loadConfig } from '../../src/domain/threads/template-loader.js';
@@ -276,19 +276,5 @@ test('(d) resolveDefaultAgent with no default agent uses activeProfile for profi
   // The message is either the original or prepended with directive
   assert.ok(result.effectiveMessage.includes('my task'));
   assert.equal(result.defaultAgentName === null || typeof result.defaultAgentName === 'string', true);
-});
-
-// ── (e) agentRunner singleton exists and has route method ────────────────────
-
-test('(e) agentRunner singleton is an AgentRunner with a route method', () => {
-  assert.ok(agentRunner instanceof AgentRunner);
-  assert.equal(typeof agentRunner.route, 'function');
-});
-
-// ── (f) AgentRunner default constructor uses real enqueue + trackPendingTask ──
-
-test('(f) AgentRunner constructed with no opts uses module-level defaults', () => {
-  const runner = new AgentRunner();
-  assert.equal(runner._enqueue, enqueue, 'defaults to module-level enqueue');
 });
 

@@ -1,10 +1,14 @@
+// input:  modal visibility, project mutation, and localized copy
+// output: desktop new-project creation modal
+// pos:    Workbench project-creation surface
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import {
   canCreate,
-  createBg,
   createErrorMessage,
   NP_BREADCRUMB,
   NP_PLACEHOLDER,
@@ -196,7 +200,7 @@ export function NewProjectModal({ onClose }: { onClose: () => void }): JSX.Eleme
               borderRadius: 8,
               padding: '7px 15px',
               color: 'var(--ink-solid-fg)',
-              background: createBg(name),
+              background: creatable ? '#4655D4' : '#C9CFF2',
               cursor: creatable && !create.isPending ? 'pointer' : 'default',
             }}
           >

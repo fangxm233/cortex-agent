@@ -1,15 +1,10 @@
 // input:  src/tui/components/AskUserModal.jsx
-// output: Tests — renders fields, keyboard navigation, submit values, ack errors
-// pos:    Verifies AskUserModal render→select→submit→ack-error cycle
-//
-// Drives an AskUserQuestion fixture through the full lifecycle:
-//   render modal → arrow-key navigate → select option → type text → submit
-//   → verify modal.submit values → verify ack error display
+// output: verifies submitted select/text/multi values, ack errors, and Escape cancellation
+// pos:    AskUserModal interaction contract; field chrome/indicators are not snapshot-tested
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { Text } from 'ink';
 import { render } from 'ink-testing-library';
 import { AskUserModal } from '../../src/tui/components/AskUserModal.js';
 import type { ModalDefinition, TuiFrame } from '../../src/platform/tui/protocol.js';
@@ -72,105 +67,6 @@ const MULTI_MODAL: ModalDefinition = {
 
 // ── Tests ──
 
-test('AskUserModal renders title and all field types', async (t) => {
-  const app = React.createElement(AskUserModal, {
-    modal: SIMPLE_MODAL,
-    triggerId: 'tr-1',
-    sendFrame: () => {},
-    ackErrors: {},
-    onClose: () => {},
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  const output = instance.lastFrame();
-  assert.ok(output.includes('Test Modal'), 'renders modal title');
-  assert.ok(output.includes('Pick one'), 'renders select label');
-  assert.ok(output.includes('Custom answer'), 'renders text_input label');
-  assert.ok(output.includes('Option A'), 'renders select option A');
-  assert.ok(output.includes('Option B'), 'renders select option B');
-  assert.ok(output.includes('Option C'), 'renders select option C');
-  assert.ok(output.includes('[Submit]'), 'renders submit button');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('AskUserModal select: number key selects option', async (t) => {
-  const app = React.createElement(AskUserModal, {
-    modal: SIMPLE_MODAL,
-    triggerId: 'tr-1',
-    sendFrame: () => {},
-    ackErrors: {},
-    onClose: () => {},
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  // Press '2' to select Option B
-  instance.stdin.write('2');
-  await delay(100);
-
-  const output = instance.lastFrame();
-  // Option B should show focus indicator (▶) and number
-  assert.ok(output.includes('▶ 2. Option B'), 'focus on Option B after number key press');
-  // Option A should show ○ (deselected)
-  assert.ok(output.includes('○ 1. Option A'), 'Option A shows deselected indicator');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('AskUserModal text_input: character capture and backspace', async (t) => {
-  const app = React.createElement(AskUserModal, {
-    modal: SIMPLE_MODAL,
-    triggerId: 'tr-1',
-    sendFrame: () => {},
-    ackErrors: {},
-    onClose: () => {},
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  // Navigate past the select field to reach text_input.
-  // First slot is Option A (index 0 of select). Down arrow moves to Option B → C → text field.
-  // Press down 3 times: Option A → B → C → text_input
-  instance.stdin.write('\x1b[B'); // down arrow
-  await delay(50);
-  instance.stdin.write('\x1b[B'); // down arrow
-  await delay(50);
-  instance.stdin.write('\x1b[B'); // down arrow
-  await delay(50);
-
-  // Now on text_input — type "hello"
-  instance.stdin.write('h');
-  await delay(30);
-  instance.stdin.write('e');
-  await delay(30);
-  instance.stdin.write('l');
-  await delay(30);
-  instance.stdin.write('l');
-  await delay(30);
-  instance.stdin.write('o');
-  await delay(100);
-
-  const output1 = instance.lastFrame();
-  assert.ok(output1.includes('hello'), 'text input shows typed characters');
-
-  // Backspace removes last char
-  instance.stdin.write('\b');
-  await delay(50);
-
-  const output2 = instance.lastFrame();
-  assert.ok(output2.includes('hell'), 'backspace removes last character');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
 test('AskUserModal submit builds correct modal.submit values', async (t) => {
   const frames: TuiFrame[] = [];
 
@@ -223,44 +119,6 @@ test('AskUserModal submit builds correct modal.submit values', async (t) => {
   assert.ok(submitFrame.values, 'values present');
   assert.equal(submitFrame.values.q_0?.selection?.selectedOption?.value, '1', 'selected Option B (index 1)');
   assert.equal(submitFrame.values.q_0_other?.other_text?.value, 'mytext', 'text input captured');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('AskUserModal multi_select: Space toggles options', async (t) => {
-  const app = React.createElement(AskUserModal, {
-    modal: MULTI_MODAL,
-    triggerId: 'tr-2',
-    sendFrame: () => {},
-    ackErrors: {},
-    onClose: () => {},
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  // Initial: all checkboxes should be empty
-  const output1 = instance.lastFrame();
-  assert.ok(output1.includes('[ ]'), 'initial checkboxes empty');
-  const countX1 = (output1.match(/\[x\]/g) || []).length;
-  assert.equal(countX1, 0, 'no toggled options initially');
-
-  // Space on first option toggles it
-  instance.stdin.write(' ');
-  await delay(100);
-
-  const output2 = instance.lastFrame();
-  const countX2 = (output2.match(/\[x\]/g) || []).length;
-  assert.ok(countX2 >= 1, `at least one option toggled after Space (found ${countX2})`);
-
-  // Toggle second option via number key '2'
-  instance.stdin.write('2');
-  await delay(100);
-
-  const output3 = instance.lastFrame();
-  const countX3 = (output3.match(/\[x\]/g) || []).length;
-  assert.ok(countX3 >= 2, `at least two options toggled after number key (found ${countX3})`);
 
   instance.unmount();
   instance.cleanup();

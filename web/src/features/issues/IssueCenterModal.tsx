@@ -1,3 +1,8 @@
+// input:  issue DTOs, center state, and issue mutations
+// output: issue-center modal and internal presentation
+// pos:    Desktop issue queue surface
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -26,9 +31,9 @@ import { defaultSelectedId, toIssueDetail, toIssueListCard, buildIssuePrompt } f
 
 const mono = "'IBM Plex Mono',monospace";
 
-// ── pure presentational view (render-testable without the tRPC provider) ──────────────────────
+// ── pure presentational view ──────────────────────────────────────────────────────────────────
 
-export interface IssueCenterViewProps {
+interface IssueCenterViewProps {
   entries: IssueInfo[];
   selectedId: string | null;
   /** Current project id — shown in the header path label `<project>/ISSUES.md`. */
@@ -44,7 +49,7 @@ export interface IssueCenterViewProps {
   onHandle: (id: string) => void;
 }
 
-export function IssueCenterView(props: IssueCenterViewProps) {
+function IssueCenterView(props: IssueCenterViewProps) {
   const L = useVocab();
   const { entries, selectedId, armed, pending } = props;
   const count = entries.length;

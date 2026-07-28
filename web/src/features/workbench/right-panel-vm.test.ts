@@ -105,22 +105,16 @@ function detail(partial: Partial<ThreadDetail>): ThreadDetail {
   };
 }
 
-describe('threadPill — verbatim prototype pill() hexes (L1841–1848)', () => {
-  it('running → #EEF0FA/#4655D4 Running', () => {
-    expect(threadPill('running')).toEqual({ bg: '#EEF0FA', fg: '#4655D4', text: 'Running' });
-  });
-  it('waiting → #F7ECCE/#8A5B06 Waiting', () => {
-    expect(threadPill('waiting')).toEqual({ bg: '#F7ECCE', fg: '#8A5B06', text: 'Waiting' });
-  });
-  it('completed → #E9F4EE/#23854F Done', () => {
-    expect(threadPill('completed')).toEqual({ bg: '#E9F4EE', fg: '#23854F', text: 'Done' });
-  });
-  it('failed → #FBEDEB/#C03D33 Failed', () => {
-    expect(threadPill('failed')).toEqual({ bg: '#FBEDEB', fg: '#C03D33', text: 'Failed' });
-  });
-  it('cancelled and aborted → #F1F2F5/#8A93A2 Cancelled (default)', () => {
-    expect(threadPill('cancelled')).toEqual({ bg: '#F1F2F5', fg: '#8A93A2', text: 'Cancelled' });
-    expect(threadPill('aborted')).toEqual({ bg: '#F1F2F5', fg: '#8A93A2', text: 'Cancelled' });
+describe('threadPill', () => {
+  it.each([
+    ['running', 'Running'],
+    ['waiting', 'Waiting'],
+    ['completed', 'Done'],
+    ['failed', 'Failed'],
+    ['cancelled', 'Cancelled'],
+    ['aborted', 'Cancelled'],
+  ] as const)('maps %s to its semantic label', (status, label) => {
+    expect(threadPill(status).text).toBe(label);
   });
 });
 
@@ -227,12 +221,10 @@ describe('depthInfo — dots filled = deepest child level, total = 5', () => {
   });
 });
 
-describe('machinePill — online/offline status pill', () => {
-  it('online → #E9F4EE/#23854F Online', () => {
-    expect(machinePill(true)).toEqual({ bg: '#E9F4EE', fg: '#23854F', text: 'Online' });
-  });
-  it('offline → #F1F2F5/#8A93A2 Offline', () => {
-    expect(machinePill(false)).toEqual({ bg: '#F1F2F5', fg: '#8A93A2', text: 'Offline' });
+describe('machinePill', () => {
+  it('reports online and offline states', () => {
+    expect(machinePill(true).text).toBe('Online');
+    expect(machinePill(false).text).toBe('Offline');
   });
 });
 

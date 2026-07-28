@@ -3,7 +3,6 @@ import {
   deriveConnectionStatus,
   connectionDot,
   connectionLabelKey,
-  type ConnectionStatus,
 } from './connection-status';
 
 describe('deriveConnectionStatus', () => {
@@ -30,27 +29,11 @@ describe('deriveConnectionStatus', () => {
 });
 
 describe('connectionDot', () => {
-  it('connected is solid green, no pulse', () => {
-    expect(connectionDot('connected')).toEqual({ color: 'var(--proto-success)', pulse: false });
-  });
-
-  it('connecting and reconnecting both pulse amber', () => {
-    expect(connectionDot('connecting')).toEqual({ color: 'var(--proto-amber)', pulse: true });
-    expect(connectionDot('reconnecting')).toEqual({ color: 'var(--proto-amber)', pulse: true });
-  });
-
-  it('disconnected is solid danger, no pulse', () => {
-    expect(connectionDot('disconnected')).toEqual({ color: 'var(--proto-danger)', pulse: false });
-  });
-
-  it('covers every status', () => {
-    const statuses: ConnectionStatus[] = ['connecting', 'connected', 'reconnecting', 'disconnected'];
-    for (const s of statuses) {
-      const dot = connectionDot(s);
-      expect(typeof dot.color).toBe('string');
-      expect(dot.color.startsWith('var(--')).toBe(true);
-      expect(typeof dot.pulse).toBe('boolean');
-    }
+  it('pulses only while connecting or reconnecting', () => {
+    expect(connectionDot('connecting').pulse).toBe(true);
+    expect(connectionDot('reconnecting').pulse).toBe(true);
+    expect(connectionDot('connected').pulse).toBe(false);
+    expect(connectionDot('disconnected').pulse).toBe(false);
   });
 });
 

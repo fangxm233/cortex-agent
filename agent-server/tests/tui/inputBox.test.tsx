@@ -1,6 +1,6 @@
 // input:  src/tui/components/InputBox.js
-// output: InputBox tests — send when idle, blocked (text preserved) while awaiting response
-// pos:    Verifies the "type but cannot send while waiting" requirement
+// output: verifies submit gating, history, shortcut handling, and escape-sequence filtering
+// pos:    InputBox interaction contract; status-line presentation is not snapshot-tested
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -100,20 +100,6 @@ test('InputBox dismisses shortcuts on any key when shown', async (t) => {
   // The key that dismissed must not be inserted into the buffer.
   assert.doesNotMatch(instance.lastFrame() ?? '', /x/);
 
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('InputBox renders the turn-status line tight above the input', async (t) => {
-  const app = React.createElement(InputBox, {
-    onSubmit: () => {},
-    statusLine: '✅ Done · 3s · 1 turns · $0.2680',
-    awaitingResponse: false,
-    focus: true,
-  });
-  const instance = render(app);
-  await delay(120);
-  assert.match(instance.lastFrame() ?? '', /✅ Done · 3s · 1 turns · \$0\.2680/);
   instance.unmount();
   instance.cleanup();
 });

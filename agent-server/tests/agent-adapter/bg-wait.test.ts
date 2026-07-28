@@ -8,7 +8,6 @@ import assert from 'node:assert/strict';
 
 import {
   waitForBgContinuation, shouldAwaitBgInline, remainingBg,
-  isBgContinuationEnabled, getBgGraceMs, getBgMaxWaitMs,
 } from '../../src/agent-adapter/bg-wait.js';
 import type { ContinuationSink } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
@@ -195,10 +194,4 @@ test('shouldAwaitBgInline: only thread turns, claude backend, sink capability, w
     if (prev === undefined) delete process.env.CORTEX_BG_CONTINUATION;
     else process.env.CORTEX_BG_CONTINUATION = prev;
   }
-});
-
-test('bg-wait module owns the shared env gates (re-export sources)', () => {
-  assert.equal(typeof isBgContinuationEnabled(), 'boolean');
-  assert.equal(getBgGraceMs(), 90_000);
-  assert.equal(getBgMaxWaitMs(), 1_800_000);
 });

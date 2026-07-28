@@ -21,12 +21,6 @@ function captureStreams(fn: () => void): { out: string; err: string } {
   return { out, err };
 }
 
-test('stderrLogger implements the full lark Logger interface', () => {
-  for (const m of ['error', 'warn', 'info', 'debug', 'trace'] as const) {
-    assert.equal(typeof stderrLogger[m], 'function', `missing ${m}`);
-  }
-});
-
 test('every stderrLogger level writes to stderr and NOT stdout', () => {
   for (const m of ['error', 'warn', 'info', 'debug', 'trace'] as const) {
     const { out, err } = captureStreams(() => stderrLogger[m]('client ready', { a: 1 }));

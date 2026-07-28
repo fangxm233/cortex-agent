@@ -1,6 +1,6 @@
-// input:  react-router outlet/location, mobile tab routing
-// output: AnimatedOutlet and transition-layer helpers
-// pos:    mobile route-transition wrapper
+// input:  react-router outlet/location and mobile tab routing
+// output: AnimatedOutlet plus pure transition planning
+// pos:    Mobile route-transition wrapper
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // Route-transition wrapper for the mobile shell. Replaces the bare <Outlet/> so screen swaps
 // animate as a horizontal slide (iOS-style push/pop) instead of a hard cut:
@@ -41,7 +41,7 @@ export function planTransition(
 }
 
 // Tailwind `animate-slide-*` utility pair for a given direction (incoming layer / outgoing layer).
-export function slideAnimClasses(dir: SlideDir): { incoming: string; outgoing: string } {
+function slideAnimClasses(dir: SlideDir): { incoming: string; outgoing: string } {
   return dir === 'forward'
     ? { incoming: 'animate-slide-in-right', outgoing: 'animate-slide-out-left' }
     : { incoming: 'animate-slide-in-left', outgoing: 'animate-slide-out-right' };
@@ -83,7 +83,7 @@ function useAnimatedFrames(pathname: string, navType: NavType, outlet: ReactNode
   return { current, previous, dir, onSettled: () => setPrevious(null) };
 }
 
-export function AnimatedOutletLayers({ current, previous, dir, onSettled }: {
+function AnimatedOutletLayers({ current, previous, dir, onSettled }: {
   current: Frame;
   previous: Frame | null;
   dir: SlideDir;

@@ -1,8 +1,9 @@
-// Pure helper: classify a plain-file attachment into a document kind the in-app DocViewer can render
-// inline — 'pdf' | 'text' | null. PDF renders via pdf.js (canvas); text renders as Markdown (.md) or
-// a monospace <pre>. Everything else (zip, xlsx, binaries) is null → download. Shared by the desktop
-// MessageStream file cards and the mobile AttachmentTile. Image/video are handled by media-kind.ts;
-// this classifier is only consulted for the `file` attachment type.
+// input:  file name and optional MIME type
+// output: in-app document kind or null
+// pos:    Pure classifier shared by desktop and mobile file surfaces
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+// PDF renders via pdf.js; text renders as Markdown or monospace text; other files download.
 
 export type DocKind = 'pdf' | 'text';
 
@@ -49,9 +50,4 @@ export function docKindOf(name: string, mimeType?: string): DocKind | null {
   if (mt === 'application/json' || mt === 'application/xml' || mt === 'application/x-yaml') return 'text';
 
   return null;
-}
-
-/** True when the file can be opened in the in-app DocViewer (pdf or text). */
-export function isDocPreviewable(name: string, mimeType?: string): boolean {
-  return docKindOf(name, mimeType) !== null;
 }

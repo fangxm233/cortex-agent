@@ -4,51 +4,12 @@
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
-import type { ThreadDetail, ApprovalInfo } from '@cortex-agent/ui-contract';
-import {
-  sessionInitials,
-  headerStatus,
-  zhDivider,
-  buildMobileStepper,
-  mobileApprovalDesc,
-  toolChips,
-  DASH,
-} from './mobile-session-vm';
+import type { ThreadDetail } from '@cortex-agent/ui-contract';
+import { zhDivider, buildMobileStepper, toolChips } from './mobile-session-vm';
 
 // Pure view-model for the mobile session screen 5a (scheme.dc.html L2932-3003, task c880). Real
 // data is the only variable; every measurement lives in the presentational components. Neutral test
 // fixtures (守则11 — no private project/exp names).
-
-describe('sessionInitials', () => {
-  it('takes the first two word initials, uppercased', () => {
-    expect(sessionInitials({ label: 'nimbus orchard', name: 'x' })).toBe('NO');
-  });
-  it('falls back to name when label is null', () => {
-    expect(sessionInitials({ label: null, name: 'atlas' })).toBe('AT');
-  });
-  it('single word → first two letters', () => {
-    expect(sessionInitials({ label: null, name: 'atlas' })).toBe('AT');
-  });
-  it('empty → two dashes', () => {
-    expect(sessionInitials({ label: null, name: '' })).toBe(DASH + DASH);
-  });
-});
-
-describe('headerStatus', () => {
-  it('running with real turns and a dash cost placeholder', () => {
-    expect(headerStatus({ running: true, turns: 12 })).toEqual({
-      word: 'running',
-      turnsLabel: '12 turns',
-      cost: DASH,
-    });
-  });
-  it('idle when not streaming', () => {
-    expect(headerStatus({ running: false, turns: 0 }).word).toBe('idle');
-  });
-  it('renders a dash when the agent-turn count is unknown (null)', () => {
-    expect(headerStatus({ running: true, turns: null }).turnsLabel).toBe(DASH);
-  });
-});
 
 describe('zhDivider', () => {
   const now = new Date(2026, 6, 9, 10, 0); // 2026-07-09 10:00 local
@@ -165,36 +126,6 @@ describe('buildMobileStepper', () => {
   it('empty steps → no nodes, no crash', () => {
     const s = buildMobileStepper(detail({ steps: [], currentStep: null, totalSteps: 0 }));
     expect(s.nodes).toEqual([]);
-  });
-});
-
-function approval(over: Partial<ApprovalInfo> = {}): ApprovalInfo {
-  return {
-    id: 'ap1',
-    title: 'Over-budget dispatch',
-    operation: 'Dispatch the ablation sweep',
-    reason: 'Needs a large GPU window.',
-    impact: 'Budget only.',
-    command: 'cortex-run --dispatch',
-    status: 'pending',
-    queuedAt: '2026-07-09',
-    decidedAt: null,
-    feedback: null,
-    provenance: null,
-    taskRef: null,
-    ...over,
-  };
-}
-
-describe('mobileApprovalDesc', () => {
-  it('prefers the real reason', () => {
-    expect(mobileApprovalDesc(approval())).toBe('Needs a large GPU window.');
-  });
-  it('falls back to operation when reason is null', () => {
-    expect(mobileApprovalDesc(approval({ reason: null }))).toBe('Dispatch the ablation sweep');
-  });
-  it('dash when both absent (never fabricated)', () => {
-    expect(mobileApprovalDesc(approval({ reason: null, operation: null }))).toBe(DASH);
   });
 });
 

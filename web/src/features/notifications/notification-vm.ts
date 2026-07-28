@@ -1,3 +1,8 @@
+// input:  assistant messages and server-classified system notices
+// output: normalized notification items and transient-policy decisions
+// pos:    Shared pure notification model for desktop and mobile
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // Pure view-model for DM-message notifications (design 18a). Framework-agnostic and
 // deterministic so it can be unit-tested without a DOM — the React glue
 // (`useDmNotifications` + `NotificationToaster`) delegates all shaping here.
@@ -95,6 +100,3 @@ export function buildSystemNotice(input: BuildSystemNoticeInput): NotificationIt
 export function isTransient(level: NotificationLevel): boolean {
   return level === 'info';
 }
-
-/** Auto-dismiss duration (ms) for transient notifications (scheme 18a: info 6s). */
-export const AUTO_DISMISS_MS = 6000;

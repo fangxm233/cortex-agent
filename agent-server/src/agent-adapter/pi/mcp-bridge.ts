@@ -1,6 +1,6 @@
-// input:  PI ExtensionAPI, @modelcontextprotocol/sdk, core-server.ts + server.ts
-// output: Register Cortex MCP tools (core + ext, + feishu for Feishu-originated sessions) into the PI tool table and forward calls transparently
-// pos:    PI --extension bridging the Cortex MCP servers
+// input:  PI ExtensionAPI, MCP clients, and pure platform/content bridge policy
+// output: discovered Cortex tools registered into PI with transparent call forwarding
+// pos:    PI extension lifecycle; paths and process handles stay private
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ExtensionAPI } from './pi-ext-types.js';
@@ -10,6 +10,12 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Type } from '@sinclair/typebox';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  mapMcpContent,
+  shouldLoadFeishu,
+  shouldLoadSlack,
+  shouldLoadWeb,
+} from './mcp-bridge-logic.js';
 
 // __dirname is provided by PI's jiti CJS compat layer when loading .ts extension files.
 // In ESM contexts (agent-server tests via tsx), derive it from import.meta.url instead.
@@ -23,62 +29,6 @@ const EXT_SERVER_PATH = resolve(_dirname, '../../domain/mcp/server.js');
 const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
 const FEISHU_SERVER_PATH = resolve(_dirname, '../../domain/mcp/feishu-server.js');
 const WEB_SERVER_PATH = resolve(_dirname, '../../domain/mcp/web-server.js');
-
-/** The cortex-slack server (slack_send_file tool) is loaded only for sessions that originate from
- *  Slack. The PI adapter forwards the source channel into the subprocess env as SLACK_CHANNEL; the
- *  SlackAdapter tags its conduits with the `slack:` prefix, so that prefix is the source marker. */
-export function shouldLoadSlack(channel: string | undefined): boolean {
-  return !!channel && channel.startsWith('slack:');
-}
-
-/** The cortex-feishu server (Feishu document tools) is loaded only for sessions that originate from
- *  Feishu. The PI adapter forwards the source channel into the subprocess env as SLACK_CHANNEL; the
- *  FeishuAdapter tags its conduits with the `feishu:` prefix, so that prefix is the source marker. */
-export function shouldLoadFeishu(channel: string | undefined): boolean {
-  return !!channel && channel.startsWith('feishu:');
-}
-
-/** The cortex-web server (send_file tool) is loaded only for sessions that originate from
- *  the Web UI. The PI adapter forwards the source channel into the subprocess env as
- *  SLACK_CHANNEL; the Web UI tags its channels with the `web:` prefix, so that prefix is
- *  the source marker. */
-export function shouldLoadWeb(channel: string | undefined): boolean {
-  return !!channel && channel.startsWith('web:');
-}
-
-// --- Content type mapping ---
-
-type PiTextContent = { type: 'text'; text: string };
-
-/** Map an MCP CallToolResult content item to a PI text content item. */
-export function mapMcpContent(item: {
-  type: string;
-  text?: string;
-  data?: string;
-  mimeType?: string;
-  resource?: { uri?: string; text?: string; blob?: string; mimeType?: string };
-  [key: string]: unknown;
-}): PiTextContent {
-  if (item.type === 'text' && typeof item.text === 'string') {
-    return { type: 'text', text: item.text };
-  }
-  if (item.type === 'image') {
-    const len = typeof item.data === 'string' ? item.data.length : 0;
-    return { type: 'text', text: `[Image: mimeType=${item.mimeType ?? 'unknown'}, base64(${len} chars)]` };
-  }
-  if (item.type === 'resource' && item.resource) {
-    const r = item.resource;
-    if (typeof r.text === 'string') return { type: 'text', text: r.text };
-    if (typeof r.blob === 'string') {
-      return {
-        type: 'text',
-        text: `[Binary resource: uri=${r.uri ?? 'unknown'}, mimeType=${r.mimeType ?? 'unknown'}]`,
-      };
-    }
-  }
-  // Fallback: JSON-encode the item so no content is silently dropped
-  return { type: 'text', text: JSON.stringify(item) };
-}
 
 // --- MCP client wrapper (one per server) ---
 
@@ -215,16 +165,3 @@ export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
     webHandle = null;
   });
 }
-
-// Exported for tests
-export const _test = {
-  mapMcpContent,
-  shouldLoadSlack,
-  shouldLoadFeishu,
-  shouldLoadWeb,
-  CORE_SERVER_PATH,
-  EXT_SERVER_PATH,
-  SLACK_SERVER_PATH,
-  FEISHU_SERVER_PATH,
-  WEB_SERVER_PATH,
-};

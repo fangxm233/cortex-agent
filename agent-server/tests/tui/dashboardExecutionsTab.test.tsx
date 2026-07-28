@@ -92,33 +92,6 @@ test('happy-path: cancel execution via [c]→confirm→onMutate success', async 
   instance.cleanup();
 });
 
-test('long list is windowed: caps rendered rows and shows a "more below" affordance', async (t) => {
-  const many = Array.from({ length: 20 }, (_, i) => ({
-    id: `exec-${i}`,
-    type: i % 2 === 0 ? 'local' : 'dispatch',
-    status: 'completed',
-    machine: 'lab2',
-    durationMs: 1000 * (i + 1),
-    cost: 0.01 * (i + 1),
-    finishedAt: '2026-05-27T09:02:00Z',
-  }));
-
-  const instance = render(React.createElement(DashboardExecutionsTab, {
-    data: makeTabData(many),
-  }));
-  await delay(100);
-
-  const frame = instance.lastFrame() ?? '';
-  // Not every row can be present (20 items would overflow); the overflow affordance must show.
-  assert.ok(frame.includes('more below'), 'hidden-below affordance is shown for a long list');
-  // The last item must NOT be rendered while focus is at the top.
-  assert.equal(frame.includes('@lab2') && frame.split('✓').length - 1 <= 8, true,
-    'rendered rows are capped well below the full list length');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
 test('not-found-path: cancel returns not-found → inline error', async (t) => {
   let resolveMutate: (r: MutateResult) => void;
   const mutatePromise = new Promise<MutateResult>(resolve => { resolveMutate = resolve; });

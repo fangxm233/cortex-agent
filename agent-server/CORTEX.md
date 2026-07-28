@@ -6,7 +6,7 @@ Source code in src/, configuration/data in root directory, logs in logs/.
 | filename | role | function |
 |---|---|---|
 | `src/` | Source code | Production TS source code and task-system CLI |
-| `tests/` | Tests | vitest regression tests (`vitest.config.ts`; run via `npm test` → `scripts/run-tests.sh`) |
+| `tests/` | Tests | Behavior-focused vitest regressions for state, persistence, protocols, security, concurrency, and failures (`npm test`); source-shape/export inventories are excluded |
 | `package.json` | Configuration | npm dependencies + bins: `cortex` (`dist/entry/cli.js`), `cortex-run` (`dist/domain/tasks/system/cortex-run.js`), `cortex-task` (`dist/domain/tasks/system/task-cli.js`). Upgrade: `npm run build && npm pack && npm install -g ./cortex-agent-server-X.Y.Z.tgz` |
 | `.env` | Configuration | Slack and other sensitive configuration (gitignored) |
 | `mcp-config.json` | Configuration | Claude CLI MCP server entry point |

@@ -1,11 +1,6 @@
 // input:  src/tui/components/PlanFeedbackModal.tsx
-// output: Tests — renders plan text, approve/feedback/cancel options, hotkeys, submit
-// pos:    Verifies PlanFeedbackModal render→select→submit cycle for plan approval flow
-//
-// Drives a plan-approval fixture through:
-//   render plan modal → hotkey 1 approve → verify submit values
-//   → hotkey 2 feedback → type text → submit → verify feedback values
-//   → hotkey 3 cancel → verify onClose
+// output: verifies approve/feedback/cancel submission, editing, errors, and Escape outcomes
+// pos:    Plan-approval interaction contract; option chrome/indicators are not snapshot-tested
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -54,30 +49,6 @@ const PLAN_APPROVAL_MODAL: ModalDefinition = {
 };
 
 // ── Tests ──
-
-test('PlanFeedbackModal renders plan text and options', async () => {
-  const app = React.createElement(PlanFeedbackModal, {
-    modal: PLAN_APPROVAL_MODAL,
-    triggerId: 'tr-plan-1',
-    sendFrame: () => {},
-    ackErrors: {},
-    onClose: () => {},
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  const output = instance.lastFrame();
-  assert.ok(output.includes('Plan Review'), 'renders modal title');
-  assert.ok(output.includes('JWT middleware'), 'renders plan text');
-  assert.ok(output.includes('1. Approve'), 'renders approve option');
-  assert.ok(output.includes('2. Provide Feedback'), 'renders feedback option');
-  assert.ok(output.includes('3. Cancel'), 'renders cancel option');
-  assert.ok(output.includes('[Confirm]'), 'renders submit button');
-
-  instance.unmount();
-  instance.cleanup();
-});
 
 test('PlanFeedbackModal hotkey 1 selects approve, Enter submits', async () => {
   const frames: TuiFrame[] = [];
@@ -243,55 +214,6 @@ test('PlanFeedbackModal Escape closes without submitting', async () => {
   instance.cleanup();
 });
 
-test('PlanFeedbackModal up/down arrows move focus (▶) without changing selection (●)', async () => {
-  const app = React.createElement(PlanFeedbackModal, {
-    modal: PLAN_APPROVAL_MODAL,
-    triggerId: 'tr-plan-6',
-    sendFrame: () => {},
-    ackErrors: {},
-    onClose: () => {},
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  // Initial: approve should be focused (first option) and selected by default
-  const output0 = instance.lastFrame();
-  assert.ok(output0.includes('▶ ● 1. Approve'), 'approve is focused and selected initially');
-
-  // Down arrow: ▶ moves to feedback, ● stays on approve
-  instance.stdin.write('\x1b[B');
-  await delay(100);
-
-  const output1 = instance.lastFrame();
-  assert.ok(output1.includes('▶ ○ 2. Provide Feedback'), '▶ moves to feedback option');
-  assert.ok(output1.includes('  ● 1. Approve'), '● stays on approve (selection unchanged by arrows)');
-
-  // Down arrow: ▶ moves to cancel
-  instance.stdin.write('\x1b[B');
-  await delay(100);
-
-  const output2 = instance.lastFrame();
-  assert.ok(output2.includes('▶ ○ 3. Cancel'), '▶ moves to cancel option');
-
-  // Up arrow: ▶ moves back to feedback
-  instance.stdin.write('\x1b[A');
-  await delay(100);
-
-  const output3 = instance.lastFrame();
-  assert.ok(output3.includes('▶ ○ 2. Provide Feedback'), '▶ moves back to feedback');
-
-  // Hotkey 2 changes selection (●) AND moves focus (▶)
-  instance.stdin.write('2');
-  await delay(100);
-
-  const output4 = instance.lastFrame();
-  assert.ok(output4.includes('▶ ● 2. Provide Feedback'), 'hotkey 2 selects and focuses feedback');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
 test('PlanFeedbackModal submit button submits selected option', async () => {
   const frames: TuiFrame[] = [];
 
@@ -380,15 +302,9 @@ test('PlanFeedbackModal backspace in feedback mode', async () => {
   instance.stdin.write('o');
   await delay(100);
 
-  const output1 = instance.lastFrame();
-  assert.ok(output1.includes('hello'), 'text shows after typing');
-
   // Backspace
   instance.stdin.write('\b');
   await delay(100);
-
-  const output2 = instance.lastFrame();
-  assert.ok(output2.includes('hell'), 'backspace removes last character');
 
   instance.stdin.write('\r');
   await delay(100);

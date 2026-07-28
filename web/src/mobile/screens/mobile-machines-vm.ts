@@ -1,3 +1,8 @@
+// input:  machine DTOs and wall-clock time
+// output: active mobile machine-card models and relative connection time
+// pos:    Shared pure helpers retained from the legacy mobile screen
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 
 // Pure view-model for the mobile machines screen (plan §12 A item 1, mobile part 12c). Maps the
@@ -52,9 +57,4 @@ export function machineCardVm(m: MachineInfo): MachineCardVm {
     // show a stale offline timestamp, which is misleading).
     connectedAt: m.online ? m.connectedAt : null,
   };
-}
-
-/** Map an array of MachineInfo DTOs to card VMs (preserving order). */
-export function buildMobileMachinesVm(machines: MachineInfo[]): MachineCardVm[] {
-  return machines.map(machineCardVm);
 }

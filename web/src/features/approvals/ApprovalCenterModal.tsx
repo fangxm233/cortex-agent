@@ -1,3 +1,8 @@
+// input:  approval DTOs, center state, and approval mutations
+// output: approval-center modal and internal presentation
+// pos:    Desktop approval queue surface
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApprovalInfo } from '@cortex-agent/ui-contract';
@@ -33,9 +38,9 @@ import {
 
 const mono = "'IBM Plex Mono',monospace";
 
-// ── pure presentational view (render-testable without the tRPC provider) ──────────────────────
+// ── pure presentational view ──────────────────────────────────────────────────────────────────
 
-export interface ApprovalCenterViewProps {
+interface ApprovalCenterViewProps {
   /** Pending entries (status === 'pending'). */
   entries: ApprovalInfo[];
   selectedId: string | null;
@@ -51,7 +56,7 @@ export interface ApprovalCenterViewProps {
   onFeedback: (value: string) => void;
 }
 
-export function ApprovalCenterView(props: ApprovalCenterViewProps) {
+function ApprovalCenterView(props: ApprovalCenterViewProps) {
   const L = useVocab();
   const { entries, selectedId, armed, feedback, pending } = props;
   const count = entries.length;

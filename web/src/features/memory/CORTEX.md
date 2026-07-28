@@ -16,8 +16,7 @@ proto-shots 11/12 show the right rail). Diffed vs `proto-shots/11-memory-exp.png
 | `markdown.ts` | **Pure** (TDD): `splitFrontmatter` (YAML `--- … ---` → chip entries + `summary`) · `parseInline` (bold/italic/code/link) · `parseBlocks` (heading/paragraph/list/table/code/blockquote/hr). Dependency-free — no `react-markdown` (public-repo minimalism; exact style control). |
 | `markdown.test.ts` | vitest for `markdown.ts` (13 tests, written first). |
 | `memory-vm.ts` | **Pure** (TDD): `buildTreeRows` (files selectable + dirs w/ real entryCount) · `pickDefaultPath` · `relTimeAgo` · `diffToggle` (verbatim prototype pill hexes) · `formatLineDiff` · `groupBlame` (zip content lines with real per-line blame → `BlameRow[]`, commit-run boundaries, honest `null` passthrough). Reuses `overview-vm.deriveActiveProjectId`. |
-| `memory-vm.test.ts` | vitest for `memory-vm.ts` (15 tests). |
-| `memory-render.test.tsx` | `react-dom/server` render checks of `MarkdownView` + `BlamePane` (7 tests). Neutral placeholder fixtures. |
+| `memory-vm.test.ts` | Unit tests for tree selection, relative times, diff semantics, line counts, and blame grouping. |
 
 ## Real data vs honest placeholders
 

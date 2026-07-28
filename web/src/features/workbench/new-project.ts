@@ -1,9 +1,7 @@
-// input:  a project-name string being typed into the New-project modal, and caught mutation errors
-// output: pure helpers for the modal — creatability gate, the prototype's Create-button color, and
-//         the honest backend error message to surface
-// pos:    New-project modal (prototype.dc.html L1407-1429, task c551). Copy constants are verbatim
-//         from the prototype script (npTitle/npHint/npCreateLabel + L.cancel); the input placeholder
-//         uses a neutral example project name.
+// input:  project names and caught create-project mutation errors
+// output: creatability gate, modal copy, and safe error message
+// pos:    New-project modal validation and error helpers
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 /** Verbatim EN copy from the prototype (ZH toggle is Stage 8). */
 export const NP_TITLE = 'New project';
@@ -17,11 +15,6 @@ export const NP_CANCEL = 'Cancel';
 /** The trimmed name must be non-empty to create (prototype npCreate no-ops on empty). */
 export function canCreate(name: string): boolean {
   return name.trim().length > 0;
-}
-
-/** Prototype `npCreateBg`: accent when creatable, muted otherwise. */
-export function createBg(name: string): '#4655D4' | '#C9CFF2' {
-  return canCreate(name) ? '#4655D4' : '#C9CFF2';
 }
 
 /**

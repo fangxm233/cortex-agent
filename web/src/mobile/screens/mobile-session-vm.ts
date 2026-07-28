@@ -1,34 +1,9 @@
-import type { ThreadDetail, ApprovalInfo } from '@cortex-agent/ui-contract';
+// input:  thread details, transcript timestamps, and tool calls
+// output: mobile stepper, divider, and tool-chip models
+// pos:    Active pure helpers retained from the legacy mobile session screen
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-// Pure view-model for the mobile session screen 5a (scheme.dc.html L2932-3003, task c880). Maps the
-// real tRPC DTOs into the scheme's exact slot model; presentational components own every px/hex/font.
-// Real data is the only variable — missing fields become an explicit DASH, never fabricated.
-
-/** Explicit missing-field placeholder (mirrors approval-center-vm.DASH). */
-export const DASH = '—';
-
-/** Two-char uppercase initials for the header avatar (scheme "QN" slot). */
-export function sessionInitials(session: { label: string | null; name: string }): string {
-  const src = (session.label ?? session.name ?? '').trim();
-  if (!src) return DASH + DASH;
-  const words = src.split(/\s+/).filter(Boolean);
-  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-  return src.slice(0, 2).toUpperCase();
-}
-
-export interface HeaderStatus {
-  /** mono status token — literal "running"/"idle" (matches the scheme's mono line). */
-  word: string;
-  turnsLabel: string;
-  /** session cost — SessionInfo has no cost field → DASH (never fabricated). */
-  cost: string;
-}
-
-export function headerStatus({ running, turns }: { running: boolean; turns: number | null }): HeaderStatus {
-  // The REAL agent-turn count (snapshot + session.turn delta), not user-message rounds. DASH when
-  // unknown — a running turn before its first progress event, or a session that never ran.
-  return { word: running ? 'running' : 'idle', turnsLabel: turns == null ? DASH : `${turns} turns`, cost: DASH };
-}
+import type { ThreadDetail } from '@cortex-agent/ui-contract';
 
 function hhmm(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -111,15 +86,6 @@ export function buildMobileStepper(detail: ThreadDetail): MobileStepper {
       subCount: detail.children.length,
     },
   };
-}
-
-/**
- * Approval card description (scheme L2981 shows an invented `$12.40 / $10.00 · thr_8f2c` table). The
- * real ApprovalInfo has no estimate/budget/from fields (task 851f precedent) → show the real reason,
- * else operation, else DASH. Never fabricate a cost/budget number.
- */
-export function mobileApprovalDesc(a: ApprovalInfo): string {
-  return a.reason ?? a.operation ?? DASH;
 }
 
 export interface ToolChips {

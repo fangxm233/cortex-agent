@@ -1,3 +1,8 @@
+// input:  stored pin/split values, preview items, and divider drag geometry
+// output: bounded split/pin parsing, item routing, and download-path decisions
+// pos:    pure docked-preview model; pane-size constants remain presentation-internal
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import type { MediaItem } from './MediaViewer';
 import type { DocItem } from './DocViewer';
 
@@ -38,8 +43,8 @@ export function parsePreviewPinned(raw: string | null): boolean {
 
 /** Pixel floors — a drag must leave BOTH panes usable. The ratio band alone is not enough: at 0.75
  *  of a 860px region the chat collapses to ~215px and its composer wraps. */
-export const PREVIEW_MIN_PX = 260;
-export const CHAT_MIN_PX = 380;
+const PREVIEW_MIN_PX = 260;
+const CHAT_MIN_PX = 380;
 
 /** Divider drag → the preview pane's new share. The divider is the pane's LEFT edge, so the share
  *  is the distance from the pointer to the region's right edge. Clamped by the ratio band AND by

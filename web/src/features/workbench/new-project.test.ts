@@ -1,5 +1,10 @@
+// input:  project-name and mutation-error fixtures
+// output: new-project validation and error-mapping tests
+// pos:    Verifies behavior of new-project helpers
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
-import { canCreate, createBg, createErrorMessage } from './new-project';
+import { canCreate, createErrorMessage } from './new-project';
 
 describe('canCreate', () => {
   it('is false for empty / whitespace-only names', () => {
@@ -10,14 +15,6 @@ describe('canCreate', () => {
   it('is true for a non-empty trimmed name', () => {
     expect(canCreate('nimbus')).toBe(true);
     expect(canCreate('  orchard  ')).toBe(true);
-  });
-});
-
-describe('createBg', () => {
-  it('is the accent color when creatable, muted otherwise (prototype npCreateBg)', () => {
-    expect(createBg('nimbus')).toBe('#4655D4');
-    expect(createBg('')).toBe('#C9CFF2');
-    expect(createBg('   ')).toBe('#C9CFF2');
   });
 });
 

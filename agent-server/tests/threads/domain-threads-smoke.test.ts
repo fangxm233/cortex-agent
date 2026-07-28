@@ -10,7 +10,6 @@ import {
   parseTarget,
   resolveStageName,
   resolveSystemVars,
-  THREAD_PROTOCOL_PREAMBLE,
 } from '../../src/domain/threads/index.js';
 import { threadStore } from '../../src/store/thread-repo.js';
 
@@ -86,12 +85,3 @@ test('resolveSystemVars: leaves unknown placeholders untouched', () => {
 test('resolveSystemVars: leaves plain text unchanged', () => {
   assert.equal(resolveSystemVars('no vars'), 'no vars');
 });
-
-// --- THREAD_PROTOCOL_PREAMBLE ---
-
-test('THREAD_PROTOCOL_PREAMBLE is a non-empty string with [Cortex Thread Protocol]', () => {
-  assert.ok(typeof THREAD_PROTOCOL_PREAMBLE === 'string');
-  assert.ok(THREAD_PROTOCOL_PREAMBLE.length > 0);
-  assert.ok(THREAD_PROTOCOL_PREAMBLE.includes('[Cortex Thread Protocol]'));
-});
-

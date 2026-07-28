@@ -1,3 +1,8 @@
+// input:  project memory queries and memory view models
+// output: memory tree, markdown reader, and blame pane
+// pos:    Desktop project-memory surface
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -28,7 +33,7 @@ const MONO = "'IBM Plex Mono',monospace";
 
 // Per-line blame pane (逐行高亮): real short commit hash + task-ref chip in the gutter (shown once per
 // commit run), a subtle background band alternating per commit group, monospace line text.
-export function BlamePane({ rows }: { rows: BlameRow[] }): JSX.Element {
+function BlamePane({ rows }: { rows: BlameRow[] }): JSX.Element {
   let groupIdx = -1;
   return (
     <div style={{ font: `400 11px ${MONO}`, lineHeight: 1.55 }}>

@@ -1,9 +1,9 @@
-import type { ProjectConduitInfo, SessionInfo, ThreadInfo } from '@cortex-agent/ui-contract';
+// input:  session and thread summaries grouped by project
+// output: per-project running and attention counts
+// pos:    shared project attention aggregation for desktop and mobile
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-// Pure view-model helpers for the project-card dropdown (prototype.dc.html L1565–1607, task c3ce).
-// projects.list carries no status/phase/cost — but ThreadInfo has projectId + status, so per-project
-// running counts ARE derivable; cost.summary.today is wired in LeftRail. Phase labels
-// ("M3.1 · idle"/"paused") have no backing field (GAP) → meta = real running count, else "idle".
+import type { SessionInfo, ThreadInfo } from '@cortex-agent/ui-contract';
 
 const ACTIVE_THREAD_STATUSES: ReadonlySet<ThreadInfo['status']> = new Set(['running', 'waiting']);
 
@@ -45,46 +45,4 @@ export function projectAttentionBadge(
 ): { count: number; tone: ProjectAttentionBadgeTone } {
   const count = unread + actionRequired;
   return { count, tone: actionRequired > 0 ? 'action' : count > 0 ? 'unread' : null };
-}
-
-export interface SwitchProjectRow {
-  id: string;
-  running: number;
-  isRunning: boolean;
-  meta: string;
-  /** Unread session count for this project (0 = none). Drives the switcher badge + ordering. */
-  unread: number;
-}
-
-export function switchRowMeta(running: number): string {
-  return running > 0 ? running + ' running' : 'idle';
-}
-
-// SWITCH PROJECT list = the real projects minus the active one (the active project is the popover
-// header). Projects with UNREAD sessions sort first (stable — projects.list order preserved within
-// each half); without unread counts the original order is unchanged (back-compat).
-export function buildSwitchList(
-  projects: ProjectConduitInfo[],
-  activeId: string | null,
-  runningCounts: Record<string, number>,
-  unreadCounts: Record<string, number> = {},
-): SwitchProjectRow[] {
-  return projects
-    .filter((p) => p.id !== activeId)
-    .map((p) => {
-      const running = runningCounts[p.id] ?? 0;
-      const unread = unreadCounts[p.id] ?? 0;
-      return { id: p.id, running, isRunning: running > 0, meta: switchRowMeta(running), unread };
-    })
-    .sort((a, b) => Number(b.unread > 0) - Number(a.unread > 0));
-}
-
-// Header sub-line, mirroring the prototype's `projMenuSub` ("2 threads running · $4.21 today").
-export function projMenuSubLabel(activeRunning: number, todayCost: number | undefined): string {
-  const threadPart =
-    activeRunning + ' ' + (activeRunning === 1 ? 'thread' : 'threads') + ' running';
-  if (typeof todayCost === 'number') {
-    return threadPart + ' · $' + todayCost.toFixed(2) + ' today';
-  }
-  return threadPart;
 }

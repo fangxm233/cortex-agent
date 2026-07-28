@@ -1,6 +1,6 @@
-// input:  MCP SDK, tools/ui-file registration, route-context file path
-// output: cortex-web MCP stdio server — Web-UI-specific tools (send_file)
-// pos:    Standalone MCP server (peer of core-server.ts / slack-server.ts / feishu-server.ts); loaded
+// input:  MCP SDK, UI-file registrar, and route-context file path
+// output: Web-UI-specific MCP stdio service assembled from production registration
+// pos:    standalone platform server loaded
 //         ONLY for Web-UI-originated sessions (channel carries the `web:` prefix) — Claude via
 //         mcp-config-web.json layering. Not loaded for Slack/Feishu/thread sessions.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -32,8 +32,6 @@ const routeContextFile: string | null =
 const server = new McpServer({ name: 'cortex-web', version: CORTEX_VERSION });
 
 registerUiFileTools(server, { routeContextFile });
-
-export const TOOL_NAMES: readonly string[] = ['send_file'];
 
 // --- Start (called by barrel when run as standalone) ---
 

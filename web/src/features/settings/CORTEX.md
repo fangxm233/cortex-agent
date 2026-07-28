@@ -16,16 +16,14 @@ Wired to the **real** `config.get` query (redacted `~/.cortex/config` snapshot) 
 
 | path | role |
 |---|---|
-| `settings-nav.ts` | **Pure** (TDD): the 10 nav entries — `appearance` first, then the 9 prototype panels (label/file/key, prototype order) + `SETTINGS_SECTION_META` (title/sub). |
+| `settings-nav.ts` | Pure localized navigation model: `getSettingsNav(vocab)` returns Appearance followed by the nine settings panels, and `getSectionMeta(vocab,key)` resolves each section header. Hardcoded English compatibility exports used only by old tests were removed. |
 | `AppearancePanel.tsx` | Device-local **language** (EN/中 over `src/i18n` `useLang`/`useSetLang`) + **light/dark theme** (over `src/theme` `useTheme`/`useSetTheme`) toggles — both ink-solid segmented chips via a shared `Segmented` helper. No backend — persisted to localStorage `cortex.lang` / `cortex.theme`. The language switch moved here from the left-rail footer (which now hosts the theme toggle). |
-| `settings-nav.test.ts` | vitest — nav order, labels/file tags, section meta. |
-| `platform-env.ts` | **Pure** (TDD): redacted `.env` helpers — `indexEnv`/`envRow` (present→mask `••••••••`, absent→`—`, **never cleartext**), `envKeysWithPrefix`/`hasAnyKey`, and the prototype key groups (SLACK/FEISHU/API/DAEMON, notify + advanced flags). |
-| `platform-env.test.ts` | vitest — index, row masking (no cleartext), prefix filter, presence. |
+| `platform-env.ts` | Pure redacted `.env` helpers: `indexEnv`, `envRow` (present→fixed mask, absent→`—`, never cleartext), `hasAnyKey`, and the production key groups. The unused prefix-list helper was removed. |
+| `platform-env.test.ts` | Unit tests for indexing, fixed redaction, absent values, and present-prefix detection. |
 | `budget-vm.ts` | **Pure** (TDD, governs the ONLY write): `DAILY_CHIPS`/`WARN_CHIPS`, `isDailyChipActive`, `buildBudgetValue` (preserves monthly_usd; returns null when it cannot satisfy the backend zod contract — never fabricates a monthly), `formatBudgetUsd`, `budgetBarPct`. |
 | `budget-vm.test.ts` | vitest — chip active, value-builder (incl. null/non-positive monthly → null), formatting, bar pct. |
 | `settings-ui.tsx` | Shared 1:1 chrome: `SCard`/`SCardHeader`/`MonoKV`/`Toggle`/`RadioDot`. Raw inline styles/px/hex per §8.3. |
-| `SettingsPanels.tsx` | The 8 presentational panels (Platform/Profiles/Machines/Templates/MCP/Notifications/Hooks/Advanced) — prototype-exact structure with real snapshot data + honest placeholders. **Optional action handlers** (b983): `ProfilesPanel.onSetDefaultProfile` (real config.set `profiles` write via a native `<select>`), `PlatformPanel.onReconnect` + `MachinesPanel.onAddMachine` (high-privilege → `approvals.request` gate). Panels stay PURE — omitting a handler renders the inert placeholder, so the render test needs no tRPC provider. |
-| `settings-render.test.tsx` | vitest `react-dom/server` render checks for the 8 panels (real data + placeholders, no cleartext leak) + the b983 wired affordances (default-profile select, approval-gated Reconnect/Add-machine buttons; inert without a handler). |
+| `SettingsPanels.tsx` | The 8 presentational panels (Platform/Profiles/Machines/Templates/MCP/Notifications/Hooks/Advanced) with real snapshot data + honest placeholders. Optional handlers expose a real default-profile write and approval-gated reconnect/add-machine actions; omitting a handler leaves the corresponding affordance inert. |
 | `BudgetPanel.tsx` | Budget panel 12c — **live write**: DAILY chip → `config.set(budget)` mutation → invalidate `config.get` (change→read-back). WARN AT + over-budget policy inert (no budget.json field). today/month from `cost.summary`; daily/monthly denominators from budget.json. |
 | `SettingsModal.tsx` | Radix Dialog shell (backdrop scrim + `cxmodal` anim + focus-trap/Esc) + header + 210px nav + content; binds `config.get` + `cost.summary`, switches the 9 panels client-side. **Owns the b983 action wiring** (the panels are pure): a `config.set` `profiles` mutation (→ invalidate `config.get`) and an `approvals.request` mutation, threaded to Profiles / Platform / Machines as `onSetDefaultProfile` / `onReconnect` / `onAddMachine`. |
 | `SettingsProvider.tsx` | Global `open`/`close` context mounted in `AppShell`; preserves the underlying route and workbench instance while Settings is open. |
@@ -60,6 +58,4 @@ Wired to the **real** `config.get` query (redacted `~/.cortex/config` snapshot) 
 - The Profiles + Notifications panels carry a few literal-Chinese notes that are hardcoded in the
   prototype source (not language-toggled); reproduced verbatim for 1:1 fidelity (§8.3). All other
   copy is the prototype's EN.
-- Verified: `pnpm -w build` (non-desktop) + web `tsc --noEmit` EXIT=0; web `vitest` 238/238. Live
-  (isolated `CORTEX_HOME`): real config.get render across all 9 panels + Budget config.set write
-  reflected on read-back. Side-by-side vs `14-settings.png` → `design/build-shots/09e3-settings-compare.png`.
+- Live verification for real config reads and Budget writes remains recorded in the original task history; current workspace test/build results are tracked in `web/CORTEX.md` and project `STATUS.md`.

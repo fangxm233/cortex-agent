@@ -140,10 +140,6 @@ test('every mutation routes to the correct op and unwraps Result.data', async ()
   }
 });
 
-test('coverage: exactly 11 queries + 15 mutations exercised', () => {
-  assert.equal(QUERY_CASES.length, 11);
-  assert.equal(MUTATE_CASES.length, 15);
-});
 
 // ── Err → TRPCError mapping ──────────────────────────────────────────────────────────
 

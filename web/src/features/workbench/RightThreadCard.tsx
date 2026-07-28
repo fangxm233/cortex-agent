@@ -1,6 +1,6 @@
 // input:  ThreadDetail DTO, tRPC hooks, right-panel view models
-// output: RightThreadCard
-// pos:    Expanded thread card in the workbench right panel
+// output: RightThreadCard with internally composed runs and subtasks
+// pos:    Expanded thread card; presentational row helpers stay private
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useState } from 'react';
@@ -163,7 +163,7 @@ function SubtaskCard({ task }: { task: ThreadSubtaskInfo }) {
   );
 }
 
-export function ThreadActivityRows({
+function ThreadActivityRows({
   runs,
   subtasks,
   onOpenRun,

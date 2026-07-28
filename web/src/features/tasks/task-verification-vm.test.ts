@@ -69,12 +69,10 @@ describe('buildTaskVerificationVm — real evidence', () => {
     expect(vm.hasDispatches).toBe(true);
     expect(vm.dispatches.map((d) => d.executionId)).toEqual(['exec_c', 'exec_b']);
     expect(vm.dispatches[0].isCompleting).toBe(true);
-    expect(vm.dispatches[0].statusColor).toBe('#23854F');
     expect(vm.dispatches[0].duration).toBe('10.0s');
     expect(vm.dispatches[0].cost).toBe('$0.0500');
     expect(vm.dispatches[0].machine).toBe('server-nvidia');
     expect(vm.dispatches[1].isCompleting).toBe(false);
-    expect(vm.dispatches[1].statusColor).toBe('#C03D33');
   });
 });
 

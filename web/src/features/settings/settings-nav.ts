@@ -1,7 +1,9 @@
-// Pure nav model for the Settings modal (design 12a–g, prototype.dc.html L720–1090, script L2379).
-// The 9 left-nav panels + their content-header title/sub copy.
-// Labels are i18n keys resolved via `getSettingsNav(L)` / `getSectionMeta(L, key)`.
-// Framework-free; no JSX, no hex. Precedent: features/overview/overview-vm.ts.
+// input:  localized vocabulary and selected settings section
+// output: ordered settings navigation and section metadata
+// pos:    Pure navigation model for the Settings modal
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+// Labels are resolved via `getSettingsNav(L)` / `getSectionMeta(L, key)`.
 
 import type { Vocab } from '@/i18n';
 
@@ -102,21 +104,4 @@ export function getSectionMeta(L: Vocab, key: SettingsSectionKey): SettingsSecti
     title: L[NAV_LABEL_KEYS[key]],
     sub: L[NAV_SUB_KEYS[key]],
   };
-}
-
-// ── Legacy exports (hardcoded EN) for tests that don't wire a Vocab ──
-// These exist only for backward compat with tests that check raw label strings.
-// New code should use getSettingsNav(L) / getSectionMeta(L, key).
-
-import { en } from '@/i18n';
-
-export const SETTINGS_NAV: SettingsNavEntry[] = getSettingsNav(en);
-export const SETTINGS_SECTION_META: Record<SettingsSectionKey, SettingsSectionMeta> =
-  Object.fromEntries(NAV_ORDER.map((k) => [k, getSectionMeta(en, k)])) as Record<
-    SettingsSectionKey,
-    SettingsSectionMeta
-  >;
-
-export function sectionMeta(key: SettingsSectionKey): SettingsSectionMeta {
-  return getSectionMeta(en, key);
 }

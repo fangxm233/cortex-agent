@@ -1,14 +1,13 @@
-// input:  MCP SDK, feishu/ tool registration, lark client builder
-// output: cortex-feishu MCP stdio server — Feishu file sending (feishu_send_file).
-//         Document/table/wiki tooling moved to the official lark-cli (see feishu-doc skill).
-// pos:    Standalone MCP server (peer of core-server.ts & server.ts); loaded only for Feishu-originated
+// input:  MCP SDK, Feishu tool registrar, and environment-backed client builder
+// output: Feishu-specific MCP stdio service assembled from production registration
+// pos:    standalone platform server loaded only for Feishu-originated
 //         sessions (channel carries the `feishu:` prefix) — Claude via mcp-config-feishu.json layering,
 //         PI via the mcp-bridge feishu handle. Not loaded for thread/core sessions.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { registerFeishuTools, FEISHU_TOOL_NAMES } from './feishu/index.js';
+import { registerFeishuTools } from './feishu/index.js';
 import { buildFeishuClientFromEnv } from './feishu/client.js';
 import { isMainModule } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -24,8 +23,6 @@ const client = buildFeishuClientFromEnv();
 
 const server = new McpServer({ name: 'cortex-feishu', version: CORTEX_VERSION });
 registerFeishuTools(server, { client });
-
-export const TOOL_NAMES = FEISHU_TOOL_NAMES;
 
 export async function startServer(): Promise<void> {
   if (!client) {

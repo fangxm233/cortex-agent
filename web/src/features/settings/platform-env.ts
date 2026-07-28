@@ -1,3 +1,8 @@
+// input:  redacted environment entries and vocabulary keys
+// output: safe settings rows plus supported environment-key groups
+// pos:    Pure settings model for environment-backed panels
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import type { ConfigEnvEntry } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
@@ -28,11 +33,6 @@ export function envRow(index: EnvIndex, key: string): EnvRow {
   const entry = index[key];
   const present = entry?.present === true;
   return { key, present, display: present ? ENV_MASK : '—' };
-}
-
-/** All env keys (present or not) that start with `prefix` — for an honest listing of extra keys. */
-export function envKeysWithPrefix(env: ConfigEnvEntry[], prefix: string): string[] {
-  return env.filter((e) => e.key.startsWith(prefix)).map((e) => e.key);
 }
 
 /** True if any *present* env key matches the prefix — used to reflect platform presence honestly. */

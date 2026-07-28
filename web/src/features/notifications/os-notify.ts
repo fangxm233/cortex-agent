@@ -1,3 +1,8 @@
+// input:  notification items, native-shell availability, and Tauri notification events
+// output: permission-gated OS notification delivery and tap subscriptions
+// pos:    Mobile native-notification bridge with browser fallback
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // OS/system-notification bridge (design 1q: mobile uses system push, not an in-app banner).
 //
 // The mobile app is a Tauri v2 Android shell wrapping this SPA (see desktop/CORTEX.md). The Android
@@ -94,9 +99,4 @@ export async function onOsNotificationAction(
   } catch {
     return () => {};
   }
-}
-
-/** Test-only: reset the cached permission decision. */
-export function __resetOsNotifyPermissionForTest(): void {
-  permissionGranted = null;
 }

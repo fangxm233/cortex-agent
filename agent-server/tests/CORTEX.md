@@ -12,6 +12,8 @@ Test API is vitest's: `import { test, describe, it, beforeAll, afterAll, beforeE
 still works and is used throughout. Fake timers use `vi.useFakeTimers`/`advanceTimersByTime`; spies use
 `vi.spyOn` (auto-restored via `restoreMocks: true`).
 
+The maintained suite tests runtime behavior, persistence, protocol/security boundaries, state transitions, concurrency, and error paths. Export inventories, singleton/API-shape smoke assertions, source-text matching, and fixed presentation values are intentionally excluded. Contract routing tables remain when they execute and verify each route rather than merely counting declarations.
+
 ## Cleanup Discipline: register cleanup for long-lived resources, don't write it at the end of the test body
 
 If the module under test holds long-lived resources such as timer/interval/listener/child process (typical examples:
@@ -56,7 +58,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-adapter-pi-event-parser.test.ts` | Test | PI event translation, internal-retry dropping, and settled-boundary aggregation |
 | `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |
 | `agent-adapter-pi-hook-bridge.test.ts` | Test | PI hook lifecycle plus CORTEX Read/Edit injection |
-| `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
+| `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI bridge content mapping, platform-origin policy, and one real cost-query transport call; no tool inventory |
 | `agent-adapter-pi-tool-shims.test.ts` | Test | PI shims, plan-file instruction, and retries |
 | `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
 | `run-with-adapter.test.ts` | Test | Normalized and inline-continuation context callbacks |
@@ -159,11 +161,9 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `domain/ui-service/query-skills.test.ts` | Test | skills.list handler: returns empty array / user-owned group (plugin=null) with sorted skill names / plugin groups / independent copy guarantee (4 cases; uses clearSkillScanCache to bust 60s in-process cache) |
 | `client-hot-reload.test.ts` | Test | `updateClientReleaseLocal` (release-mode local same-machine client update): already-at-latest no-op, kill→npmUpdate→restart ordering, unknown installed version, npmUpdate-throws error capture, restart-fail partial |
 | `cortex-run-callback-handler.test.ts` | Test | task-callback handler (DR-0011 §4.4): idempotency, skipVerify, ghost callback, blockTask note |
-| `mcp-server.test.ts` | Test | Import safety and startup hints |
-| `domain/mcp/tools-registration.test.ts` | Test | MCP registration and compact remote mutation responses |
+| `domain/mcp/tools-registration.test.ts` | Test | Remote write/edit confirmations stay compact and do not leak file snapshots |
 | `domain/mcp/time-tool.test.ts` | Test | current_time handler: valid tz payload, default tz, invalid-tz error |
 | `domain/mcp/task-monitor-tool.test.ts` | Test | task_status/task_result/task_list handlers read TASKS.yaml (status/terminal/parent filter) |
-| `domain/mcp/server.test.ts` | Test | Server module loads without Slack env + no wildcard registration ([S10-A]) |
 | `domain/mcp/cortex-schedule.test.ts` | Test | resolveTargetShorthand: __current__ to concrete ID 12-way resolution and error paths |
 | `scheduled-target-dispatch.test.ts` | Test | planScheduledDispatch: fresh/channel/session/thread + fallback decision tree |
 | `cortex-md-scanner.test.ts` | Test | CORTEX ancestor scanning and physical host identity |

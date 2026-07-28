@@ -28,14 +28,15 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `codex/adapter.ts` | adapter | CodexAdapter + RouteRuntime pool |
 | `codex/event-parser.ts` | parser | codexEventToNormalized translation |
 | `pi/agent-dir.ts` | config | PI agent directory constants (data/pi/models.json + logs/sessions-pi/) + multi-provider models.json writer (writeProvidersConfig; re-asserts gateway-lost PI compat via PROVIDER_COMPAT_OVERRIDES, e.g. deepseek supportsDeveloperRole=false) + auth.json symlink/copy mirror (ensureAuthVisible) |
-| `pi/adapter.ts` | adapter | PI sessions, correlated manual compact/stats, switching, steering, and turns |
+| `pi/adapter.ts` | adapter | PI sessions, correlated manual compact/stats, switching, steering, and turns; internal helpers are tested through their owning modules rather than a test-only export inventory |
 | `pi/discovery.ts` | helper | Provider discovery (`pi --list-models` without Cortex's private agent-dir override) + bounded session-file existence check (filename fast path, JSONL header fallback) |
 | `pi/session-support.ts` | helper | PI session primitives: timers, prompt assembly, event queue, process/turn types, safe RPC parse, FIFO steering, and `PIContextUsageProbe` (2s live throttle/single-flight + independent final correlation/timeout) |
 | `pi/defaults.ts` | defaults | PI session directory and compiled extension paths used by process spawning |
 | `pi/event-parser.ts` | parser | PI event translation and shared context-stats payload validation |
 | `pi/framing.ts` | framing | LF-only NDJSON encoding and splitter |
 | `pi/spawn-args.ts` | args | `buildSpawnArgs` constructs PI CLI args; `buildPiEnv` clears stale context and injects authoritative thread/task/session identity |
-| `pi/mcp-bridge.ts` | extension | Bridge PI to Cortex MCP server |
+| `pi/mcp-bridge.ts` | extension | Bridge PI to Cortex MCP servers; process paths/handles remain internal |
+| `pi/mcp-bridge-logic.ts` | policy/codec | Platform-origin loading decisions and lossless MCP-content-to-PI text mapping, shared by runtime and tests |
 | `pi/hook-bridge.ts` | extension | Bridges PI tool events and CORTEX Read/Edit context |
 | `pi/tool-shims.ts` | extension | gated ask/enter/exit/todo pseudo-tools |
 | `pi/pi-ext-types.ts` | types | Minimal TS type stub for PI SDK |

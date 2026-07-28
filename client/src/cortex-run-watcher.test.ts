@@ -409,18 +409,3 @@ describe('killProcessGroup', () => {
     }
   });
 });
-
-// --- Integration: signal handler structure (lightweight) ---
-
-describe('signal handler registration', () => {
-  it('cortex-run-watcher module exports all expected functions', () => {
-    // Verify all exported functions exist and are callable
-    assert.strictEqual(typeof parseDuration, 'function');
-    assert.strictEqual(typeof pickBestGpu, 'function');
-    assert.strictEqual(typeof resolveGpuSelection, 'function');
-    assert.strictEqual(typeof checkStallConditions, 'function');
-    assert.strictEqual(typeof writeStateFile, 'function');
-    assert.strictEqual(typeof computeResult, 'function');
-    assert.strictEqual(typeof killProcessGroup, 'function');
-  });
-});

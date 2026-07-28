@@ -3,7 +3,6 @@ import type { MachineInfo } from '@cortex-agent/ui-contract';
 import {
   fmtConnectedZh,
   machineCardVm,
-  buildMobileMachinesVm,
 } from './mobile-machines-vm';
 
 // Fixtures ──────────────────────────────────────────────────────────────────────────────────────
@@ -112,36 +111,5 @@ describe('machineCardVm', () => {
     expect(vm['sshConfigured']).toBeUndefined();
     expect(vm['lastHeartbeat']).toBeUndefined();
     expect(vm['capabilities']).toBeUndefined();
-  });
-});
-
-// buildMobileMachinesVm ───────────────────────────────────────────────────────────────────────
-
-describe('buildMobileMachinesVm', () => {
-  it('returns [] for empty input', () => {
-    expect(buildMobileMachinesVm([])).toEqual([]);
-  });
-
-  it('preserves order of the input array', () => {
-    const machines: MachineInfo[] = [
-      mk({ name: 'alpha' }),
-      mk({ name: 'beta' }),
-      mk({ name: 'gamma' }),
-    ];
-    const vms = buildMobileMachinesVm(machines);
-    expect(vms.map((v) => v.name)).toEqual(['alpha', 'beta', 'gamma']);
-  });
-
-  it('maps a mixed online/offline list correctly', () => {
-    const machines: MachineInfo[] = [
-      mk({ name: 'on', online: true, liveRuns: 2, gpuCount: 2, connectedAt: '2026-07-10T11:00:00Z' }),
-      mk({ name: 'off', online: false, liveRuns: 0 }),
-    ];
-    const [onVm, offVm] = buildMobileMachinesVm(machines);
-    expect(onVm.online).toBe(true);
-    expect(onVm.liveRuns).toBe(2);
-    expect(onVm.connectedAt).toBe('2026-07-10T11:00:00Z');
-    expect(offVm.online).toBe(false);
-    expect(offVm.connectedAt).toBeNull();
   });
 });

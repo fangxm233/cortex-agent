@@ -1,7 +1,6 @@
 Please update me when files in this folder change
 
-tests/orch/ — Regression tests for the orch/ orchestration layer.
-Covers API and event publication contracts for running-executions, channel-queue, superseded-edits, busy-tracker, and interactions/plan-approvals singletons (running-executions is in core/, tests are here, corresponding to Phase 1 Step 1).
+tests/orch/ — Regression tests for the orchestration layer. Coverage is behavioral: queueing, routing, lifecycle transitions, event publication, cancellation, recovery, and interaction outcomes. Singleton/method-existence and injected-field identity assertions are not treated as regressions.
 
 DEBUG coverage here includes byte-identical assembled-prompt capture (`first-turn-interrupt-resume.test.ts`) and the content-free `session.debug.updated` bus contract (`session-events.test.ts`).
 

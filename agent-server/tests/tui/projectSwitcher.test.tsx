@@ -5,7 +5,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import React from 'react';
-import { Text } from 'ink';
 import { render } from 'ink-testing-library';
 import { ProjectSwitcher } from '../../src/tui/components/ProjectSwitcher.js';
 
@@ -68,27 +67,6 @@ test('ProjectSwitcher escape closes', async (t) => {
   await delay(100);
 
   assert.equal(closeCalled, true, 'Escape calls onClose');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('ProjectSwitcher shows loading state', async (t) => {
-  const app = React.createElement(ProjectSwitcher, {
-    open: true,
-    projects: [],
-    loading: true,
-    error: null,
-    onSelect: () => {},
-    onClose: () => {},
-    onRequestRefresh: () => {},
-  });
-
-  const instance = render(app);
-  await delay(100);
-
-  const output = instance.lastFrame();
-  assert.ok(output.includes('Loading'), 'shows loading state');
 
   instance.unmount();
   instance.cleanup();

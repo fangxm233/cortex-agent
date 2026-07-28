@@ -1,3 +1,8 @@
+// input:  source globs and shared CSS-variable design tokens/keyframes
+// output: Tailwind build configuration for generated utility classes
+// pos:    web styling compiler config; toast timing is presentation-owned
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import type { Config } from 'tailwindcss';
 
 // Single source of truth for the Cortex UI design tokens (design §5, v2 定稿).
@@ -238,8 +243,7 @@ const config: Config = {
         'slide-out-left': 'slide-out-left 160ms ease-in',
         'toast-in': 'toast-in 180ms cubic-bezier(0.16, 1, 0.3, 1)',
         'toast-out': 'toast-out 120ms ease-in',
-        // 6s dwell (design 18a: info 6s 自动消失). Duration matches AUTO_DISMISS_MS in
-        // features/notifications/notification-vm.ts.
+        // 6s dwell for transient info toasts; warning/error toasts do not use this bar.
         toastbar: 'toastbar 6000ms linear forwards',
         'popover-in': 'popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1)',
         'popover-out': 'popover-out 100ms ease-in',

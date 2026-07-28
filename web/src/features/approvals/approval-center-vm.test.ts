@@ -28,17 +28,13 @@ function mk(over: Partial<ApprovalInfo> = {}): ApprovalInfo {
 }
 
 describe('statusPill', () => {
-  it('maps pending to amber', () => {
-    expect(statusPill('pending')).toEqual({ text: '● pending', bg: '#F7ECCE', fg: '#8A5B06' });
-  });
-  it('maps approved to green', () => {
-    expect(statusPill('approved')).toEqual({ text: '✓ approved', bg: '#E9F4EE', fg: '#23854F' });
-  });
-  it('maps rejected to red', () => {
-    expect(statusPill('rejected')).toEqual({ text: '✕ rejected', bg: '#FBEDEB', fg: '#C03D33' });
-  });
-  it('maps failed to red', () => {
-    expect(statusPill('failed')).toEqual({ text: 'failed', bg: '#FBEDEB', fg: '#C03D33' });
+  it.each([
+    ['pending', '● pending'],
+    ['approved', '✓ approved'],
+    ['rejected', '✕ rejected'],
+    ['failed', 'failed'],
+  ] as const)('maps %s to its semantic label', (status, label) => {
+    expect(statusPill(status).text).toBe(label);
   });
 });
 

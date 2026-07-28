@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ConfigEnvEntry } from '@cortex-agent/ui-contract';
-import { indexEnv, envRow, envKeysWithPrefix, hasAnyKey, ENV_MASK } from './platform-env';
+import { indexEnv, envRow, hasAnyKey, ENV_MASK } from './platform-env';
 
 const env: ConfigEnvEntry[] = [
   { key: 'SLACK_BOT_TOKEN', present: true, masked: ENV_MASK },
@@ -32,11 +32,6 @@ describe('platform-env', () => {
     for (const k of ['SLACK_BOT_TOKEN', 'CORTEX_MACHINE', 'ANTHROPIC_API_KEY']) {
       expect(envRow(idx, k).display).toBe(ENV_MASK);
     }
-  });
-
-  it('filters keys by prefix (for honest listing of extra keys)', () => {
-    expect(envKeysWithPrefix(env, 'SLACK_').sort()).toEqual(['SLACK_ADMIN_CHANNEL', 'SLACK_BOT_TOKEN']);
-    expect(envKeysWithPrefix(env, 'FEISHU_')).toEqual([]);
   });
 
   it('hasAnyKey detects whether any present key matches a prefix (platform presence)', () => {

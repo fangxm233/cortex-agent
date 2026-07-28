@@ -10,7 +10,7 @@
 | tui-protocol.test.ts | 测试 | 覆盖 TUI wire protocol |
 | tui-transcript.test.ts | 测试 | 覆盖 TUI transcript 转换 |
 | ui-http-access-jwt.test.ts | 测试 | 覆盖 Access JWT 鉴权 |
-| ui-http-app-router.test.ts | 测试 | 覆盖 tRPC 映射，包括 sessions.compact 与 rate limits |
+| ui-http-app-router.test.ts | 测试 | 逐路由执行并验证 tRPC query/mutation 映射、Result 解包与错误转换；不维护固定路由数量断言 |
 | ui-http-lazy-driver.mjs | 工具 | 驱动 transport lazy-load 测试 |
 | ui-http-lazy-hooks.mjs | 工具 | 记录 lazy-load module resolve |
 | ui-http-lazy-load.test.ts | 测试 | 覆盖 transport 延迟加载 |

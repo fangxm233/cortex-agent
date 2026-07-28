@@ -12,7 +12,7 @@ mirroring the prototype's `isOverview` state. Diffed vs `proto-shots/10-overview
 | `OverviewPage.tsx` | Route `/overview`. The 240/fluid/400 flex frame (same as `WorkbenchPage`) assembling `<LeftRail/> <OverviewView/> <RightPanel/>`. |
 | `OverviewView.tsx` | The center pane 1:1 (prototype L525–655): header bar (‹ back → `/workbench` · projName · Overview · Adjust-budget · ⋯) + cost summary bar + 2-col card grid (Last-14-days · Project memory · Where-it-goes · Schedules · Executions span-2). Exact inline styles/px/hex/font/weight/EN copy; real tRPC data substituted. |
 | `overview-vm.ts` | **Pure** VM helpers (TDD): `formatMoney` · `deriveActiveProjectId` (mirrors LeftRail) · `scheduleIntervalLabel` · `scheduleProfileLabel` (real `ScheduleInfo.profile`, `''` when absent) · `nextRunLabel`/`lastRunLabel` (relative humanize) · `execDurationMs`/`formatDuration` · `execMachine`/`execCost`/`execStatusPill` (verbatim §5 pill hexes)/`execSummary` · **real cost fields (task 302b)** `budgetPercent` (today ÷ dailyBudget, clamp [0,100], `null` when no positive denom) · `formatPerDay` (dailyBudget or `—`) · `dailySeriesBars` (14-day series → bars normalized to series max + `isToday`) · `dailyAverage` (series mean or `null`) · `whereItGoesRows` (byTriggerScoped → weekly rows, drop-zero + sort-desc + cap 5 + proportional pct). Nested cost types reached via indexed access on `CostSummary` (no ui-contract re-export churn). |
-| `overview-vm.test.ts` | vitest for `overview-vm.ts` (36 tests, written first). |
+| `overview-vm.test.ts` | Unit tests for project selection, schedule/execution derivation, cost math, series normalization, and breakdown ordering; palette values are not asserted. |
 
 ## Real data vs data-gap placeholders
 

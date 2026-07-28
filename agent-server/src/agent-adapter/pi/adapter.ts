@@ -1,6 +1,6 @@
 // input:  AgentSpawnConfig, session keys, injectable spawner
-// output: PIAdapter sessions, context stats, manual compact, steering
-// pos:    PI CLI session pool and AgentAdapter implementation
+// output: PIAdapter runtime sessions, context stats, manual compact, steering
+// pos:    PI CLI session pool; private spawn/codec helpers stay module-internal
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
@@ -970,15 +970,3 @@ export class PIAdapter implements AgentAdapter {
     return Array.from(this.sessions.keys());
   }
 }
-
-export const _test = {
-  buildSpawnArgs,
-  encodeCommand,
-  createLineSplitter,
-  DEFAULT_SESSION_DIR,
-  MCP_BRIDGE_PATH,
-  TOOL_SHIMS_PATH,
-  HOOK_BRIDGE_PATH,
-  CLOSE_EXIT_WAIT_MS,
-  SWITCH_SESSION_TIMEOUT_MS,
-};

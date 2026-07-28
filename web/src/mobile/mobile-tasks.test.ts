@@ -7,8 +7,6 @@ import {
   executableCount,
   allOpenCount,
   allCount,
-  orderedGroups,
-  MOBILE_GROUP_DOT,
 } from './mobile-tasks';
 
 function task(over: Partial<TaskInfo>): TaskInfo {
@@ -142,44 +140,5 @@ describe('segment counts', () => {
     ]);
     expect(allOpenCount(withDone)).toBe(2);
     expect(allCount(withDone)).toBe(4);
-  });
-});
-
-describe('orderedGroups', () => {
-  const grouped = groupMobileTasks([
-    task({ id: 'A', claimedBy: 'thr_a' }),
-    task({ id: 'B', actionable: true }),
-    task({ id: 'D', actionable: true, dependsOn: ['A'] }),
-    task({ id: 'E', blockedBy: 'x' }),
-  ]);
-
-  it('all: 进行中 → 可认领 → 等依赖 → 已阻塞 order, non-empty only', () => {
-    expect(orderedGroups(grouped, 'all').map((g) => g.group)).toEqual([
-      'in-progress',
-      'claimable',
-      'waiting-deps',
-      'blocked',
-    ]);
-  });
-
-  it('executable: only in-progress + claimable', () => {
-    expect(orderedGroups(grouped, 'executable').map((g) => g.group)).toEqual([
-      'in-progress',
-      'claimable',
-    ]);
-  });
-
-  it('omits empty groups', () => {
-    const g = groupMobileTasks([task({ id: 'B', actionable: true })]);
-    expect(orderedGroups(g, 'all').map((x) => x.group)).toEqual(['claimable']);
-  });
-});
-
-describe('MOBILE_GROUP_DOT', () => {
-  it('maps each group to the verbatim scheme dot hex', () => {
-    expect(MOBILE_GROUP_DOT['in-progress']).toBe('#C03D33');
-    expect(MOBILE_GROUP_DOT.claimable).toBe('#C99A2E');
-    expect(MOBILE_GROUP_DOT['waiting-deps']).toBe('#C99A2E');
-    expect(MOBILE_GROUP_DOT.blocked).toBe('#C99A2E');
   });
 });

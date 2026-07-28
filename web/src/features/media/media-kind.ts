@@ -1,6 +1,7 @@
-// Pure helper shared by every image/video surface (composer preview, sent user message, agent-sent
-// files) on web + mobile. Maps an attachment `type` to the kind the media lightbox can present
-// inline — 'image' | 'video' — or null for a plain file that is not previewable.
+// input:  shared attachment type
+// output: media-lightbox kind or null
+// pos:    Pure classifier shared by desktop and mobile attachment surfaces
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 export type MediaKind = 'image' | 'video';
 
@@ -10,9 +11,4 @@ export function mediaKindOf(type: 'image' | 'video' | 'file'): MediaKind | null 
   if (type === 'image') return 'image';
   if (type === 'video') return 'video';
   return null;
-}
-
-/** True when the attachment type can be opened in the media lightbox (image or video). */
-export function isPreviewable(type: 'image' | 'video' | 'file'): boolean {
-  return mediaKindOf(type) !== null;
 }

@@ -1,6 +1,6 @@
-// input:  MCP SDK, 3 tool-family modules (no remote_* — those live in core-server.ts, no slack_send_file — that lives in slack-server.ts)
-// output: MCP stdio service, exposing cost/query/context/schedule tools
-// pos:    Ext MCP server — platform-agnostic tools (cost, executions, context, schedule)
+// input:  MCP SDK plus cost, execution, context, and schedule registrars
+// output: platform-agnostic ext MCP stdio service assembled from production registrations
+// pos:    ext server; no remote/platform tools and no duplicate name inventory
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -41,20 +41,6 @@ registerCostTools(server);
 registerExecutionTools(server);
 registerContextTools(server, contextDeps);
 registerScheduleTools(server, contextDeps);
-
-// --- Exported tool name list (for verification) ---
-
-export const TOOL_NAMES: readonly string[] = [
-  'cost_query',
-  'query_executions',
-  'cortex_context',
-  'cortex_schedule_add',
-  'cortex_schedule_list',
-  'cortex_schedule_get',
-  'cortex_schedule_remove',
-  'cortex_schedule_pause',
-  'cortex_schedule_resume',
-];
 
 // --- Start (called by barrel when run as standalone) ---
 

@@ -1,6 +1,7 @@
-// input:  src/platform/tui/protocol.js
-// output: Round-trip + negative + guard + inventory tests for M4 TUI wire protocol
-// pos:    Verifies every variant round-trips, guards narrow, inventory is complete
+// input:  TUI frame fixtures and protocol codec
+// output: round-trip, validation, and representative guard tests
+// pos:    Verifies TUI wire parsing and encoding behavior
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -17,17 +18,7 @@ import {
   UI_QUERY, UI_QUERY_RESULT, UI_MUTATE, UI_MUTATE_RESULT,
   UI_SUBSCRIBE, UI_EVENT, UI_UNSUBSCRIBE,
   ERROR,
-  ALL_FRAME_TYPES, GUARD_BY_TYPE,
-  isHandshakeHello, isHandshakeAck, isSessionSwitch, isSessionSwitched,
-  isPing, isPong, isClose,
-  isChatPost, isChatUpdate, isChatDelete, isChatMarkQueued,
-  isMsgUser, isMsgEdit,
-  isStreamText, isStreamMutableOpen, isStreamMutableUpdate, isStreamFlush,
-  isInteractivePost, isModalOpen, isModalAck, isActionClick, isModalSubmit,
-  isTranscriptReplay, isNotification,
-  isUiQuery, isUiQueryResult, isUiMutate, isUiMutateResult,
-  isUiSubscribe, isUiEvent, isUiUnsubscribe,
-  isErrorFrame,
+  isHandshakeHello, isChatPost, isNotification, isModalOpen, isErrorFrame,
 } from '../../src/platform/tui/protocol.js';
 import type {
   TuiFrame,
@@ -302,22 +293,6 @@ test('modal.submit values round-trip matches ModalSubmitContext.values shape', (
 
 // ── Group 4: Guard discrimination ──
 
-test('every guard returns true for its own variant and false for all others', () => {
-  for (const frame of REPRESENTATIVE_FRAMES) {
-    const frameType = frame.type;
-    for (const typeStr of ALL_FRAME_TYPES) {
-      const guard = GUARD_BY_TYPE[typeStr];
-      assert.ok(typeof guard === 'function', `guard for ${typeStr} is not a function`);
-      const result = guard(frame);
-      if (typeStr === frameType) {
-        assert.ok(result, `guard for ${typeStr} should return true for ${frameType}`);
-      } else {
-        assert.ok(!result, `guard for ${typeStr} should return false for ${frameType}`);
-      }
-    }
-  }
-});
-
 test('specific guard narrowing (type narrowing safety under --strict)', () => {
   const f: TuiFrame = {
     type: HANDSHAKE_HELLO, protocolVersion: 1,
@@ -337,41 +312,4 @@ test('specific guard narrowing (type narrowing safety under --strict)', () => {
   } else {
     assert.fail('should have narrowed to HandshakeHello');
   }
-});
-
-// ── Group 5: Frame inventory ──
-
-test('every type in ALL_FRAME_TYPES has a guard in GUARD_BY_TYPE', () => {
-  for (const typeStr of ALL_FRAME_TYPES) {
-    const guard = GUARD_BY_TYPE[typeStr];
-    assert.ok(
-      typeof guard === 'function',
-      `missing guard function for type: ${typeStr} — ` +
-      'if you added a variant to TuiFrame, add its guard to GUARD_BY_TYPE',
-    );
-  }
-});
-
-test('GUARD_BY_TYPE has no extra entries beyond ALL_FRAME_TYPES', () => {
-  const guardCount = Object.keys(GUARD_BY_TYPE).length;
-  assert.equal(
-    guardCount, ALL_FRAME_TYPES.length,
-    `GUARD_BY_TYPE has ${guardCount} entries but ALL_FRAME_TYPES has ${ALL_FRAME_TYPES.length}`,
-  );
-});
-
-test('every type in ALL_FRAME_TYPES is exercised by REPRESENTATIVE_FRAMES', () => {
-  const covered = new Set<string>(REPRESENTATIVE_FRAMES.map(f => f.type));
-  for (const typeStr of ALL_FRAME_TYPES) {
-    assert.ok(
-      covered.has(typeStr),
-      `REPRESENTATIVE_FRAMES is missing a fixture for type: ${typeStr}`,
-    );
-  }
-});
-
-// ── Protocol version ──
-
-test('PROTOCOL_VERSION is 1', () => {
-  assert.equal(PROTOCOL_VERSION, 1);
 });

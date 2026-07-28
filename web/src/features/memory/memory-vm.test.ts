@@ -76,21 +76,9 @@ describe('relTimeAgo', () => {
 });
 
 describe('diffToggle', () => {
-  it('is the filled blue pill when on (Viewing diff)', () => {
-    expect(diffToggle(true)).toEqual({
-      label: 'Viewing diff',
-      color: '#fff',
-      bg: '#4655D4',
-      border: '#4655D4',
-    });
-  });
-  it('is the outline pill when off (Diff hidden)', () => {
-    expect(diffToggle(false)).toEqual({
-      label: 'Diff hidden',
-      color: '#4655D4',
-      bg: '#fff',
-      border: '#C9CFF2',
-    });
+  it('reports whether the diff is visible', () => {
+    expect(diffToggle(true).label).toBe('Viewing diff');
+    expect(diffToggle(false).label).toBe('Diff hidden');
   });
 });
 

@@ -8,7 +8,6 @@ import {
   contextUsageFromLivePayload,
   contextUsageViewModel,
   resolveContextUsage,
-  shouldShowContextUsage,
 } from './context-usage';
 
 const snapshot = {
@@ -32,12 +31,6 @@ describe('context usage snapshot + delta', () => {
     expect(contextUsageFromLivePayload({ ...snapshot, contextWindow: 0 })).toBeNull();
     expect(contextUsageFromLivePayload({ ...snapshot, accuracy: 'maybe' })).toBeNull();
     expect(contextUsageFromLivePayload(null)).toBeNull();
-  });
-
-  it('shows an unavailable control for PI, hides unsupported empty sessions, and allows future backends with data', () => {
-    expect(shouldShowContextUsage('pi', null)).toBe(true);
-    expect(shouldShowContextUsage('claude', null)).toBe(false);
-    expect(shouldShowContextUsage('claude', snapshot)).toBe(true);
   });
 });
 

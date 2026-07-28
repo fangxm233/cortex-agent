@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
-import { PIAdapter, _test as piTest } from '../src/agent-adapter/pi/adapter.js';
+import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/framing.js';
 import { buildPiEnv, buildSpawnArgs } from '../src/agent-adapter/pi/spawn-args.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
@@ -508,14 +508,6 @@ test('PIAdapter exposes backend=pi with frozen capability matrix', () => {
   const adapter = new PIAdapter();
   assert.equal(adapter.backend, 'pi');
   assert.equal(adapter.capabilities, CAPABILITIES_BY_BACKEND.pi);
-});
-
-test('_test exports surface helpers for downstream tasks (a7f9 / 5754)', () => {
-  assert.equal(typeof piTest.buildSpawnArgs, 'function');
-  assert.equal(typeof piTest.encodeCommand, 'function');
-  assert.equal(typeof piTest.createLineSplitter, 'function');
-  assert.equal(typeof piTest.DEFAULT_SESSION_DIR, 'string');
-  assert.equal(typeof piTest.CLOSE_EXIT_WAIT_MS, 'number');
 });
 
 // --- Group F: extensionPaths / --extension flag (task 5754 MCP bridge) ---

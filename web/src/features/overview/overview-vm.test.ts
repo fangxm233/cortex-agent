@@ -179,15 +179,14 @@ describe('execMachine / execCost', () => {
 });
 
 describe('execStatusPill', () => {
-  it('maps each status to prototype pill tones', () => {
-    expect(execStatusPill('running').text).toBe('running');
-    expect(execStatusPill('running').color).toBe('#4655D4');
-    expect(execStatusPill('completed').text).toBe('done');
-    expect(execStatusPill('completed').color).toBe('#23854F');
-    expect(execStatusPill('failed').text).toBe('failed');
-    expect(execStatusPill('failed').color).toBe('#C03D33');
-    expect(execStatusPill('cancelled').text).toBe('cancelled');
-    expect(execStatusPill('stale').text).toBe('stale');
+  it.each([
+    ['running', 'running'],
+    ['completed', 'done'],
+    ['failed', 'failed'],
+    ['cancelled', 'cancelled'],
+    ['stale', 'stale'],
+  ] as const)('maps %s to its semantic label', (status, label) => {
+    expect(execStatusPill(status).text).toBe(label);
   });
 });
 

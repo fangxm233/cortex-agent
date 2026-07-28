@@ -1,119 +1,42 @@
-import { describe, it, expect } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { createElement } from 'react';
+// input:  sheet drag metrics and composer text
+// output: dismiss decisions and Unicode-safe composer counts
+// pos:    Pure mobile UI-kit logic tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import { describe, expect, it } from 'vitest';
 import {
-  shouldFlingClose,
-  composerLineCount,
   composerCharCount,
   composerCountLabel,
-  ComposerFullscreen,
-  MComposer,
+  composerLineCount,
+  shouldFlingClose,
 } from './kit';
 
-// MBottomSheet drag-to-dismiss threshold (the grab handle is a live drag target): a released drag
-// flings the sheet closed past ~28% of its height, or on a fast downward flick regardless of distance.
 describe('shouldFlingClose', () => {
-  const H = 300; // 28% ≈ 84px
-
-  it('snaps back for a small, slow drag', () => {
-    expect(shouldFlingClose(40, H, 0)).toBe(false);
-    expect(shouldFlingClose(83, H, 0.1)).toBe(false);
+  it('closes after crossing the distance threshold', () => {
+    expect(shouldFlingClose(83, 300, 0.1)).toBe(false);
+    expect(shouldFlingClose(85, 300, 0.1)).toBe(true);
   });
 
-  it('closes once dragged past ~28% of the sheet height', () => {
-    expect(shouldFlingClose(85, H, 0)).toBe(true);
-    expect(shouldFlingClose(200, H, 0)).toBe(true);
+  it('closes on a fast downward flick regardless of distance', () => {
+    expect(shouldFlingClose(20, 300, 0.9)).toBe(true);
   });
 
-  it('closes on a fast downward flick even when the distance is short', () => {
-    expect(shouldFlingClose(20, H, 0.9)).toBe(true);
-  });
-
-  it('does not close on a gentle flick below the velocity threshold', () => {
-    expect(shouldFlingClose(20, H, 0.4)).toBe(false);
+  it('keeps a short, slow drag open', () => {
+    expect(shouldFlingClose(20, 300, 0.4)).toBe(false);
   });
 });
 
-// ── §2 composer · multi-line growth + full-screen editor (scheme-mobile.dc.html 2a/2b) ──────────────
-describe('composerLineCount', () => {
-  it('counts an empty field as one line', () => {
+describe('composer text metrics', () => {
+  it('counts newline-separated rows, including a trailing empty row', () => {
     expect(composerLineCount('')).toBe(1);
+    expect(composerLineCount('a\nb\n')).toBe(3);
   });
-  it('counts a single line', () => {
-    expect(composerLineCount('hello world')).toBe(1);
-  });
-  it('counts one line per newline-separated row', () => {
-    expect(composerLineCount('a\nb')).toBe(2);
-    expect(composerLineCount('a\nb\nc\n')).toBe(4); // trailing newline opens a fresh row
-  });
-});
 
-describe('composerCharCount', () => {
-  it('counts code points (empty → 0)', () => {
-    expect(composerCharCount('')).toBe(0);
-    expect(composerCharCount('héllo')).toBe(5);
+  it('counts Unicode code points and includes newlines', () => {
+    expect(composerCharCount('A😀\n中')).toBe(4);
   });
-  it('counts newlines as characters', () => {
-    expect(composerCharCount('a\nb')).toBe(3);
-  });
-});
 
-describe('composerCountLabel', () => {
-  it('formats the 2b footer counter "N 行 · M 字"', () => {
-    expect(composerCountLabel('a\nb', '行', '字')).toBe('2 行 · 3 字');
-    expect(composerCountLabel('hi', 'lines', 'chars')).toBe('1 lines · 2 chars');
-  });
-});
-
-describe('2b ComposerFullscreen', () => {
-  const base = {
-    value: 'line one\nline two',
-    placeholder: '输入消息，/ 调用命令',
-    onChange: () => {},
-    onSend: () => {},
-    sendEnabled: true,
-    onCollapse: () => {},
-    onPlus: () => {},
-    lineUnit: '行',
-    charUnit: '字',
-  };
-  it('renders the expanded field: textarea, collapse button, ＋ / slash tools, counter, and Send', () => {
-    const html = renderToStaticMarkup(createElement(ComposerFullscreen, base));
-    expect(html).toContain('<textarea');
-    expect(html).toContain('line one'); // textarea keeps the drafted value
-    expect(html).toContain('aria-label="Collapse"');
-    expect(html).toContain('＋'); // attach tool in the bottom tool row
-    expect(html).toContain('aria-label="Slash command"');
-    expect(html).toContain('2 行 · 17 字'); // 2 lines · 17 chars
-    expect(html).toContain('aria-label="Send"');
-    expect(html).not.toContain('aria-label="Stop"');
-  });
-  // Stop takes the primary key while a turn runs, but Send is NOT withdrawn: sending into a live
-  // turn is mid-turn injection, and this editor is one of only two send affordances on the surface
-  // (there is no ⏎-to-send — Enter inserts a newline), so hiding it made injection unreachable from
-  // the expanded composer.
-  it('adds Stop while the session is running, keeping Send reachable beside it', () => {
-    const html = renderToStaticMarkup(createElement(ComposerFullscreen, { ...base, running: true, onStop: () => {} }));
-    expect(html).toContain('aria-label="Stop"');
-    expect(html).toContain('aria-label="Send"');
-  });
-});
-
-describe('2a MComposer multi-line growth', () => {
-  it('renders a growable textarea (not a single-line input)', () => {
-    const html = renderToStaticMarkup(
-      createElement(MComposer, { placeholder: 'ph', value: '', onChange: () => {}, onSend: () => {} }),
-    );
-    expect(html).toContain('<textarea');
-  });
-  it('reveals the Expand affordance once the draft spans multiple lines', () => {
-    const single = renderToStaticMarkup(
-      createElement(MComposer, { placeholder: 'ph', value: 'one line', onChange: () => {}, onSend: () => {} }),
-    );
-    expect(single).not.toContain('aria-label="Expand"');
-    const multi = renderToStaticMarkup(
-      createElement(MComposer, { placeholder: 'ph', value: 'l1\nl2\nl3', onChange: () => {}, onSend: () => {} }),
-    );
-    expect(multi).toContain('aria-label="Expand"');
+  it('formats counts with caller-provided units', () => {
+    expect(composerCountLabel('a\nb', 'rows', 'chars')).toBe('2 rows · 3 chars');
   });
 });

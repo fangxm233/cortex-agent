@@ -11,11 +11,11 @@ reproduced **1:1** from `design/ref/prototype.dc.html` L1542–1562 (+ shared ba
 | path | role |
 |---|---|
 | `execution-log-view.ts` | **Pure** drawer derivations (TDD): `execPill(status)` (prototype glyph+label), `execMeta(detail)` (`machine · taskId · finished <HH:MM> \| running`, null segments dropped), `execClock`/`execNow` (UTC HH:MM / HH:MM:SS), `isStoppable` (running only), `logStreamEnabled` (dispatch.runName present). Framework-free. |
-| `execution-log-view.test.ts` | vitest unit tests (TDD — written first, watched red, 12 tests). |
+| `execution-log-view.test.ts` | vitest unit tests for projection semantics and edge cases. |
 | `log-buffer.ts` | **Pure** bounded-log reducer (TDD): `appendLog(state, frame, cap)` folds `execution.log` frames into a ring capped at `cap` lines; folds backend flood drops + client cap eviction into one `dropped` total; ignores replayed frames (`seq ≤ lastSeq`). `EMPTY_LOG` seed. |
-| `log-buffer.test.ts` | vitest unit tests for the reducer (TDD, 8 tests). |
+| `log-buffer.test.ts` | vitest unit tests for the reducer. |
 | `useExecutionLogStream.ts` | Thin React/SSE glue: opens one `executions.log` subscription (gated on `enabled`), reads each UiEvent's `payload.{lines,seq,dropped}`, folds into `appendLog` (`LOG_CAP`=2000). Resets on executionId change; closes on unmount. |
-| `ExecutionLogDrawer.tsx` | The **1:1 dark drawer** on Radix Dialog (focus trap / Esc-close / focus-restore + backdrop scrim). Exact inline styles/px/hex/font from the prototype (dark palette not in the light `proto.*` tokens → raw values, per §8.3 / LeftRail precedent). `DrawerBody` binds `executions.get` (poll 3s while running), `useExecutionLogStream` (gated on `logStreamEnabled`), and `executions.cancel` (Kill run, gated by `isStoppable` + toast). Sticky-bottom auto-scroll; dropped-lines marker; blinking `cxblink` caret. `data-execution-log` / `data-action="kill-run"` for E2E. |
+| `ExecutionLogDrawer.tsx` | The dark Radix drawer binds `executions.get`, the gated live log stream, and running-only cancellation with toast/invalidation. `data-execution-log` / `data-action="kill-run"` remain the E2E contract; drawer colors, copy, clock text, and line counts are not duplicated in static-render tests. |
 | `ExecutionLogDrawerProvider.tsx` | Global mount + `useExecutionLogDrawer()` context (`open(id)`/`close()`). One drawer instance; any dispatch row opens it with an executionId. Mounted in `shell/AppShell` (mirrors the ⌘K palette mount). |
 
 ## Notes

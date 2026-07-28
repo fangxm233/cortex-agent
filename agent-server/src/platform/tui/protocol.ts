@@ -1,9 +1,7 @@
-// input:  platform/types.js (type-only)
-// output: M4 TUI wire protocol — TuiFrame union + guards + parseFrame/encodeFrame
-// pos:    Contract between M1 (TUI gateway adapter) and M5 (Ink client)
-// deps:   zero runtime dependencies; only type-level imports from ../types.js
-// >>> If I am updated, update the parent folder's CORTEX.md and ensure
-//     ALL_FRAME_TYPES + GUARD_BY_TYPE + REQUIRED_FIELDS stay in sync with TuiFrame. <<<
+// input:  platform message and interaction types
+// output: TuiFrame union, type guards, parseFrame, and encodeFrame
+// pos:    TUI gateway/client wire protocol contract
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
 // Conventions:
 //   - Discriminator format: lowercase namespace + dot + camelCase verb
@@ -436,56 +434,6 @@ export function isUiSubscribe(f: TuiFrame): f is UiSubscribe { return f.type ===
 export function isUiEvent(f: TuiFrame): f is UiEvent { return f.type === UI_EVENT; }
 export function isUiUnsubscribe(f: TuiFrame): f is UiUnsubscribe { return f.type === UI_UNSUBSCRIBE; }
 export function isErrorFrame(f: TuiFrame): f is ErrorFrame { return f.type === ERROR; }
-
-// ── Frame Type Inventory ──
-
-export const ALL_FRAME_TYPES: readonly string[] = [
-  HANDSHAKE_HELLO, HANDSHAKE_ACK, SESSION_SWITCH, SESSION_SWITCHED,
-  PING, PONG, CLOSE,
-  CHAT_POST, CHAT_UPDATE, CHAT_DELETE, CHAT_MARK_QUEUED,
-  MSG_USER, MSG_EDIT,
-  STREAM_TEXT, STREAM_MUTABLE_OPEN, STREAM_MUTABLE_UPDATE, STREAM_FLUSH,
-  INTERACTIVE_POST, MODAL_OPEN, MODAL_ACK, ACTION_CLICK, MODAL_SUBMIT,
-  TRANSCRIPT_REPLAY, NOTIFICATION,
-  UI_QUERY, UI_QUERY_RESULT, UI_MUTATE, UI_MUTATE_RESULT,
-  UI_SUBSCRIBE, UI_EVENT, UI_UNSUBSCRIBE,
-  ERROR,
-];
-
-export const GUARD_BY_TYPE: Record<string, (f: TuiFrame) => boolean> = {
-  [HANDSHAKE_HELLO]:       isHandshakeHello,
-  [HANDSHAKE_ACK]:         isHandshakeAck,
-  [SESSION_SWITCH]:        isSessionSwitch,
-  [SESSION_SWITCHED]:      isSessionSwitched,
-  [PING]:                  isPing,
-  [PONG]:                  isPong,
-  [CLOSE]:                 isClose,
-  [CHAT_POST]:             isChatPost,
-  [CHAT_UPDATE]:           isChatUpdate,
-  [CHAT_DELETE]:           isChatDelete,
-  [CHAT_MARK_QUEUED]:      isChatMarkQueued,
-  [MSG_USER]:              isMsgUser,
-  [MSG_EDIT]:              isMsgEdit,
-  [STREAM_TEXT]:           isStreamText,
-  [STREAM_MUTABLE_OPEN]:   isStreamMutableOpen,
-  [STREAM_MUTABLE_UPDATE]: isStreamMutableUpdate,
-  [STREAM_FLUSH]:          isStreamFlush,
-  [INTERACTIVE_POST]:      isInteractivePost,
-  [MODAL_OPEN]:            isModalOpen,
-  [MODAL_ACK]:             isModalAck,
-  [ACTION_CLICK]:          isActionClick,
-  [MODAL_SUBMIT]:          isModalSubmit,
-  [TRANSCRIPT_REPLAY]:     isTranscriptReplay,
-  [NOTIFICATION]:          isNotification,
-  [UI_QUERY]:              isUiQuery,
-  [UI_QUERY_RESULT]:       isUiQueryResult,
-  [UI_MUTATE]:             isUiMutate,
-  [UI_MUTATE_RESULT]:      isUiMutateResult,
-  [UI_SUBSCRIBE]:          isUiSubscribe,
-  [UI_EVENT]:              isUiEvent,
-  [UI_UNSUBSCRIBE]:        isUiUnsubscribe,
-  [ERROR]:                 isErrorFrame,
-};
 
 // ── Required Fields (for parseFrame validation) ──
 

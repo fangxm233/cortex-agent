@@ -643,38 +643,16 @@ test('flush after concurrent start+complete — all records persisted and consis
   }
 });
 
-// ── Group 14: Re-export layer compatibility ──
+// ── Group 14: Re-export behavior ──
 
-test('re-export layer — all execution-registry exports delegate to ExecutionRepo singleton', async () => {
+test('re-export layer delegates execution state through one singleton', async () => {
   const reg = await import('../../src/domain/executions/registry.js');
 
-  // Verify all exported functions exist and are callable
-  assert.equal(typeof reg.startLocalExecution, 'function');
-  assert.equal(typeof reg.registerDispatchExecution, 'function');
-  assert.equal(typeof reg.touchExecution, 'function');
-  assert.equal(typeof reg.completeExecution, 'function');
-  assert.equal(typeof reg.completeExecutionByTaskId, 'function');
-  assert.equal(typeof reg.failExecution, 'function');
-  assert.equal(typeof reg.failExecutionByTaskId, 'function');
-  assert.equal(typeof reg.cancelExecution, 'function');
-  assert.equal(typeof reg.cancelExecutionByTaskId, 'function');
-  assert.equal(typeof reg.getExecution, 'function');
-  assert.equal(typeof reg.getExecutionByTaskId, 'function');
-  assert.equal(typeof reg.getRunningExecutions, 'function');
-  assert.equal(typeof reg.findRunningDispatchMatch, 'function');
-  assert.equal(typeof reg.markMissingRunningExecutionsStale, 'function');
-  assert.equal(typeof reg.reconcileStaleDispatches, 'function');
-  assert.equal(typeof reg.clearExecutionCache, 'function');
-  assert.ok(reg.TERMINAL_STATUSES);
-  assert.equal(reg.TERMINAL_STATUSES.size, 4);
-  assert.ok(reg.TERMINAL_STATUSES.has('completed'));
-
-  // Verify delegation: creating an execution via re-export makes it visible via the singleton
   const exec = reg.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'reexport-test' });
   const found = reg.getExecution(exec.id);
   assert.equal(found?.id, exec.id);
   assert.equal(found?.text.label, 'reexport-test');
 
-  // Clean up: mark it completed so it doesn't appear as running in the real daemon
+  // Clean up: mark it completed so it does not appear as running in the real daemon.
   reg.completeExecution(exec.id, { costUsd: 0, durationS: 0 });
 });

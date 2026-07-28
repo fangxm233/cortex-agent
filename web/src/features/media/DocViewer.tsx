@@ -1,3 +1,8 @@
+// input:  document items, authenticated file access, and viewer state
+// output: shared PDF/text preview provider and modal
+// pos:    Cross-platform in-app document viewer
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { fileDownloadUrl } from '@/lib/files';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
@@ -307,7 +312,7 @@ function Centered({ children, failed }: { children: ReactNode; failed?: boolean 
   );
 }
 
-export function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void; onPin?: () => void }): JSX.Element {
+function DocModal({ item, onClose, onPin }: { item: DocItem; onClose: () => void; onPin?: () => void }): JSX.Element {
   const dl = useDownloadFile();
   // Android hardware back (and browser back) close the doc modal instead of navigating a route.
   useBackDismiss(onClose);

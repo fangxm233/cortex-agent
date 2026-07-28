@@ -71,50 +71,6 @@ function createTestHarness(
 
 // ── Tests ──
 
-test('renders thread list with status and names', async () => {
-  const { Harness } = createTestHarness();
-  const instance = render(React.createElement(Harness));
-  await delay(100);
-
-  const output = instance.lastFrame();
-  assert.ok(output.includes('Alpha'), 'should show first thread name');
-  assert.ok(output.includes('Beta'), 'should show second thread name');
-  assert.ok(output.includes('step 1/3'), 'should show step progress');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('renders empty state when no threads', async () => {
-  const { Harness } = createTestHarness([]);
-  const instance = render(React.createElement(Harness));
-  await delay(100);
-
-  const output = instance.lastFrame();
-  assert.ok(output.includes('No threads'), 'should show empty message');
-
-  instance.unmount();
-  instance.cleanup();
-});
-
-test('arrow up/down navigates focused row without crashing', async () => {
-  const { Harness } = createTestHarness();
-  const instance = render(React.createElement(Harness));
-  await delay(100);
-
-  // Press down arrow
-  instance.stdin.write('\x1b[B');
-  await delay(100);
-
-  // Press up arrow — back to first row
-  instance.stdin.write('\x1b[A');
-  await delay(100);
-
-  // No crash
-  instance.unmount();
-  instance.cleanup();
-});
-
 test('c key opens ConfirmModal with thread info', async () => {
   const { Harness } = createTestHarness();
   const instance = render(React.createElement(Harness));

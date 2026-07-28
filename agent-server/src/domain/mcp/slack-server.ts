@@ -1,6 +1,6 @@
-// input:  MCP SDK, Slack WebClient, tools/slack registration
-// output: cortex-slack MCP stdio server — Slack platform-specific tools (slack_send_file)
-// pos:    Standalone MCP server (peer of core-server.ts & feishu-server.ts); loaded only for Slack-originated
+// input:  MCP SDK, Slack WebClient, environment routing, and Slack tool registrar
+// output: Slack-specific MCP stdio service assembled from production registration
+// pos:    standalone platform server loaded only for Slack-originated
 //         sessions (channel carries the `slack:` prefix) — Claude via mcp-config-slack.json layering,
 //         PI via the mcp-bridge slack handle. Not loaded for thread/core sessions.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -37,8 +37,6 @@ registerSlackTools(server, {
   branchMachine,
   callbackSource: fallbackCallbackSource,
 });
-
-export const TOOL_NAMES: readonly string[] = ['slack_send_file'];
 
 // --- Start (called by barrel when run as standalone) ---
 

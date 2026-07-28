@@ -37,8 +37,7 @@ instead of hard-coding styles. **All** colors/spacing/radius/shadow/fonts come f
   (approved primitive layer, design §1) for keyboard/a11y/positioning; styling is token-only.
 - **Overlay motion** lives as `keyframes`/`animation` tokens in `tailwind.config.ts` (no extra dep),
   driven off Radix `data-[state=open|closed]`; each overlay carries `motion-reduce:animate-none`.
-- `features/tasks/Pills.tsx` and `shell/EmptyPane` now delegate to `StatusPill` / `EmptyState`
-  — one source of truth, appearance preserved.
+- Task surfaces import `StatusPill` directly, while `shell/EmptyPane` delegates to `EmptyState`; the former unused `features/tasks/Pills.tsx` wrapper was removed.
 - Status language 10c/10d (task 2add): `DegradedState` + the 3-severity `degraded.ts` map power the
   four degraded variants; `EmptyState` powers the 10d next-action panels. Both demoed at `/kit`
   (`features/kit/DegradedDemos.tsx` + KitPage sections). No real-data consumer yet (Machines/threads/

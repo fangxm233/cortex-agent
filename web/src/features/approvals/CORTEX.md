@@ -12,18 +12,14 @@ for a decision that flips the target entry's Status line in `~/.cortex/context/P
 | path | role |
 |---|---|
 | `approval-center-vm.ts` | **Pure** VM (TDD): `statusPill(status)` (amber/green/red), `pendingLabel(n)` (singular/plural), `toListCard` / `toDetail` (real ApprovalInfo → the prototype slots, incl. `origin`=`provenance` + `task`=`taskRef` real-when-present, missing fields → `—`/omit, `hasCommand` gate), `defaultSelectedId`. Framework-free. |
-| `approval-center-vm.test.ts` | vitest unit tests (TDD — written first, watched red, 19 tests). |
-| `ApprovalCenterModal.tsx` | The **1:1 overlay**. `ApprovalCenterView` (exported, pure presentational — backdrop + panel + header + PENDING·N list + detail + footer; render-tested) and the `ApprovalCenterModal` container that binds `approvals.list({status:'pending'})`, selection + armed/feedback state, `approvals.approve`/`approvals.reject` mutations (invalidate + toast), and Escape-close. `data-approval-center` / `data-approval-id` / `data-approval-feedback` / `data-action="arm\|cancel\|approve\|reject"` for E2E. |
-| `approval-center-render.test.tsx` | `react-dom/server` structural checks of `ApprovalCenterView` (header/path/PENDING·N/grid/COMMAND/footer/armed/empty + origin/from/task present-vs-omitted — 11 tests). |
-| `ApprovalsProvider.tsx` | Global mount + `useApprovals()` context (`open()`/`close()`). One modal instance; the left-rail banner + inline chat approval card open it. Mounted in `shell/AppShell` (mirrors the ⌘K palette / exec-log-drawer mounts). |
+| `approval-center-vm.test.ts` | Unit tests for selection, field omission, provenance, command gating, and status semantics. |
+| `ApprovalCenterModal.tsx` | The **1:1 overlay**. Its internal presentational view renders the backdrop + panel + queue + detail + decision footer; the container binds `approvals.list({status:'pending'})`, selection + armed/feedback state, `approvals.approve`/`approvals.reject` mutations (invalidate + toast), and Escape-close. `data-approval-center` / `data-approval-id` / `data-approval-feedback` / `data-action="arm\|cancel\|approve\|reject"` remain the E2E contract. |
+| `ApprovalsProvider.tsx` | Global mount + `useApprovals()` context (`open()`/`close()`). One modal instance opened from the left-rail approval banner and mounted in `shell/AppShell`. |
 
 ## Triggers
 
 - `features/workbench/LeftRail` — the "N approval pending" banner now uses the real
   `approvals.list({status:'pending'})` count and calls `useApprovals().open()` (was GAP-1, hidden).
-- `features/workbench/ApprovalCard` — the inline chat approval card is a click-through trigger into
-  the overlay (its own Approve/Deny stay non-mutating; the real decision surface is the overlay).
-
 ## Data gaps (real ApprovalInfo vs the prototype mock) — flagged, never fabricated
 
 The real `ApprovalInfo` (parsed from PENDING_APPROVALS.md) has

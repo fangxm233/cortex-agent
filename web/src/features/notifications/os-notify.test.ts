@@ -29,14 +29,12 @@ vi.mock('@tauri-apps/plugin-notification', () => ({
   },
 }));
 
-import {
-  osNotificationSpec,
-  osNotifyAvailable,
-  ensureOsNotifyPermission,
-  sendOsNotification,
-  onOsNotificationAction,
-  __resetOsNotifyPermissionForTest,
-} from './os-notify';
+type OsNotifyModule = typeof import('./os-notify');
+let osNotificationSpec: OsNotifyModule['osNotificationSpec'];
+let osNotifyAvailable: OsNotifyModule['osNotifyAvailable'];
+let ensureOsNotifyPermission: OsNotifyModule['ensureOsNotifyPermission'];
+let sendOsNotification: OsNotifyModule['sendOsNotification'];
+let onOsNotificationAction: OsNotifyModule['onOsNotificationAction'];
 
 function item(over: Partial<NotificationItem> = {}): NotificationItem {
   return {
@@ -51,7 +49,7 @@ function item(over: Partial<NotificationItem> = {}): NotificationItem {
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   h.native = false;
   h.granted = true;
   h.permissionState = 'granted';
@@ -59,7 +57,14 @@ beforeEach(() => {
   h.throwOnSend = false;
   h.actionCb = null;
   h.unregistered = 0;
-  __resetOsNotifyPermissionForTest();
+  vi.resetModules();
+  ({
+    osNotificationSpec,
+    osNotifyAvailable,
+    ensureOsNotifyPermission,
+    sendOsNotification,
+    onOsNotificationAction,
+  } = await import('./os-notify'));
 });
 
 describe('osNotificationSpec (pure)', () => {

@@ -1,6 +1,6 @@
-// input:  React, preview state, media/document renderers
-// output: PinnedPreviewPane and PinnedPreviewPanel
-// pos:    Docked media/document preview pane
+// input:  pinned-preview state, media/document renderers, and pointer/download actions
+// output: dock-host registration and the active docked preview pane
+// pos:    desktop preview surface; presentational panel and copy stay module-internal
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
@@ -21,7 +21,7 @@ import { useZoom } from './useZoom';
 
 const mono = "'IBM Plex Mono',monospace";
 
-export const PINNED_PREVIEW_EMPTY_HINT = 'Click an image or file to preview it here.';
+const PINNED_PREVIEW_EMPTY_HINT = 'Click an image or file to preview it here.';
 
 /** Full-size image / video inside the docked pane (wheel + pinch zoom, like the lightbox). */
 function PinnedMediaBody({ item }: { item: MediaItem }): JSX.Element {
@@ -61,7 +61,7 @@ function Centered({ children, failed }: { children: ReactNode; failed?: boolean 
 }
 
 /** Presentational docked pane — chrome + body. State/wiring lives in `PinnedPreviewPane`. */
-export function PinnedPreviewPanel({
+function PinnedPreviewPanel({
   item,
   split,
   onClose,

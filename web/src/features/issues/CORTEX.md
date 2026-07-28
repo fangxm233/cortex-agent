@@ -12,9 +12,8 @@ is read-only (no add from the UI), and leaving the list happens only via 处理 
 | path | role |
 |---|---|
 | `issues-vm.ts` | **Pure** VM (TDD): `parseIssueBody` (freeform `- <label>：<text>` sub-bullets → verbatim-labelled fields + unlabelled desc, continuation lines joined), `toIssueListCard` / `toIssueDetail`, `defaultSelectedId`. Framework-free. |
-| `issues-vm.test.ts` | vitest unit tests (written first, 11 tests). |
-| `IssueCenterModal.tsx` | The 24b overlay. `IssueCenterView` (exported pure presentational — backdrop + shell + header [Issues + neutral count pill + `<project>/ISSUES.md` + esc] + left 400px queue [ISSUES · N cards, title+date, no-status footer note] + right read-only detail [title, `记录于 <date>`, 76px-label grid with VERBATIM markdown labels] + footer [note + 删除 danger-outline two-step confirm + 处理 accent-solid]) and the `IssueCenterModal` container (binds `issues.list` scoped to `useCurrentProject`, selection/armed state, delete/handle mutations with invalidate + toast, handle-success → `selectCreatedSession` + navigate `/workbench`, Escape-close). `data-issue-center` / `data-issue-id` / `data-action="arm-delete\|cancel-delete\|confirm-delete\|handle"` for E2E. |
-| `issue-center-render.test.tsx` | `react-dom/server` structural checks of `IssueCenterView` (header/queue/no-amber/no-pill/verbatim-labels/desc/footers/empty — 9 tests). |
+| `issues-vm.test.ts` | vitest unit tests for parsing, grouping, severity, provenance, and selection behavior. |
+| `IssueCenterModal.tsx` | The 24b overlay. Its internal presentational view renders the header, queue, read-only verbatim-labelled detail, and two-step delete/handle footer; the container binds project-scoped `issues.list`, selection/armed state, delete/handle mutations, invalidation/toasts, handle-success session selection, navigation, and Escape-close. `data-issue-center` / `data-issue-id` / `data-action="arm-delete\|cancel-delete\|confirm-delete\|handle"` remain the E2E contract. |
 | `IssuesProvider.tsx` | Global mount + `useIssues()` context (`open(issueId?)`/`close()`; an id pre-selects that queue entry). Single modal instance mounted in `shell/AppShell` (inside CurrentProject/SelectedSession providers — the container consumes both). |
 
 ## Triggers (24a)

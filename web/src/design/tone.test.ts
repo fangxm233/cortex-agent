@@ -1,21 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { TONES, statusTone, type Tone } from './tone';
-
-// All status vocabularies the ui-service contract can emit
-// (agent-server/src/domain/ui-service/types.ts).
-const THREAD_STATUSES = ['running', 'waiting', 'completed', 'failed', 'cancelled', 'aborted'];
-const TASK_STATUSES = ['open', 'done'];
-const EXECUTION_STATUSES = ['running', 'completed', 'failed', 'cancelled', 'stale'];
-
-const ALL = [...THREAD_STATUSES, ...TASK_STATUSES, ...EXECUTION_STATUSES];
+import { statusTone, type Tone } from './tone';
 
 describe('statusTone', () => {
-  it('maps every contract status to a valid tone', () => {
-    for (const status of ALL) {
-      expect(TONES).toContain(statusTone(status));
-    }
-  });
-
   it('maps synonymous statuses onto the five tones as designed', () => {
     const cases: Record<string, Tone> = {
       running: 'running',

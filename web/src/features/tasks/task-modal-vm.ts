@@ -1,3 +1,8 @@
+// input:  task DTO and project task list
+// output: task detail status, fields, dependencies, and action guards
+// pos:    Pure view model for the desktop task modal
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // Pure view-model for the task detail modal (screen 10a), rebuilt 1:1 from prototype.dc.html
 // L1462-1540 + its VM builder (`let tm = …`, L2569-2624). Framework-free so the mapping from the
 // real `TaskInfo` DTO → the prototype's exact values is unit-tested in isolation (TDD). Consumed by
@@ -42,8 +47,6 @@ export interface TaskModalVm {
   pill: TaskModalPill;
   priColor: string;
   fields: TaskModalField[];
-  /** Keyed lookup of the same field objects — for targeted assertions / rendering. */
-  _fieldsByKey: Record<string, TaskModalField>;
   deps: TaskModalDep[];
   canUnblock: boolean;
   completable: boolean;
@@ -111,9 +114,6 @@ export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
       vColor: task.claimedBy != null ? '#4655D4' : '#B6BDC9',
     },
   ];
-  const _fieldsByKey: Record<string, TaskModalField> = {};
-  for (const f of fields) _fieldsByKey[f.k] = f;
-
   const upstream: TaskModalDep[] = task.dependsOn.map((id) => {
     const dep = byId.get(id);
     const done = dep?.status === 'done';
@@ -147,7 +147,6 @@ export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
     pill: statusPill(task),
     priColor: priorityColor(task.priority),
     fields,
-    _fieldsByKey,
     deps: [...upstream, ...downstream],
     canUnblock: task.blockedBy != null,
     completable,

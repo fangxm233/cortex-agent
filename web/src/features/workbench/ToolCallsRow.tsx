@@ -1,6 +1,6 @@
 // input:  tool calls with DEBUG details and server size warnings
-// output: single-line collapsed row, expanded badges, DEBUG inspectors
-// pos:    desktop workbench tool-call presentation
+// output: single-line collapsed row, expanded badges, and DEBUG inspector actions
+// pos:    desktop tool-call surface; wrapping and warning palette stay private
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { useState, type CSSProperties, type MouseEvent } from 'react';
@@ -36,7 +36,7 @@ const inputStyle: CSSProperties = {
 
 type Inspect = (event: MouseEvent<HTMLButtonElement>, call: ToolCall) => void;
 
-export function toolWarningStyle(warned: boolean): CSSProperties {
+function toolWarningStyle(warned: boolean): CSSProperties {
   if (!warned) return {};
   return {
     background: 'var(--proto-amber-bg)',

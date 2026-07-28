@@ -6,7 +6,7 @@
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { ThreadExecutor, threadExecutor } from '../../src/orchestration/thread-executor.js';
+import { ThreadExecutor } from '../../src/orchestration/thread-executor.js';
 import { enqueue, conduitQueues } from '../../src/orchestration/conduit-queue.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 
@@ -110,13 +110,6 @@ test('(c) route() calls addReaction(hourglass) when channel already has a runnin
   if (tail) await tail;
 });
 
-// ── (d) threadExecutor singleton exists ──────────────────────────────────────
-
-test('(d) threadExecutor singleton is a ThreadExecutor with a route method', () => {
-  assert.ok(threadExecutor instanceof ThreadExecutor);
-  assert.equal(typeof threadExecutor.route, 'function');
-});
-
 // ── (e) route() without existing queue does NOT call addReaction ───────────────
 
 test('(e) route() on fresh channel skips addReaction (no prior queue)', async () => {
@@ -136,13 +129,6 @@ test('(e) route() on fresh channel skips addReaction (no prior queue)', async ()
   // No prior queue → markQueued was NOT called (conduitQueues.has returned false)
   assert.equal(adapter.marksQueued.length, 0, 'markQueued was not called when no prior queue');
   assert.ok(true, 'route() completed synchronously without throwing');
-});
-
-// ── (f) ThreadExecutor default constructor uses real enqueue ──────────────────
-
-test('(f) ThreadExecutor constructed with no opts uses module-level enqueue', () => {
-  const executor = new ThreadExecutor();
-  assert.equal(executor._enqueue, enqueue, 'defaults to module-level enqueue');
 });
 
 // ── (g) message buffering when thread has a running step ─────────────────────

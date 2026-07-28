@@ -8,15 +8,14 @@ routed through the daemon. Proves the full stack end-to-end.
 | path | role |
 |---|---|
 | `group-tasks.ts` | Pure `groupTasks(TaskInfo[]) → TaskGroup[]` — buckets tasks into fixed-order lifecycle groups (in-progress → actionable → waiting-deps → blocked → done), omitting empty groups, stable input order. `actionableOpenCount()` = the OPEN (not-done) count — every non-done task whatever its bucket (in-progress / blocked / waiting-deps / pending), NOT the strict `TaskInfo.actionable` predicate. It backs both the panel's Actionable/All chip and the workbench right-panel **Tasks** tab badge, which is why the two agree. `LIFECYCLE_ORDER` canonical. |
-| `group-tasks.test.ts` | vitest unit test for the lifecycle grouping logic (12 tests, TDD — written first). |
+| `group-tasks.test.ts` | Unit tests for lifecycle grouping, ordering, counts, and dependency state. |
 | `useTasksLiveSync.ts` | Listens on the app's SHARED live stream (`features/live`) for `task.claimed/completed/blocked/dispatched` and invalidates the `tasks.list` query on each event → refetch → re-render. (It used to open its own SSE — see `features/live/CORTEX.md` for why every hook sharing one stream matters.) |
 | `TasksPanel.tsx` | Reusable data-driven body: `tasks.list` query + live-sync. **Built-in Actionable/All filter** (replaces old external Active/History scope). No "+ Task" button. No done-when display in the list. Consumed by `TasksPage` and `features/workbench/RightPanel`. |
 | `TasksPage.tsx` | Route component for `/tasks`: thin page wrapper (header + `<TasksPanel />`). |
 | `TaskRow.tsx` | One task card (design 4a): single-line text (ellipsis truncation) + colour-coded dot + expand toggle + mono ID + "⋯" menu + metadata pill (claimed / blocked / deps). No priority display. Opens the task detail modal (10a) on click. |
-| `Pills.tsx` | `PriorityPill` / `StatusPill` — token-driven (tailwind §5 pill palette), no hard-coded hex. Used in the modal, not in TaskRow. |
 | `TaskModal.tsx` | **Task detail modal (10a), 1:1 from prototype.dc.html L1462-1540** (+ shared backdrop L1292). Exact inline styles / px / hex / font / EN copy from the source; real `tasks.list` data. Backdrop / esc-chip / Escape close. Complete → `tasks.complete`, Unblock (when `blockedBy`) → `tasks.unblock` (owned by `TasksPanel`). Opened from `TaskRow`; consumed via `TasksPanel`. |
 | `task-modal-vm.ts` | **Pure** VM builder `buildTaskModalVm(task, all)` (TDD): status-pill derivation (real `status`/`actionable`/`claimedBy`/`blockedBy` → prototype's 5 tones), priority→color, Fields rows, and the **real dependency join**. Framework-free. |
-| `task-modal-vm.test.ts` | vitest for `task-modal-vm.ts` (22 tests, TDD — written first). |
+| `task-modal-vm.test.ts` | Unit tests for status precedence, dependency joins, and action guards; visual palette and field-order snapshots are intentionally not locked. |
 | `task-verification-vm.ts` | **Pure** VM builder `buildTaskVerificationVm(info)` (TDD) for the Dispatch-history card over the real `tasks.verification` scope. Framework-free. |
 | `task-verification-vm.test.ts` | vitest for `task-verification-vm.ts` (11 tests, TDD — written first). |
 

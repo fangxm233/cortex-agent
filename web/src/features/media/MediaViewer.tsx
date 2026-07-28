@@ -1,6 +1,6 @@
-// input:  React, media source/download/zoom, pinned-preview state
-// output: Media lightbox provider, Lightbox, useMediaViewer
-// pos:    Shared full-screen image/video viewer
+// input:  image/video items, source/download/zoom hooks, and pinned-preview state
+// output: media-viewer context plus mounted full-screen preview behavior
+// pos:    shared desktop/mobile modal; Lightbox chrome stays module-internal
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -36,13 +36,13 @@ interface MediaViewerContextValue {
   close: () => void;
 }
 
-// Default to a no-op so presentational components (rebuilt 1:1, unit-tested in isolation) render
-// without a provider in scope; the real open/close is supplied by MediaViewerProvider in each shell.
+// Default to a no-op for callers outside a mounted provider; real open/close behavior is supplied
+// by MediaViewerProvider in each shell.
 const MediaViewerContext = createContext<MediaViewerContextValue>({ openMedia: () => {}, close: () => {} });
 
 const mono = "'IBM Plex Mono',monospace";
 
-export function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => void; onPin?: () => void }): JSX.Element {
+function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: () => void; onPin?: () => void }): JSX.Element {
   // Resolve the source: a local composer preview already has an object URL; a workspace file is
   // fetched with auth into one (revoked on close / change) — shared with the docked preview pane.
   const { src, failed } = useMediaSrc(item);
