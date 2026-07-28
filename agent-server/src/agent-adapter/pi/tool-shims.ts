@@ -1,10 +1,11 @@
-// input:  PI ExtensionAPI, TypeBox, web-fetch, filesystem paths
-// output: Gated interaction, task-tracking, and WebFetch tools
+// input:  PI ExtensionAPI, TypeBox, web tools, filesystem paths
+// output: Gated interaction, task-tracking, and web tools
 // pos:    PI extension bridge for Cortex interaction flows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ExtensionAPI } from './pi-ext-types.js';
 import { webFetchTool } from './web-fetch.js';
+import { webSearchTool } from './web-search.js';
 import { Type } from '@sinclair/typebox';
 import * as path from 'path';
 import { mkdirSync } from 'fs';
@@ -35,6 +36,7 @@ export default function toolShims(pi: ExtensionAPI): void {
   // Mirrors the Claude backend's `--tools` allowlist so PI honors the same per-agent tool scoping.
   const allowed = makeToolGate(process.env.CORTEX_PI_ALLOWED_TOOLS);
   if (allowed('WebFetch')) pi.registerTool(webFetchTool);
+  if (allowed('WebSearch')) pi.registerTool(webSearchTool);
 
   // ---------------------------------------------------------------------------
   // ask_user_question
