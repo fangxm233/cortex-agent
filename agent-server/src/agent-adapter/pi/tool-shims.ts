@@ -1,7 +1,6 @@
-// input:  PI ExtensionAPI, @sinclair/typebox
-// output: Register ask_user_question / enter_plan_mode / exit_plan_mode / todo_write pseudo-tools,
-//         gated by the agent's tool allowlist (CORTEX_PI_ALLOWED_TOOLS env) via makeToolGate
-// pos:    PI --extension bridge that exposes Cortex interaction flow to the LLM
+// input:  PI ExtensionAPI, TypeBox, filesystem paths
+// output: Gated interaction and task-tracking pseudo-tools
+// pos:    PI extension bridge for Cortex interaction flows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ExtensionAPI } from './pi-ext-types.js';
@@ -117,6 +116,8 @@ export default function toolShims(pi: ExtensionAPI): void {
         'You are now in plan mode. Your goal is to explore the codebase and design an implementation approach before making any changes.',
         '',
         `Plan file: ${planFilePath}`,
+        '',
+        'IMPORTANT: You MUST write the plan content to the provided plan file before calling ExitPlanMode.',
         '',
         '## Rules',
         '',

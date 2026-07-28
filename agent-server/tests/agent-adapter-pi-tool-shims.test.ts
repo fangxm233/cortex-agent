@@ -1,9 +1,9 @@
 // input:  PIAdapter stub, retry/extension-ui events, tool shim gates
-// output: PI shim and retry behavior through settled RPC turns
+// output: PI shim instructions, retry behavior, and settled RPC turns
 // pos:    PI pseudo-tool, retry, and extension-ui integration regression
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
@@ -224,11 +224,15 @@ test('H: clean exit before turn_complete', async () => {
 
 function makeMockPi() {
   const registered: string[] = [];
+  const definitions = new Map<string, any>();
   const pi: any = {
     on: () => {},
-    registerTool: (def: any) => { registered.push(def.name); },
+    registerTool: (def: any) => {
+      registered.push(def.name);
+      definitions.set(def.name, def);
+    },
   };
-  return { pi, registered };
+  return { pi, registered, definitions };
 }
 
 function makeCapturingSpawner() {
@@ -298,6 +302,28 @@ test('J2: toolShims registers all four pseudo-tools when env is unset', () => {
       assert.ok(registered.includes(n), `${n} should be registered when no allowlist is set`);
     }
   } finally {
+    if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
+    else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
+  }
+});
+
+test('J3: enter_plan_mode requires writing plan content to the provided file', async () => {
+  const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
+  delete process.env.CORTEX_PI_ALLOWED_TOOLS;
+  const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(SESSION_DIR);
+  try {
+    const { pi, definitions } = makeMockPi();
+    toolShims(pi);
+    const result = await definitions.get('enter_plan_mode').execute(
+      'tc-enter-plan', {}, undefined, undefined, {},
+    );
+    const output = result.content[0].text;
+    assert.match(output, /Plan file: .+plan-\d+\.md/);
+    assert.ok(output.includes(
+      'IMPORTANT: You MUST write the plan content to the provided plan file before calling ExitPlanMode.',
+    ));
+  } finally {
+    cwdSpy.mockRestore();
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
   }

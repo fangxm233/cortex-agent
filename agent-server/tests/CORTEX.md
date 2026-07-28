@@ -57,7 +57,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |
 | `agent-adapter-pi-hook-bridge.test.ts` | Test | PI hook lifecycle plus CORTEX Read/Edit injection |
 | `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
-| `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims, auto-retry terminal semantics, and extension_ui settled turns |
+| `agent-adapter-pi-tool-shims.test.ts` | Test | PI shims, plan-file instruction, and retries |
 | `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
 | `run-with-adapter.test.ts` | Test | Normalized and inline-continuation context callbacks |
 | `facade-plugin-gating.test.ts` | Test | filterChannelScopedPlugins: cortex-feishu plugin gated to feishu: channels (exact basename match) |

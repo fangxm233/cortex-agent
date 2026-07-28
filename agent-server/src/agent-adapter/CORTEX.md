@@ -37,5 +37,5 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `pi/spawn-args.ts` | args | `buildSpawnArgs` constructs PI CLI args; `buildPiEnv` clears stale context and injects authoritative thread/task/session identity |
 | `pi/mcp-bridge.ts` | extension | Bridge PI to Cortex MCP server |
 | `pi/hook-bridge.ts` | extension | Bridges PI tool events and CORTEX Read/Edit context |
-| `pi/tool-shims.ts` | extension | ask/exit_plan/todo pseudo tool registration, gated by agent tool allowlist (makeToolGate + CORTEX_PI_ALLOWED_TOOLS) so thread agents don't get interaction tools |
+| `pi/tool-shims.ts` | extension | gated ask/enter/exit/todo pseudo-tools |
 | `pi/pi-ext-types.ts` | types | Minimal TS type stub for PI SDK |
