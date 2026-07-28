@@ -1,5 +1,12 @@
-# features/rate-limit
+Please update me when files in this folder change
 
-This feature owns the active-only provider rate-limit status shared by the desktop rail and the mobile Projects header. The server query is authoritative; `rate-limit.changed` is only a refetch hint, and a local 30-second clock keeps countdowns current and removes expired records without fabricating a healthy placeholder.
+Active-only provider throttle status shared by the desktop rail and the mobile projects header.
+The server query is authoritative; live events only hint a refetch and a local clock keeps countdowns fresh.
 
-`rate-limit-vm.ts` filters expired windows, computes each provider’s full recovery from its latest window, computes aggregate first recovery from the earliest provider recovery, and formats English or Chinese compact copy. `useRateLimitStatus.ts` owns the query, shared-SSE invalidation, reconnect recovery, and local clock. `RateLimitStatus.tsx` provides the desktop popover, mobile trigger and bottom sheet, and shared provider/window details. The adjacent VM tests cover expiry filtering, independent reset times, aggregate semantics, ordering, and both languages without locking presentation markup.
+| filename | role | function |
+|---|---|---|
+| index.ts | barrel | Exports the view model, hook and components |
+| RateLimitStatus.tsx | view | Desktop popover, mobile sheet and window details |
+| rate-limit-vm.ts | vm | Filters expired windows and formats recovery copy |
+| rate-limit-vm.test.ts | test | Unit tests for the rate limit view model |
+| useRateLimitStatus.ts | hook | Owns the query, live sync and local ticking |
