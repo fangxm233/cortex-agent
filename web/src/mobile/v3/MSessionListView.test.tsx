@@ -1,3 +1,7 @@
+// input:  mobile session props and neutral fixtures
+// output: session-list layout and row regressions
+// pos:    Verifies the Sessions tab presentation
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
@@ -57,6 +61,15 @@ describe('MSessionListView', () => {
     expect(html).toContain('会话');
     expect(html).toContain('NI');
     expect(html).toContain('＋');
+  });
+
+  it('keeps the tab header outside the scrolling content region', () => {
+    const html = render([sess({})]);
+    const headerPosition = html.indexOf('会话');
+    const scrollPosition = html.indexOf('overflow:auto');
+    expect(html).toContain('data-screen-label="1a 会话列表"');
+    expect(scrollPosition).toBeGreaterThan(-1);
+    expect(headerPosition).toBeLessThan(scrollPosition);
   });
 
   it('renders a running row with the real turn count (no fabricated cost)', () => {

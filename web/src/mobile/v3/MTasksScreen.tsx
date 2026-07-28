@@ -1,3 +1,7 @@
+// input:  task query, project scope, mobile navigation
+// output: data-bound Tasks tab or loading screen
+// pos:    Mobile task-list data container
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // 1d 任务 — the current project's task queue (read-only; editing/dispatch is desktop/chat). Scheme
 // 1d L240-284. Real tRPC: `tasks.list` scoped to the current project + live-refresh via the shared
 // tasks subscription. Groups (进行中/可执行/阻塞) come from the shared `groupMobileTasks` bucketing; the
@@ -83,26 +87,28 @@ export function MTasksScreen() {
       return next;
     });
 
-  return (
-    <MScreen label="1d 任务">
-      {tasksQuery.isLoading ? (
+  if (tasksQuery.isLoading) {
+    return (
+      <MScreen label="1d 任务">
         <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
-      ) : (
-        <MTasksView
-          groups={groups}
-          segment={segment}
-          executableCount={executableCount(grouped)}
-          allCount={allCount(grouped)}
-          scope={scope}
-          copy={copy}
-          expandedIds={expandedIds}
-          onToggleExpand={onToggleExpand}
-          onSegment={setSegment}
-          onOpenTask={(id) => navigate(`/m/task/${id}`)}
-          onOpenThread={(threadId) => navigate(`/m/thread/${threadId}`)}
-          onOpenApprovals={() => navigate('/m/approvals')}
-        />
-      )}
-    </MScreen>
+      </MScreen>
+    );
+  }
+
+  return (
+    <MTasksView
+      groups={groups}
+      segment={segment}
+      executableCount={executableCount(grouped)}
+      allCount={allCount(grouped)}
+      scope={scope}
+      copy={copy}
+      expandedIds={expandedIds}
+      onToggleExpand={onToggleExpand}
+      onSegment={setSegment}
+      onOpenTask={(id) => navigate(`/m/task/${id}`)}
+      onOpenThread={(threadId) => navigate(`/m/thread/${threadId}`)}
+      onOpenApprovals={() => navigate('/m/approvals')}
+    />
   );
 }

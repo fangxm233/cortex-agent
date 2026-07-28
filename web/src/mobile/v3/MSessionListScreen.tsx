@@ -1,3 +1,7 @@
+// input:  session query, project scope, mobile navigation
+// output: data-bound Sessions tab or loading screen
+// pos:    Mobile session-list data container
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // 1a 会话列表 — the current project's direct sessions, day-grouped, newest first (scheme 1a L86-128).
 // ＋ opens a new-session draft (lazy-create on first send, mirroring the desktop draft flow); a row
 // drills into the chat page (1b). Real tRPC: sessions.list(origin='direct', scoped to the current
@@ -35,20 +39,22 @@ export function MSessionListScreen() {
   const groups = useMemo(() => buildSessionGroups(sessions), [sessions]);
   const scope = currentProjectId ? projectInitials(currentProjectId) : undefined;
 
-  return (
-    <MScreen label="1a 会话列表">
-      {sessionsQuery.isLoading ? (
+  if (sessionsQuery.isLoading) {
+    return (
+      <MScreen label="1a 会话列表">
         <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
-      ) : (
-        <MSessionListView
-          groups={groups}
-          sessions={sessions}
-          scope={scope}
-          copy={copy}
-          onOpen={(id) => navigate(`/m/session/${id}`)}
-          onNew={() => navigate('/m/session/new')}
-        />
-      )}
-    </MScreen>
+      </MScreen>
+    );
+  }
+
+  return (
+    <MSessionListView
+      groups={groups}
+      sessions={sessions}
+      scope={scope}
+      copy={copy}
+      onOpen={(id) => navigate(`/m/session/${id}`)}
+      onNew={() => navigate('/m/session/new')}
+    />
   );
 }

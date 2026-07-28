@@ -1,3 +1,7 @@
+// input:  mobile task-list props and neutral task fixtures
+// output: task-list layout and card regressions
+// pos:    Verifies the Tasks tab presentation
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
@@ -67,6 +71,15 @@ describe('MTasksView', () => {
     expect(html).toContain('NI');
     expect(html).toContain('可执行 1');
     expect(html).toContain('全部 1');
+  });
+
+  it('keeps the tab header outside the scrolling content region', () => {
+    const html = render([task({ id: 'A', actionable: true })]);
+    const headerPosition = html.indexOf('任务');
+    const scrollPosition = html.indexOf('overflow:auto');
+    expect(html).toContain('data-screen-label="1d 任务"');
+    expect(scrollPosition).toBeGreaterThan(-1);
+    expect(headerPosition).toBeLessThan(scrollPosition);
   });
 
   it('in-progress row: T-id + 认领 pill with the real thread id, run color, no fabricated 步骤', () => {

@@ -1,5 +1,9 @@
+// input:  session groups, DTOs, and list callbacks
+// output: fixed-header Sessions tab presentation
+// pos:    Presentational mobile session-list screen
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1a L86-128)
-import { MTabHeader, MScrollBody, MCard, MGroupLabel, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, MScrollBody, MCard, MGroupLabel, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { sessionStatusLine, type MSessionGroup } from './m-session-list-vm';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 
@@ -102,8 +106,10 @@ export function MSessionListView({
 }) {
   const byId = new Map(sessions.map((s) => [s.sessionId, s]));
   return (
-    <>
-      <MTabHeader title={copy.title} qn={scope} trailing={<NewButton onClick={onNew} />} />
+    <MScreen
+      label="1a 会话列表"
+      header={<MTabHeader title={copy.title} qn={scope} trailing={<NewButton onClick={onNew} />} />}
+    >
       <MScrollBody gap={6}>
         {groups.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
@@ -119,6 +125,6 @@ export function MSessionListView({
           </div>
         ))}
       </MScrollBody>
-    </>
+    </MScreen>
   );
 }

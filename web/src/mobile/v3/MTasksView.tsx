@@ -1,3 +1,7 @@
+// input:  task groups, segment state, and callbacks
+// output: fixed-header Tasks tab presentation
+// pos:    Presentational mobile task-list screen
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1d L240-284)
 //
 // 1d 任务 — read-only view of the current project's task queue. Presentational only, props-driven so
@@ -5,7 +9,7 @@
 // state). Three lifecycle groups (进行中 / 可执行 / 阻塞); waiting-deps tasks are counted in 全部 but
 // have no row (see m-tasks-vm). The bottom Tab bar is shell-owned and intentionally not rendered here.
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { MTabHeader, MScrollBody, MCard, MGroupLabel, MSegmented, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, MScrollBody, MCard, MGroupLabel, MSegmented, MC, MONO } from '@/mobile/ui/kit';
 import type { MTaskGroupKey, MTaskGroupView } from './m-tasks-vm';
 import type { MobileSegment } from '@/mobile/mobile-tasks';
 
@@ -254,8 +258,10 @@ export function MTasksView({
   );
 
   return (
-    <>
-      <MTabHeader title={copy.title} qn={scope} trailing={segmented} />
+    <MScreen
+      label="1d 任务"
+      header={<MTabHeader title={copy.title} qn={scope} trailing={segmented} />}
+    >
       <MScrollBody gap={6}>
         {groups.length === 0 && (
           <div style={{ padding: '40px 0', textAlign: 'center', color: MC.faint, fontSize: 13 }}>
@@ -307,6 +313,6 @@ export function MTasksView({
           </div>
         ))}
       </MScrollBody>
-    </>
+    </MScreen>
   );
 }
