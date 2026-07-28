@@ -15,7 +15,6 @@ They form the presentation layer of the TUI and receive their state from the app
 | DashboardTasksTab.tsx | tab | lists tasks and changes their state |
 | DashboardThreadsTab.tsx | tab | lists threads and cancels one |
 | InputBox.tsx | input | edits and submits the user message |
-| MessageRow.tsx | legacy | renders one message with text and rich blocks |
 | Notifications.tsx | view | shows the notification badge and list |
 | PlanFeedbackModal.tsx | modal | approves, rejects, or comments on a plan |
 | ProjectSwitcher.tsx | modal | picks the active project |

@@ -8,7 +8,6 @@ They hold the client-side runtime state that the screen components render.
 | useDashboardData.ts | hook | keeps per-tab dashboard data current |
 | useKeybindings.ts | hook | maps global keys to client actions |
 | useMouseHandler.ts | hook | turns mouse input into scroll and selection |
-| useMouseScroll.ts | legacy | scrolls the transcript on wheel events |
 | useMutate.ts | hook | sends mutations and awaits their results |
 | useNotifications.ts | hook | stores recent notifications and unread count |
 | useTranscript.ts | hook | builds transcript messages from server frames |

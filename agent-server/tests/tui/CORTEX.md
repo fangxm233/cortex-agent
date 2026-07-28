@@ -20,7 +20,6 @@ transcript state, render helpers and the websocket client.
 | keybindings.test.tsx | test | Covers global keybinding handler dispatch |
 | logic.test.ts | test | Covers focus, scroll and stream pure helpers |
 | markdown.test.ts | test | Covers the minimal markdown parser |
-| messageRow.test.tsx | test | Covers message row text and rich blocks |
 | notificationBadge.test.tsx | test | Covers notification selection callback |
 | planFeedbackModal.test.tsx | test | Covers plan approve, feedback and cancel |
 | projectSwitcher.test.tsx | test | Covers project switcher select and escape |

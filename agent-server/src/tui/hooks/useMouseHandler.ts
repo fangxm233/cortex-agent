@@ -1,6 +1,6 @@
 // input:  Ink stdin event emitter (raw input chunks)
 // output: Unified mouse handler — wheel scroll, text selection, right-click
-// pos:    Replaces useMouseScroll; handles all SGR mouse events for the M5 Ink TUI
+// pos:    Handles all SGR mouse events for the M5 Ink TUI
 //
 // SGR mouse tracking is enabled in index.tsx (enterFullscreen writes `?1002h;?1006h`). With
 // ?1002h (button-event tracking), the terminal sends motion events ONLY while a button is held

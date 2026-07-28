@@ -5,8 +5,6 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 
 | filename | role | function |
 |---|---|---|
-| _combined-debug.test.ts | debug | PI adapter send and plan-flow scratch checks |
-| _plan-debug.test.ts | debug | PI adapter plan-flow scratch check |
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
