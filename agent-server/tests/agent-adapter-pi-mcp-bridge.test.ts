@@ -1,5 +1,5 @@
-// input:  PI MCP bridge logic and compiled MCP transport
-// output: content mapping, loading policy, and stdio call verification
+// input:  PI MCP bridge, fake clients, compiled MCP transport
+// output: mapping, loading, retry, and stdio verification
 // pos:    PI MCP bridge behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,12 +10,17 @@ import { resolve, dirname } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import {
+  installMcpBridge,
+  type McpBridgeDeps,
+} from '../src/agent-adapter/pi/mcp-bridge.js';
+import {
   mapMcpContent,
   shouldLoadFeishu,
   shouldLoadSlack,
   shouldLoadThreadControl,
   shouldLoadWeb,
 } from '../src/agent-adapter/pi/mcp-bridge-logic.js';
+import type { ExtensionAPI } from '../src/agent-adapter/pi/pi-ext-types.js';
 
 // The CORE_SERVER_PATH / EXT_SERVER_PATH exported from mcp-bridge resolves relative to its own
 // location: when loaded via tsx from src/ those siblings don't exist; when running compiled from
@@ -106,6 +111,102 @@ test('shouldLoadThreadControl: true when CORTEX_THREAD_ID is present', () => {
 test('shouldLoadThreadControl: false for empty or missing thread ids', () => {
   assert.equal(shouldLoadThreadControl(''), false);
   assert.equal(shouldLoadThreadControl(undefined), false);
+});
+
+type BridgeEvent = 'before_agent_start' | 'session_shutdown';
+type BridgeHandler = (event: Record<string, never>, ctx: Record<string, never>) => Promise<void> | void;
+
+function createPiHarness() {
+  const handlers = new Map<BridgeEvent, BridgeHandler>();
+  const registered: string[] = [];
+  const pi = {
+    on(event: BridgeEvent, handler: BridgeHandler) {
+      handlers.set(event, handler);
+    },
+    registerTool(tool: { name: string }) {
+      registered.push(tool.name);
+    },
+  } as unknown as ExtensionAPI;
+  return {
+    pi,
+    registered,
+    fire: async (event: BridgeEvent) => handlers.get(event)?.({}, {}),
+  };
+}
+
+function fakeHandle(name: string, listTools: () => Promise<unknown> = async () => ({
+  tools: [{ name: `${name}_tool`, description: name, inputSchema: { type: 'object' } }],
+})) {
+  return {
+    client: {
+      listTools,
+      callTool: async () => ({ content: [{ type: 'text', text: name }] }),
+    },
+    transport: { close: async () => undefined },
+  } as any;
+}
+
+function retryDeps(overrides: Partial<McpBridgeDeps>): McpBridgeDeps {
+  return {
+    env: { CORTEX_THREAD_ID: 'thr_retry' },
+    reportFailure: () => undefined,
+    spawnClient: async (_path, name) => fakeHandle(name),
+    ...overrides,
+  };
+}
+
+test('required MCP connect failure retries next turn without duplicate tools', async () => {
+  const harness = createPiHarness();
+  const attempts = new Map<string, number>();
+  const failures: unknown[] = [];
+  const deps = retryDeps({
+    reportFailure: (error) => failures.push(error),
+    spawnClient: async (_path, name) => {
+      const attempt = (attempts.get(name) ?? 0) + 1;
+      attempts.set(name, attempt);
+      if (name === 'tasks' && attempt === 1) throw new Error('tasks unavailable');
+      return fakeHandle(name);
+    },
+  });
+
+  await installMcpBridge(harness.pi, deps);
+  await harness.fire('before_agent_start');
+  assert.deepEqual(harness.registered, []);
+  assert.equal(failures.length, 1);
+  assert.match((failures[0] as Error).message, /tasks.*connect/);
+
+  await harness.fire('before_agent_start');
+  assert.deepEqual(harness.registered.sort(), ['core_tool', 'ext_tool', 'tasks_tool', 'thread_tool']);
+  await harness.fire('before_agent_start');
+  assert.equal(harness.registered.length, 4);
+  assert.deepEqual(Object.fromEntries(attempts), { core: 1, tasks: 2, thread: 1, ext: 1 });
+});
+
+test('required MCP list failure retries discovery before registering tools', async () => {
+  const harness = createPiHarness();
+  const listAttempts = new Map<string, number>();
+  const failures: unknown[] = [];
+  const deps = retryDeps({
+    reportFailure: (error) => failures.push(error),
+    spawnClient: async (_path, name) => fakeHandle(name, async () => {
+      const attempt = (listAttempts.get(name) ?? 0) + 1;
+      listAttempts.set(name, attempt);
+      if (name === 'thread' && attempt === 1) throw new Error('list unavailable');
+      return { tools: [{ name: `${name}_tool`, description: name, inputSchema: { type: 'object' } }] };
+    }),
+  });
+
+  await installMcpBridge(harness.pi, deps);
+  await harness.fire('before_agent_start');
+  assert.deepEqual(harness.registered, []);
+  assert.equal(failures.length, 1);
+  assert.match((failures[0] as Error).message, /thread.*list/);
+
+  await harness.fire('before_agent_start');
+  assert.deepEqual(harness.registered.sort(), ['core_tool', 'ext_tool', 'tasks_tool', 'thread_tool']);
+  await harness.fire('before_agent_start');
+  assert.equal(harness.registered.length, 4);
+  assert.deepEqual(Object.fromEntries(listAttempts), { core: 2, tasks: 2, thread: 2, ext: 1 });
 });
 
 // Real transport integration: invoking one tool exercises server startup, registration, RPC, and mapping.

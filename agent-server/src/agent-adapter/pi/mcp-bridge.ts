@@ -1,5 +1,5 @@
 // input:  PI extension API, MCP clients, loading policy
-// output: Cortex MCP tools forwarded into PI
+// output: Retryable Cortex MCP tools forwarded into PI
 // pos:    PI MCP subprocess and tool-registration bridge
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -8,6 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Type } from '@sinclair/typebox';
+import { createLogger } from '@core/log.js';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -31,11 +32,31 @@ const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
 const FEISHU_SERVER_PATH = resolve(_dirname, '../../domain/mcp/feishu-server.js');
 const WEB_SERVER_PATH = resolve(_dirname, '../../domain/mcp/web-server.js');
 
-// --- MCP client wrapper (one per server) ---
+const log = createLogger('pi-mcp-bridge');
 
-interface McpClientHandle {
-  client: Client;
-  transport: Transport;
+type McpTool = Awaited<ReturnType<Client['listTools']>>['tools'][number];
+type BridgeClient = Pick<Client, 'listTools' | 'callTool'>;
+
+export interface McpClientHandle {
+  client: BridgeClient;
+  transport: Pick<Transport, 'close'>;
+}
+
+export interface McpBridgeDeps {
+  env: NodeJS.ProcessEnv;
+  spawnClient(serverPath: string, serverName: string): Promise<McpClientHandle>;
+  reportFailure(error: unknown): void;
+}
+
+interface ServerState {
+  name: string;
+  path: string;
+  handle: McpClientHandle | null;
+}
+
+interface DiscoveredSurface {
+  handle: McpClientHandle;
+  tools: McpTool[];
 }
 
 async function spawnMcpClient(serverPath: string, serverName: string): Promise<McpClientHandle> {
@@ -51,139 +72,148 @@ async function spawnMcpClient(serverPath: string, serverName: string): Promise<M
     },
   });
   const client = new Client({ name: `pi-mcp-bridge-${serverName}`, version: '1.0.0' });
-  await client.connect(transport);
-  return { client, transport };
+  try {
+    await client.connect(transport);
+    return { client, transport };
+  } catch (error) {
+    try { await transport.close(); } catch { /* best-effort */ }
+    throw error;
+  }
 }
 
-// --- PI extension factory ---
+function buildServerStates(env: NodeJS.ProcessEnv): ServerState[] {
+  const channel = env.SLACK_CHANNEL;
+  const states: ServerState[] = [
+    { name: 'core', path: CORE_SERVER_PATH, handle: null },
+    { name: 'tasks', path: TASKS_SERVER_PATH, handle: null },
+  ];
+  if (shouldLoadThreadControl(env.CORTEX_THREAD_ID)) {
+    states.push({ name: 'thread', path: THREAD_SERVER_PATH, handle: null });
+  }
+  states.push({ name: 'ext', path: EXT_SERVER_PATH, handle: null });
+  if (shouldLoadSlack(channel)) states.push({ name: 'slack', path: SLACK_SERVER_PATH, handle: null });
+  if (shouldLoadFeishu(channel)) states.push({ name: 'feishu', path: FEISHU_SERVER_PATH, handle: null });
+  if (shouldLoadWeb(channel)) states.push({ name: 'web', path: WEB_SERVER_PATH, handle: null });
+  return states;
+}
 
-export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
-  let coreHandle: McpClientHandle | null = null;
-  let tasksHandle: McpClientHandle | null = null;
-  let threadHandle: McpClientHandle | null = null;
-  let extHandle: McpClientHandle | null = null;
-  let slackHandle: McpClientHandle | null = null;
-  let feishuHandle: McpClientHandle | null = null;
-  let webHandle: McpClientHandle | null = null;
-  let toolsRegistered = false;
+function serverFailure(name: string, action: string, cause: unknown): Error {
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  return new Error(`MCP server ${name} ${action} failed: ${detail}`, { cause });
+}
 
-  // The source channel is forwarded by the PI adapter as SLACK_CHANNEL (see pi/adapter.ts spawn env).
-  const loadSlack = shouldLoadSlack(process.env.SLACK_CHANNEL);
-  const loadFeishu = shouldLoadFeishu(process.env.SLACK_CHANNEL);
-  const loadWeb = shouldLoadWeb(process.env.SLACK_CHANNEL);
-  const loadThreadControl = shouldLoadThreadControl(process.env.CORTEX_THREAD_ID);
+function reportBridgeFailure(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  log.warn(`MCP setup failed; will retry on next turn: ${message}`);
+}
 
-  async function ensureAllConnected(): Promise<void> {
-    // Core remote/time and read-only task monitoring are always loaded.
-    if (!coreHandle) {
-      coreHandle = await spawnMcpClient(CORE_SERVER_PATH, 'core').catch(() => null);
-    }
-    if (!tasksHandle) {
-      tasksHandle = await spawnMcpClient(TASKS_SERVER_PATH, 'tasks').catch(() => null);
-    }
-    // Thread lifecycle and manager Q&A are available only inside a Cortex thread.
-    if (loadThreadControl && !threadHandle) {
-      threadHandle = await spawnMcpClient(THREAD_SERVER_PATH, 'thread').catch(() => null);
-    }
-    // Spawn ext server (cost, context, schedule).
-    if (!extHandle) {
-      extHandle = await spawnMcpClient(EXT_SERVER_PATH, 'ext').catch(() => null);
-    }
-    // Spawn slack server (slack_send_file tool) only for Slack-originated sessions.
-    if (loadSlack && !slackHandle) {
-      slackHandle = await spawnMcpClient(SLACK_SERVER_PATH, 'slack').catch(() => null);
-    }
-    // Spawn feishu server (Feishu document tools) only for Feishu-originated sessions.
-    if (loadFeishu && !feishuHandle) {
-      feishuHandle = await spawnMcpClient(FEISHU_SERVER_PATH, 'feishu').catch(() => null);
-    }
-    // Spawn web server (send_file tool) only for Web-UI-originated sessions.
-    if (loadWeb && !webHandle) {
-      webHandle = await spawnMcpClient(WEB_SERVER_PATH, 'web').catch(() => null);
+const DEFAULT_DEPS: McpBridgeDeps = {
+  env: process.env,
+  spawnClient: spawnMcpClient,
+  reportFailure: reportBridgeFailure,
+};
+
+class McpBridgeSession {
+  private readonly states: ServerState[];
+  private readonly registeredNames = new Set<string>();
+  private complete = false;
+
+  constructor(
+    private readonly pi: ExtensionAPI,
+    private readonly deps: McpBridgeDeps,
+  ) {
+    this.states = buildServerStates(deps.env);
+  }
+
+  install(): void {
+    this.pi.on('before_agent_start', async () => this.beforeAgentStart());
+    this.pi.on('session_shutdown', async () => this.shutdown());
+  }
+
+  private async beforeAgentStart(): Promise<void> {
+    if (this.complete) return;
+    try {
+      await this.connectAll();
+      const discovered = await this.listAllTools();
+      this.registerAll(discovered);
+      this.complete = true;
+    } catch (error) {
+      this.deps.reportFailure(error);
     }
   }
 
-  async function registerToolsFrom(handle: McpClientHandle): Promise<void> {
-    let toolList: Awaited<ReturnType<Client['listTools']>>['tools'];
-    try {
-      ({ tools: toolList } = await handle.client.listTools());
-    } catch {
-      return;
-    }
-    for (const tool of toolList) {
-      const toolName = tool.name;
-      const toolDesc = tool.description ?? '';
-      const parameters = Type.Unsafe(tool.inputSchema as Record<string, unknown>);
-      pi.registerTool({
-        name: toolName,
-        label: toolName,
-        description: toolDesc,
-        parameters,
-        async execute(
-          _toolCallId: string,
-          params: Record<string, unknown>,
-          _signal: AbortSignal | undefined,
-          _onUpdate: any,
-          _ctx: any,
-        ) {
-          const result = await handle.client.callTool({
-            name: toolName,
-            arguments: params,
-          });
-          const content = (result.content as any[]).map(mapMcpContent);
-          return { content, details: { isError: result.isError ?? false } };
-        },
-      });
-    }
-  }
-
-  // Discover and register tools on the first before_agent_start of each session.
-  pi.on('before_agent_start', async (_event, _ctx) => {
-    if (toolsRegistered) return;
-
-    try {
-      await ensureAllConnected();
-    } catch {
-      return;  // Don't crash PI if MCP servers fail to start
-    }
-
-    // Register the always-on privilege surfaces first, then optional thread/platform surfaces.
-    if (coreHandle) await registerToolsFrom(coreHandle);
-    if (tasksHandle) await registerToolsFrom(tasksHandle);
-    if (threadHandle) await registerToolsFrom(threadHandle);
-    if (extHandle) await registerToolsFrom(extHandle);
-    // Register from slack server (slack_send_file) — Slack-originated sessions only
-    if (slackHandle) await registerToolsFrom(slackHandle);
-    // Register from feishu server (Feishu document tools) — Feishu-originated sessions only
-    if (feishuHandle) await registerToolsFrom(feishuHandle);
-    // Register from web server (send_file) — Web-UI-originated sessions only
-    if (webHandle) await registerToolsFrom(webHandle);
-
-    toolsRegistered = true;
-  });
-
-  // Clean up MCP subprocesses when the PI session ends.
-  pi.on('session_shutdown', async (_event, _ctx) => {
-    toolsRegistered = false;
-    for (const h of [
-      coreHandle,
-      tasksHandle,
-      threadHandle,
-      extHandle,
-      slackHandle,
-      feishuHandle,
-      webHandle,
-    ]) {
-      if (h) {
-        try { await h.transport.close(); } catch { /* best-effort */ }
+  private async connectAll(): Promise<void> {
+    for (const state of this.states) {
+      if (state.handle) continue;
+      try {
+        state.handle = await this.deps.spawnClient(state.path, state.name);
+      } catch (error) {
+        throw serverFailure(state.name, 'connect', error);
       }
     }
-    coreHandle = null;
-    tasksHandle = null;
-    threadHandle = null;
-    extHandle = null;
-    slackHandle = null;
-    feishuHandle = null;
-    webHandle = null;
-  });
+  }
+
+  private async listAllTools(): Promise<DiscoveredSurface[]> {
+    const discovered: DiscoveredSurface[] = [];
+    for (const state of this.states) {
+      if (!state.handle) throw new Error(`MCP server ${state.name} is not connected`);
+      try {
+        const { tools } = await state.handle.client.listTools();
+        discovered.push({ handle: state.handle, tools });
+      } catch (error) {
+        throw serverFailure(state.name, 'list tools', error);
+      }
+    }
+    return discovered;
+  }
+
+  private registerAll(discovered: DiscoveredSurface[]): void {
+    for (const surface of discovered) {
+      for (const tool of surface.tools) {
+        if (this.registeredNames.has(tool.name)) continue;
+        this.registerTool(surface.handle, tool);
+        this.registeredNames.add(tool.name);
+      }
+    }
+  }
+
+  private registerTool(handle: McpClientHandle, tool: McpTool): void {
+    const parameters = Type.Unsafe(tool.inputSchema as Record<string, unknown>);
+    this.pi.registerTool({
+      name: tool.name,
+      label: tool.name,
+      description: tool.description ?? '',
+      parameters,
+      async execute(_id, params) {
+        const result = await handle.client.callTool({
+          name: tool.name,
+          arguments: params as Record<string, unknown>,
+        });
+        const content = (result.content as any[]).map(mapMcpContent);
+        return { content, details: { isError: result.isError ?? false } };
+      },
+    });
+  }
+
+  private async shutdown(): Promise<void> {
+    this.complete = false;
+    this.registeredNames.clear();
+    for (const state of this.states) {
+      if (state.handle) {
+        try { await state.handle.transport.close(); } catch { /* best-effort */ }
+      }
+      state.handle = null;
+    }
+  }
+}
+
+export async function installMcpBridge(
+  pi: ExtensionAPI,
+  deps: McpBridgeDeps = DEFAULT_DEPS,
+): Promise<void> {
+  new McpBridgeSession(pi, deps).install();
+}
+
+export default async function mcpBridge(pi: ExtensionAPI): Promise<void> {
+  await installMcpBridge(pi);
 }
