@@ -1,20 +1,41 @@
 // input:  tool calls with DEBUG details and server size warnings
-// output: single-line collapsed row, expanded badges, and DEBUG inspector actions
-// pos:    desktop tool-call surface; wrapping and warning palette stay private
+// output: single-line collapsed row with +N overflow, expanded details
+// pos:    desktop workbench tool-call presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useState, type CSSProperties, type MouseEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type RefObject } from 'react';
 import { useVocab } from '@/i18n';
 import type { ToolCall } from './chat-content';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
+import {
+  toolCallOverflowLayout,
+  toolCallOverflowText,
+  type ToolCallOverflowLayout,
+} from './tool-call-overflow';
 
 const mono = "'IBM Plex Mono',monospace";
+const COLLAPSED_GAP = 7;
 const chipStyle: CSSProperties = {
   font: `400 10.5px ${mono}`,
   background: 'var(--proto-alt)',
   border: '1px solid var(--proto-line-2)',
   padding: '1px 6px',
   borderRadius: 4,
+  flex: 'none',
+};
+const overflowStyle: CSSProperties = {
+  font: `500 10.5px ${mono}`,
+  color: 'var(--proto-muted)',
+  flex: 'none',
+};
+const collapsedCallsStyle: CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: COLLAPSED_GAP,
+  flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative',
+};
+const measureStyle: CSSProperties = {
+  ...collapsedCallsStyle,
+  position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
+  width: 'max-content', overflow: 'visible',
 };
 const expandedHeaderStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 7, fontSize: 11,
@@ -57,11 +78,55 @@ function detailFor(call: ToolCall): DebugDetail | null {
 
 function collapsedRowStyle(hover: boolean): CSSProperties {
   return {
-    display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5,
+    display: 'flex', alignItems: 'center', gap: COLLAPSED_GAP, fontSize: 11.5,
     color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-3)',
     flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden',
     cursor: 'pointer',
   };
+}
+
+function measuredWidths(measure: HTMLSpanElement, count: number): { chipWidths: number[]; overflowWidth: number } {
+  const children = Array.from(measure.children) as HTMLElement[];
+  return {
+    chipWidths: children.slice(0, count).map((child) => child.getBoundingClientRect().width),
+    overflowWidth: children[count]?.getBoundingClientRect().width ?? 0,
+  };
+}
+
+function sameLayout(left: ToolCallOverflowLayout, right: ToolCallOverflowLayout): boolean {
+  return left.visibleCount === right.visibleCount && left.hiddenCount === right.hiddenCount;
+}
+
+function observeToolCallWidth(container: HTMLSpanElement, recalculate: () => void): () => void {
+  let active = true;
+  const guardedRecalculate = (): void => { if (active) recalculate(); };
+  guardedRecalculate();
+  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(guardedRecalculate);
+  observer?.observe(container);
+  void document.fonts?.ready.then(guardedRecalculate);
+  return () => { active = false; observer?.disconnect(); };
+}
+
+function useToolCallOverflow(calls: ToolCall[]): {
+  containerRef: RefObject<HTMLSpanElement>;
+  measureRef: RefObject<HTMLSpanElement>;
+  layout: ToolCallOverflowLayout;
+} {
+  const containerRef = useRef<HTMLSpanElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const [layout, setLayout] = useState<ToolCallOverflowLayout>({ visibleCount: calls.length, hiddenCount: 0 });
+  const labels = calls.map((call) => call.label).join('\0');
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const measure = measureRef.current;
+    if (!container || !measure) return;
+    return observeToolCallWidth(container, () => {
+      const widths = measuredWidths(measure, calls.length);
+      const next = toolCallOverflowLayout({ availableWidth: container.clientWidth, ...widths, gap: COLLAPSED_GAP });
+      setLayout((current) => sameLayout(current, next) ? current : next);
+    });
+  }, [calls.length, labels]);
+  return { containerRef, measureRef, layout };
 }
 
 function expandedBoxStyle(hover: boolean): CSSProperties {
@@ -72,6 +137,14 @@ function expandedBoxStyle(hover: boolean): CSSProperties {
   };
 }
 
+function ToolChip({ call }: { call: ToolCall }): JSX.Element {
+  return (
+    <span style={{ ...chipStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>
+      {call.label}
+    </span>
+  );
+}
+
 function CollapsedToolCalls({ calls, text, hover, onExpand, onHover }: {
   calls: ToolCall[];
   text: string;
@@ -79,16 +152,21 @@ function CollapsedToolCalls({ calls, text, hover, onExpand, onHover }: {
   onExpand: () => void;
   onHover: (hovered: boolean) => void;
 }): JSX.Element {
+  const { containerRef, measureRef, layout } = useToolCallOverflow(calls);
+  const overflowText = toolCallOverflowText(layout.hiddenCount);
   return (
     <div style={{ margin: '-8px 0' }}>
       <div onClick={onExpand} onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)} style={collapsedRowStyle(hover)}>
-        <span style={{ fontSize: 9, color: 'var(--proto-faint)' }}>▸</span>
-        <span>{text}</span>
-        {calls.map((call, index) => (
-          <span key={index} style={{ ...chipStyle, ...toolWarningStyle(call.debug?.overCharacterThreshold === true) }}>
-            {call.label}
+        <span style={{ fontSize: 9, color: 'var(--proto-faint)', flex: 'none' }}>▸</span>
+        <span style={{ flex: 'none' }}>{text}</span>
+        <span ref={containerRef} style={collapsedCallsStyle}>
+          {calls.slice(0, layout.visibleCount).map((call, index) => <ToolChip key={index} call={call} />)}
+          {overflowText ? <span style={overflowStyle}>{overflowText}</span> : null}
+          <span ref={measureRef} aria-hidden="true" style={measureStyle}>
+            {calls.map((call, index) => <ToolChip key={index} call={call} />)}
+            <span style={overflowStyle}>+{calls.length}</span>
           </span>
-        ))}
+        </span>
       </div>
     </div>
   );
