@@ -1,7 +1,7 @@
-// input:  user/session context, Claude print stream/usage, rate-limit events
-// output: ClaudeAdapter with turns, usage, manual compact, and events
-// pos:    Claude session pool and normalized print-stream adapter
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  session context, Claude streams, usage, rate limits
+// output: ClaudeAdapter turns, events, usage, and compact control
+// pos:    Claude session pool and print-stream adapter
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { spawn, ChildProcess } from 'child_process';
 import { createWriteStream, WriteStream } from 'fs';
@@ -304,8 +304,8 @@ class ClaudeSession {
   private spawnProcess(): void {
     const env = buildClaudeEnv(this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId, this.anthropicBaseUrl, this.extraEnv, this.context);
     const spawnOptions = this.toSpawnOptions();
-    // Template thread sessions load only the core MCP server (remote_* tools).
-    // Default / direct sessions load both core and ext servers.
+    // CORE_MCP_CONFIG marks template threads; spawn args add task and thread-control layers.
+    // Default/direct sessions use the full core + tasks + ext config.
     if (this.context?.useCoreMcp) {
       spawnOptions.mcpConfigPath = CORE_MCP_CONFIG;
     }
@@ -1024,8 +1024,8 @@ function getOrCreateTuiSession(config: AgentSpawnConfig, sessionIdEffective: str
       outputStyle: opts.outputStyle,
       extraOption: opts.extraOption ?? null,
       thinking: opts.thinking ?? null,
-      // Mirror the print-mode rule (spawnProcess): template thread sessions load only the core MCP
-      // server. buildSpawnArgs reads this CORE_MCP_CONFIG marker to also suppress the TUI bridge.
+      // Mirror print mode: CORE_MCP_CONFIG marks template threads. buildSpawnArgs adds task and
+      // control-plane layers while suppressing the direct-session TUI bridge.
       mcpConfigPath: opts.context?.useCoreMcp ? CORE_MCP_CONFIG : undefined,
       callbackSource: opts.callbackSource,
       scheduleTaskId: opts.scheduleTaskId,

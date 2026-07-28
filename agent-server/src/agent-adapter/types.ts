@@ -1,7 +1,7 @@
-// input:  nothing (leaf type-only module)
-// output: AgentAdapter contracts with context/compact callbacks
-// pos:    Backend adapter and orchestration contracts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  normalized events and backend capabilities
+// output: agent adapter, process, context, and sink contracts
+// pos:    Shared backend adapter type definitions
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { Capability } from './capabilities.js';
 import type { NormalizedEvent } from './normalize/event-types.js';
@@ -98,7 +98,7 @@ export interface AgentSpawnConfig {
     trackSessionId?: string | null;
     /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
     executionId?: string | null;
-    /** When true, load only core MCP server (remote_* tools). Used by template thread sessions. */
+    /** When true, load the restricted core + tasks + thread MCP composition. */
     useCoreMcp?: boolean;
     threadDepth?: number | null;
     /** Owning dispatch task id/project, surfaced as CORTEX_TASK_ID / CORTEX_TASK_PROJECT. */

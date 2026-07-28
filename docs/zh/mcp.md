@@ -1,7 +1,7 @@
 # MCP — Model Context Protocol
 
 
-Cortex 内置三个 MCP（Model Context Protocol）服务器，赋予智能体访问远程机器、Cortex 自身的调度和费用系统以及 Slack 的能力。本文档解释每个服务器提供什么、如何配置以及如何添加第三方 MCP 服务器。
+Cortex 内置按权限面和平台面拆分的 MCP（Model Context Protocol）服务器，赋予智能体访问远程机器、任务监控、线程控制、调度、费用和平台集成的能力。本文档解释每个服务器提供什么、如何组合以及如何添加第三方 MCP 服务器。
 
 ## 什么是 MCP
 
@@ -17,7 +17,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 
 ### cortex-core
 
-暴露与远程机器交互的工具。这是线程/模板会话加载的唯一服务器——线程智能体获得远程机器访问权限，但不获得平台特定、费用或调度工具。
+暴露远程机器操作和只读时钟，并在所有会话中加载。保留 `cortex-core` 服务器名，因此现有客户端和 skill 使用的 `mcp__cortex-core__remote_*` 名称不变。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -27,19 +27,39 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 | `remote_edit` | `device`、`file_path`、`old_string`、`new_string`、`replace_all?` | 通过字符串替换编辑远程设备上的文件 |
 | `remote_glob` | `device`、`pattern`、`path?` | 在远程设备上查找匹配 glob 模式的文件 |
 | `remote_grep` | `device`、`pattern`、`path?`、`glob?`、`type?`、`output_mode?`、`-A?`、`-B?`、`-C?`、`-i?`、`-n?`、`head_limit?`、`offset?`、`multiline?` | 使用 ripgrep 在远程设备上搜索文件内容 |
-| `thread_abort` | `kind`、`diagnosis` | 升级你自己的线程（too-big / mis-scoped / blocked-external，终态 `aborted`） |
-| `thread_split` | `subtasks` | 把你自己的任务分解为子任务（keep-parent 汇合），子任务走正常派发队列 |
-| `thread_wait` | `on_tasks?`、`on_threads?` | 挂起你自己的线程直到被等待的子项完成；与 `cortex-task spawn` 配合使用 |
+| `current_time` | `timezone?` | 获取当前日期时间；可选 IANA 时区（默认服务器本地）。返回 Unix 时间戳、UTC ISO 字符串及带偏移的本地时间 |
+
+服务器实现在 `agent-server/src/domain/mcp/core-server.ts`。
+
+### cortex-tasks
+
+暴露只读任务监控工具，并在所有会话中加载。
+
+| 工具 | 参数 | 描述 |
+|---|---|---|
 | `task_status` | `task_id`、`project?` | 读取任务的生命周期状态（status、是否可执行、claimed_by、blocked_by、依赖、parent） |
 | `task_result` | `task_id`、`project?` | 读取任务的结果（done/blocked、done_when、完成备注、阻塞原因） |
 | `task_list` | `project?`、`status?`、`parent?`、`limit?` | 列出任务（可按 status 或 parent 过滤） |
-| `current_time` | `timezone?` | 获取当前日期时间；可选 IANA 时区（默认服务器本地）。返回 Unix 时间戳、UTC ISO 字符串及带偏移的本地时间 |
 
-服务器实现在 `agent-server/src/domain/mcp/core-server.ts`。工具实现在 `agent-server/src/domain/mcp/tools/`。
+服务器实现在 `agent-server/src/domain/mcp/tasks-server.ts`。
+
+### cortex-thread
+
+暴露线程生命周期控制面和 manager 问答。仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；直接会话永远不会获得这些工具。
+
+| 工具 | 参数 | 描述 |
+|---|---|---|
+| `thread_abort` | `kind`、`diagnosis` | 升级你自己的线程（too-big / mis-scoped / blocked-external，终态 `aborted`） |
+| `thread_split` | `subtasks` | 把你自己的任务分解为子任务（keep-parent 汇合），子任务走正常派发队列 |
+| `thread_wait` | `on_tasks?`、`on_threads?` | 挂起你自己的线程直到被等待的子项完成；与 `cortex-task spawn` 配合使用 |
+| `ask_manager` | `question` | 向规划本任务的 manager 提出阻塞式澄清问题 |
+| `answer_subtask` | `question_id`、`answer` | 回答子任务提出的澄清问题 |
+
+服务器实现在 `agent-server/src/domain/mcp/thread-server.ts`。工具注册器仍在 `agent-server/src/domain/mcp/tools/`。
 
 ### cortex-ext
 
-暴露 Cortex 管理工具：调度、费用查询和上下文解析。此服务器仅由直接/用户发起的会话加载——线程智能体不获得这些工具。
+暴露 Cortex 管理工具：调度、费用查询和上下文解析。Claude 和 Codex 仅在直接/用户会话中加载它；PI bridge 保留在所有会话中加载 cortex-ext 的现有行为。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -83,7 +103,7 @@ skill 指南，见 `feishu-doc` skill。
 
 ### cortex-tui-bridge
 
-仅在 TUI（终端 UI）模式下加载。将 Claude Code 原生的 `EnterPlanMode`、`ExitPlanMode` 和 `AskUserQuestion` 工具替换为通过 Slack 而非终端路由的 MCP 等效工具。
+在交互式 TUI 会话和用户发起的 Claude print 会话中加载。它用经 Cortex 路由的 MCP 等效工具替换 Claude Code 原生的 `EnterPlanMode`、`ExitPlanMode` 和 `AskUserQuestion`。
 
 | 工具 | 描述 |
 |---|---|
@@ -99,9 +119,11 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 
 | 文件 | 加载者 | 服务器 |
 |---|---|---|
-| `~/.cortex/config/mcp-config.json` | 直接/用户发起的会话 | cortex-core + cortex-ext + 平台特定（cortex-slack 或 cortex-feishu） |
-| `~/.cortex/config/mcp-config-core.json` | 线程/模板会话 | 仅 cortex-core |
-| `~/.cortex/config/mcp-config-tui.json` | TUI 模式会话 | 仅 cortex-tui-bridge |
+| `~/.cortex/config/mcp-config.json` | 直接会话基础层 | cortex-core + cortex-tasks + cortex-ext |
+| `~/.cortex/config/mcp-config-core.json` | 线程会话分层 | 仅 cortex-core |
+| `~/.cortex/config/mcp-config-tasks.json` | 线程会话分层 | 仅 cortex-tasks |
+| `~/.cortex/config/mcp-config-thread.json` | 仅线程会话的分层 | 仅 cortex-thread |
+| `~/.cortex/config/mcp-config-tui.json` | 交互工具分层（按需） | 仅 cortex-tui-bridge |
 | `~/.cortex/config/mcp-config-slack.json` | Slack 特定分层（按需） | cortex-slack |
 
 每个文件遵循 Claude Code 的标准 MCP 配置格式：
@@ -112,6 +134,11 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
     "cortex-core": {
       "command": "node",
       "args": ["/path/to/core-server.js"],
+      "cwd": "/path/to/cwd"
+    },
+    "cortex-tasks": {
+      "command": "node",
+      "args": ["/path/to/tasks-server.js"],
       "cwd": "/path/to/cwd"
     },
     "cortex-ext": {
@@ -127,13 +154,12 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 
 ### 如何选择正确的配置
 
-在 `agent-adapter/claude/spawn-args.ts` 中，MCP 配置路径根据会话上下文选择：
+在 `agent-adapter/claude/spawn-args.ts` 中，MCP 配置按会话上下文组合：
 
-- **TUI 模式**：加载 `mcp-config-tui.json`（仅 cortex-tui-bridge）
-- **Print 模式，用户发起的会话**：加载 `mcp-config.json`（cortex-core + cortex-ext + 平台特定）
-- **线程/模板会话**：加载 `mcp-config-core.json`（仅 cortex-core）
+- **直接/用户会话**加载 `mcp-config.json`（core + tasks + ext），再追加符合条件的平台和交互分层；永不加载 `mcp-config-thread.json`。
+- **线程/模板会话**加载 `mcp-config-core.json`、`mcp-config-tasks.json` 和 `mcp-config-thread.json`；不加载仅直接会话使用的 ext、平台或 TUI bridge 分层。
 
-平台特定的服务器（cortex-slack、cortex-feishu）在 Claude 和 PI 适配器中根据会话的源平台动态加载。线程会话覆盖通过 `session.cortexContext.useCoreMcp` 实现，确保线程智能体仅获得远程机器工具，不获得平台特定、费用或调度工具。
+线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 始终连接 core、tasks 和 ext；仅当 `CORTEX_THREAD_ID` 存在时，`shouldLoadThreadControl()` 才追加 cortex-thread。Codex 在每个 route 的 TOML 中生成同样的权限组合：直接会话 = core + tasks + ext，线程会话 = core + tasks + thread。平台服务器继续由来源频道谓词门控。
 
 ## MCP 工具如何与 agent-server 通信
 
@@ -145,12 +171,13 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 ## 添加第三方 MCP 服务器
 
-要添加第三方 MCP 服务器（例如数据库连接器、网络搜索工具或自定义研究工具），将其添加到 `~/.cortex/config/mcp-config.json`（如果线程智能体也应该拥有它，还需添加到 `mcp-config-core.json`）：
+要添加第三方 MCP 服务器（例如数据库连接器、网络搜索工具或自定义研究工具），将其添加到 `~/.cortex/config/mcp-config.json`。如果线程智能体也应拥有它，请把它加入某个线程组合配置 builder，而不是只加入直接会话配置：
 
 ```json
 {
   "mcpServers": {
     "cortex-core": { "command": "node", "args": ["..."], "cwd": "..." },
+    "cortex-tasks": { "command": "node", "args": ["..."], "cwd": "..." },
     "cortex-ext": { "command": "node", "args": ["..."], "cwd": "..." },
     "my-custom-server": {
       "command": "python",
@@ -161,7 +188,7 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 }
 ```
 
-**重要**：配置文件在每次服务器重启时重新生成。要持久化自定义 MCP 服务器条目，你必须修改 `agent-server/src/core/config-generator.ts` 中的生成器（`buildFullConfig()` 和/或 `buildCoreConfig()` 函数），而不是直接编辑 JSON 文件。
+**重要**：配置文件在每次服务器重启时重新生成。要持久化自定义 MCP 服务器条目，请修改 `agent-server/src/core/config-generator.ts` 中对应的 builder，而不是直接编辑生成的 JSON。
 
 类型系统已经通过 `AgentSpawnConfig.mcpServers` 字段（每后端 `McpServerConfig` 数组）支持第三方 MCP 服务器，但截至当前代码库，此字段尚未被适配器消费。所有 MCP 配置仍然通过 `--mcp-config` CLI 标志流动。
 
@@ -169,7 +196,7 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Cortex 应用以下控制：
 
-1. **工具可用性** — 智能体的工具列表（按配置和线程模板控制）决定哪些 MCP 工具对智能体可见。线程智能体仅加载 `cortex-core`（无 Slack、无费用、无调度）。
+1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。直接会话永不获得 cortex-thread；线程会话仅在携带线程上下文时追加它。Claude 和 Codex 还会在线程会话中排除 ext，PI 则保留 ext 始终加载的现有行为。
 
 2. **Claude Code 的第三方 MCP 被禁用** — `~/.cortex/.claude/settings.json` 中的设置 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 Claude 从其自身的目录自动发现 MCP 服务器。Cortex 通过自己的配置文件独占管理 MCP 服务器。
 
@@ -189,7 +216,7 @@ MCP 服务器进程接收 agent server 环境变量的一个子集：
 | `SLACK_BOT_TOKEN` | process.env | cortex-ext |
 | `CORTEX_SESSION_ID` | 会话上下文 | tui-server、context 工具 |
 | `CORTEX_SESSION_NAME` | 会话上下文 | context 工具 |
-| `CORTEX_THREAD_ID` | 线程上下文 | context 工具 |
+| `CORTEX_THREAD_ID` | 线程上下文 | cortex-thread 工具、PI 加载谓词、context 工具 |
 | `CORTEX_PROFILE` | 会话上下文 | context 工具 |
 | `CORTEX_PROJECT` | 会话上下文 | context 工具 |
 | `CORTEX_EXECUTION_ID` | 执行上下文 | 任务锁钩子 |

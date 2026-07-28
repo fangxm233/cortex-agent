@@ -1,6 +1,7 @@
-// input:  Node test runner, child_process spawn, fs, cli.ts, app.ts
-// output: Integration tests: init (non-interactive), server start/stop, config validation
-// pos:    End-to-end integration test for cortex init + start lifecycle via subprocess fork
+// input:  child processes, filesystem, init CLI, server app
+// output: init/start lifecycle and generated-config verification
+// pos:    Cortex init and startup integration tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
@@ -188,6 +189,9 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
     const files = [
       path.join(tempDir, 'config', '.env'),
       path.join(tempDir, 'config', 'mcp-config.json'),
+      path.join(tempDir, 'config', 'mcp-config-core.json'),
+      path.join(tempDir, 'config', 'mcp-config-tasks.json'),
+      path.join(tempDir, 'config', 'mcp-config-thread.json'),
       path.join(tempDir, 'data', 'mode.json'),
       // DR-0017 D6 Phase 2.5: thread-templates is a directory (one file per entity)
       path.join(tempDir, 'config', 'thread-templates', 'templates', 'default.json'),
@@ -196,6 +200,15 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
     for (const f of files) {
       assert.ok(existsSync(f), `Expected file to exist: ${f}`);
     }
+
+    const tasksConfig = JSON.parse(
+      readFileSync(path.join(tempDir, 'config', 'mcp-config-tasks.json'), 'utf-8'),
+    );
+    const threadConfig = JSON.parse(
+      readFileSync(path.join(tempDir, 'config', 'mcp-config-thread.json'), 'utf-8'),
+    );
+    assert.deepEqual(Object.keys(tasksConfig.mcpServers), ['cortex-tasks']);
+    assert.deepEqual(Object.keys(threadConfig.mcpServers), ['cortex-thread']);
 
     // Assert .env contains CORTEX_MACHINE
     const envContent = readFileSync(path.join(tempDir, 'config', '.env'), 'utf-8');

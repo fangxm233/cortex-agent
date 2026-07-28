@@ -16,9 +16,11 @@ $CORTEX_HOME/
 │   ├── thread-templates.json     # 智能体定义和编排模板
 │   ├── machines.json             # 远程客户端机器注册表
 │   ├── budget.json               # 每日/每月预算限制
-│   ├── mcp-config.json           # 完整 MCP 服务器配置
-│   ├── mcp-config-core.json      # 仅核心 MCP（remote_* 工具）
-│   ├── mcp-config-tui.json       # TUI 模式 MCP 配置
+│   ├── mcp-config.json           # 直接会话 MCP 配置
+│   ├── mcp-config-core.json      # 远程执行/时间分层
+│   ├── mcp-config-tasks.json     # 只读任务监控分层
+│   ├── mcp-config-thread.json    # 线程控制分层
+│   ├── mcp-config-tui.json       # TUI 交互分层
 │   └── session-hooks.json        # 会话级钩子配置
 ├── data/
 │   ├── mode.json                 # 当前运行时模式和配置
