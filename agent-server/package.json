@@ -49,6 +49,8 @@
     "jose": "^6",
     "react": "^18.3.1",
     "string-width": "^7.2.0",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2",
     "ws": "^8.20.0",
     "yaml": "^2.8.3",
     "zod": "^4.4.3"
@@ -60,6 +62,7 @@
   "devDependencies": {
     "@sinclair/typebox": "^0.34.49",
     "@types/react": "^18.3.29",
+    "@types/turndown": "^5.0.6",
     "@types/ws": "^8.18.1",
     "dependency-cruiser": "^17.3.10",
     "ink-testing-library": "^4.0.0",
