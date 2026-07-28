@@ -1,6 +1,6 @@
 // input:  TypeBox, Turndown, fetch API
 // output: Bounded local WebFetch PI tool definition
-// pos:    PI-local HTTP(S) fetch and text conversion
+// pos:    PI-local bounded HTTP(S) fetch and text conversion
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { Type } from '@sinclair/typebox';
@@ -97,9 +97,11 @@ async function fetchWithRedirects(initialUrl: URL, signal: AbortSignal): Promise
       discardResponse(response);
       throw new Error(`WebFetch redirect limit exceeded (${WEB_FETCH_MAX_REDIRECTS}).`);
     }
-    const nextUrl = resolveRedirect(response, currentUrl);
-    discardResponse(response);
-    currentUrl = nextUrl;
+    try {
+      currentUrl = resolveRedirect(response, currentUrl);
+    } finally {
+      discardResponse(response);
+    }
   }
 }
 
@@ -123,9 +125,9 @@ function classifyResponse(response: Response): ResponseKind {
   }
   const mediaType = rawContentType.split(';', 1)[0].trim().toLowerCase();
   if (mediaType === 'text/html') return 'html';
-  if (mediaType === 'text/plain' || mediaType === 'application/json' || mediaType.endsWith('+json')) {
-    return 'text';
-  }
+  const isApplicationJson = mediaType === 'application/json'
+    || (mediaType.startsWith('application/') && mediaType.endsWith('+json'));
+  if (mediaType === 'text/plain' || isApplicationJson) return 'text';
   return unsupportedContentType(response, mediaType);
 }
 

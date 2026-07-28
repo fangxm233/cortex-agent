@@ -1,5 +1,5 @@
 // input:  PIAdapter stub, fetch responses, extension-ui events
-// output: PI shim, WebFetch, retry, and settled-turn tests
+// output: PI shim, WebFetch media/redirect, retry tests
 // pos:    PI pseudo-tool and local WebFetch regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -374,6 +374,23 @@ function mockPendingFetch(): ReturnType<typeof vi.spyOn> {
   ) as Promise<Response>);
 }
 
+function makeTrackedBody(content: string | Uint8Array, closeAfterStart = false) {
+  let cancelled = false;
+  const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+  return {
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes);
+        if (closeAfterStart) controller.close();
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }),
+    wasCancelled: () => cancelled,
+  };
+}
+
 test('J4: toolShims excludes WebFetch when the allowlist omits it', () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
   process.env.CORTEX_PI_ALLOWED_TOOLS = 'Read,Grep';
@@ -476,6 +493,34 @@ test('J8: WebFetch follows relative redirects manually and enforces the redirect
   assert.equal(fetchSpy.mock.calls.length, WEB_FETCH_MAX_REDIRECTS + 1);
 });
 
+test('J8b: WebFetch cancels malformed redirect bodies before rejecting', async () => {
+  const tool = makeWebFetchTool();
+  const fetchSpy = vi.spyOn(globalThis, 'fetch');
+  const cases = [
+    { location: undefined, error: /redirect without a location/i },
+    { location: 'http://[invalid', error: /invalid redirect target/i },
+    { location: 'file:///tmp/redirected', error: /only supports http and https/i },
+  ];
+
+  for (const redirect of cases) {
+    const trackedBody = makeTrackedBody('redirect body');
+    fetchSpy.mockResolvedValueOnce(new Response(trackedBody.body, {
+      status: 302,
+      headers: redirect.location ? { location: redirect.location } : undefined,
+    }));
+
+    await assert.rejects(
+      executeWebFetch(tool, { url: 'https://example.test/redirect' }),
+      redirect.error,
+    );
+    assert.equal(
+      trackedBody.wasCancelled(),
+      true,
+      `body was retained for ${redirect.location ?? 'no Location'}`,
+    );
+  }
+});
+
 test('J9: WebFetch enforces its timeout and propagates parent cancellation', async () => {
   vi.useFakeTimers();
   const tool = makeWebFetchTool();
@@ -522,22 +567,14 @@ test('J10: WebFetch truncates oversized text with an explicit marker and cancels
 
 test('J11: WebFetch rejects HTTP errors, missing media types, and binary content explicitly', async () => {
   const tool = makeWebFetchTool();
-  let binaryBodyCancelled = false;
-  const binaryBody = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(new Uint8Array([0, 1, 2]));
-    },
-    cancel() {
-      binaryBodyCancelled = true;
-    },
-  });
+  const binaryBody = makeTrackedBody(new Uint8Array([0, 1, 2]));
   vi.spyOn(globalThis, 'fetch')
     .mockResolvedValueOnce(new Response('not found', {
       status: 404,
       headers: { 'content-type': 'text/plain' },
     }))
     .mockResolvedValueOnce(new Response(new TextEncoder().encode('unknown')))
-    .mockResolvedValueOnce(new Response(binaryBody, {
+    .mockResolvedValueOnce(new Response(binaryBody.body, {
       headers: { 'content-type': 'application/octet-stream' },
     }));
 
@@ -553,7 +590,21 @@ test('J11: WebFetch rejects HTTP errors, missing media types, and binary content
     executeWebFetch(tool, { url: 'https://example.test/file.bin' }),
     /unsupported binary content-type.*application\/octet-stream/i,
   );
-  assert.equal(binaryBodyCancelled, true);
+  assert.equal(binaryBody.wasCancelled(), true);
+});
+
+test('J11b: WebFetch rejects non-application structured JSON suffixes', async () => {
+  const tool = makeWebFetchTool();
+  const body = makeTrackedBody('not-json-binary', true);
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body.body, {
+    headers: { 'content-type': 'image/example+json' },
+  }));
+
+  await assert.rejects(
+    executeWebFetch(tool, { url: 'https://example.test/non-application-json' }),
+    /unsupported binary content-type.*image\/example\+json/i,
+  );
+  assert.equal(body.wasCancelled(), true);
 });
 
 test('K: spawn forwards rawTools allowlist to the subprocess env', async () => {
