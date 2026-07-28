@@ -104,6 +104,44 @@ test('chat forwarding fixes the upstream and replaces sensitive headers', async 
   );
 });
 
+test('anthropic messages POST is forwarded with upstream credentials injected', async () => {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const upstream: UpstreamFetch = async (input, init) => {
+    calls.push({ url: String(input), init: init ?? {} });
+    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const request = relayRequest('/anthropic/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': 'do-not-forward' },
+    body: JSON.stringify({
+      model: 'deepseek-v4-flash',
+      max_tokens: 64,
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+    }),
+  });
+
+  const response = await handleRequest(request, ENV, upstream);
+  assert.equal(response.status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://api.deepseek.com/anthropic/v1/messages');
+  const headers = new Headers(calls[0].init.headers);
+  assert.equal(headers.get('authorization'), 'Bearer upstream-secret');
+  assert.equal(headers.get('x-api-key'), null);
+  const forwarded = JSON.parse(new TextDecoder().decode(calls[0].init.body as ArrayBuffer));
+  assert.equal(forwarded.tools[0].type, 'web_search_20250305');
+});
+
+test('anthropic messages rejects non-POST before upstream access', async () => {
+  const response = await handleRequest(
+    relayRequest('/anthropic/v1/messages'),
+    ENV,
+    failIfFetched(),
+  );
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.get('allow'), 'POST');
+});
+
 test('models GET is forwarded with relay query parameters intact', async () => {
   let upstreamUrl = '';
   const upstream: UpstreamFetch = async (input) => {

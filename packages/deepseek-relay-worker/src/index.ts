@@ -18,6 +18,8 @@ const DEEPSEEK_ORIGIN = 'https://api.deepseek.com';
 const ROUTES = new Map<string, string>([
   ['/chat/completions', 'POST'],
   ['/v1/chat/completions', 'POST'],
+  // Anthropic-compatible surface: the only one exposing DeepSeek's server-side web_search tool.
+  ['/anthropic/v1/messages', 'POST'],
   ['/models', 'GET'],
   ['/v1/models', 'GET'],
 ]);
