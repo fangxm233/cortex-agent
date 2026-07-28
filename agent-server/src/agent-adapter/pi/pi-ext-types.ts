@@ -1,6 +1,6 @@
 // input:  @sinclair/typebox
-// output: ExtensionAPI / ExtensionContext / ToolDefinition types stub
-// pos:    Minimal TS type stub for @mariozechner/pi-coding-agent
+// output: PI extension, model, and tool definition type stubs
+// pos:    Minimal TS type stub for the PI extension API
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { TSchema, Static } from '@sinclair/typebox';
@@ -32,6 +32,29 @@ export interface SessionManager {
   getSessionFile(): string | undefined;
 }
 
+export interface ExtensionModel {
+  id: string;
+  api: string;
+  provider: string;
+  baseUrl: string;
+  headers?: Record<string, string>;
+  maxTokens: number;
+}
+
+export type ResolvedRequestAuth = {
+  ok: true;
+  apiKey?: string;
+  headers?: Record<string, string>;
+  env?: Record<string, string>;
+} | {
+  ok: false;
+  error: string;
+};
+
+export interface ExtensionModelRegistry {
+  getApiKeyAndHeaders(model: ExtensionModel): Promise<ResolvedRequestAuth>;
+}
+
 export interface ExtensionContext {
   signal: AbortSignal | undefined;
   cwd: string;
@@ -39,6 +62,9 @@ export interface ExtensionContext {
   ui: ExtensionUIContext;
   /** Session manager (read-only). Available on ExtensionContext per PI types.d.ts L206. */
   sessionManager?: SessionManager;
+  /** Active model and registry exposed to extension handlers. */
+  model?: ExtensionModel;
+  modelRegistry?: ExtensionModelRegistry;
 }
 
 /** Event fired by PI before a built-in or registered tool is executed. Input is mutable. */

@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 PI backend adapter: runs Cortex turns through the PI CLI over its RPC protocol.
-Extends PI with Cortex MCP tools, hooks, interaction shims, and local WebFetch.
+Extends PI with Cortex MCP tools, hooks, interaction shims, WebFetch, and provider-side WebSearch.
 
 | filename | role | function |
 |---|---|---|
@@ -17,5 +17,6 @@ Extends PI with Cortex MCP tools, hooks, interaction shims, and local WebFetch.
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |
 | hook-bridge.ts | bridge | forwards PI tool events into Cortex hooks |
 | web-fetch.ts | tool | fetches bounded HTTP(S) text and converts HTML |
-| tool-shims.ts | bridge | gates interaction, todo, and WebFetch tools |
+| web-search.ts | tool | dispatches search through the active model API |
+| tool-shims.ts | bridge | gates interaction, todo, and web tools |
 | pi-ext-types.ts | types | type stub for the PI extension API |
