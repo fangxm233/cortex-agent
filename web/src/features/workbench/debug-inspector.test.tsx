@@ -68,6 +68,17 @@ describe('desktop DEBUG inspector controls', () => {
     expect(html).not.toContain('display:inline-flex');
   });
 
+  it('keeps collapsed tool calls on one clipped line', () => {
+    const html = render(<ToolCallsRow calls={[
+      { label: 'Read', kind: 'Read', input: 'a.ts' },
+      { label: 'Bash', kind: 'Bash', input: 'echo test' },
+    ]} />);
+    expect(html).toContain('flex-wrap:nowrap');
+    expect(html).toContain('white-space:nowrap');
+    expect(html).toContain('overflow:hidden');
+    expect(html).not.toContain('flex-wrap:wrap');
+  });
+
   it('keeps DEBUG controls hidden when collapsed and marks oversized tool badges amber', () => {
     const html = render(<ToolCallsRow calls={[
       { label: 'Read', kind: 'Read', input: 'a.ts', debug: { toolInput: { file_path: '/full/a.ts' } } },

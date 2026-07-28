@@ -1,5 +1,5 @@
 // input:  tool calls with DEBUG details and server size warnings
-// output: collapsed/expanded badges plus DEBUG inspectors
+// output: single-line collapsed row, expanded badges, DEBUG inspectors
 // pos:    desktop workbench tool-call presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -59,7 +59,8 @@ function collapsedRowStyle(hover: boolean): CSSProperties {
   return {
     display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5,
     color: hover ? 'var(--proto-muted)' : 'var(--proto-muted-3)',
-    flexWrap: 'wrap', cursor: 'pointer',
+    flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden',
+    cursor: 'pointer',
   };
 }
 
