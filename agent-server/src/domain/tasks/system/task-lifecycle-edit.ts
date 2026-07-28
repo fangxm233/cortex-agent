@@ -219,6 +219,9 @@ function editTask(project: string, options: any = {}): TaskLineTransformResult {
   return { success: true, message: 'Task updated', task_id: taskId, updated_fields: updatedFields };
 }
 
+// Base of the TASKS.yaml write path: this module owns the file I/O and the line-level primitives;
+// task-state / task-completion / task-mutations / task-process build on top of it. There is no
+// barrel for this folder on purpose — task-store.ts and the CLI import each sub-module directly.
 export {
   VALID_PRIORITIES,
   _resetTemplateNameCacheForTests,

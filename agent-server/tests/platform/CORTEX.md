@@ -1,21 +1,22 @@
-一旦此文件夹有文件变化，请更新我
+Please update me when files in this folder change
 
-平台组合、TUI 协议与 Web UI transport 的隔离回归测试。
+Regression tests for the platform layer: adapter composition, the TUI
+gateway and wire protocol, and the Web UI HTTP transport.
 
 | filename | role | function |
 |---|---|---|
-| adapter-factory.test.ts | 测试 | 覆盖 adapter 环境选择与组合 |
-| composite-adapter.test.ts | 测试 | 覆盖多平台路由与 marker 生命周期 |
-| tui-gateway.test.ts | 测试 | 覆盖 TUI gateway 行为 |
-| tui-protocol.test.ts | 测试 | 覆盖 TUI wire protocol |
-| tui-transcript.test.ts | 测试 | 覆盖 TUI transcript 转换 |
-| ui-http-access-jwt.test.ts | 测试 | 覆盖 Access JWT 鉴权 |
-| ui-http-app-router.test.ts | 测试 | 逐路由执行并验证 tRPC query/mutation 映射、Result 解包与错误转换；不维护固定路由数量断言 |
-| ui-http-lazy-driver.mjs | 工具 | 驱动 transport lazy-load 测试 |
-| ui-http-lazy-hooks.mjs | 工具 | 记录 lazy-load module resolve |
-| ui-http-lazy-load.test.ts | 测试 | 覆盖 transport 延迟加载 |
-| ui-http-same-origin-spa.test.ts | 测试 | 覆盖同源 SPA 托管 |
-| ui-http-server.test.ts | 测试 | 覆盖 HTTP/SSE transport |
-| ui-http-wiring.test.ts | 测试 | 覆盖 transport composition wiring |
-| ui-ota.test.ts | 测试 | 覆盖 desktop UI OTA routes |
-| zip-writer.test.ts | 测试 | 覆盖 deterministic ZIP encoder |
+| adapter-factory.test.ts | test | Covers platform adapter selection and mix |
+| composite-adapter.test.ts | test | Covers multi-platform routing and fan-out |
+| tui-gateway.test.ts | test | Covers TUI gateway sessions and delivery |
+| tui-protocol.test.ts | test | Covers TUI frame parsing and encoding |
+| tui-transcript.test.ts | test | Covers TUI transcript replay building |
+| ui-http-access-jwt.test.ts | test | Covers Access JWT and token auth gate |
+| ui-http-app-router.test.ts | test | Covers tRPC route mapping and errors |
+| ui-http-lazy-driver.mjs | util | Drives the transport lazy-load check |
+| ui-http-lazy-hooks.mjs | util | Records resolved module specifiers |
+| ui-http-lazy-load.test.ts | test | Covers lazy loading of the UI transport |
+| ui-http-same-origin-spa.test.ts | test | Covers one-port SPA and tRPC serving |
+| ui-http-server.test.ts | test | Covers HTTP, SSE, static files and CORS |
+| ui-http-wiring.test.ts | test | Covers UI server wiring, OTA and download |
+| ui-ota.test.ts | test | Covers desktop UI OTA manifest and bundle |
+| zip-writer.test.ts | test | Covers deterministic ZIP encoding |

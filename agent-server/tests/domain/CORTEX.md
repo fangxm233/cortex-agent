@@ -1,0 +1,14 @@
+Please update me when files in this folder change
+
+Domain-layer tests, one folder per business capability of the agent server.
+
+| filename | role | function |
+|---|---|---|
+| agents/ | subdir | agent profile resolution and switching |
+| costs/ | subdir | cost attribution and summary reporting |
+| mcp/ | subdir | MCP tool registration and handlers |
+| sessions/ | subdir | session registration and lifecycle |
+| system/ | subdir | self-diagnosis and operator notices |
+| tasks/ | subdir | task mutation, locking, and write guards |
+| tui-session/ | subdir | TUI session handshake and switching |
+| ui-service/ | subdir | UI query, mutation, and subscription surface |

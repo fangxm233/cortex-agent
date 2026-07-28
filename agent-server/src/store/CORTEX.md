@@ -1,29 +1,24 @@
 Please update me when files in this folder change
 
-Persistence layer (L1) — 12 data repos + outbound-queue WAL + in-memory-repository test implementation. All write operations are serialized via AsyncMutex.
-`JsonRepository` and `atomicWrite` (the underlying base + primitive) live in `core/` — they are zero-dependency utilities consumed by both `store/` repos and platform adapter conduit stores.
-task-repo.ts responsibilities are limited to I/O + lock + git sync, does not carry any domain mutation forwarding (mutations have been migrated to domain/tasks/mutator.ts).
-
-`conversation-history-repo.ts` preserves optional chat-notice levels and also accepts DEBUG-only append data: the exact agent message, unabridged structured tool input, and full normalized tool result. Prompt/result sidecars merge into the visible user/tool rows at read time by position/toolUseId and never create rows or alter turn indexes.
+Persistence layer: file-backed repositories for sessions, threads, tasks, schedules, costs, and history.
+Also runs startup file migrations and keeps deployed hooks and plugins in sync with defaults.
 
 | filename | role | function |
 |---|---|---|
-| `in-memory-repository.ts` | base | In-memory implementation for testing |
-| `outbound-queue.ts` | persistence | WAL-based outbound message queue, prevents message loss on restart. Provides durablePost/durableUpdate helper functions |
-| `thread-repo.ts` | persistence | Thread state persistence |
-| `session-repo.ts` | persistence | Session persistence |
-| `conversation-ledger-repo.ts` | persistence | Conversation ledger persistence (per-channel turn→message-ts mapping for edit/rollback) |
-| `conversation-history-repo.ts` | persistence | Cortex's backend-independent conversation history — one **append-only JSONL file per session** under `store/conversation-history/<sessionId>.jsonl` (keyed by sessionId, persistent across reconnects). Writes are O(1) appends; read-time grouping keeps notice messages distinct from streaming-growth assistant dedup. The full event stream (user inputs, every assistant message, every tool call) and the TUI transcript-replay source. Fed by BOTH the direct path (agent-runner) and thread steps (domain/threads/thread-transcript). Also exports `summarizeToolInputForHistory` (shared one-line tool-input summary). Interaction ENTITIES (web-interactions-redesign): `appendInteractionCreated` (status pending + full payload snapshot) / `appendInteractionResolved` (final status + result) share an `id` and are MERGED into one event at read time (created row keeps its position; resolution updates status/result/resolvedVia/text in place); legacy `{subtype,text}` interaction lines still parse. Message edit + rewind (sessions.rewind): `truncateFromTurn(sessionId, turnIndex)` drops every line from the turnIndex-th user event onward (serialized on the write chain, returns the removed opening user event) and `appendEditMarker` writes a persistence-only `edit-marker` line that attaches to the NEXT user event as `edited:{originalText,originalTs}` at read time (backs the 已编辑 badge / original-message card). Pending-injection commits add an internal `sourceId`; it supports idempotent recovery and committed-vs-active handoff filtering but is never exposed as a transcript row field. Does NOT use JsonRepository/atomicWrite. |
-| `pending-injection-repo.ts` | persistence | Atomic active-record store for injected user messages not yet consumed by the model; session snapshots, startup recovery, and graceful flush |
-| `session-registry-repo.ts` | persistence | Session identity plus set/clear context snapshots, profile ids, and read state |
-| `execution-repo.ts` | persistence | Execution registry persistence |
-| `project-dir-repo.ts` | persistence | Project → external code directory mapping |
-| `schedule-repo.ts` | persistence | Scheduled task list persistence — ScheduleTask includes target/fallback; rate-limit persistence stores independent provider/window records while accepting the legacy singleton shape; resumeQueue remains global. |
-| `cost-repo.ts` | persistence | Cost record persistence |
-| `profile-repo.ts` | persistence | Agent profile persistence + validated hot reload; successful reload callback lets entry publish a typed UI refresh hint, invalid JSON keeps the prior cache |
-| `task-repo.ts` | persistence | load/refresh/flush + read-only queries + runExclusive/commitAndPush. Pure I/O + mutex + git, no domain mutation forwarding |
-| `version-migrations.ts` | startup | `runMigrations()` — version-tracked file migrations (CalVer in `data/versions.json`), run on startup before config load. Supports JSON (parse/serialize) and `format:'text'` migrations (raw markdown, e.g. system prompts / CORTEX.md via `upsertMarkerBlock`; directive-prompt phrasing fixes via `applyReplacements`) |
-| `hook-sync.ts` | startup | `syncManagedHooks()` — refresh version-stamped (`@cortex-hook-version`) hooks in `DATA_DIR/hooks` from defaults when shipped is newer; closes init's copy-if-missing gap so hook code fixes reach existing installs |
-| `plugin-sync.ts` | startup | `syncManagedPlugins()` — deploy new plugins / refresh updated skills in `DATA_DIR/plugins` from defaults when the shipped `.claude-plugin/plugin.json` `version` is newer; closes the same copy-if-missing gap for plugins. CONVENTION: bump a plugin's manifest `version` whenever you change any file inside it, or the change won't reach existing installs |
-
-Removed in the OutputStream refactor: `channel-repo.ts` (project→Slack channel mapping). The mapping is adapter-private and now lives in `platform/adapters/slack-project-conduits.ts`; the channel→project reverse lookup that used to live on `ProjectDirRepo.getChannelProject()` is now `PlatformAdapter.resolveInboundProject()`.
+| in-memory-repository.ts | testing | In-memory repository double for tests |
+| outbound-queue.ts | queue | Durable queue for outbound messages |
+| thread-repo.ts | store | Thread state persistence |
+| session-repo.ts | store | Session record persistence |
+| session-registry-repo.ts | store | Session identity and context snapshots |
+| conversation-ledger-repo.ts | store | Turn to message mapping per conduit |
+| conversation-history-repo.ts | store | Append-only conversation transcript per session |
+| pending-injection-repo.ts | store | Injected messages not yet consumed |
+| execution-repo.ts | store | Execution record persistence |
+| project-dir-repo.ts | store | Project to code directory mapping |
+| schedule-repo.ts | store | Scheduled tasks and rate limit windows |
+| cost-repo.ts | store | Cost records and budget persistence |
+| profile-repo.ts | store | Agent profiles with hot reload |
+| task-repo.ts | store | TASKS.yaml read, write, lock, and git sync |
+| version-migrations.ts | startup | Applies pending file migrations at startup |
+| hook-sync.ts | startup | Refreshes deployed hooks from defaults |
+| plugin-sync.ts | startup | Refreshes deployed plugins from defaults |

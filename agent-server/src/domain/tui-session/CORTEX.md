@@ -1,10 +1,9 @@
-# tui-session/ — B3 TUI Session Service
+Please update me when files in this folder change
 
-Transport-agnostic domain service owning TUI session lifecycle (handshake, resume, switch, transcript assembly).
-No transport coupling (no ws imports). Consumed by M1 TUI gateway in a later task.
+TUI session lifecycle service: handshake, session switching, transcript assembly for the terminal UI.
 
 | filename | role | function |
 |---|---|---|
-| `types.ts` | types | HandshakeResolution, SwitchResolution, TuiSessionDeps, TuiSessionService interface |
-| `tui-session-service.ts` | service | createTuiSessionService(deps) — resolveHandshake, switchSession, internal createFresh, assembleTranscript (reads the sessionId-keyed `conversationHistory` → message-based TranscriptData; no longer the per-channel ledger) |
-| `index.ts` | barrel | re-exports createTuiSessionService and public types |
+| index.ts | entry | exports the TUI session service and types |
+| tui-session-service.ts | core | resolves handshake, switch and transcript |
+| types.ts | types | TUI session service and dependency types |

@@ -1,15 +1,15 @@
 Please update me when files in this folder change
 
-TUI adapter — M1 gateway: PlatformAdapter v2 backed by localhost WebSocket.
-Bridges WS connections (M4 protocol) to the PlatformAdapter interface.
+TUI adapter: exposes localhost WebSocket clients through the PlatformAdapter interface.
+Holds per-connection state and emits assistant output as protocol frames.
 
 | filename | role | function |
 |---|---|---|
-| `index.ts` | barrel | Re-export TuiGatewayAdapter, TuiConnection, helpers |
-| `tui-gateway.ts` | adapter | Bridges TUI WebSocket traffic and PlatformAdapter operations |
-| `tui-connection.ts` | connection | Per-WS connection — conduitId, activeSessionId, activeProjectId, send/close |
-| `tui-conduit-state.ts` | store | In-memory Map<conduitId, TuiConduitState> with helpers |
-| `tui-output-stream.ts` | output stream | TuiOutputStream — no coalescing, emits stream.* WS frames |
-| `tui-transcript.ts` | transcript | Pure synchronous transcript replay formatter (no @store deps) — message-based TranscriptData → TranscriptReplay. Renders user (`**You:** …`, which the client strips + grey-highlights), assistant (real text), and tool (dim `· ToolName` context) messages. |
-| `tui-notifications.ts` | notifications | Project-report / system-notice fan-out routing |
-| `ports.ts` | port types | Pure structural boundary types — TranscriptMessage (role: user/assistant/tool), TranscriptData (message list), ConduitQueuePort (zero layer imports) |
+| index.ts | entry | Re-exports the TUI adapter public API |
+| tui-gateway.ts | adapter | Serves TUI WebSocket clients as a PlatformAdapter |
+| tui-connection.ts | connection | Wraps one WebSocket client connection |
+| tui-conduit-state.ts | state | Tracks session and project per conduit |
+| tui-output-stream.ts | stream | Emits assistant output as stream frames |
+| tui-transcript.ts | format | Rebuilds past messages into replay frames |
+| tui-notifications.ts | notify | Fans project reports and notices to clients |
+| ports.ts | types | Boundary types for transcript and queue input |

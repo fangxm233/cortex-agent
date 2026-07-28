@@ -15,7 +15,7 @@ import { isNativeShell } from './desktop-config';
 /**
  * The connect (login) screen the native shell serves. A RELATIVE path so it resolves against the live
  * `cortexui://localhost` origin on BOTH desktop and Android — the shell serves an embedded copy of
- * `connect.html` there (see desktop/CORTEX.md "Frontend OTA").
+ * `connect.html` there, alongside the OTA-updated SPA versions.
  */
 export const CONNECT_SCREEN_PATH = 'connect.html';
 

@@ -31,3 +31,11 @@ process.env.NODE_TEST_CONTEXT = process.env.NODE_TEST_CONTEXT ?? '1';
 process.on('exit', () => {
   try { rmSync(home, { recursive: true, force: true }); } catch { /* best-effort */ }
 });
+
+// Cleanup discipline for every test file loaded through this setup:
+// when the module under test holds a long-lived resource (timer, interval, listener, child
+// process — e.g. rate-limit-throttle._resumeTimer, disk-monitor._timer), REGISTER its reset
+// (`t.onTestFinished(() => mod._testReset())`, an `afterEach`, or try/finally). Never write the
+// reset as the last statement of the test body: a failing assertion skips it, the leaked handle
+// keeps Node's event loop alive, and the run hangs after the last test.
+// Reference helper: `freshModuleWithCleanup` in tests/rate-limit-throttle.test.ts.

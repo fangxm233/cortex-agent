@@ -271,6 +271,17 @@ export function parseCliArgs(): WatcherArgs {
 
 // --- Run loop ---
 
+// State-dir contract with cortex-client (the client only reads these files, never writes them
+// except for the orphan path):
+//   state.json       — running heartbeat, rewritten every stall tick (5s) and once on exit
+//   output.log       — streamed stdout+stderr of the user command
+//   result.json      — written once on completion (name, command, timestamps, duration, exit code,
+//                      termination, last output line, log path, gpu)
+//   callback.pending — empty marker touched LAST; its existence is what makes the client push a
+//                      task-callback. The client unlinks it only after the server acks.
+// `termination` is one of: completed | output_stall | progress_stall | signal:<NAME> |
+// interrupted (watcher got SIGTERM/SIGINT) | orphaned — the last one is never written here, the
+// client synthesizes it when state.json says running but the pid is dead.
 export function run(args: WatcherArgs): Promise<number> {
   return new Promise((resolvePromise) => {
     const stateDir = args.stateDir;

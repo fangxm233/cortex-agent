@@ -7,8 +7,7 @@
 // and materialize it onto disk (`<appDataDir>/ui/current`) on first run, giving the resolver a
 // single stable on-disk origin for the app's whole life (seed → OTA-updated versions alike).
 //
-// The embedded path is `web/dist`, so `pnpm --filter web build` must run before the Android build
-// (already required by the documented build order in desktop/CORTEX.md).
+// The embedded path is `web/dist`, so `pnpm --filter web build` must run before the Android build.
 
 use include_dir::{include_dir, Dir};
 use std::io;

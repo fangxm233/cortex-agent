@@ -1,13 +1,16 @@
 Please update me when files in this folder change
 
-orch/interactions/ — User interaction state layer.
-Stores requestId-keyed state machines for specific interaction modes (plan approval, ask-user Q&A, etc.).
-Referenced by orch/ upper-layer modules via singleton references, must not inversely depend on layers outside orch/.
+Interaction layer of the agent server, holding the state of exchanges that pause an agent until a user answers.
+Covers user questions, plan approvals, version-update prompts, and the delivery of replies back to the agent.
 
 | filename | role | function |
 |---|---|---|
-| `plan-approvals.ts` | singleton | RequestId-keyed pending plan state and terminal transitions |
-| `plan-response.ts` | delivery | Deliver Web/Slack approve or reject to PI or Claude |
-| `interaction-records.ts` | singleton | Persist Web interaction snapshots and terminal states |
-| `interaction-handlers.ts` | handlers | Register platform ask-user and plan actions |
-| `update-prompt.ts` | factory | createUpdatePrompt — UpdatePrompt impl with 4 pre-registered actionIds (apply/skip/cancel/release-note); handlers dispatch to fetchReleaseNote() or updateMessage() |
+| ask-user-question.ts | state | tracks pending user questions and answers |
+| command-action-router.ts | router | routes button and modal events to commands |
+| interaction-handlers.ts | handlers | registers question, plan and status actions |
+| interaction-records.ts | store | records interactions and their outcomes |
+| plan-approvals.ts | state | holds pending plan approvals per request |
+| plan-handler.ts | util | posts a generated plan to the chat platform |
+| plan-response.ts | core | delivers plan approve or reject to the agent |
+| update-prompt.ts | factory | asks the user to confirm a version update |
+| update-prompt-slack.ts | factory | asks Slack users to confirm a version update |

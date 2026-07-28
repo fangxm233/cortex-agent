@@ -1,27 +1,28 @@
-# orch/routing/commands/ — !Command dispatcher
+Please update me when files in this folder change
 
-Per-command-family handler files split from `command-handlers.ts` ([S10-B]). Each file is ≤200 LoC and handles one family of `!` Slack commands.
+Chat command layer of the agent server, exposing operator controls that run outside a normal agent turn.
+Each file covers one command family, from sessions and threads to devices, costs, schedules and files.
 
-| File | Commands | Dependency |
-|------|----------|------------|
-| `index.ts` | `registerCommands` exact/prefix dispatcher, including exact `!compact` | All below |
-| `orient.ts` | `!orient` | None (placeholder) |
-| `restart.ts` | `!restart` | `core/utils` (STORE_DIR), `core/singleton-lock` (isProcessAlive) — touches the daemon's `.restart` trigger to respawn app.ts; no-ops with a notice when no live daemon. `triggerServerRestart(deps)` is the injectable, unit-tested core |
-| `lang.ts` | `!lang` | `core/i18n` (setLocale), `domain/system/preferences` (setLang) — show/switch UI language, persist + live switch |
-| `thread.ts` | `!thread` | Re-exports from `command-thread-handlers.ts` |
-| `schedule.ts` | `!schedule` | Re-exports from `schedule-command.ts` (needs scheduler dep) |
-| `cost.ts` | `!cost`, `!budget` | `cost-tracker` |
-| `task.ts` | `!tasks` | `task-parser` |
-| `mode.ts` | `!mode`, `!backend`, `!model`, `!profile`, `!skills`, `!agent` | `mode-manager`, `profile-manager`, `skill-scanner` |
-| `status.ts` | `!status`, `!help` including compact help | status report dep |
-| `compact.ts` | `!compact` | injected channel compact coordinator |
-| `cancel.ts` | `!cancel` | `running-executions`, `conduit-queue`; needs `cancelDispatchedTask` dep. Exports `cancelChannelRuns(channel)` — the shared no-arg/`--all` channel-cancel path, also wired into ui-service `sessions.cancel` (Web UI Stop) via the `cancelSessionRun` dep in entry/app.ts |
-| `nvtop.ts` | `!nvidia-smi`, `!nvtop` | `gpu-monitor`, `dispatch-utils`, `client-manager` |
-| `session.ts` | `!new`, `!newq`, `!resume` | `claude-bridge`, `session-registry-repo`, `conversation-ledger`, `domain/sessions/session-hooks` |
-| `channel.ts` | `!projects`, `!register`, `!unregister`, `!project-dir` | `channel-repo`, `project-dir-repo` |
-| `device.ts` | `!devices`, `!clients` | `client-manager`, `dispatch-utils` |
-| `tail.ts` | `!tail` | `fs` (daemon.log tail) |
-| `sendfile.ts` | `!sendFile` | `dispatch-utils`, `scp` |
-
-Each handler signature: `(channel: string, adapter: PlatformAdapter, trimmedMessage: string) => Promise<void>`.
-Handlers needing injected deps use a `createXxxHandler(deps)` factory in index.ts.
+| filename | role | function |
+|---|---|---|
+| cancel.ts | command | stops running executions in a channel |
+| channel.ts | command | manages project registration for channels |
+| command-context.ts | types | shapes of command input and output |
+| compact.ts | command | compacts the current session context |
+| cost.ts | command | reports spending and sets budgets |
+| device.ts | command | lists known and online client devices |
+| dispatch.ts | command | overrides the profile of a dispatch thread |
+| index.ts | entry | matches command text and dispatches handlers |
+| lang.ts | command | shows and switches the interface language |
+| mode.ts | command | switches backend, model, profile and agent |
+| nvtop.ts | command | reports GPU usage on registered machines |
+| orient.ts | command | replies that the feature is not implemented |
+| restart.ts | command | asks the daemon to restart the server |
+| schedule.ts | command | lists and manages scheduled tasks |
+| sendfile.ts | command | sends a local or remote file to the chat |
+| session.ts | command | starts, resets and resumes sessions |
+| status.ts | command | shows execution status and command help |
+| tail.ts | command | streams the daemon log into the chat |
+| task.ts | command | lists project tasks by filter |
+| thread-handlers.ts | handlers | thread status, list, agents and cancel |
+| thread.ts | util | re-exports the thread command handler |

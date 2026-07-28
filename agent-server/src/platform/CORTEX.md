@@ -1,20 +1,20 @@
 Please update me when files in this folder change
 
-Platform abstraction layer. Core modules decouple from Slack / Feishu etc. via the PlatformAdapter interface.
-Specific SDK calls are encapsulated in the adapters/ subdirectory.
+Platform abstraction layer: core modules reach Slack, Feishu, and the TUI through one adapter interface.
+Concrete SDK integrations live in adapters/.
 
 | filename | role | function |
 |---|---|---|
-| `adapters/` | subdirectory | Concrete platform adapter implementations |
-| `index.ts` | export | Re-export interfaces, types, and factory |
-| `adapter.ts` | interface | PlatformAdapter contract, including marker add/remove lifecycle |
-| `types.ts` | types | MessageRef/RichBlock/ModalDefinition, etc. |
-| `output-stream.ts` | interface | OutputStream / MutableRegion / OpenOutputStreamOpts types |
-| `output-stream-chunk.ts` | utility | Shared length-based chunking (`chunkText`, `needsSplit`, `countTables`, `countHorizontalRules`) |
-| `output-stream-helpers.ts` | helper | `postOnce` free function (one-shot message post via transient OutputStream) |
-| `interactive-builder.ts` | builder | AskUserQuestion / ExitPlanMode component building |
-| `tool-trace.ts` | UI helper | tool_use compact traces rendered via OutputStream openMutable/update |
-| `testing.ts` | testing | Records messages, streams, and marker add/remove calls |
-| `tui/` | subdirectory | TUI protocol types + wire format (M4: TuiFrame union + guards + parseFrame/encodeFrame) |
-| `ui-http/` | subdirectory | Web UI HTTP/SSE transport-host: `ui-http-server.ts` (standalone tRPC host + dual-path auth gate + same-origin SPA static + auth-gated `customRoutes` matched by pathname so query-param routes like `/api/files/download?path=…` resolve) + `access-jwt.ts` (Cloudflare Access JWT verify via `jose`) + `ui-ota.ts` (desktop frontend OTA: `/api/ui-ota/manifest.json` + `/api/ui-ota/bundle.zip` custom routes, content-addressed version, built from spaDir + cached, auth-gated like tRPC) + `zip-writer.ts` (dependency-free deterministic ZIP encoder via zlib, consumed by the desktop shell's Rust `zip` crate). Core+external deps only (router injected); the wiring that binds the domain AppRouter + mounts OTA lives in `entry/start-ui-http.ts`. Loaded on demand behind CORTEX_UI_HTTP |
-| `adapters/index.ts` | factory | `createPrimaryAdaptersFromEnv` (comma-list CORTEX_PLATFORM) + `createAdapterFromEnv` — multi-platform composition + TUI auto-enable |
+| index.ts | entry | Re-exports the platform public API |
+| adapter.ts | interface | PlatformAdapter contract definition |
+| types.ts | types | Message, block, and modal type definitions |
+| output-stream.ts | interface | OutputStream and MutableRegion contracts |
+| output-stream-chunk.ts | util | Splits long text into postable chunks |
+| output-stream-helpers.ts | util | Posts a single message via a temporary stream |
+| interactive-builder.ts | builder | Builds question and plan approval components |
+| tool-trace.ts | ui | Renders compact tool call traces |
+| testing.ts | testing | Mock adapter recording posts and markers |
+| adapters/ | subdir | Concrete platform adapter implementations |
+| tui/ | subdir | TUI wire protocol contract |
+| ui-http/ | subdir | Web UI HTTP and SSE transport host |
+| utils/ | subdir | Shared platform utilities |

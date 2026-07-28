@@ -1,14 +1,15 @@
 Please update me when files in this folder change
 
-Server auto-update domain layer (DR-0013). Platform-agnostic interfaces and data types for
-the auto-update subsystem. Platform-specific implementations (Slack, Feishu, TUI) live in
-orchestration/interactions/.
+Server self-management: update checks, CLI install, and install-wide health diagnostics.
+Also holds operator display preferences and the admin system broadcast seam.
 
 | filename | role | function |
 |---|---|---|
-| `update-prompt.ts` | interface | UpdateChoice type + UpdatePrompt interface with ask(spec) method |
-| `update-state.ts` | I/O | loadUpdateState / saveUpdateState for update-state.json (skipped version persistence) |
-| `server-update-check.ts` | checker | compareCalVer, isUpdateDevMode, checkServerUpdate — core update-check flow |
-| `github-release.ts` | client | fetchReleaseNote(version) — GitHub API client with 24h TTL cache for release notes |
-| `install-cli.ts` | CLI | cortex install latest — fetch latest version from npm and run npm install -g |
-| `doctor.ts` | engine | Pure health-check engine for `cortex doctor` — runDiagnostics/applySafeFixes + default real-env deps (runtime, backend/login, platform, gateway) |
+| doctor.ts | core | runs install health checks and safe fixes |
+| github-release.ts | client | fetches release notes for a version |
+| install-cli.ts | cli | installs the latest Cortex release |
+| preferences.ts | config | reads and writes operator display language |
+| server-update-check.ts | core | checks for and applies server updates |
+| system-notice.ts | core | broadcasts admin and system notices |
+| update-prompt.ts | types | update prompt interface and choice type |
+| update-state.ts | util | persists skipped update versions |

@@ -1,34 +1,39 @@
 Please update me when files in this folder change
 
-tests/orch/ — Regression tests for the orchestration layer. Coverage is behavioral: queueing, routing, lifecycle transitions, event publication, cancellation, recovery, and interaction outcomes. Singleton/method-existence and injected-field identity assertions are not treated as regressions.
-
-DEBUG coverage here includes byte-identical assembled-prompt capture (`first-turn-interrupt-resume.test.ts`) and the content-free `session.debug.updated` bus contract (`session-events.test.ts`).
+Regression tests for the orchestration layer: message routing, per-channel
+queueing, mid-turn injection, background holds and execution lifecycle.
 
 | filename | role | function |
 |---|---|---|
-| `running-executions.test.ts` | Test | RunningExecutions three-index consistency, kill chain, event publication (Phase 1 Step 1) |
-| `channel-queue.test.ts` | Test | Queue serialization, awaited results, and automatic cleanup |
-| `superseded-edits.test.ts` | Test | supersededEdits mark/check/clear API (S6-B) |
-| `plan-approvals.test.ts` | Test | PlanApprovals state transitions and approved event |
-| `plan-response.test.ts` | Test | Web PI approve/reject delivery and retry safety |
-| `hook-bridge-subscribers-web.test.ts` | Test | Web interaction snapshots including full plan and path |
-| `busy-tracker.test.ts` | Test | BusyTracker +1/-1 publish+IPC, multi-publisher aggregate, re-entrant safety (S6-C) |
-| `orchestrator.test.ts` | Test | Orchestrator two-branch decision tree: threadAddMatch / isActiveThread / threadStartMatch -> threadExecutor; no match -> agentRunner (S8-A) |
-| `agent-runner.test.ts` | Test | Context snapshot persist-before-publish, queue marker cleanup, and plain-turn routing |
-| `mid-turn-inject.test.ts` | Test | Pending commits, markers, and continuation context |
-| `mid-turn-inject-persistence.test.ts` | Test | Durable ordering and early-ack marker races |
-| `pending-injection-recovery.test.ts` | Test | Ledger/history/store crash-boundary idempotency, concurrent-order serialization, and startup drain |
-| `agent-runner-wake-guard.test.ts` | Test | 2026-07-05 self-consumption regression: synthetic wakeSession notices (SYNTHETIC_CALLBACK_SENDER) bypass the manager-qa human-answer backstop in route(); real human replies still consumed; buildSyntheticWakeMessage shape sync |
-| `lifecycle-rate-limit.test.ts` | Test | handleAgentError thrown-rate-limit pause branch: throttled + rate-limit error + userMessage → recordResume(direct) + seal, no error post; normal error path otherwise (not throttled / no userMessage / non-rate-limit) |
-| `bg-continuation.test.ts` | Test | Continuation text/tool/context and terminal dispatch |
-| `web-bg-hold.test.ts` | Test | Web hold status, context forwarding, guards, and seals |
-| `cancel-bg-hold.test.ts` | Test | Stop during a web background hold (regression: the click did nothing because the execution was already torn down) — `cancelBgHolds` no-hold no-op, kill-then-abort ordering, one kill per channel with every hold aborted, seal still fires when the kill throws, end-to-end against the real `bgHeldSessions` (found by channel, sealed, second Stop finds nothing) |
-| `bg-wait-guard.test.ts` | Test | BgWaitGuard busy bracket (+1/-1 exactly once), grace watchdog (undelivered-only), max-wait cap (running), rearm switching, env-tunable durations |
-| `lifecycle-bg-hold.test.ts` | Test | Lifecycle hold context, grace, interruption, and cap |
-| `turn-notify.test.ts` | Test | isTurnNotifyEnabled / getTurnNotifyThresholdS gating + maybeNotifyTurnComplete dispatch (threshold/scope/disable gates, success metrics vs failure, threadId forwarding, never-throws) |
-| `thread-executor.test.ts` | Test | Thread queue marker cleanup and routing |
-| `thread-detached.test.ts` | Test | runThreadDetached holds the busy gate for the whole fire-and-forget thread AND across the onSettled callback (sync +1, -1 in finally on success/reject, balanced, deferred until callback settles — test e) — regression for restart killing MCP `thread_start` background threads / dropping the completion callback |
-| `seal-thread-status.test.ts` | Test | sealThreadStatus unifies the interactive `!thread` + background/resume terminal seal: text == buildThreadSummary; interactive style attaches SEALED action blocks (Cancel removed), background attaches none; delivery failure propagates (no internal swallow) |
-| `ask-user-question-pi.test.ts` | Test | PI ask-user-question branch: tryResolveHook extension_ui_response routing, multi-question join, incomplete does not resolve early (S3) |
-| `session-lifecycle-characterization.test.ts` | Test | Stage C characterization: resolveSessionName (existing→cached name, unknown→register with label/profileName/backend/projectId, null→generate only) + handleNewCmd (clears all backends + ledger + posts "new conversation") |
-| `session-events.test.ts` | Test | Session context/notice/message/delta/debug events plus stable pending/delivered identity contract |
+| agent-runner-wake-guard.test.ts | test | Covers synthetic wake notice routing guard |
+| agent-runner.test.ts | test | Covers plain message routing and queue markers |
+| ask-user-question-pi.test.ts | test | Covers PI ask-user-question resolution |
+| bg-continuation.test.ts | test | Covers background continuation sink dispatch |
+| bg-wait-guard.test.ts | test | Covers background wait bracket, grace and cap |
+| busy-tracker.test.ts | test | Covers busy counter publish and aggregation |
+| cancel-bg-hold.test.ts | test | Covers stop during a background hold |
+| channel-queue.test.ts | test | Covers per-channel queue serialization |
+| edit-handler.test.ts | test | Covers message edit rollback and backend pick |
+| first-turn-interrupt-resume.test.ts | test | Covers prompt capture and first-turn interrupt |
+| hook-bridge-subscribers-web.test.ts | test | Covers hook to Web interaction delivery |
+| interaction-records.test.ts | test | Covers interaction create and resolve lifecycle |
+| lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, grace and wait cap |
+| lifecycle-rate-limit.test.ts | test | Covers rate-limit pause and resume on error |
+| mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |
+| mid-turn-inject.test.ts | test | Covers the mid-turn injection lifecycle |
+| orchestrator.test.ts | test | Covers thread versus agent routing choice |
+| pending-injection-recovery.test.ts | test | Covers injection idempotency and startup drain |
+| plan-approvals.test.ts | test | Covers plan approval state transitions |
+| plan-response.test.ts | test | Covers Web plan approve and reject delivery |
+| resume-dispatcher.test.ts | test | Covers auto-resume dispatch and skip guards |
+| running-executions.test.ts | test | Covers execution registry indices and events |
+| seal-thread-status.test.ts | test | Covers terminal thread status sealing |
+| session-events.test.ts | test | Covers session event publication contract |
+| session-lifecycle-characterization.test.ts | test | Covers session naming and new session command |
+| session-send.test.ts | test | Covers Web user message build and send |
+| superseded-edits.test.ts | test | Covers superseded edit mark, check and clear |
+| teardown-execution.test.ts | test | Covers execution teardown and balanced events |
+| thread-detached.test.ts | test | Covers detached thread busy gate bracket |
+| thread-executor.test.ts | test | Covers thread queue markers and routing |
+| turn-notify.test.ts | test | Covers turn completion notification gating |
+| web-bg-hold.test.ts | test | Covers Web background hold status and seal |
