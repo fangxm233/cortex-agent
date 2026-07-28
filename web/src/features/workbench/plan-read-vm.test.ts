@@ -34,12 +34,10 @@ describe('planMetaLine', () => {
   });
 });
 
-describe('approveSubLabel (read-progress gate, 6b main button)', () => {
-  it('shows the progress hint below 100%', () => {
-    expect(approveSubLabel(62, 'zh')).toBe('已读 62% · 下滑读完或直接批准');
-    expect(approveSubLabel(62, 'en')).toBe('read 62% · scroll to finish or approve now');
-  });
-  it('null at 100% (button reads plain 批准并执行)', () => {
+describe('approveSubLabel (6b main button)', () => {
+  it('omits the read-progress instruction at every progress level', () => {
+    expect(approveSubLabel(62, 'zh')).toBeNull();
+    expect(approveSubLabel(62, 'en')).toBeNull();
     expect(approveSubLabel(100, 'zh')).toBeNull();
   });
 });

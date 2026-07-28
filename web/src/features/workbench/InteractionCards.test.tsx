@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
+import { M_INT_COPY } from '@/mobile/v3/MInteractionCards';
 import { askCardModel, planCardModel, emptyDeskAsk, deskTogglePick, deskToggleOther, deskSetOtherText } from './interaction-vm';
 import type { TranscriptInteractionDetail } from '@cortex-agent/ui-contract';
 
@@ -116,10 +117,15 @@ describe('DeskPlanCard — 13c', () => {
     expect(html).toContain('plans/plan-ablation.md');
     expect(html).toContain('已写入 · 批准前建议通读全文');
     expect(html).toContain('阅读 ›');
-    expect(html).toContain('批准 = 开始执行');
     expect(html).toContain('请求修改');
     expect(html).toContain('批准计划');
     expect(html).not.toContain('确认退回');
+  });
+  it('omits the redundant start-execution hint in both locales and layouts', () => {
+    expect(D_INT_COPY.zh.approveHint).toBe('');
+    expect(D_INT_COPY.en.approveHint).toBe('');
+    expect(M_INT_COPY.zh.approveHint).toBe('');
+    expect(M_INT_COPY.en.approveHint).toBe('');
   });
   it('pending snapshot without a file path still exposes the plan reading overlay', () => {
     const detail = planDetail('pending');

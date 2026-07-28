@@ -1,9 +1,7 @@
 // input:  React, mobile palette, shared interaction view models
 // output: Mobile ask-user and plan-approval card components
-// pos:    Mobile chat interaction-card presentation
+// pos:    @ds-adherence-ignore Mobile interaction presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-// @ds-adherence-ignore -- mobile v3 interaction cards, chrome extracted 1:1 from
-// scheme-mobile.dc.html sec-4/5/6. Raw px/hex by design §8.3.
 import { useState } from 'react';
 import { MC, MONO } from '@/mobile/ui/kit';
 import {
@@ -58,7 +56,7 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     readLink: '阅读 ›',
     approve: '批准并执行',
     reject: '驳回并反馈',
-    approveHint: '批准 = 开始执行',
+    approveHint: '',
     viewFullPlan: '查看完整计划 ›',
     viewOriginalPlan: '查看原计划 ›',
     rewriteNote: '',
@@ -81,7 +79,7 @@ export const M_INT_COPY: { zh: MIntCopy; en: MIntCopy } = {
     readLink: 'Read ›',
     approve: 'Approve & run',
     reject: 'Reject with note',
-    approveHint: 'approve = start execution',
+    approveHint: '',
     viewFullPlan: 'View full plan ›',
     viewOriginalPlan: 'View original plan ›',
     rewriteNote: '',

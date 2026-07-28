@@ -1,7 +1,7 @@
-// Pure view-model for the plan full-text reading surface — mobile 6b page (scheme-mobile sec-6)
-// and the desktop reading overlay (13c 阅读). The surface renders the REAL plan snapshot as
-// markdown; this module owns the scroll-progress math, status labels and meta/gate copy. The
-// views own every px/hex.
+// input:  ui-contract interaction status
+// output: Plan-reading progress, status, metadata, action sub-label
+// pos:    Shared desktop/mobile plan-reading view model
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { TranscriptInteractionDetail } from '@cortex-agent/ui-contract';
 
@@ -34,8 +34,7 @@ export function planMetaLine(filePath: string | null, lineCount: number, statusL
   return [filePath, lines, statusLabel].filter(Boolean).join(' · ');
 }
 
-/** Sub-label under 批准并执行 while not fully read (6b) — null at 100%. */
-export function approveSubLabel(pct: number, lang: 'zh' | 'en'): string | null {
-  if (pct >= 100) return null;
-  return lang === 'zh' ? `已读 ${pct}% · 下滑读完或直接批准` : `read ${pct}% · scroll to finish or approve now`;
+/** Approval stays text-only; reading progress is shown by the progress bar. */
+export function approveSubLabel(_pct: number, _lang: 'zh' | 'en'): null {
+  return null;
 }

@@ -128,7 +128,7 @@ describe('MAskCard — 5b 多问题逐问推进', () => {
 
 describe('MPlanCard — 6a 薄卡 + 4b/4c 封存', () => {
   const planHandlers = { onApprove: noop, onRejectStart: noop, onOpenRead: noop };
-  it('6a pending: badge + title + file row main entry + approve/reject + footer hint (NO steps)', () => {
+  it('6a pending: badge + title + file row main entry + approve/reject, no redundant hint or steps', () => {
     const html = renderToStaticMarkup(
       <MPlanCard model={planCardModel(planDetail('pending'), '2026-07-16T07:38:00Z')} copy={copy} {...planHandlers} />,
     );
@@ -140,7 +140,6 @@ describe('MPlanCard — 6a 薄卡 + 4b/4c 封存', () => {
     expect(html).toContain('阅读 ›');
     expect(html).toContain('批准并执行');
     expect(html).toContain('驳回并反馈');
-    expect(html).toContain('批准 = 开始执行');
     expect(html).not.toContain('步骤'); // thin card carries no step summary
   });
   it('5a rejecting (dimmed): card dims, buttons collapse to 查看完整计划 ›', () => {
