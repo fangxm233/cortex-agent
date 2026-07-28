@@ -50,7 +50,8 @@ The server implementation is at `agent-server/src/domain/mcp/core-server.ts`.
 
 ### cortex-tasks
 
-Exposes read-only task monitoring and is loaded in all sessions.
+Exposes read-only task monitoring and is loaded in all maintained Claude and PI
+sessions.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -62,9 +63,10 @@ The server implementation is at `agent-server/src/domain/mcp/tasks-server.ts`.
 
 ### cortex-thread
 
-Exposes the thread lifecycle control plane and manager Q&A. It is loaded only
-when `CORTEX_THREAD_ID` identifies an active thread; direct sessions never
-receive these tools.
+Exposes the thread lifecycle control plane and manager Q&A. For the maintained
+Claude and PI backends, it is loaded only when `CORTEX_THREAD_ID` identifies an
+active thread; their direct sessions never receive these tools. The deprecated
+Codex adapter is unchanged by this privilege split.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -80,8 +82,8 @@ Tool registrars remain in `agent-server/src/domain/mcp/tools/`.
 ### cortex-ext
 
 Exposes Cortex management tools: scheduling, cost queries, and context
-resolution. Claude and Codex load it only for direct/user sessions; the PI
-bridge retains its existing behavior of loading cortex-ext in all sessions.
+resolution. Claude loads it only for direct/user sessions; the PI bridge
+retains its existing behavior of loading cortex-ext in all sessions.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -200,10 +202,9 @@ context:
 
 The thread branch is marked by `session.cortexContext.useCoreMcp`. In the PI
 bridge, core, tasks, and ext are always connected; `shouldLoadThreadControl()`
-adds cortex-thread only when `CORTEX_THREAD_ID` is present. Codex generates the
-same privilege composition in its per-route TOML: direct = core + tasks + ext,
-thread = core + tasks + thread. Platform-specific servers remain gated by
-their source-channel predicates.
+adds cortex-thread only when `CORTEX_THREAD_ID` is present. Platform-specific
+servers remain gated by their source-channel predicates. The deprecated Codex
+adapter is outside this split and retains its existing MCP composition.
 
 ## How MCP tools communicate with agent-server
 
@@ -259,10 +260,11 @@ MCP tools cross the trust boundary from the agent process into agent-server
 internals and remote machines. Cortex applies the following controls:
 
 1. **Server-level availability** — MCP privileges are separated by server
-   because backend tool allowlists do not filter individual MCP tools. Direct
-   sessions never receive cortex-thread; thread sessions add it only when they
-   carry thread context. Claude and Codex also exclude ext from thread sessions,
-   while PI retains its existing always-on ext behavior.
+   because backend tool allowlists do not filter individual MCP tools. Claude
+   direct sessions never receive cortex-thread, while Claude thread sessions
+   add it and exclude ext. PI adds cortex-thread only for a present thread id
+   and retains its existing always-on ext behavior. Deprecated Codex is outside
+   this split and remains unchanged.
 
 2. **Claude Code's third-party MCP is disabled** — the setting
    `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`

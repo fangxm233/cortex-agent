@@ -33,7 +33,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 
 ### cortex-tasks
 
-暴露只读任务监控工具，并在所有会话中加载。
+暴露只读任务监控工具，并在仍维护的 Claude 和 PI 后端的所有会话中加载。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -45,7 +45,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 
 ### cortex-thread
 
-暴露线程生命周期控制面和 manager 问答。仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；直接会话永远不会获得这些工具。
+暴露线程生命周期控制面和 manager 问答。对于仍维护的 Claude 和 PI 后端，仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；它们的直接会话永远不会获得这些工具。已弃用的 Codex adapter 不在本次权限拆分范围内并保持不变。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -59,7 +59,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 
 ### cortex-ext
 
-暴露 Cortex 管理工具：调度、费用查询和上下文解析。Claude 和 Codex 仅在直接/用户会话中加载它；PI bridge 保留在所有会话中加载 cortex-ext 的现有行为。
+暴露 Cortex 管理工具：调度、费用查询和上下文解析。Claude 仅在直接/用户会话中加载它；PI bridge 保留在所有会话中加载 cortex-ext 的现有行为。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -159,7 +159,7 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 - **直接/用户会话**加载 `mcp-config.json`（core + tasks + ext），再追加符合条件的平台和交互分层；永不加载 `mcp-config-thread.json`。
 - **线程/模板会话**加载 `mcp-config-core.json`、`mcp-config-tasks.json` 和 `mcp-config-thread.json`；不加载仅直接会话使用的 ext、平台或 TUI bridge 分层。
 
-线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 始终连接 core、tasks 和 ext；仅当 `CORTEX_THREAD_ID` 存在时，`shouldLoadThreadControl()` 才追加 cortex-thread。Codex 在每个 route 的 TOML 中生成同样的权限组合：直接会话 = core + tasks + ext，线程会话 = core + tasks + thread。平台服务器继续由来源频道谓词门控。
+线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 始终连接 core、tasks 和 ext；仅当 `CORTEX_THREAD_ID` 存在时，`shouldLoadThreadControl()` 才追加 cortex-thread。平台服务器继续由来源频道谓词门控。已弃用的 Codex adapter 不在本次拆分范围内，保留原有 MCP 组合。
 
 ## MCP 工具如何与 agent-server 通信
 
@@ -196,7 +196,7 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Cortex 应用以下控制：
 
-1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。直接会话永不获得 cortex-thread；线程会话仅在携带线程上下文时追加它。Claude 和 Codex 还会在线程会话中排除 ext，PI 则保留 ext 始终加载的现有行为。
+1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。Claude 直接会话永不获得 cortex-thread；Claude 线程会话追加它并排除 ext。PI 仅在存在 thread id 时追加 cortex-thread，并保留 ext 始终加载的现有行为。已弃用的 Codex 不在本次拆分范围内并保持不变。
 
 2. **Claude Code 的第三方 MCP 被禁用** — `~/.cortex/.claude/settings.json` 中的设置 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 Claude 从其自身的目录自动发现 MCP 服务器。Cortex 通过自己的配置文件独占管理 MCP 服务器。
 
