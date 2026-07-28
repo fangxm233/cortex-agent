@@ -1,3 +1,8 @@
+// input:  React, media source/download/zoom, pinned-preview state
+// output: Media lightbox provider, Lightbox, useMediaViewer
+// pos:    Shared full-screen image/video viewer
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useBackDismiss } from '@/mobile/use-back-dismiss';
 import { usePinnedPreview } from './PinnedPreviewProvider';
@@ -191,7 +196,7 @@ export function Lightbox({ item, onClose, onPin }: { item: MediaItem; onClose: (
               src={src}
               alt={item.name}
               draggable={false}
-              style={{ maxWidth: '94vw', maxHeight: '84vh', objectFit: 'contain', borderRadius: 10, display: 'block' }}
+              style={{ maxWidth: '94vw', maxHeight: '84vh', objectFit: 'contain', display: 'block' }}
             />
           </div>
         )}

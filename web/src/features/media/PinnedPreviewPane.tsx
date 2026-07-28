@@ -1,3 +1,8 @@
+// input:  React, preview state, media/document renderers
+// output: PinnedPreviewPane and PinnedPreviewPanel
+// pos:    Docked media/document preview pane
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 import { PdfBody, TextBody } from './DocViewer';
 import type { MediaItem } from './MediaViewer';
@@ -39,7 +44,7 @@ function PinnedMediaBody({ item }: { item: MediaItem }): JSX.Element {
             src={src}
             alt={item.name}
             draggable={false}
-            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8, display: 'block' }}
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
           />
         </div>
       )}
