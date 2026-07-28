@@ -1,8 +1,8 @@
-Please update me when files in this folder change.
+Please update me when files in this folder change
 
-Deep-retrospective skill: mines historical Claude Code logs and synthesizes patterns across sessions.
+Historical-session analysis skill and its log-processing tools.
 
 | filename | role | function |
 |---|---|---|
-| `SKILL.md` | documentation | Defines trigger conditions, workflow, and output |
-| `scripts/` | subdirectory | Log scanning and session extraction scripts |
+| SKILL.md | docs | Defines the retrospective skill workflow |
+| scripts/ | directory | Contains build and maintenance scripts |

@@ -1,29 +1,27 @@
 Please update me when files in this folder change
 
-DR-0008 §4.5 fixture-replay tests. Lock down three-backend NormalizedEvent sequences.
-
-`claude-mid-turn-inject.test.ts` additionally locks print-stream losslessness: native tool-use ids, full structured inputs, multiline error/success result carriers, and mixed text/non-text result arrays reach the callback seam without dropped blocks.
+Backend adapter fixtures and process-lifecycle regressions.
 
 | filename | role | function |
 |---|---|---|
-| `replay-harness.ts` | Utility | parseClaudeLine/parseCodexRpc/replayPi + golden |
-| `normalize.test.ts` | Test | Edge cases: parse failure, unknown type, event dispatch |
-| `claude-adapter.test.ts` | Test | Claude fixture replay + shape invariant |
-| `codex-adapter.test.ts` | Test | Codex fixture replay |
-| `pi-adapter.test.ts` | Test | PI fixture replay |
-| `claude-tmux-control.test.ts` | Test | DR-0012 TmuxControl argv + tempfile spec (mock exec injection) |
-| `claude-cost-from-usage.test.ts` | Test | DR-0012 usageToCost pricing math + model normalization |
-| `claude-jsonl-tail.test.ts` | Test | DR-0012 JsonlEventNormalizer + JsonlTail file watcher |
-| `claude-adapter-tui.test.ts` | Test | DR-0012 ClaudeTuiSession turn lifecycle + cancel + cost (mocked tmux/tail) |
-| `bg-wait.test.ts` | Test | Inline continuation merge, context, timeout, and gates |
-| `claude-bg-task-tracker.test.ts` | Test | BgTaskTracker running/undelivered dual-set semantics (updated{completed/failed}→undelivered, killed→dropped, notification clears) + routeLine + isContinuationResult |
-| `claude-bg-continuation.test.ts` | Test | Spontaneous text/context routing and interruption handling |
-| `claude-context-usage.test.ts` | Test | Window defaults/reconciliation and provider-call usage tracking |
-| `claude-stream-deltas.test.ts` | Test | Token-level streaming (`--include-partial-messages`): parseStreamEvent / takeTextBlockId against the shapes captured from a live CLI run, plus the handleLine wiring — delta emission, the blockId shared with the finalizing message, deltas summing to the final text, throwing-callback containment, and `stream_event` lines staying out of the raw jsonl |
-| `normalize-assistant-delta.test.ts` | Test | `assistant_delta` union membership + `Capability.StreamingDeltas` per backend |
-| `claude-mid-turn-inject.test.ts` | Test | ClaudeSession mid-turn injection: `injectUserMessage` guard rails (no process / no turn / failing stdin write → false, nothing written) + writes one NDJSON user line registering NO turn + the two landing outcomes (fold-in — echo while the turn is live acks `foldedIntoTurn:true`, opens no continuation, the turn promise resolves exactly ONCE; post-result — echo after the result acks `foldedIntoTurn:false` and the next assistant line opens a spontaneous turn routed to the continuation sink) + replay-echo hygiene (the turn's own prompt never acks, an echo alone never opens a continuation, no turn-count/finalOutput/bg-tracker contamination, pre-existing tool_result `user` carriers unaffected) + process death with an injection outstanding seals the sink (no child process) |
-| `pi-mid-turn-inject.test.ts` | Test | PI RPC prompt-steering contract: guards, framing, FIFO delivery, settled idle-boundary deferral, post-run compaction aggregation, rejection and process-exit seals |
-| `pi-context-usage-probe.test.ts` | Test | PI live stats single-flight/throttle/timeout plus independent final correlation, terminal ordering, write-failure degradation, and close cancellation |
-| `fixtures/claude/` | Data | 5 Claude stream-json fixtures + golden |
-| `fixtures/codex/` | Data | 2 Codex JSON-RPC fixtures + golden |
-| `fixtures/pi/` | Data | 3 PI RPC fixtures with settled terminals + golden |
+| bg-wait.test.ts | test | Tests bg wait behavior |
+| claude-adapter-tui.test.ts | test | Tests Claude adapter TUI behavior |
+| claude-adapter.test.ts | test | Tests Claude behavior |
+| claude-bg-continuation.test.ts | test | Tests Claude bg continuation behavior |
+| claude-bg-task-tracker.test.ts | test | Tests Claude bg task behavior |
+| claude-context-usage.test.ts | test | Tests Claude context behavior |
+| claude-cost-from-usage.test.ts | test | Tests Claude cost from behavior |
+| claude-jsonl-tail.test.ts | test | Tests Claude JSONL tail behavior |
+| claude-mid-turn-inject.test.ts | test | Tests Claude mid turn behavior |
+| claude-print-resume.test.ts | test | Tests Claude print resume behavior |
+| claude-stream-deltas.test.ts | test | Tests Claude stream deltas behavior |
+| claude-tmux-control.test.ts | test | Tests Claude tmux behavior |
+| claude-tui-resume.test.ts | test | Tests Claude TUI resume behavior |
+| codex-adapter.test.ts | test | Tests Codex behavior |
+| normalize-assistant-delta.test.ts | test | Tests normalize assistant delta behavior |
+| normalize.test.ts | test | Tests normalize behavior |
+| pi-adapter.test.ts | test | Tests PI behavior |
+| pi-context-usage-probe.test.ts | test | Tests PI context usage probe behavior |
+| pi-mid-turn-inject.test.ts | test | Tests PI mid turn behavior |
+| replay-harness.ts | harness | Replays backend fixtures into normalized events |
+| fixtures/ | directory | Contains deterministic test fixtures |

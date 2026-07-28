@@ -1,8 +1,8 @@
-Please update me when files in this folder change.
+Please update me when files in this folder change
 
-Session scanning and extraction scripts for deep-retrospective, processing Claude Code JSONL logs.
+Log scanning and extraction tools for retrospective analysis.
 
 | filename | role | function |
 |---|---|---|
-| `scan_logs.py` | scanning | Sort sessions by keyword and downweight already-covered dates |
-| `extract_session.py` | extraction | Convert JSONL sessions to text with tool summaries |
+| extract_session.py | extract | Converts one JSONL session into readable text |
+| scan_logs.py | scan | Ranks historical sessions for retrospective review |
