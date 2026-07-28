@@ -9,7 +9,7 @@
 | `server-url.ts` | `resolveServerUrl` — WS URL the client dials: `CORTEX_SERVER_URL` env > config `serverUrl` (tunnel route, e.g. wss://cortex.fangxm.me) > `ws://serverHost:serverPort` |
 | `cortex-run-watcher.ts` | Standalone watchdog — spawns user command, detects stalls, writes state/output/result, touches callback.pending |
 | `cortex-run-launch.ts` | Launch handler + callback scanning + orphan detection + ack handling — see DR-0011 §4.5 + §4.7 |
-| `cortex-md-scanner.ts` | Scans CORTEX.md chain for a given path |
+| `cortex-md-scanner.ts` | Scans CORTEX.md chains with physical host identity |
 | `log.ts` | Logger with console + daily-rotating file sink |
 | `paths.ts` | Path constants (DATA_DIR = `~/.cortex/`) |
 

@@ -1,6 +1,6 @@
 // input:  Node test runner + spawn cortex-md-injector.mjs subprocess
-// output: stdin→stdout behavioral tests for PostToolUse (Read) / SessionStart
-// pos:    Verify complete behavior matrix of cortex-md-injector.mjs hook script
+// output: Read/Edit/SessionStart and shared-cache regressions
+// pos:    Verifies cortex-md-injector.mjs hook behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CortexMDInjector } from '../src/domain/memory/cortex-md-injector.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOOK_SCRIPT = path.resolve(__dirname, '../defaults/hooks/cortex-md-injector.mjs');
@@ -44,11 +45,15 @@ function removeCache(sessionId: string): void {
 }
 
 /** Invoke cortex-md-injector.mjs with a JSON payload on stdin, return parsed stdout. */
-function invokeHook(payload: Record<string, unknown>): Record<string, unknown> {
+function invokeHook(
+  payload: Record<string, unknown>,
+  stableSessionId = String(payload.session_id ?? ''),
+): Record<string, unknown> {
   const result = spawnSync(process.execPath, [HOOK_SCRIPT], {
     input: JSON.stringify(payload),
     encoding: 'utf8',
     timeout: 10_000,
+    env: { ...process.env, CORTEX_SESSION_ID: stableSessionId },
   });
   if (!result.stdout || !result.stdout.trim()) return {};
   try {
@@ -249,7 +254,6 @@ test('markOnly: reading CORTEX.md itself suppresses additionalContext', async (t
   await fs.promises.writeFile(cortexMd, 'markonly-content');
   await fs.promises.writeFile(path.join(root, 'other.txt'), 'dummy');
 
-  // First call — Read CORTEX.md directly → markOnly → no additionalContext
   const out1 = invokeHook({
     hook_event_name: 'PostToolUse',
     session_id: sessionId,
@@ -263,7 +267,6 @@ test('markOnly: reading CORTEX.md itself suppresses additionalContext', async (t
     'reading CORTEX.md itself emits no additionalContext',
   );
 
-  // Second call — Read a sibling file → cache already has CORTEX.md entries from first call → no reinject
   const out2 = invokeHook({
     hook_event_name: 'PostToolUse',
     session_id: sessionId,
@@ -274,6 +277,118 @@ test('markOnly: reading CORTEX.md itself suppresses additionalContext', async (t
   assert.strictEqual(
     getAdditionalContext(out2),
     undefined,
-    'sibling file also sees no additionalContext because CORTEX.md entries are already cached',
+    'sibling file also sees no additionalContext because the target entry is cached',
   );
+});
+
+test('shared cache: local hook injection suppresses MCP reinjection', async (t) => {
+  const root = await mkTmp();
+  t.onTestFinished(() => rmTmp(root));
+  const sessionId = `cortex-hook-shared-a-${process.pid}-${Date.now()}`;
+  t.onTestFinished(() => removeCache(sessionId));
+
+  const cortexMd = path.join(root, 'CORTEX.md');
+  const target = path.join(root, 'target.txt');
+  await fs.promises.writeFile(cortexMd, 'shared-hook-first');
+  await fs.promises.writeFile(target, 'dummy');
+
+  const output = invokeHook({
+    hook_event_name: 'PostToolUse',
+    session_id: sessionId,
+    tool_name: 'Read',
+    tool_input: { file_path: target },
+    tool_use_id: 'tu-shared-a',
+  });
+  assert.ok(getAdditionalContext(output)?.includes('shared-hook-first'));
+
+  const injector = new CortexMDInjector({ sessionId, cacheDir: CACHE_DIR });
+  const stat = await fs.promises.stat(cortexMd);
+  const blocks = injector.buildBlocks('configured-local-alias', [{
+    path: cortexMd,
+    content: 'shared-hook-first',
+    mtimeMs: stat.mtimeMs,
+    deviceId: os.hostname(),
+  } as any]);
+  assert.strictEqual(blocks.length, 0, 'MCP path must observe the hook cache entry');
+});
+
+test('shared cache: MCP injection suppresses local hook reinjection using stable session id', async (t) => {
+  const root = await mkTmp();
+  t.onTestFinished(() => rmTmp(root));
+  const stableSessionId = `cortex-hook-shared-b-${process.pid}-${Date.now()}`;
+  const backendSessionId = `${stableSessionId}-backend`;
+  t.onTestFinished(() => {
+    removeCache(stableSessionId);
+    removeCache(backendSessionId);
+  });
+
+  const cortexMd = path.join(root, 'CORTEX.md');
+  const target = path.join(root, 'target.txt');
+  await fs.promises.writeFile(cortexMd, 'shared-mcp-first');
+  await fs.promises.writeFile(target, 'dummy');
+  const stat = await fs.promises.stat(cortexMd);
+
+  const injector = new CortexMDInjector({ sessionId: stableSessionId, cacheDir: CACHE_DIR });
+  assert.strictEqual(injector.buildBlocks(os.hostname(), [{
+    path: cortexMd,
+    content: 'shared-mcp-first',
+    mtimeMs: stat.mtimeMs,
+  }]).length, 1);
+
+  const output = invokeHook({
+    hook_event_name: 'PostToolUse',
+    session_id: backendSessionId,
+    tool_name: 'Read',
+    tool_input: { file_path: target },
+    tool_use_id: 'tu-shared-b',
+  }, stableSessionId);
+  assert.strictEqual(
+    getAdditionalContext(output),
+    undefined,
+    'hook must prefer CORTEX_SESSION_ID and observe the MCP cache entry',
+  );
+});
+
+test('PostToolUse: Edit scans and injects unseen ancestor rules', async (t) => {
+  const root = await mkTmp();
+  t.onTestFinished(() => rmTmp(root));
+  const sessionId = `cortex-hook-edit-${process.pid}-${Date.now()}`;
+  t.onTestFinished(() => removeCache(sessionId));
+
+  await fs.promises.writeFile(path.join(root, 'CORTEX.md'), 'edit-ancestor-rule');
+  const target = path.join(root, 'target.txt');
+  await fs.promises.writeFile(target, 'after edit');
+
+  const output = invokeHook({
+    hook_event_name: 'PostToolUse',
+    session_id: sessionId,
+    tool_name: 'Edit',
+    tool_input: { file_path: target },
+    tool_use_id: 'tu-edit',
+  });
+  assert.ok(getAdditionalContext(output)?.includes('edit-ancestor-rule'));
+});
+
+test('markOnly: direct CORTEX.md access still injects unseen ancestors', async (t) => {
+  const root = await mkTmp();
+  t.onTestFinished(() => rmTmp(root));
+  const sessionId = `cortex-hook-mark-ancestor-${process.pid}-${Date.now()}`;
+  t.onTestFinished(() => removeCache(sessionId));
+
+  const child = path.join(root, 'child');
+  await fs.promises.mkdir(child);
+  await fs.promises.writeFile(path.join(root, 'CORTEX.md'), 'root-ancestor-rule');
+  const targetCortex = path.join(child, 'CORTEX.md');
+  await fs.promises.writeFile(targetCortex, 'direct-target-rule');
+
+  const output = invokeHook({
+    hook_event_name: 'PostToolUse',
+    session_id: sessionId,
+    tool_name: 'Read',
+    tool_input: { file_path: targetCortex },
+    tool_use_id: 'tu-mark-ancestor',
+  });
+  const context = getAdditionalContext(output);
+  assert.ok(context?.includes('root-ancestor-rule'), 'unseen ancestor remains injectable');
+  assert.ok(!context?.includes('direct-target-rule'), 'direct target is not duplicated');
 });

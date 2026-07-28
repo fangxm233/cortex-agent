@@ -1,5 +1,7 @@
-// CORTEX.md / CORTEX.local.md ancestor-chain scanner.
-// Copied from agent-server/src/domain/memory/cortex-md-scanner.ts.
+// input:  fs/path/os, target file path
+// output: CortexMDEntry[] with host identity and ancestor rules
+// pos:    Scans client-local CORTEX.md chains for remote tools
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -8,9 +10,11 @@ export interface CortexMDEntry {
   path: string;
   content: string;
   mtimeMs: number;
+  deviceId?: string;
 }
 
 const CORTEX_MD_NAMES = ['CORTEX.md', 'CORTEX.local.md'];
+const DEVICE_ID = os.hostname();
 const MAX_FILE_SIZE = 200 * 1024;
 const MAX_DEPTH = 20;
 
@@ -20,7 +24,7 @@ function tryReadEntry(filePath: string): CortexMDEntry | null {
     if (!stat || !stat.isFile()) return null;
     if (stat.size > MAX_FILE_SIZE) return null;
     const content = fs.readFileSync(filePath, 'utf8');
-    return { path: filePath, content, mtimeMs: stat.mtimeMs };
+    return { path: filePath, content, mtimeMs: stat.mtimeMs, deviceId: DEVICE_ID };
   } catch {
     return null;
   }

@@ -16,7 +16,7 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `claude/adapter.ts` | adapter | Claude print sessions, normalized events, injection, and continuations |
 | `claude/context-usage.ts` | tracker | Tracks provider-call usage and reconciles model context windows |
 | `claude/defaults.ts` | constants | timeout/MCP/tools/hooks constants |
-| `claude/hooks-builder.ts` | builder | buildHooksSettings generates hook configuration |
+| `claude/hooks-builder.ts` | builder | Generates Claude hooks, including CORTEX Read/Edit injection |
 | `claude/tool-summarizers.ts` | summarizer | summarizeToolInput tool input rendering |
 | `claude/spawn-args.ts` | args | buildSpawnArgs constructs CLI args (profile `thinking` → `--effort`; print mode also passes `--include-partial-messages` for token-level `stream_event` output, killable with `CORTEX_STREAM_DELTAS=0` via the exported `isStreamDeltasEnabled`, and `--replay-user-messages`, whose echo is the mid-turn injection delivery ack — it fires when the CLI CONSUMES a message, not when it was written) |
 | `claude/event-parser.ts` | parser | stream-json event parsing + plan tracking + token-level delta extraction (`createStreamDeltaState` / `parseStreamEvent` / `takeTextBlockId`). The CLI sends one complete `assistant` event PER content block, so that block's array position is always 0 and cannot recover the streamed `content_block_index` — `takeTextBlockId` hands the open text block's id to the finalizing message instead, which is what lets the UI replace a preview in place. `formatUserEvent` guards on an array `content` — replay echoes arrive as bare strings |
@@ -36,6 +36,6 @@ Unified NormalizedEvent event schema and AgentAdapter contract.
 | `pi/framing.ts` | framing | LF-only NDJSON encoding and splitter |
 | `pi/spawn-args.ts` | args | `buildSpawnArgs` constructs PI CLI args; `buildPiEnv` clears stale context and injects authoritative thread/task/session identity |
 | `pi/mcp-bridge.ts` | extension | Bridge PI to Cortex MCP server |
-| `pi/hook-bridge.ts` | extension | Bridge PI tool events to hooks/*.mjs |
+| `pi/hook-bridge.ts` | extension | Bridges PI tool events and CORTEX Read/Edit context |
 | `pi/tool-shims.ts` | extension | ask/exit_plan/todo pseudo tool registration, gated by agent tool allowlist (makeToolGate + CORTEX_PI_ALLOWED_TOOLS) so thread agents don't get interaction tools |
 | `pi/pi-ext-types.ts` | types | Minimal TS type stub for PI SDK |

@@ -1,24 +1,28 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.6.4  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
+// @cortex-hook-version 2026.6.24  ← set to the current release version (agent-server/package.json) whenever you change this hook; syncManagedHooks then refreshes deployed installs
 // input:  stdin JSON — Claude Code hook event or PI hook-bridge payload
 // output: { hookSpecificOutput: { hookEventName, additionalContext, matched } }
 // pos:    Inject CORTEX.md / CORTEX.local.md ancestor chain into agent context
 //         2-event dispatch:
-//           PostToolUse (Read) — from tool_input.file_path/path
+//           PostToolUse (Read|Edit) — from tool_input.file_path/path
 //           SessionStart (startup|resume|clear|compact) — from payload.cwd
-//         Per-session disk-backed dedup cache (~/.cortex/tmp/cortexmd-cache/<sessionId>.json)
-//           — only files actually injected are marked seen; truncated files stay eligible so
-//             a later Read re-attempts them (they are never silently suppressed)
-//         markOnlyPaths: tool operating on a CORTEX.md itself → cache update only, no inject
+//         Shared per-session cache with remote MCP injection under tmp/cortexmd-cache
+//           — stable session + physical host + path + mtime dedup across tool families
+//           — only files actually injected are marked seen; truncated files stay eligible
+//         markOnlyPaths: exact CORTEX.md tool target → cache update only, no duplicate
 //         Total length guard at 9,500 chars; files that overflow the budget are turned into an
 //           explicit "Read EACH of these files now" instruction instead of a silent drop
 // >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
 
-import { readFileSync, statSync, existsSync, mkdirSync, renameSync, writeFileSync } from 'fs';
+import {
+  closeSync, existsSync, mkdirSync, openSync, readFileSync,
+  renameSync, rmSync, statSync, writeFileSync,
+} from 'fs';
 import { join, resolve, dirname, basename } from 'path';
 import { homedir, hostname } from 'os';
 
 const HOSTNAME = hostname();
+const HOST_ID = HOSTNAME.toLowerCase();
 const CORTEX_MD_NAMES = ['CORTEX.md', 'CORTEX.local.md'];
 const CORTEX_HOME = process.env.CORTEX_HOME
   ? resolve(process.env.CORTEX_HOME)
@@ -28,6 +32,9 @@ const MAX_FILE_SIZE = 200 * 1024;
 const MAX_DEPTH = 20;
 const CACHE_DIR = join(CORTEX_HOME, 'tmp', 'cortexmd-cache');
 const MAX_CONTEXT_CHARS = 9500;
+const LOCK_WAIT_MS = 250;
+const LOCK_STALE_MS = 5000;
+const LOCK_SLEEP = new Int32Array(new SharedArrayBuffer(4));
 const SESSION_ID_RE = /^[A-Za-z0-9._-]+$/;
 
 // ── scan helpers ──
@@ -124,6 +131,45 @@ function saveCache(sessionId, cache) {
   } catch { /* disk full etc. — degrade gracefully */ }
 }
 
+function lockFileFor(sessionId) {
+  if (!sessionId || !SESSION_ID_RE.test(sessionId)) return null;
+  return join(CACHE_DIR, `${sessionId}.json.lock`);
+}
+
+function removeStaleLock(lockFile) {
+  try {
+    const st = statSync(lockFile);
+    if (Date.now() - st.mtimeMs > LOCK_STALE_MS) rmSync(lockFile, { force: true });
+  } catch { /* ignore */ }
+}
+
+function acquireLock(sessionId) {
+  const lockFile = lockFileFor(sessionId);
+  if (!lockFile) return null;
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  do {
+    try {
+      mkdirSync(CACHE_DIR, { recursive: true });
+      return { file: lockFile, descriptor: openSync(lockFile, 'wx') };
+    } catch (error) {
+      if (error?.code !== 'EEXIST') return null;
+      removeStaleLock(lockFile);
+      Atomics.wait(LOCK_SLEEP, 0, 0, 5);
+    }
+  } while (Date.now() <= deadline);
+  return null;
+}
+
+function releaseLock(lock) {
+  if (!lock) return;
+  try { closeSync(lock.descriptor); } catch { /* ignore */ }
+  try { rmSync(lock.file, { force: true }); } catch { /* ignore */ }
+}
+
+function cacheKey(entry) {
+  return `${HOST_ID}:${entry.path}`;
+}
+
 // ── context builder ──
 
 function buildContext(entries) {
@@ -187,67 +233,71 @@ function main() {
   }
 
   const hookEventName = payload.hook_event_name;
-  const sessionId = payload.session_id;
+  const stableSessionId = process.env.CORTEX_CACHE_SESSION_ID?.trim()
+    || process.env.CORTEX_SESSION_ID?.trim();
+  const sessionId = stableSessionId && SESSION_ID_RE.test(stableSessionId)
+    ? stableSessionId
+    : payload.session_id;
 
-  // Determine scan root path based on hook event type
   let scanRoot = null;
-
   if (hookEventName === 'PostToolUse') {
     const toolName = payload.tool_name;
-    if (!toolName || toolName !== 'Read') return;
+    if (toolName !== 'Read' && toolName !== 'Edit') return;
     scanRoot = payload.tool_input?.file_path || payload.tool_input?.path;
   } else if (hookEventName === 'SessionStart') {
     scanRoot = payload.cwd;
   }
-
   if (!scanRoot) return;
 
-  // Scan CORTEX.md chain
   const entries = scanChain(scanRoot);
   if (entries.length === 0) return;
 
-  // markOnlyPaths: if PostToolUse and tool target is itself a CORTEX.md,
-  // update cache only, don't inject
-  if (hookEventName === 'PostToolUse') {
-    const targetPath = resolve(payload.tool_input?.file_path || payload.tool_input?.path || '');
-    const targetName = basename(targetPath);
-    if (CORTEX_MD_NAMES.includes(targetName)) {
-      // Update cache with all entries (mark as seen) but don't inject
-      const cache = loadCache(sessionId);
-      for (const entry of entries) {
-        cache.set(entry.path, entry.mtimeMs);
-      }
-      saveCache(sessionId, cache);
+  const lock = acquireLock(sessionId);
+  try {
+    const cache = loadCache(sessionId);
+    const markOnlyPaths = new Set();
+    if (hookEventName === 'PostToolUse') {
+      const targetPath = resolve(payload.tool_input?.file_path || payload.tool_input?.path || '');
+      if (CORTEX_MD_NAMES.includes(basename(targetPath))) markOnlyPaths.add(targetPath);
+    }
+
+    let changed = false;
+    for (const entry of entries) {
+      if (!markOnlyPaths.has(entry.path)) continue;
+      if (cache.get(cacheKey(entry)) === entry.mtimeMs) continue;
+      cache.set(cacheKey(entry), entry.mtimeMs);
+      changed = true;
+    }
+
+    const newEntries = entries.filter(entry =>
+      !markOnlyPaths.has(entry.path) && cache.get(cacheKey(entry)) !== entry.mtimeMs
+    );
+    if (newEntries.length === 0) {
+      if (changed && lock) saveCache(sessionId, cache);
       return;
     }
+
+    const { text: additionalContext, includedPaths } = buildContext(newEntries);
+    if (!additionalContext) return;
+
+    const injected = new Set(includedPaths);
+    for (const entry of entries) {
+      if (!injected.has(entry.path)) continue;
+      cache.set(cacheKey(entry), entry.mtimeMs);
+      changed = true;
+    }
+    if (changed && lock) saveCache(sessionId, cache);
+
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName,
+        additionalContext,
+        matched: includedPaths,
+      },
+    }));
+  } finally {
+    releaseLock(lock);
   }
-
-  // Session dedup
-  const cache = loadCache(sessionId);
-  const newEntries = entries.filter(e => cache.get(e.path) !== e.mtimeMs);
-
-  if (newEntries.length === 0) return;
-
-  // Build context with truncation guard
-  const { text: additionalContext, includedPaths } = buildContext(newEntries);
-  if (!additionalContext) return;
-
-  // Mark as seen ONLY the entries actually injected. Truncated entries stay "unseen" so a
-  // later Read re-attempts their injection (or re-emits the read-instruction) — they must
-  // never be silently suppressed by being cached before the truncation filter runs.
-  const injected = new Set(includedPaths);
-  for (const entry of entries) {
-    if (injected.has(entry.path)) cache.set(entry.path, entry.mtimeMs);
-  }
-  saveCache(sessionId, cache);
-
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName,
-      additionalContext,
-      matched: includedPaths,
-    },
-  }));
 }
 
 main();

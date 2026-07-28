@@ -1,6 +1,6 @@
 // input:  Node test runner + CortexMDInjector + fs/path/os
-// output: dedup / mtime / per-session cache regression tests
-// pos:    Verify CORTEX.md injection dedup and persistence
+// output: shared-cache/device/mtime dedup regression tests
+// pos:    Verifies CORTEX.md injection dedup and persistence
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -50,6 +50,40 @@ test('cache persists across injector instances for same sessionId (resume)', asy
     const inj2 = new CortexMDInjector({ sessionId: 'abc', cacheDir });
     const b = inj2.buildBlocks('lab', [{ path: '/r/CORTEX.md', content: 'x', mtimeMs: 1000 }]);
     assert.strictEqual(b.length, 0, 'dedup survives process restart within same session');
+  });
+});
+
+test('already-constructed injectors reload shared cache before each update', async () => {
+  await withCacheDir(async (cacheDir) => {
+    const inj1 = new CortexMDInjector({ sessionId: 'abc', cacheDir });
+    const inj2 = new CortexMDInjector({ sessionId: 'abc', cacheDir });
+    const entry = { path: '/r/CORTEX.md', content: 'x', mtimeMs: 1000 };
+
+    assert.strictEqual(inj1.buildBlocks('lab', [entry]).length, 1);
+    assert.strictEqual(
+      inj2.buildBlocks('lab', [entry]).length,
+      0,
+      'a long-lived injector must observe another process\'s cache write',
+    );
+  });
+});
+
+test('entry deviceId unifies aliases for the same physical device', async () => {
+  await withCacheDir(async (cacheDir) => {
+    const inj = new CortexMDInjector({ sessionId: 'abc', cacheDir });
+    const entry = {
+      path: '/r/CORTEX.md',
+      content: 'x',
+      mtimeMs: 1000,
+      deviceId: 'physical-host',
+    };
+
+    assert.strictEqual(inj.buildBlocks('configured-alias-a', [entry]).length, 1);
+    assert.strictEqual(
+      inj.buildBlocks('configured-alias-b', [entry]).length,
+      0,
+      'cache identity must use the physical host rather than the configured alias',
+    );
   });
 });
 

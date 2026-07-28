@@ -1,6 +1,6 @@
 // input:  Node test runner + scanCortexMDChain + fs/path/os
-// output: leaf→root ancestor scan regression tests
-// pos:    Verify CORTEX.md ancestor scan order and filtering
+// output: ancestor order/filtering/host identity regressions
+// pos:    Verifies CORTEX.md ancestor scanner behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -71,6 +71,7 @@ test('scanCortexMDChain records mtimeMs for each entry', async () => {
     assert.strictEqual(typeof match!.mtimeMs, 'number');
     assert.ok(match!.mtimeMs > 0, 'mtimeMs is positive');
     assert.strictEqual(match!.content, 'content');
+    assert.strictEqual(match!.deviceId, os.hostname(), 'entry carries canonical physical host identity');
   } finally {
     await rmTmp(root);
   }

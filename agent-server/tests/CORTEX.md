@@ -55,7 +55,7 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `agent-retry-classification.test.ts` | Test | Transport/provider-guidance retry classification plus Web-chat fallback, terminal, dedupe, and cancellation notice policy |
 | `agent-adapter-pi-event-parser.test.ts` | Test | PI event translation, internal-retry dropping, and settled-boundary aggregation |
 | `agent-adapter-pi-streaming.test.ts` | Test | PI assistant_delta streaming: per-delta emission, blockId shared with the finalizing assistant_text, CORTEX_STREAM_DELTAS kill switch |
-| `agent-adapter-pi-hook-bridge.test.ts` | Test | PI hook-bridge toClaude/normalize |
+| `agent-adapter-pi-hook-bridge.test.ts` | Test | PI hook lifecycle plus CORTEX Read/Edit injection |
 | `agent-adapter-pi-mcp-bridge.test.ts` | Test | PI mcp-bridge content mapping and integration |
 | `agent-adapter-pi-tool-shims.test.ts` | Test | PI tool-shims, auto-retry terminal semantics, and extension_ui settled turns |
 | `pi-cost-record.test.ts` | Test | PI per-run cost record + settled completion integration |
@@ -163,8 +163,9 @@ How to run tests without tripping it (`_vitest-setup.ts` sets `NODE_TEST_CONTEXT
 | `domain/mcp/server.test.ts` | Test | Server module loads without Slack env + no wildcard registration ([S10-A]) |
 | `domain/mcp/cortex-schedule.test.ts` | Test | resolveTargetShorthand: __current__ to concrete ID 12-way resolution and error paths |
 | `scheduled-target-dispatch.test.ts` | Test | planScheduledDispatch: fresh/channel/session/thread + fallback decision tree |
-| `claude-md-scanner.test.ts` | Test | scanClaudeMDChain ancestor scanning |
-| `claude-md-injector.test.ts` | Test | ClaudeMDInjector dedup and caching |
+| `cortex-md-scanner.test.ts` | Test | CORTEX ancestor scanning and physical host identity |
+| `cortex-md-injector.test.ts` | Test | Shared local/remote CORTEX cache dedup and invalidation |
+| `cortex-md-injector-hook.test.ts` | Test | Hook Read/Edit/session injection and MCP cache sharing |
 | `mode-manager.test.ts` | Test | Per-request mode URL routing + per-mode ANTHROPIC_API_KEY retention (plan deletes for OAuth; non-plan keeps key/placeholder so CC starts without login) + config.js import is side-effect free (no env mutation in CLI processes) |
 | `gateway-per-request-mode.test.ts` | Test | Gateway /m/{mode}/ prefix and token |
 | `memory-index-regen.test.ts` | Test | Index rebuild lifecycle partitioning |

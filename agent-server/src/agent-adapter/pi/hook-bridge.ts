@@ -1,6 +1,6 @@
 // input:  PI ExtensionAPI, node:child_process
-// output: Bridge PI tool_call/tool_result events to hooks/*.mjs subprocesses
-// pos:    PI --extension bridge connecting the Cortex hook system
+// output: PI hook events with Read/Edit CORTEX context
+// pos:    Bridges PI extension events into Cortex hooks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawnSync } from 'node:child_process';
@@ -109,13 +109,18 @@ interface HookResult {
 export function runHookScript(scriptPath: string, payload: ClaudeHookPayload): HookResult {
   const args = [scriptPath];
 
+  const cacheSessionId = process.env.CORTEX_CACHE_SESSION_ID ?? process.env.CORTEX_SESSION_ID;
   const result = spawnSync(process.execPath, args, {
     input: JSON.stringify(payload),
     encoding: 'utf8',
     timeout: 30_000,
-    // Override CORTEX_SESSION_ID so session-activity-tracker routes to the PI session's log file,
-    // not to whatever session ID the parent process (agent-server) has set.
-    env: { ...process.env, CORTEX_SESSION_ID: payload.session_id },
+    // Activity logs keep the PI backend session id, while CORTEX.md cache dedup keeps
+    // the stable tracking id shared with the session's MCP process.
+    env: {
+      ...process.env,
+      ...(cacheSessionId ? { CORTEX_CACHE_SESSION_ID: cacheSessionId } : {}),
+      CORTEX_SESSION_ID: payload.session_id,
+    },
   });
 
   if (result.stdout) {
@@ -227,9 +232,9 @@ export function handlePostToolUse(
     }
   }
 
-  // cortex-md-injector: on Read, scan CORTEX.md ancestor chain and inject
-  // into event.content. Matches the Claude Code PostToolUse:Read hook.
-  if (toolName === 'read') {
+  // cortex-md-injector: on Read/Edit, scan the CORTEX.md ancestor chain.
+  // Matches the Claude Code PostToolUse hook coverage.
+  if (toolName === 'read' || toolName === 'edit') {
     try {
       const cortexResult = runHookScript(path.join(HOOKS_DIR, 'cortex-md-injector.mjs'), payload) as Record<string, unknown>;
       const hso = (cortexResult?.hookSpecificOutput ?? {}) as Record<string, unknown>;

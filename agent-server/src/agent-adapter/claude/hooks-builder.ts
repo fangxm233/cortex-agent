@@ -1,6 +1,6 @@
 // input:  tools string or null, constants from defaults.js
-// output: buildHooksSettings + hook helpers
-// pos:    Generate Claude --settings hooks configuration
+// output: buildHooksSettings + Read/Edit-aware hook helpers
+// pos:    Generates Claude --settings hooks configuration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -34,7 +34,7 @@ export const POST_TOOL_USE_HOOKS = [
     nodeHook('rules-loader.mjs'),
   ]},
   { matcher: 'Read|Edit|Write|Skill', hooks: [nodeHook('session-activity-tracker.mjs')] },
-  { matcher: 'Read', hooks: [nodeHook('cortex-md-injector.mjs')] },
+  { matcher: 'Read|Edit', hooks: [nodeHook('cortex-md-injector.mjs')] },
 ];
 
 export const PERMISSION_REQUEST_HOOKS = [

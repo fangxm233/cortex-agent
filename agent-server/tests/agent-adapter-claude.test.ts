@@ -677,8 +677,8 @@ test('SESSION_START_HOOKS — includes cortex-md-injector with expected matchers
 
 // --- POST_TOOL_USE_HOOKS cortex-md-injector entry ---
 
-test('POST_TOOL_USE_HOOKS — includes cortex-md-injector entry for Read', () => {
-  const entry = POST_TOOL_USE_HOOKS.find((h: any) => h.matcher === 'Read');
+test('POST_TOOL_USE_HOOKS — includes cortex-md-injector entry for Read and Edit', () => {
+  const entry = POST_TOOL_USE_HOOKS.find((h: any) => h.matcher === 'Read|Edit');
   assert.ok(entry, 'expected cortex-md-injector entry in POST_TOOL_USE_HOOKS');
   assert.equal(entry.hooks.length, 1);
   assert.ok((entry.hooks[0] as any).command.includes('cortex-md-injector.mjs'));

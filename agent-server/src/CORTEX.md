@@ -30,7 +30,7 @@ Project→conduit mapping (formerly `channel-repo.ts`) has moved into `platform/
 | `executions/` | `registry.ts` |
 | `costs/` | `cost-tracker.ts` `gateway-manager.ts` `rate-limit-parser.ts` `rate-limit-throttle.ts` (provider-scoped windows, independent expiry, legacy Anthropic migration) `resume-registry.ts` (global resume queue drains after the final provider clears) `codex-usage-monitor.ts` `codex-event-format.ts` |
 | `scheduling/` | `scheduler.ts` `runner.ts` `job-registry.ts` `schedule-command.ts` `schedule-cli.ts` `jobs/` (includes `target-dispatch.ts` 4-way fresh/channel/session/thread decision) |
-| `memory/` | `index-regen.ts` `consolidate.ts` `watcher.ts` `skill-scanner.ts` `claude-md-scanner.ts` `claude-md-injector.ts` `user-context.ts` (USER.md → plain-conversation injection) |
+| `memory/` | `index-regen.ts` `consolidate.ts` `watcher.ts` `skill-scanner.ts` `cortex-md-scanner.ts` `cortex-md-injector.ts` `user-context.ts` (shared local/remote CORTEX rule dedup + USER.md injection) |
 | `monitor/` | `gpu-monitor.ts` `disk-monitor.ts` |
 | `remote/` | `client-manager.ts` `client-bootstrap.ts` `client-hot-reload.ts` `cortex-client.ts` |
 | `system/` | `update-state.ts` (DR-0013 update-state I/O) `preferences.ts` (config/preferences.json — operator UI language `loadLang`/`setLang`) |
