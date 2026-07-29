@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Regression tests for the thread domain: config and template loading, shell
-expansion, step lifecycle, rate-limit pausing, and step transcripts.
+expansion, step lifecycle, provider-outage recovery, and transcripts.
 
 | filename | role | function |
 |---|---|---|
@@ -11,5 +11,6 @@ expansion, step lifecycle, rate-limit pausing, and step transcripts.
 | template-merge.test.ts | test | Covers merging defaults into user config |
 | thread-config-dir.test.ts | test | Covers config directory load and migration |
 | thread-live-step-ids.test.ts | test | Covers step session ids and thread events |
+| thread-provider-outage.test.ts | test | Covers transient outage backoff and same-step reruns |
 | thread-rate-limit-resume.test.ts | test | Covers provider-attributed pause and resume |
 | thread-transcript.test.ts | test | Covers step transcript ordering and content |

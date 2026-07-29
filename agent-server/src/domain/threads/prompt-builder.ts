@@ -1,5 +1,5 @@
-// input:  template-loader, artifact-io, thread store, thread types
-// output: thread prompts, slot configs, profile and endpoint helpers
+// input:  templates, artifacts, thread and backend state
+// output: resume-aware thread prompts and slot configs
 // pos:    Thread prompt assembly and agent slot resolution
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
@@ -9,7 +9,7 @@ import { getModifiedFilesFromSession } from './artifact-io.js';
 import { getDefaultAgent } from '../agents/index.js';
 import { loadUserContext } from '../memory/user-context.js';
 import type {
-  AgentDefinition, AgentSlotConfig, AgentSlotId, AgentStep, TemplateAgentRef, ThreadTemplate,
+  AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep, TemplateAgentRef, ThreadTemplate,
 } from '@core/types/thread-types.js';
 
 /** Resolve the `__active__` agent ref placeholder to the currently active default agent
@@ -174,6 +174,12 @@ function applyPromptTemplate(templateStr: string, vars: Record<string, string>):
   return withBlocks.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || '');
 }
 
+function hasBackendResumeTarget(slot: AgentSlot | undefined): boolean {
+  if (!slot) return false;
+  if (slot.backendSessionId === undefined) return !!slot.sessionId;
+  return !!slot.backendSessionId;
+}
+
 export function buildStepPrompt(threadId: string, agentConfig: AgentSlotConfig, stage: string | null = null): string {
   const thread = threadStore.get(threadId);
   if (!thread) return '';
@@ -184,7 +190,7 @@ export function buildStepPrompt(threadId: string, agentConfig: AgentSlotConfig, 
   let prompt = applyPromptTemplate(templateStr, vars);
 
   const slot = thread.agents[agentConfig.slotId];
-  const resumingPersistentSession = agentConfig.persistSession && !!slot?.sessionId;
+  const resumingPersistentSession = agentConfig.persistSession && hasBackendResumeTarget(slot);
   const incremental = continuesSession && resumingPersistentSession;
 
   if (!incremental && !thread.templateName && lastStep?.output && !templateStr.includes('{{previousOutput}}')) {

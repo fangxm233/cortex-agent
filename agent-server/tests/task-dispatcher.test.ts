@@ -1,6 +1,6 @@
-// input:  Node test runner + task-dispatcher module
-// output: preselect + guard + gate + CLI invocation tests
-// pos:    Verify pre-filter, dispatch gating and CLI launch
+// input:  task dispatcher, outages, template/profile config
+// output: preselect, provider gates, and CLI tests
+// pos:    Covers task pre-filter and dispatch eligibility
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -13,6 +13,9 @@ import { updateScheduleInterval, hasRunningExecutionForSchedule, findActiveDispa
 
 import { loadConfig, mergeThreadTemplates } from '../src/domain/threads/template-loader.js';
 import { PROJECTS_DIR, CONFIG_DIR } from '../src/core/paths.js';
+import { profileRepo, PROFILES_FILE } from '../src/store/profile-repo.js';
+import * as throttle from '../src/domain/costs/rate-limit-throttle.js';
+import { MockAdapter } from '../src/platform/testing.js';
 
 beforeAll(() => {
   _testSetRegistry({ testbox: { cortexPath: '/tmp/test', gpuCount: 2 } });
@@ -210,6 +213,43 @@ test('filterDispatchableTasks default rate-limit check passes everything when no
   });
 
   assert.deepEqual(filtered.map((task) => task.id), ['a1']);
+});
+
+function installOutageProfile(): void {
+  fs.mkdirSync(path.dirname(PROFILES_FILE), { recursive: true });
+  fs.writeFileSync(PROFILES_FILE, JSON.stringify({
+    defaultProfile: 'outage-profile',
+    profiles: {
+      'outage-profile': {
+        model: 'test-model', backend: 'pi', provider: 'provider-a', mode: 'api',
+      },
+    },
+  }));
+  profileRepo.invalidate();
+}
+
+async function activateDispatcherOutage(t: { onTestFinished: (fn: () => void) => void }): Promise<void> {
+  await throttle.initRateLimitThrottle(new MockAdapter({ adminChannel: 'admin' }), {
+    save: async () => {}, load: async () => null,
+  });
+  t.onTestFinished(() => throttle._testReset());
+  await throttle.activateOutageWindow('provider-a', 5 * 60_000);
+}
+
+test('filterDispatchableTasks skips a template whose provider has an outage', async (t) => {
+  installOutageProfile();
+  loadConfig();
+  await activateDispatcherOutage(t);
+
+  const filtered = await filterDispatchableTasks([
+    { id: 'candidate-a', project: 'atlas', text: 'provider work', gpu: null, template: 'default' },
+  ], 'dispatch-schedule', new Map(), {
+    findActiveDispatchMatch: () => null,
+    checkRealGpuOccupancy: async () => ({ gpus: [], freeIndices: [], allOccupied: false }),
+    profileName: 'outage-profile',
+  });
+
+  assert.deepEqual(filtered, []);
 });
 
 test('isTemplateRateLimited: any limited template profile blocks the task', () => {

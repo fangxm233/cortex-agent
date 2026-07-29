@@ -1,6 +1,6 @@
-// input:  provider rate-limit events, persistence, platform adapter
-// output: provider/window state, exact gates, provider-clear callbacks
-// pos:    Provider-scoped rate-limit state machine
+// input:  provider windows, persistence, platform adapter
+// output: throttle state, automated gates, clear callbacks
+// pos:    Provider-scoped limit and outage state machine
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { PlatformAdapter } from '@platform/index.js';
@@ -17,6 +17,7 @@ const TYPE_THRESHOLDS: Record<string, number> = {
 };
 const DEFAULT_THRESHOLD = 0.90;
 const RESUME_BUFFER_MS = 5_000;
+const OUTAGE_WINDOW_TYPE = 'outage';
 
 export interface RateLimitSource {
   provider: string;
@@ -120,9 +121,9 @@ function fireResume(providers: string[]): void {
   }
 }
 
-function sendDM(text: string): void {
+function sendDM(text: string, title = 'Rate limit'): void {
   if (!_adapter) return;
-  void emitSystemNotice(_adapter, { text, level: 'warning', title: 'Rate limit' });
+  void emitSystemNotice(_adapter, { text, level: 'warning', title });
 }
 
 function formatResetTime(epochSec: number): string {
@@ -191,8 +192,13 @@ function normalizePersisted(raw: PersistedThrottleState): ProviderThrottleState[
   return fromLegacy(raw as LegacyThrottleState);
 }
 
+function windowExpiryMs(window: RateLimitWindowState): number {
+  const buffer = window.type === OUTAGE_WINDOW_TYPE ? 0 : RESUME_BUFFER_MS;
+  return window.resetsAt * 1000 + buffer;
+}
+
 function windowIsActive(window: RateLimitWindowState, now = Date.now()): boolean {
-  return window.resetsAt * 1000 + RESUME_BUFFER_MS > now;
+  return windowExpiryMs(window) > now;
 }
 
 function loadActiveProviders(raw: PersistedThrottleState): void {
@@ -203,7 +209,7 @@ function loadActiveProviders(raw: PersistedThrottleState): void {
 }
 
 function nextExpiryMs(): number | null {
-  const resets = allWindows().map((window) => window.resetsAt * 1000 + RESUME_BUFFER_MS);
+  const resets = allWindows().map(windowExpiryMs);
   return resets.length > 0 ? Math.min(...resets) : null;
 }
 
@@ -216,15 +222,34 @@ function scheduleResumeTimer(): void {
   _resumeTimer = setTimeout(() => { void expireWindows(expiry); }, delayMs);
 }
 
-function pruneExpired(now: number): Array<{ provider: string; displayName: string }> {
-  const cleared: Array<{ provider: string; displayName: string }> = [];
+interface ClearedProvider {
+  provider: string;
+  displayName: string;
+  expiredTypes: string[];
+}
+
+function pruneExpired(now: number): ClearedProvider[] {
+  const cleared: ClearedProvider[] = [];
   for (const [key, provider] of _providers) {
+    const expiredTypes = provider.windows
+      .filter((window) => !windowIsActive(window, now))
+      .map((window) => window.type);
     provider.windows = provider.windows.filter((window) => windowIsActive(window, now));
     if (provider.windows.length > 0) continue;
     _providers.delete(key);
-    cleared.push({ provider: key, displayName: provider.displayName });
+    cleared.push({ provider: key, displayName: provider.displayName, expiredTypes });
   }
   return cleared;
+}
+
+function clearedNotice(provider: ClearedProvider): { text: string; title?: string } {
+  if (provider.expiredTypes.includes(OUTAGE_WINDOW_TYPE)) {
+    return {
+      text: `${Icons.ok} ${provider.displayName} provider outage window cleared.`,
+      title: 'Provider outage',
+    };
+  }
+  return { text: `${Icons.ok} ${provider.displayName} rate limit throttle cleared.` };
 }
 
 async function expireWindows(scheduledExpiry?: number): Promise<void> {
@@ -232,10 +257,12 @@ async function expireWindows(scheduledExpiry?: number): Promise<void> {
   const before = allWindows().length;
   const effectiveNow = Math.max(Date.now(), scheduledExpiry ?? 0);
   const cleared = pruneExpired(effectiveNow);
-  const changed = allWindows().length !== before;
-  if (!changed) { scheduleResumeTimer(); return; }
+  if (allWindows().length === before) { scheduleResumeTimer(); return; }
   await persist().catch((error) => log.error(`Failed to persist throttle expiry: ${(error as Error).message}`));
-  for (const provider of cleared) sendDM(`${Icons.ok} ${provider.displayName} rate limit throttle cleared.`);
+  for (const provider of cleared) {
+    const notice = clearedNotice(provider);
+    sendDM(notice.text, notice.title);
+  }
   fireChange();
   if (cleared.length > 0) fireResume(cleared.map((provider) => provider.provider));
   scheduleResumeTimer();
@@ -265,7 +292,13 @@ async function initRateLimitThrottle(
   log.info(`Initialized — ${_providers.size} provider throttle(s) restored`);
 }
 
-function upsertWindow(provider: ProviderThrottleState, info: Required<Pick<RateLimitInfo, 'rateLimitType' | 'utilization' | 'resetsAt'>>): boolean {
+interface WindowUpdate {
+  rateLimitType: string;
+  utilization: number | null;
+  resetsAt: number;
+}
+
+function upsertWindow(provider: ProviderThrottleState, info: WindowUpdate): boolean {
   const existing = provider.windows.find((window) => window.type === info.rateLimitType);
   if (!existing) {
     provider.windows.push({
@@ -282,6 +315,30 @@ function upsertWindow(provider: ProviderThrottleState, info: Required<Pick<RateL
   existing.resetsAt = nextReset;
   existing.utilization = nextUtilization;
   return changed;
+}
+
+async function activateOutageWindow(provider: string | null, durationMs: number): Promise<void> {
+  if (!_persistence) return;
+  const source = normalizeSource(provider ?? undefined);
+  let state = _providers.get(source.provider);
+  if (!state) {
+    state = { provider: source.provider, displayName: source.displayName, modes: [], windows: [] };
+    _providers.set(source.provider, state);
+  }
+  const changed = upsertWindow(state, {
+    rateLimitType: OUTAGE_WINDOW_TYPE,
+    utilization: null,
+    resetsAt: (Date.now() + durationMs) / 1000,
+  });
+  if (!changed) return;
+
+  await persist();
+  scheduleResumeTimer();
+  fireChange();
+  const reset = state.windows.find((window) => window.type === OUTAGE_WINDOW_TYPE)!.resetsAt;
+  log.info(`Provider outage activated: provider=${source.provider}, durationMs=${durationMs}`);
+  sendDM(`${Icons.warning} ${source.displayName} provider outage detected.
+Automated work will retry at ${formatResetTime(reset)} (in ${formatRemaining(reset)}).`, 'Provider outage');
 }
 
 async function handleRateLimitEvent(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
@@ -324,7 +381,10 @@ function isProviderRateLimited(provider: string | null | undefined): boolean {
 }
 
 function isProviderModeRateLimited(provider: string, mode: string): boolean {
-  return _providers.get(provider)?.modes.includes(mode) ?? false;
+  const state = _providers.get(provider);
+  if (!state) return false;
+  return state.windows.some((window) => window.type === OUTAGE_WINDOW_TYPE)
+    || state.modes.includes(mode);
 }
 
 function isModeRateLimited(mode: string): boolean {
@@ -356,6 +416,7 @@ function _testReset(): void {
 
 export {
   initRateLimitThrottle,
+  activateOutageWindow,
   handleRateLimitEvent,
   isThrottled,
   isProviderRateLimited,

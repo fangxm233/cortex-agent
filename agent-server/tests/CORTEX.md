@@ -20,7 +20,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
 | agent-adapter-pi.test.ts | test | PI framing, spawn, context and compact |
 | agent-adapter.test.ts | test | adapter dispatch, capability sets and tool names |
-| agent-retry-classification.test.ts | test | retry classification and auto-resume notices |
+| agent-retry-classification.test.ts | test | retry policy, outage gates and direct bypass |
 | app.test.ts | test | startup DM notification behaviour |
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | claim-recovery.test.ts | test | orphaned task claim recovery policy |
@@ -86,7 +86,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | platform-mock-adapter.test.ts | test | mock adapter platform contract coverage |
 | preferences.test.ts | test | operator display preferences store |
 | project-store.test.ts | test | project lookup, scaffolding and cache |
-| rate-limit-throttle.test.ts | test | provider windows, gates and clear callbacks |
+| rate-limit-throttle.test.ts | test | provider limit/outage windows, gates and callbacks |
 | rate-limiter.test.ts | test | token bucket rate limiter behaviour |
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
@@ -113,7 +113,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-completion.test.ts | test | task complete and uncomplete API |
 | task-dispatch-hooks.test.ts | test | dispatch, quarantine and reconciliation errors |
-| task-dispatcher.test.ts | test | dispatch pre-filter, guards and gating |
+| task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
 | task-lifecycle.test.ts | test | task CLI write-path lifecycle |
 | task-lint.test.ts | test | unknown template lint error gating |

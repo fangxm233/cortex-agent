@@ -1,5 +1,5 @@
 // input:  configuration, adapters, profiles, MCP context
-// output: attributed runs, compact control, and resume notices
+// output: attributed runs, provider identity, and notices
 // pos:    Backend-neutral agent execution facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -112,7 +112,7 @@ const DEFAULT_PROVIDER_BY_BACKEND: Partial<Record<Backend, string>> = {
   claude: 'anthropic',
 };
 
-function resolveRateLimitProvider(config: Pick<AgentConfig, 'backend' | 'provider'>): string {
+export function resolveRateLimitProvider(config: Pick<AgentConfig, 'backend' | 'provider'>): string {
   return config.provider || DEFAULT_PROVIDER_BY_BACKEND[config.backend] || config.backend;
 }
 

@@ -1,5 +1,5 @@
-// input:  thread template config and runtime thread state
-// output: thread state, lifecycle payload, and run option types
+// input:  thread template config and durable runtime state
+// output: thread state, outage retries, and lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -407,6 +407,8 @@ export interface ThreadMetadata {
   interruptedByRateLimit?: boolean;
   /** Opaque provider key whose active throttle owns this pause. Used for restart reconciliation. */
   rateLimitProvider?: string | null;
+  /** Cumulative synthetic provider-outage resumes attempted by this thread. */
+  outageResumeCount?: number;
   /** Destination kind decided at spawn time, so re-entry can rebuild RunThreadOptions. */
   resumeDest?: 'interactive-reply' | 'project-report' | null;
   /** Live status message persisted at suspension so the post-resume settle can refresh it
