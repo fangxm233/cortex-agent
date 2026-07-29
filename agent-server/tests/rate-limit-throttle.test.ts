@@ -1,6 +1,6 @@
-// input:  Vitest timers, provider rate-limit events, persistence stubs
-// output: threshold, provider/window lifecycle, migration, callback assertions
-// pos:    Domain regression coverage for provider-scoped throttle state
+// input:  Vitest timers, provider events, persistence
+// output: provider windows, outage gates, and callbacks
+// pos:    Covers provider-scoped throttle and outage state
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, vi } from 'vitest';
@@ -522,4 +522,61 @@ test('legacy persisted throttle recovers as an Anthropic provider record', async
   assert.deepEqual(provider.modes, ['plan']);
   assert.deepEqual(provider.windows.map((w: any) => w.type), ['seven_day']);
   assert.equal(provider.windows[0].resetsAt, reset);
+});
+
+function assertOutageActivation(mod: any, persistence: any, adapter: MockAdapter): void {
+  const provider = mod.getThrottleState().providers[0];
+  assert.equal(provider.provider, 'provider-a');
+  assert.deepEqual(provider.modes, []);
+  assert.equal(provider.windows[0].type, 'outage');
+  assert.equal(provider.windows[0].utilization, null);
+  assert.equal(provider.windows[0].resetsAt * 1000, Date.now() + 5 * 60_000);
+  assert.equal(mod.isProviderModeRateLimited('provider-a', 'api'), true);
+  assert.equal(mod.isProviderModeRateLimited('provider-a', 'subscription'), true);
+  assert.equal(mod.isProviderModeRateLimited('provider-b', 'api'), false);
+  assert.equal(persistence.getSaved().providers[0].windows[0].type, 'outage');
+  assert.match(adapter.posted[0].content.text, /provider outage/i);
+  assert.doesNotMatch(adapter.posted[0].content.text, /utilization/i);
+}
+
+test('synthetic outage is provider-wide, persisted, distinct, and expires on schedule', async (t) => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-29T10:00:00.000Z'));
+  const mod = await freshModuleWithCleanup(t);
+  const persistence = makePersistenceStub();
+  const adapter = makeAdapterStub();
+  const cleared: string[][] = [];
+  await mod.initRateLimitThrottle(
+    adapter, persistence as any,
+    (providers: string[]) => { cleared.push(providers); },
+  );
+
+  await mod.activateOutageWindow('provider-a', 5 * 60_000);
+  assertOutageActivation(mod, persistence, adapter);
+  await vi.advanceTimersByTimeAsync(5 * 60_000);
+
+  assert.deepEqual(cleared, [['provider-a']]);
+  assert.equal(mod.getThrottleState().providers.length, 0);
+  assert.equal(persistence.getSaved(), null);
+  assert.match(adapter.posted.at(-1)!.content.text, /provider outage.*cleared/i);
+});
+
+test('nullable outage provider uses the legacy all-providers fallback', async (t) => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-29T11:00:00.000Z'));
+  const mod = await freshModuleWithCleanup(t);
+  const cleared: string[][] = [];
+  await mod.initRateLimitThrottle(
+    makeAdapterStub(),
+    makePersistenceStub() as any,
+    (providers: string[]) => { cleared.push(providers); },
+  );
+
+  await mod.activateOutageWindow(null, 60_000);
+
+  assert.equal(mod.getThrottleState().providers[0].provider, 'unknown');
+  assert.equal(mod.isProviderRateLimited(null), true);
+  await vi.advanceTimersByTimeAsync(60_000);
+  assert.deepEqual(cleared, [['unknown']]);
+  assert.equal(mod.isProviderRateLimited(null), false);
 });

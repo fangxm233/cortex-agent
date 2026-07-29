@@ -1,24 +1,34 @@
-// input:  Node test runner + resume-dispatcher (deps injected)
-// output: provider-ready direct/thread dispatch and guard tests
-// pos:    Validate orchestration/resume-dispatcher.ts auto-resume behavior
-// >>> If I am updated, update my require first <<<
+// input:  resume dispatcher, ready entries, event bus
+// output: dispatch, requeue, wake, and guard tests
+// pos:    Covers provider-ready auto-resume behavior
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { dispatchPendingResumes, buildResumeReminder, isAutoResumeEnabled } from '../../src/orchestration/resume-dispatcher.js';
+import {
+  dispatchPendingResumes,
+  buildResumeReminder,
+  isAutoResumeEnabled,
+  registerResumeWakeOnAgentSettle,
+} from '../../src/orchestration/resume-dispatcher.js';
+import { EventBus } from '../../src/events/index.js';
 import { MockAdapter } from '../../src/platform/testing.js';
 import type { ResumeEntry } from '../../src/domain/costs/resume-registry.js';
 
 const NOW = 1_000_000_000_000;
 
 function baseDeps(entries: ResumeEntry[], overrides: any = {}) {
-  const calls = { route: [] as any[], resume: [] as any[], built: [] as any[], settled: [] as string[], taken: 0, active: [] as string[] };
+  const calls = {
+    route: [] as any[], resume: [] as any[], built: [] as any[], settled: [] as string[],
+    requeued: [] as ResumeEntry[], taken: 0, active: [] as string[],
+  };
   const deps = {
     takeReady: (active: string[]) => { calls.taken++; calls.active = active; return entries; },
     activeProviders: () => [],
     route: async (ctx: any) => { calls.route.push(ctx); },
     resumeThread: async (threadId: string, opts: any) => { calls.resume.push({ threadId, opts }); },
     settleResumedThread: async (threadId: string) => { calls.settled.push(threadId); },
+    requeue: (entry: ResumeEntry) => { calls.requeued.push(entry); },
     buildResumeOptions: (thread: any) => {
       calls.built.push(thread);
       return { adapter: {}, channel: thread.channel, destination: { type: 'project-report', projectId: thread.projectId, trigger: 'rate-limit-resume', sessionId: '' }, threadAnchorId: null, statusMsg: null, startTime: 0 };
@@ -50,6 +60,23 @@ test('buildResumeReminder is wrapped in a system-reminder', () => {
   const r = buildResumeReminder();
   assert.ok(r.startsWith('<system-reminder>'));
   assert.ok(r.trimEnd().endsWith('</system-reminder>'));
+});
+
+test('agent terminal events wake requeued resume work', async () => {
+  const bus = new EventBus();
+  const adapter = new MockAdapter({ adminChannel: 'admin' });
+  let wakes = 0;
+  const stop = registerResumeWakeOnAgentSettle(bus, adapter, async () => { wakes++; });
+
+  bus.publish({ type: 'agent.completed', executionId: 'exec-a', cost: 0, durationMs: 1 });
+  bus.publish({ type: 'agent.failed', executionId: 'exec-b', error: 'failed' });
+  bus.publish({ type: 'agent.superseded', executionId: 'exec-c', reason: 'cancelled' });
+  await Promise.resolve();
+
+  assert.equal(wakes, 3);
+  stop();
+  bus.publish({ type: 'agent.completed', executionId: 'exec-d', cost: 0, durationMs: 1 });
+  assert.equal(wakes, 3);
 });
 
 test('direct entry routes a synthetic system-reminder message', async () => {
@@ -161,14 +188,19 @@ test('thread entry is NOT skipped when only other threads hold the channel (chan
   assert.equal(calls.resume.length, 1, 'thread resumes despite a concurrent thread on the channel');
 });
 
-test('thread entry IS skipped when a live direct session holds the channel', async () => {
+test('thread entry is requeued while a live direct session holds the channel', async () => {
   const adapter = new MockAdapter({ adminChannel: 'admin' });
-  const { deps, calls } = baseDeps(
-    [{ kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW }],
-    { directSessionBusy: (_c: string) => true },
-  );
+  const entry: ResumeEntry = {
+    kind: 'thread', threadId: 'thr_a', channel: 'C2', userMessage: 'go', recordedAt: NOW,
+  };
+  const { deps, calls } = baseDeps([entry], {
+    directSessionBusy: (_c: string) => true,
+  });
+
   await dispatchPendingResumes(adapter as any, deps);
+
   assert.equal(calls.resume.length, 0, 'thread avoids interleaving with an interactive turn');
+  assert.deepEqual(calls.requeued, [entry], 'busy thread remains durable for the idle wake');
 });
 
 test('multiple rate-limited threads on the SAME channel all resume (no self-skip)', async () => {
