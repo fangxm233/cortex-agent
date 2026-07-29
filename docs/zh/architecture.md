@@ -215,7 +215,7 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 | `schedules.json` | 持久化调度任务列表 |
 | `sessions.json` | 频道到智能体会话的映射 |
 | `executions.json` | 统一执行注册表 |
-| `thread-templates.json` | 智能体定义和编排模板 |
+| `config/thread-templates/` | 智能体定义和编排模板——`agents/`、`templates/`、`shells/` 下每个实体一个 JSON 文件 |
 | `threads.json` | 活跃和历史线程状态 |
 | `tasks/` | 项目任务队列（每项目 TASKS.yaml） |
 | `costs.jsonl` | 每次调用的费用记录（90 天滚动） |

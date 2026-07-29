@@ -114,7 +114,7 @@ Each plugin has a `.claude-plugin/plugin.json` for metadata:
 
 ### Per-Agent Plugin Configuration
 
-Each agent definition in `thread-templates.json` specifies its plugins via the `pluginDirs` field (see [threads.md](./threads.md) for the full thread template system):
+Agent definitions live under `config/thread-templates/` — a directory holding one JSON file per entity, split across `agents/`, `templates/` and `shells/`. Each agent definition (one file under `agents/`) specifies its plugins via the `pluginDirs` field (see [threads.md](./threads.md) for the full thread template system):
 
 ```json
 {

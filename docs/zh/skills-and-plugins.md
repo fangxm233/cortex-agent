@@ -115,7 +115,7 @@ plugins/
 
 ### 每智能体插件配置
 
-`thread-templates.json` 中的每个智能体定义通过 `pluginDirs` 字段指定其插件（完整线程模板系统参见 [threads.md](./threads.md)）：
+智能体定义位于 `config/thread-templates/`——该目录每个实体一个 JSON 文件，分列于 `agents/`、`templates/`、`shells/` 三个子目录。每个智能体定义（`agents/` 下的一个文件）通过 `pluginDirs` 字段指定其插件（完整线程模板系统参见 [threads.md](./threads.md)）：
 
 ```json
 {
