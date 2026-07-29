@@ -1,21 +1,26 @@
-// input:  HookBus thread adapter and isolated session hook config
-// output: lifecycle and session hook failure-path regressions
+// input:  HookBus thread adapter and isolated session registry
+// output: lifecycle and session event pipeline regressions
 // pos:    Verifies public hook callers preserve failure isolation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { CONFIG_DIR } from '../src/core/paths.js';
+import { CONFIG_DIR, HOOKS_DIR } from '../src/core/paths.js';
+import { initHookBus } from '../src/core/hook-bus.js';
 import type { OutputStream } from '../src/platform/output-stream.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import { executeLifecycleHook } from '../src/domain/threads/hook-runner.js';
 import {
+  isOnMessageEndHookConfigured,
+  isOnNewHookConfigured,
+  loadHookConfig,
   runSessionHook,
   type SessionHookSpec,
 } from '../src/domain/sessions/session-hooks.js';
+import { loadHookRegistry, type HookEntry } from '../src/store/hook-registry.js';
 import type {
   RunThreadOptions,
   ThreadHookConfig,
@@ -72,11 +77,32 @@ async function runThreadHook(config: ThreadHookConfig) {
   return { adapter, errors, steps: threadStore.get(id)?.steps ?? [] };
 }
 
-function writeSessionHook(script: string): void {
-  mkdirSync(CONFIG_DIR, { recursive: true });
-  writeFileSync(path.join(CONFIG_DIR, 'session-hooks.json'), JSON.stringify({
-    onMessageEnd: { command: 'node -e', args: [script], timeout: 1_000 },
-  }));
+function writeSessionHooks(
+  entries: HookEntry[],
+  scripts: Record<string, string> = {},
+): void {
+  const registryDir = path.join(CONFIG_DIR, 'hooks');
+  rmSync(registryDir, { recursive: true, force: true });
+  rmSync(HOOKS_DIR, { recursive: true, force: true });
+  mkdirSync(registryDir, { recursive: true });
+  mkdirSync(HOOKS_DIR, { recursive: true });
+  entries.forEach((entry, index) => {
+    const file = `${String(index + 1).padStart(2, '0')}-${entry.id}.json`;
+    writeFileSync(path.join(registryDir, file), `${JSON.stringify(entry)}\n`);
+  });
+  for (const [file, source] of Object.entries(scripts)) {
+    writeFileSync(path.join(HOOKS_DIR, file), source);
+  }
+  initHookBus({ entries: loadHookRegistry(registryDir), hooksDir: HOOKS_DIR });
+}
+
+function messageEndEntry(command: string): HookEntry {
+  return {
+    id: 'session-message-end-hook',
+    event: 'cortex:session.messageEnd',
+    run: { command, timeout: 1 },
+    result: 'stdout-as-prompt',
+  };
 }
 
 function makeStream(): RecordingStream {
@@ -141,8 +167,30 @@ test('thread public path rejects JSON missing insertAgent and targetAgent', asyn
   assert.match(result.errors.join('\n'), /missing insertAgent or targetAgent/);
 });
 
+test('session config lookup normalizes registry scripts, commands, and timeout units', () => {
+  writeSessionHooks([{
+    id: 'session-new-hook',
+    event: 'cortex:session.new',
+    run: { script: 'new-hook.mjs', timeout: 2.5 },
+    result: 'stdout-as-prompt',
+  }]);
+
+  assert.deepEqual(loadHookConfig('onNew'), {
+    command: `node ${path.join(HOOKS_DIR, 'new-hook.mjs')}`,
+    timeout: 2_500,
+  });
+  assert.equal(isOnNewHookConfigured(), true);
+  assert.equal(isOnMessageEndHookConfigured(), false);
+
+  writeSessionHooks([messageEndEntry('printf command-is-verbatim')]);
+  assert.deepEqual(loadHookConfig('onMessageEnd'), {
+    command: 'printf command-is-verbatim',
+    timeout: 1_000,
+  });
+});
+
 test('session public path formats a delegated process error and flushes', async () => {
-  writeSessionHook('process.exit(6)');
+  writeSessionHooks([messageEndEntry("node -e 'process.exit(6)'")]);
   const stream = makeStream();
 
   await runSessionHook(makeSessionSpec(), stream);
@@ -152,7 +200,7 @@ test('session public path formats a delegated process error and flushes', async 
 });
 
 test('session public path formats empty successful output and flushes', async () => {
-  writeSessionHook('process.exit(0)');
+  writeSessionHooks([messageEndEntry("node -e 'process.exit(0)'")]);
   const stream = makeStream();
 
   await runSessionHook(makeSessionSpec(), stream);
@@ -161,23 +209,38 @@ test('session public path formats empty successful output and flushes', async ()
   assert.equal(stream.flushCount, 1);
 });
 
-test('session public path preserves env, preview, stderr warning, and flush', async () => {
-  writeSessionHook([
-    "process.stdout.write([process.env.CORTEX_HOOK_CHANNEL, process.env.CORTEX_HOOK_SESSION_ID,",
-    "process.env.CORTEX_HOOK_TRIGGER].join('|'));",
-    "process.stderr.write('session warning');",
-  ].join(''));
+test('session public path preserves env, preview, and flush', async () => {
+  const source = [
+    'process.stdout.write([process.env.CORTEX_HOOK_CHANNEL, process.env.CORTEX_HOOK_SESSION_ID,',
+    'process.env.CORTEX_HOOK_TRIGGER].join("|"));',
+  ].join('');
+  writeSessionHooks([messageEndEntry(`node -e '${source}'`)]);
   const stream = makeStream();
-  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  let warnings = '';
-  try {
-    await runSessionHook(makeSessionSpec(), stream);
-    warnings = warnSpy.mock.calls.flat().map(String).join(' ');
-  } finally {
-    warnSpy.mockRestore();
-  }
+
+  await runSessionHook(makeSessionSpec(), stream);
 
   assert.deepEqual(stream.texts, ['status', 'preview:C-session-hook|sess-1|messageEnd']);
   assert.equal(stream.flushCount, 1);
-  assert.match(warnings, /session warning/);
+});
+
+test('session event dispatches result-less subscribers without extra UX lines', async () => {
+  const marker = path.join(HOOKS_DIR, 'observer-ran');
+  writeSessionHooks([
+    messageEndEntry("node -e 'process.stdout.write(\"primary\")'"),
+    {
+      id: 'session-observer',
+      event: 'cortex:session.messageEnd',
+      run: { script: 'observer.mjs', timeout: 1 },
+      result: 'none',
+    },
+  ], {
+    'observer.mjs': `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'yes');\n`,
+  });
+  const stream = makeStream();
+
+  await runSessionHook(makeSessionSpec(), stream);
+
+  assert.equal(existsSync(marker), true);
+  assert.deepEqual(stream.texts, ['status', 'preview:primary']);
+  assert.equal(stream.flushCount, 1);
 });

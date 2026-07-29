@@ -15,3 +15,4 @@ Managed declarative hooks shipped into the user hook registry.
 | 09-permission-request-auto-allow.json | policy | Allows protected edit requests |
 | 10-cortex-md-injector-session-start.json | context | Injects context at session start |
 | 11-task-status-check.json | thread | Checks task state when dispatch threads end |
+| 12-session-new-hook.json | session | Flushes memory before starting a new session |

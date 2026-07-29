@@ -62,7 +62,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | gpu-slot-scheduling.test.ts | test | per-GPU slot occupancy and scheduling |
 | hook-bridge.test.ts | test | hook request publish and resolve chain |
 | hook-bus.test.ts | test | HookBus matching, results, and failure isolation |
-| hook-callers.test.ts | test | Covers HookBus thread and session failure paths |
+| hook-callers.test.ts | test | HookBus thread and registry session event handling |
 | hook-exec.test.ts | test | shared hook subprocess execution semantics |
 | init.test.ts | test | cortex init path, env and MCP config generation |
 | integration-init-startup.test.ts | e2e | init and server lifecycle hook behavior |

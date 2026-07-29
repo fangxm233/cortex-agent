@@ -10,7 +10,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | daemon.ts | entry | supervises and restarts the app process |
 | doctor-cli.ts | cli | runs environment diagnostics and safe fixes |
 | feishu-login.ts | cli | handles Feishu user login and logout |
-| init.ts | cli | creates Cortex home and scoped MCP configs |
+| init.ts | cli | creates Cortex home and runtime configuration |
 | start-ui-http.ts | wiring | starts the Web UI HTTP and SSE server |
 | startup-helpers.ts | util | cleans old logs and prepares MCP config |
 | startup-notify.ts | util | sends startup notices to the admin channel |

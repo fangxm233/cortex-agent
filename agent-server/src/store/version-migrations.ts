@@ -1,6 +1,6 @@
-// input:  CORTEX_VERSION, data/default paths, atomicWrite
-// output: Versioned JSON and text file migrations
-// pos:    Startup migration runner for user-owned files
+// input:  versions, user config files, defaults, atomicWrite
+// output: Versioned and registry-location migrations
+// pos:    Migrates user-owned files during server startup
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'node:path';
@@ -10,6 +10,7 @@ import { CORTEX_VERSION, CORTEX_DOCS_URL } from '@core/version.js';
 import { DATA_DIR, DEFAULTS_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
+import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
 
 const log = createLogger('version-migrations');
 
@@ -430,6 +431,7 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
   const defaultsDir = opts.defaultsDir ?? DEFAULTS_DIR;
   const storeDir = opts.storeDir ?? path.join(dataDir, 'data');
 
+  await migrateSessionHooksToRegistry(dataDir);
   const versionsFile = path.join(storeDir, 'versions.json');
   const versions = await loadVersionsFrom(versionsFile);
 
@@ -514,6 +516,177 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
 }
 
 // ── File location migrations ───────────────────────────────────
+
+type LegacySessionHookName = 'onNew' | 'onMessageEnd';
+interface LegacySessionHookConfig {
+  command?: string;
+  script?: string;
+  args: string[];
+  timeout: number;
+}
+
+const SESSION_HOOK_DESTINATIONS: Record<LegacySessionHookName, {
+  file: string;
+  id: string;
+  event: 'cortex:session.new' | 'cortex:session.messageEnd';
+}> = {
+  onNew: {
+    file: '12-session-new-hook.json',
+    id: 'session-new-hook',
+    event: 'cortex:session.new',
+  },
+  onMessageEnd: {
+    file: '13-session-message-end-hook.json',
+    id: 'session-message-end-hook',
+    event: 'cortex:session.messageEnd',
+  },
+};
+
+function parseLegacyArgs(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+    throw new Error('legacy session hook args must be strings');
+  }
+  return value;
+}
+
+function parseLegacyTimeout(value: unknown): number {
+  if (value === undefined) return 60_000;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new Error('legacy session hook timeout must be positive');
+  }
+  return value;
+}
+
+function parseLegacyHook(value: unknown): LegacySessionHookConfig {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('legacy session hook must be an object');
+  }
+  const raw = value as Record<string, unknown>;
+  const command = typeof raw.command === 'string' && raw.command.trim() ? raw.command : undefined;
+  const script = typeof raw.script === 'string' && raw.script.trim() ? raw.script : undefined;
+  if ((command === undefined) === (script === undefined)) {
+    throw new Error('legacy session hook needs exactly one command or script');
+  }
+  return {
+    command,
+    script,
+    args: parseLegacyArgs(raw.args),
+    timeout: parseLegacyTimeout(raw.timeout),
+  };
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function normalizedScript(script: string): string {
+  return script.trim().replace(/^(?:\.\/)?hooks[\\/]/, '');
+}
+
+function scriptFromCommand(command: string, args: string[]): string | null {
+  if (args.length > 0) return null;
+  const match = command.trim().match(/^node\s+(?:\.\/)?hooks[\\/]([^\s'"]+)$/);
+  return match?.[1] ?? null;
+}
+
+function commandWithArgs(command: string, args: string[]): string {
+  if (args.length === 0) return command;
+  return `${command} ${args.map(shellQuote).join(' ')}`;
+}
+
+function normalizeLegacyRun(config: LegacySessionHookConfig): HookRun {
+  const timeout = config.timeout / 1_000;
+  if (config.script) {
+    const script = normalizedScript(config.script);
+    if (config.args.length === 0) return { script, timeout };
+    const command = commandWithArgs(`node ${shellQuote(`hooks/${script}`)}`, config.args);
+    return { command, timeout };
+  }
+  const command = config.command!;
+  const script = scriptFromCommand(command, config.args);
+  return script ? { script, timeout } : { command: commandWithArgs(command, config.args), timeout };
+}
+
+function migratedSessionHook(name: LegacySessionHookName, value: unknown): HookEntry {
+  const target = SESSION_HOOK_DESTINATIONS[name];
+  return validateHookEntry({
+    id: target.id,
+    event: target.event,
+    run: normalizeLegacyRun(parseLegacyHook(value)),
+    result: 'stdout-as-prompt',
+    enabled: true,
+  });
+}
+
+function disabledOnNewHook(): HookEntry {
+  return validateHookEntry({
+    id: 'session-new-hook',
+    event: 'cortex:session.new',
+    run: { script: 'new-session-hook.mjs', timeout: 60 },
+    result: 'stdout-as-prompt',
+    enabled: false,
+  });
+}
+
+function sessionHookMigrationEntries(config: Record<string, unknown>): Array<[string, HookEntry]> {
+  const entries: Array<[string, HookEntry]> = [];
+  const onNew = Object.hasOwn(config, 'onNew')
+    ? migratedSessionHook('onNew', config.onNew)
+    : disabledOnNewHook();
+  entries.push([SESSION_HOOK_DESTINATIONS.onNew.file, onNew]);
+  if (Object.hasOwn(config, 'onMessageEnd')) {
+    entries.push([
+      SESSION_HOOK_DESTINATIONS.onMessageEnd.file,
+      migratedSessionHook('onMessageEnd', config.onMessageEnd),
+    ]);
+  }
+  return entries;
+}
+
+async function hasValidSessionHookEntry(filePath: string): Promise<boolean> {
+  try {
+    const raw = await fs.readFile(filePath, 'utf8');
+    validateHookEntry(JSON.parse(raw));
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+async function writeSessionHookEntry(filePath: string, entry: HookEntry): Promise<void> {
+  if (await hasValidSessionHookEntry(filePath)) return;
+  await atomicWrite(filePath, `${JSON.stringify(entry, null, 2)}\n`);
+}
+
+/** Move the retired singular session hook config into declarative registry files. */
+export async function migrateSessionHooksToRegistry(dataDir: string): Promise<void> {
+  const source = path.join(dataDir, 'config', 'session-hooks.json');
+  let raw: string;
+  try {
+    raw = await fs.readFile(source, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    log.warn(`Could not read legacy session hooks: ${(error as Error).message}`);
+    return;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('legacy session hook config must be an object');
+    }
+    const registryDir = path.join(dataDir, 'config', 'hooks');
+    await fs.mkdir(registryDir, { recursive: true });
+    for (const [file, entry] of sessionHookMigrationEntries(parsed as Record<string, unknown>)) {
+      await writeSessionHookEntry(path.join(registryDir, file), entry);
+    }
+    await fs.unlink(source);
+    log.info('Migrated legacy session hooks into the hook registry');
+  } catch (error) {
+    log.warn(`Could not migrate legacy session hooks: ${(error as Error).message}`);
+  }
+}
 
 /**
  * Migrate config.yaml from CORTEX_HOME/config/ (wrong location before 2026.6.11)

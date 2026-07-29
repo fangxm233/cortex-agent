@@ -1,6 +1,6 @@
-// input:  prompts, filesystem, MCP builders, platform setup
+// input:  defaults, filesystem, MCP builders, platform setup
 // output: runInit and initialization helpers
-// pos:    Cortex home initialization command
+// pos:    Initializes Cortex home and runtime configuration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { mkdirSync, writeFileSync, copyFileSync, existsSync, readFileSync, readdirSync } from 'fs';
@@ -1239,15 +1239,13 @@ function copyDefaults(paths: InitPaths, force: boolean): void {
   safeCopy(path.join(DEFAULTS_DIR, 'context', 'ideas', 'CORTEX.md'), path.join(paths.CONTEXT_DIR, 'ideas', 'CORTEX.md'), false, 'context/ideas/CORTEX.md');
   safeCopy(path.join(DEFAULTS_DIR, 'context', 'user', 'CORTEX.md'), path.join(paths.CONTEXT_DIR, 'user', 'CORTEX.md'), false, 'context/user/CORTEX.md');
 
-  // Config defaults — budget and session-hooks overwrite only with --force;
+  // Config defaults — budget overwrites only with --force;
   // thread-templates are merged per-file (new agents/templates/shells added, existing preserved)
   safeCopy(path.join(DEFAULTS_DIR, 'config', 'budget.json'), path.join(paths.CONFIG_DIR, 'budget.json'), force, 'budget.json');
   mergeThreadTemplates(
     path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
     path.join(paths.CONFIG_DIR, 'thread-templates'),
   );
-  safeCopy(path.join(DEFAULTS_DIR, 'config', 'session-hooks.json'), path.join(paths.CONFIG_DIR, 'session-hooks.json'), force, 'session-hooks.json');
-
   // Seed asset trees — per-file safeCopy semantics: new files always added, existing files
   // preserved unless force=true. These directories are referenced at runtime; without them
   // thread-manager / skill-scanner / rules-loader can't find their inputs.

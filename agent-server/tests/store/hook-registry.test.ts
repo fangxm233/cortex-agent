@@ -249,9 +249,13 @@ const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
     filename: '11-task-status-check.json',
     entry: { id: 'task-status-check', event: 'cortex:thread.end', matcher: { source: 'task-dispatch' }, run: { script: 'task-status-check.mjs', timeout: 10 }, result: 'hook-result', enabled: true, version: VERSION },
   },
+  {
+    filename: '12-session-new-hook.json',
+    entry: { id: 'session-new-hook', event: 'cortex:session.new', run: { script: 'new-session-hook.mjs', timeout: 60 }, result: 'stdout-as-prompt', enabled: true, version: VERSION },
+  },
 ];
 
-test('loads the eleven shipped hook entries in parity-preserving order', () => {
+test('loads the twelve shipped hook entries in parity-preserving order', () => {
   const directory = path.join(DEFAULTS_DIR, 'config', 'hooks');
   const filenames = fs.readdirSync(directory).filter((file) => file.endsWith('.json')).sort();
 

@@ -1,0 +1,11 @@
+{
+  "id": "session-new-hook",
+  "event": "cortex:session.new",
+  "run": {
+    "script": "new-session-hook.mjs",
+    "timeout": 60
+  },
+  "result": "stdout-as-prompt",
+  "enabled": true,
+  "version": "2026.7.29"
+}

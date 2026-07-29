@@ -1,12 +1,11 @@
-// input:  session hook config, core hook runner, OutputStream
+// input:  hook registry/events, agent sessions, OutputStream
 // output: session hook execution and optional agent injection helpers
-// pos:    interprets session hooks and injects follow-up turns
+// pos:    Dispatches session events and injects prompt results
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import { readFileSync } from 'fs';
-import * as path from 'path';
-import { CONFIG_DIR } from '@core/paths.js';
-import { runHookProcess, type HookProcessResult } from '@core/hook-exec.js';
+import * as path from 'node:path';
+import { emitCortexEvent, type HookEmitResult } from '@core/hook-bus.js';
 import { createLogger } from '@core/log.js';
+import { HOOKS_DIR } from '@core/paths.js';
 import { Icons } from '../../core/icons.js';
 import type { PlatformAdapter, OutputStream } from '@platform/index.js';
 import { runAgent, resolveBackendForChannel } from '@domain/agents/index.js';
@@ -16,11 +15,14 @@ import type { AgentHandle } from '@core/types/agent-types.js';
 import { getSessionAsync } from '@domain/sessions/session.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
+import { filterHookEntries, loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
 
 const log = createLogger('session-hook');
-
-const CONFIG_FILE = path.join(CONFIG_DIR, 'session-hooks.json');
 const DEFAULT_TIMEOUT_MS = 60_000;
+const SESSION_EVENTS = {
+  onNew: 'cortex:session.new',
+  onMessageEnd: 'cortex:session.messageEnd',
+} as const;
 
 // ── Config types ──────────────────────────────────────────────────────────────
 
@@ -30,34 +32,23 @@ export interface SessionHookConfig {
   timeout?: number;
 }
 
-export interface SessionHooksFile {
-  onNew?: SessionHookConfig;
-  onMessageEnd?: SessionHookConfig;
+export type HookName = keyof typeof SESSION_EVENTS;
+
+function normalizeHookEntry(entry: HookEntry): SessionHookConfig {
+  const command = entry.run.script === undefined
+    ? entry.run.command
+    : `node ${path.join(HOOKS_DIR, entry.run.script)}`;
+  return {
+    command,
+    timeout: entry.run.timeout === undefined
+      ? DEFAULT_TIMEOUT_MS
+      : entry.run.timeout * 1_000,
+  };
 }
 
-type HookName = 'onNew' | 'onMessageEnd';
-
-function loadConfigFile(): SessionHooksFile | null {
-  let raw: string;
-  try {
-    raw = readFileSync(CONFIG_FILE, 'utf8');
-  } catch {
-    return null;
-  }
-  try {
-    return JSON.parse(raw) as SessionHooksFile;
-  } catch (e: any) {
-    log.warn(`Failed to parse ${CONFIG_FILE}: ${e?.message || e}`);
-    return null;
-  }
-}
-
-function loadHookConfig(name: HookName): SessionHookConfig | null {
-  const parsed = loadConfigFile();
-  if (!parsed) return null;
-  const cfg = parsed[name];
-  if (!cfg || typeof cfg.command !== 'string' || cfg.command.trim() === '') return null;
-  return cfg;
+export function loadHookConfig(name: HookName): SessionHookConfig | null {
+  const entries = filterHookEntries(loadHookRegistry(), { event: SESSION_EVENTS[name] });
+  return entries[0] ? normalizeHookEntry(entries[0]) : null;
 }
 
 export function isOnNewHookConfigured(): boolean {
@@ -196,8 +187,11 @@ function buildHookEnv(name: HookName, ctx: SessionHookContext): NodeJS.ProcessEn
   return env;
 }
 
-function buildHookStdin(name: HookName, ctx: SessionHookContext): string {
-  return JSON.stringify({
+function buildHookPayload(
+  name: HookName,
+  ctx: SessionHookContext,
+): Record<string, unknown> {
+  return {
     channel: ctx.channel,
     sessionId: ctx.sessionId,
     sessionName: ctx.sessionName,
@@ -205,7 +199,7 @@ function buildHookStdin(name: HookName, ctx: SessionHookContext): string {
     profile: ctx.profile ?? null,
     trigger: name === 'onNew' ? 'new' : 'messageEnd',
     timestampIso: new Date().toISOString(),
-  });
+  };
 }
 
 async function flushHookStream(stream: OutputStream, label: string, phase: string): Promise<void> {
@@ -214,8 +208,19 @@ async function flushHookStream(stream: OutputStream, label: string, phase: strin
   });
 }
 
+interface SessionHookResult {
+  stdout: string;
+  error?: string;
+}
+
+function asSessionHookResult(result: HookEmitResult): SessionHookResult | null {
+  if (result.error) return { stdout: '', error: result.error };
+  if (typeof result.result === 'string') return { stdout: result.result };
+  return null;
+}
+
 async function handleHookResult(
-  result: HookProcessResult,
+  result: SessionHookResult,
   spec: SessionHookSpec,
   stream: OutputStream,
   deps: InjectDeps,
@@ -244,7 +249,7 @@ async function handleHookResult(
   }
 }
 
-/** Run one configured session hook and preserve its display/injection pipeline. */
+/** Run configured session subscribers and preserve the display/injection pipeline. */
 export async function runSessionHook(
   spec: SessionHookSpec,
   stream: OutputStream,
@@ -252,18 +257,20 @@ export async function runSessionHook(
 ): Promise<void> {
   const cfg = loadHookConfig(spec.name);
   if (!cfg) return;
-  const label = cfg.args?.length ? `${cfg.command} ${cfg.args.join(' ')}` : cfg.command;
   stream.emitText(spec.format.statusLine());
-  const result = await runHookProcess({
-    command: cfg.command,
-    args: cfg.args,
-    timeoutMs: cfg.timeout ?? DEFAULT_TIMEOUT_MS,
-    stdinPayload: buildHookStdin(spec.name, spec.ctx),
-    env: buildHookEnv(spec.name, spec.ctx),
-    label,
-  });
-  if (!result.error && result.stderr) log.warn(`stderr (${label}): ${result.stderr.trim()}`);
-  await handleHookResult(result, spec, stream, deps, label);
+  const results = await emitCortexEvent(
+    SESSION_EVENTS[spec.name],
+    buildHookPayload(spec.name, spec.ctx),
+    { env: buildHookEnv(spec.name, spec.ctx) },
+  );
+  let handled = false;
+  for (const emitted of results) {
+    const result = asSessionHookResult(emitted);
+    if (!result) continue;
+    handled = true;
+    await handleHookResult(result, spec, stream, deps, emitted.id);
+  }
+  if (!handled) await flushHookStream(stream, cfg.command, 'no-result');
 }
 
 // ── onNew (pre-close) entry points ────────────────────────────────────────────

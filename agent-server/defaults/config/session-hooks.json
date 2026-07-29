@@ -1,7 +1,0 @@
-{
-  "onNew": {
-    "command": "node hooks/new-session-hook.mjs",
-    "args": [],
-    "timeout": 60000
-  }
-}
