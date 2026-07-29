@@ -1,5 +1,5 @@
-// input:  HookBus, runner mock, entries, timeout defaults
-// output: HookBus matching, ordering, result and isolation tests
+// input:  HookBus, deferred runner mock, entries, timeout defaults
+// output: HookBus matching, serial ordering, result and isolation tests
 // pos:    Regression coverage for server-side hook dispatch
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 

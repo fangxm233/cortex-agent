@@ -1,6 +1,6 @@
 // input:  HookEntry snapshots, hook payloads, shared hook runner
 // output: HookSpec, HookEmitResult, timeout-aware emit API
-// pos:    Dispatches server-side hook events to configured hooks
+// pos:    Dispatches server hooks serially with safe script arguments
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'node:path';
