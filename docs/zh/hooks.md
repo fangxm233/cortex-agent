@@ -233,6 +233,45 @@ bus 如何处理 stdout 取决于 `result`：
 
 `PermissionRequest` 自动放行声明用的是 `run.command` 而非脚本：一行 `printf`，对 `Edit|Write` 返回 allow 决策。这两个工具的访问控制由上面的 pre-tool 守卫负责。
 
+同目录下的 `cortex-hook-api.mjs` 不是钩子入口，而是供钩子脚本 import 的辅助库（见下一节）。
+
+## 从钩子向用户提问
+
+任何钩子都可以在当前会话绑定的消息平台——Slack、飞书或 Web UI——上弹出一张 ask-user-question 卡片，并阻塞等待用户作答。卡片与 `AskUserQuestion` 工具产生的交互表单相同，并接受可选的分级（`info`、`warning`、`error`，`warn` 是别名）：Web UI 复用 ChatNotice 的分级配色，Slack 与飞书在标题前加对应图标。不带分级时卡片保持中性外观。
+
+Node 钩子脚本直接 import 与其同目录（`$CORTEX_HOME/hooks/`）的辅助库：
+
+```js
+import { askUser } from './cortex-hook-api.mjs';
+
+const { answers, error } = await askUser({
+  questions: [{
+    question: '磁盘即将写满——清理旧 checkpoint？',
+    header: 'Disk',
+    options: [{ label: '清理' }, { label: '保留' }],
+  }],
+  level: 'warning',
+});
+if (error === 'timeout') process.exit(0); // 用户未作答——按安全默认继续
+```
+
+`run.command` 型钩子（以及任何 shell 场景）用 CLI：
+
+```bash
+cortex-hook ask --question "磁盘即将写满——清理旧 checkpoint？" \
+  --options "清理|保留" --level warning
+# → { "ok": true, "answers": { "磁盘即将写满——清理旧 checkpoint？": "清理" } }
+```
+
+两个入口都 POST 到服务器的 `/hook/ask-user-question` webhook，共享同一套路由与阻塞契约：
+
+- **路由。** 显式 `channel` 优先。否则辅助库与 CLI 回退到钩子环境变量：`CORTEX_HOOK_CHANNEL`（会话钩子），然后 `SLACK_CHANNEL`（智能体侧钩子）。只有 `sessionId` 时（`CORTEX_HOOK_SESSION_ID` 或显式传入），服务器会经 session registry 反解出该会话的 channel。`cortex:thread.*` 的 payload 不含 channel，线程钩子须自行传 `channel` 或 `sessionId`。
+- **阻塞。** 服务器在 hook-bridge 中挂起请求，TTL 30 分钟。响应是 `{ answers }`，TTL 到期则是 `{ error: "timeout", answers: {} }`。`cortex-hook ask` 有答案时退出码为 `0`，超时为 `2`，其他错误为 `1`，shell 钩子可按 `$?` 分支。发起提问的钩子应把 `run.timeout` 设得高于预期等待时长，并声明 `blocking: { "mode": "webhook", "ttlMin": 30 }`，与随附的 `ask-user-question-hook` 声明一致。
+- **多问题。** `askUser` 接受 1–4 个问题对象；`cortex-hook ask --payload <file|->` 接受同样的 JSON 数组，例如 `cat questions.json | cortex-hook ask --payload - --session-id <id>`。
+- **冒烟测试。** `--dry-run`（CLI）或 `dryRun: true`（辅助库）只记录事件并合成返回，不真正发卡片。
+
+智能体本体则通过 `cortex_ask_user` MCP 工具的 `level` 参数获得同样的分级能力。
+
 ## cortex-hook CLI
 
 `cortex-hook` 用于查看和操作已挂载的钩子。所有命令都输出 JSON。
@@ -244,6 +283,7 @@ bus 如何处理 stdout 取决于 `result`：
 | `cortex-hook enable` | `--id <id>`、`--dry-run` | 幂等地把声明文件中的 `enabled` 设为 `true` |
 | `cortex-hook disable` | `--id <id>`、`--dry-run` | 以同样方式设为 `false` |
 | `cortex-hook test` | `--id <id>`、`--payload <file\|->` | 用给定 payload 从 stdin 执行该钩子一次 |
+| `cortex-hook ask` | `--question`、`--options "a\|b"`、`--level`、`--channel` / `--session-id`、`--payload <file\|->`、`--multi`、`--dry-run` | 在会话的消息平台上发一张 ask-user 卡片并阻塞等待答案（超时退出码 `2`） |
 
 `--help` / `-h` 在根命令和每个子命令上都可用。
 

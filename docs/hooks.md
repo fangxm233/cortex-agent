@@ -351,6 +351,69 @@ The `PermissionRequest` auto-allow declaration uses `run.command` rather than a
 script: a one-line `printf` that returns an allow decision for `Edit|Write`.
 Access control for those tools is enforced by the pre-tool guards above.
 
+`cortex-hook-api.mjs` in the same directory is not a hook entry — it is a helper
+library that hook scripts import (see below).
+
+## Asking the user from a hook
+
+Any hook can pose an ask-user-question card on the message platform bound to the
+current session — Slack, Feishu, or the Web UI — and block until the user
+answers. The card is the same interactive form the `AskUserQuestion` tool
+produces, and it accepts an optional severity level (`info`, `warning`, or
+`error`, with `warn` as an alias) that renders with the Web UI's notice tones
+and an icon prefix on Slack and Feishu. Without a level the card keeps its
+neutral look.
+
+Node hook scripts import the helper that ships next to them in
+`$CORTEX_HOME/hooks/`:
+
+```js
+import { askUser } from './cortex-hook-api.mjs';
+
+const { answers, error } = await askUser({
+  questions: [{
+    question: 'Disk is almost full — clean old checkpoints?',
+    header: 'Disk',
+    options: [{ label: 'Clean' }, { label: 'Keep' }],
+  }],
+  level: 'warning',
+});
+if (error === 'timeout') process.exit(0); // user did not answer — pick a safe default
+```
+
+`run.command` hooks (and anything shell-based) use the CLI instead:
+
+```bash
+cortex-hook ask --question "Disk is almost full — clean old checkpoints?" \
+  --options "Clean|Keep" --level warning
+# → { "ok": true, "answers": { "Disk is almost full — clean old checkpoints?": "Clean" } }
+```
+
+Both entry points POST to the server's `/hook/ask-user-question` webhook, so
+they share one routing and blocking contract:
+
+- **Routing.** An explicit `channel` wins. Otherwise the helper and the CLI fall
+  back to the hook environment: `CORTEX_HOOK_CHANNEL` (session hooks), then
+  `SLACK_CHANNEL` (agent-side hooks). When only a `sessionId` is available
+  (`CORTEX_HOOK_SESSION_ID`, or passed explicitly), the server resolves the
+  session's channel from the session registry. `cortex:thread.*` payloads carry
+  no channel, so thread hooks must pass `channel` or `sessionId` themselves.
+- **Blocking.** The server holds the request in the hook-bridge with a
+  30-minute TTL. The response is `{ answers }`, or `{ error: "timeout",
+  answers: {} }` when the TTL expires. `cortex-hook ask` exits `0` on answers,
+  `2` on timeout, and `1` on other errors, so a shell hook can branch on `$?`.
+  A hook that asks must set its `run.timeout` above the expected wait and
+  declare `blocking: { "mode": "webhook", "ttlMin": 30 }`, mirroring the
+  shipped `ask-user-question-hook` declaration.
+- **Multiple questions.** `askUser` takes 1–4 question objects;
+  `cortex-hook ask --payload <file|->` accepts the same array as JSON, e.g.
+  `cat questions.json | cortex-hook ask --payload - --session-id <id>`.
+- **Smoke tests.** `--dry-run` (CLI) or `dryRun: true` (helper) journals the
+  event and resolves synthetically without posting a card.
+
+Agents themselves get the same severity option through the
+`cortex_ask_user` MCP tool's `level` parameter.
+
 ## The cortex-hook CLI
 
 `cortex-hook` inspects and operates the mounted hooks. Every command prints
@@ -363,6 +426,7 @@ JSON.
 | `cortex-hook enable` | `--id <id>`, `--dry-run` | Sets `enabled: true` in the declaration file, idempotently |
 | `cortex-hook disable` | `--id <id>`, `--dry-run` | Sets `enabled: false` the same way |
 | `cortex-hook test` | `--id <id>`, `--payload <file\|->` | Runs the hook once with the payload on stdin |
+| `cortex-hook ask` | `--question`, `--options "a\|b"`, `--level`, `--channel` / `--session-id`, `--payload <file\|->`, `--multi`, `--dry-run` | Posts an ask-user card on the session's platform and blocks for the answer (exit `2` on timeout) |
 
 `--help` / `-h` works on the root command and on each subcommand.
 

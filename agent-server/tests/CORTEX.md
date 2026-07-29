@@ -60,6 +60,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | gateway-manager.test.ts | test | gateway port conflict reuse |
 | gateway-per-request-mode.test.ts | test | gateway per-request mode prefix and cost |
 | gpu-slot-scheduling.test.ts | test | per-GPU slot occupancy and scheduling |
+| hook-ask-api.test.ts | test | askUser hook helper routing and errors |
 | hook-bridge.test.ts | test | hook request publish and resolve chain |
 | hook-bus.test.ts | test | HookBus matching, timeout defaults and isolation |
 | hook-callers.test.ts | test | Session timeout and prompt injection handling |
@@ -150,6 +151,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | update-prompt.test.ts | test | update prompt buttons, stale and timeout |
 | update-state.test.ts | test | update state file round-trip and errors |
 | user-context.test.ts | test | USER.md injection into conversations only |
+| webhook-ask-user.test.ts | test | ask endpoint level and channel resolution |
 | webhook-auth.test.ts | test | webhook bearer token gate |
 | webhook-manager-qa.test.ts | test | manager Q&A webhook ask, poll, answer |
 | webhook-thread-control.test.ts | test | thread control webhook validation |

@@ -1,5 +1,5 @@
 // input:  ./types.js (RichBlock/ModalDefinition/ActionElement)
-// output: Question types + buildQuestion*/buildPlan* builders
+// output: Question types, ask-level helpers, buildQuestion*/buildPlan*
 // pos:    Platform-independent interactive component builder
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 

@@ -34,6 +34,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | tool-call-overflow.test.ts | test | Unit tests for tool chip overflow |
 | useToolCallOverflow.ts | hook | Measures chip widths and recomputes on resize |
 | InteractionCards.tsx | view | Ask-user and plan-approval cards in the stream |
+| InteractionCards.test.tsx | test | Unit tests for ask-card severity badges |
 | interaction-vm.ts | vm | Maps interactions to card models and answer state |
 | interaction-vm.test.ts | test | Unit tests for the interaction view model |
 | useInteractionActions.ts | hook | Answers questions and responds to plan approvals |

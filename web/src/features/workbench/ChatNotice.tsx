@@ -1,5 +1,5 @@
 // input:  ChatNoticeLevel and plain notice text
-// output: full-width token-driven info/warning/error notice box
+// output: info/warning/error notice box + noticeTone level tokens
 // pos:    Shared semantic notice renderer for desktop and mobile chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { CSSProperties } from 'react';

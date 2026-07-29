@@ -7,6 +7,7 @@ gateway and wire protocol, and the Web UI HTTP transport.
 |---|---|---|
 | adapter-factory.test.ts | test | Covers platform adapter selection and mix |
 | composite-adapter.test.ts | test | Covers multi-platform routing and fan-out |
+| interactive-builder.test.ts | test | Covers ask-card level banner and modal prefix |
 | tui-gateway.test.ts | test | Covers TUI gateway sessions and delivery |
 | tui-protocol.test.ts | test | Covers TUI frame parsing and encoding |
 | tui-transcript.test.ts | test | Covers TUI transcript replay building |
