@@ -86,7 +86,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | platform-mock-adapter.test.ts | test | mock adapter platform contract coverage |
 | preferences.test.ts | test | operator display preferences store |
 | project-store.test.ts | test | project lookup, scaffolding and cache |
-| rate-limit-throttle.test.ts | test | provider window rollback, retry and callbacks |
+| rate-limit-throttle.test.ts | test | committed views and queued expiry retries |
 | rate-limiter.test.ts | test | token bucket rate limiter behaviour |
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
