@@ -292,7 +292,7 @@ test('gates requiresTool only when available tools are supplied and omits disabl
 });
 
 const VERSION = '2026.7.29';
-const TASKS_GUARD_VERSION = '2026.7.29-1';
+const TASKS_GUARD_VERSION = '2026.7.29-2';
 const INTERACTION_VERSION = '2026.7.29-2';
 const INTERACTION_TTL_MIN = TTL_MS / 60_000;
 const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
