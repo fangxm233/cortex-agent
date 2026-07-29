@@ -1,7 +1,7 @@
-// Bottom Tab navigation model for the mobile v3 shell (scheme-mobile.dc.html §1, four tabs
-// 会话 / 线程 / 任务 / 项目). Pure logic — the presentational BottomTabBar binds real tRPC counts.
-// v3 change: the 4th tab is 项目 (was 机器); 机器 becomes a drill-in sub-screen under 项目 (1k).
-// The 项目 tab carries an amber `需要你` count badge (pending approvals).
+// input:  mobile paths, vocab types, badge counts
+// output: tab definitions and route mapping
+// pos:    Four-tab mobile navigation model
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { type Vocab } from '@/i18n';
 
 export type MobileTabId = 'sessions' | 'threads' | 'tasks' | 'project';
@@ -20,6 +20,10 @@ export const MOBILE_TABS: readonly MobileTab[] = [
   { id: 'tasks', path: '/m/tasks', labelKey: 'tasks' },
   { id: 'project', path: '/m/project', labelKey: 'project' },
 ];
+
+export function normalizeMobilePath(pathname: string): string {
+  return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+}
 
 // Non-tab drill-in sub-screens → which tab stays highlighted while they are open. The scheme hides
 // the Tab bar on these pages (`隐藏 tab bar` / `非 Tab 页`), but the parent tab is the origin. chat
@@ -43,9 +47,10 @@ const SUBROUTE_TAB: ReadonlyArray<{ prefix: string; tab: MobileTabId }> = [
  * stale desktop path) defaults to sessions — the same target the mobile router's catch-all redirects to.
  */
 export function activeTabId(pathname: string): MobileTabId {
-  const tab = MOBILE_TABS.find((t) => pathname === t.path || pathname.startsWith(t.path + '/'));
+  const path = normalizeMobilePath(pathname);
+  const tab = MOBILE_TABS.find((t) => path === t.path || path.startsWith(t.path + '/'));
   if (tab) return tab.id;
-  const sub = SUBROUTE_TAB.find((s) => pathname === s.prefix || pathname.startsWith(s.prefix));
+  const sub = SUBROUTE_TAB.find((s) => path === s.prefix || path.startsWith(s.prefix));
   return sub ? sub.tab : 'sessions';
 }
 
@@ -54,8 +59,14 @@ export function activeTabId(pathname: string): MobileTabId {
  * bottom Tab bar ONLY on Tab routes; the drill-in sub-screens (1b/1f/1g/1h/1i/1j/1k/1l/1r) hide it —
  * the scheme draws no Tab bar there (`隐藏 tab bar` / `非 Tab 页`).
  */
+export function isTabRootRoute(pathname: string): boolean {
+  const path = normalizeMobilePath(pathname);
+  return MOBILE_TABS.some((tab) => path === tab.path);
+}
+
 export function isTabRoute(pathname: string): boolean {
-  return MOBILE_TABS.some((t) => pathname === t.path || pathname.startsWith(t.path + '/'));
+  const path = normalizeMobilePath(pathname);
+  return MOBILE_TABS.some((t) => path === t.path || path.startsWith(t.path + '/'));
 }
 
 export interface TabBadge {

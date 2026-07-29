@@ -7,10 +7,12 @@ This level holds the shell frame, the tab and route model, and the pure cross-sc
 |---|---|---|
 | mobile-router.tsx | entry | Builds the browser or hash router instance |
 | mobile-routes.tsx | entry | Declares the tab and drill-in route table |
-| MobileShell.tsx | core | Frames viewport, providers, outlet and tab bar |
-| MobileAnimatedOutlet.tsx | core | Slides screens in and out on route changes |
-| MobileAnimatedOutlet.test.tsx | test | Unit tests for the screen transitions |
+| MobileShell.tsx | core | Frames providers, outlet, native back and tabs |
+| MobileAnimatedOutlet.tsx | core | Animates routes and retains the source tab frame |
+| MobileAnimatedOutlet.test.tsx | test | Tests transitions and retained tab frames |
 | BottomTabBar.tsx | view | Four-tab bottom bar with icons and badges |
+| mobile-navigation.ts | core | Applies semantic back and replace navigation |
+| mobile-navigation.test.ts | test | Tests mobile back and tab-switch policy |
 | mobile-tabs.ts | core | Maps paths to active tab and badge counts |
 | mobile-tabs.test.ts | test | Unit tests for path to tab mapping |
 | mobile-tasks.ts | core | Groups and counts tasks by lifecycle state |
