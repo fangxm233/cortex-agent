@@ -1,7 +1,7 @@
-// Pure view-model for the 1c 线程 screen (scheme-mobile.dc.html 1c L174–238). Maps the current
-// project's real `threads.list` (ThreadInfo) — plus a per-card `threads.get` (ThreadDetail) for the
-// running card's pipeline / cost / child count — into the scheme's card model. Framework-free so it is
-// unit-tested in isolation (TDD). All money / age formatting reuses the shared mobile + desktop helpers.
+// input:  ThreadInfo/ThreadDetail DTOs, shared formatters
+// output: mobile thread card metadata, steps, and budget models
+// pos:    Pure view model for the mobile Threads screen
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
 import { formatAge, formatCost } from '@/features/workbench/right-panel-vm';
@@ -72,16 +72,17 @@ export function pipelineSteps(info: ThreadInfo, detail?: ThreadDetail): MPipelin
   return [];
 }
 
-// ── Running card meta line "thr_8f2c · 42m · $2.31 · 2 子线程" (scheme L210) ──────
-// id + age are always real (list summary). cost + child count come from `threads.get` (ThreadInfo has
-// neither) → omitted until the detail loads (never fabricated). `subthreadWord` is caller-localized copy.
+// ── Running card meta line "thr_8f2c · task a293 · 42m · $2.31 · 2 子线程" ─────
+// id + optional task + age come from the list summary. Cost and child count require threads.get.
 export function runningMeta(
   info: ThreadInfo,
   detail: ThreadDetail | undefined,
   now: number,
   subthreadWord: string,
 ): string {
-  const parts: string[] = [info.id, formatAge(info.createdAt, now)];
+  const parts: string[] = [info.id];
+  if (info.taskId) parts.push(`task ${info.taskId}`);
+  parts.push(formatAge(info.createdAt, now));
   if (detail) {
     parts.push(formatCost(detail.totalCostUsd));
     const n = detail.children.length;

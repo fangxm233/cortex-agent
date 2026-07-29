@@ -65,8 +65,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
 | session-id.test.ts | test | Unit tests for identifier rows |
 | RightPanel.tsx | view | Hosts thread, task and machine tabs with cost |
-| right-panel-vm.ts | vm | Formats thread, step, cost, age and machine text |
-| right-panel-vm.test.ts | test | Unit tests for the right panel view model |
+| right-panel-vm.ts | vm | Formats task-linked thread and machine metadata |
+| right-panel-vm.test.ts | test | Tests task-linked thread and machine metadata |
 | RightThreadCard.tsx | view | Contains expanded step activity rows within cards |
 | RightThreadCard.layout.test.tsx | test | Browser-checks long subtask row containment |
 | RightMachinesTab.tsx | view | Lists machines with status, GPUs and live runs |
