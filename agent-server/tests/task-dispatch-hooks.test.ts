@@ -226,3 +226,25 @@ test('successful dispatch resets consecutive failure count', async () => {
   await runDispatchCycle();
   assert.equal(deps.block.mock.calls.length, 1);
 });
+
+test('failed block mutation keeps the quarantine count and reports dispatch error', async () => {
+  selectFixture('stale-target');
+  deps.runThread.mockRejectedValue(new Error('provider unavailable'));
+  deps.block.mockResolvedValue({ success: false, message: 'Task not found' });
+
+  await runDispatchCycle();
+  await runDispatchCycle();
+  await runDispatchCycle();
+
+  assert.equal(deps.block.mock.calls.length, 1);
+  const texts = (ctx.adapter!.postMessage as any).mock.calls.map(([, message]) => message.text);
+  assert.equal(texts.some((text: string) => text.includes('Auto-blocked')), false);
+  assert.equal(texts.at(-1).includes('Task dispatch error: provider unavailable'), true);
+
+  deps.block.mockResolvedValue({ success: true });
+  await runDispatchCycle();
+  assert.deepEqual(deps.block.mock.calls[1], [
+    'stale-target',
+    'dispatch-failed-4x: provider unavailable',
+  ]);
+});

@@ -294,9 +294,13 @@ async function handleDispatchError(error: Error, selectedTask: Record<string, an
     if (next.count >= DISPATCH_FAILURE_QUARANTINE_THRESHOLD) {
       blockReason = sanitizeBlockReason(`dispatch-failed-${next.count}x: ${error.message}`);
       try {
-        await taskMutator.block(taskId, blockReason);
-        blocked = true;
-        dispatchFailureCounts.delete(taskId);
+        const blockResult = await taskMutator.block(taskId, blockReason);
+        if (blockResult.success) {
+          blocked = true;
+          dispatchFailureCounts.delete(taskId);
+        } else {
+          log.error(`Failed to auto-block task ${taskId}: ${blockResult.message}`);
+        }
       } catch (e) {
         log.error(`Failed to auto-block task ${taskId}: ${(e as Error).message}`);
       }
