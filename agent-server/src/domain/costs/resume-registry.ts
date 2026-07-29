@@ -1,5 +1,5 @@
-// input:  persistence, provider-attributed interruption records
-// output: ready-entry drains, provider counts, and queue change hooks
+// input:  persistence and provider-attributed interruptions
+// output: resume queue records, drains, counts, and hooks
 // pos:    Provider-scoped interrupted-work registry
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -99,6 +99,14 @@ function recordResume(entry: ResumeEntry): void {
   fireChange();
 }
 
+function removeThreadResume(threadId: string): boolean {
+  const removed = _threads.delete(threadId);
+  if (!removed) return false;
+  persist();
+  fireChange();
+  return true;
+}
+
 /** Drain the registry: return all pending entries and clear (persists the empty list).
  *  "take + clear" is atomic so each entry is dispatched at most once. */
 function takeAllResumes(): ResumeEntry[] {
@@ -148,6 +156,7 @@ function _testReset(): void {
 export {
   initResumeRegistry,
   recordResume,
+  removeThreadResume,
   takeAllResumes,
   takeReadyResumes,
   getResumeCountsByProvider,

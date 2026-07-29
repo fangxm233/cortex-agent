@@ -561,6 +561,45 @@ test('synthetic outage is provider-wide, persisted, distinct, and expires on sch
   assert.match(adapter.posted.at(-1)!.content.text, /provider outage.*cleared/i);
 });
 
+test('failed outage save does not erase a concurrent real limit update', async (t) => {
+  const mod = await freshModuleWithCleanup(t);
+  let saved: any = null;
+  let saveCalls = 0;
+  let rejectOutageSave!: (error: Error) => void;
+  let markOutageSaveStarted!: () => void;
+  const outageSaveStarted = new Promise<void>((resolve) => { markOutageSaveStarted = resolve; });
+  const blockedOutageSave = new Promise<void>((_, reject) => { rejectOutageSave = reject; });
+  const persistence = {
+    load: async () => null,
+    save: async (state: any) => {
+      saveCalls++;
+      if (saveCalls === 1) {
+        markOutageSaveStarted();
+        await blockedOutageSave;
+        return;
+      }
+      saved = structuredClone(state);
+    },
+  };
+  await mod.initRateLimitThrottle(makeAdapterStub(), persistence);
+
+  const outage = mod.activateOutageWindow('provider-a', 5 * 60_000);
+  const outageRejected = assert.rejects(outage, /outage save failed/);
+  await outageSaveStarted;
+  const realLimit = mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 600 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+  rejectOutageSave(new Error('outage save failed'));
+  await outageRejected;
+  await realLimit;
+
+  const provider = mod.getThrottleState().providers[0];
+  assert.equal(provider.provider, 'provider-a');
+  assert.deepEqual(provider.windows.map((window) => window.type), ['five_hour']);
+  assert.deepEqual(saved.providers[0].windows.map((window: any) => window.type), ['five_hour']);
+});
+
 test('nullable outage provider uses the legacy all-providers fallback', async (t) => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
   vi.setSystemTime(new Date('2026-07-29T11:00:00.000Z'));
