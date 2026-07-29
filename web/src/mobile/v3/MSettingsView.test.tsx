@@ -1,5 +1,5 @@
 // input:  mobile settings view, mounted-hook snapshot, UI copy
-// output: mobile mounted-hook rendering regression
+// output: mobile mounted-hook and empty-state regressions
 // pos:    Verifies mobile settings exposes real hook state
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -35,24 +35,28 @@ const snapshot: ConfigSnapshot = {
   env: [],
 };
 
+function renderHooks(value: ConfigSnapshot): string {
+  return renderToStaticMarkup(
+    <MSettingsView
+      vm={buildMSettingsVm(value, undefined)}
+      copy={copy}
+      lang="en"
+      onSetLang={() => {}}
+      theme="light"
+      onSetTheme={() => {}}
+      onBack={() => {}}
+      onOpenDaemon={() => {}}
+      profileSheet={null}
+      onOpenProfile={() => {}}
+      onCloseProfile={() => {}}
+      onPickProfile={() => {}}
+    />,
+  );
+}
+
 describe('MSettingsView hooks', () => {
   it('renders mounted hook identity, event, state, and source', () => {
-    const html = renderToStaticMarkup(
-      <MSettingsView
-        vm={buildMSettingsVm(snapshot, undefined)}
-        copy={copy}
-        lang="en"
-        onSetLang={() => {}}
-        theme="light"
-        onSetTheme={() => {}}
-        onBack={() => {}}
-        onOpenDaemon={() => {}}
-        profileSheet={null}
-        onOpenProfile={() => {}}
-        onCloseProfile={() => {}}
-        onPickProfile={() => {}}
-      />,
-    );
+    const html = renderHooks(snapshot);
 
     for (const value of [
       'managed-hook', 'agent:pre-tool', 'managed', 'Enabled',
@@ -60,6 +64,15 @@ describe('MSettingsView hooks', () => {
       'template:review:end', 'cortex:thread.end', 'template-scoped',
     ]) {
       expect(html).toContain(value);
+    }
+  });
+
+  it('renders the localized empty state without mounted-hook rows', () => {
+    const html = renderHooks({ ...snapshot, hooks: [] });
+
+    expect(html).toContain('No mounted hooks');
+    for (const id of ['managed-hook', 'user-hook', 'template:review:end']) {
+      expect(html).not.toContain(id);
     }
   });
 });

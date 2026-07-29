@@ -1,5 +1,5 @@
 // input:  HooksPanel, language provider, mounted-hook DTO fixture
-// output: desktop mounted-hook rendering regression
+// output: desktop mounted-hook and empty-state regressions
 // pos:    Verifies settings shows registry state instead of scripts
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -23,11 +23,15 @@ const snapshot: ConfigSnapshot = {
   env: [],
 };
 
+function renderHooks(value: ConfigSnapshot): string {
+  return renderToStaticMarkup(
+    <LangProvider><HooksPanel snapshot={value} /></LangProvider>,
+  );
+}
+
 describe('HooksPanel', () => {
   it('renders mounted hook identity, event, state, and source without script filenames', () => {
-    const html = renderToStaticMarkup(
-      <LangProvider><HooksPanel snapshot={snapshot} /></LangProvider>,
-    );
+    const html = renderHooks(snapshot);
 
     for (const value of [
       'managed-hook', 'agent:pre-tool', 'managed', 'Enabled',
@@ -38,5 +42,14 @@ describe('HooksPanel', () => {
     }
     expect(html).not.toContain('hooks/*.mjs');
     expect(html).not.toContain('my-hook.mjs');
+  });
+
+  it('renders the localized empty state without mounted-hook rows', () => {
+    const html = renderHooks({ ...snapshot, hooks: [] });
+
+    expect(html).toContain('No mounted hooks');
+    for (const id of ['managed-hook', 'user-hook', 'template:review:end']) {
+      expect(html).not.toContain(id);
+    }
   });
 });

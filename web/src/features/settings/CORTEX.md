@@ -8,7 +8,7 @@ Panels read a single config snapshot; only the budget panel writes back, the res
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
 | SettingsModal.tsx | view | Dialog with left nav and panel switching |
 | SettingsPanels.tsx | view | Renders read-only config and mounted hooks |
-| SettingsPanels.test.tsx | test | Tests mounted hook state rendering |
+| SettingsPanels.test.tsx | test | Tests mounted hooks and empty state |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
 | BudgetPanel.tsx | view | Budget panel that writes the daily spend limit |
 | budget-vm.ts | vm | Derives budget chips, payload and spend bar |

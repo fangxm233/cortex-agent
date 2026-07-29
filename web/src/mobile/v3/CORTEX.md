@@ -67,7 +67,7 @@ The view models are framework-free record to slot mappings and each one has a co
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
 | MSettingsScreen.tsx | screen | Loads settings data and mounted hooks |
 | MSettingsView.tsx | view | Renders settings rows and mounted hooks |
-| MSettingsView.test.tsx | test | Tests mobile mounted hook rendering |
+| MSettingsView.test.tsx | test | Tests mobile hooks and empty state |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
 | MPlanReadScreen.tsx | screen | Loads a plan and handles approve or reject |

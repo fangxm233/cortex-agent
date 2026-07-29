@@ -346,13 +346,6 @@ export const en = {
   stNoHooks: 'No mounted hooks',
   stHookEnabled: 'Enabled',
   stHookDisabled: 'Disabled',
-  stView: 'view ↗',
-  stThreadLifecycle: 'Thread lifecycle',
-  stHookOnStartDesc: 'before the first step — preflight / workspace',
-  stHookOnTransitionDesc: 'between steps — validation / routing',
-  stHookOnEndDesc: 'after the loop — cleanup / notify / artifacts',
-  stSessionHooks: 'Session hooks',
-  stHookNotConfigured: 'not configured (pipeline supports it)',
   stHooksFootNote: 'Mounted state comes from config/hooks declarations and thread-template lifecycle hooks, using the same source classification as cortex-hook list.',
   stAdvConcNote: 'auto = max(4, cpus − 2) · resolved once at startup',
   stSet: 'set',
@@ -435,7 +428,6 @@ export const en = {
   stAddMachineApprovalTitle: 'Queues an add-machine request for approval — never writes machines.json directly',
   stAddMachineInertTitle: 'Writes machines.json — no add-machine backend op (form out of scope)',
   stTemplateEditorInertTitle: 'Template editor out of scope — inert',
-  stHookViewerInertTitle: 'Hook source viewer out of scope — inert',
 
   // ── Advanced flags titles & descriptions ──
   stAdvDebugTitle: 'Debug logging',
@@ -896,13 +888,6 @@ export const zh: Record<keyof Vocab, string> = {
   stNoHooks: '暂无已挂载钩子',
   stHookEnabled: '已启用',
   stHookDisabled: '已停用',
-  stView: '查看 ↗',
-  stThreadLifecycle: '线程生命周期',
-  stHookOnStartDesc: '首步之前 — 预检 / 工作区',
-  stHookOnTransitionDesc: '步骤之间 — 校验 / 路由',
-  stHookOnEndDesc: '循环结束后 — 清理 / 通知 / 产物',
-  stSessionHooks: '会话钩子',
-  stHookNotConfigured: '未配置（流水线支持）',
   stHooksFootNote: '挂载状态来自 config/hooks 声明与线程模板生命周期钩子，来源分类与 cortex-hook list 完全一致。',
   stAdvConcNote: '自动 = max(4, cpus − 2) · 启动时解析一次',
   stSet: '已设置',
@@ -985,7 +970,6 @@ export const zh: Record<keyof Vocab, string> = {
   stAddMachineApprovalTitle: '将添加机器请求排队等待审批 — 绝不直接写入 machines.json',
   stAddMachineInertTitle: '写入 machines.json — 无 add-machine 后端操作（表单不在范围内）',
   stTemplateEditorInertTitle: '模板编辑器不在范围内 — 占位',
-  stHookViewerInertTitle: '钩子源码查看器不在范围内 — 占位',
 
   // ── Advanced flags titles & descriptions ──
   stAdvDebugTitle: '调试日志',
