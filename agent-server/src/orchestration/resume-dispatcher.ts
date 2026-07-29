@@ -1,11 +1,12 @@
-// input:  provider throttles, resume entries, persisted thread metadata
-// output: provider-ready direct and thread resume dispatch
-// pos:    Re-enters interrupted work after its provider clears
+// input:  provider windows, resume entries, session state
+// output: resume dispatch, busy requeue, and idle wakes
+// pos:    Re-enters work after its provider clears
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter, IncomingMessage } from '@platform/index.js';
+import type { EventBus } from '@events/index.js';
 import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js';
-import { takeReadyResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
+import { recordResume, takeReadyResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
 import { getThrottleState } from '@domain/costs/rate-limit-throttle.js';
 import { agentRunner } from './agent-runner.js';
 import { resumeRateLimitedThread } from '@domain/threads/runner.js';
@@ -51,6 +52,7 @@ export interface ResumeDeps {
    *  updating it mid-flight, but nothing seals it at the end). Mirrors the DR-0014
    *  suspended-parent onSettled in thread-callback.defaultResume. */
   settleResumedThread: (threadId: string) => Promise<void>;
+  requeue: (entry: ResumeEntry) => void;
   buildResumeOptions: (thread: ThreadRecord) => RunThreadOptions | null;
   getThread: (threadId: string) => ThreadRecord | null;
   channelBusy: (channel: string) => boolean;
@@ -82,6 +84,7 @@ function defaultDeps(): ResumeDeps {
       // on this task is woken (2026-06-29 finding: resumed leaf task left its manager suspended).
       await closeResumedTaskLoop(id).catch((e) => log.error(`close task loop ${id}: ${(e as Error).message}`));
     },
+    requeue: recordResume,
     buildResumeOptions: (thread) => buildResumeOptions(thread),
     getThread: (id) => threadStore.get(id),
     channelBusy: (ch) => runningExecutions.hasChannel(ch),
@@ -93,6 +96,24 @@ function defaultDeps(): ResumeDeps {
 
 function entryKey(e: ResumeEntry): string {
   return e.kind === 'thread' ? `thread ${e.threadId}` : `direct ${e.channel}`;
+}
+
+type ResumeDispatch = (adapter: PlatformAdapter) => Promise<void>;
+
+export function registerResumeWakeOnAgentSettle(
+  bus: EventBus,
+  adapter: PlatformAdapter,
+  dispatch: ResumeDispatch = dispatchPendingResumes,
+): () => void {
+  const wake = () => { void dispatch(adapter); };
+  const completed = bus.subscribe('agent.completed', wake);
+  const failed = bus.subscribe('agent.failed', wake);
+  const superseded = bus.subscribe('agent.superseded', wake);
+  return () => {
+    completed.unsubscribe();
+    failed.unsubscribe();
+    superseded.unsubscribe();
+  };
 }
 
 /** Drain entries whose provider is no longer active and re-enter each target.
@@ -114,7 +135,11 @@ export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides
   let dispatched = 0;
   for (const entry of entries) {
     const skip = guardSkipReason(entry, deps);
-    if (skip) { log.info(`Resume skip (${entryKey(entry)}): ${skip}`); continue; }
+    if (skip) {
+      if (skip.requeue) deps.requeue(entry);
+      log.info(`Resume skip (${entryKey(entry)}): ${skip.reason}`);
+      continue;
+    }
     try {
       if (dispatched > 0) await deps.delay(RESUME_STAGGER_MS); // stagger START times, not completion
       if (entry.kind === 'direct') {
@@ -145,18 +170,29 @@ export async function dispatchPendingResumes(adapter: PlatformAdapter, overrides
  *  reason: a rate-limit window (e.g. a seven_day limit) can legitimately exceed any fixed age
  *  cutoff, so an entry is resumed whenever its provider resets regardless of wait duration.
  *  Only live-state guards apply. */
-function guardSkipReason(entry: ResumeEntry, deps: ResumeDeps): string | null {
+interface ResumeSkip {
+  reason: string;
+  requeue: boolean;
+}
+
+function guardSkipReason(entry: ResumeEntry, deps: ResumeDeps): ResumeSkip | null {
   if (entry.kind === 'direct') {
     // A direct session is a live conversation — serialize per channel (no interleaved turns).
-    if (deps.channelBusy(entry.channel)) return 'channel already has a running execution';
+    if (deps.channelBusy(entry.channel)) {
+      return { reason: 'channel already has a running execution', requeue: false };
+    }
     return null;
   }
-  // Thread: channel-parallel-safe. Only avoid a live direct session (interactive turn) on the
-  // channel; concurrent threads on the same channel are fine and must not skip each other.
-  if (deps.directSessionBusy(entry.channel)) return 'direct session active on channel';
+  // A live direct session can finish after the provider window clears. Keep the thread durable;
+  // the agent terminal-event wake retries it once the interactive turn leaves the registry.
+  if (deps.directSessionBusy(entry.channel)) {
+    return { reason: 'direct session active on channel', requeue: true };
+  }
   const thread = deps.getThread(entry.threadId);
-  if (!thread) return 'thread no longer exists';
-  if (thread.status !== 'rate_limited') return `thread is ${thread.status}`;
+  if (!thread) return { reason: 'thread no longer exists', requeue: false };
+  if (thread.status !== 'rate_limited') {
+    return { reason: `thread is ${thread.status}`, requeue: false };
+  }
   return null;
 }
 

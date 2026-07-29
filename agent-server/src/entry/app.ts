@@ -1,5 +1,5 @@
-// input:  env/config, adapters, stores, runtime services, HookBus
-// output: server.start/shutdown{version,pid[,reason]}; runtime
+// input:  env/config, adapters, stores, services, HookBus
+// output: server runtime, lifecycle events, resume wakes
 // pos:    Agent-server composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
@@ -70,7 +70,10 @@ import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
 import { initRateLimitThrottle } from '@domain/costs/rate-limit-throttle.js';
 import { initResumeRegistry, getResumeCount, recordResume } from '@domain/costs/resume-registry.js';
-import { dispatchPendingResumes } from '../orchestration/resume-dispatcher.js';
+import {
+  dispatchPendingResumes,
+  registerResumeWakeOnAgentSettle,
+} from '../orchestration/resume-dispatcher.js';
 import { scheduleRepo } from '@store/schedule-repo.js';
 import { runMigrations, migrateAistatusConfigLocation } from '@store/version-migrations.js';
 import { syncManagedHooks } from '@store/hook-sync.js';
@@ -216,6 +219,7 @@ startMachineRegistryWatcher();
 
 // --- Create platform adapter (replaces direct Slack App instantiation) ---
 const adapter: PlatformAdapter = createAdapterFromEnv();
+registerResumeWakeOnAgentSettle(bus, adapter);
 
 // Wire EventBus + injected dependencies into the TUI gateway before start() so it can
 // subscribe to bus events and resolve sessions during its own start()/handshake lifecycle.

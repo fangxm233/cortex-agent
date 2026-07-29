@@ -1,18 +1,19 @@
-// input:  agents/config, facade, stub AgentProcess events
-// output: retry classification and auto-resume notice regressions
-// pos:    Agent fallback and terminal notice policy tests
+// input:  retry config, facade, outages, stub processes
+// output: retry, direct-outage, and notice regressions
+// pos:    Covers provider retry and terminal notice policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { isRetryableError } from '../src/domain/agents/config.js';
-import { runAgent } from '../src/domain/agents/facade.js';
+import { allConfigsRateLimited, runAgent } from '../src/domain/agents/facade.js';
 import { getAdapter } from '../src/agent-adapter/index.js';
 import type { AgentProcess } from '../src/agent-adapter/types.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
 import { profileRepo, PROFILES_FILE } from '../src/store/profile-repo.js';
 import {
+  activateOutageWindow,
   handleRateLimitEvent,
   initRateLimitThrottle,
   _testReset as throttleReset,
@@ -90,16 +91,25 @@ function installSingleProfile(): void {
   profileRepo.invalidate();
 }
 
-async function activateProviderThrottle(provider = 'deepseek'): Promise<void> {
+async function initProviderThrottle(): Promise<void> {
   throttleReset();
   await initRateLimitThrottle(new MockAdapter({ adminChannel: 'admin' }) as any, {
     save: async () => {},
     load: async () => null,
   });
+}
+
+async function activateProviderThrottle(provider = 'deepseek'): Promise<void> {
+  await initProviderThrottle();
   await handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 300 },
     { provider, displayName: provider, mode: 'deepseek' },
   );
+}
+
+async function activateProviderOutage(provider = 'deepseek'): Promise<void> {
+  await initProviderThrottle();
+  await activateOutageWindow(provider, 5 * 60_000);
 }
 
 for (const message of [
@@ -180,6 +190,23 @@ test('runAgent emits one terminal error notice for a deterministic authenticatio
   );
   assert.equal(fallback.mock.calls.length, 0);
   assert.deepEqual(notices, [{ text: 'Error: HTTP 401 unauthorized', level: 'error' }]);
+});
+
+test('provider outage gates automated configs but not direct interactive sessions', async (t) => {
+  installSingleProfile();
+  await activateProviderOutage();
+  t.onTestFinished(() => throttleReset());
+  const spawn = vi.spyOn(getAdapter('pi'), 'spawn').mockReturnValue(makeProcess(SUCCESS_RESULT));
+
+  assert.equal(allConfigsRateLimited('single-test'), true);
+  const result = await runAgent('test', {
+    profileName: 'single-test',
+    channel: 'web:retry',
+    isUserInitiated: true,
+  }).promise;
+
+  assert.equal(spawn.mock.calls.length, 1);
+  assert.equal(result.finalOutput, 'fallback-ok');
 });
 
 test('runAgent shows a warning when a user chat rate-limit result will auto-resume', async (t) => {

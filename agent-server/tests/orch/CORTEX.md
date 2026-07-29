@@ -25,7 +25,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | pending-injection-recovery.test.ts | test | Covers injection idempotency and startup drain |
 | plan-approvals.test.ts | test | Covers plan approval state transitions |
 | plan-response.test.ts | test | Covers Web plan approve and reject delivery |
-| resume-dispatcher.test.ts | test | Covers provider-ready dispatch and guards |
+| resume-dispatcher.test.ts | test | Covers ready dispatch, requeue and idle wake |
 | running-executions.test.ts | test | Covers execution registry indices and events |
 | seal-thread-status.test.ts | test | Covers terminal thread status sealing |
 | session-events.test.ts | test | Covers session event publication contract |

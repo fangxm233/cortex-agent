@@ -1,6 +1,6 @@
-// input:  thread state, agent facade, HookBus lifecycle adapter, executions
-// output: provider-scoped thread execution, resume, and transcripts
-// pos:    Runs thread steps, lifecycle events, controls, and resumes
+// input:  thread state, agents, provider throttle, hooks
+// output: thread runs, outage resume, and transcripts
+// pos:    Runs thread steps, controls, hooks, and resumes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
@@ -25,9 +25,16 @@ import {
   resolveSystemVars,
   type PendingControl,
 } from './index.js';
-import { runAgent, getClaudeMode, getActiveBackend, getActiveProfile } from '../agents/index.js';
-import { isApiRateLimitError } from '../agents/config.js';
-import { isProviderRateLimited } from '../costs/rate-limit-throttle.js';
+import {
+  runAgent,
+  getClaudeMode,
+  getActiveBackend,
+  getActiveProfile,
+  resolveRateLimitProvider,
+} from '../agents/index.js';
+import { isApiRateLimitError, isRetryableError } from '../agents/config.js';
+import { resolveProfileConfig } from '../agents/profile-manager.js';
+import { activateOutageWindow, isProviderRateLimited } from '../costs/rate-limit-throttle.js';
 import { recordResume } from '../costs/resume-registry.js';
 import { Icons } from '../../core/icons.js';
 import { closeSessionsByPrefix } from '../agents/index.js';
@@ -53,6 +60,8 @@ import type {
 } from '@core/types/thread-types.js';
 
 const log = createLogger('thread-runner');
+const OUTAGE_BACKOFF_MS = [5, 15, 45].map((minutes) => minutes * 60_000);
+const OUTAGE_MAX_RESUMES = OUTAGE_BACKOFF_MS.length;
 
 // --- Result types ---
 
@@ -80,7 +89,7 @@ interface ThreadContext {
   stream: OutputStream;
   lastAgentResult: any;
   totalNumTurns: number;
-  /** Set when a step was interrupted by an API rate limit while the throttle is active.
+  /** Set when a step was interrupted by a provider throttle.
    *  Pauses the thread (status='rate_limited') instead of completing/failing it. */
   rateLimited?: boolean;
 }
@@ -193,6 +202,27 @@ async function resolveAndNotifyStep(
   return { agentSlotId, agentConfig, isFirstStep, multiAgent, stage };
 }
 
+function resolveEffectiveProfileName(
+  configuredProfile: string,
+  meta: ThreadRecord['metadata'],
+  channel: string,
+): string {
+  return configuredProfile === '__active__'
+    ? (meta?.profileOverride || getActiveProfile(channel))
+    : configuredProfile;
+}
+
+function resolveActiveStepProvider(thread: ThreadRecord, channel: string): string | null {
+  const slot = thread.agents[thread.activeAgent];
+  if (!slot) return null;
+  try {
+    const profileName = resolveEffectiveProfileName(slot.profile, thread.metadata, channel);
+    return resolveRateLimitProvider(resolveProfileConfig(profileName));
+  } catch {
+    return null;
+  }
+}
+
 /** Build prompt, resolve session config, profile, register execution, generate session name + start time.
  *  Returns a fully-populated StepContext — no placeholder fields. */
 async function buildStepConfig(
@@ -221,9 +251,7 @@ async function buildStepConfig(
   // Resolve profile: agents with a hardcoded profile always use their own declaration.
   // metadata.profileOverride only applies to __active__ agents (default/main/scheduler-main),
   // letting scheduler/dispatch inject a concrete profile without overriding research-pipeline agents.
-  const profileName = agentConfig.profile === '__active__'
-    ? (ctx.meta?.profileOverride || getActiveProfile(opts.channel))
-    : agentConfig.profile;
+  const profileName = resolveEffectiveProfileName(agentConfig.profile, ctx.meta, opts.channel);
 
   // Register execution
   const executionKind = ctx.meta?.trigger === 'task-dispatch' ? 'dispatch'
@@ -510,7 +538,7 @@ async function recordStepOutcome(
   }
 }
 
-/** Pause the thread for auto-resume after an API rate limit interrupted a step. Records the
+/** Pause the thread for auto-resume after a provider throttle interrupted a step. Records the
  *  thread in the resume registry (drained when its provider window resets) and
  *  flips it to the non-terminal 'rate_limited' status. Sets ctx.rateLimited so the loop breaks
  *  and skips completeThread / onEnd. Shared by the graceful (recordStepOutcome) and thrown
@@ -600,6 +628,29 @@ export async function finalizeAbortedThread(
   if (taskId && opts.onAbort) {
     await opts.onAbort({ taskId, project: meta?.taskProject ?? null, reason });
   }
+}
+
+async function pauseRetryableProviderError(
+  threadId: string,
+  ctx: ThreadContext,
+  opts: RunThreadOptions,
+  error: Error & { rateLimitProvider?: string },
+): Promise<boolean> {
+  const thread = threadStore.get(threadId);
+  if (!thread || thread.status !== 'running' || !isRetryableError(error)) return false;
+  const provider = error.rateLimitProvider ?? resolveActiveStepProvider(thread, opts.channel);
+  if (isApiRateLimitError(error.message) && isProviderRateLimited(provider)) {
+    await handleRateLimitInterruption(threadId, ctx, opts, provider);
+    return true;
+  }
+  const resumeCount = thread.metadata?.outageResumeCount ?? 0;
+  if (resumeCount >= OUTAGE_MAX_RESUMES) return false;
+  await threadStore.mutate(threadId, (record) => {
+    (record.metadata ??= {}).outageResumeCount = resumeCount + 1;
+  });
+  await activateOutageWindow(provider, OUTAGE_BACKOFF_MS[resumeCount]);
+  await handleRateLimitInterruption(threadId, ctx, opts, provider);
+  return true;
 }
 
 async function runThread(threadId: string, opts: RunThreadOptions): Promise<ThreadRunResult> {
@@ -711,15 +762,11 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
     }
 
   } catch (error: any) {
-    const t = threadStore.get(threadId);
-    // Thrown rate-limit path: the agent threw a rate-limit error while the throttle is active.
-    // Pause for auto-resume instead of failing, and do NOT rethrow — the thread is left in
-    // 'rate_limited' and finalizeThread returns normally so wrappers see thread.status, not a throw.
-    const provider = error?.rateLimitProvider ?? null;
-    if (t && t.status === 'running' && isApiRateLimitError(error?.message) && isProviderRateLimited(provider)) {
-      await handleRateLimitInterruption(threadId, ctx, opts, provider);
-    } else {
-      if (t && t.status === 'running') {
+    // Retryable provider failures pause on a synthetic outage window and return normally;
+    // permanent errors and the fourth transient failure keep the original fail + rethrow path.
+    if (!await pauseRetryableProviderError(threadId, ctx, opts, error)) {
+      const thread = threadStore.get(threadId);
+      if (thread && thread.status === 'running') {
         await failThread(threadId, error.message || 'Unknown error');
       }
       throw error;
@@ -781,9 +828,9 @@ export async function consumeWaitControl(
 
 // --- Resume a rate-limit-paused thread (auto-resume) ---
 
-/** Re-enter a thread paused by an API rate limit (status==='rate_limited'). Like resumeThread,
+/** Re-enter a thread paused by a provider throttle (status==='rate_limited'). Like resumeThread,
  *  the userMessage is NOT overwritten — the thread re-runs its interrupted step from the original
- *  prompt/contract. Called when the owning provider's rate-limit window resets. */
+ *  prompt/contract. Called when the owning provider window resets. */
 async function resumeRateLimitedThread(threadId: string, opts: RunThreadOptions): Promise<ThreadRunResult> {
   const thread = threadStore.get(threadId);
   if (!thread) throw new Error(`Thread not found: ${threadId}`);

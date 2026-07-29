@@ -20,7 +20,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | mid-turn-inject.ts | core | injects user messages into a running turn |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
-| resume-dispatcher.ts | runner | Resumes provider-paused work from metadata |
+| resume-dispatcher.ts | runner | Resumes and requeues provider-paused work |
 | session-compact.ts | control | compacts an idle session's context |
 | session-events.ts | events | publishes session state events on the bus |
 | session-rewind.ts | chat | rewinds a web session to an edited turn |
