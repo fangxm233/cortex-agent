@@ -365,8 +365,6 @@ function buildDispatchPrompt(task: any): string {
     `  cortex-task complete --project ${task.project} --task-id ${task.id} --note "your completion note"`,
     '',
     '- Update the project STATUS.md if the work changed project state',
-    '- Commit and push all files you modified in the Cortex repository. Remember to clean any temporary files you created.',
-    '  - If push is rejected, resolve the conflict, amend your commit, and push again.',
   ];
   sections.push(completion.join('\n'));
 
