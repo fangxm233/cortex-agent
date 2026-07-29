@@ -1,6 +1,7 @@
-// input:  agent-dir module (PI subprocess config writers)
-// output: verify writeProvidersConfig multi-provider override + ensureAuthVisible symlink/copy semantics
-// pos:    Unit tests for PI agent dir helpers — no real PI spawn
+// input:  agent-dir module, temporary provider/auth/role files
+// output: PI provider, auth, and built-in role installation contracts
+// pos:    Unit tests for PI managed agent directory helpers
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -11,6 +12,7 @@ import * as os from 'node:os';
 import {
   writeProvidersConfig,
   ensureAuthVisible,
+  ensurePIAgentRoles,
   buildProviderOverrides,
 } from '../src/agent-adapter/pi/agent-dir.js';
 
@@ -279,6 +281,37 @@ test('ensureAuthVisible: replaces stale regular file with symlink', { skip: proc
     // Reading the file should now return the user-side content
     const content = fs.readFileSync(path.join(agentDir, 'auth.json'), 'utf-8');
     assert.match(content, /new/);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// ─── built-in subagent roles ─────────────────────────────────────
+
+test('ensurePIAgentRoles installs all roles once without clobbering user edits', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-roles-'));
+  try {
+    const defaultsDir = path.join(tmpDir, 'defaults');
+    const agentDir = path.join(tmpDir, 'managed');
+    fs.mkdirSync(defaultsDir, { recursive: true });
+    for (const name of ['explore', 'general-purpose', 'plan']) {
+      fs.writeFileSync(path.join(defaultsDir, `${name}.md`), `---\nname: ${name}\ndescription: built in\n---\n${name}\n`);
+    }
+
+    ensurePIAgentRoles({ defaultsDir, agentDir });
+    const explorePath = path.join(agentDir, 'agents', 'explore.md');
+    assert.equal(fs.readFileSync(explorePath, 'utf8').includes('built in'), true);
+    for (const name of ['explore', 'general-purpose', 'plan']) {
+      assert.equal(fs.existsSync(path.join(agentDir, 'agents', `${name}.md`)), true);
+    }
+
+    fs.writeFileSync(explorePath, 'user edited role\n');
+    fs.writeFileSync(path.join(defaultsDir, 'explore.md'), 'new packaged default\n');
+    const inode = fs.statSync(explorePath).ino;
+    ensurePIAgentRoles({ defaultsDir, agentDir });
+
+    assert.equal(fs.readFileSync(explorePath, 'utf8'), 'user edited role\n');
+    assert.equal(fs.statSync(explorePath).ino, inode);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

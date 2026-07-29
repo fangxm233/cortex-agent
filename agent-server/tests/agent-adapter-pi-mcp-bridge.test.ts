@@ -1,5 +1,5 @@
-// input:  PI MCP bridge, fake clients, compiled MCP transport
-// output: mapping, loading, retry, and stdio verification
+// input:  PI MCP bridge, parent/subagent env, fake and real clients
+// output: scoped loading, mapping, retry, and stdio contracts
 // pos:    PI MCP bridge behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -154,6 +154,28 @@ function retryDeps(overrides: Partial<McpBridgeDeps>): McpBridgeDeps {
     ...overrides,
   };
 }
+
+test('subagent MCP bridge exposes only cortex-core', async () => {
+  const harness = createPiHarness();
+  const spawned: string[] = [];
+  const deps = retryDeps({
+    env: {
+      CORTEX_PI_SUBAGENT: '1',
+      CORTEX_THREAD_ID: 'thr_parent',
+      SLACK_CHANNEL: 'slack:C0123',
+    },
+    spawnClient: async (_path, name) => {
+      spawned.push(name);
+      return fakeHandle(name);
+    },
+  });
+
+  await installMcpBridge(harness.pi, deps);
+  await harness.fire('before_agent_start');
+
+  assert.deepEqual(spawned, ['core']);
+  assert.deepEqual(harness.registered, ['core_tool']);
+});
 
 test('required MCP connect failure retries next turn without duplicate tools', async () => {
   const harness = createPiHarness();

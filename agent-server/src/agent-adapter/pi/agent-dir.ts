@@ -1,15 +1,6 @@
-// input:  DATA_DIR
-// output: PI_AGENT_DIR / PI_SESSIONS_DIR / PI_MODELS_PATH constants
-//         + writeProvidersConfig (multi-provider models.json override; re-asserts PI compat
-//           flags lost when baseUrl is rewritten to the gateway — see PROVIDER_COMPAT_OVERRIDES,
-//           e.g. deepseek supportsDeveloperRole=false to avoid HTTP 400 on the `developer` role)
-//         + buildProviderOverrides (routing-driven override set: discovered ∪ current provider)
-//         + ensureAuthVisible (symlink user's ~/.pi/agent/auth.json into PI_AGENT_DIR
-//           so the PI subprocess can resolve OAuth/API key credentials)
-//         + ensurePIAgentDirs
-// pos:    PI agent directory management; models.json is written exclusively by PI adapter spawn
-// layout: data/pi/models.json  data/pi/auth.json (symlink)  logs/sessions-pi/
-//         PI_CODING_AGENT_DIR → DATA_DIR/data/pi (PI reads models.json + auth.json from here)
+// input:  DATA_DIR, DEFAULTS_DIR, PI auth/provider files
+// output: PI paths plus provider, auth, and built-in role setup
+// pos:    Managed PI agent directory configuration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import {
@@ -22,10 +13,11 @@ import {
   unlinkSync,
   symlinkSync,
   copyFileSync,
+  constants as fsConstants,
 } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { DATA_DIR } from '@core/utils.js';
+import { DATA_DIR, DEFAULTS_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 
 const log = createLogger('pi-agent-dir');
@@ -34,6 +26,9 @@ const log = createLogger('pi-agent-dir');
 export const PI_AGENT_DIR = path.join(DATA_DIR, 'data', 'pi');
 export const PI_SESSIONS_DIR = path.join(DATA_DIR, 'logs', 'sessions-pi');
 export const PI_MODELS_PATH = path.join(PI_AGENT_DIR, 'models.json');
+export const PI_DEFAULT_AGENTS_DIR = path.join(DEFAULTS_DIR, 'pi', 'agents');
+
+const BUILTIN_PI_AGENT_NAMES = ['explore', 'general-purpose', 'plan'] as const;
 
 /** Default location of the user's PI OAuth/API-key credentials. */
 const USER_PI_AUTH_PATH = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
@@ -227,9 +222,32 @@ function isBrokenSymlink(p: string): boolean {
   }
 }
 
+// ─── Built-in subagent roles ─────────────────────────────────────
+
+export interface EnsurePIAgentRolesOpts {
+  defaultsDir?: string;
+  agentDir?: string;
+}
+
+export function ensurePIAgentRoles(opts?: EnsurePIAgentRolesOpts): void {
+  const defaultsDir = opts?.defaultsDir ?? PI_DEFAULT_AGENTS_DIR;
+  const targetDir = path.join(opts?.agentDir ?? PI_AGENT_DIR, 'agents');
+  mkdirSync(targetDir, { recursive: true });
+  for (const name of BUILTIN_PI_AGENT_NAMES) {
+    const source = path.join(defaultsDir, `${name}.md`);
+    const target = path.join(targetDir, `${name}.md`);
+    try {
+      copyFileSync(source, target, fsConstants.COPYFILE_EXCL);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+  }
+}
+
 // ─── Directory bootstrap ──────────────────────────────────────────
 
 export function ensurePIAgentDirs(): void {
   mkdirSync(PI_AGENT_DIR, { recursive: true });
   mkdirSync(PI_SESSIONS_DIR, { recursive: true });
+  ensurePIAgentRoles();
 }

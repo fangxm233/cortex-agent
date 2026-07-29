@@ -1,5 +1,5 @@
-// input:  PI extension API, MCP clients, loading policy
-// output: Retryable Cortex MCP tools forwarded into PI
+// input:  PI extension API, MCP clients, session privilege context
+// output: Retryable privilege-scoped Cortex MCP tools in PI
 // pos:    PI MCP subprocess and tool-registration bridge
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -82,18 +82,23 @@ async function spawnMcpClient(serverPath: string, serverName: string): Promise<M
 }
 
 function buildServerStates(env: NodeJS.ProcessEnv): ServerState[] {
+  const core: ServerState = { name: 'core', path: CORE_SERVER_PATH, handle: null };
+  if (env.CORTEX_PI_SUBAGENT === '1') return [core];
   const channel = env.SLACK_CHANNEL;
   const states: ServerState[] = [
-    { name: 'core', path: CORE_SERVER_PATH, handle: null },
+    core,
     { name: 'tasks', path: TASKS_SERVER_PATH, handle: null },
   ];
-  if (shouldLoadThreadControl(env.CORTEX_THREAD_ID)) {
-    states.push({ name: 'thread', path: THREAD_SERVER_PATH, handle: null });
+  const optional: Array<[boolean, ServerState]> = [
+    [shouldLoadThreadControl(env.CORTEX_THREAD_ID), { name: 'thread', path: THREAD_SERVER_PATH, handle: null }],
+    [true, { name: 'ext', path: EXT_SERVER_PATH, handle: null }],
+    [shouldLoadSlack(channel), { name: 'slack', path: SLACK_SERVER_PATH, handle: null }],
+    [shouldLoadFeishu(channel), { name: 'feishu', path: FEISHU_SERVER_PATH, handle: null }],
+    [shouldLoadWeb(channel), { name: 'web', path: WEB_SERVER_PATH, handle: null }],
+  ];
+  for (const [enabled, state] of optional) {
+    if (enabled) states.push(state);
   }
-  states.push({ name: 'ext', path: EXT_SERVER_PATH, handle: null });
-  if (shouldLoadSlack(channel)) states.push({ name: 'slack', path: SLACK_SERVER_PATH, handle: null });
-  if (shouldLoadFeishu(channel)) states.push({ name: 'feishu', path: FEISHU_SERVER_PATH, handle: null });
-  if (shouldLoadWeb(channel)) states.push({ name: 'web', path: WEB_SERVER_PATH, handle: null });
   return states;
 }
 

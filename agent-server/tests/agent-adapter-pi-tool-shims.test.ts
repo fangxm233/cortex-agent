@@ -1,5 +1,5 @@
 // input:  PIAdapter stub, fetch responses, extension-ui events
-// output: PI shims, web media/gates, retry and turn tests
+// output: PI shim gates, recursion, web, retry, and turn contracts
 // pos:    PI pseudo-tool and local web regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -267,7 +267,7 @@ test('I: makeToolGate — unset/empty env allows all pseudo-tools', () => {
   for (const env of [undefined, '', '   ']) {
     const gate = makeToolGate(env);
     for (const label of [
-      'AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'TodoWrite', 'WebFetch', 'WebSearch',
+      'Agent', 'AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'TodoWrite', 'WebFetch', 'WebSearch',
     ]) {
       assert.equal(gate(label), true, `${label} should be allowed when env=${JSON.stringify(env)}`);
     }
@@ -276,6 +276,7 @@ test('I: makeToolGate — unset/empty env allows all pseudo-tools', () => {
 
 test('I2: makeToolGate — coder allowlist excludes the three interaction tools', () => {
   const gate = makeToolGate(CODER_TOOLS);
+  assert.equal(gate('Agent'), true);
   assert.equal(gate('TodoWrite'), true);
   assert.equal(gate('WebFetch'), true);
   assert.equal(gate('WebSearch'), true);
@@ -300,6 +301,7 @@ test('J: toolShims registers only allowed tools under a coder allowlist', () => 
     assert.ok(!registered.includes('ask_user_question'), 'ask_user_question must NOT be registered');
     assert.ok(!registered.includes('enter_plan_mode'), 'enter_plan_mode must NOT be registered');
     assert.ok(!registered.includes('exit_plan_mode'), 'exit_plan_mode must NOT be registered');
+    assert.ok(registered.includes('agent'), 'agent must remain registered');
     assert.ok(registered.includes('todo_write'), 'todo_write must remain registered');
     assert.ok(registered.includes('web_fetch'), 'web_fetch must remain registered');
     assert.ok(registered.includes('web_search'), 'web_search must remain registered');
@@ -316,13 +318,32 @@ test('J2: toolShims registers all shim tools when env is unset', () => {
     const { pi, registered } = makeMockPi();
     toolShims(pi);
     for (const n of [
-      'ask_user_question', 'enter_plan_mode', 'exit_plan_mode', 'todo_write', 'web_fetch', 'web_search',
+      'agent', 'ask_user_question', 'enter_plan_mode', 'exit_plan_mode', 'todo_write', 'web_fetch', 'web_search',
     ]) {
       assert.ok(registered.includes(n), `${n} should be registered when no allowlist is set`);
     }
   } finally {
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
+  }
+});
+
+test('J2b: CORTEX_PI_SUBAGENT prevents recursive Agent registration', () => {
+  const previousAllowed = process.env.CORTEX_PI_ALLOWED_TOOLS;
+  const previousSubagent = process.env.CORTEX_PI_SUBAGENT;
+  process.env.CORTEX_PI_ALLOWED_TOOLS = 'Agent,TodoWrite,WebFetch';
+  process.env.CORTEX_PI_SUBAGENT = '1';
+  try {
+    const { pi, registered } = makeMockPi();
+    toolShims(pi);
+    assert.ok(!registered.includes('agent'));
+    assert.ok(registered.includes('todo_write'));
+    assert.ok(registered.includes('web_fetch'));
+  } finally {
+    if (previousAllowed === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
+    else process.env.CORTEX_PI_ALLOWED_TOOLS = previousAllowed;
+    if (previousSubagent === undefined) delete process.env.CORTEX_PI_SUBAGENT;
+    else process.env.CORTEX_PI_SUBAGENT = previousSubagent;
   }
 });
 
@@ -403,6 +424,7 @@ test('J4: toolShims excludes web tools when the allowlist omits them', () => {
   try {
     const { pi, registered } = makeMockPi();
     toolShims(pi);
+    assert.ok(!registered.includes('agent'));
     assert.ok(!registered.includes('web_fetch'));
     assert.ok(!registered.includes('web_search'));
   } finally {
