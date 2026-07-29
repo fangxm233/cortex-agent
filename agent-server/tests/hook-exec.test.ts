@@ -78,13 +78,14 @@ test('resolves a spawn error when the shell interpreter cannot be found', async 
   assert.match(result.error ?? '', /ENOENT/);
 });
 
-test('delivers the complete stdin payload before EOF', async () => {
-  const payload = 'line one\nline two\n';
+test('delivers every stdin payload byte before EOF', async () => {
+  const payload = ' line one\nline two \nμ\n';
   const result = await runHookProcess({
     command: 'node -e',
     args: [
-      "let input = ''; process.stdin.on('data', chunk => input += chunk);" +
-      "process.stdin.on('end', () => process.stdout.write(input));",
+      "const chunks = []; process.stdin.on('data', chunk => chunks.push(chunk));" +
+      "process.stdin.on('end', () => { const input = Buffer.concat(chunks);" +
+      "process.stdout.write(JSON.stringify({ hex: input.toString('hex'), bytes: input.length })); });",
     ],
     timeoutMs: 1_000,
     stdinPayload: payload,
@@ -92,7 +93,10 @@ test('delivers the complete stdin payload before EOF', async () => {
   });
 
   assert.equal(result.error, undefined);
-  assert.equal(result.stdout, payload.trim());
+  assert.deepEqual(JSON.parse(result.stdout), {
+    hex: Buffer.from(payload).toString('hex'),
+    bytes: Buffer.byteLength(payload),
+  });
 });
 
 test('passes configured args to the hook command as positional values', async () => {

@@ -1,12 +1,12 @@
-// input:  child processes, init CLI, server app, MCP configs
-// output: init/start lifecycle and config regeneration checks
+// input:  child processes, init CLI, server app, hook registry
+// output: init/start, config regeneration, and hook startup checks
 // pos:    Cortex init and startup integration tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync, statSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, existsSync, readFileSync, writeFileSync, rmSync, statSync, readdirSync } from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -253,6 +253,8 @@ test('Test 2: Server starts and shuts down cleanly in initialized environment', 
     const managerQaConfigPath = path.join(tempDir, 'config', 'mcp-config-manager-qa.json');
     rmSync(managerQaConfigPath);
     assert.equal(existsSync(managerQaConfigPath), false);
+    mkdirSync(path.join(tempDir, 'config', 'hooks'), { recursive: true });
+    writeFileSync(path.join(tempDir, 'config', 'hooks', 'zz-invalid.json'), '{bad json');
 
     // Fork app.ts directly with test platform
     const webhookPort = String(randomPort());
@@ -294,6 +296,8 @@ test('Test 2: Server starts and shuts down cleanly in initialized environment', 
     });
 
     assert.ok(ready, `Server did not emit readiness signal within 60s.\nstdout: ${stdout.slice(0, 2000)}\nstderr: ${stderr.slice(0, 2000)}`);
+    assert.match(stdout, /Startup: mounted \d+ hooks \(\d+ cc \/ \d+ cortex\)/);
+    assert.match(stderr, /\[hook-registry\] skipped zz-invalid\.json/);
     assert.ok(existsSync(managerQaConfigPath), 'startup must recreate manager-Q&A MCP config');
     const managerQaConfig = JSON.parse(readFileSync(managerQaConfigPath, 'utf-8'));
     assert.deepEqual(Object.keys(managerQaConfig.mcpServers), ['cortex-manager-qa']);
