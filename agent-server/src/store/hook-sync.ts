@@ -1,5 +1,5 @@
 // input:  shipped hook scripts/entries, data paths, atomicWrite
-// output: managed hook script and registry synchronization
+// output: managed hook sync and fail-soft diagnostics
 // pos:    Startup CalVer synchronization for shipped hook assets
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -32,19 +32,25 @@ export function parseHookVersion(src: string): string | null {
   return match ? match[1] : null;
 }
 
-async function listFiles(directory: string, suffix: string): Promise<string[]> {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function listFiles(directory: string, suffix: string): Promise<string[] | null> {
   try {
     const files = await fs.readdir(directory);
     return files.filter((file) => file.endsWith(suffix)).sort();
-  } catch {
-    return [];
+  } catch (error) {
+    log.error(`failed to read hook asset directory ${directory}: ${errorMessage(error)}`);
+    return null;
   }
 }
 
 async function readText(filePath: string): Promise<string | null> {
   try {
     return await fs.readFile(filePath, 'utf8');
-  } catch {
+  } catch (error) {
+    log.error(`failed to read hook asset ${filePath}: ${errorMessage(error)}`);
     return null;
   }
 }
@@ -81,7 +87,7 @@ export async function syncManagedHookScripts(opts: HookSyncDirs = {}): Promise<s
   const srcDir = opts.srcDir ?? path.join(DEFAULTS_DIR, 'hooks');
   const dstDir = opts.dstDir ?? HOOKS_DIR;
   const files = await listFiles(srcDir, '.mjs');
-  if (files.length === 0) return [];
+  if (!files || files.length === 0) return [];
   await fs.mkdir(dstDir, { recursive: true });
   const updated: string[] = [];
   for (const file of files) {
@@ -119,45 +125,55 @@ function deployedVersion(content: string): string | null {
   return typeof version === 'string' && parseCalVer(version) ? version : null;
 }
 
-async function shouldSyncEntry(dstPath: string, srcVersion: string): Promise<boolean> {
+type EntrySyncOutcome = 'updated' | 'unchanged' | 'failed';
+
+async function shouldSyncEntry(dstPath: string, srcVersion: string): Promise<boolean | null> {
   if (!existsSync(dstPath)) return true;
   const dstContent = await readText(dstPath);
-  if (dstContent === null) return false;
+  if (dstContent === null) return null;
   try {
     const dstVersion = deployedVersion(dstContent);
     return dstVersion !== null && compareHookCalVer(dstVersion, srcVersion) < 0;
   } catch {
-    return false;
+    return null;
   }
 }
 
-async function syncEntryFile(srcDir: string, dstDir: string, file: string): Promise<boolean> {
-  const srcContent = await readText(path.join(srcDir, file));
-  if (srcContent === null) return false;
+async function syncEntryFile(srcDir: string, dstDir: string, file: string): Promise<EntrySyncOutcome> {
+  const srcPath = path.join(srcDir, file);
+  const srcContent = await readText(srcPath);
+  if (srcContent === null) return 'failed';
   let srcVersion: string | null;
   try {
     srcVersion = managedSourceVersion(srcContent);
   } catch (error) {
-    log.error(`invalid managed hook entry ${file}: ${(error as Error).message}`);
-    return false;
+    log.error(`invalid managed hook entry ${srcPath}: ${errorMessage(error)}`);
+    return 'failed';
   }
-  if (!srcVersion) return false;
+  if (!srcVersion) return 'unchanged';
   const dstPath = path.join(dstDir, file);
-  if (!await shouldSyncEntry(dstPath, srcVersion)) return false;
-  return writeManaged(dstPath, srcContent, `hook entry ${file} → ${srcVersion}`);
+  const shouldSync = await shouldSyncEntry(dstPath, srcVersion);
+  if (shouldSync === null) return 'failed';
+  if (!shouldSync) return 'unchanged';
+  return await writeManaged(dstPath, srcContent, `hook entry ${file} → ${srcVersion}`)
+    ? 'updated'
+    : 'failed';
 }
 
 export async function syncManagedHookEntries(opts: HookSyncDirs = {}): Promise<string[]> {
   const srcDir = opts.srcDir ?? path.join(DEFAULTS_DIR, 'config', 'hooks');
   const dstDir = opts.dstDir ?? path.join(CONFIG_DIR, 'hooks');
   const files = await listFiles(srcDir, '.json');
-  if (files.length === 0) return [];
+  if (!files || files.length === 0) return [];
   await fs.mkdir(dstDir, { recursive: true });
   const updated: string[] = [];
+  let failed = false;
   for (const file of files) {
-    if (await syncEntryFile(srcDir, dstDir, file)) updated.push(file);
+    const outcome = await syncEntryFile(srcDir, dstDir, file);
+    if (outcome === 'updated') updated.push(file);
+    if (outcome === 'failed') failed = true;
   }
-  if (updated.length === 0) log.info('managed hook entries up to date');
+  if (updated.length === 0 && !failed) log.info('managed hook entries up to date');
   return updated;
 }
 

@@ -76,7 +76,9 @@ function nonEmptyString(value: unknown, field: string): string {
 
 function validateEvent(value: unknown): HookEvent {
   const event = nonEmptyString(value, 'event');
-  if (AGENT_EVENTS.has(event) || /^(?:cc|pi|cortex):.+$/.test(event)) return event as HookEvent;
+  if (AGENT_EVENTS.has(event)) return event as HookEvent;
+  const nativeEvent = event.match(/^(?:cc|pi|cortex):(.*)$/s);
+  if (nativeEvent?.[1].trim()) return event as HookEvent;
   throw new Error(`unsupported hook event "${event}"`);
 }
 
