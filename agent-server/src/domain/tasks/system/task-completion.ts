@@ -1,6 +1,6 @@
 // input:  node fs/path/child_process, core paths, task lifecycle
 // output: completeTask/uncompleteTask lifecycle transitions
-// pos:    verifies bounded commit and confined artifact evidence
+// pos:    resolves project commits and persisted artifact evidence
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
@@ -27,11 +27,32 @@ function extractExplicitShas(note: string): string[] {
   return [...new Set(shas)];
 }
 
-function hasVerifiedImplementationSha(note: string): boolean {
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function readJsonRecord(filePath: string): Record<string, unknown> {
+  try {
+    return asRecord(JSON.parse(fs.readFileSync(filePath, 'utf8'))) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function readConfiguredProjectRepos(project: string): string[] {
+  const data = readJsonRecord(path.join(STORE_DIR, 'project-dirs.json'));
+  const configured = asRecord(data[project]);
+  if (!configured) return [];
+  return Object.values(configured).filter((value): value is string => typeof value === 'string');
+}
+
+function hasVerifiedImplementationSha(note: string, project: string): boolean {
   const refs = extractExplicitShas(note).map((sha) => `${sha}^{commit}`);
   if (refs.length === 0) return false;
   const input = `${refs.join('\n')}\n`;
-  const repos = [...new Set([process.cwd(), INSTALL_ROOT, DATA_DIR])];
+  const repos = [...new Set([process.cwd(), INSTALL_ROOT, DATA_DIR, ...readConfiguredProjectRepos(project)])];
   return repos.some((repo) =>
     runGit(repo, ['cat-file', '--batch-check=%(objecttype)'], input)?.split('\n').includes('commit') === true,
   );
@@ -51,14 +72,32 @@ function hasDoneWhenArtifact(doneWhen: string | null): boolean {
   return tokens.some((token) => fs.existsSync(path.join(DATA_DIR, token)));
 }
 
-function readPersistedArtifactPath(threadId: string): string | null {
-  try {
-    const data = JSON.parse(fs.readFileSync(path.join(STORE_DIR, 'threads.json'), 'utf8'));
-    const artifactPath = data[threadId]?.artifactPath;
-    return typeof artifactPath === 'string' ? artifactPath : null;
-  } catch {
-    return null;
-  }
+function currentThreadArtifactPath(threads: Record<string, unknown>): string | null {
+  const threadId = process.env.CORTEX_THREAD_ID;
+  if (!threadId || !/^thr_[a-zA-Z0-9_-]+$/.test(threadId)) return null;
+  const persisted = asRecord(threads[threadId])?.artifactPath;
+  return typeof persisted === 'string'
+    ? persisted
+    : path.join(WORKSPACE_DIR, 'threads', threadId, 'artifact.md');
+}
+
+function matchingTaskArtifactPath(value: unknown, project: string, taskId: string): string | null {
+  const thread = asRecord(value);
+  const metadata = asRecord(thread?.metadata);
+  if (!thread || !metadata) return null;
+  const matches = metadata.taskId === taskId && metadata.taskProject === project;
+  return matches && typeof thread.artifactPath === 'string' ? thread.artifactPath : null;
+}
+
+function completionArtifactPaths(project: string, taskId: string | null): string[] {
+  const threads = readJsonRecord(path.join(STORE_DIR, 'threads.json'));
+  const current = currentThreadArtifactPath(threads);
+  const taskPaths = taskId
+    ? Object.values(threads)
+      .map((value) => matchingTaskArtifactPath(value, project, taskId))
+      .filter((value): value is string => value !== null)
+    : [];
+  return [...new Set([...(current ? [current] : []), ...taskPaths])];
 }
 
 function isInsideRoot(realFile: string, root: string): boolean {
@@ -80,20 +119,18 @@ function isNonEmptyAuthorizedFile(filePath: string): boolean {
   }
 }
 
-function hasCurrentThreadArtifact(): boolean {
-  const threadId = process.env.CORTEX_THREAD_ID;
-  if (!threadId || !/^thr_[a-zA-Z0-9_-]+$/.test(threadId)) return false;
-  const fallback = path.join(WORKSPACE_DIR, 'threads', threadId, 'artifact.md');
-  return isNonEmptyAuthorizedFile(readPersistedArtifactPath(threadId) ?? fallback);
+function hasCompletionArtifact(project: string, taskId: string | null): boolean {
+  return completionArtifactPaths(project, taskId).some(isNonEmptyAuthorizedFile);
 }
 
 function verifyCompletionEvidence(
+  project: string,
   taskId: string | null,
   doneWhen: string | null,
   completionNote: string,
 ): boolean {
-  return hasVerifiedImplementationSha(completionNote)
-    || hasCurrentThreadArtifact()
+  return hasVerifiedImplementationSha(completionNote, project)
+    || hasCompletionArtifact(project, taskId)
     || hasTaskCommit(taskId)
     || hasDoneWhenArtifact(doneWhen);
 }
@@ -117,11 +154,12 @@ function loadCompletableTask(taskText: string | null, project: string, taskId: s
 }
 
 function completionWarning(
-  task: Task, completionNote: string, skipVerify: boolean, skipVerifyReason: string | null,
+  project: string, task: Task, completionNote: string,
+  skipVerify: boolean, skipVerifyReason: string | null,
 ): string | null {
   if (skipVerify) return `verify skipped: ${skipVerifyReason ?? 'no reason given'}`;
-  if (verifyCompletionEvidence(task.id, task.done_when, completionNote)) return null;
-  return 'no evidence of work: no verified implementation SHA, current-thread artifact, matching git commit, or Done-when artifact. Re-run with --skip-verify to bypass.';
+  if (verifyCompletionEvidence(project, task.id, task.done_when, completionNote)) return null;
+  return 'no evidence of work: no verified implementation SHA, persisted thread artifact, matching git commit, or Done-when artifact. Re-run with --skip-verify to bypass.';
 }
 
 function markTaskCompleted(task: Task, completionNote: string, today: string): void {
@@ -144,7 +182,7 @@ function completeTask(
   const loaded = loadCompletableTask(taskText, project, taskId);
   if ('error' in loaded) return { success: false, message: loaded.error };
   const { task, tasks } = loaded;
-  const verifyWarning = completionWarning(task, completionNote, skipVerify, skipVerifyReason);
+  const verifyWarning = completionWarning(project, task, completionNote, skipVerify, skipVerifyReason);
   const today = todayISO();
   markTaskCompleted(task, completionNote, today);
   writeTasks(project, tasks);

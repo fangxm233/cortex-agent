@@ -7,7 +7,7 @@ Owns TASKS.yaml editing primitives, status transitions, locking, and remote run 
 |---|---|---|
 | cortex-run.ts | entry | launches and cancels remote task runs |
 | task-cli.ts | entry | task command line for reads and writes |
-| task-completion.ts | core | verifies confined evidence and completion state |
+| task-completion.ts | core | verifies project commits and confined artifacts |
 | task-id-utils.ts | util | generates and validates task ids |
 | task-lifecycle-edit.ts | core | reads, writes and edits task entries |
 | task-lock.ts | core | acquires and releases project task locks |

@@ -1,6 +1,6 @@
 // input:  Node test runner + task-system/task-completion API
 // output: completion lifecycle and evidence regression tests
-// pos:    verifies evidence roots, Git object types, and lifecycle
+// pos:    verifies project repos, artifacts, Git types, and lifecycle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -42,8 +42,7 @@ const P = '_test_comp_';
 let n = 0;
 function np(): string { return `${P}${++n}`; }
 
-function makeImplementationRepo(): { dir: string; sha: string; nonCommitShas: string[]; cleanup: () => void } {
-  const dir = fs.mkdtempSync(path.join(DATA_DIR, 'tmp', 'completion-evidence-'));
+function initializeImplementationRepo(dir: string): { sha: string; nonCommitShas: string[] } {
   execFileSync('git', ['init', '--quiet'], { cwd: dir });
   fs.writeFileSync(path.join(dir, 'implementation.txt'), 'verified implementation\n');
   execFileSync('git', ['add', 'implementation.txt'], { cwd: dir });
@@ -53,9 +52,13 @@ function makeImplementationRepo(): { dir: string; sha: string; nonCommitShas: st
     'commit', '--quiet', '-m', 'Implement completion evidence',
   ], { cwd: dir });
   const revParse = (ref: string) => execFileSync('git', ['rev-parse', ref], { cwd: dir, encoding: 'utf8' }).trim();
-  const sha = revParse('HEAD');
-  const nonCommitShas = [revParse('HEAD:implementation.txt'), revParse('HEAD^{tree}')];
-  return { dir, sha, nonCommitShas, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  return { sha: revParse('HEAD'), nonCommitShas: [revParse('HEAD:implementation.txt'), revParse('HEAD^{tree}')] };
+}
+
+function makeImplementationRepo(): { dir: string; sha: string; nonCommitShas: string[]; cleanup: () => void } {
+  const dir = fs.mkdtempSync(path.join(DATA_DIR, 'tmp', 'completion-evidence-'));
+  const evidence = initializeImplementationRepo(dir);
+  return { dir, ...evidence, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
 function setCurrentThreadId(threadId: string): () => void {
@@ -110,6 +113,49 @@ function probeExternalProjectArtifact(): any {
     const output = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', script], {
       cwd: process.cwd(), encoding: 'utf8',
       env: { ...process.env, CORTEX_HOME: home, CORTEX_PROJECTS_DIR: projects, CORTEX_THREAD_ID: 'thr_external' },
+    });
+    return JSON.parse(output);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+type ProbeArtifactState = 'non-empty' | 'empty' | 'missing';
+type ProbeShaState = 'valid' | 'invalid' | 'missing';
+
+function writeCompletionProbe(root: string, artifactState: ProbeArtifactState) {
+  const home = path.join(root, 'home');
+  const projects = path.join(root, 'projects');
+  const projectDir = path.join(projects, 'atlas');
+  const codeDir = path.join(root, 'code');
+  const artifactPath = path.join(home, 'tmp', 'threads', 'thr_persisted', 'artifact.md');
+  fs.mkdirSync(path.join(home, 'data'), { recursive: true });
+  fs.mkdirSync(projectDir, { recursive: true });
+  fs.mkdirSync(codeDir, { recursive: true });
+  const { sha } = initializeImplementationRepo(codeDir);
+  fs.writeFileSync(path.join(projectDir, 'TASKS.yaml'), 'tasks:\n  - id: a111\n    text: Task\n    why: test\n    done-when: done\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n');
+  fs.writeFileSync(path.join(home, 'data', 'project-dirs.json'), JSON.stringify({ atlas: { local: codeDir } }));
+  fs.writeFileSync(path.join(home, 'data', 'threads.json'), JSON.stringify({
+    thr_persisted: { artifactPath, metadata: { taskId: 'a111', taskProject: 'atlas' } },
+  }));
+  if (artifactState !== 'missing') {
+    fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+    fs.writeFileSync(artifactPath, artifactState === 'empty' ? '  \n' : 'Verified persisted work.\n');
+  }
+  return { home, projects, sha };
+}
+
+function probeCompletionEvidence(shaState: ProbeShaState, artifactState: ProbeArtifactState): any {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'completion-project-evidence-'));
+  const { home, projects, sha } = writeCompletionProbe(root, artifactState);
+  const noteSha = shaState === 'valid' ? sha : 'f'.repeat(40);
+  const note = shaState === 'missing' ? 'Implementation completed' : `Implementation SHA: ${noteSha}`;
+  const script = `import { completeTask } from './src/domain/tasks/system/task-completion.ts'; console.log(JSON.stringify(completeTask(null, 'atlas', ${JSON.stringify(note)}, 'a111')));`;
+  const env: NodeJS.ProcessEnv = { ...process.env, CORTEX_HOME: home, CORTEX_PROJECTS_DIR: projects };
+  delete env.CORTEX_THREAD_ID;
+  try {
+    const output = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', script], {
+      cwd: process.cwd(), encoding: 'utf8', env,
     });
     return JSON.parse(output);
   } finally {
@@ -346,6 +392,31 @@ test('completeTask rejects missing and empty current-thread artifacts', () => {
       restoreThreadId();
       fs.rmSync(artifactDir, { recursive: true, force: true });
     }
+  }
+});
+
+test('completeTask accepts configured repository and matching persisted artifact evidence together', () => {
+  const result = probeCompletionEvidence('valid', 'non-empty');
+  assert.equal(result.success, true);
+  assert.equal(result.verify_warning, null);
+});
+
+test('completeTask accepts a commit from the configured project repository without artifact evidence', () => {
+  const result = probeCompletionEvidence('valid', 'missing');
+  assert.equal(result.success, true);
+  assert.equal(result.verify_warning, null);
+});
+
+test('completeTask accepts a persisted task artifact without current-thread environment', () => {
+  const result = probeCompletionEvidence('missing', 'non-empty');
+  assert.equal(result.success, true);
+  assert.equal(result.verify_warning, null);
+});
+
+test('completeTask warns when configured commit and persisted artifact evidence are invalid or missing', () => {
+  for (const artifactState of ['missing', 'empty'] as const) {
+    const result = probeCompletionEvidence('invalid', artifactState);
+    assert.match(result.verify_warning as string, /no evidence/, artifactState);
   }
 });
 
