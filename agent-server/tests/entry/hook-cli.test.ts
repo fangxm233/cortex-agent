@@ -1,5 +1,5 @@
 // input:  hook CLI, registry sync, temporary hook/template files
-// output: cortex-hook command, mutation, execution, and package tests
+// output: CLI metadata, mutation, execution, and package tests
 // pos:    Verifies the declarative hook registry CLI contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -50,7 +50,9 @@ function registryEntry(id: string, extra: Record<string, unknown> = {}): Record<
 }
 
 function seedMountedHooks(fixture: Fixture): void {
-  writeJson(fixture.registryDir, '01-managed.json', registryEntry('managed', { version: '2026.7.30' }));
+  writeJson(fixture.registryDir, '01-managed.json', registryEntry('managed', {
+    blocking: { mode: 'webhook', ttlMin: 17 }, version: '2026.7.30',
+  }));
   writeJson(fixture.registryDir, '02-user.json', registryEntry('user'));
   writeJson(fixture.registryDir, '03-disabled.json', registryEntry('disabled', { enabled: false }));
   writeJson(fixture.templateDir, 'review.json', {
@@ -122,6 +124,7 @@ test('show returns the full registry or normalized template declaration', async 
   assert.equal(managed.hook.source, 'managed');
   assert.equal(managed.hook.version, '2026.7.30');
   assert.deepEqual(managed.hook.run, { command: 'true', timeout: 1 });
+  assert.deepEqual(managed.hook.blocking, { mode: 'webhook', ttlMin: 17 });
 
   const scoped = parseOutput(await runHookCli(
     ['show', '--id', 'template:review:end'], fixture.options,

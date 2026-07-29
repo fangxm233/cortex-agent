@@ -1,12 +1,12 @@
 // input:  AskUserQuestion and ExitPlanMode requests
-// output: Hook resolution and typed interaction events
+// output: Hook resolution, blocking TTL, and interaction events
 // pos:    PreToolUse interaction communication bridge
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
 import type { EventBus } from '@events/index.js';
 
-const TTL_MS = 30 * 60 * 1000; // 30 minutes — matches ASK_USER_QUESTION_TTL_MS
+export const TTL_MS = 30 * 60 * 1000; // 30 minutes — matches ASK_USER_QUESTION_TTL_MS
 
 interface PendingRequest {
   resolve: (data: any) => void;
