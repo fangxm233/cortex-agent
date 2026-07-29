@@ -1,5 +1,5 @@
-// input:  thread runner, HookBus registry entries, template-scoped hooks
-// output: lifecycle event payload, suspension/resume, and hook-agent regressions
+// input:  thread runner, HookBus registry entries, scoped hooks
+// output: lifecycle payload and scoped/per-call regressions
 // pos:    Verifies thread lifecycle hooks share the HookBus execution path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -213,6 +213,21 @@ function writeResultScript(filename: string, hookResult: HookResult): string {
     '#!/usr/bin/env node',
     'for await (const _chunk of process.stdin) {}',
     `process.stdout.write(${JSON.stringify(JSON.stringify(hookResult))});`,
+    '',
+  ].join('\n'), { mode: 0o644 });
+  return scriptPath;
+}
+
+function writeTaggedCaptureScript(filename: string, capturePath: string, tag: string): string {
+  const scriptPath = path.join(tmpRoot, filename);
+  fs.writeFileSync(scriptPath, [
+    '#!/usr/bin/env node',
+    'import { appendFileSync } from "node:fs";',
+    'let input = "";',
+    'for await (const chunk of process.stdin) input += chunk;',
+    'const payload = JSON.parse(input);',
+    `appendFileSync(${JSON.stringify(capturePath)}, JSON.stringify({ tag: ${JSON.stringify(tag)}, payload }) + "\\n");`,
+    'process.stdout.write(JSON.stringify({ insertAgent: false }));',
     '',
   ].join('\n'), { mode: 0o644 });
   return scriptPath;
@@ -488,6 +503,58 @@ test('task status script finds cortex-run state under the data directory', () =>
 
   assert.match(String(hookResult.prompt), /Auto-detected/);
   assert.match(String(hookResult.prompt), /active-run/);
+});
+
+function configureOrderedHooks(capturePath: string): RunThreadOptions {
+  const hook = (tag: string): ThreadHookConfig => ({
+    command: `node ${writeTaggedCaptureScript(`${tag}.mjs`, capturePath, tag)}`,
+    timeout: 1_000,
+  });
+  const template = getTemplate('lifecycle');
+  assert.ok(template);
+  template.hooks = {
+    onStart: hook('template-start'),
+    onTransition: hook('template-transition'),
+    onEnd: hook('template-end'),
+  };
+  const options = makeOptions('C-extra-runtime');
+  options.extraHooks = {
+    onStart: hook('extra-start'),
+    onTransition: hook('extra-transition'),
+    onEnd: hook('extra-end'),
+  };
+  return options;
+}
+
+function assertOrderedHookCaptures(observed: Array<Record<string, any>>, thread: ThreadRecord): void {
+  assert.deepEqual(observed.map(({ tag }) => tag), [
+    'template-start', 'extra-start',
+    'template-transition', 'extra-transition',
+    'template-end', 'extra-end',
+  ]);
+  assert.deepEqual(observed.map(({ payload }) => payload.phase), [
+    'start', 'start', 'transition', 'transition', 'end', 'end',
+  ]);
+  for (const { payload } of observed) {
+    assert.equal(payload.threadId, thread.id);
+    assert.equal(payload.templateName, 'lifecycle');
+    assert.equal(payload.project, 'extra-hooks-project');
+    assert.equal(payload.taskId, 'e3f4');
+  }
+}
+
+test('runThread executes per-call extraHooks after template hooks for every phase', async () => {
+  const capturePath = path.join(tmpRoot, 'scoped-order.jsonl');
+  const options = configureOrderedHooks(capturePath);
+  const thread = createTestThread('lifecycle', {
+    trigger: 'manual', taskId: 'e3f4', taskProject: 'extra-hooks-project',
+  });
+  queueAgentResult(result('backend-alpha', 'alpha done'));
+  queueAgentResult(result('backend-beta', 'beta done'));
+
+  await runThread(thread.id, options);
+
+  assertOrderedHookCaptures(captures(capturePath), thread);
 });
 
 // Compile-time contract: callers may still supply generic per-call lifecycle hooks.
