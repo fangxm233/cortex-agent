@@ -24,7 +24,7 @@ $CORTEX_HOME/
 │   ├── mcp-config-manager-qa.json # Shared manager-answer layer
 │   ├── mcp-config-thread.json    # Thread-control layer
 │   ├── mcp-config-tui.json       # TUI interaction layer
-│   └── session-hooks.json        # Session-level hook configuration
+│   └── hooks/                    # Hook registry — one JSON declaration per hook
 ├── data/
 │   ├── mode.json                 # Current runtime mode and profile
 │   ├── schedules.json            # Persistent scheduled task list
@@ -244,7 +244,8 @@ system documentation.
 ## defaults/config/ layout
 
 The `agent-server/defaults/` directory in the npm package contains
-shipped defaults that are copied to `$CORTEX_HOME/` during init:
+shipped defaults. Most are copied to `$CORTEX_HOME/` during init; the hook
+assets are additionally re-synced by the server on every startup:
 
 | Source | Destination | Overwrite behavior |
 |---|---|---|
@@ -253,11 +254,11 @@ shipped defaults that are copied to `$CORTEX_HOME/` during init:
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | Never |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | Only with `--force` |
 | `defaults/config/thread-templates.json` | `$CORTEX_HOME/config/thread-templates.json` | Only with `--force` |
-| `defaults/config/session-hooks.json` | `$CORTEX_HOME/config/session-hooks.json` | Only with `--force` |
+| `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | Per-file CalVer sync at every server start: added when missing, refreshed when the shipped `version` is newer. A declaration with no `version` — yours — is never overwritten |
 | `defaults/prompts/` | `$CORTEX_HOME/prompts/` | Per-file: new files always added, existing preserved unless `--force` |
 | `defaults/plugins/` | `$CORTEX_HOME/plugins/` | Per-file: new files always added, existing preserved unless `--force` |
 | `defaults/rules/` | `$CORTEX_HOME/rules/` | Per-file: new files always added, existing preserved unless `--force` |
-| `defaults/hooks/` | `$CORTEX_HOME/hooks/` | Per-file: never overwrite unless `--force` |
+| `defaults/hooks/` | `$CORTEX_HOME/hooks/` | Per-file at init: never overwrite unless `--force`. At every server start, a shipped script is re-copied unless the deployed file already carries an equal or newer `@cortex-hook-version` |
 | `defaults/data/schedules.json` | `$CORTEX_HOME/data/schedules.json` | Never (unless `--force`) |
 | `defaults/context/` | `$CORTEX_HOME/context/` | Scaffold files: never overwrite |
 
@@ -276,6 +277,10 @@ Config files (`thread-templates.json`, `budget.json`, etc.) require
 - **`thread-templates.json`** — read fresh on every thread launch.
 - **`.env`** — requires a daemon restart to pick up changes (loaded once
   at startup via dotenv).
+- **Hook declarations (`config/hooks/*.json`)** — the registry is re-read on
+  every agent spawn, so a new `agent:*` / `cc:*` / `pi:*` entry applies to the
+  next agent that starts. `cortex:*` entries are snapshotted at server start
+  and need a restart. See [hooks.md](./hooks.md).
 - **Hook scripts (`hooks/*.mjs`)** — read fresh on every hook invocation.
 - **Plugins, prompts, rules** — read fresh on each agent session spawn.
 
@@ -292,4 +297,4 @@ Config files (`thread-templates.json`, `budget.json`, etc.) require
 | `settings.json` | Claude hooks/permissions | `$CORTEX_HOME/.claude/settings.json` |
 | `mode.json` | Runtime mode | `$CORTEX_HOME/data/mode.json` |
 | `schedules.json` | Scheduled tasks | `$CORTEX_HOME/data/schedules.json` |
-| `session-hooks.json` | Session hooks | `$CORTEX_HOME/config/session-hooks.json` |
+| `hooks/*.json` | Hook declarations | `$CORTEX_HOME/config/hooks/` |
