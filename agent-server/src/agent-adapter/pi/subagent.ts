@@ -1,5 +1,5 @@
 // input:  PI role files, child_process, TypeBox, extension paths
-// output: Claude-compatible Agent tool backed by isolated PI children
+// output: Isolated PI Agent tool with bounded execution and usage
 // pos:    PI subagent orchestration, stream parsing, and usage accounting
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -153,7 +153,7 @@ function finiteNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-function addUsage(target: SubagentUsage, source: SubagentUsage): void {
+function addTurnUsage(target: SubagentUsage, source: SubagentUsage): void {
   target.input += source.input;
   target.output += source.output;
   target.cacheRead += source.cacheRead;
@@ -163,9 +163,19 @@ function addUsage(target: SubagentUsage, source: SubagentUsage): void {
   target.turns += source.turns;
 }
 
+function addChildUsage(target: SubagentUsage, source: SubagentUsage): void {
+  target.input += source.input;
+  target.output += source.output;
+  target.cacheRead += source.cacheRead;
+  target.cacheWrite += source.cacheWrite;
+  target.cost += source.cost;
+  target.contextTokens += source.contextTokens;
+  target.turns += source.turns;
+}
+
 function aggregateUsage(results: SubagentResult[]): SubagentUsage {
   const total = emptyUsage();
-  for (const result of results) addUsage(total, result.usage);
+  for (const result of results) addChildUsage(total, result.usage);
   return total;
 }
 
@@ -270,7 +280,7 @@ function buildChildArgs(
   promptFile: string | null,
   deps: SubagentToolDeps,
 ): string[] {
-  const args = ['--mode', 'json', '-p', '--no-session'];
+  const args = ['--mode', 'json', '-p', '--no-session', '--no-extensions'];
   const selection = selectedModel(task, role, ctx);
   if (selection.provider) args.push('--provider', selection.provider);
   if (selection.model) args.push('--model', selection.model);
@@ -310,7 +320,7 @@ function recordUsage(accumulator: ChildAccumulator, message: Record<string, unkn
   if (message.role !== 'assistant') return;
   const usage = message.usage as Record<string, unknown> | undefined;
   const cost = usage?.cost as Record<string, unknown> | undefined;
-  addUsage(accumulator.usage, {
+  addTurnUsage(accumulator.usage, {
     input: finiteNumber(usage?.input),
     output: finiteNumber(usage?.output),
     cacheRead: finiteNumber(usage?.cacheRead),
@@ -333,6 +343,21 @@ function stringOrPrevious(value: unknown, previous: string | undefined): string 
   return typeof value === 'string' ? value : previous;
 }
 
+function recordTerminalState(
+  accumulator: ChildAccumulator,
+  message: Record<string, unknown>,
+): void {
+  const stopReason = typeof message.stopReason === 'string' ? message.stopReason : undefined;
+  if (!stopReason) {
+    accumulator.errorMessage = stringOrPrevious(message.errorMessage, accumulator.errorMessage);
+    return;
+  }
+  accumulator.stopReason = stopReason;
+  accumulator.errorMessage = typeof message.errorMessage === 'string'
+    ? message.errorMessage
+    : undefined;
+}
+
 function recordAssistantMessage(
   accumulator: ChildAccumulator,
   message: Record<string, unknown>,
@@ -340,8 +365,7 @@ function recordAssistantMessage(
   if (message.role !== 'assistant') return;
   accumulator.output = textFromMessage(message) || accumulator.output;
   accumulator.model = stringOrPrevious(message.model, accumulator.model);
-  accumulator.stopReason = stringOrPrevious(message.stopReason, accumulator.stopReason);
-  accumulator.errorMessage = stringOrPrevious(message.errorMessage, accumulator.errorMessage);
+  recordTerminalState(accumulator, message);
 }
 
 function processEvent(accumulator: ChildAccumulator, line: string): void {
@@ -358,7 +382,10 @@ function isFailed(result: SubagentResult): boolean {
 }
 
 function resultText(result: SubagentResult): string {
-  return result.errorMessage || result.output || result.stderr || '(no output)';
+  if (isFailed(result)) {
+    return result.errorMessage || result.output || result.stderr || '(no output)';
+  }
+  return result.output || result.stderr || '(no output)';
 }
 
 function createChildResult(
@@ -423,10 +450,15 @@ function finishChild(
   state: ChildCollectionState,
   task: SubagentTask,
   code: number | null,
+  signal: NodeJS.Signals | null,
 ): SubagentResult {
   markChildClosed(state);
   if (state.buffer.trim()) processEvent(state.accumulator, state.buffer);
-  return createChildResult(task, state.accumulator, code ?? 0, state.stderr);
+  if (signal && !state.aborted) {
+    state.accumulator.stopReason = 'error';
+    state.accumulator.errorMessage ??= `Subagent terminated by signal ${signal}.`;
+  }
+  return createChildResult(task, state.accumulator, code ?? 1, state.stderr);
 }
 
 function collectChild(
@@ -448,15 +480,26 @@ function collectChild(
       signal?.removeEventListener('abort', onAbort);
       reject(error);
     });
-    child.once('close', (code) => {
+    child.once('close', (code, closeSignal) => {
       signal?.removeEventListener('abort', onAbort);
-      const result = finishChild(state, task, code);
+      const result = finishChild(state, task, code, closeSignal);
       if (state.aborted) reject(new Error('Subagent was aborted.'));
       else resolve(result);
     });
     if (signal?.aborted) onAbort();
     else signal?.addEventListener('abort', onAbort, { once: true });
   });
+}
+
+function failedChildResult(task: SubagentTask, error: unknown): SubagentResult {
+  const message = error instanceof Error ? error.message : String(error);
+  const accumulator: ChildAccumulator = {
+    output: '',
+    usage: emptyUsage(),
+    stopReason: 'error',
+    errorMessage: message,
+  };
+  return createChildResult(task, accumulator, 1, '');
 }
 
 async function runTask(
@@ -467,9 +510,14 @@ async function runTask(
   deps: SubagentToolDeps,
 ): Promise<SubagentResult> {
   const role = findRole(roles, task.subagent_type);
-  const result = await runChild(task, role, ctx, signal, deps);
-  if (!result.model) result.model = selectedModel(task, role, ctx).model;
-  return result;
+  try {
+    const result = await runChild(task, role, ctx, signal, deps);
+    if (!result.model) result.model = selectedModel(task, role, ctx).model;
+    return result;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return failedChildResult(task, error);
+  }
 }
 
 function parallelContent(results: SubagentResult[]): string {
@@ -561,6 +609,7 @@ async function executeInvocation(
   signal: AbortSignal | undefined,
   deps: SubagentToolDeps,
 ) {
+  for (const task of invocation.tasks) findRole(roles, task.subagent_type);
   if (invocation.mode === 'parallel') {
     const results = await executeParallel(invocation.tasks, roles, ctx, signal, deps);
     return buildToolResult(invocation.mode, results);

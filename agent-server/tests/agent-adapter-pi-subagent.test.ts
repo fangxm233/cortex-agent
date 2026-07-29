@@ -1,5 +1,5 @@
 // input:  PI subagent tool, stub child processes, temporary role files
-// output: PI child spawn, model, stream, concurrency, and abort contracts
+// output: PI spawn, validation, stream, failure, usage, and abort contracts
 // pos:    Regression tests for the PI Agent subagent tool
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -108,14 +108,19 @@ function singleParams(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function assistantEvent(text: string, usage: Record<string, unknown> = {}) {
+function assistantEvent(
+  text: string,
+  usage: Record<string, unknown> = {},
+  terminal: { stopReason?: string; errorMessage?: string } = {},
+) {
   return {
     type: 'message_end',
     message: {
       role: 'assistant',
       content: [{ type: 'text', text }],
       usage,
-      stopReason: 'stop',
+      stopReason: terminal.stopReason ?? 'stop',
+      ...(terminal.errorMessage ? { errorMessage: terminal.errorMessage } : {}),
     },
   };
 }
@@ -162,9 +167,16 @@ test('single child uses JSON/no-session extensions, strips thread env, and retur
     assert.equal(argValue(call.args, '--model'), 'explicit-model');
     assert.equal(call.args.includes('--provider'), false);
     assert.equal(argValue(call.args, '--tools'), 'read,grep');
+    assert.equal(call.args.includes('--no-extensions'), true);
+    assert.equal(call.args.includes('-e'), false);
     assert.deepEqual(
-      call.args.filter((arg) => arg === '/extensions/tool-shims.js' || arg === '/extensions/mcp-bridge.js'),
-      ['/extensions/tool-shims.js', '/extensions/mcp-bridge.js'],
+      call.args.flatMap((arg, index) => (
+        arg === '--extension' ? [arg, call.args[index + 1]] : []
+      )),
+      [
+        '--extension', '/extensions/tool-shims.js',
+        '--extension', '/extensions/mcp-bridge.js',
+      ],
     );
     assert.equal(call.options.env.CORTEX_PI_SUBAGENT, '1');
     assert.equal(call.options.env.CORTEX_THREAD_ID, undefined);
@@ -272,6 +284,47 @@ test('NDJSON parser accepts split chunks and a final unterminated record', async
   }
 });
 
+test('later successful retry replaces stale assistant terminal error state', async () => {
+  const harness = createHarness();
+  try {
+    const run = harness.tool.execute(
+      'tool-5b', singleParams(), undefined, undefined, context(harness.root),
+    );
+    await waitForCalls(harness.calls, 1);
+    const child = harness.calls[0].child;
+    child.stdout.write(`${JSON.stringify(assistantEvent(
+      'failed attempt',
+      {},
+      { stopReason: 'error', errorMessage: 'stale provider error' },
+    ))}\n`);
+    child.stdout.write(`${JSON.stringify(assistantEvent('recovered answer'))}\n`);
+    child.emit('close', 0);
+    const result = await run;
+    assert.equal(result.content[0].text, 'recovered answer');
+    assert.equal(result.details.results[0].stopReason, 'stop');
+    assert.equal(result.details.results[0].errorMessage, undefined);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('signal-terminated child is a failed result outside caller abort', async () => {
+  const harness = createHarness();
+  try {
+    const run = harness.tool.execute(
+      'tool-5c', singleParams(), undefined, undefined, context(harness.root),
+    );
+    await waitForCalls(harness.calls, 1);
+    harness.calls[0].child.emit('close', null, 'SIGKILL');
+    const result = await run;
+    assert.equal(result.details.results[0].exitCode, 1);
+    assert.equal(result.details.results[0].stopReason, 'error');
+    assert.match(result.content[0].text, /Agent failed: .*SIGKILL/i);
+  } finally {
+    harness.cleanup();
+  }
+});
+
 test('parallel mode starts eight children concurrently and preserves result order', async () => {
   const harness = createHarness();
   try {
@@ -295,6 +348,105 @@ test('parallel mode starts eight children concurrently and preserves result orde
     );
     assert.equal(result.details.usage.input, MAX_SUBAGENT_TASKS);
     assert.equal(result.details.usage.output, MAX_SUBAGENT_TASKS * 2);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('parallel aggregate sums independent child context snapshots', async () => {
+  const harness = createHarness();
+  try {
+    const run = harness.tool.execute('tool-6b', {
+      parallel: [
+        { description: 'First', prompt: 'One', subagent_type: 'explore' },
+        { description: 'Second', prompt: 'Two', subagent_type: 'explore' },
+      ],
+    }, undefined, undefined, context(harness.root));
+    await waitForCalls(harness.calls, 2);
+    finish(harness.calls[0].child, 'one', { totalTokens: 10 });
+    finish(harness.calls[1].child, 'two', { totalTokens: 20 });
+    const result = await run;
+    assert.equal(result.details.results[0].usage.contextTokens, 10);
+    assert.equal(result.details.results[1].usage.contextTokens, 20);
+    assert.equal(result.details.usage.contextTokens, 30);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('mode and required-field validation rejects before spawning', async () => {
+  const harness = createHarness();
+  const task = singleParams();
+  try {
+    await assert.rejects(
+      harness.tool.execute('tool-6c', {}, undefined, undefined, context(harness.root)),
+      /exactly one Agent mode/i,
+    );
+    await assert.rejects(
+      harness.tool.execute(
+        'tool-6d', { ...task, parallel: [task] }, undefined, undefined, context(harness.root),
+      ),
+      /exactly one Agent mode/i,
+    );
+    for (const key of ['description', 'prompt', 'subagent_type']) {
+      await assert.rejects(
+        harness.tool.execute(
+          `tool-6e-${key}`, singleParams({ [key]: '  ' }),
+          undefined, undefined, context(harness.root),
+        ),
+        new RegExp(`non-empty ${key}`, 'i'),
+      );
+    }
+    assert.equal(harness.calls.length, 0);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('parallel validates every role before spawning any child', async () => {
+  const harness = createHarness();
+  try {
+    await assert.rejects(
+      harness.tool.execute('tool-6f', {
+        parallel: [
+          { description: 'Valid', prompt: 'Run', subagent_type: 'explore' },
+          { description: 'Invalid', prompt: 'Do not run', subagent_type: 'missing' },
+        ],
+      }, undefined, undefined, context(harness.root)),
+      /Unknown subagent_type "missing"/,
+    );
+    assert.equal(harness.calls.length, 0);
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('parallel child spawn error becomes a failed result and awaits siblings', async () => {
+  const harness = createHarness();
+  try {
+    const run = harness.tool.execute('tool-6g', {
+      parallel: [
+        { description: 'Broken', prompt: 'Fail', subagent_type: 'explore' },
+        { description: 'Healthy', prompt: 'Finish', subagent_type: 'explore' },
+      ],
+    }, undefined, undefined, context(harness.root));
+    await waitForCalls(harness.calls, 2);
+    let settled = false;
+    const observed = run.then(
+      (result: any) => ({ result }),
+      (error: unknown) => ({ error }),
+    ).finally(() => { settled = true; });
+    harness.calls[0].child.emit('error', new Error('spawn failed'));
+    await new Promise((resolve) => setImmediate(resolve));
+    const settledBeforeSibling = settled;
+    finish(harness.calls[1].child, 'healthy answer');
+    const outcome = await observed;
+    assert.equal(settledBeforeSibling, false);
+    assert.equal('error' in outcome, false);
+    assert.match(outcome.result.content[0].text, /Parallel: 1\/2 succeeded/);
+    assert.equal(outcome.result.details.results[0].stopReason, 'error');
+    assert.match(outcome.result.details.results[0].errorMessage, /spawn failed/);
+    assert.equal(outcome.result.details.results[1].output, 'healthy answer');
   } finally {
     harness.cleanup();
   }
@@ -340,6 +492,48 @@ test('chain mode is sequential and substitutes previous output', async () => {
     const result = await run;
     assert.equal(result.content[0].text, 'second result');
     assert.equal(result.details.mode, 'chain');
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('non-zero child exit returns a failed Agent result', async () => {
+  const harness = createHarness();
+  try {
+    const run = harness.tool.execute(
+      'tool-8b', singleParams(), undefined, undefined, context(harness.root),
+    );
+    await waitForCalls(harness.calls, 1);
+    harness.calls[0].child.stderr.write('child process failed');
+    harness.calls[0].child.emit('close', 7);
+    const result = await run;
+    assert.equal(result.details.results[0].exitCode, 7);
+    assert.equal(result.content[0].text, 'Agent failed: child process failed');
+  } finally {
+    harness.cleanup();
+  }
+});
+
+test('chain stops after a terminal assistant error before spawning the next task', async () => {
+  const harness = createHarness();
+  try {
+    const run = harness.tool.execute('tool-8c', {
+      chain: [
+        { description: 'First', prompt: 'Fail.', subagent_type: 'explore' },
+        { description: 'Second', prompt: 'Never run {previous}', subagent_type: 'explore' },
+      ],
+    }, undefined, undefined, context(harness.root));
+    await waitForCalls(harness.calls, 1);
+    harness.calls[0].child.stdout.write(`${JSON.stringify(assistantEvent(
+      'failed response',
+      {},
+      { stopReason: 'error', errorMessage: 'provider rejected request' },
+    ))}\n`);
+    harness.calls[0].child.emit('close', 0);
+    const result = await run;
+    assert.equal(harness.calls.length, 1);
+    assert.equal(result.details.results.length, 1);
+    assert.equal(result.content[0].text, 'Agent failed: provider rejected request');
   } finally {
     harness.cleanup();
   }
