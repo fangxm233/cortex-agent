@@ -67,7 +67,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | RightPanel.tsx | view | Hosts thread, task and machine tabs with cost |
 | right-panel-vm.ts | vm | Formats thread, step, cost, age and machine text |
 | right-panel-vm.test.ts | test | Unit tests for the right panel view model |
-| RightThreadCard.tsx | view | Expands one thread into steps and activity rows |
+| RightThreadCard.tsx | view | Contains expanded step activity rows within cards |
+| RightThreadCard.layout.test.tsx | test | Browser-checks long subtask row containment |
 | RightMachinesTab.tsx | view | Lists machines with status, GPUs and live runs |
 | scope.ts | util | Maps active and history scope to status filters |
 | scope.test.ts | test | Unit tests for scope filters |

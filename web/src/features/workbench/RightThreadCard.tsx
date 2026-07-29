@@ -1,6 +1,6 @@
 // input:  ThreadDetail DTO, tRPC hooks, right-panel view models
-// output: RightThreadCard with internally composed runs and subtasks
-// pos:    Expanded thread card; presentational row helpers stay private
+// output: RightThreadCard and testable StepRow activity layout
+// pos:    Expanded thread card and browser-probed step row renderer
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useState } from 'react';
@@ -181,48 +181,40 @@ function ThreadActivityRows({
   );
 }
 
-function StepRow({
-  step,
-  isLast,
-  detail,
-  onOpenRun,
-}: {
+interface StepRowProps {
   step: ThreadStepDetail;
   isLast: boolean;
   detail: ThreadDetail;
   onOpenRun: (executionId: string) => void;
-}) {
+}
+
+function StepHeader({ label, meta, active, done }: { label: string; meta: string; active: boolean; done: boolean }) {
+  const labelColor = active ? 'var(--proto-ink)' : done ? 'var(--proto-muted)' : 'var(--proto-faint)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline' }}>
+      <span style={{ fontSize: 11.5, fontWeight: active ? 600 : 500, color: labelColor }}>{label}</span>
+      <span
+        style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: active ? 'var(--proto-accent)' : 'var(--proto-faint)' }}
+      >
+        {meta}
+      </span>
+    </div>
+  );
+}
+
+export function StepRow({ step, isLast, detail, onOpenRun }: StepRowProps) {
   const L = useVocab();
   const kind = stepDotKind(step);
   const active = kind === 'running';
   const runs = active ? dispatchesForStep(detail, step) : [];
   const subtasks = active ? (detail.subtasks ?? []) : [];
   const hasActivities = runs.length > 0 || subtasks.length > 0;
-  const meta = stepMeta(step);
+  const label = step.stage ?? `${L.rpStep} ${step.stepIndex + 1}`;
   return (
     <>
       <StepDot kind={kind} hasTail={!isLast} />
-      <div style={{ paddingBottom: isLast ? 4 : 9 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline' }}>
-          <span
-            style={{
-              fontSize: 11.5,
-              fontWeight: active ? 600 : 500,
-              color: active ? 'var(--proto-ink)' : kind === 'done' ? 'var(--proto-muted)' : 'var(--proto-faint)',
-            }}
-          >
-            {step.stage ?? `${L.rpStep} ${step.stepIndex + 1}`}
-          </span>
-          <span
-            style={{
-              marginLeft: 'auto',
-              font: "400 9.5px 'IBM Plex Mono',monospace",
-              color: active ? 'var(--proto-accent)' : 'var(--proto-faint)',
-            }}
-          >
-            {meta}
-          </span>
-        </div>
+      <div style={{ minWidth: 0, paddingBottom: isLast ? 4 : 9 }}>
+        <StepHeader label={label} meta={stepMeta(step)} active={active} done={kind === 'done'} />
         {hasActivities && <ThreadActivityRows runs={runs} subtasks={subtasks} onOpenRun={onOpenRun} />}
       </div>
     </>
