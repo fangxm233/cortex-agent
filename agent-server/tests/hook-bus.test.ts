@@ -30,6 +30,21 @@ function entry(id: string, extra: Partial<HookEntry> = {}): HookEntry {
   };
 }
 
+function deferredResult() {
+  let resolve!: (value: { stdout: string; stderr: string }) => void;
+  const promise = new Promise<{ stdout: string; stderr: string }>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+async function waitForCallCount(expected: number): Promise<void> {
+  for (let attempt = 0; attempt < 10 && runner.runHookProcess.mock.calls.length < expected; attempt++) {
+    await Promise.resolve();
+  }
+  assert.equal(runner.runHookProcess.mock.calls.length, expected);
+}
+
 beforeEach(() => {
   runner.runHookProcess.mockReset();
   runner.runHookProcess.mockResolvedValue({ stdout: '', stderr: '' });
@@ -73,7 +88,7 @@ test('runs normalized registry hooks before scoped hooks with correct timeout un
       entry('script', { run: { script: 'script.mjs', timeout: 2 } }),
       entry('default-timeout', { run: { command: 'raw-command' } }),
     ],
-    hooksDir: '/deployed/hooks',
+    hooksDir: '/deployed hooks',
   });
 
   const results = await emitCortexEvent(
@@ -89,8 +104,8 @@ test('runs normalized registry hooks before scoped hooks with correct timeout un
   ]);
   assert.deepEqual(runner.runHookProcess.mock.calls.map(([opts]) => opts), [
     {
-      command: 'node /deployed/hooks/script.mjs',
-      args: undefined,
+      command: 'node',
+      args: ['/deployed hooks/script.mjs'],
       timeoutMs: 2_000,
       stdinPayload: '{"source":"dispatch"}',
       env,
@@ -113,6 +128,34 @@ test('runs normalized registry hooks before scoped hooks with correct timeout un
       label: 'scoped',
     },
   ]);
+});
+
+test('does not start a later registry or scoped hook before the prior hook settles', async () => {
+  const first = deferredResult();
+  const second = deferredResult();
+  const scoped = deferredResult();
+  runner.runHookProcess
+    .mockReturnValueOnce(first.promise)
+    .mockReturnValueOnce(second.promise)
+    .mockReturnValueOnce(scoped.promise);
+  initHookBus({ entries: [entry('first'), entry('second')] });
+
+  const emitted = emitCortexEvent('cortex:thread.end', {}, {
+    scopedHooks: [{ id: 'scoped', command: 'scoped', timeoutMs: 10 }],
+  });
+
+  assert.deepEqual(runner.runHookProcess.mock.calls.map(([opts]) => opts.label), ['first']);
+  first.resolve({ stdout: '', stderr: '' });
+  await waitForCallCount(2);
+  assert.deepEqual(runner.runHookProcess.mock.calls.map(([opts]) => opts.label), ['first', 'second']);
+  second.resolve({ stdout: '', stderr: '' });
+  await waitForCallCount(3);
+  assert.deepEqual(
+    runner.runHookProcess.mock.calls.map(([opts]) => opts.label),
+    ['first', 'second', 'scoped'],
+  );
+  scoped.resolve({ stdout: '', stderr: '' });
+  assert.deepEqual(await emitted, [{ id: 'first' }, { id: 'second' }, { id: 'scoped' }]);
 });
 
 test('uses a caller timeout default only for registry hooks that omit one', async () => {
@@ -185,11 +228,30 @@ test('reports and logs each failure without rejecting or skipping later hooks', 
   assert.equal(errorLog.mock.calls.length, 2);
 });
 
-test('spawns nothing when an event has no subscribers', async () => {
+test('does not serialize or spawn when an event has no subscribers', async () => {
   initHookBus({ entries: [entry('other', { event: 'cortex:thread.start' })] });
+  const circular: Record<string, unknown> = {};
+  circular.self = circular;
 
-  const results = await emitCortexEvent('cortex:thread.end', {});
+  const results = await emitCortexEvent('cortex:thread.end', circular);
 
   assert.deepEqual(results, []);
+  assert.equal(runner.runHookProcess.mock.calls.length, 0);
+});
+
+test('reports payload serialization failure for each subscriber without spawning', async (t) => {
+  initHookBus({ entries: [entry('registry')] });
+  const circular: Record<string, unknown> = {};
+  circular.self = circular;
+  const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  t.onTestFinished(() => errorLog.mockRestore());
+
+  const results = await emitCortexEvent('cortex:thread.end', circular, {
+    scopedHooks: [{ id: 'scoped', command: 'scoped', timeoutMs: 10 }],
+  });
+
+  assert.deepEqual(results.map((result) => result.id), ['registry', 'scoped']);
+  assert.ok(results.every((result) => /circular/i.test(result.error ?? '')));
+  assert.equal(errorLog.mock.calls.length, 2);
   assert.equal(runner.runHookProcess.mock.calls.length, 0);
 });

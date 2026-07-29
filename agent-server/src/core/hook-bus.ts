@@ -48,12 +48,13 @@ function matchesPayload(
 }
 
 function registryHook(entry: HookEntry, defaultTimeoutMs: number): HookSpec {
-  const command = entry.run.script === undefined
-    ? entry.run.command
-    : `node ${path.join(hooksDirectory, entry.run.script)}`;
+  const scriptPath = entry.run.script === undefined
+    ? undefined
+    : path.join(hooksDirectory, entry.run.script);
   return {
     id: entry.id,
-    command,
+    command: scriptPath === undefined ? entry.run.command : 'node',
+    args: scriptPath === undefined ? undefined : [scriptPath],
     timeoutMs: entry.run.timeout === undefined
       ? defaultTimeoutMs
       : entry.run.timeout * 1_000,
@@ -119,6 +120,12 @@ export function initHookBus(opts: {
   hooksDirectory = opts.hooksDir ?? HOOKS_DIR;
 }
 
+function serializePayload(payload: Record<string, unknown>): string {
+  const serialized = JSON.stringify(payload);
+  if (serialized === undefined) throw new TypeError('Hook payload is not JSON-serializable');
+  return serialized;
+}
+
 export async function emitCortexEvent(
   event: `cortex:${string}`,
   payload: Record<string, unknown>,
@@ -129,14 +136,16 @@ export async function emitCortexEvent(
   },
 ): Promise<HookEmitResult[]> {
   const hooks = [
-    ...matchingRegistryHooks(
-      event,
-      payload,
-      opts?.defaultTimeoutMs ?? DEFAULT_REGISTRY_TIMEOUT_MS,
-    ),
+    ...matchingRegistryHooks(event, payload, opts?.defaultTimeoutMs ?? DEFAULT_REGISTRY_TIMEOUT_MS),
     ...(opts?.scopedHooks ?? []),
   ];
-  const stdinPayload = JSON.stringify(payload);
+  if (hooks.length === 0) return [];
+  let stdinPayload: string;
+  try {
+    stdinPayload = serializePayload(payload);
+  } catch (error) {
+    return hooks.map((hook) => failure(hook.id, error));
+  }
   const results: HookEmitResult[] = [];
   for (const hook of hooks) {
     results.push(await executeHook(hook, stdinPayload, opts?.env));
