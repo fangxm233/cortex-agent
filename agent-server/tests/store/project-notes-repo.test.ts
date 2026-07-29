@@ -90,6 +90,20 @@ test('CRUD edits, completes, reopens, deletes and clears completed notes', async
   assert.deepEqual(await repo.list(file), []);
 });
 
+test('repeating a completion state preserves stable timestamps', async () => {
+  const file = tempNotesPath();
+  const repo = deterministicRepo();
+  const created = await repo.add(file, 'Retry-safe completion');
+
+  const completed = await repo.setCompleted(file, created.id, true);
+  const repeatedCompleted = await repo.setCompleted(file, created.id, true);
+  assert.deepEqual(repeatedCompleted, completed);
+
+  const reopened = await repo.setCompleted(file, created.id, false);
+  const repeatedReopened = await repo.setCompleted(file, created.id, false);
+  assert.deepEqual(repeatedReopened, reopened);
+});
+
 test('unknown note ids fail without changing the file', async () => {
   const file = tempNotesPath();
   const repo = deterministicRepo();

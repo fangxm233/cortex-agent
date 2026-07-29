@@ -200,6 +200,7 @@ export class ProjectNotesRepository {
   async setCompleted(filePath: string, id: string, completed: boolean): Promise<ProjectNote> {
     return this.mutate(filePath, (notes) => {
       const found = findNote(notes, id);
+      if (found.note.completed === completed) return found.note;
       const now = this.now();
       const note = { ...found.note, completed, updatedAt: now, completedAt: completed ? now : null };
       notes[found.index] = note;

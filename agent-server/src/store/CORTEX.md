@@ -15,7 +15,7 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | pending-injection-repo.ts | store | Injected messages not yet consumed |
 | execution-repo.ts | store | Execution record persistence |
 | project-dir-repo.ts | store | Project to code directory mapping |
-| project-notes-repo.ts | store | Persists private project notes in Markdown |
+| project-notes-repo.ts | store | Persists private project notes with stable metadata in Markdown |
 | schedule-repo.ts | store | Scheduled tasks and rate limit windows |
 | cost-repo.ts | store | Cost records and budget persistence |
 | profile-repo.ts | store | Agent profiles with hot reload |
