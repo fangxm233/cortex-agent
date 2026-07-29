@@ -22,7 +22,7 @@ $CORTEX_HOME/
 │   ├── mcp-config-manager-qa.json # 共享 manager 回答分层
 │   ├── mcp-config-thread.json    # 线程控制分层
 │   ├── mcp-config-tui.json       # TUI 交互分层
-│   └── session-hooks.json        # 会话级钩子配置
+│   └── hooks/                    # 钩子注册表——每个钩子一个 JSON 声明
 ├── data/
 │   ├── mode.json                 # 当前运行时模式和配置
 │   ├── schedules.json            # 持久化的调度任务列表
@@ -213,7 +213,7 @@ $CORTEX_HOME/
 
 ## defaults/config/ 布局
 
-npm 包中的 `agent-server/defaults/` 目录包含在 init 期间复制到 `$CORTEX_HOME/` 的发布默认值：
+npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。多数在 init 期间复制到 `$CORTEX_HOME/`；钩子资产还会在服务器每次启动时重新同步：
 
 | 源 | 目标 | 覆盖行为 |
 |---|---|---|
@@ -222,11 +222,11 @@ npm 包中的 `agent-server/defaults/` 目录包含在 init 期间复制到 `$CO
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | 从不 |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | 仅 `--force` |
 | `defaults/config/thread-templates.json` | `$CORTEX_HOME/config/thread-templates.json` | 仅 `--force` |
-| `defaults/config/session-hooks.json` | `$CORTEX_HOME/config/session-hooks.json` | 仅 `--force` |
+| `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | 每次服务器启动时逐文件按 CalVer 同步：缺失则添加，发布的 `version` 更新则刷新。没有 `version` 的声明（你自己的）永不被覆盖 |
 | `defaults/prompts/` | `$CORTEX_HOME/prompts/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
 | `defaults/plugins/` | `$CORTEX_HOME/plugins/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
 | `defaults/rules/` | `$CORTEX_HOME/rules/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
-| `defaults/hooks/` | `$CORTEX_HOME/hooks/` | 逐文件：从不覆盖除非 `--force` |
+| `defaults/hooks/` | `$CORTEX_HOME/hooks/` | init 时逐文件：从不覆盖除非 `--force`。每次服务器启动时，除非已部署文件带有相等或更新的 `@cortex-hook-version`，否则重新复制发布的脚本 |
 | `defaults/data/schedules.json` | `$CORTEX_HOME/data/schedules.json` | 从不（除非 `--force`） |
 | `defaults/context/` | `$CORTEX_HOME/context/` | 脚手架文件：从不覆盖 |
 
@@ -238,6 +238,7 @@ npm 包中的 `agent-server/defaults/` 目录包含在 init 期间复制到 `$CO
 - **`profiles.json`** — 每次生成智能体时重新读取。更改配置无需重启。
 - **`thread-templates.json`** — 每次启动线程时重新读取。
 - **`.env`** — 需要守护进程重启才能生效（启动时通过 dotenv 加载一次）。
+- **钩子声明（`config/hooks/*.json`）** — 注册表在每次智能体生成时重新读取，因此新增的 `agent:*` / `cc:*` / `pi:*` 条目对下一个启动的智能体生效。`cortex:*` 条目在服务器启动时被快照，需重启才生效。参见 [hooks.md](./hooks.md)。
 - **钩子脚本（`hooks/*.mjs`）** — 每次钩子调用时重新读取。
 - **插件、提示、规则** — 每次智能体会话生成时重新读取。
 
@@ -254,4 +255,4 @@ npm 包中的 `agent-server/defaults/` 目录包含在 init 期间复制到 `$CO
 | `settings.json` | Claude 钩子/权限 | `$CORTEX_HOME/.claude/settings.json` |
 | `mode.json` | 运行时模式 | `$CORTEX_HOME/data/mode.json` |
 | `schedules.json` | 调度任务 | `$CORTEX_HOME/data/schedules.json` |
-| `session-hooks.json` | 会话钩子 | `$CORTEX_HOME/config/session-hooks.json` |
+| `hooks/*.json` | 钩子声明 | `$CORTEX_HOME/config/hooks/` |
