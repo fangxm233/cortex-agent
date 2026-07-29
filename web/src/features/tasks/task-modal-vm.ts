@@ -1,5 +1,5 @@
 // input:  task DTO and project task list
-// output: task detail status, fields, dependencies, and action guards
+// output: Stored fields, runtime pill, deps, action guards
 // pos:    Pure view model for the desktop task modal
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -48,6 +48,7 @@ export interface TaskModalVm {
   priColor: string;
   fields: TaskModalField[];
   deps: TaskModalDep[];
+  hasDependencies: boolean;
   canUnblock: boolean;
   completable: boolean;
   completeBg: string;
@@ -105,7 +106,7 @@ export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
       v: task.priority,
       vColor: task.priority === 'high' ? '#C03D33' : '#191C22',
     },
-    { k: 'status', v: statusKind(task), vColor: '#191C22' },
+    { k: 'status', v: task.status, vColor: '#191C22' },
     { k: 'template', v: task.template, vColor: '#191C22' },
     { k: 'gpu', v: '—', vColor: '#B6BDC9' },
     {
@@ -148,6 +149,7 @@ export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
     priColor: priorityColor(task.priority),
     fields,
     deps: [...upstream, ...downstream],
+    hasDependencies: upstream.length + downstream.length > 0,
     canUnblock: task.blockedBy != null,
     completable,
     completeBg: completable ? '#4655D4' : '#B6BDC9',

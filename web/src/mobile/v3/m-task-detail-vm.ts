@@ -1,13 +1,10 @@
-// Pure view-model for the 1h 任务详情 screen (scheme-mobile.dc.html 1h L440-484). Maps the REAL
-// `tasks.list` (found by id, scoped to the current project) + `tasks.verification` (done-when evidence
-// + per-task dispatch history) into the drill page's structured, language-neutral shape. The View
-// (MTaskDetailView) localizes the enum kinds; this module stays framework- and copy-free so the
-// DTO→render mapping — including every honest-placeholder branch — is unit-tested in isolation.
-//
-// Discipline (守则11 / honest gaps): only REAL fields are surfaced. 来源 会话 (source session) has no
-// DTO field → not modeled. 步骤 N/M (step fraction) has no source → not modeled. The scheme's
-// T-041/thr_8f2c/T-038 are MOCKS. Where a source is null/[], the flag/null is exposed so the View
-// renders an honest placeholder, never fabricated data.
+// input:  TaskInfo list and task verification evidence
+// output: Task fields, deps, claim, and history model
+// pos:    Pure view model for the mobile task detail screen
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+// Maps tasks.list plus tasks.verification into a language-neutral detail model. Only fields backed
+// by the DTO are surfaced; missing evidence remains null or empty for an honest view placeholder.
 import type { TaskInfo, TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
 
@@ -71,6 +68,10 @@ export interface MTaskDetailVm {
   displayId: string;
   /** Real TaskInfo.text. */
   text: string;
+  /** Persisted task status from TASKS.yaml. */
+  status: TaskInfo['status'];
+  /** Exact task template from TASKS.yaml. */
+  template: string;
   statusKind: MTaskStatusKind;
   priority: TaskInfo['priority'];
   /** Real TaskInfo.doneWhen; null → honest gap in the View. */
@@ -87,6 +88,8 @@ const NOT_FOUND: MTaskDetailVm = {
   found: false,
   displayId: '',
   text: '',
+  status: 'open',
+  template: '',
   statusKind: 'waiting',
   priority: 'medium',
   doneWhen: null,
@@ -146,6 +149,8 @@ export function buildTaskDetailVm(
     found: true,
     displayId: `T-${task.id}`,
     text: task.text,
+    status: task.status,
+    template: task.template,
     statusKind: taskStatusKind(task),
     priority: task.priority,
     doneWhen: task.doneWhen,

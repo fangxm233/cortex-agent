@@ -1,3 +1,8 @@
+// input:  Task detail model, copy, navigation callbacks
+// output: Read-only mobile task detail screen
+// pos:    Presentational view for mobile task details
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1h L440-484)
 // Presentational view for the 1h 任务详情 drill page. Pure — takes a built MTaskDetailVm + a copy
 // table + nav callbacks. Every px/hex/font is lifted 1:1 from the scheme's inner data-screen-label
@@ -28,7 +33,10 @@ export interface MTaskDetailCopy {
   claimPrefix: string;
   open: string;
   priorityLabel: string;
+  statusLabel: string;
+  templateLabel: string;
   depsLabel: string;
+  depsEmpty: string;
   historyLabel: string;
   historyEmpty: string;
   footer: string;
@@ -46,7 +54,10 @@ export const ZH_COPY: MTaskDetailCopy = {
   claimPrefix: '认领',
   open: '打开 ›',
   priorityLabel: '优先级',
+  statusLabel: '状态',
+  templateLabel: '模板',
   depsLabel: '依赖',
+  depsEmpty: '无依赖',
   historyLabel: '历史',
   historyEmpty: '暂无派发历史',
   footer: '只读 — 编辑 / 派发 / 取消在桌面或对话内完成',
@@ -64,7 +75,10 @@ export const EN_COPY: MTaskDetailCopy = {
   claimPrefix: 'claimed',
   open: 'open ›',
   priorityLabel: 'Priority',
+  statusLabel: 'Status',
+  templateLabel: 'Template',
   depsLabel: 'Depends',
+  depsEmpty: 'No dependencies',
   historyLabel: 'History',
   historyEmpty: 'No dispatch history',
   footer: 'Read-only — edit / dispatch / cancel on desktop or in chat',
@@ -138,25 +152,43 @@ export function MTaskDetailView({
     </MDrillHeader>
   );
 
-  // fields card rows — 优先级 always; 依赖 only when there are deps (来源 is a GAP → omitted).
-  const fieldRows: Array<{ key: string; node: ReactNode }> = [];
-  fieldRows.push({
-    key: 'priority',
-    node: (
-      <>
-        <span style={{ fontSize: 12, color: MC.muted, width: 52, flex: 'none' }}>{copy.priorityLabel}</span>
-        <span style={{ fontSize: 12, color: MC.body, fontWeight: 600 }}>{copy.priority[vm.priority]}</span>
-      </>
-    ),
-  });
-  if (vm.deps.length > 0) {
-    fieldRows.push({
+  const fieldRows: Array<{ key: string; node: ReactNode }> = [
+    {
+      key: 'priority',
+      node: (
+        <>
+          <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.priorityLabel}</span>
+          <span style={{ fontSize: 12, color: MC.body, fontWeight: 600 }}>{copy.priority[vm.priority]}</span>
+        </>
+      ),
+    },
+    {
+      key: 'status',
+      node: (
+        <>
+          <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.statusLabel}</span>
+          <span style={{ font: `500 11px ${MONO}`, color: MC.body }}>{vm.status}</span>
+        </>
+      ),
+    },
+    {
+      key: 'template',
+      node: (
+        <>
+          <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.templateLabel}</span>
+          <span style={{ font: `500 11px ${MONO}`, color: MC.body, overflowWrap: 'anywhere' }}>{vm.template}</span>
+        </>
+      ),
+    },
+    {
       key: 'deps',
       node: (
         <>
-          <span style={{ fontSize: 12, color: MC.muted, width: 52, flex: 'none' }}>{copy.depsLabel}</span>
+          <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.depsLabel}</span>
           <span style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-            {vm.deps.map((d) => (
+            {vm.deps.length === 0 ? (
+              <span style={{ fontSize: 11, color: MC.faint }}>{copy.depsEmpty}</span>
+            ) : vm.deps.map((d) => (
               <span key={d.id} style={{ font: `500 11px ${MONO}`, color: d.known ? DEP_COLOR[d.statusKind] : MC.faint }}>
                 {d.displayId}
                 {d.known ? ` · ${copy.status[d.statusKind]}` : ''}
@@ -165,8 +197,8 @@ export function MTaskDetailView({
           </span>
         </>
       ),
-    });
-  }
+    },
+  ];
 
   return (
     <MScreen label="1h 任务详情" header={header}>

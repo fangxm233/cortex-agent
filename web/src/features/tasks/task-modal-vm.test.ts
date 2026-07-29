@@ -1,5 +1,5 @@
 // input:  task lifecycle, dependency graph, and claim state
-// output: semantic task-modal status, dependency, and action models
+// output: Stored task fields, deps, and action guard tests
 // pos:    Pure task-modal behavior tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -30,15 +30,19 @@ function fieldValue(t: TaskInfo, key: string): string | undefined {
   return buildTaskModalVm(t, []).fields.find((field) => field.k === key)?.v;
 }
 
-describe('buildTaskModalVm status precedence', () => {
-  it.each([
-    [task({ status: 'done', blockedBy: 'T-1', claimedBy: 'thr_x', actionable: true }), 'done'],
-    [task({ blockedBy: 'T-1', claimedBy: 'thr_x', actionable: true }), 'blocked'],
-    [task({ claimedBy: 'thr_x', actionable: true }), 'in-progress'],
-    [task({ actionable: true }), 'actionable'],
-    [task({}), 'waiting'],
-  ])('derives %s as %s', (input, expected) => {
-    expect(fieldValue(input, 'status')).toBe(expected);
+describe('buildTaskModalVm persisted fields', () => {
+  it('shows the stored status instead of the derived runtime state', () => {
+    const open = task({ status: 'open', blockedBy: 'T-1', claimedBy: 'thr_x', actionable: true });
+    expect(fieldValue(open, 'status')).toBe('open');
+    expect(fieldValue(task({ status: 'done' }), 'status')).toBe('done');
+  });
+
+  it('shows the task template verbatim', () => {
+    expect(fieldValue(task({ template: 'manager' }), 'template')).toBe('manager');
+  });
+
+  it('reports when the task has no dependencies', () => {
+    expect(buildTaskModalVm(task({}), []).hasDependencies).toBe(false);
   });
 });
 

@@ -1,3 +1,8 @@
+// input:  TaskInfo and task verification fixtures
+// output: Task field, dependency, claim, and history tests
+// pos:    Mobile task-detail view-model regression tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo, TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
 import { buildTaskDetailVm, formatElapsed } from './m-task-detail-vm';
@@ -71,11 +76,18 @@ describe('buildTaskDetailVm', () => {
     expect(vm.found).toBe(false);
   });
 
-  it('maps the real id, text, doneWhen and derives the in-progress status', () => {
-    const vm = buildTaskDetailVm('001', [task({ claimedBy: 'exec_dispatch_x' })], null, NOW);
+  it('maps the real id, text, status, template, doneWhen and derived runtime status', () => {
+    const vm = buildTaskDetailVm(
+      '001',
+      [task({ status: 'open', template: 'manager', claimedBy: 'exec_dispatch_x' })],
+      null,
+      NOW,
+    );
     expect(vm.found).toBe(true);
     expect(vm.displayId).toBe('T-001');
     expect(vm.text).toContain('DR sweep');
+    expect(vm.status).toBe('open');
+    expect(vm.template).toBe('manager');
     expect(vm.doneWhen).toContain('8 seed curves');
     expect(vm.statusKind).toBe('in-progress');
   });

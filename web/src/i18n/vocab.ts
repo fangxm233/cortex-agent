@@ -1,6 +1,6 @@
-// input:  user-selected language and product copy keys for desktop/mobile surfaces
-// output: shape-checked EN/ZH vocabulary including DEBUG labels/counts
-// pos:    single source of localized UI copy; active selection is owned by LangProvider
+// input:  Selected language and shared product copy keys
+// output: Shape-checked English and Chinese vocabulary
+// pos:    Shared source of localized UI copy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 export const en = {
@@ -271,6 +271,7 @@ export const en = {
   tkNoDispatches: 'no dispatches recorded for this task',
   tkFields: 'Fields',
   tkDependencies: 'Dependencies',
+  tkNoDependencies: 'No dependencies',
   ovLast14Days: 'Last 14 days',
   ovAvg: 'avg',
   ovGitBacked: 'git-backed',
@@ -822,6 +823,7 @@ export const zh: Record<keyof Vocab, string> = {
   tkNoDispatches: '该任务未记录派发',
   tkFields: '字段',
   tkDependencies: '依赖',
+  tkNoDependencies: '无依赖',
   ovLast14Days: '最近 14 天',
   ovAvg: '平均',
   ovGitBacked: 'Git 托管',

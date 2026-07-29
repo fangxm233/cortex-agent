@@ -1,3 +1,8 @@
+// input:  TaskInfo, task verification query, task mutations
+// output: Task detail modal with fields, deps, and actions
+// pos:    Desktop task detail overlay
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
@@ -354,7 +359,7 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
               <div
                 style={{ padding: '10px 15px', display: 'flex', flexDirection: 'column', gap: 5 }}
               >
-                {tm.deps.map((dp) => (
+                {tm.hasDependencies ? tm.deps.map((dp) => (
                   <div
                     key={`${dp.label}:${dp.id}`}
                     style={{
@@ -401,7 +406,9 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                       {dp.label}
                     </span>
                   </div>
-                ))}
+                )) : (
+                  <GapNote>— {L.tkNoDependencies}</GapNote>
+                )}
               </div>
             </div>
 

@@ -8,9 +8,9 @@ A detail modal shows fields, dependencies, completion evidence and dispatch hist
 | TasksPage.tsx | entry | Tasks route page wrapping the tasks panel |
 | TasksPanel.tsx | core | Grouped task list with mutations and modal |
 | TaskRow.tsx | view | One task card with lifecycle dot and metadata |
-| TaskModal.tsx | view | Task detail modal with complete and unblock |
-| task-modal-vm.ts | vm | Builds detail fields, pill and dependencies |
-| task-modal-vm.test.ts | test | Unit tests for the task modal view model |
+| TaskModal.tsx | view | Task detail modal with fields, deps and actions |
+| task-modal-vm.ts | vm | Builds stored fields, runtime pill and deps |
+| task-modal-vm.test.ts | test | Guards task modal fields, deps and actions |
 | group-tasks.ts | vm | Buckets tasks into lifecycle groups and counts |
 | group-tasks.test.ts | test | Unit tests for task grouping |
 | task-verification-vm.ts | vm | Builds completion evidence and dispatch rows |
