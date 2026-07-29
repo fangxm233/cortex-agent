@@ -6,8 +6,8 @@ Managed declarative hooks shipped into the user hook registry.
 |---|---|---|
 | 01-sensitive-file-edit.json | guard | Protects sensitive file edits |
 | 02-tasks-yaml-guard.json | guard | Protects task files on Claude |
-| 03-ask-user-question-hook.json | bridge | Routes questions through the webhook |
-| 04-exit-plan-mode-hook.json | bridge | Routes plan approval through the webhook |
+| 03-ask-user-question-hook.json | bridge | Routes Claude questions through the webhook |
+| 04-exit-plan-mode-hook.json | bridge | Routes Claude plan approval through the webhook |
 | 05-memory-ref-tracker.json | tracker | Tracks memory reference reads |
 | 06-rules-loader.json | loader | Loads matching rules after reads |
 | 07-session-activity-tracker.json | tracker | Records session tool activity |

@@ -12,7 +12,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-event-parser.test.ts | test | PI RPC to normalized event translation |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
-| agent-adapter-pi-hook-registry.test.ts | test | PI registry mapping and data-driven dispatch |
+| agent-adapter-pi-hook-registry.test.ts | test | PI native contracts and interaction dispatch |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
 | agent-adapter-pi-streaming.test.ts | test | PI assistant delta streaming emission |
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |

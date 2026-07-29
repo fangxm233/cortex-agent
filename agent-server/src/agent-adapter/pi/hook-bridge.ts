@@ -1,6 +1,6 @@
 // input:  PI ExtensionAPI, declarative hook registry
-// output: Registry-driven PI hook event handlers
-// pos:    Compiles Cortex hook declarations for the PI process
+// output: Ordered PI hook handlers with native results and mutations
+// pos:    Compiles registry entries into PI event handlers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawnSync } from 'node:child_process';
@@ -146,13 +146,19 @@ function hookEnvironment(sessionId: string): NodeJS.ProcessEnv {
   };
 }
 
-function parseHookOutput(stdout: string | null): HookResult {
-  if (!stdout) return {};
+function parseHookOutput(stdout: string | null): unknown {
+  if (!stdout?.trim()) return undefined;
   try {
-    return JSON.parse(stdout.trim()) as HookResult;
+    return JSON.parse(stdout.trim()) as unknown;
   } catch {
-    return {};
+    return undefined;
   }
+}
+
+function failedProcess(status: number | null, stderr: string | null): Error | null {
+  if (status === 0) return null;
+  const detail = stderr?.trim() ? `: ${stderr.trim()}` : '';
+  return new Error(`exited with code ${status}${detail}`);
 }
 
 function spawnHook(
@@ -160,7 +166,7 @@ function spawnHook(
   args: string[],
   payload: ClaudeHookPayload | Record<string, unknown>,
   timeoutMs: number,
-): HookResult {
+): unknown {
   const result = spawnSync(command, args, {
     input: JSON.stringify(payload),
     encoding: 'utf8',
@@ -168,7 +174,14 @@ function spawnHook(
     env: hookEnvironment(payload.session_id as string),
   });
   if (result.error) throw result.error;
+  const failure = failedProcess(result.status, result.stderr);
+  if (failure) throw failure;
   return parseHookOutput(result.stdout);
+}
+
+function asHookResult(value: unknown): HookResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  return value as HookResult;
 }
 
 export function runHookScript(
@@ -176,13 +189,13 @@ export function runHookScript(
   payload: ClaudeHookPayload,
   timeoutMs = 30_000,
 ): HookResult {
-  return spawnHook(process.execPath, [scriptPath], payload, timeoutMs);
+  return asHookResult(spawnHook(process.execPath, [scriptPath], payload, timeoutMs));
 }
 
 function runHookEntry(
   entry: HookEntry,
   payload: ClaudeHookPayload | Record<string, unknown>,
-): HookResult {
+): unknown {
   const timeoutMs = (entry.run.timeout ?? 30) * 1_000;
   try {
     if (entry.run.script) {
@@ -191,7 +204,7 @@ function runHookEntry(
     return spawnHook('sh', ['-c', entry.run.command!], payload, timeoutMs);
   } catch (error) {
     log.error(`${entry.id} error:`, error);
-    return {};
+    return undefined;
   }
 }
 
@@ -215,18 +228,6 @@ function entriesForEvent(eventName: string): HookEntry[] {
     { backend: 'pi' },
   );
   return entries.filter((entry) => nativeEventFor(entry) === eventName);
-}
-
-function groupByNativeEvent(entries: HookEntry[]): Map<string, HookEntry[]> {
-  const grouped = new Map<string, HookEntry[]>();
-  for (const entry of entries) {
-    const eventName = nativeEventFor(entry);
-    if (!eventName) continue;
-    const eventEntries = grouped.get(eventName) ?? [];
-    eventEntries.push(entry);
-    grouped.set(eventName, eventEntries);
-  }
-  return grouped;
 }
 
 function toolPayload(
@@ -321,7 +322,7 @@ export function handlePreToolUse(
   for (const entry of entries) {
     if (!matchesTool(entry, event.toolName)) continue;
     const payload = payloadForToolEntry(entry, 'tool_call', event, ctx);
-    const result = runHookEntry(entry, payload);
+    const result = asHookResult(runHookEntry(entry, payload));
     applyUpdatedInput(event, result.hookSpecificOutput);
     const blocked = blockResult(result);
     if (blocked) return blocked;
@@ -339,12 +340,6 @@ function appendContext(event: ToolResultEvent, context: string | undefined): boo
   return true;
 }
 
-function applyNativeToolResult(event: ToolResultEvent, result: HookResult): boolean {
-  if (!('content' in result)) return false;
-  event.content = result.content;
-  return true;
-}
-
 export function handlePostToolUse(
   event: ToolResultEvent,
   ctx: ExtensionContext,
@@ -354,11 +349,8 @@ export function handlePostToolUse(
   for (const entry of entries) {
     if (!matchesTool(entry, event.toolName)) continue;
     const payload = payloadForToolEntry(entry, 'tool_result', event, ctx);
-    const result = runHookEntry(entry, payload);
+    const result = asHookResult(runHookEntry(entry, payload));
     contentModified = appendContext(event, result.hookSpecificOutput?.additionalContext) || contentModified;
-    if (entry.event.startsWith('pi:')) {
-      contentModified = applyNativeToolResult(event, result) || contentModified;
-    }
   }
   if (contentModified) return { content: event.content };
 }
@@ -372,16 +364,11 @@ function handleBeforeAgentStart(
   let modified = false;
   for (const entry of entries) {
     event.systemPrompt = systemPrompt;
-    const result = runHookEntry(entry, lifecyclePayload(entry, event, ctx));
+    const result = asHookResult(runHookEntry(entry, lifecyclePayload(entry, event, ctx)));
     const context = result.hookSpecificOutput?.additionalContext;
-    if (context) {
-      systemPrompt += `\n\n${context}`;
-      modified = true;
-    }
-    if (entry.event.startsWith('pi:') && typeof result.systemPrompt === 'string') {
-      systemPrompt = result.systemPrompt;
-      modified = true;
-    }
+    if (!context) continue;
+    systemPrompt += `\n\n${context}`;
+    modified = true;
   }
   if (!modified) return;
   event.systemPrompt = systemPrompt;
@@ -392,21 +379,17 @@ function handleLifecycleEvent(
   event: unknown,
   ctx: ExtensionContext,
   entries: HookEntry[],
-): HookResult | void {
-  let nativeResult: HookResult | undefined;
-  for (const entry of entries) {
-    const result = runHookEntry(entry, lifecyclePayload(entry, event, ctx));
-    if (entry.event.startsWith('pi:') && Object.keys(result).length > 0) nativeResult = result;
-  }
-  return nativeResult;
+): void {
+  for (const entry of entries) runHookEntry(entry, lifecyclePayload(entry, event, ctx));
 }
 
-function dispatchEvent(
+function dispatchAgentEntry(
   eventName: string,
-  entries: HookEntry[],
+  entry: HookEntry,
   event: unknown,
   ctx: ExtensionContext,
 ): unknown {
+  const entries = [entry];
   if (eventName === 'tool_call') return handlePreToolUse(event as ToolCallEvent, ctx, entries);
   if (eventName === 'tool_result') return handlePostToolUse(event as ToolResultEvent, ctx, entries);
   if (eventName === 'before_agent_start') {
@@ -415,10 +398,60 @@ function dispatchEvent(
   return handleLifecycleEvent(event, ctx, entries);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function replaceRecord(
+  target: Record<string, unknown>,
+  replacement: Record<string, unknown>,
+): void {
+  for (const key of Object.keys(target)) delete target[key];
+  Object.assign(target, replacement);
+}
+
+function applyNativeMutation(eventName: string, event: unknown, result: unknown): unknown {
+  if (!isRecord(event) || !isRecord(result)) return result;
+  if (eventName === 'before_provider_headers') {
+    if (isRecord(event.headers) && isRecord(result.headers)) replaceRecord(event.headers, result.headers);
+    return undefined;
+  }
+  if (eventName !== 'tool_call' || !isRecord(event.input) || !isRecord(result.input)) return result;
+  replaceRecord(event.input, result.input);
+  const handlerResult = { ...result };
+  delete handlerResult.input;
+  return Object.keys(handlerResult).length > 0 ? handlerResult : undefined;
+}
+
+function dispatchNativeEntry(
+  eventName: string,
+  entry: HookEntry,
+  event: unknown,
+  ctx: ExtensionContext,
+): unknown {
+  const isToolEvent = eventName === 'tool_call' || eventName === 'tool_result';
+  const toolName = (event as { toolName?: unknown })?.toolName;
+  if (isToolEvent && (typeof toolName !== 'string' || !matchesTool(entry, toolName))) return;
+  const result = runHookEntry(entry, nativePayload(eventName, event, ctx));
+  return applyNativeMutation(eventName, event, result);
+}
+
+function dispatchEntry(
+  eventName: string,
+  entry: HookEntry,
+  event: unknown,
+  ctx: ExtensionContext,
+): unknown {
+  if (entry.event.startsWith('pi:')) return dispatchNativeEntry(eventName, entry, event, ctx);
+  return dispatchAgentEntry(eventName, entry, event, ctx);
+}
+
 export default function hookBridge(pi: ExtensionAPI): void {
   const entries = filterHookEntries(loadHookRegistry(), { backend: 'pi' });
-  for (const [eventName, eventEntries] of groupByNativeEvent(entries)) {
+  for (const entry of entries) {
+    const eventName = nativeEventFor(entry);
+    if (!eventName) continue;
     pi.on(eventName, (event: unknown, ctx: ExtensionContext) =>
-      dispatchEvent(eventName, eventEntries, event, ctx));
+      dispatchEntry(eventName, entry, event, ctx));
   }
 }

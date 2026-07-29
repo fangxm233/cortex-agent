@@ -7,8 +7,9 @@
     "timeout": 3600
   },
   "scope": {
+    "backends": ["claude"],
     "requiresTool": "AskUserQuestion"
   },
   "enabled": true,
-  "version": "2026.7.29"
+  "version": "2026.7.29-1"
 }
