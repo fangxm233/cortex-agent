@@ -1,5 +1,5 @@
 // input:  HookBus, thread adapter, session registry, agent doubles
-// output: lifecycle and session event pipeline regressions
+// output: lifecycle, session diagnostics, and injection regressions
 // pos:    Verifies public hook callers and prompt injection
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -253,18 +253,26 @@ test('session public path formats empty successful output and flushes', async ()
   assert.equal(stream.flushCount, 1);
 });
 
-test('session public path preserves env, preview, and flush', async () => {
+test('session public path preserves env, preview, stderr warning, and flush', async () => {
   const source = [
     'process.stdout.write([process.env.CORTEX_HOOK_CHANNEL, process.env.CORTEX_HOOK_SESSION_ID,',
     'process.env.CORTEX_HOOK_TRIGGER].join("|"));',
+    'process.stderr.write("session warning");',
   ].join('');
   writeSessionHooks([messageEndEntry(`node -e '${source}'`)]);
   const stream = makeStream();
-
-  await runSessionHook(makeSessionSpec(), stream);
+  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  let warnings = '';
+  try {
+    await runSessionHook(makeSessionSpec(), stream);
+    warnings = warnSpy.mock.calls.flat().map(String).join(' ');
+  } finally {
+    warnSpy.mockRestore();
+  }
 
   assert.deepEqual(stream.texts, ['status', 'preview:C-session-hook|sess-1|messageEnd']);
   assert.equal(stream.flushCount, 1);
+  assert.match(warnings, /session warning/);
 });
 
 test('session event injects only prompt results with preserved agent context', async () => {

@@ -13,7 +13,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | config-generator.ts | config | generates shared and scoped MCP config files |
 | debug-mode.ts | config | reports DEBUG state and tool size limits |
 | gateway-generator.ts | config | discovers models and builds gateway.yaml |
-| hook-bus.ts | core | dispatches hooks serially with safe script arguments |
+| hook-bus.ts | core | dispatches hooks with safe arguments and diagnostics |
 | hook-exec.ts | util | runs hooks and captures bounded output and exit status |
 | i18n.ts | core | resolves localized messages by key |
 | icons.ts | data | provides the semantic icon character set |

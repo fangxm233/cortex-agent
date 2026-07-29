@@ -63,8 +63,8 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | hook-ask-api.test.ts | test | askUser hook helper routing and errors |
 | hook-bridge.test.ts | test | hook request publish and resolve chain |
 | hook-bus-script-path.test.ts | test | runs registry scripts from paths containing spaces |
-| hook-bus.test.ts | test | HookBus matching, timeout defaults and serial ordering |
-| hook-callers.test.ts | test | Session timeout and prompt injection handling |
+| hook-bus.test.ts | test | HookBus ordering, timeout and diagnostics |
+| hook-callers.test.ts | test | Session timeout, diagnostics and injection |
 | hook-exec.test.ts | test | hook subprocess output, exit status and stdin semantics |
 | init.test.ts | test | cortex init path, env and MCP config generation |
 | integration-init-startup.test.ts | e2e | init and server lifecycle hook behavior |

@@ -1,5 +1,5 @@
 // input:  hook registry/events, agent sessions, OutputStream
-// output: session dispatch with timeout and injection helpers
+// output: session dispatch, diagnostics, and injection helpers
 // pos:    Dispatches session events and injects prompt results
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as path from 'node:path';
@@ -268,6 +268,7 @@ export async function runSessionHook(
   );
   let handled = false;
   for (const emitted of results) {
+    if (emitted.stderr) log.warn(`stderr (${emitted.id}): ${emitted.stderr.trim()}`);
     const result = asSessionHookResult(emitted);
     if (!result) continue;
     handled = true;

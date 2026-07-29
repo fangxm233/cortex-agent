@@ -1,6 +1,6 @@
 // input:  HookEntry snapshots, hook payloads, shared hook runner
 // output: HookSpec, HookEmitResult, timeout-aware emit API
-// pos:    Dispatches server hooks serially with safe script arguments
+// pos:    Dispatches hooks serially with safe args and diagnostics
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'node:path';
@@ -21,6 +21,7 @@ export type HookEmitResult = {
   id: string;
   result?: unknown;
   error?: string;
+  stderr?: string;
 };
 
 /** Registry entries without run.timeout use a 30-second process limit. */
@@ -80,7 +81,7 @@ function failure(id: string, error: unknown): HookEmitResult {
   return { id, error: message };
 }
 
-function interpretResult(hook: HookSpec, stdout: string): HookEmitResult {
+function parsedResult(hook: HookSpec, stdout: string): HookEmitResult {
   switch (hook.result) {
     case 'hook-result':
       return { id: hook.id, result: JSON.parse(stdout) as unknown };
@@ -89,6 +90,11 @@ function interpretResult(hook: HookSpec, stdout: string): HookEmitResult {
     default:
       return { id: hook.id };
   }
+}
+
+function interpretResult(hook: HookSpec, stdout: string, stderr: string): HookEmitResult {
+  const result = parsedResult(hook, stdout);
+  return stderr ? { ...result, stderr } : result;
 }
 
 async function executeHook(
@@ -106,7 +112,7 @@ async function executeHook(
       label: hook.id,
     });
     if (output.error) return failure(hook.id, output.error);
-    return interpretResult(hook, output.stdout);
+    return interpretResult(hook, output.stdout, output.stderr);
   } catch (error) {
     return failure(hook.id, error);
   }

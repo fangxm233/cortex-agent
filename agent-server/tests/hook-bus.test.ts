@@ -1,5 +1,5 @@
 // input:  HookBus, deferred runner mock, entries, timeout defaults
-// output: HookBus matching, serial ordering, result and isolation tests
+// output: HookBus ordering, result, diagnostics, and isolation tests
 // pos:    Regression coverage for server-side hook dispatch
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -203,6 +203,24 @@ test('interprets hook-result, stdout-as-prompt, none, and omitted result modes',
     { id: 'none' },
     { id: 'omitted' },
   ]);
+});
+
+test('returns successful hook stderr so callers can preserve diagnostics', async () => {
+  initHookBus({ entries: [
+    entry('prompt', { result: 'stdout-as-prompt' }),
+  ] });
+  runner.runHookProcess.mockResolvedValue({
+    stdout: 'follow up',
+    stderr: 'session warning',
+  });
+
+  const results = await emitCortexEvent('cortex:thread.end', {});
+
+  assert.deepEqual(results, [{
+    id: 'prompt',
+    result: 'follow up',
+    stderr: 'session warning',
+  }]);
 });
 
 test('reports and logs each failure without rejecting or skipping later hooks', async (t) => {
