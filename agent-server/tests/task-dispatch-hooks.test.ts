@@ -1,6 +1,6 @@
-// input:  task-dispatch job, HookBus and thread runner doubles
-// output: dispatch hook and failure quarantine regression tests
-// pos:    Verifies claimed task dispatch lifecycle and quarantine
+// input:  dispatch job, task/thread stores, runner doubles
+// output: hook, quarantine, and review recovery tests
+// pos:    Tests dispatch lifecycle and failure recovery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js';
@@ -18,6 +18,13 @@ const deps = vi.hoisted(() => ({
   processAbortOutcome: vi.fn(),
   processSplitOutcome: vi.fn(),
   finalizeThreadSuccess: vi.fn(),
+  refreshTasks: vi.fn(),
+  getTaskById: vi.fn(),
+  readArtifact: vi.fn(),
+  getTemplate: vi.fn(),
+  getThread: vi.fn(),
+  mutateThread: vi.fn(),
+  add: vi.fn(),
   unclaim: vi.fn(),
   block: vi.fn(),
 }));
@@ -45,6 +52,16 @@ vi.mock('../src/domain/threads/index.js', () => ({
   createThread: deps.createThread,
   detectSplitFromControl: vi.fn(),
   clearPendingControl: vi.fn(),
+  readArtifact: deps.readArtifact,
+  getTemplate: deps.getTemplate,
+}));
+
+vi.mock('../src/domain/tasks/store.js', () => ({
+  taskStore: { refresh: deps.refreshTasks, getById: deps.getTaskById },
+}));
+
+vi.mock('@store/thread-repo.js', () => ({
+  threadStore: { get: deps.getThread, mutate: deps.mutateThread },
 }));
 
 vi.mock('../src/domain/threads/runner.js', () => ({
@@ -62,7 +79,7 @@ vi.mock('../src/domain/scheduling/jobs/_shared.js', () => ({
 }));
 
 vi.mock('../src/domain/tasks/mutator.js', () => ({
-  taskMutator: { unclaim: deps.unclaim, block: deps.block },
+  taskMutator: { add: deps.add, unclaim: deps.unclaim, block: deps.block },
 }));
 
 import { ctx } from '../src/domain/scheduling/job-registry.js';
@@ -73,10 +90,14 @@ const selected = {
     id: 'task-1',
     project: 'atlas',
     text: 'Run the queued implementation',
+    template: 'coder-review',
+    plan: 'plans/review.md',
   },
   template: 'coder-review',
   prompt: 'Implement the queued task',
 };
+
+let threadRecord: Record<string, any>;
 
 async function waitFor(predicate: () => boolean): Promise<void> {
   const deadline = Date.now() + 2_000;
@@ -108,6 +129,14 @@ function selectFixture(id: string): void {
 
 beforeEach(() => {
   for (const mock of Object.values(deps)) mock.mockReset();
+  threadRecord = {
+    id: 'thread-1',
+    templateName: 'coder-review',
+    artifactPath: '/tmp/thread-artifact.md',
+    activeAgent: 'coder-reviewer',
+    activeStage: 'implReview',
+    metadata: {},
+  };
   deps.emitCortexEvent.mockResolvedValue([]);
   deps.getRunningExecutions.mockReturnValue([]);
   deps.selectAndClaimTask.mockResolvedValue(selected);
@@ -120,6 +149,17 @@ beforeEach(() => {
   deps.processAbortOutcome.mockResolvedValue({ handled: false });
   deps.processSplitOutcome.mockResolvedValue({ handled: false });
   deps.finalizeThreadSuccess.mockResolvedValue(undefined);
+  deps.getTaskById.mockReturnValue({ ...selected.task, status: 'open' });
+  deps.getThread.mockImplementation(() => threadRecord);
+  deps.mutateThread.mockImplementation(async (_id, mutate) => { mutate(threadRecord); });
+  deps.readArtifact.mockReturnValue('');
+  deps.getTemplate.mockReturnValue({
+    transitions: [
+      { condition: { type: 'convergence', marker: '[IMPL-APPROVED]' } },
+      { condition: { type: 'output_not_contains', pattern: '\\[REVISED\\]' } },
+    ],
+  });
+  deps.add.mockResolvedValue({ success: true, task_id: 'followup-1' });
   deps.unclaim.mockResolvedValue({ success: true });
   deps.block.mockResolvedValue({ success: true });
 
@@ -225,4 +265,78 @@ test('successful dispatch resets consecutive failure count', async () => {
 
   await runDispatchCycle();
   assert.equal(deps.block.mock.calls.length, 1);
+});
+
+test('failed dispatch reconciliation is a no-op when the owning task is not done', async () => {
+  selectFixture('owner-open');
+  deps.getTaskById.mockReturnValue({ ...selected.task, id: 'owner-open', status: 'open' });
+  deps.runThread.mockRejectedValue(new Error('provider unavailable'));
+
+  await runDispatchCycle();
+
+  assert.deepEqual(deps.refreshTasks.mock.calls, [[]]);
+  assert.deepEqual(deps.getTaskById.mock.calls, [['owner-open']]);
+  assert.equal(deps.readArtifact.mock.calls.length, 0);
+  assert.equal(deps.add.mock.calls.length, 0);
+  assert.equal(deps.mutateThread.mock.calls.length, 0);
+  assert.deepEqual(deps.unclaim.mock.calls, [['owner-open']]);
+  const texts = (ctx.adapter!.postMessage as any).mock.calls.map(([, content]) => content.text);
+  assert.equal(texts.filter((text) => text.includes('Review reconciliation')).length, 0);
+  assert.equal(texts.filter((text) => text.includes('Task dispatch error: provider unavailable')).length, 1);
+});
+
+test('failed dispatch creates one review followup and deduplicates a second failure', async () => {
+  selectFixture('owner-leak');
+  deps.getTaskById.mockReturnValue({ ...selected.task, id: 'owner-leak', status: 'done' });
+  deps.readArtifact.mockReturnValue('Prior review: [IMPL-APPROVED]\n## Impl Review\nBlocker: quote shell arguments safely.\n');
+  deps.runThread.mockRejectedValue(new Error('provider unavailable'));
+
+  await runDispatchCycle();
+  await runDispatchCycle();
+
+  assert.deepEqual(deps.add.mock.calls, [[
+    'atlas',
+    'Close unresolved review left by failed thread thread-1 on completed task owner-leak',
+    'Review artifact: /tmp/thread-artifact.md; failed stage: coder-reviewer:implReview.',
+    'Every open Blocker in the failed thread artifact is fixed or explicitly rebutted, and the full test suite is green.',
+    'high',
+    'coder-review',
+    [],
+    { plan: 'plans/review.md', system: true },
+  ]]);
+  assert.equal(threadRecord.metadata.reviewLeakFollowupTaskId, 'followup-1');
+  assert.equal(deps.mutateThread.mock.calls.length, 1);
+  const notices = (ctx.adapter!.postMessage as any).mock.calls.filter(
+    ([, content]) => content.text.includes('Review reconciliation'),
+  );
+  assert.equal(notices.length, 1);
+  assert.deepEqual(notices[0][0], {
+    type: 'project-report', projectId: 'atlas', trigger: 'task-dispatch', sessionId: '',
+  });
+  assert.match(notices[0][1].text, /followup-1/);
+});
+
+test.each([
+  ['approval', '## Impl Review\nLooks good. [IMPL-APPROVED]\n'],
+  ['revision', '## Implementation Summary\nAll blockers fixed. [REVISED]\n'],
+])('terminal %s marker posts a notice without creating a followup', async (_label, artifact) => {
+  const owner = `owner-terminal-${_label}`;
+  selectFixture(owner);
+  deps.getTaskById.mockReturnValue({ ...selected.task, id: owner, status: 'done' });
+  deps.readArtifact.mockReturnValue(artifact);
+  deps.runThread.mockRejectedValue(new Error('provider unavailable'));
+
+  await runDispatchCycle();
+
+  assert.equal(deps.add.mock.calls.length, 0);
+  assert.equal(deps.mutateThread.mock.calls.length, 0);
+  const notices = (ctx.adapter!.postMessage as any).mock.calls.filter(
+    ([, content]) => content.text.includes('Review reconciliation'),
+  );
+  assert.equal(notices.length, 1);
+  assert.deepEqual(notices[0][0], {
+    type: 'project-report', projectId: 'atlas', trigger: 'task-dispatch', sessionId: '',
+  });
+  assert.match(notices[0][1].text, /terminal marker/);
+  assert.match(notices[0][1].text, /no followup task created/);
 });

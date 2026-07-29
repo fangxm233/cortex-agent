@@ -617,6 +617,28 @@ test('add — fails with empty text', async () => {
   }
 });
 
+test('add — system mutation persists an inherited plan without an agent lock', async () => {
+  const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
+  try {
+    const repo = createRepo();
+    const mutator = new TaskMutator(repo);
+    const result = await mutator.add(
+      proj, 'Review followup', 'recover review', 'suite is green',
+      'high', 'coder-review', [], { plan: 'plans/review.md', system: true },
+    );
+
+    assert.equal(result.success, true);
+    const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    assert.match(disk, /text:\s*Review followup/);
+    assert.match(disk, /priority:\s*high/);
+    assert.match(disk, /template:\s*coder-review/);
+    assert.match(disk, /plan:\s*plans\/review\.md/);
+  } finally {
+    fx.cleanup();
+  }
+});
+
 // ─── 14. edit ────────────────────────────────────────────────────
 
 test('edit — edits a task priority', async () => {

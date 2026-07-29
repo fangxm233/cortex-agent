@@ -1,6 +1,6 @@
-// input:  task store, execution registry, thread runner, HookBus
-// output: dispatch hooks and failure quarantine outcomes
-// pos:    Claims tasks and starts dispatch-tagged threads
+// input:  task store, thread runner, review reconciler
+// output: dispatch hooks, followups, failure quarantine
+// pos:    Starts dispatch threads for claimed tasks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as os from 'node:os';
@@ -15,7 +15,6 @@ import * as pendingTaskTracker from '../../tasks/pending-tracker.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { getActiveProfile, getActiveBackend } from '../../agents/index.js';
 import { selectAndClaimTask, computeNextInterval, updateScheduleInterval } from '../../tasks/dispatcher.js';
-import { taskStore } from '../../tasks/store.js';
 import { taskMutator } from '../../tasks/mutator.js';
 import { createThread, detectSplitFromControl, clearPendingControl } from '../../threads/index.js';
 import { runThread as runThreadExec } from '../../threads/runner.js';
@@ -23,6 +22,7 @@ import { processSplitOutcome, processAbortOutcome, formatWorkerAbortReason } fro
 import { threadStore } from '@store/thread-repo.js';
 import { buildUserProcessingMessage, computeElapsed, buildSessionTag } from '@core/status-format.js';
 import { finalizeThreadSuccess } from './_shared.js';
+import { reconcileFailedDispatchThread } from './failed-dispatch-reconciliation.js';
 import type { PlatformAdapter, MessageRef } from '@platform/index.js';
 import { getOutboundQueue, durableUpdate, durablePost } from '@store/outbound-queue.js';
 
@@ -160,6 +160,13 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
     onToolUse: icb?.onToolUse ?? null, onPlanWritten: icb?.onPlanWritten ?? null, onAskUserQuestion: icb?.onAskUserQuestion ?? null,
     // Block the owning task before lifecycle end hooks inspect task state.
     onAbort: async ({ taskId, reason }) => { await taskMutator.block(taskId, formatWorkerAbortReason(reason)); },
+  }).catch(async (error) => {
+    try {
+      await reconcileFailedDispatchThread(thread.id, selectedTask);
+    } catch (reconcileError) {
+      log.error(`Failed dispatch reconciliation: ${(reconcileError as Error).message}`);
+    }
+    throw error;
   });
   const result = threadResult.lastAgentResult as any;
 

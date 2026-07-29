@@ -1,6 +1,6 @@
-// input:  task repository, lifecycle operations, EventBus, HookBus
-// output: task.completed/blocked{taskId,project[,reason]}
-// pos:    Serializes task state mutations and terminal events
+// input:  task repo, lifecycle operations, EventBus
+// output: task mutations and terminal events
+// pos:    Serializes task mutations and events
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { taskStore, TaskRepo } from '@store/task-repo.js';
@@ -28,6 +28,11 @@ import {
 } from './system/task-mutations.js';
 import { editTask as lifecycleEditTask } from './system/task-lifecycle-edit.js';
 import { assertLockHeld, getOwnerIdentity, isProjectLocked } from './system/task-lock.js';
+
+interface AddTaskOptions {
+  plan?: string;
+  system?: boolean;
+}
 
 export class TaskMutator {
   constructor(
@@ -190,11 +195,26 @@ export class TaskMutator {
     });
   }
 
-  async add(project: string, text: string, why: string, doneWhen: string, priority?: string, template?: string, dependsOn?: string[]): Promise<any> {
+  async add(
+    project: string,
+    text: string,
+    why: string,
+    doneWhen: string,
+    priority?: string,
+    template?: string,
+    dependsOn?: string[],
+    options: AddTaskOptions = {},
+  ): Promise<any> {
     return this.store.runExclusive(() => {
-      const lockError = assertLockHeld(project, getOwnerIdentity());
-      if (lockError) return { success: false, message: lockError };
-      const result = lifecycleAddTask(project, text, why, doneWhen, priority || 'medium', template || null, dependsOn || null);
+      // Server-owned recovery has no agent lock identity; the repository mutex still serializes it.
+      if (!options.system) {
+        const lockError = assertLockHeld(project, getOwnerIdentity());
+        if (lockError) return { success: false, message: lockError };
+      }
+      const result = lifecycleAddTask(
+        project, text, why, doneWhen, priority || 'medium', template || null,
+        dependsOn || null, options.plan || null,
+      );
       if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: add task to ${project}`); }
       return result;
     });
