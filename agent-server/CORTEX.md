@@ -11,7 +11,7 @@ Production code lives in src/, regression tests in tests/, and the install scaff
 | tests/ | subdir | Vitest regression suite |
 | vendor/ | subdir | Vendored npm tarball dependencies |
 | .dependency-cruiser.cjs | config | Module dependency rules for lint checks |
-| package.json | config | Dependencies and cortex CLI bin entries |
+| package.json | config | Dependencies and installed Cortex CLI entries |
 | package-lock.json | config | Locked dependency versions |
 | tsconfig.json | config | TypeScript compiler options |
 | tsconfig.build.json | config | Compiler options for the dist build |

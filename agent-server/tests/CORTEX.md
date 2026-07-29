@@ -63,7 +63,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | hook-bridge.test.ts | test | hook request publish and resolve chain |
 | hook-bus.test.ts | test | HookBus matching, timeout defaults and isolation |
 | hook-callers.test.ts | test | Session timeout and prompt injection handling |
-| hook-exec.test.ts | test | shared hook subprocess execution semantics |
+| hook-exec.test.ts | test | hook subprocess output, exit status and stdin semantics |
 | init.test.ts | test | cortex init path, env and MCP config generation |
 | integration-init-startup.test.ts | e2e | init and server lifecycle hook behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |

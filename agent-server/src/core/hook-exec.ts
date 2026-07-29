@@ -1,5 +1,5 @@
 // input:  Node child processes, core paths and logging
-// output: HookProcessOptions, HookProcessResult, runHookProcess
+// output: HookProcessOptions, output/exit result, runHookProcess
 // pos:    shared subprocess runner for hook commands
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -22,6 +22,7 @@ export interface HookProcessOptions {
 export interface HookProcessResult {
   stdout: string;
   stderr: string;
+  exitCode: number | null;
   error?: string;
 }
 
@@ -38,10 +39,20 @@ function finish(state: HookProcessState, result: HookProcessResult): void {
   state.resolve(result);
 }
 
-function fail(state: HookProcessState, error: string, message: string): void {
+function fail(
+  state: HookProcessState,
+  error: string,
+  message: string,
+  exitCode: number | null = null,
+): void {
   if (state.settled) return;
   log.error(message);
-  finish(state, { stdout: '', stderr: state.stderr.slice(-STDERR_LIMIT), error });
+  finish(state, {
+    stdout: state.stdout.trim(),
+    stderr: state.stderr.slice(-STDERR_LIMIT),
+    exitCode,
+    error,
+  });
 }
 
 function handleClose(
@@ -58,12 +69,13 @@ function handleClose(
   if (code !== 0) {
     const error = `exited with code ${code}`;
     const detail = state.stderr ? `: ${state.stderr.trim()}` : '';
-    fail(state, error, `${error} (${opts.label})${detail}`);
+    fail(state, error, `${error} (${opts.label})${detail}`, code);
     return;
   }
   finish(state, {
     stdout: state.stdout.trim(),
     stderr: state.stderr.slice(-STDERR_LIMIT),
+    exitCode: 0,
   });
 }
 

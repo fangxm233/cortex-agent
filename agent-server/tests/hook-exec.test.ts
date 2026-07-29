@@ -1,5 +1,5 @@
 // input:  core hook-exec runner, Node subprocess fixtures
-// output: hook process runner regression tests
+// output: hook process output, exit-code, timeout, and stdin tests
 // pos:    shared hook subprocess runner regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -35,15 +35,19 @@ test('captures trimmed stdout and the last 2000 stderr characters on success', a
   assert.deepEqual(result, {
     stdout: 'hook output',
     stderr: 'x'.repeat(2000),
+    exitCode: 0,
   });
 });
 
-test('returns an error for a non-zero exit', async () => {
-  const result = await runNode("process.stderr.write('bad hook'); process.exit(7);");
+test('returns captured output and the real non-zero exit code', async () => {
+  const result = await runNode(
+    "process.stdout.write('partial'); process.stderr.write('bad hook'); process.exit(7);",
+  );
 
   assert.deepEqual(result, {
-    stdout: '',
+    stdout: 'partial',
     stderr: 'bad hook',
+    exitCode: 7,
     error: 'exited with code 7',
   });
 });
@@ -60,6 +64,7 @@ test('returns a timeout error when the child is terminated with SIGTERM', async 
   assert.deepEqual(result, {
     stdout: '',
     stderr: '',
+    exitCode: null,
     error: 'timed out after 25ms',
   });
 });
@@ -75,6 +80,7 @@ test('resolves a spawn error when the shell interpreter cannot be found', async 
 
   assert.equal(result.stdout, '');
   assert.equal(result.stderr, '');
+  assert.equal(result.exitCode, null);
   assert.match(result.error ?? '', /ENOENT/);
 });
 
@@ -114,5 +120,6 @@ test('passes configured args to the hook command as positional values', async ()
   assert.deepEqual(result, {
     stdout: 'first value|second|$(not-executed)',
     stderr: '',
+    exitCode: 0,
   });
 });

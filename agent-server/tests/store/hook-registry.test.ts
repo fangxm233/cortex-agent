@@ -1,5 +1,5 @@
 // input:  hook registry API, shipped defaults, temporary JSON entries
-// output: schema, loading, filtering, and managed-default tests
+// output: schema, source classification, loading, and filtering tests
 // pos:    Verifies the standalone declarative hook registry
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -11,8 +11,11 @@ import { test, vi } from 'vitest';
 
 import { DEFAULTS_DIR } from '../../src/core/paths.js';
 import {
+  HOOK_SOURCES,
+  classifyHookSource,
   filterHookEntries,
   loadHookRegistry,
+  loadHookRegistryRecords,
   validateHookEntry,
   type HookEntry,
 } from '../../src/store/hook-registry.js';
@@ -42,6 +45,25 @@ test('loads a valid hook entry synchronously with every schema field', (t) => {
   };
   writeEntry(directory, 'approval.json', entry);
 
+  assert.deepEqual(loadHookRegistry(directory), [entry]);
+});
+
+test('classifies hook sources with one reusable closed vocabulary', () => {
+  assert.deepEqual(HOOK_SOURCES, ['managed', 'user', 'template-scoped']);
+  assert.equal(classifyHookSource({ version: '2026.7.29' }), 'managed');
+  assert.equal(classifyHookSource({}), 'user');
+  assert.equal(classifyHookSource({}, 'template'), 'template-scoped');
+});
+
+test('loads source-aware records with the owning registry file path', (t) => {
+  const directory = makeRegistry(t);
+  const entry = { ...VALID_SCHEMA_ENTRY, version: '2026.7.29' };
+  const filePath = path.join(directory, 'managed.json');
+  writeEntry(directory, 'managed.json', entry);
+
+  assert.deepEqual(loadHookRegistryRecords(directory), [
+    { entry, filePath, source: 'managed' },
+  ]);
   assert.deepEqual(loadHookRegistry(directory), [entry]);
 });
 

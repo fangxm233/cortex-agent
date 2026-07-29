@@ -5,7 +5,7 @@ They support packaging and manual verification outside the running daemon.
 
 | filename | role | function |
 |---|---|---|
-| copy-assets.js | build | adds CLI shebangs and copies hook scripts |
+| copy-assets.js | build | makes package CLIs executable and copies hooks |
 | copy-web-dist.js | build | stages the built web UI into the package |
 | lint-no-slack-shortcodes.ts | lint | flags Slack emoji shortcodes in source |
 | migrate-tasks-to-yaml.ts | migrate | converts task files from Markdown to YAML |

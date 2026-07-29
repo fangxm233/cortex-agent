@@ -9,6 +9,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | cli.ts | entry | dispatches the cortex command line |
 | daemon.ts | entry | supervises and restarts the app process |
 | doctor-cli.ts | cli | runs environment diagnostics and safe fixes |
+| hook-cli.ts | cli | lists, updates and executes hook declarations |
 | feishu-login.ts | cli | handles Feishu user login and logout |
 | init.ts | cli | creates Cortex home and runtime configuration |
 | start-ui-http.ts | wiring | starts the Web UI HTTP and SSE server |

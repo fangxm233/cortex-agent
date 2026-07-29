@@ -1,6 +1,9 @@
-// Post-build asset setup. Run after tsc — part of `npm run build`.
-// 1. Injects shebangs into CLI entry points so they work as standalone executables.
-// 2. Copies .mjs hook scripts from defaults/hooks/ to dist/hooks/ (tsc only compiles .ts).
+// input:  compiled CLI files and shipped hook scripts
+// output: executable CLI files and copied dist hook assets
+// pos:    Post-build setup for package executables and assets
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+// Runs after tsc as part of `npm run build`.
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
@@ -13,6 +16,7 @@ const pkgRoot = path.resolve(scriptDir, '..');
 const SHEBANG = '#!/usr/bin/env node\n';
 const cliEntryPoints = [
   'dist/entry/cli.js',
+  'dist/entry/hook-cli.js',
   'dist/domain/tasks/system/cortex-run.js',
   'dist/domain/tasks/system/task-cli.js',
 ];

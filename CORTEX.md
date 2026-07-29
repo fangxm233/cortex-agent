@@ -41,7 +41,7 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 
 | File | Purpose |
 |------|---------|
-| `agent-server/package.json` | npm package, dependencies, scripts, binaries (cortex, cortex-run, cortex-task) |
+| `agent-server/package.json` | npm package, dependencies, scripts, binaries (cortex, cortex-hook, cortex-run, cortex-task) |
 | `agent-server/tsconfig.json` | TypeScript config (ES2022, NodeNext) |
 | `agent-server/defaults/` | Shipped default config, context templates, plugins, hooks, prompts, rules |
 | `agent-server/tests/` | 45+ test files covering all major subsystems |

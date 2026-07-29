@@ -14,7 +14,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | debug-mode.ts | config | reports DEBUG state and tool size limits |
 | gateway-generator.ts | config | discovers models and builds gateway.yaml |
 | hook-bus.ts | core | dispatches hooks with per-emission timeout defaults |
-| hook-exec.ts | util | runs hook commands with timeout and bounded output |
+| hook-exec.ts | util | runs hooks and captures bounded output and exit status |
 | i18n.ts | core | resolves localized messages by key |
 | icons.ts | data | provides the semantic icon character set |
 | json-repository.ts | core | reads and writes cached JSON stores |

@@ -1,5 +1,5 @@
 // input:  JSON hook entries, Node filesystem, core config paths
-// output: HookEntry validation, loading, and filtering API
+// output: HookEntry validation, source-aware loading, filtering API
 // pos:    Standalone declarative hook registry
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -48,6 +48,15 @@ export interface HookFilterCriteria {
   availableTools?: ReadonlySet<string>;
 }
 
+export const HOOK_SOURCES = ['managed', 'user', 'template-scoped'] as const;
+export type HookSource = typeof HOOK_SOURCES[number];
+
+export interface HookRegistryRecord {
+  entry: HookEntry;
+  filePath: string;
+  source: HookSource;
+}
+
 const AGENT_EVENTS = new Set([
   'agent:pre-tool',
   'agent:post-tool',
@@ -59,6 +68,16 @@ const AGENT_EVENTS = new Set([
 ]);
 const CALVER_RE = /^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d+)?$/;
 const RESULT_MODES = new Set<HookResultMode>(['hook-result', 'stdout-as-prompt', 'none']);
+
+export function classifyHookSource(
+  entry: { version?: unknown },
+  location: 'registry' | 'template' = 'registry',
+): HookSource {
+  if (location === 'template') return 'template-scoped';
+  return typeof entry.version === 'string' && CALVER_RE.test(entry.version)
+    ? 'managed'
+    : 'user';
+}
 
 function asObject(value: unknown, field: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -204,24 +223,31 @@ function registryFiles(directory: string): string[] | null {
   }
 }
 
-export function loadHookRegistry(
+export function loadHookRegistryRecords(
   directory = path.join(CONFIG_DIR, 'hooks'),
-): HookEntry[] {
+): HookRegistryRecord[] {
   const files = registryFiles(directory);
   if (!files) return [];
-  const entries: HookEntry[] = [];
+  const records: HookRegistryRecord[] = [];
   const ids = new Set<string>();
   for (const file of files) {
     try {
-      const entry = validateHookEntry(JSON.parse(fs.readFileSync(path.join(directory, file), 'utf8')));
+      const filePath = path.join(directory, file);
+      const entry = validateHookEntry(JSON.parse(fs.readFileSync(filePath, 'utf8')));
       if (ids.has(entry.id)) throw new Error(`duplicate hook id "${entry.id}"`);
       ids.add(entry.id);
-      entries.push(entry);
+      records.push({ entry, filePath, source: classifyHookSource(entry) });
     } catch (error) {
       reportInvalid(file, error);
     }
   }
-  return entries;
+  return records;
+}
+
+export function loadHookRegistry(
+  directory = path.join(CONFIG_DIR, 'hooks'),
+): HookEntry[] {
+  return loadHookRegistryRecords(directory).map((record) => record.entry);
 }
 
 function implicitBackends(event: HookEvent): HookBackend[] {
