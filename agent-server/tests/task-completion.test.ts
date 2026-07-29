@@ -122,8 +122,30 @@ function probeExternalProjectArtifact(): any {
 
 type ProbeArtifactState = 'non-empty' | 'empty' | 'missing';
 type ProbeShaState = 'valid' | 'invalid' | 'missing';
+interface CompletionProbeOverrides {
+  repositoryProject?: string;
+  artifactTaskId?: string;
+  artifactProject?: string;
+}
 
-function writeCompletionProbe(root: string, artifactState: ProbeArtifactState) {
+function writeProbeStores(
+  home: string, codeDir: string, artifactPath: string, overrides: CompletionProbeOverrides,
+): void {
+  const repositoryProject = overrides.repositoryProject ?? 'atlas';
+  fs.writeFileSync(path.join(home, 'data', 'project-dirs.json'), JSON.stringify({
+    [repositoryProject]: { local: codeDir },
+  }));
+  fs.writeFileSync(path.join(home, 'data', 'threads.json'), JSON.stringify({
+    thr_persisted: { artifactPath, metadata: {
+      taskId: overrides.artifactTaskId ?? 'a111',
+      taskProject: overrides.artifactProject ?? 'atlas',
+    } },
+  }));
+}
+
+function writeCompletionProbe(
+  root: string, artifactState: ProbeArtifactState, overrides: CompletionProbeOverrides,
+) {
   const home = path.join(root, 'home');
   const projects = path.join(root, 'projects');
   const projectDir = path.join(projects, 'atlas');
@@ -134,10 +156,7 @@ function writeCompletionProbe(root: string, artifactState: ProbeArtifactState) {
   fs.mkdirSync(codeDir, { recursive: true });
   const { sha } = initializeImplementationRepo(codeDir);
   fs.writeFileSync(path.join(projectDir, 'TASKS.yaml'), 'tasks:\n  - id: a111\n    text: Task\n    why: test\n    done-when: done\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n');
-  fs.writeFileSync(path.join(home, 'data', 'project-dirs.json'), JSON.stringify({ atlas: { local: codeDir } }));
-  fs.writeFileSync(path.join(home, 'data', 'threads.json'), JSON.stringify({
-    thr_persisted: { artifactPath, metadata: { taskId: 'a111', taskProject: 'atlas' } },
-  }));
+  writeProbeStores(home, codeDir, artifactPath, overrides);
   if (artifactState !== 'missing') {
     fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
     fs.writeFileSync(artifactPath, artifactState === 'empty' ? '  \n' : 'Verified persisted work.\n');
@@ -145,9 +164,12 @@ function writeCompletionProbe(root: string, artifactState: ProbeArtifactState) {
   return { home, projects, sha };
 }
 
-function probeCompletionEvidence(shaState: ProbeShaState, artifactState: ProbeArtifactState): any {
+function probeCompletionEvidence(
+  shaState: ProbeShaState, artifactState: ProbeArtifactState,
+  overrides: CompletionProbeOverrides = {},
+): any {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'completion-project-evidence-'));
-  const { home, projects, sha } = writeCompletionProbe(root, artifactState);
+  const { home, projects, sha } = writeCompletionProbe(root, artifactState, overrides);
   const noteSha = shaState === 'valid' ? sha : 'f'.repeat(40);
   const note = shaState === 'missing' ? 'Implementation completed' : `Implementation SHA: ${noteSha}`;
   const script = `import { completeTask } from './src/domain/tasks/system/task-completion.ts'; console.log(JSON.stringify(completeTask(null, 'atlas', ${JSON.stringify(note)}, 'a111')));`;
@@ -417,6 +439,22 @@ test('completeTask warns when configured commit and persisted artifact evidence 
   for (const artifactState of ['missing', 'empty'] as const) {
     const result = probeCompletionEvidence('invalid', artifactState);
     assert.match(result.verify_warning as string, /no evidence/, artifactState);
+  }
+});
+
+test('completeTask ignores a valid commit configured only for another project', () => {
+  const result = probeCompletionEvidence('valid', 'missing', { repositoryProject: 'orchard' });
+  assert.match(result.verify_warning as string, /no evidence/);
+});
+
+test('completeTask rejects persisted artifacts matching only one task association field', () => {
+  const mismatches: CompletionProbeOverrides[] = [
+    { artifactProject: 'orchard' },
+    { artifactTaskId: 'b222' },
+  ];
+  for (const mismatch of mismatches) {
+    const result = probeCompletionEvidence('missing', 'non-empty', mismatch);
+    assert.match(result.verify_warning as string, /no evidence/, JSON.stringify(mismatch));
   }
 });
 
