@@ -9,5 +9,5 @@ Covers schedule storage and firing, the job dispatch table, and user-facing sche
 | runner.ts | entry | Wires job modules and creates the scheduler |
 | schedule-cli.ts | cli | Manages schedules from the terminal |
 | schedule-command.ts | command | Handles the !schedule chat command |
-| scheduler.ts | core | Tracks schedules and fires them when due |
+| scheduler.ts | core | Fires schedules and emits lifecycle hooks |
 | jobs/ | subdir | Job runners invoked when a schedule fires |

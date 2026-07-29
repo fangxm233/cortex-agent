@@ -27,7 +27,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cli-utils.test.ts | test | shared CLI help and error rendering |
 | cli.test.ts | test | cortex CLI help text and subcommand routing |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
-| client-manager.test.ts | test | remote client handshake, auth and commands |
+| client-manager.test.ts | test | client lifecycle hooks, auth and commands |
 | command-handlers.test.ts | test | !cost, !cancel, !status and other bang commands |
 | command-interactive.test.ts | test | interactive command router and handlers |
 | composite-adapter-noop-fallback.test.ts | test | unknown conduit operations stay no-op |
@@ -65,7 +65,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | hook-callers.test.ts | test | Covers HookBus thread and session failure paths |
 | hook-exec.test.ts | test | shared hook subprocess execution semantics |
 | init.test.ts | test | cortex init path, env and MCP config generation |
-| integration-init-startup.test.ts | e2e | init, startup, config, and hook registry loading |
+| integration-init-startup.test.ts | e2e | init and server lifecycle hook behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
 | machines-query.test.ts | test | machines list online/offline projection |
@@ -90,7 +90,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
 | run-with-adapter.test.ts | test | normalized event dispatch and callbacks |
-| schedule-cli.test.ts | test | schedule API and CLI mutations |
+| schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |
 | scheduler-precheck.test.ts | test | preCheck exit codes and env passing |
@@ -110,6 +110,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | store/ | subdir | JSON repository and store concurrency tests |
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-completion.test.ts | test | task complete and uncomplete API |
+| task-dispatch-hooks.test.ts | test | claimed dispatch hook payload and isolation |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and gating |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
 | task-lifecycle.test.ts | test | task CLI write-path lifecycle |

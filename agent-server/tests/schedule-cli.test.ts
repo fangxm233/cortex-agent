@@ -1,10 +1,18 @@
-// input:  Node test runner + scheduler + schedule-cli + profile
-// output: schedule mutation APIs + CLI regression tests
-// pos:    Verify schedule API + CLI behavior and profile persistence
+// input:  Vitest, Scheduler, schedule CLI, HookBus mock
+// output: Schedule API, CLI, fired payload and isolation tests
+// pos:    Verifies schedule persistence and firing behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, beforeAll, afterAll } from 'vitest';
+import { test, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
+
+const hookBus = vi.hoisted(() => ({
+  emitCortexEvent: vi.fn(),
+}));
+
+vi.mock('@core/hook-bus.js', () => ({
+  emitCortexEvent: hookBus.emitCortexEvent,
+}));
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -30,6 +38,10 @@ function snapshotProductionTaskIds(): string {
 
 let productionTaskIdSnapshot = '';
 beforeAll(() => { productionTaskIdSnapshot = snapshotProductionTaskIds(); });
+beforeEach(() => {
+  hookBus.emitCortexEvent.mockReset();
+  hookBus.emitCortexEvent.mockResolvedValue([]);
+});
 afterAll(() => {
   const current = snapshotProductionTaskIds();
   if (current !== productionTaskIdSnapshot) {
@@ -130,6 +142,46 @@ test('scheduler run resolves legacy null profile tasks to default profile', with
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].profileName, getDefaultProfileName());
+}));
+
+test('scheduler run emits cortex:schedule.fired with matcher payload keys', withTempSchedules(async ({ scheduler }) => {
+  const calls = [];
+  scheduler.runner = async (payload) => { calls.push(payload); };
+
+  await scheduler._runTask({
+    id: 'schedule-1',
+    type: 'interval',
+    intervalMs: 60000,
+    message: 'refresh project index',
+    projectId: 'atlas',
+    profile: 'plan',
+    createdAt: 1,
+  });
+
+  assert.deepEqual(hookBus.emitCortexEvent.mock.calls, [[
+    'cortex:schedule.fired',
+    { scheduleId: 'schedule-1', name: 'refresh project index', project: 'atlas' },
+  ]]);
+  assert.equal(calls.length, 1);
+}));
+
+test('scheduler run continues when the schedule hook rejects', withTempSchedules(async ({ scheduler }) => {
+  const calls = [];
+  scheduler.runner = async (payload) => { calls.push(payload); };
+  hookBus.emitCortexEvent.mockRejectedValueOnce(new Error('hook failed'));
+
+  await scheduler._runTask({
+    id: 'schedule-2',
+    type: 'once',
+    message: 'send digest',
+    projectId: 'orchard',
+    profile: 'plan',
+    runAt: Date.now(),
+    createdAt: 1,
+  });
+
+  assert.equal(hookBus.emitCortexEvent.mock.calls[0]?.[0], 'cortex:schedule.fired');
+  assert.equal(calls.length, 1);
 }));
 
 test('scheduler get returns a task by id and null for missing ids', withTempSchedules(async ({ scheduler }) => {

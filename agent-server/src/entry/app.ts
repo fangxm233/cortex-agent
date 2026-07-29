@@ -1,6 +1,6 @@
-// input:  env/config, adapters, stores, runtime services
-// output: initialized server runtime and graceful shutdown
-// pos:    agent-server composition root
+// input:  env/config, adapters, stores, runtime services, HookBus
+// output: server.start/shutdown{version,pid[,reason]}; runtime
+// pos:    Agent-server composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
 import { mkdirSync, promises as fsPromises } from 'fs';
@@ -75,7 +75,8 @@ import { scheduleRepo } from '@store/schedule-repo.js';
 import { runMigrations, migrateAistatusConfigLocation } from '@store/version-migrations.js';
 import { syncManagedHooks } from '@store/hook-sync.js';
 import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
-import { initHookBus } from '@core/hook-bus.js';
+import { emitCortexEvent, initHookBus } from '@core/hook-bus.js';
+import { CORTEX_VERSION } from '@core/version.js';
 import { syncManagedPlugins } from '@store/plugin-sync.js';
 import { costRepo } from '@store/cost-repo.js';
 import { PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
@@ -297,6 +298,11 @@ let _uiHttpServer: { close: () => Promise<void> } | null = null;
 
 // --- Graceful shutdown ---
 process.on('SIGTERM', async () => {
+  void emitCortexEvent('cortex:server.shutdown', {
+    version: CORTEX_VERSION,
+    pid: process.pid,
+    reason: 'SIGTERM',
+  }).catch(() => {});
   closeAllSessions(); closeAllAdapters().catch(() => {}); stopClientManager(); stopMachineRegistryWatcher(); _stopProfileWatcher?.();
   await _uiHttpServer?.close().catch(() => {});
   stopDiskMonitor();
@@ -693,5 +699,9 @@ process.on('SIGTERM', async () => {
   // already terminal on disk but whose event/settle delivery was lost to a race (2026-06-29).
   startWaitingManagerSweep();
 
+  void emitCortexEvent('cortex:server.start', {
+    version: CORTEX_VERSION,
+    pid: process.pid,
+  }).catch(() => {});
   log.info(`Cortex agent is running (${adapter.name}) — backend: ${getActiveBackend()}`);
 })();

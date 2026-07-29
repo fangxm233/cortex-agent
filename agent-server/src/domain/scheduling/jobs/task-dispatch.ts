@@ -1,11 +1,12 @@
-// input:  task store, execution registry, thread runner
-// output: taskDispatchRunner and cancelDispatchedTask
+// input:  task store, execution registry, thread runner, HookBus
+// output: dispatch.started{taskId,project,source,templateName}
 // pos:    Claims tasks and starts dispatch-tagged threads
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as os from 'node:os';
 import { register, ctx } from '../job-registry.js';
 import { createLogger } from '@core/log.js';
+import { emitCortexEvent } from '@core/hook-bus.js';
 import { Icons } from '../../../core/icons.js';
 import * as executionRegistry from '../../executions/registry.js';
 
@@ -147,6 +148,12 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
   });
 
   const icb = ctx.buildInteractiveCallbacks?.(channel, null);
+  void emitCortexEvent('cortex:dispatch.started', {
+    taskId: selectedTask.id,
+    project: selectedTask.project,
+    source: 'task-dispatch',
+    templateName: selected.template,
+  }).catch(() => {});
   const threadResult = await runThreadExec(thread.id, {
     adapter, channel: channel, threadAnchorId: statusMsg?.messageId || null, statusMsg, startTime,
     destination: { type: 'project-report', projectId: selectedTask.project || channel, trigger: 'task-dispatch', sessionId: '' },

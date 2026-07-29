@@ -1,7 +1,6 @@
-// input:  WebSocket connections from cortex-client instances
-// output: start/stop/getOnlineDevices/sendCommand/isDeviceOnline/buildRemoteSpawnCommand/buildRemoteInstallCommand
-// pos:    cortex-client WebSocket connection registration, command routing, and
-//         SSH-based remote client lifecycle (spawn / retry / PID tracking)
+// input:  cortex-client WebSockets, machine registry, HookBus
+// output: client.connected/disconnected{device[,reason]}; commands
+// pos:    Registers, routes and restarts remote clients
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { WebSocketServer, WebSocket } from 'ws';
@@ -13,6 +12,7 @@ import { getMachineRegistry, type MachineEntry, type MachineRegistry } from '../
 import { STORE_DIR, CONFIG_DIR } from '@core/utils.js';
 import { AUTH_HEADER, getClientToken, timingSafeEqualStr } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
+import { emitCortexEvent } from '@core/hook-bus.js';
 import { readTasks, findTask } from '../tasks/system/task-lifecycle-edit.js';
 import { taskMutator } from '../tasks/mutator.js';
 import { setExecutionGpuByTaskId, type ExecutionGpuInfo } from '../executions/registry.js';
@@ -53,6 +53,11 @@ let heartbeatCheckInterval: ReturnType<typeof setInterval> | null = null;
 const HEARTBEAT_TIMEOUT_MS = 15_000; // 3 missed 5s heartbeats
 const DEFAULT_COMMAND_TIMEOUT_MS = 120_000; // 2 min for bash
 const FILE_COMMAND_TIMEOUT_MS = 30_000; // 30s for file operations
+
+function emitDisconnected(device: string, reason?: string): void {
+  const payload = reason ? { device, reason } : { device };
+  void emitCortexEvent('cortex:client.disconnected', payload).catch(() => {});
+}
 
 // --- Server lifecycle ---
 
@@ -116,6 +121,7 @@ function startClientManager(port: number): void {
           ws,
         });
         log.info(`Device connected: ${deviceName} (${msg.platform || 'unknown'})`);
+        void emitCortexEvent('cortex:client.connected', { device: deviceName }).catch(() => {});
         return;
       }
 
@@ -147,12 +153,13 @@ function startClientManager(port: number): void {
       }
     });
 
-    ws.on('close', () => {
+    ws.on('close', (_code, reason) => {
       if (deviceName) {
         const current = devices.get(deviceName);
         if (current && current.ws === ws) {
           log.info(`Device disconnected: ${deviceName}`);
           devices.delete(deviceName);
+          emitDisconnected(deviceName, reason.toString().trim() || undefined);
           // Reject all pending commands for this device
           for (const [id, pending] of pendingCommands) {
             if (pending.device === deviceName) {
@@ -188,6 +195,7 @@ function startClientManager(port: number): void {
         log.info(`Device ${name} heartbeat timeout, marking offline`);
         try { info.ws.close(4003, 'Heartbeat timeout'); } catch {}
         devices.delete(name);
+        emitDisconnected(name, 'Heartbeat timeout');
         // Reject pending commands for this device
         for (const [id, pending] of pendingCommands) {
           if (pending.device === name) {
@@ -223,6 +231,7 @@ function stopClientManager(): void {
   // Close all connections
   for (const [, info] of devices) {
     try { info.ws.close(1001, 'Server shutting down'); } catch {}
+    emitDisconnected(info.device, 'Server shutting down');
   }
   devices.clear();
 
@@ -263,6 +272,7 @@ function sendCommand(device: string, command: CommandParams): Promise<any> {
 
   if (info.ws.readyState !== WebSocket.OPEN) {
     devices.delete(device);
+    emitDisconnected(device, 'WebSocket is not open');
     return Promise.reject(new Error(`Device "${device}" WebSocket is not open`));
   }
 

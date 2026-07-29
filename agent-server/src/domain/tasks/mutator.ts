@@ -1,5 +1,11 @@
+// input:  task repository, lifecycle operations, EventBus, HookBus
+// output: task.completed/blocked{taskId,project[,reason]}
+// pos:    Serializes task state mutations and terminal events
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { taskStore, TaskRepo } from '@store/task-repo.js';
 import type { EventBus } from '@events/index.js';
+import { emitCortexEvent } from '@core/hook-bus.js';
 import {
   approveTask as lifecycleApproveTask,
   blockTask as lifecycleBlockTask,
@@ -80,6 +86,7 @@ export class TaskMutator {
       if (result.success) {
         this.store.refresh(); this.store.commitAndPush(`task-store: complete ${taskId}`);
         this.bus?.publish({ type: 'task.completed', taskId });
+        void emitCortexEvent('cortex:task.completed', { taskId, project: task.project }).catch(() => {});
       }
       return result;
     });
@@ -104,6 +111,7 @@ export class TaskMutator {
         this.store.refresh(); this.store.commitAndPush(`task-store: block ${taskId}`);
         // DR-0014 §8: a blocked task is a child's escalation — wake its waiting manager.
         this.bus?.publish({ type: 'task.blocked', taskId, reason });
+        void emitCortexEvent('cortex:task.blocked', { taskId, project: task.project, reason }).catch(() => {});
       }
       return result;
     });

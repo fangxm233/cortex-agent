@@ -1,17 +1,30 @@
-// input:  Node test runner, assert, TaskMutator + TaskRepo
-// output: tests for TaskMutator (15 methods × happy/error = 30 cases)
-// pos:    verifies domain/tasks/mutator.ts orchestrates mutations correctly
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// input:  Vitest, TaskMutator, TaskRepo, HookBus mock
+// output: Task mutation, event payload and isolation tests
+// pos:    Verifies serialized task mutation orchestration
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import { test } from 'vitest';
+import { beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
+
+const hookBus = vi.hoisted(() => ({
+  emitCortexEvent: vi.fn(),
+}));
+
+vi.mock('@core/hook-bus.js', () => ({
+  emitCortexEvent: hookBus.emitCortexEvent,
+}));
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../../../src/core/paths.js';
 import { TaskRepo } from '../../../src/store/task-repo.js';
 import { TaskMutator } from '../../../src/domain/tasks/mutator.js';
 import { writeLock, getOwnerIdentity } from '../../../src/domain/tasks/system/task-lock.js';
+
+beforeEach(() => {
+  hookBus.emitCortexEvent.mockReset();
+  hookBus.emitCortexEvent.mockResolvedValue([]);
+});
 
 // ── Fixture helpers ──────────────────────────────────────────────
 
@@ -173,6 +186,42 @@ test('complete — fails for nonexistent task', async () => {
   }
 });
 
+test('complete — emits cortex:task.completed with matcher payload keys', async () => {
+  const fx = makeFixtureRepo();
+  try {
+    const project = fx.projects[0];
+    const mutator = new TaskMutator(createRepo());
+    await mutator.claim(fx.seedTaskId, 'agent');
+    hookBus.emitCortexEvent.mockClear();
+
+    const result = await mutator.complete(fx.seedTaskId, 'done');
+
+    assert.equal(result.success, true);
+    assert.deepEqual(hookBus.emitCortexEvent.mock.calls, [[
+      'cortex:task.completed',
+      { taskId: fx.seedTaskId, project },
+    ]]);
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('complete — a rejected hook does not change the mutation outcome', async () => {
+  const fx = makeFixtureRepo();
+  try {
+    const mutator = new TaskMutator(createRepo());
+    await mutator.claim(fx.seedTaskId, 'agent');
+    hookBus.emitCortexEvent.mockRejectedValueOnce(new Error('hook failed'));
+
+    const result = await mutator.complete(fx.seedTaskId, 'done');
+
+    assert.equal(result.success, true);
+    assert.equal(hookBus.emitCortexEvent.mock.calls[0]?.[0], 'cortex:task.completed');
+  } finally {
+    fx.cleanup();
+  }
+});
+
 // ─── 4. uncomplete ────────────────────────────────────────────────
 
 test('uncomplete — reverts a completed task to open', async () => {
@@ -232,6 +281,46 @@ test('block — fails for nonexistent task', async () => {
     const result = await mutator.block('zzzz', 'reason');
     assert.equal(result.success, false);
     assert.match(result.message, /not found/i);
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('block — emits cortex:task.blocked beside the existing domain event', async () => {
+  const fx = makeFixtureRepo();
+  try {
+    const project = fx.projects[0];
+    const published: any[] = [];
+    const bus = { publish: (event: any) => { published.push(event); } };
+    const mutator = new TaskMutator(createRepo(), bus as any);
+
+    const result = await mutator.block(fx.seedTaskId, 'dependency unavailable');
+
+    assert.equal(result.success, true);
+    assert.deepEqual(published, [{
+      type: 'task.blocked',
+      taskId: fx.seedTaskId,
+      reason: 'dependency unavailable',
+    }]);
+    assert.deepEqual(hookBus.emitCortexEvent.mock.calls, [[
+      'cortex:task.blocked',
+      { taskId: fx.seedTaskId, project, reason: 'dependency unavailable' },
+    ]]);
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('block — a rejected hook does not change the mutation outcome', async () => {
+  const fx = makeFixtureRepo();
+  try {
+    const mutator = new TaskMutator(createRepo());
+    hookBus.emitCortexEvent.mockRejectedValueOnce(new Error('hook failed'));
+
+    const result = await mutator.block(fx.seedTaskId, 'dependency unavailable');
+
+    assert.equal(result.success, true);
+    assert.equal(hookBus.emitCortexEvent.mock.calls[0]?.[0], 'cortex:task.blocked');
   } finally {
     fx.cleanup();
   }

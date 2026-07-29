@@ -1,6 +1,6 @@
-// input:  ScheduleRepo, runner callback, persisted provider throttle records
-// output: Scheduler class + duration helpers + throttle persistence passthrough
-// pos:    scheduled task scheduler (hot-reload + preCheck skip). Persistence delegated to store/schedule-repo.ts.
+// input:  ScheduleRepo, runner callbacks, profiles, HookBus
+// output: Scheduler; schedule.fired{scheduleId,name,project}
+// pos:    Tracks, reloads and fires persisted schedules
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { watch, FSWatcher } from 'fs';
@@ -9,6 +9,7 @@ import { randomBytes } from 'crypto';
 import { Icons } from '../../core/icons.js';
 import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
+import { emitCortexEvent } from '@core/hook-bus.js';
 import { getDefaultProfileName } from '../agents/profile-manager.js';
 import { ScheduleRepo, scheduleRepo, SCHEDULES_FILE, type ScheduleTask, type PersistedRateLimitThrottle } from '@store/schedule-repo.js';
 
@@ -551,6 +552,11 @@ class Scheduler {
     const profileName = resolveTaskProfile(task.profile);
     const resolvedChannel = task.projectId;
     log.info(`Firing task ${task.id} (${task.type}, dispatch=${task.dispatchType || 'llm'}, profile=${profileName}, channel=${resolvedChannel}): "${task.message}"`);
+    void emitCortexEvent('cortex:schedule.fired', {
+      scheduleId: task.id,
+      name: task.message,
+      project: task.projectId,
+    }).catch(() => {});
     try {
       if (task.dispatchType === 'task-dispatch' && this.taskDispatchRunner) {
         await this.taskDispatchRunner({
