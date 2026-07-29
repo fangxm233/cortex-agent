@@ -15,7 +15,7 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 | framing.ts | codec | encodes and splits PI newline JSON records |
 | mcp-bridge.ts | bridge | composes shared and privilege-scoped MCP tools |
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |
-| hook-bridge.ts | bridge | forwards PI tool events into Cortex hooks |
+| hook-bridge.ts | bridge | registers declarative hooks on PI events |
 | web-fetch.ts | tool | fetches bounded HTTP(S) and strips data images |
 | web-search.ts | tool | decodes search responses from the active model API |
 | subagent.ts | tool | describes role names and runs scoped PI children |
