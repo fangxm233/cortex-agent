@@ -274,12 +274,31 @@ export class OutboundQueue {
     await fs.appendFile(this.walPath, JSON.stringify(op) + '\n', 'utf8');
   }
 
+  /** Replay the WAL, skipping unparseable lines instead of throwing.
+   *
+   *  An append can be torn mid-line (a full disk truncates the write; the next append then
+   *  starts at the truncated offset and glues two records into one unparseable line). A single
+   *  such line used to reject recover(), and recover() is awaited from the unguarded startup
+   *  path in entry/app.ts — so one bad byte range aborted the rest of boot (thread templates,
+   *  thread store, project store, client-manager WebSocket) and left the server unable to run
+   *  any agent. Losing an unsendable notification is strictly better than losing the server. */
   private async _readWAL(): Promise<WALOp[]> {
     try {
       const content = await fs.readFile(this.walPath, 'utf8');
-      return content.split('\n')
-        .filter(l => l.trim() !== '')
-        .map(l => JSON.parse(l) as WALOp);
+      const ops: WALOp[] = [];
+      let corrupt = 0;
+      for (const line of content.split('\n')) {
+        if (line.trim() === '') continue;
+        try {
+          ops.push(JSON.parse(line) as WALOp);
+        } catch {
+          corrupt++;
+        }
+      }
+      if (corrupt > 0) {
+        log.warn(`WAL ${this.walPath}: skipped ${corrupt} unparseable line(s) (torn append?), recovered ${ops.length} op(s)`);
+      }
+      return ops;
     } catch (err: any) {
       if (err.code === 'ENOENT') return [];
       throw err;
