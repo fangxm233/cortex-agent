@@ -1,6 +1,6 @@
 // input:  TypeBox, PI model context, provider HTTP APIs
 // output: Validated API-dispatched PI WebSearch tool
-// pos:    PI server-side search request and response adapter
+// pos:    PI search request and resilient response decoder
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { randomUUID } from 'node:crypto';
@@ -459,12 +459,25 @@ async function parseAnthropicResponse(response: Response): Promise<SearchRespons
   };
 }
 
+function looksLikeSse(contentType: string, body: string): boolean {
+  if (contentType.toLowerCase().includes('text/event-stream')) return true;
+  const firstLine = body.replace(/^\uFEFF/, '').trimStart();
+  return firstLine.startsWith('event:') || firstLine.startsWith('data:');
+}
+
+function parseJsonResponse(body: string): Record<string, unknown> {
+  try {
+    return JSON.parse(body) as Record<string, unknown>;
+  } catch {
+    throw new Error('WebSearch received neither valid SSE nor JSON provider data.');
+  }
+}
+
 async function parseResponsesResponse(response: Response): Promise<SearchResponse> {
   const contentType = response.headers.get('content-type') ?? '';
-  if (contentType.includes('text/event-stream')) {
-    return parseResponseEvents(parseSseEvents(await response.text()));
-  }
-  const payload = await response.json() as Record<string, unknown>;
+  const body = await response.text();
+  if (looksLikeSse(contentType, body)) return parseResponseEvents(parseSseEvents(body));
+  const payload = parseJsonResponse(body);
   validateCompletedResponse(payload, 'JSON payload');
   return {
     text: responseTexts(payload).join('\n'),

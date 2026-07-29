@@ -16,7 +16,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-streaming.test.ts | test | PI assistant delta streaming emission |
 | agent-adapter-pi-subagent.test.ts | test | PI subagent isolation, failure, usage and abort |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shim gates, recursion, WebFetch and retries |
-| agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and fallback |
+| agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
 | agent-adapter-pi.test.ts | test | PI framing, spawn, context and compact |
 | agent-adapter.test.ts | test | adapter dispatch, capability and tool names |
 | agent-retry-classification.test.ts | test | retry classification and auto-resume notices |

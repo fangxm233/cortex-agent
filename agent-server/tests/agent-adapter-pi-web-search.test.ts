@@ -1,5 +1,5 @@
 // input:  PI WebSearch tool, stubbed provider HTTP responses
-// output: WebSearch dispatch, terminal, and fallback tests
+// output: WebSearch dispatch, terminal, and mislabeled SSE tests
 // pos:    PI WebSearch response validation regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -236,6 +236,32 @@ test('dispatches openai-codex-responses with account and beta headers', async ()
   const body = JSON.parse(String(init.body));
   assert.equal(body.model, 'search-model');
   assert.deepEqual(body.tools, [{ type: 'web_search' }]);
+  assert.match(result.content[0].text, new RegExp(SOURCE_URL));
+});
+
+test('accepts Codex SSE when a proxy mislabels the response as JSON', async () => {
+  const ctx = makeContext({
+    api: 'openai-codex-responses',
+    provider: 'codex-mislabeled-stream',
+    apiKey: encodeJwt('acct-mislabeled-stream'),
+  });
+  const events = [
+    ...successfulResponseEvents('Recovered streamed answer.', SOURCE_URL),
+    { type: 'response.completed', response: { status: 'completed' } },
+  ];
+  const body = events.map((event) => (
+    `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`
+  )).join('') + 'data: [DONE]\n\n';
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(body, {
+    headers: { 'content-type': 'application/json' },
+  }));
+
+  const result = await executeSearch(ctx);
+
+  const requestHeaders = new Headers((fetchSpy.mock.calls[0][1] as RequestInit).headers);
+  assert.equal(requestHeaders.get('accept'), 'text/event-stream');
+  assert.match(result.content[0].text, /Recovered streamed answer/);
+  assert.match(result.content[0].text, /Queries:\n- current stable runtime release/);
   assert.match(result.content[0].text, new RegExp(SOURCE_URL));
 });
 
