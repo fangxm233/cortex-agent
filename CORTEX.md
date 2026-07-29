@@ -57,7 +57,7 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 | `schedules.json` | Scheduled tasks, provider/window throttles, and provider-attributed resume queue |
 | `sessions.json` | Channel-to-agent session mapping |
 | `executions.json` | Unified execution registry |
-| `thread-templates.json` | Agent definitions and orchestration templates |
+| `config/thread-templates/` | Thread config directory: one JSON file per entity under `agents/`, `templates/`, and `shells/` (a legacy single-file config is still read as a fallback and split into this directory on startup) |
 | `threads.json` | Active and historical thread state |
 | `tasks/` | Project task queues (TASKS.yaml per project) |
 | `logs/` | Daemon and LLM logs |
