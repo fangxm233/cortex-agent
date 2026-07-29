@@ -137,7 +137,7 @@ These fire inside the agent-server process itself, dispatched by the HookBus.
 | `cortex:task.blocked` | A task is blocked | `taskId`, `project`, `reason` |
 | `cortex:client.connected` | A remote device client registers | `device` |
 | `cortex:client.disconnected` | A remote device client drops | `device`, `reason` when known |
-| `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `sessionName`, `executionId`, `profile`, `trigger`, `timestampIso` |
+| `cortex:session.new` | A session is closing via `!new` or the "New" status button | `channel`, `sessionId`, `sessionName`, `executionId`, `profile`, `trigger` (`new`), `timestampIso` |
 | `cortex:session.messageEnd` | An assistant turn completes | same shape, with `trigger` set to `messageEnd` |
 
 The thread context carried by the three `cortex:thread.*` events is:
@@ -152,7 +152,10 @@ tested against the tool name. `agent:*` and `cc:*` matchers use Claude's
 PascalCase names (`Edit|Write`, `Read|Grep`); on the PI side the bridge maps
 PI's `edit` / `read` / `web_fetch` style names up to those canonical names
 before testing, so one matcher covers both backends. `pi:*` matchers are tested
-against PI's native tool names as-is.
+against PI's native tool names as-is. Non-tool events match differently: Claude
+tests a `SessionStart` matcher against the start reason
+(`startup|resume|clear|compact`), and the PI bridge applies matchers only to
+tool events, ignoring them on lifecycle events.
 
 For `cortex:*` events the matcher is an object of equality filters, and every
 key must be present in the payload with exactly that value. The shipped dispatch
@@ -378,7 +381,7 @@ that entry restores its shipped `enabled` state. Template-scoped hooks are
 read-only — `enable` and `disable` reject them and list the registry ids you can
 act on instead.
 
-`test` returns `ok`, `exit_code`, `stdout`, `stderr`, and `error` when the
+`test` returns `ok`, `id`, `exit_code`, `stdout`, `stderr`, and `error` when the
 process failed, and exits with the hook's own exit code.
 
 ## Adding a hook
