@@ -105,14 +105,14 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 | `cortex:task.blocked` | 任务被阻塞 | `taskId`、`project`、`reason` |
 | `cortex:client.connected` | 远程设备客户端注册 | `device` |
 | `cortex:client.disconnected` | 远程设备客户端掉线 | `device`，已知时带 `reason` |
-| `cortex:session.new` | 会话因 `!new` 或“New”状态按钮而关闭 | `channel`、`sessionId`、`sessionName`、`executionId`、`profile`、`trigger`、`timestampIso` |
+| `cortex:session.new` | 会话因 `!new` 或“New”状态按钮而关闭 | `channel`、`sessionId`、`sessionName`、`executionId`、`profile`、`trigger`（`new`）、`timestampIso` |
 | `cortex:session.messageEnd` | 一次助手回合完成 | 同样的形状，`trigger` 为 `messageEnd` |
 
 三个 `cortex:thread.*` 事件携带的线程上下文为：`threadId`、`templateName`、`phase`、`source`、`project`、`projectId`、`taskId`、`taskProject`、`currentStepIndex`、`steps`、`activeAgent`、`previousAgent`、`artifactContent`、`userMessage`、`totalCostUsd`、`pendingControlAction`。
 
 ### 匹配器
 
-对 `agent:*`、`cc:*`、`pi:*` 事件，匹配器是对工具名求值的正则。`agent:*` 与 `cc:*` 的匹配器使用 Claude 的 PascalCase 名称（`Edit|Write`、`Read|Grep`）；在 PI 侧，桥接会先把 PI 的 `edit` / `read` / `web_fetch` 这类名称映射为上述规范名再做匹配，因此一个匹配器覆盖两个后端。`pi:*` 的匹配器则直接对 PI 的原生工具名求值。
+对 `agent:*`、`cc:*`、`pi:*` 事件，匹配器是对工具名求值的正则。`agent:*` 与 `cc:*` 的匹配器使用 Claude 的 PascalCase 名称（`Edit|Write`、`Read|Grep`）；在 PI 侧，桥接会先把 PI 的 `edit` / `read` / `web_fetch` 这类名称映射为上述规范名再做匹配，因此一个匹配器覆盖两个后端。`pi:*` 的匹配器则直接对 PI 的原生工具名求值。非工具事件的匹配对象不同：Claude 用 `SessionStart` 匹配器去匹配启动原因（`startup|resume|clear|compact`），而 PI 桥接只对工具事件应用匹配器，生命周期事件上忽略它。
 
 对 `cortex:*` 事件，匹配器是一个等值过滤对象，其中每个键都必须出现在 payload 中且值完全相等。随发布的分发钩子使用 `{"source": "task-dispatch"}`，因此它只对由任务分发启动的线程触发，而不是每个结束的线程都触发。
 
@@ -257,7 +257,7 @@ cat payload.json | cortex-hook test --id sensitive-file-edit --payload -
 
 `enable` 与 `disable` 会报告 `changed`，让你区分真实的状态变化和空操作；`--dry-run` 不写文件，改为附加一个 `would_set` 块。禁用一个 managed 钩子会返回警告：之后如果同步部署了该条目的更新版本，会把它恢复为发布时的 `enabled` 状态。模板作用域的钩子是只读的——`enable` 与 `disable` 会拒绝它们，并列出你可以操作的注册表 id。
 
-`test` 返回 `ok`、`exit_code`、`stdout`、`stderr`，进程失败时还有 `error`，并以钩子自身的退出码退出。
+`test` 返回 `ok`、`id`、`exit_code`、`stdout`、`stderr`，进程失败时还有 `error`，并以钩子自身的退出码退出。
 
 ## 添加一个钩子
 
