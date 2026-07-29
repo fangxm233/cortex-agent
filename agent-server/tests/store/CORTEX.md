@@ -19,4 +19,4 @@ and the persisted registries for sessions, tasks, schedules and costs.
 | session-registry-repo.test.ts | test | Covers session lookup, prune and migration |
 | session-store.test.ts | test | Covers session migration and prune references |
 | task-repo.test.ts | test | Covers task store locking, flush and round-trip |
-| version-migrations.test.ts | test | Covers config migration runner and idempotency |
+| version-migrations.test.ts | test | Covers config and prompt migration idempotency |

@@ -1,6 +1,6 @@
-// input:  PI subagent tool, stub child processes, temporary role files
-// output: PI schema, spawn, failure, usage, and abort contracts
-// pos:    Regression tests for the PI Agent subagent tool
+// input:  PI Agent tool, system prompts, stub child processes
+// output: Role-schema, prompt, execution, and usage regressions
+// pos:    Regression tests for PI subagent contracts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { EventEmitter } from 'node:events';
@@ -8,6 +8,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { PassThrough } from 'node:stream';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { afterEach, test, vi } from 'vitest';
 import {
@@ -15,6 +16,10 @@ import {
   MAX_SUBAGENT_TASKS,
   type SubagentToolDeps,
 } from '../src/agent-adapter/pi/subagent.js';
+
+const DEFAULTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'defaults');
+const SYSTEM_PROMPTS_DIR = path.join(DEFAULTS_DIR, 'prompts', 'systemPrompts');
+const PI_ROLES_DIR = path.join(DEFAULTS_DIR, 'pi', 'agents');
 
 class StubChild extends EventEmitter {
   readonly stdout = new PassThrough();
@@ -164,6 +169,13 @@ test('Agent schema exposes bounded provider/model choices and fallback precedenc
     assert.match(schema.description, /provider\/model/);
     assert.match(schema.description, /role.*current.*PI default/i);
   }
+  for (const schema of [
+    properties.subagent_type,
+    properties.parallel.items.properties.subagent_type,
+    properties.chain.items.properties.subagent_type,
+  ]) {
+    assert.match(schema.description, /explore.*general-purpose.*plan/);
+  }
 
   const manyModels = Array.from({ length: 80 }, (_, index) => ({
     provider: 'provider',
@@ -179,6 +191,36 @@ test('Agent schema exposes bounded provider/model choices and fallback precedenc
   ]).description;
   assert.match(overlong, /z\/short-model/);
   assert.doesNotMatch(overlong, /overrides:\s+\(\+/);
+});
+
+test('shipped system prompts instruct an exact PI Agent role that exists', async () => {
+  const harness = createHarness();
+  try {
+    for (const promptName of ['direct', 'worker', 'coder']) {
+      const content = fs.readFileSync(path.join(SYSTEM_PROMPTS_DIR, `${promptName}.md`), 'utf8');
+      const match = content.match(/subagent_type=([\w-]+)/);
+      assert.ok(match, `${promptName} must instruct a subagent_type`);
+      const roleName = match[1];
+      assert.ok(fs.existsSync(path.join(PI_ROLES_DIR, `${roleName}.md`)));
+      const expectedCallCount = harness.calls.length + 1;
+      const run = harness.tool.execute(
+        `prompt-${promptName}`,
+        singleParams({ subagent_type: roleName }),
+        undefined,
+        undefined,
+        context(harness.root),
+      );
+      await Promise.race([
+        waitForCalls(harness.calls, expectedCallCount),
+        run.then(() => assert.fail('Agent settled before spawning'), (error: unknown) => { throw error; }),
+      ]);
+      finish(harness.calls.at(-1)!.child);
+      await run;
+      assert.equal(roleName, roleName.toLowerCase());
+    }
+  } finally {
+    harness.cleanup();
+  }
 });
 
 test('single child uses JSON/no-session extensions, strips thread env, and returns usage', async () => {

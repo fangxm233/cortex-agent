@@ -1,10 +1,6 @@
-// input:  CORTEX_VERSION, DATA_DIR/DEFAULTS_DIR, atomicWrite, createLogger
-// output: runMigrations() — applies pending file migrations before config loading
-// pos:    Version-tracked file migration runner. Tracks per-file applied migration versions
-//         in DATA_DIR/data/versions.json; on startup compares against CORTEX_VERSION and
-//         runs pending migrations in version order. Supports JSON (parse/serialize) and text
-//         (raw string, e.g. markdown system prompts) migrations. Idempotent and crash-safe
-//         via atomicWrite.
+// input:  CORTEX_VERSION, data/default paths, atomicWrite
+// output: Versioned JSON and text file migrations
+// pos:    Startup migration runner for user-owned files
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'node:path';
@@ -162,6 +158,10 @@ const CODER_REVIEWER_DIRECTIVE_REPLACEMENTS: ReadonlyArray<readonly [string, str
     '- **Test run omission**: signing off on an implementation without running the full test suite yourself. Coder\'s claim that tests pass is not evidence. Run `npm test` and check every stage. A dependency-cruiser error or a test regression that Coder missed is as much your failure as theirs.',
     '- **Test run omission**: signing off on an implementation without running the project\'s test suite yourself when one exists. Coder\'s claim that tests pass is not evidence. Run the suite and check every stage. A lint/architecture error or a test regression that Coder missed is as much your failure as theirs.',
   ],
+];
+
+const PI_SUBAGENT_ROLE_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
+  ['subagent_type=Explore', 'subagent_type=explore'],
 ];
 
 // ── Registry ───────────────────────────────────────────────────
@@ -338,6 +338,20 @@ const migrations: Migration[] = [
       return applyReplacements(data, CODER_REVIEWER_DIRECTIVE_REPLACEMENTS);
     },
   },
+  // M6: Match existing prompt copies to PI's lowercase default role name.
+  ...[
+    'prompts/systemPrompts/direct.md',
+    'prompts/systemPrompts/worker.md',
+    'prompts/systemPrompts/coder.md',
+  ].map((filePath): Migration => ({
+    filePath,
+    version: '2026.6.24',
+    format: 'text',
+    migrate(data: unknown): unknown {
+      if (typeof data !== 'string') return data;
+      return applyReplacements(data, PI_SUBAGENT_ROLE_REPLACEMENTS);
+    },
+  })),
 ];
 
 // ── Versions file I/O ──────────────────────────────────────────
