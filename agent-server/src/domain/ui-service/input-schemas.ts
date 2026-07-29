@@ -1,5 +1,5 @@
 // input:  zod and ui-service scope/op unions
-// output: input schemas/maps including sessions.compact
+// output: input schemas/maps including thread artifact reads
 // pos:    Runtime validation source for the UI contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -28,6 +28,7 @@ export const threadsListInput = z.object({
 
 export const threadsGetInput = z.object({
   threadId: z.string(),
+  includeArtifactContent: z.boolean().optional(),
 });
 
 export const tasksListInput = z.object({

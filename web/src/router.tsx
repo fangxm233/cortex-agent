@@ -10,7 +10,6 @@ import { WorkbenchPage } from '@/features/workbench/WorkbenchPage';
 import { TasksPage } from '@/features/tasks/TasksPage';
 import { KitPage } from '@/features/kit/KitPage';
 import { BaseDemoPage } from '@/features/base-demo/BaseDemoPage';
-import { ThreadDetailRoute } from '@/features/thread/ThreadDetailRoute';
 import { OverviewPage } from '@/features/overview/OverviewPage';
 import { MemoryPage } from '@/features/memory/MemoryPage';
 import { SkillsPage } from '@/features/skills/SkillsPage';
@@ -29,7 +28,6 @@ export const router = createRouter([
       { path: 'workbench', element: <WorkbenchPage /> },
       { path: 'tasks', element: <TasksPage /> },
       { path: 'threads', element: <EmptyPane title="Threads" /> },
-      { path: 'threads/:threadId', element: <ThreadDetailRoute /> },
       { path: 'overview', element: <OverviewPage /> },
       { path: 'memory', element: <MemoryPage /> },
       { path: 'skills', element: <SkillsPage /> },

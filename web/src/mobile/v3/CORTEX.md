@@ -19,7 +19,7 @@ The view models are framework-free record to slot mappings and each one has a co
 | MThreadsView.tsx | view | Threads header and drill-in pipeline cards |
 | m-threads-vm.ts | vm | Derives budget, steps and task-linked card meta |
 | m-threads-vm.test.ts | test | Tests mobile task-linked thread metadata |
-| MThreadDetailScreen.tsx | screen | Binds thread detail query and cancel mutation |
+| MThreadDetailScreen.tsx | screen | Binds routed mobile detail and cancellation |
 | MThreadDetailView.tsx | view | Thread pipeline steps, artifacts and actions |
 | MThreadDetailView.test.tsx | test | Unit tests for the cancel affordance |
 | m-thread-detail-vm.ts | vm | Maps thread detail to steps, crumbs, artifacts |

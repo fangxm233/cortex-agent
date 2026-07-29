@@ -1,8 +1,9 @@
-// 1g 线程详情 — the drill-in detail of one thread (from 1c「打开 ›」), scheme-mobile.dc.html 1g L387-438.
-// Non-Tab page (the shell hides the Tab bar). Binds the real threads.get DTO (B1) + live re-flow via
-// useThreadGetLiveSync; 取消 is the real threads.cancel mutation; 暂停 is inert (no pause backend op —
-// GAP). The ancestor breadcrumb trail rides in React Router location.state.trail (carried by 1c's
-// drill-down; honest — omitted when absent). Presentation + the pure VM live alongside (TDD).
+// input:  mobile route params, threads.get query, and cancel mutation
+// output: bound mobile thread detail screen
+// pos:    Mobile drill-in controller for one thread
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
+// Non-Tab page; ancestor breadcrumbs ride in React Router location state.
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -37,7 +38,7 @@ const COPY: { en: MThreadDetailCopy; zh: MThreadDetailCopy } = {
   },
 };
 
-// 1s tick so the running-thread elapsed clock advances (matches ThreadDetailRoute).
+// 1s tick so the running-thread elapsed clock advances (matches the desktop detail modal).
 function useNowTick(active: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

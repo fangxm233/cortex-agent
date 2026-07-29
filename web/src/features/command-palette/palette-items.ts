@@ -9,11 +9,11 @@ import type { Vocab } from '@/i18n';
 // tasks.list) into the prototype's ⌘K flat-row item model (prototype.dc.html L1304–1311 +
 // the `allCmdk` demo shape L2489–2499). Each row = glyph badge + label + sub + right-aligned
 // kbd tag; page rows navigate via React Router and modal rows open in place. §8.3: the row
-// structure is 1:1 with the prototype, real entities are the only variable. Threads route to their detail page
-// `/threads/:id` (F2); sessions/tasks target their section route (detail surfaces are Stage 4/5),
-// carrying the entity id in `focusId`.
+// structure is 1:1 with the prototype, real entities are the only variable. Thread rows open the
+// global detail modal; sessions/tasks target their section route and carry the id in `focusId`.
 
 export type CmdkKind = 'session' | 'thread' | 'task';
+export type PaletteModal = 'settings' | 'thread';
 
 export interface CmdkItem {
   /** Unique cmdk `value` (stable, collision-free across kinds). */
@@ -24,7 +24,8 @@ export interface CmdkItem {
   sub: string;
   /** Right-aligned mono type tag — session / thread / task. */
   kbd: string;
-  route: string;
+  route?: string;
+  modal?: PaletteModal;
   focusId: string;
   keywords: string[];
 }
@@ -42,7 +43,7 @@ export interface CmdkCommand {
   sub: string;
   kbd: string;
   route?: string;
-  modal?: 'settings';
+  modal?: PaletteModal;
   keywords: string[];
   /** Vocab key resolved to the localized label at the render site (nav rows only). */
   labelKey: keyof Vocab;
@@ -60,7 +61,7 @@ export interface PaletteRow {
   sub: string;
   kbd: string;
   route?: string;
-  modal?: 'settings';
+  modal?: PaletteModal;
   focusId?: string;
   keywords: string[];
   labelKey?: keyof Vocab;
@@ -79,41 +80,32 @@ function tokens(...parts: (string | null | undefined)[]): string[] {
   return parts.filter((p): p is string => typeof p === 'string' && p.length > 0);
 }
 
-export function buildCmdkItems({ sessions, threads, tasks }: CmdkSources): CmdkItem[] {
-  const sessionItems: CmdkItem[] = sessions.map((s) => ({
-    id: `session:${s.sessionId}`,
-    glyph: 'SE',
-    label: s.name || s.sessionId,
-    sub: s.projectId,
-    kbd: 'session',
-    route: '/workbench',
-    focusId: s.sessionId,
+function sessionItem(s: SessionInfo): CmdkItem {
+  return {
+    id: `session:${s.sessionId}`, glyph: 'SE', label: s.name || s.sessionId,
+    sub: s.projectId, kbd: 'session', route: '/workbench', focusId: s.sessionId,
     keywords: tokens(s.sessionId, s.name, s.label, s.projectId, s.backend, s.kind),
-  }));
+  };
+}
 
-  const threadItems: CmdkItem[] = threads.map((t) => ({
-    id: `thread:${t.id}`,
-    glyph: 'TH',
-    label: t.templateName,
-    sub: t.id,
-    kbd: 'thread',
-    route: `/threads/${t.id}`,
-    focusId: t.id,
+function threadItem(t: ThreadInfo): CmdkItem {
+  return {
+    id: `thread:${t.id}`, glyph: 'TH', label: t.templateName, sub: t.id,
+    kbd: 'thread', modal: 'thread', focusId: t.id,
     keywords: tokens(t.id, t.templateName, t.status, t.projectId),
-  }));
+  };
+}
 
-  const taskItems: CmdkItem[] = tasks.map((t) => ({
-    id: `task:${t.id}`,
-    glyph: 'TK',
-    label: t.text,
-    sub: `${t.id} · ${t.project}`,
-    kbd: 'task',
-    route: '/tasks',
-    focusId: t.id,
+function taskItem(t: TaskInfo): CmdkItem {
+  return {
+    id: `task:${t.id}`, glyph: 'TK', label: t.text, sub: `${t.id} · ${t.project}`,
+    kbd: 'task', route: '/tasks', focusId: t.id,
     keywords: tokens(t.id, t.text, t.project, t.status, t.priority),
-  }));
+  };
+}
 
-  return [...sessionItems, ...threadItems, ...taskItems];
+export function buildCmdkItems({ sessions, threads, tasks }: CmdkSources): CmdkItem[] {
+  return [...sessions.map(sessionItem), ...threads.map(threadItem), ...tasks.map(taskItem)];
 }
 
 // Static navigation command rows (prototype OV/ST legs + section jumps). The prototype also lists

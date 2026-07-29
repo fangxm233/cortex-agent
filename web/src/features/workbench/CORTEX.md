@@ -41,7 +41,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | PlanReadOverlay.tsx | view | Full plan text with progress and actions |
 | plan-read-vm.ts | vm | Derives plan reading progress, status and meta |
 | plan-read-vm.test.ts | test | Unit tests for the plan reading view model |
-| InlineThreadCardProto.tsx | view | Live thread progress card inside the transcript |
+| InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
 | Composer.tsx | view | Message input with attachments and slash menu |
@@ -67,7 +67,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | RightPanel.tsx | view | Hosts thread, task and machine tabs with cost |
 | right-panel-vm.ts | vm | Formats task-linked thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests task-linked thread and machine metadata |
-| RightThreadCard.tsx | view | Contains expanded step activity rows within cards |
+| RightThreadCard.tsx | view | Shows activity rows and opens modal detail |
 | RightThreadCard.layout.test.tsx | test | Browser-checks long subtask row containment |
 | RightMachinesTab.tsx | view | Lists machines with status, GPUs and live runs |
 | scope.ts | util | Maps active and history scope to status filters |

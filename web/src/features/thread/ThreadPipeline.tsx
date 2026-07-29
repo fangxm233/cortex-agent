@@ -1,3 +1,8 @@
+// input:  thread detail VM, subthread open callback, step chat renderer
+// output: expandable desktop thread pipeline
+// pos:    Pipeline column in the thread detail modal
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { useState } from 'react';
 import { useVocab } from '@/i18n';
 import type { DetailStep, DetailStepSub, ThreadDetailVm } from './thread-detail-vm';
@@ -276,42 +281,34 @@ export interface ThreadPipelineProps {
   renderStepChat?: (sessionId: string | null, live: boolean) => React.ReactNode;
 }
 
+function PipelineStep({ step, index, selected, select, onOpenSub, renderChat }: {
+  step: DetailStep; index: number; selected: boolean; select: (index: number) => void;
+  onOpenSub: (sub: DetailStepSub) => void;
+  renderChat: (sessionId: string | null, live: boolean) => React.ReactNode;
+}) {
+  return (
+    <div>
+      {step.hasConnector && <div style={{ width: 1.5, height: 12, background: 'var(--proto-line)', marginLeft: 20 }} />}
+      {selected ? (
+        <ExpandedStep step={step} onCollapse={() => select(-1)} onOpenSub={onOpenSub} renderChat={renderChat} />
+      ) : <CompactStep step={step} onClick={() => select(index)} />}
+    </div>
+  );
+}
+
 export function ThreadPipeline({ vm, onOpenSub, renderStepChat }: ThreadPipelineProps): JSX.Element {
   const L = useVocab();
-  const renderChat =
-    renderStepChat ?? ((sessionId, live) => <ThreadStepChat sessionId={sessionId} live={live} />);
-  // Default expansion follows the active (running) step, else the last step for a terminal thread.
-  // A user click sets a manual override that sticks until they pick another step.
-  const runningIdx = vm.steps.findIndex((s) => s.kind === 'running');
+  const renderChat = renderStepChat
+    ?? ((sessionId, live) => <ThreadStepChat sessionId={sessionId} live={live} />);
+  const runningIdx = vm.steps.findIndex((step) => step.kind === 'running');
   const defaultIdx = runningIdx >= 0 ? runningIdx : vm.steps.length - 1;
   const [manualIdx, setManualIdx] = useState<number | null>(null);
   const selectedIdx = manualIdx ?? defaultIdx;
-
   return (
     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }} data-pipeline="true">
-      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 8px' }}>
-        <SectionLabel>{L.thPipeline}</SectionLabel>
-        <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)' }}>
-          {L.thPipelineHint}
-        </span>
-      </div>
-      {vm.steps.map((step, i) => (
-        <div key={i}>
-          {step.hasConnector && (
-            <div style={{ width: 1.5, height: 12, background: 'var(--proto-line)', marginLeft: 20 }} />
-          )}
-          {i === selectedIdx ? (
-            <ExpandedStep
-              step={step}
-              onCollapse={() => setManualIdx(-1)}
-              onOpenSub={onOpenSub}
-              renderChat={renderChat}
-            />
-          ) : (
-            <CompactStep step={step} onClick={() => setManualIdx(i)} />
-          )}
-        </div>
-      ))}
+      <div style={{ display: 'flex', alignItems: 'baseline', padding: '0 2px 8px' }}><SectionLabel>{L.thPipeline}</SectionLabel></div>
+      {vm.steps.map((step, index) => <PipelineStep key={index} step={step} index={index}
+        selected={index === selectedIdx} select={setManualIdx} onOpenSub={onOpenSub} renderChat={renderChat} />)}
     </div>
   );
 }

@@ -151,11 +151,12 @@ describe('buildThreadDetailVm', () => {
       workspacePath: '/ws/thr_8f2c',
       taskId: 'T-041',
       taskProject: 'quad-nav-sim2real',
+      content: '# Verified artifact\n\nBody marker.',
     },
   });
 
   it('maps the header, pill, meta fields and depth', () => {
-    const vm = buildThreadDetailVm(expDetail, [], NOW);
+    const vm = buildThreadDetailVm(expDetail, NOW);
     expect(vm.name).toBe('plan-exec-review');
     expect(vm.tid).toBe('thr_8f2c');
     expect(vm.pill.text).toBe('Running');
@@ -169,23 +170,8 @@ describe('buildThreadDetailVm', () => {
     expect(vm.depthDots.filter((d) => d.filled)).toHaveLength(2);
   });
 
-  it('root crumb is the project (non-accent); ancestors from the trail are accent', () => {
-    const vm = buildThreadDetailVm(expDetail, [], NOW);
-    expect(vm.crumbs).toHaveLength(1);
-    expect(vm.crumbs[0]).toMatchObject({ name: 'quad-nav-sim2real', accent: false });
-
-    const nested = buildThreadDetailVm(expDetail, [
-      { id: 'thr_root', name: 'experiment-pipeline' },
-      { id: 'thr_mid', name: 'verify-metrics' },
-    ], NOW);
-    expect(nested.crumbs).toHaveLength(3);
-    expect(nested.crumbs[0]).toMatchObject({ name: 'quad-nav-sim2real', accent: false });
-    expect(nested.crumbs[1]).toMatchObject({ name: 'experiment-pipeline', accent: true, id: 'thr_root' });
-    expect(nested.crumbs[2]).toMatchObject({ name: 'verify-metrics', accent: true, id: 'thr_mid' });
-  });
-
   it('builds one row per step, connectors after the first, done/running/pending kinds', () => {
-    const vm = buildThreadDetailVm(expDetail, [], NOW);
+    const vm = buildThreadDetailVm(expDetail, NOW);
     expect(vm.steps).toHaveLength(4);
     expect(vm.steps.map((s) => s.kind)).toEqual(['done', 'done', 'running', 'pending']);
     expect(vm.steps[0].hasConnector).toBe(false);
@@ -196,7 +182,7 @@ describe('buildThreadDetailVm', () => {
   });
 
   it('carries the per-step session id / name / index for the expandable chat', () => {
-    const vm = buildThreadDetailVm(expDetail, [], NOW);
+    const vm = buildThreadDetailVm(expDetail, NOW);
     // every step exposes its own session so any step (not just the running one) can render its chat
     expect(vm.steps.map((s) => s.stepIndex)).toEqual([0, 1, 2, 3]);
     expect(vm.steps[0].sessionId).toBe('cortex-plan');
@@ -210,7 +196,7 @@ describe('buildThreadDetailVm', () => {
   });
 
   it('expands only the running step: agent flow + sub-thread cards', () => {
-    const vm = buildThreadDetailVm(expDetail, [], NOW);
+    const vm = buildThreadDetailVm(expDetail, NOW);
     const running = vm.steps[2];
     expect(running.kind).toBe('running');
     expect(running.agent).toBeDefined();
@@ -257,20 +243,20 @@ describe('buildThreadDetailVm', () => {
         child({ id: 'thr_leaf', templateName: 'leaf', status: 'completed', depth: 0 }),
       ],
     });
-    const subs = buildThreadDetailVm(d, [], NOW).steps[0].subs;
+    const subs = buildThreadDetailVm(d, NOW).steps[0].subs;
     expect(subs[0]).toMatchObject({ id: 'thr_done_parent', hasLine: false, drillable: true });
     expect(subs[1]).toMatchObject({ id: 'thr_trunc', drillable: true });
     expect(subs[2]).toMatchObject({ id: 'thr_leaf', hasLine: false, drillable: false });
   });
 
-  it('maps the artifact refs header + written-by from steps (content is a Stage-6 gap)', () => {
-    const vm = buildThreadDetailVm(expDetail, [], NOW);
+  it('maps artifact content, refs, and written-by from the detail query', () => {
+    const vm = buildThreadDetailVm(expDetail, NOW);
     expect(vm.artifact.path).toBe('experiments/domain-rand-sweep.md');
     expect(vm.artifact.live).toBe(true);
     expect(vm.artifact.taskId).toBe('T-041');
     expect(vm.artifact.taskProject).toBe('quad-nav-sim2real');
     expect(vm.artifact.workspacePath).toBe('/ws/thr_8f2c');
-    expect(vm.artifact.contentGap).toBe(true);
+    expect(vm.artifact.content).toBe('# Verified artifact\n\nBody marker.');
     // written-by has one chip per step; the running step is the active writer
     expect(vm.artifact.writtenBy).toHaveLength(4);
     expect(vm.artifact.writtenBy[0]).toMatchObject({ label: '1 Plan · done', active: false });
@@ -291,7 +277,7 @@ describe('buildThreadDetailVm', () => {
       ],
       artifacts: { artifactPath: 'audits/a.md', workspacePath: null, taskId: null, taskProject: null },
     });
-    const vm = buildThreadDetailVm(done, [], NOW);
+    const vm = buildThreadDetailVm(done, NOW);
     expect(vm.pill.text).toBe('Done');
     expect(vm.live).toBe(false);
     expect(vm.elapsed).toBe('05:00');

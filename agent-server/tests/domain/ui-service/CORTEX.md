@@ -35,7 +35,7 @@ Scopes covered are approvals, config, executions, issues, memory, projects, sche
 | query-system-rate-limit.test.ts | test | Covers throttle windows and waiting counts |
 | query-task-verification.test.ts | test | Covers task evidence and dispatch history |
 | query-tasks.test.ts | test | Covers task list filters and fields |
-| query-thread-detail.test.ts | test | Covers thread steps, runs and child tree |
+| query-thread-detail.test.ts | test | Covers steps, child tree, and artifact reads |
 | query-thread-templates.test.ts | test | Covers agent, template and shell listing |
 | query-threads.test.ts | test | Covers list filters, task links and step counts |
 | subscribe-execution-log.test.ts | test | Covers log subscription and backpressure |

@@ -1,19 +1,21 @@
 Please update me when files in this folder change
 
-Thread detail route showing one thread's execution from first step to final artifact.
-A pipeline column lists steps with per-step chat and subthread drill-down; a side column holds the artifact.
+Desktop thread detail modal with expandable step chats, subthread switching, and inline artifact Markdown.
+The AppShell-level provider opens details without changing browser navigation.
 
 | filename | role | function |
 |---|---|---|
-| ThreadDetailRoute.tsx | entry | Fetches the thread and frames the detail view |
-| ThreadDetailView.tsx | view | Detail header, meta bar, pipeline and artifact |
-| ThreadPipeline.tsx | view | Step list with one expanded step and subthreads |
-| ThreadStepChat.tsx | view | Renders a step session as chat with live tail |
-| ThreadArtifactPanel.tsx | view | Artifact card with references and author chips |
-| thread-detail-vm.ts | vm | Builds detail steps, crumbs and artifact slots |
-| thread-detail-vm.test.ts | test | Unit tests for the thread detail view model |
-| nested-threads.ts | vm | Computes subthread display level and tree depth |
-| nested-threads.test.ts | test | Unit tests for subthread nesting |
-| thread-steps.ts | util | Selects the runs belonging to one step |
-| thread-steps.test.ts | test | Unit tests for step run selection |
-| useThreadGetLiveSync.ts | hook | Refetches detail on thread and task events |
+| ThreadDetailModal.tsx | provider | Opens and controls the global detail modal |
+| ThreadDetailView.tsx | view | Renders detail header, metadata, and columns |
+| ThreadPipeline.tsx | view | Expands step chats and opens subthreads |
+| ThreadStepChat.tsx | view | Renders a step session with live tail |
+| ThreadArtifactPanel.tsx | view | Shows artifact references and Markdown content |
+| thread-detail-vm.ts | vm | Builds pipeline, metadata, and artifact slots |
+| thread-detail-vm.test.ts | test | Tests desktop thread detail derivations |
+| thread-detail-modal.test.ts | test | Tests modal open, switch, and close state |
+| thread-detail-presentation.test.tsx | test | Tests detail copy and artifact rendering |
+| nested-threads.ts | vm | Computes subthread level and tree depth |
+| nested-threads.test.ts | test | Tests subthread nesting calculations |
+| thread-steps.ts | util | Selects runs belonging to one step |
+| thread-steps.test.ts | test | Tests step run selection |
+| useThreadGetLiveSync.ts | hook | Refetches light or artifact-bearing detail |

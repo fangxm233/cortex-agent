@@ -8,7 +8,7 @@ Splits into shared layers (design, i18n, theme, lib) and screen layers (features
 | main.tsx | entry | Mounts the React root with providers and router |
 | providers.tsx | provider | Nests the global providers around the app |
 | RootRouter.tsx | core | Chooses the mobile or desktop router |
-| router.tsx | core | Declares desktop routes under the app shell |
+| router.tsx | core | Declares desktop page routes under the app shell |
 | index.css | style | Theme variables, base layer and animations |
 | vite-env.d.ts | types | Vite client ambient type declarations |
 | design/ | subdir | Token-driven shared UI primitives |

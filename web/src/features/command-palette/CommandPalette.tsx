@@ -9,6 +9,7 @@ import { Command } from 'cmdk';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { useSettings } from '@/features/settings/SettingsProvider';
+import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import { selectPaletteRows, type PaletteRow } from './palette-items';
 
 // ⌘K command palette — 1:1 rebuild from prototype.dc.html L1295–1315 (task c967). The overlay
@@ -132,92 +133,70 @@ function Row({ row, onSelect }: { row: PaletteRow; onSelect: () => void }) {
   );
 }
 
-export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+const STALE = 30_000;
+
+function usePaletteRows(open: boolean, query: string): PaletteRow[] {
   const trpc = useTRPC();
+  const sessions = useQuery(trpc.sessions.list.queryOptions({}, { enabled: open, staleTime: STALE }));
+  const threads = useQuery(trpc.threads.list.queryOptions({}, { enabled: open, staleTime: STALE }));
+  const tasks = useQuery(trpc.tasks.list.queryOptions({}, { enabled: open, staleTime: STALE }));
+  return useMemo(
+    () => selectPaletteRows(query, {
+      sessions: sessions.data ?? [], threads: threads.data ?? [], tasks: tasks.data ?? [],
+    }),
+    [query, sessions.data, threads.data, tasks.data],
+  );
+}
+
+function usePaletteTarget(onOpenChange: (open: boolean) => void) {
   const navigate = useNavigate();
   const { open: openSettings } = useSettings();
-  const L = useVocab();
-  const [query, setQuery] = useState('');
-
-  // Reset the query each time the palette opens (fresh search).
-  useEffect(() => {
-    if (open) setQuery('');
-  }, [open]);
-
-  // Fetch the three lists only while the palette is open. `staleTime` lets the palette reuse the
-  // workbench's already-cached `sessions.list({})` instead of forcing a refetch on every open — a
-  // duplicate refetch entangles the shared httpBatchLink GET (sessions is also owned by the left
-  // rail) and the whole batch never settles, leaving threads/tasks stuck pending.
-  const STALE = 30_000;
-  const sessionsQuery = useQuery(trpc.sessions.list.queryOptions({}, { enabled: open, staleTime: STALE }));
-  const threadsQuery = useQuery(trpc.threads.list.queryOptions({}, { enabled: open, staleTime: STALE }));
-  const tasksQuery = useQuery(trpc.tasks.list.queryOptions({}, { enabled: open, staleTime: STALE }));
-
-  // We filter + cap ourselves (cmdk `shouldFilter={false}`): feeding cmdk every real entity
-  // renders hundreds of rows, which stalls the shared httpBatchLink fetch and blows up the panel.
-  const rows = useMemo<PaletteRow[]>(
-    () =>
-      selectPaletteRows(query, {
-        sessions: sessionsQuery.data ?? [],
-        threads: threadsQuery.data ?? [],
-        tasks: tasksQuery.data ?? [],
-      }),
-    [query, sessionsQuery.data, threadsQuery.data, tasksQuery.data],
-  );
-
-  const go = (row: PaletteRow) => {
+  const { openThread } = useThreadDetailModal();
+  return (row: PaletteRow) => {
     onOpenChange(false);
-    if (row.modal === 'settings') {
-      openSettings();
-      return;
-    }
+    if (row.modal === 'settings') return openSettings();
+    if (row.modal === 'thread' && row.focusId) return openThread(row.focusId);
     if (row.route) navigate(row.route, row.focusId ? { state: { focusId: row.focusId } } : undefined);
   };
+}
 
+function PaletteHeader({ query, setQuery, close }: {
+  query: string; setQuery: (value: string) => void; close: () => void;
+}) {
+  const L = useVocab();
   return (
-    <Command.Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      label="Command palette"
-      shouldFilter={false}
-      loop
-      overlayClassName="cmdk-backdrop"
-      contentClassName="cmdk-panel"
-    >
-      <div style={HEADER_STYLE}>
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 12 12"
-          fill="none"
-          stroke="var(--proto-muted-3)"
-          strokeWidth="1.5"
-        >
-          <circle cx="5" cy="5" r="3.8" />
-          <path d="M8 8l2.6 2.6" />
-        </svg>
-        <Command.Input
-          autoFocus
-          value={query}
-          onValueChange={setQuery}
-          placeholder={L.cmdkPh}
-          style={INPUT_STYLE}
-        />
-        <span style={ESC_STYLE} onClick={() => onOpenChange(false)}>
-          esc
-        </span>
-      </div>
+    <div style={HEADER_STYLE}>
+      <svg width="13" height="13" viewBox="0 0 12 12" fill="none" stroke="var(--proto-muted-3)" strokeWidth="1.5">
+        <circle cx="5" cy="5" r="3.8" /><path d="M8 8l2.6 2.6" />
+      </svg>
+      <Command.Input autoFocus value={query} onValueChange={setQuery} placeholder={L.cmdkPh} style={INPUT_STYLE} />
+      <span style={ESC_STYLE} onClick={close}>esc</span>
+    </div>
+  );
+}
 
-      <Command.List style={BODY_STYLE}>
-        <Command.Empty style={EMPTY_STYLE}>{L.cpNoResults}</Command.Empty>
-        {rows.map((row) => (
-          <Row key={row.id} row={row} onSelect={() => go(row)} />
-        ))}
-      </Command.List>
+function PaletteResults({ rows, go }: { rows: PaletteRow[]; go: (row: PaletteRow) => void }) {
+  const L = useVocab();
+  return (
+    <Command.List style={BODY_STYLE}>
+      <Command.Empty style={EMPTY_STYLE}>{L.cpNoResults}</Command.Empty>
+      {rows.map((row) => <Row key={row.id} row={row} onSelect={() => go(row)} />)}
+    </Command.List>
+  );
+}
 
-      <div style={FOOTER_STYLE}>
-        <span style={FOOTER_TEXT_STYLE}>{L.cpFooterHint}</span>
-      </div>
+export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+  const L = useVocab();
+  const [query, setQuery] = useState('');
+  useEffect(() => { if (open) setQuery(''); }, [open]);
+  const rows = usePaletteRows(open, query);
+  const go = usePaletteTarget(onOpenChange);
+  return (
+    <Command.Dialog open={open} onOpenChange={onOpenChange} label="Command palette"
+      shouldFilter={false} loop overlayClassName="cmdk-backdrop" contentClassName="cmdk-panel">
+      <PaletteHeader query={query} setQuery={setQuery} close={() => onOpenChange(false)} />
+      <PaletteResults rows={rows} go={go} />
+      <div style={FOOTER_STYLE}><span style={FOOTER_TEXT_STYLE}>{L.cpFooterHint}</span></div>
     </Command.Dialog>
   );
 }

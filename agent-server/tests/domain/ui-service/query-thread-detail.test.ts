@@ -1,10 +1,13 @@
 // input:  threads.get handler and mock domain stores
-// output: thread detail query regression tests
-// pos:    Verifies thread steps, runs, direct subtasks, and children
+// output: thread detail and artifact-read regression tests
+// pos:    Verifies thread steps, children, and artifact content
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { handleThreadsGet } from '../../../src/domain/ui-service/query/threads.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
@@ -255,6 +258,36 @@ test('threads.get child tree terminates on a self-referential cycle', async () =
   const d = await handleThreadsGet(makeDeps(), { threadId: 'thr_cycle' });
   // must not infinite-loop; cycle child is dropped once seen
   assert.ok(Array.isArray(d.children));
+});
+
+test('threads.get reads artifact content only when explicitly requested', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'cortex-thread-artifact-'));
+  const artifactPath = join(dir, 'artifact.md');
+  const originalPath = threads.thr_root.artifactPath;
+  writeFileSync(artifactPath, '# Verified artifact\n\nBody marker.', 'utf8');
+  threads.thr_root.artifactPath = artifactPath;
+
+  try {
+    const refsOnly = await handleThreadsGet(makeDeps(), { threadId: 'thr_root' });
+    assert.equal(refsOnly.artifacts.content, null);
+
+    const withContent = await handleThreadsGet(
+      makeDeps(),
+      { threadId: 'thr_root', includeArtifactContent: true } as any,
+    );
+    assert.equal(withContent.artifacts.content, '# Verified artifact\n\nBody marker.');
+  } finally {
+    threads.thr_root.artifactPath = originalPath;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('threads.get returns null content when the stored artifact is unreadable', async () => {
+  const d = await handleThreadsGet(
+    makeDeps(),
+    { threadId: 'thr_root', includeArtifactContent: true } as any,
+  );
+  assert.equal(d.artifacts.content, null);
 });
 
 test('threads.get surfaces thread-level artifact refs', async () => {

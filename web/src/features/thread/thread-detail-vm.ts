@@ -1,15 +1,15 @@
-// Pure view-model for the thread-detail view (design 11b), rebuilt 1:1 from prototype.dc.html
-// L398–522 + its buildDetail() script (L2813–2944). Framework-free so the mapping from the real
-// `threads.get` DTO (ThreadDetail, B1) → the prototype's exact `detail` model is unit-tested in
-// isolation (TDD). The presentation (ThreadDetailView / ThreadPipeline / ThreadArtifactPanel) binds
-// this VM into the design's exact inline-style structure.
-//
+// input:  ThreadDetail DTO, ancestor trail, and wall-clock time
+// output: desktop thread modal view model
+// pos:    Derives pipeline, metadata, and artifact display slots
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
+// Framework-free mapping from the real threads.get DTO into presentation slots.
+
 // Data-driven, not stage-name-string matched (same discipline as thread-steps.ts): the active step
 // surfaces whatever children the DTO carries. Flagged gaps (see features/thread/CORTEX.md):
 //   - crumb ancestor NAMES ride the drill trail (threads.get has no parent chain) → real, no new scope;
 //   - the AGENT feed is `agentFlow.lastOutput` only (no per-agent tool-call trace in the DTO — Stage 4);
-//   - the artifact BODY (title/RESULT/METRICS) needs the file content → fs-read scope (Stage 6);
-//     header refs + written-by (from steps) are real, `contentGap` flags the deferred body.
+//   - artifact text is present only when the detail modal requests it explicitly.
 
 import type {
   ThreadDetail,
@@ -76,12 +76,6 @@ function stepMeta(step: ThreadStepDetail): string {
   return parts.join(' · ');
 }
 
-export interface DetailCrumb {
-  id: string | null;
-  name: string;
-  accent: boolean;
-}
-
 export interface DetailDepthDot {
   filled: boolean;
 }
@@ -144,15 +138,13 @@ export interface DetailArtifact {
   taskProject: string | null;
   workspacePath: string | null;
   writtenBy: WrittenByChip[];
-  /** true = the rich body (RESULT/METRICS/…) needs the fs-read scope (Stage 6) — refs shown instead. */
-  contentGap: boolean;
+  content: string | null;
 }
 
 export interface ThreadDetailVm {
   name: string;
   tid: string;
   pill: DetailPill;
-  crumbs: DetailCrumb[];
   template: string;
   started: string;
   elapsed: string;
@@ -163,12 +155,6 @@ export interface ThreadDetailVm {
   live: boolean;
   steps: DetailStep[];
   artifact: DetailArtifact;
-}
-
-/** An ancestor breadcrumb entry carried through the drill-down trail (React Router location.state). */
-export interface TrailCrumb {
-  id: string;
-  name: string;
 }
 
 function relativeAge(iso: string | null, now: number): string {
@@ -210,90 +196,64 @@ function buildWrittenBy(steps: ThreadStepDetail[]): WrittenByChip[] {
   });
 }
 
-export function buildThreadDetailVm(
-  detail: ThreadDetail,
-  trail: TrailCrumb[],
-  now: number,
-): ThreadDetailVm {
+function detailStepKind(step: ThreadStepDetail): DetailStep['kind'] {
+  if (step.status === 'completed') return 'done';
+  if (step.status === 'running') return 'running';
+  return 'pending';
+}
+
+function buildRunningAgent(detail: ThreadDetail, step: ThreadStepDetail, live: boolean): DetailStepAgent {
+  const dispatch = dispatchesForStep(detail, step)[0];
+  const execInfo = [step.executionId ?? dispatch?.executionId, dispatch?.machine ?? 'local']
+    .filter(Boolean)
+    .join(' · ');
+  return {
+    profile: detail.agentFlow?.profile ?? detail.activeAgent ?? 'agent',
+    execInfo,
+    lastOutput: detail.agentFlow?.lastOutput ?? step.outputSummary,
+    streaming: true,
+    live,
+  };
+}
+
+function mapStep(detail: ThreadDetail, step: ThreadStepDetail, index: number, live: boolean): DetailStep {
+  const kind = detailStepKind(step);
+  const running = kind === 'running';
+  const subs = running ? detail.children.map(mapSub) : [];
+  return {
+    kind, title: stepTitle(step), note: step.outputSummary ?? '',
+    meta: running ? stepMeta(step) || 'running' : kind === 'done' ? stepMeta(step) : 'gated',
+    hasConnector: index > 0,
+    agent: running ? buildRunningAgent(detail, step, live) : undefined,
+    subs, subCount: subs.length, stepIndex: step.stepIndex,
+    sessionId: step.sessionId, sessionName: step.sessionName,
+    profile: running
+      ? (detail.agentFlow?.profile ?? detail.activeAgent ?? step.agentSlotId)
+      : step.agentSlotId,
+  };
+}
+
+function buildArtifact(detail: ThreadDetail, live: boolean, now: number): DetailArtifact {
+  return {
+    path: detail.artifacts.artifactPath, live, updated: relativeAge(detail.updatedAt, now),
+    taskId: detail.artifacts.taskId, taskProject: detail.artifacts.taskProject,
+    workspacePath: detail.artifacts.workspacePath, writtenBy: buildWrittenBy(detail.steps),
+    content: detail.artifacts.content ?? null,
+  };
+}
+
+export function buildThreadDetailVm(detail: ThreadDetail, now: number): ThreadDetailVm {
   const live = RUNNING.has(detail.status);
-
-  const crumbs: DetailCrumb[] = [
-    { id: null, name: detail.projectId, accent: false },
-    ...trail.map((t) => ({ id: t.id, name: t.name, accent: true })),
-  ];
-
   const endMs = detail.endedAt ? Date.parse(detail.endedAt) : now;
   const elapsedS = Math.max(0, (endMs - Date.parse(detail.createdAt)) / 1000);
-
   const filledLevels = treeMaxLevel(detail.children);
-  const depthDots: DetailDepthDot[] = Array.from({ length: MAX_LEVEL }, (_, i) => ({
-    filled: i < filledLevels,
-  }));
-
-  const steps: DetailStep[] = detail.steps.map((step, i) => {
-    const kind: DetailStep['kind'] =
-      step.status === 'completed' ? 'done' : step.status === 'running' ? 'running' : 'pending';
-    const running = kind === 'running';
-    const dispatch = running ? dispatchesForStep(detail, step)[0] : undefined;
-    const execInfo = running
-      ? [step.executionId ?? dispatch?.executionId, dispatch?.machine ?? 'local']
-          .filter(Boolean)
-          .join(' · ')
-      : '';
-    const agent: DetailStepAgent | undefined = running
-      ? {
-          profile: detail.agentFlow?.profile ?? detail.activeAgent ?? 'agent',
-          execInfo,
-          lastOutput: detail.agentFlow?.lastOutput ?? step.outputSummary,
-          streaming: true,
-          live,
-        }
-      : undefined;
-    const subs = running ? detail.children.map(mapSub) : [];
-    const profile = running
-      ? (detail.agentFlow?.profile ?? detail.activeAgent ?? step.agentSlotId)
-      : step.agentSlotId;
-    return {
-      kind,
-      title: stepTitle(step),
-      note: step.outputSummary ?? '',
-      meta: running ? stepMeta(step) || 'running' : kind === 'done' ? stepMeta(step) : 'gated',
-      hasConnector: i > 0,
-      agent,
-      subs,
-      subCount: subs.length,
-      stepIndex: step.stepIndex,
-      sessionId: step.sessionId,
-      sessionName: step.sessionName,
-      profile,
-    };
-  });
-
-  const artifact: DetailArtifact = {
-    path: detail.artifacts.artifactPath,
-    live,
-    updated: relativeAge(detail.updatedAt, now),
-    taskId: detail.artifacts.taskId,
-    taskProject: detail.artifacts.taskProject,
-    workspacePath: detail.artifacts.workspacePath,
-    writtenBy: buildWrittenBy(detail.steps),
-    contentGap: true,
-  };
-
+  const depthDots = Array.from({ length: MAX_LEVEL }, (_, i) => ({ filled: i < filledLevels }));
   return {
-    name: detail.templateName,
-    tid: detail.id,
-    pill: threadPill(detail.status),
-    crumbs,
-    template: detail.templateName,
-    started: fmtHM(detail.createdAt),
-    elapsed: fmtClock(elapsedS),
-    cost: 'Σ $' + detail.totalCostUsd.toFixed(2),
-    task: detail.artifacts.taskId ?? '—',
-    depthDots,
-    depthText: `${filledLevels}/${MAX_LEVEL}`,
-    live,
-    steps,
-    artifact,
+    name: detail.templateName, tid: detail.id, pill: threadPill(detail.status),
+    template: detail.templateName, started: fmtHM(detail.createdAt), elapsed: fmtClock(elapsedS),
+    cost: 'Σ $' + detail.totalCostUsd.toFixed(2), task: detail.artifacts.taskId ?? '—',
+    depthDots, depthText: `${filledLevels}/${MAX_LEVEL}`, live,
+    steps: detail.steps.map((step, index) => mapStep(detail, step, index, live)),
+    artifact: buildArtifact(detail, live, now),
   };
 }

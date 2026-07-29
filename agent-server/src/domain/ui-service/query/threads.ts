@@ -1,8 +1,9 @@
 // input:  UiServiceDeps, thread query params, task DTO mapper
-// output: task-linked thread list and detail query handlers
+// output: task-linked thread detail with optional artifact text
 // pos:    Thread list/detail query handlers
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
+import { readFile } from 'node:fs/promises';
 import type {
   UiServiceDeps,
   ThreadInfo,
@@ -74,50 +75,48 @@ export async function handleThreadsList(
   }));
 }
 
+async function readArtifactContent(path: string | null, include: boolean | undefined): Promise<string | null> {
+  if (!include || !path) return null;
+  try {
+    return await readFile(path, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+function buildArtifactRefs(t: any, content: string | null): ThreadDetail['artifacts'] {
+  return {
+    artifactPath: t.artifactPath ?? null,
+    workspacePath: t.workspacePath ?? null,
+    taskId: t.metadata?.taskId ?? null,
+    taskProject: t.metadata?.taskProject ?? null,
+    content,
+  };
+}
+
 export async function handleThreadsGet(
   deps: UiServiceDeps,
   params: ThreadsGetParams,
 ): Promise<ThreadDetail> {
   const t: any = deps.threadStore.get(params.threadId);
-  if (!t) {
-    throw new Error(`thread not found: ${params.threadId}`);
-  }
+  if (!t) throw new Error(`thread not found: ${params.threadId}`);
 
   const steps = buildSteps(t);
-  const agentFlow = buildAgentFlow(t);
-  const dispatches = buildDispatches(deps, t, steps);
-  const subtasks = buildSubtasks(deps, t);
-  const children = buildChildTree(deps, t.metadata?.childThreadIds ?? [], 0, new Set([t.id]));
-
+  const content = await readArtifactContent(t.artifactPath ?? null, params.includeArtifactContent);
   return {
-    id: t.id,
-    templateName: t.templateName || 'unknown',
+    id: t.id, templateName: t.templateName || 'unknown', projectId: t.projectId,
     currentStep: t.currentStepIndex != null
       ? { index: t.currentStepIndex, name: t.currentStepName || `step-${t.currentStepIndex}` }
       : null,
-    status: mapStatus(t.status),
-    projectId: t.projectId,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
+    status: mapStatus(t.status), createdAt: t.createdAt, updatedAt: t.updatedAt,
     totalSteps: (t.template?.agents?.length) || t.steps?.length || 0,
-    artifactPath: t.artifactPath ?? null,
-    endedAt: t.endedAt ?? null,
-    error: t.error ?? null,
-    abortReason: t.abortReason ?? null,
-    activeAgent: t.activeAgent ?? null,
-    activeStage: t.activeStage ?? null,
-    totalCostUsd: t.totalCostUsd ?? 0,
-    steps,
-    agentFlow,
-    dispatches,
-    subtasks,
-    children,
-    artifacts: {
-      artifactPath: t.artifactPath ?? null,
-      workspacePath: t.workspacePath ?? null,
-      taskId: t.metadata?.taskId ?? null,
-      taskProject: t.metadata?.taskProject ?? null,
-    },
+    artifactPath: t.artifactPath ?? null, endedAt: t.endedAt ?? null,
+    error: t.error ?? null, abortReason: t.abortReason ?? null,
+    activeAgent: t.activeAgent ?? null, activeStage: t.activeStage ?? null,
+    totalCostUsd: t.totalCostUsd ?? 0, steps, agentFlow: buildAgentFlow(t),
+    dispatches: buildDispatches(deps, t, steps), subtasks: buildSubtasks(deps, t),
+    children: buildChildTree(deps, t.metadata?.childThreadIds ?? [], 0, new Set([t.id])),
+    artifacts: buildArtifactRefs(t, content),
   };
 }
 

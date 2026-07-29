@@ -86,16 +86,16 @@ describe('buildCmdkItems', () => {
     expect(item.label).toBe('sess_x');
   });
 
-  it('maps a thread to a TH row jumping to its detail route', () => {
+  it('maps a thread to an in-place detail modal target', () => {
     const [item] = buildCmdkItems({ sessions: [], threads: [thread()], tasks: [] });
     expect(item.glyph).toBe('TH');
     expect(item.kbd).toBe('thread');
     expect(item.label).toBe('experiment-pipeline');
     expect(item.sub).toBe('thr_8f2c');
-    expect(item.route).toBe('/threads/thr_8f2c');
+    expect(item.route).toBeUndefined();
+    expect(item.modal).toBe('thread');
     expect(item.focusId).toBe('thr_8f2c');
     expect(item.id).toBe('thread:thr_8f2c');
-    // fuzzy-match by id, not just label
     expect(item.keywords).toContain('thr_8f2c');
   });
 
