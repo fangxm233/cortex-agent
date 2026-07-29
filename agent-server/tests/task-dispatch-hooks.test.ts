@@ -1,5 +1,5 @@
 // input:  dispatch job, task/thread stores, runner doubles
-// output: hook, quarantine, and review recovery tests
+// output: hook, quarantine, and reconciliation error tests
 // pos:    Tests dispatch lifecycle and failure recovery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -27,6 +27,16 @@ const deps = vi.hoisted(() => ({
   add: vi.fn(),
   unclaim: vi.fn(),
   block: vi.fn(),
+  logError: vi.fn(),
+}));
+
+vi.mock('@core/log.js', () => ({
+  createLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: deps.logError,
+  }),
 }));
 
 vi.mock('@core/hook-bus.js', () => ({
@@ -339,6 +349,34 @@ test.each([
   });
   assert.match(notices[0][1].text, /terminal marker/);
   assert.match(notices[0][1].text, /no followup task created/);
+});
+
+test('reconciliation failure logs separately while original dispatch error drives recovery', async () => {
+  selectFixture('reconcile-failure');
+  deps.getTaskById.mockReturnValue({ ...selected.task, id: 'reconcile-failure', status: 'done' });
+  deps.runThread.mockRejectedValue(new Error('provider unavailable'));
+  deps.add.mockRejectedValue(new Error('project lock failed'));
+
+  await runDispatchCycle();
+  await runDispatchCycle();
+  await runDispatchCycle();
+
+  assert.equal(deps.logError.mock.calls.filter(
+    ([message]) => message === 'Failed dispatch reconciliation: project lock failed',
+  ).length, 3);
+  assert.deepEqual(deps.unclaim.mock.calls, [
+    ['reconcile-failure'],
+    ['reconcile-failure'],
+    ['reconcile-failure'],
+  ]);
+  assert.deepEqual(deps.block.mock.calls, [[
+    'reconcile-failure',
+    'dispatch-failed-3x: provider unavailable',
+  ]]);
+  const texts = (ctx.adapter!.postMessage as any).mock.calls.map(([, message]) => message.text);
+  assert.equal(texts.filter((text: string) => text.includes('Task dispatch error: provider unavailable')).length, 2);
+  assert.equal(texts.at(-1).includes('Last error: provider unavailable'), true);
+  assert.equal(texts.some((text: string) => text.includes('Task dispatch error: project lock failed')), false);
 });
 
 test('failed block mutation keeps the quarantine count and reports dispatch error', async () => {

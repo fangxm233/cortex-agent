@@ -1,5 +1,5 @@
-// input:  Vitest, TaskMutator, TaskRepo, HookBus mock
-// output: Task mutation, event payload and isolation tests
+// input:  Vitest, TaskMutator, task lifecycle helpers
+// output: Task mutation, lock contention, and event tests
 // pos:    Verifies serialized task mutation orchestration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -19,7 +19,8 @@ import * as path from 'node:path';
 import { PROJECTS_DIR } from '../../../src/core/paths.js';
 import { TaskRepo } from '../../../src/store/task-repo.js';
 import { TaskMutator } from '../../../src/domain/tasks/mutator.js';
-import { writeLock, getOwnerIdentity } from '../../../src/domain/tasks/system/task-lock.js';
+import { addTask as lifecycleAddTask } from '../../../src/domain/tasks/system/task-mutations.js';
+import { getOwnerIdentity, releaseLock, writeLock } from '../../../src/domain/tasks/system/task-lock.js';
 
 beforeEach(() => {
   hookBus.emitCortexEvent.mockReset();
@@ -635,6 +636,42 @@ test('add — system mutation persists an inherited plan without an agent lock',
     assert.match(disk, /template:\s*coder-review/);
     assert.match(disk, /plan:\s*plans\/review\.md/);
   } finally {
+    fx.cleanup();
+  }
+});
+
+test('add — system mutation waits for a foreign writer and preserves both changes', async () => {
+  const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
+  const foreignOwner = 'foreign-writer';
+  try {
+    writeLock(proj, {
+      owner: foreignOwner,
+      acquired_at: new Date().toISOString(),
+      expires_at: '2099-01-01T00:00:00.000Z',
+    });
+    const staleSnapshot = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    const mutator = new TaskMutator(createRepo());
+
+    const systemAdd = mutator.add(
+      proj, 'Review followup', 'recover review', 'suite is green',
+      'high', 'coder-review', [], { system: true },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    fs.writeFileSync(fx.tasksPathFor(proj), staleSnapshot);
+    const foreignAdd = lifecycleAddTask(
+      proj, 'Foreign task', 'concurrent mutation', 'exists', 'medium', 'coder-review',
+    );
+    assert.equal(foreignAdd.success, true);
+    assert.equal(releaseLock(proj, foreignOwner).released, true);
+
+    assert.equal((await systemAdd).success, true);
+    const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    assert.match(disk, /text:\s*Foreign task/);
+    assert.match(disk, /text:\s*Review followup/);
+  } finally {
+    releaseLock(proj, foreignOwner, { force: true });
     fx.cleanup();
   }
 });

@@ -112,7 +112,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | store/ | subdir | JSON repository and store concurrency tests |
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-completion.test.ts | test | task complete and uncomplete API |
-| task-dispatch-hooks.test.ts | test | dispatch hooks, quarantine and review followups |
+| task-dispatch-hooks.test.ts | test | dispatch, quarantine and reconciliation errors |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and gating |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
 | task-lifecycle.test.ts | test | task CLI write-path lifecycle |

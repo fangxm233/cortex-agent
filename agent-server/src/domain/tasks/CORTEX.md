@@ -11,7 +11,7 @@ Also tracks dispatched runs, records acceptance verdicts, and recovers claims or
 | dispatcher.ts | core | selects and claims the next task to run |
 | dispatch-utils.ts | util | device registry and task id generation |
 | lint.ts | util | checks task files for cycles and errors |
-| mutator.ts | core | Serializes task mutations and terminal hooks |
+| mutator.ts | core | serializes task mutations with locks and hooks |
 | parser.ts | adapter | re-exports the task file parser |
 | pending-tracker.ts | core | tracks dispatched tasks and their status |
 | store.ts | adapter | re-exports the task store and git lock |
