@@ -1,5 +1,5 @@
 // input:  hook registry API, shipped defaults, temporary JSON entries
-// output: schema, source classification, loading, and filtering tests
+// output: schema capabilities, source classification, loading, and filtering tests
 // pos:    Verifies the standalone declarative hook registry
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -40,7 +40,7 @@ test('loads a valid hook entry synchronously with every schema field', (t) => {
     run: { script: 'approval.mjs', timeout: 10 },
     scope: { backends: ['claude'], requiresTool: 'Edit' },
     blocking: { mode: 'webhook', ttlMin: 30 },
-    result: 'hook-result',
+    result: 'none',
     enabled: true,
     version: '2026.7.29',
   };
@@ -137,18 +137,62 @@ test('skips invalid entries with loud errors and continues loading', (t) => {
   assert.match(error.mock.calls.flat().join('\n'), /05-malformed\.json/);
 });
 
-test('accepts the closed result enum and skips other result values', (t) => {
+const RESULT_CAPABILITY_CASES: Array<[string, HookEntry['event'], HookEntry['result']]> = [
+  ['thread start HookResult', 'cortex:thread.start', 'hook-result'],
+  ['thread transition HookResult', 'cortex:thread.transition', 'hook-result'],
+  ['thread end HookResult', 'cortex:thread.end', 'hook-result'],
+  ['new-session prompt', 'cortex:session.new', 'stdout-as-prompt'],
+  ['message-end prompt', 'cortex:session.messageEnd', 'stdout-as-prompt'],
+  ['explicit fire-and-forget on a result-capable event', 'cortex:thread.end', 'none'],
+  ['explicit fire-and-forget elsewhere', 'cortex:dispatch.started', 'none'],
+];
+
+test.each(RESULT_CAPABILITY_CASES)('accepts result capability: %s', (_name, event, result) => {
+  assert.equal(validateHookEntry({
+    id: 'capability-hook',
+    event,
+    matcher: {},
+    run: { command: 'true' },
+    result,
+  }).result, result);
+});
+
+const INVALID_RESULT_CAPABILITY_CASES: Array<[string, HookEntry['event'], HookEntry['result']]> = [
+  ['HookResult on an agent event', 'agent:pre-tool', 'hook-result'],
+  ['HookResult on a session event', 'cortex:session.new', 'hook-result'],
+  ['HookResult on an unconsumed server event', 'cortex:dispatch.started', 'hook-result'],
+  ['prompt output on a thread event', 'cortex:thread.end', 'stdout-as-prompt'],
+  ['prompt output on an unconsumed server event', 'cortex:task.completed', 'stdout-as-prompt'],
+];
+
+test.each(INVALID_RESULT_CAPABILITY_CASES)('rejects result capability: %s', (_name, event, result) => {
+  assert.throws(() => validateHookEntry({
+    id: 'invalid-capability',
+    event,
+    matcher: event.startsWith('cortex:') ? {} : '.*',
+    run: { command: 'true' },
+    result,
+  }), new RegExp(`result mode "${result}" is not permitted for event "${event}"`));
+});
+
+test('skips invalid result combinations with loud errors and keeps valid combinations', (t) => {
   const directory = makeRegistry(t);
-  const base = { event: 'cortex:thread.end', matcher: {}, run: { command: 'true' } };
-  writeEntry(directory, '01-hook-result.json', { ...base, id: 'hook-result', result: 'hook-result' });
-  writeEntry(directory, '02-stdout.json', { ...base, id: 'stdout', result: 'stdout-as-prompt' });
-  writeEntry(directory, '03-none.json', { ...base, id: 'none', result: 'none' });
-  writeEntry(directory, '04-invalid.json', { ...base, id: 'invalid', result: { mode: 'hook-result' } });
+  const run = { command: 'true' };
+  writeEntry(directory, '01-thread.json', { id: 'thread', event: 'cortex:thread.end', matcher: {}, run, result: 'hook-result' });
+  writeEntry(directory, '02-session.json', { id: 'session', event: 'cortex:session.new', run, result: 'stdout-as-prompt' });
+  writeEntry(directory, '03-none.json', { id: 'none', event: 'cortex:dispatch.started', run, result: 'none' });
+  writeEntry(directory, '04-invalid-thread.json', { id: 'invalid-thread', event: 'cortex:thread.end', matcher: {}, run, result: 'stdout-as-prompt' });
+  writeEntry(directory, '05-invalid-session.json', { id: 'invalid-session', event: 'cortex:session.new', run, result: 'hook-result' });
+  writeEntry(directory, '06-invalid-enum.json', { id: 'invalid-enum', event: 'cortex:thread.end', matcher: {}, run, result: { mode: 'hook-result' } });
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
   t.onTestFinished(() => error.mockRestore());
 
-  assert.deepEqual(loadHookRegistry(directory).map((entry) => entry.id), ['hook-result', 'stdout', 'none']);
-  assert.match(error.mock.calls.flat().join('\n'), /result must be hook-result, stdout-as-prompt, or none/);
+  assert.deepEqual(loadHookRegistry(directory).map((entry) => entry.id), ['thread', 'session', 'none']);
+  assert.equal(error.mock.calls.length, 3);
+  const messages = error.mock.calls.flat().join('\n');
+  assert.match(messages, /04-invalid-thread\.json.*stdout-as-prompt.*cortex:thread\.end/);
+  assert.match(messages, /05-invalid-session\.json.*hook-result.*cortex:session\.new/);
+  assert.match(messages, /06-invalid-enum\.json.*result must be hook-result, stdout-as-prompt, or none/);
 });
 
 test('validates optional matcher shape by event namespace', (t) => {
