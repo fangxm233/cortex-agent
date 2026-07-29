@@ -34,8 +34,12 @@ import {
 } from '../agents/index.js';
 import { isApiRateLimitError, isRetryableError } from '../agents/config.js';
 import { resolveProfileConfig } from '../agents/profile-manager.js';
-import { activateOutageWindow, isProviderRateLimited } from '../costs/rate-limit-throttle.js';
-import { recordResume } from '../costs/resume-registry.js';
+import {
+  activateOutageWindow,
+  isProviderRateLimited,
+  isProviderUsageRateLimited,
+} from '../costs/rate-limit-throttle.js';
+import { recordResume, removeThreadResume } from '../costs/resume-registry.js';
 import { Icons } from '../../core/icons.js';
 import { closeSessionsByPrefix } from '../agents/index.js';
 import * as executionRegistry from '../executions/registry.js';
@@ -548,13 +552,14 @@ async function handleRateLimitInterruption(
   ctx: ThreadContext,
   opts: RunThreadOptions,
   provider: string | null,
-): Promise<void> {
+): Promise<boolean> {
+  if (!await markThreadRateLimited(threadId, provider)) return false;
   ctx.rateLimited = true;
-  await markThreadRateLimited(threadId, provider);
   recordResume({
     kind: 'thread', provider, threadId, channel: opts.channel,
     userMessage: threadStore.get(threadId)?.userMessage ?? '', recordedAt: Date.now(),
   });
+  return true;
 }
 
 /** Decide whether the loop continues; run onTransition hook when transitioning.
@@ -630,27 +635,67 @@ export async function finalizeAbortedThread(
   }
 }
 
+async function claimOutageResume(threadId: string, error: string): Promise<number | null> {
+  let claimedCount: number | null = null;
+  let capped = false;
+  await threadStore.mutate(threadId, (record) => {
+    if (record.status !== 'running' && record.status !== 'rate_limited') return;
+    const current = record.metadata?.outageResumeCount ?? 0;
+    if (current >= OUTAGE_MAX_RESUMES) {
+      record.status = 'failed';
+      record.error = error;
+      record.endedAt = new Date().toISOString();
+      capped = true;
+      return;
+    }
+    (record.metadata ??= {}).outageResumeCount = current + 1;
+    claimedCount = current;
+  });
+  if (capped) {
+    await failThread(threadId, error);
+    removeThreadResume(threadId);
+  }
+  return claimedCount;
+}
+
+async function failOutageActivation(
+  threadId: string,
+  providerError: Error & { cause?: unknown },
+  activationError: unknown,
+): Promise<never> {
+  await threadStore.mutate(threadId, (record) => {
+    const count = record.metadata?.outageResumeCount ?? 0;
+    if (count > 0) record.metadata!.outageResumeCount = count - 1;
+  });
+  const cause = activationError instanceof Error ? activationError.message : String(activationError);
+  if (threadStore.get(threadId)?.status === 'running') {
+    await failThread(threadId, `${providerError.message}; outage activation failed: ${cause}`);
+  }
+  providerError.cause = activationError;
+  throw providerError;
+}
+
 async function pauseRetryableProviderError(
   threadId: string,
   ctx: ThreadContext,
   opts: RunThreadOptions,
-  error: Error & { rateLimitProvider?: string },
+  error: Error & { rateLimitProvider?: string; cause?: unknown },
 ): Promise<boolean> {
   const thread = threadStore.get(threadId);
-  if (!thread || thread.status !== 'running' || !isRetryableError(error)) return false;
+  const resumableStatus = thread?.status === 'running' || thread?.status === 'rate_limited';
+  if (!thread || !resumableStatus || !isRetryableError(error)) return false;
   const provider = error.rateLimitProvider ?? resolveActiveStepProvider(thread, opts.channel);
-  if (isApiRateLimitError(error.message) && isProviderRateLimited(provider)) {
-    await handleRateLimitInterruption(threadId, ctx, opts, provider);
-    return true;
+  if (isApiRateLimitError(error.message) && isProviderUsageRateLimited(provider)) {
+    return handleRateLimitInterruption(threadId, ctx, opts, provider);
   }
-  const resumeCount = thread.metadata?.outageResumeCount ?? 0;
-  if (resumeCount >= OUTAGE_MAX_RESUMES) return false;
-  await threadStore.mutate(threadId, (record) => {
-    (record.metadata ??= {}).outageResumeCount = resumeCount + 1;
-  });
-  await activateOutageWindow(provider, OUTAGE_BACKOFF_MS[resumeCount]);
-  await handleRateLimitInterruption(threadId, ctx, opts, provider);
-  return true;
+  const resumeCount = await claimOutageResume(threadId, error.message);
+  if (resumeCount === null) return false;
+  try {
+    await activateOutageWindow(provider, OUTAGE_BACKOFF_MS[resumeCount]);
+  } catch (activationError) {
+    await failOutageActivation(threadId, error, activationError);
+  }
+  return handleRateLimitInterruption(threadId, ctx, opts, provider);
 }
 
 async function runThread(threadId: string, opts: RunThreadOptions): Promise<ThreadRunResult> {

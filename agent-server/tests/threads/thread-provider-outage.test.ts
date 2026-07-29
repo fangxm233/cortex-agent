@@ -114,12 +114,52 @@ function makeOptions(thread: ThreadRecord): RunThreadOptions {
   };
 }
 
-function queueError(message: string): void {
+function queueError(failure: string | Error): void {
+  const error = typeof failure === 'string' ? new Error(failure) : failure;
   agent.runAgent.mockImplementationOnce(() => ({
-    promise: Promise.reject(new Error(message)),
+    promise: Promise.reject(error),
     kill: () => true,
     sessionId: null,
   }));
+}
+
+function queueSynchronizedErrors(failures: Error[]): Promise<void> {
+  let started = 0;
+  let resolveStarted!: () => void;
+  const allStarted = new Promise<void>((resolve) => { resolveStarted = resolve; });
+  const rejects: Array<(error: Error) => void> = [];
+  agent.runAgent.mockImplementation(() => ({
+    promise: new Promise((_, reject) => {
+      rejects.push(reject);
+      started++;
+      if (started === failures.length) resolveStarted();
+    }),
+    kill: () => true,
+    sessionId: null,
+  }));
+  return allStarted.then(() => {
+    rejects.forEach((reject, index) => reject(failures[index]));
+  });
+}
+
+function queueControlledErrors(count: number): {
+  started: Promise<void>;
+  reject: (index: number, error: Error) => void;
+} {
+  let startedCount = 0;
+  let resolveStarted!: () => void;
+  const started = new Promise<void>((resolve) => { resolveStarted = resolve; });
+  const rejects: Array<(error: Error) => void> = [];
+  agent.runAgent.mockImplementation(() => ({
+    promise: new Promise((_, reject) => {
+      rejects.push(reject);
+      startedCount++;
+      if (startedCount === count) resolveStarted();
+    }),
+    kill: () => true,
+    sessionId: null,
+  }));
+  return { started, reject: (index, error) => rejects[index](error) };
 }
 
 function queueSuccess(output = 'done'): void {
@@ -242,6 +282,104 @@ test('unresolvable active-step profile falls back to a null provider', async () 
   const entries = resumeRegistry.takeAllResumes();
   assert.equal(entries.length, 1);
   assert.equal(entries[0].provider, null);
+});
+
+test('outage persistence failure rolls back the claim and fails with the original error', async () => {
+  const persistenceError = new Error('throttle store unavailable');
+  await throttle.initRateLimitThrottle(adapter, {
+    save: async (state) => {
+      if (state) throw persistenceError;
+    },
+    load: async () => null,
+  });
+  const thread = createOutageThread();
+  const providerError = new Error('HTTP 503 Service Unavailable');
+  queueError(providerError);
+
+  await assert.rejects(() => runThread(thread.id, makeOptions(thread)), (error: Error & { cause?: unknown }) => {
+    assert.equal(error, providerError);
+    assert.equal(error.cause, persistenceError);
+    return true;
+  });
+
+  const failed = threadStore.get(thread.id)!;
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.metadata?.outageResumeCount, 0);
+  assert.match(failed.error ?? '', /HTTP 503 Service Unavailable/);
+  assert.match(failed.error ?? '', /throttle store unavailable/);
+  assert.equal(throttle.getThrottleState().providers.length, 0);
+  assert.equal(resumeRegistry.getResumeCount(), 0);
+});
+
+test('concurrent transient failures claim distinct retry counts', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-29T14:00:00.000Z'));
+  await initThrottle();
+  const thread = createOutageThread();
+  const releaseErrors = queueSynchronizedErrors([
+    new Error('HTTP 503 first concurrent failure'),
+    new Error('HTTP 503 second concurrent failure'),
+  ]);
+
+  const runs = [
+    runThread(thread.id, makeOptions(thread)),
+    runThread(thread.id, makeOptions(thread)),
+  ];
+  await releaseErrors;
+  const results = await Promise.allSettled(runs);
+
+  assert.deepEqual(results.map((result) => result.status), ['fulfilled', 'fulfilled']);
+  const paused = threadStore.get(thread.id)!;
+  assert.equal(paused.status, 'rate_limited');
+  assert.equal(paused.metadata?.outageResumeCount, 2);
+  const outage = throttle.getThrottleState().providers[0]?.windows
+    .find((window) => window.type === 'outage');
+  assert.equal(outage?.resetsAt * 1000, Date.now() + 15 * 60_000);
+  assert.equal(resumeRegistry.getResumeCount(), 1);
+});
+
+test('concurrent fourth failure keeps a pending third retry terminal', async () => {
+  await initThrottle();
+  const thread = createOutageThread(2);
+  const releaseErrors = queueSynchronizedErrors([
+    new Error('HTTP 503 allowed third retry'),
+    new Error('HTTP 503 terminal fourth failure'),
+  ]);
+
+  const runs = [
+    runThread(thread.id, makeOptions(thread)),
+    runThread(thread.id, makeOptions(thread)),
+  ];
+  await releaseErrors;
+  const results = await Promise.allSettled(runs);
+
+  assert.deepEqual(results.map((result) => result.status), ['rejected', 'rejected']);
+  const failed = threadStore.get(thread.id)!;
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.metadata?.outageResumeCount, 3);
+  assert.equal(resumeRegistry.getResumeCount(), 0);
+});
+
+test('late concurrent fourth failure overrides an already-paused third retry', async () => {
+  await initThrottle();
+  const thread = createOutageThread(2);
+  const controlled = queueControlledErrors(2);
+  const thirdRun = runThread(thread.id, makeOptions(thread));
+  const fourthRun = runThread(thread.id, makeOptions(thread));
+  await controlled.started;
+
+  controlled.reject(0, new Error('HTTP 503 allowed third retry'));
+  await thirdRun;
+  assert.equal(threadStore.get(thread.id)?.status, 'rate_limited');
+  assert.equal(resumeRegistry.getResumeCount(), 1);
+
+  controlled.reject(1, new Error('HTTP 503 late terminal fourth failure'));
+  await assert.rejects(fourthRun, /late terminal fourth failure/);
+
+  const failed = threadStore.get(thread.id)!;
+  assert.equal(failed.status, 'failed');
+  assert.equal(failed.metadata?.outageResumeCount, 3);
+  assert.equal(resumeRegistry.getResumeCount(), 0);
 });
 
 test('fourth retryable outage fails the thread without another pause', async () => {

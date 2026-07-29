@@ -1,6 +1,6 @@
-// input:  thread store, templates, task parser, artifact I/O
-// output: thread lifecycle, provider pauses, and control transitions
-// pos:    Thread state machine and suspension wait-set resolver
+// input:  thread store, templates, tasks, artifacts
+// output: lifecycle, provider pauses, control transitions
+// pos:    Thread lifecycle and suspension state machine
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { mkdirSync, writeFileSync, readFileSync } from 'fs';
@@ -717,16 +717,18 @@ export async function markThreadRateLimited(
   provider?: string | null,
   note?: string,
 ): Promise<boolean> {
-  const thread = threadStore.get(threadId);
-  if (!thread) return false;
-
+  if (!threadStore.get(threadId)) return false;
+  let marked = false;
   await threadStore.mutate(threadId, (t) => {
+    if (t.status !== 'running' && t.status !== 'rate_limited') return;
     t.status = 'rate_limited';
     t.error = note ?? 'Paused — interrupted by API rate limit';
     const metadata = t.metadata ??= {};
     metadata.interruptedByRateLimit = true;
     if (provider !== undefined) metadata.rateLimitProvider = provider;
+    marked = true;
   });
+  if (!marked) return false;
   log.info(`Rate-limit paused thread ${threadId}`);
   return true;
 }
