@@ -1,5 +1,5 @@
-// input:  hook registry API, shipped defaults, temporary JSON entries
-// output: schema, source classification, loading, and filtering tests
+// input:  hook registry API, shipped defaults, hook bridge TTL
+// output: Schema, source, filtering, and default agreement tests
 // pos:    Verifies the standalone declarative hook registry
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import { test, vi } from 'vitest';
 
 import { DEFAULTS_DIR } from '../../src/core/paths.js';
+import { TTL_MS } from '../../src/orchestration/routing/hook-bridge.js';
 import {
   HOOK_SOURCES,
   classifyHookSource,
@@ -247,7 +248,8 @@ test('gates requiresTool only when available tools are supplied and omits disabl
 });
 
 const VERSION = '2026.7.29';
-const INTERACTION_VERSION = '2026.7.29-1';
+const INTERACTION_VERSION = '2026.7.29-2';
+const INTERACTION_TTL_MIN = TTL_MS / 60_000;
 const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
   {
     filename: '01-sensitive-file-edit.json',
@@ -259,11 +261,11 @@ const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
   },
   {
     filename: '03-ask-user-question-hook.json',
-    entry: { id: 'ask-user-question-hook', event: 'agent:pre-tool', matcher: 'AskUserQuestion', run: { script: 'ask-user-question-hook.mjs', timeout: 3600 }, scope: { backends: ['claude'], requiresTool: 'AskUserQuestion' }, enabled: true, version: INTERACTION_VERSION },
+    entry: { id: 'ask-user-question-hook', event: 'agent:pre-tool', matcher: 'AskUserQuestion', run: { script: 'ask-user-question-hook.mjs', timeout: 3600 }, scope: { backends: ['claude'], requiresTool: 'AskUserQuestion' }, blocking: { mode: 'webhook', ttlMin: INTERACTION_TTL_MIN }, enabled: true, version: INTERACTION_VERSION },
   },
   {
     filename: '04-exit-plan-mode-hook.json',
-    entry: { id: 'exit-plan-mode-hook', event: 'agent:pre-tool', matcher: 'ExitPlanMode', run: { script: 'exit-plan-mode-hook.mjs', timeout: 3600 }, scope: { backends: ['claude'], requiresTool: 'ExitPlanMode' }, enabled: true, version: INTERACTION_VERSION },
+    entry: { id: 'exit-plan-mode-hook', event: 'agent:pre-tool', matcher: 'ExitPlanMode', run: { script: 'exit-plan-mode-hook.mjs', timeout: 3600 }, scope: { backends: ['claude'], requiresTool: 'ExitPlanMode' }, blocking: { mode: 'webhook', ttlMin: INTERACTION_TTL_MIN }, enabled: true, version: INTERACTION_VERSION },
   },
   {
     filename: '05-memory-ref-tracker.json',
