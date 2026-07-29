@@ -48,6 +48,7 @@ import {
 } from './event-parser.js';
 import { BgTaskTracker, routeLine } from './bg-task-tracker.js';
 import { ClaudeContextUsageTracker } from './context-usage.js';
+import { resolveAutoCompactWindow } from './compact-window.js';
 
 const log = createLogger('claude-bridge');
 
@@ -212,7 +213,12 @@ class ClaudeSession {
     this.sessionKey = options.sessionKey || channel;
     this.needsResume = options.needsResume;
     this.modelName = options.model || null;
-    this.contextUsageTracker = new ClaudeContextUsageTracker(this.modelName);
+    // Settings are read per session because the CLI reads them per spawn, and the spawn always
+    // runs with `cwd: DATA_DIR` (see spawn below).
+    this.contextUsageTracker = new ClaudeContextUsageTracker(
+      this.modelName,
+      resolveAutoCompactWindow(DATA_DIR),
+    );
     this.isUserInitiated = options.isUserInitiated || false;
     this.callbackSource = options.callbackSource || null;
     this.scheduleTaskId = options.scheduleTaskId || null;
@@ -1329,14 +1335,17 @@ export function recoverTuiOrphans(exec?: TmuxExec): { found: string[]; killed: s
  *  testing handleLine / continuation routing. Initializes only the fields the line
  *  handlers touch. Callers should stub createTurnStreams to avoid log file I/O and
  *  register cleanup via t.after(() => session.close()) to clear the idle timer. */
-function makeSessionForTest(modelName: string | null = null): ClaudeSession {
+function makeSessionForTest(
+  modelName: string | null = null,
+  autoCompactWindow: number | null = null,
+): ClaudeSession {
   const s = Object.create(ClaudeSession.prototype) as any;
   s.sessionId = 'test-session';
   s.channel = 'test';
   s.sessionKey = 'test';
   s.bgTracker = new BgTaskTracker();
   s.streamDeltaState = createStreamDeltaState();
-  s.contextUsageTracker = new ClaudeContextUsageTracker(modelName);
+  s.contextUsageTracker = new ClaudeContextUsageTracker(modelName, autoCompactWindow);
   s.continuationSink = null;
   s.pendingInjections = [];
   s.injectionAck = null;

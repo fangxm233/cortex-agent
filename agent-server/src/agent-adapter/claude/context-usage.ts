@@ -113,6 +113,7 @@ export function inferClaudeContextWindow(model: string | null | undefined): numb
  */
 export class ClaudeContextUsageTracker {
   private readonly configuredModel: string | null;
+  private readonly autoCompactWindow: number | null;
   private contextWindow: number;
   private currentInput: number | null = null;
   private currentUsed: number | null = null;
@@ -120,9 +121,16 @@ export class ClaudeContextUsageTracker {
   private resultFallbackAllowed = true;
   private lastSnapshotKey: string | null = null;
 
-  constructor(configuredModel?: string | null) {
+  constructor(configuredModel?: string | null, autoCompactWindow?: number | null) {
     this.configuredModel = configuredModel ?? null;
-    this.contextWindow = inferClaudeContextWindow(configuredModel);
+    this.autoCompactWindow = validWindow(autoCompactWindow);
+    this.contextWindow = this.capped(inferClaudeContextWindow(configuredModel));
+  }
+
+  /** Claude compacts at the configured auto-compact window, so the usable window — and therefore
+   *  the occupancy denominator — is the smaller of that setting and the model's own window. */
+  private capped(window: number): number {
+    return this.autoCompactWindow === null ? window : Math.min(window, this.autoCompactWindow);
   }
 
   observe(value: unknown): ContextUsage | null {
@@ -169,7 +177,7 @@ export class ClaudeContextUsageTracker {
 
   private observeResult(result: JsonRecord): ContextUsage | null {
     const actual = actualContextWindow(result, this.activeModel, this.configuredModel);
-    if (actual !== null) this.contextWindow = actual;
+    if (actual !== null) this.contextWindow = this.capped(actual);
     const finalUsed = this.resultFallbackAllowed
       ? finalTotal(lastIteration(result)) ?? this.currentUsed
       : null;

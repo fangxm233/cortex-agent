@@ -15,5 +15,6 @@ Translates Claude stream and transcript events into the normalized event schema.
 | tmux-control.ts | util | wraps the tmux command line |
 | bg-task-tracker.ts | core | tracks background tasks and continuations |
 | context-usage.ts | core | tracks context window usage per session |
+| compact-window.ts | config | resolves the configured auto-compact window |
 | cost-from-usage.ts | util | derives call cost from token counts |
 | tool-summarizers.ts | util | renders tool inputs for trace display |

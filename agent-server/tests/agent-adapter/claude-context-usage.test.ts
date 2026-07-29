@@ -277,6 +277,59 @@ describe('ClaudeContextUsageTracker result reconciliation', () => {
   });
 });
 
+describe('ClaudeContextUsageTracker auto-compact window', () => {
+  test('caps the inferred window at the configured auto-compact window', () => {
+    const tracker = new ClaudeContextUsageTracker('claude-opus-5[1m]', 350_000);
+
+    assert.deepEqual(tracker.observe(messageStart('claude-opus-5')), {
+      usedTokens: 420,
+      contextWindow: 350_000,
+      percent: 420 / 350_000 * 100,
+      accuracy: 'exact',
+    });
+  });
+
+  test('keeps a model window that is already smaller than the auto-compact window', () => {
+    const tracker = new ClaudeContextUsageTracker('claude-sonnet-4-6', 350_000);
+
+    assert.deepEqual(tracker.observe(messageStart('claude-sonnet-4-6')), {
+      usedTokens: 420,
+      contextWindow: 200_000,
+      percent: 0.21,
+      accuracy: 'exact',
+    });
+  });
+
+  test('caps the reconciled result window instead of restoring the full model window', () => {
+    const tracker = new ClaudeContextUsageTracker('claude-opus-5[1m]', 350_000);
+    tracker.observe(messageStart('claude-opus-5'));
+
+    assert.deepEqual(tracker.observe(resultEvent({
+      modelUsage: {
+        'claude-opus-5[1m]': { canonicalModel: 'claude-opus-5', contextWindow: 1_000_000 },
+      },
+      iterations: [finalIteration()],
+    })), {
+      usedTokens: 500,
+      contextWindow: 350_000,
+      percent: 500 / 350_000 * 100,
+      accuracy: 'exact',
+    });
+  });
+
+  test('ignores an unset or malformed auto-compact window', () => {
+    for (const malformed of [null, undefined, 0, -1, Number.NaN]) {
+      const tracker = new ClaudeContextUsageTracker('claude-sonnet-4-6', malformed);
+      assert.deepEqual(tracker.observe(messageStart('claude-sonnet-4-6')), {
+        usedTokens: 420,
+        contextWindow: 200_000,
+        percent: 0.21,
+        accuracy: 'exact',
+      }, `malformed: ${String(malformed)}`);
+    }
+  });
+});
+
 const FAKE_STREAM = { write() {}, end() {} } as any;
 
 function fakeTurn(overrides: Record<string, unknown> = {}): any {
@@ -321,6 +374,30 @@ describe('ClaudeSession context usage wiring', () => {
       'context:500/900000',
       'resolve',
     ]);
+  });
+
+  test('keeps the session denominator on the auto-compact window across the result', (t) => {
+    const session: any = _test.makeSessionForTest('claude-opus-5[1m]', 350_000);
+    t.onTestFinished(() => session.close());
+    const seen: string[] = [];
+    session.currentTurn = fakeTurn({
+      onContextUsage: (usage: { usedTokens: number; contextWindow: number }) => {
+        seen.push(`context:${usage.usedTokens}/${usage.contextWindow}`);
+      },
+    });
+
+    session.handleLine(JSON.stringify(messageStart('claude-opus-5')));
+    session.handleLine(JSON.stringify({
+      type: 'result', subtype: 'success', is_error: false,
+      session_id: 'test-session', total_cost_usd: 0, num_turns: 1,
+      modelUsage: {
+        'claude-opus-5[1m]': { canonicalModel: 'claude-opus-5', contextWindow: 1_000_000 },
+      },
+      usage: { iterations: [finalIteration()] },
+      result: 'done',
+    }));
+
+    assert.deepEqual(seen, ['context:420/350000', 'context:500/350000']);
   });
 
   test('a throwing context callback cannot break the stream or result path', (t) => {
