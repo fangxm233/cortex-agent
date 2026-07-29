@@ -1,12 +1,18 @@
-// input:  PI ExtensionAPI, node:child_process
-// output: PI hook events with Read/Edit CORTEX context
-// pos:    Bridges PI extension events into Cortex hooks
+// input:  PI ExtensionAPI, declarative hook registry
+// output: Registry-driven PI hook event handlers
+// pos:    Compiles Cortex hook declarations for the PI process
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawnSync } from 'node:child_process';
 import * as path from 'node:path';
-import { HOOKS_DIR } from '../../core/utils.js';
+import { DEFAULTS_DIR, HOOKS_DIR } from '../../core/utils.js';
 import { createLogger } from '../../core/log.js';
+import {
+  filterHookEntries,
+  loadHookRegistry,
+  type AgentHookEvent,
+  type HookEntry,
+} from '../../store/hook-registry.js';
 import type {
   BeforeAgentStartEvent,
   ExtensionAPI,
@@ -18,13 +24,42 @@ import type {
 
 const log = createLogger('hook-bridge');
 
-// PI tool name → Claude-native PascalCase (mirrors hooks-builder.ts matcher strings)
+// PI tool name → Claude-native name used by agent:* registry matchers.
 const TOOL_NAME_MAP: Record<string, string> = {
+  bash: 'Bash',
   read: 'Read',
   write: 'Write',
   edit: 'Edit',
   grep: 'Grep',
+  glob: 'Glob',
+  web_fetch: 'WebFetch',
+  web_search: 'WebSearch',
+  ask_user_question: 'AskUserQuestion',
+  enter_plan_mode: 'EnterPlanMode',
+  exit_plan_mode: 'ExitPlanMode',
+  todo_write: 'TodoWrite',
   skill: 'Skill',
+  agent: 'Agent',
+};
+
+const AGENT_EVENT_MAP: Record<AgentHookEvent, string> = {
+  'agent:pre-tool': 'tool_call',
+  'agent:post-tool': 'tool_result',
+  'agent:session-start': 'before_agent_start',
+  'agent:session-end': 'session_shutdown',
+  'agent:pre-compact': 'session_before_compact',
+  'agent:user-prompt': 'input',
+  'agent:turn-end': 'turn_end',
+};
+
+const CLAUDE_EVENT_MAP: Record<AgentHookEvent, string> = {
+  'agent:pre-tool': 'PreToolUse',
+  'agent:post-tool': 'PostToolUse',
+  'agent:session-start': 'SessionStart',
+  'agent:session-end': 'SessionEnd',
+  'agent:pre-compact': 'PreCompact',
+  'agent:user-prompt': 'UserPromptSubmit',
+  'agent:turn-end': 'Stop',
 };
 
 /** Map a PI lowercase/snake_case tool name to the Claude-native PascalCase name. */
@@ -67,238 +102,323 @@ interface TextContent {
   text: string;
 }
 
-/** Extract plain-text string from PI's content[] array — mirrors Claude Code's tool_output field. */
-function extractToolOutput(content: unknown): string {
-  if (!Array.isArray(content)) return '';
-  return (content as unknown[])
-    .filter(
-      (c): c is TextContent =>
-        typeof c === 'object' && c !== null && (c as Record<string, unknown>).type === 'text',
-    )
-    .map((c) => c.text)
-    .join('');
-}
-
-/** Shape of stdin JSON payload that Cortex hook scripts expect (mirrors Claude Code). */
 interface ClaudeHookPayload {
-  hook_event_name: 'PreToolUse' | 'PostToolUse' | 'SessionStart';
+  hook_event_name: string;
   session_id: string;
   tool_name: string;
   tool_input: Record<string, unknown>;
   tool_use_id: string;
-  /** Working directory passed to hook scripts (mirrors Claude Code's cwd field).
-   *  sensitive-file-edit.mjs uses this to compute the cwd-relative .claude/ path check. */
   cwd?: string;
   tool_response?: unknown;
   tool_output?: string;
   is_error?: boolean;
 }
 
-/** Parsed hook script stdout output shape. */
-interface HookResult {
-  hookSpecificOutput?: {
-    permissionDecision?: string;
-    permissionDecisionReason?: string;
+interface HookSpecificOutput {
+  permissionDecision?: string;
+  permissionDecisionReason?: string;
+  updatedInput?: Record<string, unknown>;
+  additionalContext?: string;
+}
+
+interface HookResult extends Record<string, unknown> {
+  hookSpecificOutput?: HookSpecificOutput;
+}
+
+function extractToolOutput(content: unknown): string {
+  if (!Array.isArray(content)) return '';
+  return content
+    .filter(
+      (item): item is TextContent =>
+        typeof item === 'object' && item !== null &&
+        (item as Record<string, unknown>).type === 'text',
+    )
+    .map((item) => item.text)
+    .join('');
+}
+
+function hookEnvironment(sessionId: string): NodeJS.ProcessEnv {
+  const cacheSessionId = process.env.CORTEX_CACHE_SESSION_ID ?? process.env.CORTEX_SESSION_ID;
+  return {
+    ...process.env,
+    ...(cacheSessionId ? { CORTEX_CACHE_SESSION_ID: cacheSessionId } : {}),
+    CORTEX_SESSION_ID: sessionId,
   };
 }
 
-/**
- * Invoke a single hook script as a subprocess with the given payload on stdin.
- * Returns the parsed stdout JSON, or {} if the script produces no output.
- */
-export function runHookScript(scriptPath: string, payload: ClaudeHookPayload): HookResult {
-  const args = [scriptPath];
-
-  const cacheSessionId = process.env.CORTEX_CACHE_SESSION_ID ?? process.env.CORTEX_SESSION_ID;
-  const result = spawnSync(process.execPath, args, {
-    input: JSON.stringify(payload),
-    encoding: 'utf8',
-    timeout: 30_000,
-    // Activity logs keep the PI backend session id, while CORTEX.md cache dedup keeps
-    // the stable tracking id shared with the session's MCP process.
-    env: {
-      ...process.env,
-      ...(cacheSessionId ? { CORTEX_CACHE_SESSION_ID: cacheSessionId } : {}),
-      CORTEX_SESSION_ID: payload.session_id,
-    },
-  });
-
-  if (result.stdout) {
-    try {
-      return JSON.parse(result.stdout.trim()) as HookResult;
-    } catch {
-      // Non-JSON output from hook (e.g. debug logging) — ignore
-    }
+function parseHookOutput(stdout: string | null): HookResult {
+  if (!stdout) return {};
+  try {
+    return JSON.parse(stdout.trim()) as HookResult;
+  } catch {
+    return {};
   }
-  return {};
 }
 
-/**
- * Handle PreToolUse for edit/write tools.
- * Runs sensitive-file-edit.mjs; returns {block:true} if it denies.
- */
+function spawnHook(
+  command: string,
+  args: string[],
+  payload: ClaudeHookPayload | Record<string, unknown>,
+  timeoutMs: number,
+): HookResult {
+  const result = spawnSync(command, args, {
+    input: JSON.stringify(payload),
+    encoding: 'utf8',
+    timeout: timeoutMs,
+    env: hookEnvironment(payload.session_id as string),
+  });
+  if (result.error) throw result.error;
+  return parseHookOutput(result.stdout);
+}
+
+export function runHookScript(
+  scriptPath: string,
+  payload: ClaudeHookPayload,
+  timeoutMs = 30_000,
+): HookResult {
+  return spawnHook(process.execPath, [scriptPath], payload, timeoutMs);
+}
+
+function runHookEntry(
+  entry: HookEntry,
+  payload: ClaudeHookPayload | Record<string, unknown>,
+): HookResult {
+  const timeoutMs = (entry.run.timeout ?? 30) * 1_000;
+  try {
+    if (entry.run.script) {
+      return spawnHook(process.execPath, [path.join(HOOKS_DIR, entry.run.script)], payload, timeoutMs);
+    }
+    return spawnHook('sh', ['-c', entry.run.command!], payload, timeoutMs);
+  } catch (error) {
+    log.error(`${entry.id} error:`, error);
+    return {};
+  }
+}
+
+function matchesTool(entry: HookEntry, toolName: string): boolean {
+  if (typeof entry.matcher !== 'string') return true;
+  const canonicalName = toolName.startsWith('mcp__') ? toolName : toClaude(toolName);
+  const candidate = entry.event.startsWith('agent:') ? canonicalName : toolName;
+  return new RegExp(entry.matcher).test(candidate);
+}
+
+function nativeEventFor(entry: HookEntry): string | null {
+  if (entry.event.startsWith('pi:')) return entry.event.slice(3);
+  if (entry.event.startsWith('agent:')) return AGENT_EVENT_MAP[entry.event as AgentHookEvent];
+  return null;
+}
+
+function entriesForEvent(eventName: string): HookEntry[] {
+  const deployed = filterHookEntries(loadHookRegistry(), { backend: 'pi' });
+  const entries = deployed.length > 0 ? deployed : filterHookEntries(
+    loadHookRegistry(path.join(DEFAULTS_DIR, 'config', 'hooks')),
+    { backend: 'pi' },
+  );
+  return entries.filter((entry) => nativeEventFor(entry) === eventName);
+}
+
+function groupByNativeEvent(entries: HookEntry[]): Map<string, HookEntry[]> {
+  const grouped = new Map<string, HookEntry[]>();
+  for (const entry of entries) {
+    const eventName = nativeEventFor(entry);
+    if (!eventName) continue;
+    const eventEntries = grouped.get(eventName) ?? [];
+    eventEntries.push(entry);
+    grouped.set(eventName, eventEntries);
+  }
+  return grouped;
+}
+
+function toolPayload(
+  hookEventName: string,
+  event: ToolCallEvent | ToolResultEvent,
+  ctx: ExtensionContext,
+): ClaudeHookPayload {
+  const payload: ClaudeHookPayload = {
+    hook_event_name: hookEventName,
+    session_id: getSessionId(ctx),
+    tool_name: toClaude(event.toolName),
+    tool_input: normalizePiInput(event.toolName, event.input),
+    tool_use_id: event.toolCallId,
+    cwd: ctx.cwd,
+  };
+  if ('content' in event) addToolResultFields(payload, event);
+  return payload;
+}
+
+function addToolResultFields(payload: ClaudeHookPayload, event: ToolResultEvent): void {
+  payload.tool_output = extractToolOutput(event.content);
+  payload.tool_response = event.details ?? null;
+  payload.is_error = event.isError;
+}
+
+function lifecyclePayload(
+  entry: HookEntry,
+  event: unknown,
+  ctx: ExtensionContext,
+): ClaudeHookPayload | Record<string, unknown> {
+  if (entry.event.startsWith('pi:')) return nativePayload(entry.event.slice(3), event, ctx);
+  const source = typeof event === 'object' && event !== null
+    ? event as Record<string, unknown>
+    : { event };
+  return {
+    ...source,
+    hook_event_name: CLAUDE_EVENT_MAP[entry.event as AgentHookEvent],
+    session_id: getSessionId(ctx),
+    tool_name: '',
+    tool_input: {},
+    tool_use_id: '',
+    cwd: ctx.cwd,
+  };
+}
+
+function nativePayload(
+  eventName: string,
+  event: unknown,
+  ctx: ExtensionContext,
+): Record<string, unknown> {
+  const source = typeof event === 'object' && event !== null
+    ? event as Record<string, unknown>
+    : { event };
+  return {
+    ...source,
+    hook_event_name: eventName,
+    session_id: getSessionId(ctx),
+    cwd: ctx.cwd,
+  };
+}
+
+function payloadForToolEntry(
+  entry: HookEntry,
+  nativeEvent: string,
+  event: ToolCallEvent | ToolResultEvent,
+  ctx: ExtensionContext,
+): ClaudeHookPayload | Record<string, unknown> {
+  if (entry.event.startsWith('pi:')) return nativePayload(nativeEvent, event, ctx);
+  return toolPayload(CLAUDE_EVENT_MAP[entry.event as AgentHookEvent], event, ctx);
+}
+
+function applyUpdatedInput(event: ToolCallEvent, output: HookSpecificOutput | undefined): void {
+  if (!output?.updatedInput || typeof output.updatedInput !== 'object') return;
+  for (const key of Object.keys(event.input)) delete event.input[key];
+  Object.assign(event.input, output.updatedInput);
+}
+
+function blockResult(result: HookResult): ToolCallReturn {
+  const output = result.hookSpecificOutput;
+  if (output?.permissionDecision !== 'deny') return;
+  return {
+    block: true,
+    reason: output.permissionDecisionReason ?? 'Blocked by hook registry',
+  };
+}
+
 export function handlePreToolUse(
   event: ToolCallEvent,
   ctx: ExtensionContext,
+  entries = entriesForEvent('tool_call'),
 ): ToolCallReturn {
-  const { toolName, toolCallId, input } = event;
-  if (toolName !== 'edit' && toolName !== 'write') return;
-
-  const claudeName = toClaude(toolName);
-  const normalizedInput = normalizePiInput(toolName, input);
-  const sessionId = getSessionId(ctx);
-
-  const payload: ClaudeHookPayload = {
-    hook_event_name: 'PreToolUse',
-    session_id: sessionId,
-    tool_name: claudeName,
-    tool_input: normalizedInput,
-    tool_use_id: toolCallId,
-    cwd: ctx.cwd,
-  };
-
-  const result = runHookScript(path.join(HOOKS_DIR, 'sensitive-file-edit.mjs'), payload);
-  if (result?.hookSpecificOutput?.permissionDecision === 'deny') {
-    return {
-      block: true,
-      reason: result.hookSpecificOutput.permissionDecisionReason ??
-        'Blocked by sensitive-file-edit hook',
-    };
+  for (const entry of entries) {
+    if (!matchesTool(entry, event.toolName)) continue;
+    const payload = payloadForToolEntry(entry, 'tool_call', event, ctx);
+    const result = runHookEntry(entry, payload);
+    applyUpdatedInput(event, result.hookSpecificOutput);
+    const blocked = blockResult(result);
+    if (blocked) return blocked;
+    if (entry.event.startsWith('pi:') && result.block === true) {
+      return { block: true, reason: typeof result.reason === 'string' ? result.reason : undefined };
+    }
   }
 }
 
-/**
- * Handle PostToolUse for read/grep/edit/write/skill tools.
- * Fires hooks fire-and-forget; errors are caught and logged, never rethrown.
- * Returns content modifications for PI's extension runner, which uses the
- * return value (not event mutation) to apply changes (PI runner.js emitToolResult).
- */
+function appendContext(event: ToolResultEvent, context: string | undefined): boolean {
+  if (!context) return false;
+  const content = Array.isArray(event.content) ? event.content : [];
+  content.push({ type: 'text', text: context });
+  event.content = content;
+  return true;
+}
+
+function applyNativeToolResult(event: ToolResultEvent, result: HookResult): boolean {
+  if (!('content' in result)) return false;
+  event.content = result.content;
+  return true;
+}
+
 export function handlePostToolUse(
   event: ToolResultEvent,
   ctx: ExtensionContext,
+  entries = entriesForEvent('tool_result'),
 ): { content?: unknown } | void {
-  const { toolName, toolCallId, input, content, details, isError } = event;
-  const claudeName = toClaude(toolName);
-  const normalizedInput = normalizePiInput(toolName, input);
-  const sessionId = getSessionId(ctx);
-
-  const payload: ClaudeHookPayload = {
-    hook_event_name: 'PostToolUse',
-    session_id: sessionId,
-    tool_name: claudeName,
-    tool_input: normalizedInput,
-    tool_use_id: toolCallId,
-    cwd: ctx.cwd,
-    // Extract plain text from PI's content[] array — matches Claude Code's tool_output string.
-    tool_output: extractToolOutput(content),
-    // Pass PI's details object as tool_response.
-    tool_response: details ?? null,
-    is_error: isError,
-  };
-
-  // Track whether event.content was modified, so we can return it for PI
-  // (PI's extension runner uses the return value, not event mutation).
   let contentModified = false;
-
-  if (toolName === 'read' || toolName === 'grep') {
-    try {
-      runHookScript(path.join(HOOKS_DIR, 'memory-ref-tracker.mjs'), payload);
-    } catch (e) {
-      log.error('memory-ref-tracker error:', e);
-    }
-
-    // rules-loader: check if the read file path matches any scoped rules,
-    // and if so, inject system reminders into event.content.
-    try {
-      const rulesResult = runHookScript(path.join(HOOKS_DIR, 'rules-loader.mjs'), payload) as Record<string, unknown>;
-      const matched = rulesResult?.matched;
-      if (Array.isArray(matched) && matched.length > 0) {
-        const blocks = (matched as Array<{ file: string; body: string }>).map(r =>
-          `<system-reminder>\nApplied rule from ~/.cortex/rules/${r.file}:\n\n${r.body}\n</system-reminder>`
-        );
-        const contentArr: unknown[] = Array.isArray(event.content) ? (event.content as unknown[]) : [];
-        contentArr.push({ type: 'text', text: blocks.join('\n\n') });
-        if (!Array.isArray(event.content)) {
-          (event as unknown as Record<string, unknown>).content = contentArr;
-        }
-        contentModified = true;
-      }
-    } catch (e) {
-      log.error('rules-loader error:', e);
+  for (const entry of entries) {
+    if (!matchesTool(entry, event.toolName)) continue;
+    const payload = payloadForToolEntry(entry, 'tool_result', event, ctx);
+    const result = runHookEntry(entry, payload);
+    contentModified = appendContext(event, result.hookSpecificOutput?.additionalContext) || contentModified;
+    if (entry.event.startsWith('pi:')) {
+      contentModified = applyNativeToolResult(event, result) || contentModified;
     }
   }
-
-  // cortex-md-injector: on Read/Edit, scan the CORTEX.md ancestor chain.
-  // Matches the Claude Code PostToolUse hook coverage.
-  if (toolName === 'read' || toolName === 'edit') {
-    try {
-      const cortexResult = runHookScript(path.join(HOOKS_DIR, 'cortex-md-injector.mjs'), payload) as Record<string, unknown>;
-      const hso = (cortexResult?.hookSpecificOutput ?? {}) as Record<string, unknown>;
-      const ctxText = hso.additionalContext;
-      if (ctxText && typeof ctxText === 'string') {
-        const contentArr: unknown[] = Array.isArray(event.content) ? (event.content as unknown[]) : [];
-        contentArr.push({ type: 'text', text: ctxText as string });
-        if (!Array.isArray(event.content)) {
-          (event as unknown as Record<string, unknown>).content = contentArr;
-        }
-        contentModified = true;
-      }
-    } catch (e) {
-      log.error('cortex-md-injector (PostToolUse) error:', e);
-    }
-  }
-
-  // session-activity-tracker runs regardless of content modifications — it's
-  // a pure logging hook that never modifies event.content.
-  if (
-    toolName === 'read' ||
-    toolName === 'edit' ||
-    toolName === 'write' ||
-    toolName === 'skill'
-  ) {
-    try {
-      runHookScript(path.join(HOOKS_DIR, 'session-activity-tracker.mjs'), payload);
-    } catch (e) {
-      log.error('session-activity-tracker error:', e);
-    }
-  }
-
-  if (contentModified) {
-    return { content: event.content };
-  }
+  if (contentModified) return { content: event.content };
 }
 
-/** PI extension entry point: registers tool_call, tool_result, and before_agent_start event handlers. */
-export default function hookBridge(pi: ExtensionAPI): void {
-  pi.on('before_agent_start', (event: BeforeAgentStartEvent, ctx: ExtensionContext) => {
-    const sessionId = getSessionId(ctx);
-    const payload: ClaudeHookPayload = {
-      hook_event_name: 'SessionStart',
-      session_id: sessionId,
-      tool_name: '',
-      tool_input: {},
-      tool_use_id: '',
-      cwd: ctx.cwd,
-    };
-    try {
-      const result = runHookScript(path.join(HOOKS_DIR, 'cortex-md-injector.mjs'), payload);
-      const ctxText = (result as any)?.hookSpecificOutput?.additionalContext;
-      if (ctxText && typeof ctxText === 'string') {
-        event.systemPrompt = (event.systemPrompt ?? '') + '\n\n' + ctxText;
-        // PI's extension runner uses the return value, not event mutation
-        // (runner.js emitBeforeAgentStart: checks handlerResult.systemPrompt).
-        return { systemPrompt: event.systemPrompt };
-      }
-    } catch (e) {
-      log.error('cortex-md-injector (before_agent_start) error:', e);
+function handleBeforeAgentStart(
+  event: BeforeAgentStartEvent,
+  ctx: ExtensionContext,
+  entries: HookEntry[],
+): { systemPrompt: string } | void {
+  let systemPrompt = event.systemPrompt ?? '';
+  let modified = false;
+  for (const entry of entries) {
+    event.systemPrompt = systemPrompt;
+    const result = runHookEntry(entry, lifecyclePayload(entry, event, ctx));
+    const context = result.hookSpecificOutput?.additionalContext;
+    if (context) {
+      systemPrompt += `\n\n${context}`;
+      modified = true;
     }
-  });
+    if (entry.event.startsWith('pi:') && typeof result.systemPrompt === 'string') {
+      systemPrompt = result.systemPrompt;
+      modified = true;
+    }
+  }
+  if (!modified) return;
+  event.systemPrompt = systemPrompt;
+  return { systemPrompt };
+}
 
-  pi.on('tool_call', (event: ToolCallEvent, ctx: ExtensionContext) => {
-    return handlePreToolUse(event, ctx);
-  });
+function handleLifecycleEvent(
+  event: unknown,
+  ctx: ExtensionContext,
+  entries: HookEntry[],
+): HookResult | void {
+  let nativeResult: HookResult | undefined;
+  for (const entry of entries) {
+    const result = runHookEntry(entry, lifecyclePayload(entry, event, ctx));
+    if (entry.event.startsWith('pi:') && Object.keys(result).length > 0) nativeResult = result;
+  }
+  return nativeResult;
+}
 
-  pi.on('tool_result', (event: ToolResultEvent, ctx: ExtensionContext) => {
-    return handlePostToolUse(event, ctx);
-  });
+function dispatchEvent(
+  eventName: string,
+  entries: HookEntry[],
+  event: unknown,
+  ctx: ExtensionContext,
+): unknown {
+  if (eventName === 'tool_call') return handlePreToolUse(event as ToolCallEvent, ctx, entries);
+  if (eventName === 'tool_result') return handlePostToolUse(event as ToolResultEvent, ctx, entries);
+  if (eventName === 'before_agent_start') {
+    return handleBeforeAgentStart(event as BeforeAgentStartEvent, ctx, entries);
+  }
+  return handleLifecycleEvent(event, ctx, entries);
+}
+
+export default function hookBridge(pi: ExtensionAPI): void {
+  const entries = filterHookEntries(loadHookRegistry(), { backend: 'pi' });
+  for (const [eventName, eventEntries] of groupByNativeEvent(entries)) {
+    pi.on(eventName, (event: unknown, ctx: ExtensionContext) =>
+      dispatchEvent(eventName, eventEntries, event, ctx));
+  }
 }
