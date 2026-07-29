@@ -3,7 +3,7 @@
 // pos:    Shared active-only provider rate-limit presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { forwardRef } from 'react';
+import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import { Popover } from '@/design/Popover';
 import { MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import type { RateLimitView } from './rate-limit-vm';
@@ -12,14 +12,17 @@ interface StatusProps {
   status: RateLimitView | null;
 }
 
-const DesktopTrigger = forwardRef<HTMLButtonElement, { label: string }>(function DesktopTrigger(
-  { label },
-  ref,
-) {
+// Radix Popover.Trigger (asChild) injects its interaction props (onClick, aria-*, data-state)
+// into this element — they MUST be spread onto the real <button> or the popover never opens.
+const DesktopTrigger = forwardRef<
+  HTMLButtonElement,
+  { label: string } & ButtonHTMLAttributes<HTMLButtonElement>
+>(function DesktopTrigger({ label, ...triggerProps }, ref) {
   return (
     <button
       ref={ref}
       type="button"
+      {...triggerProps}
       aria-label="Rate limit status"
       title={label}
       style={{
