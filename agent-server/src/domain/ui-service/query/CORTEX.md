@@ -16,7 +16,7 @@ Handlers return DTOs only and never change state.
 | approvals.ts | query | lists pending approval entries |
 | issues.ts | query | lists a project's issue entries |
 | cost.ts | query | reports the cost summary |
-| config.ts | query | Returns redacted config and mounted hooks |
+| config.ts | query | Returns live profiles, redacted config and hooks |
 | hooks.ts | query | Builds the hook registry read model |
 | machines.ts | query | lists machines with live connection state |
 | skills.ts | query | lists available skill groups |

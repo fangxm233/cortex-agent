@@ -1,5 +1,5 @@
 // input:  Configured profiles and current session backend
-// output: Profile picker options and backend-switch gating
+// output: Filtered profile options and backend-switch gating
 // pos:    Workbench profile menu view model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -22,6 +22,10 @@ export interface ProfileOption {
   disabled: boolean;
 }
 
+function isSelectableProfile(p: ConfigProfileEntry): boolean {
+  return p.backend == null || p.backend === 'claude' || p.backend === 'pi';
+}
+
 function backendOf(p: ConfigProfileEntry): string {
   return p.backend ?? 'claude';
 }
@@ -35,7 +39,7 @@ function profileSub(p: ConfigProfileEntry): string {
 /** The backend of the currently-active profile — the reference for the same-backend disable rule.
  *  Null when the active profile is not found in the list (unknown). */
 export function currentBackendOf(profiles: ConfigProfileEntry[], active: string): string | null {
-  const p = profiles.find((x) => x.name === active);
+  const p = profiles.find((profile) => profile.name === active && isSelectableProfile(profile));
   return p ? backendOf(p) : null;
 }
 
@@ -44,11 +48,13 @@ export function buildProfileOptions(
   active: string,
   opts: { currentBackend: string | null; hasHistory: boolean },
 ): ProfileOption[] {
-  return profiles.map((p) => ({
-    name: p.name,
-    sub: profileSub(p),
-    active: p.name === active,
-    backend: backendOf(p),
-    disabled: opts.hasHistory && opts.currentBackend !== null && backendOf(p) !== opts.currentBackend,
-  }));
+  return profiles
+    .filter(isSelectableProfile)
+    .map((p) => ({
+      name: p.name,
+      sub: profileSub(p),
+      active: p.name === active,
+      backend: backendOf(p),
+      disabled: opts.hasHistory && opts.currentBackend !== null && backendOf(p) !== opts.currentBackend,
+    }));
 }

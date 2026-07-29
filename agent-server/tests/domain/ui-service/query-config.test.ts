@@ -1,5 +1,5 @@
 // input:  isolated config fixtures and UI config query handlers
-// output: redaction, mounted-hook, and fail-soft snapshot tests
+// output: redaction, profile filtering, and hook snapshot tests
 // pos:    Regression coverage for the settings config snapshot
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -121,6 +121,29 @@ test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hoo
     { id: 'template:coder-review:end', event: 'cortex:thread.end', enabled: true, source: 'template-scoped' },
   ]);
   assert.ok(!JSON.stringify(snap.hooks).includes('my-hook.mjs'));
+});
+
+test('readConfigSnapshot omits persisted profiles with unsupported backends', async () => {
+  const { configDir } = await makeFixture();
+  await fs.writeFile(
+    path.join(configDir, 'profiles.json'),
+    JSON.stringify({
+      defaultProfile: 'legacy-codex',
+      profiles: {
+        'legacy-codex': { model: 'gpt-old', backend: 'codex', mode: 'plan' },
+        unknown: { model: 'm-unknown', backend: 'other', mode: 'plan' },
+        implicit: { model: 'm-default', mode: 'plan' },
+        claude: { model: 'm-claude', backend: 'claude', mode: 'plan' },
+        pi: { model: 'm-pi', backend: 'pi', mode: 'deepseek' },
+      },
+    }),
+  );
+
+  const snap = await readConfigSnapshot(configDir);
+
+  assert.equal(snap.profiles!.defaultProfile, null);
+  assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.name), ['implicit', 'claude', 'pi']);
+  assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.backend), [null, 'claude', 'pi']);
 });
 
 test('readConfigSnapshot returns null / empty when files are absent', async () => {

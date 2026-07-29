@@ -17,8 +17,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | session-groups.ts | vm | Groups sessions by day with unread first |
 | session-groups.test.ts | test | Unit tests for session grouping |
 | ProfileMenu.tsx | view | Lists selectable profiles with disabled reasons |
-| profile-menu.ts | vm | Builds Claude/PI profile options and switch gates |
-| profile-menu.test.ts | test | Tests Claude/PI profile menu options |
+| profile-menu.ts | vm | Filters live profile options and switch gates |
+| profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | CenterChat.tsx | view | Assembles chat header, stream and composer |
 | ChatHeader.tsx | view | Session title, profile picker and run status |
 | MessageStream.tsx | view | Scroll-stable transcript of chat rows and cards |

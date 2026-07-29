@@ -1,5 +1,5 @@
 // input:  Claude/PI profile fixtures and profile-menu view model
-// output: Profile picker labels and switch-gating assertions
+// output: Profile labels, filtering, and switch-gating assertions
 // pos:    Workbench profile menu regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -41,6 +41,17 @@ describe('buildProfileOptions', () => {
     const opts = buildProfileOptions(profiles, 'plan', { currentBackend: null, hasHistory: true });
     expect(opts.every((o) => !o.disabled)).toBe(true);
   });
+
+  it('omits a stale persisted Codex profile that reaches the client boundary', () => {
+    const staleProfiles = [
+      ...profiles,
+      { name: 'legacy-codex', model: 'gpt-old', backend: 'codex', mode: 'plan', thinking: null } as unknown as ConfigProfileEntry,
+    ];
+
+    const opts = buildProfileOptions(staleProfiles, 'plan', { currentBackend: 'claude', hasHistory: false });
+
+    expect(opts.map((option) => option.name)).not.toContain('legacy-codex');
+  });
 });
 
 describe('currentBackendOf', () => {
@@ -48,7 +59,13 @@ describe('currentBackendOf', () => {
     expect(currentBackendOf(profiles, 'gpt-execute')).toBe('pi');
     expect(currentBackendOf(profiles, 'plan')).toBe('claude');
   });
-  it('returns null for an unknown active profile', () => {
+  it('returns null for an unknown or unsupported active profile', () => {
+    const staleProfiles = [
+      ...profiles,
+      { name: 'legacy-codex', model: 'gpt-old', backend: 'codex', mode: 'plan', thinking: null } as unknown as ConfigProfileEntry,
+    ];
+
     expect(currentBackendOf(profiles, 'ghost')).toBeNull();
+    expect(currentBackendOf(staleProfiles, 'legacy-codex')).toBeNull();
   });
 });

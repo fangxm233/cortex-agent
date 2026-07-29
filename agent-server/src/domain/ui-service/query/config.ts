@@ -1,5 +1,5 @@
 // input:  config root, mounted-hook registry, UI query types
-// output: redacted ConfigSnapshot for the settings panel
+// output: redacted ConfigSnapshot with live backend profiles
 // pos:    Hermetic config.get snapshot reader
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -19,6 +19,7 @@ import type {
   ConfigThreadTemplates,
   ConfigEnvEntry,
 } from '../types.js';
+import type { Backend } from '../../../agent-adapter/types.js';
 
 const MASK = '••••••••';
 
@@ -49,17 +50,27 @@ function parseBudget(raw: any): ConfigBudget | null {
   };
 }
 
+function isLiveBackend(value: unknown): value is Backend {
+  return value === 'claude' || value === 'pi';
+}
+
 function parseProfiles(raw: any): ConfigProfiles | null {
   if (!raw || typeof raw !== 'object' || !raw.profiles || typeof raw.profiles !== 'object') return null;
-  const profiles: ConfigProfileEntry[] = Object.entries(raw.profiles).map(([name, p]: [string, any]) => ({
-    name,
-    model: typeof p?.model === 'string' ? p.model : null,
-    backend: typeof p?.backend === 'string' ? p.backend : null,
-    mode: typeof p?.mode === 'string' ? p.mode : null,
-    thinking: typeof p?.thinking === 'string' ? p.thinking : null,
-  }));
+  const profiles = Object.entries(raw.profiles).flatMap(([name, p]: [string, any]): ConfigProfileEntry[] => {
+    if (p?.backend != null && !isLiveBackend(p.backend)) return [];
+    return [{
+      name,
+      model: typeof p?.model === 'string' ? p.model : null,
+      backend: isLiveBackend(p?.backend) ? p.backend : null,
+      mode: typeof p?.mode === 'string' ? p.mode : null,
+      thinking: typeof p?.thinking === 'string' ? p.thinking : null,
+    }];
+  });
+  const requestedDefault = typeof raw.defaultProfile === 'string' ? raw.defaultProfile : null;
   return {
-    defaultProfile: typeof raw.defaultProfile === 'string' ? raw.defaultProfile : null,
+    defaultProfile: requestedDefault && profiles.some((profile) => profile.name === requestedDefault)
+      ? requestedDefault
+      : null,
     profiles,
   };
 }
