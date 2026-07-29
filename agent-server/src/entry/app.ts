@@ -1,6 +1,6 @@
-// input:  .env, PlatformAdapter, stores, orchestration modules, provider throttle state
-// output: server wiring with provider-scoped throttle recovery
-// pos:    agent-server main entry and wiring hub
+// input:  env/config, adapters, stores, runtime services
+// output: initialized server runtime and graceful shutdown
+// pos:    agent-server composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
 import { mkdirSync, promises as fsPromises } from 'fs';
@@ -74,6 +74,8 @@ import { dispatchPendingResumes } from '../orchestration/resume-dispatcher.js';
 import { scheduleRepo } from '@store/schedule-repo.js';
 import { runMigrations, migrateAistatusConfigLocation } from '@store/version-migrations.js';
 import { syncManagedHooks } from '@store/hook-sync.js';
+import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
+import { initHookBus } from '@core/hook-bus.js';
 import { syncManagedPlugins } from '@store/plugin-sync.js';
 import { costRepo } from '@store/cost-repo.js';
 import { PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
@@ -116,6 +118,20 @@ configureEnvForMode(loadMode());
 setLocale(process.env.CORTEX_LANG ? normalizeLocale(process.env.CORTEX_LANG) : loadLang());
 
 const log = createLogger('app');
+
+function initConfiguredHooks(): void {
+  let entries: HookEntry[] = [];
+  try {
+    entries = loadHookRegistry();
+  } catch (error) {
+    log.error(`Startup: hook registry load failed: ${(error as Error).message}`);
+  }
+  initHookBus({ entries });
+  const enabled = entries.filter((entry) => entry.enabled !== false);
+  const ccCount = enabled.filter((entry) => entry.event.startsWith('cc:')).length;
+  const cortexCount = enabled.filter((entry) => entry.event.startsWith('cortex:')).length;
+  log.info(`Startup: mounted ${enabled.length} hooks (${ccCount} cc / ${cortexCount} cortex)`);
+}
 
 // --- Singleton lock ---
 // app.js owns ports 3001 (webhook) / 3002 (client-manager); a second instance would
@@ -308,6 +324,7 @@ process.on('SIGTERM', async () => {
   // Refresh version-stamped hooks in DATA_DIR/hooks from the shipped defaults. init's deployHooks
   // only copies-if-missing, so without this an existing install never picks up hook code fixes.
   await syncManagedHooks();
+  initConfiguredHooks();
   // Deploy new plugins and refresh updated skills in DATA_DIR/plugins from the shipped defaults.
   // init's copyDefaults (copy-if-missing, only on `cortex init`) never reaches an existing install,
   // so without this a new plugin or an updated skill never propagates on upgrade.

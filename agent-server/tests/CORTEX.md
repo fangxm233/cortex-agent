@@ -61,10 +61,11 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | gateway-per-request-mode.test.ts | test | gateway per-request mode prefix and cost |
 | gpu-slot-scheduling.test.ts | test | per-GPU slot occupancy and scheduling |
 | hook-bridge.test.ts | test | hook request publish and resolve chain |
+| hook-bus.test.ts | test | HookBus matching, results, and failure isolation |
 | hook-callers.test.ts | test | thread and session hook caller result handling |
 | hook-exec.test.ts | test | shared hook subprocess execution semantics |
 | init.test.ts | test | cortex init path, env and MCP config generation |
-| integration-init-startup.test.ts | e2e | init, startup, and config regeneration |
+| integration-init-startup.test.ts | e2e | init, startup, config, and hook registry loading |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
 | machines-query.test.ts | test | machines list online/offline projection |
