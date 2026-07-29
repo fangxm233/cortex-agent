@@ -1,6 +1,6 @@
 // input:  tools, declarative hook registry, Claude defaults
 // output: buildHooksSettings + hardcoded rollback hook table
-// pos:    Compiles registry entries into Claude hook settings
+// pos:    Builds safe Claude hook settings from the registry
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as path from 'path';
@@ -113,7 +113,7 @@ function compileRegistryHooks(toolsList: string[]): ClaudeHooksSettings {
     backend: 'claude',
     availableTools: new Set(toolsList),
   });
-  const settings: ClaudeHooksSettings = {};
+  const settings: ClaudeHooksSettings = Object.create(null) as ClaudeHooksSettings;
   for (const entry of entries) {
     const event = claudeEventName(entry.event);
     if (event !== null) appendEntry(settings, event, entry);

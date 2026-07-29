@@ -1,5 +1,5 @@
 // input:  Claude adapter modules, registry fixtures, assertions
-// output: CLI args, env, hooks, parsing, and compact verification
+// output: CLI args, env, safe hooks, parsing, compact verification
 // pos:    Claude adapter behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -760,6 +760,18 @@ test('buildHooksSettings compiles ordered Claude events from the active registry
 
   withHookRegistry(entries, () => {
     assert.equal(JSON.stringify(buildHooksSettings('Edit,Read')), expected);
+  });
+});
+
+test('buildHooksSettings serializes native events that collide with Object.prototype', () => {
+  const entries: HookEntry[] = [
+    { id: 'constructor-event', event: 'cc:constructor', run: { command: 'constructor-hook' } },
+    { id: 'proto-event', event: 'cc:__proto__', run: { command: 'proto-hook' } },
+  ];
+  const expected = '{"constructor":[{"hooks":[{"type":"command","command":"constructor-hook"}]}],"__proto__":[{"hooks":[{"type":"command","command":"proto-hook"}]}]}';
+
+  withHookRegistry(entries, () => {
+    assert.equal(JSON.stringify(buildHooksSettings('Bash')), expected);
   });
 });
 
