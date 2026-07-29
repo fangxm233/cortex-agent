@@ -71,7 +71,7 @@ const NAV_FILES: Record<SettingsSectionKey, string> = {
   templates: 'thread-templates',
   mcp: 'mcp-config.json',
   notifications: '.env',
-  hooks: 'hooks/*.mjs',
+  hooks: 'config/hooks',
   advanced: 'feature flags',
 };
 

@@ -1,9 +1,8 @@
-// 1l 设置 — the settings page drilled from the project page (scheme-mobile.dc.html 1l L601-663). A
-// non-Tab drill page (the shell keeps the project Tab active); back returns to the project page. Wired
-// to the REAL read scopes: `config.get` (redacted ~/.cortex/config snapshot) + `cost.summary` (today/
-// month spend). The Daemon row drills into 1r (/m/daemon). Profile switch drives a real config.set
-// `profiles` write (re-points defaultProfile in profiles.json). The two env toggles are inert honest
-// surfaces (no .env write path — see MSettingsView notes).
+// input:  config/cost queries, language/theme state, navigation
+// output: data-bound mobile settings screen
+// pos:    Mobile settings query and mutation container
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -40,7 +39,10 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     platform: 'Platform',
     desktopEdit: 'Edit on desktop',
     templates: 'Thread templates',
-    hooks: 'Hooks · 3-layer read-only',
+    hooks: 'Mounted hooks',
+    hookEnabled: 'Enabled',
+    hookDisabled: 'Disabled',
+    noHooks: 'No mounted hooks',
     footerBrand: 'cortex mobile',
   },
   zh: {
@@ -65,7 +67,10 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     platform: 'Platform',
     desktopEdit: '桌面编辑',
     templates: 'Thread templates',
-    hooks: 'Hooks · 三层只读',
+    hooks: '已挂载钩子',
+    hookEnabled: '已启用',
+    hookDisabled: '已停用',
+    noHooks: '暂无已挂载钩子',
     footerBrand: 'cortex mobile',
   },
 };

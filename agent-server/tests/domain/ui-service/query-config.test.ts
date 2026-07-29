@@ -1,5 +1,10 @@
+// input:  isolated config fixtures and UI config query handlers
+// output: redaction, mounted-hook, and fail-soft snapshot tests
+// pos:    Regression coverage for the settings config snapshot
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -17,6 +22,7 @@ async function makeFixture(): Promise<{ configDir: string; hooksDir: string }> {
   await fs.mkdir(path.join(configDir, 'thread-templates', 'agents'), { recursive: true });
   await fs.mkdir(path.join(configDir, 'thread-templates', 'templates'), { recursive: true });
   await fs.mkdir(path.join(configDir, 'thread-templates', 'shells'), { recursive: true });
+  await fs.mkdir(path.join(configDir, 'hooks'), { recursive: true });
   await fs.mkdir(hooksDir, { recursive: true });
 
   await fs.writeFile(path.join(configDir, 'budget.json'), JSON.stringify({ daily_usd: 100, monthly_usd: 2000 }));
@@ -39,22 +45,33 @@ async function makeFixture(): Promise<{ configDir: string; hooksDir: string }> {
   );
   await fs.writeFile(path.join(configDir, 'mcp-config.json'), JSON.stringify({ mcpServers: { alpha: {}, beta: {} } }));
   await fs.writeFile(path.join(configDir, 'thread-templates', 'agents', 'coder.json'), '{}');
-  await fs.writeFile(path.join(configDir, 'thread-templates', 'templates', 'coder-review.json'), '{}');
+  await fs.writeFile(path.join(configDir, 'thread-templates', 'templates', 'coder-review.json'), JSON.stringify({
+    hooks: { onEnd: { command: 'node review.mjs' } },
+  }));
   await fs.writeFile(path.join(configDir, 'thread-templates', 'shells', 'default.json'), '{}');
+  await fs.writeFile(path.join(configDir, 'hooks', '01-managed.json'), JSON.stringify({
+    id: 'managed-hook', event: 'agent:pre-tool', run: { command: 'true' }, version: '2026.7.29',
+  }));
+  await fs.writeFile(path.join(configDir, 'hooks', '02-user.json'), JSON.stringify({
+    id: 'user-hook', event: 'pi:message_end', run: { command: 'true' }, enabled: true,
+  }));
+  await fs.writeFile(path.join(configDir, 'hooks', '03-disabled.json'), JSON.stringify({
+    id: 'disabled-hook', event: 'cc:Notification', run: { command: 'true' }, enabled: false,
+  }));
   await fs.writeFile(path.join(configDir, '.env'), `# a comment\nSECRET_TOKEN=${RAW_SECRET}\nEMPTY_KEY=\nBASE_URL=https://api.example.com\n`);
-  await fs.writeFile(path.join(hooksDir, 'my-hook.mjs'), '// hook');
+  await fs.writeFile(path.join(hooksDir, 'my-hook.mjs'), '// executable asset, not a mounted declaration');
   return { configDir, hooksDir };
 }
 
 test('readConfigSnapshot parses budget', async () => {
-  const { configDir, hooksDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir, hooksDir);
+  const { configDir } = await makeFixture();
+  const snap = await readConfigSnapshot(configDir);
   assert.deepEqual(snap.budget, { daily_usd: 100, monthly_usd: 2000 });
 });
 
 test('readConfigSnapshot redacts .env secrets — raw value never appears in the DTO', async () => {
-  const { configDir, hooksDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir, hooksDir);
+  const { configDir } = await makeFixture();
+  const snap = await readConfigSnapshot(configDir);
   const serialized = JSON.stringify(snap);
   assert.ok(!serialized.includes(RAW_SECRET), 'raw secret leaked into snapshot');
 
@@ -77,8 +94,8 @@ test('readConfigSnapshot redacts .env secrets — raw value never appears in the
 });
 
 test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hooks', async () => {
-  const { configDir, hooksDir } = await makeFixture();
-  const snap = await readConfigSnapshot(configDir, hooksDir);
+  const { configDir } = await makeFixture();
+  const snap = await readConfigSnapshot(configDir);
 
   assert.equal(snap.profiles!.defaultProfile, 'plan');
   assert.deepEqual(snap.profiles!.profiles, [
@@ -97,12 +114,20 @@ test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hoo
   assert.deepEqual(snap.threadTemplates.agents, ['coder']);
   assert.deepEqual(snap.threadTemplates.templates, ['coder-review']);
   assert.deepEqual(snap.threadTemplates.shells, ['default']);
-  assert.deepEqual(snap.hooks, ['my-hook.mjs']);
+  assert.deepEqual(snap.hooks, [
+    { id: 'managed-hook', event: 'agent:pre-tool', enabled: true, source: 'managed' },
+    { id: 'user-hook', event: 'pi:message_end', enabled: true, source: 'user' },
+    { id: 'disabled-hook', event: 'cc:Notification', enabled: false, source: 'user' },
+    { id: 'template:coder-review:end', event: 'cortex:thread.end', enabled: true, source: 'template-scoped' },
+  ]);
+  assert.ok(!JSON.stringify(snap.hooks).includes('my-hook.mjs'));
 });
 
 test('readConfigSnapshot returns null / empty when files are absent', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-empty-'));
-  const snap = await readConfigSnapshot(path.join(root, 'config'), path.join(root, 'hooks'));
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  const snap = await readConfigSnapshot(path.join(root, 'config'));
+  error.mockRestore();
   assert.equal(snap.budget, null);
   assert.equal(snap.profiles, null);
   assert.equal(snap.mcp, null);
@@ -110,6 +135,34 @@ test('readConfigSnapshot returns null / empty when files are absent', async () =
   assert.deepEqual(snap.threadTemplates, { agents: [], templates: [], shells: [] });
   assert.deepEqual(snap.hooks, []);
   assert.deepEqual(snap.env, []);
+});
+
+test('readConfigSnapshot returns empty hooks for a non-directory registry path', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-hook-file-'));
+  const configDir = path.join(root, 'config');
+  await fs.mkdir(configDir, { recursive: true });
+  await fs.writeFile(path.join(configDir, 'hooks'), 'not a directory');
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  const snap = await readConfigSnapshot(configDir);
+
+  assert.deepEqual(snap.hooks, []);
+  assert.match(error.mock.calls.flat().join('\n'), /hook-registry/);
+  error.mockRestore();
+});
+
+test('readConfigSnapshot returns empty hooks for malformed registry JSON', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-hook-json-'));
+  const configDir = path.join(root, 'config');
+  await fs.mkdir(path.join(configDir, 'hooks'), { recursive: true });
+  await fs.writeFile(path.join(configDir, 'hooks', 'broken.json'), '{broken');
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  const snap = await readConfigSnapshot(configDir);
+
+  assert.deepEqual(snap.hooks, []);
+  assert.match(error.mock.calls.flat().join('\n'), /broken\.json/);
+  error.mockRestore();
 });
 
 function makeMinimalDeps(): UiServiceDeps {

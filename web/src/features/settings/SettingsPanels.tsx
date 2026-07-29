@@ -1,5 +1,10 @@
+// input:  settings DTOs, localized copy, shared UI primitives
+// output: read-only desktop settings panels
+// pos:    Presentational settings panel collection
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import type { CSSProperties } from 'react';
-import type { ConfigSnapshot, ThreadTemplateEntry } from '@cortex-agent/ui-contract';
+import type { ConfigHook, ConfigSnapshot, ThreadTemplateEntry } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { SCard, SCardHeader, MonoKV, Toggle } from './settings-ui';
 import {
@@ -934,93 +939,50 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
   );
 }
 
-export function HooksPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
-  const L = useVocab();
-  const hooks = snapshot.hooks;
+function MountedHookRow({
+  hook,
+  enabledLabel,
+  disabledLabel,
+}: {
+  hook: ConfigHook;
+  enabledLabel: string;
+  disabledLabel: string;
+}) {
+  const label = hook.enabled ? enabledLabel : disabledLabel;
+  const tone = hook.enabled ? 'var(--proto-success)' : 'var(--proto-muted-2)';
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1.35fr 1fr',
-        gap: 12,
-        marginTop: 12,
-        alignItems: 'start',
-        maxWidth: 1080,
-      }}
-    >
-      <SCard>
-        <SCardHeader title={L.stAgentHooks} right="hooks/*.mjs" />
-        <div style={{ padding: '4px 14px 10px' }}>
-          {hooks.length === 0 ? (
-            <div style={{ padding: '8px 0', fontSize: 10.5, color: 'var(--proto-faint)' }}>
-              {L.stNoHooks}
-            </div>
-          ) : (
-            hooks.map((f) => (
-              <div
-                key={f}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  padding: '5.5px 0',
-                  borderBottom: '1px solid var(--proto-rail)',
-                }}
-              >
-                <span style={{ font: `500 10px ${MONO}`, color: 'var(--proto-ink-2)', flex: 'none' }}>{f}</span>
-                <span
-                  title={L.stHookViewerInertTitle}
-                  style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: 'var(--proto-faint)', flex: 'none', cursor: 'not-allowed' }}
-                >
-                  {L.stView}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </SCard>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <SCard>
-          <SCardHeader title={L.stThreadLifecycle} right="thread-templates" />
-          <div style={{ padding: '7px 14px 9px', fontSize: 10.5, lineHeight: 1.6, color: 'var(--proto-muted)' }}>
-            <ThreadHookRow k="onStart" d={L.stHookOnStartDesc} />
-            <ThreadHookRow k="onTransition" d={L.stHookOnTransitionDesc} />
-            <ThreadHookRow k="onEnd" d={L.stHookOnEndDesc} />
-          </div>
-        </SCard>
-        <SCard>
-          <SCardHeader title={L.stSessionHooks} right="session-hooks.json" />
-          <div style={{ padding: '7px 14px 9px', fontSize: 10.5, lineHeight: 1.6, color: 'var(--proto-muted)' }}>
-            <ThreadHookRow k="onNew" d="new-session-hook.mjs · 60s" />
-            <ThreadHookRow k="onMessageEnd" d={L.stHookNotConfigured} muted />
-          </div>
-        </SCard>
-        <div
-          style={{
-            background: 'var(--proto-rail)',
-            border: '1px solid var(--proto-line-2)',
-            borderRadius: 10,
-            padding: '9px 13px',
-            fontSize: 10,
-            lineHeight: 1.7,
-            color: 'var(--proto-muted-2)',
-          }}
-        >
-          {L.stHooksFootNote}
-        </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: 12, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--proto-rail)' }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-ink-2)', overflowWrap: 'anywhere' }}>{hook.id}</div>
+        <div style={{ marginTop: 2, font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' }}>{hook.event}</div>
       </div>
+      <span style={{ fontSize: 9.5, fontWeight: 650, color: tone }}>{label}</span>
+      <span style={{ font: `500 9.5px ${MONO}`, color: 'var(--proto-muted)', minWidth: 92, textAlign: 'right' }}>{hook.source}</span>
     </div>
   );
 }
 
-function ThreadHookRow({ k, d, muted }: { k: string; d: string; muted?: boolean }) {
+export function HooksPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
+  const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4.5px 0' }}>
-      <span style={{ font: `600 10px ${MONO}`, color: muted ? 'var(--proto-muted-2)' : 'var(--proto-ink)', width: 104, flex: 'none' }}>
-        {k}
-      </span>
-      <span style={{ color: muted ? 'var(--proto-faint)' : undefined }}>{d}</span>
-    </div>
+    <SCard style={{ marginTop: 12, maxWidth: 1080 }}>
+      <SCardHeader title={L.stAgentHooks} right="registry + templates" />
+      <div style={{ padding: '4px 14px 10px' }}>
+        {snapshot.hooks.length === 0 ? (
+          <div style={{ padding: '8px 0', fontSize: 10.5, color: 'var(--proto-faint)' }}>{L.stNoHooks}</div>
+        ) : snapshot.hooks.map((hook) => (
+          <MountedHookRow
+            key={`${hook.source}:${hook.id}:${hook.event}`}
+            hook={hook}
+            enabledLabel={L.stHookEnabled}
+            disabledLabel={L.stHookDisabled}
+          />
+        ))}
+        <div style={{ paddingTop: 9, fontSize: 10, lineHeight: 1.7, color: 'var(--proto-muted-2)' }}>
+          {L.stHooksFootNote}
+        </div>
+      </div>
+    </SCard>
   );
 }
 

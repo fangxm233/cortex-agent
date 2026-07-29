@@ -10,6 +10,7 @@ import type { RunningExecutions } from '@core/running-executions.js';
 import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
 export type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
+import type { HookEvent, HookSource } from '@store/hook-registry.js';
 import type { Session } from '@store/session-registry-repo.js';
 import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
 import type { LogLocation } from '@domain/executions/log-tailer.js';
@@ -845,13 +846,20 @@ export interface ConfigEnvEntry {
   masked: string;
 }
 
+export interface ConfigHook {
+  id: string;
+  event: HookEvent;
+  enabled: boolean;
+  source: HookSource;
+}
+
 export interface ConfigSnapshot {
   budget: ConfigBudget | null;
   profiles: ConfigProfiles | null;
   machines: ConfigMachine[];
   mcp: ConfigMcp | null;
   threadTemplates: ConfigThreadTemplates;
-  hooks: string[];
+  hooks: ConfigHook[];
   env: ConfigEnvEntry[];
 }
 

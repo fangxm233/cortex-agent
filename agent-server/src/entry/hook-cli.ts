@@ -17,16 +17,14 @@ import { runHookProcess, type HookProcessOptions } from '@core/hook-exec.js';
 import { CONFIG_DIR, HOOKS_DIR } from '@core/paths.js';
 import { isMainModule } from '@core/utils.js';
 import {
-  classifyHookSource,
-  loadHookRegistryRecords,
-  type HookEntry,
-  type HookRegistryRecord,
-  type HookSource,
+  loadMountedHooks,
+  summarizeMountedHook,
+  type MountedHook,
+  type RegistryHook,
 } from '@store/hook-registry.js';
 
 const COMMANDS = ['list', 'show', 'enable', 'disable', 'test'] as const;
 type HookCommand = typeof COMMANDS[number];
-type HookPhase = 'start' | 'transition' | 'end';
 
 export interface HookCliOptions {
   registryDir?: string;
@@ -48,34 +46,6 @@ interface ParsedArgs {
   dryRun: boolean;
   help: boolean;
 }
-
-interface MountedBase {
-  id: string;
-  event: HookEntry['event'];
-  enabled: boolean;
-  source: HookSource;
-}
-
-interface RegistryHook extends MountedBase {
-  kind: 'registry';
-  entry: HookEntry;
-  filePath: string;
-}
-
-interface TemplateRun {
-  command: string;
-  args?: string[];
-  timeout?: number;
-}
-
-interface TemplateHook extends MountedBase {
-  kind: 'template';
-  run: TemplateRun;
-  template: string;
-  phase: HookPhase;
-}
-
-type MountedHook = RegistryHook | TemplateHook;
 
 interface HandlerContext {
   parsed: ParsedArgs;
@@ -183,16 +153,6 @@ const BOOLEAN_FIELDS: Record<string, 'dryRun' | 'help'> = {
   '-h': 'help',
 };
 
-const TEMPLATE_PHASES: Array<{
-  field: string;
-  phase: HookPhase;
-  event: HookEntry['event'];
-}> = [
-  { field: 'onStart', phase: 'start', event: 'cortex:thread.start' },
-  { field: 'onTransition', phase: 'transition', event: 'cortex:thread.transition' },
-  { field: 'onEnd', phase: 'end', event: 'cortex:thread.end' },
-];
-
 function success(payload: unknown, exitCode = 0): HookCliResult {
   return { exitCode, stdout: JSON.stringify(payload, null, 2), stderr: '' };
 }
@@ -258,77 +218,6 @@ function parseArgs(argv: string[]): ParsedArgs {
   return parsed;
 }
 
-function registryHook(record: HookRegistryRecord): RegistryHook {
-  return {
-    kind: 'registry',
-    id: record.entry.id,
-    event: record.entry.event,
-    enabled: record.entry.enabled !== false,
-    source: record.source,
-    entry: record.entry,
-    filePath: record.filePath,
-  };
-}
-
-function asObject(value: unknown): Record<string, unknown> | null {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function templateHook(
-  template: string,
-  phase: typeof TEMPLATE_PHASES[number],
-  value: unknown,
-): TemplateHook | null {
-  const run = asObject(value);
-  if (!run || typeof run.command !== 'string' || run.command.trim() === '') return null;
-  return {
-    kind: 'template',
-    id: `template:${template}:${phase.phase}`,
-    event: phase.event,
-    enabled: true,
-    source: classifyHookSource({}, 'template'),
-    run: run as unknown as TemplateRun,
-    template,
-    phase: phase.phase,
-  };
-}
-
-function hooksFromTemplate(filePath: string): TemplateHook[] {
-  const filename = path.basename(filePath, '.json');
-  const value = asObject(JSON.parse(fs.readFileSync(filePath, 'utf8')));
-  if (!value) throw new Error('template must be an object');
-  if (value.name !== undefined && value.name !== filename) {
-    throw new Error(`name field "${String(value.name)}" does not match filename`);
-  }
-  const hooks = asObject(value.hooks);
-  if (!hooks) return [];
-  return TEMPLATE_PHASES
-    .map((phase) => templateHook(filename, phase, hooks[phase.field]))
-    .filter((hook): hook is TemplateHook => hook !== null);
-}
-
-function loadTemplateHooks(directory: string): TemplateHook[] {
-  if (!fs.existsSync(directory)) return [];
-  const hooks: TemplateHook[] = [];
-  const files = fs.readdirSync(directory).filter((file) => file.endsWith('.json')).sort();
-  for (const file of files) {
-    try {
-      hooks.push(...hooksFromTemplate(path.join(directory, file)));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`[hook-cli] skipped ${file}: ${message}`);
-    }
-  }
-  return hooks;
-}
-
-function loadMountedHooks(options: Required<HookCliOptions>): MountedHook[] {
-  const registry = loadHookRegistryRecords(options.registryDir).map(registryHook);
-  return [...registry, ...loadTemplateHooks(options.templateDir)];
-}
-
 function uniqueHookIds(hooks: MountedHook[]): string[] {
   const counts = new Map<string, number>();
   for (const hook of hooks) counts.set(hook.id, (counts.get(hook.id) ?? 0) + 1);
@@ -346,10 +235,6 @@ function findHook(id: string, hooks: MountedHook[]): MountedHook {
     valid,
     'Rename one declaration so every mounted hook id is unique',
   );
-}
-
-function listHook(hook: MountedHook): MountedBase {
-  return { id: hook.id, event: hook.event, enabled: hook.enabled, source: hook.source };
 }
 
 function showHook(hook: MountedHook): Record<string, unknown> {
@@ -470,7 +355,7 @@ async function handleTest(context: HandlerContext): Promise<HookCliResult> {
 async function dispatch(context: HandlerContext): Promise<HookCliResult> {
   const command = context.parsed.command!;
   if (command === 'list') {
-    return success({ ok: true, hooks: context.hooks.map(listHook) });
+    return success({ ok: true, hooks: context.hooks.map(summarizeMountedHook) });
   }
   if (command === 'show') {
     return success({ ok: true, hook: showHook(findHook(context.parsed.id!, context.hooks)) });
@@ -492,7 +377,8 @@ export async function runHookCli(
       return { exitCode: 0, stdout: formatHelp(spec), stderr: '' };
     }
     const options = defaults(cliOptions);
-    return await dispatch({ parsed, hooks: loadMountedHooks(options), options });
+    const hooks = loadMountedHooks(options.registryDir, options.templateDir);
+    return await dispatch({ parsed, hooks, options });
   } catch (error) {
     return failure(error instanceof Error ? error.message : String(error));
   }

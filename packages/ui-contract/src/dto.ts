@@ -1,5 +1,5 @@
-// input:  built ui-service declarations with provider throttle/context/notice details
-// output: type-only client contract including session compact DTOs
+// input:  built UI-service declarations and cost types
+// output: browser DTO contract including mounted-hook state
 // pos:    Shared server-to-client compile-time DTO boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -88,6 +88,7 @@ export type {
   ExecutionInfo,
   ExecutionDetailInfo,
   ConfigSnapshot,
+  ConfigHook,
   ConfigBudget,
   ConfigProfiles,
   ConfigProfileEntry,

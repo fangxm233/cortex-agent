@@ -1,6 +1,6 @@
-// input:  JSON hook entries, Node filesystem, core config paths
-// output: HookEntry validation, source-aware loading, filtering API
-// pos:    Standalone declarative hook registry
+// input:  hook registry/templates, filesystem, config paths
+// output: validated entries, mounted-hook loading, filtering API
+// pos:    Declarative hook registry and mounted-state reader
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as fs from 'node:fs';
@@ -56,6 +56,46 @@ export interface HookRegistryRecord {
   filePath: string;
   source: HookSource;
 }
+
+export type HookPhase = 'start' | 'transition' | 'end';
+
+export interface MountedHookSummary {
+  id: string;
+  event: HookEntry['event'];
+  enabled: boolean;
+  source: HookSource;
+}
+
+export interface RegistryHook extends MountedHookSummary {
+  kind: 'registry';
+  entry: HookEntry;
+  filePath: string;
+}
+
+export interface TemplateRun {
+  command: string;
+  args?: string[];
+  timeout?: number;
+}
+
+export interface TemplateHook extends MountedHookSummary {
+  kind: 'template';
+  run: TemplateRun;
+  template: string;
+  phase: HookPhase;
+}
+
+export type MountedHook = RegistryHook | TemplateHook;
+
+const TEMPLATE_PHASES: Array<{
+  field: string;
+  phase: HookPhase;
+  event: HookEntry['event'];
+}> = [
+  { field: 'onStart', phase: 'start', event: 'cortex:thread.start' },
+  { field: 'onTransition', phase: 'transition', event: 'cortex:thread.transition' },
+  { field: 'onEnd', phase: 'end', event: 'cortex:thread.end' },
+];
 
 const AGENT_EVENTS = new Set([
   'agent:pre-tool',
@@ -248,6 +288,90 @@ export function loadHookRegistry(
   directory = path.join(CONFIG_DIR, 'hooks'),
 ): HookEntry[] {
   return loadHookRegistryRecords(directory).map((record) => record.entry);
+}
+
+function registryHook(record: HookRegistryRecord): RegistryHook {
+  return {
+    kind: 'registry',
+    id: record.entry.id,
+    event: record.entry.event,
+    enabled: record.entry.enabled !== false,
+    source: record.source,
+    entry: record.entry,
+    filePath: record.filePath,
+  };
+}
+
+function optionalObject(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function templateHook(
+  template: string,
+  phase: typeof TEMPLATE_PHASES[number],
+  value: unknown,
+): TemplateHook | null {
+  const run = optionalObject(value);
+  if (!run || typeof run.command !== 'string' || run.command.trim() === '') return null;
+  return {
+    kind: 'template',
+    id: `template:${template}:${phase.phase}`,
+    event: phase.event,
+    enabled: true,
+    source: classifyHookSource({}, 'template'),
+    run: run as unknown as TemplateRun,
+    template,
+    phase: phase.phase,
+  };
+}
+
+function hooksFromTemplate(filePath: string): TemplateHook[] {
+  const filename = path.basename(filePath, '.json');
+  const value = optionalObject(JSON.parse(fs.readFileSync(filePath, 'utf8')));
+  if (!value) throw new Error('template must be an object');
+  if (value.name !== undefined && value.name !== filename) {
+    throw new Error(`name field "${String(value.name)}" does not match filename`);
+  }
+  const hooks = optionalObject(value.hooks);
+  if (!hooks) return [];
+  return TEMPLATE_PHASES
+    .map((phase) => templateHook(filename, phase, hooks[phase.field]))
+    .filter((hook): hook is TemplateHook => hook !== null);
+}
+
+function loadTemplateHooks(directory: string): TemplateHook[] {
+  const files = registryFiles(directory);
+  if (!files) return [];
+  const hooks: TemplateHook[] = [];
+  for (const file of files) {
+    try {
+      hooks.push(...hooksFromTemplate(path.join(directory, file)));
+    } catch (error) {
+      reportInvalid(file, error);
+    }
+  }
+  return hooks;
+}
+
+export function loadMountedHooks(
+  registryDir = path.join(CONFIG_DIR, 'hooks'),
+  templateDir = path.join(CONFIG_DIR, 'thread-templates', 'templates'),
+): MountedHook[] {
+  const registry = loadHookRegistryRecords(registryDir).map(registryHook);
+  return [...registry, ...loadTemplateHooks(templateDir)];
+}
+
+export function summarizeMountedHook(hook: MountedHook): MountedHookSummary {
+  return { id: hook.id, event: hook.event, enabled: hook.enabled, source: hook.source };
+}
+
+export function loadMountedHookSummaries(
+  registryDir = path.join(CONFIG_DIR, 'hooks'),
+  templateDir = path.join(CONFIG_DIR, 'thread-templates', 'templates'),
+): MountedHookSummary[] {
+  return loadMountedHooks(registryDir, templateDir).map(summarizeMountedHook);
 }
 
 function implicitBackends(event: HookEvent): HookBackend[] {

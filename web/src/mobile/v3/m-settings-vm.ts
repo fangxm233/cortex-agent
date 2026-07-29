@@ -1,18 +1,8 @@
-// Pure view-model for the 1l 设置 screen (scheme-mobile.dc.html 1l L601-663). The settings page
-// drilled from the project page (1e→1l). Maps the REAL `config.get` ConfigSnapshot + `cost.summary`
-// CostSummary into the row slots. No JSX, no tRPC.
-//
-// 守则11 no-fabrication — every rendered field has a real DTO source or is explicitly omitted:
-//   • Daemon host / uptime (scheme `home-server:7433 · uptime 6d 4h`) → NO DTO source (config.get
-//     redacts .env, carries no host string and no uptime) → `daemonHost: null` → sub omitted.
-//   • Profile default + model + thinking → real `profiles.defaultProfile` + the matching entry's
-//     `model` and `thinking` level.
-//   • Budget today/daily → real `cost.today` + `budget.daily_usd` (daily denom from budget.json).
-//   • Notify / auto-resume toggles → REAL env-flag PRESENCE (CORTEX_TURN_NOTIFY / CORTEX_AUTO_RESUME)
-//     but there is NO config.set for .env → the toggles are READ-ONLY/inert (see view GAP notes).
-//   • Platforms → real present env-key groups (slack / feishu); scheme's `（slack, feishu）` is a mock.
-//   • Templates count → real `threadTemplates.templates.length` (scheme's `4` is a mock).
-//   • App version (scheme `v0.4.2`) → NO DTO source → omitted from the footer (no fabricated version).
+// input:  config snapshot, cost summary, settings formatters
+// output: mobile settings view model with mounted hooks
+// pos:    Pure data mapping for the mobile settings screen
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import type { ConfigSnapshot, ConfigProfileEntry, CostSummary } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
 import { budgetBarPct } from '@/features/settings/budget-vm';
@@ -41,6 +31,8 @@ export interface MSettingsVm {
   platforms: string[];
   /** Real count of thread templates (threadTemplates.templates). */
   templatesCount: number;
+  /** Mounted registry and template-scoped hook state. */
+  hooks: ConfigSnapshot['hooks'];
 }
 
 /** The env flags whose PRESENCE the two toggles reflect (both inert — no .env write path). */
@@ -81,5 +73,6 @@ export function buildMSettingsVm(
     autoResumeOn: isPresent(snapshot.env, AUTO_RESUME_ENV_KEY),
     platforms,
     templatesCount: snapshot.threadTemplates.templates.length,
+    hooks: snapshot.hooks,
   };
 }

@@ -1,5 +1,10 @@
+// input:  mobile settings view model and config/cost fixtures
+// output: real settings-field and mounted-hook mapping tests
+// pos:    Verifies mobile settings data derivation
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
-import type { ConfigSnapshot, ConfigEnvEntry, CostSummary } from '@cortex-agent/ui-contract';
+import type { ConfigSnapshot, ConfigEnvEntry, ConfigHook, CostSummary } from '@cortex-agent/ui-contract';
 import { buildMSettingsVm, NOTIFY_ENV_KEY, AUTO_RESUME_ENV_KEY } from './m-settings-vm';
 
 // Neutral placeholder snapshot (守则11 — no real project ids / secrets).
@@ -82,5 +87,14 @@ describe('buildMSettingsVm', () => {
 
   it('counts the real thread templates', () => {
     expect(buildMSettingsVm(snap(), cost()).templatesCount).toBe(4);
+  });
+
+  it('passes mounted hook state through for the mobile settings view', () => {
+    const hooks: ConfigHook[] = [
+      { id: 'managed-hook', event: 'agent:pre-tool', enabled: true, source: 'managed' },
+      { id: 'template:review:end', event: 'cortex:thread.end', enabled: false, source: 'template-scoped' },
+    ];
+
+    expect(buildMSettingsVm(snap({ hooks }), cost()).hooks).toEqual(hooks);
   });
 });

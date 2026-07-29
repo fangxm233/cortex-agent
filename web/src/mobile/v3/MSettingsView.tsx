@@ -1,3 +1,8 @@
+// input:  mobile settings view model, copy, and UI primitives
+// output: read-only mobile settings screen with mounted hooks
+// pos:    Presentational mobile settings view
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1l L601-663)
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScrollBody, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
@@ -29,7 +34,10 @@ export interface MSettingsCopy {
   platform: string; // `Platform`
   desktopEdit: string; // `桌面编辑`
   templates: string; // `Thread templates`
-  hooks: string; // `Hooks · 三层只读`
+  hooks: string;
+  hookEnabled: string;
+  hookDisabled: string;
+  noHooks: string;
   footerBrand: string; // `cortex mobile`
 }
 
@@ -227,6 +235,46 @@ function ThemeToggle({
   );
 }
 
+function MobileHookRow({
+  hook,
+  copy,
+  divider,
+}: {
+  hook: MSettingsVm['hooks'][number];
+  copy: MSettingsCopy;
+  divider: boolean;
+}) {
+  return (
+    <div style={{ ...rowStyle(divider), alignItems: 'flex-start' }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ font: `600 10.5px ${MONO}`, color: MC.ink }}>{hook.id}</div>
+        <div style={{ ...SUB, overflowWrap: 'anywhere' }}>{hook.event} · {hook.source}</div>
+      </div>
+      <span style={{ fontSize: 9.5, fontWeight: 650, color: hook.enabled ? MC.done : MC.muted, flex: 'none' }}>
+        {hook.enabled ? copy.hookEnabled : copy.hookDisabled}
+      </span>
+    </div>
+  );
+}
+
+function MountedHooksRows({ vm, copy }: { vm: MSettingsVm; copy: MSettingsCopy }) {
+  return (
+    <>
+      <div style={rowStyle(vm.hooks.length > 0)}><span style={TITLE}>{copy.hooks}</span></div>
+      {vm.hooks.length === 0 ? (
+        <div style={{ ...rowStyle(false), fontSize: 10, color: MC.faint }}>{copy.noHooks}</div>
+      ) : vm.hooks.map((hook, index) => (
+        <MobileHookRow
+          key={`${hook.source}:${hook.id}:${hook.event}`}
+          hook={hook}
+          copy={copy}
+          divider={index < vm.hooks.length - 1}
+        />
+      ))}
+    </>
+  );
+}
+
 export function MSettingsView({
   vm,
   copy,
@@ -391,10 +439,7 @@ export function MSettingsView({
             <DesktopPill>{copy.desktopEdit}</DesktopPill>
             <span style={CHEV}>›</span>
           </div>
-          <div style={{ ...rowStyle(false), gap: 9 }}>
-            <span style={{ fontSize: 13, color: MC.sub }}>{copy.hooks}</span>
-            <span style={{ ...CHEV, marginLeft: 'auto' }}>›</span>
-          </div>
+          <MountedHooksRows vm={vm} copy={copy} />
         </Card>
 
         {/* footer — brand · build stamp · hot-reload. The scheme's `v0.4.2` slot is filled with the

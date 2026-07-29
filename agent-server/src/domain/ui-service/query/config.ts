@@ -1,12 +1,12 @@
-// input:  UiServiceDeps + ConfigGetParams (empty)
-// output: config.get handler → redacted ConfigSnapshot of ~/.cortex/config for the settings panel
-// pos:    query handler for 'config.get' (Stage 7 settings 12a–g). Pure `readConfigSnapshot`
-//         (dir args, hermetic) + thin `handleConfigGet` binding CONFIG_DIR / HOOKS_DIR.
-//         SECURITY: never returns .env values or raw machine ssh strings — only redacted markers.
+// input:  config root, mounted-hook registry, UI query types
+// output: redacted ConfigSnapshot for the settings panel
+// pos:    Hermetic config.get snapshot reader
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { CONFIG_DIR, HOOKS_DIR } from '@core/paths.js';
+import { CONFIG_DIR } from '@core/paths.js';
+import { loadMountedHookSummaries } from '@store/hook-registry.js';
 import type {
   UiServiceDeps,
   ConfigGetParams,
@@ -36,15 +36,6 @@ async function listJsonBasenames(dir: string): Promise<string[]> {
       .filter((f) => f.endsWith('.json'))
       .map((f) => f.slice(0, -'.json'.length))
       .sort();
-  } catch {
-    return [];
-  }
-}
-
-async function listFiles(dir: string): Promise<string[]> {
-  try {
-    const entries = await fs.readdir(dir, { withFileTypes: true });
-    return entries.filter((e) => e.isFile()).map((e) => e.name).sort();
   } catch {
     return [];
   }
@@ -121,9 +112,13 @@ async function readEnv(file: string): Promise<ConfigEnvEntry[]> {
  * arguments (no global paths) so it is hermetically testable against a fixture directory. Every
  * source file is independent: a missing / malformed file yields null (or []) for that field only.
  */
-export async function readConfigSnapshot(configDir: string, hooksDir: string): Promise<ConfigSnapshot> {
+export async function readConfigSnapshot(configDir: string): Promise<ConfigSnapshot> {
   const tt = path.join(configDir, 'thread-templates');
-  const [budgetRaw, profilesRaw, machinesRaw, mcpRaw, agents, templates, shells, hooks, env] = await Promise.all([
+  const hooks = loadMountedHookSummaries(
+    path.join(configDir, 'hooks'),
+    path.join(tt, 'templates'),
+  );
+  const [budgetRaw, profilesRaw, machinesRaw, mcpRaw, agents, templates, shells, env] = await Promise.all([
     readJson(path.join(configDir, 'budget.json')),
     readJson(path.join(configDir, 'profiles.json')),
     readJson(path.join(configDir, 'machines.json')),
@@ -131,7 +126,6 @@ export async function readConfigSnapshot(configDir: string, hooksDir: string): P
     listJsonBasenames(path.join(tt, 'agents')),
     listJsonBasenames(path.join(tt, 'templates')),
     listJsonBasenames(path.join(tt, 'shells')),
-    listFiles(hooksDir),
     readEnv(path.join(configDir, '.env')),
   ]);
 
@@ -148,5 +142,5 @@ export async function readConfigSnapshot(configDir: string, hooksDir: string): P
 }
 
 export async function handleConfigGet(_deps: UiServiceDeps, _params: ConfigGetParams): Promise<ConfigSnapshot> {
-  return readConfigSnapshot(CONFIG_DIR, HOOKS_DIR);
+  return readConfigSnapshot(CONFIG_DIR);
 }
