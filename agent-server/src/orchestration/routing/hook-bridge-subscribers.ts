@@ -7,7 +7,7 @@
 import type { EventBus, CortexEvent } from '@events/index.js';
 import type { Destination, PlatformAdapter, OutputStream } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
-import { buildPlanApprovalContent } from '@platform/index.js';
+import { buildPlanApprovalContent, askLevelIcon } from '@platform/index.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { sendPlanToSlack } from '@orch/interactions/plan-handler.js';
 import type { PlanApprovals } from '@orch/interactions/plan-approvals.js';
@@ -26,7 +26,7 @@ export function registerHookBridgeSubscribers(
     const ev = e as Extract<CortexEvent, { type: 'ask-user.requested' }>;
     if (ev.dryRun) return; // smoke-test: event is journalled, skip Slack post
     try {
-      const group = askUserQuestion.createHookGroup(ev.requestId, ev.channel, ev.sessionId, ev.questions, ev.extensionUiId, ev.threadId ?? null);
+      const group = askUserQuestion.createHookGroup(ev.requestId, ev.channel, ev.sessionId, ev.questions, ev.extensionUiId, ev.threadId ?? null, ev.level ?? null);
       askUserQuestion.registerHookResolver(ev.requestId, (data) => resolveHookRequest(ev.requestId, data));
 
       // Web UI (web: conduit) has no PlatformAdapter — persist the interaction entity;
@@ -46,6 +46,7 @@ export function registerHookBridgeSubscribers(
               options: q.options || [],
               multiSelect: !!q.multiSelect,
             })),
+            ...(ev.level ? { level: ev.level } : {}),
           },
         });
         return;
@@ -68,7 +69,8 @@ export function registerHookBridgeSubscribers(
       // streamingCb is fetched only to extract the stream reference — not invoked directly for AskUser
       const streamingCb = getStreamingCallback(ev.channel);
       const stream = (streamingCb as any)?.stream as OutputStream | undefined;
-      const text = `Questions (${group.questions.length})`;
+      const levelIcon = askLevelIcon(ev.level ?? null);
+      const text = `${levelIcon ? `${levelIcon} ` : ''}Questions (${group.questions.length})`;
       const richBlocks = askUserQuestion.buildQuestionGroupBlocks(group);
       // Route through stream when available so standalone post flushes pending appends
       // and resets stream state — without this, messages emitted after the form would

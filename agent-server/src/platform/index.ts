@@ -39,6 +39,8 @@ export {
   buildQuestionModalDefinition,
   buildPlanApprovalContent,
   buildPlanFeedbackModal,
+  normalizeAskLevel,
+  askLevelIcon,
 } from './interactive-builder.js';
 export type { QuestionOption, QuestionRecord, QuestionGroup } from './interactive-builder.js';
 export { createAdapter, createAdapterFromEnv } from './adapters/index.js';

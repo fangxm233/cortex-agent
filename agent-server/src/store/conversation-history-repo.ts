@@ -41,6 +41,8 @@ export interface InteractionQuestion {
 
 export interface InteractionPayload {
   questions?: InteractionQuestion[];
+  /** Optional severity of an ask-user card ('info'|'warning'|'error') — absent = neutral look. */
+  level?: 'info' | 'warning' | 'error';
   planContent?: string;
   planFilePath?: string | null;
 }

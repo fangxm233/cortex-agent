@@ -4,8 +4,28 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { RichBlock, ModalDefinition, ActionElement } from './types.js';
+import type { ChatNoticeLevel } from '../core/types/agent-types.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
+
+// --- Ask severity level (shared by webhook, MCP tool, and block builders) ---
+
+/** Normalize a caller-supplied level ('warn' alias accepted) to a ChatNoticeLevel, or null if invalid. */
+export function normalizeAskLevel(value: unknown): ChatNoticeLevel | null {
+  if (value === 'warn') return 'warning';
+  return value === 'info' || value === 'warning' || value === 'error' ? value : null;
+}
+
+const LEVEL_ICONS: Record<ChatNoticeLevel, string> = {
+  info: Icons.info,
+  warning: Icons.warning,
+  error: Icons.error,
+};
+
+/** Icon for an explicit ask level; '' when the level is absent (legacy neutral look). */
+export function askLevelIcon(level: ChatNoticeLevel | null | undefined): string {
+  return level ? LEVEL_ICONS[level] : '';
+}
 
 // --- Question group types ---
 
@@ -26,12 +46,16 @@ export interface QuestionGroup {
   groupId: string;
   questions: QuestionRecord[];
   answers: Map<string, { header: string; value: string | string[] }>;
+  /** Optional severity of the whole card — explicit levels render a banner/icon prefix. */
+  level?: ChatNoticeLevel | null;
 }
 
 // --- AskUserQuestion builders ---
 
 export function buildQuestionGroupBlocks(group: QuestionGroup): RichBlock[] {
   const blocks: RichBlock[] = [];
+  const levelIcon = askLevelIcon(group.level);
+  if (levelIcon) blocks.push({ type: 'context', text: `${levelIcon} ${group.level}` });
   const allAnswered = group.answers.size === group.questions.length;
   for (const [qIdx, q] of group.questions.entries()) {
     if (qIdx > 0) blocks.push({ type: 'divider' });
@@ -104,9 +128,10 @@ export function buildQuestionModalDefinition(group: QuestionGroup): ModalDefinit
       });
     }
   }
+  const titleIcon = askLevelIcon(group.level);
   return {
     callbackId: 'ask_user_question_modal_submit',
-    title: t('modal.questionsTitle'),
+    title: titleIcon ? `${titleIcon} ${t('modal.questionsTitle')}` : t('modal.questionsTitle'),
     submitLabel: t('modal.submit'),
     closeLabel: t('modal.cancel'),
     privateMetadata: JSON.stringify({ groupId: group.groupId }),

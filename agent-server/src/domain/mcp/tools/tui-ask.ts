@@ -5,6 +5,7 @@
 
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { normalizeAskLevel } from '@platform/index.js';
 import type { TuiToolDeps, CallToolResultShape } from './tui-plan.js';
 
 /**
@@ -28,6 +29,8 @@ interface AskUserQuestion {
 
 interface AskUserArgs {
   questions: AskUserQuestion[];
+  /** Optional severity of the card: 'info' | 'warn' | 'warning' | 'error'. */
+  level?: string;
 }
 
 /**
@@ -70,11 +73,17 @@ export async function runAskUser(args: AskUserArgs, deps: TuiToolDeps): Promise<
     return entry;
   });
 
+  const level = args.level === undefined ? null : normalizeAskLevel(args.level);
+  if (args.level !== undefined && !level) {
+    return { content: [{ type: 'text', text: `cortex_ask_user error: invalid level '${args.level}' (valid: info, warn, warning, error)` }], isError: true };
+  }
+
   const body = {
     sessionId: deps.sessionId,
     channel: deps.channel,
     questions: normalizedQuestions,
     threadId: deps.threadId,
+    ...(level ? { level } : {}),
   };
 
   let resp: { status: number; body: any };
@@ -140,6 +149,8 @@ export function registerTuiAskTools(server: McpServer, deps: TuiToolDeps): void 
           multiSelect: z.boolean().optional().describe('If true, the user may select multiple options (default false).'),
         }),
       ).min(1).max(4).describe('Questions to ask (1-4 questions).'),
+      level: z.enum(['info', 'warn', 'warning', 'error']).optional()
+        .describe("Optional severity of the question card: 'info' (default look), 'warning', or 'error'. 'warn' is accepted as an alias."),
     },
     async (args) => (await runAskUser(args as AskUserArgs, deps)) as any,
   );

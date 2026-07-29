@@ -5,6 +5,7 @@
 
 import { createLogger } from '@core/log.js';
 import type { EventBus } from '@events/index.js';
+import type { ChatNoticeLevel } from '@core/types/agent-types.js';
 
 export const TTL_MS = 30 * 60 * 1000; // 30 minutes — matches ASK_USER_QUESTION_TTL_MS
 
@@ -40,21 +41,22 @@ function setPlanNotify(_cb: PlanNotify): void { /* no-op, deprecated */ }
 
 // --- Registration (called by webhook routes, blocks until Slack interaction completes) ---
 
-function registerAskQuestion(requestId: string, channel: string, sessionId: string, questions: any[], dryRun = false, threadId?: string | null): Promise<any> {
+function registerAskQuestion(requestId: string, channel: string, sessionId: string, questions: any[], dryRun = false, threadId?: string | null, level?: ChatNoticeLevel | null): Promise<any> {
   return new Promise((resolve) => {
     if (!_bus) {
       log.error('bus not initialised; failing ask-user request immediately');
       resolve({ error: 'bus_not_initialized', answers: {} });
       return;
     }
+    const levelField = level ? { level } : {};
     if (dryRun) {
       // Smoke-test path: publish event for journal capture, skip Slack interaction, resolve synthetically.
-      _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, dryRun: true });
+      _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, ...levelField, dryRun: true });
       resolve({ dryRun: true, answers: {} });
       return;
     }
     pendingRequests.set(requestId, { resolve, channel, sessionId, createdAt: Date.now() });
-    _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions });
+    _bus.publish({ type: 'ask-user.requested', requestId, channel, sessionId, threadId: threadId ?? null, questions, ...levelField });
   });
 }
 

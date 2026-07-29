@@ -122,6 +122,63 @@ test('ask-user.requested on a web channel creates an ask-user record with normal
   assert.equal((events[0] as any).kind, 'ask-user');
 });
 
+test('ask-user.requested with a level persists it in the web interaction payload', async () => {
+  const { bus, fake } = setup();
+
+  bus.publish({
+    type: 'ask-user.requested',
+    requestId: 'req-ask-lvl',
+    channel: 'web:sess-lvl',
+    sessionId: 'agent-sess',
+    threadId: null,
+    level: 'warning',
+    questions: [{ question: 'Proceed?', header: 'Risk', options: [], multiSelect: false }],
+  });
+  await flush();
+
+  assert.equal(fake.created.length, 1);
+  assert.equal(fake.created[0].args.payload.level, 'warning');
+});
+
+test('ask-user.requested without a level leaves the payload level absent', async () => {
+  const { bus, fake } = setup();
+
+  bus.publish({
+    type: 'ask-user.requested',
+    requestId: 'req-ask-nolvl',
+    channel: 'web:sess-nolvl',
+    sessionId: 'agent-sess',
+    threadId: null,
+    questions: [{ question: 'Plain?', header: 'Plain', options: [], multiSelect: false }],
+  });
+  await flush();
+
+  assert.equal(fake.created.length, 1);
+  assert.equal('level' in fake.created[0].args.payload, false);
+});
+
+test('ask-user.requested with a level prefixes the Slack summary and blocks with the icon', async () => {
+  const { bus, adapter } = setup();
+
+  bus.publish({
+    type: 'ask-user.requested',
+    requestId: 'req-ask-slack-lvl',
+    channel: 'C_SLACK_LVL',
+    sessionId: 'agent-sess',
+    threadId: null,
+    level: 'error',
+    questions: [{ question: 'Abort?', header: 'Failure', options: [], multiSelect: false }],
+  });
+  await flush();
+
+  assert.equal(adapter.posted.length, 1);
+  const content = adapter.posted[0].content as any;
+  assert.ok(content.text.startsWith('❌'), `summary text carries the error icon: ${content.text}`);
+  const first = content.richBlocks[0];
+  assert.equal(first.type, 'context');
+  assert.ok(String(first.text).includes('❌'), 'first block is the level banner');
+});
+
 test('non-web channels do not create interaction records', async () => {
   const { bus, fake } = setup();
 

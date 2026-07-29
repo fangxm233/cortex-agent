@@ -46,6 +46,26 @@ test('registerAskQuestion publishes ask-user.requested event to bus with correct
   await resultPromise;
 });
 
+// ── (1b) registerAskQuestion carries the optional severity level ───────────────
+
+test('registerAskQuestion publishes ask-user.requested with the severity level', async () => {
+  const bus = new EventBus();
+  const hb = await freshHookBridge();
+  hb.initHookBridge(bus);
+
+  const received: CortexEvent[] = [];
+  bus.subscribe('ask-user.requested', (e) => { received.push(e); });
+
+  const resultPromise = hb.registerAskQuestion('req-lvl', 'C_LVL', 'sess-lvl', [{ q: 'Danger?' }], false, null, 'warning');
+
+  assert.equal(received.length, 1);
+  const ev = received[0] as Extract<CortexEvent, { type: 'ask-user.requested' }>;
+  assert.equal(ev.level, 'warning');
+
+  hb.resolveRequest('req-lvl', { answers: {} });
+  await resultPromise;
+});
+
 // ── (2) registerAskQuestion → subscriber → MockAdapter.postMessage ─────────────
 
 test('ask-user.requested subscriber calls MockAdapter.postMessage (Slack side effect)', async () => {

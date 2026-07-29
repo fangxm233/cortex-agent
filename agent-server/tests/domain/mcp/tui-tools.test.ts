@@ -314,3 +314,29 @@ test('cortex_ask_user returns isError when answers payload is not a dict', async
   const result = await runAskUser({ questions: [{ question: 'Q?' }] }, makeDeps({ httpPost: post }));
   assert.equal(result.isError, true);
 });
+
+test('cortex_ask_user forwards a normalized level in the webhook body', async () => {
+  const { post, calls } = makeMockHttp([{ status: 200, body: { answers: { 'Q?': 'ok' } } }]);
+  const result = await runAskUser(
+    { questions: [{ question: 'Q?' }], level: 'warn' },
+    makeDeps({ httpPost: post }),
+  );
+  assert.equal(result.isError, undefined);
+  assert.equal(calls[0].body.level, 'warning');
+});
+
+test('cortex_ask_user omits level from the body when not given', async () => {
+  const { post, calls } = makeMockHttp([{ status: 200, body: { answers: { 'Q?': 'ok' } } }]);
+  await runAskUser({ questions: [{ question: 'Q?' }] }, makeDeps({ httpPost: post }));
+  assert.equal('level' in calls[0].body, false);
+});
+
+test('cortex_ask_user rejects an invalid level without calling the webhook', async () => {
+  const { post, calls } = makeMockHttp([]);
+  const result = await runAskUser(
+    { questions: [{ question: 'Q?' }], level: 'fatal' as any },
+    makeDeps({ httpPost: post }),
+  );
+  assert.equal(result.isError, true);
+  assert.equal(calls.length, 0);
+});

@@ -71,8 +71,9 @@ const pendingHookResolvers = new Map();
 
 /** Create a question group from a PreToolUse hook request (not from Claude output).
  *  @param extensionUiId — original PI extension_ui_request id; when set, tryResolveHook
- *         uses this for sendExtensionUiResponse instead of the hookRequestId. */
-function createHookGroup(requestId, channel, sessionId, questions, extensionUiId?: string, threadId?: string | null) {
+ *         uses this for sendExtensionUiResponse instead of the hookRequestId.
+ *  @param level — optional severity ('info'|'warning'|'error') rendered by the block builders. */
+function createHookGroup(requestId, channel, sessionId, questions, extensionUiId?: string, threadId?: string | null, level?: 'info' | 'warning' | 'error' | null) {
   const groupId = buildGroupId(sessionId, requestId);
   const group = {
     groupId,
@@ -84,6 +85,7 @@ function createHookGroup(requestId, channel, sessionId, questions, extensionUiId
     hookRequestId: requestId,
     extensionUiId: extensionUiId || null,
     threadId: threadId ?? null,
+    level: level ?? null,
     questions: questions.map((q, idx) => ({
       pendingId: buildPendingId(sessionId, requestId, idx),
       header: q.header,

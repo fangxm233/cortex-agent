@@ -42,7 +42,7 @@ export type CortexEvent =
   | { type: 'session.debug.updated';  ts: string; sessionId: string; channel: string }
   | { type: 'plan.submitted';         ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; planContent: string; toolInput: any; dryRun?: boolean; extensionUiId?: string }
   | { type: 'plan.approved';          ts: string; channel: string; executionId: string }
-  | { type: 'ask-user.requested';     ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; questions: any[]; dryRun?: boolean; extensionUiId?: string }
+  | { type: 'ask-user.requested';     ts: string; requestId: string; channel: string; sessionId: string; threadId?: string | null; questions: any[]; level?: 'info' | 'warning' | 'error'; dryRun?: boolean; extensionUiId?: string }
   | { type: 'ask-user.answered';      ts: string; channel: string; requestId?: string; sessionId: string; answer: string }
   // Interaction entity state-change notification (web-interactions-redesign): published on
   // creation AND on every status transition. Carries no content payload — clients treat it as

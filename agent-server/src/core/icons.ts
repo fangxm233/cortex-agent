@@ -4,6 +4,8 @@
 export const Icons = {
   /** :warning: */
   warning: '⚠️',
+  /** :information_source: */
+  info: 'ℹ️',
   /** :white_check_mark: */
   ok: '✅',
   /** :x: */
