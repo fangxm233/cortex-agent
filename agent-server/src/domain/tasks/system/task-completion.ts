@@ -1,21 +1,21 @@
 // input:  node fs/path/child_process, core paths, task lifecycle
 // output: completeTask/uncompleteTask lifecycle transitions
-// pos:    verifies completion evidence and applies task state
+// pos:    verifies bounded commit and confined artifact evidence
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { type Task } from '@core/task-parser.js';
-import { DATA_DIR, INSTALL_ROOT, STORE_DIR, WORKSPACE_DIR, todayISO } from '@core/utils.js';
+import { DATA_DIR, INSTALL_ROOT, PROJECTS_DIR, STORE_DIR, WORKSPACE_DIR, todayISO } from '@core/utils.js';
 import { clearDependsOnAll, findTask, getTasksPath, readTasks, writeTasks } from './task-lifecycle-edit.js';
 
 const EXPLICIT_SHA = /\b(?:implementation\s+sha|commit(?:\s+sha)?|sha)\s*[:=#]?\s*`?([0-9a-f]{7,40})(?![0-9a-f])`?/gi;
 
-function runGit(repo: string, args: string[]): string | null {
+function runGit(repo: string, args: string[], input?: string): string | null {
   try {
     return execFileSync('git', ['-C', repo, ...args], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000,
+      encoding: 'utf8', input, stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000,
     }).trim();
   } catch {
     return null;
@@ -23,15 +23,17 @@ function runGit(repo: string, args: string[]): string | null {
 }
 
 function extractExplicitShas(note: string): string[] {
-  const shas: string[] = [];
-  for (const match of note.matchAll(EXPLICIT_SHA)) shas.push(match[1]);
-  return shas;
+  const shas = [...note.matchAll(EXPLICIT_SHA)].map((match) => match[1].toLowerCase());
+  return [...new Set(shas)];
 }
 
 function hasVerifiedImplementationSha(note: string): boolean {
+  const refs = extractExplicitShas(note).map((sha) => `${sha}^{commit}`);
+  if (refs.length === 0) return false;
+  const input = `${refs.join('\n')}\n`;
   const repos = [...new Set([process.cwd(), INSTALL_ROOT, DATA_DIR])];
-  return extractExplicitShas(note).some((sha) =>
-    repos.some((repo) => runGit(repo, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`]) !== null),
+  return repos.some((repo) =>
+    runGit(repo, ['cat-file', '--batch-check=%(objecttype)'], input)?.split('\n').includes('commit') === true,
   );
 }
 
@@ -59,12 +61,20 @@ function readPersistedArtifactPath(threadId: string): string | null {
   }
 }
 
-function isNonEmptyDataFile(filePath: string): boolean {
+function isInsideRoot(realFile: string, root: string): boolean {
   try {
-    const realRoot = fs.realpathSync(DATA_DIR);
+    const realRoot = fs.realpathSync(root);
+    return realFile === realRoot || realFile.startsWith(`${realRoot}${path.sep}`);
+  } catch {
+    return false;
+  }
+}
+
+function isNonEmptyAuthorizedFile(filePath: string): boolean {
+  try {
     const realFile = fs.realpathSync(filePath);
-    const insideData = realFile.startsWith(`${realRoot}${path.sep}`);
-    return insideData && fs.statSync(realFile).isFile() && fs.readFileSync(realFile, 'utf8').trim().length > 0;
+    const authorized = [DATA_DIR, PROJECTS_DIR].some((root) => isInsideRoot(realFile, root));
+    return authorized && fs.statSync(realFile).isFile() && fs.readFileSync(realFile, 'utf8').trim().length > 0;
   } catch {
     return false;
   }
@@ -74,7 +84,7 @@ function hasCurrentThreadArtifact(): boolean {
   const threadId = process.env.CORTEX_THREAD_ID;
   if (!threadId || !/^thr_[a-zA-Z0-9_-]+$/.test(threadId)) return false;
   const fallback = path.join(WORKSPACE_DIR, 'threads', threadId, 'artifact.md');
-  return isNonEmptyDataFile(readPersistedArtifactPath(threadId) ?? fallback);
+  return isNonEmptyAuthorizedFile(readPersistedArtifactPath(threadId) ?? fallback);
 }
 
 function verifyCompletionEvidence(

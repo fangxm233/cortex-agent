@@ -86,7 +86,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | platform-mock-adapter.test.ts | test | mock adapter platform contract coverage |
 | preferences.test.ts | test | operator display preferences store |
 | project-store.test.ts | test | project lookup, scaffolding and cache |
-| rate-limit-throttle.test.ts | test | provider limit/outage windows, gates and callbacks |
+| rate-limit-throttle.test.ts | test | provider window rollback, retry and callbacks |
 | rate-limiter.test.ts | test | token bucket rate limiter behaviour |
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
@@ -111,7 +111,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | status-helpers.test.ts | test | status message serialization and buttons |
 | store/ | subdir | JSON repository and store concurrency tests |
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
-| task-completion.test.ts | test | completion lifecycle and evidence verification |
+| task-completion.test.ts | test | evidence roots, Git types and lifecycle |
 | task-dispatch-hooks.test.ts | test | dispatch, quarantine and reconciliation errors |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
