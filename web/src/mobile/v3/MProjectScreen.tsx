@@ -1,7 +1,7 @@
-// input:  project queries, live connectivity, provider rate-limit status, navigation
-// output: mobile Projects screen with active-only limit sheet and project actions
-// pos:    Data/container owner for the Projects tab
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  project, notes, connectivity and rate-limit queries
+// output: mobile Projects screen with quick notes and actions
+// pos:    Data owner for the Projects tab
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -18,11 +18,13 @@ import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
 import { useThreadsLiveSync } from '@/features/workbench/useThreadsLiveSync';
 import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { useMobileProject } from '@/mobile/current-project';
-import { MProjectView, type MProjectCopy } from './MProjectView';
+import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProjectView';
 import { threadCountsForProject, onlineMachineCount, buildProjectSwitchRows } from './m-project-vm';
 import { MNewProjectView } from './MNewProjectView';
 import { canCreate, type MNewProjectCopy } from './m-new-project-vm';
 import { MobileRateLimitSheet, useRateLimitStatus } from '@/features/rate-limit';
+import { NOTES_COPY } from '@/features/notes/notes-copy';
+import { buildMNotesVm } from './m-notes-vm';
 
 const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   en: {
@@ -83,6 +85,21 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   },
 };
 
+function useProjectNotes(projectId: string, lang: 'en' | 'zh') {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const query = useQuery({ ...trpc.notes.list.queryOptions({ projectId }), enabled: !!projectId });
+  const add = useMutation(trpc.notes.add.mutationOptions({
+    onSettled: () => queryClient.invalidateQueries(trpc.notes.list.queryFilter({ projectId })),
+  }));
+  return {
+    vm: buildMNotesVm(query.data ?? [], Date.now(), lang),
+    copy: NOTES_COPY[lang],
+    busy: add.isPending,
+    add: (text: string) => add.mutateAsync({ projectId, text }),
+  };
+}
+
 const NEW_PROJECT_COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
   en: {
     title: 'New project',
@@ -98,155 +115,91 @@ const NEW_PROJECT_COPY: { en: MNewProjectCopy; zh: MNewProjectCopy } = {
   },
 };
 
-export function MProjectScreen() {
+function useProjectQueries(projectId: string) {
   const trpc = useTRPC();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const lang = useLang();
-  const copy = pickCopy(lang, COPY);
-  const { currentProjectId, setCurrentProject } = useMobileProject();
-
-  useSessionsLiveSync();
-  useThreadsLiveSync();
-  const projectsQuery = useQuery(trpc.projects.list.queryOptions({}));
-  // UNSCOPED direct sessions (all projects) → per-project unread + awaiting-action badge counts.
-  // Recency still owns ordering; useSessionsLiveSync keeps both attention signals fresh.
-  const allSessionsQuery = useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' }));
-  const scopedCostQuery = useQuery({
-    ...trpc.cost.summary.queryOptions({ projectId: currentProjectId ?? undefined }),
-    enabled: !!currentProjectId,
-  });
-  const globalCostQuery = useQuery(trpc.cost.summary.queryOptions({}));
-  const threadsQuery = useQuery(trpc.threads.list.queryOptions({}));
-  const approvalsQuery = useQuery(trpc.approvals.list.queryOptions({ status: 'pending' }));
-  const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
-  // Issues (design sec-24 24a): the current project's ISSUES.md entries — the card is hidden at 0.
-  const issuesQuery = useQuery({
-    ...trpc.issues.list.queryOptions({ projectId: currentProjectId ?? '' }),
-    enabled: !!currentProjectId,
-  });
-
-  const projects = projectsQuery.data ?? [];
-  const threads = threadsQuery.data ?? [];
-  const machines = machinesQuery.data ?? [];
-  const pendingApprovals = approvalsQuery.data?.length ?? 0;
-  const issueEntries = issuesQuery.data ?? [];
-  const issues = useMemo(
-    () => ({ count: issueEntries.length, previews: issueEntries.slice(0, 2).map((i) => i.title) }),
-    [issueEntries],
-  );
-  const onlineMachines = onlineMachineCount(machines);
-  // Real UI<->server connectivity (SSE link) — supersedes the former query-inferred boolean.
-  const connStatus = useConnectionStatus();
-  const rateLimitStatus = useRateLimitStatus();
-  const [rateLimitOpen, setRateLimitOpen] = useState(false);
-  useEffect(() => {
-    if (!rateLimitStatus) setRateLimitOpen(false);
-  }, [rateLimitStatus]);
-
-  const current = useMemo(() => {
-    if (!currentProjectId) return null;
-    const counts = threadCountsForProject(threads, currentProjectId);
-    return {
-      id: currentProjectId,
-      initials: projectInitials(currentProjectId),
-      runningThreads: counts.running,
-      waitingThreads: counts.waiting,
-      needsYou: pendingApprovals,
-      cost: scopedCostQuery.data ?? null,
-    };
-  }, [currentProjectId, threads, pendingApprovals, scopedCostQuery.data]);
-
-  const unreadCounts = useMemo(
-    () => unreadCountByProject(allSessionsQuery.data ?? []),
-    [allSessionsQuery.data],
-  );
-  const actionCounts = useMemo(
-    () => awaitingInputCountByProject(allSessionsQuery.data ?? []),
-    [allSessionsQuery.data],
-  );
-  // Persistent recency signal (session-registry lastUsedAt) → most-recently-active projects first.
-  const lastActivity = useMemo(
-    () => lastActivityByProject(allSessionsQuery.data ?? []),
-    [allSessionsQuery.data],
-  );
-  const switchRows = useMemo(
-    () =>
-      buildProjectSwitchRows(
-        projects,
-        currentProjectId,
-        threads,
-        globalCostQuery.data?.byProject,
-        unreadCounts,
-        lastActivity,
-        actionCounts,
-      ),
-    [
-      projects,
-      currentProjectId,
-      threads,
-      globalCostQuery.data,
-      unreadCounts,
-      lastActivity,
-      actionCounts,
-    ],
-  );
-
-  // ── new-project bottom sheet (inline overlay, same pattern as profile picker in MChatScreen) ──
-  const [newProjectOpen, setNewProjectOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const newProjectCopy = pickCopy(lang, NEW_PROJECT_COPY);
-
-  const createProject = useMutation(
-    trpc.projects.create.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.projects.list.queryFilter());
-        setNewProjectOpen(false);
-        navigate('/m/session/new');
-      },
-    }),
-  );
-
-  const submitNewProject = () => {
-    if (!canCreate(newProjectName) || createProject.isPending) return;
-    createProject.mutate({ name: newProjectName.trim() });
+  return {
+    projects: useQuery(trpc.projects.list.queryOptions({})).data ?? [],
+    sessions: useQuery(trpc.sessions.list.queryOptions({ origin: 'direct' })).data ?? [],
+    scopedCost: useQuery({ ...trpc.cost.summary.queryOptions({ projectId: projectId || undefined }), enabled: !!projectId }).data ?? null,
+    globalCost: useQuery(trpc.cost.summary.queryOptions({})).data,
+    threads: useQuery(trpc.threads.list.queryOptions({})).data ?? [],
+    pendingApprovals: useQuery(trpc.approvals.list.queryOptions({ status: 'pending' })).data?.length ?? 0,
+    machines: useQuery(trpc.machines.list.queryOptions({})).data ?? [],
+    issues: useQuery({ ...trpc.issues.list.queryOptions({ projectId }), enabled: !!projectId }).data ?? [],
   };
+}
 
+function useCurrentCard(projectId: string, queries: ReturnType<typeof useProjectQueries>) {
+  return useMemo(() => {
+    if (!projectId) return null;
+    const counts = threadCountsForProject(queries.threads, projectId);
+    return { id: projectId, initials: projectInitials(projectId), runningThreads: counts.running, waitingThreads: counts.waiting, needsYou: queries.pendingApprovals, cost: queries.scopedCost };
+  }, [projectId, queries.threads, queries.pendingApprovals, queries.scopedCost]);
+}
+
+function useProjectSwitchRows(projectId: string, queries: ReturnType<typeof useProjectQueries>) {
+  const unread = useMemo(() => unreadCountByProject(queries.sessions), [queries.sessions]);
+  const actions = useMemo(() => awaitingInputCountByProject(queries.sessions), [queries.sessions]);
+  const activity = useMemo(() => lastActivityByProject(queries.sessions), [queries.sessions]);
+  return useMemo(() => buildProjectSwitchRows(
+    queries.projects,
+    projectId,
+    queries.threads,
+    queries.globalCost?.byProject,
+    unread,
+    activity,
+    actions,
+  ), [queries.projects, projectId, queries.threads, queries.globalCost, unread, activity, actions]);
+}
+
+function useNewProjectSheet(lang: 'en' | 'zh', navigate: ReturnType<typeof useNavigate>) {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const create = useMutation(trpc.projects.create.mutationOptions({ onSuccess: () => {
+    queryClient.invalidateQueries(trpc.projects.list.queryFilter());
+    setOpen(false);
+    navigate('/m/session/new');
+  } }));
+  const submit = () => {
+    if (!canCreate(name) || create.isPending) return;
+    create.mutate({ name: name.trim() });
+  };
+  return { open, name, setName, submit, close: () => setOpen(false), show: () => { setName(''); setOpen(true); }, copy: pickCopy(lang, NEW_PROJECT_COPY) };
+}
+
+function ProjectOverlays({ rate, rateOpen, closeRate, project }: { rate: ReturnType<typeof useRateLimitStatus>; rateOpen: boolean; closeRate: () => void; project: ReturnType<typeof useNewProjectSheet> }) {
   return (
     <>
-      <MProjectView
-        copy={copy}
-        connStatus={connStatus}
-        current={current}
-        pendingApprovals={pendingApprovals}
-        issues={issues}
-        onlineMachines={onlineMachines}
-        switchRows={switchRows}
-        rateLimitStatus={rateLimitStatus}
-        onOpenRateLimit={() => setRateLimitOpen(true)}
-        onIssues={() => navigate('/m/issues')}
-        onApprovals={() => navigate('/m/approvals')}
-        onMemory={() => navigate('/m/memory')}
-        onMachines={() => navigate('/m/machines')}
-        onSettings={() => navigate('/m/settings')}
-        onSwitch={(id) => {
-          setCurrentProject(id);
-          navigate('/m/sessions');
-        }}
-        onNewProject={() => { setNewProjectName(''); setNewProjectOpen(true); }}
-      />
-      {rateLimitOpen && rateLimitStatus && (
-        <MobileRateLimitSheet status={rateLimitStatus} onClose={() => setRateLimitOpen(false)} />
-      )}
-      {newProjectOpen && (
-        <MNewProjectView
-          name={newProjectName}
-          onNameChange={setNewProjectName}
-          onCreate={submitNewProject}
-          onClose={() => setNewProjectOpen(false)}
-          copy={newProjectCopy}
-        />
-      )}
+      {rateOpen && rate && <MobileRateLimitSheet status={rate} onClose={closeRate} />}
+      {project.open && <MNewProjectView name={project.name} onNameChange={project.setName} onCreate={project.submit} onClose={project.close} copy={project.copy} />}
     </>
   );
+}
+
+export function MProjectScreen() {
+  const navigate = useNavigate();
+  const lang = useLang();
+  const { currentProjectId, setCurrentProject } = useMobileProject();
+  const projectId = currentProjectId ?? '';
+  useSessionsLiveSync(); useThreadsLiveSync();
+  const queries = useProjectQueries(projectId);
+  const notes = useProjectNotes(projectId, lang);
+  const current = useCurrentCard(projectId, queries);
+  const switchRows = useProjectSwitchRows(projectId, queries);
+  const connStatus = useConnectionStatus();
+  const rate = useRateLimitStatus();
+  const [rateOpen, setRateOpen] = useState(false);
+  useEffect(() => { if (!rate) setRateOpen(false); }, [rate]);
+  const project = useNewProjectSheet(lang, navigate);
+  const issues = useMemo(() => ({ count: queries.issues.length, previews: queries.issues.slice(0, 2).map((issue) => issue.title) }), [queries.issues]);
+  const onSwitch = (id: string) => { setCurrentProject(id); navigate('/m/sessions'); };
+  const viewProps: MProjectViewProps = {
+    copy: pickCopy(lang, COPY), connStatus, current, pendingApprovals: queries.pendingApprovals, issues,
+    notesVm: notes.vm, notesCopy: notes.copy, notesBusy: notes.busy, onlineMachines: onlineMachineCount(queries.machines), switchRows, rateLimitStatus: rate,
+    onOpenRateLimit: () => setRateOpen(true), onIssues: () => navigate('/m/issues'), onNotes: () => navigate('/m/notes'), onAddNote: notes.add,
+    onApprovals: () => navigate('/m/approvals'), onMemory: () => navigate('/m/memory'), onMachines: () => navigate('/m/machines'), onSettings: () => navigate('/m/settings'), onSwitch, onNewProject: project.show,
+  };
+  return <><MProjectView {...viewProps} /><ProjectOverlays rate={rate} rateOpen={rateOpen} closeRate={() => setRateOpen(false)} project={project} /></>;
 }

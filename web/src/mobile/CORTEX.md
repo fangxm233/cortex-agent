@@ -6,7 +6,7 @@ This level holds the shell frame, the tab and route model, and the pure cross-sc
 | filename | role | function |
 |---|---|---|
 | mobile-router.tsx | entry | Builds the browser or hash router instance |
-| mobile-routes.tsx | entry | Declares the tab and drill-in route table |
+| mobile-routes.tsx | entry | Declares tab, notes and drill-in routes |
 | MobileShell.tsx | core | Frames providers, outlet, native back and tabs |
 | MobileAnimatedOutlet.tsx | core | Animates routes and retains the source tab frame |
 | MobileAnimatedOutlet.test.tsx | test | Tests transitions and retained tab frames |

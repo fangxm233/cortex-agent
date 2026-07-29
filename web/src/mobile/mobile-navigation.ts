@@ -1,5 +1,5 @@
 // input:  React lifecycle, Router and Tauri bridge
-// output: mobile back policy, hook and tab switch
+// output: mobile back policy including project-notes parent
 // pos:    Android navigation control
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -25,7 +25,7 @@ const PARENT_RULES: readonly ParentRule[] = [
   { pattern: /^\/m\/memory\/file$/, parent: '/m/memory' },
   { pattern: /^\/m\/settings\/hooks$/, parent: '/m/settings' },
   { pattern: /^\/m\/daemon$/, parent: '/m/settings' },
-  { pattern: /^\/m\/(approvals|issues|memory|machines|settings)$/, parent: '/m/project' },
+  { pattern: /^\/m\/(approvals|issues|notes|memory|machines|settings)$/, parent: '/m/project' },
 ];
 
 function parentPath(pathname: string): string {

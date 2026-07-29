@@ -1,3 +1,8 @@
+// input:  mobile shell and tab/drill screen components
+// output: mobile route table including project notes
+// pos:    Mobile router route declarations
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import { Navigate, type RouteObject } from 'react-router-dom';
 import { MobileShell } from './MobileShell';
 import { MSessionListScreen } from './v3/MSessionListScreen';
@@ -8,6 +13,7 @@ import { MTasksScreen } from './v3/MTasksScreen';
 import { MProjectScreen } from './v3/MProjectScreen';
 import { MApprovalsScreen } from './v3/MApprovalsScreen';
 import { MIssuesScreen } from './v3/MIssuesScreen';
+import { MNotesScreen } from './v3/MNotesScreen';
 import { MThreadDetailScreen } from './v3/MThreadDetailScreen';
 import { MTaskDetailScreen } from './v3/MTaskDetailScreen';
 import { MMemoryScreen } from './v3/MMemoryScreen';
@@ -41,6 +47,7 @@ export const mobileRoutes: RouteObject[] = [
       { path: '/m/task/:taskId', element: <MTaskDetailScreen /> },
       { path: '/m/approvals', element: <MApprovalsScreen /> },
       { path: '/m/issues', element: <MIssuesScreen /> },
+      { path: '/m/notes', element: <MNotesScreen /> },
       { path: '/m/memory', element: <MMemoryScreen /> },
       { path: '/m/memory/file', element: <MMemoryFileScreen /> },
       { path: '/m/machines', element: <MMachinesScreen /> },

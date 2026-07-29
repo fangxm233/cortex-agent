@@ -33,8 +33,8 @@ The view models are framework-free record to slot mappings and each one has a co
 | MTaskDetailView.test.tsx | test | Guards task fields and dependency empty state |
 | m-task-detail-vm.ts | vm | Maps task and verification records to a model |
 | m-task-detail-vm.test.ts | test | Unit tests for the task detail view model |
-| MProjectScreen.tsx | screen | Binds project, cost and connectivity data |
-| MProjectView.tsx | view | Projects tab with status, budget and switcher |
+| MProjectScreen.tsx | screen | Binds project, notes, cost and connectivity |
+| MProjectView.tsx | view | Projects tab with notes, budget and switcher |
 | m-project-vm.ts | vm | Derives thread counts, machines and switch rows |
 | m-project-vm.test.ts | test | Unit tests for the project view model |
 | MNewProjectView.tsx | view | New-project sheet with name input and create |
@@ -49,6 +49,15 @@ The view models are framework-free record to slot mappings and each one has a co
 | MIssuesView.tsx | view | Issue cards with inline delete and handle |
 | m-issues-vm.ts | vm | Maps issue records to cards with body fields |
 | m-issues-vm.test.ts | test | Unit tests for the issues view model |
+| MNotesScreen.tsx | screen | Binds private note queries and mutations |
+| MNotesView.tsx | view | Lists notes with gestures and fixed input |
+| MNotesView.test.tsx | test | Tests full-page notes presentation |
+| MNotesProjectCard.tsx | view | Adds and previews notes on Projects |
+| MNotesProjectCard.test.tsx | test | Tests the persistent zero-count entry |
+| m-notes-vm.ts | vm | Groups notes and limits card previews |
+| m-notes-vm.test.ts | test | Tests mobile note counts and groups |
+| m-notes-gestures.ts | util | Resolves long-press and swipe actions |
+| m-notes-gestures.test.ts | test | Tests note gesture thresholds |
 | MMemoryScreen.tsx | screen | Binds the memory tree and accordion state |
 | MMemoryView.tsx | view | Core files and directory accordions |
 | m-memory-vm.ts | vm | Maps the memory tree to rows and cards |

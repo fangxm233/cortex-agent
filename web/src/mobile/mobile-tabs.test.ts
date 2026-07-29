@@ -1,3 +1,8 @@
+// input:  mobile route paths and badge counts
+// output: tab mapping including project-notes drill routes
+// pos:    Tests the mobile tab navigation model
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import { activeTabId, isTabRoute, tabBadge } from './mobile-tabs';
 
@@ -14,6 +19,7 @@ describe('activeTabId (v3)', () => {
     expect(activeTabId('/m/thread/thr_abcd')).toBe('threads');
     expect(activeTabId('/m/task/T-041')).toBe('tasks');
     expect(activeTabId('/m/approvals')).toBe('project');
+    expect(activeTabId('/m/notes')).toBe('project');
     expect(activeTabId('/m/memory')).toBe('project');
     expect(activeTabId('/m/machines')).toBe('project');
     expect(activeTabId('/m/settings')).toBe('project');
@@ -41,6 +47,7 @@ describe('isTabRoute (v3)', () => {
     expect(isTabRoute('/m/thread/thr_x')).toBe(false);
     expect(isTabRoute('/m/task/T-1')).toBe(false);
     expect(isTabRoute('/m/approvals')).toBe(false);
+    expect(isTabRoute('/m/notes')).toBe(false);
     expect(isTabRoute('/m/memory')).toBe(false);
     expect(isTabRoute('/m/machines')).toBe(false);
     expect(isTabRoute('/m/settings')).toBe(false);

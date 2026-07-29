@@ -1,8 +1,9 @@
-// @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
-// input:  project data, connectivity, and active-only provider throttle view
-// output: Projects tab with rate-limit trigger immediately before daemon status
+// input:  project, notes, connectivity and provider throttle data
+// output: Projects tab with quick notes and project actions
 // pos:    Presentational mobile Projects surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
+// @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
 import type { CostSummary } from '@cortex-agent/ui-contract';
 import { MScreen, MTabHeader, MScrollBody, MCard, MDot, MC, MONO } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
@@ -10,6 +11,9 @@ import type { ConnectionStatus } from '@/features/connection/connection-status';
 import { mConnTone, mConnPulse } from './m-connection';
 import type { MProjectSwitchRow } from './m-project-vm';
 import { MobileRateLimitStatus, type RateLimitView } from '@/features/rate-limit';
+import type { NotesCopy } from '@/features/notes/notes-copy';
+import type { MNotesVm } from './m-notes-vm';
+import { MNotesProjectCard } from './MNotesProjectCard';
 
 export interface MProjectCopy {
   title: string;
@@ -68,11 +72,16 @@ export interface MProjectViewProps {
   pendingApprovals: number;
   /** Current project's ISSUES.md entries (24a card, hidden at 0 — issues never enter 需要你). */
   issues: MProjectIssues;
+  notesVm: MNotesVm;
+  notesCopy: NotesCopy;
+  notesBusy: boolean;
   onlineMachines: number;
   switchRows: MProjectSwitchRow[];
   rateLimitStatus: RateLimitView | null;
   onOpenRateLimit: () => void;
   onIssues: () => void;
+  onNotes: () => void;
+  onAddNote: (text: string) => Promise<unknown>;
   onApprovals: () => void;
   onMemory: () => void;
   onMachines: () => void;
@@ -421,80 +430,65 @@ function SwitchRow({
   );
 }
 
-export function MProjectView(props: MProjectViewProps) {
-  const { copy, connStatus, current, pendingApprovals, issues, onlineMachines, switchRows } = props;
+function PrimaryProjectCards({ props }: { props: MProjectViewProps }) {
+  const { copy, current, pendingApprovals, issues } = props;
   return (
-    <MScreen
-      label="1e 项目"
-      header={
-        <MTabHeader
-          title={copy.title}
-          trailing={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <MobileRateLimitStatus status={props.rateLimitStatus} onOpen={props.onOpenRateLimit} />
-              <DaemonStatus status={connStatus} copy={copy} />
-            </div>
-          }
-        />
-      }
-    >
+    <>
+      {current && <CurrentCard current={current} copy={copy} />}
+      {pendingApprovals > 0 && <ApprovalBar pending={pendingApprovals} waitingThreads={current?.waitingThreads ?? 0} copy={copy} onClick={props.onApprovals} />}
+      {issues.count > 0 && <IssuesCard issues={issues} copy={copy} onClick={props.onIssues} />}
+      <MNotesProjectCard vm={props.notesVm} copy={props.notesCopy} busy={props.notesBusy} onOpen={props.onNotes} onAdd={props.onAddNote} />
+    </>
+  );
+}
+
+function ProjectInfoCard({ props }: { props: MProjectViewProps }) {
+  return (
+    <MCard radius={13} padding={0} style={{ overflow: 'hidden' }}>
+      <InfoRow label={props.copy.memory} onClick={props.onMemory} divider />
+      <InfoRow label={`${props.copy.machines} · ${props.onlineMachines} ${props.copy.machinesOk}`} onClick={props.onMachines} divider />
+      <InfoRow label={props.copy.settings} onClick={props.onSettings} divider={false} />
+    </MCard>
+  );
+}
+
+function ProjectSwitchCards({ props }: { props: MProjectViewProps }) {
+  if (props.switchRows.length === 0) return null;
+  return (
+    <>
+      <SwitchDivider label={props.copy.switchProject} />
+      <MCard radius={13} padding={0} style={{ overflow: 'hidden' }}>
+        {props.switchRows.map((row, index) => <SwitchRow key={row.id} row={row} copy={props.copy} onSwitch={props.onSwitch} divider={index < props.switchRows.length - 1} />)}
+      </MCard>
+    </>
+  );
+}
+
+const NEW_PROJECT_STYLE = { display: 'flex', alignItems: 'center', gap: 9, background: 'var(--proto-card)', border: `1.5px dashed ${MC.runBorder}`, borderRadius: 13, padding: 13, cursor: 'pointer' } as const;
+
+function NewProjectButton({ copy, onClick }: { copy: MProjectCopy; onClick: () => void }) {
+  return (
+    <div onClick={onClick} style={NEW_PROJECT_STYLE}>
+      <span style={{ fontSize: 15, color: MC.run, fontWeight: 400 }}>＋</span>
+      <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.run }}>{copy.newProject}</span>
+    </div>
+  );
+}
+
+export function MProjectView(props: MProjectViewProps) {
+  const trailing = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+      <MobileRateLimitStatus status={props.rateLimitStatus} onOpen={props.onOpenRateLimit} />
+      <DaemonStatus status={props.connStatus} copy={props.copy} />
+    </div>
+  );
+  return (
+    <MScreen label="1e 项目" header={<MTabHeader title={props.copy.title} trailing={trailing} />}>
       <MScrollBody gap={10}>
-        {current && <CurrentCard current={current} copy={copy} />}
-
-        {pendingApprovals > 0 && (
-          <ApprovalBar
-            pending={pendingApprovals}
-            waitingThreads={current?.waitingThreads ?? 0}
-            copy={copy}
-            onClick={props.onApprovals}
-          />
-        )}
-
-        {issues.count > 0 && <IssuesCard issues={issues} copy={copy} onClick={props.onIssues} />}
-
-        <MCard radius={13} padding={0} style={{ overflow: 'hidden' }}>
-          <InfoRow label={copy.memory} onClick={props.onMemory} divider />
-          <InfoRow
-            label={`${copy.machines} · ${onlineMachines} ${copy.machinesOk}`}
-            onClick={props.onMachines}
-            divider
-          />
-          <InfoRow label={copy.settings} onClick={props.onSettings} divider={false} />
-        </MCard>
-
-        {switchRows.length > 0 && (
-          <>
-            <SwitchDivider label={copy.switchProject} />
-            <MCard radius={13} padding={0} style={{ overflow: 'hidden' }}>
-              {switchRows.map((row, i) => (
-                <SwitchRow
-                  key={row.id}
-                  row={row}
-                  copy={copy}
-                  onSwitch={props.onSwitch}
-                  divider={i < switchRows.length - 1}
-                />
-              ))}
-            </MCard>
-          </>
-        )}
-
-        <div
-          onClick={props.onNewProject}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 9,
-            background: 'var(--proto-card)',
-            border: `1.5px dashed ${MC.runBorder}`,
-            borderRadius: 13,
-            padding: 13,
-            cursor: 'pointer',
-          }}
-        >
-          <span style={{ fontSize: 15, color: MC.run, fontWeight: 400 }}>＋</span>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: MC.run }}>{copy.newProject}</span>
-        </div>
+        <PrimaryProjectCards props={props} />
+        <ProjectInfoCard props={props} />
+        <ProjectSwitchCards props={props} />
+        <NewProjectButton copy={props.copy} onClick={props.onNewProject} />
       </MScrollBody>
     </MScreen>
   );

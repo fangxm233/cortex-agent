@@ -1,5 +1,5 @@
 // input:  mobile paths, vocab types, badge counts
-// output: tab definitions and route mapping
+// output: tab definitions and drill mapping including notes
 // pos:    Four-tab mobile navigation model
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { type Vocab } from '@/i18n';
@@ -35,6 +35,7 @@ const SUBROUTE_TAB: ReadonlyArray<{ prefix: string; tab: MobileTabId }> = [
   { prefix: '/m/task/', tab: 'tasks' },
   { prefix: '/m/approvals', tab: 'project' },
   { prefix: '/m/issues', tab: 'project' },
+  { prefix: '/m/notes', tab: 'project' },
   { prefix: '/m/memory', tab: 'project' },
   { prefix: '/m/machines', tab: 'project' },
   { prefix: '/m/settings', tab: 'project' },
