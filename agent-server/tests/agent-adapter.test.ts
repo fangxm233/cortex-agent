@@ -40,6 +40,14 @@ test('Capability enum string values are stable (DR-0008 §3.2 contract)', () => 
   assert.equal(Capability.ToolAllowlist, 'tool-allowlist');
 });
 
+test('both live backends declare all ten shared capabilities', () => {
+  const allCapabilities = new Set(Object.values(Capability));
+
+  assert.equal(allCapabilities.size, 10);
+  assert.deepEqual(CAPABILITIES_BY_BACKEND.claude, allCapabilities);
+  assert.deepEqual(CAPABILITIES_BY_BACKEND.pi, allCapabilities);
+});
+
 test('CAPABILITIES_BY_BACKEND encodes the Claude and PI capability matrix', () => {
   const c = CAPABILITIES_BY_BACKEND.claude;
   const p = CAPABILITIES_BY_BACKEND.pi;

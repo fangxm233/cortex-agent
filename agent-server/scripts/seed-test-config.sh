@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Seed CORTEX_HOME with test-compatible machines.json and profiles.json.
-# Run after `cortex init` to make the directory ready for the test suite.
-#
+# input:  Initialized CORTEX_HOME path
+# output: Test-compatible machine and Claude/PI profile configuration
+# pos:    Full-suite fixture seeding after cortex init
+# >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 # Usage: bash scripts/seed-test-config.sh <CORTEX_HOME>
 #
 # Overwrites:

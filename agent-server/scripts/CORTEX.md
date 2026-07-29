@@ -11,7 +11,7 @@ They support packaging and manual verification outside the running daemon.
 | migrate-tasks-to-yaml.ts | migrate | converts task files from Markdown to YAML |
 | postinstall-restart-trigger.mjs | install | signals a running daemon to restart |
 | run-tests.sh | test | runs the test suite in a temporary home |
-| seed-test-config.sh | test | writes test machine and profile config |
+| seed-test-config.sh | test | writes test machine and Claude/PI profiles |
 | serve-ui-standalone.ts | dev | serves the web UI against real local data |
 | smoke-tui-askuser.mjs | smoke | checks the ask-user question round trip |
 | smoke-tui-mode.mjs | smoke | checks the tmux-backed agent session |

@@ -19,7 +19,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
 | agent-adapter-pi.test.ts | test | PI framing, spawn, context and compact |
-| agent-adapter.test.ts | test | adapter dispatch, capability and tool names |
+| agent-adapter.test.ts | test | adapter dispatch, capability sets and tool names |
 | agent-retry-classification.test.ts | test | retry classification and auto-resume notices |
 | app.test.ts | test | startup DM notification behaviour |
 | auto-compound.test.ts | test | compound trigger gating and output merge |

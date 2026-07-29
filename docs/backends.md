@@ -10,8 +10,8 @@ interface defined in `agent-server/src/agent-adapter/types.ts`.
 
 | Backend | Status | Binary | npm package | Feature level |
 |---|---|---|---|---|
-| Claude Code | Supported | `claude` | `@anthropic-ai/claude-code` | Full (8/8 capabilities) |
-| PI | Supported | `pi` | `@mariozechner/pi-coding-agent` | Full (8/8 capabilities) |
+| Claude Code | Supported | `claude` | `@anthropic-ai/claude-code` | Full (10/10 capabilities) |
+| PI | Supported | `pi` | `@mariozechner/pi-coding-agent` | Full (10/10 capabilities) |
 
 ## How backends work
 
@@ -33,7 +33,7 @@ backend is running.
 
 ## Feature matrix
 
-Cortex defines eight capabilities that a backend may support. The
+Cortex defines ten capabilities that a backend may support. The
 orchestration layer checks capabilities before attempting backend-specific
 operations.
 
@@ -47,10 +47,12 @@ operations.
 | `system-prompt-override` | yes | yes | Custom system prompt injection |
 | `session-resume` | yes | yes | Resume an existing session |
 | `tool-allowlist` | yes | yes | Restrict available tools to a subset |
+| `streaming-deltas` | yes | yes | Publish token-level assistant text during generation |
+| `mid-turn-inject` | yes | yes | Accept user input into a turn already in flight |
 
 ## Claude Code
 
-The reference backend. Supports all eight capabilities natively. Two
+The reference backend. Supports all ten capabilities. Two
 adapter modes are available:
 
 **Print mode** (`claudeBackend: "print"`, default). Uses `claude -p

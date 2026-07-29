@@ -7,8 +7,8 @@
 
 | 后端 | 状态 | 可执行文件 | npm 包 | 功能级别 |
 |---|---|---|---|---|
-| Claude Code | 已支持 | `claude` | `@anthropic-ai/claude-code` | 完整（8/8 能力） |
-| PI | 已支持 | `pi` | `@mariozechner/pi-coding-agent` | 完整（8/8 能力） |
+| Claude Code | 已支持 | `claude` | `@anthropic-ai/claude-code` | 完整（10/10 能力） |
+| PI | 已支持 | `pi` | `@mariozechner/pi-coding-agent` | 完整（10/10 能力） |
 
 ## 后端如何工作
 
@@ -20,7 +20,7 @@
 
 ## 功能矩阵
 
-Cortex 定义了后端可能支持的八种能力。编排层在尝试后端特定操作之前检查这些能力。
+Cortex 定义了后端可能支持的十种能力。编排层在尝试后端特定操作之前检查这些能力。
 
 | 能力 | Claude Code | PI | 描述 |
 |---|---|---|---|
@@ -32,10 +32,12 @@ Cortex 定义了后端可能支持的八种能力。编排层在尝试后端特�
 | `system-prompt-override` | 是 | 是 | 自定义系统提示注入 |
 | `session-resume` | 是 | 是 | 恢复已有会话 |
 | `tool-allowlist` | 是 | 是 | 将可用工具限制为子集 |
+| `streaming-deltas` | 是 | 是 | 生成期间发布 token 级 assistant 文本 |
+| `mid-turn-inject` | 是 | 是 | 向正在进行的回合注入用户输入 |
 
 ## Claude Code
 
-参考后端。原生支持所有八种能力。有两种适配器模式可用：
+参考后端。支持所有十种能力。有两种适配器模式可用：
 
 **Print 模式**（`claudeBackend: "print"`，默认）。使用 `claude -p --stream-json` 进行一次性回合。每条用户消息生成一个新的 Claude 调用。快速、无状态，是大多数使用场景的推荐模式。
 
