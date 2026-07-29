@@ -1,7 +1,7 @@
 // input:  project markdown files + CLI args
-// output: scanProjectRecommendations + runCli
+// output: recommendation scan excluding private project notes
 // pos:    recommendation/implied task extraction CLI
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -385,7 +385,7 @@ interface ScanAccumulator {
   filesScanned: number;
 }
 
-const SKIP_PROJECT_MD_FILES = new Set(['TASKS.yaml', 'EXPERIMENTS.md', 'STATUS.md', 'KNOWLEDGE.md', 'experiments-archive.md', 'mission.md', 'roadmap.md', 'CLAUDE.md']);
+const SKIP_PROJECT_MD_FILES = new Set(['TASKS.yaml', 'EXPERIMENTS.md', 'STATUS.md', 'KNOWLEDGE.md', 'experiments-archive.md', 'mission.md', 'roadmap.md', 'CLAUDE.md', 'NOTES.md']);
 
 function collectProjectDirs(projectsDir: string, project: string | null): [string, string][] {
   const dirs: [string, string][] = [];

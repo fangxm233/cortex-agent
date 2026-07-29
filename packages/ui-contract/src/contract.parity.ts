@@ -1,7 +1,7 @@
 // input:  shared zod schemas and agent-server query/mutation maps
-// output: exact-parity guards including session compact/rate limits
+// output: exact-parity guards including project notes
 // pos:    Anti-drift boundary for the shared UI contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { z } from 'zod';
 import type { QueryParamMap, MutateArgsMap, ExecutionsLogParams } from './dto.js';
@@ -29,6 +29,12 @@ import type {
   approvalsRequestInput,
   issuesListInput,
   issueActionInput,
+  notesListInput,
+  noteAddInput,
+  noteUpdateInput,
+  noteSetCompletedInput,
+  noteActionInput,
+  notesClearCompletedInput,
   costSummaryInput,
   threadsCancelInput,
   executionsCancelInput,
@@ -80,6 +86,7 @@ const _memoryTree: QueryParity<'memory.tree', typeof memoryTreeInput> = true;
 const _memoryFile: QueryParity<'memory.file', typeof memoryFileInput> = true;
 const _approvalsList: QueryParity<'approvals.list', typeof approvalsListInput> = true;
 const _issuesList: QueryParity<'issues.list', typeof issuesListInput> = true;
+const _notesList: QueryParity<'notes.list', typeof notesListInput> = true;
 const _costSummary: QueryParity<'cost.summary', typeof costSummaryInput> = true;
 const _configGet: QueryParity<'config.get', typeof configGetInput> = true;
 const _hooksList: QueryParity<'hooks.list', typeof hooksListInput> = true;
@@ -117,6 +124,11 @@ const _approvalsReject: MutateParity<'approvals.reject', typeof approvalsRejectI
 const _approvalsRequest: MutateParity<'approvals.request', typeof approvalsRequestInput> = true;
 const _issuesHandle: MutateParity<'issues.handle', typeof issueActionInput> = true;
 const _issuesDelete: MutateParity<'issues.delete', typeof issueActionInput> = true;
+const _notesAdd: MutateParity<'notes.add', typeof noteAddInput> = true;
+const _notesUpdate: MutateParity<'notes.update', typeof noteUpdateInput> = true;
+const _notesSetCompleted: MutateParity<'notes.setCompleted', typeof noteSetCompletedInput> = true;
+const _notesDelete: MutateParity<'notes.delete', typeof noteActionInput> = true;
+const _notesClearCompleted: MutateParity<'notes.clearCompleted', typeof notesClearCompletedInput> = true;
 const _systemRestart: MutateParity<'system.restart', typeof systemRestartInput> = true;
 
 // ── Subscriptions ─────────────────────────────────────────────────
@@ -128,12 +140,13 @@ const _executionsLog: Exact<z.infer<typeof executionsLogInput>, ExecutionsLogPar
 // checks are not tree-shaken away by the type checker.
 export const _contractParityChecked = [
   _projectsList, _sessionsList, _sessionsTranscript, _threadsList, _threadsGet, _tasksList, _schedulesList,
-  _executionsList, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _costSummary, _configGet,
+  _executionsList, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _notesList, _costSummary, _configGet,
   _machinesList, _skillsList, _threadTemplatesGet,
   _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _threadsCancel, _executionsCancel,
   _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _tasksClaim,
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
+  _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,
   _configSet, _executionsLog,
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
   _systemDaemonStatus, _systemRateLimitStatus, _systemRestart,

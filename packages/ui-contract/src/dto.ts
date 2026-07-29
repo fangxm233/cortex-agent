@@ -1,7 +1,7 @@
 // input:  built UI-service declarations and cost types
-// output: browser DTO contract including mounted-hook state
+// output: browser DTO contract including project notes
 // pos:    Shared server-to-client compile-time DTO boundary
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 export type {
   // Result envelope
@@ -28,6 +28,7 @@ export type {
   MemoryFileParams,
   ApprovalsListParams,
   IssuesListParams,
+  NotesListParams,
   CostSummaryParams,
   ConfigGetParams,
   MachinesListParams,
@@ -52,6 +53,11 @@ export type {
   ApprovalsRejectArgs,
   ApprovalsRequestArgs,
   IssueActionArgs,
+  NoteAddArgs,
+  NoteUpdateArgs,
+  NoteSetCompletedArgs,
+  NoteActionArgs,
+  NotesClearCompletedArgs,
   SessionsAnswerQuestionArgs,
   SessionsRespondPlanArgs,
   SessionsPendingInteractionParams,
@@ -137,6 +143,9 @@ export type {
   IssueInfo,
   IssuesDeleteReturn,
   IssuesHandleReturn,
+  NoteInfo,
+  NotesDeleteReturn,
+  NotesClearCompletedReturn,
   MachineInfo,
   SkillGroup,
   ThreadTemplateEntry,

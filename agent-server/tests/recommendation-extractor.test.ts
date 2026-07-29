@@ -1,7 +1,7 @@
 // input:  Node test runner + recommendation-extractor + fs
-// output: extraction + TASKS.yaml dedup regression tests
+// output: extraction, dedup and private-notes exclusion regressions
 // pos:    Verify recommendation extraction and dedup
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
@@ -68,6 +68,22 @@ test('scanProjectRecommendations extracts actionable recommendations and marks d
   } finally {
     for (const f of files) { try { fs.unlinkSync(f); } catch {} }
     try { fs.rmdirSync(projectDir); } catch {}
+  }
+});
+
+test('scanProjectRecommendations excludes private NOTES.md from agent task extraction', () => {
+  const project = '_test_private_notes';
+  const projectDir = path.join(PROJECTS_DIR, project);
+  fs.mkdirSync(projectDir, { recursive: true });
+
+  try {
+    fs.writeFileSync(path.join(projectDir, 'NOTES.md'), `# Notes\n\n## Recommended actions\n- Reveal this private reminder\n`);
+    const result = scanProjectRecommendations('', project, 30);
+    assert.equal(result.scan_summary.files_scanned, 0);
+    assert.equal(result.scan_summary.recommendations_found, 0);
+    assert.deepEqual(result.candidates, []);
+  } finally {
+    fs.rmSync(projectDir, { recursive: true, force: true });
   }
 });
 

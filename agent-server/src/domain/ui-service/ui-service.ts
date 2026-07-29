@@ -1,7 +1,7 @@
 // input:  UiServiceDeps and query/mutation handlers
-// output: createUiService with sessions.compact routing
+// output: createUiService with notes routing and private audit redaction
 // pos:    Transport-neutral UI-service dispatcher
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { UiServiceDeps, UiService, QueryScope, MutateOp, Result } from './types.js';
 import { handleProjectsList } from './query/projects.js';
@@ -14,6 +14,7 @@ import { handleExecutionsList, handleExecutionsGet } from './query/executions.js
 import { handleMemoryTree, handleMemoryFile } from './query/memory.js';
 import { handleApprovalsList } from './query/approvals.js';
 import { handleIssuesList } from './query/issues.js';
+import { handleNotesList } from './query/notes.js';
 import { handleCostSummary } from './query/cost.js';
 import { handleConfigGet } from './query/config.js';
 import { handleHooksList } from './query/hooks.js';
@@ -48,6 +49,13 @@ import {
 } from './mutate/tasks.js';
 import { handleApproveApproval, handleRejectApproval, handleRequestApproval } from './mutate/approvals.js';
 import { handleIssuesDelete, handleIssuesHandle } from './mutate/issues.js';
+import {
+  handleNotesAdd,
+  handleNotesClearCompleted,
+  handleNotesDelete,
+  handleNotesSetCompleted,
+  handleNotesUpdate,
+} from './mutate/notes.js';
 import { handleSystemRestart } from './mutate/system.js';
 import { createSubscription } from './subscribe.js';
 import { resolveExecutionLogLocation } from '@domain/executions/log-tailer.js';
@@ -71,6 +79,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'memory.file': (deps, params) => handleMemoryFile(deps, params),
   'approvals.list': (deps, params) => handleApprovalsList(deps, params),
   'issues.list': (deps, params) => handleIssuesList(deps, params),
+  'notes.list': (deps, params) => handleNotesList(deps, params),
   'cost.summary': (deps, params) => handleCostSummary(deps, params),
   'config.get': (deps, params) => handleConfigGet(deps, params),
   'hooks.list': (deps, params) => handleHooksList(deps, params),
@@ -109,6 +118,11 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'approvals.request': (deps, args) => handleRequestApproval(deps, args),
   'issues.handle': (deps, args) => handleIssuesHandle(deps, args),
   'issues.delete': (deps, args) => handleIssuesDelete(deps, args),
+  'notes.add': (deps, args) => handleNotesAdd(deps, args),
+  'notes.update': (deps, args) => handleNotesUpdate(deps, args),
+  'notes.setCompleted': (deps, args) => handleNotesSetCompleted(deps, args),
+  'notes.delete': (deps, args) => handleNotesDelete(deps, args),
+  'notes.clearCompleted': (deps, args) => handleNotesClearCompleted(deps, args),
   'config.set': (deps, args) => handleConfigSet(deps, args),
   'hooks.create': (deps, args) => handleHooksCreate(deps, args),
   'hooks.update': (deps, args) => handleHooksUpdate(deps, args),
@@ -117,6 +131,12 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'hooks.test': (deps, args) => handleHooksTest(deps, args),
   'system.restart': (_deps, args) => handleSystemRestart(args),
 };
+
+export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {
+  if (!op.startsWith('notes.') || !args || typeof args !== 'object') return args;
+  const { text: _privateText, ...safe } = args as Record<string, unknown>;
+  return safe;
+}
 
 export function createUiService(deps: UiServiceDeps): UiService {
   return {
@@ -145,7 +165,7 @@ export function createUiService(deps: UiServiceDeps): UiService {
         deps.bus.publish({
           type: 'ui.mutate-invoked',
           op,
-          args,
+          args: redactMutationAuditArgs(op, args),
           result: result.ok ? { ok: true } : { ok: false, code: (result as any).code },
         });
         return result;
@@ -154,7 +174,7 @@ export function createUiService(deps: UiServiceDeps): UiService {
         deps.bus.publish({
           type: 'ui.mutate-invoked',
           op,
-          args,
+          args: redactMutationAuditArgs(op, args),
           result: { ok: false, code: 'internal' },
         });
         return errResult;

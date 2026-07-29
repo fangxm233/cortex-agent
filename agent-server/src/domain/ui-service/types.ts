@@ -1,7 +1,7 @@
-// input:  domain types, context/notices, DEBUG warnings, pending data
-// output: UI DTOs with thread artifacts and throttle wait counts
+// input:  domain types, context/notices, stores, pending data
+// output: UI DTOs and operation maps including project notes
 // pos:    Canonical transport-neutral UI contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
@@ -25,6 +25,7 @@ import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
 import type { LogLocation } from '@domain/executions/log-tailer.js';
 import type { SessionHistory } from '@store/conversation-history-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
+import type { ProjectNote } from '@store/project-notes-repo.js';
 
 // ── Result ────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ export type QueryScope =
   | 'memory.file'
   | 'approvals.list'
   | 'issues.list'
+  | 'notes.list'
   | 'cost.summary'
   | 'config.get'
   | 'hooks.list'
@@ -89,6 +91,11 @@ export type MutateOp =
   | 'approvals.request'
   | 'issues.handle'
   | 'issues.delete'
+  | 'notes.add'
+  | 'notes.update'
+  | 'notes.setCompleted'
+  | 'notes.delete'
+  | 'notes.clearCompleted'
   | 'config.set'
   | 'hooks.create'
   | 'hooks.update'
@@ -202,6 +209,10 @@ export interface ApprovalsListParams {
 
 export interface IssuesListParams {
   /** Issues are per-project (`<contextDir>/ISSUES.md`) — the project is required. */
+  projectId: string;
+}
+
+export interface NotesListParams {
   projectId: string;
 }
 
@@ -386,6 +397,30 @@ export interface ApprovalsApproveArgs {
 export interface IssueActionArgs {
   projectId: string;
   id: string;
+}
+
+export interface NoteAddArgs {
+  projectId: string;
+  text: string;
+}
+
+export interface NoteUpdateArgs extends NoteAddArgs {
+  id: string;
+}
+
+export interface NoteSetCompletedArgs {
+  projectId: string;
+  id: string;
+  completed: boolean;
+}
+
+export interface NoteActionArgs {
+  projectId: string;
+  id: string;
+}
+
+export interface NotesClearCompletedArgs {
+  projectId: string;
 }
 
 export interface ApprovalsRejectArgs {
@@ -1182,6 +1217,9 @@ export interface IssueInfo {
   body: string;
 }
 
+// User-private project note. It is served to operator UIs only and never injected into agent context.
+export type NoteInfo = ProjectNote;
+
 // ── system.daemonStatus DTO ───────────────────────────────────────
 // Daemon + child (app.js) process status. Read from daemon.pid / daemon-child.pid
 // under STORE_DIR; liveness checked via process.kill(pid, 0); uptime from /proc.
@@ -1304,6 +1342,15 @@ export interface IssuesHandleReturn {
   sessionId: string;
 }
 
+export interface NotesDeleteReturn {
+  id: string;
+  deleted: true;
+}
+
+export interface NotesClearCompletedReturn {
+  cleared: number;
+}
+
 export interface ApprovalsRequestReturn {
   queued: true;
   /** headingId of the newly appended PENDING entry (stable, hashed from the heading line). */
@@ -1328,6 +1375,7 @@ export interface QueryParamMap {
   'memory.file': MemoryFileParams;
   'approvals.list': ApprovalsListParams;
   'issues.list': IssuesListParams;
+  'notes.list': NotesListParams;
   'cost.summary': CostSummaryParams;
   'config.get': ConfigGetParams;
   'hooks.list': HooksListParams;
@@ -1354,6 +1402,7 @@ export interface QueryReturnMap {
   'memory.file': MemoryFile;
   'approvals.list': ApprovalInfo[];
   'issues.list': IssueInfo[];
+  'notes.list': NoteInfo[];
   'cost.summary': CostSummary;
   'config.get': ConfigSnapshot;
   'hooks.list': HooksOverview;
@@ -1392,6 +1441,11 @@ export interface MutateArgsMap {
   'approvals.request': ApprovalsRequestArgs;
   'issues.handle': IssueActionArgs;
   'issues.delete': IssueActionArgs;
+  'notes.add': NoteAddArgs;
+  'notes.update': NoteUpdateArgs;
+  'notes.setCompleted': NoteSetCompletedArgs;
+  'notes.delete': NoteActionArgs;
+  'notes.clearCompleted': NotesClearCompletedArgs;
   'config.set': ConfigSetArgs;
   'hooks.create': HooksCreateArgs;
   'hooks.update': HooksUpdateArgs;
@@ -1429,6 +1483,11 @@ export interface MutateReturnMap {
   'approvals.request': ApprovalsRequestReturn;
   'issues.handle': IssuesHandleReturn;
   'issues.delete': IssuesDeleteReturn;
+  'notes.add': NoteInfo;
+  'notes.update': NoteInfo;
+  'notes.setCompleted': NoteInfo;
+  'notes.delete': NotesDeleteReturn;
+  'notes.clearCompleted': NotesClearCompletedReturn;
   'config.set': ConfigSetReturn;
   'hooks.create': HooksCreateReturn;
   'hooks.update': HooksUpdateReturn;

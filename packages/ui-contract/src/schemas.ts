@@ -1,7 +1,7 @@
 // input:  built agent-server ui-service input schemas
-// output: runtime/type schemas including session compact/rate limits
+// output: runtime/type schemas including project notes
 // pos:    Shared browser/server input validation boundary
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 export {
   projectsListInput,
@@ -27,6 +27,12 @@ export {
   approvalsRequestInput,
   issuesListInput,
   issueActionInput,
+  notesListInput,
+  noteAddInput,
+  noteUpdateInput,
+  noteSetCompletedInput,
+  noteActionInput,
+  notesClearCompletedInput,
   costSummaryInput,
   threadsCancelInput,
   executionsCancelInput,

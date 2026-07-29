@@ -1,7 +1,7 @@
 // input:  UiService, zod operation schemas, and tRPC init
 // output: createAppRouter with query/mutation/subscription routes
-// pos:    Typed tRPC mirror of the transport-neutral UI service
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// pos:    Typed tRPC mirror including project notes
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
@@ -37,6 +37,12 @@ import {
   approvalsRequestInput,
   issuesListInput,
   issueActionInput,
+  notesListInput,
+  noteAddInput,
+  noteUpdateInput,
+  noteSetCompletedInput,
+  noteActionInput,
+  notesClearCompletedInput,
   costSummaryInput,
   threadsCancelInput,
   executionsCancelInput,
@@ -86,6 +92,7 @@ const ERR_CODE_MAP: Record<string, TRPCError['code']> = {
   'not-found': 'NOT_FOUND',
   'invalid-args': 'BAD_REQUEST',
   'invalid-name': 'BAD_REQUEST',
+  'invalid-notes-file': 'BAD_REQUEST',
   'already-terminal': 'CONFLICT',
   'already-exists': 'CONFLICT',
   'backend-locked': 'CONFLICT',
@@ -215,6 +222,14 @@ export function createAppRouter(uiService: UiService) {
       list: makeQuery(uiService, 'issues.list', issuesListInput),
       handle: makeMutation(uiService, 'issues.handle', issueActionInput),
       delete: makeMutation(uiService, 'issues.delete', issueActionInput),
+    }),
+    notes: router({
+      list: makeQuery(uiService, 'notes.list', notesListInput),
+      add: makeMutation(uiService, 'notes.add', noteAddInput),
+      update: makeMutation(uiService, 'notes.update', noteUpdateInput),
+      setCompleted: makeMutation(uiService, 'notes.setCompleted', noteSetCompletedInput),
+      delete: makeMutation(uiService, 'notes.delete', noteActionInput),
+      clearCompleted: makeMutation(uiService, 'notes.clearCompleted', notesClearCompletedInput),
     }),
     cost: router({
       summary: makeQuery(uiService, 'cost.summary', costSummaryInput),

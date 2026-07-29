@@ -10,6 +10,7 @@ Scopes covered are approvals, config, executions, issues, memory, projects, sche
 | mutate-executions.test.ts | test | Covers execution cancellation outcomes |
 | mutate-hooks.test.ts | test | Covers hook draft rebuild and test clamping |
 | mutate-issues.test.ts | test | Covers issue delete and handoff to session |
+| notes.test.ts | test | Covers private notes CRUD, scope and audit |
 | mutate-projects.test.ts | test | Covers project creation outcomes |
 | mutate-schedules.test.ts | test | Covers schedule add, pause, resume, remove |
 | mutate-sessions-cancel.test.ts | test | Covers session cancellation outcomes |

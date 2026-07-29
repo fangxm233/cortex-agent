@@ -1,7 +1,7 @@
 // input:  zod and ui-service scope/op unions
-// output: input schemas/maps including thread artifact reads
+// output: input schemas/maps including project notes
 // pos:    Runtime validation source for the UI contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { z } from 'zod';
 import type { QueryScope, MutateOp } from './types.js';
@@ -70,6 +70,10 @@ export const approvalsListInput = z.object({
 });
 
 export const issuesListInput = z.object({
+  projectId: z.string(),
+});
+
+export const notesListInput = z.object({
   projectId: z.string(),
 });
 
@@ -331,6 +335,32 @@ export const issueActionInput = z.object({
   id: z.string(),
 });
 
+const noteTextInput = z.string().trim().min(1).max(1000).refine((text) => !/[\r\n]/.test(text), {
+  message: 'Note text must be one line',
+});
+
+export const noteAddInput = z.object({
+  projectId: z.string(),
+  text: noteTextInput,
+});
+
+export const noteUpdateInput = noteAddInput.extend({ id: z.string() });
+
+export const noteSetCompletedInput = z.object({
+  projectId: z.string(),
+  id: z.string(),
+  completed: z.boolean(),
+});
+
+export const noteActionInput = z.object({
+  projectId: z.string(),
+  id: z.string(),
+});
+
+export const notesClearCompletedInput = z.object({
+  projectId: z.string(),
+});
+
 export const approvalsRejectInput = z.object({
   id: z.string(),
   feedback: z.string().optional(),
@@ -377,6 +407,7 @@ export const queryInputSchemas = {
   'memory.file': memoryFileInput,
   'approvals.list': approvalsListInput,
   'issues.list': issuesListInput,
+  'notes.list': notesListInput,
   'cost.summary': costSummaryInput,
   'config.get': configGetInput,
   'hooks.list': hooksListInput,
@@ -415,6 +446,11 @@ export const mutateInputSchemas = {
   'approvals.request': approvalsRequestInput,
   'issues.handle': issueActionInput,
   'issues.delete': issueActionInput,
+  'notes.add': noteAddInput,
+  'notes.update': noteUpdateInput,
+  'notes.setCompleted': noteSetCompletedInput,
+  'notes.delete': noteActionInput,
+  'notes.clearCompleted': notesClearCompletedInput,
   'config.set': configSetInput,
   'hooks.create': hooksCreateInput,
   'hooks.update': hooksUpdateInput,
