@@ -32,21 +32,20 @@
 
 ### 智能体定义
 
-`agents` 映射中的每个智能体都是一个独立的实体，有自己的身份、工具和提示：
+`agents/` 下的每个文件定义一个智能体——一个独立的实体，有自己的身份、工具和提示。文件中直接放智能体对象本身，其 `name` 必须与文件名一致。
+
+`agents/planner.json`：
 
 ```json
 {
-  "agents": {
-    "planner": {
-      "description": "规划研究方法",
-      "profile": "claude-sonnet",
-      "persistSession": false,
-      "directive": "你是一个研究规划器。将问题分解为可测试的假设。",
-      "promptTemplate": "file:planner-prompt.md",
-      "pluginDirs": ["plugins/cortex-common", "plugins/cortex-surveyor"],
-      "tools": "Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill"
-    }
-  }
+  "name": "planner",
+  "description": "规划研究方法",
+  "profile": "claude-sonnet",
+  "persistSession": false,
+  "directive": "你是一个研究规划器。将问题分解为可测试的假设。",
+  "promptTemplate": "file:planner-prompt.md",
+  "tools": "Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill",
+  "pluginDirs": ["plugins/cortex-common", "plugins/cortex-surveyor"]
 }
 ```
 
@@ -54,7 +53,7 @@
 
 | 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `name` | string | 智能体 ID（agents 映射中的键） |
+| `name` | string | 智能体 ID——必填，且必须与文件名一致（`agents/<name>.json`） |
 | `profile` | string | `profiles.json` 中的配置名称，或使用当前运行时配置的 `"__active__"` |
 | `persistSession` | boolean | `true`：在迭代间重用相同的 LLM 会话（保留对话上下文）。`false`：每个步骤使用新会话 |
 | `directive` | string? | 智能体角色/身份，添加到提示之前。支持 `file:filename.md` 引用 |
@@ -69,25 +68,26 @@
 
 智能体可以通过 `stages` 字段声明多个**阶段**。当存在阶段时，`promptTemplate` 被忽略——引擎根据转换目标为每个步骤选择适当的阶段提示。
 
+`agents/coder.json`：
+
 ```json
 {
-  "coder": {
-    "profile": "claude-sonnet",
-    "persistSession": true,
-    "pluginDirs": ["plugins/cortex-coder"],
-    "stages": {
-      "implement": {
-        "promptTemplate": "你正在实施计划。将代码写入 {{artifactPath}}。",
-        "description": "编写实现"
-      },
-      "review": {
-        "promptTemplate": "你正在审查 {{artifactPath}} 中的代码。检查正确性。",
-        "continuesSession": true,
-        "description": "审查实现"
-      }
+  "name": "coder",
+  "profile": "claude-sonnet",
+  "persistSession": true,
+  "entryStage": "implement",
+  "stages": {
+    "implement": {
+      "promptTemplate": "你正在实施计划。将代码写入 {{artifactPath}}。",
+      "description": "编写实现"
     },
-    "entryStage": "implement"
-  }
+    "review": {
+      "promptTemplate": "你正在审查 {{artifactPath}} 中的代码。检查正确性。",
+      "continuesSession": true,
+      "description": "审查实现"
+    }
+  },
+  "pluginDirs": ["plugins/cortex-coder"]
 }
 ```
 
@@ -107,28 +107,27 @@
 
 ## 模板
 
-模板将智能体组合为多步骤管道：
+模板将智能体组合为多步骤管道。`templates/` 下的每个文件装一个模板对象。
+
+`templates/coder-review.json`：
 
 ```json
 {
-  "templates": {
-    "coder-review": {
-      "description": "实现一个功能然后审查它",
-      "agents": ["planner", "coder", "reviewer"],
-      "transitions": [
-        {"from": "planner", "to": "coder:implement", "condition": {"type": "always"}},
-        {"from": "coder:implement", "to": "coder:review", "condition": {"type": "always"}},
-        {"from": "coder:review", "to": "reviewer", "condition": {"type": "always"}}
-      ],
-      "entryAgent": "planner",
-      "maxTotalSteps": 10,
-      "maxTotalCostUsd": 5.00,
-      "hooks": {
-        "onEnd": {
-          "command": "node hooks/post-task-hook.mjs",
-          "timeout": 30000
-        }
-      }
+  "name": "coder-review",
+  "description": "实现一个功能然后审查它",
+  "agents": ["planner", "coder", "reviewer"],
+  "transitions": [
+    {"from": "planner", "to": "coder:implement", "condition": {"type": "always"}},
+    {"from": "coder:implement", "to": "coder:review", "condition": {"type": "always"}},
+    {"from": "coder:review", "to": "reviewer", "condition": {"type": "always"}}
+  ],
+  "entryAgent": "planner",
+  "maxTotalSteps": 10,
+  "maxTotalCostUsd": 5.00,
+  "hooks": {
+    "onEnd": {
+      "command": "node hooks/post-task-hook.mjs",
+      "timeout": 30000
     }
   }
 }
@@ -138,7 +137,7 @@
 
 | 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `name` | string | 模板 ID（用于 `!thread <name>` 和任务调度） |
+| `name` | string? | 可选；若存在则必须与文件名一致（`templates/<name>.json`）。文件名即模板 ID，用于 `!thread <name>` 和任务调度 |
 | `agents` | TemplateAgentRef[] | 有序的参与智能体列表 |
 | `transitions` | TransitionRule[] | 控制何时从一个智能体移动到下一个的规则 |
 | `entryAgent` | string | 第一个运行的智能体 |
@@ -171,7 +170,7 @@
 shell 声明其参数，并在转换图中使用占位符：
 
 - `{param}` — 替换为该参数在绑定中的取值（一个智能体名）。
-- `{param.entryStage}` — 替换为该智能体的 `entryStage`，从 agents 表解析。
+- `{param.entryStage}` — 替换为该智能体的 `entryStage`，从 `agents/` 下该智能体的定义解析。
 
 例如随产品发货的 `worker-review` shell（`shells/worker-review.json`）——一个通用的"产出后审核"环：
 
