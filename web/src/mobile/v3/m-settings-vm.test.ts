@@ -13,8 +13,8 @@ function snap(over: Partial<ConfigSnapshot> = {}): ConfigSnapshot {
     profiles: {
       defaultProfile: 'default',
       profiles: [
-        { name: 'default', model: 'sonnet-4.5', backend: 'anthropic', mode: null, thinking: 'high' },
-        { name: 'fast', model: 'haiku', backend: 'anthropic', mode: null, thinking: null },
+        { name: 'default', model: 'sonnet-4.5', backend: 'claude', mode: null, thinking: 'high' },
+        { name: 'fast', model: 'haiku', backend: 'claude', mode: null, thinking: null },
       ],
     },
     machines: [],
