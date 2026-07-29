@@ -1,5 +1,5 @@
-// input:  PI role files, child_process, TypeBox, extension paths
-// output: Isolated PI Agent tool with bounded execution and usage
+// input:  PI roles, model options, child_process, TypeBox
+// output: Model-aware PI Agent tool with bounded execution and usage
 // pos:    PI subagent orchestration, stream parsing, and usage accounting
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -21,20 +21,26 @@ import type { ExtensionContext, ToolDefinition } from './pi-ext-types.js';
 
 export const MAX_SUBAGENT_TASKS = 8;
 export const MAX_SUBAGENT_CONCURRENCY = 8;
+export const MAX_SUBAGENT_MODEL_CHOICES = 32;
+export const MAX_SUBAGENT_MODEL_DESCRIPTION_CHARS = 1_200;
 export const SUBAGENT_KILL_GRACE_MS = 5_000;
+
+const MODEL_OVERRIDE_DESCRIPTION =
+  'Optional PI model override in provider/model[:thinking] format. ' +
+  'Omit to use the role model, then the current provider/model, then the PI default.';
 
 const TaskSchema = Type.Object({
   description: Type.String({ description: 'Short description of the delegated task.' }),
   prompt: Type.String({ description: 'Complete task prompt for the subagent.' }),
   subagent_type: Type.String({ description: 'Role name, such as explore, general-purpose, or plan.' }),
-  model: Type.Optional(Type.String({ description: 'Optional PI model override.' })),
+  model: Type.Optional(Type.String({ description: MODEL_OVERRIDE_DESCRIPTION })),
 });
 
 const SubagentParameters = Type.Object({
   description: Type.Optional(Type.String({ description: 'Short description for single mode.' })),
   prompt: Type.Optional(Type.String({ description: 'Complete prompt for single mode.' })),
   subagent_type: Type.Optional(Type.String({ description: 'Role name for single mode.' })),
-  model: Type.Optional(Type.String({ description: 'Optional PI model override for single mode.' })),
+  model: Type.Optional(Type.String({ description: MODEL_OVERRIDE_DESCRIPTION })),
   parallel: Type.Optional(Type.Array(TaskSchema, {
     minItems: 1,
     maxItems: MAX_SUBAGENT_TASKS,
@@ -46,6 +52,11 @@ const SubagentParameters = Type.Object({
     description: 'Tasks to execute sequentially; {previous} inserts the prior output.',
   })),
 });
+
+export interface SubagentModelOption {
+  provider: string;
+  id: string;
+}
 
 interface SubagentTask {
   description: string;
@@ -622,14 +633,56 @@ async function executeInvocation(
   return buildToolResult(invocation.mode, [result]);
 }
 
+const SUBAGENT_DESCRIPTION =
+  'Delegate a task to an isolated PI subagent. Supports single, parallel, and chain modes. ' +
+  'Model overrides use provider/model[:thinking].';
+
+function modelOptionName(option: SubagentModelOption): string | null {
+  const provider = option.provider.trim();
+  const id = option.id.trim();
+  return provider && id ? `${provider}/${id}` : null;
+}
+
+function uniqueModelNames(options: SubagentModelOption[]): string[] {
+  const names = new Set<string>();
+  for (const option of options) {
+    const name = modelOptionName(option);
+    if (name) names.add(name);
+  }
+  return [...names].sort((left, right) => left.localeCompare(right));
+}
+
+function boundedModelNames(names: string[]): string[] {
+  const selected: string[] = [];
+  let characters = 0;
+  for (const name of names) {
+    const added = name.length + (selected.length > 0 ? 2 : 0);
+    if (selected.length >= MAX_SUBAGENT_MODEL_CHOICES
+      || characters + added > MAX_SUBAGENT_MODEL_DESCRIPTION_CHARS) break;
+    selected.push(name);
+    characters += added;
+  }
+  return selected;
+}
+
+function toolDescription(options: SubagentModelOption[]): string {
+  const names = uniqueModelNames(options);
+  if (names.length === 0) return SUBAGENT_DESCRIPTION;
+  const selected = boundedModelNames(names);
+  const omitted = names.length - selected.length;
+  const suffix = omitted > 0 ? ` (+${omitted} more)` : '';
+  return `${SUBAGENT_DESCRIPTION} Available model overrides: ${selected.join(', ')}${suffix}.`;
+}
+
 export function createSubagentTool(
   overrides?: Partial<SubagentToolDeps>,
+  modelOptions: SubagentModelOption[] = [],
 ): ToolDefinition<typeof SubagentParameters, SubagentDetails> {
   const deps = resolveDeps(overrides);
   return {
     name: 'agent',
     label: 'Agent',
-    description: 'Delegate a task to an isolated PI subagent. Supports single, parallel, and chain modes.',
+    description: toolDescription(modelOptions),
     parameters: SubagentParameters,
     async execute(_id, params, signal, _update, ctx) {
       deps.ensureRoles();
@@ -638,5 +691,3 @@ export function createSubagentTool(
     },
   };
 }
-
-export const subagentTool = createSubagentTool();

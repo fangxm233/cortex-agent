@@ -14,8 +14,8 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP mapping, loading and retry policy |
 | agent-adapter-pi-streaming.test.ts | test | PI assistant delta streaming emission |
-| agent-adapter-pi-subagent.test.ts | test | PI subagent isolation, failure, usage and abort |
-| agent-adapter-pi-tool-shims.test.ts | test | PI shim gates, recursion, WebFetch and retries |
+| agent-adapter-pi-subagent.test.ts | test | PI subagent schema, isolation, failure and usage |
+| agent-adapter-pi-tool-shims.test.ts | test | PI shim gates, runtime Agent and web tools |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
 | agent-adapter-pi.test.ts | test | PI framing, spawn, context and compact |
 | agent-adapter.test.ts | test | adapter dispatch, capability and tool names |

@@ -1,5 +1,5 @@
 // input:  @sinclair/typebox
-// output: PI extension, model, and tool definition type stubs
+// output: PI extension, model registry, event, and tool stubs
 // pos:    Minimal TS type stub for the PI extension API
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -52,6 +52,7 @@ export type ResolvedRequestAuth = {
 };
 
 export interface ExtensionModelRegistry {
+  getAvailable(): ExtensionModel[];
   getApiKeyAndHeaders(model: ExtensionModel): Promise<ResolvedRequestAuth>;
 }
 
@@ -114,6 +115,7 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 
 export interface ExtensionAPI {
   on(event: 'before_agent_start', handler: (event: BeforeAgentStartEvent, ctx: ExtensionContext) => any): void;
+  on(event: 'session_start', handler: (event: SessionStartEvent, ctx: ExtensionContext) => any): void;
   on(event: 'session_shutdown', handler: (event: SessionShutdownEvent, ctx: ExtensionContext) => any): void;
   on(event: 'tool_call', handler: (event: ToolCallEvent, ctx: ExtensionContext) => Promise<ToolCallReturn> | ToolCallReturn): void;
   on(event: 'tool_result', handler: (event: ToolResultEvent, ctx: ExtensionContext) => Promise<void> | void): void;
@@ -126,6 +128,12 @@ export interface ExtensionAPI {
 export interface BeforeAgentStartEvent {
   prompt?: string;
   systemPrompt?: string;
+}
+
+export interface SessionStartEvent {
+  type: 'session_start';
+  reason: 'startup' | 'reload' | 'new' | 'resume' | 'fork';
+  previousSessionFile?: string;
 }
 
 export interface SessionShutdownEvent {

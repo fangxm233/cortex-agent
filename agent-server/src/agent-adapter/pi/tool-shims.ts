@@ -1,13 +1,13 @@
-// input:  PI ExtensionAPI, TypeBox, Agent/web tools, filesystem paths
-// output: Gated delegation, interaction, task-tracking, and web tools
+// input:  PI model registry, Agent/web tools, filesystem paths
+// output: Gated runtime Agent, interaction, todo, and web tools
 // pos:    PI extension bridge for Cortex tool shims
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { Type } from '@sinclair/typebox';
-import type { ExtensionAPI } from './pi-ext-types.js';
-import { subagentTool } from './subagent.js';
+import type { ExtensionAPI, ExtensionContext } from './pi-ext-types.js';
+import { createSubagentTool, type SubagentModelOption } from './subagent.js';
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
 
@@ -191,9 +191,21 @@ function registerTodoWrite(pi: ExtensionAPI): void {
   });
 }
 
+function runtimeModelOptions(ctx: ExtensionContext): SubagentModelOption[] {
+  const available = ctx.modelRegistry?.getAvailable() ?? [];
+  const models = ctx.model ? [...available, ctx.model] : available;
+  return models.map((model) => ({ provider: model.provider, id: model.id }));
+}
+
+function registerRuntimeAgent(pi: ExtensionAPI): void {
+  pi.on('session_start', (_event, ctx) => {
+    pi.registerTool(createSubagentTool(undefined, runtimeModelOptions(ctx)));
+  });
+}
+
 export default function toolShims(pi: ExtensionAPI): void {
   const allowed = makeToolGate(process.env.CORTEX_PI_ALLOWED_TOOLS);
-  if (allowed('Agent') && process.env.CORTEX_PI_SUBAGENT !== '1') pi.registerTool(subagentTool);
+  if (allowed('Agent') && process.env.CORTEX_PI_SUBAGENT !== '1') registerRuntimeAgent(pi);
   const registrations: Array<[string, () => void]> = [
     ['WebFetch', () => pi.registerTool(webFetchTool)],
     ['WebSearch', () => pi.registerTool(webSearchTool)],

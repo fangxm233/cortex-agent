@@ -1,5 +1,5 @@
 // input:  PIAdapter stub, fetch responses, extension-ui events
-// output: PI shim gates, recursion, web, retry, and turn contracts
+// output: PI shim gates, runtime Agent, web, and turn contracts
 // pos:    PI pseudo-tool and local web regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -236,14 +236,22 @@ test('H: clean exit before turn_complete', async () => {
 function makeMockPi() {
   const registered: string[] = [];
   const definitions = new Map<string, any>();
+  const handlers = new Map<string, Array<(event: any, ctx: any) => any>>();
   const pi: any = {
-    on: () => {},
+    on: (event: string, handler: (event: any, ctx: any) => any) => {
+      const list = handlers.get(event) ?? [];
+      list.push(handler);
+      handlers.set(event, list);
+    },
     registerTool: (def: any) => {
       registered.push(def.name);
       definitions.set(def.name, def);
     },
   };
-  return { pi, registered, definitions };
+  const emit = async (event: string, ctx: any) => {
+    for (const handler of handlers.get(event) ?? []) await handler({ type: event }, ctx);
+  };
+  return { pi, registered, definitions, handlers, emit };
 }
 
 function makeCapturingSpawner() {
@@ -292,31 +300,53 @@ test('I3: makeToolGate — trims surrounding whitespace in entries', () => {
   assert.equal(gate('ExitPlanMode'), false);
 });
 
-test('J: toolShims registers only allowed tools under a coder allowlist', () => {
+test('J: coder allowlist registers one runtime-described Agent at session start', async () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
   process.env.CORTEX_PI_ALLOWED_TOOLS = CODER_TOOLS;
   try {
-    const { pi, registered } = makeMockPi();
+    const { pi, registered, definitions, handlers, emit } = makeMockPi();
     toolShims(pi);
-    assert.ok(!registered.includes('ask_user_question'), 'ask_user_question must NOT be registered');
-    assert.ok(!registered.includes('enter_plan_mode'), 'enter_plan_mode must NOT be registered');
-    assert.ok(!registered.includes('exit_plan_mode'), 'exit_plan_mode must NOT be registered');
-    assert.ok(registered.includes('agent'), 'agent must remain registered');
-    assert.ok(registered.includes('todo_write'), 'todo_write must remain registered');
-    assert.ok(registered.includes('web_fetch'), 'web_fetch must remain registered');
-    assert.ok(registered.includes('web_search'), 'web_search must remain registered');
+    assert.ok(!registered.includes('ask_user_question'));
+    assert.ok(!registered.includes('enter_plan_mode'));
+    assert.ok(!registered.includes('exit_plan_mode'));
+    assert.ok(!registered.includes('agent'), 'Agent must wait for the runtime model catalog');
+    assert.equal(handlers.get('session_start')?.length, 1);
+    assert.ok(registered.includes('todo_write'));
+    assert.ok(registered.includes('web_fetch'));
+    assert.ok(registered.includes('web_search'));
+
+    await emit('session_start', {
+      model: { provider: 'openai-codex', id: 'active-model' },
+      modelRegistry: {
+        getAvailable: () => [
+          { provider: 'openai-codex', id: 'catalog-model' },
+          { provider: 'deepseek', id: 'deepseek-v4-flash' },
+        ],
+      },
+    });
+
+    assert.equal(registered.filter((name) => name === 'agent').length, 1);
+    const description = definitions.get('agent').description;
+    assert.match(description, /deepseek\/deepseek-v4-flash/);
+    assert.match(description, /openai-codex\/active-model/);
+    assert.match(description, /openai-codex\/catalog-model/);
+    assert.ok(description.indexOf('deepseek/') < description.indexOf('openai-codex/'));
   } finally {
     if (prev === undefined) delete process.env.CORTEX_PI_ALLOWED_TOOLS;
     else process.env.CORTEX_PI_ALLOWED_TOOLS = prev;
   }
 });
 
-test('J2: toolShims registers all shim tools when env is unset', () => {
+test('J2: unset allowlist exposes all shims after runtime Agent registration', async () => {
   const prev = process.env.CORTEX_PI_ALLOWED_TOOLS;
   delete process.env.CORTEX_PI_ALLOWED_TOOLS;
   try {
-    const { pi, registered } = makeMockPi();
+    const { pi, registered, emit } = makeMockPi();
     toolShims(pi);
+    await emit('session_start', {
+      model: { provider: 'openai-codex', id: 'active-model' },
+      modelRegistry: { getAvailable: () => [] },
+    });
     for (const n of [
       'agent', 'ask_user_question', 'enter_plan_mode', 'exit_plan_mode', 'todo_write', 'web_fetch', 'web_search',
     ]) {
@@ -334,9 +364,10 @@ test('J2b: CORTEX_PI_SUBAGENT prevents recursive Agent registration', () => {
   process.env.CORTEX_PI_ALLOWED_TOOLS = 'Agent,TodoWrite,WebFetch';
   process.env.CORTEX_PI_SUBAGENT = '1';
   try {
-    const { pi, registered } = makeMockPi();
+    const { pi, registered, handlers } = makeMockPi();
     toolShims(pi);
     assert.ok(!registered.includes('agent'));
+    assert.equal(handlers.get('session_start'), undefined);
     assert.ok(registered.includes('todo_write'));
     assert.ok(registered.includes('web_fetch'));
   } finally {

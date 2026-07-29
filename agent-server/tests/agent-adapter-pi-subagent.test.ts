@@ -1,5 +1,5 @@
 // input:  PI subagent tool, stub child processes, temporary role files
-// output: PI spawn, validation, stream, failure, usage, and abort contracts
+// output: PI schema, spawn, failure, usage, and abort contracts
 // pos:    Regression tests for the PI Agent subagent tool
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -142,6 +142,36 @@ function argValue(args: string[], flag: string): string | undefined {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+});
+
+test('Agent schema exposes bounded provider/model choices and fallback precedence', () => {
+  const models = [
+    { provider: 'openai-codex', id: 'gpt-5.6-sol' },
+    { provider: 'deepseek', id: 'deepseek-v4-flash' },
+    { provider: 'openai-codex', id: 'gpt-5.6-sol' },
+  ];
+  const tool = (createSubagentTool as any)(undefined, models);
+  const properties = (tool.parameters as any).properties;
+
+  assert.match(tool.description, /deepseek\/deepseek-v4-flash/);
+  assert.match(tool.description, /openai-codex\/gpt-5\.6-sol/);
+  assert.equal(tool.description.match(/openai-codex\/gpt-5\.6-sol/g)?.length, 1);
+  for (const schema of [
+    properties.model,
+    properties.parallel.items.properties.model,
+    properties.chain.items.properties.model,
+  ]) {
+    assert.match(schema.description, /provider\/model/);
+    assert.match(schema.description, /role.*current.*PI default/i);
+  }
+
+  const manyModels = Array.from({ length: 80 }, (_, index) => ({
+    provider: 'provider',
+    id: `model-${String(index).padStart(3, '0')}`,
+  }));
+  const bounded = (createSubagentTool as any)(undefined, manyModels).description;
+  assert.match(bounded, /\+\d+ more/);
+  assert.ok(bounded.length <= 1_500, `description is ${bounded.length} characters`);
 });
 
 test('single child uses JSON/no-session extensions, strips thread env, and returns usage', async () => {
