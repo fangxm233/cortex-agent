@@ -20,14 +20,14 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | mid-turn-inject.ts | core | injects user messages into a running turn |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
-| resume-dispatcher.ts | runner | Resumes work after its provider clears |
+| resume-dispatcher.ts | runner | Resumes provider-paused work from metadata |
 | session-compact.ts | control | compacts an idle session's context |
 | session-events.ts | events | publishes session state events on the bus |
 | session-rewind.ts | chat | rewinds a web session to an edited turn |
 | session-send.ts | chat | sends a user turn into a web session |
 | status-helpers.ts | helper | builds and seals status messages |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |
-| thread-callback.ts | callback | delivers child results and resumes parents |
+| thread-callback.ts | callback | Delivers child results and resumes parents |
 | thread-executor.ts | core | routes thread turns and runs threads |
 | turn-notify.ts | notify | notifies users when a long turn finishes |
 | web-bg-hold.ts | helper | holds web turns until background work seals |

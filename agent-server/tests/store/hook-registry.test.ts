@@ -1,7 +1,7 @@
-// input:  hook-registry API, shipped defaults, temporary entries
-// output: registry validation, default parity, and filter tests
-// pos:    Regression coverage for the standalone hook registry
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  hook registry API, shipped defaults, temporary JSON entries
+// output: schema, loading, filtering, and managed-default tests
+// pos:    Verifies the standalone declarative hook registry
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
@@ -245,9 +245,13 @@ const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
     filename: '10-cortex-md-injector-session-start.json',
     entry: { id: 'cortex-md-injector-session-start', event: 'agent:session-start', matcher: 'startup|resume|clear|compact', run: { script: 'cortex-md-injector.mjs' }, enabled: true, version: VERSION },
   },
+  {
+    filename: '11-task-status-check.json',
+    entry: { id: 'task-status-check', event: 'cortex:thread.end', matcher: { source: 'task-dispatch' }, run: { script: 'task-status-check.mjs', timeout: 10 }, result: 'hook-result', enabled: true, version: VERSION },
+  },
 ];
 
-test('loads the ten shipped hook entries in parity-preserving order', () => {
+test('loads the eleven shipped hook entries in parity-preserving order', () => {
   const directory = path.join(DEFAULTS_DIR, 'config', 'hooks');
   const filenames = fs.readdirSync(directory).filter((file) => file.endsWith('.json')).sort();
 

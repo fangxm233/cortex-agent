@@ -1,6 +1,6 @@
-// input:  public thread/session hook APIs and isolated hook config
-// output: caller fallback and session pipeline regression tests
-// pos:    public-path coverage for shared hook runner delegation
+// input:  HookBus thread adapter and isolated session hook config
+// output: lifecycle and session hook failure-path regressions
+// pos:    Verifies public hook callers preserve failure isolation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterAll, test, vi } from 'vitest';
@@ -127,7 +127,7 @@ test('thread public path suppresses hook agents after malformed JSON', async () 
 
   assert.equal(result.steps.length, 0);
   assert.equal(result.adapter.posted.length, 0);
-  assert.match(result.errors.join('\n'), /Failed to parse hook output as JSON/);
+  assert.match(result.errors.join('\n'), /Hook .* failed: .*not valid JSON/);
 });
 
 test('thread public path rejects JSON missing insertAgent and targetAgent', async () => {

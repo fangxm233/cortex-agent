@@ -1,6 +1,6 @@
-// input:  thread-store, core hook runner, agents and executions
-// output: executeLifecycleHook — Thread lifecycle hook executor
-// pos:    interprets lifecycle hooks and runs hook agents
+// input:  thread store, HookBus, agents and executions
+// output: lifecycle event emitters and hook-agent execution
+// pos:    Adapts thread lifecycle hooks to the shared HookBus
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { readFileSync } from 'fs';
@@ -9,7 +9,11 @@ import { getSessionKey, recordStepResult, resolveTargetResumeId } from './index.
 import { runAgent, getClaudeMode, getActiveBackend, getActiveProfile } from '../agents/index.js';
 import * as executionRegistry from '../executions/registry.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import { runHookProcess } from '@core/hook-exec.js';
+import {
+  emitCortexEvent,
+  type HookEmitResult,
+  type HookSpec,
+} from '@core/hook-bus.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 import { runningExecutions } from '../../core/running-executions.js';
@@ -24,22 +28,31 @@ const log = createLogger('thread-hook');
 
 const DEFAULT_HOOK_TIMEOUT = 30000;
 
-/** Build context object to pass to hook script via stdin. */
-function buildHookContext(threadId: string, phase: 'start' | 'transition' | 'end', previousAgent?: string): HookContext {
+/** Build the complete payload passed to registry and scoped hooks through stdin. */
+function buildHookContext(
+  threadId: string,
+  phase: 'start' | 'transition' | 'end',
+  previousAgent?: string,
+): HookContext {
   const thread = threadStore.get(threadId)!;
   let artifactContent = '';
   try {
     artifactContent = readFileSync(thread.artifactPath, 'utf8');
   } catch {}
-
+  const taskProject = thread.metadata?.taskProject ?? null;
   return {
     threadId,
     templateName: thread.templateName || '',
     phase,
+    source: thread.metadata?.trigger ?? null,
+    project: taskProject ?? thread.projectId,
+    projectId: thread.projectId,
+    taskId: thread.metadata?.taskId ?? null,
+    taskProject,
     currentStepIndex: thread.currentStepIndex,
     steps: thread.steps,
     activeAgent: thread.activeAgent,
-    previousAgent,
+    previousAgent: previousAgent ?? null,
     artifactContent,
     userMessage: thread.userMessage,
     totalCostUsd: thread.totalCostUsd,
@@ -47,32 +60,27 @@ function buildHookContext(threadId: string, phase: 'start' | 'transition' | 'end
   };
 }
 
-/** Execute a hook script and parse its JSON result. Returns { insertAgent: false } on any error. */
-async function executeHook(hookConfig: ThreadHookConfig, context: HookContext): Promise<HookResult> {
-  const command = hookConfig.command;
-  const args = hookConfig.args ?? [];
-  const label = args.length ? `${command} ${args.join(' ')}` : command;
-  const result = await runHookProcess({
-    command,
-    args,
-    timeoutMs: hookConfig.timeout || DEFAULT_HOOK_TIMEOUT,
-    stdinPayload: JSON.stringify(context),
-    label,
-  });
-  if (result.error) return { insertAgent: false };
+function normalizeScopedHook(id: string, config: ThreadHookConfig): HookSpec {
+  return {
+    id,
+    command: config.command,
+    args: config.args,
+    timeoutMs: config.timeout ?? DEFAULT_HOOK_TIMEOUT,
+    result: 'hook-result',
+  };
+}
 
-  try {
-    const parsed = JSON.parse(result.stdout);
-    if (typeof parsed.insertAgent !== 'boolean' && typeof parsed.targetAgent !== 'string') {
-      log.error(`Hook output missing insertAgent or targetAgent field (${label})`);
-      return { insertAgent: false };
-    }
-    if (typeof parsed.insertAgent !== 'boolean') parsed.insertAgent = false;
-    return parsed as HookResult;
-  } catch (error: any) {
-    log.error(`Failed to parse hook output as JSON (${label}): ${error.message}`);
-    return { insertAgent: false };
+function asHookResult(emitted: HookEmitResult): HookResult | null {
+  if (emitted.error || typeof emitted.result !== 'object' || emitted.result === null) return null;
+  const value = emitted.result as Partial<HookResult>;
+  if (typeof value.insertAgent !== 'boolean' && typeof value.targetAgent !== 'string') {
+    log.error(`Hook output missing insertAgent or targetAgent field (${emitted.id})`);
+    return null;
   }
+  return {
+    ...value,
+    insertAgent: typeof value.insertAgent === 'boolean' ? value.insertAgent : false,
+  } as HookResult;
 }
 
 /** Run a hook agent and record it as a step in the thread.
@@ -231,8 +239,51 @@ async function runHookAgent(
   log.info(`Hook agent (${slackLabel}) completed for thread ${threadId}`);
 }
 
-/** Run a lifecycle hook (onStart/onTransition/onEnd) if configured.
- *  logSuffix lets callers preserve detailed log info (e.g. transition arrows). */
+export interface LifecycleHookConfigs {
+  template?: ThreadHookConfig;
+  extra?: ThreadHookConfig;
+}
+
+function scopedHooks(
+  context: HookContext,
+  configs: LifecycleHookConfigs,
+): HookSpec[] {
+  const hooks: HookSpec[] = [];
+  if (configs.template) {
+    hooks.push(normalizeScopedHook(`template:${context.templateName}:${context.phase}`, configs.template));
+  }
+  if (configs.extra) {
+    hooks.push(normalizeScopedHook(`extra:${context.threadId}:${context.phase}`, configs.extra));
+  }
+  return hooks;
+}
+
+/** Emit one lifecycle event with registry and per-call scoped hooks. */
+export async function executeLifecycleHooks(
+  threadId: string,
+  phase: 'start' | 'transition' | 'end',
+  configs: LifecycleHookConfigs,
+  opts: RunThreadOptions,
+  previousAgent?: string,
+  logSuffix?: string,
+): Promise<void> {
+  const context = buildHookContext(threadId, phase, previousAgent);
+  if (configs.template || configs.extra) {
+    const phaseName = `on${phase[0].toUpperCase()}${phase.slice(1)}`;
+    log.info(`Executing ${phaseName} hooks for thread ${threadId}${logSuffix ? ` ${logSuffix}` : ''}`);
+  }
+  const emitted = await emitCortexEvent(`cortex:thread.${phase}`, context, {
+    scopedHooks: scopedHooks(context, configs),
+  });
+  for (const item of emitted) {
+    const hookResult = asHookResult(item);
+    if (hookResult && (hookResult.insertAgent || hookResult.targetAgent)) {
+      await runHookAgent(threadId, hookResult, phase, opts);
+    }
+  }
+}
+
+/** Backward-compatible single scoped-hook entry point. */
 export async function executeLifecycleHook(
   threadId: string,
   phase: 'start' | 'transition' | 'end',
@@ -241,12 +292,12 @@ export async function executeLifecycleHook(
   previousAgent?: string,
   logSuffix?: string,
 ): Promise<void> {
-  if (!hookConfig) return;
-  const phaseName = `on${phase[0].toUpperCase()}${phase.slice(1)}`;
-  log.info(`Executing ${phaseName} hook for thread ${threadId}${logSuffix ? ' ' + logSuffix : ''}`);
-  const hookContext = buildHookContext(threadId, phase, previousAgent);
-  const hookResult = await executeHook(hookConfig, hookContext);
-  if (hookResult.insertAgent || hookResult.targetAgent) {
-    await runHookAgent(threadId, hookResult, phase, opts);
-  }
+  await executeLifecycleHooks(
+    threadId,
+    phase,
+    { template: hookConfig },
+    opts,
+    previousAgent,
+    logSuffix,
+  );
 }

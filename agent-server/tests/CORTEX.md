@@ -62,7 +62,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | gpu-slot-scheduling.test.ts | test | per-GPU slot occupancy and scheduling |
 | hook-bridge.test.ts | test | hook request publish and resolve chain |
 | hook-bus.test.ts | test | HookBus matching, results, and failure isolation |
-| hook-callers.test.ts | test | thread and session hook caller result handling |
+| hook-callers.test.ts | test | Covers HookBus thread and session failure paths |
 | hook-exec.test.ts | test | shared hook subprocess execution semantics |
 | init.test.ts | test | cortex init path, env and MCP config generation |
 | integration-init-startup.test.ts | e2e | init, startup, config, and hook registry loading |
@@ -127,10 +127,10 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | thread-callback-tree.test.ts | test | child to parent thread result delivery |
 | thread-coder-review.e2e.test.ts | e2e | coder and reviewer stage transition graph |
 | thread-contract.test.ts | test | delegation contracts and budget breaker |
-| thread-extra-hooks.test.ts | test | per-call extra hook serial injection |
+| thread-extra-hooks.test.ts | test | Covers thread lifecycle HookBus routing |
 | thread-ledger-dedupe.test.ts | test | child result delivery dedupe across runs |
 | thread-manager.test.ts | test | thread prompt variables and transitions |
-| thread-resume-statusmsg.test.ts | test | status message restore on thread resume |
+| thread-resume-statusmsg.test.ts | test | Covers persisted thread resume options |
 | thread-resume-task-loop.test.ts | test | task events re-emitted on resumed threads |
 | thread-runner.test.ts | test | thread runner lifecycle and wait control |
 | thread-stages.test.ts | test | stage parsing and step prompt building |

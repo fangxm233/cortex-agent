@@ -1,6 +1,6 @@
-// input:  thread-templates.json, runtime thread state
-// output: Thread types with provider-scoped pause metadata
-// pos:    shared type definitions for the Thread system
+// input:  thread template config and runtime thread state
+// output: thread state, lifecycle payload, and run option types
+// pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 // --- Thread Identity ---
@@ -142,22 +142,25 @@ export interface HookResult {
   directive?: string;                 // agent role/identity definition, prepended to the prompt
 }
 
-/** Context received by hook script (stdin JSON) */
-export interface HookContext {
+/** Context received by lifecycle hook scripts through stdin. */
+export interface HookContext extends Record<string, unknown> {
   threadId: string;
   templateName: string;
   phase: 'start' | 'transition' | 'end';
+  source: string | null;
+  project: string;
+  projectId: string;
+  taskId: string | null;
+  taskProject: string | null;
   currentStepIndex: number;
   steps: AgentStep[];
-  activeAgent: string;               // the agent about to execute (the next agent on onTransition)
-  previousAgent?: string;            // the agent that just completed
+  activeAgent: string;               // the agent about to execute (the next agent on transition)
+  previousAgent: string | null;      // the agent that just completed
   artifactContent: string;           // current artifact file content
   userMessage: string;
   totalCostUsd: number;
-  /** Out-of-band control intent on this thread (DR-0015): 'abort' | 'split' | 'wait' | null.
-   *  Hooks (e.g. task-status-check) use this — NOT artifact scanning — to tell an intentional
-   *  non-completion (abort/split) from a stuck task. */
-  pendingControlAction?: 'abort' | 'split' | 'wait' | null;
+  /** Typed control intent used to distinguish intentional non-completion. */
+  pendingControlAction: 'abort' | 'split' | 'wait' | null;
 }
 
 /** Lifecycle hooks for thread templates */
@@ -391,8 +394,7 @@ export interface ThreadMetadata {
   contract?: ThreadContract | null;
   /** Ancestor goal chain, root-first — injected into the child prompt to prevent drift. */
   missionChain?: string[];
-  /** Task association for task-dispatch threads, so a suspended parent can rebuild its
-   *  onEnd task-status-check hook on re-entry (extraHooks are not persisted). */
+  /** Task association persisted for lifecycle payloads and resumed dispatch work. */
   taskId?: string | null;
   taskProject?: string | null;
   /** Task text (TASKS.yaml `text`) at dispatch time, for the thread step status line so a glance
@@ -464,11 +466,7 @@ export interface RunThreadOptions {
   onPlanWritten?: ((event: { path: string; content: string; toolUseId: string }) => void) | null;
   /** Called by the facade event loop when an ask_user_question NormalizedEvent fires (PI backend: during turn). */
   onAskUserQuestion?: ((event: { toolUseId: string; questions: Array<{ question: string; options?: string[]; multi?: boolean }> }) => void) | null;
-  /** Invoked when the thread terminates via agent abort, BEFORE onEnd hooks run, so the
-   *  dispatch path can block the owning task in time (DR-0015 problem 2: otherwise the onEnd
-   *  task-status-check sees a still-claimed task and "recovers" it by unclaiming, which lets the
-   *  dispatcher re-grab the task before the abort→block lands). Injected by task-dispatch; absent
-   *  for non-dispatch threads (no owning task). */
+  /** Invoked before end hooks when agent abort must block the owning dispatch task. */
   onAbort?: ((info: { taskId: string; project: string | null; reason: string | null }) => Promise<void> | void) | null;
   /** Per-call lifecycle hooks injected by the caller (task-dispatcher / scheduled-runner / etc.).
    *  Executed AFTER the template's hook at the same phase (template first, extra second) and share

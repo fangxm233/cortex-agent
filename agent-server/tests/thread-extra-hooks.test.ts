@@ -1,263 +1,499 @@
-// input:  node:test, thread-hook-runner, threadStore, MockAdapter
-// output: RunThreadOptions.extraHooks type + runtime serial order regression
-// pos:    per-call extraHooks injection mechanism regression test
+// input:  thread runner, HookBus registry entries, template-scoped hooks
+// output: lifecycle event payload, suspension/resume, and hook-agent regressions
+// pos:    Verifies thread lifecycle hooks share the HookBus execution path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, beforeAll, afterAll } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { DATA_DIR } from '../src/core/utils.js';
-import { threadStore } from '../src/store/thread-repo.js';
-import { executeLifecycleHook } from '../src/domain/threads/hook-runner.js';
-import { MockAdapter } from '../src/platform/testing.js';
-import type { ThreadRecord, RunThreadOptions, ThreadHookConfig } from '../src/core/types/thread-types.js';
+import { spawnSync } from 'node:child_process';
 
-// --- threads.json backup / restore so tests do not pollute production state ---
+const agent = vi.hoisted(() => ({ runAgent: vi.fn() }));
 
-const THREADS_FILE = path.join(DATA_DIR, 'threads.json');
-let threadsBackup: string | null = null;
-let threadsBackupExisted = false;
-const testThreadIds = new Set<string>();
-let tmpRoot: string;
-
-beforeAll(() => {
-  try {
-    threadsBackup = fs.readFileSync(THREADS_FILE, 'utf8');
-    threadsBackupExisted = true;
-  } catch {
-    threadsBackup = null;
-    threadsBackupExisted = false;
-  }
-  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'thread-extra-hooks-'));
+vi.mock('@domain/agents/index.js', async (importOriginal) => {
+  const original = await importOriginal<Record<string, unknown>>();
+  return {
+    ...original,
+    runAgent: agent.runAgent,
+    getActiveBackend: () => 'claude',
+    getActiveProfile: () => 'default',
+    getClaudeMode: () => 'api',
+  };
 });
 
-afterAll(async () => {
-  if (threadsBackupExisted && threadsBackup != null) {
-    fs.writeFileSync(THREADS_FILE, threadsBackup);
-  } else {
-    try { fs.unlinkSync(THREADS_FILE); } catch {}
+import { CONFIG_DIR, DATA_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '../src/core/paths.js';
+import { initHookBus } from '../src/core/hook-bus.js';
+import { threadStore } from '../src/store/thread-repo.js';
+import {
+  cleanupWorkspace,
+  createThread,
+  getTemplate,
+  loadConfig,
+} from '../src/domain/threads/index.js';
+import {
+  resumeThread,
+  runThread,
+} from '../src/domain/threads/runner.js';
+import * as throttle from '../src/domain/costs/rate-limit-throttle.js';
+import * as resumeRegistry from '../src/domain/costs/resume-registry.js';
+import { MockAdapter } from '../src/platform/testing.js';
+import type { HookEntry } from '../src/store/hook-registry.js';
+import type {
+  HookResult,
+  RunThreadOptions,
+  ThreadHookConfig,
+  ThreadRecord,
+} from '../src/core/types/thread-types.js';
+
+const createdThreadIds = new Set<string>();
+let tmpRoot: string;
+
+function writeThreadConfig(): void {
+  const agentConfig = (name: string, persistSession = true) => ({
+    name,
+    profile: '__active__',
+    persistSession,
+    promptTemplate: '{{input}}',
+  });
+  const config = {
+    agents: {
+      alpha: agentConfig('alpha'),
+      beta: agentConfig('beta'),
+    },
+    templates: {
+      lifecycle: {
+        name: 'lifecycle',
+        description: 'two-step lifecycle fixture',
+        agents: ['alpha', 'beta'],
+        transitions: [{ from: 'alpha', to: 'beta', condition: { type: 'always' } }],
+        entryAgent: 'alpha',
+        maxTotalSteps: 3,
+      },
+      suspend: {
+        name: 'suspend',
+        description: 'single-agent suspension fixture',
+        agents: ['alpha'],
+        transitions: [],
+        entryAgent: 'alpha',
+        maxTotalSteps: 4,
+      },
+      scoped: {
+        name: 'scoped',
+        description: 'template hook fixture',
+        agents: ['alpha'],
+        transitions: [],
+        entryAgent: 'alpha',
+        maxTotalSteps: 3,
+      },
+    },
+  };
+  const configRoot = path.join(CONFIG_DIR, 'thread-templates');
+  for (const [kind, entries] of Object.entries({
+    agents: config.agents,
+    templates: config.templates,
+  })) {
+    const directory = path.join(configRoot, kind);
+    fs.mkdirSync(directory, { recursive: true });
+    for (const [name, value] of Object.entries(entries)) {
+      fs.writeFileSync(path.join(directory, `${name}.json`), `${JSON.stringify(value, null, 2)}\n`);
+    }
   }
-  for (const id of testThreadIds) await threadStore.delete(id);
-  await threadStore.flush();
+}
+
+beforeAll(() => {
+  tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'thread-lifecycle-hooks-'));
+  writeThreadConfig();
+  loadConfig();
+});
+
+afterAll(() => {
   try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch {}
 });
 
-process.on('exit', () => {
-  if (threadsBackupExisted && threadsBackup != null) {
-    try { fs.writeFileSync(THREADS_FILE, threadsBackup); } catch {}
+beforeEach(() => {
+  agent.runAgent.mockReset();
+  initHookBus({ entries: [], hooksDir: tmpRoot });
+  throttle._testReset();
+  resumeRegistry._testReset();
+  for (const name of ['lifecycle', 'suspend', 'scoped']) {
+    const template = getTemplate(name);
+    if (template) delete template.hooks;
   }
 });
 
-function makeThreadRecord(id: string, channel: string): ThreadRecord {
-  const now = new Date().toISOString();
+afterEach(async () => {
+  throttle._testReset();
+  resumeRegistry._testReset();
+  initHookBus({ entries: [], hooksDir: tmpRoot });
+  for (const id of createdThreadIds) {
+    const thread = threadStore.get(id);
+    if (thread?.workspacePath) {
+      try { cleanupWorkspace(id); } catch {}
+    }
+    await threadStore.delete(id);
+  }
+  createdThreadIds.clear();
+  await threadStore.flush();
+});
+
+function track(thread: ThreadRecord): ThreadRecord {
+  createdThreadIds.add(thread.id);
+  return thread;
+}
+
+function createTestThread(
+  templateName: string,
+  metadata: NonNullable<ThreadRecord['metadata']> = {},
+): ThreadRecord {
+  return track(createThread('C-lifecycle-hooks', {
+    templateName,
+    userMessage: 'perform lifecycle test',
+    userMessageTs: String(Date.now()),
+    projectId: 'atlas-project',
+    metadata,
+  }));
+}
+
+function makeOptions(channel: string): RunThreadOptions {
   return {
-    id,
-    templateName: null,
-    status: 'running',
-    channel,
-    projectId: 'general',
-    platformThreadId: null,
-    userMessage: 'hello',
-    userMessageTs: '111.000',
-    workspacePath: '',
-    artifactPath: '',
-    agents: {
-      main: {
-        slotId: 'main', profile: '__active__', sessionId: null, sessionName: null,
-        status: 'idle', lastOutput: null, persistSession: false,
-      },
-    },
-    activeAgent: 'main',
-    activeStage: null,
-    currentStepIndex: 0,
-    steps: [],
-    iterationCounts: {},
-    totalCostUsd: 0,
-    createdAt: now,
-    updatedAt: now,
-    endedAt: null,
-    error: null,
-    abortReason: null,
-    metadata: null,
-  };
-}
-
-function registerTestThread(record: ThreadRecord): void {
-  testThreadIds.add(record.id);
-  threadStore.set(record);
-}
-
-function uniqueThreadId(prefix: string): string {
-  return `thr_test-${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-}
-
-function makeRunOpts(channel: string, overrides: Partial<RunThreadOptions> = {}): RunThreadOptions {
-  return {
-    adapter: new MockAdapter() as any,
+    adapter: new MockAdapter(),
     channel,
     destination: { type: 'interactive-reply', conduit: channel, sessionId: '' },
     threadAnchorId: null,
     statusMsg: null,
     startTime: Date.now(),
     onProgress: null,
-    ...overrides,
   };
 }
 
-/**
- * Writes a tiny posix shell hook script that appends its first arg to a marker file, then outputs
- * the JSON result `{"insertAgent": false}` so the hook runner treats it as a successful no-op hook.
- * Returns the absolute script path.
- */
-function writeMarkerHookScript(dir: string, name: string, markerFile: string): string {
-  const scriptPath = path.join(dir, `${name}.sh`);
-  const body = [
-    '#!/usr/bin/env bash',
-    'set -e',
-    // Drain stdin (hook-runner writes HookContext JSON; we ignore it).
-    'cat > /dev/null',
-    `echo "$1" >> ${JSON.stringify(markerFile)}`,
-    'echo \'{"insertAgent": false}\'',
+function result(sessionId: string, output = 'done') {
+  return {
+    sessionId,
+    finalOutput: output,
+    total_cost_usd: 0,
+    num_turns: 1,
+  };
+}
+
+function handle(value: Record<string, unknown>, beforeResolve?: () => Promise<void>) {
+  return {
+    promise: (async () => {
+      await beforeResolve?.();
+      return value;
+    })(),
+    kill: () => true,
+    sessionId: typeof value.sessionId === 'string' ? value.sessionId : null,
+    agentProcess: undefined,
+  };
+}
+
+function queueAgentResult(value: Record<string, unknown>, beforeResolve?: () => Promise<void>): void {
+  agent.runAgent.mockImplementationOnce(() => handle(value, beforeResolve));
+}
+
+function writeCaptureScript(filename: string, capturePath: string, hookResult: HookResult = { insertAgent: false }): string {
+  const scriptPath = path.join(tmpRoot, filename);
+  fs.writeFileSync(scriptPath, [
+    '#!/usr/bin/env node',
+    'import { appendFileSync } from "node:fs";',
+    'let input = "";',
+    'for await (const chunk of process.stdin) input += chunk;',
+    `appendFileSync(${JSON.stringify(capturePath)}, input + "\\n");`,
+    `process.stdout.write(${JSON.stringify(JSON.stringify(hookResult))});`,
     '',
-  ].join('\n');
-  fs.writeFileSync(scriptPath, body, { mode: 0o755 });
+  ].join('\n'), { mode: 0o644 });
   return scriptPath;
 }
 
-// --- (A) Type contract: RunThreadOptions.extraHooks accepts per-phase ThreadHookConfig ---
-// This test exists only to assert the compile-time shape. If someone removes or renames extraHooks,
-// `tsc --noEmit` (the project's type-check step) catches it before runtime.
-
-test('RunThreadOptions.extraHooks compiles with per-phase ThreadHookConfig entries', () => {
-  const hookConfig: ThreadHookConfig = { command: 'bash /does/not/matter.sh' };
-  const opts: RunThreadOptions = {
-    adapter: new MockAdapter() as any,
-    channel: 'C-type-check',
-    destination: { type: 'interactive-reply', conduit: 'C-type-check', sessionId: '' },
-    threadAnchorId: null,
-    statusMsg: null,
-    startTime: 0,
-    extraHooks: {
-      onStart: hookConfig,
-      onTransition: hookConfig,
-      onEnd: hookConfig,
-    },
-  };
-  // Runtime assertion: the field survived into the object (guards against accidental stripping
-  // via `Omit` / spread misuse in callers that build options through a helper).
-  assert.ok(opts.extraHooks);
-  assert.equal(opts.extraHooks?.onEnd?.command, 'bash /does/not/matter.sh');
-});
-
-test('RunThreadOptions.extraHooks is optional (omitting it still type-checks)', () => {
-  const opts: RunThreadOptions = {
-    adapter: new MockAdapter() as any,
-    channel: 'C-type-check-2',
-    destination: { type: 'interactive-reply', conduit: 'C-type-check-2', sessionId: '' },
-    threadAnchorId: null,
-    statusMsg: null,
-    startTime: 0,
-  };
-  assert.equal(opts.extraHooks, undefined);
-});
-
-// --- (B) Runtime: executeLifecycleHook is a no-op when hookConfig is undefined ---
-// This is the invariant the patch relies on: thread-runner can call executeLifecycleHook twice
-// per phase unconditionally (once for template.hooks, once for extraHooks), and missing configs
-// cost nothing.
-
-test('executeLifecycleHook with undefined config resolves without spawning anything', async () => {
-  const id = uniqueThreadId('hook-undef');
-  registerTestThread(makeThreadRecord(id, 'C-hook-undef'));
-  // No marker should be produced. Just prove the call returns without throwing.
-  await executeLifecycleHook(id, 'end', undefined, makeRunOpts('C-hook-undef'));
-});
-
-// --- (C) Runtime: executeLifecycleHook runs the configured script and receives a HookContext ---
-// Proves the core of the extraHooks wiring: when a caller passes opts.extraHooks.onEnd, the
-// resulting executeLifecycleHook call actually spawns the script.
-
-test('executeLifecycleHook spawns the configured script and the script sees its args', async () => {
-  const id = uniqueThreadId('hook-spawn');
-  registerTestThread(makeThreadRecord(id, 'C-hook-spawn'));
-  const markerFile = path.join(tmpRoot, `marker-${id}.log`);
-  const scriptPath = writeMarkerHookScript(tmpRoot, `hook-spawn-${id}`, markerFile);
-
-  const hookConfig: ThreadHookConfig = { command: `bash ${scriptPath}`, args: ['extra-marker'] };
-  await executeLifecycleHook(id, 'end', hookConfig, makeRunOpts('C-hook-spawn'));
-
-  assert.ok(fs.existsSync(markerFile), 'hook script should have been executed and written the marker file');
-  assert.equal(fs.readFileSync(markerFile, 'utf8').trim(), 'extra-marker');
-});
-
-// --- (C2) Runtime: the template-then-extra pattern runs both hooks in order ---
-// This mirrors exactly what the patched thread-runner does at each phase:
-//   await executeLifecycleHook(..., template.hooks.onEnd, opts)
-//   await executeLifecycleHook(..., opts.extraHooks.onEnd, opts)
-// The marker file accumulates one line per invocation, so the ordering is directly observable.
-
-test('template hook followed by extra hook records both invocations in order', async () => {
-  const id = uniqueThreadId('hook-ordered');
-  registerTestThread(makeThreadRecord(id, 'C-hook-ordered'));
-  const markerFile = path.join(tmpRoot, `marker-ordered-${id}.log`);
-  const scriptPath = writeMarkerHookScript(tmpRoot, `hook-ordered-${id}`, markerFile);
-
-  const templateHook: ThreadHookConfig = { command: `bash ${scriptPath}`, args: ['template'] };
-  const extraHook: ThreadHookConfig = { command: `bash ${scriptPath}`, args: ['extra'] };
-
-  await executeLifecycleHook(id, 'end', templateHook, makeRunOpts('C-hook-ordered'));
-  await executeLifecycleHook(id, 'end', extraHook, makeRunOpts('C-hook-ordered'));
-
-  const contents = fs.readFileSync(markerFile, 'utf8').trim().split('\n');
-  assert.deepEqual(contents, ['template', 'extra'], 'template hook must run before extra hook');
-});
-
-// --- (C3) Regression: hook config can invoke a non-executable .mjs via `node` in the command string ---
-// The original bug (2026-04-24): task-status-check.mjs shipped with mode 644. thread-hook-runner used
-// to spawn the script path directly, so EVERY onEnd hook failed with EACCES and the task-completion
-// reminder never fired — tasks stayed [in-progress] forever. The fix moves the invocation prefix
-// (e.g. "node ") into the config itself so +x is no longer a silent requirement.
-
-test('hook command "node <script.mjs>" runs a script that lacks the executable bit', async () => {
-  const id = uniqueThreadId('hook-node-noexec');
-  registerTestThread(makeThreadRecord(id, 'C-hook-node-noexec'));
-  const markerFile = path.join(tmpRoot, `marker-node-noexec-${id}.log`);
-  const scriptPath = path.join(tmpRoot, `hook-node-noexec-${id}.mjs`);
-  const body = [
+function writeResultScript(filename: string, hookResult: HookResult): string {
+  const scriptPath = path.join(tmpRoot, filename);
+  fs.writeFileSync(scriptPath, [
     '#!/usr/bin/env node',
-    'import { writeFileSync } from "node:fs";',
-    'let ctx = "";',
-    'for await (const chunk of process.stdin) ctx += chunk;',
-    `writeFileSync(${JSON.stringify(markerFile)}, process.argv[2] + "\\n");`,
-    'console.log(JSON.stringify({ insertAgent: false }));',
+    'for await (const _chunk of process.stdin) {}',
+    `process.stdout.write(${JSON.stringify(JSON.stringify(hookResult))});`,
     '',
-  ].join('\n');
-  fs.writeFileSync(scriptPath, body, { mode: 0o644 }); // NOT executable
+  ].join('\n'), { mode: 0o644 });
+  return scriptPath;
+}
 
-  const hookConfig: ThreadHookConfig = {
-    command: `node ${scriptPath}`,
-    args: ['ran-via-node'],
+function captures(capturePath: string): Array<Record<string, any>> {
+  if (!fs.existsSync(capturePath)) return [];
+  return fs.readFileSync(capturePath, 'utf8')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+function registryEntry(id: string, event: HookEntry['event'], script: string): HookEntry {
+  return {
+    id,
+    event,
+    run: { script },
+    result: 'hook-result',
   };
-  await executeLifecycleHook(id, 'end', hookConfig, makeRunOpts('C-hook-node-noexec'));
+}
 
-  assert.ok(fs.existsSync(markerFile), 'non-executable .mjs must still run when command starts with "node"');
-  assert.equal(fs.readFileSync(markerFile, 'utf8').trim(), 'ran-via-node');
+test('runThread emits start, transition, and end with the complete lifecycle payload', async () => {
+  const capturePath = path.join(tmpRoot, 'all-phases.jsonl');
+  const script = path.basename(writeCaptureScript('all-phases.mjs', capturePath));
+  initHookBus({
+    entries: [
+      registryEntry('thread-start', 'cortex:thread.start', script),
+      registryEntry('thread-transition', 'cortex:thread.transition', script),
+      registryEntry('thread-end', 'cortex:thread.end', script),
+    ],
+    hooksDir: tmpRoot,
+  });
+  const thread = createTestThread('lifecycle', {
+    trigger: 'task-dispatch',
+    taskId: 'a1b2',
+    taskProject: 'atlas-tasks',
+  });
+  queueAgentResult(result('backend-alpha', 'alpha done'));
+  queueAgentResult(result('backend-beta', 'beta done'));
+
+  const run = await runThread(thread.id, makeOptions(thread.channel));
+
+  assert.equal(run.thread.status, 'completed');
+  const payloads = captures(capturePath);
+  assert.deepEqual(payloads.map((payload) => payload.phase), ['start', 'transition', 'end']);
+  assert.deepEqual(payloads.map((payload) => payload.previousAgent), [null, 'alpha', 'beta']);
+  assert.deepEqual(payloads.map((payload) => payload.activeAgent), ['alpha', 'beta', 'beta']);
+  for (const payload of payloads) {
+    assert.equal(payload.threadId, thread.id);
+    assert.equal(payload.templateName, 'lifecycle');
+    assert.equal(payload.source, 'task-dispatch');
+    assert.equal(payload.project, 'atlas-tasks');
+    assert.equal(payload.projectId, 'atlas-project');
+    assert.equal(payload.taskId, 'a1b2');
+    assert.equal(payload.taskProject, 'atlas-tasks');
+    assert.equal(payload.userMessage, 'perform lifecycle test');
+    assert.equal(typeof payload.currentStepIndex, 'number');
+    assert.ok(Array.isArray(payload.steps));
+    assert.equal(typeof payload.artifactContent, 'string');
+    assert.equal(typeof payload.totalCostUsd, 'number');
+    assert.equal(payload.pendingControlAction, null);
+  }
 });
 
-test('extra hook still fires when no template hook is configured (undefined template path)', async () => {
-  const id = uniqueThreadId('hook-extra-only');
-  registerTestThread(makeThreadRecord(id, 'C-hook-extra-only'));
-  const markerFile = path.join(tmpRoot, `marker-extra-only-${id}.log`);
-  const scriptPath = writeMarkerHookScript(tmpRoot, `hook-extra-only-${id}`, markerFile);
+test('dispatch end hook skips suspension and runs once after resume with task identity', async () => {
+  const capturePath = path.join(tmpRoot, 'status-check.jsonl');
+  const script = path.basename(writeCaptureScript('task-status-check.mjs', capturePath));
+  initHookBus({
+    entries: [{
+      ...registryEntry('task-status-check', 'cortex:thread.end', script),
+      matcher: { source: 'task-dispatch' },
+    }],
+    hooksDir: tmpRoot,
+  });
+  const child = createTestThread('suspend');
+  const parent = createTestThread('suspend', {
+    trigger: 'task-dispatch',
+    taskId: 'c3d4',
+    taskProject: 'orchard',
+    waitingOn: [child.id],
+    childThreadIds: [child.id],
+  });
+  queueAgentResult(result('backend-parent-1'), async () => {
+    await threadStore.mutate(parent.id, (record) => {
+      (record.metadata ??= {}).pendingControl = {
+        action: 'wait',
+        onThreads: [child.id],
+        onTasks: null,
+      };
+    });
+  });
 
-  const extraHook: ThreadHookConfig = { command: `bash ${scriptPath}`, args: ['extra-only'] };
+  const suspended = await runThread(parent.id, makeOptions(parent.channel));
 
-  // Template side: undefined (no-op). Extra side: runs.
-  await executeLifecycleHook(id, 'end', undefined, makeRunOpts('C-hook-extra-only'));
-  await executeLifecycleHook(id, 'end', extraHook, makeRunOpts('C-hook-extra-only'));
+  assert.equal(suspended.thread.status, 'waiting');
+  assert.deepEqual(captures(capturePath), []);
 
-  const contents = fs.readFileSync(markerFile, 'utf8').trim().split('\n');
-  assert.deepEqual(contents, ['extra-only']);
+  await threadStore.mutate(child.id, (record) => {
+    record.status = 'completed';
+    record.endedAt = new Date().toISOString();
+  });
+  await threadStore.mutate(parent.id, (record) => {
+    (record.metadata ??= {}).waitingOn = [];
+  });
+  queueAgentResult(result('backend-parent-2'));
+
+  const resumed = await resumeThread(parent.id, makeOptions(parent.channel));
+
+  assert.equal(resumed.thread.status, 'completed');
+  const payloads = captures(capturePath);
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads[0].source, 'task-dispatch');
+  assert.equal(payloads[0].project, 'orchard');
+  assert.equal(payloads[0].projectId, 'atlas-project');
+  assert.equal(payloads[0].taskProject, 'orchard');
+  assert.equal(payloads[0].taskId, 'c3d4');
+});
+
+test('dispatch end hook does not run while the thread is rate limited', async (t) => {
+  t.onTestFinished(() => {
+    throttle._testReset();
+    resumeRegistry._testReset();
+  });
+  await throttle.initRateLimitThrottle(new MockAdapter({ adminChannel: 'admin' }) as any, {
+    save: async () => {},
+    load: async () => null,
+  });
+  await throttle.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.99, resetsAt: Math.floor(Date.now() / 1000) + 3000 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'plan' },
+  );
+  const capturePath = path.join(tmpRoot, 'rate-limit-end.jsonl');
+  const script = path.basename(writeCaptureScript('rate-limit-end.mjs', capturePath));
+  initHookBus({
+    entries: [registryEntry('thread-end', 'cortex:thread.end', script)],
+    hooksDir: tmpRoot,
+  });
+  const thread = createTestThread('suspend', {
+    trigger: 'task-dispatch',
+    taskId: 'e5f6',
+    taskProject: 'orchard',
+  });
+  queueAgentResult({ rateLimited: true, rateLimitProvider: 'provider-a' });
+
+  const paused = await runThread(thread.id, makeOptions(thread.channel));
+
+  assert.equal(paused.thread.status, 'rate_limited');
+  assert.deepEqual(captures(capturePath), []);
+});
+
+function setScopedEndHook(resultValue: HookResult): void {
+  const template = getTemplate('scoped');
+  assert.ok(template);
+  const scriptPath = writeResultScript('scoped-result.mjs', resultValue);
+  template.hooks = {
+    onEnd: { command: `node ${scriptPath}`, timeout: 1_000 },
+  };
+}
+
+test('template-scoped onEnd HookResult inserts a hook agent', async () => {
+  setScopedEndHook({ insertAgent: true, prompt: 'inserted follow-up', profile: '__active__' });
+  const thread = createTestThread('scoped');
+  queueAgentResult(result('backend-alpha'));
+  queueAgentResult(result('backend-hook'));
+
+  await runThread(thread.id, makeOptions(thread.channel));
+
+  assert.equal(agent.runAgent.mock.calls.length, 2);
+  assert.equal(agent.runAgent.mock.calls[1][0], 'inserted follow-up');
+  assert.equal(agent.runAgent.mock.calls[1][1].sessionId, null);
+  assert.match(agent.runAgent.mock.calls[1][1].sessionKey, /hook:end$/);
+  assert.equal(threadStore.get(thread.id)?.steps.at(-1)?.agentSlotId, 'hook:end');
+});
+
+test('template-scoped onEnd HookResult targets the existing agent session', async () => {
+  setScopedEndHook({ insertAgent: false, targetAgent: 'alpha', prompt: 'targeted follow-up' });
+  const thread = createTestThread('scoped');
+  queueAgentResult(result('backend-alpha'));
+  queueAgentResult(result('backend-target'));
+
+  await runThread(thread.id, makeOptions(thread.channel));
+
+  assert.equal(agent.runAgent.mock.calls.length, 2);
+  assert.equal(agent.runAgent.mock.calls[1][0], 'targeted follow-up');
+  assert.equal(agent.runAgent.mock.calls[1][1].sessionId, 'backend-alpha');
+  assert.match(agent.runAgent.mock.calls[1][1].sessionKey, /:alpha$/);
+  assert.equal(threadStore.get(thread.id)?.steps.at(-1)?.agentSlotId, 'alpha');
+});
+
+test('template-scoped onEnd does not leak to another template', async () => {
+  setScopedEndHook({ insertAgent: true, prompt: 'must stay scoped' });
+  const thread = createTestThread('suspend');
+  queueAgentResult(result('backend-alpha'));
+
+  await runThread(thread.id, makeOptions(thread.channel));
+
+  assert.equal(agent.runAgent.mock.calls.length, 1);
+});
+
+function writeClaimedTask(project: string, taskId: string): void {
+  const projectDir = path.join(PROJECTS_DIR, project);
+  fs.mkdirSync(projectDir, { recursive: true });
+  fs.writeFileSync(path.join(projectDir, 'TASKS.yaml'), [
+    'tasks:',
+    `  - id: "${taskId}"`,
+    '    text: Hook payload fixture',
+    '    why: ""',
+    '    done-when: ""',
+    '    priority: medium',
+    '    status: open',
+    '    template: scoped',
+    '    plan: ""',
+    '    claimed-by: worker',
+    '',
+  ].join('\n'));
+}
+
+function runStatusCheck(payload: Record<string, unknown>, argv: string[]): Record<string, unknown> {
+  const script = path.join(DEFAULTS_DIR, 'hooks', 'task-status-check.mjs');
+  const child = spawnSync(process.execPath, [script, ...argv], {
+    input: JSON.stringify(payload),
+    encoding: 'utf8',
+    env: { ...process.env, CORTEX_ROOT: path.join(tmpRoot, 'cortex-root') },
+  });
+  assert.equal(child.status, 0, child.stderr);
+  return JSON.parse(child.stdout);
+}
+
+test('task status script takes project and taskId from the lifecycle payload before argv', () => {
+  writeClaimedTask('payload-project', 'f7a8');
+
+  const hookResult = runStatusCheck({
+    project: 'payload-project',
+    projectId: 'fallback-project',
+    taskProject: 'payload-project',
+    taskId: 'f7a8',
+    previousAgent: 'alpha',
+  }, ['wrong-project', 'ffff']);
+
+  assert.equal(hookResult.targetAgent, 'alpha');
+  assert.match(String(hookResult.prompt), /f7a8/);
+  assert.match(String(hookResult.prompt), /payload-project/);
+});
+
+test('task status script keeps argv as a fallback', () => {
+  writeClaimedTask('argv-project', 'b9c0');
+
+  const hookResult = runStatusCheck({ previousAgent: 'alpha' }, ['argv-project', 'b9c0']);
+
+  assert.equal(hookResult.targetAgent, 'alpha');
+  assert.match(String(hookResult.prompt), /b9c0/);
+  assert.match(String(hookResult.prompt), /argv-project/);
+});
+
+test('task status script finds cortex-run state under the data directory', () => {
+  writeClaimedTask('running-project', 'd1e2');
+  const stateDir = path.join(DATA_DIR, 'tmp', 'cortex-run', 'active-run');
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.writeFileSync(path.join(stateDir, 'state.json'), JSON.stringify({
+    task_project: 'running-project',
+    task_id: 'd1e2',
+    status: 'running',
+    pid: process.pid,
+  }));
+
+  const hookResult = runStatusCheck({
+    project: 'running-project',
+    taskId: 'd1e2',
+    previousAgent: 'alpha',
+  }, []);
+
+  assert.match(String(hookResult.prompt), /Auto-detected/);
+  assert.match(String(hookResult.prompt), /active-run/);
+});
+
+// Compile-time contract: callers may still supply generic per-call lifecycle hooks.
+test('RunThreadOptions.extraHooks remains optional and phase-scoped', () => {
+  const hookConfig: ThreadHookConfig = { command: 'true' };
+  const options = makeOptions('C-extra');
+  options.extraHooks = { onStart: hookConfig, onTransition: hookConfig, onEnd: hookConfig };
+  assert.equal(options.extraHooks.onEnd, hookConfig);
 });

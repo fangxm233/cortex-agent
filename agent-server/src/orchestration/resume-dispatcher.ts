@@ -1,4 +1,4 @@
-// input:  active provider throttles, ready resume entries, thread runtime
+// input:  provider throttles, resume entries, persisted thread metadata
 // output: provider-ready direct and thread resume dispatch
 // pos:    Re-enters interrupted work after its provider clears
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -175,9 +175,9 @@ async function resumeDirect(entry: Extract<ResumeEntry, { kind: 'direct' }>, ada
 }
 
 async function resumeThread(entry: Extract<ResumeEntry, { kind: 'thread' }>, thread: ThreadRecord, _adapter: PlatformAdapter, deps: ResumeDeps): Promise<void> {
-  // Rebuild RunThreadOptions (destination + dispatch task-status-check onEnd hook) from the
-  // thread's persisted metadata — same machinery DR-0014 uses to re-enter suspended parents.
-  // Unlike a direct session, a thread re-runs its interrupted step from the original prompt, so
+  // Rebuild destination and status options from persisted thread metadata. Lifecycle hooks are
+  // selected by the HookBus when the thread emits events. Unlike a direct session, the thread
+  // re-runs its interrupted step from the original prompt, so
   // no <system-reminder> / userMessage overwrite is injected.
   const opts = deps.buildResumeOptions(thread);
   if (!opts) {

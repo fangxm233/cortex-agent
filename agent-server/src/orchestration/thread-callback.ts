@@ -1,6 +1,6 @@
 // input:  thread store, agent runner, outbound queue, adapter
-// output: thread/task callbacks and waiting-manager recovery helpers
-// pos:    Child-result delivery and suspended-parent resumption
+// output: task callbacks and persisted-option thread resumes
+// pos:    Delivers child results and resumes suspended parents
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
@@ -87,13 +87,9 @@ async function postProjectNotice(t: ThreadRecord, text: string): Promise<void> {
   }
 }
 
-/** Rebuild RunThreadOptions for re-entering a suspended parent OR a rate-limit-paused thread.
- *  extraHooks are not persisted on ThreadRecord, so the dispatch task-status-check hook is
- *  reconstructed from metadata.taskId/taskProject (the reason dispatch threads must store them).
- *  statusMsg is restored from metadata.statusMsgRef (persisted at dispatch by task-dispatch /
- *  webhook) so the resumed run keeps updating the SAME live status message — without it the run
- *  carries statusMsg=null and the message freezes at "Paused — rate limited" forever even though
- *  the thread runs to completion (2026-06-23 finding: rate-limit resume status-message freeze). */
+/** Rebuild run options for a suspended or provider-paused thread.
+ *  Restore the persisted status message so resumed updates target the original message.
+ *  Lifecycle hooks are resolved by the HookBus from the thread's persisted metadata. */
 export function buildResumeOptions(parent: ThreadRecord): RunThreadOptions | null {
   const adapter = jobCtx.adapter;
   if (!adapter) return null;
@@ -101,9 +97,6 @@ export function buildResumeOptions(parent: ThreadRecord): RunThreadOptions | nul
   const dest: Destination = m?.resumeDest === 'interactive-reply'
     ? { type: 'interactive-reply', conduit: parent.channel, sessionId: '' }
     : { type: 'project-report', projectId: parent.projectId, trigger: m?.trigger || 'mcp-thread', sessionId: '' };
-  const extraHooks = (m?.trigger === 'task-dispatch' && m?.taskId)
-    ? { onEnd: { command: 'node hooks/task-status-check.mjs', args: [m.taskProject || parent.projectId, m.taskId], timeout: 10000 } }
-    : undefined;
   return {
     adapter,
     channel: parent.channel,
@@ -113,7 +106,6 @@ export function buildResumeOptions(parent: ThreadRecord): RunThreadOptions | nul
     startTime: Date.now(),
     onProgress: null,
     onToolUse: null,
-    extraHooks,
   };
 }
 

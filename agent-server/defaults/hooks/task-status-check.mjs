@@ -1,13 +1,12 @@
 #!/usr/bin/env node
-// @cortex-hook-version 2026.6.22-2
-// input:  stdin HookContext, argv [project, taskId]
-// output: HookResult — checks TASKS.yaml task status after thread ends
-// pos:    task-dispatch thread onEnd status check hook
-// >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
+// @cortex-hook-version 2026.7.29
+// input:  stdin thread lifecycle payload, argv identity fallback
+// output: HookResult for unresolved dispatch task state
+// pos:    Checks task status after a dispatched thread terminates
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 
 const DATA_DIR = process.env.CORTEX_HOME
@@ -17,10 +16,7 @@ const PROJECTS_DIR = process.env.CORTEX_PROJECTS_DIR
   ? path.resolve(process.env.CORTEX_PROJECTS_DIR)
   : path.join(DATA_DIR, 'context', 'projects');
 
-const CORTEX_ROOT = process.env.CORTEX_ROOT
-  ? path.resolve(process.env.CORTEX_ROOT)
-  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const CORTEX_RUN_DIR = path.join(CORTEX_ROOT, 'tmp', 'cortex-run');
+const CORTEX_RUN_DIR = path.join(DATA_DIR, 'tmp', 'cortex-run');
 
 function noop() {
   console.log(JSON.stringify({ insertAgent: false }));
@@ -116,7 +112,10 @@ async function main() {
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   const ctx = input.trim() ? JSON.parse(input) : {};
-  const [project, taskId] = process.argv.slice(2);
+  const [argvProject, argvTaskId] = process.argv.slice(2);
+  const payloadProject = ctx.project ?? ctx.taskProject ?? ctx.projectId;
+  const project = typeof payloadProject === 'string' && payloadProject ? payloadProject : argvProject;
+  const taskId = typeof ctx.taskId === 'string' && ctx.taskId ? ctx.taskId : argvTaskId;
 
   if (!project || !taskId) { noop(); return; }
 

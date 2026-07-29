@@ -1,6 +1,6 @@
-// input:  thread state, agent facade, hooks, execution registry, DEBUG transcript recorder
+// input:  thread state, agent facade, HookBus lifecycle adapter, executions
 // output: provider-scoped thread execution, resume, and transcripts
-// pos:    Runtime engine for thread steps, resume, controls, and transcript lifecycle
+// pos:    Runs thread steps, lifecycle events, controls, and resumes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
@@ -38,7 +38,7 @@ import { buildThreadStatusMessage } from '@core/status-format.js';
 import type { OutputStream } from '@platform/index.js';
 import { runningExecutions } from '../../core/running-executions.js';
 import type { RunningExecution } from '../../core/running-executions.js';
-import { executeLifecycleHook } from './hook-runner.js';
+import { executeLifecycleHooks } from './hook-runner.js';
 import { createToolTrace } from '@platform/index.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { createStepTranscriptRecorder, type StepTranscriptRecorder } from './thread-transcript.js';
@@ -545,28 +545,19 @@ async function evaluateAndTransition(
   if (!transition.shouldTransition) return false;
   // transition.nextAgent / nextStage are already set on the thread by evaluateTransitions
 
-  // --- onTransition hook (between steps) ---
-  // Template hook first, then per-call extraHooks. executeLifecycleHook is a no-op for undefined
-  // config so the second call costs nothing when the caller didn't inject an extra hook.
   const prevAgent = stepCtx.agentSlotId;
   const fromLabel = formatAgentStageLabel(prevAgent, stepCtx.stage);
   const toLabel = formatAgentStageLabel(transition.nextAgent!, transition.nextStage ?? null);
-  const transitionLogSuffix = `(${fromLabel} → ${toLabel})`;
-  await executeLifecycleHook(
+  await executeLifecycleHooks(
     threadId,
     'transition',
-    ctx.template?.hooks?.onTransition,
+    {
+      template: ctx.template?.hooks?.onTransition,
+      extra: opts.extraHooks?.onTransition,
+    },
     opts,
     prevAgent,
-    transitionLogSuffix,
-  );
-  await executeLifecycleHook(
-    threadId,
-    'transition',
-    opts.extraHooks?.onTransition,
-    opts,
-    prevAgent,
-    transitionLogSuffix,
+    `(${fromLabel} → ${toLabel})`,
   );
   return true;
 }
@@ -616,10 +607,10 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
   let enteredWaiting = false;
 
   try {
-    // --- onStart hook (before first step) ---
-    // Template hook first, then per-call extraHooks (see note at onTransition).
-    await executeLifecycleHook(threadId, 'start', ctx.template?.hooks?.onStart, opts);
-    await executeLifecycleHook(threadId, 'start', opts.extraHooks?.onStart, opts);
+    await executeLifecycleHooks(threadId, 'start', {
+      template: ctx.template?.hooks?.onStart,
+      extra: opts.extraHooks?.onStart,
+    }, opts);
 
     while (true) {
       const stepInfo = await resolveAndNotifyStep(threadId, ctx, opts);
@@ -645,8 +636,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
       if (control?.action === 'abort') {
         await clearPendingControl(threadId);
         const reason = control.diagnosis ?? null;
-        // DR-0015 problem 2: abort the thread AND block the owning task here, BEFORE the onEnd
-        // hook runs below — otherwise task-status-check sees a still-claimed task and unclaims it.
+        // Abort the thread and block its owning task before end hooks inspect task state.
         await finalizeAbortedThread(threadId, ctx.meta, reason, opts);
         if (ctx.stream) {
           const reasonStr = reason ? `: ${reason}` : '';
@@ -703,18 +693,14 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
       if (!await evaluateAndTransition(threadId, stepCtx, ctx, opts)) break;
     }
 
-    // --- onEnd hook (after main loop) ---
-    // Template hook first, then per-call extraHooks (see note at onTransition).
-    // Skipped on suspension: onEnd semantics are "thread truly finished" (e.g. the dispatch
-    // task-status-check hook must not nag while children are still working). The re-entry
-    // path re-runs runThread, so onEnd still fires exactly once at final termination.
-    // Also skipped on rate-limit pause (like suspension): the dispatch task-status-check onEnd
-    // hook must not fire and release the still-claimed task while the thread is only paused.
+    // End means true termination. A suspended or provider-paused run emits it on re-entry.
     if (!enteredWaiting && !ctx.rateLimited) {
       const threadForEnd = threadStore.get(threadId)!;
       const lastStep = threadForEnd.steps[threadForEnd.steps.length - 1];
-      await executeLifecycleHook(threadId, 'end', ctx.template?.hooks?.onEnd, opts, lastStep?.agentSlotId);
-      await executeLifecycleHook(threadId, 'end', opts.extraHooks?.onEnd, opts, lastStep?.agentSlotId);
+      await executeLifecycleHooks(threadId, 'end', {
+        template: ctx.template?.hooks?.onEnd,
+        extra: opts.extraHooks?.onEnd,
+      }, opts, lastStep?.agentSlotId);
     }
 
     // Only complete if not already in a terminal state (e.g. cancelled during loop). A
