@@ -17,7 +17,7 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | project-dir-repo.ts | store | Project to code directory mapping |
 | project-notes-repo.ts | store | Persists private project notes with stable metadata in Markdown |
 | schedule-repo.ts | store | Scheduled-task persistence |
-| provider-state-repo.ts | store | Provider windows and resume queue persistence |
+| provider-state-repo.ts | store | Persists provider state and guards legacy migration |
 | cost-repo.ts | store | Cost records and budget persistence |
 | profile-repo.ts | store | Agent profiles with hot reload |
 | task-repo.ts | store | TASKS.yaml read, write, lock, and git sync |

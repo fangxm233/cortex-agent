@@ -1,9 +1,9 @@
 // input:  Vitest, temp JSON, provider-state domains
-// output: Provider persistence and migration regressions
+// output: Provider persistence and guarded migration regressions
 // pos:    Store coverage for provider-state.json ownership
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { afterAll, afterEach, beforeAll, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -202,4 +202,33 @@ test('runMigrations prefers existing provider state while stripping legacy field
 
   assert.equal(await fs.readFile(providerStateFile, 'utf8'), originalProvider);
   assert.deepEqual(await readJson(schedulesFile), { tasks: [{ id: 'schedule-b' }] });
+});
+
+test('runMigrations preserves legacy fields when existing provider state is malformed', async () => {
+  const dataDir = nextDir();
+  const storeDir = path.join(dataDir, 'data');
+  const schedulesFile = path.join(storeDir, 'schedules.json');
+  const providerStateFile = path.join(storeDir, 'provider-state.json');
+  const defaultsDir = path.join(dataDir, 'defaults');
+  await fs.mkdir(storeDir, { recursive: true });
+  await fs.writeFile(providerStateFile, '{"rateLimitThrottle":');
+  await writeJson(schedulesFile, {
+    tasks: [{ id: 'schedule-c' }],
+    rateLimitThrottle: activeThrottle(),
+    resumeQueue: resumeEntries(),
+  });
+  const originalProvider = await fs.readFile(providerStateFile, 'utf8');
+  const originalSchedules = await fs.readFile(schedulesFile, 'utf8');
+  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+  try {
+    await runMigrations({ dataDir, storeDir, defaultsDir });
+
+    assert.equal(await fs.readFile(providerStateFile, 'utf8'), originalProvider);
+    assert.equal(await fs.readFile(schedulesFile, 'utf8'), originalSchedules);
+    assert.ok(warnSpy.mock.calls.some((call) =>
+      call.some((value) => String(value).includes('Could not migrate legacy provider state'))));
+  } finally {
+    warnSpy.mockRestore();
+  }
 });

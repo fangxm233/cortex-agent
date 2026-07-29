@@ -18,7 +18,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | profile-repo.test.ts | test | Covers profile reads, writes and file watching |
 | project-dir-repo.test.ts | test | Covers per-machine project directory mapping |
 | project-notes-repo.test.ts | test | Covers private notes CRUD, stable timestamps, and concurrency |
-| provider-state-repo.test.ts | test | Covers provider persistence, restart and migration |
+| provider-state-repo.test.ts | test | Covers provider persistence and guarded migration |
 | schedule-repo.test.ts | test | Covers scheduled tasks and channel migration |
 | session-hook-migration.test.ts | test | Covers legacy migration and destination collisions |
 | session-registry-repo.test.ts | test | Covers session lookup, prune and migration |

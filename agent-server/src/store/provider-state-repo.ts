@@ -1,5 +1,5 @@
 // input:  provider/schedule state JSON, JsonRepository
-// output: ProviderStateRepo and legacy migration
+// output: ProviderStateRepo and validated legacy migration
 // pos:    Provider health and interrupted-work persistence
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -42,14 +42,25 @@ async function readJsonRecord(filePath: string): Promise<Record<string, unknown>
   }
 }
 
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
-    throw error;
+function isJsonRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isProviderStateData(value: Record<string, unknown>): boolean {
+  const throttle = value.rateLimitThrottle;
+  return Object.hasOwn(value, 'rateLimitThrottle')
+    && Object.hasOwn(value, 'resumeQueue')
+    && (throttle === null || isJsonRecord(throttle))
+    && Array.isArray(value.resumeQueue);
+}
+
+async function existingProviderStateIsValid(filePath: string): Promise<boolean> {
+  const existing = await readJsonRecord(filePath);
+  if (!existing) return false;
+  if (!isProviderStateData(existing)) {
+    throw new Error(`${filePath} must contain rateLimitThrottle and resumeQueue`);
   }
+  return true;
 }
 
 function hasLegacyProviderState(schedules: Record<string, unknown>): boolean {
@@ -77,7 +88,7 @@ export async function migrateProviderStateFromSchedules(dataDir: string = DATA_D
   if (!schedules || !hasLegacyProviderState(schedules)) return;
 
   const providerStateFile = path.join(storeDir, 'provider-state.json');
-  if (!(await fileExists(providerStateFile))) {
+  if (!(await existingProviderStateIsValid(providerStateFile))) {
     await atomicWrite(providerStateFile, serialize(legacyProviderState(schedules)));
   }
   await atomicWrite(schedulesFile, serialize(stripLegacyProviderState(schedules)));
