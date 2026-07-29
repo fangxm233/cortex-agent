@@ -114,26 +114,31 @@ Each plugin has a `.claude-plugin/plugin.json` for metadata:
 
 ### Per-Agent Plugin Configuration
 
-Agent definitions live under `config/thread-templates/` — a directory holding one JSON file per entity, split across `agents/`, `templates/` and `shells/`. Each agent definition (one file under `agents/`) specifies its plugins via the `pluginDirs` field (see [threads.md](./threads.md) for the full thread template system):
+Agent definitions live under `config/thread-templates/` — a directory holding one JSON file per entity, split across `agents/`, `templates/` and `shells/`. Each agent definition (one file under `agents/`) specifies its plugins via the `pluginDirs` field (see [threads.md](./threads.md) for the full thread template system). Each file holds the agent object itself, whose `name` must match the filename — so two agents with different plugin sets are two files.
+
+`agents/researcher.json`:
 
 ```json
 {
-  "agents": {
-    "researcher": {
-      "profile": "claude-sonnet",
-      "pluginDirs": [
-        "plugins/cortex-common",
-        "plugins/cortex-surveyor"
-      ]
-    },
-    "coder": {
-      "profile": "claude-sonnet",
-      "pluginDirs": [
-        "plugins/cortex-common",
-        "plugins/cortex-coder"
-      ]
-    }
-  }
+  "name": "researcher",
+  "profile": "claude-sonnet",
+  "pluginDirs": [
+    "plugins/cortex-common",
+    "plugins/cortex-surveyor"
+  ]
+}
+```
+
+`agents/coder.json`:
+
+```json
+{
+  "name": "coder",
+  "profile": "claude-sonnet",
+  "pluginDirs": [
+    "plugins/cortex-common",
+    "plugins/cortex-coder"
+  ]
 }
 ```
 
@@ -141,17 +146,19 @@ Relative paths are resolved against `DATA_DIR` (default: `~/.cortex/`). Absolute
 
 ### Template-Level Overrides
 
-Templates can override an agent's plugin set:
+Templates can override an agent's plugin set. A template is likewise one file under `templates/`, holding the template object itself.
+
+`templates/special-review.json`:
 
 ```json
 {
-  "templates": {
-    "special-review": {
-      "agents": [
-        {"ref": "coder", "pluginDirs": ["plugins/cortex-coder", "plugins/cortex-analyst"]}
-      ]
-    }
-  }
+  "name": "special-review",
+  "agents": [
+    {"ref": "coder", "pluginDirs": ["plugins/cortex-coder", "plugins/cortex-analyst"]}
+  ],
+  "transitions": [],
+  "entryAgent": "coder",
+  "maxTotalSteps": 4
 }
 ```
 
