@@ -1,5 +1,5 @@
-// input:  Vitest timers, provider events, failed saves
-// output: rollback, retry, and callback assertions
+// input:  Vitest timers, provider events, deferred saves
+// output: committed-view and retry-order assertions
 // pos:    Covers provider-scoped throttle and outage state
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -23,6 +23,24 @@ function makePersistenceStub(initial: any = null) {
 
 function makeAdapterStub() {
   return new MockAdapter({ adminChannel: 'mock-admin' });
+}
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+function throttleQueries(mod: any, provider: string, mode: string) {
+  return {
+    isThrottled: mod.isThrottled(),
+    provider: mod.isProviderRateLimited(provider),
+    usage: mod.isProviderUsageRateLimited(provider),
+    providerMode: mod.isProviderModeRateLimited(provider, mode),
+    mode: mod.isModeRateLimited(mode),
+    providers: mod.getThrottleState().providers,
+  };
 }
 
 async function freshModule() {
@@ -406,66 +424,58 @@ test('tracks two providers with independent windows and persists provider record
   assert.equal(persistence.getSaved().providers.length, 2);
 });
 
-test('failed real provider activation restores prior state and timer', async (t) => {
+test('pending failed real activation keeps the committed view and timer', async (t) => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
   vi.setSystemTime(new Date('2026-07-29T12:00:00.000Z'));
   const mod = await freshModuleWithCleanup(t);
   const adapter = makeAdapterStub();
   const cleared: string[][] = [];
-  let changes = 0;
+  const saveStarted = deferred();
+  const saveResult = deferred();
   let saved: any = null;
-  let rejectNextSave = false;
+  let saveCalls = 0;
   const persistence = {
     load: async () => null,
     save: async (state: any) => {
-      if (rejectNextSave) {
-        rejectNextSave = false;
-        throw new Error('real limit save failed');
-      }
+      saveCalls++;
+      if (saveCalls === 2) { saveStarted.resolve(); await saveResult.promise; }
       saved = structuredClone(state);
     },
   };
-  await mod.initRateLimitThrottle(
-    adapter,
-    persistence,
-    (providers: string[]) => { cleared.push(providers); },
-    () => { changes++; },
-  );
+  await mod.initRateLimitThrottle(adapter, persistence, (providers) => { cleared.push(providers); });
   const now = Math.floor(Date.now() / 1000);
   await mod.handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 1 },
-    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'plan' },
   );
-  const priorState = structuredClone(mod.getThrottleState().providers);
-  const priorNotices = adapter.posted.length;
-
-  rejectNextSave = true;
-  await assert.rejects(
-    mod.handleRateLimitEvent(
-      { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 60 },
-      { provider: 'provider-b', displayName: 'Provider B', mode: 'api' },
-    ),
-    /real limit save failed/,
+  const committed = throttleQueries(mod, 'provider-b', 'api');
+  const activation = mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 60 },
+    { provider: 'provider-b', displayName: 'Provider B', mode: 'api' },
   );
+  await saveStarted.promise;
 
-  assert.deepEqual(mod.getThrottleState().providers, priorState);
-  assert.deepEqual(saved.providers, priorState);
-  assert.equal(adapter.posted.length, priorNotices);
-  assert.equal(changes, 1);
+  assert.deepEqual(throttleQueries(mod, 'provider-b', 'api'), committed);
+  assert.deepEqual(saved.providers, committed.providers);
+  const rejected = assert.rejects(activation, /real limit save failed/);
+  saveResult.reject(new Error('real limit save failed'));
+  await rejected;
+  assert.deepEqual(throttleQueries(mod, 'provider-b', 'api'), committed);
 
   await vi.advanceTimersByTimeAsync(6_001);
   assert.equal(mod.getThrottleState().providers.length, 0);
   assert.equal(saved, null);
   assert.deepEqual(cleared, [['provider-a']]);
-  assert.equal(changes, 2);
 });
 
-test('failed expiry save retains the durable window and retries without publishing ready', async (t) => {
+test('pending failed expiry retains the committed view and retries without publishing ready', async (t) => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
   vi.setSystemTime(new Date('2026-07-29T13:00:00.000Z'));
   const mod = await freshModuleWithCleanup(t);
   const adapter = makeAdapterStub();
   const cleared: string[][] = [];
+  const saveStarted = deferred();
+  const saveResult = deferred();
   let changes = 0;
   let saved: any = null;
   let saveCalls = 0;
@@ -473,45 +483,83 @@ test('failed expiry save retains the durable window and retries without publishi
     load: async () => null,
     save: async (state: any) => {
       saveCalls++;
-      if (saveCalls === 2) throw new Error('expiry save failed');
+      if (saveCalls === 2) { saveStarted.resolve(); await saveResult.promise; }
       saved = structuredClone(state);
     },
   };
-  await mod.initRateLimitThrottle(
-    adapter,
-    persistence,
-    (providers: string[]) => { cleared.push(providers); },
-    () => { changes++; },
-  );
+  await mod.initRateLimitThrottle(adapter, persistence,
+    (providers) => { cleared.push(providers); }, () => { changes++; });
   const now = Math.floor(Date.now() / 1000);
   await mod.handleRateLimitEvent(
     { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 1 },
     { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
   );
+  const committed = throttleQueries(mod, 'provider-a', 'api');
   const activeState = structuredClone(saved);
   const activationNotices = adapter.posted.length;
 
   await vi.advanceTimersByTimeAsync(6_000);
-
-  assert.deepEqual(mod.getThrottleState().providers, activeState.providers);
+  await saveStarted.promise;
+  assert.deepEqual(throttleQueries(mod, 'provider-a', 'api'), committed);
   assert.deepEqual(saved, activeState);
-  assert.deepEqual(cleared, []);
-  assert.equal(changes, 1);
-  assert.equal(adapter.posted.length, activationNotices);
-  assert.equal(saveCalls, 2);
-
+  assert.deepEqual([cleared, changes, adapter.posted.length], [[], 1, activationNotices]);
+  saveResult.reject(new Error('expiry save failed'));
   await vi.advanceTimersByTimeAsync(0);
   assert.equal(saveCalls, 2);
+
   await vi.advanceTimersByTimeAsync(4_999);
   assert.equal(saveCalls, 2);
   await vi.advanceTimersByTimeAsync(1);
-
-  assert.equal(saveCalls, 3);
-  assert.equal(saved, null);
+  assert.deepEqual([saveCalls, saved], [3, null]);
   assert.equal(mod.getThrottleState().providers.length, 0);
+  assert.deepEqual([cleared, changes, adapter.posted.length],
+    [[['provider-a']], 2, activationNotices + 1]);
+});
+
+test('stale queued expiry cannot bypass the persistence retry delay', async (t) => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-29T14:00:00.000Z'));
+  const mod = await freshModuleWithCleanup(t);
+  const writerStarted = deferred();
+  const writerResult = deferred();
+  const cleared: string[][] = [];
+  const saveTimes: number[] = [];
+  let saved: any = null;
+  const persistence = {
+    load: async () => null,
+    save: async (state: any) => {
+      saveTimes.push(Date.now());
+      if (saveTimes.length === 2) { writerStarted.resolve(); await writerResult.promise; }
+      if (saveTimes.length === 3) throw new Error('expiry save failed');
+      saved = structuredClone(state);
+    },
+  };
+  await mod.initRateLimitThrottle(makeAdapterStub(), persistence,
+    (providers) => { cleared.push(providers); });
+  const now = Math.floor(Date.now() / 1000);
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 1 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+  const writer = mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 60 },
+    { provider: 'provider-b', displayName: 'Provider B', mode: 'api' },
+  );
+  await writerStarted.promise;
+  await vi.advanceTimersByTimeAsync(6_000);
+  writerResult.resolve();
+  await writer;
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(saveTimes.length, 3);
+
+  await vi.advanceTimersByTimeAsync(4_999);
+  assert.equal(saveTimes.length, 3);
+  await vi.advanceTimersByTimeAsync(1);
+  assert.equal(saveTimes.length, 4);
+  assert.ok(saveTimes[3] - saveTimes[2] >= 5_000);
+  assert.deepEqual(mod.getThrottleState().providers.map((p) => p.provider), ['provider-b']);
+  assert.deepEqual(saved.providers.map((p: any) => p.provider), ['provider-b']);
   assert.deepEqual(cleared, [['provider-a']]);
-  assert.equal(changes, 2);
-  assert.equal(adapter.posted.length, activationNotices + 1);
 });
 
 test('expires providers independently and reports each provider as soon as it clears', async (t) => {
