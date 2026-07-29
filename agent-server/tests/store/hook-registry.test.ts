@@ -1,5 +1,5 @@
-// input:  hook-registry loader/filter API and temporary JSON entries
-// output: registry validation, fail-soft loading, and filter tests
+// input:  hook-registry API, shipped defaults, temporary entries
+// output: registry validation, default parity, and filter tests
 // pos:    Regression coverage for the standalone hook registry
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -203,6 +203,7 @@ test('gates requiresTool only when available tools are supplied and omits disabl
 });
 
 const VERSION = '2026.7.29';
+const INTERACTION_VERSION = '2026.7.29-1';
 const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
   {
     filename: '01-sensitive-file-edit.json',
@@ -214,11 +215,11 @@ const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
   },
   {
     filename: '03-ask-user-question-hook.json',
-    entry: { id: 'ask-user-question-hook', event: 'agent:pre-tool', matcher: 'AskUserQuestion', run: { script: 'ask-user-question-hook.mjs', timeout: 3600 }, scope: { requiresTool: 'AskUserQuestion' }, enabled: true, version: VERSION },
+    entry: { id: 'ask-user-question-hook', event: 'agent:pre-tool', matcher: 'AskUserQuestion', run: { script: 'ask-user-question-hook.mjs', timeout: 3600 }, scope: { backends: ['claude'], requiresTool: 'AskUserQuestion' }, enabled: true, version: INTERACTION_VERSION },
   },
   {
     filename: '04-exit-plan-mode-hook.json',
-    entry: { id: 'exit-plan-mode-hook', event: 'agent:pre-tool', matcher: 'ExitPlanMode', run: { script: 'exit-plan-mode-hook.mjs', timeout: 3600 }, scope: { requiresTool: 'ExitPlanMode' }, enabled: true, version: VERSION },
+    entry: { id: 'exit-plan-mode-hook', event: 'agent:pre-tool', matcher: 'ExitPlanMode', run: { script: 'exit-plan-mode-hook.mjs', timeout: 3600 }, scope: { backends: ['claude'], requiresTool: 'ExitPlanMode' }, enabled: true, version: INTERACTION_VERSION },
   },
   {
     filename: '05-memory-ref-tracker.json',
