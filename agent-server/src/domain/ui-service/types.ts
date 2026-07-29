@@ -494,6 +494,8 @@ export interface TranscriptInteractionDetail {
   status: InteractionStatus;
   payload: {
     questions?: InteractionQuestion[];
+    /** Severity of an ask-user card ('info'|'warning'|'error') — absent = neutral look. */
+    level?: ChatNoticeLevel;
     planContent?: string;
     planFilePath?: string | null;
   };

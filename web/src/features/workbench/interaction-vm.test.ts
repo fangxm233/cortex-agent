@@ -67,6 +67,12 @@ describe('askCardModel', () => {
     const m = askCardModel(askDetail('answered', { answers: { 'A or B?': 'A', 'checks?': 'x, y', 'free?': 'none' } }));
     expect(m!.questions.map((q) => q.answer)).toEqual(['A', 'x, y', 'none']);
   });
+  it('carries the payload severity level and defaults to null', () => {
+    const base = askDetail('pending');
+    const flagged = { ...base, payload: { ...base.payload, level: 'warning' as const } };
+    expect(askCardModel(flagged)!.level).toBe('warning');
+    expect(askCardModel(base)!.level).toBeNull();
+  });
   it('returns null when the payload has no questions', () => {
     expect(askCardModel({ id: 'x', kind: 'ask-user', status: 'pending', payload: {} })).toBeNull();
   });

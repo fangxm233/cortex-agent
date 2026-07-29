@@ -3,6 +3,7 @@
 // pos:    Controlled workbench interaction-card presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useState } from 'react';
+import { noticeTone } from './ChatNotice';
 import {
   type AskCardModel,
   type PlanCardModel,
@@ -148,12 +149,16 @@ export function DeskAskCard({ model, state, copy, onState, onSubmit, busy }: Des
     );
   }
 
-  // pending — 13b left column
+  // pending — 13b left column (an explicit level reuses the ChatNotice tone on border/badge)
+  const tone = model.level ? noticeTone(model.level) : null;
   return (
-    <div style={{ border: '1px solid var(--proto-accent-border)', background: 'var(--proto-rail)', borderRadius: 10, padding: '13px 16px' }}>
+    <div
+      {...(model.level ? { 'data-ask-level': model.level } : {})}
+      style={{ border: `1px solid ${tone ? tone.border : 'var(--proto-accent-border)'}`, background: 'var(--proto-rail)', borderRadius: 10, padding: '13px 16px' }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-        <span style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' }}>?</span>
-        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: 'var(--proto-accent-bg)', color: 'var(--proto-accent)' }}>{copy.askPill}</span>
+        <span style={{ width: 18, height: 18, borderRadius: '50%', background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flex: 'none' }}>{tone ? tone.icon : '?'}</span>
+        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2.5px 9px', borderRadius: 999, background: tone ? tone.bg : 'var(--proto-accent-bg)', color: tone ? tone.fg : 'var(--proto-accent)' }}>{copy.askPill}</span>
         <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-muted-3)' }}>AskUserQuestion</span>
         <span style={{ marginLeft: 'auto', font: `400 9.5px ${mono}`, color: 'var(--proto-faint)' }}>
           {copy.ttlPrefix} {ttlSec != null ? formatTtl(ttlSec) : '30m'}

@@ -5,7 +5,7 @@
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ChatNotice } from './ChatNotice';
+import { ChatNotice, noticeTone } from './ChatNotice';
 
 describe('ChatNotice', () => {
   it.each([
@@ -19,5 +19,12 @@ describe('ChatNotice', () => {
     expect(html).toContain(`data-chat-notice="${level}"`);
     expect(html).toContain(`role="${role}"`);
     expect(html).toContain(text);
+  });
+
+  it('exposes the shared level tones for card badges (one token set per level)', () => {
+    const levels = ['info', 'warning', 'error'] as const;
+    const fgs = levels.map((level) => noticeTone(level).fg);
+    for (const fg of fgs) expect(fg).toMatch(/^var\(--proto-/);
+    expect(new Set(fgs).size).toBe(3);
   });
 });

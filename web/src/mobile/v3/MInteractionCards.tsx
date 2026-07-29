@@ -12,6 +12,7 @@ import {
   formatTtl,
 } from '@/features/workbench/interaction-vm';
 import { useTtlSeconds } from '@/features/workbench/useInteractionTtl';
+import { noticeTone } from '@/features/workbench/ChatNotice';
 
 export interface MIntCopy {
   askPill: string;
@@ -140,13 +141,20 @@ export function MAskCard({ model, state, copy, onPick, onToggle, onConfirmMulti,
 
   const answerOf = (q: AskCardModel['questions'][number]): string | null => q.answer ?? state.answers[q.question] ?? null;
 
+  // Explicit card level reuses the shared ChatNotice tone on the pending pill (4a/5b unchanged otherwise).
+  const tone = model.level ? noticeTone(model.level) : null;
+
   return (
-    <div style={cardShell(pending, false, false)} onClick={pending ? undefined : () => setExpanded((e) => !e)}>
+    <div
+      {...(model.level ? { 'data-ask-level': model.level } : {})}
+      style={cardShell(pending, false, false)}
+      onClick={pending ? undefined : () => setExpanded((e) => !e)}
+    >
       {/* header */}
       <div style={{ padding: '12px 14px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           {pending ? (
-            <Pill bg={MC.runBg} fg={MC.run} text={total > 1 ? `${copy.askPill} · ${Math.min(cur + 1, total)}/${total}` : copy.askPill} />
+            <Pill bg={tone ? tone.bg : MC.runBg} fg={tone ? tone.fg : MC.run} text={total > 1 ? `${copy.askPill} · ${Math.min(cur + 1, total)}/${total}` : copy.askPill} />
           ) : (
             <Pill bg={MC.doneBg} fg={MC.done} text={copy.answeredPill} />
           )}

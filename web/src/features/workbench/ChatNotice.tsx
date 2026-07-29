@@ -5,7 +5,7 @@
 import type { CSSProperties } from 'react';
 import type { ChatNoticeLevel } from '@cortex-agent/ui-contract';
 
-interface NoticeTone {
+export interface NoticeTone {
   bg: string;
   border: string;
   fg: string;
@@ -32,6 +32,11 @@ const TONES: Record<ChatNoticeLevel, NoticeTone> = {
     icon: '×',
   },
 };
+
+/** Shared level→token accessor — interaction cards reuse the exact notice tones. */
+export function noticeTone(level: ChatNoticeLevel): NoticeTone {
+  return TONES[level];
+}
 
 export interface ChatNoticeProps {
   level: ChatNoticeLevel;

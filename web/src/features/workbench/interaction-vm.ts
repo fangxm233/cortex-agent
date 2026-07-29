@@ -61,6 +61,8 @@ export interface AskCardModel {
   /** Short display id (scheme `APQ-0004` slot — we show the real id's first 8 chars). */
   shortId: string;
   status: TranscriptInteractionDetail['status'];
+  /** Card severity from payload.level — null = neutral legacy look. */
+  level: 'info' | 'warning' | 'error' | null;
   questions: AskQuestionVM[];
   ts: string | null;
   timeLabel: string | null;
@@ -70,10 +72,12 @@ export function askCardModel(detail: TranscriptInteractionDetail, ts?: string | 
   const questions = detail.payload.questions ?? [];
   if (!questions.length) return null;
   const answers = detail.result?.answers ?? {};
+  const payload = detail.payload as { level?: 'info' | 'warning' | 'error' };
   return {
     requestId: detail.id,
     shortId: detail.id.slice(0, 8),
     status: detail.status,
+    level: payload.level ?? null,
     questions: questions.map((q) => ({
       question: q.question,
       options: (q.options ?? []).map((o) => ({ label: o.label, description: o.description ?? null })),
