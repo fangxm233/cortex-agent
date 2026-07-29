@@ -1,68 +1,120 @@
+// input:  node fs/path/child_process, core paths, task lifecycle
+// output: completeTask/uncompleteTask lifecycle transitions
+// pos:    verifies completion evidence and applies task state
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
-import { DATA_DIR, todayISO } from '@core/utils.js';
+import { execFileSync } from 'node:child_process';
+import { type Task } from '@core/task-parser.js';
+import { DATA_DIR, INSTALL_ROOT, STORE_DIR, WORKSPACE_DIR, todayISO } from '@core/utils.js';
 import { clearDependsOnAll, findTask, getTasksPath, readTasks, writeTasks } from './task-lifecycle-edit.js';
+
+const EXPLICIT_SHA = /\b(?:implementation\s+sha|commit(?:\s+sha)?|sha)\s*[:=#]?\s*`?([0-9a-f]{7,40})(?![0-9a-f])`?/gi;
+
+function runGit(repo: string, args: string[]): string | null {
+  try {
+    return execFileSync('git', ['-C', repo, ...args], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000,
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function extractExplicitShas(note: string): string[] {
+  const shas: string[] = [];
+  for (const match of note.matchAll(EXPLICIT_SHA)) shas.push(match[1]);
+  return shas;
+}
+
+function hasVerifiedImplementationSha(note: string): boolean {
+  const repos = [...new Set([process.cwd(), INSTALL_ROOT, DATA_DIR])];
+  return extractExplicitShas(note).some((sha) =>
+    repos.some((repo) => runGit(repo, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`]) !== null),
+  );
+}
+
+function hasTaskCommit(taskId: string | null): boolean {
+  if (!taskId) return false;
+  const out = runGit(DATA_DIR, ['log', '--oneline', `--grep=${taskId}`]);
+  if (out === null) return false;
+  return out.split('\n').filter(Boolean)
+    .some((line) => !/task-store:\s+(claim|unclaim)/i.test(line));
+}
+
+function hasDoneWhenArtifact(doneWhen: string | null): boolean {
+  if (!doneWhen) return false;
+  const tokens = doneWhen.match(/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_/.-]+/g) ?? [];
+  return tokens.some((token) => fs.existsSync(path.join(DATA_DIR, token)));
+}
+
+function readPersistedArtifactPath(threadId: string): string | null {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(STORE_DIR, 'threads.json'), 'utf8'));
+    const artifactPath = data[threadId]?.artifactPath;
+    return typeof artifactPath === 'string' ? artifactPath : null;
+  } catch {
+    return null;
+  }
+}
+
+function isNonEmptyDataFile(filePath: string): boolean {
+  try {
+    const realRoot = fs.realpathSync(DATA_DIR);
+    const realFile = fs.realpathSync(filePath);
+    const insideData = realFile.startsWith(`${realRoot}${path.sep}`);
+    return insideData && fs.statSync(realFile).isFile() && fs.readFileSync(realFile, 'utf8').trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function hasCurrentThreadArtifact(): boolean {
+  const threadId = process.env.CORTEX_THREAD_ID;
+  if (!threadId || !/^thr_[a-zA-Z0-9_-]+$/.test(threadId)) return false;
+  const fallback = path.join(WORKSPACE_DIR, 'threads', threadId, 'artifact.md');
+  return isNonEmptyDataFile(readPersistedArtifactPath(threadId) ?? fallback);
+}
 
 function verifyCompletionEvidence(
   taskId: string | null,
   doneWhen: string | null,
-): { hasEvidence: boolean; gitFound: boolean; grepFound: boolean } {
-  let gitFound = false;
-  let grepFound = false;
-
-  if (taskId) {
-    try {
-      const out = execSync(
-        `git -C ${JSON.stringify(DATA_DIR)} log --oneline --grep=${JSON.stringify(taskId)}`,
-        { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 },
-      );
-      const logLines = out.trim().split('\n').filter(Boolean);
-      gitFound = logLines.some((l) => !/task-store:\s+(claim|unclaim)/i.test(l));
-    } catch {}
-  }
-
-  if (!gitFound && doneWhen) {
-    const tokens = doneWhen.match(/[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_/.-]+/g) ?? [];
-    for (const token of tokens) {
-      if (fs.existsSync(path.join(DATA_DIR, token))) {
-        grepFound = true;
-        break;
-      }
-    }
-  }
-
-  return { hasEvidence: gitFound || grepFound, gitFound, grepFound };
+  completionNote: string,
+): boolean {
+  return hasVerifiedImplementationSha(completionNote)
+    || hasCurrentThreadArtifact()
+    || hasTaskCommit(taskId)
+    || hasDoneWhenArtifact(doneWhen);
 }
 
-function completeTask(
-  taskText: string | null, project: string,
-  completionNote: string = '', taskId: string | null = null,
-  skipVerify: boolean = false, skipVerifyReason: string | null = null,
-) {
+function completionStateError(task: Task): string | null {
+  if (task.status === 'done') return 'Task is already completed';
+  if (task.paused) return 'Cannot complete a paused task — resume it first';
+  if (task.blocked_by) return 'Cannot complete a blocked task — unblock it first';
+  return null;
+}
+
+function loadCompletableTask(taskText: string | null, project: string, taskId: string | null) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
-    return { success: false, message: `TASKS.yaml not found for project ${project}` };
+    return { error: `TASKS.yaml not found for project ${project}` };
   }
   const found = findTask(tasks, taskText, taskId);
-  if ('error' in found) return { success: false, message: found.error };
-  const task = found.task;
+  if ('error' in found) return found;
+  const stateError = completionStateError(found.task);
+  return stateError ? { error: stateError } : { tasks, task: found.task };
+}
 
-  if (task.status === 'done') return { success: false, message: 'Task is already completed' };
-  if (task.paused) return { success: false, message: 'Cannot complete a paused task — resume it first' };
-  if (task.blocked_by) return { success: false, message: 'Cannot complete a blocked task — unblock it first' };
+function completionWarning(
+  task: Task, completionNote: string, skipVerify: boolean, skipVerifyReason: string | null,
+): string | null {
+  if (skipVerify) return `verify skipped: ${skipVerifyReason ?? 'no reason given'}`;
+  if (verifyCompletionEvidence(task.id, task.done_when, completionNote)) return null;
+  return 'no evidence of work: no verified implementation SHA, current-thread artifact, matching git commit, or Done-when artifact. Re-run with --skip-verify to bypass.';
+}
 
-  let verifyWarning: string | null = null;
-  if (skipVerify) {
-    verifyWarning = `verify skipped: ${skipVerifyReason ?? 'no reason given'}`;
-  } else {
-    const { hasEvidence } = verifyCompletionEvidence(task.id, task.done_when);
-    if (!hasEvidence) {
-      verifyWarning = 'no evidence of work: no matching git commit and no Done-when artifact found in repo. Re-run with --skip-verify to bypass.';
-    }
-  }
-
-  const today = todayISO();
+function markTaskCompleted(task: Task, completionNote: string, today: string): void {
   task.status = 'done';
   task.claimed_by = null;
   task.claimed_at = null;
@@ -72,6 +124,19 @@ function completeTask(
   task.pending_at = null;
   task.completed_at = today;
   task.completed_note = completionNote || null;
+}
+
+function completeTask(
+  taskText: string | null, project: string,
+  completionNote: string = '', taskId: string | null = null,
+  skipVerify: boolean = false, skipVerifyReason: string | null = null,
+) {
+  const loaded = loadCompletableTask(taskText, project, taskId);
+  if ('error' in loaded) return { success: false, message: loaded.error };
+  const { task, tasks } = loaded;
+  const verifyWarning = completionWarning(task, completionNote, skipVerify, skipVerifyReason);
+  const today = todayISO();
+  markTaskCompleted(task, completionNote, today);
   writeTasks(project, tasks);
 
   const unblockResult = task.id ? clearDependsOnAll(task.id) : { count: 0, tasks: [] };
