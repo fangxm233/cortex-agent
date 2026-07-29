@@ -7,7 +7,7 @@ The view models are framework-free record to slot mappings and each one has a co
 |---|---|---|
 | MChatScreen.tsx | screen | Owns chat data, live sync and sending |
 | MChatView.tsx | view | Chat stream, header, composer and sheets |
-| MChatView.test.tsx | test | Unit tests for send and stop controls |
+| MChatView.test.tsx | test | Tests chat controls and interaction layout |
 | m-chat-vm.ts | vm | Builds chat rows, status and attachment models |
 | m-chat-vm.test.ts | test | Unit tests for the chat view model |
 | MInteractionCards.tsx | view | Ask-user and plan-approval cards for chat |

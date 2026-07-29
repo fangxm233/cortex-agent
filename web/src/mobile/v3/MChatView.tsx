@@ -768,7 +768,7 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
             </div>
           )}
           {row.kind === 'interaction' && (
-            <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+            <div style={{ display: 'flex', flexDirection: 'column', ...(dimmed ? { opacity: 0.35, pointerEvents: 'none' as const } : {}) }}>
               <MInteractionRow row={row} interactions={interactions} />
             </div>
           )}
