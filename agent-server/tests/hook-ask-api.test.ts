@@ -7,7 +7,6 @@ import { test, beforeEach, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { AddressInfo } from 'node:net';
-// @ts-expect-error — plain .mjs helper shipped under defaults/hooks (no type declarations)
 import { askUser } from '../defaults/hooks/cortex-hook-api.mjs';
 
 const ENV_KEYS = ['WEBHOOK_PORT', 'CORTEX_WEBHOOK_TOKEN', 'CORTEX_HOOK_CHANNEL', 'SLACK_CHANNEL', 'CORTEX_HOOK_SESSION_ID', 'CORTEX_THREAD_ID'];
