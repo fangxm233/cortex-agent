@@ -4,6 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
+import * as http from 'node:http';
 import * as path from 'node:path';
 import { atomicWriteSync } from '@core/atomic-write.js';
 import {
@@ -16,6 +17,7 @@ import {
 import { runHookProcess, type HookProcessOptions } from '@core/hook-exec.js';
 import { CONFIG_DIR, HOOKS_DIR } from '@core/paths.js';
 import { isMainModule } from '@core/utils.js';
+import { normalizeAskLevel } from '../platform/interactive-builder.js';
 import {
   loadMountedHooks,
   summarizeMountedHook,
@@ -23,14 +25,17 @@ import {
   type RegistryHook,
 } from '@store/hook-registry.js';
 
-const COMMANDS = ['list', 'show', 'enable', 'disable', 'test'] as const;
+const COMMANDS = ['list', 'show', 'enable', 'disable', 'test', 'ask'] as const;
 type HookCommand = typeof COMMANDS[number];
+
+export type AskPostFn = (url: string, body: unknown, headers: Record<string, string>) => Promise<{ status: number; body: any }>;
 
 export interface HookCliOptions {
   registryDir?: string;
   templateDir?: string;
   hooksDir?: string;
   readStdin?: () => string;
+  askPost?: AskPostFn;
 }
 
 export interface HookCliResult {
@@ -43,6 +48,13 @@ interface ParsedArgs {
   command: HookCommand | null;
   id: string | null;
   payload: string | null;
+  question: string | null;
+  header: string | null;
+  options: string | null;
+  level: string | null;
+  channel: string | null;
+  sessionId: string | null;
+  multi: boolean;
   dryRun: boolean;
   help: boolean;
 }
@@ -63,12 +75,14 @@ const ROOT_HELP: HelpSpec = {
     { name: 'enable --id <id>', description: 'Enable a registry hook' },
     { name: 'disable --id <id>', description: 'Disable a registry hook' },
     { name: 'test --id <id>', description: 'Execute one hook with a payload' },
+    { name: 'ask --question <text>', description: 'Ask the user a card question and block for the answer' },
   ],
   options: [{ flag: '--help, -h', description: 'Show this help' }],
   examples: [
     { description: 'List mounted declarations', command: 'cortex-hook list' },
     { description: 'Inspect one declaration', command: 'cortex-hook show --id sensitive-file-edit' },
     { description: 'Execute with a payload file', command: 'cortex-hook test --id sensitive-file-edit --payload payload.json' },
+    { description: 'Ask the user from a hook', command: 'cortex-hook ask --question "Clean old checkpoints?" --options "Clean|Keep" --level warning' },
   ],
 };
 
@@ -132,6 +146,27 @@ const COMMAND_HELP: Record<HookCommand, HelpSpec> = {
       { description: 'Execute from stdin', command: 'cat payload.json | cortex-hook test --id sensitive-file-edit --payload -' },
     ],
   },
+  ask: {
+    name: 'cortex-hook ask',
+    description: 'Post an ask-user card on the session message platform and block until answered',
+    usage: 'cortex-hook ask --question <text> [--options "a|b"] [--level <level>] [--channel <id> | --session-id <id>]',
+    options: [
+      { flag: '--question <text>', description: 'Single question text (or use --payload)' },
+      { flag: '--header <text>', description: 'Short card label (default: question prefix)' },
+      { flag: '--options "a|b|c"', description: 'Pipe-separated choice labels' },
+      { flag: '--multi', description: 'Allow selecting multiple options', default: 'false' },
+      { flag: '--level <level>', description: 'Card severity: info, warn, warning, error' },
+      { flag: '--channel <id>', description: 'Target conduit (default: CORTEX_HOOK_CHANNEL / SLACK_CHANNEL)' },
+      { flag: '--session-id <id>', description: 'Resolve channel from a session (default: CORTEX_HOOK_SESSION_ID)' },
+      { flag: '--payload <file|->', description: 'JSON array of question objects, or - for stdin' },
+      { flag: '--dry-run', description: 'Smoke-test: journal only, resolve synthetically', default: 'false' },
+      { flag: '--help, -h', description: 'Show this help' },
+    ],
+    examples: [
+      { description: 'Warning card with choices', command: 'cortex-hook ask --question "Disk almost full - clean old checkpoints?" --options "Clean|Keep" --level warning' },
+      { description: 'Multi-question payload from stdin', command: 'cat questions.json | cortex-hook ask --payload - --session-id abc123' },
+    ],
+  },
 };
 
 const FLAG_ALLOWLIST: Record<HookCommand, string[]> = {
@@ -140,15 +175,23 @@ const FLAG_ALLOWLIST: Record<HookCommand, string[]> = {
   enable: ['--id', '--dry-run', '--help', '-h'],
   disable: ['--id', '--dry-run', '--help', '-h'],
   test: ['--id', '--payload', '--help', '-h'],
+  ask: ['--question', '--header', '--options', '--multi', '--level', '--channel', '--session-id', '--payload', '--dry-run', '--help', '-h'],
 };
 
-const VALUE_FIELDS: Record<string, 'id' | 'payload'> = {
+const VALUE_FIELDS: Record<string, 'id' | 'payload' | 'question' | 'header' | 'options' | 'level' | 'channel' | 'sessionId'> = {
   '--id': 'id',
   '--payload': 'payload',
+  '--question': 'question',
+  '--header': 'header',
+  '--options': 'options',
+  '--level': 'level',
+  '--channel': 'channel',
+  '--session-id': 'sessionId',
 };
 
-const BOOLEAN_FIELDS: Record<string, 'dryRun' | 'help'> = {
+const BOOLEAN_FIELDS: Record<string, 'dryRun' | 'help' | 'multi'> = {
   '--dry-run': 'dryRun',
+  '--multi': 'multi',
   '--help': 'help',
   '-h': 'help',
 };
@@ -171,12 +214,20 @@ function defaults(options: HookCliOptions): Required<HookCliOptions> {
     templateDir: options.templateDir ?? path.join(CONFIG_DIR, 'thread-templates', 'templates'),
     hooksDir: options.hooksDir ?? HOOKS_DIR,
     readStdin: options.readStdin ?? readStdinSync,
+    askPost: options.askPost ?? defaultAskPost,
+  };
+}
+
+function emptyParsed(command: HookCommand | null, help = false): ParsedArgs {
+  return {
+    command, id: null, payload: null, question: null, header: null, options: null,
+    level: null, channel: null, sessionId: null, multi: false, dryRun: false, help,
   };
 }
 
 function parseRoot(argv: string[]): ParsedArgs | null {
   if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
-    return { command: null, id: null, payload: null, dryRun: false, help: true };
+    return emptyParsed(null, true);
   }
   if (!COMMANDS.includes(argv[0] as HookCommand)) {
     throw cliFailure(`Unknown command: '${argv[0]}'`, [...COMMANDS]);
@@ -185,7 +236,7 @@ function parseRoot(argv: string[]): ParsedArgs | null {
 }
 
 function parseFlags(command: HookCommand, args: string[]): ParsedArgs {
-  const parsed: ParsedArgs = { command, id: null, payload: null, dryRun: false, help: false };
+  const parsed: ParsedArgs = emptyParsed(command);
   const allowed = FLAG_ALLOWLIST[command];
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index];
@@ -204,6 +255,12 @@ function parseFlags(command: HookCommand, args: string[]): ParsedArgs {
 
 function validateRequired(parsed: ParsedArgs): void {
   if (parsed.help || parsed.command === 'list' || parsed.command === null) return;
+  if (parsed.command === 'ask') {
+    if (!parsed.question && !parsed.payload) {
+      throw cliFailure('ask requires --question or --payload', ['--question <text>', '--payload <file|->']);
+    }
+    return;
+  }
   if (!parsed.id) throw cliFailure('--id is required', ['--id <id>']);
   if (parsed.command === 'test' && !parsed.payload) {
     throw cliFailure('--payload is required for test', ['--payload <file>', '--payload -']);
@@ -352,6 +409,97 @@ async function handleTest(context: HandlerContext): Promise<HookCliResult> {
   return success(output, result.exitCode ?? (result.error ? 1 : 0));
 }
 
+// --- ask: hook-facing blocking ask-user card ---
+
+function defaultAskPost(url: string, body: unknown, headers: Record<string, string>): Promise<{ status: number; body: any }> {
+  const payload = JSON.stringify(body);
+  return new Promise((resolve, reject) => {
+    const req = http.request(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...headers },
+      timeout: 60 * 60 * 1000, // user may take time; the server bridge TTL (30 min) fires first
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) }); }
+        catch { reject(new Error(`invalid webhook response: ${data}`)); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('webhook request timed out')); });
+    req.write(payload);
+    req.end();
+  });
+}
+
+function parseAskQuestions(parsed: ParsedArgs, options: Required<HookCliOptions>): any[] {
+  if (parsed.payload) {
+    const raw = readPayload(parsed.payload, options);
+    let questions: unknown;
+    try { questions = JSON.parse(raw); } catch (e) {
+      throw cliFailure(`--payload is not valid JSON: ${(e as Error).message}`, ['JSON array of question objects']);
+    }
+    if (!Array.isArray(questions) || questions.length === 0) {
+      throw cliFailure('--payload must be a non-empty JSON array of question objects');
+    }
+    return questions;
+  }
+  const question = parsed.question!;
+  return [{
+    question,
+    header: parsed.header ?? question.slice(0, 12),
+    multiSelect: parsed.multi,
+    options: parsed.options ? parsed.options.split('|').map((label) => ({ label: label.trim() })) : [],
+  }];
+}
+
+function buildAskBody(parsed: ParsedArgs, questions: any[]): Record<string, unknown> {
+  const channel = parsed.channel ?? process.env.CORTEX_HOOK_CHANNEL ?? process.env.SLACK_CHANNEL ?? null;
+  const sessionId = parsed.sessionId ?? process.env.CORTEX_HOOK_SESSION_ID ?? null;
+  if (!channel && !sessionId) {
+    throw cliFailure(
+      'No target: no channel or session in flags or hook env',
+      ['--channel <id>', '--session-id <id>'],
+      'Hook environments set CORTEX_HOOK_CHANNEL / SLACK_CHANNEL / CORTEX_HOOK_SESSION_ID automatically',
+    );
+  }
+  const level = parsed.level === null ? null : normalizeAskLevel(parsed.level);
+  if (parsed.level !== null && !level) {
+    throw cliFailure(`Invalid --level: '${parsed.level}'`, ['info', 'warn', 'warning', 'error']);
+  }
+  return {
+    ...(channel ? { channel } : {}),
+    ...(sessionId ? { sessionId } : {}),
+    threadId: process.env.CORTEX_THREAD_ID ?? null,
+    questions,
+    ...(level ? { level } : {}),
+    ...(parsed.dryRun ? { dryRun: true } : {}),
+  };
+}
+
+/** Map the webhook response to CLI output — timeout exits 2, other bridge errors exit 1. */
+function mapAskResponse(resp: { status: number; body: any }): HookCliResult {
+  if (resp.status !== 200) {
+    return failure(formatError(`Webhook returned status ${resp.status}: ${resp.body?.error ?? JSON.stringify(resp.body ?? {})}`));
+  }
+  if (resp.body?.error) {
+    const timeout = resp.body.error === 'timeout';
+    return success({ ok: false, error: resp.body.error, ...(timeout ? { answers: {} } : {}) }, timeout ? 2 : 1);
+  }
+  if (resp.body?.dryRun) return success({ ok: true, dry_run: true, answers: {} });
+  return success({ ok: true, answers: resp.body?.answers ?? {} });
+}
+
+async function handleAsk(context: HandlerContext): Promise<HookCliResult> {
+  const questions = parseAskQuestions(context.parsed, context.options);
+  const body = buildAskBody(context.parsed, questions);
+  const port = parseInt(process.env.WEBHOOK_PORT || '3001', 10);
+  const url = `http://127.0.0.1:${port}/hook/ask-user-question`;
+  const headers = { 'x-cortex-token': process.env.CORTEX_WEBHOOK_TOKEN || '' };
+  return mapAskResponse(await context.options.askPost(url, body, headers));
+}
+
 async function dispatch(context: HandlerContext): Promise<HookCliResult> {
   const command = context.parsed.command!;
   if (command === 'list') {
@@ -362,6 +510,9 @@ async function dispatch(context: HandlerContext): Promise<HookCliResult> {
   }
   if (command === 'enable' || command === 'disable') {
     return handleState(context, command === 'enable');
+  }
+  if (command === 'ask') {
+    return handleAsk(context);
   }
   return handleTest(context);
 }

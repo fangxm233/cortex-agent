@@ -90,7 +90,7 @@ test('root and subcommand help use copyable cortex-hook examples', async (t) => 
   assert.equal(root.exitCode, 0);
   assert.match(root.stdout, /Usage: cortex-hook <command> \[options\]/);
   assert.match(root.stdout, /cortex-hook test --id sensitive-file-edit --payload payload\.json/);
-  for (const command of ['list', 'show', 'enable', 'disable', 'test']) {
+  for (const command of ['list', 'show', 'enable', 'disable', 'test', 'ask']) {
     const result = await runHookCli([command, '-h'], fixture.options);
     assert.equal(result.exitCode, 0);
     assert.match(result.stdout, new RegExp(`Usage: cortex-hook ${command}`));
@@ -350,6 +350,147 @@ test('--payload - reads process stdin in the executable CLI', (t) => {
     ok: true, id: 'stdin', exit_code: 0,
     stdout: payload.trim(), stderr: 'hook warning',
   });
+});
+
+// ── cortex-hook ask — hook-facing ask-user API ─────────────────────────────────
+
+const ASK_ENV_KEYS = ['CORTEX_HOOK_CHANNEL', 'SLACK_CHANNEL', 'CORTEX_HOOK_SESSION_ID', 'CORTEX_THREAD_ID'];
+
+function clearAskEnv(t: { onTestFinished(callback: () => void): void }): void {
+  const saved = Object.fromEntries(ASK_ENV_KEYS.map((k) => [k, process.env[k]]));
+  for (const k of ASK_ENV_KEYS) delete process.env[k];
+  t.onTestFinished(() => {
+    for (const k of ASK_ENV_KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+}
+
+function makeAskPost(response: { status?: number; body: any }) {
+  const calls: { url: string; body: any }[] = [];
+  const askPost = async (url: string, body: any) => {
+    calls.push({ url, body });
+    return { status: response.status ?? 200, body: response.body };
+  };
+  return { askPost, calls };
+}
+
+test('ask posts a single flag-built question and prints structured answers', async (t) => {
+  const fixture = makeFixture(t);
+  clearAskEnv(t);
+  const { askPost, calls } = makeAskPost({ body: { answers: { 'Clean up?': 'Yes' } } });
+
+  const result = await runHookCli([
+    'ask', '--question', 'Clean up?', '--header', 'Disk',
+    '--options', 'Yes|No', '--level', 'warn', '--channel', 'C_CLI',
+  ], { ...fixture.options, askPost });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.deepEqual(parseOutput(result), { ok: true, answers: { 'Clean up?': 'Yes' } });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/hook\/ask-user-question$/);
+  assert.equal(calls[0].body.channel, 'C_CLI');
+  assert.equal(calls[0].body.level, 'warning');
+  assert.deepEqual(calls[0].body.questions, [{
+    question: 'Clean up?', header: 'Disk', multiSelect: false,
+    options: [{ label: 'Yes' }, { label: 'No' }],
+  }]);
+});
+
+test('ask resolves the channel from the hook env when --channel is absent', async (t) => {
+  const fixture = makeFixture(t);
+  clearAskEnv(t);
+  process.env.CORTEX_HOOK_CHANNEL = 'C_ENV_HOOK';
+  const { askPost, calls } = makeAskPost({ body: { answers: {} } });
+
+  const result = await runHookCli(['ask', '--question', 'Go?'], { ...fixture.options, askPost });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(calls[0].body.channel, 'C_ENV_HOOK');
+});
+
+test('ask fails fast without any channel or session source', async (t) => {
+  const fixture = makeFixture(t);
+  clearAskEnv(t);
+  const { askPost, calls } = makeAskPost({ body: { answers: {} } });
+
+  const result = await runHookCli(['ask', '--question', 'Go?'], { ...fixture.options, askPost });
+
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stderr, /--channel|--session-id/);
+  assert.equal(calls.length, 0);
+});
+
+test('ask rejects an invalid --level with valid values', async (t) => {
+  const fixture = makeFixture(t);
+  clearAskEnv(t);
+  const { askPost, calls } = makeAskPost({ body: { answers: {} } });
+
+  const result = await runHookCli([
+    'ask', '--question', 'Go?', '--channel', 'C', '--level', 'fatal',
+  ], { ...fixture.options, askPost });
+
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stderr, /Invalid --level: 'fatal'/);
+  assert.match(result.stderr, /info, warn, warning, error/);
+  assert.equal(calls.length, 0);
+});
+
+test('ask requires --question or --payload', async (t) => {
+  const fixture = makeFixture(t);
+  clearAskEnv(t);
+  const result = await runHookCli(['ask', '--channel', 'C'], fixture.options);
+  assert.equal(result.exitCode, 1);
+  assert.match(result.stderr, /--question|--payload/);
+});
+
+test('ask reads a multi-question payload file and forwards sessionId', async (t) => {
+  const fixture = makeFixture(t);
+  clearAskEnv(t);
+  const questions = [
+    { question: 'A?', header: 'A', options: [], multiSelect: false },
+    { question: 'B?', header: 'B', options: [{ label: 'x' }], multiSelect: true },
+  ];
+  const payloadPath = path.join(fixture.root, 'questions.json');
+  fs.writeFileSync(payloadPath, JSON.stringify(questions));
+  const { askPost, calls } = makeAskPost({ body: { answers: { 'A?': 'a', 'B?': 'x' } } });
+
+  const result = await runHookCli([
+    'ask', '--payload', payloadPath, '--session-id', 'sid-cli-1',
+  ], { ...fixture.options, askPost });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(calls[0].body.sessionId, 'sid-cli-1');
+  assert.equal(calls[0].body.channel, undefined);
+  assert.deepEqual(calls[0].body.questions, questions);
+});
+
+test('ask maps a bridge timeout to exit code 2', async (t) => {
+  const fixture = makeFixture(t);
+  clearAskEnv(t);
+  const { askPost } = makeAskPost({ body: { error: 'timeout', answers: {} } });
+
+  const result = await runHookCli(['ask', '--question', 'Go?', '--channel', 'C'], { ...fixture.options, askPost });
+
+  assert.equal(result.exitCode, 2);
+  const output = parseOutput(result);
+  assert.equal(output.ok, false);
+  assert.equal(output.error, 'timeout');
+});
+
+test('ask --dry-run flows the smoke-test flag to the webhook body', async (t) => {
+  const fixture = makeFixture(t);
+  clearAskEnv(t);
+  const { askPost, calls } = makeAskPost({ body: { dryRun: true, answers: {} } });
+
+  const result = await runHookCli([
+    'ask', '--question', 'Go?', '--channel', 'C', '--dry-run',
+  ], { ...fixture.options, askPost });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(calls[0].body.dryRun, true);
+  assert.equal(parseOutput(result).dry_run, true);
 });
 
 test('package bin, lockfile, and build shebang wiring include cortex-hook', () => {
