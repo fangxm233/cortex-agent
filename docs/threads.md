@@ -31,21 +31,20 @@ Each file holds a single entity, and **the filename (without `.json`) is the ent
 
 ### Agent Definitions
 
-Each agent in the `agents` map is an independent entity with its own identity, tools, and prompt:
+Each file under `agents/` defines one agent — an independent entity with its own identity, tools, and prompt. The file holds the agent object itself, and its `name` must match the filename.
+
+`agents/planner.json`:
 
 ```json
 {
-  "agents": {
-    "planner": {
-      "description": "Plans the research approach",
-      "profile": "claude-sonnet",
-      "persistSession": false,
-      "directive": "You are a research planner. Break down problems into testable hypotheses.",
-      "promptTemplate": "file:planner-prompt.md",
-      "pluginDirs": ["plugins/cortex-common", "plugins/cortex-surveyor"],
-      "tools": "Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill"
-    }
-  }
+  "name": "planner",
+  "description": "Plans the research approach",
+  "profile": "claude-sonnet",
+  "persistSession": false,
+  "directive": "You are a research planner. Break down problems into testable hypotheses.",
+  "promptTemplate": "file:planner-prompt.md",
+  "tools": "Agent,AskUserQuestion,Bash,Read,Grep,Glob,Write,Edit,WebSearch,WebFetch,Skill",
+  "pluginDirs": ["plugins/cortex-common", "plugins/cortex-surveyor"]
 }
 ```
 
@@ -53,7 +52,7 @@ Each agent in the `agents` map is an independent entity with its own identity, t
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Agent ID (key in the agents map) |
+| `name` | string | Agent ID — required, and must equal the filename (`agents/<name>.json`) |
 | `profile` | string | Profile name from `profiles.json`, or `"__active__"` to use the current runtime profile |
 | `persistSession` | boolean | `true`: reuse the same LLM session across iterations (preserves conversation context). `false`: fresh session each step |
 | `directive` | string? | Agent role/identity, prepended to the prompt. Supports `file:filename.md` references |
@@ -68,25 +67,26 @@ Each agent in the `agents` map is an independent entity with its own identity, t
 
 An agent can declare multiple **stages** via the `stages` field. When stages are present, `promptTemplate` is ignored — the engine selects the appropriate stage's prompt for each step based on the transition target.
 
+`agents/coder.json`:
+
 ```json
 {
-  "coder": {
-    "profile": "claude-sonnet",
-    "persistSession": true,
-    "pluginDirs": ["plugins/cortex-coder"],
-    "stages": {
-      "implement": {
-        "promptTemplate": "You are implementing the plan. Write code to {{artifactPath}}.",
-        "description": "Write the implementation"
-      },
-      "review": {
-        "promptTemplate": "You are reviewing the code in {{artifactPath}}. Check for correctness.",
-        "continuesSession": true,
-        "description": "Review the implementation"
-      }
+  "name": "coder",
+  "profile": "claude-sonnet",
+  "persistSession": true,
+  "entryStage": "implement",
+  "stages": {
+    "implement": {
+      "promptTemplate": "You are implementing the plan. Write code to {{artifactPath}}.",
+      "description": "Write the implementation"
     },
-    "entryStage": "implement"
-  }
+    "review": {
+      "promptTemplate": "You are reviewing the code in {{artifactPath}}. Check for correctness.",
+      "continuesSession": true,
+      "description": "Review the implementation"
+    }
+  },
+  "pluginDirs": ["plugins/cortex-coder"]
 }
 ```
 
@@ -106,28 +106,27 @@ The template system supports a YAML-frontmatter-based format with `extends:` (in
 
 ## Templates
 
-Templates compose agents into multi-step pipelines:
+Templates compose agents into multi-step pipelines. Each file under `templates/` holds one template object.
+
+`templates/coder-review.json`:
 
 ```json
 {
-  "templates": {
-    "coder-review": {
-      "description": "Implement a feature then review it",
-      "agents": ["planner", "coder", "reviewer"],
-      "transitions": [
-        {"from": "planner", "to": "coder:implement", "condition": {"type": "always"}},
-        {"from": "coder:implement", "to": "coder:review", "condition": {"type": "always"}},
-        {"from": "coder:review", "to": "reviewer", "condition": {"type": "always"}}
-      ],
-      "entryAgent": "planner",
-      "maxTotalSteps": 10,
-      "maxTotalCostUsd": 5.00,
-      "hooks": {
-        "onEnd": {
-          "command": "node hooks/post-task-hook.mjs",
-          "timeout": 30000
-        }
-      }
+  "name": "coder-review",
+  "description": "Implement a feature then review it",
+  "agents": ["planner", "coder", "reviewer"],
+  "transitions": [
+    {"from": "planner", "to": "coder:implement", "condition": {"type": "always"}},
+    {"from": "coder:implement", "to": "coder:review", "condition": {"type": "always"}},
+    {"from": "coder:review", "to": "reviewer", "condition": {"type": "always"}}
+  ],
+  "entryAgent": "planner",
+  "maxTotalSteps": 10,
+  "maxTotalCostUsd": 5.00,
+  "hooks": {
+    "onEnd": {
+      "command": "node hooks/post-task-hook.mjs",
+      "timeout": 30000
     }
   }
 }
@@ -137,7 +136,7 @@ Templates compose agents into multi-step pipelines:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | string | Template ID (used in `!thread <name>` and task dispatch) |
+| `name` | string? | Optional; if present it must equal the filename (`templates/<name>.json`). The filename is the template ID used in `!thread <name>` and task dispatch |
 | `agents` | TemplateAgentRef[] | Ordered list of participating agents |
 | `transitions` | TransitionRule[] | Rules governing when to move from one agent to the next |
 | `entryAgent` | string | The first agent to run |
@@ -170,7 +169,7 @@ Pipelines that share the same transition graph and differ only in which agents f
 A shell declares its parameters and uses placeholders in the graph:
 
 - `{param}` — substituted with the binding's value for that parameter (an agent name).
-- `{param.entryStage}` — substituted with that agent's `entryStage`, resolved from the agents map.
+- `{param.entryStage}` — substituted with that agent's `entryStage`, resolved from that agent's definition under `agents/`.
 
 For example, the shipped `worker-review` shell (`shells/worker-review.json`) — a generic produce-then-audit loop:
 

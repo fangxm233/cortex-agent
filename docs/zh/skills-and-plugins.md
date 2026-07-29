@@ -115,26 +115,31 @@ plugins/
 
 ### 每智能体插件配置
 
-智能体定义位于 `config/thread-templates/`——该目录每个实体一个 JSON 文件，分列于 `agents/`、`templates/`、`shells/` 三个子目录。每个智能体定义（`agents/` 下的一个文件）通过 `pluginDirs` 字段指定其插件（完整线程模板系统参见 [threads.md](./threads.md)）：
+智能体定义位于 `config/thread-templates/`——该目录每个实体一个 JSON 文件，分列于 `agents/`、`templates/`、`shells/` 三个子目录。每个智能体定义（`agents/` 下的一个文件）通过 `pluginDirs` 字段指定其插件（完整线程模板系统参见 [threads.md](./threads.md)）。每个文件中直接放智能体对象本身，其 `name` 必须与文件名一致——所以插件集不同的两个智能体就是两个文件。
+
+`agents/researcher.json`：
 
 ```json
 {
-  "agents": {
-    "researcher": {
-      "profile": "claude-sonnet",
-      "pluginDirs": [
-        "plugins/cortex-common",
-        "plugins/cortex-surveyor"
-      ]
-    },
-    "coder": {
-      "profile": "claude-sonnet",
-      "pluginDirs": [
-        "plugins/cortex-common",
-        "plugins/cortex-coder"
-      ]
-    }
-  }
+  "name": "researcher",
+  "profile": "claude-sonnet",
+  "pluginDirs": [
+    "plugins/cortex-common",
+    "plugins/cortex-surveyor"
+  ]
+}
+```
+
+`agents/coder.json`：
+
+```json
+{
+  "name": "coder",
+  "profile": "claude-sonnet",
+  "pluginDirs": [
+    "plugins/cortex-common",
+    "plugins/cortex-coder"
+  ]
 }
 ```
 
@@ -142,17 +147,19 @@ plugins/
 
 ### 模板级覆盖
 
-模板可以覆盖智能体的插件集：
+模板可以覆盖智能体的插件集。模板同样是 `templates/` 下的一个文件，其中直接放模板对象本身。
+
+`templates/special-review.json`：
 
 ```json
 {
-  "templates": {
-    "special-review": {
-      "agents": [
-        {"ref": "coder", "pluginDirs": ["plugins/cortex-coder", "plugins/cortex-analyst"]}
-      ]
-    }
-  }
+  "name": "special-review",
+  "agents": [
+    {"ref": "coder", "pluginDirs": ["plugins/cortex-coder", "plugins/cortex-analyst"]}
+  ],
+  "transitions": [],
+  "entryAgent": "coder",
+  "maxTotalSteps": 4
 }
 ```
 
