@@ -1,6 +1,6 @@
 // input:  TypeBox, Turndown, fetch API
-// output: Bounded local WebFetch PI tool definition
-// pos:    PI-local bounded HTTP(S) fetch and text conversion
+// output: Bounded PI WebFetch with sanitized HTML Markdown
+// pos:    PI-local HTTP(S) fetch and safe text conversion
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { Type } from '@sinclair/typebox';
@@ -17,6 +17,7 @@ export const WEB_FETCH_TRUNCATION_MARKER =
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const REMOVED_HTML_ELEMENTS = ['script', 'style', 'noscript', 'iframe'] as const;
+const EMBEDDED_IMAGE_MARKER = '[Embedded image omitted]';
 
 const WebFetchParameters = Type.Object({
   url: Type.String({ description: 'The HTTP or HTTPS URL to fetch.' }),
@@ -169,6 +170,11 @@ function htmlToMarkdown(html: string): string {
   });
   converter.use(gfm);
   converter.remove([...REMOVED_HTML_ELEMENTS]);
+  converter.addRule('embedded-image', {
+    filter: (node) => node.nodeName === 'IMG'
+      && /^\s*data:/i.test(node.getAttribute('src') ?? ''),
+    replacement: () => EMBEDDED_IMAGE_MARKER,
+  });
   return converter.turndown(html);
 }
 
