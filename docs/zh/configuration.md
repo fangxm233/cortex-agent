@@ -13,7 +13,7 @@ $CORTEX_HOME/
 ├── config/
 │   ├── .env                      # 同一个文件（符号链接/规范位置）
 │   ├── profiles.json             # 命名的智能体配置
-│   ├── thread-templates.json     # 智能体定义和编排模板
+│   ├── thread-templates/         # 线程配置——每个 agent/template/shell 一个 JSON
 │   ├── machines.json             # 远程客户端机器注册表
 │   ├── budget.json               # 每日/每月预算限制
 │   ├── mcp-config.json           # 直接会话 MCP 配置
@@ -213,7 +213,7 @@ $CORTEX_HOME/
 
 ## defaults/config/ 布局
 
-npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。多数在 init 期间复制到 `$CORTEX_HOME/`；钩子资产还会在服务器每次启动时重新同步：
+npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。多数在 init 期间复制到 `$CORTEX_HOME/`；钩子资产与线程模板实体还会在服务器每次启动时重新同步：
 
 | 源 | 目标 | 覆盖行为 |
 |---|---|---|
@@ -221,7 +221,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `defaults/gitignore` | `$CORTEX_HOME/.gitignore` | 从不 |
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | 从不 |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | 仅 `--force` |
-| `defaults/config/thread-templates.json` | `$CORTEX_HOME/config/thread-templates.json` | 仅 `--force` |
+| `defaults/config/thread-templates/` | `$CORTEX_HOME/config/thread-templates/` | 逐文件 copy-if-missing，init 时与之后每次服务器启动时各执行一次：你尚未拥有的 agent/template/shell 文件会被拷入；你已有的文件绝不被覆盖——`--force` 对这棵树不生效 |
 | `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | 每次服务器启动时逐文件按 CalVer 同步：缺失则添加，发布的 `version` 更新则刷新。没有 `version` 的声明（你自己的）永不被覆盖 |
 | `defaults/prompts/` | `$CORTEX_HOME/prompts/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
 | `defaults/plugins/` | `$CORTEX_HOME/plugins/` | 逐文件：新文件总是添加，已有文件保留除非 `--force` |
@@ -230,13 +230,13 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 | `defaults/data/schedules.json` | `$CORTEX_HOME/data/schedules.json` | 从不（除非 `--force`） |
 | `defaults/context/` | `$CORTEX_HOME/context/` | 脚手架文件：从不覆盖 |
 
-这种设计意味着 npm 包升级会自动提供新的提示、插件、规则和钩子，而不会覆盖用户的自定义内容。配置文件（`thread-templates.json`、`budget.json` 等）需要 `--force` 才能替换。
+这种设计意味着 npm 包升级会自动提供新的提示、插件、规则、钩子和线程模板实体，而不会覆盖用户的自定义内容。整文件型配置（如 `budget.json`）仍需 `--force` 才能替换；`config/thread-templates/` 则改为逐文件合并，新发货的实体能到达已有安装，同时不动你的改动。
 
 ## 热重载行为
 
 - **`schedules.json`** — 通过文件监视器监视。更改在几秒钟内生效，无需重启。完整调度系统参见 [scheduling.md](./scheduling.md)。
 - **`profiles.json`** — 每次生成智能体时重新读取。更改配置无需重启。
-- **`thread-templates.json`** — 每次启动线程时重新读取。
+- **`thread-templates/`** — 每个实体子目录（`agents/`、`templates/`、`shells/`）都被监视。变更去抖（300ms）后整体重载配置，无需重启；旧的单文件 `thread-templates.json` 在迁移前以同样方式被监视。参见 [threads.md](./threads.md)。
 - **`.env`** — 需要守护进程重启才能生效（启动时通过 dotenv 加载一次）。
 - **钩子声明（`config/hooks/*.json`）** — 注册表在每次智能体生成时重新读取，因此新增的 `agent:*` / `cc:*` / `pi:*` 条目对下一个启动的智能体生效。`cortex:*` 条目在服务器启动时被快照，需重启才生效。参见 [hooks.md](./hooks.md)。
 - **钩子脚本（`hooks/*.mjs`）** — 每次钩子调用时重新读取。
@@ -248,7 +248,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 |---|---|---|
 | `.env` | 环境变量 | `$CORTEX_HOME/config/.env` |
 | `profiles.json` | 智能体配置 | `$CORTEX_HOME/config/profiles.json` |
-| `thread-templates.json` | 线程定义 | `$CORTEX_HOME/config/thread-templates.json` |
+| `thread-templates/` | 线程定义——每个 agent/template/shell 一个 JSON。目录存在时使用它；否则加载器回落读取旧的单文件 `thread-templates.json`，该文件会被一次性启动迁移拆分进本目录 | `$CORTEX_HOME/config/thread-templates/` |
 | `machines.json` | 机器注册表 | `$CORTEX_HOME/config/machines.json` |
 | `budget.json` | 预算限制 | `$CORTEX_HOME/config/budget.json` |
 | `mcp-config.json` | MCP 服务器配置 | `$CORTEX_HOME/config/mcp-config.json` |
