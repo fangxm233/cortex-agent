@@ -14,7 +14,7 @@ Consumed by the orchestration and UI layers through the index barrel.
 | prompt-builder.ts | build | assembles agent prompts and slot configs |
 | state-machine.ts | state | Drives lifecycle and stores provider pauses |
 | runner.ts | runtime | Runs and resumes provider-attributed steps |
-| hook-runner.ts | hook | runs lifecycle hook scripts and hook agents |
+| hook-runner.ts | hook | interprets lifecycle hooks and runs hook agents |
 | thread-transcript.ts | record | records each step's conversation to history |
 | tree.ts | tree | tracks thread trees and spawn resource guards |
 | contract.ts | contract | builds delegation contracts and goal chains |

@@ -8,5 +8,5 @@ Distinct from the terminal UI session layer that lives in tui-session.
 | session.ts | adapter | channel session create, read and delete |
 | session-registry.ts | adapter | maps short session names to session ids |
 | session-backup.ts | util | backs up and restores session transcripts |
-| session-hooks.ts | core | runs hooks on new session and turn end |
+| session-hooks.ts | core | interprets hooks and injects follow-up turns |
 | session-lifecycle.ts | core | registers, attaches and resets sessions |

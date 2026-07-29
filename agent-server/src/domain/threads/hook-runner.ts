@@ -1,16 +1,15 @@
-// input:  thread-store, active-handles, mode-manager, domain/threads
+// input:  thread-store, core hook runner, agents and executions
 // output: executeLifecycleHook — Thread lifecycle hook executor
-// pos:    onStart/onTransition/onEnd hook subsystem for the Thread system
+// pos:    interprets lifecycle hooks and runs hook agents
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { threadStore } from '@store/thread-repo.js';
 import { getSessionKey, recordStepResult, resolveTargetResumeId } from './index.js';
 import { runAgent, getClaudeMode, getActiveBackend, getActiveProfile } from '../agents/index.js';
 import * as executionRegistry from '../executions/registry.js';
 import { sessionStore } from '@store/session-registry-repo.js';
-import { DATA_DIR } from '@core/utils.js';
+import { runHookProcess } from '@core/hook-exec.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 import { runningExecutions } from '../../core/running-executions.js';
@@ -48,72 +47,32 @@ function buildHookContext(threadId: string, phase: 'start' | 'transition' | 'end
   };
 }
 
-/** Execute a hook script and parse its JSON result. Returns { insertAgent: false } on any error.
- *
- *  hookConfig.command is run via `sh -c 'command "$@"' hook <args>`, so the caller can write the
- *  full shell invocation (including interpreter, e.g. "node ~/.cortex/hooks/foo.mjs") and
- *  dynamic hookConfig.args become positional $1..$N on the command line. cwd = DATA_DIR.
- */
+/** Execute a hook script and parse its JSON result. Returns { insertAgent: false } on any error. */
 async function executeHook(hookConfig: ThreadHookConfig, context: HookContext): Promise<HookResult> {
-  const timeout = hookConfig.timeout || DEFAULT_HOOK_TIMEOUT;
   const command = hookConfig.command;
-  const args = hookConfig.args || [];
+  const args = hookConfig.args ?? [];
   const label = args.length ? `${command} ${args.join(' ')}` : command;
-
-  return new Promise<HookResult>((resolve) => {
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-
-    // `sh -c '<command> "$@"' hook <args>`: the shell parses <command>, then appends <args> as
-    // positional params $1..$N. No manual quoting — args with spaces survive intact.
-    const proc = spawn('sh', ['-c', `${command} "$@"`, 'hook', ...args], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: DATA_DIR,
-      timeout,
-    });
-
-    proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-    proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-
-    proc.on('error', (err) => {
-      if (!settled) {
-        settled = true;
-        log.error(`Hook error (${label}): ${err.message}`);
-        resolve({ insertAgent: false });
-      }
-    });
-
-    proc.on('close', (code) => {
-      if (settled) return;
-      settled = true;
-
-      if (code !== 0) {
-        log.error(`Hook exited with code ${code} (${label})${stderr ? ': ' + stderr.trim() : ''}`);
-        resolve({ insertAgent: false });
-        return;
-      }
-
-      try {
-        const result = JSON.parse(stdout.trim());
-        // Valid if: has insertAgent (boolean), or has targetAgent (string)
-        if (typeof result.insertAgent !== 'boolean' && typeof result.targetAgent !== 'string') {
-          log.error(`Hook output missing insertAgent or targetAgent field (${label})`);
-          resolve({ insertAgent: false });
-          return;
-        }
-        if (typeof result.insertAgent !== 'boolean') result.insertAgent = false;
-        resolve(result as HookResult);
-      } catch (e: any) {
-        log.error(`Failed to parse hook output as JSON (${label}): ${e.message}`);
-        resolve({ insertAgent: false });
-      }
-    });
-
-    // Send context to stdin
-    proc.stdin.write(JSON.stringify(context));
-    proc.stdin.end();
+  const result = await runHookProcess({
+    command,
+    args,
+    timeoutMs: hookConfig.timeout || DEFAULT_HOOK_TIMEOUT,
+    stdinPayload: JSON.stringify(context),
+    label,
   });
+  if (result.error) return { insertAgent: false };
+
+  try {
+    const parsed = JSON.parse(result.stdout);
+    if (typeof parsed.insertAgent !== 'boolean' && typeof parsed.targetAgent !== 'string') {
+      log.error(`Hook output missing insertAgent or targetAgent field (${label})`);
+      return { insertAgent: false };
+    }
+    if (typeof parsed.insertAgent !== 'boolean') parsed.insertAgent = false;
+    return parsed as HookResult;
+  } catch (error: any) {
+    log.error(`Failed to parse hook output as JSON (${label}): ${error.message}`);
+    return { insertAgent: false };
+  }
 }
 
 /** Run a hook agent and record it as a step in the thread.
