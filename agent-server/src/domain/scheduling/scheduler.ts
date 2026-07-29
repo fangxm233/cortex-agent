@@ -11,7 +11,7 @@ import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
 import { getDefaultProfileName } from '../agents/profile-manager.js';
-import { ScheduleRepo, scheduleRepo, SCHEDULES_FILE, type ScheduleTask, type PersistedRateLimitThrottle } from '@store/schedule-repo.js';
+import { ScheduleRepo, scheduleRepo, SCHEDULES_FILE, type ScheduleTask } from '@store/schedule-repo.js';
 
 const log = createLogger('scheduler');
 
@@ -429,14 +429,6 @@ class Scheduler {
 
   setOnGuardBlocked(fn: ((task: ScheduleTask) => Promise<void>) | null): void {
     this._onGuardBlocked = fn;
-  }
-
-  async getRateLimitThrottle(): Promise<PersistedRateLimitThrottle | null> {
-    return this._repo.getRateLimitThrottle();
-  }
-
-  async setRateLimitThrottle(meta: PersistedRateLimitThrottle | null): Promise<void> {
-    await this._withWriteGuard(() => this._repo.setRateLimitThrottle(meta));
   }
 
   async setInterval(id: string, intervalMs: number): Promise<ScheduleTask | null> {

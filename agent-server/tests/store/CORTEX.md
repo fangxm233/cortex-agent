@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
 Regression tests for the store layer: JSON repositories, WAL queues,
-and the persisted registries for sessions, tasks, schedules and costs.
+and the persisted registries for sessions, tasks, schedules, providers and costs.
 
 | filename | role | function |
 |---|---|---|
@@ -18,7 +18,8 @@ and the persisted registries for sessions, tasks, schedules and costs.
 | profile-repo.test.ts | test | Covers profile reads, writes and file watching |
 | project-dir-repo.test.ts | test | Covers per-machine project directory mapping |
 | project-notes-repo.test.ts | test | Covers private notes CRUD, stable timestamps, and concurrency |
-| schedule-repo.test.ts | test | Covers schedules, throttles and resume queues |
+| provider-state-repo.test.ts | test | Covers provider persistence, restart and migration |
+| schedule-repo.test.ts | test | Covers scheduled tasks and channel migration |
 | session-hook-migration.test.ts | test | Covers legacy migration and destination collisions |
 | session-registry-repo.test.ts | test | Covers session lookup, prune and migration |
 | session-store.test.ts | test | Covers session migration and prune references |

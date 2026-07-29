@@ -22,7 +22,7 @@ The server follows a six-layer structure (`agent-server/src/`):
 | Layer | Directory | Purpose |
 |-------|-----------|---------|
 | L0 | `core/` | Zero-dependency utilities: types, path constants, async-mutex, CLI utils, task parser |
-| L1 | `store/` | Persistence: 12 JSON-based repositories with atomic writes |
+| L1 | `store/` | Persistence: 13 JSON-based repositories with atomic writes |
 | L2 | `events/` | Event bus: typed EventBus, daily-rolling JSONL logger, replay CLI |
 | L3 | `domain/` | Business logic: agents, sessions, tasks, executions, costs, scheduling, memory, remote clients, threads, MCP |
 | L4 | `orchestration/` | Message routing, agent runner, lifecycle, 15 !commands, interactions |
@@ -54,7 +54,8 @@ The client (`client/src/`) is a lightweight WebSocket daemon that:
 | `profiles.json` | Named agent profile list |
 | `budget.json` | Daily/monthly budget limits |
 | `costs.jsonl` | Per-call cost records (90-day rolling) |
-| `schedules.json` | Scheduled tasks, provider/window throttles, and provider-attributed resume queue |
+| `data/schedules.json` | Scheduled tasks |
+| `data/provider-state.json` | Provider throttle windows and provider-attributed resume queue |
 | `sessions.json` | Channel-to-agent session mapping |
 | `executions.json` | Unified execution registry |
 | `config/thread-templates/` | Thread config directory: one JSON file per entity under `agents/`, `templates/`, and `shells/` (a legacy single-file config is still read as a fallback and split into this directory on startup) |

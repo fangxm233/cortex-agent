@@ -1,7 +1,7 @@
-// input:  versions, user config files, defaults, atomicWrite
-// output: Versioned and collision-safe registry migrations
+// input:  versions, user config, provider state, defaults
+// output: Versioned and collision-safe startup migrations
 // pos:    Migrates user-owned files during server startup
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
@@ -11,6 +11,7 @@ import { DATA_DIR, DEFAULTS_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
+import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
 
 const log = createLogger('version-migrations');
 
@@ -431,6 +432,9 @@ export async function runMigrations(opts: MigrationOptions = {}): Promise<void> 
   const defaultsDir = opts.defaultsDir ?? DEFAULTS_DIR;
   const storeDir = opts.storeDir ?? path.join(dataDir, 'data');
 
+  await migrateProviderStateFromSchedules(dataDir).catch((error) => {
+    log.warn(`Could not migrate legacy provider state: ${(error as Error).message}`);
+  });
   await migrateSessionHooksToRegistry(dataDir);
   const versionsFile = path.join(storeDir, 'versions.json');
   const versions = await loadVersionsFrom(versionsFile);

@@ -1,6 +1,6 @@
 Please update me when files in this folder change
 
-Persistence layer: file-backed repositories for sessions, threads, tasks, schedules, costs, and history.
+Persistence layer: file-backed repositories for sessions, threads, tasks, schedules, provider state, costs, and history.
 Also runs startup file migrations and keeps deployed hooks and plugins in sync with defaults.
 
 | filename | role | function |
@@ -16,7 +16,8 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | execution-repo.ts | store | Execution record persistence |
 | project-dir-repo.ts | store | Project to code directory mapping |
 | project-notes-repo.ts | store | Persists private project notes with stable metadata in Markdown |
-| schedule-repo.ts | store | Scheduled tasks and rate limit windows |
+| schedule-repo.ts | store | Scheduled-task persistence |
+| provider-state-repo.ts | store | Provider windows and resume queue persistence |
 | cost-repo.ts | store | Cost records and budget persistence |
 | profile-repo.ts | store | Agent profiles with hot reload |
 | task-repo.ts | store | TASKS.yaml read, write, lock, and git sync |

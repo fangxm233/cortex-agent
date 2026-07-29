@@ -1,14 +1,12 @@
-// input:  schedules.json + channel-registry.json + JsonRepository + provider throttle records
-// output: ScheduleRepo (tasks / provider rate-limit windows / resumeQueue) + migration helpers
-// pos:    Schedule persistence layer. Based on JsonRepository abstraction (Pattern A), AsyncMutex serializes reads/writes of schedules.json.
-//         Migration from channel→projectId reads channel-registry.json synchronously for reverse lookup.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  schedule/channel registry JSON, JsonRepository
+// output: ScheduleRepo and task migration helpers
+// pos:    Scheduled-task persistence store
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as path from 'path';
 import * as fs from 'fs';
 import { JsonRepository } from '@core/json-repository.js';
 import { STORE_DIR } from '@core/paths.js';
-import type { ResumeEntry } from '@domain/costs/resume-registry.js';
 
 export const SCHEDULES_FILE = path.join(STORE_DIR, 'schedules.json');
 export const CHANNEL_REGISTRY_FILE = path.join(STORE_DIR, 'channel-registry.json');
@@ -54,30 +52,8 @@ export interface ScheduleTask {
   fallback?: 'fresh' | 'skip' | 'wait';
 }
 
-export interface PersistedRateLimitWindow {
-  type: string;
-  utilization: number | null;
-  resetsAt: number;
-  activatedAt: number;
-}
-
-export interface PersistedProviderThrottle {
-  provider: string;
-  displayName: string;
-  modes: string[];
-  windows: PersistedRateLimitWindow[];
-}
-
-export type PersistedRateLimitThrottle =
-  | { providers: PersistedProviderThrottle[] }
-  | { resetsAt: number; activatedAt: number; modes?: string[]; types?: string[] };
-
 export interface SchedulesData {
   tasks: ScheduleTask[];
-  rateLimitThrottle?: PersistedRateLimitThrottle | null;
-  /** Sessions/threads interrupted by a rate limit, awaiting auto-resume when the
-   *  window resets. Owned by domain/costs/resume-registry.ts. */
-  resumeQueue?: ResumeEntry[] | null;
 }
 
 function defaultData(): SchedulesData {
@@ -183,30 +159,6 @@ export class ScheduleRepo {
   async findTask(id: string): Promise<ScheduleTask | null> {
     const data = await this._repo.read();
     return data.tasks.find(t => t.id === id) || null;
-  }
-
-  async setRateLimitThrottle(meta: PersistedRateLimitThrottle | null): Promise<void> {
-    await this._repo.mutate((data) => {
-      data.rateLimitThrottle = meta;
-      return { next: data, result: undefined };
-    });
-  }
-
-  async getRateLimitThrottle(): Promise<PersistedRateLimitThrottle | null> {
-    const data = await this._repo.read();
-    return data.rateLimitThrottle || null;
-  }
-
-  async setResumeQueue(entries: ResumeEntry[] | null): Promise<void> {
-    await this._repo.mutate((data) => {
-      data.resumeQueue = entries;
-      return { next: data, result: undefined };
-    });
-  }
-
-  async getResumeQueue(): Promise<ResumeEntry[]> {
-    const data = await this._repo.read();
-    return data.resumeQueue ?? [];
   }
 
   /** Generic mutate passthrough for composite operations. */

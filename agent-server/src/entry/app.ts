@@ -75,6 +75,7 @@ import {
   registerResumeWakeOnAgentSettle,
 } from '../orchestration/resume-dispatcher.js';
 import { scheduleRepo } from '@store/schedule-repo.js';
+import { providerStateRepo } from '@store/provider-state-repo.js';
 import { runMigrations, migrateAistatusConfigLocation } from '@store/version-migrations.js';
 import { syncManagedHooks } from '@store/hook-sync.js';
 import { loadHookRegistry, type HookEntry } from '@store/hook-registry.js';
@@ -319,7 +320,7 @@ process.on('SIGTERM', async () => {
   // `writeFile(tmp)` and `rename(tmp, target)` in atomic-write.ts leaves orphan .tmp.* siblings.
   // Daemon gives 5s before SIGKILL — well over the time needed to flush a few MB of JSON.
   try {
-    await Promise.allSettled([bus.close(), oq.flush(), threadStore.flush(), sessionRepo.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), taskStore.flush(), executionRepo.flush(), projectDirRepo.flush(), scheduleRepo.flush(), costRepo.flush(), profileRepo.flush(), sessionStore.flush()]);
+    await Promise.allSettled([bus.close(), oq.flush(), threadStore.flush(), sessionRepo.flush(), conversationLedger.flush(), conversationHistory.flush(), pendingInjectionRepo.flush(), taskStore.flush(), executionRepo.flush(), projectDirRepo.flush(), scheduleRepo.flush(), providerStateRepo.flush(), costRepo.flush(), profileRepo.flush(), sessionStore.flush()]);
   } catch {}
   await stopGateway(); process.exit(0);
 });
@@ -585,8 +586,8 @@ process.on('SIGTERM', async () => {
   //    restart-recovery may fire onResume synchronously, draining the (already-reconciled) queue.
   //    4) Evaluate any remaining entries against the restored active-provider set.
   await initResumeRegistry({
-    save: (entries) => scheduleRepo.setResumeQueue(entries),
-    load: () => scheduleRepo.getResumeQueue(),
+    save: (entries) => providerStateRepo.setResumeQueue(entries),
+    load: () => providerStateRepo.getResumeQueue(),
   }, () => { bus.publish({ type: 'rate-limit.changed' }); });
   let reQueuedRateLimited = 0;
   for (const t of threadStore.getAll()) {
@@ -601,8 +602,8 @@ process.on('SIGTERM', async () => {
   }
   if (reQueuedRateLimited > 0) log.info(`Reconciled ${reQueuedRateLimited} rate-limited thread(s) into the resume queue`);
   await initRateLimitThrottle(adapter, {
-    save: (state) => scheduleRepo.setRateLimitThrottle(state),
-    load: () => scheduleRepo.getRateLimitThrottle(),
+    save: (state) => providerStateRepo.setRateLimitThrottle(state),
+    load: () => providerStateRepo.getRateLimitThrottle(),
   }, () => { void dispatchPendingResumes(adapter); },
   () => { bus.publish({ type: 'rate-limit.changed' }); });
   if (getResumeCount() > 0) {
