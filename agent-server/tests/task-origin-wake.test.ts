@@ -1,6 +1,6 @@
 // input:  Node test runner + thread-callback session→task wake bridge
-// output: notifyTaskOriginSession tests (Problem 1: wake the session that created a task)
-// pos:    Verify task.completed/blocked → origin-session wake, with thread-parent precedence
+// output: notifyTaskOriginSession tests for origin-session terminal-task notices
+// pos:    Verifies wake precedence and system-reminder framing
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -64,7 +64,10 @@ test('notifyTaskOriginSession wakes the origin channel on completion', async () 
   await notifyTaskOriginSession('a1', 'completed', { wake: (channel, notice) => { calls.push({ channel, notice }); } });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].channel, 'C-origin');
-  assert.match(calls[0].notice, /a1/);
+  assert.equal(
+    calls[0].notice,
+    `<system-reminder>\n[Task done] The task you dispatched #a1 (${proj}) "task a1" is complete.\nNote: all good\nRun cortex-task show --task-id a1 for details.\n</system-reminder>`,
+  );
 });
 
 test('notifyTaskOriginSession ignores tasks with no origin channel', async () => {

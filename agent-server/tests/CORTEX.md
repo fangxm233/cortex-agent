@@ -119,7 +119,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-lint.test.ts | test | unknown template lint error gating |
 | task-mutations.test.ts | test | task add, batch edit and decompose |
 | task-node-ledger.test.ts | test | task artifact paths and acceptance ledger |
-| task-origin-wake.test.ts | test | origin session wake on task terminal |
+| task-origin-wake.test.ts | test | origin wake precedence and notice framing |
 | task-parent-split.test.ts | test | task parent field and split outcome |
 | task-parser.test.ts | test | task CLI read path query, lint and health |
 | task-state.test.ts | test | claim, pause, approve, block transitions |

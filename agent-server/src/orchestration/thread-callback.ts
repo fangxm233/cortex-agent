@@ -1,5 +1,5 @@
 // input:  thread store, agent runner, outbound queue, adapter
-// output: task callbacks and persisted-option thread resumes
+// output: task callbacks, framed notices, persisted thread resumes
 // pos:    Delivers child results and resumes suspended parents
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
@@ -515,7 +515,7 @@ export async function wakeSession(channel: string, notice: string, tag: string):
 function buildTaskOriginNotice(task: Task, kind: 'completed' | 'blocked'): string {
   if (kind === 'completed') {
     const note = task.completed_note ? `\nNote: ${task.completed_note}` : '';
-    return `[Task done] The task you dispatched #${task.id} (${task.project}) "${task.text}" is complete.${note}\nRun cortex-task show --task-id ${task.id} for details.`;
+    return `<system-reminder>\n[Task done] The task you dispatched #${task.id} (${task.project}) "${task.text}" is complete.${note}\nRun cortex-task show --task-id ${task.id} for details.\n</system-reminder>`;
   }
   return `[Task blocked] The task you dispatched #${task.id} (${task.project}) "${task.text}" is blocked.\nBlocked by: ${task.blocked_by || '(unrecorded)'}\nRun cortex-task show --task-id ${task.id} for details; once handled, cortex-task unblock.`;
 }
