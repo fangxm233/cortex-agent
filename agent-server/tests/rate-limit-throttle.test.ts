@@ -1,5 +1,5 @@
-// input:  Vitest timers, provider events, persistence
-// output: provider windows, outage gates, and callbacks
+// input:  Vitest timers, provider events, failed saves
+// output: rollback, retry, and callback assertions
 // pos:    Covers provider-scoped throttle and outage state
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -404,6 +404,114 @@ test('tracks two providers with independent windows and persists provider record
   assert.ok(mod.isModeRateLimited('plan'));
   assert.ok(mod.isModeRateLimited('subscription'));
   assert.equal(persistence.getSaved().providers.length, 2);
+});
+
+test('failed real provider activation restores prior state and timer', async (t) => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-29T12:00:00.000Z'));
+  const mod = await freshModuleWithCleanup(t);
+  const adapter = makeAdapterStub();
+  const cleared: string[][] = [];
+  let changes = 0;
+  let saved: any = null;
+  let rejectNextSave = false;
+  const persistence = {
+    load: async () => null,
+    save: async (state: any) => {
+      if (rejectNextSave) {
+        rejectNextSave = false;
+        throw new Error('real limit save failed');
+      }
+      saved = structuredClone(state);
+    },
+  };
+  await mod.initRateLimitThrottle(
+    adapter,
+    persistence,
+    (providers: string[]) => { cleared.push(providers); },
+    () => { changes++; },
+  );
+  const now = Math.floor(Date.now() / 1000);
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 1 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+  const priorState = structuredClone(mod.getThrottleState().providers);
+  const priorNotices = adapter.posted.length;
+
+  rejectNextSave = true;
+  await assert.rejects(
+    mod.handleRateLimitEvent(
+      { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 60 },
+      { provider: 'provider-b', displayName: 'Provider B', mode: 'api' },
+    ),
+    /real limit save failed/,
+  );
+
+  assert.deepEqual(mod.getThrottleState().providers, priorState);
+  assert.deepEqual(saved.providers, priorState);
+  assert.equal(adapter.posted.length, priorNotices);
+  assert.equal(changes, 1);
+
+  await vi.advanceTimersByTimeAsync(6_001);
+  assert.equal(mod.getThrottleState().providers.length, 0);
+  assert.equal(saved, null);
+  assert.deepEqual(cleared, [['provider-a']]);
+  assert.equal(changes, 2);
+});
+
+test('failed expiry save retains the durable window and retries without publishing ready', async (t) => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-29T13:00:00.000Z'));
+  const mod = await freshModuleWithCleanup(t);
+  const adapter = makeAdapterStub();
+  const cleared: string[][] = [];
+  let changes = 0;
+  let saved: any = null;
+  let saveCalls = 0;
+  const persistence = {
+    load: async () => null,
+    save: async (state: any) => {
+      saveCalls++;
+      if (saveCalls === 2) throw new Error('expiry save failed');
+      saved = structuredClone(state);
+    },
+  };
+  await mod.initRateLimitThrottle(
+    adapter,
+    persistence,
+    (providers: string[]) => { cleared.push(providers); },
+    () => { changes++; },
+  );
+  const now = Math.floor(Date.now() / 1000);
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: now + 1 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+  const activeState = structuredClone(saved);
+  const activationNotices = adapter.posted.length;
+
+  await vi.advanceTimersByTimeAsync(6_000);
+
+  assert.deepEqual(mod.getThrottleState().providers, activeState.providers);
+  assert.deepEqual(saved, activeState);
+  assert.deepEqual(cleared, []);
+  assert.equal(changes, 1);
+  assert.equal(adapter.posted.length, activationNotices);
+  assert.equal(saveCalls, 2);
+
+  await vi.advanceTimersByTimeAsync(0);
+  assert.equal(saveCalls, 2);
+  await vi.advanceTimersByTimeAsync(4_999);
+  assert.equal(saveCalls, 2);
+  await vi.advanceTimersByTimeAsync(1);
+
+  assert.equal(saveCalls, 3);
+  assert.equal(saved, null);
+  assert.equal(mod.getThrottleState().providers.length, 0);
+  assert.deepEqual(cleared, [['provider-a']]);
+  assert.equal(changes, 2);
+  assert.equal(adapter.posted.length, activationNotices + 1);
 });
 
 test('expires providers independently and reports each provider as soon as it clears', async (t) => {

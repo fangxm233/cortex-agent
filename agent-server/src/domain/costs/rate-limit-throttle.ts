@@ -1,5 +1,5 @@
-// input:  provider windows, persistence, platform adapter
-// output: throttle state, automated gates, clear callbacks
+// input:  provider windows, persistence, retry timers
+// output: failure-atomic throttle gates and clear callbacks
 // pos:    Provider-scoped limit and outage state machine
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -18,6 +18,7 @@ const TYPE_THRESHOLDS: Record<string, number> = {
 };
 const DEFAULT_THRESHOLD = 0.90;
 const RESUME_BUFFER_MS = 5_000;
+const EXPIRY_RETRY_DELAY_MS = 5_000;
 const OUTAGE_WINDOW_TYPE = 'outage';
 
 export interface RateLimitSource {
@@ -215,11 +216,11 @@ function nextExpiryMs(): number | null {
   return resets.length > 0 ? Math.min(...resets) : null;
 }
 
-function scheduleResumeTimer(): void {
+function scheduleResumeTimer(minDelayMs = 0): void {
   if (_resumeTimer) clearTimeout(_resumeTimer);
   const expiry = nextExpiryMs();
   if (expiry === null) { _resumeTimer = null; return; }
-  const delayMs = Math.max(0, expiry - Date.now());
+  const delayMs = Math.max(minDelayMs, expiry - Date.now(), 0);
   log.info(`Next provider reset check in ${(delayMs / 1000 / 60).toFixed(1)} min`);
   _resumeTimer = setTimeout(() => { void expireWindows(expiry); }, delayMs);
 }
@@ -254,13 +255,33 @@ function clearedNotice(provider: ClearedProvider): { text: string; title?: strin
   return { text: `${Icons.ok} ${provider.displayName} rate limit throttle cleared.` };
 }
 
+function restoreProviders(previous: ProviderThrottleState[]): void {
+  _providers.clear();
+  for (const provider of previous) _providers.set(provider.provider, provider);
+}
+
+async function persistExpiryOrRestore(previous: ProviderThrottleState[]): Promise<boolean> {
+  try {
+    await persist();
+    return true;
+  } catch (error) {
+    restoreProviders(previous);
+    log.error(`Failed to persist throttle expiry: ${(error as Error).message}`);
+    scheduleResumeTimer(EXPIRY_RETRY_DELAY_MS);
+    return false;
+  }
+}
+
 async function expireWindowsLocked(scheduledExpiry?: number): Promise<void> {
   _resumeTimer = null;
-  const before = allWindows().length;
+  const previous = snapshot();
   const effectiveNow = Math.max(Date.now(), scheduledExpiry ?? 0);
   const cleared = pruneExpired(effectiveNow);
-  if (allWindows().length === before) { scheduleResumeTimer(); return; }
-  await persist().catch((error) => log.error(`Failed to persist throttle expiry: ${(error as Error).message}`));
+  if (allWindows().length === previous.flatMap((provider) => provider.windows).length) {
+    scheduleResumeTimer();
+    return;
+  }
+  if (!await persistExpiryOrRestore(previous)) return;
   for (const provider of cleared) {
     const notice = clearedNotice(provider);
     sendDM(notice.text, notice.title);
@@ -329,7 +350,7 @@ function restoreProviderState(provider: string, previous: ProviderThrottleState 
   scheduleResumeTimer();
 }
 
-async function persistOutageOrRollback(
+async function persistProviderOrRollback(
   provider: string,
   previous: ProviderThrottleState | null,
 ): Promise<void> {
@@ -355,7 +376,7 @@ async function activateOutageWindowLocked(provider: string | null, durationMs: n
   });
   if (!changed) return;
 
-  await persistOutageOrRollback(source.provider, previous);
+  await persistProviderOrRollback(source.provider, previous);
   scheduleResumeTimer();
   fireChange();
   const reset = state.windows.find((window) => window.type === OUTAGE_WINDOW_TYPE)!.resetsAt;
@@ -374,6 +395,7 @@ async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: strin
 
   const source = normalizeSource(rawSource);
   let provider = _providers.get(source.provider);
+  const previous = provider ? cloneProvider(provider) : null;
   const isNewProvider = !provider;
   if (!provider) {
     provider = { provider: source.provider, displayName: source.displayName, modes: [], windows: [] };
@@ -388,7 +410,7 @@ async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: strin
   });
   if (!isNewProvider && !modeAdded && !windowChanged) return;
 
-  await persist();
+  await persistProviderOrRollback(source.provider, previous);
   scheduleResumeTimer();
   fireChange();
   log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
