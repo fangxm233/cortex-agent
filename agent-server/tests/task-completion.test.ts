@@ -1,12 +1,13 @@
 // input:  Node test runner + task-system/task-completion API
 // output: completion lifecycle and evidence regression tests
-// pos:    verifies complete/uncomplete and completion evidence
+// pos:    verifies evidence roots, Git object types, and lifecycle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { parse as yamlParse } from 'yaml';
@@ -41,7 +42,7 @@ const P = '_test_comp_';
 let n = 0;
 function np(): string { return `${P}${++n}`; }
 
-function makeImplementationRepo(): { dir: string; sha: string; cleanup: () => void } {
+function makeImplementationRepo(): { dir: string; sha: string; nonCommitShas: string[]; cleanup: () => void } {
   const dir = fs.mkdtempSync(path.join(DATA_DIR, 'tmp', 'completion-evidence-'));
   execFileSync('git', ['init', '--quiet'], { cwd: dir });
   fs.writeFileSync(path.join(dir, 'implementation.txt'), 'verified implementation\n');
@@ -51,8 +52,10 @@ function makeImplementationRepo(): { dir: string; sha: string; cleanup: () => vo
     '-c', 'user.email=cortex-test@example.com',
     'commit', '--quiet', '-m', 'Implement completion evidence',
   ], { cwd: dir });
-  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
-  return { dir, sha, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  const revParse = (ref: string) => execFileSync('git', ['rev-parse', ref], { cwd: dir, encoding: 'utf8' }).trim();
+  const sha = revParse('HEAD');
+  const nonCommitShas = [revParse('HEAD:implementation.txt'), revParse('HEAD^{tree}')];
+  return { dir, sha, nonCommitShas, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
 function setCurrentThreadId(threadId: string): () => void {
@@ -62,6 +65,56 @@ function setCurrentThreadId(threadId: string): () => void {
     if (previous === undefined) delete process.env.CORTEX_THREAD_ID;
     else process.env.CORTEX_THREAD_ID = previous;
   };
+}
+
+function setPersistedArtifact(threadId: string, artifactPath: string): () => void {
+  const threadsPath = path.join(DATA_DIR, 'data', 'threads.json');
+  const backup = fs.existsSync(threadsPath) ? fs.readFileSync(threadsPath, 'utf8') : null;
+  fs.mkdirSync(path.dirname(threadsPath), { recursive: true });
+  fs.writeFileSync(threadsPath, JSON.stringify({ [threadId]: { artifactPath } }));
+  return () => {
+    if (backup === null) fs.rmSync(threadsPath, { force: true });
+    else fs.writeFileSync(threadsPath, backup);
+  };
+}
+
+function assertPersistedArtifactRejected(label: string, artifactPath: string): void {
+  const proj = np();
+  const threadId = `thr_${label}_escape`;
+  const restoreThreadId = setCurrentThreadId(threadId);
+  const restoreThreads = setPersistedArtifact(threadId, artifactPath);
+  const taskRepo = makeRepo(proj, 'tasks:\n  - id: a111\n    text: Task\n    why: test\n    done-when: done\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n');
+  try {
+    const result = completeTask(null, proj, 'Implementation completed', 'a111');
+    assert.match(result.verify_warning as string, /no evidence/, label);
+  } finally {
+    taskRepo.cleanup();
+    restoreThreads();
+    restoreThreadId();
+  }
+}
+
+function probeExternalProjectArtifact(): any {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'completion-external-projects-'));
+  const home = path.join(root, 'home');
+  const projects = path.join(root, 'external-projects');
+  const projectDir = path.join(projects, 'atlas');
+  const artifactPath = path.join(projectDir, 'manager', 'a111', 'artifact.md');
+  fs.mkdirSync(path.join(home, 'data'), { recursive: true });
+  fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+  fs.writeFileSync(path.join(projectDir, 'TASKS.yaml'), 'tasks:\n  - id: a111\n    text: Task\n    why: test\n    done-when: done\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n');
+  fs.writeFileSync(artifactPath, '## Implementation Summary\n\nVerified work.\n');
+  fs.writeFileSync(path.join(home, 'data', 'threads.json'), JSON.stringify({ thr_external: { artifactPath } }));
+  const script = "import { completeTask } from './src/domain/tasks/system/task-completion.ts'; console.log(JSON.stringify(completeTask(null, 'atlas', 'done', 'a111')));";
+  try {
+    const output = execFileSync(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', script], {
+      cwd: process.cwd(), encoding: 'utf8',
+      env: { ...process.env, CORTEX_HOME: home, CORTEX_PROJECTS_DIR: projects, CORTEX_THREAD_ID: 'thr_external' },
+    });
+    return JSON.parse(output);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 }
 
 test('completeTask marks status done, sets completed_at, clears in-progress state, returns task_id', () => {
@@ -235,6 +288,25 @@ test('completeTask rejects an explicit SHA that does not resolve to a commit', (
   }
 });
 
+test('completeTask rejects existing blob and tree SHAs', () => {
+  const implementationRepo = makeImplementationRepo();
+  const previousCwd = process.cwd();
+  try {
+    process.chdir(implementationRepo.dir);
+    for (const objectSha of implementationRepo.nonCommitShas) {
+      const proj = np();
+      const taskRepo = makeRepo(proj, 'tasks:\n  - id: a111\n    text: Task\n    why: test\n    done-when: done\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n');
+      try {
+        const result = completeTask(null, proj, `Implementation SHA: ${objectSha}`, 'a111');
+        assert.match(result.verify_warning as string, /no evidence/);
+      } finally { taskRepo.cleanup(); }
+    }
+  } finally {
+    process.chdir(previousCwd);
+    implementationRepo.cleanup();
+  }
+});
+
 test('completeTask accepts a non-empty current-thread artifact outside git', () => {
   const proj = np();
   const threadId = 'thr_completion_evidence';
@@ -274,5 +346,28 @@ test('completeTask rejects missing and empty current-thread artifacts', () => {
       restoreThreadId();
       fs.rmSync(artifactDir, { recursive: true, force: true });
     }
+  }
+});
+
+test('completeTask accepts a persisted artifact under an external configured project root', () => {
+  const result = probeExternalProjectArtifact();
+  assert.equal(result.success, true);
+  assert.equal(result.verify_warning, null);
+});
+
+test('completeTask rejects persisted artifacts outside authorized roots and through symlink escape', () => {
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'completion-artifact-escape-'));
+  const outsideArtifact = path.join(outsideDir, 'artifact.md');
+  const symlinkDir = path.join(DATA_DIR, 'tmp', 'artifact-escape');
+  const symlinkArtifact = path.join(symlinkDir, 'artifact.md');
+  fs.writeFileSync(outsideArtifact, 'Verified work.\n');
+  fs.mkdirSync(symlinkDir, { recursive: true });
+  fs.symlinkSync(outsideArtifact, symlinkArtifact);
+  try {
+    assertPersistedArtifactRejected('outside', outsideArtifact);
+    assertPersistedArtifactRejected('symlink', symlinkArtifact);
+  } finally {
+    fs.rmSync(symlinkDir, { recursive: true, force: true });
+    fs.rmSync(outsideDir, { recursive: true, force: true });
   }
 });
