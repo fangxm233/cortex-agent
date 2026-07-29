@@ -215,7 +215,7 @@ Cortex stores all state on the filesystem under `~/.cortex/`. There is no databa
 | `schedules.json` | Persistent scheduled task list |
 | `sessions.json` | Channel-to-agent session mapping |
 | `executions.json` | Unified execution registry |
-| `thread-templates.json` | Agent definitions and orchestration templates |
+| `config/thread-templates/` | Agent definitions and orchestration templates — one JSON file per entity under `agents/`, `templates/`, `shells/` |
 | `threads.json` | Active and historical thread state |
 | `tasks/` | Project task queues (TASKS.yaml per project) |
 | `costs.jsonl` | Per-call cost records (90-day rolling) |
