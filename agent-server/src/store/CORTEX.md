@@ -20,5 +20,6 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | profile-repo.ts | store | Agent profiles with hot reload |
 | task-repo.ts | store | TASKS.yaml read, write, lock, and git sync |
 | version-migrations.ts | startup | Applies pending config and prompt migrations |
-| hook-sync.ts | startup | Refreshes deployed hooks from defaults |
+| hook-registry.ts | config | Loads, validates and filters declarative hooks |
+| hook-sync.ts | startup | Refreshes managed hook scripts and entries |
 | plugin-sync.ts | startup | Refreshes deployed plugins from defaults |

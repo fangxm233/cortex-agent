@@ -1,0 +1,14 @@
+{
+  "id": "exit-plan-mode-hook",
+  "event": "agent:pre-tool",
+  "matcher": "ExitPlanMode",
+  "run": {
+    "script": "exit-plan-mode-hook.mjs",
+    "timeout": 3600
+  },
+  "scope": {
+    "requiresTool": "ExitPlanMode"
+  },
+  "enabled": true,
+  "version": "2026.7.29"
+}

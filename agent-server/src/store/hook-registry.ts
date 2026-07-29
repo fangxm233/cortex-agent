@@ -1,0 +1,260 @@
+// input:  JSON hook entries, Node filesystem, core config paths
+// output: HookEntry validation, loading, and filtering API
+// pos:    Standalone declarative hook registry
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { CONFIG_DIR } from '../core/paths.js';
+
+export type HookBackend = 'claude' | 'pi';
+export type AgentHookEvent =
+  | 'agent:pre-tool'
+  | 'agent:post-tool'
+  | 'agent:session-start'
+  | 'agent:session-end'
+  | 'agent:pre-compact'
+  | 'agent:user-prompt'
+  | 'agent:turn-end';
+export type HookEvent = AgentHookEvent | `cc:${string}` | `pi:${string}` | `cortex:${string}`;
+export type HookRun = (
+  | { script: string; command?: never }
+  | { command: string; script?: never }
+) & { timeout?: number };
+export type HookFilterValue = string | number | boolean | null;
+export type HookResultMode = 'hook-result' | 'stdout-as-prompt' | 'none';
+
+export interface HookEntry {
+  id: string;
+  event: HookEvent;
+  matcher?: string | Record<string, HookFilterValue>;
+  run: HookRun;
+  scope?: {
+    backends?: HookBackend[];
+    requiresTool?: string;
+  };
+  blocking?: {
+    mode: 'webhook';
+    ttlMin: number;
+  };
+  result?: HookResultMode;
+  enabled?: boolean;
+  version?: string;
+}
+
+export interface HookFilterCriteria {
+  event?: HookEvent;
+  backend?: HookBackend;
+  availableTools?: ReadonlySet<string>;
+}
+
+const AGENT_EVENTS = new Set([
+  'agent:pre-tool',
+  'agent:post-tool',
+  'agent:session-start',
+  'agent:session-end',
+  'agent:pre-compact',
+  'agent:user-prompt',
+  'agent:turn-end',
+]);
+const CALVER_RE = /^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d+)?$/;
+const RESULT_MODES = new Set<HookResultMode>(['hook-result', 'stdout-as-prompt', 'none']);
+
+function asObject(value: unknown, field: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${field} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function nonEmptyString(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(`${field} must be a non-empty string`);
+  }
+  return value;
+}
+
+function validateEvent(value: unknown): HookEvent {
+  const event = nonEmptyString(value, 'event');
+  if (AGENT_EVENTS.has(event) || /^(?:cc|pi|cortex):.+$/.test(event)) return event as HookEvent;
+  throw new Error(`unsupported hook event "${event}"`);
+}
+
+function isFilterValue(value: unknown): value is HookFilterValue {
+  return value === null || ['string', 'number', 'boolean'].includes(typeof value);
+}
+
+function validateRegexMatcher(value: unknown, id: string): void {
+  if (typeof value !== 'string') throw new Error(`${id}: matcher must be a string`);
+  try {
+    new RegExp(value);
+  } catch {
+    throw new Error(`${id}: matcher must be a valid regular expression`);
+  }
+}
+
+function validateCortexMatcher(value: unknown, id: string): void {
+  let matcher: Record<string, unknown>;
+  try {
+    matcher = asObject(value, 'matcher');
+  } catch {
+    throw new Error(`${id}: matcher must be an object`);
+  }
+  if (!Object.values(matcher).every(isFilterValue)) {
+    throw new Error(`${id}: matcher values must be primitive`);
+  }
+}
+
+function validateMatcher(value: unknown, event: HookEvent, id: string): void {
+  if (value === undefined) return;
+  if (event.startsWith('cortex:')) validateCortexMatcher(value, id);
+  else validateRegexMatcher(value, id);
+}
+
+function validateScript(value: unknown): void {
+  const script = nonEmptyString(value, 'run.script');
+  const escapes = script.split(/[\\/]/).includes('..');
+  if (path.isAbsolute(script) || path.win32.isAbsolute(script) || escapes) {
+    throw new Error('run.script must stay relative to the hooks directory');
+  }
+}
+
+function validateTimeout(value: unknown): void {
+  if (value === undefined) return;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new Error('run.timeout must be a positive number');
+  }
+}
+
+function validateRun(value: unknown): void {
+  const run = asObject(value, 'run');
+  const hasScript = run.script !== undefined;
+  const hasCommand = run.command !== undefined;
+  if (hasScript === hasCommand) throw new Error('run must contain exactly one of script or command');
+  if (hasScript) validateScript(run.script);
+  if (hasCommand) nonEmptyString(run.command, 'run.command');
+  validateTimeout(run.timeout);
+}
+
+function validateBackends(value: unknown): void {
+  if (!Array.isArray(value)) throw new Error('scope.backends must be an array');
+  if (!value.every((item) => item === 'claude' || item === 'pi')) {
+    throw new Error('scope.backends contains an unsupported backend');
+  }
+}
+
+function validateScope(value: unknown): void {
+  if (value === undefined) return;
+  const scope = asObject(value, 'scope');
+  if (scope.backends !== undefined) validateBackends(scope.backends);
+  if (scope.requiresTool !== undefined) nonEmptyString(scope.requiresTool, 'scope.requiresTool');
+}
+
+function validateBlocking(value: unknown): void {
+  if (value === undefined) return;
+  const blocking = asObject(value, 'blocking');
+  if (blocking.mode !== 'webhook') throw new Error('blocking.mode must be webhook');
+  if (typeof blocking.ttlMin !== 'number' || !Number.isFinite(blocking.ttlMin) || blocking.ttlMin <= 0) {
+    throw new Error('blocking.ttlMin must be a positive number');
+  }
+}
+
+function validateResult(value: unknown): void {
+  if (value === undefined) return;
+  if (typeof value !== 'string' || !RESULT_MODES.has(value as HookResultMode)) {
+    throw new Error('result must be hook-result, stdout-as-prompt, or none');
+  }
+}
+
+function validateOptionalFields(entry: Record<string, unknown>): void {
+  validateScope(entry.scope);
+  validateBlocking(entry.blocking);
+  validateResult(entry.result);
+  if (entry.enabled !== undefined && typeof entry.enabled !== 'boolean') {
+    throw new Error('enabled must be a boolean');
+  }
+  if (entry.version !== undefined && !CALVER_RE.test(nonEmptyString(entry.version, 'version'))) {
+    throw new Error('version must be a CalVer string');
+  }
+}
+
+export function validateHookEntry(value: unknown): HookEntry {
+  const entry = asObject(value, 'hook entry');
+  const id = nonEmptyString(entry.id, 'id');
+  const event = validateEvent(entry.event);
+  validateMatcher(entry.matcher, event, id);
+  validateRun(entry.run);
+  validateOptionalFields(entry);
+  return entry as unknown as HookEntry;
+}
+
+function reportInvalid(source: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[hook-registry] skipped ${source}: ${message}`);
+}
+
+function registryFiles(directory: string): string[] | null {
+  try {
+    return fs.readdirSync(directory).filter((file) => file.endsWith('.json')).sort();
+  } catch (error) {
+    reportInvalid(directory, error);
+    return null;
+  }
+}
+
+export function loadHookRegistry(
+  directory = path.join(CONFIG_DIR, 'hooks'),
+): HookEntry[] {
+  const files = registryFiles(directory);
+  if (!files) return [];
+  const entries: HookEntry[] = [];
+  const ids = new Set<string>();
+  for (const file of files) {
+    try {
+      const entry = validateHookEntry(JSON.parse(fs.readFileSync(path.join(directory, file), 'utf8')));
+      if (ids.has(entry.id)) throw new Error(`duplicate hook id "${entry.id}"`);
+      ids.add(entry.id);
+      entries.push(entry);
+    } catch (error) {
+      reportInvalid(file, error);
+    }
+  }
+  return entries;
+}
+
+function implicitBackends(event: HookEvent): HookBackend[] {
+  if (event.startsWith('agent:')) return ['claude', 'pi'];
+  if (event.startsWith('cc:')) return ['claude'];
+  if (event.startsWith('pi:')) return ['pi'];
+  return [];
+}
+
+function effectiveBackends(entry: HookEntry): HookBackend[] {
+  const implicit = implicitBackends(entry.event);
+  const scoped = entry.scope?.backends;
+  return scoped ? implicit.filter((backend) => scoped.includes(backend)) : implicit;
+}
+
+function matchesEvent(entry: HookEntry, criteria: HookFilterCriteria): boolean {
+  return criteria.event === undefined || entry.event === criteria.event;
+}
+
+function matchesBackend(entry: HookEntry, criteria: HookFilterCriteria): boolean {
+  return criteria.backend === undefined || effectiveBackends(entry).includes(criteria.backend);
+}
+
+function matchesTools(entry: HookEntry, criteria: HookFilterCriteria): boolean {
+  const required = entry.scope?.requiresTool;
+  return required === undefined || criteria.availableTools === undefined || criteria.availableTools.has(required);
+}
+
+export function filterHookEntries(
+  entries: readonly HookEntry[],
+  criteria: HookFilterCriteria = {},
+): HookEntry[] {
+  return entries
+    .filter((entry) => entry.enabled !== false)
+    .filter((entry) => matchesEvent(entry, criteria))
+    .filter((entry) => matchesBackend(entry, criteria))
+    .filter((entry) => matchesTools(entry, criteria));
+}

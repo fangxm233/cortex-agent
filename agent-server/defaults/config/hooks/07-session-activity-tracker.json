@@ -1,0 +1,10 @@
+{
+  "id": "session-activity-tracker",
+  "event": "agent:post-tool",
+  "matcher": "Read|Edit|Write|Skill",
+  "run": {
+    "script": "session-activity-tracker.mjs"
+  },
+  "enabled": true,
+  "version": "2026.7.29"
+}

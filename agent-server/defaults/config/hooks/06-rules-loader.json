@@ -1,0 +1,10 @@
+{
+  "id": "rules-loader",
+  "event": "agent:post-tool",
+  "matcher": "Read|Grep",
+  "run": {
+    "script": "rules-loader.mjs"
+  },
+  "enabled": true,
+  "version": "2026.7.29"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "tasks-yaml-guard",
+  "event": "agent:pre-tool",
+  "matcher": "Edit|Write",
+  "run": {
+    "script": "tasks-yaml-guard.mjs",
+    "timeout": 10
+  },
+  "scope": {
+    "backends": ["claude"]
+  },
+  "enabled": true,
+  "version": "2026.7.29"
+}

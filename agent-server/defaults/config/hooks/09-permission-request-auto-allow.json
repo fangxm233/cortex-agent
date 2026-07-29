@@ -1,0 +1,11 @@
+{
+  "id": "permission-request-auto-allow",
+  "event": "cc:PermissionRequest",
+  "matcher": "Edit|Write",
+  "run": {
+    "command": "printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}'",
+    "timeout": 5
+  },
+  "enabled": true,
+  "version": "2026.7.29"
+}
