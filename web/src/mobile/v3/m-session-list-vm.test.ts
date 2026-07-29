@@ -9,7 +9,7 @@ function sess(over: Partial<SessionInfo>): SessionInfo {
     backendSessionId: null,
     name: 'morning review',
     projectId: 'nimbus',
-    backend: 'anthropic',
+    backend: 'claude',
     kind: 'local',
     origin: 'direct',
     createdAt: '2026-07-15T09:00:00Z',
