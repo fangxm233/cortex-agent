@@ -1,6 +1,6 @@
 // input:  hook registry API, shipped defaults, temporary JSON entries
-// output: schema capabilities, source classification, loading, and filtering tests
-// pos:    Verifies the standalone declarative hook registry
+// output: schema capabilities, shipped-default parity, source, loading, and filtering tests
+// pos:    Verifies registry capabilities and managed default declarations
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -291,6 +291,7 @@ test('gates requiresTool only when available tools are supplied and omits disabl
 });
 
 const VERSION = '2026.7.29';
+const TASKS_GUARD_VERSION = '2026.7.29-1';
 const INTERACTION_VERSION = '2026.7.29-1';
 const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
   {
@@ -299,7 +300,7 @@ const DEFAULT_ENTRIES: Array<{ filename: string; entry: HookEntry }> = [
   },
   {
     filename: '02-tasks-yaml-guard.json',
-    entry: { id: 'tasks-yaml-guard', event: 'agent:pre-tool', matcher: 'Edit|Write', run: { script: 'tasks-yaml-guard.mjs', timeout: 10 }, scope: { backends: ['claude'] }, enabled: true, version: VERSION },
+    entry: { id: 'tasks-yaml-guard', event: 'agent:pre-tool', matcher: 'Edit|Write', run: { script: 'tasks-yaml-guard.mjs', timeout: 10 }, enabled: true, version: TASKS_GUARD_VERSION },
   },
   {
     filename: '03-ask-user-question-hook.json',

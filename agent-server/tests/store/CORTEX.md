@@ -8,7 +8,7 @@ and the persisted registries for sessions, tasks, schedules and costs.
 | conversation-history-repo.test.ts | test | Covers history append, rewind and idempotency |
 | cost-repo.test.ts | test | Covers cost entry writes, pruning and budget |
 | execution-repo.test.ts | test | Covers execution records, index and staleness |
-| hook-registry.test.ts | test | Covers schema capabilities, mounted sources and filtering |
+| hook-registry.test.ts | test | Covers schema capabilities, shipped defaults, mounted sources and filtering |
 | hook-sync.test.ts | test | Covers managed asset sync and I/O diagnostics |
 | json-repository.test.ts | test | Covers concurrent mutate, atomic write, cache |
 | outbound-queue.test.ts | test | Covers outbound WAL enqueue, drain and compact |
