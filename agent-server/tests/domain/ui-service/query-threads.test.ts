@@ -1,10 +1,15 @@
+// input:  threads.list handler and mock domain stores
+// output: thread list filtering and summary contract regressions
+// pos:    Verifies thread list projection and scoping
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { handleThreadsList } from '../../../src/domain/ui-service/query/threads.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const mockThreads = [
-  { id: 'thr_a', channel: 'web:sess-1', templateName: 'coder-review', status: 'running', projectId: 'proj1', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-05-01T00:00:00Z', currentStepIndex: 1, currentStepName: 'review', template: { agents: [{ name: 'coder' }, { name: 'reviewer' }] }, steps: [], artifactPath: '/tmp/a.md' },
+  { id: 'thr_a', channel: 'web:sess-1', templateName: 'coder-review', status: 'running', projectId: 'proj1', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-05-01T00:00:00Z', currentStepIndex: 1, currentStepName: 'review', template: { agents: [{ name: 'coder' }, { name: 'reviewer' }] }, steps: [], artifactPath: '/tmp/a.md', metadata: { taskId: 'a293' } },
   { id: 'thr_b', channel: 'proj1', templateName: 'research', status: 'completed', projectId: 'proj1', createdAt: '2026-02-01T00:00:00Z', updatedAt: '2026-04-01T00:00:00Z', currentStepIndex: null, steps: [{ name: 'plan' }, { name: 'execute' }], artifactPath: null },
   { id: 'thr_c', channel: 'web:sess-2', templateName: 'bugfix', status: 'failed', projectId: 'proj2', createdAt: '2026-03-01T00:00:00Z', updatedAt: '2026-05-15T00:00:00Z', currentStepIndex: 0, currentStepName: 'fix', steps: [{ name: 'fix' }], artifactPath: '/tmp/c.md' },
 ];
@@ -69,6 +74,12 @@ test('threads.list totalSteps from template agents or step count', async () => {
 
   const thrC = result.find(t => t.id === 'thr_c')!;
   assert.equal(thrC.totalSteps, 1); // steps.length
+});
+
+test('threads.list includes the owning task id or null', async () => {
+  const result = await handleThreadsList(makeDeps(), {});
+  assert.equal(result.find(t => t.id === 'thr_a')!.taskId, 'a293');
+  assert.equal(result.find(t => t.id === 'thr_b')!.taskId, null);
 });
 
 test('threads.list artifactPath is null when absent', async () => {

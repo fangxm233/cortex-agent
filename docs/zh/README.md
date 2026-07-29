@@ -107,7 +107,7 @@ Cortex 按影响范围分类操作。系统在工具调用层强制执行这一�
 | [Scheduling](./scheduling.md) | Interval/daily/weekly/once 调度、preCheck、回退 |
 | [Safety & Approvals](./safety-and-approvals.md) | 影响范围等级、审批工作流、审计追踪 |
 | [Hooks](./hooks.md) | 钩子生命周期、hook-bridge、settings.json 中的自定义钩子 |
-| [MCP](./mcp.md) | Cortex-core 和 cortex-ext MCP 服务器、第三方 MCP |
+| [MCP](./mcp.md) | Cortex 按权限拆分的 MCP 服务器、第三方 MCP |
 | [Cross-machine](./cross-machine.md) | cortex-client 部署、远程工具、网络拓扑 |
 
 ## 开发 Cortex

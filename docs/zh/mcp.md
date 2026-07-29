@@ -33,7 +33,7 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 
 ### cortex-tasks
 
-暴露只读任务监控工具，并在仍维护的 Claude 和 PI 后端的所有会话中加载。
+暴露只读任务监控工具，并在仍维护的 Claude 和 PI 顶层直接会话与线程会话中加载。PI `Agent` 子代理只获得 cortex-core。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -43,9 +43,19 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 
 服务器实现在 `agent-server/src/domain/mcp/tasks-server.ts`。
 
+### cortex-manager-qa
+
+向顶层直接会话和线程会话暴露 manager 到子任务的回答通道。Claude 中的规范工具名是 `mcp__cortex-manager-qa__answer_subtask`。PI `Agent` 子代理不加载此服务器，因为它们不持有任务树问题。
+
+| 工具 | 参数 | 描述 |
+|---|---|---|
+| `answer_subtask` | `question_id`、`answer` | 回答子任务提出的澄清问题 |
+
+服务器实现在 `agent-server/src/domain/mcp/manager-qa-server.ts`。
+
 ### cortex-thread
 
-暴露线程生命周期控制面和 manager 问答。对于 Claude 和 PI，仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；直接会话永远不会获得这些工具。
+暴露线程生命周期控制面和向上澄清通道。对于 Claude 和 PI，仅当 `CORTEX_THREAD_ID` 标识活动线程时加载；直接会话永远不会获得这些工具。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -53,13 +63,12 @@ Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到�
 | `thread_split` | `subtasks` | 把你自己的任务分解为子任务（keep-parent 汇合），子任务走正常派发队列 |
 | `thread_wait` | `on_tasks?`、`on_threads?` | 挂起你自己的线程直到被等待的子项完成；与 `cortex-task spawn` 配合使用 |
 | `ask_manager` | `question` | 向规划本任务的 manager 提出阻塞式澄清问题 |
-| `answer_subtask` | `question_id`、`answer` | 回答子任务提出的澄清问题 |
 
 服务器实现在 `agent-server/src/domain/mcp/thread-server.ts`。工具注册器仍在 `agent-server/src/domain/mcp/tools/`。
 
 ### cortex-ext
 
-暴露 Cortex 管理工具：调度、费用查询和上下文解析。Claude 仅在直接/用户会话中加载它；PI bridge 保留在所有会话中加载 cortex-ext 的现有行为。
+暴露 Cortex 管理工具：调度、费用查询和上下文解析。Claude 仅在直接/用户会话中加载它；PI bridge 在所有顶层会话中加载 cortex-ext。
 
 | 工具 | 参数 | 描述 |
 |---|---|---|
@@ -119,9 +128,10 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 
 | 文件 | 加载者 | 服务器 |
 |---|---|---|
-| `~/.cortex/config/mcp-config.json` | 直接会话基础层 | cortex-core + cortex-tasks + cortex-ext |
+| `~/.cortex/config/mcp-config.json` | 直接会话基础层 | core + tasks + manager-Q&A + ext |
 | `~/.cortex/config/mcp-config-core.json` | 线程会话分层 | 仅 cortex-core |
 | `~/.cortex/config/mcp-config-tasks.json` | 线程会话分层 | 仅 cortex-tasks |
+| `~/.cortex/config/mcp-config-manager-qa.json` | 线程会话回答分层 | 仅 cortex-manager-qa |
 | `~/.cortex/config/mcp-config-thread.json` | 仅线程会话的分层 | 仅 cortex-thread |
 | `~/.cortex/config/mcp-config-tui.json` | 交互工具分层（按需） | 仅 cortex-tui-bridge |
 | `~/.cortex/config/mcp-config-slack.json` | Slack 特定分层（按需） | cortex-slack |
@@ -141,6 +151,11 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
       "args": ["/path/to/tasks-server.js"],
       "cwd": "/path/to/cwd"
     },
+    "cortex-manager-qa": {
+      "command": "node",
+      "args": ["/path/to/manager-qa-server.js"],
+      "cwd": "/path/to/cwd"
+    },
     "cortex-ext": {
       "command": "node",
       "args": ["/path/to/server.js"],
@@ -156,10 +171,10 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 
 在 `agent-adapter/claude/spawn-args.ts` 中，MCP 配置按会话上下文组合：
 
-- **直接/用户会话**加载 `mcp-config.json`（core + tasks + ext），再追加符合条件的平台和交互分层；永不加载 `mcp-config-thread.json`。
-- **线程/模板会话**加载 `mcp-config-core.json`、`mcp-config-tasks.json` 和 `mcp-config-thread.json`；不加载仅直接会话使用的 ext、平台或 TUI bridge 分层。
+- **直接/用户会话**加载 `mcp-config.json`（core + tasks + manager-Q&A + ext），再追加符合条件的平台和交互分层；永不加载 `mcp-config-thread.json`。
+- **线程/模板会话**加载 `mcp-config-core.json`、`mcp-config-tasks.json`、`mcp-config-manager-qa.json` 和 `mcp-config-thread.json`；不加载仅直接会话使用的 ext、平台或 TUI bridge 分层。
 
-线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 始终连接 core、tasks 和 ext；仅当 `CORTEX_THREAD_ID` 存在时，`shouldLoadThreadControl()` 才追加 cortex-thread。平台服务器继续由来源频道谓词门控。
+线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 的顶层会话始终连接 core、tasks、manager-Q&A 和 ext；仅当 `CORTEX_THREAD_ID` 存在时，`shouldLoadThreadControl()` 才追加 cortex-thread。PI `Agent` 子代理只连接 cortex-core。平台服务器继续由来源频道谓词门控。
 
 ## MCP 工具如何与 agent-server 通信
 
@@ -196,7 +211,7 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Cortex 应用以下控制：
 
-1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。Claude 直接会话永不获得 cortex-thread；Claude 线程会话追加它并排除 ext。PI 仅在存在 thread id 时追加 cortex-thread，并保留 ext 始终加载的现有行为。
+1. **服务器级可用性** — 后端工具 allowlist 无法逐个过滤 MCP 工具，因此权限按服务器拆分。顶层直接会话和线程会话都获得 cortex-manager-qa；只有线程会话获得 cortex-thread。PI `Agent` 子代理只获得 cortex-core，PI 顶层会话继续保留 cortex-ext。
 
 2. **Claude Code 的第三方 MCP 被禁用** — `~/.cortex/.claude/settings.json` 中的设置 `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` 阻止 Claude 从其自身的目录自动发现 MCP 服务器。Cortex 通过自己的配置文件独占管理 MCP 服务器。
 
@@ -216,7 +231,7 @@ MCP 服务器进程接收 agent server 环境变量的一个子集：
 | `SLACK_BOT_TOKEN` | process.env | cortex-ext |
 | `CORTEX_SESSION_ID` | 会话上下文 | tui-server、context 工具 |
 | `CORTEX_SESSION_NAME` | 会话上下文 | context 工具 |
-| `CORTEX_THREAD_ID` | 线程上下文 | cortex-thread 工具、PI 加载谓词、context 工具 |
+| `CORTEX_THREAD_ID` | 线程上下文 | cortex-thread 工具、PI 线程控制谓词、context 工具 |
 | `CORTEX_PROFILE` | 会话上下文 | context 工具 |
 | `CORTEX_PROJECT` | 会话上下文 | context 工具 |
 | `CORTEX_EXECUTION_ID` | 执行上下文 | 任务锁钩子 |

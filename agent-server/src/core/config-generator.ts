@@ -1,4 +1,4 @@
-// input:  filesystem paths and server install roots
+// input:  filesystem, config paths, and server install roots
 // output: MCP config builders and startup file generation
 // pos:    MCP server configuration generator
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -13,6 +13,7 @@ const log = createLogger('config-generator');
 const MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config.json');
 const CORE_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-core.json');
 const TASKS_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
+const MANAGER_QA_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
 const THREAD_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 const TUI_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tui.json');
 const SLACK_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-slack.json');
@@ -38,6 +39,7 @@ export function buildFullConfig(serverRoot: string): object {
     mcpServers: {
       'cortex-core': serverEntry('dist/domain/mcp/core-server.js', serverRoot),
       'cortex-tasks': serverEntry('dist/domain/mcp/tasks-server.js', serverRoot),
+      'cortex-manager-qa': serverEntry('dist/domain/mcp/manager-qa-server.js', serverRoot),
       'cortex-ext': serverEntry('dist/domain/mcp/server.js', serverRoot),
     },
   };
@@ -52,11 +54,20 @@ export function buildCoreConfig(serverRoot: string): object {
   };
 }
 
-/** Read-only task monitoring, loaded for every agent session. */
+/** Read-only task monitoring for top-level direct and thread sessions. */
 export function buildTasksConfig(serverRoot: string): object {
   return {
     mcpServers: {
       'cortex-tasks': serverEntry('dist/domain/mcp/tasks-server.js', serverRoot),
+    },
+  };
+}
+
+/** Manager answer channel, loaded for top-level direct and thread sessions. */
+export function buildManagerQaConfig(serverRoot: string): object {
+  return {
+    mcpServers: {
+      'cortex-manager-qa': serverEntry('dist/domain/mcp/manager-qa-server.js', serverRoot),
     },
   };
 }
@@ -126,6 +137,9 @@ export function generateMcpConfig(): void {
 
   writeFileSync(TASKS_MCP_CONFIG_PATH, JSON.stringify(buildTasksConfig(SERVER_ROOT), null, 2));
   log.info(`Generated tasks MCP config at ${TASKS_MCP_CONFIG_PATH}`);
+
+  writeFileSync(MANAGER_QA_MCP_CONFIG_PATH, JSON.stringify(buildManagerQaConfig(SERVER_ROOT), null, 2));
+  log.info(`Generated manager-Q&A MCP config at ${MANAGER_QA_MCP_CONFIG_PATH}`);
 
   writeFileSync(THREAD_MCP_CONFIG_PATH, JSON.stringify(buildThreadConfig(SERVER_ROOT), null, 2));
   log.info(`Generated thread MCP config at ${THREAD_MCP_CONFIG_PATH}`);

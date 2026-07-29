@@ -5,10 +5,10 @@ Translates Claude stream and transcript events into the normalized event schema.
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | runs Claude print-mode sessions and turns |
+| adapter.ts | adapter | runs Claude sessions with scoped MCP layers |
 | adapter-tui.ts | adapter | runs interactive Claude sessions under tmux |
-| spawn-args.ts | core | builds Claude CLI arguments and environment |
-| defaults.ts | config | Claude timeout, path, and tool constants |
+| spawn-args.ts | core | composes Claude CLI and MCP layer arguments |
+| defaults.ts | config | Claude timeout, MCP path, and tool constants |
 | hooks-builder.ts | core | builds the Claude hook settings block |
 | event-parser.ts | parser | parses Claude stream events and plan files |
 | jsonl-tail.ts | core | tails a Claude transcript into events |

@@ -1,5 +1,5 @@
-// input:  config-generator module
-// output: MCP config builder structure verification
+// input:  scoped MCP config builders
+// output: direct and layered config structure verification
 // pos:    Config-generator pure-logic tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,6 +10,7 @@ import {
   buildCoreConfig,
   buildFeishuConfig,
   buildFullConfig,
+  buildManagerQaConfig,
   buildTasksConfig,
   buildThreadConfig,
   buildTuiConfig,
@@ -22,7 +23,7 @@ test('buildFullConfig returns always-on direct servers without thread control', 
   const config = buildFullConfig('/test/server') as any;
   assert.ok(config.mcpServers);
   const keys = Object.keys(config.mcpServers);
-  assert.deepEqual(keys.sort(), ['cortex-core', 'cortex-ext', 'cortex-tasks']);
+  assert.deepEqual(keys.sort(), ['cortex-core', 'cortex-ext', 'cortex-manager-qa', 'cortex-tasks']);
   assert.ok(!keys.includes('cortex-thread'));
 });
 
@@ -30,6 +31,7 @@ test('buildFullConfig uses provided serverRoot as cwd', () => {
   const config = buildFullConfig('/my/server/root') as any;
   assert.equal(config.mcpServers['cortex-core'].cwd, '/my/server/root');
   assert.equal(config.mcpServers['cortex-tasks'].cwd, '/my/server/root');
+  assert.equal(config.mcpServers['cortex-manager-qa'].cwd, '/my/server/root');
   assert.equal(config.mcpServers['cortex-ext'].cwd, '/my/server/root');
 });
 
@@ -43,6 +45,15 @@ test('buildFullConfig cortex-tasks points to tasks-server.js (absolute path)', (
   const config = buildFullConfig('/test') as any;
   assert.equal(config.mcpServers['cortex-tasks'].command, 'node');
   assert.deepEqual(config.mcpServers['cortex-tasks'].args, ['/test/dist/domain/mcp/tasks-server.js']);
+});
+
+test('buildFullConfig cortex-manager-qa points to its server entry', () => {
+  const config = buildFullConfig('/test') as any;
+  assert.equal(config.mcpServers['cortex-manager-qa'].command, 'node');
+  assert.deepEqual(
+    config.mcpServers['cortex-manager-qa'].args,
+    ['/test/dist/domain/mcp/manager-qa-server.js'],
+  );
 });
 
 test('buildFullConfig cortex-ext points to server.js (absolute path)', () => {
@@ -76,6 +87,16 @@ test('buildTasksConfig returns only cortex-tasks', () => {
     ['/test/server/dist/domain/mcp/tasks-server.js'],
   );
   assert.equal(config.mcpServers['cortex-tasks'].cwd, '/test/server');
+});
+
+test('buildManagerQaConfig returns only cortex-manager-qa', () => {
+  const config = buildManagerQaConfig('/test/server') as any;
+  assert.deepEqual(Object.keys(config.mcpServers), ['cortex-manager-qa']);
+  assert.deepEqual(
+    config.mcpServers['cortex-manager-qa'].args,
+    ['/test/server/dist/domain/mcp/manager-qa-server.js'],
+  );
+  assert.equal(config.mcpServers['cortex-manager-qa'].cwd, '/test/server');
 });
 
 test('buildThreadConfig returns only cortex-thread', () => {

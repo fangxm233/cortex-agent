@@ -1,5 +1,5 @@
 // input:  mobile thread-list view model and DTO fixtures
-// output: mobile thread-list derivation tests
+// output: task-linked mobile thread metadata regressions
 // pos:    Verifies mobile thread-list mapping
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -153,9 +153,9 @@ describe('pipelineSteps', () => {
 });
 
 describe('runningMeta', () => {
-  it('id + age always; cost + child count once detail loads', () => {
-    expect(runningMeta(info({}), detail({ totalCostUsd: 2.31, children: [child({}), child({ id: 'c2' })] }), now, '子线程'))
-      .toBe('thr_1a2b · 42m · $2.31 · 2 子线程');
+  it('puts the owning task after the thread id', () => {
+    expect(runningMeta(info({ taskId: 'a293' }), detail({ totalCostUsd: 2.31, children: [child({}), child({ id: 'c2' })] }), now, '子线程'))
+      .toBe('thr_1a2b · task a293 · 42m · $2.31 · 2 子线程');
   });
   it('omits cost / children before the detail loads (no fabrication)', () => {
     expect(runningMeta(info({}), undefined, now, '子线程')).toBe('thr_1a2b · 42m');

@@ -1,4 +1,4 @@
-// input:  configuration, adapters, profiles, normalized events
+// input:  configuration, adapters, profiles, MCP context
 // output: attributed runs, compact control, and resume notices
 // pos:    Backend-neutral agent execution facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -207,8 +207,8 @@ export interface RunAgentOptions {
   sessionName?: string | null;
   /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
   executionId?: string | null;
-  /** When true, load the restricted core + tasks + thread MCP composition.
-   *  Default (undefined/false) loads the direct core + tasks + ext composition. */
+  /** When true, load core + tasks + manager-answer + thread MCP layers.
+   *  Default loads direct core + tasks + manager-answer + ext. */
   useCoreMcp?: boolean;
   /** Recursion depth of the owning thread, surfaced to the spawned agent as CORTEX_THREAD_DEPTH
    *  so the thread_start MCP tool can forward it for the depth guard. */

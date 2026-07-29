@@ -1,5 +1,5 @@
 // input:  right-panel view models and DTO fixtures
-// output: right-panel formatting/status regression tests
+// output: task-linked thread metadata and status regressions
 // pos:    Verifies thread, activity, and machine view models
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -191,17 +191,17 @@ describe('formatAge', () => {
   });
 });
 
-describe('threadMetaLine — "thr_8f2c · step 3/4 · 42m"', () => {
+describe('threadMetaLine', () => {
   const now = Date.parse('2026-07-06T10:00:00.000Z');
-  it('includes step when currentStep present', () => {
+  it('shows the owning task between the thread id and current step', () => {
     expect(
       threadMetaLine(
-        info({ id: 'thr_8f2c', currentStep: { index: 2, name: 'review' }, totalSteps: 4, createdAt: '2026-07-06T09:18:00.000Z' }),
+        info({ id: 'thr_8f2c', taskId: 'a293', currentStep: { index: 2, name: 'review' }, totalSteps: 4, createdAt: '2026-07-06T09:18:00.000Z' }),
         now,
       ),
-    ).toBe('thr_8f2c · step 3/4 · 42m');
+    ).toBe('thr_8f2c · task a293 · step 3/4 · 42m');
   });
-  it('omits step when no currentStep', () => {
+  it('omits task and step when neither is present', () => {
     expect(
       threadMetaLine(info({ id: 'thr_a41d', currentStep: null, createdAt: '2026-07-06T09:18:00.000Z' }), now),
     ).toBe('thr_a41d · 42m');

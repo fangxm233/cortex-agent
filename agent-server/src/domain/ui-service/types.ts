@@ -1,5 +1,5 @@
 // input:  domain types, context/notices, DEBUG warnings, pending data
-// output: UI DTOs including provider throttle wait counts
+// output: UI DTOs with thread-task links and throttle wait counts
 // pos:    Canonical transport-neutral UI contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -573,6 +573,8 @@ export interface ThreadInfo {
   updatedAt: string;
   totalSteps: number;
   artifactPath: string | null;
+  /** Optional while Desktop/Mobile clients and servers roll independently. */
+  taskId?: string | null;
 }
 
 // ── threads.get detail DTO (DR-0018 §6.3 B1) ─────────────────────

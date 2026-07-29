@@ -1,5 +1,5 @@
 // input:  Cortex paths, filesystem, operating-system paths
-// output: Claude adapter constants and CancelledError
+// output: Claude constants, MCP paths, and CancelledError
 // pos:    Shared Claude adapter defaults
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -39,6 +39,7 @@ mkdirSync(LOGS_DIR, { recursive: true });
 export const MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config.json');
 export const CORE_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-core.json');
 export const TASKS_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
+export const MANAGER_QA_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
 export const THREAD_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-thread.json');
 /** DR-0012: TUI-mode-exclusive MCP set (only cortex-tui-bridge server, no core/ext leakage). */
 export const TUI_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-tui.json');

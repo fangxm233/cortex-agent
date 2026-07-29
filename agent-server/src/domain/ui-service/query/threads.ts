@@ -1,5 +1,5 @@
 // input:  UiServiceDeps, thread query params, task DTO mapper
-// output: handleThreadsList, handleThreadsGet
+// output: task-linked thread list and detail query handlers
 // pos:    Thread list/detail query handlers
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -70,6 +70,7 @@ export async function handleThreadsList(
     updatedAt: t.updatedAt,
     totalSteps: (t.template?.agents?.length) || t.steps?.length || 0,
     artifactPath: t.artifactPath ?? null,
+    taskId: t.metadata?.taskId ?? null,
   }));
 }
 

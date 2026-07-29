@@ -1,4 +1,4 @@
-// input:  GitHub push, task-op, thread-op, manager-qa, remote cmd, hook HTTP events
+// input:  MCP sidecars, GitHub push, remote commands, hook events
 // output: startWebhookServer
 // pos:    GitHub/task-op/thread-op/manager-qa/hook webhook HTTP entry point
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -469,7 +469,7 @@ function createWebhookHandler(_options: {
       return;
     }
 
-    // --- Manager Q&A (DR-0016 up-ask channel, from cortex-core MCP sidecar) ---
+    // --- Manager Q&A (up-ask channel, from thread and manager-Q&A MCP sidecars) ---
     // ask:   a subtask registers a clarifying question → routed to its manager (woken) or a human.
     // poll:  the ask_manager tool polls this until the answer is present (synchronous block).
     // answer: the manager's answer_subtask tool (or a human reply) records the answer.

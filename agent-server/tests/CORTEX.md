@@ -8,11 +8,11 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
-| agent-adapter-claude.test.ts | test | Claude CLI args, hooks and manual compact |
+| agent-adapter-claude.test.ts | test | Claude CLI, MCP layering, hooks and compact |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-event-parser.test.ts | test | PI RPC to normalized event translation |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
-| agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP mapping, loading and retry policy |
+| agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
 | agent-adapter-pi-streaming.test.ts | test | PI assistant delta streaming emission |
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
@@ -60,8 +60,8 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | gateway-per-request-mode.test.ts | test | gateway per-request mode prefix and cost |
 | gpu-slot-scheduling.test.ts | test | per-GPU slot occupancy and scheduling |
 | hook-bridge.test.ts | test | hook request publish and resolve chain |
-| init.test.ts | test | cortex init path, env and config generation |
-| integration-init-startup.test.ts | e2e | init plus server start and stop lifecycle |
+| init.test.ts | test | cortex init path, env and MCP config generation |
+| integration-init-startup.test.ts | e2e | init, startup, and config regeneration |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
 | machines-query.test.ts | test | machines list online/offline projection |

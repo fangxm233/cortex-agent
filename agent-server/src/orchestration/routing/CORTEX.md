@@ -11,4 +11,4 @@ Covers chat messages, message edits, file attachments, agent hook requests and H
 | hook-bridge.ts | core | pairs agent hook requests with user replies |
 | hook-bridge-subscribers.ts | handlers | posts question and plan requests to users |
 | message-router.ts | entry | routes chat messages to the orchestrator |
-| webhook.ts | entry | serves HTTP endpoints for tasks and hooks |
+| webhook.ts | entry | serves MCP, task, manager-Q&A, and hook HTTP routes |

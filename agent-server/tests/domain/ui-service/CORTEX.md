@@ -37,7 +37,7 @@ Scopes covered are approvals, config, executions, issues, memory, projects, sche
 | query-tasks.test.ts | test | Covers task list filters and fields |
 | query-thread-detail.test.ts | test | Covers thread steps, runs and child tree |
 | query-thread-templates.test.ts | test | Covers agent, template and shell listing |
-| query-threads.test.ts | test | Covers thread list filters and step counts |
+| query-threads.test.ts | test | Covers list filters, task links and step counts |
 | subscribe-execution-log.test.ts | test | Covers log subscription and backpressure |
 | subscribe.test.ts | test | Covers event subscription filters and close |
 | tasks-integration.test.ts | test | Covers task lock cycle on a real store |

@@ -1,5 +1,5 @@
-// input:  PI extension API, MCP clients, session privilege context
-// output: Retryable privilege-scoped Cortex MCP tools in PI
+// input:  PI extension API, MCP clients, privilege context
+// output: Retryable scoped Cortex MCP tools in PI
 // pos:    PI MCP subprocess and tool-registration bridge
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -26,6 +26,7 @@ const _dirname: string = (typeof __dirname === 'string' ? __dirname : null) ?? d
 // Point at compiled siblings because installed packages do not ship src/.
 const CORE_SERVER_PATH = resolve(_dirname, '../../domain/mcp/core-server.js');
 const TASKS_SERVER_PATH = resolve(_dirname, '../../domain/mcp/tasks-server.js');
+const MANAGER_QA_SERVER_PATH = resolve(_dirname, '../../domain/mcp/manager-qa-server.js');
 const THREAD_SERVER_PATH = resolve(_dirname, '../../domain/mcp/thread-server.js');
 const EXT_SERVER_PATH = resolve(_dirname, '../../domain/mcp/server.js');
 const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
@@ -88,6 +89,7 @@ function buildServerStates(env: NodeJS.ProcessEnv): ServerState[] {
   const states: ServerState[] = [
     core,
     { name: 'tasks', path: TASKS_SERVER_PATH, handle: null },
+    { name: 'manager-qa', path: MANAGER_QA_SERVER_PATH, handle: null },
   ];
   const optional: Array<[boolean, ServerState]> = [
     [shouldLoadThreadControl(env.CORTEX_THREAD_ID), { name: 'thread', path: THREAD_SERVER_PATH, handle: null }],

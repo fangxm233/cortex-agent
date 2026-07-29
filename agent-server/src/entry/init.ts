@@ -1,4 +1,4 @@
-// input:  prompts, filesystem, config builders, platform setup
+// input:  prompts, filesystem, MCP builders, platform setup
 // output: runInit and initialization helpers
 // pos:    Cortex home initialization command
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -16,6 +16,7 @@ import * as yaml from 'yaml';
 import {
   buildCoreConfig,
   buildFullConfig,
+  buildManagerQaConfig,
   buildTasksConfig,
   buildThreadConfig,
   buildTuiConfig,
@@ -1281,6 +1282,7 @@ function writeMcpConfigs(configDir: string): void {
     ['mcp-config.json', buildFullConfig(INSTALL_ROOT)],
     ['mcp-config-core.json', buildCoreConfig(INSTALL_ROOT)],
     ['mcp-config-tasks.json', buildTasksConfig(INSTALL_ROOT)],
+    ['mcp-config-manager-qa.json', buildManagerQaConfig(INSTALL_ROOT)],
     ['mcp-config-thread.json', buildThreadConfig(INSTALL_ROOT)],
     ['mcp-config-tui.json', buildTuiConfig(INSTALL_ROOT)],
   ];

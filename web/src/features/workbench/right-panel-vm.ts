@@ -1,5 +1,5 @@
 // input:  ui-contract DTOs, nested-thread helpers
-// output: right-panel formatting and status view models
+// output: task-linked metadata and right-panel status view models
 // pos:    Pure view-model helpers for the workbench right panel
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -105,9 +105,10 @@ export function formatAge(iso: string, now: number): string {
   return `${d}d`;
 }
 
-/** Thread card meta line "thr_8f2c · step 3/4 · 42m" (prototype expThread.metaLine). */
+/** Thread card meta line "thr_8f2c · task a293 · step 3/4 · 42m". */
 export function threadMetaLine(info: ThreadInfo, now: number): string {
   const parts: string[] = [info.id];
+  if (info.taskId) parts.push(`task ${info.taskId}`);
   if (info.currentStep) parts.push(`step ${info.currentStep.index + 1}/${info.totalSteps}`);
   parts.push(formatAge(info.createdAt, now));
   return parts.join(' · ');

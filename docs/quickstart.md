@@ -398,6 +398,7 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── mcp-config.json         # direct-session MCP servers
 │   ├── mcp-config-core.json    # remote execution/time layer
 │   ├── mcp-config-tasks.json   # read-only task-monitoring layer
+│   ├── mcp-config-manager-qa.json # shared manager-answer layer
 │   ├── mcp-config-thread.json  # thread-control layer
 │   ├── mcp-config-tui.json     # TUI interaction layer
 │   ├── profiles.json           # named (backend, model) profiles

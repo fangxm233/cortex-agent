@@ -50,8 +50,9 @@ The server implementation is at `agent-server/src/domain/mcp/core-server.ts`.
 
 ### cortex-tasks
 
-Exposes read-only task monitoring and is loaded in all maintained Claude and PI
-sessions.
+Exposes read-only task monitoring and is loaded in maintained Claude and PI
+top-level direct and thread sessions. PI `Agent` subagents receive only
+cortex-core.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -61,9 +62,23 @@ sessions.
 
 The server implementation is at `agent-server/src/domain/mcp/tasks-server.ts`.
 
+### cortex-manager-qa
+
+Exposes the manager-to-subtask answer channel to top-level direct and thread
+sessions. The canonical Claude tool name is
+`mcp__cortex-manager-qa__answer_subtask`. PI `Agent` subagents do not load this
+server because they do not own task-tree questions.
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `answer_subtask` | `question_id`, `answer` | Answer a clarification question from a child task |
+
+The server implementation is at
+`agent-server/src/domain/mcp/manager-qa-server.ts`.
+
 ### cortex-thread
 
-Exposes the thread lifecycle control plane and manager Q&A. For Claude and PI,
+Exposes thread lifecycle control and upward clarification. For Claude and PI,
 it is loaded only when `CORTEX_THREAD_ID` identifies an active thread; direct
 sessions never receive these tools.
 
@@ -73,7 +88,6 @@ sessions never receive these tools.
 | `thread_split` | `subtasks` | Decompose YOUR OWN task into children (keep-parent join) that flow through the dispatch queue |
 | `thread_wait` | `on_tasks?`, `on_threads?` | Suspend YOUR OWN thread until awaited children finish; pair with `cortex-task spawn` |
 | `ask_manager` | `question` | Ask the planning manager a blocking clarification question |
-| `answer_subtask` | `question_id`, `answer` | Answer a clarification question from a child task |
 
 The server implementation is at `agent-server/src/domain/mcp/thread-server.ts`.
 Tool registrars remain in `agent-server/src/domain/mcp/tools/`.
@@ -82,7 +96,7 @@ Tool registrars remain in `agent-server/src/domain/mcp/tools/`.
 
 Exposes Cortex management tools: scheduling, cost queries, and context
 resolution. Claude loads it only for direct/user sessions; the PI bridge
-retains its existing behavior of loading cortex-ext in all sessions.
+loads cortex-ext in all top-level sessions.
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -155,9 +169,10 @@ origin platform.
 
 | File | Loaded by | Servers |
 |---|---|---|
-| `~/.cortex/config/mcp-config.json` | Direct-session base | cortex-core + cortex-tasks + cortex-ext |
+| `~/.cortex/config/mcp-config.json` | Direct-session base | core + tasks + manager-Q&A + ext |
 | `~/.cortex/config/mcp-config-core.json` | Thread-session layer | cortex-core only |
 | `~/.cortex/config/mcp-config-tasks.json` | Thread-session layer | cortex-tasks only |
+| `~/.cortex/config/mcp-config-manager-qa.json` | Thread-session answer layer | cortex-manager-qa only |
 | `~/.cortex/config/mcp-config-thread.json` | Thread-session-only layer | cortex-thread only |
 | `~/.cortex/config/mcp-config-tui.json` | Interaction layering (on-demand) | cortex-tui-bridge only |
 | `~/.cortex/config/mcp-config-slack.json` | Slack-specific layering (on-demand) | cortex-slack |
@@ -175,6 +190,11 @@ Each file follows Claude Code's standard MCP config format:
     "cortex-tasks": {
       "command": "node",
       "args": ["/path/to/tasks-server.js"],
+      "cwd": "/path/to/cwd"
+    },
+    "cortex-manager-qa": {
+      "command": "node",
+      "args": ["/path/to/manager-qa-server.js"],
       "cwd": "/path/to/cwd"
     },
     "cortex-ext": {
@@ -196,12 +216,13 @@ that the tools read.
 In `agent-adapter/claude/spawn-args.ts`, MCP configs are composed from session
 context:
 
-- **Direct/user sessions** load `mcp-config.json` (core + tasks + ext), then add eligible platform and interaction layers. They never load `mcp-config-thread.json`.
-- **Thread/template sessions** load `mcp-config-core.json`, `mcp-config-tasks.json`, and `mcp-config-thread.json`. They do not load direct-only ext, platform, or TUI-bridge layers.
+- **Direct/user sessions** load `mcp-config.json` (core + tasks + manager-Q&A + ext), then add eligible platform and interaction layers. They never load `mcp-config-thread.json`.
+- **Thread/template sessions** load `mcp-config-core.json`, `mcp-config-tasks.json`, `mcp-config-manager-qa.json`, and `mcp-config-thread.json`. They do not load direct-only ext, platform, or TUI-bridge layers.
 
 The thread branch is marked by `session.cortexContext.useCoreMcp`. In the PI
-bridge, core, tasks, and ext are always connected; `shouldLoadThreadControl()`
-adds cortex-thread only when `CORTEX_THREAD_ID` is present. Platform-specific
+bridge, top-level sessions always connect core, tasks, manager-Q&A, and ext;
+`shouldLoadThreadControl()` adds cortex-thread only when `CORTEX_THREAD_ID` is
+present. PI `Agent` subagents connect only cortex-core. Platform-specific
 servers remain gated by their source-channel predicates.
 
 ## How MCP tools communicate with agent-server
@@ -258,10 +279,10 @@ MCP tools cross the trust boundary from the agent process into agent-server
 internals and remote machines. Cortex applies the following controls:
 
 1. **Server-level availability** — MCP privileges are separated by server
-   because backend tool allowlists do not filter individual MCP tools. Claude
-   direct sessions never receive cortex-thread, while Claude thread sessions
-   add it and exclude ext. PI adds cortex-thread only for a present thread id
-   and retains its existing always-on ext behavior.
+   because backend tool allowlists do not filter individual MCP tools. Both
+   top-level direct and thread sessions receive cortex-manager-qa. Only thread
+   sessions receive cortex-thread. PI `Agent` subagents receive cortex-core
+   alone, while top-level PI sessions retain cortex-ext.
 
 2. **Claude Code's third-party MCP is disabled** — the setting
    `ENABLE_CLAUDEAI_MCP_SERVERS: "false"` in `~/.cortex/.claude/settings.json`
@@ -293,7 +314,7 @@ The MCP server processes receive a subset of the agent server's environment:
 | `SLACK_BOT_TOKEN` | process.env | cortex-ext |
 | `CORTEX_SESSION_ID` | Session context | tui-server, context tools |
 | `CORTEX_SESSION_NAME` | Session context | context tools |
-| `CORTEX_THREAD_ID` | Thread context | cortex-thread tools, PI loading predicate, context tools |
+| `CORTEX_THREAD_ID` | Thread context | cortex-thread tools, PI thread-control predicate, context tools |
 | `CORTEX_PROFILE` | Session context | context tools |
 | `CORTEX_PROJECT` | Session context | context tools |
 | `CORTEX_EXECUTION_ID` | Execution context | task lock hooks |

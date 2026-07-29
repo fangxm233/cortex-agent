@@ -1,4 +1,4 @@
-// input:  Claude spawn options, MCP paths, hooks, process environment
+// input:  Claude options, scoped MCP paths, hooks, environment
 // output: Claude CLI arguments and authoritative child environment
 // pos:    Claude process spawn configuration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -7,6 +7,7 @@ import {
   CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
   FEISHU_MCP_CONFIG,
+  MANAGER_QA_MCP_CONFIG,
   MCP_CONFIG,
   SLACK_MCP_CONFIG,
   TASKS_MCP_CONFIG,
@@ -18,7 +19,7 @@ import {
   WEB_MCP_CONFIG,
 } from './defaults.js';
 // CORE_MCP_CONFIG is the thread marker: callers set mcpConfigPath to it for template sessions.
-// buildSpawnArgs then layers task monitoring and thread control onto that restricted base.
+// buildSpawnArgs then layers task monitoring, manager answers, and thread control onto that base.
 import { buildHooksSettings } from './hooks-builder.js';
 
 /**
@@ -75,15 +76,15 @@ export function isStreamDeltasEnabled(): boolean {
 
 export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   const mode: ClaudeSpawnMode = options.mode ?? 'print';
-  // Direct sessions use the full config (core + tasks + ext). Template threads are identified by
-  // CORE_MCP_CONFIG and compose three isolated privilege layers: core + tasks + thread control.
+  // Direct sessions use the full config (core + tasks + manager answers + ext). Template threads
+  // compose isolated core + tasks + manager-answer + thread-control privilege layers.
   // The interaction bridge and platform-specific servers remain direct-session-only.
   const isThreadSession = options.mcpConfigPath === CORE_MCP_CONFIG;
   const wantsInteractionBridge = !isThreadSession
     && (mode === 'tui' || (mode === 'print' && !!options.isUserInitiated));
   const baseMcpConfig = options.mcpConfigPath || MCP_CONFIG;
   const mcpConfigs: string[] = isThreadSession
-    ? [baseMcpConfig, TASKS_MCP_CONFIG, THREAD_MCP_CONFIG]
+    ? [baseMcpConfig, TASKS_MCP_CONFIG, MANAGER_QA_MCP_CONFIG, THREAD_MCP_CONFIG]
     : [baseMcpConfig];
   if (wantsInteractionBridge) mcpConfigs.push(TUI_MCP_CONFIG);
   // Slack-originated sessions additionally layer the cortex-slack server (slack_send_file tool).
