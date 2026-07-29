@@ -1,3 +1,8 @@
+// input:  project work scopes, cost data and notes drawer state
+// output: desktop right pane switching between work tabs and notes
+// pos:    Workbench right-side pane host
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -10,6 +15,8 @@ import { threadScopeFilter, type Scope } from './scope';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useVocab } from '@/i18n';
+import { NotesPane } from '@/features/notes/NotesPane';
+import { useNotes } from '@/features/notes/NotesProvider';
 
 // RIGHT PANEL — 1:1 from prototype.dc.html L1091–1276 (Stage-R RB sibling C, task 1e96). Exact inline
 // styles / px / hex / font / weight / EN copy reproduced verbatim; real tRPC data (cost.summary /
@@ -61,6 +68,11 @@ function TabButton({
 }
 
 export function RightPanel(): JSX.Element {
+  const { isOpen } = useNotes();
+  return isOpen ? <NotesPane /> : <RightWorkPanel />;
+}
+
+function RightWorkPanel(): JSX.Element {
   const L = useVocab();
   const trpc = useTRPC();
   const [tab, setTab] = useState<Tab>('threads');

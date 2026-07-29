@@ -1,12 +1,7 @@
-// input:  a composer scope (real session id, or a new-session draft under a project) + the live
-//         composer content (text + successfully-uploaded attachment metas + draft upload id)
-// output: per-session persistent draft storage (localStorage) — text + attachments survive both an
-//         app restart (stable webview / browser origin) and a server restart (the referenced upload
-//         files live on the server under <DATA_DIR>/tmp/attachments/… and are never wiped on boot,
-//         so the stored AttachmentMeta paths stay valid).
-// pos:    shared by the desktop Composer and the mobile v3 chat composer (MChatScreen). Pure
-//         parse/serialize/key helpers are DOM-free and unit-tested; the load/save/clear wrappers are
-//         thin localStorage accessors guarded like i18n/lang.ts (SSR + private-mode safe).
+// input:  composer scope, text and uploaded attachment metadata
+// output: per-session draft storage and project draft prefill
+// pos:    Persistent composer utilities for desktop and mobile
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { AttachmentMeta } from './chat-content';
 
@@ -116,6 +111,21 @@ export function saveDraft(key: string | null, d: ComposerDraft): void {
   } catch {
     // quota exceeded / private mode — best-effort, drop silently.
   }
+}
+
+/** Replace only the text of a project draft; existing uploaded attachments remain attached. */
+export function mergeDraftPrefill(existing: ComposerDraft | null, text: string): ComposerDraft {
+  return {
+    text,
+    attachments: existing?.attachments ?? [],
+    ...(existing?.draftUploadId ? { draftUploadId: existing.draftUploadId } : {}),
+  };
+}
+
+/** Seed a project's new-session draft without sending or creating a session. */
+export function prefillProjectDraft(projectId: string, text: string): void {
+  const key = draftStorageKey({ isDraft: true, projectId });
+  saveDraft(key, mergeDraftPrefill(loadDraft(key), text));
 }
 
 /** Remove the persisted draft for a key (called on successful send). */

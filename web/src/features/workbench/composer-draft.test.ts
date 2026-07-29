@@ -1,9 +1,15 @@
+// input:  composer draft helpers and attachment metadata
+// output: storage key, parsing and prefill merge regressions
+// pos:    Tests persistent desktop/mobile composer drafts
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import {
   draftStorageKey,
   isDraftEmpty,
   parseDraft,
   serializeDraft,
+  mergeDraftPrefill,
   DRAFT_KEY_PREFIX,
   type ComposerDraft,
 } from './composer-draft';
@@ -41,6 +47,28 @@ describe('isDraftEmpty', () => {
   it('is non-empty with real text or any attachment', () => {
     expect(isDraftEmpty({ text: 'hi', attachments: [] })).toBe(false);
     expect(isDraftEmpty({ text: '', attachments: [meta('a.png')] })).toBe(false);
+  });
+});
+
+describe('mergeDraftPrefill', () => {
+  it('replaces draft text while preserving uploaded attachments and their draft id', () => {
+    const existing: ComposerDraft = {
+      text: 'old draft',
+      attachments: [meta('keep.png')],
+      draftUploadId: 'upload-1',
+    };
+    expect(mergeDraftPrefill(existing, 'private reminder')).toEqual({
+      text: 'private reminder',
+      attachments: [meta('keep.png')],
+      draftUploadId: 'upload-1',
+    });
+  });
+
+  it('creates an attachment-free draft when none exists', () => {
+    expect(mergeDraftPrefill(null, 'private reminder')).toEqual({
+      text: 'private reminder',
+      attachments: [],
+    });
   });
 });
 

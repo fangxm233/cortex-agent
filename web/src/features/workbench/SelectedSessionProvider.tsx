@@ -1,5 +1,5 @@
-// input:  project-scoped sessions/config queries and selected-session rules
-// output: SelectedSessionProvider and useSelectedSession context hook
+// input:  project sessions, config and external draft prefill
+// output: selected-session context with reliable draft reload
 // pos:    Cross-pane selected and draft session state owner
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -11,6 +11,7 @@ import {
   DRAFT_SENTINEL,
   type PendingCreatedSession,
 } from './selected-session';
+import { prefillProjectDraft } from './composer-draft';
 
 // Cross-pane "selected session" state. A single source of truth for which session the center chat
 // shows, written by the LeftRail session rows (+ the "+ New session" control) and read by CenterChat.
@@ -31,6 +32,10 @@ interface SelectedSessionContextValue {
   /** The user-chosen profile for the draft session (null = use system default). */
   draftProfile: string | null;
   setDraftProfile: (name: string) => void;
+  /** Changes whenever another surface replaces the current project's draft text. */
+  draftReloadToken: number;
+  /** Seed a user-editable new-session draft without sending it. */
+  prefillDraft: (text: string) => void;
   /** Exit draft mode (e.g. after createAndSend succeeds, or user clicks a real session). */
   clearDraft: () => void;
 }
@@ -46,6 +51,7 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const [override, setOverride] = useState<string | null>(null);
   const [draftProfile, setDraftProfile] = useState<string | null>(null);
+  const [draftReloadToken, setDraftReloadToken] = useState(0);
   // A just-created session whose authoritative sessions.list row has not landed yet.
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
 
@@ -85,6 +91,12 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
     setPendingCreatedSession({ sessionId: id, profileName: draftProfile });
     setOverride(id);
   }, [draftProfile]);
+  const prefillDraft = useCallback((text: string) => {
+    prefillProjectDraft(currentProjectId ?? 'general', text);
+    setPendingCreatedSession(null);
+    setOverride(DRAFT_SENTINEL);
+    setDraftReloadToken((value) => value + 1);
+  }, [currentProjectId]);
   const clearDraft = useCallback(() => {
     setPendingCreatedSession(null);
     setOverride(null);
@@ -92,8 +104,20 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ selectedSessionId, setSelectedSession, selectCreatedSession, pendingCreatedSession, isDraft, draftProfile, setDraftProfile, clearDraft }),
-    [selectedSessionId, setSelectedSession, selectCreatedSession, pendingCreatedSession, isDraft, draftProfile, clearDraft],
+    () => ({
+      selectedSessionId,
+      setSelectedSession,
+      selectCreatedSession,
+      pendingCreatedSession,
+      isDraft,
+      draftProfile,
+      setDraftProfile,
+      draftReloadToken,
+      prefillDraft,
+      clearDraft,
+    }),
+    [selectedSessionId, setSelectedSession, selectCreatedSession, pendingCreatedSession, isDraft,
+      draftProfile, draftReloadToken, prefillDraft, clearDraft],
   );
 
   return <SelectedSessionContext.Provider value={value}>{children}</SelectedSessionContext.Provider>;

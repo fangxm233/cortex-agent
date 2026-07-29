@@ -1,5 +1,5 @@
 // input:  vitest, selected-session helpers, SessionInfo DTO
-// output: selected-session selection and transition regressions
+// output: selection, transition and shortcut regressions
 // pos:    Pure tests for workbench session-selection state
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -8,6 +8,7 @@ import {
   deriveMostRecentSessionId,
   resolveSelectedSessionId,
   resolveTransitionProfile,
+  isNewSessionShortcut,
   type PendingCreatedSession,
 } from './selected-session';
 
@@ -23,6 +24,13 @@ const sessions = [
   sess('b', '2026-05-10T00:00:00Z'),
   sess('c', '2026-05-05T00:00:00Z'),
 ];
+
+describe('isNewSessionShortcut', () => {
+  it('reserves command/control-shift-N for the notes drawer', () => {
+    expect(isNewSessionShortcut({ key: 'n', metaKey: true, ctrlKey: false, shiftKey: false, altKey: false })).toBe(true);
+    expect(isNewSessionShortcut({ key: 'N', metaKey: true, ctrlKey: false, shiftKey: true, altKey: false })).toBe(false);
+  });
+});
 
 describe('deriveMostRecentSessionId', () => {
   it('picks the most-recently-used session', () => {

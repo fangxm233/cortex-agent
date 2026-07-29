@@ -5,5 +5,5 @@ Keeps global overlays, thread detail state, shared selection, and live events mo
 
 | filename | role | function |
 |---|---|---|
-| AppShell.tsx | core | Mounts routed content and global modal providers |
+| AppShell.tsx | core | Mounts routes, overlays and notes state |
 | EmptyPane.tsx | view | Titled placeholder for unbuilt routes |

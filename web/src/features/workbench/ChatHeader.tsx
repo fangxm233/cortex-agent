@@ -1,6 +1,6 @@
-// input:  active/draft session state, profile config, profile mutations
-// output: ChatHeader with profile picker, status, and session-id menu
-// pos:    Desktop chat header presentation and profile control
+// input:  session state, profiles and project notes context
+// output: chat header with profile, status, notes and session menu
+// pos:    Desktop chat header controls
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,8 @@ import { ProfileMenu } from './ProfileMenu';
 import { SessionIdModal } from './SessionIdModal';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { resolveTransitionProfile } from './selected-session';
+import { NotesButton } from '@/features/notes/NotesButton';
+import { useNotes } from '@/features/notes/NotesProvider';
 
 // Chat header — 1:1 from prototype.dc.html L107–130: session title · profile chip · running/idle
 // status pill · ⌘K affordance. `title` is the REAL active session name (task aba0); `running` is
@@ -51,6 +53,7 @@ export function ChatHeader({
   const trpc = useTRPC();
   const L = useVocab();
   const queryClient = useQueryClient();
+  const notes = useNotes();
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const profiles = configQuery.data?.profiles?.profiles ?? [];
   const defaultProfile = configQuery.data?.profiles?.defaultProfile ?? null;
@@ -234,6 +237,13 @@ export function ChatHeader({
         >
           ⌘K
         </span>
+        <span style={{ width: 1, height: 18, background: 'var(--proto-line)', flex: 'none' }} />
+        <NotesButton
+          count={notes.vm.activeCount}
+          active={notes.isOpen}
+          copy={notes.copy}
+          onClick={() => notes.isOpen ? notes.close() : notes.open()}
+        />
         <span style={{ position: 'relative', display: 'inline-flex' }}>
           <span
             data-chip="more"

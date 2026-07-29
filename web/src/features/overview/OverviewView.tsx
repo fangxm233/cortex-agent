@@ -1,3 +1,8 @@
+// input:  project cost, schedules, executions, issues and notes
+// output: desktop project Overview with quick note entry
+// pos:    Project dashboard center pane
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +13,9 @@ import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerPr
 import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
 import { useIssues } from '@/features/issues/IssuesProvider';
 import { useCurrentProject } from '@/features/workbench/CurrentProjectProvider';
+import { NotesButton } from '@/features/notes/NotesButton';
+import { NotesOverviewCard } from '@/features/notes/NotesOverviewCard';
+import { useNotes } from '@/features/notes/NotesProvider';
 import {
   formatMoney,
   scheduleIntervalLabel,
@@ -76,6 +84,7 @@ export function OverviewView(): JSX.Element {
   const { open: openExecutionLog } = useExecutionLogDrawer();
   const { open: openScheduleModal } = useScheduleModal();
   const { open: openIssues } = useIssues();
+  const notes = useNotes();
   const now = Date.now();
 
   // Active project = the shared cross-pane current project (task 569c) — the same value the LeftRail
@@ -172,6 +181,13 @@ export function OverviewView(): JSX.Element {
               <b style={{ color: 'var(--proto-accent)' }}>{issues.length}</b> {L.issuesStat}
             </span>
           )}
+          <span style={{ width: 1, height: 18, background: 'var(--proto-line)', flex: 'none' }} />
+          <NotesButton
+            count={notes.vm.activeCount}
+            active={notes.isOpen}
+            copy={notes.copy}
+            onClick={() => notes.isOpen ? notes.close() : notes.open()}
+          />
           {/* Adjust budget — no budget-mutate scope, inert (GAP, Stage 7) */}
           <span
             style={{
@@ -311,6 +327,13 @@ export function OverviewView(): JSX.Element {
             </div>
           </div>
         </div>
+
+        <NotesOverviewCard
+          vm={notes.vm}
+          copy={notes.copy}
+          onOpen={notes.open}
+          onAdd={notes.add}
+        />
 
         {/* Issues (design sec-24 24a) — per-project ISSUES.md entries; rows open the 24b modal
             located at that entry. No status labels (在列表即待处理). Hidden entirely at 0. The

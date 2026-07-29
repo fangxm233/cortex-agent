@@ -14,6 +14,7 @@ Cross-cutting concerns that any surface can pull in (live stream, media preview,
 | execution/ | subdir | Execution detail drawer with live logs |
 | approvals/ | subdir | Approval queue overlay |
 | issues/ | subdir | Non-blocking issue queue overlay |
+| notes/ | subdir | Private project notes on desktop surfaces |
 | schedule/ | subdir | New-schedule overlay |
 | settings/ | subdir | Settings modal and its panels |
 | command-palette/ | subdir | Global search and command overlay |

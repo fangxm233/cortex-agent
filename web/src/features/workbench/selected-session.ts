@@ -1,5 +1,5 @@
-// input:  SessionInfo DTO and pending-created session metadata
-// output: draft sentinel and pure session/profile resolvers
+// input:  SessionInfo, pending session metadata and key events
+// output: draft sentinel, selection and shortcut resolvers
 // pos:    Workbench selected-session state rules
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import type { SessionInfo } from '@cortex-agent/ui-contract';
@@ -17,6 +17,18 @@ export const DRAFT_SENTINEL = '__draft__';
 export interface PendingCreatedSession {
   sessionId: string;
   profileName: string | null;
+}
+
+interface ShortcutLike {
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+}
+
+export function isNewSessionShortcut(event: ShortcutLike): boolean {
+  return (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'n';
 }
 
 /** Most-recently-used session id (by lastUsedAt, then createdAt), else null. */

@@ -1,4 +1,4 @@
-// input:  Router outlet and global UI/modal providers
+// input:  Router outlet and global UI/modal/note providers
 // output: Persistent desktop application shell
 // pos:    Keeps shared state and overlays mounted across routes
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -20,6 +20,7 @@ import { PinnedPreviewProvider } from '@/features/media/PinnedPreviewProvider';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
 import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 import { ThreadDetailModalProvider } from '@/features/thread/ThreadDetailModal';
+import { NotesProvider } from '@/features/notes/NotesProvider';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
 // frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
@@ -34,7 +35,7 @@ export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
     <LiveEventsProvider><ConnectionStatusProvider>
-      <CurrentProjectProvider><SelectedSessionProvider>
+      <CurrentProjectProvider><SelectedSessionProvider><NotesProvider>
         <ExecutionLogDrawerProvider><ScheduleModalProvider>
           <ApprovalsProvider><SettingsProvider><IssuesProvider>
             <ThreadDetailModalProvider><PinnedPreviewProvider>
@@ -47,7 +48,7 @@ export function AppShell() {
             </PinnedPreviewProvider></ThreadDetailModalProvider>
           </IssuesProvider></SettingsProvider></ApprovalsProvider>
         </ScheduleModalProvider></ExecutionLogDrawerProvider>
-      </SelectedSessionProvider></CurrentProjectProvider>
+      </NotesProvider></SelectedSessionProvider></CurrentProjectProvider>
     </ConnectionStatusProvider></LiveEventsProvider>
   );
 }

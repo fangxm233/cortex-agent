@@ -1,7 +1,7 @@
-// input:  selected session, transcript/live state, compact mutation
-// output: desktop chat with context modal controls and composer
+// input:  selected session, transcript/live state and draft reload token
+// output: desktop chat with context controls and composer
 // pos:    Workbench conversation pane orchestration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -44,7 +44,7 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   const lang = useLang();
   const trpc = useTRPC();
   const { currentProjectId } = useCurrentProject();
-  const { selectedSessionId, isDraft, draftProfile } = useSelectedSession();
+  const { selectedSessionId, isDraft, draftProfile, draftReloadToken } = useSelectedSession();
   // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
   // is resolved from the same list the rail shows.
   const sessionsQuery = useQuery(
@@ -171,6 +171,7 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         elapsed={elapsed}
         isDraft={isDraft}
         draftProfile={draftProfile}
+        draftReloadToken={draftReloadToken}
         projectId={currentProjectId ?? 'general'}
         statusAccessory={(active?.contextCompactionSupported || contextUsage !== null) ? (
           <ContextUsageControl

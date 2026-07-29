@@ -1,5 +1,5 @@
-// input:  tRPC data, provider throttle status, shared project/session/modal contexts
-// output: Desktop project/session rail with active-only rate-limit popover
+// input:  tRPC data, shared project/session/modal contexts
+// output: desktop rail with session and reserved notes shortcuts
 // pos:    Owns workbench navigation and global-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -28,6 +28,7 @@ import { useApprovals } from '@/features/approvals/ApprovalsProvider';
 import { useSettings } from '@/features/settings/SettingsProvider';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
+import { isNewSessionShortcut } from './selected-session';
 import { useVocab } from '@/i18n';
 import { useTheme, useSetTheme } from '@/theme';
 import { DaemonStatusModal } from './DaemonStatusModal';
@@ -226,10 +227,9 @@ export function LeftRail(): JSX.Element {
   onNewSessionRef.current = onNewSession;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'n' || e.key === 'N')) {
-        e.preventDefault();
-        onNewSessionRef.current();
-      }
+      if (!isNewSessionShortcut(e)) return;
+      e.preventDefault();
+      onNewSessionRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

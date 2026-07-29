@@ -20,7 +20,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | CenterChat.tsx | view | Assembles chat header, stream and composer |
-| ChatHeader.tsx | view | Session title, profile picker and run status |
+| ChatHeader.tsx | view | Session title, profile, status and notes entry |
 | MessageStream.tsx | view | Scroll-stable transcript of chat rows and cards |
 | ChatMarkdown.tsx | view | Renders assistant markdown with chat typography |
 | ChatNotice.tsx | view | Info, warning and error notice boxes |
@@ -45,9 +45,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Message input with attachments and slash menu |
+| Composer.tsx | view | Message input, attachments and draft reload |
 | ComposerStatusLine.tsx | view | Status row above the input with an accessory |
-| composer-draft.ts | util | Persists and restores per-session drafts |
+| composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Unit tests for draft keys and parsing |
 | composer-slash.ts | util | Resolves a slash-menu pick into a command |
 | composer-slash.test.ts | test | Unit tests for slash command dispatch |
@@ -65,7 +65,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
 | session-id.test.ts | test | Unit tests for identifier rows |
-| RightPanel.tsx | view | Hosts thread, task and machine tabs with cost |
+| RightPanel.tsx | view | Hosts work tabs or the project notes pane |
 | right-panel-vm.ts | vm | Formats task-linked thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests task-linked thread and machine metadata |
 | RightThreadCard.tsx | view | Shows activity rows and opens modal detail |
@@ -78,7 +78,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | CurrentProjectProvider.tsx | provider | Shares the selected project across panes |
 | current-project.ts | vm | Derives the effective current project id |
 | current-project.test.ts | test | Unit tests for current project derivation |
-| SelectedSessionProvider.tsx | provider | Shares selected and draft session across panes |
+| SelectedSessionProvider.tsx | provider | Shares sessions and external draft prefill |
 | selected-session.ts | vm | Resolves selected session and transition profile |
 | selected-session.test.ts | test | Unit tests for session selection |
 | DaemonStatusModal.tsx | view | Daemon and server processes with restart |

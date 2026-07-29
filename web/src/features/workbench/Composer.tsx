@@ -1,7 +1,7 @@
-// input:  session/composer state, tRPC mutations, media and draft hooks
-// output: desktop message composer with status row and attachments
+// input:  session state, tRPC, media and reloadable draft storage
+// output: desktop composer with status, attachments and external prefill
 // pos:    Workbench message input and turn-control surface
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
@@ -134,6 +134,7 @@ export function Composer({
   elapsed,
   isDraft = false,
   draftProfile = null,
+  draftReloadToken = 0,
   projectId = 'general',
   statusAccessory,
 }: {
@@ -150,6 +151,7 @@ export function Composer({
   elapsed: string;
   isDraft?: boolean;
   draftProfile?: string | null;
+  draftReloadToken?: number;
   projectId?: string;
   statusAccessory?: ReactNode;
 }): JSX.Element {
@@ -235,11 +237,12 @@ export function Composer({
   // content change, distinguished by comparing the live key to a ref — so switching sessions swaps the
   // draft cleanly and never writes the outgoing content under the incoming key.
   const draftKey = draftStorageKey({ isDraft, sessionId, projectId });
-  const draftKeyRef = useRef<string | null | undefined>(undefined);
+  const draftIdentity = `${draftKey ?? ''}:${isDraft ? draftReloadToken : 0}`;
+  const draftKeyRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (draftKeyRef.current !== draftKey) {
-      // Scope changed → load the new scope's draft; skip saving on this cycle.
-      draftKeyRef.current = draftKey;
+    if (draftKeyRef.current !== draftIdentity) {
+      // Scope or external prefill changed → load the draft; skip saving on this cycle.
+      draftKeyRef.current = draftIdentity;
       if (!draftKey) return; // no stable scope (transient empty sessionId) → leave content untouched
       const d = loadDraft(draftKey);
       if (isDraft && d?.draftUploadId) draftUploadId.current = d.draftUploadId;
@@ -262,7 +265,7 @@ export function Composer({
       attachments: attachments.filter((a) => a.status === 'done' && a.meta).map((a) => a.meta!),
       ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
     });
-  }, [draftKey, composer, attachments, isDraft]);
+  }, [draftKey, draftIdentity, composer, attachments, isDraft]);
 
   // Restored media attachments have no local File → fetch an authenticated object URL for the
   // thumbnail/lightbox preview (mirrors the message-stream file cards). Converges (previewUrl set
