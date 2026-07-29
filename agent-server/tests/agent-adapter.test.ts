@@ -38,6 +38,8 @@ test('Capability enum string values are stable (DR-0008 §3.2 contract)', () => 
   assert.equal(Capability.SystemPromptOverride, 'system-prompt-override');
   assert.equal(Capability.SessionResume, 'session-resume');
   assert.equal(Capability.ToolAllowlist, 'tool-allowlist');
+  assert.equal(Capability.StreamingDeltas, 'streaming-deltas');
+  assert.equal(Capability.MidTurnInject, 'mid-turn-inject');
 });
 
 test('both live backends declare all ten shared capabilities', () => {
