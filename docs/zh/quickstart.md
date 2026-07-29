@@ -311,8 +311,8 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 │   ├── mcp-config-thread.json  # 线程控制分层
 │   ├── mcp-config-tui.json     # TUI 交互分层
 │   ├── profiles.json           # 命名的（后端、模型）配置
-│   ├── session-hooks.json      # 会话级钩子管道
-│   └── thread-templates.json   # 多智能体线程定义
+│   ├── thread-templates.json   # 多智能体线程定义
+│   └── hooks/                  # 钩子注册表——每个钩子一个 JSON 声明
 ├── data/
 │   ├── mode.json               # 当前模式 + 活跃配置
 │   └── schedules.json          # 初始化的周期性任务

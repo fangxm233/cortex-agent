@@ -402,8 +402,8 @@ Everything lives under `CORTEX_HOME` (default `~/.cortex/`):
 │   ├── mcp-config-thread.json  # thread-control layer
 │   ├── mcp-config-tui.json     # TUI interaction layer
 │   ├── profiles.json           # named (backend, model) profiles
-│   ├── session-hooks.json      # session-level hook pipeline
-│   └── thread-templates.json   # multi-agent thread definitions
+│   ├── thread-templates.json   # multi-agent thread definitions
+│   └── hooks/                  # hook registry — one JSON declaration per hook
 ├── data/
 │   ├── mode.json               # current mode + active profile
 │   └── schedules.json          # seeded recurring tasks
