@@ -8,7 +8,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
-| agent-adapter-claude.test.ts | test | Claude CLI, MCP layering, hooks and compact |
+| agent-adapter-claude.test.ts | test | Claude CLI, registry hook parity, and compact |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-event-parser.test.ts | test | PI RPC to normalized event translation |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |

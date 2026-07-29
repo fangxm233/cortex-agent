@@ -1,10 +1,12 @@
-// input:  Claude adapter modules, MCP layers, assertions
+// input:  Claude adapter modules, registry fixtures, assertions
 // output: CLI args, env, hooks, parsing, and compact verification
 // pos:    Claude adapter behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test } from 'vitest';
+import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 import { buildSpawnArgs, buildClaudeEnv } from '../src/agent-adapter/claude/spawn-args.js';
 import {
@@ -34,6 +36,49 @@ import {
 } from '../src/agent-adapter/claude/event-parser.js';
 import { _test as adapterTest, selectClaudeMode, recoverTuiOrphans } from '../src/agent-adapter/claude/adapter.js';
 import type { TmuxExecResult } from '../src/agent-adapter/claude/tmux-control.js';
+import { CONFIG_DIR, DEFAULTS_DIR, HOOKS_DIR } from '../src/core/paths.js';
+import type { HookEntry } from '../src/store/hook-registry.js';
+
+const HOOK_REGISTRY_DIR = path.join(CONFIG_DIR, 'hooks');
+const SHIPPED_HOOK_REGISTRY_DIR = path.join(DEFAULTS_DIR, 'config', 'hooks');
+const inheritedLegacyHooks = process.env.CORTEX_HOOKS_LEGACY;
+
+function resetHookRegistry(): void {
+  fs.rmSync(HOOK_REGISTRY_DIR, { recursive: true, force: true });
+  fs.cpSync(SHIPPED_HOOK_REGISTRY_DIR, HOOK_REGISTRY_DIR, { recursive: true });
+}
+
+function writeHookRegistry(entries: readonly HookEntry[]): void {
+  fs.rmSync(HOOK_REGISTRY_DIR, { recursive: true, force: true });
+  fs.mkdirSync(HOOK_REGISTRY_DIR, { recursive: true });
+  entries.forEach((entry, index) => {
+    const filename = `${String(index + 1).padStart(2, '0')}-${entry.id}.json`;
+    fs.writeFileSync(path.join(HOOK_REGISTRY_DIR, filename), `${JSON.stringify(entry, null, 2)}\n`);
+  });
+}
+
+function withHookRegistry<T>(entries: readonly HookEntry[], run: () => T): T {
+  const legacy = process.env.CORTEX_HOOKS_LEGACY;
+  delete process.env.CORTEX_HOOKS_LEGACY;
+  writeHookRegistry(entries);
+  try {
+    return run();
+  } finally {
+    resetHookRegistry();
+    if (legacy === undefined) delete process.env.CORTEX_HOOKS_LEGACY;
+    else process.env.CORTEX_HOOKS_LEGACY = legacy;
+  }
+}
+
+beforeAll(() => {
+  delete process.env.CORTEX_HOOKS_LEGACY;
+  resetHookRegistry();
+});
+
+afterAll(() => {
+  if (inheritedLegacyHooks === undefined) delete process.env.CORTEX_HOOKS_LEGACY;
+  else process.env.CORTEX_HOOKS_LEGACY = inheritedLegacyHooks;
+});
 
 // --- buildSpawnArgs (pure) ---
 
@@ -692,6 +737,57 @@ test('TUI_TOOLS excludes AskUserQuestion / EnterPlanMode / ExitPlanMode and incl
 });
 
 // --- buildHooksSettings ---
+
+const GOLDEN_HOOKS_WITH_INTERACTION = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/sensitive-file-edit.mjs","timeout":10},{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10}]},{"matcher":"AskUserQuestion","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/ask-user-question-hook.mjs","timeout":3600}]},{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/exit-plan-mode-hook.mjs","timeout":3600}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}],"PermissionRequest":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"printf '{\\"hookSpecificOutput\\":{\\"hookEventName\\":\\"PermissionRequest\\",\\"decision\\":{\\"behavior\\":\\"allow\\"}}}'","timeout":5}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}]}`;
+const GOLDEN_HOOKS_WITHOUT_INTERACTION = `{"PreToolUse":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/sensitive-file-edit.mjs","timeout":10},{"type":"command","command":"node ${HOOKS_DIR}/tasks-yaml-guard.mjs","timeout":10}]}],"PostToolUse":[{"matcher":"Read|Grep","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/memory-ref-tracker.mjs"},{"type":"command","command":"node ${HOOKS_DIR}/rules-loader.mjs"}]},{"matcher":"Read|Edit|Write|Skill","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/session-activity-tracker.mjs"}]},{"matcher":"Read|Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}],"PermissionRequest":[{"matcher":"Edit|Write","hooks":[{"type":"command","command":"printf '{\\"hookSpecificOutput\\":{\\"hookEventName\\":\\"PermissionRequest\\",\\"decision\\":{\\"behavior\\":\\"allow\\"}}}'","timeout":5}]}],"SessionStart":[{"matcher":"startup|resume|clear|compact","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/cortex-md-injector.mjs"}]}]}`;
+
+test('buildHooksSettings compiles ordered Claude events from the active registry', () => {
+  const entries: HookEntry[] = [
+    { id: 'pre-script', event: 'agent:pre-tool', matcher: 'Edit', run: { script: 'first.mjs', timeout: 10 } },
+    { id: 'post-command', event: 'agent:post-tool', matcher: 'Read', run: { command: 'post-command' } },
+    { id: 'native-pre', event: 'cc:PreToolUse', matcher: 'Edit', run: { command: 'second-pre' } },
+    { id: 'pre-without-matcher', event: 'agent:pre-tool', run: { command: 'bare-pre' } },
+    { id: 'disabled', event: 'cc:Notification', matcher: 'idle', run: { command: 'disabled' }, enabled: false },
+    { id: 'missing-tool', event: 'agent:pre-tool', matcher: 'AskUserQuestion', run: { command: 'missing' }, scope: { requiresTool: 'AskUserQuestion' } },
+    { id: 'pi-scoped', event: 'agent:pre-tool', matcher: 'Edit', run: { command: 'pi-only' }, scope: { backends: ['pi'] } },
+    { id: 'pi-native', event: 'pi:tool_call', matcher: 'read', run: { command: 'pi-native' } },
+    { id: 'server-event', event: 'cortex:thread.start', matcher: {}, run: { command: 'server-event' } },
+    { id: 'session-start', event: 'agent:session-start', matcher: 'startup', run: { script: 'start.mjs' } },
+    { id: 'notification', event: 'cc:Notification', matcher: 'idle', run: { command: 'notify', timeout: 5 } },
+    { id: 'matcherless-stop', event: 'cc:Stop', run: { command: 'stop' } },
+  ];
+  const expected = `{"PreToolUse":[{"matcher":"Edit","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/first.mjs","timeout":10},{"type":"command","command":"second-pre"}]},{"hooks":[{"type":"command","command":"bare-pre"}]}],"PostToolUse":[{"matcher":"Read","hooks":[{"type":"command","command":"post-command"}]}],"SessionStart":[{"matcher":"startup","hooks":[{"type":"command","command":"node ${HOOKS_DIR}/start.mjs"}]}],"Notification":[{"matcher":"idle","hooks":[{"type":"command","command":"notify","timeout":5}]}],"Stop":[{"hooks":[{"type":"command","command":"stop"}]}]}`;
+
+  withHookRegistry(entries, () => {
+    assert.equal(JSON.stringify(buildHooksSettings('Edit,Read')), expected);
+  });
+});
+
+test('buildHooksSettings byte parity — null tools', () => {
+  assert.equal(JSON.stringify(buildHooksSettings(null)), GOLDEN_HOOKS_WITH_INTERACTION);
+});
+
+test('buildHooksSettings byte parity — interaction tools present', () => {
+  const tools = 'Edit,Write,AskUserQuestion,ExitPlanMode';
+  assert.equal(JSON.stringify(buildHooksSettings(tools)), GOLDEN_HOOKS_WITH_INTERACTION);
+});
+
+test('buildHooksSettings byte parity — interaction tools absent', () => {
+  assert.equal(JSON.stringify(buildHooksSettings('Bash,Read,Edit,Write')), GOLDEN_HOOKS_WITHOUT_INTERACTION);
+});
+
+test('buildHooksSettings uses the hardcoded table when legacy mode is enabled', () => {
+  const entries: HookEntry[] = [
+    { id: 'only-notification', event: 'cc:Notification', matcher: 'idle', run: { command: 'notify' } },
+  ];
+  withHookRegistry(entries, () => {
+    process.env.CORTEX_HOOKS_LEGACY = '1';
+    assert.equal(
+      JSON.stringify(buildHooksSettings('Bash,Read,Edit,Write')),
+      GOLDEN_HOOKS_WITHOUT_INTERACTION,
+    );
+  });
+});
 
 test('buildHooksSettings default — PreToolUse has only Edit|Write matcher', () => {
   const settings = buildHooksSettings('Bash,Read,Edit,Write');

@@ -5,13 +5,13 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadDispatchInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
 import { dispatchesForStep } from '@/features/thread/thread-steps';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
+import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
 import {
   threadPill,
   stepDotKind,
@@ -221,71 +221,41 @@ export function StepRow({ step, isLast, detail, onOpenRun }: StepRowProps) {
   );
 }
 
-function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string }) {
+function CardActions({ threadId, cost }: { threadId: string; cost: number }) {
   const L = useVocab();
   const trpc = useTRPC();
-  const navigate = useNavigate();
+  const { openThread } = useThreadDetailModal();
   const queryClient = useQueryClient();
+  const cancel = useMutation(trpc.threads.cancel.mutationOptions({
+    onSettled: () => {
+      queryClient.invalidateQueries(trpc.threads.list.queryFilter());
+      queryClient.invalidateQueries(trpc.threads.get.queryFilter({ threadId }));
+    },
+  }));
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '8px 14px', borderTop: '1px solid var(--proto-line-2)' }}>
+      <span title="Pause has no backend mutate op yet" style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)', cursor: 'not-allowed', opacity: 0.6 }}>{L.pause}</span>
+      <span data-cancel-thread-id={threadId} onClick={() => cancel.mutate({ threadId })} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-danger)', cursor: 'pointer' }}>{L.cancel}</span>
+      <span onClick={() => openThread(threadId)} style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}>{L.open}</span>
+      <span style={{ marginLeft: 'auto', font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>Σ {formatCost(cost)}</span>
+    </div>
+  );
+}
+
+function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string }) {
   const { open: openRun } = useExecutionLogDrawer();
   useThreadGetLiveSync(threadId);
-  const cancel = useMutation(
-    trpc.threads.cancel.mutationOptions({
-      onSettled: () => {
-        queryClient.invalidateQueries(trpc.threads.list.queryFilter());
-        queryClient.invalidateQueries(trpc.threads.get.queryFilter({ threadId }));
-      },
-    }),
-  );
   return (
     <>
       {detail.steps.length > 0 && (
         <div style={{ padding: '10px 14px 4px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr', columnGap: 9 }}>
-            {detail.steps.map((step) => (
-              <StepRow
-                key={step.stepIndex}
-                step={step}
-                isLast={step.stepIndex === detail.steps.length - 1}
-                detail={detail}
-                onOpenRun={openRun}
-              />
-            ))}
+            {detail.steps.map((step) => <StepRow key={step.stepIndex} step={step}
+              isLast={step.stepIndex === detail.steps.length - 1} detail={detail} onOpenRun={openRun} />)}
           </div>
         </div>
       )}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 13,
-          padding: '8px 14px',
-          borderTop: '1px solid var(--proto-line-2)',
-        }}
-      >
-        {/* GAP-P: no threads pause mutate op in the contract — inert affordance (flagged, Stage later). */}
-        <span
-          title="Pause has no backend mutate op yet"
-          style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted)', cursor: 'not-allowed', opacity: 0.6 }}
-        >
-          {L.pause}
-        </span>
-        <span
-          data-cancel-thread-id={threadId}
-          onClick={() => cancel.mutate({ threadId })}
-          style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-danger)', cursor: 'pointer' }}
-        >
-          {L.cancel}
-        </span>
-        <span
-          onClick={() => navigate(`/threads/${threadId}`)}
-          style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-accent)', cursor: 'pointer' }}
-        >
-          {L.detailPage}
-        </span>
-        <span style={{ marginLeft: 'auto', font: "500 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
-          Σ {formatCost(detail.totalCostUsd)}
-        </span>
-      </div>
+      <CardActions threadId={threadId} cost={detail.totalCostUsd} />
     </>
   );
 }

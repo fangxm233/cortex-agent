@@ -1,6 +1,6 @@
-// input:  Router outlet and global UI providers
+// input:  Router outlet and global UI/modal providers
 // output: Persistent desktop application shell
-// pos:    Keeps shared state and overlay providers mounted across routes
+// pos:    Keeps shared state and overlays mounted across routes
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { Outlet } from 'react-router-dom';
 import { CommandPalette } from '@/features/command-palette/CommandPalette';
@@ -19,47 +19,35 @@ import { DocViewerProvider } from '@/features/media/DocViewer';
 import { PinnedPreviewProvider } from '@/features/media/PinnedPreviewProvider';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
 import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
+import { ThreadDetailModalProvider } from '@/features/thread/ThreadDetailModal';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
 // frame owned by each view — `/workbench` (WorkbenchPage) renders the 240/fluid/400 three-pane
 // frame including its own left rail; other routes render full-bleed. The old token-summary nav
 // LeftRail was removed (superseded). The global ⌘K command palette (design 6c), the execution
-// log drawer (design 09-exec-logs), Settings, New-schedule and approval overlays stay mounted here
-// so any surface / banner / dispatch row / approval card can
-// open them. PinnedPreviewProvider wraps both previewers because they consult it: while a preview is
+// log drawer, thread detail, Settings, New-schedule and approval overlays stay mounted here so any
+// surface can open them without route navigation. PinnedPreviewProvider wraps both previewers: while a preview is
 // pinned (docked beside the chat on the workbench) `openMedia`/`openDoc` swap that pane instead of
 // raising their modal. LiveEventsProvider is OUTERMOST: it owns the app's single SSE stream, which
 // every live surface (and the connectivity badge) reads through — see features/live/CORTEX.md.
 export function AppShell() {
   const { open, setOpen } = useCommandPalette();
   return (
-    <LiveEventsProvider>
-    <ConnectionStatusProvider>
-      <CurrentProjectProvider>
-        <SelectedSessionProvider>
-          <ExecutionLogDrawerProvider>
-            <ScheduleModalProvider>
-              <ApprovalsProvider>
-                <SettingsProvider>
-                  <IssuesProvider>
-                    <PinnedPreviewProvider>
-                      <MediaViewerProvider>
-                        <DocViewerProvider>
-                          <Outlet />
-                          <CommandPalette open={open} onOpenChange={setOpen} />
-                          <NotificationProvider />
-                          <HotUpdateProvider />
-                        </DocViewerProvider>
-                      </MediaViewerProvider>
-                    </PinnedPreviewProvider>
-                  </IssuesProvider>
-                </SettingsProvider>
-              </ApprovalsProvider>
-            </ScheduleModalProvider>
-          </ExecutionLogDrawerProvider>
-        </SelectedSessionProvider>
-      </CurrentProjectProvider>
-    </ConnectionStatusProvider>
-    </LiveEventsProvider>
+    <LiveEventsProvider><ConnectionStatusProvider>
+      <CurrentProjectProvider><SelectedSessionProvider>
+        <ExecutionLogDrawerProvider><ScheduleModalProvider>
+          <ApprovalsProvider><SettingsProvider><IssuesProvider>
+            <ThreadDetailModalProvider><PinnedPreviewProvider>
+              <MediaViewerProvider><DocViewerProvider>
+                <Outlet />
+                <CommandPalette open={open} onOpenChange={setOpen} />
+                <NotificationProvider />
+                <HotUpdateProvider />
+              </DocViewerProvider></MediaViewerProvider>
+            </PinnedPreviewProvider></ThreadDetailModalProvider>
+          </IssuesProvider></SettingsProvider></ApprovalsProvider>
+        </ScheduleModalProvider></ExecutionLogDrawerProvider>
+      </SelectedSessionProvider></CurrentProjectProvider>
+    </ConnectionStatusProvider></LiveEventsProvider>
   );
 }

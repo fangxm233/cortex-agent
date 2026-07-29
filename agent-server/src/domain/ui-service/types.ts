@@ -1,5 +1,5 @@
 // input:  domain types, context/notices, DEBUG warnings, pending data
-// output: UI DTOs with thread-task links and throttle wait counts
+// output: UI DTOs with thread artifacts and throttle wait counts
 // pos:    Canonical transport-neutral UI contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -140,6 +140,8 @@ export interface ThreadsListParams {
 
 export interface ThreadsGetParams {
   threadId: string;
+  /** Include artifact.md text for the open detail modal; omitted for lightweight cards. */
+  includeArtifactContent?: boolean;
 }
 
 export interface TasksListParams {
@@ -638,6 +640,8 @@ export interface ThreadArtifactRefs {
   workspacePath: string | null;
   taskId: string | null;
   taskProject: string | null;
+  /** Present only when threads.get requested artifact content; null on no file/read failure. */
+  content?: string | null;
 }
 
 export interface ThreadSubtaskInfo {

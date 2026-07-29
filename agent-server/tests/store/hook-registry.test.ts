@@ -13,6 +13,7 @@ import { DEFAULTS_DIR } from '../../src/core/paths.js';
 import {
   filterHookEntries,
   loadHookRegistry,
+  validateHookEntry,
   type HookEntry,
 } from '../../src/store/hook-registry.js';
 
@@ -42,6 +43,32 @@ test('loads a valid hook entry synchronously with every schema field', (t) => {
   writeEntry(directory, 'approval.json', entry);
 
   assert.deepEqual(loadHookRegistry(directory), [entry]);
+});
+
+const VALID_SCHEMA_ENTRY = {
+  id: 'schema-hook',
+  event: 'agent:pre-tool',
+  matcher: 'Edit',
+  run: { command: 'true' },
+};
+
+const INVALID_SCHEMA_CASES: Array<[string, unknown, RegExp]> = [
+  ['blank cc event', { ...VALID_SCHEMA_ENTRY, event: 'cc:   ' }, /unsupported hook event/],
+  ['blank pi event', { ...VALID_SCHEMA_ENTRY, event: 'pi:\t' }, /unsupported hook event/],
+  ['blank cortex event', { ...VALID_SCHEMA_ENTRY, event: 'cortex:   ', matcher: {} }, /unsupported hook event/],
+  ['missing run target', { ...VALID_SCHEMA_ENTRY, run: {} }, /exactly one/],
+  ['two run targets', { ...VALID_SCHEMA_ENTRY, run: { command: 'true', script: 'hook.mjs' } }, /exactly one/],
+  ['non-positive timeout', { ...VALID_SCHEMA_ENTRY, run: { command: 'true', timeout: 0 } }, /positive number/],
+  ['unsupported backend', { ...VALID_SCHEMA_ENTRY, scope: { backends: ['other'] } }, /unsupported backend/],
+  ['empty required tool', { ...VALID_SCHEMA_ENTRY, scope: { requiresTool: ' ' } }, /non-empty string/],
+  ['unsupported blocking mode', { ...VALID_SCHEMA_ENTRY, blocking: { mode: 'poll', ttlMin: 1 } }, /must be webhook/],
+  ['non-positive blocking ttl', { ...VALID_SCHEMA_ENTRY, blocking: { mode: 'webhook', ttlMin: 0 } }, /positive number/],
+  ['non-boolean enabled', { ...VALID_SCHEMA_ENTRY, enabled: 'yes' }, /must be a boolean/],
+  ['invalid CalVer', { ...VALID_SCHEMA_ENTRY, version: 'latest' }, /must be a CalVer string/],
+];
+
+test.each(INVALID_SCHEMA_CASES)('rejects invalid schema: %s', (_name, entry, message) => {
+  assert.throws(() => validateHookEntry(entry), message);
 });
 
 test('skips invalid entries with loud errors and continues loading', (t) => {

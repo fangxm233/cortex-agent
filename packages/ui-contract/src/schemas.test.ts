@@ -1,6 +1,6 @@
 // input:  runtime shared zod schema maps
-// output: scope completeness including session compact schema assertions
-// pos:    Runtime UI-contract guard including system.rateLimitStatus
+// output: scope completeness including thread artifact input assertions
+// pos:    Runtime UI-contract schema guard
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'node:test';
@@ -57,6 +57,10 @@ test('query schemas accept valid input', () => {
   assert.deepEqual(queryInputSchemas['cost.summary'].parse({ projectId: null }), { projectId: null });
   // threads.get requires a threadId
   assert.deepEqual(queryInputSchemas['threads.get'].parse({ threadId: 'thr_a' }), { threadId: 'thr_a' });
+  assert.deepEqual(
+    queryInputSchemas['threads.get'].parse({ threadId: 'thr_a', includeArtifactContent: true }),
+    { threadId: 'thr_a', includeArtifactContent: true },
+  );
   // memory.tree requires a projectId
   assert.deepEqual(queryInputSchemas['memory.tree'].parse({ projectId: 'p' }), { projectId: 'p' });
   // memory.file requires projectId + path

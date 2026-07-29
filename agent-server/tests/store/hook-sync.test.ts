@@ -3,7 +3,7 @@
 // pos:    Regression coverage for versioned hook asset deployment
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -119,18 +119,20 @@ async function writeJson(directory: string, filename: string, value: unknown): P
   await fs.writeFile(path.join(directory, filename), `${JSON.stringify(value, null, 2)}\n`);
 }
 
-test('registry sync copies missing managed entries and upgrades older versions', async (t) => {
+test('registry sync copies and upgrades with the original shipped bytes', async (t) => {
   const { src, dst, cleanup } = await mkdirs();
   t.onTestFinished(cleanup);
-  await writeJson(src, 'missing.json', registryEntry('missing', '2026.7.29'));
-  await writeJson(src, 'upgrade.json', registryEntry('upgrade', '2026.7.29-2'));
+  const missingBytes = `${JSON.stringify(registryEntry('missing', '2026.7.29'), null, 4)}\n\n`;
+  const upgradeBytes = `${JSON.stringify(registryEntry('upgrade', '2026.7.29-2'))}\n`;
+  await fs.writeFile(path.join(src, 'missing.json'), missingBytes);
+  await fs.writeFile(path.join(src, 'upgrade.json'), upgradeBytes);
   await writeJson(dst, 'upgrade.json', { ...registryEntry('upgrade', '2026.7.29'), local: true });
 
   const updated = await syncManagedHookEntries({ srcDir: src, dstDir: dst });
 
   assert.deepEqual(updated, ['missing.json', 'upgrade.json']);
-  assert.deepEqual(JSON.parse(await fs.readFile(path.join(dst, 'missing.json'), 'utf8')), registryEntry('missing', '2026.7.29'));
-  assert.equal(JSON.parse(await fs.readFile(path.join(dst, 'upgrade.json'), 'utf8')).local, undefined);
+  assert.equal(await fs.readFile(path.join(dst, 'missing.json'), 'utf8'), missingBytes);
+  assert.equal(await fs.readFile(path.join(dst, 'upgrade.json'), 'utf8'), upgradeBytes);
 });
 
 test('registry sync never overwrites entries without a valid managed version', async (t) => {
@@ -147,6 +149,8 @@ test('registry sync never overwrites entries without a valid managed version', a
     await writeJson(src, file, registryEntry(id, '2026.7.29'));
     await fs.writeFile(path.join(dst, file), content);
   }
+  const info = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  t.onTestFinished(() => info.mockRestore());
 
   const updated = await syncManagedHookEntries({ srcDir: src, dstDir: dst });
 
@@ -154,6 +158,7 @@ test('registry sync never overwrites entries without a valid managed version', a
   for (const [file, content] of Object.entries(destinations)) {
     assert.equal(await fs.readFile(path.join(dst, file), 'utf8'), content);
   }
+  assert.doesNotMatch(info.mock.calls.flat().join('\n'), /managed hook entries up to date/);
 });
 
 test('registry sync preserves same/newer entries and rejects invalid shipped entries', async (t) => {
@@ -165,6 +170,11 @@ test('registry sync preserves same/newer entries and rejects invalid shipped ent
   await writeJson(dst, 'newer.json', { ...registryEntry('newer', '2026.7.29-3'), local: true });
   await writeJson(src, 'unmanaged.json', registryEntry('unmanaged'));
   await writeJson(src, 'invalid.json', { id: 'invalid', event: 'unknown:event', version: '2026.7.29' });
+  await fs.writeFile(path.join(src, 'malformed.json'), '{bad json');
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  const info = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  t.onTestFinished(() => error.mockRestore());
+  t.onTestFinished(() => info.mockRestore());
 
   const updated = await syncManagedHookEntries({ srcDir: src, dstDir: dst });
 
@@ -173,6 +183,43 @@ test('registry sync preserves same/newer entries and rejects invalid shipped ent
   assert.equal(JSON.parse(await fs.readFile(path.join(dst, 'newer.json'), 'utf8')).local, true);
   assert.ok(!existsSync(path.join(dst, 'unmanaged.json')));
   assert.ok(!existsSync(path.join(dst, 'invalid.json')));
+  assert.ok(!existsSync(path.join(dst, 'malformed.json')));
+  assert.match(error.mock.calls.flat().join('\n'), /malformed\.json/);
+  assert.doesNotMatch(info.mock.calls.flat().join('\n'), /managed hook entries up to date/);
+});
+
+test('registry sync logs a source-directory discovery failure', async (t) => {
+  const { src, dst, cleanup } = await mkdirs();
+  t.onTestFinished(cleanup);
+  await fs.rm(src, { recursive: true });
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  t.onTestFinished(() => error.mockRestore());
+
+  assert.deepEqual(await syncManagedHookEntries({ srcDir: src, dstDir: dst }), []);
+  const errors = error.mock.calls.flat().join('\n');
+  assert.match(errors, new RegExp(src));
+  assert.match(errors, /ENOENT/);
+});
+
+test('registry sync reports file read failures without claiming it is current', async (t) => {
+  const { src, dst, cleanup } = await mkdirs();
+  t.onTestFinished(cleanup);
+  const sourcePath = path.join(src, 'bad-source.json');
+  const destinationPath = path.join(dst, 'bad-destination.json');
+  await fs.mkdir(sourcePath);
+  await writeJson(src, 'bad-destination.json', registryEntry('bad-destination', '2026.7.29'));
+  await fs.mkdir(destinationPath);
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  const info = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+  t.onTestFinished(() => error.mockRestore());
+  t.onTestFinished(() => info.mockRestore());
+
+  assert.deepEqual(await syncManagedHookEntries({ srcDir: src, dstDir: dst }), []);
+  const errors = error.mock.calls.flat().join('\n');
+  assert.ok(errors.includes(sourcePath));
+  assert.ok(errors.includes(destinationPath));
+  assert.match(errors, /EISDIR|illegal operation on a directory/i);
+  assert.doesNotMatch(info.mock.calls.flat().join('\n'), /managed hook entries up to date/);
 });
 
 test('startup wrapper syncs scripts and registry entries in one call', async (t) => {

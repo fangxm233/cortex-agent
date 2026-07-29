@@ -7,7 +7,7 @@ Cross-cutting concerns that any surface can pull in (live stream, media preview,
 |---|---|---|
 | workbench/ | subdir | Three-pane workbench frame, chat and panels |
 | tasks/ | subdir | Lifecycle-grouped task list and detail modal |
-| thread/ | subdir | Thread detail pipeline and artifact view |
+| thread/ | subdir | Thread detail modal, pipeline, and artifact view |
 | overview/ | subdir | Project dashboard of cost, schedules and runs |
 | memory/ | subdir | Project memory file browser |
 | skills/ | subdir | Installed-skill browser |
