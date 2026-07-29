@@ -1,4 +1,4 @@
-// input:  HookBus, shared runner mock, declarative hook entries
+// input:  HookBus, runner mock, entries, timeout defaults
 // output: HookBus matching, ordering, result and isolation tests
 // pos:    Regression coverage for server-side hook dispatch
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -113,6 +113,30 @@ test('runs normalized registry hooks before scoped hooks with correct timeout un
       label: 'scoped',
     },
   ]);
+});
+
+test('uses a caller timeout default only for registry hooks that omit one', async () => {
+  initHookBus({ entries: [
+    entry('session-default', {
+      event: 'cortex:session.messageEnd',
+      run: { command: 'session-default' },
+    }),
+    entry('session-explicit', {
+      event: 'cortex:session.messageEnd',
+      run: { command: 'session-explicit', timeout: 2 },
+    }),
+  ] });
+
+  await emitCortexEvent(
+    'cortex:session.messageEnd',
+    {},
+    { defaultTimeoutMs: 60_000 },
+  );
+
+  assert.deepEqual(
+    runner.runHookProcess.mock.calls.map(([opts]) => opts.timeoutMs),
+    [60_000, 2_000],
+  );
 });
 
 test('interprets hook-result, stdout-as-prompt, none, and omitted result modes', async () => {

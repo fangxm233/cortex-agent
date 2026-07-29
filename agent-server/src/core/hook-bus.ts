@@ -1,5 +1,5 @@
 // input:  HookEntry snapshots, hook payloads, shared hook runner
-// output: HookSpec, HookEmitResult, HookBus init and emit API
+// output: HookSpec, HookEmitResult, timeout-aware emit API
 // pos:    Dispatches server-side hook events to configured hooks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -47,7 +47,7 @@ function matchesPayload(
   );
 }
 
-function registryHook(entry: HookEntry): HookSpec {
+function registryHook(entry: HookEntry, defaultTimeoutMs: number): HookSpec {
   const command = entry.run.script === undefined
     ? entry.run.command
     : `node ${path.join(hooksDirectory, entry.run.script)}`;
@@ -55,7 +55,7 @@ function registryHook(entry: HookEntry): HookSpec {
     id: entry.id,
     command,
     timeoutMs: entry.run.timeout === undefined
-      ? DEFAULT_REGISTRY_TIMEOUT_MS
+      ? defaultTimeoutMs
       : entry.run.timeout * 1_000,
     result: entry.result,
   };
@@ -64,12 +64,13 @@ function registryHook(entry: HookEntry): HookSpec {
 function matchingRegistryHooks(
   event: `cortex:${string}`,
   payload: Record<string, unknown>,
+  defaultTimeoutMs: number,
 ): HookSpec[] {
   return registryEntries
     .filter((entry) => entry.enabled !== false)
     .filter((entry) => entry.event === event)
     .filter((entry) => matchesPayload(entry.matcher, payload))
-    .map(registryHook);
+    .map((entry) => registryHook(entry, defaultTimeoutMs));
 }
 
 function failure(id: string, error: unknown): HookEmitResult {
@@ -121,10 +122,18 @@ export function initHookBus(opts: {
 export async function emitCortexEvent(
   event: `cortex:${string}`,
   payload: Record<string, unknown>,
-  opts?: { scopedHooks?: HookSpec[]; env?: NodeJS.ProcessEnv },
+  opts?: {
+    scopedHooks?: HookSpec[];
+    env?: NodeJS.ProcessEnv;
+    defaultTimeoutMs?: number;
+  },
 ): Promise<HookEmitResult[]> {
   const hooks = [
-    ...matchingRegistryHooks(event, payload),
+    ...matchingRegistryHooks(
+      event,
+      payload,
+      opts?.defaultTimeoutMs ?? DEFAULT_REGISTRY_TIMEOUT_MS,
+    ),
     ...(opts?.scopedHooks ?? []),
   ];
   const stdinPayload = JSON.stringify(payload);

@@ -1,5 +1,5 @@
 // input:  versions, user config files, defaults, atomicWrite
-// output: Versioned and registry-location migrations
+// output: Versioned and collision-safe registry migrations
 // pos:    Migrates user-owned files during server startup
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -644,10 +644,16 @@ function sessionHookMigrationEntries(config: Record<string, unknown>): Array<[st
   return entries;
 }
 
-async function hasValidSessionHookEntry(filePath: string): Promise<boolean> {
+async function hasCompatibleSessionHookEntry(
+  filePath: string,
+  expectedEvent: HookEntry['event'],
+): Promise<boolean> {
   try {
     const raw = await fs.readFile(filePath, 'utf8');
-    validateHookEntry(JSON.parse(raw));
+    const existing = validateHookEntry(JSON.parse(raw));
+    if (existing.event !== expectedEvent) {
+      throw new Error(`registry destination belongs to ${existing.event}`);
+    }
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
@@ -656,7 +662,7 @@ async function hasValidSessionHookEntry(filePath: string): Promise<boolean> {
 }
 
 async function writeSessionHookEntry(filePath: string, entry: HookEntry): Promise<void> {
-  if (await hasValidSessionHookEntry(filePath)) return;
+  if (await hasCompatibleSessionHookEntry(filePath, entry.event)) return;
   await atomicWrite(filePath, `${JSON.stringify(entry, null, 2)}\n`);
 }
 

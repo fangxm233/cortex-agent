@@ -1,6 +1,6 @@
-// input:  HookBus thread adapter and isolated session registry
+// input:  HookBus, thread adapter, session registry, agent doubles
 // output: lifecycle and session event pipeline regressions
-// pos:    Verifies public hook callers preserve failure isolation
+// pos:    Verifies public hook callers and prompt injection
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterAll, test, vi } from 'vitest';
@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { CONFIG_DIR, HOOKS_DIR } from '../src/core/paths.js';
-import { initHookBus } from '../src/core/hook-bus.js';
+import * as hookBus from '../src/core/hook-bus.js';
+import type { AgentHandle } from '../src/core/types/agent-types.js';
 import type { OutputStream } from '../src/platform/output-stream.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import { threadStore } from '../src/store/thread-repo.js';
@@ -18,6 +19,7 @@ import {
   isOnNewHookConfigured,
   loadHookConfig,
   runSessionHook,
+  type InjectDeps,
   type SessionHookSpec,
 } from '../src/domain/sessions/session-hooks.js';
 import { loadHookRegistry, type HookEntry } from '../src/store/hook-registry.js';
@@ -93,7 +95,7 @@ function writeSessionHooks(
   for (const [file, source] of Object.entries(scripts)) {
     writeFileSync(path.join(HOOKS_DIR, file), source);
   }
-  initHookBus({ entries: loadHookRegistry(registryDir), hooksDir: HOOKS_DIR });
+  hookBus.initHookBus({ entries: loadHookRegistry(registryDir), hooksDir: HOOKS_DIR });
 }
 
 function messageEndEntry(command: string): HookEntry {
@@ -130,6 +132,33 @@ function makeSessionSpec(): SessionHookSpec {
       emptyLine: () => 'empty',
     },
   };
+}
+
+function makeInjectedSpec(): SessionHookSpec {
+  const spec = makeSessionSpec();
+  spec.inject = {
+    targetSessionId: 'sess-target',
+    profileName: 'review-profile',
+    sessionKey: spec.ctx.channel,
+    trigger: 'hook:onMessageEnd',
+  };
+  return spec;
+}
+
+function makeInjectDeps() {
+  const calls: Array<{ message: string; options: Parameters<InjectDeps['runAgent']>[1] }> = [];
+  const closeCalls: Array<{ channel: string; sessionKey: string }> = [];
+  const deps: InjectDeps = {
+    runAgent(message, options): AgentHandle {
+      calls.push({ message, options });
+      options.onAssistantMessage?.('agent follow-up');
+      return { promise: Promise.resolve(null as never), kill: () => false, sessionId: 'agent-session' };
+    },
+    async closeInjectedSession(channel, sessionKey) {
+      closeCalls.push({ channel, sessionKey });
+    },
+  };
+  return { deps, calls, closeCalls };
 }
 
 afterAll(async () => {
@@ -189,6 +218,21 @@ test('session config lookup normalizes registry scripts, commands, and timeout u
   });
 });
 
+test('session public path requests the legacy timeout for omitted registry values', async (t) => {
+  writeSessionHooks([{
+    id: 'session-message-end-hook',
+    event: 'cortex:session.messageEnd',
+    run: { command: "node -e 'process.exit(0)'" },
+    result: 'stdout-as-prompt',
+  }]);
+  const emitSpy = vi.spyOn(hookBus, 'emitCortexEvent');
+  t.onTestFinished(() => emitSpy.mockRestore());
+
+  await runSessionHook(makeSessionSpec(), makeStream());
+
+  assert.equal(emitSpy.mock.calls[0]?.[2]?.defaultTimeoutMs, 60_000);
+});
+
 test('session public path formats a delegated process error and flushes', async () => {
   writeSessionHooks([messageEndEntry("node -e 'process.exit(6)'")]);
   const stream = makeStream();
@@ -220,6 +264,37 @@ test('session public path preserves env, preview, and flush', async () => {
   await runSessionHook(makeSessionSpec(), stream);
 
   assert.deepEqual(stream.texts, ['status', 'preview:C-session-hook|sess-1|messageEnd']);
+  assert.equal(stream.flushCount, 1);
+});
+
+test('session event injects only prompt results with preserved agent context', async () => {
+  const marker = path.join(HOOKS_DIR, 'injection-observer-ran');
+  writeSessionHooks([
+    messageEndEntry("node -e 'process.stdout.write(\"inject me\")'"),
+    {
+      id: 'session-observer',
+      event: 'cortex:session.messageEnd',
+      run: { script: 'observer.mjs', timeout: 1 },
+      result: 'none',
+    },
+  ], {
+    'observer.mjs': `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'yes');\n`,
+  });
+  const stream = makeStream();
+  const { deps, calls, closeCalls } = makeInjectDeps();
+  const spec = makeInjectedSpec();
+
+  await runSessionHook(spec, stream, deps);
+
+  assert.equal(existsSync(marker), true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].message, 'inject me');
+  assert.equal(calls[0].options.channel, spec.ctx.channel);
+  assert.equal(calls[0].options.sessionId, 'sess-target');
+  assert.equal(calls[0].options.profileName, 'review-profile');
+  assert.equal(calls[0].options.sessionKey, spec.ctx.channel);
+  assert.deepEqual(closeCalls, []);
+  assert.deepEqual(stream.texts, ['status', 'preview:inject me', 'agent follow-up']);
   assert.equal(stream.flushCount, 1);
 });
 

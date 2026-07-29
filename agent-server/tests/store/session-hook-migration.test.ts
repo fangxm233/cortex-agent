@@ -1,6 +1,6 @@
-// input:  runMigrations, assertions, temporary user config trees
+// input:  runMigrations, temp config trees, collision fixtures
 // output: Legacy session hook migration regression tests
-// pos:    Verifies session hooks move into registry entries
+// pos:    Verifies safe session hook registry migration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -106,6 +106,24 @@ test('preserves registry choices and legacy omission of onNew', async (t) => {
     result: 'stdout-as-prompt',
     enabled: false,
   });
+});
+
+test('keeps the legacy file when a valid destination belongs to another event', async (t) => {
+  const paths = await setup(t);
+  const source = path.join(paths.configDir, 'session-hooks.json');
+  const target = path.join(paths.configDir, 'hooks', '12-session-new-hook.json');
+  const unrelated = {
+    id: 'unrelated-hook',
+    event: 'cortex:thread.end',
+    run: { command: 'other' },
+  };
+  await writeJson(source, { onNew: { command: 'legacy-command' } });
+  await writeJson(target, unrelated);
+
+  await migrate(paths);
+
+  assert.notEqual(await fs.stat(source).catch(() => null), null);
+  assert.deepEqual(await readJson(target), unrelated);
 });
 
 test('keeps the legacy file when a registry destination is invalid', async (t) => {

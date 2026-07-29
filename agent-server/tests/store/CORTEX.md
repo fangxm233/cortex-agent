@@ -17,7 +17,7 @@ and the persisted registries for sessions, tasks, schedules and costs.
 | profile-repo.test.ts | test | Covers profile reads, writes and file watching |
 | project-dir-repo.test.ts | test | Covers per-machine project directory mapping |
 | schedule-repo.test.ts | test | Covers schedules, throttles and resume queues |
-| session-hook-migration.test.ts | test | Covers legacy session hook registry migration |
+| session-hook-migration.test.ts | test | Covers legacy migration and destination collisions |
 | session-registry-repo.test.ts | test | Covers session lookup, prune and migration |
 | session-store.test.ts | test | Covers session migration and prune references |
 | task-repo.test.ts | test | Covers task store locking, flush and round-trip |

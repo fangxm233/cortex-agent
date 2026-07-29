@@ -1,5 +1,5 @@
 // input:  hook registry/events, agent sessions, OutputStream
-// output: session hook execution and optional agent injection helpers
+// output: session dispatch with timeout and injection helpers
 // pos:    Dispatches session events and injects prompt results
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as path from 'node:path';
@@ -261,7 +261,10 @@ export async function runSessionHook(
   const results = await emitCortexEvent(
     SESSION_EVENTS[spec.name],
     buildHookPayload(spec.name, spec.ctx),
-    { env: buildHookEnv(spec.name, spec.ctx) },
+    {
+      env: buildHookEnv(spec.name, spec.ctx),
+      defaultTimeoutMs: DEFAULT_TIMEOUT_MS,
+    },
   );
   let handled = false;
   for (const emitted of results) {
