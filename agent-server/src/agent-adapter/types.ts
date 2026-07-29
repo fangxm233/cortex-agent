@@ -1,4 +1,4 @@
-// input:  normalized events and backend capabilities
+// input:  normalized events, backend capabilities, MCP context
 // output: agent adapter, process, context, and sink contracts
 // pos:    Shared backend adapter type definitions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -96,7 +96,7 @@ export interface AgentSpawnConfig {
     trackSessionId?: string | null;
     /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
     executionId?: string | null;
-    /** When true, load the restricted core + tasks + thread MCP composition. */
+    /** When true, load core + tasks + manager-answer + thread MCP layers. */
     useCoreMcp?: boolean;
     threadDepth?: number | null;
     /** Owning dispatch task id/project, surfaced as CORTEX_TASK_ID / CORTEX_TASK_PROJECT. */

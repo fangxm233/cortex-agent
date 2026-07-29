@@ -1,5 +1,5 @@
-// input:  init module and temporary filesystem
-// output: init path, env, config, and platform behavior verification
+// input:  init module, MCP builders, temporary filesystem
+// output: init path, env, config, and platform verification
 // pos:    Cortex init pure-logic tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -74,7 +74,7 @@ test('generateConfigs preserves an existing preferences.json without --force', (
   assert.equal(JSON.parse(fs.readFileSync(prefsPath, 'utf8')).lang, 'en');
 });
 
-test('generateConfigs writes isolated task and thread MCP configs', () => {
+test('generateConfigs writes isolated task, manager-Q&A, and thread MCP configs', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-init-mcp-'));
   const paths = getResolvedPaths(home);
   fs.mkdirSync(paths.CONFIG_DIR, { recursive: true });
@@ -85,10 +85,14 @@ test('generateConfigs writes isolated task and thread MCP configs', () => {
     const tasks = JSON.parse(
       fs.readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-tasks.json'), 'utf8'),
     );
+    const managerQa = JSON.parse(
+      fs.readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-manager-qa.json'), 'utf8'),
+    );
     const thread = JSON.parse(
       fs.readFileSync(path.join(paths.CONFIG_DIR, 'mcp-config-thread.json'), 'utf8'),
     );
     assert.deepEqual(Object.keys(tasks.mcpServers), ['cortex-tasks']);
+    assert.deepEqual(Object.keys(managerQa.mcpServers), ['cortex-manager-qa']);
     assert.deepEqual(Object.keys(thread.mcpServers), ['cortex-thread']);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });

@@ -19,6 +19,7 @@ $CORTEX_HOME/
 │   ├── mcp-config.json           # 直接会话 MCP 配置
 │   ├── mcp-config-core.json      # 远程执行/时间分层
 │   ├── mcp-config-tasks.json     # 只读任务监控分层
+│   ├── mcp-config-manager-qa.json # 共享 manager 回答分层
 │   ├── mcp-config-thread.json    # 线程控制分层
 │   ├── mcp-config-tui.json       # TUI 交互分层
 │   └── session-hooks.json        # 会话级钩子配置

@@ -1,4 +1,4 @@
-// input:  session context, Claude streams, usage, rate limits
+// input:  session context, Claude streams, MCP config, usage
 // output: ClaudeAdapter turns, events, usage, and compact control
 // pos:    Claude session pool and print-stream adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -310,8 +310,8 @@ class ClaudeSession {
   private spawnProcess(): void {
     const env = buildClaudeEnv(this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId, this.anthropicBaseUrl, this.extraEnv, this.context);
     const spawnOptions = this.toSpawnOptions();
-    // CORE_MCP_CONFIG marks template threads; spawn args add task and thread-control layers.
-    // Default/direct sessions use the full core + tasks + ext config.
+    // CORE_MCP_CONFIG marks template threads; spawn args add task, answer, and control layers.
+    // Default/direct sessions use the full core + tasks + manager-answer + ext config.
     if (this.context?.useCoreMcp) {
       spawnOptions.mcpConfigPath = CORE_MCP_CONFIG;
     }

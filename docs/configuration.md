@@ -21,6 +21,7 @@ $CORTEX_HOME/
 │   ├── mcp-config.json           # Direct-session MCP configuration
 │   ├── mcp-config-core.json      # Remote execution/time layer
 │   ├── mcp-config-tasks.json     # Read-only task-monitoring layer
+│   ├── mcp-config-manager-qa.json # Shared manager-answer layer
 │   ├── mcp-config-thread.json    # Thread-control layer
 │   ├── mcp-config-tui.json       # TUI interaction layer
 │   └── session-hooks.json        # Session-level hook configuration

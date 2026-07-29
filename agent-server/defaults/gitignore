@@ -19,6 +19,7 @@ data/pi/
 mcp-config.json
 mcp-config-core.json
 mcp-config-tasks.json
+mcp-config-manager-qa.json
 mcp-config-thread.json
 
 .claude/settings.local.json

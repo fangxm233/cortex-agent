@@ -1,4 +1,4 @@
-// input:  PI MCP bridge, parent/subagent env, fake and real clients
+// input:  PI MCP bridge, privilege env, fake and real clients
 // output: scoped loading, mapping, retry, and stdio contracts
 // pos:    PI MCP bridge behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -177,6 +177,26 @@ test('subagent MCP bridge exposes only cortex-core', async () => {
   assert.deepEqual(harness.registered, ['core_tool']);
 });
 
+test('top-level direct MCP bridge loads manager answers without thread control', async () => {
+  const harness = createPiHarness();
+  const spawned: string[] = [];
+  const deps = retryDeps({
+    env: {},
+    spawnClient: async (_path, name) => {
+      spawned.push(name);
+      return fakeHandle(name);
+    },
+  });
+
+  await installMcpBridge(harness.pi, deps);
+  await harness.fire('before_agent_start');
+
+  assert.deepEqual(spawned, ['core', 'tasks', 'manager-qa', 'ext']);
+  assert.deepEqual(harness.registered, [
+    'core_tool', 'tasks_tool', 'manager-qa_tool', 'ext_tool',
+  ]);
+});
+
 test('required MCP connect failure retries next turn without duplicate tools', async () => {
   const harness = createPiHarness();
   const attempts = new Map<string, number>();
@@ -186,7 +206,7 @@ test('required MCP connect failure retries next turn without duplicate tools', a
     spawnClient: async (_path, name) => {
       const attempt = (attempts.get(name) ?? 0) + 1;
       attempts.set(name, attempt);
-      if (name === 'tasks' && attempt === 1) throw new Error('tasks unavailable');
+      if (name === 'manager-qa' && attempt === 1) throw new Error('manager answers unavailable');
       return fakeHandle(name);
     },
   });
@@ -195,13 +215,17 @@ test('required MCP connect failure retries next turn without duplicate tools', a
   await harness.fire('before_agent_start');
   assert.deepEqual(harness.registered, []);
   assert.equal(failures.length, 1);
-  assert.match((failures[0] as Error).message, /tasks.*connect/);
+  assert.match((failures[0] as Error).message, /manager-qa.*connect/);
 
   await harness.fire('before_agent_start');
-  assert.deepEqual(harness.registered.sort(), ['core_tool', 'ext_tool', 'tasks_tool', 'thread_tool']);
+  assert.deepEqual(harness.registered.sort(), [
+    'core_tool', 'ext_tool', 'manager-qa_tool', 'tasks_tool', 'thread_tool',
+  ]);
   await harness.fire('before_agent_start');
-  assert.equal(harness.registered.length, 4);
-  assert.deepEqual(Object.fromEntries(attempts), { core: 1, tasks: 2, thread: 1, ext: 1 });
+  assert.equal(harness.registered.length, 5);
+  assert.deepEqual(Object.fromEntries(attempts), {
+    core: 1, tasks: 1, 'manager-qa': 2, thread: 1, ext: 1,
+  });
 });
 
 test('required MCP list failure retries discovery before registering tools', async () => {
@@ -213,7 +237,7 @@ test('required MCP list failure retries discovery before registering tools', asy
     spawnClient: async (_path, name) => fakeHandle(name, async () => {
       const attempt = (listAttempts.get(name) ?? 0) + 1;
       listAttempts.set(name, attempt);
-      if (name === 'thread' && attempt === 1) throw new Error('list unavailable');
+      if (name === 'manager-qa' && attempt === 1) throw new Error('list unavailable');
       return { tools: [{ name: `${name}_tool`, description: name, inputSchema: { type: 'object' } }] };
     }),
   });
@@ -222,13 +246,17 @@ test('required MCP list failure retries discovery before registering tools', asy
   await harness.fire('before_agent_start');
   assert.deepEqual(harness.registered, []);
   assert.equal(failures.length, 1);
-  assert.match((failures[0] as Error).message, /thread.*list/);
+  assert.match((failures[0] as Error).message, /manager-qa.*list/);
 
   await harness.fire('before_agent_start');
-  assert.deepEqual(harness.registered.sort(), ['core_tool', 'ext_tool', 'tasks_tool', 'thread_tool']);
+  assert.deepEqual(harness.registered.sort(), [
+    'core_tool', 'ext_tool', 'manager-qa_tool', 'tasks_tool', 'thread_tool',
+  ]);
   await harness.fire('before_agent_start');
-  assert.equal(harness.registered.length, 4);
-  assert.deepEqual(Object.fromEntries(listAttempts), { core: 2, tasks: 2, thread: 2, ext: 1 });
+  assert.equal(harness.registered.length, 5);
+  assert.deepEqual(Object.fromEntries(listAttempts), {
+    core: 2, tasks: 2, 'manager-qa': 2, thread: 1, ext: 1,
+  });
 });
 
 // Real transport integration: invoking one tool exercises server startup, registration, RPC, and mapping.

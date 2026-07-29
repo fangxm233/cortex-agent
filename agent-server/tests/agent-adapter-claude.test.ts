@@ -1,4 +1,4 @@
-// input:  Claude adapter modules and Node assertions
+// input:  Claude adapter modules, MCP layers, assertions
 // output: CLI args, env, hooks, parsing, and compact verification
 // pos:    Claude adapter behavior tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -17,6 +17,7 @@ import {
   CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
   FEISHU_MCP_CONFIG,
+  MANAGER_QA_MCP_CONFIG,
   MCP_CONFIG,
   TASKS_MCP_CONFIG,
   THREAD_MCP_CONFIG,
@@ -74,10 +75,11 @@ test('buildSpawnArgs direct session never loads the thread-control layer', () =>
   assert.ok(args.includes(MCP_CONFIG));
   assert.ok(!args.includes(CORE_MCP_CONFIG));
   assert.ok(!args.includes(TASKS_MCP_CONFIG));
+  assert.ok(!args.includes(MANAGER_QA_MCP_CONFIG));
   assert.ok(!args.includes(THREAD_MCP_CONFIG));
 });
 
-test('buildSpawnArgs thread session layers core, tasks, and thread configs', () => {
+test('buildSpawnArgs thread session layers core, tasks, manager Q&A, and thread configs', () => {
   const args = buildSpawnArgs({
     tools: null,
     needsResume: false,
@@ -86,8 +88,8 @@ test('buildSpawnArgs thread session layers core, tasks, and thread configs', () 
   });
   const start = args.indexOf('--mcp-config');
   assert.deepEqual(
-    args.slice(start + 1, start + 4),
-    [CORE_MCP_CONFIG, TASKS_MCP_CONFIG, THREAD_MCP_CONFIG],
+    args.slice(start + 1, start + 5),
+    [CORE_MCP_CONFIG, TASKS_MCP_CONFIG, MANAGER_QA_MCP_CONFIG, THREAD_MCP_CONFIG],
   );
   assert.ok(!args.includes(MCP_CONFIG));
 });
@@ -375,6 +377,7 @@ test("buildSpawnArgs mode='tui' — thread/core session (mcpConfigPath=CORE_MCP_
   });
   assert.ok(args.includes(CORE_MCP_CONFIG), 'thread tui loads the remote execution server');
   assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread tui loads read-only task monitoring');
+  assert.ok(args.includes(MANAGER_QA_MCP_CONFIG), 'thread tui loads manager answer support');
   assert.ok(args.includes(THREAD_MCP_CONFIG), 'thread tui loads its control plane');
   assert.ok(!args.includes(TUI_MCP_CONFIG), 'thread tui must NOT load the cortex-tui-bridge server');
   assert.ok(!args.includes(MCP_CONFIG), 'thread tui must not fall back to the direct MCP set');
@@ -554,6 +557,7 @@ test('buildSpawnArgs print + isUserInitiated + core (CORE_MCP_CONFIG) — thread
     isUserInitiated: true,
   });
   assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread session gets task monitoring');
+  assert.ok(args.includes(MANAGER_QA_MCP_CONFIG), 'thread session gets manager answer support');
   assert.ok(args.includes(THREAD_MCP_CONFIG), 'thread session gets thread control');
   assert.ok(!args.includes(TUI_MCP_CONFIG), 'thread/core sessions must NOT load the tui bridge');
   const tools = args[args.indexOf('--tools') + 1].split(',');
