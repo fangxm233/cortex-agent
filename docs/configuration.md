@@ -15,7 +15,7 @@ $CORTEX_HOME/
 ├── config/
 │   ├── .env                      # Same file (symlinked / canonical location)
 │   ├── profiles.json             # Named agent profiles
-│   ├── thread-templates.json     # Agent definitions and orchestration templates
+│   ├── thread-templates/         # Thread config — one JSON per agent/template/shell
 │   ├── machines.json             # Machine registry for remote clients
 │   ├── budget.json               # Daily/monthly budget limits
 │   ├── mcp-config.json           # Direct-session MCP configuration
@@ -245,7 +245,8 @@ system documentation.
 
 The `agent-server/defaults/` directory in the npm package contains
 shipped defaults. Most are copied to `$CORTEX_HOME/` during init; the hook
-assets are additionally re-synced by the server on every startup:
+assets and the thread-template entities are additionally re-synced by the
+server on every startup:
 
 | Source | Destination | Overwrite behavior |
 |---|---|---|
@@ -253,7 +254,7 @@ assets are additionally re-synced by the server on every startup:
 | `defaults/gitignore` | `$CORTEX_HOME/.gitignore` | Never |
 | `defaults/.claude/settings.json` | `$CORTEX_HOME/.claude/settings.json` | Never |
 | `defaults/config/budget.json` | `$CORTEX_HOME/config/budget.json` | Only with `--force` |
-| `defaults/config/thread-templates.json` | `$CORTEX_HOME/config/thread-templates.json` | Only with `--force` |
+| `defaults/config/thread-templates/` | `$CORTEX_HOME/config/thread-templates/` | Per-file copy-if-missing, at init and again at every server start: a shipped agent/template/shell file you do not have yet is added; a file you already have is never overwritten — `--force` does not apply to this tree |
 | `defaults/config/hooks/` | `$CORTEX_HOME/config/hooks/` | Per-file CalVer sync at every server start: added when missing, refreshed when the shipped `version` is newer. A declaration with no `version` — yours — is never overwritten |
 | `defaults/prompts/` | `$CORTEX_HOME/prompts/` | Per-file: new files always added, existing preserved unless `--force` |
 | `defaults/plugins/` | `$CORTEX_HOME/plugins/` | Per-file: new files always added, existing preserved unless `--force` |
@@ -263,9 +264,10 @@ assets are additionally re-synced by the server on every startup:
 | `defaults/context/` | `$CORTEX_HOME/context/` | Scaffold files: never overwrite |
 
 This design means npm package upgrades automatically deliver new prompts,
-plugins, rules, and hooks without overwriting user customizations.
-Config files (`thread-templates.json`, `budget.json`, etc.) require
-`--force` to replace.
+plugins, rules, hooks, and thread-template entities without overwriting user
+customizations. Whole-file config such as `budget.json` still requires
+`--force` to replace; `config/thread-templates/` is merged per file instead,
+so newly shipped entities reach existing installs without touching your edits.
 
 ## Hot-reload behavior
 
@@ -274,7 +276,10 @@ Config files (`thread-templates.json`, `budget.json`, etc.) require
   for the full scheduling system.
 - **`profiles.json`** — read fresh on every agent spawn. No restart needed
   to change profiles.
-- **`thread-templates.json`** — read fresh on every thread launch.
+- **`thread-templates/`** — each entity subdirectory (`agents/`, `templates/`,
+  `shells/`) is watched. Changes are debounced (300ms) and the whole config is
+  reloaded without a restart; a legacy single `thread-templates.json` is watched
+  the same way until it is migrated. See [threads.md](./threads.md).
 - **`.env`** — requires a daemon restart to pick up changes (loaded once
   at startup via dotenv).
 - **Hook declarations (`config/hooks/*.json`)** — the registry is re-read on
@@ -290,7 +295,7 @@ Config files (`thread-templates.json`, `budget.json`, etc.) require
 |---|---|---|
 | `.env` | Environment variables | `$CORTEX_HOME/config/.env` |
 | `profiles.json` | Agent profiles | `$CORTEX_HOME/config/profiles.json` |
-| `thread-templates.json` | Thread definitions | `$CORTEX_HOME/config/thread-templates.json` |
+| `thread-templates/` | Thread definitions — one JSON per agent/template/shell. Used when present; otherwise the loader falls back to the legacy single file `thread-templates.json`, which is split into this directory by a one-time startup migration | `$CORTEX_HOME/config/thread-templates/` |
 | `machines.json` | Machine registry | `$CORTEX_HOME/config/machines.json` |
 | `budget.json` | Budget limits | `$CORTEX_HOME/config/budget.json` |
 | `mcp-config.json` | MCP server config | `$CORTEX_HOME/config/mcp-config.json` |
