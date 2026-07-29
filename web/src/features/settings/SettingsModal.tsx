@@ -12,10 +12,10 @@ import {
   TemplatesPanel,
   McpPanel,
   NotificationsPanel,
-  HooksPanel,
   AdvancedPanel,
 } from './SettingsPanels';
 import { BudgetPanel } from './BudgetPanel';
+import { HooksPanel } from './HooksPanel';
 import { AppearancePanel } from './AppearancePanel';
 
 // Settings modal (design 12a–g, prototype.dc.html L721–1088; proto-shot 14-settings.png). Rebuilt
@@ -290,8 +290,10 @@ function PanelBody({
       return <McpPanel snapshot={snapshot} />;
     case 'notifications':
       return <NotificationsPanel snapshot={snapshot} />;
+    // Hooks reads its own hooks.list query — the four-field config.get summary cannot carry a
+    // full declaration, let alone edit one.
     case 'hooks':
-      return <HooksPanel snapshot={snapshot} />;
+      return <HooksPanel />;
     case 'advanced':
       return <AdvancedPanel snapshot={snapshot} />;
     default:

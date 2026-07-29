@@ -81,7 +81,12 @@ function buildLegacyHooksSettings(toolsList: string[]): ClaudeHooksSettings {
   };
 }
 
-function claudeEventName(event: HookEntry['event']): string | null {
+/**
+ * The Claude settings event an entry compiles to, or null when Claude has no mount point for it.
+ * Only three of the seven `agent:*` events map; the rest reach PI only and must be declared as
+ * `cc:*` to hook Claude. Exported so the UI can surface that asymmetry instead of failing silently.
+ */
+export function claudeEventName(event: HookEntry['event']): string | null {
   if (event.startsWith('cc:')) return event.slice(3);
   return AGENT_EVENT_NAMES[event] ?? null;
 }

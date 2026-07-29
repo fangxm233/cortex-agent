@@ -6,7 +6,6 @@
 import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
-import { atomicWriteSync } from '@core/atomic-write.js';
 import {
   cliError,
   formatError,
@@ -18,6 +17,7 @@ import { runHookProcess, type HookProcessOptions } from '@core/hook-exec.js';
 import { CONFIG_DIR, HOOKS_DIR } from '@core/paths.js';
 import { isMainModule } from '@core/utils.js';
 import { normalizeAskLevel } from '../platform/interactive-builder.js';
+import { MANAGED_RESYNC_WARNING, setHookEnabled } from '@store/hook-writer.js';
 import {
   loadMountedHooks,
   summarizeMountedHook,
@@ -318,7 +318,7 @@ function registryForMutation(id: string, hooks: MountedHook[]): RegistryHook {
 
 function managedWarnings(hook: RegistryHook, enabled: boolean): string[] | undefined {
   if (hook.source !== 'managed' || enabled) return undefined;
-  return ['A managed hook sync that deploys a newer version will restore the shipped enabled state.'];
+  return [MANAGED_RESYNC_WARNING];
 }
 
 function statePayload(
@@ -342,14 +342,16 @@ function statePayload(
   return payload;
 }
 
+// The write itself is delegated to the shared registry writer, so the CLI and the Web UI cannot
+// drift into two different on-disk representations of the same toggle. The CLI keeps ownership of
+// what the writer has no opinion about: --dry-run, and the richer template-scoped error message.
 function handleState(context: HandlerContext, enabled: boolean): HookCliResult {
   const hook = registryForMutation(context.parsed.id!, context.hooks);
-  const changed = hook.enabled !== enabled;
-  if (!context.parsed.dryRun && changed) {
-    const entry = { ...hook.entry, enabled };
-    atomicWriteSync(hook.filePath, `${JSON.stringify(entry, null, 2)}\n`);
+  if (context.parsed.dryRun) {
+    return success(statePayload(hook, enabled, hook.enabled !== enabled, true));
   }
-  return success(statePayload(hook, enabled, changed, context.parsed.dryRun));
+  const { changed } = setHookEnabled(context.options.registryDir, hook.id, enabled);
+  return success(statePayload(hook, enabled, changed, false));
 }
 
 function shellQuote(value: string): string {

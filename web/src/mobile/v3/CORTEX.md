@@ -65,11 +65,16 @@ The view models are framework-free record to slot mappings and each one has a co
 | MDaemonView.tsx | view | Daemon processes, restart controls and events |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
-| MSettingsScreen.tsx | screen | Loads settings data and mounted hooks |
-| MSettingsView.tsx | view | Renders settings rows and mounted hooks |
-| MSettingsView.test.tsx | test | Tests mobile hooks and empty state |
+| MSettingsScreen.tsx | screen | Loads settings data and hook counts |
+| MSettingsView.tsx | view | Renders settings rows and the hooks drill-in |
+| MSettingsView.test.tsx | test | Tests the hooks count row and drill-in |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
+| MHooksScreen.tsx | screen | Loads the hook registry and sheet selection |
+| MHooksView.tsx | view | Grouped read-only hooks with declaration sheet |
+| MHooksView.test.tsx | test | Tests hook grouping, flags and the sheet |
+| m-hooks-vm.ts | vm | Groups hooks by namespace into read-only slots |
+| m-hooks-vm.test.ts | test | Unit tests for the hooks view model |
 | MPlanReadScreen.tsx | screen | Loads a plan and handles approve or reject |
 | MPlanReadView.tsx | view | Full plan text with scroll progress and actions |
 | MNotificationProvider.tsx | provider | Streams messages and notices into banners |

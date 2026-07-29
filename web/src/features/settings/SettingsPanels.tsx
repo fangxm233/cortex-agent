@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type { CSSProperties } from 'react';
-import type { ConfigHook, ConfigSnapshot, ThreadTemplateEntry } from '@cortex-agent/ui-contract';
+import type { ConfigSnapshot, ThreadTemplateEntry } from '@cortex-agent/ui-contract';
 import { useVocab } from '@/i18n';
 import { SCard, SCardHeader, MonoKV, Toggle } from './settings-ui';
 import {
@@ -19,7 +19,8 @@ import {
   ADVANCED_FLAGS,
 } from './platform-env';
 
-// The 8 presentational settings panels (Budget lives in BudgetPanel.tsx — it owns the live write).
+// The 7 presentational settings panels (Budget lives in BudgetPanel.tsx and Hooks in HooksPanel.tsx
+// — those two own their live writes).
 // Each renders the prototype's exact 1:1 structure with REAL config.get data substituted; every
 // affordance with no backend op is an inert placeholder and every field the contract does not carry
 // is shown honestly (— / a flagged structural note) — never a fabricated value. Raw inline styles
@@ -936,53 +937,6 @@ export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
         </div>
       </SCard>
     </>
-  );
-}
-
-function MountedHookRow({
-  hook,
-  enabledLabel,
-  disabledLabel,
-}: {
-  hook: ConfigHook;
-  enabledLabel: string;
-  disabledLabel: string;
-}) {
-  const label = hook.enabled ? enabledLabel : disabledLabel;
-  const tone = hook.enabled ? 'var(--proto-success)' : 'var(--proto-muted-2)';
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: 12, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--proto-rail)' }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ font: `600 10.5px ${MONO}`, color: 'var(--proto-ink-2)', overflowWrap: 'anywhere' }}>{hook.id}</div>
-        <div style={{ marginTop: 2, font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)', overflowWrap: 'anywhere' }}>{hook.event}</div>
-      </div>
-      <span style={{ fontSize: 9.5, fontWeight: 650, color: tone }}>{label}</span>
-      <span style={{ font: `500 9.5px ${MONO}`, color: 'var(--proto-muted)', minWidth: 92, textAlign: 'right' }}>{hook.source}</span>
-    </div>
-  );
-}
-
-export function HooksPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
-  const L = useVocab();
-  return (
-    <SCard style={{ marginTop: 12, maxWidth: 1080 }}>
-      <SCardHeader title={L.stAgentHooks} right="registry + templates" />
-      <div style={{ padding: '4px 14px 10px' }}>
-        {snapshot.hooks.length === 0 ? (
-          <div style={{ padding: '8px 0', fontSize: 10.5, color: 'var(--proto-faint)' }}>{L.stNoHooks}</div>
-        ) : snapshot.hooks.map((hook) => (
-          <MountedHookRow
-            key={`${hook.source}:${hook.id}:${hook.event}`}
-            hook={hook}
-            enabledLabel={L.stHookEnabled}
-            disabledLabel={L.stHookDisabled}
-          />
-        ))}
-        <div style={{ paddingTop: 9, fontSize: 10, lineHeight: 1.7, color: 'var(--proto-muted-2)' }}>
-          {L.stHooksFootNote}
-        </div>
-      </div>
-    </SCard>
   );
 }
 

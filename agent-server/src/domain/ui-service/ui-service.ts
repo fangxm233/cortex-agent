@@ -16,11 +16,19 @@ import { handleApprovalsList } from './query/approvals.js';
 import { handleIssuesList } from './query/issues.js';
 import { handleCostSummary } from './query/cost.js';
 import { handleConfigGet } from './query/config.js';
+import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleSkillsList } from './query/skills.js';
 import { handleThreadTemplatesGet } from './query/thread-templates.js';
 import { handleSystemDaemonStatus, handleSystemRateLimitStatus } from './query/system.js';
 import { handleConfigSet } from './mutate/config.js';
+import {
+  handleHooksCreate,
+  handleHooksUpdate,
+  handleHooksSetEnabled,
+  handleHooksRemove,
+  handleHooksTest,
+} from './mutate/hooks.js';
 import { handleCreateProject } from './mutate/projects.js';
 import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
@@ -65,6 +73,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'issues.list': (deps, params) => handleIssuesList(deps, params),
   'cost.summary': (deps, params) => handleCostSummary(deps, params),
   'config.get': (deps, params) => handleConfigGet(deps, params),
+  'hooks.list': (deps, params) => handleHooksList(deps, params),
   'machines.list': (deps, params) => handleMachinesList(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),
   'threadTemplates.get': (deps, params) => handleThreadTemplatesGet(deps, params),
@@ -101,6 +110,11 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'issues.handle': (deps, args) => handleIssuesHandle(deps, args),
   'issues.delete': (deps, args) => handleIssuesDelete(deps, args),
   'config.set': (deps, args) => handleConfigSet(deps, args),
+  'hooks.create': (deps, args) => handleHooksCreate(deps, args),
+  'hooks.update': (deps, args) => handleHooksUpdate(deps, args),
+  'hooks.setEnabled': (deps, args) => handleHooksSetEnabled(deps, args),
+  'hooks.remove': (deps, args) => handleHooksRemove(deps, args),
+  'hooks.test': (deps, args) => handleHooksTest(deps, args),
   'system.restart': (_deps, args) => handleSystemRestart(args),
 };
 

@@ -28,7 +28,7 @@ export function normalizeMobilePath(pathname: string): string {
 // Non-tab drill-in sub-screens → which tab stays highlighted while they are open. The scheme hides
 // the Tab bar on these pages (`隐藏 tab bar` / `非 Tab 页`), but the parent tab is the origin. chat
 // (1b) drills from 会话; 线程详情 (1g) from 线程; 任务详情 (1h) from 任务; everything under 项目
-// (审批 1f · 项目记忆 1j · 机器 1k · 设置 1l · 新建项目 1i · Daemon 1r) from 项目.
+// (审批 1f · 项目记忆 1j · 机器 1k · 设置 1l · 钩子 1l-h · 新建项目 1i · Daemon 1r) from 项目.
 const SUBROUTE_TAB: ReadonlyArray<{ prefix: string; tab: MobileTabId }> = [
   { prefix: '/m/session/', tab: 'sessions' },
   { prefix: '/m/thread/', tab: 'threads' },

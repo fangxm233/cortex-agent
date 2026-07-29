@@ -40,6 +40,12 @@ import type {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  hooksListInput,
+  hooksCreateInput,
+  hooksUpdateInput,
+  hooksSetEnabledInput,
+  hooksRemoveInput,
+  hooksTestInput,
   machinesListInput,
   skillsListInput,
   threadTemplatesGetInput,
@@ -76,6 +82,7 @@ const _approvalsList: QueryParity<'approvals.list', typeof approvalsListInput> =
 const _issuesList: QueryParity<'issues.list', typeof issuesListInput> = true;
 const _costSummary: QueryParity<'cost.summary', typeof costSummaryInput> = true;
 const _configGet: QueryParity<'config.get', typeof configGetInput> = true;
+const _hooksList: QueryParity<'hooks.list', typeof hooksListInput> = true;
 const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = true;
 const _skillsList: QueryParity<'skills.list', typeof skillsListInput> = true;
 const _threadTemplatesGet: QueryParity<'threadTemplates.get', typeof threadTemplatesGetInput> = true;
@@ -100,6 +107,11 @@ const _tasksComplete: MutateParity<'tasks.complete', typeof taskCompleteInput> =
 const _tasksBlock: MutateParity<'tasks.block', typeof taskBlockInput> = true;
 const _tasksUnblock: MutateParity<'tasks.unblock', typeof taskActionInput> = true;
 const _configSet: MutateParity<'config.set', typeof configSetInput> = true;
+const _hooksCreate: MutateParity<'hooks.create', typeof hooksCreateInput> = true;
+const _hooksUpdate: MutateParity<'hooks.update', typeof hooksUpdateInput> = true;
+const _hooksSetEnabled: MutateParity<'hooks.setEnabled', typeof hooksSetEnabledInput> = true;
+const _hooksRemove: MutateParity<'hooks.remove', typeof hooksRemoveInput> = true;
+const _hooksTest: MutateParity<'hooks.test', typeof hooksTestInput> = true;
 const _approvalsApprove: MutateParity<'approvals.approve', typeof approvalsApproveInput> = true;
 const _approvalsReject: MutateParity<'approvals.reject', typeof approvalsRejectInput> = true;
 const _approvalsRequest: MutateParity<'approvals.request', typeof approvalsRequestInput> = true;
@@ -123,5 +135,6 @@ export const _contractParityChecked = [
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
   _configSet, _executionsLog,
+  _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
   _systemDaemonStatus, _systemRateLimitStatus, _systemRestart,
 ] as const;

@@ -259,6 +259,68 @@ export const configSetInput = z.discriminatedUnion('section', [
   }),
 ]);
 
+// ── hooks.* ───────────────────────────────────────────────────────
+// The declarative hook registry. `hooks.list` is unparameterised; the write ops take a FLAT draft
+// (one field per form control) that mutate/hooks.ts reassembles into the nested declaration.
+// Two fields are absent by construction rather than rejected at runtime: `version` (a forged CalVer
+// would make the next hook sync treat a user file as shipped and overwrite it) and `blocking`
+// (wired to the two shipped webhook hooks, meaningless on a hand-made entry).
+
+export const hooksListInput = z.object({});
+
+const hookFilterValue = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+
+const hookDraftShape = {
+  event: z.string().min(1),
+  matcher: z.string().optional(),
+  matcherFilters: z.record(z.string(), hookFilterValue).optional(),
+  script: z.string().min(1).optional(),
+  command: z.string().min(1).optional(),
+  timeoutSec: z.number().finite().positive().optional(),
+  backends: z.array(z.enum(['claude', 'pi'])).optional(),
+  requiresTool: z.string().min(1).optional(),
+  result: z.enum(['hook-result', 'stdout-as-prompt', 'none']).optional(),
+  enabled: z.boolean().optional(),
+};
+
+/** The loader requires exactly one of script/command; reject the other two shapes up front. */
+function requireExactlyOneRun(
+  val: { script?: string; command?: string },
+  ctx: z.RefinementCtx,
+): void {
+  const hasScript = val.script !== undefined;
+  const hasCommand = val.command !== undefined;
+  if (hasScript === hasCommand) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['script'],
+      message: 'exactly one of script or command is required',
+    });
+  }
+}
+
+export const hooksCreateInput = z
+  .object({ id: z.string().min(1), ...hookDraftShape })
+  .superRefine(requireExactlyOneRun);
+
+export const hooksUpdateInput = z
+  .object({ id: z.string().min(1), ...hookDraftShape })
+  .superRefine(requireExactlyOneRun);
+
+export const hooksSetEnabledInput = z.object({
+  id: z.string().min(1),
+  enabled: z.boolean(),
+});
+
+export const hooksRemoveInput = z.object({
+  id: z.string().min(1),
+});
+
+export const hooksTestInput = z.object({
+  id: z.string().min(1),
+  payload: z.string(),
+});
+
 export const approvalsApproveInput = z.object({
   id: z.string(),
 });
@@ -317,6 +379,7 @@ export const queryInputSchemas = {
   'issues.list': issuesListInput,
   'cost.summary': costSummaryInput,
   'config.get': configGetInput,
+  'hooks.list': hooksListInput,
   'machines.list': machinesListInput,
   'skills.list': skillsListInput,
   'threadTemplates.get': threadTemplatesGetInput,
@@ -353,5 +416,10 @@ export const mutateInputSchemas = {
   'issues.handle': issueActionInput,
   'issues.delete': issueActionInput,
   'config.set': configSetInput,
+  'hooks.create': hooksCreateInput,
+  'hooks.update': hooksUpdateInput,
+  'hooks.setEnabled': hooksSetEnabledInput,
+  'hooks.remove': hooksRemoveInput,
+  'hooks.test': hooksTestInput,
   'system.restart': systemRestartInput,
 } satisfies Record<MutateOp, z.ZodType>;

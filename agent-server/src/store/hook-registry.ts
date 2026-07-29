@@ -108,7 +108,7 @@ const AGENT_EVENTS = new Set([
 ]);
 const CALVER_RE = /^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d+)?$/;
 const RESULT_MODES = new Set<HookResultMode>(['hook-result', 'stdout-as-prompt', 'none']);
-const RESULT_CAPABILITY_BY_EVENT: ReadonlyMap<
+export const RESULT_CAPABILITY_BY_EVENT: ReadonlyMap<
   HookEvent,
   Exclude<HookResultMode, 'none'>
 > = new Map([
@@ -394,11 +394,17 @@ function implicitBackends(event: HookEvent): HookBackend[] {
   return [];
 }
 
-function effectiveBackends(entry: HookEntry): HookBackend[] {
+/**
+ * The backends an entry actually compiles to: the set implied by its event prefix, narrowed by an
+ * explicit `scope.backends`. Exported so the UI can show mount targets without re-deriving the rule.
+ */
+export function effectiveHookBackends(entry: HookEntry): HookBackend[] {
   const implicit = implicitBackends(entry.event);
   const scoped = entry.scope?.backends;
   return scoped ? implicit.filter((backend) => scoped.includes(backend)) : implicit;
 }
+
+const effectiveBackends = effectiveHookBackends;
 
 function matchesEvent(entry: HookEntry, criteria: HookFilterCriteria): boolean {
   return criteria.event === undefined || entry.event === criteria.event;

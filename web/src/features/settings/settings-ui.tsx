@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 
 // Small 1:1 building blocks shared by the settings panels — the prototype's white card chrome,
 // card header, mono key/value row, toggle and radio. Raw inline styles/px/hex per §8.3 (the light
@@ -93,5 +93,146 @@ export function RadioDot({ selected }: { selected: boolean }) {
         marginTop: 1,
       }}
     />
+  );
+}
+
+/** The uppercase section caption above a block of fields (TRIGGER / ACTION / SCOPE / ADVANCED). */
+export function SSectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 9.5,
+        fontWeight: 700,
+        letterSpacing: '.06em',
+        color: 'var(--proto-muted-3)',
+        textTransform: 'uppercase',
+        margin: '14px 0 7px',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** A fixed-width mono label + a control, with an optional hint or error line underneath. */
+export function SFieldRow({
+  label,
+  children,
+  hint,
+  hintTone,
+}: {
+  label: ReactNode;
+  children: ReactNode;
+  hint?: ReactNode;
+  hintTone?: 'muted' | 'danger';
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '4px 0' }}>
+      <span
+        style={{
+          width: 92,
+          flex: 'none',
+          font: `400 10px ${MONO}`,
+          color: 'var(--proto-muted-3)',
+          paddingTop: 6,
+        }}
+      >
+        {label}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {children}
+        {hint != null ? (
+          <div
+            style={{
+              fontSize: 9.5,
+              lineHeight: 1.6,
+              marginTop: 3,
+              color: hintTone === 'danger' ? 'var(--proto-danger)' : 'var(--proto-faint)',
+            }}
+          >
+            {hint}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Shared text/number/select chrome so every settings control lines up. */
+export const S_CONTROL_STYLE: CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  font: `400 11px ${MONO}`,
+  color: 'var(--proto-ink)',
+  background: 'var(--proto-card)',
+  border: '1px solid var(--proto-line)',
+  borderRadius: 7,
+  padding: '5px 9px',
+  outline: 'none',
+};
+
+export const S_CONTROL_DISABLED_STYLE: CSSProperties = {
+  ...S_CONTROL_STYLE,
+  background: 'var(--proto-alt)',
+  color: 'var(--proto-muted-2)',
+  cursor: 'not-allowed',
+};
+
+export type SButtonTone = 'accent' | 'danger' | 'neutral';
+
+const BUTTON_TONE: Record<SButtonTone, { base: CSSProperties; hover: CSSProperties }> = {
+  accent: {
+    base: { color: 'var(--ink-solid-fg)', background: 'var(--proto-accent)', border: '1px solid transparent' },
+    hover: { background: 'var(--proto-accent-strong)' },
+  },
+  danger: {
+    base: { color: 'var(--proto-danger)', background: 'var(--proto-card)', border: '1px solid var(--proto-danger-bg)' },
+    hover: { background: 'var(--proto-danger-bg)' },
+  },
+  neutral: {
+    base: { color: 'var(--proto-ink)', background: 'var(--proto-card)', border: '1px solid var(--proto-line-3)' },
+    hover: { background: 'var(--proto-alt)' },
+  },
+};
+
+/**
+ * Footer action button. `disabled` keeps the control rendered (so its intent stays visible) but
+ * removes the handler — the settings panels never hide an action the user is one state away from.
+ */
+export function SButton({
+  tone,
+  disabled,
+  onClick,
+  children,
+  ...rest
+}: {
+  tone: SButtonTone;
+  disabled?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+} & Record<string, unknown>) {
+  const [hover, setHover] = useState(false);
+  const spec = BUTTON_TONE[tone];
+  const base: CSSProperties = {
+    fontSize: 11.5,
+    fontWeight: 600,
+    borderRadius: 8,
+    padding: '6px 14px',
+    flex: 'none',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.45 : 1,
+    ...spec.base,
+  };
+  return (
+    <span
+      {...rest}
+      onClick={disabled ? undefined : onClick}
+      role={disabled ? undefined : 'button'}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={hover && !disabled ? { ...base, ...spec.hover } : base}
+    >
+      {children}
+    </span>
   );
 }

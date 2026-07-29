@@ -23,6 +23,7 @@ const PARENT_RULES: readonly ParentRule[] = [
   { pattern: /^\/m\/thread\/[^/]+$/, parent: '/m/threads' },
   { pattern: /^\/m\/task\/[^/]+$/, parent: '/m/tasks' },
   { pattern: /^\/m\/memory\/file$/, parent: '/m/memory' },
+  { pattern: /^\/m\/settings\/hooks$/, parent: '/m/settings' },
   { pattern: /^\/m\/daemon$/, parent: '/m/settings' },
   { pattern: /^\/m\/(approvals|issues|memory|machines|settings)$/, parent: '/m/project' },
 ];

@@ -1,6 +1,6 @@
 // input:  mobile settings view, mounted-hook snapshot, UI copy
-// output: mobile mounted-hook and empty-state regressions
-// pos:    Verifies mobile settings exposes real hook state
+// output: mounted-hook drill-row regressions (count, pill, no inlining)
+// pos:    Verifies mobile settings drills into hooks instead of listing them
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -17,7 +17,6 @@ const copy: MSettingsCopy = {
   notify: 'Notifications', notifySub: 'notify', autoResume: 'Auto resume',
   autoResumeSub: 'resume', language: 'Language', platform: 'Platform',
   desktopEdit: 'Desktop', templates: 'Templates', hooks: 'Hooks',
-  hookEnabled: 'Enabled', hookDisabled: 'Disabled', noHooks: 'No mounted hooks',
   footerBrand: 'cortex mobile',
 };
 
@@ -46,6 +45,7 @@ function renderHooks(value: ConfigSnapshot): string {
       onSetTheme={() => {}}
       onBack={() => {}}
       onOpenDaemon={() => {}}
+      onOpenHooks={() => {}}
       profileSheet={null}
       onOpenProfile={() => {}}
       onCloseProfile={() => {}}
@@ -55,24 +55,29 @@ function renderHooks(value: ConfigSnapshot): string {
 }
 
 describe('MSettingsView hooks', () => {
-  it('renders mounted hook identity, event, state, and source', () => {
+  it('renders one drill-in row carrying the mounted-hook count and the desktop-edit pill', () => {
+    const html = renderHooks(snapshot);
+
+    expect(html).toContain('Hooks · 3');
+    expect(html).toContain('Desktop');
+    expect(html).toContain('aria-label="Hooks"');
+  });
+
+  it('no longer inlines individual hook declarations (they live on /m/settings/hooks)', () => {
     const html = renderHooks(snapshot);
 
     for (const value of [
-      'managed-hook', 'agent:pre-tool', 'managed', 'Enabled',
-      'user-hook', 'pi:message_end', 'user', 'Disabled',
-      'template:review:end', 'cortex:thread.end', 'template-scoped',
+      'managed-hook', 'user-hook', 'template:review:end',
+      'agent:pre-tool', 'pi:message_end', 'cortex:thread.end',
     ]) {
-      expect(html).toContain(value);
+      expect(html).not.toContain(value);
     }
   });
 
-  it('renders the localized empty state without mounted-hook rows', () => {
+  it('renders a zero count rather than a separate empty state', () => {
     const html = renderHooks({ ...snapshot, hooks: [] });
 
-    expect(html).toContain('No mounted hooks');
-    for (const id of ['managed-hook', 'user-hook', 'template:review:end']) {
-      expect(html).not.toContain(id);
-    }
+    expect(html).toContain('Hooks · 0');
+    expect(html).toContain('aria-label="Hooks"');
   });
 });

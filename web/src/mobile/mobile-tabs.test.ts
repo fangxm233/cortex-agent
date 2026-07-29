@@ -17,6 +17,7 @@ describe('activeTabId (v3)', () => {
     expect(activeTabId('/m/memory')).toBe('project');
     expect(activeTabId('/m/machines')).toBe('project');
     expect(activeTabId('/m/settings')).toBe('project');
+    expect(activeTabId('/m/settings/hooks')).toBe('project');
     expect(activeTabId('/m/daemon')).toBe('project');
   });
 
@@ -43,6 +44,7 @@ describe('isTabRoute (v3)', () => {
     expect(isTabRoute('/m/memory')).toBe(false);
     expect(isTabRoute('/m/machines')).toBe(false);
     expect(isTabRoute('/m/settings')).toBe(false);
+    expect(isTabRoute('/m/settings/hooks')).toBe(false);
     expect(isTabRoute('/m/daemon')).toBe(false);
   });
 

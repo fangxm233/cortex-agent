@@ -47,6 +47,8 @@ describe('resolveMobileBack', () => {
     });
     expect(resolveMobileBack('/m/memory/file', false)).toEqual({ kind: 'navigate', to: '/m/memory' });
     expect(resolveMobileBack('/m/daemon', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
+    expect(resolveMobileBack('/m/settings/hooks', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
+    expect(resolveMobileBack('/m/settings/hooks/', false)).toEqual({ kind: 'navigate', to: '/m/settings' });
   });
 });
 

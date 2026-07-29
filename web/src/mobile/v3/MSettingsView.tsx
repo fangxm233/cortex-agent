@@ -1,5 +1,5 @@
 // input:  mobile settings view model, copy, and UI primitives
-// output: read-only mobile settings screen with mounted hooks
+// output: read-only mobile settings screen with a hooks drill-in row
 // pos:    Presentational mobile settings view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -34,10 +34,7 @@ export interface MSettingsCopy {
   platform: string; // `Platform`
   desktopEdit: string; // `桌面编辑`
   templates: string; // `Thread templates`
-  hooks: string;
-  hookEnabled: string;
-  hookDisabled: string;
-  noHooks: string;
+  hooks: string; // `Hooks`, rendered as `Hooks · N` on the drill-in row
   footerBrand: string; // `cortex mobile`
 }
 
@@ -235,43 +232,24 @@ function ThemeToggle({
   );
 }
 
-function MobileHookRow({
-  hook,
-  copy,
-  divider,
-}: {
-  hook: MSettingsVm['hooks'][number];
-  copy: MSettingsCopy;
-  divider: boolean;
-}) {
+// ── Hooks: one drill-in row into /m/settings/hooks (plan §6) ──────────────────
+// The count is the cheap 4-field `config.get` summary already loaded for this screen; the full
+// declarations (matcher, run, mounts, script health) are fetched by the hooks screen itself.
+// Inlining them here made the page unusable at 17 entries and worse once a user registry grows.
+function HooksDrillRow({ vm, copy, onOpenHooks }: { vm: MSettingsVm; copy: MSettingsCopy; onOpenHooks: () => void }) {
   return (
-    <div style={{ ...rowStyle(divider), alignItems: 'flex-start' }}>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ font: `600 10.5px ${MONO}`, color: MC.ink }}>{hook.id}</div>
-        <div style={{ ...SUB, overflowWrap: 'anywhere' }}>{hook.event} · {hook.source}</div>
-      </div>
-      <span style={{ fontSize: 9.5, fontWeight: 650, color: hook.enabled ? MC.done : MC.muted, flex: 'none' }}>
-        {hook.enabled ? copy.hookEnabled : copy.hookDisabled}
+    <div
+      role="button"
+      aria-label={copy.hooks}
+      onClick={onOpenHooks}
+      style={{ ...rowStyle(false), gap: 9, cursor: 'pointer' }}
+    >
+      <span style={{ fontSize: 13, color: MC.sub }}>
+        {copy.hooks} · {vm.hooks.length}
       </span>
+      <DesktopPill>{copy.desktopEdit}</DesktopPill>
+      <span style={CHEV}>›</span>
     </div>
-  );
-}
-
-function MountedHooksRows({ vm, copy }: { vm: MSettingsVm; copy: MSettingsCopy }) {
-  return (
-    <>
-      <div style={rowStyle(vm.hooks.length > 0)}><span style={TITLE}>{copy.hooks}</span></div>
-      {vm.hooks.length === 0 ? (
-        <div style={{ ...rowStyle(false), fontSize: 10, color: MC.faint }}>{copy.noHooks}</div>
-      ) : vm.hooks.map((hook, index) => (
-        <MobileHookRow
-          key={`${hook.source}:${hook.id}:${hook.event}`}
-          hook={hook}
-          copy={copy}
-          divider={index < vm.hooks.length - 1}
-        />
-      ))}
-    </>
   );
 }
 
@@ -284,6 +262,7 @@ export function MSettingsView({
   onSetTheme,
   onBack,
   onOpenDaemon,
+  onOpenHooks,
   profileSheet,
   onOpenProfile,
   onCloseProfile,
@@ -297,6 +276,7 @@ export function MSettingsView({
   onSetTheme: (theme: Theme) => void;
   onBack: () => void;
   onOpenDaemon: () => void;
+  onOpenHooks: () => void;
   profileSheet: ProfileSheetItem[] | null;
   onOpenProfile: () => void;
   onCloseProfile: () => void;
@@ -439,7 +419,7 @@ export function MSettingsView({
             <DesktopPill>{copy.desktopEdit}</DesktopPill>
             <span style={CHEV}>›</span>
           </div>
-          <MountedHooksRows vm={vm} copy={copy} />
+          <HooksDrillRow vm={vm} copy={copy} onOpenHooks={onOpenHooks} />
         </Card>
 
         {/* footer — brand · build stamp · hot-reload. The scheme's `v0.4.2` slot is filled with the

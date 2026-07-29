@@ -45,6 +45,25 @@ still mounts. At startup the server logs how much mounted, in the form
 `Startup: mounted 12 hooks (1 cc / 2 cortex)`. The Web UI settings panel reads
 the same list.
 
+The desktop **Settings → Hooks** panel is a full view of that registry rather
+than a listing: it groups declarations by event namespace in load order, shows
+where each one actually mounts (`claude` / `pi` / `server`), whether a change
+takes effect on the next agent spawn or only after a server restart, and flags a
+`run.script` that is missing from the hooks directory. What you may change there
+follows the entry's source. A **user** entry is fully editable and can be created
+or deleted. A **managed** entry offers only the enabled switch, with a standing
+note that the next hook sync restores the shipped value — every other field
+would be overwritten, so the panel does not pretend otherwise. A
+**template-scoped** entry is read-only and points at the thread template that
+owns it. The `result` choice is constrained to the modes the event can actually
+carry, and `version` is never writable: an entry created from the UI is always a
+user entry. Each entry can also be run against an editable sample payload, with
+the exit code, stdout and stderr shown inline.
+
+On mobile the same registry is read-only: the hooks screen shows the grouped
+inventory and the full declaration behind each row, but no editing, creation or
+test run. Change hooks from a desktop session.
+
 ### Entry schema
 
 ```json

@@ -1,5 +1,5 @@
 // input:  config/cost queries, language/theme state, navigation
-// output: data-bound mobile settings screen
+// output: data-bound mobile settings screen with a hooks drill-in
 // pos:    Mobile settings query and mutation container
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -39,10 +39,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     platform: 'Platform',
     desktopEdit: 'Edit on desktop',
     templates: 'Thread templates',
-    hooks: 'Mounted hooks',
-    hookEnabled: 'Enabled',
-    hookDisabled: 'Disabled',
-    noHooks: 'No mounted hooks',
+    hooks: 'Hooks',
     footerBrand: 'cortex mobile',
   },
   zh: {
@@ -67,10 +64,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     platform: 'Platform',
     desktopEdit: '桌面编辑',
     templates: 'Thread templates',
-    hooks: '已挂载钩子',
-    hookEnabled: '已启用',
-    hookDisabled: '已停用',
-    noHooks: '暂无已挂载钩子',
+    hooks: '钩子',
     footerBrand: 'cortex mobile',
   },
 };
@@ -133,6 +127,7 @@ export function MSettingsScreen() {
           onSetTheme={setTheme}
           onBack={() => navigate('/m/project')}
           onOpenDaemon={() => navigate('/m/daemon')}
+          onOpenHooks={() => navigate('/m/settings/hooks')}
           profileSheet={profileSheet}
           onOpenProfile={() => setProfileOpen(true)}
           onCloseProfile={() => setProfileOpen(false)}

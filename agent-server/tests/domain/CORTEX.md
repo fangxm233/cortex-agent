@@ -6,6 +6,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 |---|---|---|
 | agents/ | subdir | agent profile resolution and switching |
 | costs/ | subdir | cost attribution and summary reporting |
+| hook-view.test.ts | test | mount targets, result modes and apply time |
 | mcp/ | subdir | MCP tool registration and handlers |
 | sessions/ | subdir | session registration and lifecycle |
 | system/ | subdir | self-diagnosis and operator notices |

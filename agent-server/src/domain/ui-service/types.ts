@@ -10,7 +10,16 @@ import type { RunningExecutions } from '@core/running-executions.js';
 import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
 export type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
-import type { HookEvent, HookSource } from '@store/hook-registry.js';
+import type {
+  HookBackend,
+  HookEvent,
+  HookFilterValue,
+  HookPhase,
+  HookResultMode,
+  HookSource,
+} from '@store/hook-registry.js';
+import type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
+export type { HookApplyTime, HookMountTarget } from '@domain/hooks/hook-view.js';
 import type { Session } from '@store/session-registry-repo.js';
 import type { ScheduleTask, ScheduleTarget } from '@store/schedule-repo.js';
 import type { LogLocation } from '@domain/executions/log-tailer.js';
@@ -43,6 +52,7 @@ export type QueryScope =
   | 'issues.list'
   | 'cost.summary'
   | 'config.get'
+  | 'hooks.list'
   | 'machines.list'
   | 'skills.list'
   | 'threadTemplates.get'
@@ -80,6 +90,11 @@ export type MutateOp =
   | 'issues.handle'
   | 'issues.delete'
   | 'config.set'
+  | 'hooks.create'
+  | 'hooks.update'
+  | 'hooks.setEnabled'
+  | 'hooks.remove'
+  | 'hooks.test'
   | 'system.restart';
 
 // ── Subscribe ─────────────────────────────────────────────────────
@@ -855,6 +870,126 @@ export interface ConfigHook {
   source: HookSource;
 }
 
+// ── hooks.* DTOs ─────────────────────────────────────────────────────────────
+// Full read/write model of the declarative hook registry. `ConfigHook` above stays the four-field
+// summary embedded in config.get; anything that edits a declaration uses HookDetail instead.
+
+/** `run` flattened for the editor: exactly one of script/command is non-null. */
+export interface HookRunInfo {
+  script: string | null;
+  command: string | null;
+  /** Registry timeout in SECONDS (template hooks use milliseconds and report null here). */
+  timeoutSec: number | null;
+}
+
+export interface HookScopeInfo {
+  backends: HookBackend[] | null;
+  requiresTool: string | null;
+}
+
+export interface HookDetail {
+  id: string;
+  event: HookEvent;
+  /** Regex matcher for agent:/cc:/pi: events; null when the event uses filters or has no matcher. */
+  matcher: string | null;
+  /** Equality filters for cortex:* events; null otherwise. */
+  matcherFilters: Record<string, HookFilterValue> | null;
+  run: HookRunInfo;
+  scope: HookScopeInfo | null;
+  blocking: { mode: 'webhook'; ttlMin: number } | null;
+  result: HookResultMode | null;
+  enabled: boolean;
+  source: HookSource;
+  /** CalVer stamp for managed entries; null for user and template-scoped. */
+  version: string | null;
+  /** Declaration filename; null for template-scoped hooks, which live in the template file. */
+  fileName: string | null;
+  /** Position in load order — which is also execution order within one event. */
+  order: number;
+  /** Where the declaration actually installs once compiled. */
+  mountsOn: HookMountTarget[];
+  /** Result modes the loader accepts for this event, for a constrained editor choice. */
+  legalResults: HookResultMode[];
+  appliesAt: HookApplyTime;
+  /** Whether run.script resolves on disk; null when the hook is command-based. */
+  scriptExists: boolean | null;
+  /** True only for user entries — managed gets resynced, template-scoped is owned elsewhere. */
+  editable: boolean;
+  template: string | null;
+  phase: HookPhase | null;
+}
+
+export interface HookScriptInfo {
+  name: string;
+  usedBy: string[];
+}
+
+export interface HooksOverview {
+  hooks: HookDetail[];
+  scripts: HookScriptInfo[];
+  hooksDir: string;
+}
+
+export type HooksListParams = Record<string, never>;
+
+/** The editable surface of a declaration, flattened so the form binds one field per control. */
+export interface HookDraftInput {
+  event: string;
+  matcher?: string;
+  matcherFilters?: Record<string, HookFilterValue>;
+  script?: string;
+  command?: string;
+  timeoutSec?: number;
+  backends?: HookBackend[];
+  requiresTool?: string;
+  result?: HookResultMode;
+  enabled?: boolean;
+}
+
+export interface HooksCreateArgs extends HookDraftInput {
+  id: string;
+}
+export interface HooksCreateReturn {
+  id: string;
+  fileName: string;
+}
+
+export interface HooksUpdateArgs extends HookDraftInput {
+  id: string;
+}
+export interface HooksUpdateReturn {
+  changed: boolean;
+}
+
+export interface HooksSetEnabledArgs {
+  id: string;
+  enabled: boolean;
+}
+export interface HooksSetEnabledReturn {
+  changed: boolean;
+  /** Non-null when the change is not durable (a managed entry a later sync will restore). */
+  warning: string | null;
+}
+
+export interface HooksRemoveArgs {
+  id: string;
+}
+export interface HooksRemoveReturn {
+  removed: boolean;
+}
+
+export interface HooksTestArgs {
+  id: string;
+  payload: string;
+}
+export interface HooksTestReturn {
+  ok: boolean;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  error: string | null;
+}
+
 export interface ConfigSnapshot {
   budget: ConfigBudget | null;
   profiles: ConfigProfiles | null;
@@ -1195,6 +1330,7 @@ export interface QueryParamMap {
   'issues.list': IssuesListParams;
   'cost.summary': CostSummaryParams;
   'config.get': ConfigGetParams;
+  'hooks.list': HooksListParams;
   'machines.list': MachinesListParams;
   'skills.list': SkillsListParams;
   'threadTemplates.get': ThreadTemplatesGetParams;
@@ -1220,6 +1356,7 @@ export interface QueryReturnMap {
   'issues.list': IssueInfo[];
   'cost.summary': CostSummary;
   'config.get': ConfigSnapshot;
+  'hooks.list': HooksOverview;
   'machines.list': MachineInfo[];
   'skills.list': SkillGroup[];
   'threadTemplates.get': ThreadTemplateEntry[];
@@ -1256,6 +1393,11 @@ export interface MutateArgsMap {
   'issues.handle': IssueActionArgs;
   'issues.delete': IssueActionArgs;
   'config.set': ConfigSetArgs;
+  'hooks.create': HooksCreateArgs;
+  'hooks.update': HooksUpdateArgs;
+  'hooks.setEnabled': HooksSetEnabledArgs;
+  'hooks.remove': HooksRemoveArgs;
+  'hooks.test': HooksTestArgs;
   'system.restart': SystemRestartArgs;
 }
 
@@ -1288,6 +1430,11 @@ export interface MutateReturnMap {
   'issues.handle': IssuesHandleReturn;
   'issues.delete': IssuesDeleteReturn;
   'config.set': ConfigSetReturn;
+  'hooks.create': HooksCreateReturn;
+  'hooks.update': HooksUpdateReturn;
+  'hooks.setEnabled': HooksSetEnabledReturn;
+  'hooks.remove': HooksRemoveReturn;
+  'hooks.test': HooksTestReturn;
   'system.restart': SystemRestartReturn;
 }
 

@@ -8,6 +8,7 @@ Write side of the UI service — one handler module per domain area the UI is al
 | approvals.ts | mutate | approves, rejects, and queues approvals |
 | issues.ts | mutate | handles or deletes project issue entries |
 | config.ts | mutate | writes budget and default profile settings |
+| hooks.ts | mutate | creates, edits, toggles, removes and tests hooks |
 | schedules.ts | mutate | adds, pauses, resumes, and removes schedules |
 | tasks.ts | mutate | claims, completes, and blocks tasks |
 | threads.ts | mutate | cancels a running thread |

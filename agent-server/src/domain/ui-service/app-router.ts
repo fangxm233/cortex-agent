@@ -48,6 +48,12 @@ import {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  hooksListInput,
+  hooksCreateInput,
+  hooksUpdateInput,
+  hooksSetEnabledInput,
+  hooksRemoveInput,
+  hooksTestInput,
   machinesListInput,
   skillsListInput,
   threadTemplatesGetInput,
@@ -216,6 +222,14 @@ export function createAppRouter(uiService: UiService) {
     config: router({
       get: makeQuery(uiService, 'config.get', configGetInput),
       set: makeMutation(uiService, 'config.set', configSetInput),
+    }),
+    hooks: router({
+      list: makeQuery(uiService, 'hooks.list', hooksListInput),
+      create: makeMutation(uiService, 'hooks.create', hooksCreateInput),
+      update: makeMutation(uiService, 'hooks.update', hooksUpdateInput),
+      setEnabled: makeMutation(uiService, 'hooks.setEnabled', hooksSetEnabledInput),
+      remove: makeMutation(uiService, 'hooks.remove', hooksRemoveInput),
+      test: makeMutation(uiService, 'hooks.test', hooksTestInput),
     }),
     machines: router({
       list: makeQuery(uiService, 'machines.list', machinesListInput),
