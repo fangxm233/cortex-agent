@@ -1,6 +1,6 @@
 // input:  task-dispatch job, HookBus and thread runner doubles
-// output: dispatch.started payload, ordering and isolation tests
-// pos:    Verifies lifecycle hooks on claimed task dispatch
+// output: dispatch hook and failure quarantine regression tests
+// pos:    Verifies claimed task dispatch lifecycle and quarantine
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js';
@@ -15,6 +15,9 @@ const deps = vi.hoisted(() => ({
   generateSessionName: vi.fn(),
   createThread: vi.fn(),
   runThread: vi.fn(),
+  processAbortOutcome: vi.fn(),
+  processSplitOutcome: vi.fn(),
+  finalizeThreadSuccess: vi.fn(),
   unclaim: vi.fn(),
   block: vi.fn(),
 }));
@@ -48,6 +51,16 @@ vi.mock('../src/domain/threads/runner.js', () => ({
   runThread: deps.runThread,
 }));
 
+vi.mock('../src/domain/tasks/dispatch-utils.js', () => ({
+  processAbortOutcome: deps.processAbortOutcome,
+  processSplitOutcome: deps.processSplitOutcome,
+  formatWorkerAbortReason: vi.fn(),
+}));
+
+vi.mock('../src/domain/scheduling/jobs/_shared.js', () => ({
+  finalizeThreadSuccess: deps.finalizeThreadSuccess,
+}));
+
 vi.mock('../src/domain/tasks/mutator.js', () => ({
   taskMutator: { unclaim: deps.unclaim, block: deps.block },
 }));
@@ -74,6 +87,25 @@ async function waitFor(predicate: () => boolean): Promise<void> {
   throw new Error('waitFor timed out');
 }
 
+function completedCycleCount(): number {
+  return (ctx.bus!.publish as any).mock.calls.filter(
+    ([event]: [{ type: string; delta?: number }]) => event.type === 'llm.active-count-delta' && event.delta === -1,
+  ).length;
+}
+
+async function runDispatchCycle(): Promise<void> {
+  const completedBefore = completedCycleCount();
+  taskDispatchRunner({ channel: 'atlas', scheduleTaskId: 'schedule-1', profileName: 'execute' });
+  await waitFor(() => completedCycleCount() === completedBefore + 1);
+}
+
+function selectFixture(id: string): void {
+  deps.selectAndClaimTask.mockResolvedValue({
+    ...selected,
+    task: { ...selected.task, id },
+  });
+}
+
 beforeEach(() => {
   for (const mock of Object.values(deps)) mock.mockReset();
   deps.emitCortexEvent.mockResolvedValue([]);
@@ -85,6 +117,9 @@ beforeEach(() => {
     thread: { status: 'waiting', metadata: { waitingOn: [], waitingOnTasks: [] } },
     lastAgentResult: null,
   });
+  deps.processAbortOutcome.mockResolvedValue({ handled: false });
+  deps.processSplitOutcome.mockResolvedValue({ handled: false });
+  deps.finalizeThreadSuccess.mockResolvedValue(undefined);
   deps.unclaim.mockResolvedValue({ success: true });
   deps.block.mockResolvedValue({ success: true });
 
@@ -145,4 +180,49 @@ test('a rejected dispatch hook does not prevent the claimed thread from running'
 
   assert.equal(deps.emitCortexEvent.mock.calls[0]?.[0], 'cortex:dispatch.started');
   assert.equal(deps.runThread.mock.calls[0]?.[0], 'thread-1');
+});
+
+test('third consecutive dispatch failure auto-blocks and clears the counter', async () => {
+  selectFixture('quarantine-target');
+  deps.runThread.mockRejectedValue(new Error('provider unavailable'));
+
+  await runDispatchCycle();
+  await runDispatchCycle();
+  assert.equal(deps.block.mock.calls.length, 0);
+
+  await runDispatchCycle();
+  assert.deepEqual(deps.block.mock.calls, [[
+    'quarantine-target',
+    'dispatch-failed-3x: provider unavailable',
+  ]]);
+
+  deps.block.mockClear();
+  await runDispatchCycle();
+  await runDispatchCycle();
+  assert.equal(deps.block.mock.calls.length, 0);
+
+  await runDispatchCycle();
+  assert.equal(deps.block.mock.calls.length, 1);
+});
+
+test('successful dispatch resets consecutive failure count', async () => {
+  selectFixture('reset-target');
+  deps.runThread.mockRejectedValue(new Error('provider unavailable'));
+
+  await runDispatchCycle();
+  await runDispatchCycle();
+
+  deps.runThread.mockResolvedValueOnce({
+    thread: { status: 'completed', metadata: {} },
+    lastAgentResult: null,
+  });
+  await runDispatchCycle();
+  assert.equal(deps.finalizeThreadSuccess.mock.calls.length, 1);
+
+  await runDispatchCycle();
+  await runDispatchCycle();
+  assert.equal(deps.block.mock.calls.length, 0);
+
+  await runDispatchCycle();
+  assert.equal(deps.block.mock.calls.length, 1);
 });

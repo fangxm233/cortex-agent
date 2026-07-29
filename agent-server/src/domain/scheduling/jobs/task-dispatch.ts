@@ -1,5 +1,5 @@
 // input:  task store, execution registry, thread runner, HookBus
-// output: dispatch.started{taskId,project,source,templateName}
+// output: dispatch hooks and failure quarantine outcomes
 // pos:    Claims tasks and starts dispatch-tagged threads
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -286,19 +286,19 @@ async function handleDispatchError(error: Error, selectedTask: Record<string, an
   const errChannel = channel;
   let blocked = false;
   let blockReason: string | null = null;
-  if (selectedTask?.task_hash) {
-    const taskHash: string = selectedTask.id;
-    const prev = dispatchFailureCounts.get(taskHash) || { count: 0, lastError: '' };
+  if (selectedTask?.id) {
+    const taskId: string = selectedTask.id;
+    const prev = dispatchFailureCounts.get(taskId) || { count: 0, lastError: '' };
     const next = { count: prev.count + 1, lastError: error.message };
-    dispatchFailureCounts.set(taskHash, next);
+    dispatchFailureCounts.set(taskId, next);
     if (next.count >= DISPATCH_FAILURE_QUARANTINE_THRESHOLD) {
       blockReason = sanitizeBlockReason(`dispatch-failed-${next.count}x: ${error.message}`);
       try {
-        await taskMutator.block(taskHash, blockReason);
+        await taskMutator.block(taskId, blockReason);
         blocked = true;
-        dispatchFailureCounts.delete(taskHash);
+        dispatchFailureCounts.delete(taskId);
       } catch (e) {
-        log.error(`Failed to auto-block task ${taskHash}: ${(e as Error).message}`);
+        log.error(`Failed to auto-block task ${taskId}: ${(e as Error).message}`);
       }
     }
   }
