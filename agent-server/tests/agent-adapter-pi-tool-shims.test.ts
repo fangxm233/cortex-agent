@@ -1,5 +1,5 @@
 // input:  PIAdapter stub, fetch responses, extension-ui events
-// output: PI shim gates, runtime Agent, web, and turn contracts
+// output: PI shim gates, Agent, sanitized web, and turn contracts
 // pos:    PI pseudo-tool and local web regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -488,6 +488,21 @@ test('J5: WebFetch preserves HTML headings, links, tables, and code while removi
   for (const removed of ['bad()', '.hidden', 'noscript text', 'iframe text']) {
     assert.ok(!text.includes(removed), `${removed} should be removed`);
   }
+});
+
+test('J5b: WebFetch omits embedded image data URLs while preserving external images', async () => {
+  const tool = makeWebFetchTool();
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(`
+    <p><img alt="inline graph" src="data:image/png;base64,INLINE_IMAGE_PAYLOAD"></p>
+    <p><img alt="external graph" src="https://cdn.example.test/graph.png"></p>
+  `, { headers: { 'content-type': 'text/html' } }));
+
+  const result = await executeWebFetch(tool, { url: 'https://example.test/images' });
+  const text = result.content[0].text;
+  assert.match(text, /\[Embedded image omitted\]/);
+  assert.match(text, /!\[external graph\]\(https:\/\/cdn\.example\.test\/graph\.png\)/);
+  assert.ok(!text.includes('data:'));
+  assert.ok(!text.includes('INLINE_IMAGE_PAYLOAD'));
 });
 
 test('J6: WebFetch passes JSON and plain text through and ignores the compatibility prompt', async () => {
