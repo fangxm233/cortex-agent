@@ -244,6 +244,33 @@ test('test executes a registry script with a file payload through the shared run
   });
 });
 
+test('test executes a registry command with payload and structured output', async (t) => {
+  const fixture = makeFixture(t);
+  const script = path.join(fixture.root, 'command-hook.mjs');
+  fs.writeFileSync(script, [
+    "const chunks = []; process.stdin.on('data', chunk => chunks.push(chunk));",
+    "process.stdin.on('end', () => {",
+    "  process.stdout.write('command|' + Buffer.concat(chunks));",
+    "  process.stderr.write('command warning');",
+    "});",
+  ].join('\n'));
+  writeJson(fixture.registryDir, 'command.json', registryEntry('command', {
+    run: { command: `node ${JSON.stringify(script)}`, timeout: 1 },
+  }));
+  const payloadPath = path.join(fixture.root, 'command-payload.txt');
+  fs.writeFileSync(payloadPath, 'registry command payload');
+
+  const result = await runHookCli(
+    ['test', '--id', 'command', '--payload', payloadPath], fixture.options,
+  );
+
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(parseOutput(result), {
+    ok: true, id: 'command', exit_code: 0,
+    stdout: 'command|registry command payload', stderr: 'command warning',
+  });
+});
+
 test('test reports unreadable payloads with valid alternatives', async (t) => {
   const fixture = makeFixture(t);
   writeJson(fixture.registryDir, 'payload.json', registryEntry('payload'));
