@@ -459,10 +459,14 @@ async function parseAnthropicResponse(response: Response): Promise<SearchRespons
   };
 }
 
+function normalizedResponseBody(body: string): string {
+  return body.replace(/^\uFEFF/, '').trimStart();
+}
+
 function looksLikeSse(contentType: string, body: string): boolean {
-  if (contentType.toLowerCase().includes('text/event-stream')) return true;
-  const firstLine = body.replace(/^\uFEFF/, '').trimStart();
-  return firstLine.startsWith('event:') || firstLine.startsWith('data:');
+  if (body.startsWith('event:') || body.startsWith('data:')) return true;
+  if (body.startsWith('{') || body.startsWith('[')) return false;
+  return contentType.toLowerCase().includes('text/event-stream');
 }
 
 function parseJsonResponse(body: string): Record<string, unknown> {
@@ -475,7 +479,7 @@ function parseJsonResponse(body: string): Record<string, unknown> {
 
 async function parseResponsesResponse(response: Response): Promise<SearchResponse> {
   const contentType = response.headers.get('content-type') ?? '';
-  const body = await response.text();
+  const body = normalizedResponseBody(await response.text());
   if (looksLikeSse(contentType, body)) return parseResponseEvents(parseSseEvents(body));
   const payload = parseJsonResponse(body);
   validateCompletedResponse(payload, 'JSON payload');

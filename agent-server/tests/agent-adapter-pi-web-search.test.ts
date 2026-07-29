@@ -408,6 +408,23 @@ test('accepts a completed JSON Responses payload', async () => {
   assert.match(result.content[0].text, new RegExp(SOURCE_URL));
 });
 
+test('accepts completed JSON when a proxy mislabels it as SSE', async () => {
+  const ctx = makeContext({
+    api: 'openai-responses',
+    provider: 'mislabeled-json-provider',
+  });
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+    JSON.stringify(jsonResponsesPayload('completed')),
+    { headers: { 'content-type': 'text/event-stream' } },
+  ));
+
+  const result = await executeSearch(ctx);
+
+  assert.match(result.content[0].text, /current release is 24\.1\.0/i);
+  assert.match(result.content[0].text, /Queries:\n- current stable runtime release/);
+  assert.match(result.content[0].text, new RegExp(SOURCE_URL));
+});
+
 test.each([
   ['failed', { code: 'server_error', message: 'JSON search failed' }, /server_error.*JSON search failed/i],
   [undefined, undefined, /terminal status/i],

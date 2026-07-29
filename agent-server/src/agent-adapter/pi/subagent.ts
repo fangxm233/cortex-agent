@@ -22,7 +22,7 @@ import type { ExtensionContext, ToolDefinition } from './pi-ext-types.js';
 export const MAX_SUBAGENT_TASKS = 8;
 export const MAX_SUBAGENT_CONCURRENCY = 8;
 export const MAX_SUBAGENT_MODEL_CHOICES = 32;
-export const MAX_SUBAGENT_MODEL_DESCRIPTION_CHARS = 1_200;
+export const MAX_SUBAGENT_MODEL_LIST_CHARS = 1_200;
 export const SUBAGENT_KILL_GRACE_MS = 5_000;
 
 const MODEL_OVERRIDE_DESCRIPTION =
@@ -657,8 +657,8 @@ function boundedModelNames(names: string[]): string[] {
   let characters = 0;
   for (const name of names) {
     const added = name.length + (selected.length > 0 ? 2 : 0);
-    if (selected.length >= MAX_SUBAGENT_MODEL_CHOICES
-      || characters + added > MAX_SUBAGENT_MODEL_DESCRIPTION_CHARS) break;
+    if (selected.length >= MAX_SUBAGENT_MODEL_CHOICES) break;
+    if (characters + added > MAX_SUBAGENT_MODEL_LIST_CHARS) continue;
     selected.push(name);
     characters += added;
   }

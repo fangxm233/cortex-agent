@@ -172,6 +172,13 @@ test('Agent schema exposes bounded provider/model choices and fallback precedenc
   const bounded = (createSubagentTool as any)(undefined, manyModels).description;
   assert.match(bounded, /\+\d+ more/);
   assert.ok(bounded.length <= 1_500, `description is ${bounded.length} characters`);
+
+  const overlong = (createSubagentTool as any)(undefined, [
+    { provider: 'a', id: 'x'.repeat(1_300) },
+    { provider: 'z', id: 'short-model' },
+  ]).description;
+  assert.match(overlong, /z\/short-model/);
+  assert.doesNotMatch(overlong, /overrides:\s+\(\+/);
 });
 
 test('single child uses JSON/no-session extensions, strips thread env, and returns usage', async () => {
