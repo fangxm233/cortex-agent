@@ -19,6 +19,6 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | cost-repo.ts | store | Cost records and budget persistence |
 | profile-repo.ts | store | Agent profiles with hot reload |
 | task-repo.ts | store | TASKS.yaml read, write, lock, and git sync |
-| version-migrations.ts | startup | Applies pending file migrations at startup |
+| version-migrations.ts | startup | Applies pending config and prompt migrations |
 | hook-sync.ts | startup | Refreshes deployed hooks from defaults |
 | plugin-sync.ts | startup | Refreshes deployed plugins from defaults |

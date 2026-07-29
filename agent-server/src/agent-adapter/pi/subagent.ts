@@ -1,6 +1,6 @@
 // input:  PI roles, model options, child_process, TypeBox
-// output: Model-aware PI Agent tool with bounded execution and usage
-// pos:    PI subagent orchestration, stream parsing, and usage accounting
+// output: Role-described PI Agent schema, execution, and usage
+// pos:    PI subagent orchestration and stream parsing
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawn as defaultSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
@@ -39,7 +39,9 @@ const TaskSchema = Type.Object({
 const SubagentParameters = Type.Object({
   description: Type.Optional(Type.String({ description: 'Short description for single mode.' })),
   prompt: Type.Optional(Type.String({ description: 'Complete prompt for single mode.' })),
-  subagent_type: Type.Optional(Type.String({ description: 'Role name for single mode.' })),
+  subagent_type: Type.Optional(Type.String({
+    description: 'Role name for single mode, such as explore, general-purpose, or plan.',
+  })),
   model: Type.Optional(Type.String({ description: MODEL_OVERRIDE_DESCRIPTION })),
   parallel: Type.Optional(Type.Array(TaskSchema, {
     minItems: 1,

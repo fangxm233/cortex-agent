@@ -18,6 +18,6 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 | hook-bridge.ts | bridge | forwards PI tool events into Cortex hooks |
 | web-fetch.ts | tool | fetches bounded HTTP(S) text and cleans redirects |
 | web-search.ts | tool | decodes search responses from the active model API |
-| subagent.ts | tool | runs model-described privilege-scoped PI children |
+| subagent.ts | tool | describes role names and runs scoped PI children |
 | tool-shims.ts | bridge | gates runtime Agent, interaction, todo, and web tools |
 | pi-ext-types.ts | types | types PI extension events, models, and tools |

@@ -1,6 +1,6 @@
-// input:  Node test runner, assert, tmp filesystem
-// output: regression tests for version-tracking migration runner (compareCalVer, runMigrations, upsertMarkerBlock, applyReplacements)
-// pos:    verifies store/version-migrations.ts idempotent migration behaviour
+// input:  Vitest, assertions, temporary config files
+// output: Config and prompt migration regressions
+// pos:    Regression tests for versioned file migrations
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
@@ -549,17 +549,30 @@ test('runMigrations - text: injects docs block into CORTEX.md and tracks version
   assert.equal(versions['CORTEX.md'], '2026.6.22');
 });
 
-test('runMigrations - text: injects docs block into system prompt files', async () => {
+test('runMigrations - text: updates docs and PI roles in system prompt files', async () => {
   const idx = _testIdx++;
   const { dataDir, storeDir, defaultsDir } = setupDirs(idx);
-
-  await writeText(path.join(dataDir, 'prompts', 'systemPrompts', 'direct.md'), 'You are Cortex.\n');
+  const promptsDir = path.join(dataDir, 'prompts', 'systemPrompts');
+  const promptNames = ['direct', 'worker', 'coder'];
+  for (const promptName of promptNames) {
+    await writeText(
+      path.join(promptsDir, `${promptName}.md`),
+      `Custom ${promptName}\nUse subagent_type=Explore.\nTail ${promptName}\n`,
+    );
+  }
 
   await runMigrations({ dataDir, defaultsDir, storeDir });
 
-  const out = await readText(path.join(dataDir, 'prompts', 'systemPrompts', 'direct.md'));
-  assert.ok(out.startsWith('You are Cortex.'), 'original prompt preserved');
-  assert.ok(out.includes('https://fangxm233.github.io/cortex-agent/'), 'docs URL injected');
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
+  for (const promptName of promptNames) {
+    const out = await readText(path.join(promptsDir, `${promptName}.md`));
+    assert.ok(out.startsWith(`Custom ${promptName}`), 'leading customization preserved');
+    assert.ok(out.includes(`Tail ${promptName}`), 'trailing customization preserved');
+    assert.ok(out.includes('subagent_type=explore'), 'PI role normalized');
+    assert.ok(!out.includes('subagent_type=Explore'), 'stale PI role removed');
+    assert.ok(out.includes('https://fangxm233.github.io/cortex-agent/'), 'docs URL injected');
+    assert.equal(versions[`prompts/systemPrompts/${promptName}.md`], '2026.6.24');
+  }
 });
 
 test('runMigrations - text: idempotent (second run does not duplicate block)', async () => {
