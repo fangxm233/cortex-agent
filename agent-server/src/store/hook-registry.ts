@@ -1,5 +1,5 @@
 // input:  hook registry/templates, filesystem, config paths
-// output: validated entries, mounted-hook loading, filtering API
+// output: event-capability-validated entries, mounted-hook loading, filtering API
 // pos:    Declarative hook registry and mounted-state reader
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -108,6 +108,16 @@ const AGENT_EVENTS = new Set([
 ]);
 const CALVER_RE = /^\d{4}\.\d{1,2}\.\d{1,2}(?:-\d+)?$/;
 const RESULT_MODES = new Set<HookResultMode>(['hook-result', 'stdout-as-prompt', 'none']);
+const RESULT_CAPABILITY_BY_EVENT: ReadonlyMap<
+  HookEvent,
+  Exclude<HookResultMode, 'none'>
+> = new Map([
+  ['cortex:thread.start', 'hook-result'],
+  ['cortex:thread.transition', 'hook-result'],
+  ['cortex:thread.end', 'hook-result'],
+  ['cortex:session.new', 'stdout-as-prompt'],
+  ['cortex:session.messageEnd', 'stdout-as-prompt'],
+]);
 
 export function classifyHookSource(
   entry: { version?: unknown },
@@ -220,17 +230,20 @@ function validateBlocking(value: unknown): void {
   }
 }
 
-function validateResult(value: unknown): void {
+function validateResult(value: unknown, event: HookEvent): void {
   if (value === undefined) return;
   if (typeof value !== 'string' || !RESULT_MODES.has(value as HookResultMode)) {
     throw new Error('result must be hook-result, stdout-as-prompt, or none');
   }
+  if (value !== 'none' && RESULT_CAPABILITY_BY_EVENT.get(event) !== value) {
+    throw new Error(`result mode "${value}" is not permitted for event "${event}"`);
+  }
 }
 
-function validateOptionalFields(entry: Record<string, unknown>): void {
+function validateOptionalFields(entry: Record<string, unknown>, event: HookEvent): void {
   validateScope(entry.scope);
   validateBlocking(entry.blocking);
-  validateResult(entry.result);
+  validateResult(entry.result, event);
   if (entry.enabled !== undefined && typeof entry.enabled !== 'boolean') {
     throw new Error('enabled must be a boolean');
   }
@@ -245,7 +258,7 @@ export function validateHookEntry(value: unknown): HookEntry {
   const event = validateEvent(entry.event);
   validateMatcher(entry.matcher, event, id);
   validateRun(entry.run);
-  validateOptionalFields(entry);
+  validateOptionalFields(entry, event);
   return entry as unknown as HookEntry;
 }
 
