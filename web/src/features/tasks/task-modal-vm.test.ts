@@ -1,5 +1,5 @@
 // input:  task lifecycle, dependency graph, and claim state
-// output: Stored fields, theme colors, deps, and action tests
+// output: Approval, stored-field, theme, deps, and action tests
 // pos:    Pure task-modal behavior and theme regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -43,6 +43,21 @@ describe('buildTaskModalVm persisted fields', () => {
 
   it('shows the task template verbatim', () => {
     expect(fieldValue(task({ template: 'manager' }), 'template')).toBe('manager');
+  });
+
+  it('shows pending and completed approval state', () => {
+    const pending = task({ approvalNeeded: true, approvedAt: null });
+    expect(fieldValue(pending, 'approval-needed')).toBe('true');
+    expect(fieldValue(pending, 'approved-at')).toBe('—');
+
+    const approved = task({ approvalNeeded: false, approvedAt: '2026-07-30' });
+    expect(fieldValue(approved, 'approval-needed')).toBe('false');
+    expect(fieldValue(approved, 'approved-at')).toBe('2026-07-30');
+  });
+
+  it('uses approval-needed as the pending task pill before actionable', () => {
+    const vm = buildTaskModalVm(task({ approvalNeeded: true, actionable: true }), []);
+    expect(vm.pill.text).toBe('approval-needed');
   });
 
   it('uses theme-aware ink for the status and template values', () => {

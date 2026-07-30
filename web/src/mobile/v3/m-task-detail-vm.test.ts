@@ -1,5 +1,5 @@
 // input:  TaskInfo and task verification fixtures
-// output: Task field, dependency, claim, and history tests
+// output: Task approval, dependency, claim, and history tests
 // pos:    Mobile task-detail view-model regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -92,11 +92,24 @@ describe('buildTaskDetailVm', () => {
     expect(vm.statusKind).toBe('in-progress');
   });
 
-  it('derives blocked / done / actionable / waiting status kinds in precedence', () => {
+  it('derives blocked / done / approval / actionable / waiting status kinds in precedence', () => {
     expect(buildTaskDetailVm('001', [task({ status: 'done', claimedBy: 'x' })], null, NOW).statusKind).toBe('done');
     expect(buildTaskDetailVm('001', [task({ blockedBy: 'gate' })], null, NOW).statusKind).toBe('blocked');
+    expect(buildTaskDetailVm('001', [task({ approvalNeeded: true, actionable: true })], null, NOW).statusKind).toBe('approval-needed');
     expect(buildTaskDetailVm('001', [task({ actionable: true })], null, NOW).statusKind).toBe('actionable');
     expect(buildTaskDetailVm('001', [task({ actionable: false })], null, NOW).statusKind).toBe('waiting');
+  });
+
+  it('maps pending, approved, and unavailable approval fields honestly', () => {
+    const pending = buildTaskDetailVm('001', [task({ approvalNeeded: true, approvedAt: null })], null, NOW);
+    expect(pending.approvalNeeded).toBe(true);
+    expect(pending.approvedAt).toBeNull();
+
+    const approved = buildTaskDetailVm('001', [task({ approvalNeeded: false, approvedAt: '2026-07-30' })], null, NOW);
+    expect(approved.approvalNeeded).toBe(false);
+    expect(approved.approvedAt).toBe('2026-07-30');
+
+    expect(buildTaskDetailVm('001', [task({})], null, NOW).approvalNeeded).toBeNull();
   });
 
   it('honest null done-when passthrough', () => {

@@ -1,5 +1,5 @@
 // input:  TaskInfo list and task verification evidence
-// output: Task fields, deps, claim, and history model
+// output: Task approval, fields, deps, claim, and history model
 // pos:    Pure view model for the mobile task detail screen
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,7 +8,7 @@
 import type { TaskInfo, TaskVerificationInfo, TaskDispatchRecord } from '@cortex-agent/ui-contract';
 import { fmtMoney } from '@/mobile/ui/format';
 
-export type MTaskStatusKind = 'in-progress' | 'actionable' | 'blocked' | 'done' | 'waiting';
+export type MTaskStatusKind = 'in-progress' | 'approval-needed' | 'actionable' | 'blocked' | 'done' | 'waiting';
 
 /** Elapsed label from a real durationMs (language-neutral s/m/h units); null when no source. */
 export function formatElapsed(ms: number | null): string | null {
@@ -21,12 +21,13 @@ export function formatElapsed(ms: number | null): string | null {
   return `${h}h ${m % 60}m`;
 }
 
-// Derive the status vocabulary from the real TaskInfo shape, precedence top→down (mirrors the desktop
-// task-modal-vm statusKind + the mobile classifier). done → blocked → in-progress → actionable → waiting.
+// Derive the status vocabulary from the real TaskInfo shape, precedence top→down. Approval precedes
+// the legacy actionable flag so details remain truthful when the two server views disagree.
 export function taskStatusKind(t: TaskInfo): MTaskStatusKind {
   if (t.status === 'done') return 'done';
   if (t.blockedBy != null) return 'blocked';
   if (t.claimedBy != null) return 'in-progress';
+  if (t.approvalNeeded === true) return 'approval-needed';
   if (t.actionable) return 'actionable';
   return 'waiting';
 }
@@ -74,6 +75,10 @@ export interface MTaskDetailVm {
   template: string;
   statusKind: MTaskStatusKind;
   priority: TaskInfo['priority'];
+  /** Approval gate; null when an older server omitted the field. */
+  approvalNeeded: boolean | null;
+  /** Recorded approval date; null when absent or omitted. */
+  approvedAt: string | null;
   /** Real TaskInfo.doneWhen; null → honest gap in the View. */
   doneWhen: string | null;
   /** The claim-thread card model; null when the task is not claimed. */
@@ -92,6 +97,8 @@ const NOT_FOUND: MTaskDetailVm = {
   template: '',
   statusKind: 'waiting',
   priority: 'medium',
+  approvalNeeded: null,
+  approvedAt: null,
   doneWhen: null,
   claim: null,
   deps: [],
@@ -153,6 +160,8 @@ export function buildTaskDetailVm(
     template: task.template,
     statusKind: taskStatusKind(task),
     priority: task.priority,
+    approvalNeeded: task.approvalNeeded ?? null,
+    approvedAt: task.approvedAt ?? null,
     doneWhen: task.doneWhen,
     claim,
     deps,

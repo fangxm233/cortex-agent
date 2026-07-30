@@ -1,5 +1,5 @@
 // input:  Mobile task-detail view model and bilingual copy
-// output: Field and empty-dependency rendering tests
+// output: Approval, field, and dependency rendering tests
 // pos:    Mobile task-detail view regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -47,6 +47,16 @@ describe('MTaskDetailView fields', () => {
     expect(html).toContain('模板');
     expect(html).toContain('manager');
     expect(html).toContain('无依赖');
+  });
+
+  it('renders pending and completed approval state', () => {
+    const pending = render([task({ approvalNeeded: true, approvedAt: null })]);
+    expect(pending).toContain('需要审批');
+    expect(pending).toContain('approval-needed');
+    expect(pending).toContain('批准时间');
+
+    const approved = render([task({ approvalNeeded: false, approvedAt: '2026-07-30' })]);
+    expect(approved).toContain('2026-07-30');
   });
 
   it('renders real dependencies instead of the empty-state copy', () => {

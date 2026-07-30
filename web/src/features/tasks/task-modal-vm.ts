@@ -1,5 +1,5 @@
 // input:  task DTO and project task list
-// output: Theme-aware fields, runtime pill, deps, action guards
+// output: Approval-aware fields, runtime pill, deps, action guards
 // pos:    Pure view model for the desktop task modal
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -14,8 +14,8 @@
 //   • done-when verification card — no evidence tRPC scope → placeholder card
 //   • dispatch history card       — no per-task execution join → placeholder card
 //   • gpu field                   — not on TaskInfo → "—" (matches the T-046 proto-shot)
-// Real: id · title · status pill · priority color · template · claimed-by · why · doneWhen ·
-// dependencies join.
+// Real: id · title · status/approval pill · priority · template · claimed-by · approval fields ·
+// why · doneWhen · dependencies join.
 
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 
@@ -55,14 +55,15 @@ export interface TaskModalVm {
   completeLabel: string;
 }
 
-type StatusKind = 'done' | 'blocked' | 'in-progress' | 'actionable' | 'waiting';
+type StatusKind = 'done' | 'blocked' | 'in-progress' | 'approval-needed' | 'actionable' | 'waiting';
 
-// Derive the prototype's status vocabulary from the real TaskInfo shape (status/actionable/
-// claimedBy/blockedBy), in precedence order (prototype L2574-2579).
+// Derive the runtime state in precedence order. Approval precedes the legacy actionable flag so
+// details remain truthful even while an older UI-service predicate labels the task actionable.
 function statusKind(t: TaskInfo): StatusKind {
   if (t.status === 'done') return 'done';
   if (t.blockedBy != null) return 'blocked';
   if (t.claimedBy != null) return 'in-progress';
+  if (t.approvalNeeded === true) return 'approval-needed';
   if (t.actionable) return 'actionable';
   return 'waiting';
 }
@@ -75,6 +76,8 @@ function statusPill(t: TaskInfo): TaskModalPill {
       return { bg: '#FBEDEB', fg: '#C03D33', text: 'blocked' };
     case 'in-progress':
       return { bg: '#EEF0FA', fg: '#4655D4', text: `● in-progress · ${t.claimedBy}` };
+    case 'approval-needed':
+      return { bg: '#FFF6E5', fg: '#9A6700', text: 'approval-needed' };
     case 'actionable':
       return { bg: '#EEF0FA', fg: '#4655D4', text: 'actionable' };
     default:
@@ -97,6 +100,22 @@ function depDot(dep: TaskInfo | undefined): string {
   return '#4655D4';
 }
 
+function approvalFields(task: TaskInfo): TaskModalField[] {
+  const needed = task.approvalNeeded;
+  return [
+    {
+      k: 'approval-needed',
+      v: needed == null ? '—' : String(needed),
+      vColor: needed === true ? '#9A6700' : 'var(--proto-ink)',
+    },
+    {
+      k: 'approved-at',
+      v: task.approvedAt ?? '—',
+      vColor: task.approvedAt ? '#23854F' : '#B6BDC9',
+    },
+  ];
+}
+
 export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
   const byId = new Map(all.map((t) => [t.id, t]));
 
@@ -107,6 +126,7 @@ export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
       vColor: task.priority === 'high' ? '#C03D33' : '#191C22',
     },
     { k: 'status', v: task.status, vColor: 'var(--proto-ink)' },
+    ...approvalFields(task),
     { k: 'template', v: task.template, vColor: 'var(--proto-ink)' },
     { k: 'gpu', v: '—', vColor: '#B6BDC9' },
     {

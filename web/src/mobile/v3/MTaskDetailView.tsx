@@ -1,5 +1,5 @@
 // input:  Task detail model, copy, navigation callbacks
-// output: Read-only mobile task detail screen
+// output: Approval-aware mobile task detail screen
 // pos:    Presentational view for mobile task details
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -34,6 +34,8 @@ export interface MTaskDetailCopy {
   open: string;
   priorityLabel: string;
   statusLabel: string;
+  approvalNeededLabel: string;
+  approvedAtLabel: string;
   templateLabel: string;
   depsLabel: string;
   depsEmpty: string;
@@ -55,6 +57,8 @@ export const ZH_COPY: MTaskDetailCopy = {
   open: '打开 ›',
   priorityLabel: '优先级',
   statusLabel: '状态',
+  approvalNeededLabel: '需要审批',
+  approvedAtLabel: '批准时间',
   templateLabel: '模板',
   depsLabel: '依赖',
   depsEmpty: '无依赖',
@@ -62,7 +66,7 @@ export const ZH_COPY: MTaskDetailCopy = {
   historyEmpty: '暂无派发历史',
   footer: '只读 — 编辑 / 派发 / 取消在桌面或对话内完成',
   notFound: '任务未找到',
-  status: { 'in-progress': '进行中', actionable: '可执行', blocked: '阻塞', done: '完成', waiting: '等待' },
+  status: { 'in-progress': '进行中', 'approval-needed': 'approval-needed', actionable: '可执行', blocked: '阻塞', done: '完成', waiting: '等待' },
   priority: { high: 'P高', medium: 'P中', low: 'P低' },
   dispatchStatus: { running: '运行中', completed: '完成', failed: '失败', cancelled: '已取消', stale: '停滞' },
   dispatchType: { local: '本地', dispatch: '派发' },
@@ -76,6 +80,8 @@ export const EN_COPY: MTaskDetailCopy = {
   open: 'open ›',
   priorityLabel: 'Priority',
   statusLabel: 'Status',
+  approvalNeededLabel: 'Approval needed',
+  approvedAtLabel: 'Approved at',
   templateLabel: 'Template',
   depsLabel: 'Depends',
   depsEmpty: 'No dependencies',
@@ -83,7 +89,7 @@ export const EN_COPY: MTaskDetailCopy = {
   historyEmpty: 'No dispatch history',
   footer: 'Read-only — edit / dispatch / cancel on desktop or in chat',
   notFound: 'Task not found',
-  status: { 'in-progress': 'In progress', actionable: 'Executable', blocked: 'Blocked', done: 'Done', waiting: 'Waiting' },
+  status: { 'in-progress': 'In progress', 'approval-needed': 'approval-needed', actionable: 'Executable', blocked: 'Blocked', done: 'Done', waiting: 'Waiting' },
   priority: { high: 'High', medium: 'Med', low: 'Low' },
   dispatchStatus: { running: 'running', completed: 'completed', failed: 'failed', cancelled: 'cancelled', stale: 'stale' },
   dispatchType: { local: 'local', dispatch: 'dispatch' },
@@ -91,6 +97,7 @@ export const EN_COPY: MTaskDetailCopy = {
 
 const PILL_TONE: Record<MTaskStatusKind, PillTone> = {
   'in-progress': 'running',
+  'approval-needed': 'waiting',
   actionable: 'running',
   blocked: 'failed',
   done: 'done',
@@ -100,6 +107,7 @@ const PILL_TONE: Record<MTaskStatusKind, PillTone> = {
 // A dependency's status text color, keyed by its own derived kind (scheme dep line = amber var(--proto-amber-text)).
 const DEP_COLOR: Record<MTaskStatusKind, string> = {
   'in-progress': MC.run,
+  'approval-needed': MC.amberText,
   actionable: MC.run,
   blocked: MC.fail,
   done: MC.done,
@@ -168,6 +176,26 @@ export function MTaskDetailView({
         <>
           <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.statusLabel}</span>
           <span style={{ font: `500 11px ${MONO}`, color: MC.body }}>{vm.status}</span>
+        </>
+      ),
+    },
+    {
+      key: 'approval-needed',
+      node: (
+        <>
+          <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.approvalNeededLabel}</span>
+          <span style={{ font: `500 11px ${MONO}`, color: MC.body }}>
+            {vm.approvalNeeded == null ? '—' : String(vm.approvalNeeded)}
+          </span>
+        </>
+      ),
+    },
+    {
+      key: 'approved-at',
+      node: (
+        <>
+          <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.approvedAtLabel}</span>
+          <span style={{ font: `500 11px ${MONO}`, color: MC.body }}>{vm.approvedAt ?? '—'}</span>
         </>
       ),
     },

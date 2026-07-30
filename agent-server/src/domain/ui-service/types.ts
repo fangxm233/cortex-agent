@@ -1,5 +1,5 @@
 // input:  domain types, context/notices, stores, pending data
-// output: UI DTOs and operation maps including project notes
+// output: UI DTOs and operation maps including task approvals
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -739,6 +739,10 @@ export interface TaskInfo {
   actionable: boolean;
   claimedBy: string | null;
   blockedBy: string | null;
+  /** Approval gate from task-store `approval-needed`; absent only with an older server contract. */
+  approvalNeeded?: boolean;
+  /** Recorded approval date; absent only with an older server contract. */
+  approvedAt?: string | null;
   dependsOn: string[];
   plan: string | null;
   template: string;

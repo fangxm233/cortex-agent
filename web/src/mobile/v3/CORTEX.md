@@ -29,10 +29,10 @@ The view models are framework-free record to slot mappings and each one has a co
 | m-tasks-vm.ts | vm | Selects and orders task groups per segment |
 | m-tasks-vm.test.ts | test | Unit tests for the tasks view model |
 | MTaskDetailScreen.tsx | screen | Loads one task plus its verification evidence |
-| MTaskDetailView.tsx | view | Task detail with real fields, deps and history |
-| MTaskDetailView.test.tsx | test | Guards task fields and dependency empty state |
-| m-task-detail-vm.ts | vm | Maps task and verification records to a model |
-| m-task-detail-vm.test.ts | test | Unit tests for the task detail view model |
+| MTaskDetailView.tsx | view | Task detail with approval, fields, deps and history |
+| MTaskDetailView.test.tsx | test | Guards approval, fields and dependency state |
+| m-task-detail-vm.ts | vm | Maps task approval and verification to a model |
+| m-task-detail-vm.test.ts | test | Tests task approval and detail view model |
 | MProjectScreen.tsx | screen | Binds project, notes, cost and connectivity |
 | MProjectView.tsx | view | Projects tab with notes, budget and switcher |
 | m-project-vm.ts | vm | Derives thread counts, machines and switch rows |
