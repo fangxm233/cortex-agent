@@ -114,7 +114,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-archiver.test.ts | test | accepts precise task completion timestamps |
 | task-completion.test.ts | test | checks timestamps, repos, artifacts and Git types |
-| task-dispatch-hooks.test.ts | test | live dispatch limit, quarantine and recovery |
+| task-dispatch-hooks.test.ts | test | live/automatic limits, hooks and recovery |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
 | task-lifecycle.test.ts | test | task CLI argv parsing, guards and round-trips |
