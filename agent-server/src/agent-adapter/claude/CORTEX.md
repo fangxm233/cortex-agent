@@ -7,9 +7,9 @@ Translates Claude stream and transcript events into the normalized event schema.
 |---|---|---|
 | adapter.ts | adapter | runs Claude sessions with scoped MCP layers |
 | adapter-tui.ts | adapter | runs interactive Claude sessions under tmux |
-| spawn-args.ts | core | composes Claude CLI and MCP layer arguments |
+| spawn-args.ts | core | composes settings-aware Claude CLI arguments |
 | defaults.ts | config | Claude timeout, MCP path, and tool constants |
-| hooks-builder.ts | core | safely compiles the hook registry into Claude settings |
+| hooks-builder.ts | core | selects and compiles Claude hooks from settings |
 | event-parser.ts | parser | parses Claude stream events and plan files |
 | jsonl-tail.ts | core | tails a Claude transcript into events |
 | tmux-control.ts | util | wraps the tmux command line |

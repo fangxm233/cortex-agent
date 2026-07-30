@@ -1,9 +1,10 @@
-// input:  provider windows, resume entries, session state
+// input:  provider windows, resume entries, runtime settings
 // output: resume dispatch, busy requeue, and idle wakes
 // pos:    Re-enters work after its provider clears
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { PlatformAdapter, IncomingMessage } from '@platform/index.js';
+import { getSettings } from '@core/settings.js';
 import type { EventBus } from '@events/index.js';
 import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js';
 import { recordResume, takeReadyResumes, type ResumeEntry } from '@domain/costs/resume-registry.js';
@@ -22,10 +23,9 @@ const log = createLogger('resume-dispatcher');
  *  after a window reset. Resumes begin one every 30s. */
 const RESUME_STAGGER_MS = 30_000;
 
-/** Auto-resume is on by default; disable with CORTEX_AUTO_RESUME=0 (or "false"). */
+/** Auto-resume feature gate. */
 export function isAutoResumeEnabled(): boolean {
-  const v = process.env.CORTEX_AUTO_RESUME;
-  return v !== '0' && v !== 'false';
+  return getSettings().autoResume;
 }
 
 /** The continuation prompt injected into a resumed session/thread. Self-contained — the

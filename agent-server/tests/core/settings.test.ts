@@ -244,6 +244,20 @@ describe.sequential('core settings', () => {
     assert.equal(warn.mock.calls.length, warningCount, 'cached reads must not repeat deprecation logs');
   });
 
+  test('getSettings refreshes legacy env fallbacks changed after initialization', () => {
+    const previous = process.env.CORTEX_AUTO_RESUME;
+    try {
+      process.env.CORTEX_AUTO_RESUME = '0';
+      assert.equal(getSettings().autoResume, false);
+      process.env.CORTEX_AUTO_RESUME = '1';
+      assert.equal(getSettings().autoResume, true);
+    } finally {
+      if (previous === undefined) delete process.env.CORTEX_AUTO_RESUME;
+      else process.env.CORTEX_AUTO_RESUME = previous;
+      getSettings();
+    }
+  });
+
   test('external settings edits hot-reload and report effective keys in spec order', async (t) => {
     const batches: string[][] = [];
     const unsubscribe = onSettingsChange((keys) => batches.push([...keys]));

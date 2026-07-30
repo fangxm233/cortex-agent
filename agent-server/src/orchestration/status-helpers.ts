@@ -1,8 +1,9 @@
-// input:  execution-registry, mode-manager, utils, platform, ...
-// output: status/session/exec helper functions
-// pos:    Status message and execution helper functions collection
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  executions, threads, platform, runtime settings
+// output: status, session, and execution helpers
+// pos:    Builds and serializes status messages and actions
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import type { Destination, PlatformAdapter, MessageRef, IncomingAttachment, RichBlock, ActionElement, OutputStream } from '@platform/index.js';
@@ -21,12 +22,9 @@ export { computeElapsed, formatMetricsSuffix, buildSessionTag, buildUserProcessi
 
 const log = createLogger('status-helpers');
 
-/** Feature gate: the "New (quiet)" status button (=!newq, skips the pre-close hook)
- *  is OFF by default. Opt in with CORTEX_STATUS_NEWQ_BUTTON = 1/true/on/yes. */
+/** Feature gate: the "New (quiet)" status button (=!newq, skips the pre-close hook). */
 export function isStatusNewqButtonEnabled(): boolean {
-  const v = process.env.CORTEX_STATUS_NEWQ_BUTTON;
-  if (v === undefined) return false;
-  return ['1', 'true', 'on', 'yes'].includes(v.trim().toLowerCase());
+  return getSettings().statusNewqButton;
 }
 
 export function resolveExecutionProject({ execution, fallbackMessage }: { execution: ExecutionRecord | null; fallbackMessage: string }): string {

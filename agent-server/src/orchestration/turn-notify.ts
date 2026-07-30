@@ -1,8 +1,9 @@
-// input:  orch/bg-continuation(isInteractiveChannel), store/outbound-queue(durablePost,getOutboundQueue), core/status-format(buildSessionTag), core/icons, core/i18n
-// output: isTurnNotifyEnabled / getTurnNotifyThresholdS / maybeNotifyTurnComplete
-// pos:    orch layer — push a NEW message (Slack + Feishu) when a long-running user turn finishes
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  runtime settings, platform adapter, outbound queue
+// output: turn notification gates and completion notifier
+// pos:    Pushes completion notices for long interactive turns
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
 import { buildSessionTag } from '../core/status-format.js';
@@ -12,25 +13,14 @@ import { isInteractiveChannel } from './bg-continuation.js';
 
 const log = createLogger('turn-notify');
 
-const DEFAULT_THRESHOLD_S = 60;
-
-/** Feature gate: turn-completion notification is ON by default. Opt out by setting
- *  CORTEX_TURN_NOTIFY to a falsy value (0 / false / off / no). */
+/** Feature gate: turn-completion notification is ON by default. */
 export function isTurnNotifyEnabled(): boolean {
-  const v = process.env.CORTEX_TURN_NOTIFY;
-  if (v === undefined) return true;
-  return !['0', 'false', 'off', 'no'].includes(v.trim().toLowerCase());
+  return getSettings().turnNotify;
 }
 
-/** Minimum turn duration (seconds) before a completion notification is pushed.
- *  Configurable via CORTEX_TURN_NOTIFY_THRESHOLD_S; defaults to 60s. A non-positive
- *  or unparseable value falls back to the default. */
+/** Minimum turn duration (seconds) before a completion notification is pushed. */
 export function getTurnNotifyThresholdS(): number {
-  const raw = process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S;
-  if (raw === undefined) return DEFAULT_THRESHOLD_S;
-  const n = Number(raw.trim());
-  if (!Number.isFinite(n) || n <= 0) return DEFAULT_THRESHOLD_S;
-  return n;
+  return getSettings().turnNotifyThresholdS;
 }
 
 /** Push a NEW message to the conversation's channel when a long-running, user-initiated
