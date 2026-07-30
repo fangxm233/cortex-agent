@@ -5,6 +5,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 
 | filename | role | function |
 |---|---|---|
+| _shared-pool-manifest.ts | setup | shared-pool manifest read by vitest.config.ts: test files vetted safe for the isolate:false fork pool |
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |

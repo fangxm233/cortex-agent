@@ -1,5 +1,17 @@
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import { SHARED_POOL_FILES } from './tests/_shared-pool-manifest.js';
+
+// Sharding (opt-in, used by scripts/run-tests.sh):
+//   CORTEX_TEST_SHARD=shared    only the manifest files, isolate:false — one
+//                               module registry per worker fork, so the import
+//                               graph (the dominant suite cost) is executed
+//                               once per fork instead of once per file.
+//   CORTEX_TEST_SHARD=isolated  everything except the manifest files, with
+//                               full per-file isolation (previous behavior).
+//   unset                       all files, full isolation — scoped dev runs
+//                               (`vitest run <file>`) behave exactly as before.
+const SHARD = process.env.CORTEX_TEST_SHARD;
 
 // The codebase uses NodeNext ESM: imports carry a `.js` extension but point at
 // `.ts` sources (e.g. `../src/foo.js` → `src/foo.ts`). tsx resolves this at
@@ -36,12 +48,17 @@ export default defineConfig({
     // Process-per-file model (mirrors node:test) — safest for the singleton
     // stores, native modules, and subprocess-spawning tests. The transpile is
     // still done ONCE by the shared Vite server and cached, so we keep the win.
+    // The `shared` shard relaxes this to worker-per-many-files for the vetted
+    // pure-logic manifest (see tests/_shared-pool-manifest.ts).
     pool: 'forks',
-    isolate: true,
+    isolate: SHARD !== 'shared',
     poolOptions: {
       forks: {
         singleFork: false,
-        maxForks: Number(process.env.CORTEX_TEST_CONCURRENCY ?? 16),
+        // Shared shard: fewer forks → better module-cache reuse per fork.
+        maxForks: SHARD === 'shared'
+          ? Number(process.env.CORTEX_TEST_SHARED_CONCURRENCY ?? 4)
+          : Number(process.env.CORTEX_TEST_CONCURRENCY ?? 16),
         minForks: 1,
       },
     },
@@ -51,16 +68,19 @@ export default defineConfig({
     hookTimeout: 15000,
     teardownTimeout: 15000,
     // Match the run-tests.sh glob (unit tests only; integration handled separately).
-    include: [
-      'tests/**/*.test.ts',
-      'tests/**/*.test.tsx',
-    ],
+    include: SHARD === 'shared'
+      ? SHARED_POOL_FILES
+      : [
+          'tests/**/*.test.ts',
+          'tests/**/*.test.tsx',
+        ],
     exclude: [
       'tests/**/_shims-*',
       'tests/**/_combined*',
       'tests/**/_plan*',
       'tests/**/integration-*.test.ts',
       'node_modules/**',
+      ...(SHARD === 'isolated' ? SHARED_POOL_FILES : []),
     ],
     reporters: process.env.CI ? ['default'] : ['dot'],
   },

@@ -83,8 +83,13 @@ fi
 # nice -n 10 keeps training jobs and interactive agents responsive while the
 # fork pool is hot; niceness is inherited by the worker forks.
 
-echo "[run-tests] running unit suite (vitest, concurrency=${CORTEX_TEST_CONCURRENCY:-16})"
-nice -n 10 pnpm exec vitest run
+echo "[run-tests] running unit suite, isolated shard (vitest, concurrency=${CORTEX_TEST_CONCURRENCY:-16})"
+CORTEX_TEST_SHARD=isolated nice -n 10 pnpm exec vitest run
+
+# Vetted pure-logic files run with isolate:false so each worker fork executes
+# the import graph once for many files (see tests/_shared-pool-manifest.ts).
+echo "[run-tests] running unit suite, shared shard (vitest, isolate=false, concurrency=${CORTEX_TEST_SHARED_CONCURRENCY:-4})"
+CORTEX_TEST_SHARD=shared nice -n 10 pnpm exec vitest run --passWithNoTests
 
 # ── Integration tests (forked servers; longer timeout, run last) ─────
 echo "[run-tests] running integration tests (vitest, serial)"

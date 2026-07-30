@@ -10,7 +10,7 @@ They support packaging and manual verification outside the running daemon.
 | lint-no-slack-shortcodes.ts | lint | flags Slack emoji shortcodes in source |
 | migrate-tasks-to-yaml.ts | migrate | converts task files from Markdown to YAML |
 | postinstall-restart-trigger.mjs | install | signals a running daemon to restart |
-| run-tests.sh | test | runs the test suite in a temporary home, serialized machine-wide via flock and niced |
+| run-tests.sh | test | runs the test suite (isolated + shared shards) in a temporary home, serialized machine-wide via flock and niced |
 | seed-test-config.sh | test | writes test machine and Claude/PI profiles |
 | serve-ui-standalone.ts | dev | serves the web UI against real local data |
 | smoke-tui-askuser.mjs | smoke | checks the ask-user question round trip |
