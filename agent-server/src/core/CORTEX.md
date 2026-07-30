@@ -23,6 +23,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | paths.ts | config | defines install, data, and config paths |
 | profile-generator.ts | config | generates the agent profiles file |
 | running-executions.ts | state | registers and kills live agent executions |
+| settings.ts | config | resolves and hot-reloads runtime settings |
 | singleton-lock.ts | util | claims and releases a process pidfile |
 | status-format.ts | util | formats status and progress messages |
 | task-node.ts | util | locates and creates task node artifacts |
