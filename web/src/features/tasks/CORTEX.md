@@ -6,7 +6,7 @@ A detail modal shows fields, dependencies, completion evidence and dispatch hist
 | filename | role | function |
 |---|---|---|
 | TasksPage.tsx | entry | Tasks route page wrapping the tasks panel |
-| TasksPanel.tsx | core | Grouped task list with mutations and modal |
+| TasksPanel.tsx | core | Grouped task list with Open/All scope and modal |
 | TaskRow.tsx | view | One task card with lifecycle dot and metadata |
 | TaskModal.tsx | view | Task detail modal with fields, deps and actions |
 | task-modal-vm.ts | vm | Builds themed fields, runtime pill and deps |

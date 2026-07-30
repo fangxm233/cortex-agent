@@ -1,3 +1,8 @@
+// input:  useVocab, task queries, lifecycle view models
+// output: Task list panel with Open/All scope and detail modal
+// pos:    Desktop task list orchestration and rendering
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
@@ -65,7 +70,7 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
   const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [scope, setScope] = useState<'actionable' | 'all'>('actionable');
+  const [scope, setScope] = useState<'open' | 'all'>('open');
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 
@@ -125,12 +130,12 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
     );
   }
 
-  // When scope === 'actionable', hide the "done" group
-  const visible = scope === 'actionable'
+  // The Open scope contains every unfinished lifecycle group.
+  const visible = scope === 'open'
     ? grouped.filter((g) => g.kind !== 'done')
     : grouped;
 
-  const actionableCount = actionableOpenCount(allTasks);
+  const openCount = actionableOpenCount(allTasks);
   const totalCount = allTasks.length;
   const openTask = openTaskId ? allTasks.find((t) => t.id === openTaskId) : undefined;
 
@@ -138,23 +143,23 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
     <div style={{ minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column' }}>
       {/* Filter row + task groups — scrollable */}
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-      {/* Filter row: Actionable / All toggle — no "+ Task" button per the spec */}
+      {/* Filter row: Open / All toggle — no "+ Task" button per the spec */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '0 0 8px', flex: 'none' }}>
         <div style={{ display: 'flex', background: 'var(--proto-line-2)', borderRadius: 7, padding: 2 }}>
           <span
-            onClick={() => setScope('actionable')}
+            onClick={() => setScope('open')}
             style={{
               fontSize: 11,
               fontWeight: 600,
-              color: scope === 'actionable' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
-              background: scope === 'actionable' ? 'var(--proto-card)' : 'transparent',
+              color: scope === 'open' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+              background: scope === 'open' ? 'var(--proto-card)' : 'transparent',
               borderRadius: 5,
               padding: '3px 10px',
               cursor: 'pointer',
-              boxShadow: scope === 'actionable' ? '0 1px 2px rgba(16,24,40,.06)' : 'none',
+              boxShadow: scope === 'open' ? '0 1px 2px rgba(16,24,40,.06)' : 'none',
             }}
           >
-            {L.tkActionable} {actionableCount}
+            {L.tkOpen} {openCount}
           </span>
           <span
             onClick={() => setScope('all')}
