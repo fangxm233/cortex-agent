@@ -1,5 +1,5 @@
-// input:  UpdatePrompt interface, UpdateState I/O, CORTEX_VERSION, child_process
-// output: compareCalVer, isUpdateDevMode, checkServerUpdate
+// input:  UpdatePrompt interface, UpdateState I/O, CORTEX_VERSION, @core/calver, child_process
+// output: compareCalVer (re-export), isUpdateDevMode, checkServerUpdate
 // pos:    DR-0013 core checker — npm registry version check + prompt + dispatch
 
 import * as fs from 'node:fs';
@@ -8,30 +8,12 @@ import { CORTEX_VERSION } from '@core/version.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
 
-// ── CalVer comparison: YYYY.M.D[-N] ──────────────────────────────
-// Supports an optional suffix (e.g. 2026.5.23-1) for hotfix releases.
-// Default suffix is 0 when absent. Compare element-wise (year, month, day, suffix)
-// to avoid string-ordering pitfalls across digit boundaries.
+// ── CalVer comparison ────────────────────────────────────────────
+// Lives in @core/calver.js (platform/ui-http/app-update.ts needs it too and the platform layer may
+// not depend on domain). Re-exported here so existing importers keep working.
 
-export function compareCalVer(a: string, b: string): number {
-  const parse = (v: string): [number, number, number, number] => {
-    const parts = v.split('.');
-    const year = Number(parts[0]);
-    const month = Number(parts[1]);
-    const daySuffix = parts[2]?.split('-') ?? ['0'];
-    const day = Number(daySuffix[0]);
-    const suffix = Number(daySuffix[1] ?? '0');
-    return [year, month, day, suffix];
-  };
-
-  const [ay, am, ad, asfx] = parse(a);
-  const [by, bm, bd, bsfx] = parse(b);
-
-  if (ay !== by) return ay - by;
-  if (am !== bm) return am - bm;
-  if (ad !== bd) return ad - bd;
-  return asfx - bsfx;
-}
+import { compareCalVer } from '@core/calver.js';
+export { compareCalVer };
 
 // ── Dev mode detection ──────────────────────────────────────────
 // In dev mode (CORTEX_REPO set), server auto-update is skipped entirely

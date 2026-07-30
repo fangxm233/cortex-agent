@@ -19,6 +19,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { startUiHttpServer, resolveWorkspacePath } from '@entry/start-ui-http.js';
 import { UI_OTA_MANIFEST_PATH, UI_OTA_BUNDLE_PATH } from '@platform/ui-http/ui-ota.js';
+import { APP_UPDATE_MANIFEST_PATH } from '@platform/ui-http/app-update.js';
 import { WORKSPACE_DIR } from '@core/paths.js';
 import { mkdirSync } from 'node:fs';
 import type { UiService, UiEvent } from '@domain/ui-service/types.js';
@@ -310,6 +311,17 @@ test('ota: bundle with the token returns 200 application/zip', async () => {
   );
   assert.equal(statusCode, 200);
   assert.match(String(headers['content-type']), /application\/zip/);
+});
+
+// ── App-update manifest route (shell self-update) ─────────────────────────────
+// startUiHttpServer must mount the app-update manifest route behind the same token gate. A 401 (not
+// a SPA fallback / 404) proves the path is registered as a custom route AND auth-gated; the
+// with-token manifest behavior is covered hermetically in app-update.test.ts (no GitHub call here).
+
+test('app-update: manifest without a token is rejected 401', async () => {
+  const inst = await bootWithSpa(makeSpaDir());
+  const { statusCode } = await req(portOf(inst), 'GET', APP_UPDATE_MANIFEST_PATH);
+  assert.equal(statusCode, 401);
 });
 
 // ── File download route (15a uploads + 20a agent-sent files) ──────────────────

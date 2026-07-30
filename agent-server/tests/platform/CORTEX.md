@@ -6,6 +6,7 @@ gateway and wire protocol, and the Web UI HTTP transport.
 | filename | role | function |
 |---|---|---|
 | adapter-factory.test.ts | test | Covers platform adapter selection and mix |
+| app-update.test.ts | test | Covers app shell update manifest and route |
 | composite-adapter.test.ts | test | Covers multi-platform routing and fan-out |
 | interactive-builder.test.ts | test | Covers ask-card level banner and modal prefix |
 | tui-gateway.test.ts | test | Covers TUI gateway sessions and delivery |
