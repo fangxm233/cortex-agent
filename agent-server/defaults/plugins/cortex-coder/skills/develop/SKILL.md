@@ -40,6 +40,32 @@ Wrote code before writing a test? Delete the code. Write the test. Watch it fail
 
 ---
 
+## What to Test — and What Not To
+
+TDD mandates a failing test first; this section governs which tests are worth writing at all. A test earns its place by being able to fail on a real bug: **if you cannot name the bug that would make it fail, do not write it.**
+
+Test these (behavior the suite must own):
+- Behavior contracts at module boundaries: inputs → outputs/effects.
+- State machines and lifecycle transitions, including illegal-transition rejections.
+- Persistence and concurrency: atomic writes, mutex serialization, recovery paths.
+- Protocol/format translation: adapter normalization, parsers, serializers.
+- Error paths that guard real regressions.
+- Anything that runs unattended.
+
+Do NOT write:
+- Assertions restating constants or config literals back at themselves. If the shape is the contract, collapse to one whole-object equality.
+- Verbatim help/usage text matching — test routing and exit codes instead.
+- Tests of a test double's trivial surface, or of third-party library behavior.
+- Higher-layer re-assertions of values a lower layer already pins (a view re-asserting vm output; a CLI re-proving the mutator's semantics). The higher layer tests only what it adds: argv parsing, exit codes, routing, render slots — plus ONE thin wiring round-trip.
+- Local re-implementations of production logic asserted against themselves — such tests cannot fail.
+
+Placement and cost discipline:
+- One behavior, one test, at the lowest layer that owns the logic.
+- Extend the module's existing test file; a new file is for a new module.
+- Prefer fake timers or bounded polls on observable state over fixed real sleeps; never bind fixed ports; a per-test mkdtemp is fine, but do not spawn subprocesses or listeners when a direct call exercises the same contract.
+
+---
+
 ## Mode: Feature
 
 ### Step 1: Understand
