@@ -14,6 +14,8 @@ PNG, 2x resolution for Retina displays, 1200-1600px wide.
 | `slack-oauth-install.png` | OAuth & Permissions install | OAuth & Permissions page with "Install to Workspace" button |
 | `slack-bot-token.png` | Bot User OAuth Token | OAuth & Permissions page after install, Bot User OAuth Token visible at top |
 | `slack-messages-tab.png` | App Home Messages Tab | App Home page, Show Tabs section, Messages Tab checkbox and "Allow users to send..." checkbox |
+| `feishu-create-agentic-app.png` | Feishu agentic app creation entry | Feishu developer console banner with the Create button |
+| `feishu-app-credentials.png` | Created Feishu app credentials | App created page showing the App ID and masked App Secret |
 | `cortex-config.png` | cortex config output | Terminal showing `cortex config` command and its output confirming daemon/connection status |
 | `slack-first-dm.png` | First DM: hello | Slack DM window showing "hello" sent to Cortex bot and its reply |
 | `slack-create-project.png` | Creating a project via DM | Slack DM showing a project creation message and Cortex's structured reply |

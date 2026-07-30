@@ -206,9 +206,13 @@ Cortex 会把启动通知、审批请求和其他运维消息发送到管理频�
 
 前往 **[https://open.feishu.cn/app](https://open.feishu.cn/app)**，点击 **创建 agentic 应用**（Create Agentic App）。输入应用名称（例如 `CortexAgent`），选择头像，然后点击 **创建**。
 
+![创建飞书智能体应用](./images/feishu-create-agentic-app.png)
+
 #### b) 复制 App ID 和 App Secret
 
 创建后，应用页面会显示 **App ID** 和 **App Secret**。复制它们。
+
+![复制飞书 App ID 和 App Secret](./images/feishu-app-credentials.png)
 
 回到终端，在 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET` 提示处粘贴。
 

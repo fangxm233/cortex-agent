@@ -13,6 +13,8 @@
 | `slack-oauth-install.png` | OAuth & Permissions 安装 | OAuth & Permissions 页面，"Install to Workspace" 按钮 |
 | `slack-bot-token.png` | Bot User OAuth Token | 安装后的 OAuth & Permissions 页面，Bot User OAuth Token 在顶部可见 |
 | `slack-messages-tab.png` | App Home Messages Tab | App Home 页面，Show Tabs 部分，Messages Tab 复选框和"Allow users to send..."复选框 |
+| `feishu-create-agentic-app.png` | 飞书智能体应用创建入口 | 飞书开放平台中的智能体应用创建横幅和「立即创建」按钮 |
+| `feishu-app-credentials.png` | 已创建飞书应用的凭据 | 创建成功页面中的 App ID 和已隐藏的 App Secret |
 | `cortex-config.png` | cortex config 输出 | 终端显示 `cortex config` 命令及确认守护进程/连接状态的输出 |
 | `slack-first-dm.png` | 第一条私信：hello | Slack 私信窗口，显示发送给 Cortex 的 "hello" 及其回复 |
 | `slack-create-project.png` | 通过私信创建项目 | Slack 私信显示项目创建消息及 Cortex 的结构化回复 |

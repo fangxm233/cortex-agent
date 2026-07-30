@@ -260,10 +260,14 @@ Go to **[https://open.feishu.cn/app](https://open.feishu.cn/app)** and
 click **Create Agentic App**（创建 agentic 应用）. Enter an agent name
 (e.g. `CortexAgent`), pick an avatar, and click **Create**.
 
+![Create a Feishu agentic app](./images/feishu-create-agentic-app.png)
+
 #### b) Copy the App ID and App Secret
 
 After creation, the app page displays the **App ID** and **App Secret**.
 Copy them.
+
+![Copy the Feishu App ID and App Secret](./images/feishu-app-credentials.png)
 
 Back in your terminal, paste them at the `FEISHU_APP_ID` and
 `FEISHU_APP_SECRET` prompts.
