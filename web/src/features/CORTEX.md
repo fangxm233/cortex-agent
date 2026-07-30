@@ -24,5 +24,6 @@ Cross-cutting concerns that any surface can pull in (live stream, media preview,
 | connection/ | subdir | Connectivity status for the daemon badge |
 | rate-limit/ | subdir | Provider throttle times and waiting counts |
 | hot-update/ | subdir | Staged frontend update prompt |
+| app-update/ | subdir | App shell update prompt |
 | kit/ | subdir | Design-system gallery page |
 | base-demo/ | subdir | Visual base specimen page |

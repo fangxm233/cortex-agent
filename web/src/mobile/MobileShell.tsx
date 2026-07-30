@@ -15,6 +15,7 @@ import { switchMobileTab, useMobileBackNavigation } from './mobile-navigation';
 import { MobileProjectProvider } from './current-project';
 import { MNotificationProvider } from './v3/MNotificationProvider';
 import { MHotUpdateProvider } from './v3/MHotUpdateProvider';
+import { MAppUpdateProvider } from './v3/MAppUpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
@@ -69,6 +70,7 @@ function MobileProviders({ children }: { children: ReactNode }) {
               {children}
               <MNotificationProvider />
               <MHotUpdateProvider />
+              <MAppUpdateProvider />
             </DocViewerProvider>
           </MediaViewerProvider>
         </MobileProjectProvider>

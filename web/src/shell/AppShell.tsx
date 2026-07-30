@@ -14,6 +14,7 @@ import { CurrentProjectProvider } from '@/features/workbench/CurrentProjectProvi
 import { SelectedSessionProvider } from '@/features/workbench/SelectedSessionProvider';
 import { NotificationProvider } from '@/features/notifications/NotificationProvider';
 import { HotUpdateProvider } from '@/features/hot-update/HotUpdateProvider';
+import { AppUpdateProvider } from '@/features/app-update/AppUpdateProvider';
 import { MediaViewerProvider } from '@/features/media/MediaViewer';
 import { DocViewerProvider } from '@/features/media/DocViewer';
 import { PinnedPreviewProvider } from '@/features/media/PinnedPreviewProvider';
@@ -44,6 +45,7 @@ export function AppShell() {
                 <CommandPalette open={open} onOpenChange={setOpen} />
                 <NotificationProvider />
                 <HotUpdateProvider />
+                <AppUpdateProvider />
               </DocViewerProvider></MediaViewerProvider>
             </PinnedPreviewProvider></ThreadDetailModalProvider>
           </IssuesProvider></SettingsProvider></ApprovalsProvider>

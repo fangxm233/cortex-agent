@@ -91,5 +91,7 @@ The view models are framework-free record to slot mappings and each one has a co
 | MNotificationToaster.tsx | view | Stacked tappable top notification banners |
 | MHotUpdateProvider.tsx | provider | Mounts the prompt when an update is staged |
 | MHotUpdateDialog.tsx | view | Staged update alert with apply and ignore |
+| MAppUpdateProvider.tsx | provider | Mounts the prompt when a shell update is ready |
+| MAppUpdateDialog.tsx | view | Shell update alert with install, skip, later |
 | m-connection.ts | util | Maps connection status to pill tone and pulse |
 | m-connection.test.ts | test | Unit tests for the connection status mapping |
