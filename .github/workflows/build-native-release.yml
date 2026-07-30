@@ -1,0 +1,151 @@
+name: Build native release assets
+
+on:
+  push:
+    tags:
+      - "server-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v4
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
+          VERSION="${GITHUB_REF_NAME#server-v}"
+          node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Web SPA and stage connection screen
+        shell: bash
+        run: |
+          pnpm --filter '@cortex-agent/web...' run build
+          pnpm --dir desktop run copy-connect
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          pnpm --dir desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis -- --locked
+
+      - name: Verify and stage Windows installer
+        shell: pwsh
+        run: |
+          $bundle = "desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"
+          $installers = @(Get-ChildItem $bundle -Filter "*-setup.exe" -File)
+          if ($installers.Count -ne 1) { throw "expected one NSIS installer, found $($installers.Count)" }
+          $binary = "desktop/src-tauri/target/x86_64-pc-windows-msvc/release/cortex-desktop.exe"
+          $productVersion = (Get-Item $binary).VersionInfo.ProductVersion
+          if ($productVersion -ne $env:VERSION) { throw "binary version $productVersion != $env:VERSION" }
+          $sig = Get-AuthenticodeSignature $installers[0].FullName
+          if ($sig.Status -notin @('Valid', 'NotSigned')) { throw "installer signature status: $($sig.Status)" }
+          Write-Host "installer signature status: $($sig.Status)"
+          New-Item -ItemType Directory -Force release-assets | Out-Null
+          $dest = "release-assets/Cortex-$env:VERSION-Windows-x86_64-setup.exe"
+          Copy-Item $installers[0].FullName $dest
+          $hash = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path $dest -Leaf)" | Set-Content -NoNewline release-assets/SHA256SUMS-Windows.txt
+
+      - name: Upload Windows asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cortex-Windows-x86_64
+          path: release-assets/*
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v4
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^server-v[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}(-[0-9]+)?$ ]]
+          VERSION="${GITHUB_REF_NAME#server-v}"
+          node -e 'const fs=require("fs"); const v=process.argv[1]; const s=require("./agent-server/package.json").version; const t=require("./desktop/src-tauri/tauri.conf.json").version; if(s!==v||t!==v) throw new Error(`tag=${v} server=${s} tauri=${t}`); fs.appendFileSync(process.env.GITHUB_ENV, `VERSION=${v}\n`)' "$VERSION"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Web SPA and stage connection screen
+        run: |
+          pnpm --filter '@cortex-agent/web...' run build
+          pnpm --dir desktop run copy-connect
+
+      - name: Build universal macOS disk image
+        run: |
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+          pnpm --dir desktop exec tauri build --target universal-apple-darwin --bundles dmg -- --locked
+
+      - name: Verify and stage macOS disk image
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle=desktop/src-tauri/target/universal-apple-darwin/release/bundle/dmg
+          images=("$bundle"/*.dmg)
+          test "${#images[@]}" -eq 1
+          test -f "${images[0]}"
+          mountpoint=$(mktemp -d)
+          hdiutil attach "${images[0]}" -readonly -nobrowse -mountpoint "$mountpoint"
+          trap 'hdiutil detach "$mountpoint"' EXIT
+          app=$(find "$mountpoint" -maxdepth 1 -type d -name '*.app' -print -quit)
+          test -n "$app"
+          actual=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")
+          test "$actual" = "$VERSION"
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
+          archs=$(lipo -archs "$app/Contents/MacOS/$executable")
+          [[ "$archs" == *x86_64* && "$archs" == *arm64* ]]
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv --verbose=4 "$app" 2>&1 | grep -q 'Signature=adhoc'
+          hdiutil detach "$mountpoint"
+          trap - EXIT
+          mkdir -p release-assets
+          dest="release-assets/Cortex-$VERSION-macOS-universal.dmg"
+          cp "${images[0]}" "$dest"
+          shasum -a 256 "$dest" | sed 's#  release-assets/#  #' > release-assets/SHA256SUMS-macOS.txt
+
+      - name: Upload macOS asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cortex-macOS-universal
+          path: release-assets/*
+          if-no-files-found: error
