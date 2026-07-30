@@ -6,7 +6,7 @@ Other layers publish state changes here and subscribers observe them.
 | filename | role | function |
 |---|---|---|
 | event-bus.ts | core | publishes events to subscribers |
-| event-logger.ts | logger | writes events to daily rolling log files |
+| event-logger.ts | logger | writes hot-toggleable daily event logs |
 | event-replay.ts | cli | prints logged events for a chosen day |
 | event-types.ts | types | declares the Cortex event union |
 | index.ts | barrel | exports the public events API |

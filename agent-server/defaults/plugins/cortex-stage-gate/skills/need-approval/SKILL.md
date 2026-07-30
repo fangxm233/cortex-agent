@@ -63,6 +63,7 @@ Append the operation to `context/PENDING_APPROVALS.md`:
 - **Reason**: [why this operation is needed]
 - **Impact**: [what it affects — files, machines, resources]
 - **Command/Action**: [the specific command or change to execute]
+- **Project**: [the project id this operation belongs to — OMIT this line for system-level / cross-project operations]
 - **Status**: pending
 ```
 

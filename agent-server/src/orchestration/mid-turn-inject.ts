@@ -1,5 +1,5 @@
-// input:  live execution, message, pending/commit/context seams
-// output: durable injected turns, markers, and continuation forwarding
+// input:  live execution, runtime settings, pending/context seams
+// output: durable injected turns, markers, and bounded continuations
 // pos:    Busy-channel injection branch of AgentRunner.route
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -20,12 +20,15 @@ import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import type { ContextUsage } from '@core/types/agent-types.js';
 
 const log = createLogger('mid-turn-inject');
 
 /** Leak guard: a wedged process must not hold the daemon restart gate forever. */
-const DEFAULT_MAX_WAIT_MS = Number(process.env.CORTEX_INJECT_WAIT_MAX_S ?? 600) * 1000;
+function defaultMaxWaitMs(): number {
+  return getSettings().injectWaitMaxS * 1000;
+}
 
 /** The subset of a pooled AgentProcess this path needs. */
 export interface InjectableProcess {
@@ -254,7 +257,7 @@ function buildPendingRecord(
 }
 
 function armReleaseCap(deps: MidTurnInjectDeps, entry: PendingInjection): void {
-  const capMs = deps.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
+  const capMs = deps.maxWaitMs ?? defaultMaxWaitMs();
   if (capMs <= 0) return;
   const timer = setTimeout(() => {
     if (!entry.isReleased()) {

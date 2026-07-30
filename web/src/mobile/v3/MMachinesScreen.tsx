@@ -67,7 +67,7 @@ export function MMachinesScreen() {
       {machinesQuery.isLoading ? (
         <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.empty}</div>
       ) : (
-        <MMachinesView vm={vm} copy={copy} onBack={() => navigate('/m/project')} />
+        <MMachinesView vm={vm} copy={copy} onBack={() => navigate('/m/settings')} />
       )}
     </MScreen>
   );

@@ -1,10 +1,13 @@
-// input:  mid-turn injection with durable/backend/context seams
-// output: pending, continuation context, and marker regressions
-// pos:    Verifies the full mid-turn injection lifecycle
+// input:  mid-turn injection, mutable settings, backend/context seams
+// output: pending, continuation, marker, and wait-cap regressions
+// pos:    Mid-turn injection lifecycle behavioral tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
+
+const liveSettings = vi.hoisted(() => ({ injectWaitMaxS: 600 }));
+vi.mock('@core/settings.js', () => ({ getSettings: () => liveSettings }));
 
 import {
   isInjectableMessage,
@@ -17,7 +20,10 @@ import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/types.js';
 
 // Injection state is per-channel and module-scoped (it outlives a single turn by design), so each
 // test starts from a clean registry rather than inheriting the previous test's pending messages.
-beforeEach(() => injectTest.reset());
+beforeEach(() => {
+  injectTest.reset();
+  liveSettings.injectWaitMaxS = 600;
+});
 
 const CHANNEL = 'web:sess-1';
 const SESSION = 'track-sess-1';
@@ -411,6 +417,29 @@ test('a second injection into the same live turn is surfaced and committed indep
 });
 
 // --- Never consumed: the message must still enter the record, at the point it stopped being pending ---
+
+test('new injections use the wait cap from the current runtime settings', async () => {
+  vi.useFakeTimers();
+  try {
+    const proc = fakeProcess();
+    const r = recorder({}, { backend: 'claude', agentProcess: proc });
+
+    liveSettings.injectWaitMaxS = 1;
+    await tryInjectIntoLiveTurn(r.deps, baseCtx);
+    liveSettings.injectWaitMaxS = 3;
+    await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, text: 'second message', messageId: 'web_2' });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    assert.deepEqual(r.history.map((entry) => entry.text), ['skip the rest']);
+    assert.deepEqual(r.track, [+1, +1, -1]);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    assert.deepEqual(r.history.map((entry) => entry.text), ['skip the rest', 'second message']);
+    assert.deepEqual(r.track, [+1, +1, -1, -1]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
 
 test('a message the backend never consumed is committed when the injection window closes', async () => {
   vi.useFakeTimers();

@@ -1,24 +1,10 @@
-// input:  Node test runner + createUiHttpServer (transport-host) + startUiHttpServer (entry wiring)
-//         + createAccessJwtVerifier/accessVerifierFromEnv + a FAKE tRPC router / FAKE UiService +
-//         a synthetic local JWKS server (jose RS256+ES256 keypairs, signed ONCE per file).
-// output: consolidated transport & auth integration tests for the Web UI HTTP+SSE surface —
-//         401 token gate (no/wrong token), query/mutate/SSE roundtrips at both the transport-host
-//         and entry-wiring layers, 127.0.0.1 bind, SPA static serving (present/absent/traversal/
-//         malformed-URL), same-origin single-port serving via CORTEX_UI_SPA_DIR, clean close(),
-//         CORS allow-list (opts path AND CORTEX_UI_CORS_ORIGINS env path: exact non-wildcard ACAO,
-//         preflight 204, 401-carries-ACAO), Cloudflare Access JWT dual gate (RS256/ES256 valid;
-//         bad-sig/wrong-aud/wrong-iss/expired/no-verifier → 401), env-driven verifier construction
-//         (secure degrade), env gate (enabled/disabled, default port 3004), frontend-OTA manifest +
-//         bundle routes, app-update manifest route, workspace file download route.
-// pos:    Regression guard for the whole Web UI tRPC HTTP+SSE transport (tasks d7c2, edf0/B+C,
-//         1b60, 3af2, 3606, 50c7). Merged from the former ui-http-wiring / ui-http-same-origin-spa /
-//         ui-http-access-jwt test files — read-only tests share one server per describe-group, always
-//         on ephemeral ports (port 0); never a fixed bind except the 3004-default probe (EADDRINUSE
-//         tolerated). AppRouter procedure routing lives in ui-http-app-router.test.ts.
+// input:  UI HTTP host, entry wiring, mutable settings, auth fakes
+// output: transport, auth, CORS, SPA, OTA, and download regressions
+// pos:    Web UI HTTP transport integration tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import { describe, test, beforeAll, afterAll } from 'vitest';
+import { describe, test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as http from 'node:http';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -35,6 +21,9 @@ import { UI_OTA_MANIFEST_PATH, UI_OTA_BUNDLE_PATH } from '@platform/ui-http/ui-o
 import { APP_UPDATE_MANIFEST_PATH } from '@platform/ui-http/app-update.js';
 import { WORKSPACE_DIR } from '@core/paths.js';
 import type { UiService, UiEvent } from '@domain/ui-service/types.js';
+
+const liveSettings = vi.hoisted(() => ({ uiCorsOrigins: [] as string[] }));
+vi.mock('@core/settings.js', () => ({ getSettings: () => liveSettings }));
 
 const TOKEN = 'test-ui-token-xyz';
 const INDEX_MARKER = '<!-- CORTEX-UI-STUB-INDEX -->';
@@ -302,28 +291,28 @@ function makeOneShotStream(): AsyncIterable<UiEvent> & { close(): void } {
   };
 }
 
-async function bootWiring(env: Record<string, string>, spaDir?: string) {
-  const inst = startUiHttpServer({ uiService: makeFakeUiService(), getToken: () => TOKEN, env, spaDir });
+async function bootWiring(env: Record<string, string>, spaDir?: string, corsOrigins?: string[]) {
+  const inst = startUiHttpServer({ uiService: makeFakeUiService(), getToken: () => TOKEN, env, spaDir, corsOrigins });
   assert.ok(inst, 'expected a server when CORTEX_UI_HTTP is enabled');
   servers.push(inst!);
   const { port } = await awaitListening(inst!.server);
   return { inst: inst!, port };
 }
 
-describe('entry wiring: env gate, AppRouter binding, CORS env, OTA, download', () => {
+describe('entry wiring: env gate, AppRouter binding, live CORS, OTA, download', () => {
   const CORS_ORIGIN = 'tauri://localhost';
   // Shared read-only servers.
-  let w: { port: number };     // plain wiring server (no CORS env)
-  let wCors: { port: number }; // CORTEX_UI_CORS_ORIGINS with messy comma-separated list
+  let w: { port: number };     // plain wiring server (empty settings allow-list)
+  let wCors: { port: number }; // explicit static CORS override
   let wOta: { port: number };  // spaDir present → OTA + app-update routes mounted
 
   beforeAll(async () => {
     w = await bootWiring({ CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' });
-    wCors = await bootWiring({
-      CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0',
-      // Intentional whitespace + a trailing empty entry to prove trim + filter.
-      CORTEX_UI_CORS_ORIGINS: ` http://tauri.localhost , ${CORS_ORIGIN} , `,
-    });
+    wCors = await bootWiring(
+      { CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' },
+      undefined,
+      ['http://tauri.localhost', CORS_ORIGIN],
+    );
     const otaDir = mkdtempSync(path.join(os.tmpdir(), 'cortex-ota-wire-'));
     tmpDirs.push(otaDir);
     writeFileSync(path.join(otaDir, 'index.html'), '<html><body>OTA</body></html>');
@@ -381,37 +370,61 @@ describe('entry wiring: env gate, AppRouter binding, CORS env, OTA, download', (
     assert.ok(received.includes(WIRING_SSE_MARKER));
   });
 
-  // ── CORS wiring via CORTEX_UI_CORS_ORIGINS env (the running-server path in app.ts) ──
-  // Proves the entry wiring parses the env var and threads the allow-list all the way to the
-  // transport-host, so app.ts (which never passes opts.corsOrigins) honors CORS purely via env.
-  // The transport-host CORS behaviours (deny, preflight, 401-with-ACAO) are pinned above.
+  // ── CORS entry wiring ─────────────────────────────────────────────────────
 
-  test('cors env: allow-listed Origin from CORTEX_UI_CORS_ORIGINS gets ACAO echoed', async () => {
+  test('cors option: an explicit static allow-list gets ACAO echoed', async () => {
     const { statusCode, headers } = await get(
       wCors.port, `/trpc/projects.list?input=${enc({})}`,
       { 'x-cortex-token': TOKEN, origin: CORS_ORIGIN },
     );
     assert.equal(statusCode, 200);
     assert.equal(headers['access-control-allow-origin'], CORS_ORIGIN,
-      'ACAO must be the exact allow-listed origin, proving the env var reached the transport-host');
+      'ACAO must be the exact allow-listed origin');
   });
 
-  test('cors env: comma-separated list is parsed (trim + drop empties) and each entry matches', async () => {
+  test('cors option: each configured static origin matches', async () => {
     const { headers } = await get(
       wCors.port, `/trpc/projects.list?input=${enc({})}`,
       { 'x-cortex-token': TOKEN, origin: 'http://tauri.localhost' },
     );
-    assert.equal(headers['access-control-allow-origin'], 'http://tauri.localhost',
-      'the whitespace-padded first entry must match after trim');
+    assert.equal(headers['access-control-allow-origin'], 'http://tauri.localhost');
   });
 
-  test('cors env: unset CORTEX_UI_CORS_ORIGINS → no CORS headers (backward-compat)', async () => {
+  test('cors settings: a runtime allow-list flip affects the next request', async () => {
+    const nextOrigin = 'cortexui://localhost';
+    liveSettings.uiCorsOrigins = [CORS_ORIGIN];
+    const hot = await bootWiring({ CORTEX_UI_HTTP: '1', CORTEX_UI_PORT: '0' });
+    try {
+      const first = await get(
+        hot.port, `/trpc/projects.list?input=${enc({})}`,
+        { 'x-cortex-token': TOKEN, origin: CORS_ORIGIN },
+      );
+      assert.equal(first.headers['access-control-allow-origin'], CORS_ORIGIN);
+
+      liveSettings.uiCorsOrigins = [nextOrigin];
+      const oldOrigin = await get(
+        hot.port, `/trpc/projects.list?input=${enc({})}`,
+        { 'x-cortex-token': TOKEN, origin: CORS_ORIGIN },
+      );
+      const newOrigin = await get(
+        hot.port, `/trpc/projects.list?input=${enc({})}`,
+        { 'x-cortex-token': TOKEN, origin: nextOrigin },
+      );
+      assert.equal(oldOrigin.headers['access-control-allow-origin'], undefined);
+      assert.equal(newOrigin.headers['access-control-allow-origin'], nextOrigin);
+    } finally {
+      liveSettings.uiCorsOrigins = [];
+      await hot.inst.close();
+    }
+  });
+
+  test('cors settings: empty uiCorsOrigins emits no CORS headers', async () => {
     const { headers } = await get(
       w.port, `/trpc/projects.list?input=${enc({})}`,
       { 'x-cortex-token': TOKEN, origin: CORS_ORIGIN },
     );
     assert.equal(headers['access-control-allow-origin'], undefined,
-      'no env var → transport-host keeps its no-CORS default');
+      'empty settings → transport-host keeps its no-CORS default');
   });
 
   // ── Frontend OTA wiring (desktop OTA, unit A) ───────────────────────────────
