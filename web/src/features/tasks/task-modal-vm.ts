@@ -1,5 +1,5 @@
 // input:  task DTO and project task list
-// output: Stored fields, runtime pill, deps, action guards
+// output: Theme-aware fields, runtime pill, deps, action guards
 // pos:    Pure view model for the desktop task modal
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -106,8 +106,8 @@ export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
       v: task.priority,
       vColor: task.priority === 'high' ? '#C03D33' : '#191C22',
     },
-    { k: 'status', v: task.status, vColor: '#191C22' },
-    { k: 'template', v: task.template, vColor: '#191C22' },
+    { k: 'status', v: task.status, vColor: 'var(--proto-ink)' },
+    { k: 'template', v: task.template, vColor: 'var(--proto-ink)' },
     { k: 'gpu', v: '—', vColor: '#B6BDC9' },
     {
       k: 'claimed-by',

@@ -1,6 +1,6 @@
 // input:  task lifecycle, dependency graph, and claim state
-// output: Stored task fields, deps, and action guard tests
-// pos:    Pure task-modal behavior tests
+// output: Stored fields, theme colors, deps, and action tests
+// pos:    Pure task-modal behavior and theme regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, expect, it } from 'vitest';
@@ -30,6 +30,10 @@ function fieldValue(t: TaskInfo, key: string): string | undefined {
   return buildTaskModalVm(t, []).fields.find((field) => field.k === key)?.v;
 }
 
+function fieldColor(t: TaskInfo, key: string): string | undefined {
+  return buildTaskModalVm(t, []).fields.find((field) => field.k === key)?.vColor;
+}
+
 describe('buildTaskModalVm persisted fields', () => {
   it('shows the stored status instead of the derived runtime state', () => {
     const open = task({ status: 'open', blockedBy: 'T-1', claimedBy: 'thr_x', actionable: true });
@@ -39,6 +43,12 @@ describe('buildTaskModalVm persisted fields', () => {
 
   it('shows the task template verbatim', () => {
     expect(fieldValue(task({ template: 'manager' }), 'template')).toBe('manager');
+  });
+
+  it('uses theme-aware ink for the status and template values', () => {
+    const current = task({});
+    expect(fieldColor(current, 'status')).toBe('var(--proto-ink)');
+    expect(fieldColor(current, 'template')).toBe('var(--proto-ink)');
   });
 
   it('reports when the task has no dependencies', () => {
