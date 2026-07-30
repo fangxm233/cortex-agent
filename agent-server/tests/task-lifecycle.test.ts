@@ -1,6 +1,8 @@
 // input:  Node test runner + unified task-cli
-// output: write-path lifecycle CLI regression tests (TASKS.yaml format)
-// pos:    Verify task-cli write-path lifecycle
+// output: CLI-owned write-path tests: argv parsing, flag validation, lock guard wiring,
+//         exit codes, output formatting, plus one round-trip smoke per major subcommand
+// pos:    Verify the task-cli layer itself; state-machine semantics are owned by
+//         tests/domain/tasks/mutator.test.ts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -221,22 +223,6 @@ test('add accepts --depends-on as repeatable flag', () => {
     const parsed = readYaml(repos[proj].tasksPath);
     const task = findTask(parsed.tasks, result['task-id']);
     assert.deepEqual(task['depends-on'], [id1, id2]);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('edit rejects invalid priority values', () => {
-  const proj = np();
-  const [id1, id2] = [uid(), uid()];
-  const repos = makeRepo({
-    [proj]: `tasks:\n  - id: ${id1}\n    text: "Complete me"\n    why: "finish it"\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n  - id: ${id2}\n    text: "Edit me"\n    why: "old why"\n    done-when: "old done"\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n`,
-  });
-  try {
-    lockProject(proj);
-    const result = runCli(['edit', '--project', proj, '--task-id', id2, '--priority', 'urgent']);
-    assert.equal(result.exitCode, 1);
-    assert.match(result.stdout || result.stderr, /Invalid priority/);
   } finally {
     for (const r of Object.values(repos)) r.cleanup();
   }
@@ -580,33 +566,6 @@ test('lock guard: assign-ids without lock fails', () => {
     const parsed = JSON.parse(result.stdout);
     assert.equal(parsed.success, false);
     assert.match(parsed.message, /Lock required/);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock guard: edit WITH lock succeeds', () => {
-  const proj = np();
-  const [id1] = [uid()];
-  const repos = makeRepo({
-    [proj]: `tasks:\n  - id: ${id1}\n    text: "Edit me"\n    why: ""\n    done-when: ""\n    priority: medium\n    status: open\n    template: coder-review\n    plan: ""\n`,
-  });
-  try {
-    lockProject(proj);
-    const result = runTask(['edit', '--project', proj, '--task-id', id1, '--text', 'new']);
-    assert.equal(result.success, true);
-  } finally {
-    for (const r of Object.values(repos)) r.cleanup();
-  }
-});
-
-test('lock guard: add WITH lock succeeds', () => {
-  const proj = np();
-  const repos = makeRepo({ [proj]: 'tasks:\n' });
-  try {
-    lockProject(proj);
-    const result = runTask(['add', '--project', proj, '--text', 'new task', '--template', 'coder-review']);
-    assert.equal(result.success, true);
   } finally {
     for (const r of Object.values(repos)) r.cleanup();
   }

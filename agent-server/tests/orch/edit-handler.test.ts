@@ -5,7 +5,7 @@
 // pos:    verifies createEditHandler dispatches the correct restore branch and tears down stale pooled processes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import { test } from 'vitest';
+import { test, vi, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { createEditHandler } from '../../src/orchestration/routing/edit-handler.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
@@ -24,6 +24,30 @@ import * as path from 'path';
 import * as os from 'os';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Fake-timer hygiene: fireDebounce() installs fake timers; always restore real
+// timers even when an assertion fails mid-test, so the next test can't inherit them.
+afterEach(() => { vi.useRealTimers(); });
+
+/**
+ * Fire edit-handler's module-internal 500ms debounce without real waiting.
+ * The debounce callback then runs processEdit over REAL fs I/O, which fake timers
+ * cannot settle — so restore real timers immediately after firing and let the
+ * caller poll for completion with waitFor().
+ */
+async function fireDebounce(): Promise<void> {
+  await vi.advanceTimersByTimeAsync(600); // > DEBOUNCE_MS (500)
+  vi.useRealTimers();
+}
+
+// Poll `cond` every 10ms until truthy or `timeoutMs` elapses (real timers only).
+// Returns quietly on timeout — the caller's assertions then fail with their own messages.
+async function waitFor(cond: () => boolean, timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!cond() && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 10));
+  }
+}
 
 let _seq = 0;
 function freshChannel(): string {
@@ -121,13 +145,16 @@ test('Bug 1: edit on Claude conversation invokes closePooledSession with backend
   });
 
   const adapter = new MockAdapter();
+  vi.useFakeTimers();
   await handler({
     originalRef: { conduit: channel, messageId: 'M1', threadId: null },
     newText: 'edited turn 1',
   } as any, adapter as any);
 
-  // edit-handler debounces edits by 500ms; wait it out plus async settling.
-  await new Promise(r => setTimeout(r, 700));
+  // Fire the 500ms debounce instantly, then poll for the end of processEdit
+  // (reprocessMessage is its final step; closePooledSession runs before it).
+  await fireDebounce();
+  await waitFor(() => reprocessCalls.length >= 1);
 
   try {
     assert.equal(closeCalls.length, 1, 'closePooledSession must be called exactly once');
@@ -172,12 +199,14 @@ test('Bug 2: edit on conversation with PI channel profile routes through PI rest
   });
 
   const adapter = new MockAdapter();
+  vi.useFakeTimers();
   await handler({
     originalRef: { conduit: channel, messageId: 'M1', threadId: null },
     newText: 'edited turn 1',
   } as any, adapter as any);
 
-  await new Promise(r => setTimeout(r, 700));
+  await fireDebounce();
+  await waitFor(() => reprocessCalls.length >= 1);
 
   try {
     // After the fix: backend should be resolved from channel profile, not conv.backend.
@@ -201,12 +230,16 @@ test('processEdit no-ops when ledger has no entry for the edited message', async
   });
 
   const adapter = new MockAdapter();
+  vi.useFakeTimers();
   await handler({
     originalRef: { channel: freshChannel(), messageId: 'unknown-ts', threadId: null },
     newText: 'edited',
   } as any, adapter as any);
 
-  await new Promise(r => setTimeout(r, 700));
+  // Advancing past DEBOUNCE_MS would fire any (buggy) scheduled debounce; a short
+  // real-time settle then lets its async fallout surface before asserting no calls.
+  await fireDebounce();
+  await new Promise(r => setTimeout(r, 50));
 
   assert.equal(closeCalls.length, 0, 'closePooledSession not called for unknown message');
   assert.equal(reprocessCalls.length, 0, 'reprocessMessage not called for unknown message');

@@ -42,6 +42,17 @@ function harness() {
   return { adapter, args, contexts, lastStatus, getSink: () => sink };
 }
 
+// The guard's grace/cap timers are env-injected to tiny values (50ms) and the rest is
+// real promise-chain settling, so fake timers buy nothing here. Poll for the observable
+// status instead of sleeping fixed padding. Returns quietly on timeout — the caller's
+// assertion then fails with its own message.
+async function waitFor(cond: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!cond() && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 10));
+  }
+}
+
 function withEnv(t: any, key: string, value: string | undefined) {
   const prev = process.env[key];
   if (value === undefined) delete process.env[key]; else process.env[key] = value;
@@ -64,7 +75,7 @@ test('undelivered-only completions hold the status waiting and register a sink; 
 
   // The (late) notification arrives and the continuation turn completes.
   sink!.onResult(baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0, total_cost_usd: 0.01, num_turns: 1 }) as any);
-  await new Promise((r) => setTimeout(r, 50));
+  await waitFor(() => /Done/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /Done/i, 'status sealed done after continuation');
 });
 
@@ -75,7 +86,7 @@ test('grace watchdog: no notification within grace → auto-finalized (status se
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }) } as any);
   assert.match(h.lastStatus(), /Background task running/i, 'initially waiting');
 
-  await new Promise((r) => setTimeout(r, 400));
+  await waitFor(() => /Done/i.test(h.lastStatus())); // 50ms grace + settle
   assert.match(h.lastStatus(), /Done/i, 'grace timeout sealed the turn instead of waiting forever');
 });
 
@@ -89,7 +100,7 @@ test('interrupted continuation (process death) → sealed with interruption note
   assert.match(h.lastStatus(), /Background task running/i);
 
   sink!.onResult({ ...baseResult({ pendingBackgroundTasks: 0 }), backgroundInterrupted: true } as any);
-  await new Promise((r) => setTimeout(r, 50));
+  await waitFor(() => /interrupted/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /interrupted/i, 'sealed with the interruption note');
   assert.doesNotMatch(h.lastStatus(), /Background task running/i, 'no longer waiting');
 });
@@ -102,11 +113,11 @@ test('max-wait cap: long-running task exceeds cap → status sealed as still-run
   await handleAgentSuccess({ ...h.args, result: baseResult({ pendingBackgroundTasks: 1 }) } as any);
   assert.ok(h.getSink(), 'sink registered');
 
-  await new Promise((r) => setTimeout(r, 400));
+  await waitFor(() => /still running/i.test(h.lastStatus())); // 50ms cap + settle
   assert.match(h.lastStatus(), /still running/i, 'cap sealed the status with a still-running note');
 
   // A very late continuation still finalizes cleanly (sink was kept).
   h.getSink()!.onResult(baseResult({ pendingBackgroundTasks: 0, total_cost_usd: 0.01, num_turns: 1 }) as any);
-  await new Promise((r) => setTimeout(r, 50));
+  await waitFor(() => /Done/i.test(h.lastStatus()));
   assert.match(h.lastStatus(), /Done/i, 'late continuation sealed done after the cap');
 });

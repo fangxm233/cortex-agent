@@ -3,9 +3,14 @@
 // pos:    RateLimiter unit test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test } from 'vitest';
+import { test, vi, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { TokenBucketRateLimiter } from '../src/platform/utils/rate-limiter.js';
+
+// Fake-timer hygiene: some tests below install fake timers (refill/backoff are
+// Date.now()-based; acquire() polls via setTimeout). Always restore real timers
+// even when an assertion inside a fake-timer test fails.
+afterEach(() => { vi.useRealTimers(); });
 
 /**
  * Create a rate limiter with tight limits for fast testing.
@@ -36,14 +41,15 @@ test('TokenBucketRateLimiter: exhausts then denies', () => {
   assert.ok((r as any).retryAfterMs > 0);
 });
 
-test('TokenBucketRateLimiter: refills over time', { timeout: 5000 }, async () => {
+test('TokenBucketRateLimiter: refills over time', { timeout: 5000 }, () => {
+  vi.useFakeTimers(); // refill math is Date.now()-based; fake timers also mock Date
   const rl = makeFastLimiter();
   rl.tryAcquire('chat.postMessage');  // 1/2
   rl.tryAcquire('chat.postMessage');  // 2/2 (exhausted)
   assert.equal(rl.tryAcquire('chat.postMessage').ok, false);
 
-  // Wait for refill (~1s for 1 token)
-  await new Promise(r => setTimeout(r, 1100));
+  // Advance mocked time past the refill window (~1s for 1 token)
+  vi.advanceTimersByTime(1100);
   assert.equal(rl.tryAcquire('chat.postMessage').ok, true); // refilled 1
 });
 
@@ -63,13 +69,14 @@ test('TokenBucketRateLimiter: different methods have separate global buckets', (
   assert.equal(rl.tryAcquire('chat.update').ok, true);       // global update 1/2 (separate)
 });
 
-test('TokenBucketRateLimiter: reportThrottled sets backoff window', { timeout: 5000 }, async () => {
+test('TokenBucketRateLimiter: reportThrottled sets backoff window', { timeout: 5000 }, () => {
+  vi.useFakeTimers(); // backoffUntil is Date.now()-based
   const rl = makeFastLimiter();
   rl.reportThrottled('chat.postMessage', undefined, 1); // 1s backoff
   assert.equal(rl.tryAcquire('chat.postMessage').ok, false);
 
-  // Wait for backoff to expire (1s + 1s buffer = 2s from reportThrottled)
-  await new Promise(r => setTimeout(r, 2100));
+  // Advance mocked time past the backoff (1s + 1s buffer = 2s from reportThrottled)
+  vi.advanceTimersByTime(2100);
   assert.equal(rl.tryAcquire('chat.postMessage').ok, true);
 });
 
@@ -93,14 +100,20 @@ test('TokenBucketRateLimiter: zero capacity denies all', () => {
 });
 
 test('TokenBucketRateLimiter: blocking acquire() eventually resolves', { timeout: 5000 }, async () => {
+  vi.useFakeTimers(); // acquire() polls via module-internal setTimeout + Date.now() refill
   const rl = makeFastLimiter();
   rl.tryAcquire('chat.postMessage'); // 1/2
   rl.tryAcquire('chat.postMessage'); // 2/2
 
-  // Should wait ~1s for refill
+  // Should wait ~1s (mocked) for refill. Capture the resolution timestamp inside
+  // the promise so a buggy immediate resolve would still measure ~0ms elapsed.
   const t0 = Date.now();
-  await rl.acquire('chat.postMessage');
-  const elapsed = Date.now() - t0;
+  let resolvedAt: number | null = null;
+  const acquired = rl.acquire('chat.postMessage').then(() => { resolvedAt = Date.now(); });
+  await vi.advanceTimersByTimeAsync(1100);
+  await acquired;
+  assert.ok(resolvedAt !== null, 'acquire() must have resolved');
+  const elapsed = resolvedAt! - t0;
   assert.ok(elapsed >= 800, `expected >=800ms wait, got ${elapsed}ms`);
 });
 

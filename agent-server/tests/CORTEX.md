@@ -25,7 +25,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | claim-recovery.test.ts | test | orphaned task claim recovery policy |
 | cli-utils.test.ts | test | shared CLI help and error rendering |
-| cli.test.ts | test | cortex CLI help text and subcommand routing |
+| cli.test.ts | test | cortex CLI subcommand routing and exit codes |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
 | client-manager.test.ts | test | client lifecycle hooks, auth and commands |
 | command-handlers.test.ts | test | !cost, !cancel, !status and other bang commands |
@@ -115,14 +115,13 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-dispatch-hooks.test.ts | test | dispatch, quarantine and reconciliation errors |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
-| task-lifecycle.test.ts | test | task CLI write-path lifecycle |
+| task-lifecycle.test.ts | test | task CLI argv parsing, guards and round-trips |
 | task-lint.test.ts | test | unknown template lint error gating |
 | task-mutations.test.ts | test | task add, batch edit and decompose |
 | task-node-ledger.test.ts | test | task artifact paths and acceptance ledger |
 | task-origin-wake.test.ts | test | origin wake precedence and notice framing |
 | task-parent-split.test.ts | test | task parent field and split outcome |
 | task-parser.test.ts | test | task CLI read path query, lint and health |
-| task-state.test.ts | test | claim, pause, approve, block transitions |
 | task-store.test.ts | test | task store exclusive mutex serialization |
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |

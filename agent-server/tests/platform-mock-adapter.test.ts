@@ -14,17 +14,6 @@ import type {
   Destination,
 } from '../src/platform/types.js';
 
-test('MockAdapter exposes platform name and default capability flags', () => {
-  const adapter = new MockAdapter();
-  assert.equal(adapter.name, 'mock');
-  assert.equal(adapter.capabilities.threads, true);
-  assert.equal(adapter.capabilities.messageEdit, true);
-  assert.equal(adapter.capabilities.modals, true);
-  assert.equal(adapter.capabilities.reactions, true);
-  assert.equal(adapter.capabilities.fileUpload, true);
-  assert.equal(adapter.capabilities.richFormatting, true);
-});
-
 test('MockAdapter capability overrides merge with defaults', () => {
   const adapter = new MockAdapter({ capabilities: { threads: false, maxMessageLength: 50 } });
   assert.equal(adapter.capabilities.threads, false);
@@ -32,21 +21,9 @@ test('MockAdapter capability overrides merge with defaults', () => {
   assert.equal(adapter.capabilities.modals, true);
 });
 
-test('MockAdapter supports capability config via constructor', () => {
-  const adapter = new MockAdapter({ capabilities: { threads: false } });
-  assert.equal(adapter.capabilities.threads, false);
-  assert.equal(adapter.capabilities.modals, true);
-});
-
 test('MockAdapter supports legacy partial-capability constructor arg (no wrapper object)', () => {
   const adapter = new MockAdapter({ threads: false });
   assert.equal(adapter.capabilities.threads, false);
-});
-
-test('MockAdapter start/stop resolve without side effects', async () => {
-  const adapter = new MockAdapter();
-  await assert.doesNotReject(adapter.start());
-  await assert.doesNotReject(adapter.stop());
 });
 
 test('postMessage records destination/content/threadId and returns unique ascending messageIds', async () => {

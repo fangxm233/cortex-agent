@@ -23,6 +23,5 @@ Interactive parts wrap Radix for accessibility; pure modules hold the tested sta
 | tone.ts | util | Maps contract status strings to five tones |
 | tone.test.ts | test | Unit tests for status-to-tone mapping |
 | degraded.ts | util | Maps degraded severities to pill tones |
-| degraded.test.ts | test | Unit tests for degraded severity mapping |
 | toast-store.ts | util | Toast queue add and remove with a max cap |
 | toast-store.test.ts | test | Unit tests for the toast queue |

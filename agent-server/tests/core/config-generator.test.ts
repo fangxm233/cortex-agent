@@ -1,5 +1,5 @@
 // input:  scoped MCP config builders
-// output: direct and layered config structure verification
+// output: whole-object contract per builder (keys, command, absolute args, cwd)
 // pos:    Config-generator pure-logic tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -17,153 +17,74 @@ import {
   buildWebConfig,
 } from '../../src/core/config-generator.js';
 
-// ─── buildFullConfig ────────────────────────────────────────────
+// Each builder is asserted as ONE whole-object literal: this pins the server
+// set (isolation/no-leak per the privilege split), the node command, the
+// absolute dist path in args (cwd is NOT inherited by spawned MCP processes —
+// see serverEntry in config-generator.ts), and the cwd, in a single equality.
 
-test('buildFullConfig returns always-on direct servers without thread control', () => {
-  const config = buildFullConfig('/test/server') as any;
-  assert.ok(config.mcpServers);
-  const keys = Object.keys(config.mcpServers);
-  assert.deepEqual(keys.sort(), ['cortex-core', 'cortex-ext', 'cortex-manager-qa', 'cortex-tasks']);
-  assert.ok(!keys.includes('cortex-thread'));
+test('buildFullConfig: always-on direct servers, no cortex-thread', () => {
+  assert.deepEqual(buildFullConfig('/test'), {
+    mcpServers: {
+      'cortex-core': { command: 'node', args: ['/test/dist/domain/mcp/core-server.js'], cwd: '/test' },
+      'cortex-tasks': { command: 'node', args: ['/test/dist/domain/mcp/tasks-server.js'], cwd: '/test' },
+      'cortex-manager-qa': { command: 'node', args: ['/test/dist/domain/mcp/manager-qa-server.js'], cwd: '/test' },
+      'cortex-ext': { command: 'node', args: ['/test/dist/domain/mcp/server.js'], cwd: '/test' },
+    },
+  });
 });
 
-test('buildFullConfig uses provided serverRoot as cwd', () => {
-  const config = buildFullConfig('/my/server/root') as any;
-  assert.equal(config.mcpServers['cortex-core'].cwd, '/my/server/root');
-  assert.equal(config.mcpServers['cortex-tasks'].cwd, '/my/server/root');
-  assert.equal(config.mcpServers['cortex-manager-qa'].cwd, '/my/server/root');
-  assert.equal(config.mcpServers['cortex-ext'].cwd, '/my/server/root');
+test('buildCoreConfig: cortex-core only', () => {
+  assert.deepEqual(buildCoreConfig('/test'), {
+    mcpServers: {
+      'cortex-core': { command: 'node', args: ['/test/dist/domain/mcp/core-server.js'], cwd: '/test' },
+    },
+  });
 });
 
-test('buildFullConfig cortex-core points to core-server.js (absolute path)', () => {
-  const config = buildFullConfig('/test') as any;
-  assert.equal(config.mcpServers['cortex-core'].command, 'node');
-  assert.deepEqual(config.mcpServers['cortex-core'].args, ['/test/dist/domain/mcp/core-server.js']);
+test('buildTasksConfig: cortex-tasks only', () => {
+  assert.deepEqual(buildTasksConfig('/test'), {
+    mcpServers: {
+      'cortex-tasks': { command: 'node', args: ['/test/dist/domain/mcp/tasks-server.js'], cwd: '/test' },
+    },
+  });
 });
 
-test('buildFullConfig cortex-tasks points to tasks-server.js (absolute path)', () => {
-  const config = buildFullConfig('/test') as any;
-  assert.equal(config.mcpServers['cortex-tasks'].command, 'node');
-  assert.deepEqual(config.mcpServers['cortex-tasks'].args, ['/test/dist/domain/mcp/tasks-server.js']);
+test('buildManagerQaConfig: cortex-manager-qa only', () => {
+  assert.deepEqual(buildManagerQaConfig('/test'), {
+    mcpServers: {
+      'cortex-manager-qa': { command: 'node', args: ['/test/dist/domain/mcp/manager-qa-server.js'], cwd: '/test' },
+    },
+  });
 });
 
-test('buildFullConfig cortex-manager-qa points to its server entry', () => {
-  const config = buildFullConfig('/test') as any;
-  assert.equal(config.mcpServers['cortex-manager-qa'].command, 'node');
-  assert.deepEqual(
-    config.mcpServers['cortex-manager-qa'].args,
-    ['/test/dist/domain/mcp/manager-qa-server.js'],
-  );
+test('buildThreadConfig: cortex-thread only (thread sessions)', () => {
+  assert.deepEqual(buildThreadConfig('/test'), {
+    mcpServers: {
+      'cortex-thread': { command: 'node', args: ['/test/dist/domain/mcp/thread-server.js'], cwd: '/test' },
+    },
+  });
 });
 
-test('buildFullConfig cortex-ext points to server.js (absolute path)', () => {
-  const config = buildFullConfig('/test') as any;
-  assert.equal(config.mcpServers['cortex-ext'].command, 'node');
-  assert.deepEqual(config.mcpServers['cortex-ext'].args, ['/test/dist/domain/mcp/server.js']);
+test('buildTuiConfig: cortex-tui-bridge only (no core/ext leak)', () => {
+  assert.deepEqual(buildTuiConfig('/test'), {
+    mcpServers: {
+      'cortex-tui-bridge': { command: 'node', args: ['/test/dist/domain/mcp/tui-server.js'], cwd: '/test' },
+    },
+  });
 });
 
-// ─── buildCoreConfig ────────────────────────────────────────────
-
-test('buildCoreConfig returns only cortex-core server', () => {
-  const config = buildCoreConfig('/test/server') as any;
-  assert.ok(config.mcpServers);
-  const keys = Object.keys(config.mcpServers);
-  assert.equal(keys.length, 1);
-  assert.ok(keys.includes('cortex-core'));
+test('buildFeishuConfig: cortex-feishu only (layered on the base config)', () => {
+  assert.deepEqual(buildFeishuConfig('/test'), {
+    mcpServers: {
+      'cortex-feishu': { command: 'node', args: ['/test/dist/domain/mcp/feishu-server.js'], cwd: '/test' },
+    },
+  });
 });
 
-test('buildCoreConfig uses provided serverRoot as cwd', () => {
-  const config = buildCoreConfig('/my/server/root') as any;
-  assert.equal(config.mcpServers['cortex-core'].cwd, '/my/server/root');
-});
-
-// ─── Privilege-layer configs ────────────────────────────────────
-
-test('buildTasksConfig returns only cortex-tasks', () => {
-  const config = buildTasksConfig('/test/server') as any;
-  assert.deepEqual(Object.keys(config.mcpServers), ['cortex-tasks']);
-  assert.deepEqual(
-    config.mcpServers['cortex-tasks'].args,
-    ['/test/server/dist/domain/mcp/tasks-server.js'],
-  );
-  assert.equal(config.mcpServers['cortex-tasks'].cwd, '/test/server');
-});
-
-test('buildManagerQaConfig returns only cortex-manager-qa', () => {
-  const config = buildManagerQaConfig('/test/server') as any;
-  assert.deepEqual(Object.keys(config.mcpServers), ['cortex-manager-qa']);
-  assert.deepEqual(
-    config.mcpServers['cortex-manager-qa'].args,
-    ['/test/server/dist/domain/mcp/manager-qa-server.js'],
-  );
-  assert.equal(config.mcpServers['cortex-manager-qa'].cwd, '/test/server');
-});
-
-test('buildThreadConfig returns only cortex-thread', () => {
-  const config = buildThreadConfig('/test/server') as any;
-  assert.deepEqual(Object.keys(config.mcpServers), ['cortex-thread']);
-  assert.deepEqual(
-    config.mcpServers['cortex-thread'].args,
-    ['/test/server/dist/domain/mcp/thread-server.js'],
-  );
-  assert.equal(config.mcpServers['cortex-thread'].cwd, '/test/server');
-});
-
-// ─── buildTuiConfig ─────────────────────────────────────────────
-
-test('buildTuiConfig returns only cortex-tui-bridge server', () => {
-  const config = buildTuiConfig('/test/server') as any;
-  assert.ok(config.mcpServers);
-  const keys = Object.keys(config.mcpServers);
-  assert.equal(keys.length, 1, 'TUI config must isolate to a single bridge server');
-  assert.ok(keys.includes('cortex-tui-bridge'));
-  // Must NOT leak core/ext servers
-  assert.ok(!keys.includes('cortex-core'), 'TUI config must not include cortex-core');
-  assert.ok(!keys.includes('cortex-ext'), 'TUI config must not include cortex-ext');
-});
-
-test('buildTuiConfig points to tui-server.js (absolute path)', () => {
-  const config = buildTuiConfig('/test') as any;
-  assert.equal(config.mcpServers['cortex-tui-bridge'].command, 'node');
-  assert.deepEqual(config.mcpServers['cortex-tui-bridge'].args, ['/test/dist/domain/mcp/tui-server.js']);
-  assert.equal(config.mcpServers['cortex-tui-bridge'].cwd, '/test');
-});
-
-// ─── buildFeishuConfig (Feishu-originated sessions) ─────────────
-
-test('buildFeishuConfig returns only the cortex-feishu server', () => {
-  const config = buildFeishuConfig('/test/server') as any;
-  assert.ok(config.mcpServers);
-  const keys = Object.keys(config.mcpServers);
-  assert.equal(keys.length, 1, 'feishu config must isolate to a single server (layered on top of the base config)');
-  assert.ok(keys.includes('cortex-feishu'));
-  // Must NOT duplicate core/ext — those come from the base config it layers onto.
-  assert.ok(!keys.includes('cortex-core'), 'feishu config must not include cortex-core');
-  assert.ok(!keys.includes('cortex-ext'), 'feishu config must not include cortex-ext');
-});
-
-test('buildFeishuConfig points to feishu-server.js (absolute path)', () => {
-  const config = buildFeishuConfig('/test') as any;
-  assert.equal(config.mcpServers['cortex-feishu'].command, 'node');
-  assert.deepEqual(config.mcpServers['cortex-feishu'].args, ['/test/dist/domain/mcp/feishu-server.js']);
-  assert.equal(config.mcpServers['cortex-feishu'].cwd, '/test');
-});
-
-// ─── buildWebConfig (Web-UI-originated sessions) ─────────────
-
-test('buildWebConfig returns only the cortex-web server', () => {
-  const config = buildWebConfig('/test/server') as any;
-  assert.ok(config.mcpServers);
-  const keys = Object.keys(config.mcpServers);
-  assert.equal(keys.length, 1, 'web config must isolate to a single server (layered on top of the base config)');
-  assert.ok(keys.includes('cortex-web'));
-  assert.ok(!keys.includes('cortex-core'), 'web config must not include cortex-core');
-  assert.ok(!keys.includes('cortex-ext'), 'web config must not include cortex-ext');
-});
-
-test('buildWebConfig points to web-server.js (absolute path)', () => {
-  const config = buildWebConfig('/test') as any;
-  assert.equal(config.mcpServers['cortex-web'].command, 'node');
-  assert.deepEqual(config.mcpServers['cortex-web'].args, ['/test/dist/domain/mcp/web-server.js']);
-  assert.equal(config.mcpServers['cortex-web'].cwd, '/test');
+test('buildWebConfig: cortex-web only (layered on the base config)', () => {
+  assert.deepEqual(buildWebConfig('/test'), {
+    mcpServers: {
+      'cortex-web': { command: 'node', args: ['/test/dist/domain/mcp/web-server.js'], cwd: '/test' },
+    },
+  });
 });

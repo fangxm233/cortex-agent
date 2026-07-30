@@ -135,11 +135,10 @@ describe('HooksPanelView / list', () => {
     })).not.toContain('data-hook-broken');
   });
 
-  it('renders the six filter chips and marks the active one', () => {
+  it('renders the filter chips and marks the active one', () => {
+    // The six-key chip list is HOOK_FILTER_KEYS, pinned by hooks-panel-vm.test.ts.
     const html = render({ filter: 'server' });
-    for (const key of ['all', 'agent', 'claude', 'pi', 'server', 'template']) {
-      expect(html).toContain(`data-hook-filter="${key}"`);
-    }
+    expect(html).toContain('data-hook-filter="all"');
     expect(html).toContain('data-hook-filter="server" data-active=""');
   });
 

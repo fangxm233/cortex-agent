@@ -35,6 +35,27 @@ afterAll(() => {
   }
 });
 
+// The scheduler fires real timers and runs preCheck via a real (synchronous) child
+// process, so fake timers cannot fast-forward these tests. Instead of fixed sleeps
+// (which flake under load and waste wall time), poll for the observable condition.
+// Returns quietly on timeout — the caller's assertions then fail with their own messages.
+async function waitFor(cond: () => boolean, timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!cond() && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 10));
+  }
+}
+
+// Read one task back from the schedules file (null while a write is in flight).
+function readTask(schedulesFile: string, id: string): any | null {
+  try {
+    const data = JSON.parse(fs.readFileSync(schedulesFile, 'utf8'));
+    return (data.tasks ?? []).find((t: any) => t.id === id) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function withPreCheckSchedules(testFn) {
   return async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'precheck-test-'));
@@ -69,7 +90,10 @@ test('preCheck exit 0 allows task to run', withPreCheckSchedules(async ({ schedu
   const scheduler = new Scheduler(runner, null, {}, { schedulesFile, watchFile: false });
   await scheduler.start();
 
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await waitFor(() => runnerCalls.length >= 1);
+  // Let the fire chain finish its post-run bookkeeping (lastRun write) before
+  // stop() + tempdir removal, so no write races the cleanup.
+  await waitFor(() => readTask(schedulesFile, 'pc1')?.lastRun != null);
   scheduler.stop();
 
   assert.ok(runnerCalls.length >= 1, 'runner should have been called at least once');
@@ -95,7 +119,8 @@ test('preCheck exit 1 skips task and sets lastSkipped', withPreCheckSchedules(as
   const scheduler = new Scheduler(runner, null, {}, { schedulesFile, watchFile: false });
   await scheduler.start();
 
-  await new Promise(resolve => setTimeout(resolve, 200));
+  // The skip path's observable outcome is the lastSkipped write; poll for it.
+  await waitFor(() => Boolean(readTask(schedulesFile, 'pc2')?.lastSkipped));
   scheduler.stop();
 
   assert.equal(runnerCalls.length, 0, 'runner should not have been called');
@@ -126,7 +151,8 @@ test('task without preCheck runs normally', withPreCheckSchedules(async ({ sched
   const scheduler = new Scheduler(runner, null, {}, { schedulesFile, watchFile: false });
   await scheduler.start();
 
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await waitFor(() => runnerCalls.length >= 1);
+  await waitFor(() => readTask(schedulesFile, 'pc3')?.lastRun != null);
   scheduler.stop();
 
   assert.ok(runnerCalls.length >= 1, 'runner should have been called');
@@ -155,7 +181,13 @@ test('preCheck receives PRECHECK_LAST_RUN env var', withPreCheckSchedules(async 
   const scheduler = new Scheduler(runner, null, {}, { schedulesFile, watchFile: false });
   await scheduler.start();
 
-  await new Promise(resolve => setTimeout(resolve, 300));
+  // preCheck (writes envFile) runs before the runner, so runner-called implies
+  // envFile exists; then wait for the post-run lastRun write to settle.
+  await waitFor(() => runnerCalls.length >= 1);
+  await waitFor(() => {
+    const lastRun = readTask(schedulesFile, 'pc4')?.lastRun;
+    return lastRun != null && lastRun !== lastRunMs;
+  });
   scheduler.stop();
 
   assert.ok(runnerCalls.length >= 1, 'runner should have been called');

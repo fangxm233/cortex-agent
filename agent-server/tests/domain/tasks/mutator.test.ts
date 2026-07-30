@@ -1,6 +1,7 @@
 // input:  Vitest, TaskMutator, task lifecycle helpers
-// output: Task mutation, lock contention, and event tests
-// pos:    Verifies serialized task mutation orchestration
+// output: Task mutation, state-transition, lock contention, and event tests
+// pos:    Owning layer for task state-machine coverage (claim/pause/approve/block/
+//         complete + pending/reopen recovery, folded from tests/task-state.test.ts)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -17,9 +18,15 @@ vi.mock('@core/hook-bus.js', () => ({
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../../../src/core/paths.js';
+import { isActionable, parseTasksFile } from '../../../src/core/task-parser.js';
 import { TaskRepo } from '../../../src/store/task-repo.js';
 import { TaskMutator } from '../../../src/domain/tasks/mutator.js';
 import { addTask as lifecycleAddTask } from '../../../src/domain/tasks/system/task-mutations.js';
+import {
+  claimTask as lifecycleClaimTask,
+  pendingTask as lifecyclePendingTask,
+  reopenTask as lifecycleReopenTask,
+} from '../../../src/domain/tasks/system/task-state.js';
 import { getOwnerIdentity, releaseLock, writeLock } from '../../../src/domain/tasks/system/task-lock.js';
 
 beforeEach(() => {
@@ -98,7 +105,9 @@ test('claim — claims an unclaimed task', async () => {
     const mutator = new TaskMutator(repo);
     const result = await mutator.claim(fx.seedTaskId, 'test-agent');
     assert.equal(result.success, true);
+    assert.equal(result.task_id, fx.seedTaskId);
     assert.equal(result.agent, 'test-agent');
+    assert.match(result.claimed_at, /^\d{4}-\d{2}-\d{2}$/);
     const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
     assert.match(disk, /claimed-by:\s*test-agent/);
     assert.match(disk, /claimed-at:\s*"?\d{4}-\d{2}-\d{2}"?/);
@@ -132,6 +141,7 @@ test('unclaim — unclaims a claimed task', async () => {
     await mutator.claim(fx.seedTaskId, 'agent');
     const result = await mutator.unclaim(fx.seedTaskId);
     assert.equal(result.success, true);
+    assert.equal(result.task_id, fx.seedTaskId);
     assert.doesNotMatch(
       fs.readFileSync(fx.tasksPathFor(proj), 'utf8'),
       /claimed-by:/,
@@ -338,6 +348,7 @@ test('unblock — unblocks a blocked task', async () => {
     await mutator.block(fx.seedTaskId, 'blocker');
     const result = await mutator.unblock(fx.seedTaskId);
     assert.equal(result.success, true);
+    assert.equal(result.task_id, fx.seedTaskId);
     assert.doesNotMatch(
       fs.readFileSync(fx.tasksPathFor(proj), 'utf8'),
       /blocked-by:/,
@@ -371,10 +382,9 @@ test('pause — pauses a claimed task', async () => {
     await mutator.claim(fx.seedTaskId, 'agent');
     const result = await mutator.pause(fx.seedTaskId);
     assert.equal(result.success, true);
-    assert.match(
-      fs.readFileSync(fx.tasksPathFor(proj), 'utf8'),
-      /paused:\s*true/,
-    );
+    const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    assert.match(disk, /paused:\s*true/);
+    assert.doesNotMatch(disk, /claimed-by:/); // pause releases the claim
   } finally {
     fx.cleanup();
   }
@@ -473,10 +483,9 @@ test('approve — approves a task', async () => {
     await mutator.requestApproval(fx.seedTaskId);
     const result = await mutator.approve(fx.seedTaskId);
     assert.equal(result.success, true);
-    assert.match(
-      fs.readFileSync(fx.tasksPathFor(proj), 'utf8'),
-      /approved-at:\s*"?\d{4}-\d{2}-\d{2}"?/,
-    );
+    const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    assert.match(disk, /approved-at:\s*"?\d{4}-\d{2}-\d{2}"?/);
+    assert.doesNotMatch(disk, /approval-needed:\s*true/);
   } finally {
     fx.cleanup();
   }
@@ -1065,6 +1074,215 @@ test('other project lock does not affect current project operation', async () =>
     const resultB = await mutator.add(projB, 'Task on B', 'why', 'done-when', 'high', 'coder-review');
     assert.equal(resultB.success, false, 'add on project B should fail when lock held by different owner');
     assert.match(resultB.message, /lock/i);
+  } finally {
+    fx.cleanup();
+  }
+});
+
+// ─── 21. State-transition edge cases (folded from tests/task-state.test.ts) ──
+// pendingTask/reopenTask are task-state APIs without a TaskMutator wrapper (used by the
+// dispatch reconciler and scheduler jobs); they are exercised directly where needed.
+
+function readSeedTask(fx: ReturnType<typeof makeFixtureRepo>): any {
+  const proj = fx.projects[0];
+  const tasks = parseTasksFile(fs.readFileSync(fx.tasksPathFor(proj), 'utf8'), proj);
+  const task = tasks.find((t: any) => t.id === fx.seedTaskId);
+  assert.ok(task, `seed task ${fx.seedTaskId} not found in fixture`);
+  return task;
+}
+
+test('claim — fails for completed or blocked tasks', async () => {
+  const fxDone = makeFixtureRepo();
+  try {
+    const mutator = new TaskMutator(createRepo());
+    await mutator.claim(fxDone.seedTaskId, 'agent');
+    await mutator.complete(fxDone.seedTaskId, 'done');
+    const res = await mutator.claim(fxDone.seedTaskId, 'agent');
+    assert.equal(res.success, false);
+    assert.match(res.message, /completed/i);
+  } finally {
+    fxDone.cleanup();
+  }
+
+  const fxBlocked = makeFixtureRepo();
+  try {
+    const mutator = new TaskMutator(createRepo());
+    await mutator.block(fxBlocked.seedTaskId, 'reason');
+    const res = await mutator.claim(fxBlocked.seedTaskId, 'agent');
+    assert.equal(res.success, false);
+    assert.match(res.message, /blocked/i);
+  } finally {
+    fxBlocked.cleanup();
+  }
+});
+
+test('approve — fails for completed or blocked tasks', async () => {
+  const fxDone = makeFixtureRepo();
+  try {
+    const mutator = new TaskMutator(createRepo());
+    await mutator.claim(fxDone.seedTaskId, 'agent');
+    await mutator.complete(fxDone.seedTaskId, 'done');
+    const res = await mutator.approve(fxDone.seedTaskId);
+    assert.equal(res.success, false);
+    assert.match(res.message, /completed/i);
+  } finally {
+    fxDone.cleanup();
+  }
+
+  const fxBlocked = makeFixtureRepo();
+  try {
+    const mutator = new TaskMutator(createRepo());
+    await mutator.block(fxBlocked.seedTaskId, 'reason');
+    const res = await mutator.approve(fxBlocked.seedTaskId);
+    assert.equal(res.success, false);
+    assert.match(res.message, /blocked/);
+  } finally {
+    fxBlocked.cleanup();
+  }
+});
+
+test('block — clears claimed-by/claimed-at when blocking a claimed task', async () => {
+  const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
+  try {
+    const mutator = new TaskMutator(createRepo());
+    await mutator.claim(fx.seedTaskId, 'agent');
+    const result = await mutator.block(fx.seedTaskId, 'waiting review');
+    assert.equal(result.success, true);
+    assert.equal(result.task_id, fx.seedTaskId);
+    const disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    assert.match(disk, /blocked-by:\s*waiting review/);
+    assert.doesNotMatch(disk, /claimed-by:/);
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('claim — task-state layer reports 404 when project TASKS.yaml is missing', () => {
+  // Unreachable through TaskMutator (the store only yields tasks from existing files),
+  // but real for CLI callers that pass an arbitrary --project.
+  const result = lifecycleClaimTask(null, '_test_mutator_ghost', 'agent', 'a111');
+  assert.equal(result.success, false);
+  assert.match(result.message, /TASKS\.yaml not found/);
+});
+
+// --- pending/blocked recovery (ISS: pending-status dispatch deadlock) ---
+
+// block must normalize status pending -> open. The status field alone is an independent
+// dispatch-exclusion gate (task-parser isActionable), so a task left at status=pending
+// after a failed run stays invisible to the dispatcher forever.
+test('block — normalizes status pending -> open while setting blocked-by', async () => {
+  const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
+  try {
+    assert.equal(lifecyclePendingTask(null, proj, fx.seedTaskId).success, true);
+    assert.equal(readSeedTask(fx).status, 'pending');
+
+    const mutator = new TaskMutator(createRepo());
+    const res = await mutator.block(fx.seedTaskId, 'run failed');
+    assert.equal(res.success, true);
+    const task = readSeedTask(fx);
+    assert.equal(task.status, 'open');
+    assert.equal(task.blocked_by, 'run failed');
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('block — does not resurrect a done task', async () => {
+  const fx = makeFixtureRepo();
+  try {
+    const mutator = new TaskMutator(createRepo());
+    await mutator.claim(fx.seedTaskId, 'agent');
+    await mutator.complete(fx.seedTaskId, 'done');
+    await mutator.block(fx.seedTaskId, 'reason');
+    assert.equal(readSeedTask(fx).status, 'done');
+  } finally {
+    fx.cleanup();
+  }
+});
+
+// unblock must restore a legacy stuck task (status=pending + blocked-by, produced before
+// block normalized status) to open. That shape cannot be produced by the current APIs,
+// so the fixture is written directly.
+test('unblock — restores status pending -> open (legacy stuck state)', async () => {
+  const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
+  try {
+    fs.writeFileSync(fx.tasksPathFor(proj), `tasks:
+  - id: ${fx.seedTaskId}
+    text: "Seed task"
+    why: "baseline"
+    done-when: "exists"
+    priority: medium
+    status: pending
+    blocked-by: run failed
+    template: coder-review
+    plan: ""
+`);
+    const mutator = new TaskMutator(createRepo());
+    const res = await mutator.unblock(fx.seedTaskId);
+    assert.equal(res.success, true);
+    const task = readSeedTask(fx);
+    assert.equal(task.status, 'open');
+    assert.equal(task.blocked_by, null);
+    assert.equal(isActionable(task), true);
+  } finally {
+    fx.cleanup();
+  }
+});
+
+// reopenTask rescues an orphan pending task (lost cortex-run callback: status=pending, no blocked-by).
+test('reopenTask — transitions an orphan pending task back to open + actionable', () => {
+  const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
+  try {
+    assert.equal(lifecyclePendingTask(null, proj, fx.seedTaskId).success, true);
+    const res = lifecycleReopenTask(null, proj, fx.seedTaskId);
+    assert.equal(res.success, true);
+    assert.equal(res.task_id, fx.seedTaskId);
+    const task = readSeedTask(fx);
+    assert.equal(task.status, 'open');
+    assert.equal(isActionable(task), true);
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('reopenTask — refuses a completed task and is idempotent on an open task', async () => {
+  const fxDone = makeFixtureRepo();
+  try {
+    const mutator = new TaskMutator(createRepo());
+    await mutator.claim(fxDone.seedTaskId, 'agent');
+    await mutator.complete(fxDone.seedTaskId, 'done');
+    const res = lifecycleReopenTask(null, fxDone.projects[0], fxDone.seedTaskId);
+    assert.equal(res.success, false);
+    assert.match(res.message, /complete/i);
+  } finally {
+    fxDone.cleanup();
+  }
+
+  const fxOpen = makeFixtureRepo();
+  try {
+    const res = lifecycleReopenTask(null, fxOpen.projects[0], fxOpen.seedTaskId);
+    assert.equal(res.success, true);
+    assert.equal(readSeedTask(fxOpen).status, 'open');
+  } finally {
+    fxOpen.cleanup();
+  }
+});
+
+// End-to-end repro of the dispatch deadlock: pending -> failed run (block) -> manual unblock
+// must leave the task actionable again.
+test('pending -> block -> unblock leaves the task actionable (deadlock regression)', async () => {
+  const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
+  try {
+    const mutator = new TaskMutator(createRepo());
+    assert.equal(lifecyclePendingTask(null, proj, fx.seedTaskId).success, true);
+    assert.equal((await mutator.block(fx.seedTaskId, 'run failed')).success, true);
+    assert.equal((await mutator.unblock(fx.seedTaskId)).success, true);
+    assert.equal(isActionable(readSeedTask(fx)), true);
   } finally {
     fx.cleanup();
   }

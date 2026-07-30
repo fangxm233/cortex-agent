@@ -152,20 +152,18 @@ describe('MHooksView list', () => {
     }
   });
 
-  it('renders identity, event, source, enabled state and mount badges on every row', () => {
+  it('renders the row slots: identity, event, source, enabled labels and a mount badge', () => {
+    // Per-row slot values are pinned by m-hooks-vm.test.ts; assert one representative per slot
+    // plus both enabled-label branches, which are view-side copy mappings.
     const html = render(hooks);
-    for (const value of [
-      'guard-hook', 'agent:pre-tool', 'managed', 'ON-LABEL',
-      'broken-hook', 'pi:message_end', 'user', 'OFF-LABEL',
-      'template:review:end', 'cortex:thread.end', 'template-scoped',
-      'claude', 'pi', 'server',
-    ]) {
+    for (const value of ['guard-hook', 'agent:pre-tool', 'managed', 'ON-LABEL', 'OFF-LABEL', 'server']) {
       expect(html).toContain(value);
     }
   });
 
-  it('flags only the hook whose declared script is missing on disk', () => {
-    expect(render(hooks).match(/SCRIPT-MISSING/g)).toHaveLength(1);
+  it('renders the missing-script flag only when the vm marks the row', () => {
+    // Which rows carry scriptMissing is pinned by m-hooks-vm.test.ts.
+    expect(render(hooks)).toContain('SCRIPT-MISSING');
     expect(render([hooks[0]])).not.toContain('SCRIPT-MISSING');
   });
 
@@ -193,19 +191,21 @@ describe('MHooksView declaration sheet', () => {
     }
   });
 
-  it('shows the complete declaration of the selected row', () => {
+  it('shows the declaration fields of the selected row with view-side unit formatting', () => {
+    // Detail slot values are pinned by m-hooks-vm.test.ts; keep the field labels (present-field
+    // rendering), one representative value, the view-formatted units and the copy mappings.
     const html = render(hooks, rowOf(hooks, 'guard-hook'));
     for (const value of [
-      'F-EVENT', 'agent:pre-tool',
-      'F-MATCHER', 'Edit|Write',
+      'F-EVENT',
+      'F-MATCHER',
       'F-SCRIPT', 'guard.mjs',
       'F-TIMEOUT', '10s',
-      'F-BACKENDS', 'F-REQUIRES-TOOL', 'Edit',
-      'F-RESULT', 'hook-result',
-      'F-BLOCKING', 'webhook', '30min',
-      'F-SOURCE', 'managed',
-      'F-VERSION', '2026.7.1',
-      'F-FILENAME', '01-guard.json',
+      'F-BACKENDS', 'F-REQUIRES-TOOL',
+      'F-RESULT',
+      'F-BLOCKING', '30min',
+      'F-SOURCE',
+      'F-VERSION',
+      'F-FILENAME',
       'F-ORDER',
       'F-MOUNTS-ON',
       'F-APPLIES-AT', 'APPLIES-NEXT-AGENT',
@@ -225,11 +225,11 @@ describe('MHooksView declaration sheet', () => {
       }),
     ];
     const html = render(filtered, rowOf(filtered, 'bus-hook'));
+    // Filter-entry flattening (incl. value stringification) is pinned by m-hooks-vm.test.ts;
+    // assert the filters branch renders with one representative key/value pair.
     expect(html).toContain('F-FILTERS');
     expect(html).toContain('template');
     expect(html).toContain('review');
-    expect(html).toContain('final');
-    expect(html).toContain('true');
     expect(html).toContain('APPLIES-RESTART');
   });
 

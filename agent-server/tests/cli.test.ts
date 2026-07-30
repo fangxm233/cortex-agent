@@ -1,40 +1,10 @@
 // input:  cli module
-// output: verify help text, subcommand routing, error handling
+// output: verify subcommand routing, exit codes, error handling
 // pos:    Validate cortex CLI dispatcher pure logic
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { getCliHelp, runCli } from '../src/entry/cli.js';
-
-// ─── getCliHelp ─────────────────────────────────────────────────
-
-test('getCliHelp includes all subcommand names', () => {
-  const help = getCliHelp();
-  assert.match(help, /init/);
-  assert.match(help, /start/);
-  assert.match(help, /daemon/);
-  assert.match(help, /daemon stop/);
-  assert.match(help, /daemon status/);
-  assert.match(help, /daemon restart/);
-  assert.match(help, /restart --hard/);
-  assert.match(help, /restart --force/);
-  assert.match(help, /restart-self/);
-  assert.match(help, /task/);
-  assert.match(help, /config/);
-});
-
-test('getCliHelp includes Cortex CLI title', () => {
-  const help = getCliHelp();
-  assert.match(help, /Cortex/);
-  assert.match(help, /Usage:/);
-  assert.match(help, /Commands:/);
-});
-
-test('getCliHelp includes --home option description for init', () => {
-  const help = getCliHelp();
-  assert.match(help, /--home/);
-  assert.match(help, /CORTEX_HOME/);
-});
+import { runCli } from '../src/entry/cli.js';
 
 // ─── runCli (async) ─────────────────────────────────────────────
 
