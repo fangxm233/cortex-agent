@@ -17,7 +17,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | durable-helpers.ts | util | builds durable post and update hooks |
 | lifecycle.ts | core | Finalizes provider-attributed turn outcomes |
 | manager-qa.ts | channel | relays subtask questions to managers and humans |
-| mid-turn-inject.ts | core | injects user messages into a running turn |
+| mid-turn-inject.ts | core | injects turns with a live wait cap |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
@@ -27,7 +27,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | session-send.ts | chat | sends a user turn into a web session |
 | status-helpers.ts | helper | builds settings-aware status messages |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |
-| thread-callback.ts | callback | Delivers framed child results and resumes parents |
+| thread-callback.ts | callback | Resumes parents with live rotation and sweep settings |
 | thread-executor.ts | core | routes thread turns and runs threads |
 | turn-notify.ts | notify | applies settings and notifies completed long turns |
 | web-bg-hold.ts | helper | holds web turns until background work seals |

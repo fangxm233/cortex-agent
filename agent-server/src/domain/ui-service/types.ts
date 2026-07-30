@@ -1,5 +1,5 @@
 // input:  domain types, context/notices, stores, pending data
-// output: UI DTOs and operation maps including task completion
+// output: UI DTOs and operation maps including task/thread links
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -738,6 +738,8 @@ export interface TaskInfo {
   priority: 'high' | 'medium' | 'low';
   actionable: boolean;
   claimedBy: string | null;
+  /** Owning task-dispatch thread; optional while app and server versions roll independently. */
+  claimThreadId?: string | null;
   blockedBy: string | null;
   /** Approval gate from task-store `approval-needed`; absent only with an older server contract. */
   approvalNeeded?: boolean;
@@ -1176,6 +1178,12 @@ export interface ApprovalInfo {
   /** Stable id derived from the heading line (no explicit id exists in the markdown). */
   id: string;
   title: string;
+  /**
+   * Owning project from the `- **Project**:` bullet (need-approval skill template). `null` (honest
+   * placeholder, never fabricated) for legacy entries and system-level operations — the UI renders
+   * those as "global".
+   */
+  projectId: string | null;
   operation: string | null;
   reason: string | null;
   impact: string | null;
@@ -1190,9 +1198,9 @@ export interface ApprovalInfo {
   feedback: string | null;
   /**
    * Verbatim `Provenance` bullet — the only real "who raised this / origin" carrier in the queue
-   * (§12 C item 13). Neither the need-approval skill nor the approval-gate builder emit a structured
-   * origin/from field; a subset of entries add this freeform bullet. `null` (honest placeholder,
-   * never fabricated) when absent. Backs the approval-center origin/from slots.
+   * (§12 C item 13). Project attribution now has its own structured `Project` bullet (projectId),
+   * but origin/from remains this freeform bullet only a subset of entries add. `null` (honest
+   * placeholder, never fabricated) when absent. Backs the approval-center origin/from slots.
    */
   provenance: string | null;
   /**

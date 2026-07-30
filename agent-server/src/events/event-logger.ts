@@ -1,12 +1,13 @@
-// input:  EventBus (event-bus.ts), CortexEvent (event-types.ts)
-// output: createEventLogger — writes events to daily rolling jsonl files
-// pos:    events/ layer, depends on event-bus + event-types + core/async-mutex
+// input:  EventBus, CortexEvent, runtime settings
+// output: createEventLogger with hot-toggleable JSONL persistence
+// pos:    Settings-gated event log writer
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { DATA_DIR } from '@core/paths.js';
+import { getSettings } from '@core/settings.js';
 import type { CortexEvent } from './event-types.js';
 import type { EventBus } from './event-bus.js';
 
@@ -65,8 +66,6 @@ export interface EventLogger {
 
 export function createEventLogger(bus: EventBus, opts?: EventLoggerOptions): EventLogger {
   const bufferSize = opts?.bufferSize ?? DEFAULT_BUFFER_SIZE;
-  const disabled = process.env.CORTEX_EVENT_LOG === 'off';
-
   const logDir = opts?.logDir ?? path.join(DATA_DIR, 'logs', 'events');
 
   let buffer: LogEntry[] = [];
@@ -81,7 +80,7 @@ export function createEventLogger(bus: EventBus, opts?: EventLoggerOptions): Eve
   }
 
   function onEvent(e: CortexEvent): void {
-    if (disabled) return;
+    if (!getSettings().eventLog) return;
     // Skip meta-events to prevent re-entrant backpressure loops (see META_EVENTS comment above)
     if (META_EVENTS.has(e.type)) return;
     // Skip high-volume previews that carry nothing the complete event doesn't (see TRANSIENT_EVENTS)
@@ -119,7 +118,7 @@ export function createEventLogger(bus: EventBus, opts?: EventLoggerOptions): Eve
   }
 
   async function flushNow(): Promise<void> {
-    if (disabled) return;
+    if (!getSettings().eventLog) return;
     // Snapshot buffer outside the mutex to minimise lock hold time
     if (buffer.length === 0) return;
 
@@ -179,12 +178,10 @@ export function createEventLogger(bus: EventBus, opts?: EventLoggerOptions): Eve
 
   // ── Wire up ────────────────────────────────────────────────────────────────
 
-  if (!disabled) {
-    bus.subscribe('*', onEvent);
-    flushTimer = setInterval(() => { void flushNow(); }, FLUSH_INTERVAL_MS);
-    // Prevent the timer from keeping the process alive after bus.close()
-    if (flushTimer.unref) flushTimer.unref();
-  }
+  bus.subscribe('*', onEvent);
+  flushTimer = setInterval(() => { void flushNow(); }, FLUSH_INTERVAL_MS);
+  // Prevent the timer from keeping the process alive after bus.close()
+  if (flushTimer.unref) flushTimer.unref();
 
   bus.registerCloseHook(close);
 

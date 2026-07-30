@@ -1,14 +1,17 @@
-// input:  EventBus, createEventLogger
-// output: regression tests for events/ layer (S4 spec requirements)
-// pos:    verifies fan-out order, handler error isolation, logger backpressure,
-//         SIGTERM flush, and CORTEX_EVENT_LOG=off
+// input:  EventBus, createEventLogger, mutable settings
+// output: event fan-out, filtering, flush, and hot-toggle tests
+// pos:    Event bus and logger behavioral regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, beforeAll, afterAll } from 'vitest';
+import { test, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+
+const liveSettings = vi.hoisted(() => ({ eventLog: true }));
+vi.mock('@core/settings.js', () => ({ getSettings: () => liveSettings }));
+
 import { EventBus } from '../../src/events/event-bus.js';
 import { createEventLogger } from '../../src/events/event-logger.js';
 import type { CortexEvent } from '../../src/events/event-types.js';
@@ -19,6 +22,10 @@ let tmpDir: string;
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cortex-events-test-'));
+});
+
+beforeEach(() => {
+  liveSettings.eventLog = true;
 });
 
 afterAll(async () => {
@@ -144,29 +151,28 @@ test('SIGTERM flush — bus.close() drains buffered events to disk', async () =>
   assert.equal(lines.length, 5, 'all 5 events must have been flushed to disk');
 });
 
-// ── (e) CORTEX_EVENT_LOG=off disables write ───────────────────────────────
+// ── (e) live event-log toggle ─────────────────────────────────────────────
 
-test('CORTEX_EVENT_LOG=off — no log file written when env var is set to off', async () => {
-  const logDir = path.join(tmpDir, 'off-test');
-  const prev = process.env.CORTEX_EVENT_LOG;
-  process.env.CORTEX_EVENT_LOG = 'off';
+test('event logger stops and resumes appending and flushing after a runtime settings flip', async () => {
+  const logDir = path.join(tmpDir, 'hot-toggle-test');
+  const bus = new EventBus();
+  createEventLogger(bus, { logDir });
 
-  try {
-    const bus = new EventBus();
-    createEventLogger(bus, { logDir });
+  bus.publish({ type: 'scheduler.tick', jobKey: 'before-disable' });
+  liveSettings.eventLog = false;
+  bus.publish({ type: 'scheduler.tick', jobKey: 'while-disabled' });
 
-    bus.publish({ type: 'scheduler.tick', jobKey: 'should-not-be-written' });
-    await bus.close();
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  let files: string[] = [];
+  try { files = await fs.readdir(logDir); } catch { /* disabled flush keeps the directory absent */ }
+  assert.equal(files.length, 0, 'the periodic flush must honor the disabled setting');
 
-    // The directory may not even exist; if it does, it must be empty
-    let files: string[] = [];
-    try { files = await fs.readdir(logDir); } catch { /* directory not created = correct */ }
-    assert.equal(files.length, 0, 'no log files must be written when CORTEX_EVENT_LOG=off');
-  } finally {
-    if (prev === undefined) {
-      delete process.env.CORTEX_EVENT_LOG;
-    } else {
-      process.env.CORTEX_EVENT_LOG = prev;
-    }
-  }
+  liveSettings.eventLog = true;
+  bus.publish({ type: 'scheduler.tick', jobKey: 'after-enable' });
+  await bus.close();
+
+  files = await fs.readdir(logDir);
+  const content = await fs.readFile(path.join(logDir, files[0]), 'utf8');
+  const jobKeys = content.trim().split('\n').map((line) => JSON.parse(line).payload?.jobKey);
+  assert.deepEqual(jobKeys, ['before-disable', 'after-enable']);
 });

@@ -1,6 +1,6 @@
-// input:  dispatch job, task/thread stores, runner doubles
-// output: hook, quarantine, and reconciliation error tests
-// pos:    Tests dispatch lifecycle and failure recovery
+// input:  dispatch job, mutable settings, task/thread doubles
+// output: concurrency, hook, quarantine, and recovery tests
+// pos:    Task dispatch lifecycle behavioral regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js';
@@ -28,6 +28,11 @@ const deps = vi.hoisted(() => ({
   unclaim: vi.fn(),
   block: vi.fn(),
   logError: vi.fn(),
+  settings: { taskDispatchMaxConcurrent: null as number | null },
+}));
+
+vi.mock('@core/settings.js', () => ({
+  getSettings: () => deps.settings,
 }));
 
 vi.mock('@core/log.js', () => ({
@@ -138,7 +143,10 @@ function selectFixture(id: string): void {
 }
 
 beforeEach(() => {
-  for (const mock of Object.values(deps)) mock.mockReset();
+  for (const [key, mock] of Object.entries(deps)) {
+    if (key !== 'settings') (mock as ReturnType<typeof vi.fn>).mockReset();
+  }
+  deps.settings.taskDispatchMaxConcurrent = null;
   threadRecord = {
     id: 'thread-1',
     templateName: 'coder-review',
@@ -189,6 +197,20 @@ afterEach(() => {
   ctx.bus = null;
   ctx.buildInteractiveCallbacks = null;
   ctx.onThreadSuspended = null;
+});
+
+test('runtime concurrency-limit flip affects the next dispatch guard evaluation', async () => {
+  deps.getRunningExecutions.mockReturnValue([{ kind: 'dispatch' }]);
+  deps.settings.taskDispatchMaxConcurrent = 1;
+
+  taskDispatchRunner({ channel: 'atlas', scheduleTaskId: 'schedule-1', profileName: 'execute' });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  if (deps.selectAndClaimTask.mock.calls.length > 0) await waitFor(() => completedCycleCount() === 1);
+  assert.equal(deps.selectAndClaimTask.mock.calls.length, 0, 'the initial limit blocks dispatch');
+
+  deps.settings.taskDispatchMaxConcurrent = 2;
+  await runDispatchCycle();
+  assert.equal(deps.runThread.mock.calls.length, 1, 'the next evaluation uses the higher live limit');
 });
 
 test('claimed dispatch emits cortex:dispatch.started immediately before thread execution', async () => {

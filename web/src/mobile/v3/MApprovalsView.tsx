@@ -20,6 +20,8 @@ export interface MApprovalsCopy {
   reject: string;
   seeDiff: string;
   empty: string;
+  /** Group label for entries with no project attribution (projectId null). */
+  globalGroup: string;
 }
 
 export interface MApprovalsViewProps {
@@ -71,22 +73,40 @@ export function MApprovalsView({
             {copy.empty}
           </div>
         )}
-        {vm.cards.map((card) =>
-          card.id === expandedId ? (
-            <ExpandedCard
-              key={card.id}
-              card={card}
-              copy={copy}
-              busy={busy}
-              onApprove={onApprove}
-              onReject={onReject}
-            />
-          ) : (
-            <CollapsedCard key={card.id} card={card} copy={copy} onExpand={onExpand} />
-          ),
-        )}
+        {/* Project groups (current → 全局 → others) — each labelled with its real projectId. */}
+        {vm.groups.map((group) => (
+          <div key={group.projectId ?? '__global__'} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <GroupDivider label={group.projectId ?? copy.globalGroup} />
+            {group.cards.map((card) =>
+              card.id === expandedId ? (
+                <ExpandedCard
+                  key={card.id}
+                  card={card}
+                  copy={copy}
+                  busy={busy}
+                  onApprove={onApprove}
+                  onReject={onReject}
+                />
+              ) : (
+                <CollapsedCard key={card.id} card={card} copy={copy} onExpand={onExpand} />
+              ),
+            )}
+          </div>
+        ))}
       </MScrollBody>
     </MScreen>
+  );
+}
+
+// Project-group divider — mirrors the 项目 tab's 切换项目 divider styling.
+function GroupDivider({ label }: { label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2px 2px 0' }}>
+      <div style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.06em', color: MC.faint }}>
+        {label}
+      </div>
+      <div style={{ flex: 1, height: 1, background: 'var(--proto-line)' }} />
+    </div>
   );
 }
 

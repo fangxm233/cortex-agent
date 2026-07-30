@@ -7,6 +7,7 @@ function apr(over: Partial<ApprovalInfo>): ApprovalInfo {
   return {
     id: 'apr-a',
     title: '超预算 dispatch — 8×A100 消融扫描',
+    projectId: null,
     operation: '超预算',
     reason: '预估 $12.40 超过日预算 $10.00',
     impact: '将启动 8 张 A100 约 3 小时',
@@ -69,9 +70,37 @@ describe('buildMApprovalsVm', () => {
     expect(card.time).toBe('');
   });
 
-  it('empty queue → zero count, no cards', () => {
+  it('empty queue → zero count, no cards, no groups', () => {
     const vm = buildMApprovalsVm([], now);
     expect(vm.pendingCount).toBe(0);
     expect(vm.cards).toEqual([]);
+    expect(vm.groups).toEqual([]);
+  });
+
+  it('groups pending cards: current project → 全局 (null) → other projects by id', () => {
+    const vm = buildMApprovalsVm(
+      [
+        apr({ id: 'g1', projectId: null }),
+        apr({ id: 'o1', projectId: 'orchard' }),
+        apr({ id: 'n1', projectId: 'nimbus' }),
+        apr({ id: 'a1', projectId: 'atlas' }),
+        apr({ id: 'n2', projectId: 'nimbus' }),
+      ],
+      now,
+      'nimbus',
+    );
+    expect(vm.groups.map((g) => g.projectId)).toEqual(['nimbus', null, 'atlas', 'orchard']);
+    expect(vm.groups[0].cards.map((c) => c.id)).toEqual(['n1', 'n2']);
+    // Flat card list follows group order so the expand-first-card default targets the scoped group.
+    expect(vm.cards.map((c) => c.id)).toEqual(['n1', 'n2', 'g1', 'a1', 'o1']);
+  });
+
+  it('without a current project: 全局 leads, then projects by id; cards carry projectId', () => {
+    const vm = buildMApprovalsVm(
+      [apr({ id: 'o1', projectId: 'orchard' }), apr({ id: 'g1', projectId: null })],
+      now,
+    );
+    expect(vm.groups.map((g) => g.projectId)).toEqual([null, 'orchard']);
+    expect(vm.cards.find((c) => c.id === 'o1')?.projectId).toBe('orchard');
   });
 });

@@ -16,6 +16,8 @@ export interface MSettingsCopy {
   title: string;
   daemonStatus: string; // header trailing `daemon · 已连接`
   daemon: string;
+  machines: string; // `机器`, rendered as `机器 · N 台正常` on the drill-in row
+  machinesOk: string; // `台正常`
   profileTitle: string; // `Profile（全局默认）`
   switchLabel: string; // `切换`
   profileSheetTitle: string; // `全局默认 Profile`
@@ -262,6 +264,8 @@ export function MSettingsView({
   onSetTheme,
   onBack,
   onOpenDaemon,
+  onlineMachines,
+  onOpenMachines,
   onOpenHooks,
   profileSheet,
   onOpenProfile,
@@ -276,6 +280,9 @@ export function MSettingsView({
   onSetTheme: (theme: Theme) => void;
   onBack: () => void;
   onOpenDaemon: () => void;
+  /** Real machines.list online count for the 机器 drill-in row (moved off the Projects tab). */
+  onlineMachines: number;
+  onOpenMachines: () => void;
   onOpenHooks: () => void;
   profileSheet: ProfileSheetItem[] | null;
   onOpenProfile: () => void;
@@ -316,6 +323,18 @@ export function MSettingsView({
               {vm.daemonHost && <div style={SUB}>{vm.daemonHost}</div>}
             </div>
             <span style={{ ...CHEV, cursor: 'pointer' }}>›</span>
+          </div>
+          {/* 机器 drill-in (moved here from the Projects tab — global infrastructure, not project data) */}
+          <div
+            role="button"
+            aria-label={copy.machines}
+            onClick={onOpenMachines}
+            style={{ ...rowStyle(true), gap: 9, cursor: 'pointer' }}
+          >
+            <span style={{ fontSize: 13, color: MC.sub }}>
+              {copy.machines} · {onlineMachines} {copy.machinesOk}
+            </span>
+            <span style={{ marginLeft: 'auto', ...CHEV }}>›</span>
           </div>
           <div style={rowStyle(false)}>
             <div

@@ -11,6 +11,7 @@ import type { ApprovalInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
+import { useMobileProject } from '@/mobile/current-project';
 import { MApprovalsView, type MApprovalsCopy } from './MApprovalsView';
 import { buildMApprovalsVm } from './m-approvals-vm';
 
@@ -25,6 +26,7 @@ const COPY: { en: MApprovalsCopy; zh: MApprovalsCopy } = {
     reject: 'Reject with feedback',
     seeDiff: 'tap for diff ›',
     empty: 'No pending approvals',
+    globalGroup: 'GLOBAL',
   },
   zh: {
     title: '审批',
@@ -36,6 +38,7 @@ const COPY: { en: MApprovalsCopy; zh: MApprovalsCopy } = {
     reject: '拒绝并反馈',
     seeDiff: '点开看 diff ›',
     empty: '没有待处理的审批',
+    globalGroup: '全局',
   },
 };
 
@@ -46,9 +49,14 @@ export function MApprovalsScreen() {
   const lang = useLang();
   const copy = pickCopy(lang, COPY);
 
+  const { currentProjectId } = useMobileProject();
   const listQuery = useQuery(trpc.approvals.list.queryOptions({ status: 'pending' }));
   const entries = useMemo<ApprovalInfo[]>(() => listQuery.data ?? [], [listQuery.data]);
-  const vm = useMemo(() => buildMApprovalsVm(entries), [entries]);
+  // Grouped by project attribution: current project first, then 全局 (null), then other projects.
+  const vm = useMemo(
+    () => buildMApprovalsVm(entries, Date.now(), currentProjectId),
+    [entries, currentProjectId],
+  );
 
   // Which card is expanded — default to the first pending; keep valid as the list re-invalidates.
   const [expandedId, setExpandedId] = useState<string | null>(null);
