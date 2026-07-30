@@ -1,6 +1,6 @@
 // input:  mobile notes VM, gesture policy, localized copy and CRUD callbacks
-// output: full notes list with long-press, swipe delete and fixed input
-// pos:    Scheme 26c mobile notes presentation
+// output: tappable notes list with swipe delete and fixed input
+// pos:    Mobile project notes presentation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react';
@@ -8,7 +8,7 @@ import type { NotesCopy } from '@/features/notes/notes-copy';
 import { MScreen, MDrillHeader, MScrollBody, MC, MONO } from '@/mobile/ui/kit';
 import type { NoteRowVm } from '@/features/notes/notes-vm';
 import type { MNotesVm } from './m-notes-vm';
-import { DELETE_REVEAL_PX, LONG_PRESS_MS, noteSwipeOffset, resolveNoteGesture } from './m-notes-gestures';
+import { DELETE_REVEAL_PX, noteSwipeOffset, resolveNoteGesture, shouldSuppressNoteClick } from './m-notes-gestures';
 
 interface MNotesActions {
   onAdd: (text: string) => Promise<unknown>;
@@ -21,37 +21,39 @@ interface MNotesActions {
 interface GestureStart {
   x: number;
   y: number;
-  at: number;
-  timer: ReturnType<typeof setTimeout>;
 }
 
-function useRowGesture(id: string, open: boolean, onLongPress: () => void, onSwipe: (id: string | null) => void) {
+function pointerDelta(start: GestureStart, event: ReactPointerEvent) {
+  return { deltaX: event.clientX - start.x, deltaY: event.clientY - start.y };
+}
+
+function useRowGesture(id: string, open: boolean, onTap: () => void, onSwipe: (id: string | null) => void) {
   const start = useRef<GestureStart | null>(null);
+  const suppressClick = useRef(false);
   const [dragX, setDragX] = useState(0);
-  const clear = () => { if (start.current) clearTimeout(start.current.timer); };
   const onPointerDown = (event: ReactPointerEvent) => {
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    const timer = setTimeout(onLongPress, LONG_PRESS_MS);
-    start.current = { x: event.clientX, y: event.clientY, at: performance.now(), timer };
+    suppressClick.current = false; start.current = { x: event.clientX, y: event.clientY };
   };
   const onPointerMove = (event: ReactPointerEvent) => {
-    const value = start.current;
-    if (!value) return;
-    const dx = event.clientX - value.x;
-    const dy = event.clientY - value.y;
-    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) clear();
-    if (Math.abs(dx) > Math.abs(dy)) setDragX(noteSwipeOffset(dx));
+    if (!start.current) return;
+    const delta = pointerDelta(start.current, event);
+    if (Math.abs(delta.deltaX) > Math.abs(delta.deltaY)) setDragX(noteSwipeOffset(delta.deltaX));
   };
   const onPointerUp = (event: ReactPointerEvent) => {
-    const value = start.current;
-    if (!value) return;
-    clear();
-    const outcome = resolveNoteGesture({ deltaX: event.clientX - value.x, deltaY: event.clientY - value.y, durationMs: performance.now() - value.at });
-    onSwipe(outcome === 'delete-open' ? id : null);
-    setDragX(0);
-    start.current = null;
+    if (!start.current) return;
+    const delta = pointerDelta(start.current, event);
+    suppressClick.current = shouldSuppressNoteClick(delta);
+    const outcome = resolveNoteGesture(delta);
+    if (outcome === 'delete-open') onSwipe(id); else if (!open) onSwipe(null);
+    setDragX(0); start.current = null;
   };
-  return { offset: open ? -DELETE_REVEAL_PX : dragX, onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp };
+  const onClick = () => {
+    if (suppressClick.current) { suppressClick.current = false; return; }
+    onSwipe(null); if (!open) onTap();
+  };
+  const onPointerCancel = () => { suppressClick.current = true; setDragX(0); start.current = null; };
+  return { offset: open ? -DELETE_REVEAL_PX : dragX, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClick };
 }
 
 function NoteCircle({ completed, busy, onClick }: { completed: boolean; busy: boolean; onClick: () => void }) {
@@ -94,11 +96,11 @@ function ActiveRow({ row, copy, busy, actionOpen, swipeOpen, actions, onActions,
   const { offset, ...gestureHandlers } = useRowGesture(
     row.id,
     swipeOpen,
-    () => { onSwipe(null); onActions(row.id); },
+    () => onActions(row.id),
     onSwipe,
   );
   return (
-    <div data-note-long-press={row.id} data-note-swipe={row.id} style={{ borderRadius: 14, overflow: 'hidden', background: 'var(--proto-danger)', position: 'relative' }}>
+    <div data-note-click={row.id} data-note-swipe={row.id} style={{ borderRadius: 14, overflow: 'hidden', background: 'var(--proto-danger)', position: 'relative' }}>
       <button type="button" disabled={busy} onClick={() => void actions.onDelete(row.id)} style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 78, border: 0, background: 'var(--proto-danger)', color: 'white', fontSize: 13, fontWeight: 600 }}>{copy.delete}</button>
       <div {...gestureHandlers} style={{ transform: `translateX(${offset}px)`, transition: offset === 0 || swipeOpen ? 'transform 180ms ease' : 'none', touchAction: 'pan-y', border: `1px solid ${actionOpen ? MC.runBorder : MC.divider}`, background: MC.card, borderRadius: 14, padding: '12px 14px', position: 'relative' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>

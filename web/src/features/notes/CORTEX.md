@@ -8,8 +8,8 @@ Pure view models group persisted notes and local copy serves English and Chinese
 | NotesProvider.tsx | provider | Owns note queries, mutations and drawer state |
 | NotesButton.tsx | view | Renders the persistent header entry |
 | NotesOverviewCard.tsx | view | Adds and previews notes on Overview |
-| NotesPane.tsx | view | Renders full note CRUD in the right pane |
-| NotesViews.test.tsx | test | Covers persistent entries and action surfaces |
+| NotesPane.tsx | view | Reveals selected-note CRUD in the right pane |
+| NotesViews.test.tsx | test | Covers entries and selected action surfaces |
 | notes-vm.ts | vm | Groups notes and formats timestamps |
 | notes-vm.test.ts | test | Covers counts, groups and shortcuts |
 | notes-copy.ts | copy | Defines English and Chinese note labels |

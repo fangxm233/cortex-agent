@@ -1,6 +1,6 @@
 // input:  notes context, localized copy and workbench navigation
-// output: non-modal 400px notes pane with complete CRUD actions
-// pos:    Scheme 26b desktop notes drawer
+// output: 400px notes pane with click-selected CRUD actions
+// pos:    Desktop project notes drawer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { useEffect, useState, type FormEvent } from 'react';
@@ -23,7 +23,7 @@ function Circle({ completed, onClick, disabled }: { completed: boolean; onClick:
       type="button"
       disabled={disabled}
       aria-label={completed ? 'reopen note' : 'complete note'}
-      onClick={onClick}
+      onClick={(event) => { event.stopPropagation(); onClick(); }}
       style={{
         width: 15,
         height: 15,
@@ -96,34 +96,34 @@ function ActionButton({ label, onClick, primary = false, danger = false, disable
 }) {
   const color = danger ? 'var(--proto-danger)' : primary ? 'white' : 'var(--proto-muted)';
   return (
-    <button type="button" disabled={disabled} onClick={onClick} style={{ border: primary ? 0 : '1px solid var(--proto-line)', borderRadius: 7, padding: '4px 10px', background: primary ? 'var(--proto-accent)' : 'var(--proto-card)', color, fontSize: 10.5, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer' }}>
+    <button type="button" disabled={disabled} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ border: primary ? 0 : '1px solid var(--proto-line)', borderRadius: 7, padding: '4px 10px', background: primary ? 'var(--proto-accent)' : 'var(--proto-card)', color, fontSize: 10.5, fontWeight: 600, cursor: disabled ? 'not-allowed' : 'pointer' }}>
       {label}
     </button>
   );
 }
 
-function ActiveNoteRow({ row, copy, busy, actions, targeted }: { row: NoteRowVm; copy: NotesCopy; busy: boolean; actions: PaneActions; targeted: boolean }) {
-  const [hovered, setHovered] = useState(false);
+function ActiveNoteRow({ row, copy, busy, actions, targeted, onSelect }: { row: NoteRowVm; copy: NotesCopy; busy: boolean; actions: PaneActions; targeted: boolean; onSelect: (id: string) => void }) {
   const [editing, setEditing] = useState(false);
   if (editing) return <EditRow row={row} copy={copy} busy={busy} actions={actions} onCancel={() => setEditing(false)} />;
   return (
     <div
       id={`note-${row.id}`}
       data-note-target={row.id}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{ border: targeted ? '1px solid var(--proto-accent-border)' : '1px solid transparent', borderRadius: 10, background: targeted ? 'var(--proto-accent-bg)' : 'transparent', padding: '9px 10px' }}
+      onClick={() => onSelect(row.id)}
+      style={{ border: targeted ? '1px solid var(--proto-accent-border)' : '1px solid transparent', borderRadius: 10, background: targeted ? 'var(--proto-accent-bg)' : 'transparent', padding: '9px 10px', cursor: 'pointer' }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
         <Circle completed={false} disabled={busy} onClick={() => void actions.onSetCompleted(row.id, true)} />
         <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--proto-ink)', lineHeight: 1.45, minWidth: 0 }}>{row.text}</span>
         <span style={{ marginLeft: 'auto', font: "400 9.5px 'IBM Plex Mono',monospace", color: 'var(--proto-faint)', flex: 'none' }}>{row.timeLabel}</span>
       </div>
-      <div style={{ display: 'flex', gap: 6, marginTop: 8, paddingLeft: 24, opacity: hovered || targeted ? 1 : 0, pointerEvents: hovered || targeted ? 'auto' : 'none' }}>
-        <ActionButton label={copy.handoff} onClick={() => actions.onHandoff(row.text)} primary disabled={busy} />
-        <ActionButton label={copy.edit} onClick={() => setEditing(true)} disabled={busy} />
-        <ActionButton label={copy.delete} onClick={() => void actions.onDelete(row.id)} danger disabled={busy} />
-      </div>
+      {targeted && (
+        <div data-note-actions={row.id} style={{ display: 'flex', gap: 6, marginTop: 8, paddingLeft: 24 }}>
+          <ActionButton label={copy.handoff} onClick={() => actions.onHandoff(row.text)} primary disabled={busy} />
+          <ActionButton label={copy.edit} onClick={() => setEditing(true)} disabled={busy} />
+          <ActionButton label={copy.delete} onClick={() => void actions.onDelete(row.id)} danger disabled={busy} />
+        </div>
+      )}
     </div>
   );
 }
@@ -143,6 +143,7 @@ export interface NotesPaneViewProps extends PaneActions {
   copy: NotesCopy;
   busy: boolean;
   targetId: string | null;
+  onSelect: (id: string) => void;
   onClose: () => void;
   onClearCompleted: () => Promise<unknown>;
 }
@@ -174,7 +175,7 @@ export function NotesPaneView(props: NotesPaneViewProps) {
       <AddInput copy={props.copy} busy={props.busy} onAdd={props.onAdd} />
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '10px 14px 14px' }}>
         <div style={{ padding: '6px 2px 7px', fontSize: 10, fontWeight: 700, letterSpacing: '.06em', color: 'var(--proto-muted-3)' }}>{props.copy.todo} · {props.vm.activeCount}</div>
-        {props.vm.active.map((row) => <ActiveNoteRow key={row.id} row={row} copy={props.copy} busy={props.busy} actions={actions} targeted={row.id === props.targetId} />)}
+        {props.vm.active.map((row) => <ActiveNoteRow key={row.id} row={row} copy={props.copy} busy={props.busy} actions={actions} targeted={row.id === props.targetId} onSelect={props.onSelect} />)}
         {props.vm.active.length === 0 && <div style={{ padding: '14px 10px', fontSize: 11, color: 'var(--proto-faint)' }}>{props.copy.empty}</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 2px 7px', borderTop: '1px solid var(--proto-line-2)', marginTop: 6 }}>
           <button type="button" onClick={() => setCompletedOpen((value) => !value)} style={{ border: 0, background: 'transparent', padding: 0, fontSize: 10, fontWeight: 700, letterSpacing: '.06em', color: 'var(--proto-muted-3)', cursor: 'pointer' }}>{props.copy.completed} · {props.vm.completedCount} {completedOpen ? '▾' : '▸'}</button>
@@ -196,6 +197,7 @@ export function NotesPane() {
       copy={notes.copy}
       busy={notes.busy}
       targetId={notes.targetId}
+      onSelect={notes.open}
       onClose={notes.close}
       onAdd={notes.add}
       onUpdate={notes.update}

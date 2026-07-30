@@ -1,6 +1,6 @@
-// input:  presentational notes button/card/pane and neutral NoteInfo fixtures
-// output: persistent entry and full action-surface render regressions
-// pos:    Tests desktop scheme 26a/26b notes views
+// input:  notes button/card/pane views and neutral NoteInfo fixtures
+// output: persistent entry and click-selected action regressions
+// pos:    Tests desktop project notes views
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -42,7 +42,31 @@ it('renders the Overview quick-add card at zero notes', () => {
   expect(html).toContain('context/NOTES.md');
 });
 
-it('renders active and completed sections with every desktop note action', () => {
+it('keeps desktop rows compact until a note is selected', () => {
+  const vm = buildNotesVm([note('active')], Date.now(), 'en');
+  const html = renderToStaticMarkup(
+    <NotesPaneView
+      vm={vm}
+      copy={NOTES_COPY.en}
+      busy={false}
+      targetId={null}
+      onSelect={noop}
+      onClose={noop}
+      onAdd={async () => {}}
+      onUpdate={async () => {}}
+      onSetCompleted={async () => {}}
+      onDelete={async () => {}}
+      onHandoff={noop}
+      onClearCompleted={async () => {}}
+    />,
+  );
+  expect(html).not.toContain('data-note-actions="active"');
+  expect(html).not.toContain('Hand to agent');
+  expect(html).not.toContain('Edit');
+  expect(html).not.toContain('Delete');
+});
+
+it('renders active and completed sections with selected note actions', () => {
   const vm = buildNotesVm([note('active'), note('done', true)], Date.now(), 'en');
   const html = renderToStaticMarkup(
     <NotesPaneView
@@ -50,6 +74,7 @@ it('renders active and completed sections with every desktop note action', () =>
       copy={NOTES_COPY.en}
       busy={false}
       targetId="active"
+      onSelect={noop}
       onClose={noop}
       onAdd={async () => {}}
       onUpdate={async () => {}}
@@ -61,6 +86,7 @@ it('renders active and completed sections with every desktop note action', () =>
   );
   expect(html).toContain('data-notes-pane');
   expect(html).toContain('data-note-target="active"');
+  expect(html).toContain('data-note-actions="active"');
   expect(html).toContain('Hand to agent');
   expect(html).toContain('Edit');
   expect(html).toContain('Delete');

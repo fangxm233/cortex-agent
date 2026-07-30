@@ -50,14 +50,14 @@ The view models are framework-free record to slot mappings and each one has a co
 | m-issues-vm.ts | vm | Maps issue records to cards with body fields |
 | m-issues-vm.test.ts | test | Unit tests for the issues view model |
 | MNotesScreen.tsx | screen | Binds private note queries and mutations |
-| MNotesView.tsx | view | Lists notes with gestures and fixed input |
-| MNotesView.test.tsx | test | Tests full-page notes presentation |
+| MNotesView.tsx | view | Lists tappable notes with swipe delete and input |
+| MNotesView.test.tsx | test | Tests tap, swipe and full-page presentation |
 | MNotesProjectCard.tsx | view | Adds and previews notes on Projects |
 | MNotesProjectCard.test.tsx | test | Tests the persistent zero-count entry |
 | m-notes-vm.ts | vm | Groups notes and limits card previews |
 | m-notes-vm.test.ts | test | Tests mobile note counts and groups |
-| m-notes-gestures.ts | util | Resolves long-press and swipe actions |
-| m-notes-gestures.test.ts | test | Tests note gesture thresholds |
+| m-notes-gestures.ts | util | Resolves swipe and post-drag click suppression |
+| m-notes-gestures.test.ts | test | Tests tap and swipe gesture thresholds |
 | MMemoryScreen.tsx | screen | Binds the memory tree and accordion state |
 | MMemoryView.tsx | view | Core files and directory accordions |
 | m-memory-vm.ts | vm | Maps the memory tree to rows and cards |
