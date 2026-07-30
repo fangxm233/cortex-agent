@@ -1,5 +1,5 @@
-// input:  NoteInfo records, current time and language
-// output: grouped note rows, summaries and shortcut predicates
+// input:  NoteInfo records, current time, device timezone and language
+// output: grouped note rows, local time labels and shortcuts
 // pos:    Shared pure view model for project notes
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -30,11 +30,23 @@ function relativeDayLabel(days: number, lang: 'en' | 'zh'): string {
   return lang === 'zh' ? `${Math.max(2, days)} 天前` : `${Math.max(2, days)}d`;
 }
 
+function isSameLocalDay(left: Date, right: Date): boolean {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
+function localClockLabel(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 export function formatNoteTime(iso: string, now: number, lang: 'en' | 'zh'): string {
   const timestamp = Date.parse(iso);
   if (Number.isNaN(timestamp)) return '—';
-  const nowIso = new Date(now).toISOString();
-  if (iso.slice(0, 10) === nowIso.slice(0, 10)) return iso.slice(11, 16);
+  const created = new Date(timestamp);
+  if (isSameLocalDay(created, new Date(now))) return localClockLabel(created);
   const days = Math.max(1, Math.floor((now - timestamp) / 86_400_000));
   return relativeDayLabel(days, lang);
 }

@@ -55,7 +55,7 @@ The view models are framework-free record to slot mappings and each one has a co
 | MNotesProjectCard.tsx | view | Adds and previews notes on Projects |
 | MNotesProjectCard.test.tsx | test | Tests the persistent zero-count entry |
 | m-notes-vm.ts | vm | Groups notes and limits card previews |
-| m-notes-vm.test.ts | test | Tests mobile note counts and groups |
+| m-notes-vm.test.ts | test | Tests note counts, groups and local time |
 | m-notes-gestures.ts | util | Resolves swipe and post-drag click suppression |
 | m-notes-gestures.test.ts | test | Tests tap and swipe gesture thresholds |
 | MMemoryScreen.tsx | screen | Binds the memory tree and accordion state |
