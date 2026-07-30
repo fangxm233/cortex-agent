@@ -73,7 +73,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | lang-command.test.ts | test | language switch command and persistence |
 | machines-query.test.ts | test | machines list online/offline projection |
 | manager-qa.test.ts | test | manager ask/answer channel resolution |
-| manager-rotation.test.ts | test | live rotation threshold and rehydration |
+| manager-rotation.test.ts | test | live settings and task-artifact rehydration |
 | manager-task-artifact.test.ts | test | task-keyed manager artifact placement |
 | memory-index-regen.test.ts | test | memory index rebuild lifecycle sections |
 | message-router.test.ts | test | message routing branches and edit handoff |

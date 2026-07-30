@@ -14,7 +14,11 @@ import { maybeRotateManager, notifyTaskParentThreads } from '../src/orchestratio
 import { recordDelivered, recordVerdict } from '../src/domain/tasks/acceptance-ledger.js';
 import type { ThreadRecord, ThreadStatus, AgentStep } from '../src/core/types/thread-types.js';
 
-const liveSettings = vi.hoisted(() => ({ managerRotateSteps: 5, waitingSweepMs: 60_000 }));
+const liveSettings = vi.hoisted(() => ({
+  managerRotateSteps: 5,
+  waitingSweepMs: 60_000,
+  taskArtifactTemplates: ['manager'],
+}));
 vi.mock('@core/settings.js', () => ({ getSettings: () => liveSettings }));
 
 const createdThreadIds = new Set<string>();
@@ -24,6 +28,7 @@ let seq = 0;
 beforeEach(() => {
   liveSettings.managerRotateSteps = 5;
   liveSettings.waitingSweepMs = 60_000;
+  liveSettings.taskArtifactTemplates = ['manager'];
 });
 
 afterAll(async () => {
