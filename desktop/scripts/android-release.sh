@@ -64,7 +64,7 @@ cd "$DESKTOP_DIR"
 GEN_APP="src-tauri/gen/android/app"
 
 echo "=== 1/5  build web SPA + stage connect.html ==="
-pnpm --filter web build
+pnpm --filter '@cortex-agent/web...' build
 npm run copy-connect
 
 if [ "$FORCE_INIT" = "1" ] || [ ! -d "src-tauri/gen/android" ]; then
