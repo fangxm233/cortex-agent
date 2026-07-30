@@ -19,7 +19,17 @@ Cortex 围绕长智能体运行的四种失败模式而设计：
 - **定时与间隔调度** —— 安排 Cortex 定期扫描、摘编或巡查。
 - **自我进化技能** —— 当 Cortex 发现自己重复做某事时，会起草新技能。
 - **跨机器统一代理** —— 通过 `cortex-client` 连接任意 Mac、Windows 或 Linux 机器。
-- **Slack 和 CLI 原生** —— 从手机上的 Slack 或笔记本电脑上的终端进行交互。
+- **Web、原生应用、聊天平台与终端访问** —— 浏览器工作台、Linux/macOS/Windows 桌面应用、Android 应用、Slack、飞书和 TUI 共用同一服务器。
+
+## Cortex 使用方式
+
+| 界面 | 适用场景 | 指南 |
+|---|---|---|
+| 浏览器工作台 | 无需安装客户端，从现有浏览器访问 | [浏览器访问](browser-access.md) |
+| 桌面应用 | Linux、macOS 或 Windows 原生工作台 | [桌面与 Android 应用](desktop-app.md) |
+| Android 应用 | 移动端会话、线程、任务、项目与审批 | [桌面与 Android 应用](desktop-app.md) |
+| Slack 或飞书 | 对话式操作与通知 | [快速入门](quickstart.md) |
+| TUI | 全屏终端操作 | [CLI 参考](cli-reference.md) |
 
 ## 快速开始
 
@@ -29,4 +39,4 @@ cortex init
 cortex daemon
 ```
 
-详细设置说明请参见 [快速开始](quickstart.md)，或浏览导航栏获取完整文档。
+服务器与聊天平台的详细设置见[快速入门](quickstart.md)。服务器启动后，可按[浏览器访问](browser-access.md)开放 Web 工作台，或按[桌面与 Android 应用](desktop-app.md)连接原生客户端。

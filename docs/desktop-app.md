@@ -1,279 +1,131 @@
-# Desktop App
+# Desktop and Android Apps
 
-The Cortex desktop app is a native window (built with [Tauri v2](https://tauri.app)) that
-wraps the Cortex web workbench. It connects directly to any running Cortex server using the
-HTTP tRPC transport with a `clientToken` — no local proxy or sidecar required.
+Cortex provides a Tauri v2 native shell for Linux, macOS, Windows, and Android. The desktop shell presents the three-pane workbench; Android presents a phone-specific four-tab interface. Both connect directly to a Cortex server over the Web UI HTTP transport and use the same projects, sessions, tasks, threads, approvals, files, and memory as the browser workbench.
+
+The native apps require a reachable Web UI endpoint and the server's `CORTEX_CLIENT_TOKEN`. Browser access uses a separate Cloudflare Access path described in [Browser Access](browser-access.md).
 
 ## Installation
 
-Download the latest release for your platform from the
-[GitHub Releases page](https://github.com/fangxm233/cortex-agent/releases).
+For server releases that include native packages, download the platform asset from the [GitHub Releases page](https://github.com/fangxm233/cortex-agent/releases). The release policy assigns the native UI exactly the same CalVer as the corresponding server release: `YYYY.M.D[-N]`. The version embedded in the app and shown in the asset name must match the `server-v<version>` tag.
 
-### Linux
+| Platform | Native release package | Installation |
+|---|---|---|
+| Linux x86_64 | AppImage, DEB, or RPM | Run the AppImage directly after `chmod +x`, or install the distribution package. |
+| Windows x86_64 | NSIS `setup.exe` | Run the installer and launch Cortex from the Start menu. |
+| macOS universal | Universal DMG for Intel and Apple Silicon | Open the DMG, then drag Cortex into Applications. |
+| Android arm64 | Signed APK | Open the APK and allow installation from the selected file source when Android asks. |
 
-**AppImage (any distribution):**
-
-```bash
-chmod +x Cortex_*.AppImage
-./Cortex_*.AppImage
-```
-
-**Debian / Ubuntu (.deb):**
-
-```bash
-sudo apt install ./Cortex_*_amd64.deb
-cortex-desktop          # or launch from your application menu
-```
-
-**System prerequisites (Ubuntu 22.04 +):**
+Linux AppImage builds require WebKitGTK and GTK at runtime. Ubuntu and Debian users can install the common runtime libraries with:
 
 ```bash
 sudo apt-get install libwebkit2gtk-4.1-0 libgtk-3-0
 ```
 
-Most Ubuntu/Debian desktops already have these. If the app fails to start with a missing-library
-error, install them with the command above.
+Windows 10 and 11 normally include WebView2. If Cortex reports that WebView2 is missing, install the Microsoft Evergreen WebView2 runtime before launching the app. Release installers without an Authenticode certificate may also trigger a Microsoft Defender SmartScreen warning; review the publisher and release checksum before choosing to run one.
 
-### macOS
+A macOS package without a Developer ID certificate is ad-hoc signed but not notarized. Gatekeeper may prevent the first normal double-click launch. Open Cortex once with Finder's **Open** action or approve it under **System Settings → Privacy & Security**. Ad-hoc signing verifies the bundle structure but does not establish a trusted publisher identity.
 
-Download `Cortex_*_x64.dmg` (Intel) or `Cortex_*_aarch64.dmg` (Apple Silicon).
+The Android APK is intended for arm64 devices and is distributed outside the Play Store. Android therefore asks for permission to install from the browser or file manager used to open it.
 
-1. Open the `.dmg` file.
-2. Drag **Cortex** to your **Applications** folder.
-3. Open **Cortex** from Applications or Spotlight.
+## Server configuration
 
-On first launch macOS may warn "Apple cannot verify this developer." Click **Open Anyway** in
-**System Settings → Privacy & Security**.
-
-### Windows
-
-Download `Cortex_*_x64-setup.exe`. Run the installer and follow the prompts.
-Cortex appears in the Start menu after installation.
-
-**WebView2 requirement:** Windows 10 / 11 normally includes the WebView2 runtime. If the app
-fails to launch with a WebView2 error, download the Evergreen bootstrapper from
-[Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/).
-
-## Prerequisites on the server side
-
-The desktop app talks to the Cortex server's **Web UI HTTP endpoint** over HTTP or HTTPS.
-This endpoint is **opt-in** — you must enable it before the desktop can connect.
-
-The endpoint is served by the server's **in-core** Web UI transport, which it loads on demand only
-when `CORTEX_UI_HTTP` is set (it carries `@trpc/server` + `jose` and the SPA host — runtime-lazy, so
-they never load for a Slack/TUI-only server). Enabling it is the same one-line flag as before —
-**nothing changes for the desktop app**, which still authenticates with a bearer `clientToken`. The
-same endpoint also powers the browser workbench; see [Browser Access & Deployment](browser-access.md).
-
-Add the following to `~/.cortex/config/.env` on the machine running the Cortex server:
+The native shell talks to the server's opt-in Web UI endpoint. Add or confirm these settings in `$CORTEX_HOME/config/.env` on the server:
 
 ```bash
-CORTEX_UI_HTTP=1          # enables the tRPC HTTP + SSE endpoint
-CORTEX_UI_PORT=3004       # optional; defaults to 3004
+CORTEX_UI_HTTP=1
+CORTEX_UI_PORT=3004
+CORTEX_UI_CORS_ORIGINS=cortexui://localhost,http://cortexui.localhost,tauri://localhost,http://tauri.localhost
 ```
 
-Then restart the Cortex daemon:
+`cortex init` generates `CORTEX_CLIENT_TOKEN` in the same file. The native app uses that exact value; `CORTEX_TOKEN` is not the server-side client-token setting. Retrieve the configured token with:
 
 ```bash
-cortex daemon   # or systemctl --user restart cortex (if you registered a system service)
+grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
 ```
 
-If you expose the endpoint through a tunnel (recommended for remote access), point the tunnel
-at the port above and use the resulting HTTPS URL when connecting from the desktop app.
+Restart the daemon after changing the endpoint or CORS configuration. A native app connects to an HTTP or HTTPS URL that reaches this endpoint. When the endpoint is exposed through a tunnel, use a hostname that accepts the Cortex token directly rather than one that requires an interactive browser SSO page.
 
-## First-run: connecting to your server
+Current builds serve the shell through the `cortexui` custom protocol, which appears as `cortexui://localhost` or `http://cortexui.localhost` depending on the WebView platform. The two `tauri` origins keep older native builds connectable. The server returns CORS headers only for origins explicitly listed in `CORTEX_UI_CORS_ORIGINS`.
 
-The first time you launch Cortex desktop, the **connection screen** appears:
+## First connection
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  cortex-desktop                                         │
-│                                                         │
-│  server url                                             │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │  https://cortex.example.com                      │   │
-│  └──────────────────────────────────────────────────┘   │
-│                                                         │
-│  client token                                           │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │  ••••••••••••••••••                              │   │
-│  └──────────────────────────────────────────────────┘   │
-│                                                         │
-│           [test connection]   [connect →]               │
-└─────────────────────────────────────────────────────────┘
-```
+Open Cortex and enter the server URL, including `https://` or `http://`, together with `CORTEX_CLIENT_TOKEN`. The connection test distinguishes an unreachable endpoint from an unauthorized token. A successful connection opens the workbench and stores the credentials for later launches.
 
-### Step 1 — Enter the Server URL
+Linux, macOS, and Windows store the connection JSON in the operating-system keychain: Secret Service, Keychain, or Windows Credential Manager. Android stores it in the app's private data directory because the desktop keychain library has no Android backend. Disconnecting clears the platform store and returns to the connection screen.
 
-Enter the HTTP/HTTPS URL where your Cortex Web UI endpoint is reachable, for example:
+## Desktop workbench
 
-- Same machine, no tunnel: `http://localhost:3004`
-- Remote server via Cloudflare tunnel: `https://cortex-ui.your-domain.com`
+The desktop app uses the same three-pane workbench as the browser. The left rail lists projects and project-scoped sessions and links to the selected project's Overview. The center pane contains chat, streamed agent output, tool activity, attachments, question cards, and plan approvals. The right pane switches among Threads, Tasks, and Machines, shows today's project cost, and can be replaced by the private Notes pane.
 
-### Step 2 — Enter the Client Token
+Thread cards open a modal with the live pipeline, individual steps, nested threads, and the persisted artifact. Execution rows open a drawer with live logs and cancellation controls. `⌘K` on macOS or `Ctrl+K` on Linux and Windows opens the command palette.
 
-The client token is the shared secret your server uses to authenticate Cortex clients
-(the same token in `~/.cortex/config/.env` as `CORTEX_TOKEN`). You can retrieve it with:
+To change servers, open the daemon or connectivity status, choose **Disconnect**, and enter the new endpoint and token on the connection screen.
 
-```bash
-grep CORTEX_TOKEN ~/.cortex/config/.env
-```
+## Android interface
 
-### Step 3 — Test the connection
+Android uses four bottom tabs: Sessions, Threads, Tasks, and Project. Session chat, plan review, thread details, task details, approvals, issues, notes, memory files, machines, settings, hooks, and daemon status open as drill-in screens. The Android back action closes overlays first, then returns through the app's navigation stack.
 
-Click **test connection**. The app sends a lightweight probe to `<serverUrl>/trpc` with the
-token header.
+Native notifications report completed turns and can return to the related session. Files downloaded by Cortex are handed to Android's `DownloadManager`, which writes them to the public Downloads collection and shows the system completion notification.
 
-- **Connected** (green) — server is reachable and the token is valid.
-- **Unauthorized** (amber) — server is reachable but the token is wrong.
-- **Network error** (red) — the URL is unreachable (server down, tunnel not running, wrong URL).
+## Files and downloads
 
-### Step 4 — Connect
-
-Click **connect →**. The app:
-
-1. Saves the credentials to your OS keychain (macOS Keychain, Windows Credential Manager,
-   or Linux SecretService / GNOME Keyring).
-2. Opens the workbench.
-
-On all **subsequent launches**, Cortex reads the stored credentials and goes directly to the
-workbench — the connection screen is skipped.
-
-## Usage
-
-Once connected, you have access to the full Cortex workbench:
-
-### Main workbench
-
-The workbench is a three-panel layout:
-
-| Panel | Contents |
+| Surface | Download behavior |
 |---|---|
-| Left rail | Project/session navigator. Switch projects and session archives. |
-| Center | Conversation: thread steps, tool calls, assistant output, approval prompts. |
-| Right panel | Active threads/tasks/machines; cost bar; step-detail tree. |
+| Browser | Uses the browser's normal download manager. |
+| Linux, macOS, Windows | Uses the operating system Downloads directory when available, falls back to app-local downloads, and offers **Open file** and **Open folder** actions after completion. |
+| Android | Uses the system DownloadManager and public Downloads collection. |
 
-### Thread detail
+The workbench previews images and videos, pages through PDFs, and displays text files without requiring a separate download. Desktop users can pin a preview beside chat while continuing the conversation.
 
-Click any thread card in the right panel to open the **thread detail view** — a full step-by-step
-trace of the agent's plan, execution, and sub-dispatches, with per-step timing and cost.
+## Versions and frontend updates
 
-### ⌘K / Ctrl+K — Command palette
-
-Press `⌘K` (macOS) or `Ctrl+K` (Windows/Linux) to open the command palette. Type to filter
-across sessions, threads, and tasks. Press Enter to navigate; Escape to close.
-
-### Execution log drawer
-
-Click a running execution pill in the right panel or thread detail to open the **execution log
-drawer** — a live-streaming view of the execution's stdout/stderr. Logs stream in real time via
-SSE. A **Kill** button cancels the execution.
-
-### Project and archive switcher
-
-The left rail shows the current project. Click the project name to open the **project switcher**
-and pick a different project. Click the session archive icon to switch to historical archive view.
-
-### Task popup
-
-Click any task row in the right panel or command palette to open the **task popup**, showing the
-task's full description, `done-when` criteria, status, and dependency chain.
-
-### Overview
-
-The **Overview** tab in the right panel shows system-wide cost, scheduled tasks, recent
-executions, and throughput charts.
-
-## Switching to a different server
-
-A **Switch** button appears in the bottom-right corner of the workbench window when you move the
-mouse. Clicking it:
-
-1. Clears the stored credentials from the OS keychain.
-2. Returns to the connection screen.
-
-You can then enter a different server URL and token.
+A tagged native release uses the same version as `@cortex-agent/server`. This shared CalVer identifies the server release and all native packages built from its tagged commit.
 
 ## Updates
 
-The app keeps itself up to date through two channels, both driven by the server it is
-connected to. You never need to check for new versions manually.
+The app uses two update channels, both coordinated by the connected server.
 
-**Frontend (silent).** After launch, the app compares its bundled web UI against the one the
-server serves. When the server has a newer UI, the app downloads it in the background, verifies
-it, and stages it for the next launch — a small "restart to update" prompt appears when it is
-ready. This covers most releases: anything that only changes the UI arrives this way, with no
-reinstall.
+### Frontend workbench
 
-**App shell (one prompt per release).** Some releases also ship new native app packages,
-attached to the GitHub release. The server advertises the newest package set that matches its
-own version — the app is never offered a version newer than the server it talks to, so the two
-stay in step and a release means at most one update prompt per device. The app downloads the
-package for its platform in the background, verifies its SHA-256 against the GitHub-published
-digest, and then shows a dialog with three choices: install, skip this version, or later.
+After launch, the shell compares its installed SPA with the content-addressed frontend bundle served by the server. It downloads a newer bundle in the background, verifies its SHA-256 digest, stages it, and prompts when a restart can apply it. This channel updates the Web workbench without replacing the native executable or APK.
 
-What "install" does depends on the platform:
+### Native app shell
 
-- **Linux (AppImage)** — the app replaces its own file (keeping the previous one as `.old`
-  beside it) and restarts. Fully automatic.
-- **Windows** — the app exits and launches the downloaded installer; step through it and
-  reopen Cortex.
-- **macOS** — the disk image is saved to Downloads and opened; drag Cortex into Applications
-  to finish.
-- **Linux (deb/rpm)** — the package is saved to Downloads and opened with the system package
-  installer.
-- **Android** — the system package installer opens over the verified APK; confirm to upgrade.
-  On first use Android asks you to allow installs from Cortex.
+A server release can also carry native packages as GitHub Release assets. The server advertises the newest installable release that is not newer than its own version. The shell selects the asset matching its operating system, architecture, and package kind, downloads it directly from GitHub without forwarding the Cortex token, and verifies the GitHub-provided SHA-256 digest before offering it. The update dialog supports installing now, skipping that version, or postponing the decision.
 
-Running threads live on the server, so restarting or reinstalling the app never interrupts
-them. Development runs — a shell serving the SPA from a local directory via
-`CORTEX_FRONTEND_DIR` — never check for shell updates. Setting
-`CORTEX_APP_UPDATE_DISABLE=1` in the app's environment turns the check off entirely.
+| Platform | Native update behavior |
+|---|---|
+| Linux AppImage | Replaces the running AppImage in place, retains one `.old` backup, relaunches, and exits the old process. |
+| Linux DEB or RPM | Copies the verified package to Downloads and opens the system package installer. |
+| Windows | Launches the verified NSIS installer and exits so the installer can replace the app. |
+| macOS | Copies the verified DMG to Downloads and opens it; installation finishes by dragging Cortex into Applications. |
+| Android | Opens the system package installer over the verified APK; Android requests install-source permission when required. |
 
-## How the connection works
-
-The desktop app bypasses the browser's same-origin restriction by using:
-
-- **tRPC HTTP batch** over `POST <serverUrl>/trpc` for all queries and mutations.
-  Every request carries the `x-cortex-token` header.
-- **SSE subscriptions** via an EventSource ponyfill (fetch-based) that can set custom request
-  headers. Real-time thread and execution updates arrive without polling.
-
-This architecture means the desktop app can connect to any Cortex server on any machine — local
-or remote — as long as the Web UI endpoint is reachable.
+Running threads execute on the server, so restarting or reinstalling a client does not stop them. Native shell update checks are disabled when `CORTEX_FRONTEND_DIR` marks a development run, when the installed app does not carry a CalVer release version, or when `CORTEX_APP_UPDATE_DISABLE=1` is set.
 
 ## Troubleshooting
 
-**"Unauthorized" on test connection**
+### Unauthorized
 
-The client token is wrong. Check `CORTEX_TOKEN` in `~/.cortex/config/.env` on the server.
+Confirm that the app contains the value of `CORTEX_CLIENT_TOKEN`, not the webhook token or a legacy variable. Re-enter the token after using Disconnect if the server token changed.
 
-**"Network error" on test connection**
+### Network error
 
-1. Confirm the server is running: `cortex daemon` (or check `systemctl --user status cortex`).
-2. Confirm `CORTEX_UI_HTTP=1` is set in the server's `.env` and the server was restarted after
-   adding it.
-3. Check that the URL is reachable: `curl <serverUrl>/trpc` should return a tRPC error (not
-   a connection-refused error).
-4. If using a tunnel, confirm the tunnel is up and the route points to the correct port.
+Confirm that the daemon is running, `CORTEX_UI_HTTP=1` is loaded, the URL reaches the configured port, and the tunnel is active. A successful page load with failed API calls usually indicates a token or CORS problem. Confirm that the current `cortexui` origins are present in `CORTEX_UI_CORS_ORIGINS`; retain the `tauri` origins when older app builds also connect to the server.
 
-**Credentials lost on restart (Linux headless servers)**
+### Credentials do not persist on Linux
 
-On headless Linux servers without a SecretService daemon (e.g., servers without GNOME Keyring
-running), the OS keychain is unavailable. Credentials survive for the current session only
-(stored in process memory) and are lost when the app exits.
-
-To work around this, set environment variables before launching the app:
+A headless Linux environment may not provide a Secret Service daemon. In that case the keychain write fails and credentials last only for the current process. A local launch can seed the connection explicitly:
 
 ```bash
-CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN=<your-token> ./Cortex.AppImage
+CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN=<client-token> ./Cortex.AppImage
 ```
 
-These env vars seed the AppState at startup and bypass the keychain check.
+`CORTEX_TOKEN` in this launch command is a native-shell fallback variable; the server configuration remains `CORTEX_CLIENT_TOKEN`.
 
-**App window does not open (Wayland)**
+### App window does not open on Wayland
 
-Tauri v2 supports Wayland. If the window does not appear, try forcing X11 compatibility:
+Tauri supports Wayland, but a system-specific WebKitGTK issue may require X11 compatibility:
 
 ```bash
 GDK_BACKEND=x11 ./Cortex.AppImage

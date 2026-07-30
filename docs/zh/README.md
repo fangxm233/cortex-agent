@@ -1,6 +1,6 @@
 # Cortex — 自主项目负责人
 
-[English documentation](../README.md) | [文档](https://fangxm233.github.io/cortex-agent/)
+[English documentation](../../README.md) | [文档](https://fangxm233.github.io/cortex-agent/)
 
 Cortex 是一个面向长期项目的自主智能体系统。你给它一个带有成功标准的使命，它会规划工作、调度智能体管道来执行、在你的仓库中保留结构化的进度日志，并在每次提交前自我审查——跨越数天或数周的无人值守工作。
 
@@ -32,7 +32,7 @@ Cortex 围绕长智能体运行的四种失败模式而设计。
 
 - **后端无关** —— 当前运行在 Claude Code 或 PI 上，具有适配器抽象以支持额外的编程智能体。使用你已经付费的 LLM 订阅——无需额外的 API 密钥，无需第二份账单。
 
-- **原生 Slack 和 CLI** —— 从手机上的 Slack（交互式提示、线程、文件上传）或从笔记本电脑上的终端与 Cortex 对话。同一个智能体、同一个项目、同一个记忆。
+- **通过 Web、原生应用、聊天平台或终端使用 Cortex** —— 打开浏览器工作台，安装 Linux/macOS/Windows 桌面应用或 Android 应用，通过 Slack 或飞书发送消息，或使用 TUI。所有界面访问同一组项目、会话、任务和记忆。参见[浏览器访问](./browser-access.md)和[桌面与 Android 应用](./desktop-app.md)。
 
 ## 快速入门
 
@@ -49,7 +49,7 @@ cortex init
 cortex daemon
 ```
 
-一旦运行，从 Slack 向 Cortex 发送消息——它会读取你的项目上下文、规划工作并自动调度智能体。
+服务启动后，可以使用 Slack 或飞书、打开浏览器工作台，或连接原生应用。所有界面通过同一服务器读取项目上下文并调度工作。浏览器部署见[浏览器访问](./browser-access.md)，原生应用安装见[桌面与 Android 应用](./desktop-app.md)。
 
 详细的分步指南（涵盖设置向导提示、创建的文件说明以及如何发送第一条消息）见
 [quickstart.md](./quickstart.md)。
@@ -95,6 +95,8 @@ Cortex 按影响范围分类操作。系统在工具调用层强制执行这一�
 | 文档 | 内容 |
 |---|---|
 | [Quickstart](./quickstart.md) | 安装、初始化、5 分钟内发送第一条 Slack 消息 |
+| [桌面与 Android 应用](./desktop-app.md) | 原生应用安装、连接、下载与更新 |
+| [浏览器访问](./browser-access.md) | Web 工作台认证与部署 |
 | [Slack Setup](./slack-setup.md) | 应用创建、令牌收集、Socket Mode、作用域 |
 | [Configuration](./configuration.md) | 完整 `.env` 参考、`profiles.json`、文件布局、热重载 |
 | [CLI Reference](./cli-reference.md) | `cortex`、`cortex-task`、`cortex-run` — 每个子命令和标志 |
@@ -129,12 +131,16 @@ npm run build && npm start
 
 ### 架构
 
-Cortex 有三个主要包：
+Cortex 的核心 workspace 与 plugin 包如下：
 
-| 包 | npm | 角色 |
-|---------|-----|------|
-| `@cortex-agent/server` | `agent-server/` | 控制面 — Slack 机器人、任务分发、调度、线程编排 |
-| `@cortex-agent/client` | `client/` | 远程工作器 — 在远程机器上运行，通过 WebSocket 执行命令 |
+| 包 | 目录 | 角色 |
+|---------|------|------|
+| `@cortex-agent/server` | `agent-server/` | 控制面、聊天适配器、任务分发、调度与线程编排 |
+| `@cortex-agent/client` | `client/` | 通过客户端 WebSocket 执行工具的远程工作器 |
+| `@cortex-agent/web` | `web/` | 浏览器、桌面与移动端共用的工作台 SPA |
+| `@cortex-agent/desktop` | `desktop/` | 面向 Linux、macOS、Windows 与 Android 的 Tauri 壳 |
+| `@cortex-agent/ui-contract` | `packages/ui-contract/` | 服务器与工作台之间的共享类型契约 |
+| `@cortex-agent/deepseek-relay-worker` | `packages/deepseek-relay-worker/` | 用于 DeepSeek API 出站访问的鉴权 Cloudflare Worker |
 | Plugins | `plugins/` | 由线程智能体在运行时加载的角色限定技能 |
 
 服务器在六层（`src/`）中组织：core utilities → persistence → event bus → domain logic → orchestration → entry points。所有代码更改必须有测试覆盖。完整架构见 [architecture.md](./architecture.md)。

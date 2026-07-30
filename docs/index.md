@@ -19,7 +19,17 @@ Cortex is designed around four failure modes of long agent runs:
 - **Cron and interval scheduling** — schedule Cortex to scan, digest, or sweep on a recurring basis.
 - **Self-evolving skills** — Cortex drafts new skills when it catches itself repeating patterns.
 - **One agent across your machines** — connect any Mac, Windows, or Linux machine via `cortex-client`.
-- **Slack and CLI native** — interact from Slack on your phone or a terminal on your laptop.
+- **Web, native app, chat, and terminal access** — use the browser workbench, Linux/macOS/Windows desktop app, Android app, Slack, Feishu, or TUI against the same server.
+
+## Ways to use Cortex
+
+| Interface | Best for | Guide |
+|---|---|---|
+| Browser workbench | Access from an existing browser without installing a client | [Browser Access](browser-access.md) |
+| Desktop app | Native Linux, macOS, or Windows workbench | [Desktop and Android Apps](desktop-app.md) |
+| Android app | Mobile sessions, threads, tasks, projects, and approvals | [Desktop and Android Apps](desktop-app.md) |
+| Slack or Feishu | Chat-driven operation and notifications | [Quickstart](quickstart.md) |
+| TUI | Full-screen terminal operation | [CLI Reference](cli-reference.md) |
 
 ## Quickstart
 
@@ -29,4 +39,4 @@ cortex init
 cortex daemon
 ```
 
-See [Quickstart](quickstart.md) for detailed setup instructions, or browse the navigation for full documentation.
+See [Quickstart](quickstart.md) for detailed server and chat-platform setup. After the server is running, use [Browser Access](browser-access.md) to expose the Web workbench or [Desktop and Android Apps](desktop-app.md) to connect a native client.

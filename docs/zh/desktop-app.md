@@ -1,263 +1,131 @@
-# 桌面应用
+# 桌面与 Android 应用
 
-Cortex 桌面应用是一个原生窗口程序（基于 [Tauri v2](https://tauri.app) 构建），
-用于包装 Cortex 网页工作台。它通过 HTTP tRPC 传输和 `clientToken` 直连任何运行中的
-Cortex 服务器——无需本地代理或 sidecar 进程。
+Cortex 提供面向 Linux、macOS、Windows 与 Android 的 Tauri v2 原生壳。桌面端使用三栏工作台，Android 使用针对手机设计的四 Tab 界面。两者都通过 Web UI HTTP 传输直连 Cortex 服务器，并与浏览器工作台共享项目、会话、任务、线程、审批、文件和记忆。
+
+原生应用需要可访问的 Web UI 端点和服务器的 `CORTEX_CLIENT_TOKEN`。浏览器访问采用独立的 Cloudflare Access 路径，详见[浏览器访问](browser-access.md)。
 
 ## 安装
 
-从 [GitHub Releases 页面](https://github.com/fangxm233/cortex-agent/releases) 下载适合你平台的最新版本。
+对于包含原生安装包的 server release，可从 [GitHub Releases 页面](https://github.com/fangxm233/cortex-agent/releases)下载对应平台附件。Release policy 要求原生 UI 与对应 server release 使用完全相同的 CalVer，格式为 `YYYY.M.D[-N]`。应用内嵌版本和附件文件名中的版本必须与 `server-v<version>` tag 一致。
 
-### Linux
+| 平台 | 原生 release 安装包 | 安装方式 |
+|---|---|---|
+| Linux x86_64 | AppImage、DEB 或 RPM | 对 AppImage 执行 `chmod +x` 后直接运行，或安装对应发行版软件包。 |
+| Windows x86_64 | NSIS `setup.exe` | 运行安装程序，然后从开始菜单启动 Cortex。 |
+| macOS universal | 同时支持 Intel 与 Apple Silicon 的 universal DMG | 打开 DMG，将 Cortex 拖入“应用程序”。 |
+| Android arm64 | 已签名 APK | 打开 APK；Android 提示时，允许当前文件来源安装应用。 |
 
-**AppImage（适用于任何发行版）：**
-
-```bash
-chmod +x Cortex_*.AppImage
-./Cortex_*.AppImage
-```
-
-**Debian / Ubuntu (.deb)：**
-
-```bash
-sudo apt install ./Cortex_*_amd64.deb
-cortex-desktop          # 或从应用程序菜单启动
-```
-
-**系统前置依赖（Ubuntu 22.04+）：**
+Linux AppImage 运行时需要 WebKitGTK 与 GTK。Ubuntu 和 Debian 用户可安装常见运行库：
 
 ```bash
 sudo apt-get install libwebkit2gtk-4.1-0 libgtk-3-0
 ```
 
-大多数 Ubuntu/Debian 桌面系统已预装这些库。如果应用因缺少库而无法启动，
-请运行上述命令安装。
+Windows 10 和 11 通常已包含 WebView2。如果 Cortex 报告缺少 WebView2，请先安装 Microsoft Evergreen WebView2 runtime。没有 Authenticode 证书的 release installer 也可能触发 Microsoft Defender SmartScreen 警告；选择运行前应核对发布者与 release checksum。
 
-### macOS
+没有 Developer ID 证书的 macOS 安装包使用 ad-hoc 签名，但未经过 notarization。Gatekeeper 可能阻止首次普通双击启动。可在 Finder 中对 Cortex 使用一次**打开**操作，或在**系统设置 → 隐私与安全性**中批准。Ad-hoc 签名可校验 bundle 结构，但不提供受信任的发布者身份。
 
-下载 `Cortex_*_x64.dmg`（Intel）或 `Cortex_*_aarch64.dmg`（Apple Silicon）。
+Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。因此，Android 会要求允许用于打开 APK 的浏览器或文件管理器安装未知来源应用。
 
-1. 打开 `.dmg` 文件。
-2. 将 **Cortex** 拖入 **应用程序** 文件夹。
-3. 从应用程序或 Spotlight 打开 **Cortex**。
+## 服务器配置
 
-首次启动时 macOS 可能提示"Apple 无法验证此开发者"。在
-**系统设置 → 隐私与安全性** 中点击 **仍要打开**。
-
-### Windows
-
-下载 `Cortex_*_x64-setup.exe`，运行安装程序并按提示操作。
-安装完成后，Cortex 出现在开始菜单中。
-
-**WebView2 依赖：** Windows 10 / 11 通常已包含 WebView2 运行时。如果应用因 WebView2 错误
-无法启动，请从 [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/)
-下载常青版引导程序并安装。
-
-## 服务器端前置条件
-
-桌面应用通过 HTTP 或 HTTPS 与 Cortex 服务器的 **Web UI HTTP 端点** 通信。
-该端点是**可选启用**的——连接前必须先在服务器上启用它。
-
-该端点由服务器**内置**的 Web UI 传输层提供，核心服务器仅在设置了 `CORTEX_UI_HTTP` 时才按需
-加载它（它携带 `@trpc/server` + `jose` 与 SPA 托管——运行期惰性加载，因此仅 Slack/TUI 的
-服务器永不加载它们）。启用它与此前一样只需一行标志——**桌面应用不受任何影响**，它仍以
-Bearer `clientToken` 认证。同一端点也驱动浏览器工作台，见
-[浏览器访问与部署](browser-access.md)。
-
-在运行 Cortex 服务器的机器的 `~/.cortex/config/.env` 中添加以下内容：
+原生壳连接服务器上主动启用的 Web UI 端点。在服务器的 `$CORTEX_HOME/config/.env` 中添加或确认：
 
 ```bash
-CORTEX_UI_HTTP=1          # 启用 tRPC HTTP + SSE 端点
-CORTEX_UI_PORT=3004       # 可选，默认为 3004
+CORTEX_UI_HTTP=1
+CORTEX_UI_PORT=3004
+CORTEX_UI_CORS_ORIGINS=cortexui://localhost,http://cortexui.localhost,tauri://localhost,http://tauri.localhost
 ```
 
-然后重启 Cortex 守护进程：
+`cortex init` 会在同一文件中生成 `CORTEX_CLIENT_TOKEN`。原生应用使用这个值；`CORTEX_TOKEN` 不是服务器端客户端 token 的配置名。可用以下命令读取已配置的 token：
 
 ```bash
-cortex daemon   # 或 systemctl --user restart cortex（如果已注册系统服务）
+grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
 ```
 
-如果通过隧道暴露该端点（推荐用于远程访问），将隧道指向上述端口，
-在桌面应用中使用隧道的 HTTPS URL 进行连接。
+更改端点或 CORS 配置后重启 daemon。原生应用连接能够到达该端点的 HTTP 或 HTTPS URL。通过隧道暴露端点时，应使用可直接接受 Cortex token 的 hostname，而不是要求交互式浏览器 SSO 的地址。
 
-## 首次启动：连接到你的服务器
+当前构建通过 `cortexui` custom protocol 提供原生壳；根据 WebView 平台，origin 表现为 `cortexui://localhost` 或 `http://cortexui.localhost`。两个 `tauri` origin 用于保持旧版原生应用可连接。服务器只为 `CORTEX_UI_CORS_ORIGINS` 中明确列出的 origin 返回 CORS header。
 
-首次启动 Cortex 桌面应用时，会出现**连接配置界面**：
+## 首次连接
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  cortex-desktop                                         │
-│                                                         │
-│  server url                                             │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │  https://cortex.example.com                      │   │
-│  └──────────────────────────────────────────────────┘   │
-│                                                         │
-│  client token                                           │
-│  ┌──────────────────────────────────────────────────┐   │
-│  │  ••••••••••••••••••                              │   │
-│  └──────────────────────────────────────────────────┘   │
-│                                                         │
-│           [test connection]   [connect →]               │
-└─────────────────────────────────────────────────────────┘
-```
+打开 Cortex，输入包含 `https://` 或 `http://` 的服务器 URL，以及 `CORTEX_CLIENT_TOKEN`。连接测试会区分端点不可访问和 token 未授权。连接成功后，应用打开工作台并保存凭据，供后续启动使用。
 
-### 第一步 — 输入服务器 URL
+Linux、macOS 与 Windows 将连接 JSON 保存到操作系统密钥链，即 Secret Service、钥匙串或 Windows 凭据管理器。Android 将其保存到应用私有数据目录，因为桌面 keychain 库没有 Android backend。执行 Disconnect 会清除相应平台存储并返回连接界面。
 
-输入 Cortex Web UI 端点可访问的 HTTP/HTTPS URL，例如：
+## 桌面工作台
 
-- 同一台机器，无隧道：`http://localhost:3004`
-- 通过 Cloudflare 隧道访问远程服务器：`https://cortex-ui.your-domain.com`
+桌面应用与浏览器使用同一个三栏工作台。左侧导航栏列出项目和项目范围内的会话，并提供当前项目的 Overview 入口。中间区域包含对话、流式智能体输出、工具活动、附件、问题卡片与计划审批。右侧面板可在 Threads、Tasks 与 Machines 之间切换，显示当天项目费用，也可由私人 Notes 面板替代。
 
-### 第二步 — 输入客户端令牌
+线程卡片会打开 modal，显示实时 pipeline、各步骤、嵌套线程与持久化 artifact。执行条目会打开带实时日志和取消控制的 drawer。在 macOS 上按 `⌘K`，或在 Linux 与 Windows 上按 `Ctrl+K`，可打开命令面板。
 
-客户端令牌是服务器用于验证 Cortex 客户端的共享密钥（与 `~/.cortex/config/.env` 中
-`CORTEX_TOKEN` 的值相同）。可以通过以下命令获取：
+如需切换服务器，打开 daemon 或连接状态，选择 **Disconnect**，然后在连接界面输入新的端点和 token。
 
-```bash
-grep CORTEX_TOKEN ~/.cortex/config/.env
-```
+## Android 界面
 
-### 第三步 — 测试连接
+Android 使用四个底部 Tab：Sessions、Threads、Tasks 与 Project。会话聊天、计划阅读、线程详情、任务详情、审批、问题、笔记、记忆文件、机器、设置、hooks 与 daemon 状态以 drill-in 页面打开。Android 返回操作会先关闭 overlay，再沿应用导航栈返回。
 
-点击 **test connection**。应用会向 `<serverUrl>/trpc` 发送一个携带令牌头的轻量探测请求。
+原生通知会报告已完成的 turn，并可返回相关会话。Cortex 下载的文件会交给 Android `DownloadManager`，写入公共 Downloads collection，并显示系统完成通知。
 
-- **Connected**（绿色）—— 服务器可达且令牌有效。
-- **Unauthorized**（橙色）—— 服务器可达但令牌错误。
-- **Network error**（红色）—— URL 不可达（服务器未运行、隧道未启动或 URL 错误）。
+## 文件与下载
 
-### 第四步 — 连接
-
-点击 **connect →**。应用将：
-
-1. 把凭据保存到操作系统密钥链（macOS 钥匙串、Windows 凭据管理器或
-   Linux SecretService / GNOME 密钥环）。
-2. 打开工作台。
-
-之后每次启动时，Cortex 都会读取存储的凭据并直接打开工作台，跳过连接配置界面。
-
-## 使用说明
-
-连接成功后，你可以使用完整的 Cortex 工作台。
-
-### 主工作台
-
-工作台采用三栏布局：
-
-| 栏位 | 内容 |
+| 界面 | 下载行为 |
 |---|---|
-| 左侧导航栏 | 项目/会话导航器，可切换项目和会话存档。 |
-| 中央区域 | 对话内容：线程步骤、工具调用、助手输出、审批提示。 |
-| 右侧面板 | 活跃线程/任务/机器；成本条；步骤详情树。 |
+| 浏览器 | 使用浏览器自带的下载管理器。 |
+| Linux、macOS、Windows | 优先使用操作系统 Downloads 目录，不可用时回退到应用本地 downloads，并在完成后提供 **Open file** 与 **Open folder** 操作。 |
+| Android | 使用系统 DownloadManager 与公共 Downloads collection。 |
 
-### 线程详情
+工作台可直接预览图片与视频、分页查看 PDF，并显示文本文件，无需先用其他程序打开。桌面用户还可以将预览固定在聊天旁边，继续对话。
 
-点击右侧面板中的任意线程卡片，打开**线程详情视图**——包含智能体规划、执行过程和
-子派发链的完整逐步追踪，以及每步的耗时和成本。
+## 版本与前端更新
 
-### ⌘K / Ctrl+K — 命令面板
-
-按 `⌘K`（macOS）或 `Ctrl+K`（Windows/Linux）打开命令面板。输入文字可在会话、线程和
-任务中快速过滤。按 Enter 跳转，按 Escape 关闭。
-
-### 执行日志抽屉
-
-在右侧面板或线程详情中点击运行中的执行条目，打开**执行日志抽屉**——
-实时流式显示执行过程的标准输出/标准错误。日志通过 SSE 实时推送，
-**Kill** 按钮可取消执行。
-
-### 项目与存档切换器
-
-左侧导航栏显示当前项目。点击项目名称打开**项目切换器**，选择其他项目。
-点击存档图标可切换到历史存档视图。
-
-### 任务弹窗
-
-点击右侧面板或命令面板中的任意任务行，打开**任务弹窗**，显示任务的完整描述、
-`done-when` 完成条件、当前状态和依赖链。
-
-### 概览
-
-右侧面板的 **Overview** 标签页显示全系统的成本、定时任务、近期执行记录和吞吐量图表。
-
-## 切换到其他服务器
-
-在工作台窗口中移动鼠标时，右下角会出现 **Switch** 按钮。点击后：
-
-1. 从操作系统密钥链中清除已存储的凭据。
-2. 返回连接配置界面。
-
-然后可以输入新的服务器 URL 和令牌。
+带 tag 的原生 release 与 `@cortex-agent/server` 使用同一版本。这个共享 CalVer 标识 server release，以及从该 tag commit 构建的全部原生安装包。
 
 ## 更新
 
-应用通过两条通道保持最新，两条都由所连接的服务器驱动，无需手动检查新版本。
+应用使用两条更新通道，两者都由所连接的服务器协调。
 
-**前端（静默）。** 启动后，应用会将自带的 Web UI 与服务器提供的版本对比。当服务器有更新的
-UI 时，应用在后台下载、校验并暂存到下次启动生效——就绪后会出现一个"重启更新"的小提示。
-大多数发布都走这条通道：只改 UI 的版本以这种方式到达，无需重装。
+### 前端工作台
 
-**原生壳（每次发布最多一次提示）。** 部分发布还会附带新的原生安装包（挂在 GitHub release
-上）。服务器只会通告与自身版本匹配的最新安装包——应用永远不会被推送比所连服务器更新的
-版本，因此两端始终保持同步，一次发布在每台设备上最多产生一次更新提示。应用会在后台下载
-对应平台的安装包，用 GitHub 发布的 SHA-256 摘要校验，然后弹出对话框，提供三个选择：
-立即更新、跳过此版本、稍后。
+启动后，原生壳会比较本地 SPA 与服务器提供的 content-addressed frontend bundle。发现新 bundle 后，应用在后台下载、校验 SHA-256 digest、完成 staging，并在可通过重启应用时提示。这条通道更新 Web 工作台，不会替换原生 executable 或 APK。
 
-"立即更新"在各平台的行为：
+### 原生应用壳
 
-- **Linux（AppImage）** —— 应用原地替换自身文件（旧版保留为旁边的 `.old`）并重启，全自动。
-- **Windows** —— 应用退出并启动下载好的安装程序，按提示完成后重新打开 Cortex。
-- **macOS** —— 磁盘映像保存到"下载"并自动打开，把 Cortex 拖入 Applications 即完成。
-- **Linux（deb/rpm）** —— 安装包保存到"下载"并用系统安装器打开。
-- **Android** —— 系统安装器在校验过的 APK 上弹出，确认即升级。首次使用时 Android 会
-  请求允许来自 Cortex 的安装。
+Server release 也可以在 GitHub Release 中携带原生安装包。服务器只会通告不高于自身版本的最新可安装 release。原生壳按操作系统、架构与 package kind 选择附件，直接从 GitHub 下载且不会转发 Cortex token，并在提供安装选项前校验 GitHub 提供的 SHA-256 digest。更新对话框支持立即安装、跳过该版本或稍后处理。
 
-运行中的线程都在服务器上执行，重启或重装应用不会打断它们。开发模式（通过
-`CORTEX_FRONTEND_DIR` 从本地目录提供 SPA 的运行方式）不会检查壳更新。在应用环境中设置
-`CORTEX_APP_UPDATE_DISABLE=1` 可完全关闭检查。
+| 平台 | 原生更新行为 |
+|---|---|
+| Linux AppImage | 原地替换当前 AppImage，保留一份 `.old` 备份，重新启动后退出旧进程。 |
+| Linux DEB 或 RPM | 将已校验的软件包复制到 Downloads，并打开系统 package installer。 |
+| Windows | 启动已校验的 NSIS installer，然后退出，以便安装程序替换应用。 |
+| macOS | 将已校验的 DMG 复制到 Downloads 并打开；将 Cortex 拖入 Applications 后完成安装。 |
+| Android | 对已校验的 APK 打开系统 package installer；Android 会在需要时请求 install-source 权限。 |
 
-## 连接机制
-
-桌面应用通过以下方式绕过浏览器的同源限制：
-
-- **tRPC HTTP 批量请求**：通过 `POST <serverUrl>/trpc` 发送所有查询和变更，
-  每个请求携带 `x-cortex-token` 头。
-- **SSE 订阅**：使用支持自定义请求头的 EventSource 腻子脚本（fetch-based）。
-  线程和执行的实时更新无需轮询即可到达。
-
-这种架构使桌面应用可以连接到任意机器上的任意 Cortex 服务器——本地或远程——
-只要 Web UI 端点可访问即可。
+运行中的线程在服务器上执行，因此重启或重新安装客户端不会停止它们。设置了 `CORTEX_FRONTEND_DIR` 的开发运行、未携带 CalVer release version 的应用，或设置 `CORTEX_APP_UPDATE_DISABLE=1` 时，都不会检查原生壳更新。
 
 ## 故障排查
 
-**测试连接时显示"Unauthorized"**
+### Unauthorized
 
-客户端令牌错误。请检查服务器上 `~/.cortex/config/.env` 中的 `CORTEX_TOKEN`。
+确认应用中填写的是 `CORTEX_CLIENT_TOKEN`，而不是 webhook token 或旧变量。如果服务器 token 已改变，先使用 Disconnect，再重新输入。
 
-**测试连接时显示"Network error"**
+### Network error
 
-1. 确认服务器正在运行：`cortex daemon`（或检查 `systemctl --user status cortex`）。
-2. 确认服务器的 `.env` 中已设置 `CORTEX_UI_HTTP=1`，且添加后已重启服务器。
-3. 检查 URL 是否可访问：`curl <serverUrl>/trpc` 应返回 tRPC 错误（而非连接拒绝错误）。
-4. 如使用隧道，确认隧道正常运行且路由指向正确端口。
+确认 daemon 正在运行、`CORTEX_UI_HTTP=1` 已加载、URL 能访问配置端口，且隧道正在工作。页面可加载但 API 全部失败时，通常是 token 或 CORS 问题。确认 `CORTEX_UI_CORS_ORIGINS` 包含当前的 `cortexui` origins；如果还有旧版应用连接服务器，请保留 `tauri` origins。
 
-**重启后凭据丢失（Linux 无头服务器）**
+### Linux 上凭据无法持久化
 
-在没有 SecretService 守护进程的 Linux 无头服务器上（例如未运行 GNOME 密钥环的服务器），
-操作系统密钥链不可用。凭据仅在当前会话中保留（存储在进程内存中），
-应用退出后即丢失。
-
-解决方案：在启动应用前设置环境变量：
+无头 Linux 环境可能没有 Secret Service daemon。此时 keychain 写入失败，凭据只能保留到当前进程结束。可在本地启动时显式注入连接信息：
 
 ```bash
-CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN=<your-token> ./Cortex.AppImage
+CORTEX_SERVER_URL=http://localhost:3004 CORTEX_TOKEN=<client-token> ./Cortex.AppImage
 ```
 
-这些环境变量会在启动时初始化 AppState，跳过密钥链检查。
+此启动命令中的 `CORTEX_TOKEN` 是原生壳的 fallback 变量；服务器配置仍使用 `CORTEX_CLIENT_TOKEN`。
 
-**Wayland 下应用窗口不显示**
+### Wayland 下应用窗口不显示
 
-Tauri v2 支持 Wayland。如果窗口未出现，可尝试强制使用 X11 兼容模式：
+Tauri 支持 Wayland，但具体系统的 WebKitGTK 问题可能需要使用 X11 compatibility：
 
 ```bash
 GDK_BACKEND=x11 ./Cortex.AppImage
