@@ -34,18 +34,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { writeFile, readFile, mkdir } from 'fs/promises';
 import { CONFIG_DIR } from '@core/utils.js';
+import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
 
 const log = createLogger('slack');
 
-/** Reaction reasons already reported; markers fire per message so the warn must not repeat. */
-const warnedReactionFailures = new Set<string>();
-
-/** True the first time a given reaction-failure reason is seen in this process. */
-export function shouldWarnReactionFailure(reason: string, seen = warnedReactionFailures): boolean {
-  if (seen.has(reason)) return false;
-  seen.add(reason);
-  return true;
-}
+/** Waiting behind other work. */
+const QUEUED_REACTION = 'hourglass';
+/** Picked up by the agent — the ⏳ is replaced by this once the message is consumed. */
+const CONSUMED_REACTION = 'white_check_mark';
 
 const IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 const IMAGE_MAGIC: Record<string, string> = {
@@ -515,32 +511,43 @@ export class SlackAdapter implements PlatformAdapter {
 
   // --- Queue backpressure ---
 
-  private async _setHourglassReaction(ref: MessageRef, add: boolean): Promise<void> {
+  private async _setReaction(ref: MessageRef, name: string, add: boolean): Promise<void> {
     const channel = this._unwrap(ref.conduit);
     const method = add ? 'reactions.add' : 'reactions.remove';
-    const payload = { channel, name: 'hourglass', timestamp: ref.messageId };
+    const payload = { channel, name, timestamp: ref.messageId };
     try {
       await this.rateLimitedCall(method, channel, () =>
         add ? this.client.reactions.add(payload) : this.client.reactions.remove(payload)
       );
-    } catch (e: any) {
-      // Every caller drops marker failures so a broken marker never breaks a turn, which is why a
-      // token missing reactions:write produced no ⏳ and no trace for months. Report it here, once
-      // per reason, then keep the caller contract unchanged.
-      const reason = String(e?.data?.error ?? e?.message ?? e);
+    } catch (e) {
+      // Callers drop marker failures so a broken marker never breaks a turn; report once per cause.
+      const reason = reactionFailureReason(e);
       if (shouldWarnReactionFailure(reason)) {
-        log.warn(`${method} failed (${reason}) — queue/pending ⏳ markers will not appear; check the bot token's reactions:write scope`);
+        log.warn(`${method} :${name}: failed (${reason}) — queue markers will not appear; check the bot token's reactions:write scope`);
       }
       throw e;
     }
   }
 
   async markQueued(ref: MessageRef): Promise<void> {
-    await this._setHourglassReaction(ref, true);
+    await this._setReaction(ref, QUEUED_REACTION, true);
   }
 
   async unmarkQueued(ref: MessageRef): Promise<void> {
-    await this._setHourglassReaction(ref, false);
+    // ⏳ → ✅. The two calls are independent: a stale or never-added hourglass must not cost the
+    // check, which is the part that tells the user their message was actually picked up.
+    let failure: unknown;
+    try {
+      await this._setReaction(ref, QUEUED_REACTION, false);
+    } catch (e) {
+      failure = e;
+    }
+    try {
+      await this._setReaction(ref, CONSUMED_REACTION, true);
+    } catch (e) {
+      failure ??= e;
+    }
+    if (failure !== undefined) throw failure;
   }
 
   // --- Files ---

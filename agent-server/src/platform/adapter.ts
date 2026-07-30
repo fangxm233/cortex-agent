@@ -50,7 +50,9 @@ export interface PlatformAdapter {
   openModal(triggerId: string, modal: ModalDefinition): Promise<void>;
 
   // --- Queue backpressure ---
+  /** Mark an inbound message as waiting behind work already in flight (⏳). */
   markQueued(ref: MessageRef): Promise<void>;
+  /** Retire that marker once the message has been consumed, leaving a ✅ in its place. */
   unmarkQueued(ref: MessageRef): Promise<void>;
 
   // --- Files ---

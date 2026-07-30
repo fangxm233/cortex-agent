@@ -31,8 +31,14 @@ import { STORE_DIR, CONFIG_DIR } from '@core/paths.js';
 import type { OutputStream, OpenOutputStreamOpts } from '../output-stream.js';
 import { FeishuOutputStream } from './feishu-output-stream.js';
 import { ProjectConduitsStore } from './project-conduits.js';
+import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
 
 const log = createLogger('feishu');
+
+/** Waiting behind other work. Feishu rejects `hourglass` with 231001; OnIt is the closest valid type. */
+const QUEUED_EMOJI = 'OnIt';
+/** Picked up by the agent — replaces the OnIt marker once the message is consumed. */
+const CONSUMED_EMOJI = 'CheckMark';
 
 export interface FeishuAdapterConfig {
   appId: string;
@@ -314,32 +320,50 @@ export class FeishuAdapter implements PlatformAdapter {
     return `${this._unwrap(ref.conduit)}:${ref.messageId}`;
   }
 
+  /** Best-effort by contract, but report each distinct cause once — a rejected emoji_type
+   *  (Feishu answers 231001) is otherwise indistinguishable from a marker that never ran. */
+  private _reportReactionFailure(op: string, emoji: string, error: unknown): void {
+    const reason = reactionFailureReason(error);
+    if (shouldWarnReactionFailure(reason)) {
+      log.warn(`messageReaction.${op} ${emoji} failed (${reason}) — queue markers will not appear`);
+    }
+  }
+
   async markQueued(ref: MessageRef): Promise<void> {
     try {
       const result = await this.client.im.v1.messageReaction.create({
         path: { message_id: ref.messageId },
-        // Feishu rejects `hourglass` with 231001; OnIt is the closest valid type.
-        data: { reaction_type: { emoji_type: 'OnIt' } },
+        data: { reaction_type: { emoji_type: QUEUED_EMOJI } },
       });
       const reactionId = result?.data?.reaction_id;
       if (reactionId) this.queuedReactionIds.set(this._reactionKey(ref), reactionId);
-    } catch {
-      // Best-effort: a reaction failure never blocks the agent turn.
+    } catch (e) {
+      this._reportReactionFailure('create', QUEUED_EMOJI, e);
     }
   }
 
   async unmarkQueued(ref: MessageRef): Promise<void> {
+    // OnIt → CheckMark. The removal is skipped when the original marker never landed, but the
+    // check is always attempted: it is the part that tells the user the message was picked up.
     const key = this._reactionKey(ref);
     const reactionId = this.queuedReactionIds.get(key);
-    if (!reactionId) return;
+    this.queuedReactionIds.delete(key);
+    if (reactionId) {
+      try {
+        await this.client.im.v1.messageReaction.delete({
+          path: { message_id: ref.messageId, reaction_id: reactionId },
+        });
+      } catch (e) {
+        this._reportReactionFailure('delete', QUEUED_EMOJI, e);
+      }
+    }
     try {
-      await this.client.im.v1.messageReaction.delete({
-        path: { message_id: ref.messageId, reaction_id: reactionId },
+      await this.client.im.v1.messageReaction.create({
+        path: { message_id: ref.messageId },
+        data: { reaction_type: { emoji_type: CONSUMED_EMOJI } },
       });
-    } catch {
-      // Best-effort: deletion failure never blocks the agent turn.
-    } finally {
-      this.queuedReactionIds.delete(key);
+    } catch (e) {
+      this._reportReactionFailure('create', CONSUMED_EMOJI, e);
     }
   }
 

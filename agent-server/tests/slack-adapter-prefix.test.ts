@@ -5,7 +5,8 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { SlackAdapter, shouldWarnReactionFailure } from '../src/platform/adapters/slack.js';
+import { SlackAdapter } from '../src/platform/adapters/slack.js';
+import { shouldWarnReactionFailure } from '../src/platform/utils/reaction-diagnostics.js';
 import type { ActionContext, MessageContext } from '../src/platform/types.js';
 
 /** Build a SlackAdapter without invoking the real constructor (no Bolt App). */
@@ -119,7 +120,7 @@ test('SlackAdapter.onAction: channelId, messageRef.conduit and triggerId are pre
 
 // ── queue marker lifecycle uses one symmetric Slack reaction ──────
 
-test('SlackAdapter queue marker adds and removes hourglass on the inbound message', async () => {
+test('SlackAdapter queue marker turns the hourglass into a check once consumed', async () => {
   const a = makeAdapter();
   const calls: Array<{ op: string; payload: any }> = [];
   a.rateLimiter = { acquire: async () => {}, reportThrottled: () => {} };
@@ -137,7 +138,23 @@ test('SlackAdapter queue marker adds and removes hourglass on the inbound messag
   assert.deepEqual(calls, [
     { op: 'add', payload: { channel: 'C55', name: 'hourglass', timestamp: '171.22' } },
     { op: 'remove', payload: { channel: 'C55', name: 'hourglass', timestamp: '171.22' } },
+    { op: 'add', payload: { channel: 'C55', name: 'white_check_mark', timestamp: '171.22' } },
   ]);
+});
+
+test('SlackAdapter still records the consumed check when the hourglass removal fails', async () => {
+  const a = makeAdapter();
+  const added: string[] = [];
+  a.rateLimiter = { acquire: async () => {}, reportThrottled: () => {} };
+  a.client = {
+    reactions: {
+      add: async (payload: any) => { added.push(payload.name); },
+      remove: async () => { throw Object.assign(new Error('no_reaction'), { data: { error: 'no_reaction' } }); },
+    },
+  };
+
+  await assert.rejects(a.unmarkQueued({ conduit: 'slack:C55', messageId: '171.22' }), /no_reaction/);
+  assert.deepEqual(added, ['white_check_mark'], 'a stale hourglass must not cost the check');
 });
 
 test('SlackAdapter queue marker failure propagates instead of being hidden in the adapter', async () => {

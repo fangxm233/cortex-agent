@@ -581,7 +581,7 @@ test('Feishu modalToFeishuCard: submit button carries privateMetadata as value (
   assert.equal(submit.behaviors, undefined);
 });
 
-test('Feishu queue marker stores create reaction_id and deletes that exact OnIt reaction', async () => {
+test('Feishu queue marker stores create reaction_id, deletes that exact OnIt reaction, and marks it consumed', async () => {
   const a = makeAdapter();
   const calls: Array<{ op: string; payload: any }> = [];
   a.client = { im: { v1: { messageReaction: {
@@ -608,7 +608,30 @@ test('Feishu queue marker stores create reaction_id and deletes that exact OnIt 
       op: 'delete',
       payload: { path: { message_id: 'om_7', reaction_id: 'react-7' } },
     },
+    {
+      op: 'create',
+      payload: {
+        path: { message_id: 'om_7' },
+        data: { reaction_type: { emoji_type: 'CheckMark' } },
+      },
+    },
   ]);
+});
+
+test('Feishu marks a message consumed even when no queued reaction id was ever stored', async () => {
+  const a = makeAdapter();
+  const created: string[] = [];
+  a.client = { im: { v1: { messageReaction: {
+    create: async (payload: any) => {
+      created.push(payload.data.reaction_type.emoji_type);
+      return { data: {} };
+    },
+    delete: async () => { assert.fail('nothing to delete without a stored reaction id'); },
+  } } } };
+
+  await a.unmarkQueued({ conduit: 'feishu:oc_7', messageId: 'om_7' });
+
+  assert.deepEqual(created, ['CheckMark']);
 });
 
 test('Feishu marker add/remove stay best-effort when the SDK rejects', async () => {
