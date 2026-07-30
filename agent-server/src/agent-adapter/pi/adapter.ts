@@ -148,6 +148,12 @@ class PISession {
   /** Accumulator for the current in-flight Cortex turn. Resolved/rejected by handleRawLine. */
   private pendingTurn: PendingPiTurn | null = null;
   private readonly steering = new PISteeringQueue();
+  /**
+   * Where PI's own agent loop is, tracked off its event stream because the injection RPC form
+   * depends on it. `starting` = a prompt is written but PI has not entered the loop yet; PI still
+   * reads its internal run flag as inactive there and only the dedicated steer command is safe.
+   */
+  private loopState: 'idle' | 'starting' | 'running' = 'idle';
   private readonly contextUsageProbe: PIContextUsageProbe;
   private readonly readyWaiters: ReadyWaiter[] = [];
   private pendingCompact: PendingCompact | null = null;
@@ -466,6 +472,10 @@ class PISession {
 
   /** Observe PI-only delivery/rejection events that intentionally stay out of NormalizedEvent. */
   private handleInjectionProtocol(raw: Record<string, unknown> | null): boolean {
+    // agent_start is emitted from inside the loop, so it is the first point at which PI's own run
+    // flag is provably set; agent_settled is the point at which it is provably clear again.
+    if (raw?.['type'] === 'agent_start') this.loopState = 'running';
+    else if (raw?.['type'] === 'agent_settled') this.loopState = 'idle';
     if (raw?.['type'] === 'message_start' && this.isUserStart(raw['message'])) {
       const turn = this.pendingTurn;
       if (turn && !turn.openingUserSeen) turn.openingUserSeen = true;
@@ -595,10 +605,22 @@ class PISession {
     const stdin = this.proc.stdin;
     if (!stdin) throw new Error('PISession: subprocess stdin is unavailable');
     stdin.write(encodeCommand({ type: 'prompt', message: promptText }));
+    this.loopState = 'starting';
     if (this.pendingTurn) this.pendingTurn.promptDispatched = true;
   }
 
-  /** Queue a message at PI's next agent-loop boundary without opening a new Cortex run. */
+  /**
+   * Queue a message at PI's next agent-loop boundary without opening a new Cortex run.
+   *
+   * The RPC form has to follow PI's loop state. A `prompt` with streamingBehavior=steer is only
+   * queued when PI already considers itself streaming; written during the prompt preflight window
+   * (which includes our own before_agent_start hook scripts, seconds long) PI instead takes its
+   * plain-prompt path, acks success, then throws internally and drops the message — and that failed
+   * path clears PI's run flag, so every later injection in the same turn takes the same broken
+   * branch. The dedicated `steer` command bypasses that check entirely and is drained by the
+   * opening steering poll of the loop that is about to start. Once the loop is running, or once PI
+   * has settled and the message must reopen a turn, prompt+steer is the correct form.
+   */
   injectUserMessage(msg: UserMessage): boolean {
     const stdin = this.proc.stdin;
     if (
@@ -606,13 +628,14 @@ class PISession {
       stdin.destroyed || stdin.writableEnded
     ) return false;
     const entry = this.steering.begin(msg.text);
+    const message = buildPromptText(msg);
+    const preflight = this.loopState === 'starting';
     try {
-      stdin.write(encodeCommand({
-        id: entry.id,
-        type: 'prompt',
-        message: buildPromptText(msg),
-        streamingBehavior: 'steer',
-      }));
+      stdin.write(encodeCommand(preflight
+        ? { id: entry.id, type: 'steer', message }
+        : { id: entry.id, type: 'prompt', message, streamingBehavior: 'steer' }));
+      // A prompt written to an idle PI opens a fresh run, so the next injection is a preflight one.
+      if (this.loopState === 'idle') this.loopState = 'starting';
       return true;
     } catch {
       this.steering.rollback(entry);

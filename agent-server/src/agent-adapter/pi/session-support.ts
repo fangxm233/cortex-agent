@@ -217,9 +217,14 @@ export class PISteeringQueue {
     if (index !== -1) this.pending.splice(index, 1);
   }
 
-  /** Mark a correlated failed prompt; rejected duplicates seal only after earlier entries. */
+  /** Mark a correlated failed injection; rejected duplicates seal only after earlier entries.
+   *  Both RPC forms an injection can take (prompt+steer and the dedicated steer) are correlated. */
   rejectFromResponse(raw: Record<string, unknown>): boolean {
-    if (raw['type'] !== 'response' || raw['command'] !== 'prompt' || raw['success'] !== false) {
+    const command = raw['command'];
+    if (
+      raw['type'] !== 'response' || raw['success'] !== false ||
+      (command !== 'prompt' && command !== 'steer')
+    ) {
       return false;
     }
     const entry = this.pending.find((item) => item.id === raw['id']);

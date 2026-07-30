@@ -5,7 +5,7 @@
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { SlackAdapter } from '../src/platform/adapters/slack.js';
+import { SlackAdapter, shouldWarnReactionFailure } from '../src/platform/adapters/slack.js';
 import type { ActionContext, MessageContext } from '../src/platform/types.js';
 
 /** Build a SlackAdapter without invoking the real constructor (no Bolt App). */
@@ -138,6 +138,28 @@ test('SlackAdapter queue marker adds and removes hourglass on the inbound messag
     { op: 'add', payload: { channel: 'C55', name: 'hourglass', timestamp: '171.22' } },
     { op: 'remove', payload: { channel: 'C55', name: 'hourglass', timestamp: '171.22' } },
   ]);
+});
+
+test('SlackAdapter queue marker failure propagates instead of being hidden in the adapter', async () => {
+  const a = makeAdapter();
+  a.rateLimiter = { acquire: async () => {}, reportThrottled: () => {} };
+  a.client = {
+    reactions: {
+      add: async () => { throw Object.assign(new Error('missing_scope'), { data: { error: 'missing_scope' } }); },
+      remove: async () => { throw Object.assign(new Error('missing_scope'), { data: { error: 'missing_scope' } }); },
+    },
+  };
+  const ref = { conduit: 'slack:C55', messageId: '171.22' };
+
+  await assert.rejects(a.markQueued(ref), /missing_scope/);
+  await assert.rejects(a.unmarkQueued(ref), /missing_scope/);
+});
+
+test('reaction failure warning fires once per distinct reason', () => {
+  const seen = new Set<string>();
+  assert.equal(shouldWarnReactionFailure('missing_scope', seen), true);
+  assert.equal(shouldWarnReactionFailure('missing_scope', seen), false, 'no per-message log spam');
+  assert.equal(shouldWarnReactionFailure('already_reacted', seen), true, 'a new reason is still reported');
 });
 
 // ── project conduit registry: store stays bare, surface is prefixed ──

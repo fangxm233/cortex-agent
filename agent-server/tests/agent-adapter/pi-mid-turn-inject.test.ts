@@ -69,6 +69,11 @@ function userStart(text: string): unknown {
   return { type: 'message_start', message: { role: 'user', content: [{ type: 'text', text }] } };
 }
 
+/** PI emits this the moment its agent loop starts, i.e. once steering is the streaming-safe form. */
+function agentStart(): unknown {
+  return { type: 'agent_start' };
+}
+
 function agentEnd(cost: number): unknown {
   return {
     type: 'agent_end',
@@ -79,7 +84,8 @@ function agentEnd(cost: number): unknown {
 function steeringWrites(child: StubChild): Array<Record<string, unknown>> {
   return child.stdin.writeHistory
     .map((line) => JSON.parse(line) as Record<string, unknown>)
-    .filter((command) => typeof command['id'] === 'string' && command['type'] === 'prompt');
+    .filter((command) => typeof command['id'] === 'string' &&
+      (command['type'] === 'prompt' || command['type'] === 'steer'));
 }
 
 async function cleanup(proc: AgentProcess, child: StubChild): Promise<void> {
@@ -149,10 +155,88 @@ test('injection refuses while sendTurn is still switching to the target session'
   await turn;
 });
 
+test('a prompt still in PI preflight is steered with the dedicated steer RPC', async (t) => {
+  const { proc, child } = spawnProcess();
+  t.onTestFinished(() => cleanup(proc, child));
+  const delivered: string[] = [];
+  proc.setInjectionAckSink?.({ onDelivered: ({ text }) => delivered.push(text) });
+  const turn = proc.send({ text: 'opening' });
+
+  // PI has the opening prompt but has not entered its agent loop, so it still reads its own run
+  // flag as inactive: a prompt RPC would be acked, dropped, and poison every later injection.
+  assert.equal(proc.injectUserMessage?.({ text: 'during preflight' }), true);
+  const [command] = steeringWrites(child);
+  assert.equal(command!['type'], 'steer');
+  assert.equal(command!['streamingBehavior'], undefined);
+  assert.match(String(command!['message']), /during preflight/);
+
+  pushLine(child, agentStart());
+  pushLine(child, userStart('opening'));
+  pushLine(child, userStart('during preflight'));
+  assert.deepEqual(delivered, ['during preflight'], 'the loop opening poll drains it into the turn');
+
+  pushLine(child, agentEnd(0.01));
+  pushLine(child, { type: 'agent_settled' });
+  await turn;
+});
+
+test('an injection reopening a settled PI turn steers its own follow-on preflight', async (t) => {
+  const { proc, child } = spawnProcess();
+  t.onTestFinished(() => cleanup(proc, child));
+  const turn = proc.send({ text: 'opening' });
+
+  pushLine(child, agentStart());
+  pushLine(child, userStart('opening'));
+  proc.injectUserMessage?.({ text: 'while running' });
+  pushLine(child, agentEnd(0.01));
+  pushLine(child, { type: 'agent_settled' });
+
+  // PI is provably idle now, so this one has to be a prompt to reopen a turn — and the next one
+  // lands in that fresh preflight, which is only safe as a steer.
+  proc.injectUserMessage?.({ text: 'reopens the turn' });
+  proc.injectUserMessage?.({ text: 'rides the new preflight' });
+  const types = steeringWrites(child).map((command) => command['type']);
+  assert.deepEqual(types, ['prompt', 'prompt', 'steer']);
+
+  pushLine(child, agentStart());
+  pushLine(child, userStart('while running'));
+  pushLine(child, userStart('reopens the turn'));
+  pushLine(child, userStart('rides the new preflight'));
+  pushLine(child, agentEnd(0.02));
+  pushLine(child, { type: 'agent_settled' });
+  await turn;
+});
+
+test('a rejected steer RPC seals its message just like a rejected prompt', async (t) => {
+  const { proc, child } = spawnProcess();
+  t.onTestFinished(() => cleanup(proc, child));
+  const undelivered: string[] = [];
+  proc.setInjectionAckSink?.({
+    onDelivered: () => assert.fail('rejected steering must not be delivered'),
+    onUndelivered: ({ text }) => undelivered.push(text),
+  });
+  const turn = proc.send({ text: 'opening' });
+
+  proc.injectUserMessage?.({ text: 'rejected steer' });
+  const [command] = steeringWrites(child);
+  assert.equal(command!['type'], 'steer');
+  pushLine(child, {
+    type: 'response', id: command!['id'], command: 'steer', success: false, error: 'steer rejected',
+  });
+  assert.deepEqual(undelivered, ['rejected steer']);
+
+  pushLine(child, agentStart());
+  pushLine(child, userStart('opening'));
+  pushLine(child, agentEnd(0.01));
+  pushLine(child, { type: 'agent_settled' });
+  await turn;
+});
+
 test('active PI turn writes attachment-aware prompt RPC with streamingBehavior=steer', async (t) => {
   const { proc, child } = spawnProcess();
   t.onTestFinished(() => cleanup(proc, child));
   const turn = proc.send({ text: 'opening' });
+  pushLine(child, agentStart());
 
   assert.equal(proc.injectUserMessage?.({
     text: 'inspect this',
@@ -178,6 +262,7 @@ test('opening user event is ignored, then steering messages ack FIFO including d
   const delivered: Array<{ text: string; foldedIntoTurn: boolean }> = [];
   proc.setInjectionAckSink?.({ onDelivered: (message) => delivered.push(message) });
   const turn = proc.send({ text: 'opening' });
+  pushLine(child, agentStart());
 
   proc.injectUserMessage?.({ text: 'same' });
   proc.injectUserMessage?.({ text: 'same' });
@@ -205,6 +290,7 @@ test('a later rejected duplicate waits for the earlier duplicate delivery before
     onUndelivered: ({ text }) => lifecycle.push(`undelivered:${text}`),
   });
   const turn = proc.send({ text: 'opening' });
+  pushLine(child, agentStart());
 
   proc.injectUserMessage?.({ text: 'same' });
   proc.injectUserMessage?.({ text: 'same' });
@@ -255,6 +341,7 @@ test('idle-boundary first agent_end is suppressed and final result aggregates bo
   let settled = false;
   void turn.finally(() => { settled = true; });
 
+  pushLine(child, agentStart());
   pushLine(child, userStart('opening'));
   proc.injectUserMessage?.({ text: 'late steering' });
   pushLine(child, agentEnd(0.02));
@@ -288,6 +375,7 @@ test('failed steering RPC after a deferred completion seals the message and sett
   });
   const turn = proc.send({ text: 'opening' });
 
+  pushLine(child, agentStart());
   pushLine(child, userStart('opening'));
   proc.injectUserMessage?.({ text: 'rejected steering' });
   const [command] = steeringWrites(child);
