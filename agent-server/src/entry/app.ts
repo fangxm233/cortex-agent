@@ -1,17 +1,18 @@
-// input:  env/config, adapters, stores, services, HookBus
-// output: server runtime, lifecycle events, resume wakes
+// input:  env/settings, adapters, stores, services, HookBus
+// output: server runtime, lifecycle events, live settings pushes
 // pos:    Agent-server composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
 import { mkdirSync, promises as fsPromises } from 'fs';
 import * as path from 'path';
-import { createAdapterFromEnv, extractTuiAdapter } from '@platform/index.js';
+import { createAdapterFromEnv, extractTuiAdapter, setPlatformAdminChannel } from '@platform/index.js';
 import type { PlatformAdapter } from '@platform/index.js';
 // Gate for the in-core Web UI transport: static import is @trpc-free (node builtins + an erased
 // type only); the transport (which pulls @trpc/server + jose) is dynamic-imported inside the gate,
 // gated on CORTEX_UI_HTTP, so it stays runtime-lazy for Slack/TUI-only installs.
 import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
 import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_DIR } from '@core/utils.js';
+import { getSettings, onSettingsChange } from '@core/settings.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
 import { closeAllSessions, closeSession as closeClaudePooledSession } from '@domain/agents/index.js';
 import { closeAllAdapters } from '../agent-adapter/index.js';
@@ -245,6 +246,15 @@ const notifyAdmin = (text: string) => {
 setProfileNotifier(notifyAdmin);
 setConfigNotifier(notifyAdmin);
 setMachineNotifier(notifyAdmin);
+onSettingsChange((changedKeys) => {
+  const settings = getSettings();
+  if (changedKeys.includes('adminChannel')) {
+    setPlatformAdminChannel(adapter, 'slack', settings.adminChannel);
+  }
+  if (changedKeys.includes('feishuAdminChannel')) {
+    setPlatformAdminChannel(adapter, 'feishu', settings.feishuAdminChannel);
+  }
+});
 
 // --- Init outbound message queue (WAL-based, survives restarts) ---
 const oq = initOutboundQueue(adapter);

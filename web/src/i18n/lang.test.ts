@@ -1,5 +1,5 @@
 // input:  Language derivation helpers and vocabularies
-// output: Language selection and task-scope copy regressions
+// output: Language selection and lifecycle copy regressions
 // pos:    Bilingual language and vocabulary tests
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -31,10 +31,12 @@ describe('pickVocab', () => {
     expect(pickVocab(deriveLang(375))).toBe(zh);
   });
 
-  it('distinguishes the open-task scope from the actionable lifecycle group', () => {
-    expect(en.tkOpen).toBe('Open');
-    expect(zh.tkOpen).toBe('未完成');
+  it('provides bilingual task lifecycle group labels', () => {
     expect(en.tkActionable).toBe('Actionable');
     expect(zh.tkActionable).toBe('可执行');
+    expect(en.tkApprovalNeeded).toBe('Approval needed');
+    expect(zh.tkApprovalNeeded).toBe('需要审批');
+    expect(en.tkWaitingDeps).toBe('Waiting');
+    expect(zh.tkWaitingDeps).toBe('等待');
   });
 });

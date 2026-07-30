@@ -6,5 +6,5 @@ Fans events out to scoped listeners and publishes link state plus a shared recon
 | filename | role | function |
 |---|---|---|
 | LiveEventsProvider.tsx | provider | Owns the one stream and fans events out |
-| live-events.ts | core | Defines event groups, filters and fan-out rules |
-| live-events.test.ts | test | Unit tests for event grouping and fan-out |
+| live-events.ts | core | Defines event groups, refresh hints and fan-out |
+| live-events.test.ts | test | Tests event groups, refresh and fan-out |
