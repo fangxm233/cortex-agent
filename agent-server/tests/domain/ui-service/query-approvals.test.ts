@@ -170,6 +170,36 @@ test('parseApprovals captures a verbatim Provenance bullet + parses its task ref
   assert.equal(c.taskRef, null);
 });
 
+// ── (4c) project attribution: `- **Project**:` bullet → projectId, honest null else ──
+// Entries raised inside a project carry a `Project` bullet (need-approval skill template); legacy
+// and system-level entries have none → projectId null, rendered as "global" by the UI.
+const PROJECT_SAMPLE = `# Pending Approvals
+
+## 2026-07-30 Nimbus: scoped op
+- **Operation**: change a config
+- **Reason**: needed
+- **Impact**: one file
+- **Command/Action**: edit it
+- **Project**: nimbus
+- **Status**: pending
+
+## 2026-07-30 Legacy: unscoped op
+- **Operation**: old entry
+- **Status**: pending
+`;
+
+test('parseApprovals parses a Project bullet into projectId, null when absent', () => {
+  const [scoped, legacy] = parseApprovals(PROJECT_SAMPLE);
+  assert.equal(scoped.projectId, 'nimbus');
+  assert.equal(legacy.projectId, null);
+});
+
+test('parseApprovals sets projectId null across a Project-free file', () => {
+  for (const e of parseApprovals(SAMPLE)) {
+    assert.equal(e.projectId, null);
+  }
+});
+
 test('parseApprovals never fabricates a ttl/expiry field (zero-source)', () => {
   // TTL is the prototype amber "expires in …" slot; the markdown queue has no expiry concept at all.
   // Guard: the DTO must not carry a fabricated ttl value.
