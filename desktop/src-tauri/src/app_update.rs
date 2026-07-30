@@ -115,6 +115,27 @@ pub fn is_calver(v: &str) -> bool {
     day_ok && suffix_ok
 }
 
+/// Why the background shell-update check must not run, or None when it may. Pure over its inputs
+/// (the env values are read by the caller). Dev mode is detected by the `CORTEX_FRONTEND_DIR`
+/// override: a shell serving the SPA from a local dir is a development run, never an installed
+/// app. The env kill-switch and the non-CalVer (unstamped build) version stay as guards too.
+pub fn check_disabled_reason(
+    env_disable: Option<&str>,
+    dev_frontend_dir: Option<&str>,
+    own_version: &str,
+) -> Option<String> {
+    if env_disable == Some("1") {
+        return Some("disabled by CORTEX_APP_UPDATE_DISABLE".to_string());
+    }
+    if dev_frontend_dir.is_some_and(|d| !d.trim().is_empty()) {
+        return Some("dev mode (CORTEX_FRONTEND_DIR is set)".to_string());
+    }
+    if !is_calver(own_version) {
+        return Some(format!("dev version {own_version}"));
+    }
+    None
+}
+
 // ─── Asset selection ────────────────────────────────────────────────────────
 
 /// Pick the asset for this platform: matching os + kind, and matching arch (a `universal` asset
@@ -525,6 +546,20 @@ mod tests {
             size: 1,
             sha256: "ab".repeat(32),
         }
+    }
+
+    #[test]
+    fn check_disabled_reason_gates_env_dev_dir_and_version() {
+        // Explicit env kill-switch wins.
+        assert!(check_disabled_reason(Some("1"), None, "2026.7.30").is_some());
+        // Dev mode: the SPA is served from a local dir override → never check.
+        assert!(check_disabled_reason(None, Some("/home/x/web/dist"), "2026.7.30").is_some());
+        // A blank override does not count as dev mode.
+        assert!(check_disabled_reason(None, Some("  "), "2026.7.30").is_none());
+        // Non-CalVer own version (unstamped build) stays a backstop guard.
+        assert!(check_disabled_reason(None, None, "0.0.1").is_some());
+        // A stamped release with no overrides checks normally.
+        assert!(check_disabled_reason(None, None, "2026.7.30").is_none());
     }
 
     #[test]

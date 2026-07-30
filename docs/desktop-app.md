@@ -226,8 +226,9 @@ What "install" does depends on the platform:
   On first use Android asks you to allow installs from Cortex.
 
 Running threads live on the server, so restarting or reinstalling the app never interrupts
-them. Setting `CORTEX_APP_UPDATE_DISABLE=1` in the app's environment turns the shell update
-check off entirely.
+them. Development runs — a shell serving the SPA from a local directory via
+`CORTEX_FRONTEND_DIR` — never check for shell updates. Setting
+`CORTEX_APP_UPDATE_DISABLE=1` in the app's environment turns the check off entirely.
 
 ## How the connection works
 

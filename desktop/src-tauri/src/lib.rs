@@ -675,15 +675,20 @@ pub fn run() {
             // Asks the connected server's /api/app-update/manifest.json for a newer shell (capped
             // at the server's own version), downloads + verifies it, then emits
             // `app-update-available` so the SPA raises the ONE update prompt. Re-checks daily for
-            // long-running instances. Dev builds (non-CalVer version, e.g. 0.0.1) never check.
+            // long-running instances. Dev runs (CORTEX_FRONTEND_DIR serving a local SPA) and
+            // unstamped builds (non-CalVer version, e.g. 0.0.1) never check.
             {
                 let own_version = app.package_info().version.to_string();
                 let cfg = app.state::<AppState>().config.lock().unwrap().clone();
                 let data = app.path().app_data_dir().ok();
-                if std::env::var("CORTEX_APP_UPDATE_DISABLE").as_deref() == Ok("1") {
-                    shell_log!("[cortex-desktop] app-update check disabled by env");
-                } else if !app_update::is_calver(&own_version) {
-                    shell_log!("[cortex-desktop] app-update check skipped: dev version {own_version}");
+                let env_disable = std::env::var("CORTEX_APP_UPDATE_DISABLE").ok();
+                let dev_dir = std::env::var("CORTEX_FRONTEND_DIR").ok();
+                if let Some(reason) = app_update::check_disabled_reason(
+                    env_disable.as_deref(),
+                    dev_dir.as_deref(),
+                    &own_version,
+                ) {
+                    shell_log!("[cortex-desktop] app-update check skipped: {reason}");
                 } else if let (Some(data), Some(url), Some(token)) =
                     (data, cfg.server_url, cfg.token)
                 {
