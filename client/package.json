@@ -1,6 +1,6 @@
 {
   "name": "@cortex-agent/client",
-  "version": "2026.6.22",
+  "version": "2026.7.30",
   "type": "module",
   "license": "MIT",
   "description": "Cortex remote agent client — receives commands from @cortex-agent/server via WebSocket",
@@ -26,7 +26,7 @@
     "test": "node --import tsx --test --test-force-exit --test-timeout=15000 src/cortex-run-watcher.test.ts tests/client/cortex-run-launch.test.ts tests/client/auth-headers.test.ts tests/client/server-url.test.ts"
   },
   "dependencies": {
-    "ws": "^8.20.0"
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
