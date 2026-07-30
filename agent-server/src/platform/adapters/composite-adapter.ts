@@ -1,6 +1,6 @@
-// input:  ../adapter.js, ../types.js, ../output-stream.js, ./tui/index.js
-// output: CompositeAdapter, FanOutOutputStream, extractTuiAdapter
-// pos:    Routes platform operations and marker lifecycle by conduit
+// input:  platform contracts and TUI adapter
+// output: composite streams, routing, and adapter update helpers
+// pos:    Routes platform operations and live settings
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter } from '../adapter.js';
@@ -416,6 +416,22 @@ export class CompositeAdapter implements PlatformAdapter {
 
   ownsConduit(conduit: string): boolean {
     return this._adapters.some(a => a.ownsConduit(conduit));
+  }
+}
+
+export type AdminChannelPlatform = 'slack' | 'feishu';
+
+export function setPlatformAdminChannel(
+  adapter: PlatformAdapter,
+  platform: AdminChannelPlatform,
+  channel: string | null,
+): void {
+  const adapters = adapter instanceof CompositeAdapter
+    ? (adapter as any)._adapters as PlatformAdapter[]
+    : [adapter];
+  const names = platform === 'slack' ? new Set(['slack', 'mock']) : new Set(['feishu']);
+  for (const candidate of adapters) {
+    if (names.has(candidate.name)) candidate.setAdminChannel?.(channel);
   }
 }
 

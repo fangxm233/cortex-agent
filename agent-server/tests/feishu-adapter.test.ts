@@ -1,11 +1,14 @@
-// input:  FeishuAdapter and mocked Lark SDK calls
-// output: Feishu messaging, reaction, card, file, and reply tests
+// input:  FeishuAdapter, isolated config, mocked Lark calls
+// output: messaging, admin persistence, and hot-routing tests
 // pos:    Verifies Feishu adapter platform mappings
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { FeishuAdapter } from '../src/platform/adapters/feishu.js';
+import { CONFIG_DIR } from '../src/core/paths.js';
 import type { Destination } from '../src/platform/types.js';
 
 function makeAdapter(): any {
@@ -408,10 +411,42 @@ test('Feishu admin auto-detect: first p2p DM registers + persists admin chat_id'
   await a.handleIncomingMessage(makeInbound('p2p', 'oc_admin'));
 
   assert.equal(a.config.adminChannel, 'oc_admin');
-  assert.equal(process.env.FEISHU_ADMIN_CHANNEL, 'oc_admin');
+  assert.equal(process.env.FEISHU_ADMIN_CHANNEL, undefined);
   assert.equal(persisted, 'oc_admin');
   assert.ok(noticeText && noticeText.includes('oc_admin'));
-  delete process.env.FEISHU_ADMIN_CHANNEL;
+  assert.match(noticeText!, /settings\.json/);
+  assert.doesNotMatch(noticeText!, /\.env/);
+});
+
+test('Feishu admin auto-detect persists only to settings.json', async () => {
+  const envPath = path.join(CONFIG_DIR, '.env');
+  const settingsPath = path.join(CONFIG_DIR, 'settings.json');
+  const sentinel = 'FEISHU_APP_ID=keep-me\n';
+  await fs.writeFile(envPath, sentinel);
+
+  const a = makeAdapter();
+  await a._persistAdminChannel('oc_settings');
+
+  const settings = JSON.parse(await fs.readFile(settingsPath, 'utf8'));
+  assert.equal(settings.feishuAdminChannel, 'oc_settings');
+  assert.equal(await fs.readFile(envPath, 'utf8'), sentinel);
+});
+
+test('Feishu setAdminChannel routes subsequent notices to the new chat', async () => {
+  const a = makeAdapter();
+  a.config.adminChannel = 'oc_old';
+  let sentChat: string | null = null;
+  a.client = {
+    im: { v1: { message: { create: async (payload: any) => {
+      sentChat = payload.data.receive_id;
+      return { data: { message_id: 'om_hot' } };
+    } } } },
+  };
+
+  a.setAdminChannel('oc_new');
+  await a.postMessage({ type: 'system-notice' }, { text: 'updated' });
+
+  assert.equal(sentChat, 'oc_new');
 });
 
 test('Feishu admin auto-detect: only fires once', async () => {
