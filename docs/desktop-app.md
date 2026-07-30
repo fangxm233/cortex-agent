@@ -194,6 +194,41 @@ mouse. Clicking it:
 
 You can then enter a different server URL and token.
 
+## Updates
+
+The app keeps itself up to date through two channels, both driven by the server it is
+connected to. You never need to check for new versions manually.
+
+**Frontend (silent).** After launch, the app compares its bundled web UI against the one the
+server serves. When the server has a newer UI, the app downloads it in the background, verifies
+it, and stages it for the next launch — a small "restart to update" prompt appears when it is
+ready. This covers most releases: anything that only changes the UI arrives this way, with no
+reinstall.
+
+**App shell (one prompt per release).** Some releases also ship new native app packages,
+attached to the GitHub release. The server advertises the newest package set that matches its
+own version — the app is never offered a version newer than the server it talks to, so the two
+stay in step and a release means at most one update prompt per device. The app downloads the
+package for its platform in the background, verifies its SHA-256 against the GitHub-published
+digest, and then shows a dialog with three choices: install, skip this version, or later.
+
+What "install" does depends on the platform:
+
+- **Linux (AppImage)** — the app replaces its own file (keeping the previous one as `.old`
+  beside it) and restarts. Fully automatic.
+- **Windows** — the app exits and launches the downloaded installer; step through it and
+  reopen Cortex.
+- **macOS** — the disk image is saved to Downloads and opened; drag Cortex into Applications
+  to finish.
+- **Linux (deb/rpm)** — the package is saved to Downloads and opened with the system package
+  installer.
+- **Android** — the system package installer opens over the verified APK; confirm to upgrade.
+  On first use Android asks you to allow installs from Cortex.
+
+Running threads live on the server, so restarting or reinstalling the app never interrupts
+them. Setting `CORTEX_APP_UPDATE_DISABLE=1` in the app's environment turns the shell update
+check off entirely.
+
 ## How the connection works
 
 The desktop app bypasses the browser's same-origin restriction by using:
