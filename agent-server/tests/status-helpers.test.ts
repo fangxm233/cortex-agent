@@ -1,11 +1,11 @@
-// input:  Vitest, status helpers, MockAdapter, runtime settings
-// output: status serialization, sealing, and button regressions
-// pos:    Covers status message serialization and actions
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  node:test, status-helpers, MockAdapter
+// output: writeStatus/sealStatus serialization, final-state sealing, and status button (cancel/newq) tests
+// pos:    status-message serializer regression test
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { writeStatus, sealStatus, buildStatusActionBlocks } from '../src/orchestration/status-helpers.js';
+import { writeStatus, sealStatus, buildStatusActionBlocks, isStatusNewqButtonEnabled } from '../src/orchestration/status-helpers.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import type { RichBlock, ActionElement } from '../src/platform/index.js';
 
@@ -39,44 +39,40 @@ test('buildStatusActionBlocks: Cancel button carries threadId (thread path), exe
 
 // --- New (quiet) button (=!newq), env-gated, default off ---
 
-async function withNewqEnv(
-  value: string | undefined,
-  fn: (helpers: typeof import('../src/orchestration/status-helpers.js')) => void | Promise<void>,
-): Promise<void> {
+function withNewqEnv<T>(value: string | undefined, fn: () => T): T {
   const prev = process.env.CORTEX_STATUS_NEWQ_BUTTON;
   if (value === undefined) delete process.env.CORTEX_STATUS_NEWQ_BUTTON;
   else process.env.CORTEX_STATUS_NEWQ_BUTTON = value;
   try {
-    vi.resetModules();
-    await fn(await import('../src/orchestration/status-helpers.js'));
+    return fn();
   } finally {
     if (prev === undefined) delete process.env.CORTEX_STATUS_NEWQ_BUTTON;
     else process.env.CORTEX_STATUS_NEWQ_BUTTON = prev;
   }
 }
 
-test('newq button: hidden by default (env unset), New button still present', async () => {
-  await withNewqEnv(undefined, ({ buildStatusActionBlocks: build, isStatusNewqButtonEnabled: enabled }) => {
-    const blocks = build('Processing', { channel: 'C1', sessionName: null, isDm: true });
-    assert.equal(enabled(), false);
+test('newq button: hidden by default (env unset), New button still present', () => {
+  withNewqEnv(undefined, () => {
+    const blocks = buildStatusActionBlocks('Processing', { channel: 'C1', sessionName: null, isDm: true });
+    assert.equal(isStatusNewqButtonEnabled(), false);
     assert.ok(findButton(blocks, 'status_new'), 'New button present in DM');
     assert.equal(findButton(blocks, 'status_newq'), null, 'newq button absent by default');
   });
 });
 
-test('newq button: shown in DM when CORTEX_STATUS_NEWQ_BUTTON enabled, carries channel', async () => {
-  await withNewqEnv('1', ({ buildStatusActionBlocks: build, isStatusNewqButtonEnabled: enabled }) => {
-    const blocks = build('Processing', { channel: 'C1', sessionName: null, isDm: true });
-    assert.equal(enabled(), true);
+test('newq button: shown in DM when CORTEX_STATUS_NEWQ_BUTTON enabled, carries channel', () => {
+  withNewqEnv('1', () => {
+    const blocks = buildStatusActionBlocks('Processing', { channel: 'C1', sessionName: null, isDm: true });
+    assert.equal(isStatusNewqButtonEnabled(), true);
     const newq = findButton(blocks, 'status_newq');
     assert.ok(newq, 'newq button present when enabled');
     assert.equal(newq.value, 'C1');
   });
 });
 
-test('newq button: DM-only — absent in a non-DM thread even when enabled', async () => {
-  await withNewqEnv('on', ({ buildStatusActionBlocks: build }) => {
-    const blocks = build('Processing', { channel: 'C1', sessionName: null, isDm: false, threadId: 'thr_x' });
+test('newq button: DM-only — absent in a non-DM thread even when enabled', () => {
+  withNewqEnv('on', () => {
+    const blocks = buildStatusActionBlocks('Processing', { channel: 'C1', sessionName: null, isDm: false, threadId: 'thr_x' });
     assert.equal(findButton(blocks, 'status_newq'), null, 'newq button absent outside DM');
   });
 });

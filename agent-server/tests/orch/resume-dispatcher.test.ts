@@ -1,13 +1,14 @@
-// input:  resume dispatcher, ready entries, runtime settings
+// input:  resume dispatcher, ready entries, event bus
 // output: dispatch, requeue, wake, and guard tests
 // pos:    Covers provider-ready auto-resume behavior
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   dispatchPendingResumes,
   buildResumeReminder,
+  isAutoResumeEnabled,
   registerResumeWakeOnAgentSettle,
 } from '../../src/orchestration/resume-dispatcher.js';
 import { EventBus } from '../../src/events/index.js';
@@ -15,11 +16,6 @@ import { MockAdapter } from '../../src/platform/testing.js';
 import type { ResumeEntry } from '../../src/domain/costs/resume-registry.js';
 
 const NOW = 1_000_000_000_000;
-
-async function freshResumeDispatcher() {
-  vi.resetModules();
-  return import('../../src/orchestration/resume-dispatcher.js');
-}
 
 function baseDeps(entries: ResumeEntry[], overrides: any = {}) {
   const calls = {
@@ -47,16 +43,16 @@ function baseDeps(entries: ResumeEntry[], overrides: any = {}) {
   return { deps, calls };
 }
 
-test('isAutoResumeEnabled defaults true, false only for 0/false', async () => {
+test('isAutoResumeEnabled defaults true, false only for 0/false', () => {
   const prev = process.env.CORTEX_AUTO_RESUME;
   delete process.env.CORTEX_AUTO_RESUME;
-  assert.equal((await freshResumeDispatcher()).isAutoResumeEnabled(), true);
+  assert.equal(isAutoResumeEnabled(), true);
   process.env.CORTEX_AUTO_RESUME = '0';
-  assert.equal((await freshResumeDispatcher()).isAutoResumeEnabled(), false);
+  assert.equal(isAutoResumeEnabled(), false);
   process.env.CORTEX_AUTO_RESUME = 'false';
-  assert.equal((await freshResumeDispatcher()).isAutoResumeEnabled(), false);
+  assert.equal(isAutoResumeEnabled(), false);
   process.env.CORTEX_AUTO_RESUME = '1';
-  assert.equal((await freshResumeDispatcher()).isAutoResumeEnabled(), true);
+  assert.equal(isAutoResumeEnabled(), true);
   if (prev === undefined) delete process.env.CORTEX_AUTO_RESUME; else process.env.CORTEX_AUTO_RESUME = prev;
 });
 
@@ -246,7 +242,7 @@ test('disabled flag drains the queue without dispatching', async () => {
   const { deps, calls } = baseDeps([
     { kind: 'direct', channel: 'C1', userMessage: 'orig', recordedAt: NOW },
   ]);
-  await (await freshResumeDispatcher()).dispatchPendingResumes(adapter as any, deps);
+  await dispatchPendingResumes(adapter as any, deps);
   assert.equal(calls.taken, 1, 'queue must be drained');
   assert.equal(calls.route.length, 0, 'no dispatch when disabled');
   if (prev === undefined) delete process.env.CORTEX_AUTO_RESUME; else process.env.CORTEX_AUTO_RESUME = prev;

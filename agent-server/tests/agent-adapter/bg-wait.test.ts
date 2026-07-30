@@ -1,9 +1,9 @@
-// input:  bg-wait, fake process, timers, runtime settings
-// output: continuation merge, timeout, and gate regressions
-// pos:    Covers thread-session inline background waits
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  bg-wait with fake process, context callbacks, and timers
+// output: continuation merge/context/timeout and gate regressions
+// pos:    thread-session inline background-task wait unit tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
@@ -175,7 +175,7 @@ test('remainingBg: running + undelivered summed; absent fields are 0', () => {
   assert.equal(remainingBg(baseResult({ pendingBackgroundTasks: undefined, undeliveredBackgroundTasks: undefined })), 0);
 });
 
-test('shouldAwaitBgInline: only thread turns, claude backend, sink capability, work remaining, flag on', async () => {
+test('shouldAwaitBgInline: only thread turns, claude backend, sink capability, work remaining, flag on', () => {
   const prev = process.env.CORTEX_BG_CONTINUATION;
   try {
     delete process.env.CORTEX_BG_CONTINUATION;
@@ -189,9 +189,7 @@ test('shouldAwaitBgInline: only thread turns, claude backend, sink capability, w
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', baseResult({ rateLimited: true }), true), false, 'rate-limited turn goes to the retry path');
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', null, true), false, 'null result');
     process.env.CORTEX_BG_CONTINUATION = 'off';
-    vi.resetModules();
-    const disabled = await import('../../src/agent-adapter/bg-wait.js');
-    assert.equal(disabled.shouldAwaitBgInline('claude', 'thr_1', r, true), false, 'feature flag off');
+    assert.equal(shouldAwaitBgInline('claude', 'thr_1', r, true), false, 'feature flag off');
   } finally {
     if (prev === undefined) delete process.env.CORTEX_BG_CONTINUATION;
     else process.env.CORTEX_BG_CONTINUATION = prev;

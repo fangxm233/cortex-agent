@@ -1,7 +1,7 @@
-// input:  delta coalescer, fake timers, runtime settings
-// output: batching and session stream gate regressions
-// pos:    Covers server-side assistant delta throttling
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  createDeltaCoalescer + resolveFlushMs (orchestration/delta-coalescer.ts)
+// output: spec for server-side delta batching before the event bus
+// pos:    Token-level assistant streaming — the throttle that protects every downstream queue
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterEach, beforeEach, describe, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
@@ -224,14 +224,12 @@ describe('createSessionDeltaStream — who is allowed to stream at all', () => {
     assert.equal(createSessionDeltaStream({ sessionId: null, channel: 'web:abc', publish: s.publish }), null);
   });
 
-  test('CORTEX_STREAM_DELTAS=0 disables the stream even for a web session', async () => {
+  test('CORTEX_STREAM_DELTAS=0 disables the stream even for a web session', () => {
     const prev = process.env.CORTEX_STREAM_DELTAS;
     process.env.CORTEX_STREAM_DELTAS = '0';
     try {
-      vi.resetModules();
-      const { createSessionDeltaStream: createFresh } = await import('../../src/orchestration/delta-coalescer.js');
       const s = sink();
-      assert.equal(createFresh({ sessionId: 'sess-1', channel: 'web:abc', publish: s.publish }), null);
+      assert.equal(createSessionDeltaStream({ sessionId: 'sess-1', channel: 'web:abc', publish: s.publish }), null);
     } finally {
       if (prev === undefined) delete process.env.CORTEX_STREAM_DELTAS;
       else process.env.CORTEX_STREAM_DELTAS = prev;

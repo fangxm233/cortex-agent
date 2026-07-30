@@ -1,9 +1,9 @@
-// input:  fake adapters, continuation context, runtime settings
-// output: normalized callbacks and typed-notice regressions
-// pos:    Covers backend-neutral event dispatch
-// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// input:  fake adapters, continuation context, resume ids, locale
+// output: normalized/continuation callbacks and typed-notice regressions
+// pos:    Backend-neutral event dispatch tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { _test as modeManagerTest, isRetryableResult } from '../src/domain/agents/index.js';
@@ -447,10 +447,8 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
 
   // OFF (env unset): no notification.
   delete process.env.CORTEX_NOTIFY_COMPACTION;
-  vi.resetModules();
-  const { _test: offFacade } = await import('../src/domain/agents/index.js');
   const offMsgs: string[] = [];
-  await offFacade.runWithAdapter(
+  await runWithAdapter(
     makeAdapter(), 'msg',
     { channel: 'C1', onAssistantMessage: (m: string) => offMsgs.push(m) },
     { model: 'm', backend: 'claude', mode: null }, undefined,
@@ -459,10 +457,8 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
 
   // ON: exactly one concise notification; backend trigger/token details stay internal.
   process.env.CORTEX_NOTIFY_COMPACTION = '1';
-  vi.resetModules();
-  const { _test: onFacade } = await import('../src/domain/agents/index.js');
   const onMsgs: string[] = [];
-  await onFacade.runWithAdapter(
+  await runWithAdapter(
     makeAdapter(), 'msg',
     { channel: 'C1', onAssistantMessage: (m: string) => onMsgs.push(m) },
     { model: 'm', backend: 'claude', mode: null }, undefined,
