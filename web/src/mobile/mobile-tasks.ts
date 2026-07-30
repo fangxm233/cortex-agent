@@ -1,4 +1,4 @@
-// input:  task DTOs and mobile segment selection
+// input:  task DTOs and executable/recent/all segments
 // output: dependency-aware task groups and counts
 // pos:    Shared pure model for the mobile task screen
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -103,4 +103,4 @@ export function allCount(grouped: MobileTasksGrouped): number {
   return allOpenCount(grouped) + grouped.done.length;
 }
 
-export type MobileSegment = 'executable' | 'all';
+export type MobileSegment = 'executable' | 'recent' | 'all';

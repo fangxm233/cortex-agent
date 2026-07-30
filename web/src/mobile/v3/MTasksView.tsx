@@ -1,5 +1,5 @@
-// input:  task groups, segment state, and callbacks
-// output: fixed-header Tasks tab presentation
+// input:  task groups, three segment counts, and callbacks
+// output: fixed-header segmented Tasks presentation
 // pos:    Presentational mobile task-list screen
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1d L240-284)
@@ -16,6 +16,7 @@ import type { MobileSegment } from '@/mobile/mobile-tasks';
 export interface MTasksCopy {
   title: string;
   executable: string; // 可执行 (segment)
+  recent: string; // 近 1 天 (segment)
   all: string; // 全部 (segment)
   inProgress: string; // 进行中 (group)
   claimable: string; // 可执行 (group)
@@ -223,6 +224,7 @@ export function MTasksView({
   groups,
   segment,
   executableCount,
+  recentCount,
   allCount,
   scope,
   copy,
@@ -236,6 +238,7 @@ export function MTasksView({
   groups: MTaskGroupView[];
   segment: MobileSegment;
   executableCount: number;
+  recentCount: number;
   allCount: number;
   scope?: string;
   copy: MTasksCopy;
@@ -250,6 +253,7 @@ export function MTasksView({
     <MSegmented<MobileSegment>
       options={[
         { id: 'executable', label: `${copy.executable} ${executableCount}` },
+        { id: 'recent', label: `${copy.recent} ${recentCount}` },
         { id: 'all', label: `${copy.all} ${allCount}` },
       ]}
       value={segment}

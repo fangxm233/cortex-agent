@@ -1,9 +1,8 @@
-// Pure view-model for the 1d 任务 screen (scheme-mobile.dc.html 1d L240-284). 1d is the current
-// project's read-only task queue. The 可执行 segment shows 进行中 / 可执行; the 全部 segment adds
-// 阻塞 and 完成 (done) — the done group is desktop parity (the desktop Tasks tab surfaces done in its
-// 全部 scope). It reuses the shared `groupMobileTasks` bucketing (which also yields a waiting-deps
-// bucket) but 1d deliberately has no waiting-deps group — those tasks are still counted in the 全部
-// segment yet have no row here (they live on desktop). Framework-free so the mapping is unit-testable.
+// input:  grouped tasks and executable/recent/all segment
+// output: ordered mobile task group views
+// pos:    Pure view model for the mobile Tasks screen
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import type { MobileTasksGrouped, MobileSegment } from '@/mobile/mobile-tasks';
 
@@ -33,6 +32,7 @@ export function buildMTaskGroups(
     { key: 'blocked', tasks: grouped.blocked },
     { key: 'done', tasks: grouped.done },
   ];
-  const scoped = segment === 'executable' ? views.filter((v) => !ALL_ONLY_KEYS.has(v.key)) : views;
-  return scoped.filter((v) => v.tasks.length > 0);
+  if (segment === 'recent') return views.filter((view) => view.key === 'done' && view.tasks.length > 0);
+  const scoped = segment === 'executable' ? views.filter((view) => !ALL_ONLY_KEYS.has(view.key)) : views;
+  return scoped.filter((view) => view.tasks.length > 0);
 }

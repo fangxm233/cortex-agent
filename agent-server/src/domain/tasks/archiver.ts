@@ -1,3 +1,8 @@
+// input:  task store, project paths, filesystem and git
+// output: archived completed tasks and archive commits
+// pos:    Scheduled completed-task retention job
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
@@ -10,8 +15,8 @@ const log = createLogger('task-archiver');
 
 const ARCHIVE_AGE_DAYS = 3;
 
-function isOlderThan(dateStr: string, days: number): boolean {
-  const completed = new Date(dateStr + 'T00:00:00Z');
+export function isOlderThan(dateStr: string, days: number): boolean {
+  const completed = new Date(`${dateStr.slice(0, 10)}T00:00:00Z`);
   const cutoff = new Date();
   cutoff.setUTCDate(cutoff.getUTCDate() - days);
   cutoff.setUTCHours(0, 0, 0, 0);

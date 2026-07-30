@@ -1,11 +1,7 @@
-// 1c 线程 — the current project's threads (scheme-mobile.dc.html 1c L174–238). Header = 线程 title +
-// current-project QN tag + 活跃/历史 segment + 今日 budget band; body = thread pipeline cards, each
-// drilling into the thread detail page (打开 › → /m/thread/:id). A `waiting` thread is a manager
-// SUSPENDED on its children (DR-0014), rendered as a live pipeline card with the amber 等待子线程 pill —
-// NOT an approval block, so it no longer routes to the approval queue. Real tRPC:
-// threads.list (scoped to the current project; active-status query for the 活跃 count), threads.get
-// (per running card — pipeline stages + cost + child count, mirrors MobileThreadCard), cost.summary
-// (今日 budget band). Live refresh via useThreadsLiveSync. The shell owns the bottom Tab bar.
+// input:  thread/cost queries, project scope, recent thread model
+// output: segmented mobile Threads screen with detail navigation
+// pos:    Mobile thread-list data container
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -15,7 +11,8 @@ import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/workbench/session-groups';
 import { useMobileProject } from '@/mobile/current-project';
-import { threadScopeFilter, type Scope } from '@/features/workbench/scope';
+import { recentTerminalThreads, threadScopeFilter, type Scope } from '@/features/workbench/scope';
+import { useRecentNow } from '@/features/workbench/useRecentNow';
 import { useThreadsLiveSync } from '@/features/workbench/useThreadsLiveSync';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { MScreen, MScrollBody, MC } from '@/mobile/ui/kit';
@@ -24,12 +21,12 @@ import { threadsBudgetBand, isLiveThread } from './m-threads-vm';
 
 const COPY: { en: MThreadsCopy; zh: MThreadsCopy } = {
   en: {
-    title: 'Threads', active: 'Active', history: 'History', today: 'Today', open: 'Open',
+    title: 'Threads', active: 'Active', recent: 'Last 1 day', history: 'History', today: 'Today', open: 'Open',
     subthread: 'subthreads', empty: 'No threads', running: 'Running',
     waiting: 'Suspended', done: 'Done', failed: 'Failed', cancelled: 'Cancelled',
   },
   zh: {
-    title: '线程', active: '活跃', history: '历史', today: '今日', open: '打开',
+    title: '线程', active: '活跃', recent: '近 1 天', history: '历史', today: '今日', open: '打开',
     subthread: '子线程', empty: '暂无线程', running: '运行中',
     waiting: '等待子线程', done: '已完成', failed: '失败', cancelled: '已取消',
   },
@@ -62,6 +59,7 @@ export function MThreadsScreen() {
   const copy = pickCopy(lang, COPY);
   const { currentProjectId } = useMobileProject();
   const [segment, setSegment] = useState<Scope>('active');
+  const now = useRecentNow(true);
   useThreadsLiveSync();
 
   const projectId = currentProjectId ?? undefined;
@@ -73,14 +71,14 @@ export function MThreadsScreen() {
   );
   const costQuery = useQuery(trpc.cost.summary.queryOptions({ projectId }));
 
-  const threads = listQuery.data ?? [];
+  const listedThreads = listQuery.data ?? [];
+  const threads = segment === 'recent' ? recentTerminalThreads(listedThreads, now) : listedThreads;
   const activeCount = activeQuery.data?.length ?? 0;
   const band = useMemo(
     () => threadsBudgetBand(costQuery.data?.today, costQuery.data?.dailyBudget),
     [costQuery.data?.today, costQuery.data?.dailyBudget],
   );
   const scope = currentProjectId ? projectInitials(currentProjectId) : undefined;
-  const now = Date.now();
 
   return (
     <MScreen

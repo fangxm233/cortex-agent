@@ -1,5 +1,5 @@
 // input:  Node test runner + task-system/task-completion API
-// output: completion lifecycle and evidence regression tests
+// output: completion lifecycle, timestamp, and evidence regressions
 // pos:    verifies project repos, artifacts, Git types, and lifecycle
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -197,7 +197,7 @@ test('completeTask marks status done, sets completed_at, clears in-progress stat
     const task = findTask(parsed.tasks, 'a111');
     assert.equal(task.status, 'done');
     assert.equal(task['completed-note'], 'note ok');
-    assert.ok(task['completed-at']);
+    assert.match(task['completed-at'], /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     assert.equal(task['claimed-by'] || null, null);
     assert.equal(task['approval-needed'] || false, false);
     assert.equal(task.paused || false, false);

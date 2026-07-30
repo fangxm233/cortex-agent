@@ -1,5 +1,5 @@
 // input:  UiServiceDeps, TasksListParams, task records
-// output: Task DTOs with lifecycle and approval state
+// output: Task DTOs with lifecycle, approval and completion time
 // pos:    Task DTO mapper and tasks.list query handler
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -22,6 +22,7 @@ export function toTaskInfo(t: any): TaskInfo {
     template: t.template || 'coder-review',
     why: t.why || null,
     doneWhen: t.done_when || null,
+    completedAt: t.completed_at ?? null,
   };
 }
 

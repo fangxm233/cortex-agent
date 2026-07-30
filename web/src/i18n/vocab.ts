@@ -12,6 +12,7 @@ export const en = {
   machines: 'Machines',
   today: 'Today',
   active: 'Active',
+  recentDay: 'Last 1 day',
   history: 'History',
   open: 'Open',
   pause: 'Pause',
@@ -240,6 +241,7 @@ export const en = {
 
   rpNoActiveThreads: 'No active threads',
   rpNoActiveThreadsHint: 'Running and waiting threads will appear here.',
+  rpNoRecentThreads: 'No threads finished in the last day.',
   rpNoFinishedThreads: 'No finished threads yet.',
   rpOpen: 'Open',
   rpStep: 'step',
@@ -642,6 +644,7 @@ export const zh: Record<keyof Vocab, string> = {
   machines: '机器',
   today: '今日',
   active: '活跃',
+  recentDay: '近 1 天',
   history: '历史',
   open: '打开',
   pause: '暂停',
@@ -870,6 +873,7 @@ export const zh: Record<keyof Vocab, string> = {
 
   rpNoActiveThreads: '暂无活跃线程',
   rpNoActiveThreadsHint: '运行中和等待中的线程将显示在此处。',
+  rpNoRecentThreads: '近 1 天没有结束的线程。',
   rpNoFinishedThreads: '暂无已完成的线程。',
   rpOpen: '打开',
   rpStep: '步骤',

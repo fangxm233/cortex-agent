@@ -7,7 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { type Task } from '@core/task-parser.js';
-import { DATA_DIR, INSTALL_ROOT, PROJECTS_DIR, STORE_DIR, WORKSPACE_DIR, todayISO } from '@core/utils.js';
+import { DATA_DIR, INSTALL_ROOT, PROJECTS_DIR, STORE_DIR, WORKSPACE_DIR } from '@core/utils.js';
 import { clearDependsOnAll, findTask, getTasksPath, readTasks, writeTasks } from './task-lifecycle-edit.js';
 
 const EXPLICIT_SHA = /\b(?:implementation\s+sha|commit(?:\s+sha)?|sha)\s*[:=#]?\s*`?([0-9a-f]{7,40})(?![0-9a-f])`?/gi;
@@ -162,7 +162,7 @@ function completionWarning(
   return 'no evidence of work: no verified implementation SHA, persisted thread artifact, matching git commit, or Done-when artifact. Re-run with --skip-verify to bypass.';
 }
 
-function markTaskCompleted(task: Task, completionNote: string, today: string): void {
+function markTaskCompleted(task: Task, completionNote: string, completedAt: string): void {
   task.status = 'done';
   task.claimed_by = null;
   task.claimed_at = null;
@@ -170,7 +170,7 @@ function markTaskCompleted(task: Task, completionNote: string, today: string): v
   task.approval_needed = false;
   task.paused = false;
   task.pending_at = null;
-  task.completed_at = today;
+  task.completed_at = completedAt;
   task.completed_note = completionNote || null;
 }
 
@@ -183,8 +183,9 @@ function completeTask(
   if ('error' in loaded) return { success: false, message: loaded.error };
   const { task, tasks } = loaded;
   const verifyWarning = completionWarning(project, task, completionNote, skipVerify, skipVerifyReason);
-  const today = todayISO();
-  markTaskCompleted(task, completionNote, today);
+  const completedAt = new Date().toISOString();
+  const today = completedAt.slice(0, 10);
+  markTaskCompleted(task, completionNote, completedAt);
   writeTasks(project, tasks);
 
   const unblockResult = task.id ? clearDependsOnAll(task.id) : { count: 0, tasks: [] };

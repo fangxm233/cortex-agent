@@ -1,3 +1,8 @@
+// input:  grouped task fixtures and mobile segment model
+// output: executable/recent/all group regressions
+// pos:    Mobile task view-model unit tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { groupMobileTasks } from '@/mobile/mobile-tasks';
@@ -47,6 +52,10 @@ describe('buildMTaskGroups', () => {
       'in-progress',
       'claimable',
     ]);
+  });
+
+  it('recent: only the prefiltered completed group', () => {
+    expect(buildMTaskGroups(grouped, 'recent').map((g) => g.key)).toEqual(['done']);
   });
 
   it('carries done tasks onto the done group in the 全部 segment', () => {

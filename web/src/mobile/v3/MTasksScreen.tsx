@@ -1,5 +1,5 @@
-// input:  task query, project scope, mobile navigation
-// output: data-bound Tasks tab or loading screen
+// input:  task query, recent completion model, mobile navigation
+// output: segmented mobile Tasks tab or loading screen
 // pos:    Mobile task-list data container
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // 1d 任务 — the current project's task queue (read-only; editing/dispatch is desktop/chat). Scheme
@@ -14,6 +14,8 @@ import { useTRPC } from '@/lib/trpc';
 import { useLang } from '@/i18n';
 import { pickCopy } from '@/mobile/ui/format';
 import { projectInitials } from '@/features/workbench/session-groups';
+import { useRecentNow } from '@/features/workbench/useRecentNow';
+import { recentCompletedTasks } from '@/features/tasks/group-tasks';
 import { useTasksLiveSync } from '@/features/tasks/useTasksLiveSync';
 import { useMobileProject } from '@/mobile/current-project';
 import {
@@ -30,6 +32,7 @@ const COPY: { en: MTasksCopy; zh: MTasksCopy } = {
   en: {
     title: 'Tasks',
     executable: 'Executable',
+    recent: 'Last 1 day',
     all: 'All',
     inProgress: 'In progress',
     claimable: 'Executable',
@@ -45,6 +48,7 @@ const COPY: { en: MTasksCopy; zh: MTasksCopy } = {
   zh: {
     title: '任务',
     executable: '可执行',
+    recent: '近 1 天',
     all: '全部',
     inProgress: '进行中',
     claimable: '可执行',
@@ -65,6 +69,7 @@ export function MTasksScreen() {
   const lang = useLang();
   const copy = pickCopy(lang, COPY);
   const { currentProjectId } = useMobileProject();
+  const now = useRecentNow(true);
 
   useTasksLiveSync();
   const tasksQuery = useQuery(
@@ -75,7 +80,12 @@ export function MTasksScreen() {
   const [segment, setSegment] = useState<MobileSegment>('executable');
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
 
-  const grouped = useMemo(() => groupMobileTasks(tasks), [tasks]);
+  const recentTasks = useMemo(() => recentCompletedTasks(tasks, now), [now, tasks]);
+  const allGrouped = useMemo(() => groupMobileTasks(tasks), [tasks]);
+  const grouped = useMemo(
+    () => segment === 'recent' ? groupMobileTasks(recentTasks) : allGrouped,
+    [allGrouped, recentTasks, segment],
+  );
   const groups = useMemo(() => buildMTaskGroups(grouped, segment), [grouped, segment]);
   const scope = currentProjectId ? projectInitials(currentProjectId) : undefined;
 
@@ -99,8 +109,9 @@ export function MTasksScreen() {
     <MTasksView
       groups={groups}
       segment={segment}
-      executableCount={executableCount(grouped)}
-      allCount={allCount(grouped)}
+      executableCount={executableCount(allGrouped)}
+      recentCount={recentTasks.length}
+      allCount={allCount(allGrouped)}
       scope={scope}
       copy={copy}
       expandedIds={expandedIds}

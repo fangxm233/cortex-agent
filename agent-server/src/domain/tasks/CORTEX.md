@@ -6,7 +6,7 @@ Also tracks dispatched runs, records acceptance verdicts, and recovers claims or
 | filename | role | function |
 |---|---|---|
 | acceptance-ledger.ts | core | records child result deliveries and verdicts |
-| archiver.ts | core | archives completed tasks out of TASKS.yaml |
+| archiver.ts | core | Archives completed tasks after retention |
 | claim-recovery.ts | core | releases task claims orphaned by a crash |
 | dispatcher.ts | core | selects and claims the next task to run |
 | dispatch-utils.ts | util | device registry and task id generation |

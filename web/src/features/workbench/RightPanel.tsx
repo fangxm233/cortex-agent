@@ -1,4 +1,4 @@
-// input:  project work scopes, cost data and notes drawer state
+// input:  project data, recent thread scope, notes drawer state
 // output: desktop right pane switching between work tabs and notes
 // pos:    Workbench right-side pane host
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -11,7 +11,8 @@ import { actionableOpenCount } from '@/features/tasks/group-tasks';
 import { RightThreadCard } from './RightThreadCard';
 import { RightMachinesTab } from './RightMachinesTab';
 import { formatCost, onlineMachineCount } from './right-panel-vm';
-import { threadScopeFilter, type Scope } from './scope';
+import { recentTerminalThreads, threadScopeFilter, type Scope } from './scope';
+import { useRecentNow } from './useRecentNow';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useVocab } from '@/i18n';
@@ -77,6 +78,7 @@ function RightWorkPanel(): JSX.Element {
   const trpc = useTRPC();
   const [tab, setTab] = useState<Tab>('threads');
   const [filter, setFilter] = useState<Scope>('active');
+  const now = useRecentNow(tab === 'threads');
 
   useThreadsLiveSync();
 
@@ -105,10 +107,10 @@ function RightWorkPanel(): JSX.Element {
   // Machines tab badge = ONLINE machines, not the total in the registry (task: show online count).
   const machineCount = onlineMachineCount(machinesQuery.data);
 
-  // Threads list for the current Active/History filter (project-scoped).
+  // Recent reuses the terminal query and applies its 24-hour window client-side.
   const threadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter(filter), projectId }));
-  const threads = threadsQuery.data ?? [];
-  const now = Date.now();
+  const listedThreads = threadsQuery.data ?? [];
+  const threads = filter === 'recent' ? recentTerminalThreads(listedThreads, now) : listedThreads;
 
   const todayCost = costQuery.data?.today;
   // GAP-B: no budget scope in the contract (CostSummary has `today`, no limit). Denominator + bar
@@ -195,6 +197,21 @@ function RightWorkPanel(): JSX.Element {
                 {L.active} {activeThreadCount}
               </span>
               <span
+                onClick={() => setFilter('recent')}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: filter === 'recent' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+                  background: filter === 'recent' ? 'var(--proto-card)' : 'transparent',
+                  borderRadius: 5,
+                  padding: '3px 10px',
+                  cursor: 'pointer',
+                  boxShadow: filter === 'recent' ? '0 1px 2px rgba(16,24,40,.08)' : 'none',
+                }}
+              >
+                {L.recentDay}
+              </span>
+              <span
                 onClick={() => setFilter('history')}
                 style={{
                   fontSize: 11,
@@ -231,6 +248,11 @@ function RightWorkPanel(): JSX.Element {
                 <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4, lineHeight: 1.6 }}>
                   {L.rpNoActiveThreadsHint}
                 </div>
+              </div>
+            )}
+            {threadsQuery.isSuccess && threads.length === 0 && filter === 'recent' && (
+              <div style={{ textAlign: 'center', fontSize: 11.5, color: 'var(--proto-faint)', padding: '24px 0' }}>
+                {L.rpNoRecentThreads}
               </div>
             )}
             {threadsQuery.isSuccess && threads.length === 0 && filter === 'history' && (

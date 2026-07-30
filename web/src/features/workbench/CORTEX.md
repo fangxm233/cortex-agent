@@ -65,14 +65,16 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
 | session-id.test.ts | test | Unit tests for identifier rows |
-| RightPanel.tsx | view | Hosts work tabs or the project notes pane |
+| RightPanel.tsx | view | Hosts work tabs with recent threads or notes |
 | right-panel-vm.ts | vm | Formats task-linked thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests task-linked thread and machine metadata |
 | RightThreadCard.tsx | view | Shows activity rows and opens modal detail |
 | RightThreadCard.layout.test.tsx | test | Browser-checks long subtask row containment |
 | RightMachinesTab.tsx | view | Lists machines with status, GPUs and live runs |
-| scope.ts | util | Maps active and history scope to status filters |
-| scope.test.ts | test | Unit tests for scope filters |
+| scope.ts | util | Filters active, recent and historical threads |
+| scope.test.ts | test | Tests thread scopes and recent time windows |
+| useRecentNow.ts | hook | Ticks recent lists once per minute |
+| useRecentNow.test.ts | test | Tests recent-list timer and cleanup |
 | useThreadsLiveSync.ts | hook | Refreshes the thread list on thread events |
 | useSessionsLiveSync.ts | hook | Refreshes the session list on lifecycle events |
 | CurrentProjectProvider.tsx | provider | Shares the selected project across panes |

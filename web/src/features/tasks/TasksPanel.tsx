@@ -1,5 +1,5 @@
-// input:  useVocab, task queries, lifecycle view models
-// output: Task list panel with Open/All scope and detail modal
+// input:  task queries, lifecycle and recent completion models
+// output: Task panel with Open/Recent/All scope and detail modal
 // pos:    Desktop task list orchestration and rendering
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -8,9 +8,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
-import { groupTasks, actionableOpenCount, type TaskGroupKind } from './group-tasks';
+import { groupTasks, actionableOpenCount, recentCompletedTasks, type TaskGroupKind } from './group-tasks';
 import { TaskRow } from './TaskRow';
 import { TaskModal } from './TaskModal';
+import { useRecentNow } from '@/features/workbench/useRecentNow';
 import { useTasksLiveSync } from './useTasksLiveSync';
 
 // Design 4a (scheme.dc.html L624-745): lifecycle groups in a fixed order with section headers.
@@ -70,7 +71,8 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
   const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [scope, setScope] = useState<'open' | 'all'>('open');
+  const now = useRecentNow(true);
+  const [scope, setScope] = useState<'open' | 'recent' | 'all'>('open');
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 
@@ -85,6 +87,8 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
   // Call ALL hooks before any early return (React rule: hooks must be in same order every render)
   const allTasks = tasksQuery.data ?? [];
   const grouped = useMemo(() => groupTasks(allTasks), [allTasks]);
+  const recentTasks = useMemo(() => recentCompletedTasks(allTasks, now), [allTasks, now]);
+  const recentGrouped = useMemo(() => groupTasks(recentTasks), [recentTasks]);
   const invalidate = () => queryClient.invalidateQueries(trpc.tasks.list.queryFilter());
 
   const complete = useMutation(
@@ -130,10 +134,9 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
     );
   }
 
-  // The Open scope contains every unfinished lifecycle group.
   const visible = scope === 'open'
-    ? grouped.filter((g) => g.kind !== 'done')
-    : grouped;
+    ? grouped.filter((group) => group.kind !== 'done')
+    : scope === 'recent' ? recentGrouped : grouped;
 
   const openCount = actionableOpenCount(allTasks);
   const totalCount = allTasks.length;
@@ -160,6 +163,21 @@ export function TasksPanel({ projectId }: TasksPanelProps) {
             }}
           >
             {L.tkOpen} {openCount}
+          </span>
+          <span
+            onClick={() => setScope('recent')}
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: scope === 'recent' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
+              background: scope === 'recent' ? 'var(--proto-card)' : 'transparent',
+              borderRadius: 5,
+              padding: '3px 10px',
+              cursor: 'pointer',
+              boxShadow: scope === 'recent' ? '0 1px 2px rgba(16,24,40,.06)' : 'none',
+            }}
+          >
+            {L.recentDay} {recentTasks.length}
           </span>
           <span
             onClick={() => setScope('all')}

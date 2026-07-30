@@ -1,6 +1,11 @@
+// input:  task DTO fixtures and task list models
+// output: lifecycle, count, and recent completion regressions
+// pos:    Task list model unit tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { groupTasks, actionableOpenCount, LIFECYCLE_ORDER } from './group-tasks';
+import { groupTasks, actionableOpenCount, LIFECYCLE_ORDER, recentCompletedTasks } from './group-tasks';
 
 function t(partial: Partial<TaskInfo> & Pick<TaskInfo, 'id'>): TaskInfo {
   return {
@@ -140,5 +145,38 @@ describe('actionableOpenCount — the open (not-done) count behind the Tasks bad
 
   it('empty input → 0', () => {
     expect(actionableOpenCount([])).toBe(0);
+  });
+});
+
+describe('recentCompletedTasks', () => {
+  const now = Date.parse('2026-07-30T17:00:00.000Z');
+
+  it('keeps completed tasks within 24 hours and sorts newest first', () => {
+    const result = recentCompletedTasks([
+      t({ id: 'older', status: 'done', completedAt: new Date(now - 23 * 60 * 60 * 1000).toISOString() }),
+      t({ id: 'newer', status: 'done', completedAt: new Date(now - 10 * 60 * 1000).toISOString() }),
+      t({ id: 'boundary', status: 'done', completedAt: new Date(now - 24 * 60 * 60 * 1000).toISOString() }),
+    ], now);
+    expect(result.map((task) => task.id)).toEqual(['newer', 'older', 'boundary']);
+  });
+
+  it('excludes open, stale, future, missing, and invalid completion times', () => {
+    const result = recentCompletedTasks([
+      t({ id: 'open', completedAt: new Date(now - 1000).toISOString() }),
+      t({ id: 'stale', status: 'done', completedAt: new Date(now - 24 * 60 * 60 * 1000 - 1).toISOString() }),
+      t({ id: 'future', status: 'done', completedAt: new Date(now + 1).toISOString() }),
+      t({ id: 'missing', status: 'done' }),
+      t({ id: 'invalid', status: 'done', completedAt: 'not-a-date' }),
+    ], now);
+    expect(result).toEqual([]);
+  });
+
+  it('keeps legacy date-only values through the end of their UTC calendar day', () => {
+    const result = recentCompletedTasks([
+      t({ id: 'today', status: 'done', completedAt: '2026-07-30' }),
+      t({ id: 'yesterday', status: 'done', completedAt: '2026-07-29' }),
+      t({ id: 'older', status: 'done', completedAt: '2026-07-28' }),
+    ], now);
+    expect(result.map((task) => task.id)).toEqual(['today', 'yesterday']);
   });
 });

@@ -1,9 +1,8 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1c L174–238)
-// Presentational views for the 1c 线程 screen: the tab header (title + qn + 活跃/历史 segment + 今日 budget
-// band) and the thread pipeline card. Both running and waiting (a manager SUSPENDED on its children —
-// DR-0014 parent suspension) render as the same drill-in pipeline card; only the status pill differs.
-// Prop-driven & framework-free of tRPC so they render-test cleanly; the container (MThreadsScreen)
-// binds the real queries and per-card detail.
+// input:  thread DTOs, detail DTOs, segment state, mobile copy
+// output: mobile Threads header and pipeline cards
+// pos:    Presentational mobile thread-list view
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// @ds-adherence-ignore -- mobile v3 uses the approved raw visual tokens
 import { MTabHeader, MCard, MPill, MSegmented, statusPillTone, MC, MONO } from '@/mobile/ui/kit';
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
 import type { Scope } from '@/features/workbench/scope';
@@ -18,6 +17,7 @@ import {
 export interface MThreadsCopy {
   title: string;
   active: string;
+  recent: string;
   history: string;
   today: string;
   open: string;
@@ -87,6 +87,7 @@ export function MThreadsHeader({
         <MSegmented<Scope>
           options={[
             { id: 'active', label: activeSegmentLabel(copy.active, activeCount) },
+            { id: 'recent', label: copy.recent },
             { id: 'history', label: copy.history },
           ]}
           value={segment}

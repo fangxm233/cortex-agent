@@ -15,8 +15,9 @@ The view models are framework-free record to slot mappings and each one has a co
 | MSessionListView.tsx | view | Day-grouped session rows with status dots |
 | m-session-list-vm.ts | vm | Groups sessions by day and derives status lines |
 | m-session-list-vm.test.ts | test | Unit tests for the session list view model |
-| MThreadsScreen.tsx | screen | Loads project threads, detail and cost |
-| MThreadsView.tsx | view | Threads header and drill-in pipeline cards |
+| MThreadsScreen.tsx | screen | Loads and filters active, recent and past threads |
+| MThreadsView.tsx | view | Segmented thread header and pipeline cards |
+| MThreadsView.test.tsx | test | Tests the recent thread segment |
 | m-threads-vm.ts | vm | Derives budget, steps and task-linked card meta |
 | m-threads-vm.test.ts | test | Tests mobile task-linked thread metadata |
 | MThreadDetailScreen.tsx | screen | Binds routed mobile detail and cancellation |
@@ -24,10 +25,11 @@ The view models are framework-free record to slot mappings and each one has a co
 | MThreadDetailView.test.tsx | test | Unit tests for the cancel affordance |
 | m-thread-detail-vm.ts | vm | Maps thread detail to steps, crumbs, artifacts |
 | m-thread-detail-vm.test.ts | test | Unit tests for the thread detail view model |
-| MTasksScreen.tsx | screen | Loads project tasks and owns segment state |
-| MTasksView.tsx | view | Grouped task list with executable and all views |
+| MTasksScreen.tsx | screen | Loads and filters project tasks by segment |
+| MTasksView.tsx | view | Grouped task list with three segment views |
+| MTasksView.test.tsx | test | Tests the recent task segment |
 | m-tasks-vm.ts | vm | Selects and orders task groups per segment |
-| m-tasks-vm.test.ts | test | Unit tests for the tasks view model |
+| m-tasks-vm.test.ts | test | Tests executable, recent and all groups |
 | MTaskDetailScreen.tsx | screen | Loads one task plus its verification evidence |
 | MTaskDetailView.tsx | view | Task detail with approval, fields, deps and history |
 | MTaskDetailView.test.tsx | test | Guards approval, fields and dependency state |

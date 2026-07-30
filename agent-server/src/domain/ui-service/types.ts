@@ -1,5 +1,5 @@
 // input:  domain types, context/notices, stores, pending data
-// output: UI DTOs and operation maps including task approvals
+// output: UI DTOs and operation maps including task completion
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -750,6 +750,8 @@ export interface TaskInfo {
   why: string | null;
   /** The task's completion criteria (task store `done-when`). Null when absent/empty (null-safe). */
   doneWhen: string | null;
+  /** Completion timestamp; optional while app and server versions roll independently. */
+  completedAt?: string | null;
 }
 
 // ── tasks.verification DTO (DR-0018 §12 C item 11) ────────────────

@@ -6,13 +6,13 @@ A detail modal shows fields, dependencies, completion evidence and dispatch hist
 | filename | role | function |
 |---|---|---|
 | TasksPage.tsx | entry | Tasks route page wrapping the tasks panel |
-| TasksPanel.tsx | core | Grouped task list with Open/All scope and modal |
+| TasksPanel.tsx | core | Task list with Open/Recent/All scope and modal |
 | TaskRow.tsx | view | One task card with lifecycle dot and metadata |
 | TaskModal.tsx | view | Task detail modal with fields, deps and actions |
 | task-modal-vm.ts | vm | Builds approval-aware fields, pill and deps |
 | task-modal-vm.test.ts | test | Guards approval, fields, theme, deps and actions |
-| group-tasks.ts | vm | Buckets tasks into lifecycle groups and counts |
-| group-tasks.test.ts | test | Unit tests for task grouping |
+| group-tasks.ts | vm | Groups lifecycle and recent completed tasks |
+| group-tasks.test.ts | test | Tests grouping, counts and recent completion |
 | task-verification-vm.ts | vm | Builds completion evidence and dispatch rows |
 | task-verification-vm.test.ts | test | Unit tests for the verification view model |
 | useTasksLiveSync.ts | hook | Refetches the task list on lifecycle events |
