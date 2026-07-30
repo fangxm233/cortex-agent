@@ -1,5 +1,5 @@
-// input:  CONFIG_DIR, process env, filesystem
-// output: settings spec and read/watch/write API
+// input:  CONFIG_DIR, settings spec, process env, filesystem
+// output: source snapshots and settings read/watch/write API
 // pos:    L0 file-backed runtime settings boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -9,186 +9,23 @@ import { AsyncMutex } from './async-mutex.js';
 import { atomicWrite } from './atomic-write.js';
 import { createLogger } from './log.js';
 import { CONFIG_DIR } from './paths.js';
+import {
+  SETTINGS_SPEC,
+  type SettingKey,
+  type SettingSnapshotEntry,
+  type SettingSpecEntry,
+  type Settings,
+  type SettingType,
+} from './settings-spec.js';
 
-export interface Settings {
-  turnNotify: boolean;
-  turnNotifyThresholdS: number;
-  notifyCompaction: boolean;
-  showToolCalls: boolean;
-  statusNewqButton: boolean;
-  autoResume: boolean;
-  streamDeltas: boolean;
-  bgContinuation: boolean;
-  eventLog: boolean;
-  disableUserContext: boolean;
-  serverUpdateDisable: boolean;
-  hooksLegacy: boolean;
-  managerRotateSteps: number;
-  waitingSweepMs: number;
-  injectWaitMaxS: number;
-  threadMaxDepth: number;
-  taskArtifactTemplates: string[];
-  taskDispatchMaxConcurrent: number | null;
-  uiCorsOrigins: string[];
-  adminChannel: string | null;
-  feishuAdminChannel: string | null;
-}
+export {
+  SETTINGS_SPEC,
+  type SettingKey,
+  type SettingSnapshotEntry,
+  type Settings,
+} from './settings-spec.js';
 
-export type SettingKey = keyof Settings;
 export type SettingsChangeCallback = (changedKeys: SettingKey[]) => void;
-
-type SettingType = 'boolean' | 'number' | 'number|null' | 'string[]' | 'string|null';
-type EnvVar = string | readonly string[];
-
-interface SettingSpecEntry<T> {
-  envVar: EnvVar;
-  type: SettingType;
-  default: T;
-  legacyParse: (raw: string) => T;
-}
-
-type SettingsSpec = { [K in SettingKey]: SettingSpecEntry<Settings[K]> };
-
-export const SETTINGS_SPEC = {
-  turnNotify: {
-    envVar: 'CORTEX_TURN_NOTIFY',
-    type: 'boolean',
-    default: true,
-    legacyParse: (raw: string) => !['0', 'false', 'off', 'no'].includes(raw.trim().toLowerCase()),
-  },
-  turnNotifyThresholdS: {
-    envVar: 'CORTEX_TURN_NOTIFY_THRESHOLD_S',
-    type: 'number',
-    default: 60,
-    legacyParse: (raw: string) => {
-      const value = Number(raw.trim());
-      return Number.isFinite(value) && value > 0 ? value : 60;
-    },
-  },
-  notifyCompaction: {
-    envVar: 'CORTEX_NOTIFY_COMPACTION',
-    type: 'boolean',
-    default: false,
-    legacyParse: (raw: string) => raw === '1',
-  },
-  showToolCalls: {
-    envVar: 'CORTEX_SHOW_TOOL_CALLS',
-    type: 'boolean',
-    default: false,
-    legacyParse: (raw: string) => ['1', 'true', 'yes', 'on'].includes(raw.trim().toLowerCase()),
-  },
-  statusNewqButton: {
-    envVar: 'CORTEX_STATUS_NEWQ_BUTTON',
-    type: 'boolean',
-    default: false,
-    legacyParse: (raw: string) => ['1', 'true', 'on', 'yes'].includes(raw.trim().toLowerCase()),
-  },
-  autoResume: {
-    envVar: 'CORTEX_AUTO_RESUME',
-    type: 'boolean',
-    default: true,
-    legacyParse: (raw: string) => raw !== '0' && raw !== 'false',
-  },
-  streamDeltas: {
-    envVar: 'CORTEX_STREAM_DELTAS',
-    type: 'boolean',
-    default: true,
-    legacyParse: (raw: string) => raw !== '0',
-  },
-  bgContinuation: {
-    envVar: 'CORTEX_BG_CONTINUATION',
-    type: 'boolean',
-    default: true,
-    legacyParse: (raw: string) => !['0', 'false', 'off', 'no'].includes(raw.trim().toLowerCase()),
-  },
-  eventLog: {
-    envVar: 'CORTEX_EVENT_LOG',
-    type: 'boolean',
-    default: true,
-    legacyParse: (raw: string) => raw !== 'off',
-  },
-  disableUserContext: {
-    envVar: 'CORTEX_DISABLE_USER_CONTEXT',
-    type: 'boolean',
-    default: false,
-    legacyParse: (raw: string) => raw === '1',
-  },
-  serverUpdateDisable: {
-    envVar: 'CORTEX_SERVER_UPDATE_DISABLE',
-    type: 'boolean',
-    default: false,
-    legacyParse: (raw: string) => raw === '1',
-  },
-  hooksLegacy: {
-    envVar: 'CORTEX_HOOKS_LEGACY',
-    type: 'boolean',
-    default: false,
-    legacyParse: (raw: string) => raw === '1',
-  },
-  managerRotateSteps: {
-    envVar: 'CORTEX_MANAGER_ROTATE_STEPS',
-    type: 'number',
-    default: 10,
-    legacyParse: (raw: string) => {
-      const value = Number.parseInt(raw || '', 10);
-      return Number.isFinite(value) && value > 0 ? value : 10;
-    },
-  },
-  waitingSweepMs: {
-    envVar: 'CORTEX_WAITING_SWEEP_MS',
-    type: 'number',
-    default: 60_000,
-    legacyParse: (raw: string) => {
-      const value = Number.parseInt(raw || '', 10);
-      return Number.isFinite(value) ? value : 60_000;
-    },
-  },
-  injectWaitMaxS: {
-    envVar: 'CORTEX_INJECT_WAIT_MAX_S',
-    type: 'number',
-    default: 600,
-    legacyParse: (raw: string) => Number(raw),
-  },
-  threadMaxDepth: {
-    envVar: 'CORTEX_THREAD_MAX_DEPTH',
-    type: 'number',
-    default: 5,
-    legacyParse: (raw: string) => Number.parseInt(raw || '5', 10) || 5,
-  },
-  taskArtifactTemplates: {
-    envVar: 'CORTEX_TASK_ARTIFACT_TEMPLATES',
-    type: 'string[]',
-    default: ['manager'],
-    legacyParse: (raw: string) => raw.split(',').map((value) => value.trim()).filter(Boolean),
-  },
-  taskDispatchMaxConcurrent: {
-    envVar: 'TASK_DISPATCH_MAX_CONCURRENT',
-    type: 'number|null',
-    default: null,
-    legacyParse: (raw: string) => {
-      const value = Number.parseInt(raw, 10);
-      return raw.trim() && Number.isFinite(value) && value > 0 ? value : null;
-    },
-  },
-  uiCorsOrigins: {
-    envVar: 'CORTEX_UI_CORS_ORIGINS',
-    type: 'string[]',
-    default: [],
-    legacyParse: (raw: string) => raw.split(',').map((value) => value.trim()).filter(Boolean),
-  },
-  adminChannel: {
-    envVar: ['SLACK_ADMIN_CHANNEL', 'CORTEX_ADMIN_CHANNEL'],
-    type: 'string|null',
-    default: null,
-    legacyParse: (raw: string) => raw || null,
-  },
-  feishuAdminChannel: {
-    envVar: 'FEISHU_ADMIN_CHANNEL',
-    type: 'string|null',
-    default: null,
-    legacyParse: (raw: string) => raw || null,
-  },
-} satisfies SettingsSpec;
 
 const log = createLogger('settings');
 const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json');
@@ -201,6 +38,7 @@ const writeMutex = new AsyncMutex();
 let initialized = false;
 let cachedOverrides: Record<string, unknown> = {};
 let cachedSettings: Settings | null = null;
+let cachedSettingsSnapshot: SettingSnapshotEntry[] | null = null;
 let settingsWatcher: FSWatcher | null = null;
 let reloadTimer: ReturnType<typeof setTimeout> | null = null;
 let selfWriting = false;
@@ -243,27 +81,40 @@ function logEnvFallback(key: SettingKey, envVar: string): void {
   log.warn(`Deprecated env ${envVar} supplies settings.${key}; move it to settings.json`);
 }
 
-function resolveLegacy<K extends SettingKey>(key: K): Settings[K] {
+function resolveSettingEntry<K extends SettingKey>(
+  key: K,
+  overrides: Record<string, unknown>,
+  env: NodeJS.ProcessEnv,
+  warnOnEnv: boolean,
+): SettingSnapshotEntry<K> {
   const entry = SETTINGS_SPEC[key] as SettingSpecEntry<Settings[K]>;
+  if (Object.hasOwn(overrides, key)) {
+    return { key, value: overrides[key] as Settings[K], source: 'file' };
+  }
   const envVars = typeof entry.envVar === 'string' ? [entry.envVar] : entry.envVar;
   for (const envVar of envVars) {
-    const raw = process.env[envVar];
-    if (raw === undefined) continue;
-    if (TRUTHY_ENV_KEYS.has(key) && raw.length === 0) continue;
-    logEnvFallback(key, envVar);
-    return entry.legacyParse(raw);
+    const raw = env[envVar];
+    if (raw === undefined || (TRUTHY_ENV_KEYS.has(key) && raw.length === 0)) continue;
+    if (warnOnEnv) logEnvFallback(key, envVar);
+    return { key, value: entry.legacyParse(raw), source: 'env' };
   }
-  return entry.default;
+  return { key, value: entry.default, source: 'default' };
 }
 
-function resolveSetting<K extends SettingKey>(key: K, overrides: Record<string, unknown>): Settings[K] {
-  if (Object.hasOwn(overrides, key)) return overrides[key] as Settings[K];
-  return resolveLegacy(key);
+export function resolveSettingsSnapshot(
+  overrides: Record<string, unknown>,
+  env: NodeJS.ProcessEnv = process.env,
+): SettingSnapshotEntry[] {
+  validateOverrides(overrides);
+  return SETTING_KEYS.map((key) => resolveSettingEntry(key, overrides, env, false));
 }
 
 function resolveSettings(overrides: Record<string, unknown>): Settings {
   return Object.fromEntries(
-    SETTING_KEYS.map((key) => [key, resolveSetting(key, overrides)]),
+    SETTING_KEYS.map((key) => {
+      const entry = resolveSettingEntry(key, overrides, process.env, true);
+      return [key, entry.value];
+    }),
   ) as unknown as Settings;
 }
 
@@ -290,10 +141,30 @@ function emitChanges(previous: Settings, next: Settings): void {
   }
 }
 
-function acceptSnapshot(overrides: Record<string, unknown>, next: Settings): void {
+function settingsFromSnapshot(snapshot: SettingSnapshotEntry[]): Settings {
+  return Object.fromEntries(snapshot.map((entry) => [entry.key, entry.value])) as unknown as Settings;
+}
+
+function snapshotWithValues(
+  overrides: Record<string, unknown>,
+  settings: Settings,
+): SettingSnapshotEntry[] {
+  return resolveSettingsSnapshot(overrides).map((entry) => ({
+    key: entry.key,
+    value: settings[entry.key],
+    source: entry.source,
+  }));
+}
+
+function acceptSnapshot(
+  overrides: Record<string, unknown>,
+  next: Settings,
+  snapshot = snapshotWithValues(overrides, next),
+): void {
   const previous = cachedSettings;
   cachedOverrides = overrides;
   cachedSettings = next;
+  cachedSettingsSnapshot = snapshot;
   if (previous) emitChanges(previous, next);
 }
 
@@ -340,12 +211,11 @@ function initialize(): void {
   if (initialized) return;
   initialized = true;
   try {
-    cachedOverrides = readOverrides();
-    cachedSettings = resolveSettings(cachedOverrides);
+    const overrides = readOverrides();
+    acceptSnapshot(overrides, resolveSettings(overrides));
   } catch (error) {
     log.error(`Load settings.json failed: ${(error as Error).message} — using env/default settings`);
-    cachedOverrides = {};
-    cachedSettings = resolveSettings(cachedOverrides);
+    acceptSnapshot({}, resolveSettings({}));
   }
   startWatcher();
 }
@@ -353,6 +223,11 @@ function initialize(): void {
 export function getSettings(): Settings {
   initialize();
   return cachedSettings!;
+}
+
+export function getSettingsSnapshot(): SettingSnapshotEntry[] {
+  initialize();
+  return cachedSettingsSnapshot!;
 }
 
 export function onSettingsChange(callback: SettingsChangeCallback): () => void {
@@ -363,14 +238,15 @@ export function onSettingsChange(callback: SettingsChangeCallback): () => void {
 
 export async function updateSettings(partial: Partial<Settings>): Promise<void> {
   initialize();
+  const env = { ...process.env };
   await writeMutex.run(async () => {
     const nextOverrides = { ...cachedOverrides, ...partial };
-    validateOverrides(nextOverrides);
-    const nextSettings = resolveSettings(nextOverrides);
+    const nextSnapshot = resolveSettingsSnapshot(nextOverrides, env);
+    const nextSettings = settingsFromSnapshot(nextSnapshot);
     selfWriting = true;
     try {
       await atomicWrite(SETTINGS_FILE, `${JSON.stringify(nextOverrides, null, 2)}\n`);
-      acceptSnapshot(nextOverrides, nextSettings);
+      acceptSnapshot(nextOverrides, nextSettings, nextSnapshot);
     } finally {
       selfWriting = false;
     }

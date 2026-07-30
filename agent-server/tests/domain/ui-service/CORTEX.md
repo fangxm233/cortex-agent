@@ -6,7 +6,7 @@ Scopes covered are approvals, config, executions, issues, memory, projects, sche
 | filename | role | function |
 |---|---|---|
 | mutate-approvals.test.ts | test | Covers approve, reject and request writes |
-| mutate-config.test.ts | test | Covers budget and default profile writes |
+| mutate-config.test.ts | test | Covers budget, profile and settings writes |
 | mutate-executions.test.ts | test | Covers execution cancellation outcomes |
 | mutate-hooks.test.ts | test | Covers hook draft rebuild and test clamping |
 | mutate-issues.test.ts | test | Covers issue delete and handoff to session |
@@ -23,7 +23,7 @@ Scopes covered are approvals, config, executions, issues, memory, projects, sche
 | mutate-tasks.test.ts | test | Covers task lock acquire, release and force |
 | mutate-threads.test.ts | test | Covers thread cancellation outcomes |
 | query-approvals.test.ts | test | Covers approval queue parsing and listing |
-| query-config.test.ts | test | Covers redaction, live profiles and hook snapshots |
+| query-config.test.ts | test | Covers redaction and settings source snapshots |
 | query-cost.test.ts | test | Covers cost summary and project filter |
 | query-hooks.test.ts | test | Covers the hook registry read model DTO |
 | query-executions-get.test.ts | test | Covers execution detail lookup |

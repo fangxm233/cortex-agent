@@ -1,16 +1,13 @@
-// input:  UiServiceDeps + ConfigSetArgs (section + value)
-// output: config.set handler → Ok<ConfigSetReturn> | Err. Pure `writeBudget` (dir arg, atomic)
-//         + pure `writeDefaultProfile` (dir arg, atomic; existence-checked) + thin `handleConfigSet`
-//         (section switch over CONFIG_DIR).
-// pos:    mutate handler for 'config.set' (Stage 7 + task b983). Two whitelisted sections are
-//         writable — `budget` (daily/monthly) and `profiles` (re-point defaultProfile to an
-//         EXISTING profile). Each validates + atomic-writes; illegal values / unknown profiles
-//         are rejected.
+// input:  config.set schema, CONFIG_DIR, runtime settings API
+// output: validated budget, profile, and settings writes
+// pos:    Mutation handler for the writable config sections
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { CONFIG_DIR } from '@core/paths.js';
 import { atomicWrite } from '@core/atomic-write.js';
+import { updateSettings } from '@core/settings.js';
 import { configSetInput } from '../input-schemas.js';
 import type { UiServiceDeps, Result, ConfigSetArgs, ConfigSetReturn, BudgetValue } from '../types.js';
 
@@ -68,8 +65,12 @@ export async function handleConfigSet(
       await writeBudget(CONFIG_DIR, parsed.data.value);
       return { ok: true, data: { written: true, section: 'budget' } };
     }
-    await writeDefaultProfile(CONFIG_DIR, parsed.data.value.defaultProfile);
-    return { ok: true, data: { written: true, section: 'profiles' } };
+    if (parsed.data.section === 'profiles') {
+      await writeDefaultProfile(CONFIG_DIR, parsed.data.value.defaultProfile);
+      return { ok: true, data: { written: true, section: 'profiles' } };
+    }
+    await updateSettings(parsed.data.value);
+    return { ok: true, data: { written: true, section: 'settings' } };
   } catch (err: any) {
     const code = err?.code === 'invalid-args' ? 'invalid-args' : 'internal';
     return { ok: false, code, message: err?.message || String(err) };
