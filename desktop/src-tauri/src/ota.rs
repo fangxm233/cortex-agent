@@ -202,7 +202,7 @@ impl UiStore {
 /// depend on a process-wide `install_default` having run first). reqwest wraps the passed value in
 /// `Some(..)` and downcasts to `Option<rustls::ClientConfig>`; a single unified rustls version in the
 /// dependency graph makes that downcast succeed.
-fn build_http_client() -> Result<reqwest::blocking::Client, String> {
+pub(crate) fn build_http_client() -> Result<reqwest::blocking::Client, String> {
     let mut roots = rustls::RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(

@@ -1,7 +1,7 @@
 Please update me when files in this folder change
 
-Local Tauri plugin that saves app files into the public Android Downloads folder.
-Ships the Rust command, its permission grants, and the Android library.
+Local Tauri plugin for Android: saves files to public Downloads and hands APKs to the installer.
+Ships the Rust commands, their permission grants, and the Android library.
 
 | filename | role | function |
 |---|---|---|

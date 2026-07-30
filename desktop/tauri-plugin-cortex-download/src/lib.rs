@@ -42,6 +42,21 @@ struct DownloadResponse {
     id: i64,
 }
 
+/// Arguments for the Kotlin `installApk` command (app shell self-update: raise the system package
+/// installer over a downloaded, verified APK).
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallApkArgs {
+    /// Absolute path of the APK inside this app's data dir (exposed via the plugin's FileProvider).
+    pub path: String,
+}
+
+/// Empty Kotlin reply for `installApk` (resolve/reject only).
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+#[derive(Debug, Clone, Deserialize)]
+struct InstallApkResponse {}
+
 /// Handle to the registered mobile plugin (Android) — a stub marker on every other platform.
 pub struct CortexDownload<R: Runtime> {
     #[cfg(target_os = "android")]
@@ -67,6 +82,24 @@ impl<R: Runtime> CortexDownload<R> {
         {
             let _ = args;
             Err("public Downloads is only supported on Android".to_string())
+        }
+    }
+
+    /// Raise the Android system package installer over a local APK file (app shell self-update).
+    /// Rust-only entry point — called by the app's `install_app_update` command, never invoked from
+    /// the webview, so it needs no webview ACL permission. Errors on every other platform.
+    pub fn install_apk(&self, path: String) -> Result<(), String> {
+        #[cfg(target_os = "android")]
+        {
+            self.handle
+                .run_mobile_plugin::<InstallApkResponse>("installApk", InstallApkArgs { path })
+                .map(|_| ())
+                .map_err(|e| e.to_string())
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            let _ = path;
+            Err("APK install is only supported on Android".to_string())
         }
     }
 }

@@ -47,6 +47,7 @@ mod creds;
 // the OTA updater (reqwest[rustls]/sha2/zip — all cross-compile cleanly for Android) stages new
 // bundles for the next launch. The one platform seam is the first-run seed (see `seed` below):
 // desktop reads it from `resource_dir/frontend-seed`, Android from an `include_dir!`-embedded copy.
+mod app_update;
 mod frontend;
 mod ota;
 // Android-only: the embedded SPA seed materialized onto disk on first run (desktop uses the real
@@ -104,6 +105,8 @@ pub struct ConnectionConfig {
 
 pub struct AppState {
     pub config: Mutex<ConnectionConfig>,
+    /// The downloaded + verified app shell update, when one is ready to install (see app_update.rs).
+    pub app_update: Mutex<Option<app_update::AppUpdate>>,
 }
 
 // ─── Tauri commands ────────────────────────────────────────────────────────
@@ -210,6 +213,54 @@ fn get_staged_update(app: tauri::AppHandle) -> Option<ota::StagedUpdate> {
         from_version: store.installed_version(),
         size: 0,
     })
+}
+
+/// Tauri event raised (to the SPA) when a newer app shell has been downloaded + sha256-verified and
+/// is ready to install. Payload is a serialized `app_update::AppUpdate`
+/// (`{ version, releaseUrl, notes, size, kind }`). Supersedes the SPA-only hot-update prompt.
+const APP_UPDATE_AVAILABLE_EVENT: &str = "app-update-available";
+
+/// Return the prepared app shell update, if any — the SPA's backstop for a missed
+/// `app-update-available` event (mirror of `get_staged_update`).
+#[tauri::command]
+fn get_app_update(state: State<AppState>) -> Option<app_update::AppUpdate> {
+    state.app_update.lock().unwrap().clone()
+}
+
+/// Install the prepared app shell update. Re-verifies the on-disk file against the manifest sha256
+/// first (the download could have been tampered with between staging and install), then hands off
+/// per platform (see app_update::install). Returns the opened installer path for the assisted
+/// flows (dmg/deb/rpm), None when the shell handed off and is exiting.
+#[tauri::command]
+fn install_app_update(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> Result<Option<String>, String> {
+    let update = state
+        .app_update
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("no app update prepared")?;
+    let actual = app_update::hash_file(&update.path).map_err(|e| e.to_string())?;
+    if !actual.eq_ignore_ascii_case(&update.sha256) {
+        return Err("update file failed verification".to_string());
+    }
+    app_update::install(&app, &update)
+}
+
+/// Skip the offered app version: persist it shell-side (survives SPA OTA swaps) and clear the
+/// pending update so this run stops offering it. The next release clears the skip naturally
+/// (different version string).
+#[tauri::command]
+fn skip_app_update(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
+    let Some(update) = state.app_update.lock().unwrap().take() else {
+        return Ok(());
+    };
+    let data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    app_update::UpdateStore::new(&data)
+        .set_skipped(&update.version)
+        .map_err(|e| e.to_string())
 }
 
 /// Save agent-sent (or user-downloaded) file bytes to disk. A plain browser `<a download>` /
@@ -481,6 +532,7 @@ pub fn run() {
         .plugin(tauri_plugin_cortex_download::init())
         .manage(AppState {
             config: Mutex::new(ConnectionConfig::default()),
+            app_update: Mutex::new(None),
         })
         .invoke_handler(tauri::generate_handler![
             get_connection_config,
@@ -489,6 +541,9 @@ pub fn run() {
             disconnect,
             apply_frontend_update,
             get_staged_update,
+            get_app_update,
+            install_app_update,
+            skip_app_update,
             save_download,
             open_path,
             reveal_path,
@@ -613,6 +668,60 @@ pub fn run() {
                     });
                 } else {
                     shell_log!("[cortex-desktop] ota check not started: no credentials");
+                }
+            }
+
+            // ── Background app-shell update check (both platforms) ──
+            // Asks the connected server's /api/app-update/manifest.json for a newer shell (capped
+            // at the server's own version), downloads + verifies it, then emits
+            // `app-update-available` so the SPA raises the ONE update prompt. Re-checks daily for
+            // long-running instances. Dev builds (non-CalVer version, e.g. 0.0.1) never check.
+            {
+                let own_version = app.package_info().version.to_string();
+                let cfg = app.state::<AppState>().config.lock().unwrap().clone();
+                let data = app.path().app_data_dir().ok();
+                if std::env::var("CORTEX_APP_UPDATE_DISABLE").as_deref() == Ok("1") {
+                    shell_log!("[cortex-desktop] app-update check disabled by env");
+                } else if !app_update::is_calver(&own_version) {
+                    shell_log!("[cortex-desktop] app-update check skipped: dev version {own_version}");
+                } else if let (Some(data), Some(url), Some(token)) =
+                    (data, cfg.server_url, cfg.token)
+                {
+                    let handle = app.handle().clone();
+                    std::thread::spawn(move || loop {
+                        let store = app_update::UpdateStore::new(&data);
+                        let kind = app_update::wanted_kind();
+                        match app_update::check_and_prepare(
+                            &url,
+                            &token,
+                            &own_version,
+                            app_update::OS_NAME,
+                            app_update::ARCH_NAME,
+                            &kind,
+                            &store,
+                        ) {
+                            Ok(Some(update)) => {
+                                shell_log!(
+                                    "[cortex-desktop] app update {} ready ({} {})",
+                                    update.version,
+                                    update.kind,
+                                    update.size
+                                );
+                                *handle.state::<AppState>().app_update.lock().unwrap() =
+                                    Some(update.clone());
+                                if let Err(e) = handle.emit(APP_UPDATE_AVAILABLE_EVENT, &update) {
+                                    shell_log!(
+                                        "[cortex-desktop] emit {APP_UPDATE_AVAILABLE_EVENT} failed: {e}"
+                                    );
+                                }
+                            }
+                            Ok(None) => shell_log!("[cortex-desktop] app update: none applicable"),
+                            Err(e) => shell_log!("[cortex-desktop] app update check skipped: {e}"),
+                        }
+                        std::thread::sleep(std::time::Duration::from_secs(24 * 60 * 60));
+                    });
+                } else {
+                    shell_log!("[cortex-desktop] app-update check not started: no credentials");
                 }
             }
 

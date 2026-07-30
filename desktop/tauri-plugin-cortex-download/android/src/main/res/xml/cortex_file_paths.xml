@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider roots for the cortex-download plugin. The update APK lives under Tauri's
+     app_data_dir, which on Android is the package data ROOT (Context.dataDir — see the vendored
+     PathPlugin.kt), NOT filesDir — so files-path/cache-path alone would not cover it; the
+     root-path entry does. files-path/cache-path stay for any future files under those dirs. -->
+<paths>
+    <files-path name="files" path="." />
+    <cache-path name="cache" path="." />
+    <root-path name="root" path="." />
+</paths>

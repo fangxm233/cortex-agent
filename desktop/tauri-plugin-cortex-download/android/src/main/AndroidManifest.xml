@@ -3,4 +3,23 @@
          collection needs no storage permission (DownloadManager is exempt from scoped storage);
          POST_NOTIFICATIONS is declared by the app so the completion notification can show on API 33+. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- App shell self-update: lets the app hand a downloaded APK to the system package installer
+         (the user still confirms; on first use Android walks through install-unknown-apps consent). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <!-- Exposes the downloaded APK (app-private data dir) to the system package installer via a
+             content:// URI. Tauri's app_data_dir maps to the package data ROOT on Android (not
+             filesDir), so cortex_file_paths.xml includes a root-path entry. Merged into the app
+             manifest at build time — survives `tauri android init` because it lives in this plugin. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.cortex.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/cortex_file_paths" />
+        </provider>
+    </application>
 </manifest>
