@@ -6,6 +6,6 @@ assistant delta streaming, context compaction, and message rewind.
 | filename | role | function |
 |---|---|---|
 | agent-file-send.test.ts | test | Covers agent file delivery and copying |
-| delta-coalescer.test.ts | test | Covers delta batching and stream gating |
+| delta-coalescer.test.ts | test | Covers delta batching and settings gating |
 | session-compact.test.ts | test | Covers manual context compaction outcomes |
 | session-rewind.test.ts | test | Covers web message edit and turn rewind |

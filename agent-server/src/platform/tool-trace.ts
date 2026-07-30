@@ -1,23 +1,18 @@
-// input:  platform/OutputStream, CORTEX_SHOW_TOOL_CALLS env
-// output: ToolTrace class + createToolTrace factory + isToolTraceEnabled
-// pos:    Compact tool_use trace rendered via OutputStream openMutable/update
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  OutputStream, icons, runtime settings
+// output: ToolTrace, factory, and enablement gate
+// pos:    Renders compact tool-use traces through OutputStream
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { OutputStream, MutableRegion } from '@platform/index.js';
 
 import { Icons } from '../core/icons.js';
+import { getSettings } from '@core/settings.js';
 
 const MAX_LINE_LEN = 120;
 const ELLIPSIS = '…';
 
-function isEnvTruthy(v: string | undefined): boolean {
-  if (!v) return false;
-  const s = v.trim().toLowerCase();
-  return s === '1' || s === 'true' || s === 'yes' || s === 'on';
-}
-
 export function isToolTraceEnabled(): boolean {
-  return isEnvTruthy(process.env.CORTEX_SHOW_TOOL_CALLS);
+  return getSettings().showToolCalls;
 }
 
 function firstLine(s: string): string {

@@ -8,7 +8,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | agent-runner-wake-guard.test.ts | test | Covers synthetic wake notice routing guard |
 | agent-runner.test.ts | test | Covers plain message routing and queue markers |
 | ask-user-question-pi.test.ts | test | Covers PI ask-user-question resolution |
-| bg-continuation.test.ts | test | Covers background continuation sink dispatch |
+| bg-continuation.test.ts | test | Covers settings-backed continuation dispatch |
 | bg-wait-guard.test.ts | test | Covers background wait bracket, grace and cap |
 | busy-tracker.test.ts | test | Covers busy counter publish and aggregation |
 | cancel-bg-hold.test.ts | test | Covers stop during a background hold |
@@ -25,7 +25,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | pending-injection-recovery.test.ts | test | Covers injection idempotency and startup drain |
 | plan-approvals.test.ts | test | Covers plan approval state transitions |
 | plan-response.test.ts | test | Covers Web plan approve and reject delivery |
-| resume-dispatcher.test.ts | test | Covers ready dispatch, requeue and idle wake |
+| resume-dispatcher.test.ts | test | Covers settings-backed resume dispatch |
 | running-executions.test.ts | test | Covers execution registry indices and events |
 | seal-thread-status.test.ts | test | Covers terminal thread status sealing |
 | session-events.test.ts | test | Covers session event publication contract |
@@ -35,5 +35,5 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | teardown-execution.test.ts | test | Covers execution teardown and balanced events |
 | thread-detached.test.ts | test | Covers detached thread busy gate bracket |
 | thread-executor.test.ts | test | Covers thread queue markers and routing |
-| turn-notify.test.ts | test | Covers turn completion notification gating |
+| turn-notify.test.ts | test | Covers settings-backed turn notification gating |
 | web-bg-hold.test.ts | test | Covers Web background hold status and seal |

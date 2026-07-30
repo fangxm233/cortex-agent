@@ -1,7 +1,7 @@
-// input:  thread store, templates, tasks, artifacts
+// input:  thread store, templates, tasks, runtime settings
 // output: lifecycle, provider pauses, control transitions
 // pos:    Thread lifecycle and suspension state machine
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { mkdirSync, writeFileSync, readFileSync } from 'fs';
 import { createHash, randomUUID } from 'crypto';
@@ -10,6 +10,7 @@ import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { ensureTaskArtifact } from '@core/task-node.js';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { threadStore } from '@store/thread-repo.js';
 
 const log = createLogger('state-machine');
@@ -104,11 +105,10 @@ export function isArtifactUnchangedSinceStepStart(threadId: string): boolean {
 
 /** Templates whose dispatch threads keep their artifact on the TASK node instead of the
  *  tmp workspace (DR-0017 W1): durable, git-versioned with the context repo, survives
- *  thread death/rotation/cleanup. Comma-separated env override. */
+ *  thread death/rotation/cleanup. */
 export function isTaskArtifactTemplate(templateName: string | null | undefined): boolean {
   if (!templateName) return false;
-  const raw = process.env.CORTEX_TASK_ARTIFACT_TEMPLATES ?? 'manager';
-  return raw.split(',').map((s) => s.trim()).filter(Boolean).includes(templateName);
+  return getSettings().taskArtifactTemplates.includes(templateName);
 }
 
 interface ThreadRecordInit {

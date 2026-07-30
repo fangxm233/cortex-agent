@@ -1,7 +1,7 @@
-// input:  continuation sink, result, tool/context callbacks, timers
-// output: bounded inline wait forwarding complete tools and context snapshots
-// pos:    Thread-session continuation bridge
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  continuation sink, results, timers, runtime settings
+// output: bounded wait forwarding tools and context snapshots
+// pos:    Bridges thread-session background continuations
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Interactive turns hold their Slack status asynchronously (orchestration/lifecycle +
 // bg-wait-guard). Thread/dispatch turns have no status message to hold — the step's
@@ -12,17 +12,15 @@
 // cannot hang a thread step forever.
 
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { ContinuationSink } from './types.js';
 
 const log = createLogger('bg-wait');
 
-/** Feature gate: background-task continuation is ON by default. Opt out by setting
- *  CORTEX_BG_CONTINUATION to a falsy value (0 / false / off / no). */
+/** Background-task continuation feature gate. */
 export function isBgContinuationEnabled(): boolean {
-  const v = process.env.CORTEX_BG_CONTINUATION;
-  if (v === undefined) return true;
-  return !['0', 'false', 'off', 'no'].includes(v.trim().toLowerCase());
+  return getSettings().bgContinuation;
 }
 
 const DEFAULT_GRACE_MS = 90_000;

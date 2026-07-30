@@ -1,13 +1,14 @@
-// input:  AgentSpawnConfig, session keys, injectable spawner
-// output: PIAdapter runtime sessions, context stats, manual compact, steering
-// pos:    PI CLI session pool; private spawn/codec helpers stay module-internal
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  spawn config, session keys, spawner, runtime settings
+// output: PI sessions, context stats, compact, and steering
+// pos:    Owns the PI CLI session pool and runtime adapter
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
 import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentSpawnConfig, Backend, InjectionAckSink, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
@@ -164,7 +165,7 @@ class PISession {
     this.registry = opts.registry;
     this.registrySessionDir = opts.registrySessionDir;
     this.onClose = opts.onClose;
-    this.streamDeltas = process.env['CORTEX_STREAM_DELTAS'] !== '0';
+    this.streamDeltas = getSettings().streamDeltas;
 
     this.proc = opts.spawner(DEFAULT_PI_BINARY, opts.cliArgs, {
       cwd: opts.cwd,

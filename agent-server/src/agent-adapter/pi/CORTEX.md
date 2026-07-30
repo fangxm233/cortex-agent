@@ -5,7 +5,7 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | runs PI CLI sessions, turns, and steering |
+| adapter.ts | adapter | runs PI sessions with spawn-time settings |
 | session-support.ts | core | PI session timers, queues, and probes |
 | spawn-args.ts | core | builds PI CLI arguments and environment |
 | defaults.ts | config | PI session and extension path defaults |
@@ -19,5 +19,5 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 | web-fetch.ts | tool | fetches bounded HTTP(S) and strips data images |
 | web-search.ts | tool | decodes search responses from the active model API |
 | subagent.ts | tool | describes role names and runs scoped PI children |
-| tool-shims.ts | bridge | gates runtime Agent, interaction, todo, and web tools |
+| tool-shims.ts | bridge | gates Agent, interaction, todo, and web tools |
 | pi-ext-types.ts | types | types PI extension events, models, and tools |

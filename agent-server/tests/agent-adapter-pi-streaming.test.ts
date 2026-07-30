@@ -1,9 +1,9 @@
-// input:  PIAdapter spawn + stub child process emitting message_update text_delta lines
-// output: assistant_delta streaming assertions (per-delta emission, shared blockId, kill switch)
-// pos:    PI streaming producer regression (hermetic, stub spawner)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  PIAdapter, stub process, events, runtime settings
+// output: assistant delta and buffered text regressions
+// pos:    Covers the PI token streaming contract
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
@@ -91,8 +91,10 @@ async function runBlock(
   if (streamEnv === undefined) delete process.env['CORTEX_STREAM_DELTAS'];
   else process.env['CORTEX_STREAM_DELTAS'] = streamEnv;
   try {
+    vi.resetModules();
+    const { PIAdapter: FreshPIAdapter } = await import('../src/agent-adapter/pi/adapter.js');
     const stub = makeStubSpawner();
-    const adapter = new PIAdapter(stub.spawn);
+    const adapter = new FreshPIAdapter(stub.spawn);
     const proc = adapter.spawn({ sessionId: null, sessionKey: `stream-${id ?? 'noid'}-${streamEnv ?? 'on'}`, resume: false });
     await Promise.resolve();
     const child = stub.children[0]!;

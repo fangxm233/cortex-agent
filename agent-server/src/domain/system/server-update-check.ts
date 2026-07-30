@@ -1,9 +1,11 @@
-// input:  UpdatePrompt interface, UpdateState I/O, CORTEX_VERSION, @core/calver, child_process
-// output: compareCalVer (re-export), isUpdateDevMode, checkServerUpdate
-// pos:    DR-0013 core checker — npm registry version check + prompt + dispatch
+// input:  update prompt/state, version, runtime settings
+// output: compareCalVer, isUpdateDevMode, checkServerUpdate
+// pos:    Checks and dispatches server package updates
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as fs from 'node:fs';
 import { execSync, spawn } from 'node:child_process';
+import { getSettings } from '@core/settings.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import type { UpdateChoice, UpdatePrompt } from './update-prompt.js';
 import { loadUpdateState, saveUpdateState, type UpdateState } from './update-state.js';
@@ -80,8 +82,8 @@ export interface CheckServerUpdateResult {
 export async function checkServerUpdate(
   deps: CheckServerUpdateDeps,
 ): Promise<CheckServerUpdateResult> {
-  // 1. Disable toggle: auto-update is on by default, opt-out via env var
-  if (process.env.CORTEX_SERVER_UPDATE_DISABLE === '1') {
+  // 1. Disable toggle: auto-update is on by default.
+  if (getSettings().serverUpdateDisable) {
     return { action: null, latestVersion: null };
   }
 

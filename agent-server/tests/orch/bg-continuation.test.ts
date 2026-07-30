@@ -1,12 +1,17 @@
-// input:  background continuation builder with tool/context callbacks
-// output: sink text/tool/context and terminal dispatch regressions
-// pos:    Background continuation orchestration unit tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  background continuation, callbacks, runtime settings
+// output: sink forwarding, terminal dispatch, and gate regressions
+// pos:    Covers background continuation orchestration
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { buildContinuationSink, isBgContinuationEnabled, isInteractiveChannel, isWebChannel, shouldHoldForBg, shouldHoldWebForBg } from '../../src/orchestration/bg-continuation.js';
+import { buildContinuationSink, isInteractiveChannel, isWebChannel, shouldHoldForBg, shouldHoldWebForBg } from '../../src/orchestration/bg-continuation.js';
+
+async function freshBgContinuation() {
+  vi.resetModules();
+  return import('../../src/orchestration/bg-continuation.js');
+}
 
 function makeStream() {
   const emitted: string[] = [];
@@ -48,23 +53,23 @@ test('buildContinuationSink: missing pendingBackgroundTasks treated as 0 → onC
   assert.equal(completed, true);
 });
 
-test('isBgContinuationEnabled: default ON, opt-out via CORTEX_BG_CONTINUATION=0/false', () => {
+test('isBgContinuationEnabled: default ON, opt-out via CORTEX_BG_CONTINUATION=0/false', async () => {
   const prev = process.env.CORTEX_BG_CONTINUATION;
   try {
     delete process.env.CORTEX_BG_CONTINUATION;
-    assert.equal(isBgContinuationEnabled(), true, 'enabled by default when unset');
+    assert.equal((await freshBgContinuation()).isBgContinuationEnabled(), true, 'enabled by default when unset');
     process.env.CORTEX_BG_CONTINUATION = '0';
-    assert.equal(isBgContinuationEnabled(), false, 'disabled by "0"');
+    assert.equal((await freshBgContinuation()).isBgContinuationEnabled(), false, 'disabled by "0"');
     process.env.CORTEX_BG_CONTINUATION = 'false';
-    assert.equal(isBgContinuationEnabled(), false, 'disabled by "false"');
+    assert.equal((await freshBgContinuation()).isBgContinuationEnabled(), false, 'disabled by "false"');
     process.env.CORTEX_BG_CONTINUATION = 'off';
-    assert.equal(isBgContinuationEnabled(), false, 'disabled by "off"');
+    assert.equal((await freshBgContinuation()).isBgContinuationEnabled(), false, 'disabled by "off"');
     process.env.CORTEX_BG_CONTINUATION = '1';
-    assert.equal(isBgContinuationEnabled(), true, 'explicitly enabled');
+    assert.equal((await freshBgContinuation()).isBgContinuationEnabled(), true, 'explicitly enabled');
     process.env.CORTEX_BG_CONTINUATION = 'true';
-    assert.equal(isBgContinuationEnabled(), true);
+    assert.equal((await freshBgContinuation()).isBgContinuationEnabled(), true);
     process.env.CORTEX_BG_CONTINUATION = '';
-    assert.equal(isBgContinuationEnabled(), true, 'empty string is not an opt-out');
+    assert.equal((await freshBgContinuation()).isBgContinuationEnabled(), true, 'empty string is not an opt-out');
   } finally {
     if (prev === undefined) delete process.env.CORTEX_BG_CONTINUATION;
     else process.env.CORTEX_BG_CONTINUATION = prev;
@@ -206,7 +211,7 @@ test('buildContinuationSink: running + undelivered are summed for the waiting co
   assert.deepEqual(split, { running: 1, undelivered: 1 });
 });
 
-test('shouldHoldForBg: hold gates — remaining count, rate limit, channel scope, sink capability, feature flag', () => {
+test('shouldHoldForBg: hold gates — remaining count, rate limit, channel scope, sink capability, feature flag', async () => {
   const prev = process.env.CORTEX_BG_CONTINUATION;
   try {
     delete process.env.CORTEX_BG_CONTINUATION;
@@ -219,7 +224,8 @@ test('shouldHoldForBg: hold gates — remaining count, rate limit, channel scope
     assert.equal(shouldHoldForBg(base as any, 'slack:D1', false), false, 'no sink capability → no hold');
     assert.equal(shouldHoldForBg(null, 'slack:D1', true), false, 'null result → no hold');
     process.env.CORTEX_BG_CONTINUATION = '0';
-    assert.equal(shouldHoldForBg(base as any, 'slack:D1', true), false, 'feature flag off → no hold');
+    const disabled = await freshBgContinuation();
+    assert.equal(disabled.shouldHoldForBg(base as any, 'slack:D1', true), false, 'feature flag off → no hold');
   } finally {
     if (prev === undefined) delete process.env.CORTEX_BG_CONTINUATION;
     else process.env.CORTEX_BG_CONTINUATION = prev;
@@ -243,7 +249,7 @@ test('isWebChannel: only the web: conduit', () => {
   assert.equal(isWebChannel(''), false);
 });
 
-test('shouldHoldWebForBg: hold gates mirror shouldHoldForBg but scoped to web:', () => {
+test('shouldHoldWebForBg: hold gates mirror shouldHoldForBg but scoped to web:', async () => {
   const prev = process.env.CORTEX_BG_CONTINUATION;
   try {
     delete process.env.CORTEX_BG_CONTINUATION;
@@ -256,7 +262,8 @@ test('shouldHoldWebForBg: hold gates mirror shouldHoldForBg but scoped to web:',
     assert.equal(shouldHoldWebForBg(base as any, 'web:cortex-abcd', false), false, 'no sink capability → no hold');
     assert.equal(shouldHoldWebForBg(null, 'web:cortex-abcd', true), false, 'null result → no hold');
     process.env.CORTEX_BG_CONTINUATION = '0';
-    assert.equal(shouldHoldWebForBg(base as any, 'web:cortex-abcd', true), false, 'feature flag off → no hold');
+    const disabled = await freshBgContinuation();
+    assert.equal(disabled.shouldHoldWebForBg(base as any, 'web:cortex-abcd', true), false, 'feature flag off → no hold');
   } finally {
     if (prev === undefined) delete process.env.CORTEX_BG_CONTINUATION;
     else process.env.CORTEX_BG_CONTINUATION = prev;

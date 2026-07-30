@@ -12,7 +12,7 @@ Concrete SDK integrations live in adapters/.
 | output-stream-chunk.ts | util | Splits long text into postable chunks |
 | output-stream-helpers.ts | util | Posts a single message via a temporary stream |
 | interactive-builder.ts | builder | Builds question and plan approval components |
-| tool-trace.ts | ui | Renders compact tool call traces |
+| tool-trace.ts | ui | Renders settings-gated compact tool call traces |
 | testing.ts | testing | Mock adapter recording posts and markers |
 | adapters/ | subdir | Concrete platform adapter implementations |
 | tui/ | subdir | TUI wire protocol contract |

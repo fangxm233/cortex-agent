@@ -1,9 +1,10 @@
-// input:  MCP sidecars, GitHub push, remote commands, hook events
+// input:  sidecars, remote commands, hooks, runtime settings
 // output: startWebhookServer
-// pos:    GitHub/task-op/thread-op/manager-qa/hook webhook HTTP entry point
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// pos:    Serves task, thread, manager, and hook webhooks
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { AUTH_HEADER, getWebhookToken, timingSafeEqualStr } from '@core/auth.js';
 import * as http from 'http';
 import * as crypto from 'crypto';
@@ -268,7 +269,7 @@ function createWebhookHandler(_options: {
               return reply({ success: false, error: 'provide exactly one of template or agent' });
             }
             if (!message) return reply({ success: false, error: 'message required' });
-            const maxDepth = parseInt(process.env.CORTEX_THREAD_MAX_DEPTH || '5', 10) || 5;
+            const maxDepth = getSettings().threadMaxDepth;
             const curDepth = Number(data.depth) || 0;
             if (curDepth >= maxDepth) {
               return reply({ success: false, error: `max thread depth (${maxDepth}) reached — cannot spawn nested thread at depth ${curDepth}` });
