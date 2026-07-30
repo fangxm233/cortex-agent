@@ -1,5 +1,5 @@
-// input:  thread store, agent runner, outbound queue, adapter
-// output: task callbacks, framed notices, persisted thread resumes
+// input:  thread store, runtime settings, runner, outbound queue
+// output: callbacks, resumes, rotation, and waiting sweeps
 // pos:    Delivers child results and resumes suspended parents
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
@@ -12,6 +12,7 @@ import { sealThreadStatus } from './status-helpers.js';
 import { isTerminalStatus } from '@domain/threads/tree.js';
 import { runThreadDetached } from './thread-executor.js';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { scanAllTasks, type Task } from '@core/task-parser.js';
 import { recordDelivered, pendingDeliveries } from '@domain/tasks/acceptance-ledger.js';
 import { isTaskArtifactTemplate } from '@domain/threads/index.js';
@@ -172,10 +173,9 @@ export function resumeManagerForQuestion(managerThreadId: string, resume?: Resum
 
 // --- Manager session rotation (DR-0017 W3) ---
 
-/** CORTEX_MANAGER_ROTATE_STEPS (default 10) — steps per manager session before rotation. */
+/** Configured steps per manager session before rotation. */
 function rotateStepsThreshold(): number {
-  const v = parseInt(process.env.CORTEX_MANAGER_ROTATE_STEPS || '', 10);
-  return Number.isFinite(v) && v > 0 ? v : 10;
+  return getSettings().managerRotateSteps;
 }
 
 /** Rehydration notice for a freshly rotated manager incarnation: durable artifact first,
@@ -214,7 +214,8 @@ export async function maybeRotateManager(threadId: string): Promise<boolean> {
   if (!isTaskArtifactTemplate(parent.templateName)) return false;
   const base = parent.metadata?.rotationBaseStepIndex ?? 0;
   const since = parent.steps.length - base;
-  if (since < rotateStepsThreshold()) return false;
+  const threshold = rotateStepsThreshold();
+  if (since < threshold) return false;
   const notice = buildRehydrationNotice(parent, since);
   await threadStore.mutate(threadId, (t) => {
     // Clear BOTH ids (track/backend decoupling): backendSessionId is the actual --resume
@@ -226,7 +227,7 @@ export async function maybeRotateManager(threadId: string): Promise<boolean> {
     if (m.pendingMessages.length >= 10) m.pendingMessages.shift();
     m.pendingMessages.push(notice);
   });
-  log.info(`rotated manager ${threadId}: fresh session after ${since} steps (threshold ${rotateStepsThreshold()})`);
+  log.info(`rotated manager ${threadId}: fresh session after ${since} steps (threshold ${threshold})`);
   return true;
 }
 
@@ -624,21 +625,22 @@ export async function sweepWaitingManagers(deps: { resume?: ResumeFn } = {}): Pr
   return swept;
 }
 
-/** Default sweep cadence — frequent enough to recover a stranded manager within a minute, cheap
- *  enough (a disk scan per waiting manager) to run unconditionally. Override with
- *  CORTEX_WAITING_SWEEP_MS (0 disables). */
-const WAITING_SWEEP_INTERVAL_MS = (() => {
-  const v = parseInt(process.env.CORTEX_WAITING_SWEEP_MS || '', 10);
-  return Number.isFinite(v) ? v : 60_000;
-})();
+/** Schedule one sweep and re-arm only after it settles, using the latest cadence. */
+function scheduleWaitingManagerSweep(intervalMs: number): void {
+  const timer = setTimeout(async () => {
+    await sweepWaitingManagers().catch((e) => log.error(`waiting-manager sweep: ${(e as Error).message}`));
+    const nextIntervalMs = getSettings().waitingSweepMs;
+    // Runtime zero stops re-arming until restart; startup zero never starts the loop.
+    if (nextIntervalMs > 0) scheduleWaitingManagerSweep(nextIntervalMs);
+  }, intervalMs);
+  timer.unref?.();
+}
 
-/** Start the periodic waiting-manager sweep (thin setInterval wrapper, mirrors
- *  startDispatchReconciler). No-op when the interval is 0. */
+/** Start the periodic waiting-manager sweep. No-op when the startup interval is disabled. */
 export function startWaitingManagerSweep(): void {
-  if (WAITING_SWEEP_INTERVAL_MS <= 0) return;
-  setInterval(() => {
-    void sweepWaitingManagers().catch((e) => log.error(`waiting-manager sweep: ${(e as Error).message}`));
-  }, WAITING_SWEEP_INTERVAL_MS).unref?.();
+  const intervalMs = getSettings().waitingSweepMs;
+  if (intervalMs <= 0) return;
+  scheduleWaitingManagerSweep(intervalMs);
 }
 
 /** Register the EventBus subscribers that wake suspended manager threads on child-task

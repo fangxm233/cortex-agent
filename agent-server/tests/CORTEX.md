@@ -73,7 +73,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | lang-command.test.ts | test | language switch command and persistence |
 | machines-query.test.ts | test | machines list online/offline projection |
 | manager-qa.test.ts | test | manager ask/answer channel resolution |
-| manager-rotation.test.ts | test | manager session rotation and rehydration |
+| manager-rotation.test.ts | test | live rotation threshold and rehydration |
 | manager-task-artifact.test.ts | test | task-keyed manager artifact placement |
 | memory-index-regen.test.ts | test | memory index rebuild lifecycle sections |
 | message-router.test.ts | test | message routing branches and edit handoff |
@@ -114,7 +114,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-archiver.test.ts | test | accepts precise task completion timestamps |
 | task-completion.test.ts | test | checks timestamps, repos, artifacts and Git types |
-| task-dispatch-hooks.test.ts | test | dispatch, quarantine and reconciliation errors |
+| task-dispatch-hooks.test.ts | test | live dispatch limit, quarantine and recovery |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
 | task-lifecycle.test.ts | test | task CLI argv parsing, guards and round-trips |
@@ -135,7 +135,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | thread-ledger-dedupe.test.ts | test | child result delivery dedupe across runs |
 | thread-manager.test.ts | test | thread prompt variables and transitions |
 | thread-resume-statusmsg.test.ts | test | Covers persisted thread resume options |
-| thread-resume-task-loop.test.ts | test | task events re-emitted on resumed threads |
+| thread-resume-task-loop.test.ts | test | resumed task events and live sweep cadence |
 | thread-runner.test.ts | test | thread runner lifecycle and wait control |
 | thread-stages.test.ts | test | stage parsing and step prompt building |
 | thread-statusmsg-seal.test.ts | test | stale suspended status message refresh |

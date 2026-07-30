@@ -1,11 +1,12 @@
-// input:  task store, thread runner, review reconciler
-// output: dispatch hooks, followups, failure quarantine
+// input:  task store, runtime settings, thread runner, reconciler
+// output: bounded dispatch, hooks, followups, and quarantine
 // pos:    Starts dispatch threads for claimed tasks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as os from 'node:os';
 import { register, ctx } from '../job-registry.js';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
 import { Icons } from '../../../core/icons.js';
 import * as executionRegistry from '../../executions/registry.js';
@@ -37,32 +38,19 @@ function sanitizeBlockReason(s: string): string {
 
 // --- Guards ---
 
-// Max concurrent task dispatches. Resolution order:
-//   1. TASK_DISPATCH_MAX_CONCURRENT env var (explicit override — used as-is if a positive int)
-//   2. auto: max(4, os.cpus().length - 2) — scale to all-but-2 cores, floored at 4
+// Null keeps the automatic all-but-two-cores policy, floored at four.
 function resolveMaxConcurrent(): number {
-  const raw = process.env.TASK_DISPATCH_MAX_CONCURRENT;
-  if (raw !== undefined && raw.trim() !== '') {
-    const n = Number.parseInt(raw, 10);
-    if (Number.isFinite(n) && n > 0) {
-      log.info(`Max concurrent dispatch = ${n} (from TASK_DISPATCH_MAX_CONCURRENT env)`);
-      return n;
-    }
-    log.warn(`Invalid TASK_DISPATCH_MAX_CONCURRENT="${raw}" — falling back to auto`);
-  }
-  const cpus = os.cpus().length;
-  const auto = Math.max(4, cpus - 2);
-  log.info(`Max concurrent dispatch = ${auto} (auto: max(4, ${cpus} cpus - 2))`);
-  return auto;
+  const configured = getSettings().taskDispatchMaxConcurrent;
+  if (configured !== null) return configured;
+  return Math.max(4, os.cpus().length - 2);
 }
 
-const TASK_DISPATCH_MAX_CONCURRENT = resolveMaxConcurrent();
-
 function passDispatchGuards(): boolean {
+  const maxConcurrent = resolveMaxConcurrent();
   const runningExecutions = executionRegistry.getRunningExecutions();
   const runningDispatches = runningExecutions.filter(r => r.kind === 'dispatch').length;
-  if (runningDispatches >= TASK_DISPATCH_MAX_CONCURRENT) {
-    log.info(`Skipping — at concurrency limit (${runningDispatches}/${TASK_DISPATCH_MAX_CONCURRENT})`);
+  if (runningDispatches >= maxConcurrent) {
+    log.info(`Skipping — at concurrency limit (${runningDispatches}/${maxConcurrent})`);
     return false;
   }
   return true;

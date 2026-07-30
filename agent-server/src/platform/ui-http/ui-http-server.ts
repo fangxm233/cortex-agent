@@ -1,19 +1,6 @@
-// input:  an AnyRouter (injected) + a token accessor + optional Access-JWT verifier + core/auth +
-//          @trpc/server standalone adapter
-// output: createUiHttpServer({ router, getToken, port, host?, spaDir?, corsOrigins?, verifyAccessJwt? }) -> { server, close() }
-// pos:    Web UI transport-host, in-core (agent-server platform/ui-http). Mounts the injected tRPC
-//         router on the standalone HTTP adapter (query/mutate over HTTP, subscription over SSE —
-//         tRPC v11), gated by a DUAL-PATH auth check BEFORE tRPC, and serves the built SPA static
-//         files for non-tRPC paths. Generic over AnyRouter — the concrete AppRouter is injected by
-//         start-ui-http.ts, keeping this file router-agnostic. Bound 127.0.0.1 by default. Reads
-//         AUTH_HEADER / timingSafeEqualStr and createLogger from the core package's built dist.
-//         Auth gate: (1) a matching x-cortex-token (desktop/machine clients — byte-for-byte the
-//         prior behaviour, checked first, synchronous) OR (2) a validly-signed Cf-Access-Jwt-Assertion
-//         (Cloudflare Access JWT — the browser path; verified via the injected verifyAccessJwt).
-//         Neither/invalid → 401. When no verifier is injected, only the token path is live.
-//         CORS allow-list: optional corsOrigins[] lets the Tauri desktop webview (cross-origin,
-//         e.g. tauri://localhost) reach tRPC endpoints directly without a proxy. Non-wildcard only
-//         — the origin is echoed verbatim when it's in the allow-list.
+// input:  tRPC router, auth accessors, SPA, per-request CORS source
+// output: authenticated HTTP/SSE server with static and custom routes
+// pos:    Web UI HTTP transport host
 // >>> If I am updated, update CORTEX.md <<<
 
 import * as http from 'http';
@@ -60,7 +47,7 @@ export interface UiHttpServerOptions {
    * (non-wildcard). OPTIONS preflight is answered 204 with CORS headers (no auth required).
    * When absent or empty, no CORS headers are emitted — backward-compatible default.
    */
-  corsOrigins?: string[];
+  corsOrigins?: string[] | (() => string[] | undefined);
   /**
    * Optional Cloudflare Access JWT verifier. When present, a request that fails the x-cortex-token
    * check is admitted if it carries a valid `Cf-Access-Jwt-Assertion` (signature/aud/iss/exp all
@@ -131,13 +118,14 @@ async function isAccessAuthorized(
 function applyCorsHeaders(
   req: http.IncomingMessage,
   res: http.ServerResponse,
-  corsOrigins: string[] | undefined,
+  corsOrigins: string[] | (() => string[] | undefined) | undefined,
 ): string | undefined {
-  if (!corsOrigins || corsOrigins.length === 0) return undefined;
+  const resolvedOrigins = typeof corsOrigins === 'function' ? corsOrigins() : corsOrigins;
+  if (!resolvedOrigins || resolvedOrigins.length === 0) return undefined;
   const origin = Array.isArray(req.headers['origin'])
     ? req.headers['origin'][0]
     : req.headers['origin'];
-  if (!origin || !corsOrigins.includes(origin)) return undefined;
+  if (!origin || !resolvedOrigins.includes(origin)) return undefined;
 
   // Non-wildcard: echo the exact origin so the response is origin-specific and cacheable.
   res.setHeader('Access-Control-Allow-Origin', origin);
