@@ -165,9 +165,10 @@ When implementing against a specification (an experiment protocol or a scoped ta
 - Parameters, seeds, and data paths live in committed files: a config file (YAML/JSON), argparse/CLI defaults, or named constants with clear names.
 - Runtime-only configuration (launch-line flags, shell env vars) is **not** an acceptable source of truth — the run must be reproducible from the committed SHA alone.
 
-### Full-suite pass before handoff
-- If the project has a test suite, run it after implementing and again after committing, using the project's own command (`npm test`, `pytest`, `make test`, …).
-- Run **every** configured stage — unit tests, linters or architecture checks, integration tests, regression suites. A single red test or lint violation means you are not done.
+### Scoped tests while iterating, full suite once before handoff
+- While iterating, run only the tests scoped to what you changed (e.g. `pnpm exec vitest run <test-file>`, `pytest <file>`) — do NOT run the full suite on every edit-test cycle. Full-suite runs are expensive and machine-wide serialized; frequency is what overloads the box.
+- After the final commit, run the full suite ONCE with the project's own command (`npm test`, `pytest`, `make test`, …), covering **every** configured stage — unit tests, linters or architecture checks, integration tests, regression suites. A single red test or lint violation means you are not done.
+- Record the green SHA (the commit the full suite passed on) plus the pass counts in your implementation summary. A downstream reviewer at the same SHA may verify against this record instead of re-running the full suite; if you change anything after the green run, the full suite must be re-run.
 - If failures pre-existed your change, note them explicitly in the summary; you must still confirm no NEW failures were introduced.
 
 ### Commit & handoff

@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
@@ -37,6 +38,13 @@ export default defineConfig({
   plugins: [react()],
   define: {
     __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
+  },
+  // Cap test workers: vitest defaults to one worker per CPU core (72 on lab2),
+  // which saturates the box and causes load-induced flakes. Mirror the
+  // agent-server cap (CORTEX_TEST_CONCURRENCY, default 16).
+  test: {
+    maxWorkers: Number(process.env.CORTEX_TEST_CONCURRENCY ?? 16),
+    minWorkers: 1,
   },
   resolve: {
     alias: {

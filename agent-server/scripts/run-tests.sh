@@ -53,22 +53,39 @@ fi
 echo "[run-tests] lint: no Slack emoji shortcodes"
 node --import tsx scripts/lint-no-slack-shortcodes.ts
 
+# ── Machine-wide full-suite lock ─────────────────────────────────
+#
+# Concurrent full-suite runs (multiple worktree threads each spawning 16 forks)
+# thrash the box and cause load-induced flake cascades. Serialize them: one
+# full suite at a time, machine-wide. The wait happens BEFORE vitest starts,
+# so per-test timeouts are unaffected; only the caller's wall clock grows.
+# Bounded wait so a wedged holder cannot block forever.
+
+LOCK_FILE="${CORTEX_TEST_LOCK:-/tmp/cortex-full-suite.lock}"
+LOCK_WAIT_SECS=1200
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  echo "[run-tests] another full suite is running — waiting for lock (max ${LOCK_WAIT_SECS}s): $LOCK_FILE"
+  if ! flock -w "$LOCK_WAIT_SECS" 9; then
+    echo "[run-tests] ERROR: could not acquire test lock within ${LOCK_WAIT_SECS}s; retry later" >&2
+    exit 1
+  fi
+fi
+
 # ── Run tests (vitest) ───────────────────────────────────────────
 #
-# The suite runs under vitest: a single Vite server transpiles each module ONCE
-# and caches it, versus node --test which spawned a fresh `node --import tsx`
-# process per file (299×) and re-transpiled the whole import graph each time —
-# the dominant cost that saturated the box and timed the suite out. vitest's
-# fork pool executes test files in parallel workers without re-paying transpile;
-# cap the worker count via CORTEX_TEST_CONCURRENCY (read by vitest.config.ts).
+# The suite runs under vitest: a single Vite server transpiles each module once
+# and caches it; the fork pool executes test files in parallel workers. Cap the
+# worker count via CORTEX_TEST_CONCURRENCY (read by vitest.config.ts). Isolation,
+# the `.js`→`.ts` resolver, per-file CORTEX_HOME setup, include/exclude globs and
+# timeouts all live in the config files.
 #
-# Isolation, the `.js`→`.ts` resolver, per-file CORTEX_HOME setup, include/exclude
-# globs (debug/shim + integration filtering) and timeouts all live in the config
-# files, so this wrapper only handles env seeding + the two passes.
+# nice -n 10 keeps training jobs and interactive agents responsive while the
+# fork pool is hot; niceness is inherited by the worker forks.
 
 echo "[run-tests] running unit suite (vitest, concurrency=${CORTEX_TEST_CONCURRENCY:-16})"
-pnpm exec vitest run
+nice -n 10 pnpm exec vitest run
 
 # ── Integration tests (forked servers; longer timeout, run last) ─────
 echo "[run-tests] running integration tests (vitest, serial)"
-pnpm exec vitest run --config vitest.integration.config.ts
+nice -n 10 pnpm exec vitest run --config vitest.integration.config.ts
