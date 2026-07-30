@@ -1045,7 +1045,8 @@ export interface ConfigSnapshot {
   threadTemplates: ConfigThreadTemplates;
   hooks: ConfigHook[];
   env: ConfigEnvEntry[];
-  settings: ConfigSettingEntry[];
+  /** Always emitted by current servers; optional while clients and servers roll independently. */
+  settings?: ConfigSettingEntry[];
 }
 
 // ── machines.list DTO (plan §12 A item 1) ────────────────────────────────────
