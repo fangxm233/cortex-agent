@@ -1,5 +1,5 @@
 // input:  task DTO and project task list
-// output: Approval-aware fields, runtime pill, deps, action guards
+// output: Approval-aware fields, claim-thread pill, deps, guards
 // pos:    Pure view model for the desktop task modal
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -18,6 +18,7 @@
 // why · doneWhen · dependencies join.
 
 import type { TaskInfo } from '@cortex-agent/ui-contract';
+import { displayClaimId } from './task-claim';
 
 export interface TaskModalPill {
   bg: string;
@@ -57,32 +58,32 @@ export interface TaskModalVm {
 
 type StatusKind = 'done' | 'blocked' | 'in-progress' | 'approval-needed' | 'actionable' | 'waiting';
 
-// Derive the runtime state in precedence order. Approval precedes the legacy actionable flag so
-// details remain truthful even while an older UI-service predicate labels the task actionable.
-function statusKind(t: TaskInfo): StatusKind {
-  if (t.status === 'done') return 'done';
-  if (t.blockedBy != null) return 'blocked';
-  if (t.claimedBy != null) return 'in-progress';
-  if (t.approvalNeeded === true) return 'approval-needed';
-  if (t.actionable) return 'actionable';
-  return 'waiting';
+const STATUS_RULES: ReadonlyArray<{ kind: StatusKind; matches: (task: TaskInfo) => boolean }> = [
+  { kind: 'done', matches: (task) => task.status === 'done' },
+  { kind: 'blocked', matches: (task) => task.blockedBy != null },
+  { kind: 'in-progress', matches: (task) => task.claimedBy != null },
+  { kind: 'approval-needed', matches: (task) => task.approvalNeeded === true },
+  { kind: 'actionable', matches: (task) => task.actionable },
+];
+
+function statusKind(task: TaskInfo): StatusKind {
+  return STATUS_RULES.find((rule) => rule.matches(task))?.kind ?? 'waiting';
 }
 
-function statusPill(t: TaskInfo): TaskModalPill {
-  switch (statusKind(t)) {
-    case 'done':
-      return { bg: '#E9F4EE', fg: '#23854F', text: '✓ done' };
-    case 'blocked':
-      return { bg: '#FBEDEB', fg: '#C03D33', text: 'blocked' };
-    case 'in-progress':
-      return { bg: '#EEF0FA', fg: '#4655D4', text: `● in-progress · ${t.claimedBy}` };
-    case 'approval-needed':
-      return { bg: '#FFF6E5', fg: '#9A6700', text: 'approval-needed' };
-    case 'actionable':
-      return { bg: '#EEF0FA', fg: '#4655D4', text: 'actionable' };
-    default:
-      return { bg: '#F1F2F5', fg: '#8A93A2', text: 'waiting on deps' };
-  }
+const STATIC_PILLS: Record<Exclude<StatusKind, 'in-progress'>, TaskModalPill> = {
+  done: { bg: '#E9F4EE', fg: '#23854F', text: '✓ done' },
+  blocked: { bg: '#FBEDEB', fg: '#C03D33', text: 'blocked' },
+  'approval-needed': { bg: '#FFF6E5', fg: '#9A6700', text: 'approval-needed' },
+  actionable: { bg: '#EEF0FA', fg: '#4655D4', text: 'actionable' },
+  waiting: { bg: '#F1F2F5', fg: '#8A93A2', text: 'waiting on deps' },
+};
+
+function statusPill(task: TaskInfo): TaskModalPill {
+  const kind = statusKind(task);
+  if (kind !== 'in-progress') return STATIC_PILLS[kind];
+  const claimId = displayClaimId(task);
+  const suffix = claimId ? ` · ${claimId}` : '';
+  return { bg: '#EEF0FA', fg: '#4655D4', text: `● in-progress${suffix}` };
 }
 
 // priority → dot / value color (prototype L2606).
@@ -116,60 +117,52 @@ function approvalFields(task: TaskInfo): TaskModalField[] {
   ];
 }
 
-export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
-  const byId = new Map(all.map((t) => [t.id, t]));
-
-  const fields: TaskModalField[] = [
-    {
-      k: 'priority',
-      v: task.priority,
-      vColor: task.priority === 'high' ? '#C03D33' : '#191C22',
-    },
+function taskFields(task: TaskInfo): TaskModalField[] {
+  const claimId = displayClaimId(task);
+  return [
+    { k: 'priority', v: task.priority, vColor: task.priority === 'high' ? '#C03D33' : '#191C22' },
     { k: 'status', v: task.status, vColor: 'var(--proto-ink)' },
     ...approvalFields(task),
     { k: 'template', v: task.template, vColor: 'var(--proto-ink)' },
     { k: 'gpu', v: '—', vColor: '#B6BDC9' },
-    {
-      k: 'claimed-by',
-      v: task.claimedBy ?? '—',
-      vColor: task.claimedBy != null ? '#4655D4' : '#B6BDC9',
-    },
+    { k: 'claimed-by', v: claimId ?? '—', vColor: claimId ? '#4655D4' : '#B6BDC9' },
   ];
-  const upstream: TaskModalDep[] = task.dependsOn.map((id) => {
-    const dep = byId.get(id);
-    const done = dep?.status === 'done';
+}
+
+function taskDependencies(task: TaskInfo, all: TaskInfo[]): TaskModalDep[] {
+  const byId = new Map(all.map((item) => [item.id, item]));
+  const upstream = task.dependsOn.map((id): TaskModalDep => {
+    const dependency = byId.get(id);
     return {
       id,
-      name: dep?.text ?? '—',
-      dotColor: depDot(dep),
+      name: dependency?.text ?? '—',
+      dotColor: depDot(dependency),
       idColor: '#4655D4',
-      label: done ? 'upstream · done' : 'upstream',
+      label: dependency?.status === 'done' ? 'upstream · done' : 'upstream',
       bg: '#FBFBFC',
       border: '#EFF1F5',
     };
   });
-  const downstream: TaskModalDep[] = all
-    .filter((t) => t.id !== task.id && t.dependsOn.includes(task.id))
-    .map((t) => ({
-      id: t.id,
-      name: t.text,
-      dotColor: depDot(t),
-      idColor: '#4655D4',
-      label: 'downstream',
-      bg: '#FBFBFC',
-      border: '#EFF1F5',
+  const downstream = all
+    .filter((item) => item.id !== task.id && item.dependsOn.includes(task.id))
+    .map((item): TaskModalDep => ({
+      id: item.id, name: item.text, dotColor: depDot(item), idColor: '#4655D4',
+      label: 'downstream', bg: '#FBFBFC', border: '#EFF1F5',
     }));
+  return [...upstream, ...downstream];
+}
 
+export function buildTaskModalVm(task: TaskInfo, all: TaskInfo[]): TaskModalVm {
+  const dependencies = taskDependencies(task, all);
   const completable = task.status !== 'done' && task.blockedBy == null;
-
   return {
     id: task.id,
     title: task.text,
     pill: statusPill(task),
     priColor: priorityColor(task.priority),
-    fields,
-    deps: [...upstream, ...downstream],
-    hasDependencies: upstream.length + downstream.length > 0,
+    fields: taskFields(task),
+    deps: dependencies,
+    hasDependencies: dependencies.length > 0,
     canUnblock: task.blockedBy != null,
     completable,
     completeBg: completable ? '#4655D4' : '#B6BDC9',

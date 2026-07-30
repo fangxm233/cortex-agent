@@ -1,57 +1,56 @@
+// input:  Mobile task DTO fixtures and lifecycle grouping model
+// output: Six-group mobile task lifecycle regressions
+// pos:    Unit tests for mobile task classification
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import {
-  classifyMobileTask,
-  groupMobileTasks,
-  hasUnmetDependencies,
-  executableCount,
-  allOpenCount,
-  allCount,
-} from './mobile-tasks';
+import { classifyMobileTask, groupMobileTasks, hasUnmetDependencies } from './mobile-tasks';
 
-function task(over: Partial<TaskInfo>): TaskInfo {
+function task(overrides: Partial<TaskInfo>): TaskInfo {
   return {
-    id: 'T-000',
+    id: 'task-a',
     text: 'a task',
-    project: 'cortex-self',
+    project: 'nimbus',
     status: 'open',
     priority: 'medium',
     actionable: false,
     claimedBy: null,
+    claimThreadId: null,
     blockedBy: null,
+    approvalNeeded: false,
     dependsOn: [],
     plan: null,
     template: 'coder-review',
     why: null,
     doneWhen: null,
-    ...over,
+    ...overrides,
   };
 }
 
 describe('classifyMobileTask', () => {
-  it('blocked (blockedBy set) takes precedence over everything', () => {
-    expect(
-      classifyMobileTask(task({ blockedBy: 'ssh down', claimedBy: 'thr_1', actionable: true }), true),
-    ).toBe('blocked');
+  it('blocked takes precedence over every other open state', () => {
+    expect(classifyMobileTask(task({ blockedBy: 'offline', claimedBy: 'owner' }), true)).toBe('blocked');
   });
 
-  it('claimed (claimedBy set, not blocked) → in-progress', () => {
-    expect(classifyMobileTask(task({ claimedBy: 'thr_1' }), false)).toBe('in-progress');
+  it('claimed becomes in-progress when not blocked', () => {
+    expect(classifyMobileTask(task({ claimedBy: 'task-dispatcher' }), false)).toBe('in-progress');
   });
 
-  it('unmet deps beat the (deps-blind) actionable flag → waiting-deps', () => {
-    // the DTO computes actionable without checking deps, so a dep-waiting task is actionable:true
-    expect(classifyMobileTask(task({ actionable: true, dependsOn: ['T-1'] }), true)).toBe(
-      'waiting-deps',
-    );
+  it('approval needed precedes actionable and dependency waiting', () => {
+    expect(classifyMobileTask(task({ approvalNeeded: true, actionable: true }), true)).toBe('approval-needed');
   });
 
-  it('actionable + deps satisfied → claimable', () => {
-    expect(classifyMobileTask(task({ actionable: true }), false)).toBe('claimable');
+  it('an open dependency overrides the deps-blind actionable flag', () => {
+    expect(classifyMobileTask(task({ actionable: true, dependsOn: ['dependency'] }), true)).toBe('waiting-deps');
   });
 
-  it('not actionable, no unmet deps (edge) → waiting-deps', () => {
-    expect(classifyMobileTask(task({ actionable: false }), false)).toBe('waiting-deps');
+  it('actionable with satisfied dependencies becomes actionable', () => {
+    expect(classifyMobileTask(task({ actionable: true }), false)).toBe('actionable');
+  });
+
+  it('non-actionable without another state falls back to waiting', () => {
+    expect(classifyMobileTask(task({}), false)).toBe('waiting-deps');
   });
 });
 
@@ -61,84 +60,54 @@ describe('hasUnmetDependencies', () => {
     ['open-1', 'open'],
   ]);
 
-  it('true when a dependency is still open (not done)', () => {
+  it('is true only when a known dependency is still open', () => {
     expect(hasUnmetDependencies(task({ dependsOn: ['open-1'] }), statusById)).toBe(true);
-  });
-
-  it('false when all dependencies are done', () => {
     expect(hasUnmetDependencies(task({ dependsOn: ['done-1'] }), statusById)).toBe(false);
-  });
-
-  it('false when a dependency is unknown (out of scope — cannot prove unmet)', () => {
-    expect(hasUnmetDependencies(task({ dependsOn: ['ghost'] }), statusById)).toBe(false);
-  });
-
-  it('false when there are no dependencies', () => {
+    expect(hasUnmetDependencies(task({ dependsOn: ['unknown'] }), statusById)).toBe(false);
     expect(hasUnmetDependencies(task({ dependsOn: [] }), statusById)).toBe(false);
   });
 });
 
 describe('groupMobileTasks', () => {
-  it('buckets by classifier (with dep join); done tasks collect in the done bucket', () => {
-    const tasks = [
-      task({ id: 'A', claimedBy: 'thr_a' }), // in-progress
-      task({ id: 'B', actionable: true }), // claimable
-      task({ id: 'C', actionable: true }), // claimable
-      task({ id: 'D', actionable: true, dependsOn: ['A'] }), // waiting-deps (A is open)
-      task({ id: 'E', blockedBy: 'robot offline' }), // blocked
-      task({ id: 'F', status: 'done', actionable: true }), // done
-    ];
-    const g = groupMobileTasks(tasks);
-    expect(g.inProgress.map((t) => t.id)).toEqual(['A']);
-    expect(g.claimable.map((t) => t.id)).toEqual(['B', 'C']);
-    expect(g.waitingDeps.map((t) => t.id)).toEqual(['D']);
-    expect(g.blocked.map((t) => t.id)).toEqual(['E']);
-    expect(g.done.map((t) => t.id)).toEqual(['F']);
+  it('places every task into one of the six complete-list groups', () => {
+    const grouped = groupMobileTasks([
+      task({ id: 'running', claimedBy: 'task-dispatcher' }),
+      task({ id: 'ready', actionable: true }),
+      task({ id: 'approval', approvalNeeded: true, actionable: true }),
+      task({ id: 'waiting', actionable: true, dependsOn: ['running'] }),
+      task({ id: 'blocked', blockedBy: 'robot offline' }),
+      task({ id: 'done', status: 'done' }),
+    ]);
+
+    expect(grouped.inProgress.map((item) => item.id)).toEqual(['running']);
+    expect(grouped.actionable.map((item) => item.id)).toEqual(['ready']);
+    expect(grouped.approvalNeeded.map((item) => item.id)).toEqual(['approval']);
+    expect(grouped.waitingDeps.map((item) => item.id)).toEqual(['waiting']);
+    expect(grouped.blocked.map((item) => item.id)).toEqual(['blocked']);
+    expect(grouped.done.map((item) => item.id)).toEqual(['done']);
   });
 
-  it('a task whose deps are all done is claimable, not waiting', () => {
-    const g = groupMobileTasks([
-      task({ id: 'dep', status: 'done' }),
-      task({ id: 'X', actionable: true, dependsOn: ['dep'] }),
+  it('uses server-resolved dependencies outside the project-scoped list', () => {
+    const grouped = groupMobileTasks([
+      task({ id: 'waiting', actionable: true, dependsOn: ['cross-project'], unmetDependencyIds: ['cross-project'] }),
     ]);
-    expect(g.claimable.map((t) => t.id)).toEqual(['X']);
-    expect(g.waitingDeps).toEqual([]);
+    expect(grouped.waitingDeps.map((item) => item.id)).toEqual(['waiting']);
+  });
+
+  it('treats completed dependencies as satisfied', () => {
+    const grouped = groupMobileTasks([
+      task({ id: 'dependency', status: 'done' }),
+      task({ id: 'ready', actionable: true, dependsOn: ['dependency'], unmetDependencyIds: [] }),
+    ]);
+    expect(grouped.actionable.map((item) => item.id)).toEqual(['ready']);
+    expect(grouped.waitingDeps).toEqual([]);
   });
 
   it('preserves input order within a group', () => {
-    const g = groupMobileTasks([
-      task({ id: 'X', actionable: true }),
-      task({ id: 'Y', actionable: true }),
+    const grouped = groupMobileTasks([
+      task({ id: 'first', actionable: true }),
+      task({ id: 'second', actionable: true }),
     ]);
-    expect(g.claimable.map((t) => t.id)).toEqual(['X', 'Y']);
-  });
-});
-
-describe('segment counts', () => {
-  const grouped = groupMobileTasks([
-    task({ id: 'A', claimedBy: 'thr_a' }), // in-progress
-    task({ id: 'B', actionable: true }), // claimable
-    task({ id: 'C', actionable: true }), // claimable
-    task({ id: 'D', actionable: true, dependsOn: ['A'] }), // waiting-deps
-    task({ id: 'E', blockedBy: 'x' }), // blocked
-  ]);
-
-  it('executableCount = in-progress + claimable (scheme 可执行 3 = 1 + 2)', () => {
-    expect(executableCount(grouped)).toBe(3);
-  });
-
-  it('allOpenCount = every open task across the four groups', () => {
-    expect(allOpenCount(grouped)).toBe(5);
-  });
-
-  it('allCount adds done tasks on top of the open groups (desktop 全部 parity)', () => {
-    const withDone = groupMobileTasks([
-      task({ id: 'A', claimedBy: 'thr_a' }),
-      task({ id: 'B', actionable: true }),
-      task({ id: 'F', status: 'done' }),
-      task({ id: 'G', status: 'done' }),
-    ]);
-    expect(allOpenCount(withDone)).toBe(2);
-    expect(allCount(withDone)).toBe(4);
+    expect(grouped.actionable.map((item) => item.id)).toEqual(['first', 'second']);
   });
 });

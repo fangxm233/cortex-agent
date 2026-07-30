@@ -1,11 +1,11 @@
-// input:  task DTO fixtures and task list models
-// output: lifecycle, count, and recent completion regressions
+// input:  task DTO fixtures and task lifecycle model
+// output: six-group lifecycle and open-count regressions
 // pos:    Task list model unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
-import { groupTasks, actionableOpenCount, LIFECYCLE_ORDER, recentCompletedTasks } from './group-tasks';
+import { groupTasks, actionableOpenCount, LIFECYCLE_ORDER } from './group-tasks';
 
 function t(partial: Partial<TaskInfo> & Pick<TaskInfo, 'id'>): TaskInfo {
   return {
@@ -42,16 +42,40 @@ describe('groupTasks — design 4a lifecycle grouping', () => {
     expect(g[0].kind).toBe('actionable');
   });
 
+  it('classifies a pending approval before the legacy actionable flag', () => {
+    const g = groupTasks([t({ id: 'a', actionable: true, approvalNeeded: true })]);
+    expect(g[0].kind).toBe('approval-needed');
+  });
+
   it('classifies a blocked task as blocked', () => {
     const g = groupTasks([t({ id: 'a', blockedBy: 'external' })]);
     expect(g[0].kind).toBe('blocked');
   });
 
-  it('classifies a non-actionable open task (pending deps) as waiting-deps', () => {
+  it('classifies a task with an open dependency as waiting even when the DTO says actionable', () => {
     const g = groupTasks([
-      t({ id: 'a', actionable: false, dependsOn: ['b'] }),
+      t({ id: 'dependency' }),
+      t({ id: 'a', actionable: true, dependsOn: ['dependency'] }),
+    ]);
+    expect(g.find((group) => group.kind === 'waiting-deps')?.tasks.map((task) => task.id)).toEqual([
+      'dependency',
+      'a',
+    ]);
+  });
+
+  it('uses server-resolved cross-project dependencies when the dependency is outside the scoped list', () => {
+    const g = groupTasks([
+      t({ id: 'a', actionable: true, dependsOn: ['cross-project'], unmetDependencyIds: ['cross-project'] }),
     ]);
     expect(g[0].kind).toBe('waiting-deps');
+  });
+
+  it('classifies a task with only completed dependencies as actionable', () => {
+    const g = groupTasks([
+      t({ id: 'dependency', status: 'done' }),
+      t({ id: 'a', actionable: true, dependsOn: ['dependency'], unmetDependencyIds: [] }),
+    ]);
+    expect(g.find((group) => group.kind === 'actionable')?.tasks.map((task) => task.id)).toEqual(['a']);
   });
 
   it('classifies a done task as done', () => {
@@ -63,16 +87,25 @@ describe('groupTasks — design 4a lifecycle grouping', () => {
     const g = groupTasks([
       t({ id: 'in-progress', claimedBy: 'agent' }),
       t({ id: 'actionable', actionable: true }),
+      t({ id: 'approval', actionable: true, approvalNeeded: true }),
       t({ id: 'blocked', blockedBy: 'ssh down' }),
       t({ id: 'waiting', actionable: false, dependsOn: ['x'] }),
       t({ id: 'done', status: 'done' }),
     ]);
-    expect(g.map((grp) => grp.kind)).toEqual(['in-progress', 'actionable', 'waiting-deps', 'blocked', 'done']);
+    expect(g.map((grp) => grp.kind)).toEqual([
+      'in-progress',
+      'actionable',
+      'approval-needed',
+      'waiting-deps',
+      'blocked',
+      'done',
+    ]);
     expect(g[0].tasks.map((x) => x.id)).toEqual(['in-progress']);
     expect(g[1].tasks.map((x) => x.id)).toEqual(['actionable']);
-    expect(g[2].tasks.map((x) => x.id)).toEqual(['waiting']);
-    expect(g[3].tasks.map((x) => x.id)).toEqual(['blocked']);
-    expect(g[4].tasks.map((x) => x.id)).toEqual(['done']);
+    expect(g[2].tasks.map((x) => x.id)).toEqual(['approval']);
+    expect(g[3].tasks.map((x) => x.id)).toEqual(['waiting']);
+    expect(g[4].tasks.map((x) => x.id)).toEqual(['blocked']);
+    expect(g[5].tasks.map((x) => x.id)).toEqual(['done']);
   });
 
   it('omits empty groups', () => {
@@ -113,7 +146,14 @@ describe('groupTasks — design 4a lifecycle grouping', () => {
   });
 
   it('exposes the canonical lifecycle order', () => {
-    expect(LIFECYCLE_ORDER).toEqual(['in-progress', 'actionable', 'waiting-deps', 'blocked', 'done']);
+    expect(LIFECYCLE_ORDER).toEqual([
+      'in-progress',
+      'actionable',
+      'approval-needed',
+      'waiting-deps',
+      'blocked',
+      'done',
+    ]);
   });
 });
 
@@ -145,38 +185,5 @@ describe('actionableOpenCount — the open (not-done) count behind the Tasks bad
 
   it('empty input → 0', () => {
     expect(actionableOpenCount([])).toBe(0);
-  });
-});
-
-describe('recentCompletedTasks', () => {
-  const now = Date.parse('2026-07-30T17:00:00.000Z');
-
-  it('keeps completed tasks within 24 hours and sorts newest first', () => {
-    const result = recentCompletedTasks([
-      t({ id: 'older', status: 'done', completedAt: new Date(now - 23 * 60 * 60 * 1000).toISOString() }),
-      t({ id: 'newer', status: 'done', completedAt: new Date(now - 10 * 60 * 1000).toISOString() }),
-      t({ id: 'boundary', status: 'done', completedAt: new Date(now - 24 * 60 * 60 * 1000).toISOString() }),
-    ], now);
-    expect(result.map((task) => task.id)).toEqual(['newer', 'older', 'boundary']);
-  });
-
-  it('excludes open, stale, future, missing, and invalid completion times', () => {
-    const result = recentCompletedTasks([
-      t({ id: 'open', completedAt: new Date(now - 1000).toISOString() }),
-      t({ id: 'stale', status: 'done', completedAt: new Date(now - 24 * 60 * 60 * 1000 - 1).toISOString() }),
-      t({ id: 'future', status: 'done', completedAt: new Date(now + 1).toISOString() }),
-      t({ id: 'missing', status: 'done' }),
-      t({ id: 'invalid', status: 'done', completedAt: 'not-a-date' }),
-    ], now);
-    expect(result).toEqual([]);
-  });
-
-  it('keeps legacy date-only values through the end of their UTC calendar day', () => {
-    const result = recentCompletedTasks([
-      t({ id: 'today', status: 'done', completedAt: '2026-07-30' }),
-      t({ id: 'yesterday', status: 'done', completedAt: '2026-07-29' }),
-      t({ id: 'older', status: 'done', completedAt: '2026-07-28' }),
-    ], now);
-    expect(result.map((task) => task.id)).toEqual(['today', 'yesterday']);
   });
 });
