@@ -42,6 +42,8 @@ client/dist/
 packages/*/dist/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
+desktop/tauri-plugin-cortex-download/android/build/
+desktop/tauri-plugin-cortex-download/android/.tauri/
 client/cortex-client-*.tgz
 agent-server/cortex-agent-server-*.tgz
 client/cortex-agent-client-*.tgz
