@@ -71,7 +71,8 @@ The view models are framework-free record to slot mappings and each one has a co
 | m-machines-vm.ts | vm | Maps machine records to cards and online counts |
 | m-machines-vm.test.ts | test | Unit tests for the machines view model |
 | MDaemonScreen.tsx | screen | Binds daemon status, counts and restart |
-| MDaemonView.tsx | view | Daemon processes, restart controls and events |
+| MDaemonView.tsx | view | Shows daemon processes, restart and disconnect controls |
+| MDaemonView.test.tsx | test | Tests disconnect action layout |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
 | MSettingsScreen.tsx | screen | Loads settings data and hook counts |

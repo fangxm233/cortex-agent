@@ -1,9 +1,8 @@
-// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1r L888-932)
-// 1r Daemon 状态 — Daemon liveness + restart controls, drilled from 1l 设置. Pure presentational:
-// takes the built vm + copy + callbacks (no tRPC). The process card now renders REAL name / label /
-// status / pid / port / uptime from `system.daemonStatus` (the same query the desktop 17a modal uses);
-// any DTO field that is null is shown as an honest `—`. The daemon.log event stream still has no query
-// scope → the 最近事件 card surfaces the REAL lastRestart plus recent executions (see m-daemon-vm 守则11).
+// input:  React, mobile UI kit, daemon view model and copy
+// output: MDaemonView and restart controls
+// pos:    Mobile daemon status presentational view
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+// @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3
 import { useRef, useState, type CSSProperties } from 'react';
 import { MScreen, MDrillHeader, MScrollBody, MCard, MPill, MDot, MC, MONO } from '@/mobile/ui/kit';
 import type { MDaemonVm, MDaemonEvent, MDaemonProcess, MProcStatus } from './m-daemon-vm';
@@ -361,7 +360,7 @@ export function MDaemonView({
             outline — the red force-kill ink above owns the destructive treatment. */}
         {showDisconnect && (
           <MCard padding="12px 13px">
-            <button type="button" onClick={onDisconnect} style={{ ...OUTLINE_BTN }}>
+            <button type="button" onClick={onDisconnect} style={{ ...OUTLINE_BTN, width: '100%' }}>
               {copy.disconnect}
             </button>
             <div style={{ font: `400 9px ${MONO}`, color: MC.faint, marginTop: 8, textAlign: 'center' }}>
