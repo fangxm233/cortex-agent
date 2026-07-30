@@ -14,6 +14,7 @@ import { pickCopy } from '@/mobile/ui/format';
 import { MScreen, MC } from '@/mobile/ui/kit';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';
 import { buildMSettingsVm } from './m-settings-vm';
+import { onlineMachineCount } from './m-project-vm';
 import { buildProfileSheetItems } from './m-chat-vm';
 
 const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
@@ -21,6 +22,8 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     title: 'Settings',
     daemonStatus: 'daemon · connected',
     daemon: 'Daemon',
+    machines: 'Machines',
+    machinesOk: 'online',
     profileTitle: 'Profile (global default)',
     switchLabel: 'Switch',
     profileSheetTitle: 'Global default profile',
@@ -46,6 +49,8 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     title: '设置',
     daemonStatus: 'daemon · 已连接',
     daemon: 'Daemon',
+    machines: '机器',
+    machinesOk: '台正常',
     profileTitle: 'Profile（全局默认）',
     switchLabel: '切换',
     profileSheetTitle: '全局默认 Profile',
@@ -91,6 +96,9 @@ export function MSettingsScreen() {
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const costQuery = useQuery(trpc.cost.summary.queryOptions({}));
+  // Live machines.list (online flags) for the 机器 drill-in row — moved here from the Projects tab.
+  const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
+  const onlineMachines = onlineMachineCount(machinesQuery.data ?? []);
 
   const vm = useMemo(
     () => buildMSettingsVm(configQuery.data ?? EMPTY_SNAPSHOT, costQuery.data),
@@ -127,6 +135,8 @@ export function MSettingsScreen() {
           onSetTheme={setTheme}
           onBack={() => navigate('/m/project')}
           onOpenDaemon={() => navigate('/m/daemon')}
+          onlineMachines={onlineMachines}
+          onOpenMachines={() => navigate('/m/machines')}
           onOpenHooks={() => navigate('/m/settings/hooks')}
           profileSheet={profileSheet}
           onOpenProfile={() => setProfileOpen(true)}

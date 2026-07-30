@@ -1,5 +1,5 @@
-// input:  project, notes, connectivity and rate-limit queries
-// output: mobile Projects screen with quick notes and actions
+// input:  project, notes, approvals and rate-limit queries
+// output: mobile Projects screen with scoped approvals and a settings gear
 // pos:    Data owner for the Projects tab
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useState } from 'react';
@@ -16,10 +16,9 @@ import {
 import { lastActivityByProject } from '@/features/workbench/left-rail-projects';
 import { useSessionsLiveSync } from '@/features/workbench/useSessionsLiveSync';
 import { useThreadsLiveSync } from '@/features/workbench/useThreadsLiveSync';
-import { useConnectionStatus } from '@/features/connection/ConnectionStatusProvider';
 import { useMobileProject } from '@/mobile/current-project';
 import { MProjectView, type MProjectCopy, type MProjectViewProps } from './MProjectView';
-import { threadCountsForProject, onlineMachineCount, buildProjectSwitchRows } from './m-project-vm';
+import { threadCountsForProject, buildProjectSwitchRows, pendingApprovalCounts } from './m-project-vm';
 import { MNewProjectView } from './MNewProjectView';
 import { canCreate, type MNewProjectCopy } from './m-new-project-vm';
 import { MobileRateLimitSheet, useRateLimitStatus } from '@/features/rate-limit';
@@ -29,10 +28,6 @@ import { buildMNotesVm } from './m-notes-vm';
 const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   en: {
     title: 'Projects',
-    daemonConnected: 'daemon connected',
-    daemonConnecting: 'daemon connecting',
-    daemonReconnecting: 'daemon reconnecting',
-    daemonDisconnected: 'daemon disconnected',
     current: 'Current',
     threadsRunning: 'running',
     needsYou: 'need you',
@@ -42,11 +37,10 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     forecastToday: 'Forecast',
     approvals: 'Approvals',
     pending: 'pending',
+    globalPending: 'global',
     threadsWaiting: 'threads paused',
     handle: 'Review',
     memory: 'Project memory',
-    machines: 'Machines',
-    machinesOk: 'online',
     settings: 'Settings',
     switchProject: 'SWITCH PROJECT',
     running: 'running',
@@ -57,10 +51,6 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
   },
   zh: {
     title: '项目',
-    daemonConnected: 'daemon 已连接',
-    daemonConnecting: 'daemon 连接中',
-    daemonReconnecting: 'daemon 正在重连',
-    daemonDisconnected: 'daemon 已断开',
     current: '当前',
     threadsRunning: '线程运行中',
     needsYou: '需要你',
@@ -70,11 +60,10 @@ const COPY: { en: MProjectCopy; zh: MProjectCopy } = {
     forecastToday: '预测今日',
     approvals: '审批',
     pending: '待处理',
+    globalPending: '全局',
     threadsWaiting: '线程暂停等待',
     handle: '处理',
     memory: '项目记忆',
-    machines: '机器',
-    machinesOk: '台正常',
     settings: '设置',
     switchProject: '切换项目',
     running: '运行中',
@@ -123,21 +112,28 @@ function useProjectQueries(projectId: string) {
     scopedCost: useQuery({ ...trpc.cost.summary.queryOptions({ projectId: projectId || undefined }), enabled: !!projectId }).data ?? null,
     globalCost: useQuery(trpc.cost.summary.queryOptions({})).data,
     threads: useQuery(trpc.threads.list.queryOptions({})).data ?? [],
-    pendingApprovals: useQuery(trpc.approvals.list.queryOptions({ status: 'pending' })).data?.length ?? 0,
-    machines: useQuery(trpc.machines.list.queryOptions({})).data ?? [],
+    approvals: useQuery(trpc.approvals.list.queryOptions({ status: 'pending' })).data ?? [],
     issues: useQuery({ ...trpc.issues.list.queryOptions({ projectId }), enabled: !!projectId }).data ?? [],
   };
 }
 
-function useCurrentCard(projectId: string, queries: ReturnType<typeof useProjectQueries>) {
+function useCurrentCard(
+  projectId: string,
+  queries: ReturnType<typeof useProjectQueries>,
+  scopedApprovals: number,
+) {
   return useMemo(() => {
     if (!projectId) return null;
     const counts = threadCountsForProject(queries.threads, projectId);
-    return { id: projectId, initials: projectInitials(projectId), runningThreads: counts.running, waitingThreads: counts.waiting, needsYou: queries.pendingApprovals, cost: queries.scopedCost };
-  }, [projectId, queries.threads, queries.pendingApprovals, queries.scopedCost]);
+    return { id: projectId, initials: projectInitials(projectId), runningThreads: counts.running, waitingThreads: counts.waiting, needsYou: scopedApprovals, cost: queries.scopedCost };
+  }, [projectId, queries.threads, scopedApprovals, queries.scopedCost]);
 }
 
-function useProjectSwitchRows(projectId: string, queries: ReturnType<typeof useProjectQueries>) {
+function useProjectSwitchRows(
+  projectId: string,
+  queries: ReturnType<typeof useProjectQueries>,
+  approvalsByProject: Record<string, number>,
+) {
   const unread = useMemo(() => unreadCountByProject(queries.sessions), [queries.sessions]);
   const actions = useMemo(() => awaitingInputCountByProject(queries.sessions), [queries.sessions]);
   const activity = useMemo(() => lastActivityByProject(queries.sessions), [queries.sessions]);
@@ -149,7 +145,8 @@ function useProjectSwitchRows(projectId: string, queries: ReturnType<typeof useP
     unread,
     activity,
     actions,
-  ), [queries.projects, projectId, queries.threads, queries.globalCost, unread, activity, actions]);
+    approvalsByProject,
+  ), [queries.projects, projectId, queries.threads, queries.globalCost, unread, activity, actions, approvalsByProject]);
 }
 
 function useNewProjectSheet(lang: 'en' | 'zh', navigate: ReturnType<typeof useNavigate>) {
@@ -186,9 +183,12 @@ export function MProjectScreen() {
   useSessionsLiveSync(); useThreadsLiveSync();
   const queries = useProjectQueries(projectId);
   const notes = useProjectNotes(projectId, lang);
-  const current = useCurrentCard(projectId, queries);
-  const switchRows = useProjectSwitchRows(projectId, queries);
-  const connStatus = useConnectionStatus();
+  // Project-attributed approval buckets: current project + 全局 (null) drive the amber bar and the
+  // current card's 需要你; other projects' counts ride their switch-row badges.
+  const approvalCounts = useMemo(() => pendingApprovalCounts(queries.approvals), [queries.approvals]);
+  const scopedApprovals = projectId ? approvalCounts.byProject[projectId] ?? 0 : 0;
+  const current = useCurrentCard(projectId, queries, scopedApprovals);
+  const switchRows = useProjectSwitchRows(projectId, queries, approvalCounts.byProject);
   const rate = useRateLimitStatus();
   const [rateOpen, setRateOpen] = useState(false);
   useEffect(() => { if (!rate) setRateOpen(false); }, [rate]);
@@ -196,10 +196,10 @@ export function MProjectScreen() {
   const issues = useMemo(() => ({ count: queries.issues.length, previews: queries.issues.slice(0, 2).map((issue) => issue.title) }), [queries.issues]);
   const onSwitch = (id: string) => { setCurrentProject(id); navigate('/m/sessions'); };
   const viewProps: MProjectViewProps = {
-    copy: pickCopy(lang, COPY), connStatus, current, pendingApprovals: queries.pendingApprovals, issues,
-    notesVm: notes.vm, notesCopy: notes.copy, notesBusy: notes.busy, onlineMachines: onlineMachineCount(queries.machines), switchRows, rateLimitStatus: rate,
+    copy: pickCopy(lang, COPY), current, pendingApprovals: scopedApprovals + approvalCounts.global, globalPendingApprovals: approvalCounts.global, issues,
+    notesVm: notes.vm, notesCopy: notes.copy, notesBusy: notes.busy, switchRows, rateLimitStatus: rate,
     onOpenRateLimit: () => setRateOpen(true), onIssues: () => navigate('/m/issues'), onNotes: () => navigate('/m/notes'), onAddNote: notes.add,
-    onApprovals: () => navigate('/m/approvals'), onMemory: () => navigate('/m/memory'), onMachines: () => navigate('/m/machines'), onSettings: () => navigate('/m/settings'), onSwitch, onNewProject: project.show,
+    onApprovals: () => navigate('/m/approvals'), onMemory: () => navigate('/m/memory'), onSettings: () => navigate('/m/settings'), onSwitch, onNewProject: project.show,
   };
   return <><MProjectView {...viewProps} /><ProjectOverlays rate={rate} rateOpen={rateOpen} closeRate={() => setRateOpen(false)} project={project} /></>;
 }

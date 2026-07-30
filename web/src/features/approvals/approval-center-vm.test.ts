@@ -13,6 +13,7 @@ function mk(over: Partial<ApprovalInfo> = {}): ApprovalInfo {
   return {
     id: 'a1',
     title: 'Some approval',
+    projectId: null,
     operation: 'do the thing',
     reason: 'because',
     impact: 'small',
@@ -55,6 +56,7 @@ describe('toListCard', () => {
       title: 'T',
       age: '2026-07-05',
       origin: null,
+      project: null,
     });
   });
   it('leaves age null when queuedAt is null (no fabrication)', () => {
@@ -65,6 +67,10 @@ describe('toListCard', () => {
       'thread thr_1 (task 89dd)',
     );
     expect(toListCard(mk({ provenance: null })).origin).toBeNull();
+  });
+  it('carries the project attribution, null for unattributed (global) entries', () => {
+    expect(toListCard(mk({ projectId: 'nimbus' })).project).toBe('nimbus');
+    expect(toListCard(mk({ projectId: null })).project).toBeNull();
   });
 });
 
@@ -104,6 +110,10 @@ describe('toDetail', () => {
     const bare = toDetail(mk({ provenance: null, taskRef: null }));
     expect(bare.origin).toBeNull();
     expect(bare.task).toBeNull();
+  });
+  it('maps the project attribution, null for unattributed (global) entries', () => {
+    expect(toDetail(mk({ projectId: 'nimbus' })).project).toBe('nimbus');
+    expect(toDetail(mk({ projectId: null })).project).toBeNull();
   });
 });
 

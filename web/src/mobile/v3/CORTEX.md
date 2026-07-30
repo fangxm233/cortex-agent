@@ -35,17 +35,17 @@ The view models are framework-free record to slot mappings and each one has a co
 | MTaskDetailView.test.tsx | test | Guards approval, fields and dependency state |
 | m-task-detail-vm.ts | vm | Maps task approval and verification to a model |
 | m-task-detail-vm.test.ts | test | Tests task approval and detail view model |
-| MProjectScreen.tsx | screen | Binds project, notes, cost and connectivity |
-| MProjectView.tsx | view | Projects tab with notes, budget and switcher |
-| m-project-vm.ts | vm | Derives thread counts, machines and switch rows |
+| MProjectScreen.tsx | screen | Binds project, notes, cost and scoped approvals |
+| MProjectView.tsx | view | Project-scoped tab with settings gear and switcher |
+| m-project-vm.ts | vm | Derives thread counts, approval buckets, switch rows |
 | m-project-vm.test.ts | test | Unit tests for the project view model |
 | MNewProjectView.tsx | view | New-project sheet with name input and create |
 | MNewProjectView.test.tsx | test | Unit tests for create gating in the sheet |
 | m-new-project-vm.ts | vm | Create-gate predicate and copy for the sheet |
 | m-new-project-vm.test.ts | test | Unit tests for the new project view model |
 | MApprovalsScreen.tsx | screen | Binds approvals list, approve and reject |
-| MApprovalsView.tsx | view | Approval queue with expandable decision card |
-| m-approvals-vm.ts | vm | Maps pending approval records to card slots |
+| MApprovalsView.tsx | view | Project-grouped queue with expandable decision card |
+| m-approvals-vm.ts | vm | Groups pending approvals by project into card slots |
 | m-approvals-vm.test.ts | test | Unit tests for the approvals view model |
 | MIssuesScreen.tsx | screen | Binds issue list, delete and handle flow |
 | MIssuesView.tsx | view | Issue cards with inline delete and handle |
@@ -77,8 +77,8 @@ The view models are framework-free record to slot mappings and each one has a co
 | MDaemonView.test.tsx | test | Tests disconnect action layout |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
-| MSettingsScreen.tsx | screen | Loads settings data and hook counts |
-| MSettingsView.tsx | view | Renders settings rows and the hooks drill-in |
+| MSettingsScreen.tsx | screen | Loads settings data, machines and hook counts |
+| MSettingsView.tsx | view | Settings rows with machines and hooks drill-ins |
 | MSettingsView.test.tsx | test | Tests the hooks count row and drill-in |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
