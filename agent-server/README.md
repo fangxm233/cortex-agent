@@ -60,9 +60,12 @@ stage, not a polite suggestion.
   abstraction for additional coding agents. Use the LLM subscription
   you already pay for — no extra API key, no second bill.
 
-- **Slack and CLI native** — talk to Cortex from Slack on your phone
-  (interactive prompts, threads, file uploads) or from a terminal on
-  your laptop. Same agent, same project, same memory.
+- **Use Cortex from the Web, native apps, chat, or a terminal** — open
+  the browser workbench, install the Linux/macOS/Windows desktop app or
+  Android app, message Cortex through Slack or Feishu, or use the TUI.
+  Every interface reaches the same projects, sessions, tasks, and memory.
+  See [Browser Access](./docs/browser-access.md) and
+  [Desktop and Android Apps](./docs/desktop-app.md).
 
 ## Quickstart
 
@@ -79,8 +82,11 @@ cortex init
 cortex daemon
 ```
 
-Once running, message Cortex from Slack — it reads your project context,
-plans the work, and dispatches agents automatically.
+Once running, use Slack or Feishu, open the browser workbench, or connect a
+native app. Every interface reads the same project context and dispatches work
+through the same server. Browser deployment is covered in
+[Browser Access](./docs/browser-access.md); native installation is covered in
+[Desktop and Android Apps](./docs/desktop-app.md).
 
 For a detailed step-by-step guide covering setup wizard prompts, what files
 are created, and how to send your first message, see
@@ -136,6 +142,8 @@ variable reference, file layout, and precedence rules are in
 | Doc | What it covers |
 |---|---|
 | [Quickstart](./docs/quickstart.md) | Install, init, and first Slack message in 5 minutes |
+| [Desktop & Android Apps](./docs/desktop-app.md) | Native installation, connection, downloads, and updates |
+| [Browser Access](./docs/browser-access.md) | Web workbench authentication and deployment |
 | [Slack Setup](./docs/slack-setup.md) | App creation, token collection, Socket Mode, scopes |
 | [Configuration](./docs/configuration.md) | Full `.env` reference, `profiles.json`, file layout, hot-reload |
 | [CLI Reference](./docs/cli-reference.md) | `cortex`, `cortex-task`, `cortex-run` — every subcommand and flag |
@@ -170,12 +178,16 @@ npm run build && npm start
 
 ### Architecture
 
-Cortex has three main packages:
+Cortex's core workspace and plugin packages are:
 
-| Package | npm | Role |
-|---------|-----|------|
-| `@cortex-agent/server` | `agent-server/` | Control plane — Slack bot, task dispatch, scheduling, thread orchestration |
-| `@cortex-agent/client` | `client/` | Remote worker — runs on remote machines, executes commands via WebSocket |
+| Package | Directory | Role |
+|---------|-----------|------|
+| `@cortex-agent/server` | `agent-server/` | Control plane, chat adapters, task dispatch, scheduling, and thread orchestration |
+| `@cortex-agent/client` | `client/` | Remote worker that executes tools over the client WebSocket |
+| `@cortex-agent/web` | `web/` | Browser, desktop, and mobile workbench SPA |
+| `@cortex-agent/desktop` | `desktop/` | Tauri shell for Linux, macOS, Windows, and Android |
+| `@cortex-agent/ui-contract` | `packages/ui-contract/` | Shared typed contract between the server and workbench |
+| `@cortex-agent/deepseek-relay-worker` | `packages/deepseek-relay-worker/` | Authenticated Cloudflare Worker for DeepSeek API egress |
 | Plugins | `plugins/` | Role-scoped skills loaded by thread agents at runtime |
 
 The server is organized in six layers (`src/`): core utilities → persistence
