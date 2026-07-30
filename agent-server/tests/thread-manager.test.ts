@@ -3,7 +3,7 @@
 // pos:    Thread helper and orchestration behavioral tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, beforeAll, afterAll } from 'vitest';
+import { test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -67,8 +67,22 @@ process.on('exit', () => {
 test('resolveSystemVars replaces {{currentDateTime}} with a timestamp string', () => {
   const out = resolveSystemVars('Now is {{currentDateTime}}.');
   assert.doesNotMatch(out, /\{\{currentDateTime\}\}/);
-  // Format comes from zh-CN Asia/Shanghai locale with yyyy/mm/dd hh:mm:ss-ish shape.
   assert.match(out, /\d{4}/);
+});
+
+test('resolveSystemVars formats currentDateTime in the device local timezone', () => {
+  const previousTimezone = process.env.TZ;
+  process.env.TZ = 'America/Denver';
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-01-15T12:34:56Z'));
+
+  try {
+    assert.equal(resolveSystemVars('{{currentDateTime}}'), '01/15/2026, 05:34:56');
+  } finally {
+    vi.useRealTimers();
+    if (previousTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTimezone;
+  }
 });
 
 test('resolveSystemVars leaves unknown placeholders untouched', () => {
