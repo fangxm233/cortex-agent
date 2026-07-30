@@ -10,9 +10,8 @@
 #   3. Runs `tauri android init` only when gen/android is absent (it is gitignored + regenerated on a
 #      fresh checkout; init WIPES any signing wiring, hence steps 4-5 re-apply it every run).
 #   4. Writes gen/android/app/keystore.properties from the loaded keystore vars.
-#   5. Verifies gen/android/app/build.gradle.kts actually wires the release signingConfig (modern
-#      `tauri android init` emits it automatically; if a future CLI drops it, this fails loudly
-#      instead of silently producing an unsigned/undebuggable APK).
+#   5. Restores release signingConfig wiring when the generated Gradle template omits it, then
+#      verifies the release build points at the configured keystore.
 #   6. Builds the signed release APK and prints + verifies it.
 #
 # Usage:  desktop/scripts/android-release.sh [--init] [--target <abi>]
@@ -76,7 +75,7 @@ else
 fi
 
 echo "=== 2.5  apply Cortex 25c launcher icons (init ships the green placeholder) ==="
-bash "$(dirname "$0")/gen-android-icons.sh"
+bash "$SCRIPT_DIR/gen-android-icons.sh"
 
 echo "=== 3/5  write keystore.properties ==="
 # storeFile is read by build.gradle.kts via file(...) relative to the app module, so use an
@@ -88,13 +87,43 @@ keyAlias=$CORTEX_ANDROID_KEY_ALIAS
 keyPassword=$CORTEX_ANDROID_KEY_PASS
 EOF
 
-echo "=== 4/5  verify release signingConfig is wired ==="
+echo "=== 4/5  ensure release signingConfig is wired ==="
 GRADLE="$GEN_APP/build.gradle.kts"
 if ! grep -q 'create("release")' "$GRADLE" || ! grep -q 'signingConfig = signingConfigs.getByName("release")' "$GRADLE"; then
-  echo "error: $GRADLE is missing the release signingConfig wiring." >&2
-  echo "  The Tauri CLI template used to emit it automatically. If a CLI upgrade dropped it," >&2
-  echo "  add a signingConfigs { create(\"release\") { ...keystoreProperties... } } block and set" >&2
-  echo "  signingConfig = signingConfigs.getByName(\"release\") inside buildTypes.getByName(\"release\")." >&2
+  node - "$GRADLE" <<'NODE'
+const fs = require('fs');
+const gradlePath = process.argv[2];
+let source = fs.readFileSync(gradlePath, 'utf8');
+const androidMarker = 'android {\n';
+const releaseMarker = '        getByName("release") {\n';
+if (!source.includes(androidMarker) || !source.includes(releaseMarker)) {
+  throw new Error(`unsupported generated Gradle layout: ${gradlePath}`);
+}
+const signing = `val keystoreProperties = Properties().apply {
+    val propFile = file("keystore.properties")
+    propFile.inputStream().use { load(it) }
+}
+
+android {
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+            storeFile = file(keystoreProperties.getProperty("storeFile"))
+            storePassword = keystoreProperties.getProperty("storePassword")
+        }
+    }
+`;
+source = source.replace(androidMarker, signing);
+source = source.replace(
+  releaseMarker,
+  `${releaseMarker}            signingConfig = signingConfigs.getByName("release")\n`,
+);
+fs.writeFileSync(gradlePath, source);
+NODE
+fi
+if ! grep -q 'create("release")' "$GRADLE" || ! grep -q 'signingConfig = signingConfigs.getByName("release")' "$GRADLE"; then
+  echo "error: failed to wire release signingConfig in $GRADLE" >&2
   exit 1
 fi
 
