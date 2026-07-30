@@ -8,6 +8,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | app.ts | entry | Wires runtime, lifecycle hooks and resume wakes |
 | cli.ts | entry | dispatches the cortex command line |
 | daemon.ts | entry | supervises and restarts the app process |
+| daemon-notice.ts | wiring | broadcasts supervisor notices to the operator |
 | doctor-cli.ts | cli | runs environment diagnostics and safe fixes |
 | hook-cli.ts | cli | Inspects hooks and runs blocking user asks |
 | feishu-login.ts | cli | handles Feishu user login and logout |

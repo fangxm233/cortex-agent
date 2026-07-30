@@ -31,6 +31,7 @@ import { recoverOrphanedClaims } from '@domain/tasks/claim-recovery.js';
 import { projectDirRepo } from '@store/project-dir-repo.js';
 import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
+import { subscribeDaemonNotices } from './daemon-notice.js';
 import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
 import { startClientManager, stopClientManager, startAllRemoteClients, getOnlineDevices, isDeviceOnline } from '@domain/remote/client-manager.js';
 import { checkAndUpdateClients, formatUpdateSlackMessage } from '@domain/remote/client-hot-reload.js';
@@ -531,6 +532,9 @@ process.on('SIGTERM', async () => {
   }
 
   await adapter.start();
+
+  // Let the supervisor reach the operator through us — it has no platform adapter of its own.
+  subscribeDaemonNotices(adapter);
 
   try {
     const notified = await sendStartupDmIfConfigured(adapter, {

@@ -2,7 +2,7 @@
 //         .restart trigger file (manual restart; in dev mode: rebuild pipeline; in prod: hot-reload app.js),
 //         CONFIG_DIR/.env changes
 // output: process supervisor — fork(app.js) with hot-restart, crash recovery, graceful shutdown;
-//         on src change: spawn npm run build (server+web) → npm pack → npm install -g <tgz> → restart() app.js;
+//         on src change: npm run build (server→ui-contract→web) → npm pack → npm install -g <tgz> → restart();
 //         on .restart in dev mode (CORTEX_REPO set): same rebuild pipeline
 // pos:    system entry point, top-level process in daemon mode (node dist/entry/daemon.js);
 //         logs/PID persisted to DATA_DIR
@@ -15,6 +15,11 @@
  *   { type: 'busy' }  — a request is being processed, defer restart
  *   { type: 'idle' }  — done processing, safe to restart
  *
+ * IPC protocol (daemon → app.ts, see entry/daemon-notice.ts):
+ *   { type: 'rebuild-aborted', text } — pipeline stopped early; app.ts broadcasts it as an
+ *   error-level system notice. The daemon has no platform adapter, so this is its only
+ *   way to reach the operator.
+ *
  * Restart serialization:
  *   Only ONE restart cycle (stop → start) runs at a time. Concurrent requests
  *   are absorbed into `pendingRestart` and consumed after the cycle completes.
@@ -22,14 +27,18 @@
  *
  * Source-watch rebuild loop:
  *   When CORTEX_REPO is set and ${CORTEX_REPO}/src exists, daemon watches
- *   src/**\/*.ts and on change runs: npm run build (server+web) → npm pack → npm install -g
+ *   src/**\/*.ts and on change runs: npm run build (server → ui-contract → web) → npm pack → install -g
  *   → restart() the app.js child from the freshly installed dist. The daemon
  *   process itself does NOT reload — if you edit daemon.ts you must manually
  *   `cortex daemon` restart to pick up the new daemon code.
  *
- *   Build failure → log + skip (no restart). Install failure → same. busy/idle
- *   gating is reused: a rebuild during an in-flight Slack request defers the
- *   final restart() step until the child reports idle.
+ *   The build order is load-bearing, not cosmetic: ui-contract re-exports the server's dist
+ *   types and web typechecks against ui-contract's built dist, so skipping the middle package
+ *   makes web fail on every newly added server DTO.
+ *
+ *   Any step failing → log + notify the operator + skip (no restart), so an abort never looks
+ *   like a no-op restart. busy/idle gating is reused: a rebuild during an in-flight Slack
+ *   request defers the final restart() step until the child reports idle.
  *
  * Manual upgrade workflow (still supported):
  *   npm run build && npm pack && npm install -g ./cortex-agent-server-X.Y.Z.tgz   (package: @cortex-agent/server)
@@ -69,6 +78,11 @@ const SRC_WATCH_PATH = CORTEX_REPO ? path.join(CORTEX_REPO, 'src') : '';
 // Web SPA lives under MONOREPO_ROOT/web/ and must be built before packing.
 const MONOREPO_ROOT = CORTEX_REPO ? path.dirname(CORTEX_REPO) : '';
 const WEB_DIR = MONOREPO_ROOT ? path.join(MONOREPO_ROOT, 'web') : '';
+// ui-contract re-exports the server's ui-service DTO types and the web SPA resolves them through
+// this package's BUILT dist — so it must be rebuilt between the two, or web's typecheck fails on
+// every newly added server DTO. Only these three workspace packages are in the hot path: a blanket
+// `pnpm -r run build` would also drag in desktop's `tauri build` and the worker's `wrangler deploy`.
+const UI_CONTRACT_DIR = MONOREPO_ROOT ? path.join(MONOREPO_ROOT, 'packages', 'ui-contract') : '';
 const DEBOUNCE_MS = 800;          // .restart / .env — fast
 const BUILD_DEBOUNCE_MS = 2500;   // src/*.ts — slower, build takes seconds anyway
 const BACKOFF_INITIAL = 1000;
@@ -391,6 +405,107 @@ function spawnAsync(cmd: string, args: string[], opts: { cwd: string }): Promise
   });
 }
 
+export interface RebuildStep {
+  /** Short stable name used in logs and in the abort notice. */
+  label: string;
+  cmd: string;
+  args: string[];
+  cwd: string;
+}
+
+/** Ordered `npm run build` steps for the hot-reload pipeline, skipping packages that are absent.
+ *  Order is load-bearing: agent-server emits the dist types, ui-contract re-exports them, web
+ *  typechecks against ui-contract's dist. */
+export function planRebuildSteps(dirs: {
+  repoDir: string;
+  uiContractDir?: string | null;
+  webDir?: string | null;
+}): RebuildStep[] {
+  const build = (label: string, cwd: string): RebuildStep => ({ label, cmd: 'npm', args: ['run', 'build'], cwd });
+  const steps = [build('server', dirs.repoDir)];
+  if (dirs.uiContractDir) steps.push(build('ui-contract', dirs.uiContractDir));
+  if (dirs.webDir) steps.push(build('web', dirs.webDir));
+  return steps;
+}
+
+/** The text shown to the operator when the pipeline stops early. Spells out the consequence
+ *  explicitly: an aborted rebuild leaves the *previous* build running, so a silent abort looks
+ *  exactly like "my restart did nothing". */
+export function buildRebuildAbortNotice(p: { step: string; detail: string; reason: string }): string {
+  return `Rebuild aborted at step "${p.step}" (${p.detail}) — app.ts was NOT restarted and is still `
+    + `running the previously installed build. Trigger: ${p.reason}`;
+}
+
+/** Push a message down the fork IPC channel. Best-effort: the child may be mid-exit. */
+function notifyChild(msg: { type: string; text: string }): void {
+  if (!child || !child.connected) return;
+  try { child.send(msg); } catch { /* child went away — the log line still records it */ }
+}
+
+/** Single exit point for every pipeline abort: log it AND tell the operator. */
+function abortRebuild(step: string, detail: string, reason: string): void {
+  const text = buildRebuildAbortNotice({ step, detail, reason });
+  log.error(text);
+  notifyChild({ type: 'rebuild-aborted', text });
+}
+
+/** Run the ordered build steps. Returns false once any step fails (already reported). */
+async function runBuildSteps(reason: string): Promise<boolean> {
+  const steps = planRebuildSteps({
+    repoDir: CORTEX_REPO,
+    uiContractDir: UI_CONTRACT_DIR && existsSync(UI_CONTRACT_DIR) ? UI_CONTRACT_DIR : null,
+    webDir: WEB_DIR && existsSync(WEB_DIR) ? WEB_DIR : null,
+  });
+  if (!steps.some(s => s.label === 'web')) {
+    log.warn('WEB_DIR not found — skipping web build, pack will use stale web/dist if present');
+  }
+
+  for (const step of steps) {
+    const code = await spawnAsync(step.cmd, step.args, { cwd: step.cwd });
+    if (code !== 0) {
+      abortRebuild(step.label, `exit ${code}`, reason);
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Newest packed tarball in CORTEX_REPO, or an abort detail explaining why there is none. */
+function findNewestTarball(): { path: string } | { detail: string } {
+  let candidates;
+  try {
+    candidates = readdirSync(CORTEX_REPO)
+      .filter(f => f.startsWith('cortex-agent-server-') && f.endsWith('.tgz'))
+      .map(f => ({ f, mtime: statSync(path.join(CORTEX_REPO, f)).mtimeMs }))
+      .sort((a, b) => b.mtime - a.mtime);
+  } catch (err: any) {
+    return { detail: `failed to enumerate tgz in ${CORTEX_REPO}: ${err?.message ?? err}` };
+  }
+  if (candidates.length === 0) return { detail: 'npm pack succeeded but no cortex-agent-server-*.tgz found' };
+  return { path: path.join(CORTEX_REPO, candidates[0].f) };
+}
+
+/** Clean stale tarballs, pack, and return the freshly packed tgz path (or '' after an abort). */
+async function packTarball(reason: string): Promise<string> {
+  const cleanCode = await spawnAsync('bash', ['-c', 'rm -f cortex-agent-server-*.tgz'], { cwd: CORTEX_REPO });
+  if (cleanCode !== 0) {
+    abortRebuild('tgz cleanup', `exit ${cleanCode}`, reason);
+    return '';
+  }
+  const packCode = await spawnAsync('npm', ['pack'], { cwd: CORTEX_REPO });
+  if (packCode !== 0) {
+    abortRebuild('pack', `exit ${packCode}`, reason);
+    return '';
+  }
+
+  const found = findNewestTarball();
+  if ('detail' in found) {
+    abortRebuild('pack', found.detail, reason);
+    return '';
+  }
+  return found.path;
+}
+
 async function runRebuildPipeline(reason: string) {
   // Defer if app.ts is mid-request: install -g + restart() would interrupt it.
   // The build/pack/install commands themselves don't touch the running child, but the
@@ -417,63 +532,23 @@ async function runRebuildPipeline(reason: string) {
   try {
     log.info(`Rebuild pipeline starting: ${reason}`);
 
-    // Step 1: build agent-server (tsc)
-    const buildCode = await spawnAsync('npm', ['run', 'build'], { cwd: CORTEX_REPO });
-    if (buildCode !== 0) {
-      log.error(`Rebuild aborted: npm run build (server) exited ${buildCode}`);
-      return;
-    }
+    // Step 1: build the workspace packages in dependency order (server → ui-contract → web).
+    if (!await runBuildSteps(reason)) return;
 
-    // Step 2: build web SPA (vite) — needed by npm pack's prepack copy-web-dist step
-    if (WEB_DIR && existsSync(WEB_DIR)) {
-      const webBuildCode = await spawnAsync('npm', ['run', 'build'], { cwd: WEB_DIR });
-      if (webBuildCode !== 0) {
-        log.error(`Rebuild aborted: npm run build (web) exited ${webBuildCode}`);
-        return;
-      }
-    } else {
-      log.warn('WEB_DIR not found — skipping web build, pack will use stale web/dist if present');
-    }
-
-    // Step 3: pack (clean old tgz first, otherwise readdir picks up a stale one)
-    const cleanCode = await spawnAsync('bash', ['-c', 'rm -f cortex-agent-server-*.tgz'], { cwd: CORTEX_REPO });
-    if (cleanCode !== 0) {
-      log.error(`Rebuild aborted: tgz cleanup exited ${cleanCode}`);
-      return;
-    }
-    const packCode = await spawnAsync('npm', ['pack'], { cwd: CORTEX_REPO });
-    if (packCode !== 0) {
-      log.error(`Rebuild aborted: npm pack exited ${packCode}`);
-      return;
-    }
-
-    // Find the newest tgz produced
-    let tgzPath = '';
-    try {
-      const candidates = readdirSync(CORTEX_REPO)
-        .filter(f => f.startsWith('cortex-agent-server-') && f.endsWith('.tgz'))
-        .map(f => ({ f, mtime: statSync(path.join(CORTEX_REPO, f)).mtimeMs }))
-        .sort((a, b) => b.mtime - a.mtime);
-      if (candidates.length > 0) tgzPath = path.join(CORTEX_REPO, candidates[0].f);
-    } catch (err: any) {
-      log.error(`Rebuild aborted: failed to enumerate tgz in ${CORTEX_REPO}: ${err?.message ?? err}`);
-      return;
-    }
-    if (!tgzPath) {
-      log.error(`Rebuild aborted: npm pack succeeded but no cortex-agent-server-*.tgz found`);
-      return;
-    }
+    // Step 2: pack (clean old tgz first, otherwise readdir picks up a stale one)
+    const tgzPath = await packTarball(reason);
+    if (!tgzPath) return;
     log.info(`Packed tarball: ${tgzPath}`);
 
-    // Step 4: install -g. Run from /tmp so npm doesn't choke if its CWD lives inside the package
+    // Step 3: install -g. Run from /tmp so npm doesn't choke if its CWD lives inside the package
     // currently being unlinked.
     const installCode = await spawnAsync('npm', ['install', '-g', tgzPath], { cwd: '/tmp' });
     if (installCode !== 0) {
-      log.error(`Rebuild aborted: npm install -g exited ${installCode}`);
+      abortRebuild('install', `exit ${installCode}`, reason);
       return;
     }
 
-    // Step 5: restart app.ts. This reuses the busy/idle gate inside restart() —
+    // Step 4: restart app.ts. This reuses the busy/idle gate inside restart() —
     // if a request snuck in between the busy-check above and now, restart() will
     // re-defer to pendingRestart. Either way, the new app.js boots from the freshly
     // installed dist/.
