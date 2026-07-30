@@ -1,4 +1,4 @@
-// input:  StepRow, Chrome layout probe, long subtask fixture
+// input:  StepRow, Chrome layout probe, long clickable subtask fixture
 // output: right-thread activity containment regression
 // pos:    Verifies expanded thread rows stay inside fixed-width cards
 // >>> If I am updated, update my header comment and CORTEX.md <<<
@@ -73,7 +73,7 @@ function renderFixture(): string {
     <LangProvider>
       <div id="card" style={{ boxSizing: 'border-box', width: 360, padding: '10px 14px 4px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr', columnGap: 9 }}>
-          <StepRow step={step} isLast detail={detail} onOpenRun={() => {}} />
+          <StepRow step={step} isLast detail={detail} onOpenRun={() => {}} onOpenTask={() => {}} />
         </div>
       </div>
     </LangProvider>,

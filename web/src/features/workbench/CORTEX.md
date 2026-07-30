@@ -68,7 +68,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | RightPanel.tsx | view | Hosts work tabs with recent threads or notes |
 | right-panel-vm.ts | vm | Formats task-linked thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests task-linked thread and machine metadata |
-| RightThreadCard.tsx | view | Shows activity rows and opens modal detail |
+| RightThreadCard.tsx | view | Opens run, task and thread details from activity rows |
+| RightThreadCard.test.tsx | test | Tests waiting-task click delegation |
 | RightThreadCard.layout.test.tsx | test | Browser-checks long subtask row containment |
 | RightMachinesTab.tsx | view | Lists machines with status, GPUs and live runs |
 | scope.ts | util | Filters active, recent and historical threads |

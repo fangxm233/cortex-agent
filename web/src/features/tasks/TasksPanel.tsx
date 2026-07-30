@@ -1,16 +1,16 @@
-// input:  Task queries, lifecycle model, mutations, and live sync
-// output: Complete lifecycle-grouped task panel and detail modal
+// input:  Task queries, lifecycle model, global task modal API
+// output: Complete lifecycle-grouped task panel with modal links
 // pos:    Desktop task list orchestration and rendering
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
-import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { groupTasks, type TaskGroupKind } from './group-tasks';
 import { TaskRow } from './TaskRow';
-import { TaskModal } from './TaskModal';
+import { useTaskModal } from './TaskModalProvider';
 import { useTasksLiveSync } from './useTasksLiveSync';
 
 const GROUP_LABEL_STYLE = {
@@ -55,30 +55,6 @@ function GroupSection({ kind, tasks, onOpen }: {
   );
 }
 
-function useTaskMutations(setOpenTaskId: Dispatch<SetStateAction<string | null>>) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const settle = (close: boolean) => {
-    setPendingId(null);
-    if (close) setOpenTaskId(null);
-    queryClient.invalidateQueries(trpc.tasks.list.queryFilter());
-  };
-  const complete = useMutation(trpc.tasks.complete.mutationOptions({ onSettled: () => settle(true) }));
-  const unblock = useMutation(trpc.tasks.unblock.mutationOptions({ onSettled: () => settle(false) }));
-  return {
-    pendingId,
-    onComplete: (task: TaskInfo) => {
-      setPendingId(task.id);
-      complete.mutate({ projectId: task.project, taskId: task.id, note: 'completed via Web UI' });
-    },
-    onUnblock: (task: TaskInfo) => {
-      setPendingId(task.id);
-      unblock.mutate({ projectId: task.project, taskId: task.id });
-    },
-  };
-}
-
 function TaskSections({ groups, onOpen }: {
   groups: ReturnType<typeof groupTasks>;
   onOpen: (task: TaskInfo) => void;
@@ -108,23 +84,20 @@ export interface TasksPanelProps {
 export function TasksPanel({ projectId }: TasksPanelProps) {
   const vocab = useVocab();
   const trpc = useTRPC();
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
-  const actions = useTaskMutations(setOpenTaskId);
+  const { openTask } = useTaskModal();
   const query = useQuery(trpc.tasks.list.queryOptions(projectId ? { projectId } : {}));
   useTasksLiveSync();
   const tasks = query.data ?? [];
   const groups = useMemo(() => groupTasks(tasks), [tasks]);
-  const openTask = openTaskId ? tasks.find((task) => task.id === openTaskId) : undefined;
 
   if (query.isPending) return <div style={{ fontSize: 12, color: 'var(--proto-muted-2)', padding: 12 }}>{vocab.tkLoading}</div>;
   if (query.isError) return <div style={ERROR_STYLE}>{vocab.tkLoadFailed}: {query.error.message}</div>;
   return (
     <div style={{ minHeight: 0, flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <TaskSections groups={groups} onOpen={(task) => setOpenTaskId(task.id)} />
+        <TaskSections groups={groups} onOpen={(task) => openTask(task.project, task.id)} />
       </div>
       <TaskFooter tasks={tasks} groups={groups} />
-      {openTask && <TaskModal task={openTask} allTasks={tasks} pending={actions.pendingId === openTask.id} onClose={() => setOpenTaskId(null)} onComplete={actions.onComplete} onUnblock={actions.onUnblock} />}
     </div>
   );
 }

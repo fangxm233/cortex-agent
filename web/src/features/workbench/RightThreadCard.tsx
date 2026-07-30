@@ -1,5 +1,5 @@
-// input:  ThreadDetail DTO, tRPC hooks, right-panel view models
-// output: RightThreadCard and testable StepRow activity layout
+// input:  ThreadDetail DTO, tRPC hooks, task/thread modal APIs
+// output: RightThreadCard with clickable run and waiting-task rows
 // pos:    Expanded thread card and browser-probed step row renderer
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -9,6 +9,7 @@ import type { ThreadInfo, ThreadDetail, ThreadStepDetail, ThreadDispatchInfo } f
 import { useTRPC } from '@/lib/trpc';
 import { useVocab } from '@/i18n';
 import { useExecutionLogDrawer } from '@/features/execution/ExecutionLogDrawerProvider';
+import { useTaskModal } from '@/features/tasks/TaskModalProvider';
 import { dispatchesForStep } from '@/features/thread/thread-steps';
 import { useThreadGetLiveSync } from '@/features/thread/useThreadGetLiveSync';
 import { useThreadDetailModal } from '@/features/thread/ThreadDetailModal';
@@ -26,6 +27,11 @@ import {
 } from './right-panel-vm';
 
 type ThreadSubtaskInfo = ThreadDetail['subtasks'][number];
+type TaskProjectDetail = Pick<ThreadDetail, 'projectId' | 'artifacts'>;
+
+export function taskProjectForDetail(detail: TaskProjectDetail): string {
+  return detail.artifacts.taskProject ?? detail.projectId;
+}
 
 const NODE_ICON = (
   <svg width="13" height="13" viewBox="0 0 14 14" fill="none" strokeWidth="1.6">
@@ -140,11 +146,15 @@ function CortexRunCard({ run, onOpen }: { run: ThreadDispatchInfo; onOpen: (exec
   );
 }
 
-function SubtaskCard({ task }: { task: ThreadSubtaskInfo }) {
+export function SubtaskCard({ task, onOpen }: {
+  task: ThreadSubtaskInfo;
+  onOpen: (taskId: string) => void;
+}) {
   const state = subtaskActivity(task);
   return (
     <div
       data-subtask-id={task.id}
+      onClick={() => onOpen(task.id)}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -153,6 +163,7 @@ function SubtaskCard({ task }: { task: ThreadSubtaskInfo }) {
         background: 'var(--proto-rail)',
         borderRadius: 8,
         padding: '7px 10px',
+        cursor: 'pointer',
       }}
     >
       <ActivityDot tone={state.tone} />
@@ -167,16 +178,18 @@ function ThreadActivityRows({
   runs,
   subtasks,
   onOpenRun,
+  onOpenTask,
 }: {
   runs: ThreadDispatchInfo[];
   subtasks: ThreadSubtaskInfo[];
   onOpenRun: (executionId: string) => void;
+  onOpenTask: (taskId: string) => void;
 }) {
   if (runs.length === 0 && subtasks.length === 0) return null;
   return (
     <div style={{ marginTop: 7, display: 'flex', flexDirection: 'column', gap: 6 }}>
       {runs.map((run) => <CortexRunCard key={run.executionId} run={run} onOpen={onOpenRun} />)}
-      {subtasks.map((task) => <SubtaskCard key={task.id} task={task} />)}
+      {subtasks.map((task) => <SubtaskCard key={task.id} task={task} onOpen={onOpenTask} />)}
     </div>
   );
 }
@@ -186,6 +199,7 @@ interface StepRowProps {
   isLast: boolean;
   detail: ThreadDetail;
   onOpenRun: (executionId: string) => void;
+  onOpenTask: (taskId: string) => void;
 }
 
 function StepHeader({ label, meta, active, done }: { label: string; meta: string; active: boolean; done: boolean }) {
@@ -202,7 +216,7 @@ function StepHeader({ label, meta, active, done }: { label: string; meta: string
   );
 }
 
-export function StepRow({ step, isLast, detail, onOpenRun }: StepRowProps) {
+export function StepRow({ step, isLast, detail, onOpenRun, onOpenTask }: StepRowProps) {
   const L = useVocab();
   const kind = stepDotKind(step);
   const active = kind === 'running';
@@ -215,7 +229,8 @@ export function StepRow({ step, isLast, detail, onOpenRun }: StepRowProps) {
       <StepDot kind={kind} hasTail={!isLast} />
       <div style={{ minWidth: 0, paddingBottom: isLast ? 4 : 9 }}>
         <StepHeader label={label} meta={stepMeta(step)} active={active} done={kind === 'done'} />
-        {hasActivities && <ThreadActivityRows runs={runs} subtasks={subtasks} onOpenRun={onOpenRun} />}
+        {hasActivities && <ThreadActivityRows runs={runs} subtasks={subtasks}
+          onOpenRun={onOpenRun} onOpenTask={onOpenTask} />}
       </div>
     </>
   );
@@ -244,6 +259,7 @@ function CardActions({ threadId, cost }: { threadId: string; cost: number }) {
 
 function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string }) {
   const { open: openRun } = useExecutionLogDrawer();
+  const { openTask } = useTaskModal();
   useThreadGetLiveSync(threadId);
   return (
     <>
@@ -251,7 +267,8 @@ function CardBody({ detail, threadId }: { detail: ThreadDetail; threadId: string
         <div style={{ padding: '10px 14px 4px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '16px 1fr', columnGap: 9 }}>
             {detail.steps.map((step) => <StepRow key={step.stepIndex} step={step}
-              isLast={step.stepIndex === detail.steps.length - 1} detail={detail} onOpenRun={openRun} />)}
+              isLast={step.stepIndex === detail.steps.length - 1} detail={detail} onOpenRun={openRun}
+              onOpenTask={(taskId) => openTask(taskProjectForDetail(detail), taskId)} />)}
           </div>
         </div>
       )}

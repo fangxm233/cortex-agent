@@ -1,15 +1,17 @@
 Please update me when files in this folder change
 
 Lifecycle-grouped complete task list used by both the tasks route and workbench task tab.
-The detail modal shows fields, dependencies, completion evidence and dispatch history plus actions.
+An AppShell provider opens details with dependencies, evidence, dispatch history and actions.
 
 | filename | role | function |
 |---|---|---|
 | TasksPage.tsx | entry | Tasks route page wrapping the tasks panel |
-| TasksPanel.tsx | core | Complete six-group task list and modal |
+| TasksPanel.tsx | core | Complete six-group task list with modal links |
 | TaskRow.tsx | view | Renders one lifecycle-aware task card |
 | TaskRow.test.tsx | test | Tests desktop card lifecycle metadata |
 | TaskModal.tsx | view | Task detail modal with fields, deps and actions |
+| TaskModalProvider.tsx | provider | Opens project-scoped task details globally |
+| TaskModalProvider.test.ts | test | Tests modal selection state transitions |
 | task-modal-vm.ts | vm | Builds approval and claim-aware detail state |
 | task-modal-vm.test.ts | test | Guards approval, claim, fields and actions |
 | group-tasks.ts | vm | Groups tasks into six lifecycle sections |
