@@ -1,3 +1,8 @@
+// input:  config queries, settings panels, Radix Dialog
+// output: global settings modal with section navigation
+// pos:    Desktop settings overlay shell and data bindings
+// >>> If I am updated, update my header comment and CORTEX.md <<<
+
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { useState, type CSSProperties } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -228,6 +233,8 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
             overflow: 'auto',
             padding: '16px 22px',
             background: 'var(--proto-alt)',
+            display: section === 'hooks' ? 'flex' : undefined,
+            flexDirection: section === 'hooks' ? 'column' : undefined,
           }}
         >
           <div style={{ fontSize: 15, fontWeight: 650, color: 'var(--proto-ink)' }}>{meta.title}</div>

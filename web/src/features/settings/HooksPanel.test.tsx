@@ -1,6 +1,6 @@
 // input:  HooksPanelView, language provider, HookDetail fixtures
-// output: desktop hook master-detail and capability-gating regressions
-// pos:    Verifies the hooks panel renders capability, mount and validity state
+// output: full-height hook editor and capability regressions
+// pos:    Verifies hook layout, capabilities and validity state
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -101,6 +101,17 @@ describe('HooksPanelView / list', () => {
     // load order is shown as a zero-padded prefix — same-event execution order
     expect(html).toContain('data-hook-order="0"');
     expect(html).toContain('data-hook-order="5"');
+  });
+
+  it('fills the available settings height without the legacy footnote', () => {
+    const html = render();
+    expect(html).toContain(
+      'data-settings-panel="hooks" style="margin-top:12px;flex:1;min-height:0;display:flex;flex-direction:column"',
+    );
+    expect(html).toContain(
+      'data-hook-cards="" style="display:flex;gap:12px;flex:1;min-height:0;align-items:stretch"',
+    );
+    expect(html).not.toContain('Mounted state comes from');
   });
 
   it('renders the mount badges on every row', () => {

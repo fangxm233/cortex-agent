@@ -1,6 +1,6 @@
-// input:  hooks.list overview, hook form state, and the hooks.* mutations
-// output: desktop hook master-detail editor with capability gating and a test runner
-// pos:    Settings panel for the declarative hook registry
+// input:  hooks.list data, hook form state, hooks.* mutations
+// output: full-height hook editor with gating and test runner
+// pos:    Settings view for the declarative hook registry
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
@@ -68,10 +68,6 @@ import {
 // No optimistic updates: every mutation invalidates hooks.list and reports through a toast.
 
 const MONO = "'IBM Plex Mono',monospace";
-
-// Sized to the settings content pane (~826×570) minus its title block and the footnote below,
-// so the master-detail scrolls internally instead of pushing the whole pane into a scrollbar.
-const PANEL_HEIGHT = 442;
 const LIST_WIDTH = 288;
 
 const MOUNT_TONE: Record<HookMountTarget, { bg: string; fg: string }> = {
@@ -1105,12 +1101,17 @@ export interface HooksPanelViewProps {
 }
 
 export function HooksPanelView(props: HooksPanelViewProps) {
-  const L = useVocab();
   const visible = filterHooks(props.hooks, props.filter, props.search);
   const hook = props.hooks.find((h) => h.id === props.selectedId) ?? null;
   return (
-    <div data-settings-panel="hooks" style={{ marginTop: 12 }}>
-      <div style={{ display: 'flex', gap: 12, height: PANEL_HEIGHT, alignItems: 'stretch' }}>
+    <div
+      data-settings-panel="hooks"
+      style={{ marginTop: 12, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+    >
+      <div
+        data-hook-cards=""
+        style={{ display: 'flex', gap: 12, flex: 1, minHeight: 0, alignItems: 'stretch' }}
+      >
         <HookList
           hooks={props.hooks}
           visible={visible}
@@ -1123,9 +1124,6 @@ export function HooksPanelView(props: HooksPanelViewProps) {
           onStartCreate={props.onStartCreate}
         />
         <HookDetailPane {...props} hook={hook} />
-      </div>
-      <div style={{ marginTop: 9, fontSize: 10, lineHeight: 1.7, color: 'var(--proto-muted-2)', maxWidth: 820 }}>
-        {L.stHooksFootNote}
       </div>
     </div>
   );

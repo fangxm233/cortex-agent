@@ -1,21 +1,20 @@
 Please update me when files in this folder change
 
-Desktop settings overlay: one modal with a left nav and ten sections, mounted globally by its provider.
-Most panels read a single config snapshot and are read-only; the budget panel writes the daily limit
-back through config.set, and the hooks panel owns its own hooks.list query plus the full hooks.*
-create/update/enable/remove/test surface.
+Desktop settings overlay: one modal with left nav and ten sections, mounted globally by its provider.
+Most panels read one config snapshot; budget writes the daily limit, while hooks uses hooks.list and hooks.*
+mutations in a full-height master-detail surface.
 
 | filename | role | function |
 |---|---|---|
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
-| SettingsModal.tsx | view | Dialog with left nav and panel switching |
+| SettingsModal.tsx | view | Dialog with nav and full-height panel content |
 | SettingsPanels.tsx | view | Renders the read-only config sections |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
 | BudgetPanel.tsx | view | Budget panel that writes the daily spend limit |
 | budget-vm.ts | vm | Derives budget chips, payload and spend bar |
 | budget-vm.test.ts | test | Unit tests for the budget view model |
-| HooksPanel.tsx | view | Hook registry master-detail editor and test runner |
-| HooksPanel.test.tsx | test | Tests hook rows, capability gating and the test runner |
+| HooksPanel.tsx | view | Full-height hook editor and test runner |
+| HooksPanel.test.tsx | test | Tests hook layout, gating and the test runner |
 | hooks-panel-vm.ts | vm | Filters, groups, validates and builds hook mutation args |
 | hooks-panel-vm.test.ts | test | Unit tests for the hooks panel view model |
 | platform-env.ts | vm | Maps redacted env keys to safe settings rows |
