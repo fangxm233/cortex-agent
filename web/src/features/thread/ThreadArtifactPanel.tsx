@@ -1,5 +1,5 @@
 // input:  thread artifact view model and shared Markdown renderer
-// output: inline artifact card with references and content
+// output: inline artifact card with references and wrapped content
 // pos:    Artifact column in the desktop thread detail modal
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -80,7 +80,7 @@ function ArtifactBody({ artifact }: { artifact: DetailArtifact }) {
       </div>
       <div style={{ height: 1, background: 'var(--proto-line-2)', margin: '10px 0' }} />
       <ArtifactReferences artifact={artifact} />
-      <div data-artifact-content="true" style={{ marginTop: 12, color: 'var(--proto-ink)', fontSize: 12.5, lineHeight: 1.6 }}>
+      <div data-artifact-content="true" style={{ marginTop: 12, color: 'var(--proto-ink)', fontSize: 12.5, lineHeight: 1.6, overflowWrap: 'anywhere' }}>
         {artifact.content ? <ChatMarkdown text={artifact.content} /> : <span style={{ color: 'var(--proto-muted-2)' }}>—</span>}
       </div>
     </div>
