@@ -128,6 +128,7 @@ pub fn select_asset<'a>(assets: &'a [Asset], os: &str, arch: &str, kind: &str) -
 /// Decide which Linux package kind this install uses, pure over its inputs: a set `$APPIMAGE` env
 /// (AppImage self-run path) wins; otherwise /etc/os-release ID/ID_LIKE picks deb vs rpm; unknown
 /// falls back to appimage (self-contained, always installable).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub fn detect_linux_kind_from(appimage_env: Option<&str>, os_release: &str) -> &'static str {
     if appimage_env.is_some_and(|v| !v.trim().is_empty()) {
         return "appimage";
@@ -248,6 +249,7 @@ fn path_with_suffix(p: &Path, suffix: &str) -> PathBuf {
 /// generation). Copies (not renames) the new file in — the store and the target may sit on
 /// different filesystems — marks it executable on unix, and restores the backup if the final
 /// swap fails. The running process keeps its open inode, so this is safe on a live AppImage.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub fn swap_file_keep_old(current: &Path, new_file: &Path) -> io::Result<()> {
     let staged = path_with_suffix(current, ".new");
     let old = path_with_suffix(current, ".old");

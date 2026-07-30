@@ -11,9 +11,11 @@
         <!-- Exposes the downloaded APK (app-private data dir) to the system package installer via a
              content:// URI. Tauri's app_data_dir maps to the package data ROOT on Android (not
              filesDir), so cortex_file_paths.xml includes a root-path entry. Merged into the app
-             manifest at build time — survives `tauri android init` because it lives in this plugin. -->
+             manifest at build time — survives `tauri android init` because it lives in this plugin.
+             CortexFileProvider is a distinct subclass: the merger keys providers by class name and
+             the app already ships a plain androidx FileProvider. -->
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name="dev.cortex.download.CortexFileProvider"
             android:authorities="${applicationId}.cortex.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
