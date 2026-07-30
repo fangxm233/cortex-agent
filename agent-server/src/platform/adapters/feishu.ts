@@ -1,5 +1,5 @@
-// input:  @larksuiteoapi/node-sdk, ../adapter.js, ../types.js
-// output: FeishuAdapter with messages, files, cards, and markers
+// input:  Lark SDK, core/settings, platform types
+// output: FeishuAdapter messaging and live admin-chat routing
 // pos:    Feishu PlatformAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -27,7 +27,8 @@ import type {
 import * as fs from 'fs';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
-import { STORE_DIR, CONFIG_DIR } from '@core/paths.js';
+import { STORE_DIR } from '@core/paths.js';
+import { updateSettings } from '@core/settings.js';
 import type { OutputStream, OpenOutputStreamOpts } from '../output-stream.js';
 import { FeishuOutputStream } from './feishu-output-stream.js';
 import { ProjectConduitsStore } from './project-conduits.js';
@@ -530,31 +531,13 @@ export class FeishuAdapter implements PlatformAdapter {
   // Internal: Inbound event handlers
   // =========================================================================
 
-  /**
-   * Upsert FEISHU_ADMIN_CHANNEL=<chatId> into <CONFIG_DIR>/.env so the detected
-   * admin DM survives restarts. Mirrors SlackAdapter._persistAdminChannel.
-   */
+  setAdminChannel(channel: string | null): void {
+    this.config.adminChannel = channel ?? undefined;
+  }
+
   private async _persistAdminChannel(chatId: string): Promise<void> {
-    const envPath = path.join(CONFIG_DIR, '.env');
-    let content = '';
-    try {
-      content = await fs.promises.readFile(envPath, 'utf-8');
-    } catch {
-      // File doesn't exist yet — will be created.
-    }
-    const lines = content.split('\n');
-    let found = false;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('FEISHU_ADMIN_CHANNEL=')) {
-        lines[i] = `FEISHU_ADMIN_CHANNEL=${chatId}`;
-        found = true;
-        break;
-      }
-    }
-    if (!found) lines.push(`FEISHU_ADMIN_CHANNEL=${chatId}`);
-    await fs.promises.mkdir(CONFIG_DIR, { recursive: true });
-    await fs.promises.writeFile(envPath, lines.join('\n'), 'utf-8');
-    log.info(`FEISHU_ADMIN_CHANNEL=${chatId} written to ${envPath}`);
+    await updateSettings({ feishuAdminChannel: chatId });
+    log.info(`feishuAdminChannel=${chatId} written to settings.json`);
   }
 
   private async handleIncomingMessage(data: any): Promise<void> {
@@ -572,21 +555,15 @@ export class FeishuAdapter implements PlatformAdapter {
     const messageType = message.message_type || '';
     const chatType = message.chat_type || ''; // 'p2p' (DM) | 'group'
 
-    // Auto-detect the admin channel from a DM when FEISHU_ADMIN_CHANNEL is not
-    // configured. Mirrors the Slack adapter: the first p2p (DM) message from a
-    // non-bot user is registered as the admin channel, persisted to .env, and set
-    // on process.env. Feishu deliberately does NOT fall back to CORTEX_ADMIN_CHANNEL
-    // (that is a Slack channel id).
+    // Feishu uses its own p2p chat id and never inherits Slack's admin channel.
     if (!this.config.adminChannel && !this._adminAutoDetected && chatType === 'p2p' && !isBot && chatId) {
       this._adminAutoDetected = true;
       this.config.adminChannel = chatId;
-      process.env.FEISHU_ADMIN_CHANNEL = chatId;
       log.info(`Admin channel auto-detected from DM: ${chatId}`);
-      // Persist to .env and notify (fire-and-forget, non-blocking).
       this._persistAdminChannel(chatId).catch(e =>
-        log.warn(`Failed to persist FEISHU_ADMIN_CHANNEL to .env: ${(e as Error).message}`));
+        log.warn(`Failed to persist feishuAdminChannel to settings.json: ${(e as Error).message}`));
       this.postMessage({ type: 'system-notice' }, {
-        text: `👋 This DM has been auto-registered as the Cortex admin channel. \`FEISHU_ADMIN_CHANNEL=${chatId}\` has been written to \`.env\`. System notifications (startup, rate-limit, disk alerts) will be sent here.`,
+        text: `👋 This DM has been auto-registered as the Cortex admin channel. \`feishuAdminChannel=${chatId}\` has been written to \`settings.json\`. System notifications (startup, rate-limit, disk alerts) will be sent here.`,
       }).catch(e => log.warn(`Failed to send admin auto-detect notification: ${(e as Error).message}`));
     }
 

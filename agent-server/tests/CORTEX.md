@@ -51,7 +51,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | facade-compact.test.ts | test | manual context compact via agent facade |
 | facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
 | facade.test.ts | test | provider identity and exact pre-flight gates |
-| feishu-adapter.test.ts | test | Feishu message, card and reaction mapping |
+| feishu-adapter.test.ts | test | Feishu messages, admin routing and persistence |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
 | feishu-login-cli.test.ts | test | Feishu login CLI dispatch and gating |
@@ -84,7 +84,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | output-stream.test.ts | test | Slack, Feishu and mock output streams |
 | pi-cost-record.test.ts | test | PI per-run cost recording end to end |
 | platform/ | subdir | platform adapters and UI HTTP transport tests |
-| platform-mock-adapter.test.ts | test | mock adapter platform contract coverage |
+| platform-mock-adapter.test.ts | test | Mock contract and live admin routing |
 | preferences.test.ts | test | operator display preferences store |
 | project-store.test.ts | test | project lookup, scaffolding and cache |
 | rate-limit-throttle.test.ts | test | committed views and queued expiry retries |
@@ -105,7 +105,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | session.test.ts | test | session CRUD and legacy key migration |
 | skill-scanner.test.ts | test | plugin skill discovery and namespacing |
 | slack-adapter-classification.test.ts | test | Slack subtype to message kind mapping |
-| slack-adapter-prefix.test.ts | test | Slack conduit prefix and queue markers |
+| slack-adapter-prefix.test.ts | test | Slack conduit, admin persistence and routing |
 | slack-adapter-throttle.test.ts | test | Slack update throttle and 429 retry |
 | slack-message.test.ts | test | substantial output merge logic |
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |

@@ -8,5 +8,5 @@ Language is persisted in local storage and falls back to the browser preference.
 | index.ts | barrel | Re-exports language hooks, helpers and vocab |
 | LangProvider.tsx | provider | Holds active language and exposes vocab hooks |
 | lang.ts | util | Resolves, persists and maps the language choice |
-| lang.test.ts | test | Unit tests for language derivation and vocab pick |
-| vocab.ts | types | Bilingual product, recent-scope and hook copy |
+| lang.test.ts | test | Tests language derivation and lifecycle copy |
+| vocab.ts | types | Bilingual product, lifecycle and hook copy |

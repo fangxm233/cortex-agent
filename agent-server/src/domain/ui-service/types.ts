@@ -1,5 +1,5 @@
 // input:  domain types, context/notices, stores, pending data
-// output: UI DTOs and operation maps including task/thread links
+// output: UI DTOs and operation maps including task readiness
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -746,6 +746,8 @@ export interface TaskInfo {
   /** Recorded approval date; absent only with an older server contract. */
   approvedAt?: string | null;
   dependsOn: string[];
+  /** Unresolved dependencies across all projects; optional with an older server contract. */
+  unmetDependencyIds?: string[];
   plan: string | null;
   template: string;
   /** The task's rationale (task store `why`). Null when absent/empty (null-safe). */

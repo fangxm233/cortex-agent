@@ -1,5 +1,5 @@
-// input:  adapter + types + output-stream + adapters/* + composite-adapter
-// output: Re-export full family of PlatformAdapter public APIs
+// input:  platform contracts and concrete adapter exports
+// output: public platform API and live adapter update helpers
 // pos:    Public API export of the Platform abstraction
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -49,4 +49,9 @@ export { SlackAdapter } from './adapters/slack.js';
 export type { SlackAdapterConfig } from './adapters/slack.js';
 export { FeishuAdapter } from './adapters/feishu.js';
 export type { FeishuAdapterConfig } from './adapters/feishu.js';
-export { CompositeAdapter, extractTuiAdapter } from './adapters/composite-adapter.js';
+export {
+  CompositeAdapter,
+  extractTuiAdapter,
+  setPlatformAdminChannel,
+} from './adapters/composite-adapter.js';
+export type { AdminChannelPlatform } from './adapters/composite-adapter.js';

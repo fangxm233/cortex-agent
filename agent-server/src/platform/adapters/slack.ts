@@ -1,5 +1,5 @@
-// input:  @slack/bolt, @slack/web-api, ../adapter.js, ../types.js
-// output: SlackAdapter with messages, files, and reaction markers
+// input:  @slack/bolt, core/settings, platform types
+// output: SlackAdapter messaging and live admin-channel routing
 // pos:    Slack PlatformAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -32,8 +32,8 @@ import { SlackOutputStream } from './slack-output-stream.js';
 import { SlackProjectConduitsStore } from './slack-project-conduits.js';
 import * as fs from 'fs';
 import * as path from 'path';
-import { writeFile, readFile, mkdir } from 'fs/promises';
-import { CONFIG_DIR } from '@core/utils.js';
+import { writeFile } from 'fs/promises';
+import { updateSettings } from '@core/settings.js';
 import { reactionFailureReason, shouldWarnReactionFailure } from '../utils/reaction-diagnostics.js';
 
 const log = createLogger('slack');
@@ -196,19 +196,15 @@ export class SlackAdapter implements PlatformAdapter {
         return;
       }
 
-      // Auto-detect admin channel from DM when CORTEX_ADMIN_CHANNEL is not configured.
-      // The first DM (channel starting with "D") from a non-bot user is registered
-      // as the admin channel, persisted to .env, and set on process.env.
+      // Auto-detect the admin channel from the first non-bot DM when none is configured.
       if (!this.config.adminChannel && !this._adminAutoDetected && msg.channel?.startsWith('D') && !msg.bot_id) {
         this._adminAutoDetected = true;
         this.config.adminChannel = msg.channel;
-        process.env.CORTEX_ADMIN_CHANNEL = msg.channel;
         log.info(`Admin channel auto-detected from DM: ${msg.channel}`);
-        // Persist to .env and notify (fire-and-forget, non-blocking)
         this._persistAdminChannel(msg.channel).catch(e =>
-          log.warn(`Failed to persist CORTEX_ADMIN_CHANNEL to .env: ${e.message}`));
+          log.warn(`Failed to persist adminChannel to settings.json: ${e.message}`));
         this.postMessage({ type: 'system-notice' }, {
-          text: `:wave: This DM channel has been auto-registered as the Cortex admin channel. \`CORTEX_ADMIN_CHANNEL=${msg.channel}\` has been written to \`.env\`. System notifications (startup, rate-limit, disk alerts) will be sent here.`,
+          text: `:wave: This DM channel has been auto-registered as the Cortex admin channel. \`adminChannel=${msg.channel}\` has been written to \`settings.json\`. System notifications (startup, rate-limit, disk alerts) will be sent here.`,
         }).catch(e => log.warn(`Failed to send admin auto-detect notification: ${e.message}`));
       }
 
@@ -642,30 +638,13 @@ export class SlackAdapter implements PlatformAdapter {
     }
   }
 
-  /** Write CORTEX_ADMIN_CHANNEL to the .env file for persistence across restarts. */
+  setAdminChannel(channel: string | null): void {
+    this.config.adminChannel = channel ?? undefined;
+  }
+
   private async _persistAdminChannel(channel: string): Promise<void> {
-    const envPath = path.join(CONFIG_DIR, '.env');
-    let content = '';
-    try {
-      content = await readFile(envPath, 'utf-8');
-    } catch {
-      // File doesn't exist yet, will be created
-    }
-    const lines = content.split('\n');
-    let found = false;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('CORTEX_ADMIN_CHANNEL=')) {
-        lines[i] = `CORTEX_ADMIN_CHANNEL=${channel}`;
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      lines.push(`CORTEX_ADMIN_CHANNEL=${channel}`);
-    }
-    await mkdir(CONFIG_DIR, { recursive: true });
-    await writeFile(envPath, lines.join('\n'), 'utf-8');
-    log.info(`CORTEX_ADMIN_CHANNEL=${channel} written to ${envPath}`);
+    await updateSettings({ adminChannel: channel });
+    log.info(`adminChannel=${channel} written to settings.json`);
   }
 
   /** Expose the rate limiter for sharing with MCP tools and testing. */

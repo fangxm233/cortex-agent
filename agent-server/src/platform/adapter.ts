@@ -1,5 +1,5 @@
-// input:  ./types.js platform-agnostic message types
-// output: PlatformAdapter interface with symmetric queue-marker lifecycle
+// input:  platform message and output-stream types
+// output: PlatformAdapter lifecycle and live-update contract
 // pos:    Boundary between orchestration and messaging platforms
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -61,6 +61,7 @@ export interface PlatformAdapter {
 
   // --- Misc ---
   getPermalink(ref: MessageRef): Promise<string | null>;
+  setAdminChannel?(channel: string | null): void;
 
   // --- Output streams ---
 
