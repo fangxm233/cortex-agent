@@ -17,7 +17,7 @@ Handlers return DTOs only and never change state.
 | issues.ts | query | lists a project's issue entries |
 | notes.ts | query | lists a project's private notes |
 | cost.ts | query | reports the cost summary |
-| config.ts | query | Returns live profiles, redacted config and hooks |
+| config.ts | query | Returns redacted config and settings provenance |
 | hooks.ts | query | Builds the hook registry read model |
 | machines.ts | query | lists machines with live connection state |
 | skills.ts | query | lists available skill groups |

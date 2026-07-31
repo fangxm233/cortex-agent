@@ -1,9 +1,10 @@
-// input:  zod and ui-service scope/op unions
-// output: input schemas/maps including project notes
+// input:  Zod, settings spec, UI-service operation unions
+// output: input schemas/maps including writable settings
 // pos:    Runtime validation source for the UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { z } from 'zod';
+import { SETTINGS_SPEC } from '@core/settings-spec.js';
 import type { QueryScope, MutateOp } from './types.js';
 
 // ── Query input schemas ───────────────────────────────────────────
@@ -243,10 +244,40 @@ export const taskBlockInput = z.object({
   reason: z.string(),
 });
 
+const settingTypeSchemas = {
+  boolean: z.boolean(),
+  number: z.number().finite(),
+  'number|null': z.number().finite().nullable(),
+  'string[]': z.array(z.string()),
+  'string|null': z.string().nullable(),
+} as const;
+
+type SettingsShape = {
+  [K in keyof typeof SETTINGS_SPEC]:
+    (typeof settingTypeSchemas)[(typeof SETTINGS_SPEC)[K]['type']];
+};
+
+const settingsShape = Object.fromEntries(
+  Object.entries(SETTINGS_SPEC).map(([key, spec]) => [key, settingTypeSchemas[spec.type]]),
+) as unknown as SettingsShape;
+
+function rejectUndefinedSettings(value: Record<string, unknown>, ctx: z.RefinementCtx): void {
+  for (const [key, setting] of Object.entries(value)) {
+    if (setting !== undefined) continue;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [key],
+      message: 'setting must not be undefined',
+    });
+  }
+}
+
+const settingsValueInput = z.object(settingsShape).partial().strict()
+  .superRefine(rejectUndefinedSettings);
+
 // config.set: a discriminated union of the safely-writable sections. `budget` numbers must be
-// finite and > 0 — rejects NaN / Infinity / non-positive / non-number. `profiles` re-points the
-// default profile only (a non-empty name; existence in profiles.json is enforced in the handler,
-// which has the file to check against). Any section not in this union is rejected structurally.
+// finite and positive; `profiles` selects an existing default; `settings` accepts only finite,
+// spec-typed partial overrides. Any section or settings key outside this union is rejected.
 export const configSetInput = z.discriminatedUnion('section', [
   z.object({
     section: z.literal('budget'),
@@ -260,6 +291,10 @@ export const configSetInput = z.discriminatedUnion('section', [
     value: z.object({
       defaultProfile: z.string().min(1),
     }),
+  }),
+  z.object({
+    section: z.literal('settings'),
+    value: settingsValueInput,
   }),
 ]);
 

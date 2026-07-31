@@ -1,7 +1,7 @@
-// input:  isolated config fixtures and UI config query handlers
-// output: redaction, profile filtering, and hook snapshot tests
-// pos:    Regression coverage for the settings config snapshot
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// input:  isolated config fixtures, env, UI config query handlers
+// output: config redaction and settings provenance tests
+// pos:    Regression coverage for the config.get snapshot
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test, vi } from 'vitest';
@@ -10,6 +10,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { readConfigSnapshot, handleConfigGet } from '../../../src/domain/ui-service/query/config.js';
+import { SETTINGS_SPEC } from '../../../src/core/settings-spec.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
@@ -67,6 +68,36 @@ test('readConfigSnapshot parses budget', async () => {
   const { configDir } = await makeFixture();
   const snap = await readConfigSnapshot(configDir);
   assert.deepEqual(snap.budget, { daily_usd: 100, monthly_usd: 2000 });
+});
+
+test('readConfigSnapshot reports file, env, and default setting sources with plaintext values', async () => {
+  const { configDir } = await makeFixture();
+  await fs.writeFile(path.join(configDir, 'settings.json'), JSON.stringify({ turnNotify: false }));
+  const previousShowToolCalls = process.env.CORTEX_SHOW_TOOL_CALLS;
+  const previousManagerRotateSteps = process.env.CORTEX_MANAGER_ROTATE_STEPS;
+  process.env.CORTEX_SHOW_TOOL_CALLS = 'yes';
+  delete process.env.CORTEX_MANAGER_ROTATE_STEPS;
+  try {
+    const snap = await readConfigSnapshot(configDir);
+    assert.deepEqual(snap.settings.map((entry) => entry.key), Object.keys(SETTINGS_SPEC));
+    assert.deepEqual(
+      snap.settings.find((entry) => entry.key === 'turnNotify'),
+      { key: 'turnNotify', value: false, source: 'file' },
+    );
+    assert.deepEqual(
+      snap.settings.find((entry) => entry.key === 'showToolCalls'),
+      { key: 'showToolCalls', value: true, source: 'env' },
+    );
+    assert.deepEqual(
+      snap.settings.find((entry) => entry.key === 'managerRotateSteps'),
+      { key: 'managerRotateSteps', value: 10, source: 'default' },
+    );
+  } finally {
+    if (previousShowToolCalls === undefined) delete process.env.CORTEX_SHOW_TOOL_CALLS;
+    else process.env.CORTEX_SHOW_TOOL_CALLS = previousShowToolCalls;
+    if (previousManagerRotateSteps === undefined) delete process.env.CORTEX_MANAGER_ROTATE_STEPS;
+    else process.env.CORTEX_MANAGER_ROTATE_STEPS = previousManagerRotateSteps;
+  }
 });
 
 test('readConfigSnapshot redacts .env secrets — raw value never appears in the DTO', async () => {

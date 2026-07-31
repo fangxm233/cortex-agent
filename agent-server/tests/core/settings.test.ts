@@ -1,5 +1,5 @@
 // input:  settings module, isolated config and env
-// output: parsing, precedence, reload, and write tests
+// output: parsing, provenance, reload, and write tests
 // pos:    Specifies the L0 runtime settings contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -8,9 +8,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { CONFIG_DIR } from '../../src/core/paths.js';
+import { SETTINGS_SPEC } from '../../src/core/settings-spec.js';
 import {
-  SETTINGS_SPEC,
   getSettings,
+  getSettingsSnapshot,
   onSettingsChange,
   updateSettings,
 } from '../../src/core/settings.js';
@@ -235,6 +236,29 @@ describe.sequential('core settings', () => {
     assert.deepEqual(settings.uiCorsOrigins, [], 'explicit file [] must beat env');
     assert.equal(settings.adminChannel, 'slack-admin', 'Slack legacy alias must have first priority');
     assert.equal(settings.feishuAdminChannel, null);
+    const snapshot = getSettingsSnapshot();
+    assert.deepEqual(
+      snapshot.find((entry) => entry.key === 'turnNotify'),
+      { key: 'turnNotify', value: true, source: 'file' },
+    );
+    assert.deepEqual(
+      snapshot.find((entry) => entry.key === 'showToolCalls'),
+      { key: 'showToolCalls', value: true, source: 'env' },
+    );
+    assert.deepEqual(
+      snapshot.find((entry) => entry.key === 'managerRotateSteps'),
+      { key: 'managerRotateSteps', value: 10, source: 'default' },
+    );
+    delete process.env.CORTEX_SHOW_TOOL_CALLS;
+    try {
+      assert.deepEqual(
+        getSettingsSnapshot().find((entry) => entry.key === 'showToolCalls'),
+        { key: 'showToolCalls', value: false, source: 'default' },
+        'snapshot provenance must refresh with the effective env fallback',
+      );
+    } finally {
+      process.env.CORTEX_SHOW_TOOL_CALLS = ' yes ';
+    }
 
     const messages = warn.mock.calls.map((args) => args.join(' ')).join('\n');
     assert.match(messages, /CORTEX_SHOW_TOOL_CALLS/);
@@ -308,7 +332,20 @@ describe.sequential('core settings', () => {
     const unsubscribe = onSettingsChange((keys) => batches.push([...keys]));
     t.onTestFinished(unsubscribe);
 
-    await updateSettings({ turnNotify: true, adminChannel: null });
+    const update = updateSettings({ turnNotify: true, adminChannel: null });
+    await Promise.resolve();
+    delete process.env.TASK_DISPATCH_MAX_CONCURRENT;
+    try {
+      await update;
+      assert.deepEqual(
+        getSettingsSnapshot().find((entry) => entry.key === 'taskDispatchMaxConcurrent'),
+        { key: 'taskDispatchMaxConcurrent', value: null, source: 'default' },
+        'snapshot values and provenance must refresh together after an env change',
+      );
+    } finally {
+      process.env.TASK_DISPATCH_MAX_CONCURRENT = '8';
+      getSettingsSnapshot();
+    }
     assert.deepEqual(batches, [['turnNotify', 'adminChannel']]);
 
     const raw = await fs.readFile(SETTINGS_FILE, 'utf8');
