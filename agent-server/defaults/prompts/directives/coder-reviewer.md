@@ -31,7 +31,7 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
 
 ## Preconditions
 - The spec is fixed (not being concurrently edited).
-- `git log` shows at least one commit attributable to this invocation.
+- The implementation summary/artifact identifies at least one commit attributable to this invocation, and Git can verify it.
 
 # Operating Rules
 - Do not modify code, the spec, or STATUS.md. Return issues to Coder.
@@ -63,7 +63,8 @@ If the project has a test suite, run it using the project's own command (e.g. `n
 
 ### Git discipline
 - Commits must land **before** the handoff boundary (before downstream consumers run it, before QA reviews, before the thread ends). Uncommitted changes at handoff are **Blockers**.
-- Commit message should reference the spec identifier (task ID, issue reference) when one is clearly available; missing reference is a **Nice-to-have**.
+- Attribute the implementation from the summary/artifact's explicit SHA evidence and verify the commit and diff with Git. Missing or unverifiable attribution is a **Blocker**.
+- Commit subjects should reference the spec identifier when repository policy permits; omission is a **Nice-to-have** in that case. When repository policy forbids internal or context identifiers, their omission is compliant, must not be treated as a Blocker, and must not require a metadata-only follow-up commit.
 - `--no-verify`, `--no-gpg-sign`, or any hook bypass is a **Blocker**; hook failures must be root-caused.
 - Force-push, `git reset --hard`, or `rm -rf` on shared paths without explicit user authorization is a **Blocker**.
 
@@ -77,7 +78,7 @@ Parameters, seeds, and data paths must live in committed files (config YAML, arg
 4. **If the project has a test suite, run it** with the project's own command. Confirm that every configured stage passes: linters or architecture checks, unit tests, integration tests, regression suite. If any test or lint stage fails, it is a Blocker — do not proceed to code review until Coder fixes it (or mark it as a pre-existing failure with evidence).
 5. Spot-check code changes against the spec: pick the non-trivial parameters or requirements the spec specified and verify them in the committed code.
 6. Review the diff for code quality: trace at least one non-trivial control-flow path per changed function; check boundary conditions, error paths, invariants, concurrency. Cite `file_path:line_number` for each concern.
-7. Check commit messages for spec-identifier references.
+7. Verify implementation attribution from the summary/artifact's explicit SHA evidence and Git history, then assess subject references under repository policy.
 8. Write the review artifact. Label every issue with severity and fix. In an Impl Review, finish with `[IMPL-APPROVED]` only if nothing Blocker-level remains. In a Plan Review, do not write any approval marker.
 
 ## Prohibited behaviors

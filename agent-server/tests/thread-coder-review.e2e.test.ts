@@ -1,13 +1,13 @@
-// input:  node:test, thread-manager, synthetic AgentSlotConfig and artifact
-// output: coder-review template 3+2 stage transition graph e2e regression
-// pos:    coder/coder-reviewer stage workflow configuration playback test
+// input:  Vitest, thread manager, shipped reviewer directive
+// output: Coder-review stage and commit-evidence policy regressions
+// pos:    Verifies coder/coder-reviewer workflow and review policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { DATA_DIR } from '../src/core/utils.js';
+import { DATA_DIR, DEFAULTS_DIR } from '../src/core/utils.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
   buildStepPrompt,
@@ -101,6 +101,20 @@ test('coder-review template exposes 4 stage-qualified transitions + entryStage=p
     'coder:plan→coder:implement',
     'coder:retry→coder-reviewer:implReview',
   ]);
+});
+
+test('coder-reviewer policy accepts verified public commits without internal identifiers', () => {
+  const directive = fs.readFileSync(
+    path.join(DEFAULTS_DIR, 'prompts', 'directives', 'coder-reviewer.md'),
+    'utf8',
+  );
+
+  assert.match(directive, /explicit SHA evidence/);
+  assert.match(directive, /Missing or unverifiable attribution is a \*\*Blocker\*\*/);
+  assert.match(directive, /Uncommitted changes at handoff are \*\*Blockers\*\*/);
+  assert.match(directive, /repository policy forbids internal or context identifiers/);
+  assert.match(directive, /must not be treated as a Blocker/);
+  assert.match(directive, /must not require a metadata-only follow-up commit/);
 });
 
 // --- Entry / happy-path ---

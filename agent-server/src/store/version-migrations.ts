@@ -1,4 +1,4 @@
-// input:  versions, user config, provider state, defaults
+// input:  versions, user config, defaults, prompt replacements
 // output: Versioned and collision-safe startup migrations
 // pos:    Migrates user-owned files during server startup
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -12,6 +12,7 @@ import { atomicWrite } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
 import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
+import { CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS } from './prompt-migration-replacements.js';
 
 const log = createLogger('version-migrations');
 
@@ -354,6 +355,17 @@ const migrations: Migration[] = [
       return applyReplacements(data, PI_SUBAGENT_ROLE_REPLACEMENTS);
     },
   })),
+  // M7: Attribute coder-review handoffs through verified Git evidence without forcing
+  // internal identifiers into commit subjects when repository policy forbids them.
+  {
+    filePath: 'prompts/directives/coder-reviewer.md',
+    version: '2026.7.30',
+    format: 'text',
+    migrate(data: unknown): unknown {
+      if (typeof data !== 'string') return data;
+      return applyReplacements(data, CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS);
+    },
+  },
 ];
 
 // ── Versions file I/O ──────────────────────────────────────────
