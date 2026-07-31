@@ -59,7 +59,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | feishu-user-auth.test.ts | test | Feishu user token exchange and refresh |
 | feishu-user-mode.test.ts | test | Feishu user-identity token injection |
 | gateway-manager.test.ts | test | gateway port conflict reuse |
-| gateway-per-request-mode.test.ts | test | gateway per-request mode prefix and cost |
+| gateway-per-request-mode.test.ts | test | isolated gateway mode prefix and cache cost |
 | gpu-slot-scheduling.test.ts | test | per-GPU slot occupancy and scheduling |
 | hook-ask-api.test.ts | test | askUser hook helper routing and errors |
 | hook-bridge.test.ts | test | hook request publish and resolve chain |

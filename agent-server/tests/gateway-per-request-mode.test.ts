@@ -1,17 +1,48 @@
-// input:  Node test runner + aistatus GatewayServer
-// output: /m/{mode}/ prefix + cache token/cost tests
-// pos:    Verify gateway per-request mode and cache cost
+// input:  Vitest lifecycle + aistatus GatewayServer + temp home
+// output: /m/{mode}/ prefix + isolated cache token/cost tests
+// pos:    Verify gateway per-request mode and cache cost isolation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test } from 'vitest';
+import { afterAll, beforeAll, beforeEach, test } from 'vitest';
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import * as http from 'node:http';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
-import { GatewayServer } from 'aistatus/gateway';
-import { configure } from 'aistatus';
+let GatewayServer: typeof import('aistatus/gateway').GatewayServer;
+const originalHome = process.env.HOME;
+const suiteHome = mkdtempSync(path.join(os.tmpdir(), 'gateway-per-request-'));
 
-// Disable usage uploads so test data never reaches aistatus.cc dashboard
-configure({ uploadEnabled: false });
+beforeAll(async () => {
+  process.env.HOME = suiteHome;
+  ({ GatewayServer } = await import('aistatus/gateway'));
+  const { configure } = await import('aistatus');
+  configure({ uploadEnabled: false });
+});
+
+beforeEach(() => {
+  process.env.HOME = mkdtempSync(path.join(suiteHome, 'case-'));
+  const usageDir = path.join(process.env.HOME, '.aistatus', 'usage');
+  mkdirSync(usageDir, { recursive: true });
+  writeFileSync(path.join(usageDir, 'pricing-cache.json'), JSON.stringify({
+    'anthropic/claude-opus-4-6': {
+      ts: Date.now() / 1000,
+      pricing: {
+        input_per_million: 5,
+        output_per_million: 25,
+        input_cache_read_per_million: 0.5,
+        input_cache_write_per_million: 6.25,
+      },
+    },
+  }));
+});
+
+afterAll(() => {
+  if (originalHome === undefined) delete process.env.HOME;
+  else process.env.HOME = originalHome;
+  rmSync(suiteHome, { recursive: true, force: true });
+});
 
 function makeConfig(mode = 'api') {
   const endpointModes = {
@@ -217,6 +248,7 @@ test('gateway cost includes cache write and read fees', async (t) => {
   (gw as any)._recordUsageIfPossible(mockBackend, Buffer.from(mockResponse), 'claude-opus-4-6', 500);
 
   const records = gw.usage.storage.read('all') as Array<{ cost: number }>;
+  assert.equal(records.length, 1, 'cost test should read only its isolated usage record');
   const lastRecord = records[records.length - 1];
 
   // Cost should be ~$36.75 (with cache), NOT $30.00 (without cache)
