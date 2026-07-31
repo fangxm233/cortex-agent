@@ -44,14 +44,14 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | disk-monitor.test.ts | test | disk alert decisions and byte formatting |
 | dispatch-utils.test.ts | test | device registry, task id and session names |
 | domain/ | subdir | domain service, MCP tool and UI-service tests |
-| entry/ | subdir | CLI entry-point subcommand tests |
+| entry/ | subdir | Runtime wiring and CLI entry-point tests |
 | events/ | subdir | event bus tests |
 | execution-lock-release.test.ts | test | task lock release on execution end |
 | execution-log-tailer.test.ts | test | live execution log tailing and refcounts |
 | facade-compact.test.ts | test | manual context compact via agent facade |
 | facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
 | facade.test.ts | test | provider identity and exact pre-flight gates |
-| feishu-adapter.test.ts | test | Feishu messages, admin routing and persistence |
+| feishu-adapter.test.ts | test | Feishu messages, persistence and nullable routing |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
 | feishu-login-cli.test.ts | test | Feishu login CLI dispatch and gating |
@@ -84,7 +84,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | output-stream.test.ts | test | Slack, Feishu and mock output streams |
 | pi-cost-record.test.ts | test | PI per-run cost recording end to end |
 | platform/ | subdir | platform adapters and UI HTTP transport tests |
-| platform-mock-adapter.test.ts | test | Mock contract and live admin routing |
+| platform-mock-adapter.test.ts | test | Mock contract and nullable admin routing |
 | preferences.test.ts | test | operator display preferences store |
 | project-store.test.ts | test | project lookup, scaffolding and cache |
 | rate-limit-throttle.test.ts | test | committed views and queued expiry retries |
@@ -105,7 +105,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | session.test.ts | test | session CRUD and legacy key migration |
 | skill-scanner.test.ts | test | plugin skill discovery and namespacing |
 | slack-adapter-classification.test.ts | test | Slack subtype to message kind mapping |
-| slack-adapter-prefix.test.ts | test | Slack conduit, admin persistence and routing |
+| slack-adapter-prefix.test.ts | test | Slack conduit, persistence and nullable routing |
 | slack-adapter-throttle.test.ts | test | Slack update throttle and 429 retry |
 | slack-message.test.ts | test | substantial output merge logic |
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |

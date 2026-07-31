@@ -1,5 +1,5 @@
 // input:  MockAdapter and platform message types
-// output: mock contract, recording, and hot-admin tests
+// output: mock contract, recording, and nullable hot-admin tests
 // pos:    Verifies MockAdapter platform behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -117,6 +117,14 @@ test('setAdminChannel routes subsequent system notices to the new channel', asyn
   adapter.setAdminChannel('C-new');
   const ref = await adapter.postMessage({ type: 'system-notice' }, { text: 'updated' });
   assert.equal(ref.conduit, 'C-new');
+});
+
+test('setAdminChannel null drops subsequent system notices', async () => {
+  const adapter = new MockAdapter({ adminChannel: 'C-old' });
+  adapter.setAdminChannel(null);
+  const ref = await adapter.postMessage({ type: 'system-notice' }, { text: 'cleared' });
+  assert.equal(ref.conduit, '');
+  assert.equal(adapter.posted.length, 0);
 });
 
 test('onMessage handlers fire for simulateMessage and receive context with reply()', async () => {

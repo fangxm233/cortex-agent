@@ -1,5 +1,5 @@
 // input:  composite, mock, and TUI adapters
-// output: routing, fan-out, and live-setting regressions
+// output: routing, fan-out, and nullable live-setting regressions
 // pos:    Verifies multi-platform adapter composition
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -80,6 +80,26 @@ test('setPlatformAdminChannel keeps Slack/test and Feishu hot updates isolated',
   assert.equal((await slack.postMessage(destination, { text: 's' })).conduit, 'C-new');
   assert.equal((await mock.postMessage(destination, { text: 'm' })).conduit, 'C-new');
   assert.equal((await feishu.postMessage(destination, { text: 'f' })).conduit, 'oc-new');
+});
+
+test('setPlatformAdminChannel clears Slack/test and Feishu routes', async () => {
+  const slack = new MockAdapter({ adminChannel: 'C-slack-old' });
+  const mock = new MockAdapter({ adminChannel: 'C-test-old' });
+  const feishu = new MockAdapter({ adminChannel: 'oc-old' });
+  Object.defineProperty(slack, 'name', { value: 'slack' });
+  Object.defineProperty(feishu, 'name', { value: 'feishu' });
+  const composite = new CompositeAdapter([slack, mock, feishu]);
+
+  setPlatformAdminChannel(composite, 'slack', null);
+  setPlatformAdminChannel(composite, 'feishu', null);
+
+  const destination = { type: 'system-notice' as const };
+  assert.equal((await slack.postMessage(destination, { text: 's' })).conduit, '');
+  assert.equal((await mock.postMessage(destination, { text: 'm' })).conduit, '');
+  assert.equal((await feishu.postMessage(destination, { text: 'f' })).conduit, '');
+  assert.equal(slack.posted.length, 0);
+  assert.equal(mock.posted.length, 0);
+  assert.equal(feishu.posted.length, 0);
 });
 
 // ── Test: Fan-out project-report ──────────────────────────────────

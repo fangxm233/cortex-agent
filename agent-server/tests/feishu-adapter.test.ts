@@ -1,5 +1,5 @@
 // input:  FeishuAdapter, isolated config, mocked Lark calls
-// output: messaging, admin persistence, and hot-routing tests
+// output: messaging, persistence, and nullable hot-routing tests
 // pos:    Verifies Feishu adapter platform mappings
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -447,6 +447,19 @@ test('Feishu setAdminChannel routes subsequent notices to the new chat', async (
   await a.postMessage({ type: 'system-notice' }, { text: 'updated' });
 
   assert.equal(sentChat, 'oc_new');
+});
+
+test('Feishu setAdminChannel null drops subsequent notices', async () => {
+  const a = makeAdapter();
+  a.config.adminChannel = 'oc_old';
+  let createCalls = 0;
+  a.client = { im: { v1: { message: { create: async () => { createCalls++; } } } } };
+
+  a.setAdminChannel(null);
+  const ref = await a.postMessage({ type: 'system-notice' }, { text: 'cleared' });
+
+  assert.deepEqual(ref, { conduit: '', messageId: '' });
+  assert.equal(createCalls, 0);
 });
 
 test('Feishu admin auto-detect: only fires once', async () => {
