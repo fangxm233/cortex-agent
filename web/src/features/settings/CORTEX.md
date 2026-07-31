@@ -9,7 +9,7 @@ Panels read config snapshots; budget and runtime toggles write config, while hoo
 | SettingsModal.tsx | view | Dialog with nav and full-height panel content |
 | SettingsPanels.tsx | view | Renders non-runtime config sections |
 | RuntimeSettingsPanels.tsx | view | Reads and writes runtime settings toggles |
-| RuntimeSettingsPanels.test.tsx | test | Tests runtime settings reads and writes |
+| RuntimeSettingsPanels.test.tsx | test | Tests boundaries and production write adapter |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
 | BudgetPanel.tsx | view | Budget panel that writes the daily spend limit |
 | budget-vm.ts | vm | Derives budget chips, payload and spend bar |
