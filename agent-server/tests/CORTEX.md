@@ -130,7 +130,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
 | thread-callback-tree.test.ts | test | child to parent thread result delivery |
-| thread-coder-review.e2e.test.ts | e2e | coder and reviewer stage transition graph |
+| thread-coder-review.e2e.test.ts | e2e | coder-review stages and commit evidence policy |
 | thread-contract.test.ts | test | delegation contracts and budget breaker |
 | thread-extra-hooks.test.ts | test | Covers lifecycle and per-call HookBus routing |
 | thread-ledger-dedupe.test.ts | test | child result delivery dedupe across runs |
