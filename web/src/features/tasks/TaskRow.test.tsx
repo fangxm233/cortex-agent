@@ -71,6 +71,15 @@ describe('TaskRow lifecycle metadata', () => {
     expect(done).not.toContain('needs');
   });
 
+  it('clamps blocked details to two lines', () => {
+    const html = renderTask({ blockedBy: 'A long external blocker description' }, 'blocked');
+
+    expect(html).toContain('display:-webkit-box');
+    expect(html).toContain('-webkit-line-clamp:2');
+    expect(html).toContain('-webkit-box-orient:vertical');
+    expect(html).toContain('overflow:hidden');
+  });
+
   it('does not render an inert overflow-menu affordance', () => {
     expect(renderTask({}, 'actionable')).not.toContain('⋯');
   });

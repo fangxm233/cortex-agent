@@ -48,6 +48,15 @@ const META_STYLE: Record<TaskMetaKind, CSSProperties> = {
   waiting: { color: 'var(--proto-muted-2)', background: 'var(--proto-gray)' },
 };
 
+const BLOCKED_META_STYLE: CSSProperties = {
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 2,
+  maxWidth: '100%',
+  minWidth: 0,
+  overflow: 'hidden',
+};
+
 function taskMeta(task: TaskInfo, kind: TaskGroupKind, vocab: Vocab): TaskMeta | null {
   const claimId = displayClaimId(task);
   const dependencies = unresolvedDependencyIds(task);
@@ -101,6 +110,7 @@ function TaskMetadata({ meta }: { meta: TaskMeta }) {
           padding: '1.5px 7px',
           borderRadius: 999,
           ...META_STYLE[meta.kind],
+          ...(meta.kind === 'blocked' ? BLOCKED_META_STYLE : {}),
         }}
       >
         {meta.text}
