@@ -1,5 +1,5 @@
 // input:  TaskInfo and task verification fixtures
-// output: Task approval, claim-thread, dependency and history tests
+// output: Task blocker, approval, claim, dependency and history tests
 // pos:    Mobile task-detail view-model regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -113,9 +113,15 @@ describe('buildTaskDetailVm', () => {
     expect(buildTaskDetailVm('001', [task({})], null, NOW).approvalNeeded).toBeNull();
   });
 
-  it('honest null done-when passthrough', () => {
-    const vm = buildTaskDetailVm('001', [task({ doneWhen: null })], null, NOW);
+  it('passes through done-when and blocker details honestly', () => {
+    const vm = buildTaskDetailVm(
+      '001',
+      [task({ doneWhen: null, blockedBy: 'waiting for external approval' })],
+      null,
+      NOW,
+    );
     expect(vm.doneWhen).toBeNull();
+    expect(vm.blockedBy).toBe('waiting for external approval');
   });
 
   it('prefers the tasks.list owning thread over dispatch-history and persisted owner ids', () => {

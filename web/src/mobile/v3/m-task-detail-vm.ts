@@ -1,5 +1,5 @@
 // input:  TaskInfo list and task verification evidence
-// output: Task approval, claim-thread, deps, and history model
+// output: Task blocker, approval, claim, deps, and history model
 // pos:    Pure view model for the mobile task detail screen
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -83,6 +83,8 @@ export interface MTaskDetailVm {
   approvedAt: string | null;
   /** Real TaskInfo.doneWhen; null → honest gap in the View. */
   doneWhen: string | null;
+  /** Full blocker reason; null when the task is not blocked. */
+  blockedBy: string | null;
   /** The claim-thread card model; null when the task is not claimed. */
   claim: MTaskClaimVm | null;
   /** dependsOn joined against the list; [] when none. */
@@ -102,6 +104,7 @@ const NOT_FOUND: MTaskDetailVm = {
   approvalNeeded: null,
   approvedAt: null,
   doneWhen: null,
+  blockedBy: null,
   claim: null,
   deps: [],
   history: [],
@@ -165,6 +168,7 @@ export function buildTaskDetailVm(
     approvalNeeded: task.approvalNeeded ?? null,
     approvedAt: task.approvedAt ?? null,
     doneWhen: task.doneWhen,
+    blockedBy: task.blockedBy ?? null,
     claim: buildClaim(task, dispatches),
     deps: buildDependencies(task, byId),
     history: buildHistory(dispatches, completingId),

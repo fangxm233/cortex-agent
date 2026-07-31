@@ -1,5 +1,5 @@
 // input:  Task detail model, copy, navigation callbacks
-// output: Approval-aware mobile task detail screen
+// output: Mobile task detail with conditional blocker card
 // pos:    Presentational view for mobile task details
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -30,6 +30,7 @@ export interface MTaskDetailCopy {
   tasksTag: string;
   doneWhen: string;
   doneWhenGap: string;
+  blockerLabel: string;
   claimPrefix: string;
   open: string;
   priorityLabel: string;
@@ -53,6 +54,7 @@ export const ZH_COPY: MTaskDetailCopy = {
   tasksTag: 'tasks.json',
   doneWhen: 'DONE-WHEN',
   doneWhenGap: 'done-when 未记录',
+  blockerLabel: '阻塞原因',
   claimPrefix: '认领',
   open: '打开 ›',
   priorityLabel: '优先级',
@@ -76,6 +78,7 @@ export const EN_COPY: MTaskDetailCopy = {
   tasksTag: 'tasks.json',
   doneWhen: 'DONE-WHEN',
   doneWhenGap: 'no done-when recorded',
+  blockerLabel: 'Blocked',
   claimPrefix: 'claimed',
   open: 'open ›',
   priorityLabel: 'Priority',
@@ -127,6 +130,22 @@ function ThreadIcon() {
 }
 
 const rowBase: CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, padding: '10px 13px' };
+
+function TaskBlockerCard({ label, reason }: { label: string; reason: string | null }) {
+  if (reason == null) return null;
+  return (
+    <div data-task-blocker-card="true">
+      <MCard tone="fail" style={{ background: MC.failBg }}>
+        <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.07em', color: MC.fail }}>
+          {label}
+        </div>
+        <div style={{ font: `400 11px/1.7 ${MONO}`, color: MC.fail, marginTop: 6, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          {reason}
+        </div>
+      </MCard>
+    </div>
+  );
+}
 
 export function MTaskDetailView({
   vm,
@@ -250,6 +269,8 @@ export function MTaskDetailView({
             {vm.doneWhen ?? copy.doneWhenGap}
           </div>
         </MCard>
+
+        <TaskBlockerCard label={copy.blockerLabel} reason={vm.blockedBy} />
 
         {/* claim-thread card (only when claimed) */}
         {vm.claim && (

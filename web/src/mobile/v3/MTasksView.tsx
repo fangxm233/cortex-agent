@@ -1,5 +1,5 @@
 // input:  Complete task groups, lifecycle copy, and navigation callbacks
-// output: Fixed-header complete mobile Tasks presentation
+// output: Mobile task list with one-line blocker metadata
 // pos:    Presentational mobile task-list screen
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design
@@ -65,16 +65,22 @@ function IdText({ task, textColor = MC.body }: { task: TaskInfo; textColor?: str
   );
 }
 
-function StatusLine({ text, color, dot, onClick }: {
+function StatusLine({ text, color, dot, onClick, singleLine = false }: {
   text: string;
   color: string;
   dot?: string;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
+  singleLine?: boolean;
 }) {
   return (
-    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, cursor: onClick ? 'pointer' : 'default' }}>
+    <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, minWidth: 0, cursor: onClick ? 'pointer' : 'default' }}>
       {dot && <span style={{ width: 5, height: 5, borderRadius: '50%', background: dot, flex: 'none' }} />}
-      <span style={{ font: `400 9.5px ${MONO}`, color }}>{text}</span>
+      <span
+        data-task-blocker={singleLine ? 'true' : undefined}
+        style={{ font: `400 9.5px ${MONO}`, color, ...(singleLine ? TEXT_TRUNCATE : {}) }}
+      >
+        {text}
+      </span>
     </div>
   );
 }
@@ -141,7 +147,7 @@ function BlockedCard({ task, copy, onOpenTask }: CardProps) {
   return (
     <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.75 }}>
       <IdText task={task} textColor={MC.sub} />
-      <StatusLine text={text} color={MC.amberText} dot={MC.amber} />
+      <StatusLine text={text} color={MC.amberText} dot={MC.amber} singleLine />
     </MCard>
   );
 }

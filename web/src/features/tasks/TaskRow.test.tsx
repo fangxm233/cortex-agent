@@ -1,5 +1,5 @@
 // input:  TaskRow, language provider, and task DTO fixtures
-// output: Desktop task-card metadata and affordance regressions
+// output: Desktop task metadata and one-line blocker regressions
 // pos:    Rendering tests for desktop task list cards
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -71,13 +71,14 @@ describe('TaskRow lifecycle metadata', () => {
     expect(done).not.toContain('needs');
   });
 
-  it('clamps blocked details to two lines', () => {
+  it('truncates blocked details to one line', () => {
     const html = renderTask({ blockedBy: 'A long external blocker description' }, 'blocked');
+    const blockerStyle = html.match(/data-task-blocker="true" style="([^"]+)"/)?.[1];
 
-    expect(html).toContain('display:-webkit-box');
-    expect(html).toContain('-webkit-line-clamp:2');
-    expect(html).toContain('-webkit-box-orient:vertical');
-    expect(html).toContain('overflow:hidden');
+    expect(blockerStyle).toBeDefined();
+    expect(blockerStyle).toContain('white-space:nowrap');
+    expect(blockerStyle).toContain('overflow:hidden');
+    expect(blockerStyle).toContain('text-overflow:ellipsis');
   });
 
   it('does not render an inert overflow-menu affordance', () => {

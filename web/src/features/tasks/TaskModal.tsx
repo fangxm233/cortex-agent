@@ -1,5 +1,5 @@
 // input:  TaskInfo, task verification query, task mutations
-// output: Task detail modal with fields, deps, and actions
+// output: Task detail modal with blocker, fields, deps, and actions
 // pos:    Desktop task detail overlay
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -45,6 +45,23 @@ const CARD_TITLE: React.CSSProperties = { fontSize: 11.5, fontWeight: 650, color
 function GapNote({ children }: { children: React.ReactNode }) {
   return (
     <span style={{ fontStyle: 'italic', color: 'var(--proto-faint)' }}>{children}</span>
+  );
+}
+
+export function TaskBlockerCard({ label, reason }: { label: string; reason: string | null }) {
+  if (reason == null) return null;
+  return (
+    <div
+      data-task-blocker-card="true"
+      style={{ ...CARD, padding: '10px 15px', background: 'var(--proto-danger-bg)' }}
+    >
+      <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.05em', color: 'var(--proto-danger)' }}>
+        {label}
+      </div>
+      <div style={{ marginTop: 5, fontSize: 11.5, lineHeight: 1.6, color: 'var(--proto-danger)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+        {reason}
+      </div>
+    </div>
   );
 }
 
@@ -295,6 +312,8 @@ export function TaskModal({ task, allTasks, pending, onClose, onComplete, onUnbl
                 </div>
               </div>
             </div>
+
+            <TaskBlockerCard label={L.mBlockedPill} reason={task.blockedBy} />
 
             {/* Card C — Dispatch history (prototype L1493-1506). Real per-task execution/dispatch join. */}
             <div style={CARD}>

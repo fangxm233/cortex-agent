@@ -26,15 +26,15 @@ The view models are framework-free record to slot mappings and each one has a co
 | m-thread-detail-vm.ts | vm | Maps thread detail to steps, crumbs, artifacts |
 | m-thread-detail-vm.test.ts | test | Unit tests for the thread detail view model |
 | MTasksScreen.tsx | screen | Loads the complete project task queue |
-| MTasksView.tsx | view | Renders six lifecycle task sections |
-| MTasksView.test.tsx | test | Tests complete list and card metadata |
+| MTasksView.tsx | view | Renders sections with one-line blocker details |
+| MTasksView.test.tsx | test | Tests complete list and blocker truncation |
 | m-tasks-vm.ts | vm | Orders non-empty lifecycle task groups |
 | m-tasks-vm.test.ts | test | Tests complete lifecycle group order |
 | MTaskDetailScreen.tsx | screen | Loads one task plus its verification evidence |
-| MTaskDetailView.tsx | view | Task detail with approval, fields, deps and history |
-| MTaskDetailView.test.tsx | test | Guards approval, fields and dependency state |
-| m-task-detail-vm.ts | vm | Maps task claim thread and verification state |
-| m-task-detail-vm.test.ts | test | Tests task approval, claim and detail state |
+| MTaskDetailView.tsx | view | Task detail with blocker, fields, deps and history |
+| MTaskDetailView.test.tsx | test | Guards blocker, approval and dependency state |
+| m-task-detail-vm.ts | vm | Maps task blocker, claim and verification state |
+| m-task-detail-vm.test.ts | test | Tests blocker, approval, claim and detail state |
 | MProjectScreen.tsx | screen | Binds project, notes, cost and scoped approvals |
 | MProjectView.tsx | view | Project-scoped tab with settings gear and switcher |
 | m-project-vm.ts | vm | Derives thread counts, approval buckets, switch rows |

@@ -1,5 +1,5 @@
 // input:  Mobile task groups, copy, and lifecycle task fixtures
-// output: Complete-list and card metadata rendering regressions
+// output: Mobile task sections and one-line blocker regressions
 // pos:    Rendering tests for the mobile Tasks view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -104,5 +104,15 @@ describe('MTasksView', () => {
     expect(approval).toContain('open approvals');
     expect(blocked).toContain('Blocked · robot offline');
     expect(blocked).not.toContain('open approvals');
+  });
+
+  it('truncates blocked details to one line', () => {
+    const html = renderGroups([{ key: 'blocked', tasks: [task({ blockedBy: 'A long external blocker description' })] }]);
+    const blockerStyle = html.match(/data-task-blocker="true" style="([^"]+)"/)?.[1];
+
+    expect(blockerStyle).toBeDefined();
+    expect(blockerStyle).toContain('white-space:nowrap');
+    expect(blockerStyle).toContain('overflow:hidden');
+    expect(blockerStyle).toContain('text-overflow:ellipsis');
   });
 });

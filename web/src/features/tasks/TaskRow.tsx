@@ -1,5 +1,5 @@
 // input:  Task DTO, task claim helper, and task vocabulary
-// output: One desktop task-list card
+// output: Desktop task card with one-line blocker metadata
 // pos:    Clickable desktop task lifecycle card presentation
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -49,12 +49,12 @@ const META_STYLE: Record<TaskMetaKind, CSSProperties> = {
 };
 
 const BLOCKED_META_STYLE: CSSProperties = {
-  display: '-webkit-box',
-  WebkitBoxOrient: 'vertical',
-  WebkitLineClamp: 2,
+  boxSizing: 'border-box',
   maxWidth: '100%',
   minWidth: 0,
   overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 };
 
 function taskMeta(task: TaskInfo, kind: TaskGroupKind, vocab: Vocab): TaskMeta | null {
@@ -105,6 +105,7 @@ function TaskMetadata({ meta }: { meta: TaskMeta }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', marginTop: 5 }}>
       <span
+        data-task-blocker={meta.kind === 'blocked' ? 'true' : undefined}
         style={{
           font: "500 9.5px 'IBM Plex Mono',monospace",
           padding: '1.5px 7px',

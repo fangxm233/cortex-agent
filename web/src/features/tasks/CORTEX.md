@@ -7,9 +7,10 @@ An AppShell provider opens details with dependencies, evidence, dispatch history
 |---|---|---|
 | TasksPage.tsx | entry | Tasks route page wrapping the tasks panel |
 | TasksPanel.tsx | core | Complete six-group task list with modal links |
-| TaskRow.tsx | view | Renders task cards with clamped blocker details |
-| TaskRow.test.tsx | test | Tests card metadata, clamping and affordances |
-| TaskModal.tsx | view | Task detail modal with fields, deps and actions |
+| TaskRow.tsx | view | Renders task cards with one-line blocker details |
+| TaskRow.test.tsx | test | Tests card metadata, truncation and affordances |
+| TaskModal.tsx | view | Task detail modal with blocker, fields and actions |
+| TaskModal.test.tsx | test | Tests conditional full blocker detail card |
 | TaskModalProvider.tsx | provider | Opens project-scoped task details globally |
 | TaskModalProvider.test.ts | test | Tests modal selection state transitions |
 | task-modal-vm.ts | vm | Builds approval and claim-aware detail state |
