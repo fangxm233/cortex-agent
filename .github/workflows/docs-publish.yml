@@ -37,6 +37,11 @@ jobs:
           if grep -RIn 'id="_[0-9]' site/zh/; then
             echo '::error::Found positional Chinese heading anchors; add explicit {#slug} attributes to the listed headings.'
             exit 1
+          else
+            grep_status=$?
+            if [ "$grep_status" -ne 1 ]; then
+              exit "$grep_status"
+            fi
           fi
 
       - name: Deploy to GitHub Pages
