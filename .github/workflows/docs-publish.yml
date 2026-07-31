@@ -32,6 +32,13 @@ jobs:
       - name: Build site
         run: mkdocs build
 
+      - name: Reject positional Chinese heading anchors
+        run: |
+          if grep -RIn 'id="_[0-9]' site/zh/; then
+            echo '::error::Found positional Chinese heading anchors; add explicit {#slug} attributes to the listed headings.'
+            exit 1
+          fi
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
