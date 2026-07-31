@@ -8,47 +8,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { TrajectoryWriteFailedError } from './journal.js';
+import {
+  buildTerminalManifest, terminalManifestProblem, TERMINAL_IDENTITY_KEYS,
+  type StartedMarkerInput, type TerminalManifestInput,
+} from './manifest-contract.js';
+export type {
+  StartedMarkerInput, SupervisorEvidence, TerminalManifestInput,
+  TerminalReason, TerminalState, TokenCounts,
+} from './manifest-contract.js';
 
 const JOURNAL_SCHEMA = 'cortex-bench-journal/1';
-const MANIFEST_SCHEMA = 'cortex-bench-manifest/1';
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const READ_BUFFER_BYTES = 64 * 1024;
-
-export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
-export type TerminalState = 'completed' | 'failed' | 'cancelled' | 'timeout';
-
-export interface StartedMarkerInput {
-  trajectoryRoot: string;
-  rootRunId: string;
-  threadId: string | null;
-  journalPath: string;
-  now?: () => Date;
-}
-
-export interface TerminalManifestInput {
-  trajectoryRoot: string;
-  rootRunId: string;
-  threadId: string | null;
-  state: TerminalState;
-  startedAt: string;
-  endedAt: string;
-  journalPath: string;
-  journalSha256: string;
-  eventCount: number;
-  steps: JsonValue;
-  costUsd: number | null;
-  tokens: JsonValue;
-  modelExecutionIdentityHash: string;
-  roleToolSurfaceHash: string;
-  bundleManifestHash: string;
-  terminalReason: string;
-}
 
 interface JournalHeaderRecord {
   rootRunId: string;
   threadId: string | null;
   modelExecutionIdentityHash: string;
+  roleToolSurfaceHash: string;
   bundleManifestHash: string;
 }
 
@@ -255,16 +233,17 @@ function isoTimestamp(now: () => Date): string {
   }
 }
 
-function assertPathIdentifier(value: string, name: string): void {
-  if (/^(?!\.{1,2}$)[^/\\]+$/.test(value)) return;
-  throw trajectoryFailure('lifecycle path', [new Error(`${name} must be a path-safe identifier`)]);
+const LIFECYCLE_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+function assertPathIdentifier(value: string): void {
+  if (LIFECYCLE_ID_PATTERN.test(value)) return;
+  throw trajectoryFailure('lifecycle path', [new Error('id must match the lifecycle identifier grammar')]);
 }
 
 function lifecycleStem(rootRunId: string, threadId: string | null): string {
-  assertPathIdentifier(rootRunId, 'rootRunId');
-  if (threadId === null) return `run-${rootRunId}`;
-  assertPathIdentifier(threadId, 'threadId');
-  return `thread-${threadId}`;
+  const id = threadId ?? rootRunId;
+  assertPathIdentifier(id);
+  return `${threadId === null ? 'run' : 'thread'}-${id}`;
 }
 
 function lifecyclePath(
@@ -359,36 +338,73 @@ function startedMarker(input: StartedMarkerInput): Record<string, unknown> {
   };
 }
 
-export function writeStartedMarker(input: StartedMarkerInput): string {
-  const finalPath = lifecyclePath(input.trajectoryRoot, input.rootRunId, input.threadId, 'started');
-  writeAndPublish(finalPath, startedMarker(input), linkTemporary);
-  return finalPath;
+function withTrajectoryFailure<T>(context: string, operation: () => T): T {
+  try {
+    return operation();
+  } catch (error) {
+    if (error instanceof TrajectoryWriteFailedError) throw error;
+    throw trajectoryFailure(context, [error]);
+  }
 }
 
-function terminalManifest(input: TerminalManifestInput): Record<string, unknown> {
-  return {
-    schema_version: MANIFEST_SCHEMA,
-    state: input.state,
-    started_at: input.startedAt,
-    ended_at: input.endedAt,
-    journal_path: input.journalPath,
-    journal_sha256: input.journalSha256,
-    event_count: input.eventCount,
-    supervisor: { quiescent: true, descendants: 0 },
-    steps: input.steps,
-    cost_usd: input.costUsd,
-    tokens: input.tokens,
-    model_execution_identity_hash: input.modelExecutionIdentityHash,
-    role_tool_surface_hash: input.roleToolSurfaceHash,
-    bundle_manifest_hash: input.bundleManifestHash,
-    terminal_reason: input.terminalReason,
-  };
+export function writeStartedMarker(input: StartedMarkerInput): string {
+  return withTrajectoryFailure('started marker', () => {
+    const finalPath = lifecyclePath(input.trajectoryRoot, input.rootRunId, input.threadId, 'started');
+    writeAndPublish(finalPath, startedMarker(input), linkTemporary);
+    return finalPath;
+  });
+}
+
+function flushJournal(filePath: string): void {
+  let fd: number;
+  try {
+    fd = fs.openSync(filePath, 'r');
+  } catch (error) {
+    throw operationFailure('open', error);
+  }
+  const failures: unknown[] = [];
+  appendFailure(failures, fsyncFd(fd));
+  appendFailure(failures, closeFd(fd));
+  if (failures.length > 0) throw trajectoryFailure('journal flush', failures);
+}
+
+function journalLinkageProblem(
+  input: TerminalManifestInput,
+  scan: JournalScanResult,
+): string | null {
+  const header = scan.header;
+  const checks: Array<[boolean, string]> = [
+    [scan.problems.length === 0, scan.problems[0] ?? 'malformed_journal'],
+    [scan.sha256 === input.journalSha256, 'journal_sha256'],
+    [scan.eventCount === input.eventCount, 'event_count'],
+    [header !== null, 'missing_header'],
+    [header?.rootRunId === input.rootRunId, 'root_run_id'],
+    [header?.threadId === input.threadId, 'thread_id'],
+    [header?.modelExecutionIdentityHash === input.modelExecutionIdentityHash, 'model_execution_identity_hash'],
+    [header?.roleToolSurfaceHash === input.roleToolSurfaceHash, 'role_tool_surface_hash'],
+    [header?.bundleManifestHash === input.bundleManifestHash, 'bundle_manifest_hash'],
+  ];
+  return checks.find(([passes]) => !passes)?.[1] ?? null;
+}
+
+function assertManifestLinkage(input: TerminalManifestInput): void {
+  const journalPath = confinedJournalPath(input.trajectoryRoot, input.journalPath);
+  if (!journalPath) throw trajectoryFailure('terminal linkage', [new Error('journal_outside_root')]);
+  flushJournal(journalPath);
+  const problem = journalLinkageProblem(input, scanJournal(journalPath));
+  if (problem) throw trajectoryFailure('terminal linkage', [new Error(problem)]);
 }
 
 export function writeTerminalManifest(input: TerminalManifestInput): string {
-  const finalPath = lifecyclePath(input.trajectoryRoot, input.rootRunId, input.threadId, 'terminal');
-  writeAndPublish(finalPath, terminalManifest(input), renameTemporary);
-  return finalPath;
+  return withTrajectoryFailure('terminal manifest', () => {
+    const finalPath = lifecyclePath(input.trajectoryRoot, input.rootRunId, input.threadId, 'terminal');
+    const record = buildTerminalManifest(input);
+    const problem = terminalManifestProblem(record);
+    if (problem) throw trajectoryFailure('terminal manifest', [new Error(problem)]);
+    assertManifestLinkage(input);
+    writeAndPublish(finalPath, record, renameTemporary);
+    return finalPath;
+  });
 }
 
 function exactKeys(
@@ -474,6 +490,7 @@ function headerRecord(value: Record<string, unknown>): JournalHeaderRecord {
     rootRunId: String(value.root_run_id),
     threadId: value.thread_id as string | null,
     modelExecutionIdentityHash: String(value.model_execution_identity_hash),
+    roleToolSurfaceHash: String(value.role_tool_surface_hash),
     bundleManifestHash: String(value.bundle_manifest_hash),
   };
 }
@@ -495,12 +512,13 @@ function validEventRecord(
     isNullableInteger(value.step),
     isAgentSlot(value.agent_slot),
     isTimestamp(value.ts),
-    isNonEmptyString(value.backend),
+    value.backend === 'claude',
     isNullableString(value.provider),
     isNonEmptyString(value.requested_model),
     isNullableString(value.reported_model),
     EVENT_HASH_KEYS.every(key => isSha256(value[key])),
     value.model_execution_identity_hash === header.modelExecutionIdentityHash,
+    value.role_tool_surface_hash === header.roleToolSurfaceHash,
     value.bundle_manifest_hash === header.bundleManifestHash,
     validNormalizedEvent(value.event),
   ]);
@@ -620,50 +638,22 @@ function readJson(filePath: string): JsonReadResult {
   }
 }
 
-function validStartedMarker(value: unknown): value is Record<string, unknown> {
-  if (!isObject(value)) return false;
-  return all([
-    exactKeys(value, ['root_run_id', 'thread_id', 'ts', 'journal_path']),
-    typeof value.root_run_id === 'string' && value.root_run_id.length > 0,
-    isNullableString(value.thread_id),
-    isTimestamp(value.ts),
-    typeof value.journal_path === 'string',
-  ]);
-}
-
-function validSupervisor(value: unknown): boolean {
-  if (!isObject(value)) return false;
-  return all([
-    exactKeys(value, ['quiescent', 'descendants']),
-    value.quiescent === true,
-    value.descendants === 0,
-  ]);
-}
-
-function validTerminalManifest(value: unknown): value is Record<string, unknown> {
-  if (!isObject(value)) return false;
-  const keys = [
-    'schema_version', 'state', 'started_at', 'ended_at', 'journal_path', 'journal_sha256',
-    'event_count', 'supervisor', 'steps', 'cost_usd', 'tokens',
-    'model_execution_identity_hash', 'role_tool_surface_hash', 'bundle_manifest_hash',
-    'terminal_reason',
+function startedMarkerProblem(value: unknown, filePath: string): string | null {
+  const keys = ['root_run_id', 'thread_id', 'ts', 'journal_path'];
+  if (!isObject(value) || !exactKeys(value, keys)) return 'envelope';
+  const fieldChecks: Array<[boolean, string]> = [
+    [isNonEmptyString(value.root_run_id), 'root_run_id'],
+    [isNullableString(value.thread_id), 'thread_id'],
+    [isTimestamp(value.ts), 'ts'],
+    [isNonEmptyString(value.journal_path), 'journal_path'],
   ];
-  return all([
-    exactKeys(value, keys),
-    value.schema_version === MANIFEST_SCHEMA,
-    ['completed', 'failed', 'cancelled', 'timeout'].includes(String(value.state)),
-    isTimestamp(value.started_at),
-    isTimestamp(value.ended_at),
-    typeof value.journal_path === 'string',
-    isSha256(value.journal_sha256),
-    Number.isInteger(value.event_count) && Number(value.event_count) >= 0,
-    validSupervisor(value.supervisor),
-    isNullableNumber(value.cost_usd),
-    isSha256(value.model_execution_identity_hash),
-    isSha256(value.role_tool_surface_hash),
-    isSha256(value.bundle_manifest_hash),
-    typeof value.terminal_reason === 'string',
-  ]);
+  const fieldProblem = fieldChecks.find(([passes]) => !passes)?.[1];
+  if (fieldProblem) return fieldProblem;
+  const idField = value.thread_id === null ? 'root_run_id' : 'thread_id';
+  const id = String(value[idField]);
+  if (!LIFECYCLE_ID_PATTERN.test(id)) return idField;
+  const expected = `${value.thread_id === null ? 'run' : 'thread'}-${id}.started.json`;
+  return path.basename(filePath) === expected ? null : 'filename';
 }
 
 function isWithin(root: string, candidate: string): boolean {
@@ -683,11 +673,14 @@ function confinedJournalPath(root: string, candidate: string): string | null {
   }
 }
 
-function readTerminalManifest(filePath: string): Record<string, unknown> | null {
+function readTerminalManifest(
+  filePath: string,
+): { record: Record<string, unknown> | null; problem: string | null } {
   const result = readJson(filePath);
-  if (!result.ok) return null;
-  if (!validTerminalManifest(result.value)) return null;
-  return result.value;
+  if (!result.ok) return { record: null, problem: 'invalid_json' };
+  const problem = terminalManifestProblem(result.value);
+  if (problem || !isObject(result.value)) return { record: null, problem };
+  return { record: result.value, problem: null };
 }
 
 function validateTerminal(
@@ -700,11 +693,11 @@ function validateTerminal(
     return null;
   }
   const terminal = readTerminalManifest(terminalPath);
-  if (!terminal) {
-    problems.push(`malformed_terminal_manifest:${terminalPath}`);
+  if (!terminal.record) {
+    problems.push(`malformed_terminal_manifest:${terminalPath}:${terminal.problem}`);
     return null;
   }
-  if (terminal.journal_path === marker.journal_path) return terminal;
+  if (terminal.record.journal_path === marker.journal_path) return terminal.record;
   problems.push(`malformed_terminal_manifest:${terminalPath}:journal_path`);
   return null;
 }
@@ -735,19 +728,46 @@ function validateMarkerIdentity(
   if (!matches) problems.push(`journal_identity_mismatch:${journalPath}`);
 }
 
-function readStartedMarker(filePath: string): Record<string, unknown> | null {
+function headerIdentity(header: JournalHeaderRecord, key: string): string {
+  const values: Record<string, string> = {
+    model_execution_identity_hash: header.modelExecutionIdentityHash,
+    role_tool_surface_hash: header.roleToolSurfaceHash,
+    bundle_manifest_hash: header.bundleManifestHash,
+  };
+  return values[key];
+}
+
+function validateTerminalIdentities(
+  terminal: Record<string, unknown>,
+  header: JournalHeaderRecord | null,
+  journalPath: string,
+  problems: string[],
+): void {
+  if (!header) return;
+  for (const key of TERMINAL_IDENTITY_KEYS) {
+    if (terminal[key] !== headerIdentity(header, key)) {
+      problems.push(`terminal_identity_mismatch:${journalPath}:${key}`);
+    }
+  }
+}
+
+function readStartedMarker(
+  filePath: string,
+): { record: Record<string, unknown> | null; problem: string | null } {
   const result = readJson(filePath);
-  if (!result.ok) return null;
-  if (!validStartedMarker(result.value)) return null;
-  return result.value;
+  if (!result.ok) return { record: null, problem: 'invalid_json' };
+  const problem = startedMarkerProblem(result.value, filePath);
+  if (problem || !isObject(result.value)) return { record: null, problem };
+  return { record: result.value, problem: null };
 }
 
 function validateStarted(root: string, startedPath: string, problems: string[]): void {
-  const started = readStartedMarker(startedPath);
-  if (!started) {
-    problems.push(`malformed_started_marker:${startedPath}`);
+  const startedResult = readStartedMarker(startedPath);
+  if (!startedResult.record) {
+    problems.push(`malformed_started_marker:${startedPath}:${startedResult.problem}`);
     return;
   }
+  const started = startedResult.record;
   const terminalPath = startedPath.replace(/\.started\.json$/, '.terminal.json');
   const terminal = validateTerminal(terminalPath, started, problems);
   if (!terminal) return;
@@ -759,6 +779,7 @@ function validateStarted(root: string, startedPath: string, problems: string[]):
   const scan = scanJournal(journalPath);
   validateScan(scan, terminal, journalPath, problems);
   validateMarkerIdentity(started, scan.header, journalPath, problems);
+  validateTerminalIdentities(terminal, scan.header, journalPath, problems);
 }
 
 export function validateTrajectoryRoot(root: string): { ok: boolean; problems: string[] } {

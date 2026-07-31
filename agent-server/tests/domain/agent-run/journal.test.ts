@@ -21,7 +21,10 @@ import {
   validateTrajectoryRoot,
   writeStartedMarker,
   writeTerminalManifest,
+  type SupervisorEvidence,
   type TerminalManifestInput,
+  type TerminalReason,
+  type TerminalState,
 } from '../../../src/domain/agent-run/manifest.js';
 
 const HASHES = {
@@ -144,6 +147,7 @@ function terminalInput(
     journalPath,
     journalSha256,
     eventCount: 1,
+    supervisor: { quiescent: true, descendants: 0 },
     steps: 1,
     costUsd: null,
     tokens: { input: 7, output: 3 },
@@ -291,6 +295,39 @@ it('writes the exact header and event envelopes with contiguous sequence numbers
     }
   });
 
+  it('keeps event clock failures inside the typed journal boundary', () => {
+    const root = makeRoot();
+    try {
+      let calls = 0;
+      const journal = openJournal({
+        path: path.join(root, 'clock.ndjson'),
+        header: header(),
+        now: () => {
+          if (calls++ === 0) return new Date('2026-07-31T10:00:00.000Z');
+          throw new Error('clock failed');
+        },
+      });
+      assert.throws(() => journal.writeEvent(event()), error => Boolean(expectTrajectoryError(error)));
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps marker clock failures inside the typed journal boundary', () => {
+    const root = makeRoot();
+    try {
+      assert.throws(() => writeStartedMarker({
+        trajectoryRoot: root,
+        rootRunId: 'run-001',
+        threadId: null,
+        journalPath: path.join(root, 'run.ndjson'),
+        now: () => { throw new Error('clock failed'); },
+      }), error => Boolean(expectTrajectoryError(error)));
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('throws the typed failure for a real invalid descriptor write', () => {
     const root = makeRoot();
     try {
@@ -346,11 +383,11 @@ it('writes the exact header and event envelopes with contiguous sequence numbers
     }
   });
 
-  it('writes the terminal manifest through a complete temporary file', () => {
+  it('writes the terminal manifest through a complete temporary file', async () => {
     const root = makeRoot();
     try {
-      const journalPath = path.join(root, 'run.ndjson');
-      fs.writeFileSync(journalPath, '{}\n');
+      const { journal, journalPath } = createClosedJournal(root);
+      await journal.close();
       const manifestPath = writeTerminalManifest(terminalInput(root, journalPath, sha256(journalPath)));
       assert.equal(path.basename(manifestPath), 'run-run-001.terminal.json');
       assert.deepEqual(
@@ -363,11 +400,11 @@ it('writes the exact header and event envelopes with contiguous sequence numbers
     }
   });
 
-  it('never writes a partial terminal manifest at the final path when publication fails', () => {
+  it('never writes a partial terminal manifest at the final path when publication fails', async () => {
     const root = makeRoot();
     try {
-      const journalPath = path.join(root, 'run.ndjson');
-      fs.writeFileSync(journalPath, '{}\n');
+      const { journal, journalPath } = createClosedJournal(root);
+      await journal.close();
       const manifestPath = path.join(root, 'run-run-001.terminal.json');
       fs.writeFileSync(manifestPath, '{"previous":true}\n');
       fs.chmodSync(root, 0o500);
@@ -382,11 +419,11 @@ it('writes the exact header and event envelopes with contiguous sequence numbers
     }
   });
 
-  it('throws without publishing when rename rejects the completed temporary file', () => {
+  it('throws without publishing when rename rejects the completed temporary file', async () => {
     const root = makeRoot();
     try {
-      const journalPath = path.join(root, 'run.ndjson');
-      fs.writeFileSync(journalPath, '{}\n');
+      const { journal, journalPath } = createClosedJournal(root);
+      await journal.close();
       const manifestPath = path.join(root, 'run-run-001.terminal.json');
       fs.mkdirSync(manifestPath);
       assert.throws(
@@ -415,12 +452,16 @@ it('writes the exact header and event envelopes with contiguous sequence numbers
     try {
       const { journal, journalPath } = createClosedJournal(root);
       await journal.close();
+      writeStartedMarker({ trajectoryRoot: root, rootRunId: 'run-001', threadId: null, journalPath });
+      const manifestPath = writeTerminalManifest(terminalInput(root, journalPath, sha256(journalPath)));
       const records = fs.readFileSync(journalPath, 'utf8').trimEnd().split('\n').map(line => JSON.parse(line));
       records[1].event = { type: 'tool_use' };
       records[1].root_run_id = 'different-run';
       fs.writeFileSync(journalPath, records.map(record => JSON.stringify(record)).join('\n') + '\n');
-      writeStartedMarker({ trajectoryRoot: root, rootRunId: 'run-001', threadId: null, journalPath });
-      writeTerminalManifest(terminalInput(root, journalPath, sha256(journalPath), { eventCount: 99 }));
+      const terminal = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      terminal.journal_sha256 = sha256(journalPath);
+      terminal.event_count = 99;
+      fs.writeFileSync(manifestPath, `${JSON.stringify(terminal)}\n`);
       const result = validateTrajectoryRoot(root);
       assert.equal(result.ok, false);
       assert.ok(result.problems.some(problem => problem.includes('malformed_record')));
@@ -444,17 +485,19 @@ it('reports a started marker without a terminal manifest', () => {
   }
 });
 
-it('reports malformed journal records', () => {
+it('reports malformed journal records', async () => {
   const root = makeRoot();
   try {
-    const journalPath = path.join(root, 'malformed.ndjson');
+    const journalPath = await createValidTrajectory(root);
     const badHeader = {
       schema_version: 'cortex-bench-journal/1', type: 'run_header', seq: 0,
       ts: '2026-07-31T10:00:00Z',
     };
     fs.writeFileSync(journalPath, `${JSON.stringify(badHeader)}\nnot-json\n`);
-    writeStartedMarker({ trajectoryRoot: root, rootRunId: 'run-001', threadId: null, journalPath });
-    writeTerminalManifest(terminalInput(root, journalPath, sha256(journalPath)));
+    const manifestPath = path.join(root, 'run-run-001.terminal.json');
+    const terminal = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    terminal.journal_sha256 = sha256(journalPath);
+    fs.writeFileSync(manifestPath, `${JSON.stringify(terminal)}\n`);
     const result = validateTrajectoryRoot(root);
     assert.equal(result.ok, false);
     assert.ok(result.problems.some(problem => problem.includes('malformed_record')));
@@ -466,8 +509,11 @@ it('reports malformed journal records', () => {
 it('reports a terminal journal hash mismatch', async () => {
   const root = makeRoot();
   try {
-    const journalPath = await createValidTrajectory(root);
-    writeTerminalManifest(terminalInput(root, journalPath, '0'.repeat(64)));
+    await createValidTrajectory(root);
+    const manifestPath = path.join(root, 'run-run-001.terminal.json');
+    const terminal = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    terminal.journal_sha256 = '0'.repeat(64);
+    fs.writeFileSync(manifestPath, `${JSON.stringify(terminal)}\n`);
     const result = validateTrajectoryRoot(root);
     assert.equal(result.ok, false);
     assert.ok(result.problems.some(problem => problem.includes('journal_hash_mismatch')));
