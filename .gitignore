@@ -28,6 +28,8 @@ agent-server/tmp/
 agent-server/tasks/
 agent-server/data/pi/
 agent-server/dist/
+agent-server/native/cortex-supervisor/build/
+agent-server/native/cortex-supervisor/dist/
 agent-server/web/dist/
 agent-server/src/**/*.js
 agent-server/tests/**/*.js

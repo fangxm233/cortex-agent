@@ -6,6 +6,7 @@ Production code lives in src/, regression tests in tests/, and the install scaff
 | filename | role | function |
 |---|---|---|
 | defaults/ | subdir | Scaffold copied into a fresh install |
+| native/ | subdir | Static Linux process-boundary helpers |
 | scripts/ | subdir | Build, release and maintenance scripts |
 | src/ | subdir | Production TypeScript source |
 | tests/ | subdir | Vitest regression suite |

@@ -80,6 +80,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | message-router.test.ts | test | message routing branches and edit handoff |
 | mode-manager.test.ts | test | per-request mode routing and API key policy |
 | module-loader.ts | helper | fresh ESM import and root path helpers |
+| native/ | subdir | real Linux native process integration tests |
 | orch/ | subdir | orchestration runtime and session flow tests |
 | orchestration/ | subdir | session compact, rewind and coalescer tests |
 | output-stream.test.ts | test | Slack, Feishu and mock output streams |
