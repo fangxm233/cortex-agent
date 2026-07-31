@@ -1,6 +1,6 @@
 // input:  Task DTO, task claim helper, and task vocabulary
 // output: One desktop task-list card
-// pos:    Desktop task lifecycle card presentation
+// pos:    Clickable desktop task lifecycle card presentation
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type { CSSProperties } from 'react';
@@ -120,7 +120,6 @@ export function TaskRow({ task, kind, onOpen }: TaskRowProps) {
           <TaskIdentity task={task} />
           {meta && <TaskMetadata meta={meta} />}
         </div>
-        <span style={{ color: 'var(--proto-faint)', fontSize: 12, flex: 'none' }}>⋯</span>
       </div>
     </div>
   );

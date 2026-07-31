@@ -1,5 +1,5 @@
 // input:  TaskRow, language provider, and task DTO fixtures
-// output: Desktop task-card lifecycle metadata regressions
+// output: Desktop task-card metadata and affordance regressions
 // pos:    Rendering tests for desktop task list cards
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -69,5 +69,9 @@ describe('TaskRow lifecycle metadata', () => {
     expect(actionable).not.toContain('needs');
     expect(actionable).not.toContain('medium');
     expect(done).not.toContain('needs');
+  });
+
+  it('does not render an inert overflow-menu affordance', () => {
+    expect(renderTask({}, 'actionable')).not.toContain('⋯');
   });
 });
