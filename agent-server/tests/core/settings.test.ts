@@ -1,5 +1,5 @@
 // input:  settings module, isolated config and env
-// output: parsing, provenance, race, reload, and write tests
+// output: parsing, provenance, failure, reload, and write tests
 // pos:    Specifies the L0 runtime settings contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -374,6 +374,27 @@ describe.sequential('core settings', () => {
     assert.deepEqual(parsed.futureSetting, { enabled: true });
     assert.deepEqual(parsed.uiCorsOrigins, ['https://external.example']);
     assert.equal(parsed.managerRotateSteps, 9);
+  });
+
+  test('updateSettings logs and falls back to cached overrides when disk read fails', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await updateSettings({
+      turnNotify: false,
+      showToolCalls: false,
+      uiCorsOrigins: ['https://cached.example'],
+    });
+    const cached = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
+
+    await fs.writeFile(SETTINGS_FILE, '{');
+    await updateSettings({ managerRotateSteps: 11 });
+
+    const messages = errors.mock.calls.map((args) => args.join(' ')).join('\n');
+    assert.match(messages, /Update settings\.json read failed/);
+    assert.match(messages, /using previous settings/);
+    assert.deepEqual(
+      JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')),
+      { ...cached, managerRotateSteps: 11 },
+    );
   });
 
   test('updateSettings is atomic, has no watcher echo, and does not mask a following external edit', async (t) => {
