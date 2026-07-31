@@ -359,7 +359,7 @@ const migrations: Migration[] = [
   // internal identifiers into commit subjects when repository policy forbids them.
   {
     filePath: 'prompts/directives/coder-reviewer.md',
-    version: '2026.7.30',
+    version: '2026.7.31',
     format: 'text',
     migrate(data: unknown): unknown {
       if (typeof data !== 'string') return data;

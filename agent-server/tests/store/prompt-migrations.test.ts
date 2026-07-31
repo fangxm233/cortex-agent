@@ -85,6 +85,8 @@ const OLD_CODER_REVIEWER_DIRECTIVE = [
   "- **Test run omission**: signing off on an implementation without running the full test suite yourself. Coder's claim that tests pass is not evidence. Run `npm test` and check every stage. A dependency-cruiser error or a test regression that Coder missed is as much your failure as theirs.",
 ].join('\n') + '\n';
 
+const RESEARCH_HANDOFF_BOUNDARY = '- Commits must land **before** the handoff boundary (before Engineer launches, before QA reviews, before the thread ends). Uncommitted changes at handoff are **Blockers**.';
+const PUBLIC_HANDOFF_BOUNDARY = '- Commits must land **before** the handoff boundary (before downstream consumers run it, before QA reviews, before the thread ends). Uncommitted changes at handoff are **Blockers**.';
 const OLD_REVIEWER_COMMIT_POLICY = [
   '# Identity',
   '',
@@ -93,7 +95,7 @@ const OLD_REVIEWER_COMMIT_POLICY = [
   '- `git log` shows at least one commit attributable to this invocation.',
   '',
   '### Git discipline',
-  '- Commits must land **before** the handoff boundary (before Engineer launches, before QA reviews, before the thread ends). Uncommitted changes at handoff are **Blockers**.',
+  RESEARCH_HANDOFF_BOUNDARY,
   '- Commit message must reference the spec identifier (EXP ID, task ID, issue reference). Missing reference is a **Blocker** in research mode; **Nice-to-have** in generic mode unless a task ID was clearly available.',
   '- `--no-verify`, `--no-gpg-sign`, or any hook bypass is a **Blocker**; hook failures must be root-caused.',
   '- Force-push, `git reset --hard`, or `rm -rf` on shared paths without explicit user authorization is a **Blocker**.',
@@ -153,7 +155,7 @@ test('runMigrations de-personalizes the coder-reviewer directive', async () => {
   assert.ok(out.includes('### Test discipline'));
   assert.ok(out.includes('If the project has a test suite'));
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(versions['prompts/directives/coder-reviewer.md'], '2026.7.30');
+  assert.equal(versions['prompts/directives/coder-reviewer.md'], '2026.7.31');
 });
 
 test.each([
@@ -183,7 +185,37 @@ test.each([
   await runMigrations({ dataDir, defaultsDir, storeDir });
   assert.equal(await readText(target), first, 'second run must be byte-identical');
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(versions[relativePath], '2026.7.30');
+  assert.equal(versions[relativePath], '2026.7.31');
+});
+
+test.each([
+  ['research-oriented', OLD_REVIEWER_COMMIT_POLICY, RESEARCH_HANDOFF_BOUNDARY],
+  ['generic public', OLD_PUBLIC_REVIEWER_COMMIT_POLICY, PUBLIC_HANDOFF_BOUNDARY],
+])('runMigrations preserves customized handoff boundaries while updating %s commit rules', async (_name, legacyPolicy, legacyBoundary) => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const relativePath = 'prompts/directives/coder-reviewer.md';
+  const target = path.join(dataDir, relativePath);
+  const customizedBoundary = '- Our release gate defines its own handoff boundary.';
+  const customizedPolicy = legacyPolicy.replace(legacyBoundary, customizedBoundary);
+  assert.notEqual(customizedPolicy, legacyPolicy, 'fixture must customize the legacy boundary');
+  await writeText(target, customizedPolicy);
+  await writeJson(path.join(storeDir, 'versions.json'), { [relativePath]: '2026.7.30' });
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const first = await readText(target);
+
+  assert.ok(first.includes(customizedBoundary), 'customized boundary must remain byte-identical');
+  assert.ok(!first.includes('Commit message must reference the spec identifier'));
+  assert.ok(!first.includes('Commit message should reference the spec identifier'));
+  assert.ok(first.includes("summary/artifact's explicit SHA evidence"));
+  assert.ok(first.includes('Missing or unverifiable attribution is a **Blocker**'));
+  assert.ok(first.includes('must not be treated as a Blocker'));
+  assert.ok(first.includes('must not require a metadata-only follow-up commit'));
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  assert.equal(await readText(target), first, 'second run must be byte-identical');
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
+  assert.equal(versions[relativePath], '2026.7.31');
 });
 
 test('runMigrations leaves customized directive policies untouched', async () => {
@@ -198,7 +230,7 @@ test('runMigrations leaves customized directive policies untouched', async () =>
 
   assert.equal(await readText(target), customized);
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(versions[relativePath], '2026.7.30');
+  assert.equal(versions[relativePath], '2026.7.31');
 });
 
 test('runMigrations keeps coder directive migration idempotent', async () => {
