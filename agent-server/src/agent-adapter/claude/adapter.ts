@@ -1,5 +1,5 @@
 // input:  session context, streams, spawn policy, usage
-// output: Claude turns, cwd, composition, compact control
+// output: Claude turns, cwd-aware usage and session control
 // pos:    Claude print and interactive adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -219,11 +219,11 @@ class ClaudeSession {
     this.sessionKey = options.sessionKey || channel;
     this.needsResume = options.needsResume;
     this.modelName = options.model || null;
-    // Settings are read per session because the CLI reads them per spawn, and the spawn always
-    // runs with `cwd: DATA_DIR` (see spawn below).
+    this.cwd = options.cwd ?? DATA_DIR;
+    // Settings are read per session because the CLI reads project settings from its spawn cwd.
     this.contextUsageTracker = new ClaudeContextUsageTracker(
       this.modelName,
-      resolveAutoCompactWindow(DATA_DIR),
+      resolveAutoCompactWindow(this.cwd),
     );
     this.isUserInitiated = options.isUserInitiated || false;
     this.callbackSource = options.callbackSource || null;
@@ -236,7 +236,6 @@ class ClaudeSession {
     this.pluginDirs = options.pluginDirs || null;
     this.anthropicBaseUrl = options.anthropicBaseUrl;
     this.extraEnv = options.extraEnv;
-    this.cwd = options.cwd ?? DATA_DIR;
     this.mcpComposition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
     this.extraOption = options.extraOption;
     this.thinking = options.thinking ?? null;
@@ -293,7 +292,7 @@ class ClaudeSession {
     // otherwise wait forever — any process death (restart / crash / kill / timeout) must
     // seal it. No-op when nothing is pending; always releases the sink (session is gone).
     this.notifyBgInterrupted();
-    sessions.delete(this.sessionKey);
+    if (sessions.get(this.sessionKey) === this) sessions.delete(this.sessionKey);
   }
 
   /** Deliver a synthetic interrupted result to the continuation sink (single-fire: the sink
@@ -873,7 +872,7 @@ class ClaudeSession {
     // delivers the background-task interruption to it, then clears it.
     if (!this.proc || this.proc.exitCode !== null) return false;
     this.alive = false;
-    sessions.delete(this.sessionKey);
+    if (sessions.get(this.sessionKey) === this) sessions.delete(this.sessionKey);
     if (this.currentTurn) {
       this.currentTurn.killed = true;
     }

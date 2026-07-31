@@ -1,6 +1,6 @@
-// input:  Node test runner + PIAdapter _test exports
-// output: PI framing/spawn/context/bootstrap/compact/switch tests
-// pos:    Hermetic PI adapter and subprocess context regressions
+// input:  Node test runner, PIAdapter, stub subprocesses
+// output: PI spawn policy, context, compact and switch tests
+// pos:    Hermetic PI adapter and subprocess regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -73,6 +73,23 @@ function makeStubSpawner(): {
     },
   };
 }
+
+test('spawn accepts explicit direct and thread-control MCP compositions', () => {
+  for (const composition of ['direct', 'thread-control'] as const) {
+    const stub = makeStubSpawner();
+    const adapter = new PIAdapter(stub.spawn);
+    const proc = adapter.spawn({
+      sessionId: null,
+      sessionKey: `pi-${composition}`,
+      resume: false,
+      mcpComposition: composition,
+    });
+
+    assert.equal(stub.calls.length, 1, `${composition} must reach the spawn boundary`);
+    proc.kill();
+    stub.children[0].emit('close', 0);
+  }
+});
 
 // --- Group A: framing correctness (done-when: NDJSON LF-only framing) ---
 

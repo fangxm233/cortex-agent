@@ -1,11 +1,11 @@
 // input:  spawn facade, adapters, MCP configs, goldens
-// output: cwd, composition, isolation, golden proofs
+// output: cwd, composition, pool, context and golden proofs
 // pos:    Verifies the backend process spawn contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -257,10 +257,16 @@ function installFakeClaude(binDir: string): void {
   writeFileSync(fakeClaude, `#!/usr/bin/env node
 import { writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
-writeFileSync(process.env.CWD_MARKER, process.cwd());
+if (process.env.CWD_MARKER) writeFileSync(process.env.CWD_MARKER, process.cwd());
 const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
 lines.on('line', (line) => {
   const request = JSON.parse(line);
+  if (process.env.EMIT_CONTEXT_USAGE === '1') {
+    console.log(JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: {
+      model: 'claude-opus-5', usage: { input_tokens: 25000,
+        cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+    } } }));
+  }
   console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false,
     session_id: request.session_id, result: 'ok', total_cost_usd: 0, num_turns: 1 }));
 });
@@ -268,15 +274,81 @@ lines.on('line', (line) => {
   chmodSync(fakeClaude, 0o755);
 }
 
+function installDelayedCloseFakeClaude(binDir: string): void {
+  const fakeClaude = path.join(binDir, 'claude');
+  mkdirSync(binDir, { recursive: true });
+  writeFileSync(fakeClaude, `#!/usr/bin/env node
+import { appendFileSync } from 'node:fs';
+const marker = process.env.SESSION_MARKER;
+const record = (event) => appendFileSync(marker, JSON.stringify({ event, pid: process.pid,
+  cwd: process.cwd() }) + '\\n');
+record('started');
+process.stdin.resume();
+process.stdin.on('end', () => setTimeout(() => { record('closing'); process.exit(0); }, 50));
+`);
+  chmodSync(fakeClaude, 0o755);
+}
+
+async function waitFor(condition: () => boolean, message: string): Promise<void> {
+  const deadline = Date.now() + 3_000;
+  while (!condition()) {
+    if (Date.now() >= deadline) throw new Error(message);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+interface SessionMarkerEvent {
+  event: 'started' | 'closing';
+  pid: number;
+  cwd: string;
+}
+
+function readSessionMarker(file: string): SessionMarkerEvent[] {
+  if (!existsSync(file)) return [];
+  return readFileSync(file, 'utf8').trim().split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as SessionMarkerEvent);
+}
+
+function overrideEnvironment(values: Record<string, string>): () => void {
+  const previous = new Map(Object.keys(values).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, values);
+  return () => {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+}
+
+async function probeContextUsage(adapter: ClaudeAdapter, key: string, cwd: string) {
+  const proc = adapter.spawn({
+    sessionId: null, sessionKey: key, resume: false, cwd, model: 'claude-opus-5[1m]',
+  });
+  const eventsPromise = (async () => {
+    const events = [];
+    for await (const event of proc.events) events.push(event);
+    return events;
+  })();
+  await proc.send({ text: 'usage probe' });
+  await proc.close();
+  return (await eventsPromise).find((event) => event.type === 'context_usage');
+}
+
 async function runCwdProbe(marker: string, sessionKey: string, cwd?: string): Promise<void> {
   process.env.CWD_MARKER = marker;
-  await facadeTest.runWithAdapter(
-    new ClaudeAdapter(),
-    'cwd request',
-    { channel: sessionKey, sessionKey, cwd },
-    FIXTURE_CONFIG,
-    undefined,
-  ).promise;
+  const adapter = new ClaudeAdapter();
+  try {
+    await facadeTest.runWithAdapter(
+      adapter,
+      'cwd request',
+      { channel: sessionKey, sessionKey, cwd },
+      FIXTURE_CONFIG,
+      undefined,
+    ).promise;
+  } finally {
+    await adapter.close(sessionKey);
+  }
 }
 
 test('Claude print subprocess uses the requested cwd and preserves the default cwd', async (t) => {
@@ -304,3 +376,126 @@ test('Claude print subprocess uses the requested cwd and preserves the default c
   await runCwdProbe(defaultMarker, 'cwd-default');
   assert.equal(readFileSync(defaultMarker, 'utf8'), DATA_DIR);
 });
+
+test('Claude context usage reads autoCompactWindow from the requested cwd', async (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), 'cortex-context-cwd-'));
+  const binDir = path.join(root, 'bin');
+  const cwd = path.join(root, 'task');
+  const key = 'context-cwd';
+  mkdirSync(path.join(cwd, '.claude'), { recursive: true });
+  mkdirSync(path.join(root, 'user-config'), { recursive: true });
+  writeFileSync(path.join(cwd, '.claude', 'settings.local.json'), '{"autoCompactWindow":100000}\n');
+  installFakeClaude(binDir);
+  const restore = overrideEnvironment({
+    PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    CWD_MARKER: path.join(root, 'cwd.txt'),
+    EMIT_CONTEXT_USAGE: '1',
+    CLAUDE_CONFIG_DIR: path.join(root, 'user-config'),
+  });
+  const adapter = new ClaudeAdapter();
+  t.onTestFinished(async () => {
+    await adapter.close(key);
+    restore();
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  assert.deepEqual(await probeContextUsage(adapter, key, cwd), {
+    type: 'context_usage', usedTokens: 25_000, contextWindow: 100_000,
+    percent: 25, accuracy: 'exact',
+  });
+});
+
+interface ReplacementCase {
+  label: string;
+  initial: { cwdSuffix: string; composition: McpComposition };
+  replacement: { cwdSuffix: string; composition: McpComposition };
+}
+
+const replacementCases: ReplacementCase[] = [
+  { label: 'cwd', initial: { cwdSuffix: 'first', composition: 'direct' },
+    replacement: { cwdSuffix: 'second', composition: 'direct' } },
+  { label: 'composition', initial: { cwdSuffix: 'same', composition: 'direct' },
+    replacement: { cwdSuffix: 'same', composition: 'thread-control' } },
+];
+
+interface ReplacementFixture {
+  root: string;
+  marker: string;
+  key: string;
+  initialCwd: string;
+  replacementCwd: string;
+  adapter: ClaudeAdapter;
+  restoreEnvironment: () => void;
+}
+
+function createReplacementFixture(item: ReplacementCase): ReplacementFixture {
+  const root = mkdtempSync(path.join(tmpdir(), `cortex-session-replace-${item.label}-`));
+  const binDir = path.join(root, 'bin');
+  const initialCwd = path.join(root, item.initial.cwdSuffix);
+  const replacementCwd = path.join(root, item.replacement.cwdSuffix);
+  const marker = path.join(root, 'sessions.jsonl');
+  mkdirSync(initialCwd, { recursive: true });
+  mkdirSync(replacementCwd, { recursive: true });
+  installDelayedCloseFakeClaude(binDir);
+  const restoreEnvironment = overrideEnvironment({
+    PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    SESSION_MARKER: marker,
+  });
+  return { root, marker, key: `replacement-${item.label}`, initialCwd,
+    replacementCwd, adapter: new ClaudeAdapter(), restoreEnvironment };
+}
+
+function spawnReplacementSession(
+  fixture: ReplacementFixture,
+  cwd: string,
+  composition: McpComposition,
+): void {
+  fixture.adapter.spawn({
+    sessionId: null, sessionKey: fixture.key, resume: false, cwd, mcpComposition: composition,
+  });
+}
+
+async function assertReplacementSurvives(
+  fixture: ReplacementFixture,
+  item: ReplacementCase,
+): Promise<void> {
+  spawnReplacementSession(fixture, fixture.initialCwd, item.initial.composition);
+  await waitFor(
+    () => readSessionMarker(fixture.marker).filter((event) => event.event === 'started').length === 1,
+    `${item.label} initial process did not start`,
+  );
+  const oldPid = readSessionMarker(fixture.marker).find((event) => event.event === 'started')!.pid;
+  spawnReplacementSession(fixture, fixture.replacementCwd, item.replacement.composition);
+  await waitFor(
+    () => readSessionMarker(fixture.marker).filter((event) => event.event === 'started').length === 2,
+    `${item.label} replacement process did not start`,
+  );
+  await waitFor(() => !existsSync(`/proc/${oldPid}`), `${item.label} old process did not close`);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.ok(fixture.adapter.listSessions().includes(fixture.key),
+    `${item.label} replacement was removed from the pool`);
+}
+
+async function cleanupReplacementFixture(fixture: ReplacementFixture): Promise<void> {
+  await fixture.adapter.close(fixture.key);
+  const started = readSessionMarker(fixture.marker).filter((event) => event.event === 'started');
+  for (const event of started) {
+    try { process.kill(event.pid, 'SIGTERM'); } catch {}
+  }
+  fixture.restoreEnvironment();
+  rmSync(fixture.root, { recursive: true, force: true });
+}
+
+async function runReplacementProbe(item: ReplacementCase): Promise<void> {
+  const fixture = createReplacementFixture(item);
+  try {
+    await assertReplacementSurvives(fixture, item);
+  } finally {
+    await cleanupReplacementFixture(fixture);
+  }
+}
+
+test.each(replacementCases)(
+  'a delayed old-session close cannot unregister its $label replacement',
+  runReplacementProbe,
+);
