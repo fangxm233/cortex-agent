@@ -66,7 +66,7 @@ If you completed an experiment/analysis, scan results for:
 
 ### Step 4: Act on findings
 
-For task creation, use the Write tool to stage a JSON object and run `cortex-task add --task-file <path>`; never place task text, why, or done-when in shell arguments.
+For task creation, use the Write tool to stage a JSON object at a per-session unique path and run `cortex-task add --task-file <unique-path>`; never use a shared staging filename or place task text, why, or done-when in shell arguments.
 
 For each compound opportunity:
 

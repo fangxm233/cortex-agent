@@ -1,6 +1,6 @@
 // input:  Vitest, temporary prompt files, shipped defaults
-// output: Directive prompt migration policy regressions
-// pos:    Verifies versioned coder directive text migrations
+// output: Coder and manager directive migration regressions
+// pos:    Verifies versioned stock-text prompt migrations
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
@@ -113,6 +113,30 @@ const OLD_PUBLIC_REVIEWER_COMMIT_POLICY = OLD_REVIEWER_COMMIT_POLICY
     '- Commit message should reference the spec identifier (task ID, issue reference) when one is clearly available; missing reference is a **Nice-to-have**.',
   )
   .replace('6. Check commit messages', '7. Check commit messages');
+
+const PREVIOUS_MANAGER_TASK_FILE_DIRECTIVE = [
+  "1. Read the actual deliverable (code, files, experiment records) and check it against the child's done_when. Run tests where code is involved. Never accept a completion note as evidence. When the deliverable is substantial (files / code / a report / an experiment), prefer spawning an independent **verifier** child: use the Write tool to stage its task JSON, run `cortex-task spawn --task-file <path>`, and consume only its verdict. An independent fresh-context check catches what your anchored read misses and keeps large deliverables out of your own context.",
+  '',
+  '- For a quick sub-call that doesn\'t merit a full decomposition (an independent verifier pass on a child\'s deliverable, a short research probe before deciding a split), use the Write tool to stage one child task JSON, run `cortex-task spawn --task-file <path>` (it hangs under you and joins via `depends_on`, like decompose), and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).',
+].join('\n') + '\n';
+
+const OLD_MANAGER_DIRECTIVE = [
+  '3. **Decompose via /manager-method** — the method (map the seams before cutting, the Cut-at-the-Seam Iron Rules, one-criterion-one-task with explicit dependencies, template selection by residual reasoning, and the per-child self-audit quality gate) lives in the skill (pointer below). After the method yields your children, create them in ONE call (exact recipe — write the JSON to a temp file first):',
+  '',
+  '     ```bash',
+  "     cat > /tmp/subtasks-<your Task ID>.json <<'JSON'",
+  '     {"subtasks": [',
+  '       {"key": "a", "text": "Create X", "done-when": "X exists and ...", "template": "execute-review"},',
+  '       {"key": "b", "text": "Create Y", "done-when": "...", "template": "execute-review", "depends-on": ["a"]}',
+  '     ]}',
+  '     JSON',
+  '     cortex-task decompose --project <project> --task-id <your Task ID> --keep-parent --auto-lock --subtasks-file /tmp/subtasks-<your Task ID>.json',
+  '     ```',
+  '',
+  "1. Read the actual deliverable (code, files, experiment records) and check it against the child's done_when. Run tests where code is involved. Never accept a completion note as evidence. When the deliverable is substantial (files / code / a report / an experiment), prefer spawning an independent **verifier** child (`cortex-task spawn --text \"Verify <deliverable> against: <done_when>\" --template <review template>`) and consume only its verdict — an independent fresh-context check catches what your anchored read misses, and keeps large deliverables out of your own context.",
+  '',
+  '- For a quick sub-call that doesn\'t merit a full decomposition (an independent verifier pass on a child\'s deliverable, a short research probe before deciding a split), create a single child with `cortex-task spawn --text "..." --template <name>` (it hangs under you and joins via `depends_on`, like decompose) and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).',
+].join('\n') + '\n';
 
 function markdownSection(content: string, heading: string, nextHeading: string): string {
   const start = content.indexOf(heading);
@@ -254,4 +278,53 @@ test('runMigrations leaves customized coder directives untouched', async () => {
   await runMigrations({ dataDir, defaultsDir, storeDir });
 
   assert.equal(await readText(target), customized);
+});
+
+test('runMigrations replaces stock manager shell task creation and is idempotent', async () => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const relativePath = 'prompts/directives/manager.md';
+  const target = path.join(dataDir, relativePath);
+  await writeText(target, OLD_MANAGER_DIRECTIVE);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const first = await readText(target);
+
+  assert.doesNotMatch(first, /cat > \/tmp\/subtasks/);
+  assert.doesNotMatch(first, /cortex-task spawn --text/);
+  assert.match(first, /Write tool/);
+  assert.match(first, /cortex-task spawn --task-file/);
+  assert.match(first, /<your Task ID>-<child-id>/);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  assert.equal(await readText(target), first);
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
+  assert.equal(versions[relativePath], '2026.7.31');
+});
+
+test('runMigrations upgrades the prior generic manager task-file guidance to unique paths', async () => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const relativePath = 'prompts/directives/manager.md';
+  const target = path.join(dataDir, relativePath);
+  await writeText(target, PREVIOUS_MANAGER_TASK_FILE_DIRECTIVE);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const out = await readText(target);
+
+  assert.doesNotMatch(out, /spawn --task-file <path>/);
+  assert.match(out, /<your Task ID>-<child-id>/);
+  assert.match(out, /<your Task ID>-<unique-id>/);
+});
+
+test('runMigrations leaves a customized manager directive byte-identical', async () => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const relativePath = 'prompts/directives/manager.md';
+  const target = path.join(dataDir, relativePath);
+  const customized = '# Identity\nOur manager delegates through an internal API.\n';
+  await writeText(target, customized);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+
+  assert.equal(await readText(target), customized);
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
+  assert.equal(versions[relativePath], '2026.7.31');
 });

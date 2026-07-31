@@ -27,7 +27,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | session-send.ts | chat | sends a user turn into a web session |
 | status-helpers.ts | helper | builds settings-aware status messages |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |
-| thread-callback.ts | callback | Resumes parents with live rotation and sweep settings |
+| thread-callback.ts | callback | Resumes parents with safe child-result guidance |
 | thread-executor.ts | core | routes thread turns and runs threads |
 | turn-notify.ts | notify | applies settings and notifies completed long turns |
 | web-bg-hold.ts | helper | holds web turns until background work seals |

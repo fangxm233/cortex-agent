@@ -280,7 +280,7 @@ const HELP_CONFIG = {
   examples: [
     { description: 'List actionable tasks (JSON)', command: 'task list --json' },
     { description: 'Filter blocked tasks in a project', command: 'task query --project example-project --status blocked --json' },
-    { description: 'Add a task from structured JSON', command: 'task add --project example-project --task-file /tmp/task.json' },
+    { description: 'Add a task from structured JSON', command: 'task add --project example-project --task-file /tmp/cortex-task-<unique-id>.json' },
     { description: 'Complete a task with note', command: 'task complete --project example-project --task-id ab12 --note "Verified: 85% accuracy"' },
     { description: 'Append a dependency', command: 'task edit --project example-project --task-id ab12 --add-depends-on cd34' },
     { description: 'Clear dependencies', command: 'task edit --project example-project --task-id ab12 --clear-depends-on' },

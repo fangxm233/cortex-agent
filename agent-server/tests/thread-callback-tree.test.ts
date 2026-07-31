@@ -1,6 +1,6 @@
-// input:  Node test runner + thread-callback tree-parent path
-// output: fireThreadCallback terminal guard / notifyThreadParent / recoverWaitingThreads tests
-// pos:    Verify child→parent result delivery and parent re-entry (DR-0014 Phase 2/4)
+// input:  Vitest, thread callback state, child contracts
+// output: Parent re-entry and safe replacement-task regressions
+// pos:    Verifies child-to-parent result delivery and recovery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, afterAll } from 'vitest';
@@ -98,7 +98,9 @@ test('buildChildResultNotice includes status, cost, contract fields, and verific
   assert.match(notice, /thread_result/);
   // Acceptance discipline: verify deliverable, do not trust the child's self-report.
   assert.match(notice, /done.?when/i);
-  assert.match(notice, /cortex-task spawn/);
+  assert.match(notice, /Write tool/);
+  assert.match(notice, /cortex-task spawn --task-file/);
+  assert.match(notice, /per-task unique path/);
   assert.match(notice, /thread_wait/);
   assert.match(notice, /thread_abort/);
   assert.doesNotMatch(notice, /thread_start/);
@@ -137,6 +139,8 @@ test('notifyThreadParent resumes the parent when the last awaited child turns te
   const p = threadStore.get(parent.id)!;
   assert.deepEqual(p.metadata!.waitingOn, []);
   assert.equal(p.metadata!.pendingMessages!.length, 1);
+  assert.match(p.metadata!.pendingMessages![0], /Write tool/);
+  assert.match(p.metadata!.pendingMessages![0], /cortex-task spawn --task-file/);
   assert.deepEqual(resumed, [parent.id]);
 });
 

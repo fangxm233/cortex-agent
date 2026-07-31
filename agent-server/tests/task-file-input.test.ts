@@ -1,5 +1,5 @@
-// input:  Vitest, task CLI, dispatcher, and thread prompts
-// output: Structured task-file and dollar-literal regressions
+// input:  Vitest, task CLI processes, dispatcher, prompts
+// output: Structured task-file, validation, and literal regressions
 // pos:    Verifies shell-free task creation through executor prompts
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -8,11 +8,12 @@ import { beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { parse as yamlParse } from 'yaml';
-import { CONFIG_DIR, PROJECTS_DIR } from '../src/core/paths.js';
+import { CONFIG_DIR, DEFAULTS_DIR, PROJECTS_DIR } from '../src/core/paths.js';
 import { selectAndClaimTask } from '../src/domain/tasks/dispatcher.js';
 import { readTaskSpec } from '../src/domain/tasks/system/task-file-input.js';
-import { runCli } from '../src/domain/tasks/system/task-cli.js';
+import { getCliHelp, runCli } from '../src/domain/tasks/system/task-cli.js';
 import {
   buildStepPrompt,
   cleanupWorkspace,
@@ -223,4 +224,150 @@ test('task-file rejects mixing structured input with scalar task-spec flags', ()
   } finally {
     repo.cleanup();
   }
+});
+
+interface ProcessResult {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
+function runTaskProcess(
+  args: string[],
+  input: string,
+  env: Record<string, string> = {},
+): ProcessResult {
+  const cliPath = path.resolve(process.cwd(), 'src/domain/tasks/system/task-cli.ts');
+  const result = spawnSync(process.execPath, ['--import', 'tsx', cliPath, ...args], {
+    cwd: process.cwd(),
+    env: { ...process.env, ...env },
+    input,
+    encoding: 'utf8',
+  });
+  assert.equal(result.error, undefined);
+  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
+function processPayload(stdout: string): any {
+  const objectStart = stdout.lastIndexOf('\n{');
+  return JSON.parse(objectStart >= 0 ? stdout.slice(objectStart + 1) : stdout);
+}
+
+function parentTasks(parentId: string): string {
+  return `tasks:\n  - id: ${parentId}\n    text: Parent\n    why: parent why\n    done-when: parent done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n`;
+}
+
+function commandArgs(command: 'add' | 'spawn', project: string, extra: string[] = []): string[] {
+  const base = command === 'add' ? ['add', '--project', project] : ['spawn'];
+  return [...base, '--task-file', '-', ...extra];
+}
+
+function commandEnv(command: 'add' | 'spawn', project: string, parentId: string): Record<string, string> {
+  return command === 'spawn'
+    ? { CORTEX_TASK_ID: parentId, CORTEX_TASK_PROJECT: project, CORTEX_PROJECT: project }
+    : { CORTEX_PROJECT: project };
+}
+
+test.each(['add', 'spawn'] as const)('%s consumes a task-file path through the real CLI process', (command) => {
+  const parentId = 'ab15';
+  const repo = makeProject(command === 'spawn' ? parentTasks(parentId) : 'tasks:\n');
+  const spec: TaskSpec = {
+    text: 'file $0 and $',
+    why: 'file $36.75',
+    'done-when': 'file ${HOME}',
+    template: 'coder-review',
+  };
+  try {
+    const specPath = writeSpec(repo.project, 'process-task.json', spec);
+    const base = command === 'add' ? ['add', '--project', repo.project] : ['spawn'];
+    const result = runTaskProcess(
+      [...base, '--task-file', specPath, '--auto-lock'],
+      '',
+      commandEnv(command, repo.project, parentId),
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const payload = processPayload(result.stdout);
+    const taskId = command === 'add' ? payload['task-id'] : payload['child-id'];
+    const tasks = yamlParse(fs.readFileSync(repo.tasksPath, 'utf8')).tasks;
+    const persisted = tasks.find((task: any) => task.id === taskId);
+    assert.equal(persisted.text, spec.text);
+    assert.equal(persisted.why, spec.why);
+    assert.equal(persisted['done-when'], spec['done-when']);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test.each(['add', 'spawn'] as const)('%s consumes task-file stdin through the real CLI and persists literals', (command) => {
+  const parentId = 'ab20';
+  const repo = makeProject(command === 'spawn' ? parentTasks(parentId) : 'tasks:\n');
+  const spec: TaskSpec = {
+    text: 'stdin $0 and $',
+    why: 'stdin $36.75',
+    'done-when': 'stdin ${HOME}',
+    template: 'coder-review',
+  };
+  try {
+    const result = runTaskProcess(
+      [...commandArgs(command, repo.project), '--auto-lock'],
+      JSON.stringify(spec),
+      commandEnv(command, repo.project, parentId),
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const payload = processPayload(result.stdout);
+    const taskId = command === 'add' ? payload['task-id'] : payload['child-id'];
+    const tasks = yamlParse(fs.readFileSync(repo.tasksPath, 'utf8')).tasks;
+    const persisted = tasks.find((task: any) => task.id === taskId);
+    assert.equal(persisted.text, spec.text);
+    assert.equal(persisted.why, spec.why);
+    assert.equal(persisted['done-when'], spec['done-when']);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+const INVALID_STDIN_CASES = [
+  { name: 'malformed JSON', input: '{', extra: [], error: /Invalid task file JSON/ },
+  { name: 'non-object JSON', input: '[]', extra: [], error: /single JSON object/ },
+  { name: 'missing text', input: '{"why":"missing"}', extra: [], error: /text.*required/i },
+  { name: 'mixed scalar input', input: '{"text":"file text"}', extra: ['--text', 'argument text'], error: /cannot be combined.*--text/i },
+];
+
+for (const command of ['add', 'spawn'] as const) {
+  test.each(INVALID_STDIN_CASES)(`${command} rejects $name without mutating tasks`, ({ input, extra, error }) => {
+    const parentId = 'ab30';
+    const initial = command === 'spawn' ? parentTasks(parentId) : 'tasks:\n';
+    const repo = makeProject(initial);
+    try {
+      const before = fs.readFileSync(repo.tasksPath, 'utf8');
+      const result = runTaskProcess(
+        commandArgs(command, repo.project, extra),
+        input,
+        commandEnv(command, repo.project, parentId),
+      );
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, error);
+      assert.equal(fs.readFileSync(repo.tasksPath, 'utf8'), before);
+    } finally {
+      repo.cleanup();
+    }
+  });
+}
+
+test('agent-facing task-file examples require per-execution staging paths', () => {
+  const taskSkill = fs.readFileSync(
+    path.join(DEFAULTS_DIR, 'plugins/cortex-stage-gate/skills/task/SKILL.md'),
+    'utf8',
+  );
+  const manager = fs.readFileSync(path.join(DEFAULTS_DIR, 'prompts/directives/manager.md'), 'utf8');
+  const compound = fs.readFileSync(
+    path.join(DEFAULTS_DIR, 'plugins/cortex-common/skills/compound-simple/SKILL.md'),
+    'utf8',
+  );
+  const guidance = [taskSkill, manager, compound, getCliHelp()].join('\n');
+
+  assert.doesNotMatch(guidance, /\/tmp\/task\.json\b/);
+  assert.match(taskSkill, /current-thread-or-session-id/);
+  assert.match(manager, /<your Task ID>-<child-id>/);
+  assert.match(getCliHelp(), /cortex-task-<unique-id>\.json/);
 });

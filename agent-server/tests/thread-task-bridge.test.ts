@@ -1,6 +1,6 @@
-// input:  Node test runner + thread-callback task-children bridge
-// output: buildTaskResultNotice / notifyTaskParentThreads / reconcileWaitingTasks / recovery tests
-// pos:    Verify task.completed/blocked → resident-manager wake-up (DR-0014 §8 Phase B)
+// input:  Vitest, task-child callbacks, thread store
+// output: Safe task-child notices, wake-up, and recovery tests
+// pos:    Verifies task-backed resident-manager re-entry
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -83,6 +83,9 @@ test('buildTaskResultNotice completed: task identity + done_when + verification 
   assert.match(notice, /loss < 0.1 documented/);
   assert.match(notice, /run-42/);
   assert.match(notice, /done.?when/i);
+  assert.match(notice, /Write tool/);
+  assert.match(notice, /cortex-task spawn --task-file/);
+  assert.match(notice, /per-task unique path/);
   assert.match(notice, /thread_abort/);
 });
 
@@ -91,6 +94,8 @@ test('buildTaskResultNotice blocked: reason + escalation guidance', () => {
   const notice = buildTaskResultNotice(task, 'blocked');
   assert.match(notice, /cd34/);
   assert.match(notice, /worker-abort:too-big/);
+  assert.match(notice, /Write tool/);
+  assert.match(notice, /cortex-task spawn --task-file/);
   assert.match(notice, /unblock|修订|重建/);
 });
 
@@ -116,8 +121,10 @@ test('notifyTaskParentThreads resumes when the last awaited task completes', asy
   const mgr = makeManager(proj, 'aa11', ['bb11']);
   const resumed: string[] = [];
   await notifyTaskParentThreads('bb11', 'completed', { resume: (id) => resumed.push(id) });
+  const updated = threadStore.get(mgr.id)!;
   assert.deepEqual(resumed, [mgr.id]);
-  assert.deepEqual(threadStore.get(mgr.id)!.metadata!.waitingOnTasks, []);
+  assert.deepEqual(updated.metadata!.waitingOnTasks, []);
+  assert.match(updated.metadata!.pendingMessages![0], /cortex-task spawn --task-file/);
 });
 
 test('notifyTaskParentThreads rejects a bogus completed event (task not actually done on disk)', async () => {

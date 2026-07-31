@@ -12,7 +12,7 @@ import { atomicWrite } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
 import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
-import { CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS } from './prompt-migration-replacements.js';
+import { CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS, MANAGER_TASK_FILE_REPLACEMENTS } from './prompt-migration-replacements.js';
 
 const log = createLogger('version-migrations');
 
@@ -355,16 +355,17 @@ const migrations: Migration[] = [
       return applyReplacements(data, PI_SUBAGENT_ROLE_REPLACEMENTS);
     },
   })),
-  // M7: Attribute coder-review handoffs through verified Git evidence without forcing
-  // internal identifiers into commit subjects when repository policy forbids them.
+  // M7: Align coder-review commit attribution with repository policy.
   {
-    filePath: 'prompts/directives/coder-reviewer.md',
-    version: '2026.7.31',
-    format: 'text',
-    migrate(data: unknown): unknown {
-      if (typeof data !== 'string') return data;
-      return applyReplacements(data, CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS);
-    },
+    filePath: 'prompts/directives/coder-reviewer.md', version: '2026.7.31', format: 'text',
+    migrate: (data) => typeof data === 'string'
+      ? applyReplacements(data, CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS) : data,
+  },
+  // M8: Move stock manager task creation off shell-interpolated arguments.
+  {
+    filePath: 'prompts/directives/manager.md', version: '2026.7.31', format: 'text',
+    migrate: (data) => typeof data === 'string'
+      ? applyReplacements(data, MANAGER_TASK_FILE_REPLACEMENTS) : data,
   },
 ];
 
