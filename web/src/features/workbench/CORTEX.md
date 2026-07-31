@@ -65,15 +65,15 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |
 | session-id.test.ts | test | Unit tests for identifier rows |
-| RightPanel.tsx | view | Hosts work tabs with recent threads or notes |
+| RightPanel.tsx | view | Hosts work tabs with grouped threads or notes |
 | right-panel-vm.ts | vm | Formats task-linked thread and machine metadata |
 | right-panel-vm.test.ts | test | Tests task-linked thread and machine metadata |
 | RightThreadCard.tsx | view | Opens run, task and thread details from activity rows |
 | RightThreadCard.test.tsx | test | Tests waiting-task click delegation |
 | RightThreadCard.layout.test.tsx | test | Browser-checks long subtask row containment |
 | RightMachinesTab.tsx | view | Lists machines with status, GPUs and live runs |
-| scope.ts | util | Filters active, recent and historical threads |
-| scope.test.ts | test | Tests thread scopes and recent time windows |
+| scope.ts | util | Groups active and historical threads |
+| scope.test.ts | test | Tests fixed thread lifecycle groups |
 | useRecentNow.ts | hook | Ticks recent lists once per minute |
 | useRecentNow.test.ts | test | Tests recent-list timer and cleanup |
 | useThreadsLiveSync.ts | hook | Refreshes the thread list on thread events |

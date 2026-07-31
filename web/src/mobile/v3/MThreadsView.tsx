@@ -1,15 +1,15 @@
-// input:  thread DTOs, detail DTOs, segment state, mobile copy
-// output: mobile Threads header and pipeline cards
+// input:  thread groups, detail DTOs, budget state, mobile copy
+// output: grouped mobile Threads view and pipeline cards
 // pos:    Presentational mobile thread-list view
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 uses the approved raw visual tokens
-import { MTabHeader, MCard, MPill, MSegmented, statusPillTone, MC, MONO } from '@/mobile/ui/kit';
+import type { ReactNode } from 'react';
+import { MTabHeader, MCard, MGroupLabel, MPill, statusPillTone, MC, MONO } from '@/mobile/ui/kit';
 import type { ThreadInfo, ThreadDetail } from '@cortex-agent/ui-contract';
-import type { Scope } from '@/features/workbench/scope';
+import type { ThreadGroup } from '@/features/workbench/scope';
 import {
   pipelineSteps,
   runningMeta,
-  activeSegmentLabel,
   type MBudgetBand,
   type MPipelineStep,
 } from './m-threads-vm';
@@ -17,7 +17,6 @@ import {
 export interface MThreadsCopy {
   title: string;
   active: string;
-  recent: string;
   history: string;
   today: string;
   open: string;
@@ -31,8 +30,7 @@ export interface MThreadsCopy {
 }
 
 // Status → { pill tone, localized label } for a thread card (history shows terminal statuses too).
-// `waiting` = a manager suspended on its children → the amber "waiting" pill tone with the 等待子线程
-// label (NOT an approval block).
+// `waiting` covers any non-terminal pause normalized by the UI contract, not an approval block.
 function threadPill(status: ThreadInfo['status'], copy: MThreadsCopy): { tone: 'running' | 'waiting' | 'done' | 'failed' | 'cancelled'; label: string } {
   switch (status) {
     case 'running':
@@ -63,37 +61,16 @@ function NodeIcon({ color }: { color: string }) {
   );
 }
 
-// ── Header — MTabHeader(title, qn, trailing=segment, below=今日 budget band) ─────
-export function MThreadsHeader({
-  copy,
-  qn,
-  segment,
-  activeCount,
-  band,
-  onSegment,
-}: {
+// ── Header — MTabHeader(title, qn, below=今日 budget band) ─────────────────────
+export function MThreadsHeader({ copy, qn, band }: {
   copy: MThreadsCopy;
   qn?: string;
-  segment: Scope;
-  activeCount: number;
   band: MBudgetBand;
-  onSegment: (s: Scope) => void;
 }) {
   return (
     <MTabHeader
       title={copy.title}
       qn={qn}
-      trailing={
-        <MSegmented<Scope>
-          options={[
-            { id: 'active', label: activeSegmentLabel(copy.active, activeCount) },
-            { id: 'recent', label: copy.recent },
-            { id: 'history', label: copy.history },
-          ]}
-          value={segment}
-          onChange={onSegment}
-        />
-      }
       below={
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 9 }}>
           <span style={{ fontSize: 10, fontWeight: 600, color: MC.muted }}>{copy.today}</span>
@@ -107,6 +84,21 @@ export function MThreadsHeader({
       }
     />
   );
+}
+
+export function MThreadSections({ groups, copy, renderThread }: {
+  groups: ThreadGroup[];
+  copy: MThreadsCopy;
+  renderThread: (thread: ThreadInfo) => ReactNode;
+}) {
+  return <>{groups.map((group, index) => (
+    <section key={group.kind} style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <MGroupLabel style={{ padding: index === 0 ? '0 2px 2px' : '6px 2px 2px' }}>
+        {copy[group.kind]} · {group.threads.length}
+      </MGroupLabel>
+      {group.threads.map(renderThread)}
+    </section>
+  ))}</>;
 }
 
 // ── Horizontal pipeline (scheme L201–209) ─────────────────────────────────────

@@ -10,7 +10,6 @@ import {
   isLiveThread,
   pipelineSteps,
   runningMeta,
-  activeSegmentLabel,
 } from './m-threads-vm';
 
 // Neutral fixtures (守则11 — nimbus/atlas, no real project ids).
@@ -162,11 +161,5 @@ describe('runningMeta', () => {
   });
   it('omits the child count when there are none', () => {
     expect(runningMeta(info({}), detail({ totalCostUsd: 0.1, children: [] }), now, '子线程')).toBe('thr_1a2b · 42m · $0.10');
-  });
-});
-
-describe('activeSegmentLabel', () => {
-  it('appends the real active count', () => {
-    expect(activeSegmentLabel('活跃', 3)).toBe('活跃 3');
   });
 });

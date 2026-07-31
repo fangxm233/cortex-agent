@@ -1,5 +1,5 @@
 // input:  threads.list handler and mock domain stores
-// output: thread list filtering and summary contract regressions
+// output: thread list filtering, normalization and summary regressions
 // pos:    Verifies thread list projection and scoping
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -53,6 +53,17 @@ test('threads.list filters by status', async () => {
   const result = await handleThreadsList(makeDeps(), { status: ['running', 'completed'] });
   assert.equal(result.length, 2);
   assert.ok(result.every(t => t.status === 'running' || t.status === 'completed'));
+});
+
+test('threads.list normalizes rate_limited as waiting before filtering', async () => {
+  const rateLimited = { ...mockThreads[0], id: 'thr_rate', status: 'rate_limited' };
+  const deps = makeDeps({
+    threadStore: { getAll: () => [rateLimited], get: () => null },
+  });
+
+  const result = await handleThreadsList(deps, { status: ['waiting'] });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].status, 'waiting');
 });
 
 test('threads.list currentStep is correct', async () => {

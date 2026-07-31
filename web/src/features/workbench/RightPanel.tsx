@@ -1,4 +1,4 @@
-// input:  project data, recent thread scope, notes drawer state
+// input:  project data, grouped threads, notes drawer state
 // output: desktop right pane switching between work tabs and notes
 // pos:    Workbench right-side pane host
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -11,7 +11,7 @@ import { actionableOpenCount } from '@/features/tasks/group-tasks';
 import { RightThreadCard } from './RightThreadCard';
 import { RightMachinesTab } from './RightMachinesTab';
 import { formatCost, onlineMachineCount } from './right-panel-vm';
-import { recentTerminalThreads, threadScopeFilter, type Scope } from './scope';
+import { groupThreads, type ThreadGroup } from './scope';
 import { useRecentNow } from './useRecentNow';
 import { useThreadsLiveSync } from './useThreadsLiveSync';
 import { useCurrentProject } from './CurrentProjectProvider';
@@ -68,6 +68,30 @@ function TabButton({
   );
 }
 
+const THREAD_GROUP_LABEL_STYLE = {
+  fontSize: 11.5,
+  fontWeight: 700,
+  letterSpacing: '.06em',
+  textTransform: 'uppercase',
+  color: 'var(--proto-muted)',
+  padding: '8px 2px 4px',
+} as const;
+
+function ThreadGroupSection({ group, label, now }: {
+  group: ThreadGroup;
+  label: string;
+  now: number;
+}) {
+  return (
+    <section>
+      <div style={THREAD_GROUP_LABEL_STYLE}>{label} · {group.threads.length}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {group.threads.map((thread) => <RightThreadCard key={thread.id} thread={thread} now={now} />)}
+      </div>
+    </section>
+  );
+}
+
 export function RightPanel(): JSX.Element {
   const { isOpen } = useNotes();
   return isOpen ? <NotesPane /> : <RightWorkPanel />;
@@ -77,7 +101,6 @@ function RightWorkPanel(): JSX.Element {
   const L = useVocab();
   const trpc = useTRPC();
   const [tab, setTab] = useState<Tab>('threads');
-  const [filter, setFilter] = useState<Scope>('active');
   const now = useRecentNow(tab === 'threads');
 
   useThreadsLiveSync();
@@ -94,7 +117,8 @@ function RightWorkPanel(): JSX.Element {
   // Tab counts + lists are scoped to the shared cross-pane current project (threads/tasks both accept
   // projectId) so the panel shows only THIS project's threads and tasks. Machines are cross-project.
   const projectId = activeProjectId ?? undefined;
-  const activeThreadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter('active'), projectId }));
+  const threadsQuery = useQuery(trpc.threads.list.queryOptions({ projectId }));
+  const threadGroups = groupThreads(threadsQuery.data ?? []);
   // Same unfiltered query TasksPanel runs (identical input → react-query dedupes it, no extra
   // request), counted the same way, so the tab badge and the panel's chip can never disagree: both
   // are the open (not-done) count — in-progress dispatches, blocked, waiting-deps and pending
@@ -102,15 +126,10 @@ function RightWorkPanel(): JSX.Element {
   // truth beside the chip.
   const tasksQuery = useQuery(trpc.tasks.list.queryOptions({ ...(projectId ? { projectId } : {}) }));
   const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
-  const activeThreadCount = activeThreadsQuery.data?.length ?? 0;
+  const activeThreadCount = threadGroups.find((group) => group.kind === 'active')?.threads.length ?? 0;
   const openTaskCount = tasksQuery.data ? actionableOpenCount(tasksQuery.data) : 0;
   // Machines tab badge = ONLINE machines, not the total in the registry (task: show online count).
   const machineCount = onlineMachineCount(machinesQuery.data);
-
-  // Recent reuses the terminal query and applies its 24-hour window client-side.
-  const threadsQuery = useQuery(trpc.threads.list.queryOptions({ status: threadScopeFilter(filter), projectId }));
-  const listedThreads = threadsQuery.data ?? [];
-  const threads = filter === 'recent' ? recentTerminalThreads(listedThreads, now) : listedThreads;
 
   const todayCost = costQuery.data?.today;
   // GAP-B: no budget scope in the contract (CostSummary has `today`, no limit). Denominator + bar
@@ -178,90 +197,34 @@ function RightWorkPanel(): JSX.Element {
 
       {/* threads tab */}
       {tab === 'threads' && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 16px 0', flex: 'none' }}>
-            <div style={{ display: 'flex', background: 'var(--proto-line-2)', borderRadius: 7, padding: 2 }}>
-              <span
-                onClick={() => setFilter('active')}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: filter === 'active' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
-                  background: filter === 'active' ? 'var(--proto-card)' : 'transparent',
-                  borderRadius: 5,
-                  padding: '3px 10px',
-                  cursor: 'pointer',
-                  boxShadow: filter === 'active' ? '0 1px 2px rgba(16,24,40,.08)' : 'none',
-                }}
-              >
-                {L.active} {activeThreadCount}
-              </span>
-              <span
-                onClick={() => setFilter('recent')}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: filter === 'recent' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
-                  background: filter === 'recent' ? 'var(--proto-card)' : 'transparent',
-                  borderRadius: 5,
-                  padding: '3px 10px',
-                  cursor: 'pointer',
-                  boxShadow: filter === 'recent' ? '0 1px 2px rgba(16,24,40,.08)' : 'none',
-                }}
-              >
-                {L.recentDay}
-              </span>
-              <span
-                onClick={() => setFilter('history')}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: filter === 'history' ? 'var(--proto-ink)' : 'var(--proto-muted-2)',
-                  background: filter === 'history' ? 'var(--proto-card)' : 'transparent',
-                  borderRadius: 5,
-                  padding: '3px 10px',
-                  cursor: 'pointer',
-                  boxShadow: filter === 'history' ? '0 1px 2px rgba(16,24,40,.08)' : 'none',
-                }}
-              >
-                {L.history}
-              </span>
+        <div
+          style={{
+            flex: 1,
+            padding: '12px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            overflow: 'auto',
+            minHeight: 0,
+          }}
+        >
+          {threadGroups.map((group) => (
+            <ThreadGroupSection
+              key={group.kind}
+              group={group}
+              label={group.kind === 'active' ? L.active : L.history}
+              now={now}
+            />
+          ))}
+          {threadsQuery.isSuccess && threadGroups.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed var(--proto-line)', borderRadius: 10 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.rpNoActiveThreads}</div>
+              <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4, lineHeight: 1.6 }}>
+                {L.rpNoActiveThreadsHint}
+              </div>
             </div>
-          </div>
-          <div
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-              overflow: 'auto',
-              minHeight: 0,
-            }}
-          >
-            {threads.map((t) => (
-              <RightThreadCard key={t.id} thread={t} now={now} />
-            ))}
-            {threadsQuery.isSuccess && threads.length === 0 && filter === 'active' && (
-              <div style={{ textAlign: 'center', padding: '26px 12px', border: '1px dashed var(--proto-line)', borderRadius: 10 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-muted-2)' }}>{L.rpNoActiveThreads}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--proto-faint)', marginTop: 4, lineHeight: 1.6 }}>
-                  {L.rpNoActiveThreadsHint}
-                </div>
-              </div>
-            )}
-            {threadsQuery.isSuccess && threads.length === 0 && filter === 'recent' && (
-              <div style={{ textAlign: 'center', fontSize: 11.5, color: 'var(--proto-faint)', padding: '24px 0' }}>
-                {L.rpNoRecentThreads}
-              </div>
-            )}
-            {threadsQuery.isSuccess && threads.length === 0 && filter === 'history' && (
-              <div style={{ textAlign: 'center', fontSize: 11.5, color: 'var(--proto-faint)', padding: '24px 0' }}>
-                {L.rpNoFinishedThreads}
-              </div>
-            )}
-          </div>
-        </>
+          )}
+        </div>
       )}
 
       {/* tasks tab — design 4a: lifecycle groups with built-in Actionable/All filter */}

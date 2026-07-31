@@ -1,5 +1,5 @@
 // input:  UiServiceDeps, thread query params, task DTO mapper
-// output: task-linked thread detail with optional artifact text
+// output: normalized thread lists and task-linked detail
 // pos:    Thread list/detail query handlers
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -18,12 +18,11 @@ import type {
 } from '../types.js';
 import { toTaskInfo } from './tasks.js';
 
-// Detail status vocabulary matches ThreadInfo (6 values). ThreadRecord additionally has
-// 'rate_limited', which we collapse to 'waiting' so the frontend keeps one status set
-// (DR-0018 §6.3 B1 decision D1).
-type DetailStatus = ThreadInfo['status'];
-function mapStatus(status: string): DetailStatus {
-  return status === 'rate_limited' ? 'waiting' : (status as DetailStatus);
+// UI status vocabulary matches ThreadInfo (6 values). ThreadRecord additionally has
+// 'rate_limited', which list and detail collapse to 'waiting' for one frontend status set.
+type UiThreadStatus = ThreadInfo['status'];
+function mapStatus(status: string): UiThreadStatus {
+  return status === 'rate_limited' ? 'waiting' : (status as UiThreadStatus);
 }
 
 const OUTPUT_SUMMARY_MAX = 200;
@@ -48,7 +47,7 @@ export async function handleThreadsList(
   }
   if (status && status.length > 0) {
     const statusSet = new Set(status);
-    threads = threads.filter((t: any) => statusSet.has(t.status));
+    threads = threads.filter((t: any) => statusSet.has(mapStatus(t.status)));
   }
   // Session scoping: a thread spawned from a chat runs on that session's channel, so resolve the
   // session → channel and keep only threads on it. An unknown session (or one with no channel)
@@ -65,7 +64,7 @@ export async function handleThreadsList(
     currentStep: t.currentStepIndex != null
       ? { index: t.currentStepIndex, name: t.currentStepName || `step-${t.currentStepIndex}` }
       : null,
-    status: t.status,
+    status: mapStatus(t.status),
     projectId: t.projectId,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,

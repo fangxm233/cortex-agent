@@ -29,14 +29,8 @@ export function threadsBudgetBand(
 }
 
 // ── Live (non-terminal) thread test ───────────────────────────────────────────
-// `running` and `waiting` are both live, active threads that drill into the thread detail page
-// (/m/thread/:id) and warrant a per-card `threads.get` (pipeline / cost / child count). A `waiting`
-// thread is NOT an approval block — it is a manager SUSPENDED on its child threads/tasks (DR-0014
-// parent suspension; server headline "Thread suspended — waiting on N child(ren)"). The earlier
-// mapping (waiting → amber 等待审批 card → /m/approvals) conflated this with the separate approval
-// queue (approvals.list / APR-NNNN); there is no ThreadInfo field for an approval-blocked thread, so
-// the amber-approval variant is intentionally dropped (honest gap, 守则11). NOTE — the scheme's
-// "子线程 · 深度 N" variant is likewise not emitted: `ThreadInfo` carries no depth / parent field.
+// `running` and `waiting` are both active threads that drill into detail and warrant a per-card
+// `threads.get`. Waiting is a generic UI pause state, distinct from the approval queue.
 export function isLiveThread(status: ThreadInfo['status']): boolean {
   return status === 'running' || status === 'waiting';
 }
@@ -89,9 +83,4 @@ export function runningMeta(
     if (n > 0) parts.push(`${n} ${subthreadWord}`);
   }
   return parts.join(' · ');
-}
-
-/** 活跃 count for the segment label (real, from the active-status `threads.list`). */
-export function activeSegmentLabel(activeWord: string, count: number): string {
-  return `${activeWord} ${count}`;
 }

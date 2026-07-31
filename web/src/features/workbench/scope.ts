@@ -1,36 +1,47 @@
-// input:  Thread DTOs and active/recent/history scope
-// output: status filters and recent terminal threads
-// pos:    Shared desktop/mobile thread scope model
+// input:  Thread DTO lifecycle statuses
+// output: fixed active and history thread groups
+// pos:    Shared desktop/mobile thread grouping model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ThreadInfo } from '@cortex-agent/ui-contract';
 
-export type Scope = 'active' | 'recent' | 'history';
+export const THREAD_GROUP_ORDER = ['active', 'history'] as const;
+export type ThreadGroupKind = (typeof THREAD_GROUP_ORDER)[number];
 
-const RECENT_DAY_MS = 24 * 60 * 60 * 1000;
-const THREAD_ACTIVE = ['running', 'waiting'] as const;
-const THREAD_HISTORY = ['completed', 'failed', 'cancelled', 'aborted'] as const;
-const TERMINAL = new Set<ThreadInfo['status']>(THREAD_HISTORY);
-
-/** threads.list status filter: recent is a time-windowed subset of terminal history. */
-export function threadScopeFilter(scope: Scope): string[] {
-  return scope === 'active' ? [...THREAD_ACTIVE] : [...THREAD_HISTORY];
+export interface ThreadGroup {
+  kind: ThreadGroupKind;
+  threads: ThreadInfo[];
 }
 
-function recentTimestamp(value: string, now: number): number | null {
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return null;
-  const age = now - timestamp;
-  return age >= 0 && age <= RECENT_DAY_MS ? timestamp : null;
+const THREAD_STATUSES = [
+  'running',
+  'waiting',
+  'completed',
+  'failed',
+  'cancelled',
+  'aborted',
+] as const satisfies readonly ThreadInfo['status'][];
+
+const GROUP_BY_STATUS: Record<ThreadInfo['status'], ThreadGroupKind> = {
+  running: 'active',
+  waiting: 'active',
+  completed: 'history',
+  failed: 'history',
+  cancelled: 'history',
+  aborted: 'history',
+};
+
+/** Status filters for consumers that only need one lifecycle group. */
+export function threadScopeFilter(kind: ThreadGroupKind): ThreadInfo['status'][] {
+  return THREAD_STATUSES.filter((status) => GROUP_BY_STATUS[status] === kind);
 }
 
-/** Terminal threads updated within the last 24 hours, newest first. */
-export function recentTerminalThreads(threads: ThreadInfo[], now: number): ThreadInfo[] {
-  return threads
-    .map((thread) => ({ thread, timestamp: recentTimestamp(thread.updatedAt, now) }))
-    .filter((item): item is { thread: ThreadInfo; timestamp: number } => (
-      TERMINAL.has(item.thread.status) && item.timestamp !== null
-    ))
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .map((item) => item.thread);
+/** Bucket threads into fixed lifecycle sections while preserving input order. */
+export function groupThreads(threads: ThreadInfo[]): ThreadGroup[] {
+  return THREAD_GROUP_ORDER
+    .map((kind) => ({
+      kind,
+      threads: threads.filter((thread) => GROUP_BY_STATUS[thread.status] === kind),
+    }))
+    .filter((group) => group.threads.length > 0);
 }
