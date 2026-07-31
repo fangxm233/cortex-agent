@@ -1,12 +1,7 @@
-// input:  a system-notice payload (text + optional level/title) + a PlatformAdapter
-// output: publishSystemNotice (bus-only) + emitSystemNotice (platform post + bus publish)
-// pos:    domain/system — the single encapsulated seam for admin/system broadcasts
-//         (startup, restart, profile/config/machine hot-reload, disk, rate-limit). Reads the
-//         shared EventBus from the job-registry ctx (same seam session-events uses), so the
-//         `system.notice` event feeds the Web notification toaster while the platform post
-//         keeps delivering to the configured admin channel. Bus publish is a no-op if no bus
-//         is wired; the platform post is best-effort and never throws.
-// >>> If I am updated, update the parent folder's CORTEX.md <<<
+// input:  PlatformAdapter, notice payload, shared job context
+// output: Web event publication and best-effort platform delivery
+// pos:    Domain seam for admin and system broadcasts
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter } from '@platform/index.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
@@ -43,8 +38,8 @@ export async function emitSystemNotice(
 ): Promise<boolean> {
   publishSystemNotice(p);
   try {
-    await adapter.postMessage({ type: 'system-notice' }, { text: p.text });
-    return true;
+    const ref = await adapter.postMessage({ type: 'system-notice' }, { text: p.text });
+    return ref.conduit.length > 0;
   } catch {
     return false;
   }

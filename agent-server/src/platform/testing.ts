@@ -1,5 +1,5 @@
 // input:  platform adapter, message, and stream contracts
-// output: configurable MockAdapter and recorded operations
+// output: configurable MockAdapter with nullable admin routing
 // pos:    In-memory platform adapter for unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -210,7 +210,10 @@ export class MockAdapter implements PlatformAdapter {
       this.failPostMessageCount--;
       throw new Error('mock: postMessage transient failure');
     }
-    const channel = resolveDestinationConduit(destination, this._adminChannel);
+    if (destination.type === 'system-notice' && !this._adminChannel) {
+      return { conduit: '', messageId: '' };
+    }
+    const channel = resolveDestinationConduit(destination, this._adminChannel ?? undefined);
     const messageId = String(this.nextId++);
     this.posted.push({ destination, content, threadId: opts?.threadId });
     return { conduit: channel, messageId, threadId: opts?.threadId };
@@ -233,7 +236,10 @@ export class MockAdapter implements PlatformAdapter {
       this.failPostInteractiveCount--;
       throw new Error('mock: postInteractive transient failure');
     }
-    const channel = resolveDestinationConduit(destination, this._adminChannel);
+    if (destination.type === 'system-notice' && !this._adminChannel) {
+      return { conduit: '', messageId: '' };
+    }
+    const channel = resolveDestinationConduit(destination, this._adminChannel ?? undefined);
     const messageId = String(this.nextId++);
     this.posted.push({ destination, content, threadId: opts?.threadId, actions: content.actions });
     return { conduit: channel, messageId, threadId: opts?.threadId };

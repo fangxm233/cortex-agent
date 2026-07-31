@@ -1,5 +1,5 @@
 // input:  SlackAdapter, isolated config, mocked Slack client
-// output: conduit, admin persistence, and hot-routing regressions
+// output: conduit, persistence, and nullable hot-routing regressions
 // pos:    Verifies Slack adapter platform boundaries
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -164,6 +164,19 @@ test('SlackAdapter setAdminChannel routes subsequent notices to the new channel'
   await a.postMessage({ type: 'system-notice' }, { text: 'updated' });
 
   assert.equal(sentChannel, 'D_new');
+});
+
+test('SlackAdapter setAdminChannel null drops subsequent notices', async () => {
+  const a = makeAdapter();
+  a.config.adminChannel = 'D_old';
+  let postCalls = 0;
+  a.client = { chat: { postMessage: async () => { postCalls++; } } };
+
+  a.setAdminChannel(null);
+  const ref = await a.postMessage({ type: 'system-notice' }, { text: 'cleared' });
+
+  assert.deepEqual(ref, { conduit: '', messageId: '' });
+  assert.equal(postCalls, 0);
 });
 
 // ── onAction wraps channelId / messageRef.conduit / triggerId ──
