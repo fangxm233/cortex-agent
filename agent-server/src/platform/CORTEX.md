@@ -13,7 +13,7 @@ Concrete SDK integrations live in adapters/.
 | output-stream-helpers.ts | util | Posts a single message via a temporary stream |
 | interactive-builder.ts | builder | Builds question and plan approval components |
 | tool-trace.ts | ui | Renders settings-gated compact tool call traces |
-| testing.ts | testing | Records calls and supports live admin updates |
+| testing.ts | testing | Records calls and supports nullable admin updates |
 | adapters/ | subdir | Concrete platform adapter implementations |
 | tui/ | subdir | TUI wire protocol contract |
 | ui-http/ | subdir | Web UI HTTP and SSE transport host |
