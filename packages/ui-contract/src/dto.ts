@@ -1,5 +1,5 @@
 // input:  built UI-service declarations and cost types
-// output: browser DTO contract including project notes
+// output: browser DTO contract including writable settings
 // pos:    Shared server-to-client compile-time DTO boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -48,6 +48,7 @@ export type {
   TaskBlockArgs,
   BudgetValue,
   ProfilesValue,
+  SettingsValue,
   ConfigSetArgs,
   ApprovalsApproveArgs,
   ApprovalsRejectArgs,
@@ -94,6 +95,7 @@ export type {
   ExecutionInfo,
   ExecutionDetailInfo,
   ConfigSnapshot,
+  ConfigSettingEntry,
   ConfigHook,
   // hooks.* registry contract
   HooksOverview,

@@ -1,5 +1,5 @@
-// input:  runtime shared zod schema maps
-// output: scope completeness and project-notes input assertions
+// input:  runtime shared Zod schema maps
+// output: operation coverage and config-settings validation tests
 // pos:    Runtime UI-contract schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -176,6 +176,20 @@ test('config.set accepts valid budget / profiles sections and rejects illegal va
     mutateInputSchemas['config.set'].parse({ section: 'profiles', value: { defaultProfile: 'plan' } }),
     { section: 'profiles', value: { defaultProfile: 'plan' } },
   );
+  const settings = {
+    section: 'settings',
+    value: { turnNotify: false, taskDispatchMaxConcurrent: null, uiCorsOrigins: ['https://ui.example'] },
+  };
+  assert.deepEqual(mutateInputSchemas['config.set'].parse(settings), settings);
+  assert.throws(() => mutateInputSchemas['config.set'].parse({
+    section: 'settings', value: { unknownSetting: true },
+  }));
+  assert.throws(() => mutateInputSchemas['config.set'].parse({
+    section: 'settings', value: { turnNotify: 'false' },
+  }));
+  assert.throws(() => mutateInputSchemas['config.set'].parse({
+    section: 'settings', value: { turnNotify: undefined },
+  }));
   // negative / zero rejected
   assert.throws(() => mutateInputSchemas['config.set'].parse({ section: 'budget', value: { daily_usd: -1, monthly_usd: 2000 } }));
   // missing field rejected

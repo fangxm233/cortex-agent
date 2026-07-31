@@ -1,3 +1,8 @@
+// input:  isolated config home, config schemas and handlers
+// output: budget, profile, and runtime-settings mutation tests
+// pos:    Regression coverage for config.set writes and validation
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -61,6 +66,21 @@ test('configSetInput accepts a valid budget mutation', () => {
   assert.deepEqual(parsed.value, { daily_usd: 100, monthly_usd: 2000 });
 });
 
+test('configSetInput accepts partial settings and rejects unknown or wrongly typed keys', () => {
+  const value = {
+    turnNotify: false,
+    taskDispatchMaxConcurrent: null,
+    uiCorsOrigins: ['https://ui.example'],
+  };
+  const parsed = configSetInput.parse({ section: 'settings', value });
+  assert.equal(parsed.section, 'settings');
+  assert.deepEqual(parsed.value, value);
+  assert.throws(() => configSetInput.parse({ section: 'settings', value: { unknownSetting: true } }));
+  assert.throws(() => configSetInput.parse({ section: 'settings', value: { turnNotify: 'false' } }));
+  assert.throws(() => configSetInput.parse({ section: 'settings', value: { turnNotify: undefined } }));
+  assert.throws(() => configSetInput.parse({ section: 'settings', value: { uiCorsOrigins: [42] } }));
+});
+
 test('configSetInput rejects illegal values / shapes', () => {
   assert.throws(() => configSetInput.parse({ section: 'budget', value: { daily_usd: -5, monthly_usd: 2000 } }));
   assert.throws(() => configSetInput.parse({ section: 'budget', value: { daily_usd: 0, monthly_usd: 2000 } }));
@@ -85,6 +105,27 @@ test('handleConfigSet rejects an invalid budget with invalid-args (no write)', a
   assert.equal((result as any).code, 'invalid-args');
 });
 
+test('handleConfigSet rejects unknown and wrongly typed settings with invalid-args', async () => {
+  const unknown = await handleConfigSet(
+    makeMinimalDeps(),
+    { section: 'settings', value: { unknownSetting: true } } as any,
+  );
+  const wrongType = await handleConfigSet(
+    makeMinimalDeps(),
+    { section: 'settings', value: { turnNotify: 'false' } } as any,
+  );
+  const explicitUndefined = await handleConfigSet(
+    makeMinimalDeps(),
+    { section: 'settings', value: { turnNotify: undefined } } as any,
+  );
+  assert.equal(unknown.ok, false);
+  assert.equal(wrongType.ok, false);
+  assert.equal(explicitUndefined.ok, false);
+  if (!unknown.ok) assert.equal(unknown.code, 'invalid-args');
+  if (!wrongType.ok) assert.equal(wrongType.code, 'invalid-args');
+  if (!explicitUndefined.ok) assert.equal(explicitUndefined.code, 'invalid-args');
+});
+
 // ── facade + app-router wiring ──────────────────────────────────────
 test('config.set via facade writes to the isolated CONFIG_DIR and returns written', async () => {
   const ui = createUiService(makeMinimalDeps());
@@ -95,6 +136,29 @@ test('config.set via facade writes to the isolated CONFIG_DIR and returns writte
   const got = await ui.query('config.get', {});
   assert.ok(got.ok);
   assert.deepEqual(got.data.budget, { daily_usd: 55, monthly_usd: 1234 });
+});
+
+test('config.set settings atomically persists a partial object and config.get reports file source', async () => {
+  await fs.mkdir(CONFIG_DIR, { recursive: true });
+  await fs.writeFile(path.join(CONFIG_DIR, 'settings.json'), '{}', 'utf8');
+  const ui = createUiService(makeMinimalDeps());
+  const value = { turnNotify: false, uiCorsOrigins: ['https://ui.example'] };
+
+  const result = await ui.mutate('config.set', { section: 'settings', value });
+
+  assert.ok(result.ok);
+  assert.deepEqual(result.data, { written: true, section: 'settings' });
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(CONFIG_DIR, 'settings.json'), 'utf8')), value);
+  assert.deepEqual(
+    (await fs.readdir(CONFIG_DIR)).filter((name) => name.startsWith('settings.json.tmp.')),
+    [],
+  );
+  const got = await ui.query('config.get', {});
+  assert.ok(got.ok);
+  assert.deepEqual(
+    got.data.settings.find((entry) => entry.key === 'turnNotify'),
+    { key: 'turnNotify', value: false, source: 'file' },
+  );
 });
 
 // The tRPC router binding (invalid-args → TRPCError BAD_REQUEST) is covered in

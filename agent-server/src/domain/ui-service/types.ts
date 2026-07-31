@@ -1,5 +1,5 @@
-// input:  domain types, context/notices, stores, pending data
-// output: UI DTOs and operation maps including task readiness
+// input:  domain types, runtime settings, stores, pending data
+// output: UI DTOs/maps including task readiness and settings
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import type { Project, CreateProjectResult } from '@domain/projects/index.js';
 import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { EventBus } from '@events/index.js';
 import type { RunningExecutions } from '@core/running-executions.js';
+import type { Settings, SettingSnapshotEntry } from '@core/settings-spec.js';
 import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
 export type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
@@ -384,9 +385,12 @@ export interface ProfilesValue {
   defaultProfile: string;
 }
 
+export type SettingsValue = Partial<Settings>;
+
 export type ConfigSetArgs =
   | { section: 'budget'; value: BudgetValue }
-  | { section: 'profiles'; value: ProfilesValue };
+  | { section: 'profiles'; value: ProfilesValue }
+  | { section: 'settings'; value: SettingsValue };
 
 export interface ApprovalsApproveArgs {
   id: string;
@@ -908,6 +912,8 @@ export interface ConfigEnvEntry {
   masked: string;
 }
 
+export type ConfigSettingEntry = SettingSnapshotEntry;
+
 export interface ConfigHook {
   id: string;
   event: HookEvent;
@@ -1043,6 +1049,8 @@ export interface ConfigSnapshot {
   threadTemplates: ConfigThreadTemplates;
   hooks: ConfigHook[];
   env: ConfigEnvEntry[];
+  /** Always emitted by current servers; optional while clients and servers roll independently. */
+  settings?: ConfigSettingEntry[];
 }
 
 // ── machines.list DTO (plan §12 A item 1) ────────────────────────────────────
@@ -1340,7 +1348,7 @@ export interface ExecutionsCancelReturn {
 
 export interface ConfigSetReturn {
   written: true;
-  section: 'budget' | 'profiles';
+  section: 'budget' | 'profiles' | 'settings';
 }
 
 export interface ApprovalMutateReturn {
