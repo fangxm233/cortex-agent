@@ -16,9 +16,8 @@ import {
   MachinesPanel,
   TemplatesPanel,
   McpPanel,
-  NotificationsPanel,
-  AdvancedPanel,
 } from './SettingsPanels';
+import { AdvancedPanel, NotificationsPanel } from './RuntimeSettingsPanels';
 import { BudgetPanel } from './BudgetPanel';
 import { HooksPanel } from './HooksPanel';
 import { AppearancePanel } from './AppearancePanel';
@@ -26,7 +25,7 @@ import { AppearancePanel } from './AppearancePanel';
 // Settings modal (design 12a–g, prototype.dc.html L721–1088; proto-shot 14-settings.png). Rebuilt
 // 1:1 on Radix Dialog (focus trap / Esc-close / focus-restore + backdrop scrim). Header + 210px left
 // nav + var(--proto-alt) content area; 9 panels switch client-side. Real config.get data feeds every panel;
-// the Budget panel drives a real config.set write. Raw inline styles/px/hex/font per §8.3.
+// Budget and runtime-setting toggles drive config.set writes. Raw inline styles/px/hex/font per §8.3.
 
 const MONO = "'IBM Plex Mono',monospace";
 

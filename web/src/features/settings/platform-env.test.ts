@@ -1,6 +1,20 @@
+// input:  env and runtime-setting snapshot fixtures
+// output: settings-panel source-selection regressions
+// pos:    Verifies secret redaction and settings snapshot indexing
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import { describe, it, expect } from 'vitest';
-import type { ConfigEnvEntry } from '@cortex-agent/ui-contract';
-import { indexEnv, envRow, hasAnyKey, ENV_MASK } from './platform-env';
+import type { ConfigEnvEntry, ConfigSettingEntry } from '@cortex-agent/ui-contract';
+import {
+  indexEnv,
+  envRow,
+  hasAnyKey,
+  indexSettings,
+  getSetting,
+  ENV_MASK,
+  SLACK_KEYS,
+  FEISHU_KEYS,
+} from './platform-env';
 
 const env: ConfigEnvEntry[] = [
   { key: 'SLACK_BOT_TOKEN', present: true, masked: ENV_MASK },
@@ -39,5 +53,26 @@ describe('platform-env', () => {
     expect(hasAnyKey(env, 'FEISHU_')).toBe(false);
     // ANTHROPIC_BASE_URL is not present → but ANTHROPIC_API_KEY is
     expect(hasAnyKey(env, 'ANTHROPIC_')).toBe(true);
+  });
+
+  it('indexes effective settings values and provenance without consulting env presence', () => {
+    const settings: ConfigSettingEntry[] = [
+      { key: 'turnNotify', value: false, source: 'file' },
+      { key: 'eventLog', value: true, source: 'default' },
+      { key: 'adminChannel', value: 'C0123', source: 'env' },
+      { key: 'taskDispatchMaxConcurrent', value: null, source: 'default' },
+    ];
+    const idx = indexSettings(settings);
+
+    expect(getSetting(idx, 'turnNotify')).toEqual(settings[0]);
+    expect(getSetting(idx, 'eventLog')).toEqual(settings[1]);
+    expect(getSetting(idx, 'adminChannel')).toEqual(settings[2]);
+    expect(getSetting(idx, 'taskDispatchMaxConcurrent')).toEqual(settings[3]);
+    expect(getSetting(idx, 'notifyCompaction')).toBeUndefined();
+  });
+
+  it('does not list migrated admin channels as .env credential rows', () => {
+    expect(SLACK_KEYS).not.toContain('SLACK_ADMIN_CHANNEL');
+    expect(FEISHU_KEYS).not.toContain('FEISHU_ADMIN_CHANNEL');
   });
 });
