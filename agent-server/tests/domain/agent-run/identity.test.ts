@@ -28,47 +28,59 @@ const SHA_B = 'b'.repeat(64);
 const SHA_C = 'c'.repeat(64);
 const SHA_D = 'd'.repeat(64);
 
+function resolvedProfile(): FrozenIdentityInput['resolvedProfile'] {
+  return {
+    name: 'benchmark',
+    model: 'claude-sonnet',
+    backend: 'claude',
+    mode: 'plan',
+    provider: 'anthropic',
+    extraEnv: { ROUTE_HINT: 'primary' },
+    extraOption: { '--permission-mode': 'bypassPermissions' },
+    claudeBackend: 'print',
+    thinking: 'high',
+    fallback: [],
+  };
+}
+
+function roleToolSurface(): FrozenIdentityInput['roleToolSurface'] {
+  return {
+    systemPromptSha256: SHA_A,
+    directiveSha256: SHA_B,
+    tools: ['Write', 'Read'],
+    pluginDirs: [
+      { content_sha256: SHA_C, path: 'plugins/zeta' },
+      { content_sha256: SHA_D, path: 'plugins/core' },
+    ],
+    skills: [
+      { content_sha256: SHA_C, name: 'review' },
+      { content_sha256: SHA_D, name: 'develop' },
+    ],
+    mcpComposition: 'none',
+    hookPolicy: { lifecycle: 'disabled' },
+  };
+}
+
+function bundleManifest(): FrozenIdentityInput['bundleManifest'] {
+  return {
+    runConfig: { arm: 'direct', seed: 7 },
+    limits: { deadline_ms: 60_000, max_steps: 4 },
+    resolvedPaths: { cwd: '/workspace/task', trajectory_root: '/output/trajectory' },
+    adapterHashes: { source_sha256: SHA_A },
+    harnessHashes: null,
+  };
+}
+
 function frozenInput(): FrozenIdentityInput {
   return {
-    resolvedProfile: {
-      name: 'benchmark',
-      model: 'claude-sonnet',
-      backend: 'claude',
-      mode: 'plan',
-      provider: 'anthropic',
-      extraEnv: { ROUTE_HINT: 'primary' },
-      extraOption: { '--permission-mode': 'bypassPermissions' },
-      claudeBackend: 'print',
-      thinking: 'high',
-      fallback: [],
-    },
+    resolvedProfile: resolvedProfile(),
     modelExecution: {
       modelAliasPolicy: { aliases: { stable: 'claude-sonnet' }, policy: 'exact' },
       configuredRouteBaseHost: 'gateway.invalid',
       claudeCliVersion: '1.2.3',
     },
-    roleToolSurface: {
-      systemPromptSha256: SHA_A,
-      directiveSha256: SHA_B,
-      tools: ['Write', 'Read'],
-      pluginDirs: [
-        { content_sha256: SHA_C, path: 'plugins/zeta' },
-        { content_sha256: SHA_D, path: 'plugins/core' },
-      ],
-      skills: [
-        { content_sha256: SHA_C, name: 'review' },
-        { content_sha256: SHA_D, name: 'develop' },
-      ],
-      mcpComposition: 'none',
-      hookPolicy: { lifecycle: 'disabled' },
-    },
-    bundleManifest: {
-      runConfig: { arm: 'direct', seed: 7 },
-      limits: { deadline_ms: 60_000, max_steps: 4 },
-      resolvedPaths: { cwd: '/workspace/task', trajectory_root: '/output/trajectory' },
-      adapterHashes: { source_sha256: SHA_A },
-      harnessHashes: null,
-    },
+    roleToolSurface: roleToolSurface(),
+    bundleManifest: bundleManifest(),
   };
 }
 
@@ -100,6 +112,17 @@ it('hashes recursively sorted compact JSON independently of insertion order', ()
   };
   assert.equal(canonicalJsonSha256(first), canonicalJsonSha256(reordered));
   assert.notEqual(canonicalJsonSha256(first), canonicalJsonSha256({ ...reordered, unicode: 'ê' }));
+});
+
+it('serializes sparse array holes as null without bundle collisions', () => {
+  const sparse = new Array(1);
+  assert.equal(canonicalJsonSha256(sparse), canonicalJsonSha256([null]));
+  assert.notEqual(canonicalJsonSha256(sparse), canonicalJsonSha256([]));
+
+  const baseline = freezeIdentity(frozenInput());
+  const changedInput = cloneInput();
+  changedInput.bundleManifest.runConfig = sparse;
+  assertChangedOnly(baseline, freezeIdentity(changedInput), ['bundleManifestHash'], 'sparse array');
 });
 
 function modelIdentityInput(input = frozenInput()): ModelExecutionIdentityInput {

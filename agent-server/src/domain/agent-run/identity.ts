@@ -89,7 +89,10 @@ function canonicalPrimitive(value: unknown): string | undefined {
 }
 
 function canonicalArray(value: unknown[]): string {
-  const items = value.map(item => canonicalJson(item) ?? 'null');
+  const items = Array.from(
+    { length: value.length },
+    (_, index) => canonicalJson(value[index]) ?? 'null',
+  );
   return `[${items.join(',')}]`;
 }
 
