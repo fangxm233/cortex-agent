@@ -1,5 +1,5 @@
 {
   "name": "cortex-common",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Cortex cross-role skill bundle \u2014 critique / diagnosis / synthesis / design / debug primitives shared by multiple agents"
 }

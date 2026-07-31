@@ -1,13 +1,13 @@
-// input:  Node test runner + thread control plane (pendingControl) + abort + summary
-// output: peekPendingControl / clearPendingControl / abortThread state + preamble tests
-// pos:    Verify agent-initiated abort infrastructure (DR-0015 control plane — tool-driven)
+// input:  Vitest, thread control plane, abort, and summary
+// output: Abort lifecycle, pending control, and preamble regressions
+// pos:    Verifies agent-initiated abort and thread protocol behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { DATA_DIR } from '../src/core/utils.js';
+import { CONFIG_DIR, DATA_DIR } from '../src/core/utils.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
   abortThread,
@@ -19,6 +19,7 @@ import {
   clearPendingControl,
   listAgents,
   loadConfig,
+  mergeThreadTemplates,
   resolveAgentSlotConfig,
   THREAD_PROTOCOL_PREAMBLE,
 } from '../src/domain/threads/index.js';
@@ -38,6 +39,10 @@ beforeAll(() => {
     threadsBackup = null;
     threadsBackupExisted = false;
   }
+  mergeThreadTemplates(
+    path.resolve(process.cwd(), 'defaults/config/thread-templates'),
+    path.join(CONFIG_DIR, 'thread-templates'),
+  );
   loadConfig();
 });
 
@@ -271,6 +276,8 @@ test('THREAD_PROTOCOL_PREAMBLE teaches task-based delegation without the removed
   assert.match(THREAD_PROTOCOL_PREAMBLE, /thread_wait/);
   assert.match(THREAD_PROTOCOL_PREAMBLE, /thread_split/);
   assert.match(THREAD_PROTOCOL_PREAMBLE, /cortex-task spawn/);
+  assert.match(THREAD_PROTOCOL_PREAMBLE, /--task-file/);
+  assert.match(THREAD_PROTOCOL_PREAMBLE, /Write tool/);
   assert.doesNotMatch(THREAD_PROTOCOL_PREAMBLE, /thread_start/);
   assert.doesNotMatch(THREAD_PROTOCOL_PREAMBLE, /\[WAIT_CHILDREN\]/, 'must not instruct writing the old marker');
   // Acceptance-before-trust: child results must be verified against the contract.
