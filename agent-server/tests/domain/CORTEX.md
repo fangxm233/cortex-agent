@@ -4,7 +4,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 
 | filename | role | function |
 |---|---|---|
-| agent-run/ | subdir | run journal durability and validation |
+| agent-run/ | subdir | run journals, manifests and process containment |
 | agents/ | subdir | agent profile resolution and switching |
 | costs/ | subdir | cost attribution and summary reporting |
 | hook-view.test.ts | test | mount targets, result modes and apply time |
