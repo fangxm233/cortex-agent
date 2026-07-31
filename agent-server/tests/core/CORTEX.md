@@ -13,7 +13,7 @@ Core infrastructure tests: paths, config and profile generation, auth, locks, i1
 | i18n.test.ts | test | locale lookup, fallback, and table parity |
 | paths.test.ts | test | install, data, project, and workspace paths |
 | profile-generator.test.ts | test | profile generation and default choices |
-| settings-migration.test.ts | test | legacy env migration, backup, and idempotency |
+| settings-migration.test.ts | test | safe env migration, backup, modes, and idempotency |
 | settings.test.ts | test | settings parsing, env refresh, reload, and writes |
 | singleton-lock.test.ts | test | pidfile lock acquire, release, liveness |
 | status-format.test.ts | test | thread status message formatting |
