@@ -3,7 +3,7 @@
 // pos:    Runtime settings read/write surface for desktop settings
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ConfigSnapshot, ConfigSettingEntry } from '@cortex-agent/ui-contract';
 import { useToast } from '@/design';
@@ -69,24 +69,31 @@ const KEY: CSSProperties = {
   flex: 'none',
 };
 
-function useRuntimeSettingWrite(): {
+export interface RuntimeSettingWriter {
   pending: boolean;
   onToggle: (key: WritableSettingKey, nextValue: boolean) => void;
-} {
+}
+
+export function useRuntimeSettingWrite(): RuntimeSettingWriter {
   const L = useVocab();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [committing, setCommitting] = useState(false);
+  const committingRef = useRef(false);
   const mutation = useMutation(trpc.config.set.mutationOptions());
   const pending = committing || mutation.isPending;
+  const setPending = (value: boolean) => {
+    committingRef.current = value;
+    setCommitting(value);
+  };
   const onToggle = (key: WritableSettingKey, nextValue: boolean) => {
-    if (pending) return;
+    if (committingRef.current || mutation.isPending) return;
     void commitSettingToggle({
       set: (args) => mutation.mutateAsync(args),
       refresh: () => queryClient.invalidateQueries(trpc.config.get.queryFilter({})),
       onError: (message) => toast({ title: `${L.stToastWriteFailed}: ${message}`, tone: 'failed' }),
-      onPending: setCommitting,
+      onPending: setPending,
     }, key, nextValue);
   };
   return { pending, onToggle };
