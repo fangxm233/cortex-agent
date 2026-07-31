@@ -145,7 +145,7 @@ variable reference, file layout, and precedence rules are in
 | [Desktop & Android Apps](./docs/desktop-app.md) | Native installation, connection, downloads, and updates |
 | [Browser Access](./docs/browser-access.md) | Web workbench authentication and deployment |
 | [Slack Setup](./docs/slack-setup.md) | App creation, token collection, Socket Mode, scopes |
-| [Configuration](./docs/configuration.md) | Full `.env` reference, `profiles.json`, file layout, hot-reload |
+| [Configuration](./docs/configuration.md) | Full `.env` and `config/settings.json` reference, `profiles.json`, file layout, hot-reload |
 | [CLI Reference](./docs/cli-reference.md) | `cortex`, `cortex-task`, `cortex-run` — every subcommand and flag |
 | [Backends](./docs/backends.md) | Claude Code vs PI, feature matrix, fallback, cost reporting |
 | [Architecture](./docs/architecture.md) | Server layers, WS protocol, event bus |
