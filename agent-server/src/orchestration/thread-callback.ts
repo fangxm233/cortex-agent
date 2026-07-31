@@ -70,7 +70,7 @@ export function buildChildResultNotice(child: ThreadRecord): string {
   lines.push('Acceptance (mandatory — do NOT trust the child\'s self-reported summary):');
   lines.push('1. Read the actual deliverable; check it against done_when item by item; for code, run the tests.');
   lines.push('2. Passes → distill the key conclusions into your artifact and continue your plan.');
-  lines.push('3. Fails → write out the expected/actual gap and your failure hypothesis; if CORTEX_TASK_ID is set, create a replacement child with cortex-task spawn and call thread_wait; otherwise call thread_abort.');
+  lines.push('3. Fails → write out the expected/actual gap and your failure hypothesis; if CORTEX_TASK_ID is set, use the Write tool to stage child JSON at a per-task unique path, run cortex-task spawn --task-file <path>, and call thread_wait; otherwise call thread_abort.');
   lines.push('4. Cannot judge, or a directional question → call the thread_abort tool (with a one-line diagnosis) to escalate to your manager.');
   return lines.join('\n');
 }
@@ -372,6 +372,8 @@ export async function notifyThreadParent(childId: string, deps: { resume?: Resum
 
 // --- Task-children bridge (DR-0014 §8: resident manager waits on child TASKS) ---
 
+const SAFE_TASK_CHILD_CREATION = 'For verifier or replacement children, use the Write tool to stage JSON at a per-task unique path, then run cortex-task spawn --task-file <path>; never place task prose in shell arguments.';
+
 /** Child-task result notice delivered into a suspended manager's pendingMessages.
  *  completed → acceptance instructions (verify the deliverable, never the report);
  *  blocked → escalation instructions (the child cannot finish on its own). */
@@ -396,6 +398,7 @@ export function buildTaskResultNotice(task: Task, kind: 'completed' | 'blocked')
     lines.push('2. Fixable → cortex-task unblock and revise the task description/done_when, or rebuild a revised subtask (decompose --keep-parent), then call thread_wait.');
     lines.push('3. Beyond your authority or a directional question → call the thread_abort tool (with a one-line diagnosis) to escalate upward.');
   }
+  lines.push('', SAFE_TASK_CHILD_CREATION);
   return lines.join('\n');
 }
 

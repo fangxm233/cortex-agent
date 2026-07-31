@@ -117,7 +117,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-completion.test.ts | test | checks timestamps, repos, artifacts and Git types |
 | task-dispatch-hooks.test.ts | test | live/automatic limits, hooks and recovery |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
-| task-file-input.test.ts | test | task-file creation and prompt literal preservation |
+| task-file-input.test.ts | test | task-file CLI matrix, unique paths and literals |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
 | task-lifecycle.test.ts | test | task CLI argv parsing, guards and round-trips |
 | task-lint.test.ts | test | unknown template lint error gating |
@@ -130,7 +130,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
-| thread-callback-tree.test.ts | test | child to parent thread result delivery |
+| thread-callback-tree.test.ts | test | safe child results and parent re-entry |
 | thread-coder-review.e2e.test.ts | e2e | coder-review stages and commit evidence policy |
 | thread-contract.test.ts | test | delegation contracts and budget breaker |
 | thread-extra-hooks.test.ts | test | Covers lifecycle and per-call HookBus routing |
@@ -141,7 +141,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | thread-runner.test.ts | test | thread runner lifecycle and wait control |
 | thread-stages.test.ts | test | stage parsing and step prompt building |
 | thread-statusmsg-seal.test.ts | test | stale suspended status message refresh |
-| thread-task-bridge.test.ts | test | task terminal events wake waiting threads |
+| thread-task-bridge.test.ts | test | safe task results wake waiting managers |
 | thread-tree.test.ts | test | thread tree traversal and spawn guards |
 | thread-wait-checkpoint-gate.test.ts | test | wait rejected without an artifact edit |
 | thread-wait-children.test.ts | test | parent suspension on child threads |

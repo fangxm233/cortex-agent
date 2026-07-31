@@ -2,7 +2,7 @@
 name: task
 description: "MUST Use when adding, editing, querying, or managing cortex tasks — includes the execution-form triage (inline vs Agent-tool subagent vs task vs manager), task creation conventions (format, tagging, decomposition rules). MUST use before using cortex-task CLI."
 author: Cortex
-version: 2.1.1
+version: 2.1.2
 allowed-tools:
   - Read
   - Write
@@ -131,7 +131,7 @@ For incremental edits (only on `edit` / `batch-edit`):
 
 - `--dry-run` previews `stop` and `decompose` without mutating.
 - `add` / `spawn --task-file -` and `decompose --subtasks-file -` read JSON from stdin.
-- Autonomous agents MUST stage add/spawn task JSON with the Write tool and pass only its path to Bash; shell heredocs and inline task fields are forbidden.
+- Autonomous agents MUST stage add/spawn task JSON with the Write tool at a per-thread/session unique path, replace `<current-thread-or-session-id>` with the real ID, and pass only that path to Bash; shared filenames, shell heredocs, and inline task fields are forbidden.
 - All mutation commands return JSON (`task_id`, `agent`, `claimed_at`, …) on success.
 - `stop` accepts either the dispatch ID (`dispatch_xxx`) or the TASKS.yaml hash; project is auto-resolved from `pending-tasks.json`.
 
@@ -174,8 +174,8 @@ cortex-task lock-acquire --project foo --note "splitting EXP-017 task"
 
 # 2. Edit/add tasks
 cortex-task edit --project foo --task-id ab12 --done-when "..."
-# First stage /tmp/foo-task.json with the Write tool.
-cortex-task add --project foo --task-file /tmp/foo-task.json
+# Replace the marker with the real thread/session ID, then stage this path with the Write tool.
+cortex-task add --project foo --task-file /tmp/cortex-task-<current-thread-or-session-id>.json
 
 # 3. Release lock
 cortex-task lock-release --project foo
@@ -199,7 +199,7 @@ Examples:
 - Claim: `cortex-task claim --project <project> --task-id <id> --agent cortex-<machine>`
 - Complete: `cortex-task complete --project <project> --task-id <id> --note "Verified via smoke test"`
 - Block: `cortex-task block --project <project> --task-id <id> --reason "waiting for approval"`
-- Add: use the Write tool to create `/tmp/task.json` containing `{"text":"Run ablation","why":"Isolate depth-sensor contribution","done-when":"Results in EXP-017.md","plan":"context/projects/<project>/experiments/EXP-017.md","priority":"high","template":"<name>"}`, then run `cortex-task add --project <project> --task-file /tmp/task.json`
+- Add: replace `<current-thread-or-session-id>` with the real ID, use the Write tool to create `/tmp/cortex-task-<current-thread-or-session-id>.json` containing `{"text":"Run ablation","why":"Isolate depth-sensor contribution","done-when":"Results in EXP-017.md","plan":"context/projects/<project>/experiments/EXP-017.md","priority":"high","template":"<name>"}`, then run `cortex-task add --project <project> --task-file /tmp/cortex-task-<current-thread-or-session-id>.json`
 - Set deps: `cortex-task edit --project <project> --task-id <id> --depends-on a111 a112` (replaces full list)
 - Append a dep: `cortex-task edit --project <project> --task-id <id> --add-depends-on a113`
 - Assign IDs: `cortex-task assign-ids --project <project>`
