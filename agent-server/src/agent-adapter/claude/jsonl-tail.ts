@@ -1,7 +1,7 @@
-// input:  Path to Claude session jsonl file, raw jsonl entries
-// output: JsonlTail (file watcher emitting raw events) + JsonlEventNormalizer (raw → NormalizedEvent)
-// pos:    DR-0012 Phase 1 — bridges Claude's interactive-mode jsonl transcript to Cortex's NormalizedEvent stream
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Claude transcript paths and JSONL records
+// output: transcript tailer and normalized events
+// pos:    Claude transcript event normalizer
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { EventEmitter } from 'node:events';
 import * as fs from 'fs';
@@ -93,10 +93,15 @@ export class JsonlEventNormalizer {
       this.turnCount += 1;
     }
 
+    const model = typeof msg.model === 'string' ? msg.model : undefined;
     for (const block of (msg.content || [])) {
       if (!block || typeof block !== 'object') continue;
       if (block.type === 'text' && typeof block.text === 'string' && block.text.length > 0) {
-        events.push({ type: 'assistant_text', text: block.text, blockId: typeof block.id === 'string' ? block.id : msgId });
+        events.push({
+          type: 'assistant_text', text: block.text,
+          blockId: typeof block.id === 'string' ? block.id : msgId,
+          ...(model !== undefined ? { model } : {}),
+        });
       } else if (block.type === 'tool_use') {
         const toolUseId = typeof block.id === 'string' ? block.id : '';
         const name = typeof block.name === 'string' ? block.name : '?';

@@ -1,7 +1,7 @@
-// input:  Node test runner + agent-adapter/claude/jsonl-tail module
-// output: JsonlEventNormalizer (pure) + JsonlTail (integration with real tmpfile) tests
-// pos:    DR-0012 Phase 1 — jsonl translation + file-watcher regression spec
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  transcript normalizer and temporary files
+// output: transcript event and reported-model regressions
+// pos:    Covers Claude transcript normalization
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -28,8 +28,21 @@ test('Normalizer emits assistant_text per text block', () => {
     },
   });
   const texts = out.filter(e => e.type === 'assistant_text');
-  assert.equal(texts.length, 1);
-  assert.equal((texts[0] as any).text, 'hello world');
+  assert.deepEqual(texts, [{
+    type: 'assistant_text', text: 'hello world', blockId: 'msg_aaa',
+    model: 'claude-sonnet-4-5-20250929',
+  }]);
+});
+
+test('Normalizer leaves the assistant model absent when Claude does not report one', () => {
+  const n = new JsonlEventNormalizer();
+  const out = n.consume({
+    type: 'assistant',
+    message: { id: 'msg_no_model', content: [{ type: 'text', text: 'hello' }] },
+  });
+  assert.deepEqual(out.filter((event) => event.type === 'assistant_text'), [
+    { type: 'assistant_text', text: 'hello', blockId: 'msg_no_model' },
+  ]);
 });
 
 test('Normalizer emits tool_use with id/name/input', () => {
