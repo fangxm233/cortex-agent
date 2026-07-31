@@ -1,4 +1,4 @@
-# 快速入门指南用图（中文版）
+# 快速入门指南用图（中文版） {#images-for-quickstart-guide-chinese}
 
 将以下截图放入此目录。推荐格式：PNG，Retina 显示屏用 2x 分辨率，宽度 1200-1600px。
 

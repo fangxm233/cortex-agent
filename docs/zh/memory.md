@@ -1,15 +1,15 @@
-# Cortex 内存系统
+# Cortex 内存系统 {#cortex-memory-system}
 
 
 Cortex 将所有知识以原子化、带索引的 markdown 文件存储在文件系统中——即 **Dense Context** 结构（DR-0007）。没有向量数据库、没有 RAG 管道、没有外部知识存储。文件系统就是数据库。关于这如何融入更广泛的系统架构，参见 [architecture.md](./architecture.md)。
 
-## 为什么使用原子化内存
+## 为什么使用原子化内存 {#why-atomized-memory}
 
 核心洞察（来自 DR-0007）是单体上下文文件无法扩展。单个 `EXPERIMENTS.md` 文件无限增长，使其加载到智能体上下文时代价高昂且难以搜索。解决方案是将每个实验、知识条目和模式原子化为自己的文件，并带有自动生成的索引以便快速查找。
 
 此设计借鉴了学术工作：Du 2026 的智能体内存模式调查，QMatSuite 的分层知识层次（finding → pattern → principle），以及 A-MEM 的带动态链接的原子笔记（100 万条记忆时检索时间 < 4μs）。
 
-## 目录布局
+## 目录布局 {#directory-layout}
 
 知识根目录是 `~/.cortex/context/`，结构如下：
 
@@ -45,9 +45,9 @@ context/
             └── access-log.jsonl # 自动追踪的 Read/Grep 访问日志
 ```
 
-## 三种原子类型
+## 三种原子类型 {#the-three-atom-types}
 
-### 实验（EXP-NNN.md）
+### 实验（EXP-NNN.md） {#experiments-exp-nnnmd}
 
 每个实验是一个记录单次调查的原子文件。实验记录做了什么、观察到了什么、得出了什么结论以及后续应该改变什么。
 
@@ -88,7 +88,7 @@ last-ref: "2026-04-16T03:12:21.074Z"
 | `invalidated` | 被证明错误，已墓碑化 |
 | `stale` | 无活动，引用计数为零 |
 
-### 知识条目（K-NNN.md）
+### 知识条目（K-NNN.md） {#knowledge-entries-k-nnnmd}
 
 知识条目是从实验中提炼的原子事实、反模式或启发式。每个条目必须在 `evidence` 字段中引用其来源实验。
 
@@ -111,7 +111,7 @@ last-ref: "2026-04-10T20:42:00.826Z"
 
 **反模式约定：** 描述反模式的知识条目在摘要前加 `ANTI-PATTERN:` 并在 tags 中包含 `anti-pattern`。
 
-### 模式（PAT-NNN.md）
+### 模式（PAT-NNN.md） {#patterns-pat-nnnmd}
 
 模式综合了跨多个实验的不变量。模式陈述一个在一组实验中成立的可重用观察。
 
@@ -135,7 +135,7 @@ last-ref: "2026-04-16T03:16:28.890Z"
 
 **正文结构：** Observation、Evidence（引用带具体发现的实验表格）、Pattern Statement、Scope & Limitations、Implications。
 
-## 索引自动生成
+## 索引自动生成 {#index-auto-generation}
 
 项目下的每个目录（`experiments/`、`knowledge/`、`patterns/`）都有一个由 `memory-index-regen` 作业自动生成的 `index.md`。索引文件包含警告：
 
@@ -163,7 +163,7 @@ cd agent-server && node --import tsx src/memory-index-regen.ts <project-name>
 
 重建过程读取所有原子文件的 YAML frontmatter，从当前索引中提取 `refs` 和 `last-ref` 以保留访问追踪，并写入新索引。
 
-## 访问追踪
+## 访问追踪 {#access-tracking}
 
 Cortex 自动追踪研究期间访问了哪些实验、知识和模式文件。这通过 `~/.cortex/hooks/memory-ref-tracker.mjs` 中的 Claude Code `PostToolUse` 钩子实现（完整钩子系统参见 [hooks.md](./hooks.md)）。
 
@@ -180,31 +180,31 @@ Cortex 自动追踪研究期间访问了哪些实验、知识和模式文件。�
 
 index.md 中的引用计数（`refs`）由 `memory-index-regen` 基于这些访问日志更新——研究期间频繁读取的文件获得更高的引用计数并在索引中排名更高。
 
-## 项目日志文件
+## 项目日志文件 {#project-log-files}
 
 每个项目都有一组治理文件，共同构成其运行内存：
 
-### mission.md — 宪章
+### mission.md — 宪章 {#missionmd-the-constitution}
 
 定义项目的目标、成功条件和范围边界。此文件是稳定的，只应在明确的用户批准下更改。它回答：我们试图实现什么，以及我们如何知道已经成功？
 
-### roadmap.md — 里程碑地图
+### roadmap.md — 里程碑地图 {#roadmapmd-milestone-map}
 
 分层阶段，每个阶段包含带可测试清单条件的里程碑。已完成的里程碑保留打勾标记（不删除）。路线图显示项目去过哪里、现在在哪里以及要去哪里。
 
-### STATUS.md — 当前快照
+### STATUS.md — 当前快照 {#statusmd-current-snapshot}
 
 一个覆盖式（不是仅追加）文件，捕获当前状态，上限 120 行。必需部分：当前阶段、近期进展、开放阻塞、下一步。这是在一段时间后恢复项目工作时首先阅读的文件。
 
-### ISSUES.md — 执行摩擦
+### ISSUES.md — 执行摩擦 {#issuesmd-execution-friction}
 
 一个仅追加的日志，记录减慢工作的问题，上限 80 行。每个条目有带日期的标题和要点列表：问题、何时发生、调查过程。已解决的问题从文件中删除（不归档）。
 
-### decisions/ — 决策记录
+### decisions/ — 决策记录 {#decisions-decision-records}
 
 每个决策是一个文件，命名为 `NNNN-title.md`。格式遵循项目决策记录模板：Date、Status、Context、Alternatives（至少 2 个）、Decision、Consequences。
 
-## Dense Context 约定
+## Dense Context 约定 {#dense-context-conventions}
 
 Dense Context 系统遵循以下运行约定：
 
@@ -214,11 +214,11 @@ Dense Context 系统遵循以下运行约定：
 4. **来源强制** — 每个事实声明必须追溯到特定的 EXP-NNN、K-NNN、file:line 或内联计算
 5. **Git 作为持久化** — 所有上下文更新通过 git 增量提交，在每逻辑工作单元后
 
-## 全新会话测试
+## 全新会话测试 {#fresh-session-test}
 
 Dense Context 质量的酸性测试：如果你启动一个仅对仓库有读取权限的全新会话，你能学到上一个会话知道的所有信息吗？如果答案是否定的，说明有内容未被正确记录。
 
-## 内存索引重建作业
+## 内存索引重建作业 {#memory-index-regeneration-job}
 
 `memory-index-regen` 程序化调度器作业（通过 `job-registry.ts` 注册，通常由 `dispatchType: "memory-index-regen"` 的调度触发）从 YAML frontmatter 重建所有索引文件。它：
 
@@ -227,7 +227,7 @@ Dense Context 质量的酸性测试：如果你启动一个仅对仓库有读取
 3. 保留当前索引中已有的 `refs` 和 `last-ref`
 4. 写入更新后的 `index.md` 文件
 
-## 生命周期：实验维护
+## 生命周期：实验维护 {#lifecycle-experiment-maintenance}
 
 `experiment-maintenance` 技能对实验文件运行周期性检查：
 
@@ -236,7 +236,7 @@ Dense Context 质量的酸性测试：如果你启动一个仅对仓库有读取
 - 检查 frontmatter 有效性
 - 建议相关实验的合并机会
 
-## 规模
+## 规模 {#scale}
 
 截至上次索引重建，系统在 9 个项目中共追踪：
 

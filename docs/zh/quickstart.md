@@ -1,10 +1,10 @@
-# 快速入门
+# 快速入门 {#quickstart}
 
 从零开始，大约 5 分钟内让 Cortex 智能体在聊天工具中回复你，其中大部分时间是在等待 `npm` 安装和填写聊天平台的应用创建页面。
 
 Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同时运行两者。`cortex init` 几乎完成所有工作。你不需要手动编辑任何配置文件。本指南告诉你每个提示的预期内容，并精确指示界面中的操作位置。
 
-## 前置条件
+## 前置条件 {#prerequisites}
 
 - **Node.js ≥ 20**（Cortex 本身要求 20+；捆绑的编程智能体后端推荐 22）。
 - **一个 Slack 工作区或一个飞书（Lark）组织**，你可以在其中创建应用。
@@ -12,7 +12,7 @@ Cortex 通过 Slack 或飞书（Lark）与你对话——任选其一，或同�
 
 你**不需要**预先安装 `claude`（Claude Code）或 `pi`（pi-coding-agent）。不需要预先安装 `git`。不需要预先创建任何目录或 env 文件。`cortex init` 会为你安装所有这些。
 
-### 检查 Node.js 版本
+### 检查 Node.js 版本 {#checking-your-nodejs-version}
 
 打开终端，运行：
 
@@ -24,7 +24,7 @@ node --version
 
 
 
-### 安装 Node.js
+### 安装 Node.js {#installing-nodejs}
 
 **macOS（Homebrew）：**
 
@@ -58,7 +58,7 @@ node --version   # 应输出 v22.x.y 或 v20.x.y
 npm --version    # 应输出 10.x.y 或更高
 ```
 
-## 第一步 — 安装 Cortex
+## 第一步 — 安装 Cortex {#step-1-install-cortex}
 
 ```bash
 npm install -g @cortex-agent/server
@@ -76,7 +76,7 @@ source ~/.bashrc
 npm install -g @cortex-agent/server
 ```
 
-## 第二步 — 运行设置向导
+## 第二步 — 运行设置向导 {#step-2-run-the-setup-wizard}
 
 ```bash
 cortex init
@@ -84,7 +84,7 @@ cortex init
 
 向导会遍历以下提示。默认值都是合理的；按回车接受即可。以下是每个提示的作用及如何回答。
 
-### 2.1 选择语言
+### 2.1 选择语言 {#21-which-language}
 
 ```
 Select language / 选择语言
@@ -94,7 +94,7 @@ Select language / 选择语言
 
 第一个提示选择 Cortex 用于系统生成消息以及本向导其余部分的语言。它默认采用你的系统区域设置，所以中文系统会预选 中文。该选择会保存到 `config/preferences.json`，之后可通过 `!lang` 命令更改。
 
-### 2.2 选择后端
+### 2.2 选择后端 {#22-which-backends}
 
 ```
 ? 你想使用哪些编程智能体后端？
@@ -107,7 +107,7 @@ Select language / 选择语言
 
 你可以两者都选。Cortex 会在下一步对你选择的每个后端运行 `npm install -g`。
 
-### 2.3 选择交互平台
+### 2.3 选择交互平台 {#23-which-interaction-platforms}
 
 ```
 ? 你想使用哪些交互平台？（空格切换，回车确认，留空跳过）
@@ -119,25 +119,25 @@ Select language / 选择语言
 
 留空则跳过平台设置。稍后可通过 `cortex init --force` 或编辑 `$CORTEX_HOME/config/.env` 来配置某个平台。
 
-### 2.4 Slack 应用设置（在浏览器中逐步操作）
+### 2.4 Slack 应用设置（在浏览器中逐步操作） {#24-slack-app-setup-step-by-step-in-the-browser}
 
 如果你没有选择 Slack，跳过本节。
 
 Cortex 首先打印完整的 **Slack 应用清单**，并询问是否要复制到剪贴板。按 **c** 键 — 清单 JSON 现在已复制到剪贴板。
 
 
-#### a) 打开 Slack API 应用页面
+#### a) 打开 Slack API 应用页面 {#a-open-the-slack-api-apps-page}
 
 前往 **[https://api.slack.com/apps](https://api.slack.com/apps)**。
 
 
-#### b) 从清单创建新应用
+#### b) 从清单创建新应用 {#b-create-a-new-app-from-manifest}
 
 点击绿色的 **Create New App** 按钮，然后点击 **From a manifest**。如果还没有工作区，需要先创建一个。
 
 ![Create New App → From a manifest](./images/slack-create-from-manifest.png)
 
-#### c) 选择工作区并粘贴清单
+#### c) 选择工作区并粘贴清单 {#c-pick-your-workspace-and-paste-the-manifest}
 
 1. 从下拉菜单中选择你的 Slack 工作区。
 2. 将清单 JSON 粘贴到文本区域（Ctrl+V / Cmd+V）。清单已由 `cortex init` 复制到剪贴板，直接粘贴即可。
@@ -146,7 +146,7 @@ Cortex 首先打印完整的 **Slack 应用清单**，并询问是否要复制�
 
 ![粘贴清单并选择工作区](./images/slack-paste-manifest.png)
 
-#### d) 复制 Signing Secret
+#### d) 复制 Signing Secret {#d-copy-the-signing-secret}
 
 创建完成后，Slack 会将你带到应用的 **Basic Information** 页面。在 **App Credentials** 下方，找到 **Signing Secret**。点击 **Show** 并复制。
 
@@ -154,7 +154,7 @@ Cortex 首先打印完整的 **Slack 应用清单**，并询问是否要复制�
 
 ![复制 Signing Secret](./images/slack-signing-secret.png)
 
-#### e) 生成 App-Level Token（xapp-…）
+#### e) 生成 App-Level Token（xapp-…） {#e-generate-the-app-level-token-xapp-}
 
 在同一 **Basic Information** 页面向下滚动到 **App-Level Tokens** 部分。点击 **Generate Token and Scopes**。
 
@@ -168,7 +168,7 @@ Cortex 首先打印完整的 **Slack 应用清单**，并询问是否要复制�
 
 ![生成 App-Level Token](./images/slack-app-token.png)
 
-#### f) 安装到工作区并复制 Bot Token（xoxb-…）
+#### f) 安装到工作区并复制 Bot Token（xoxb-…） {#f-install-to-workspace-and-copy-the-bot-token-xoxb-}
 
 在左侧边栏中点击 **OAuth & Permissions**。滚动到 **OAuth Tokens** 部分，点击 **Install to Workspace**。在授权页面上点击 **Allow**。
 
@@ -180,7 +180,7 @@ Cortex 首先打印完整的 **Slack 应用清单**，并询问是否要复制�
 
 ![复制 Bot User OAuth Token](./images/slack-bot-token.png)
 
-#### g) 启用 Messages Tab
+#### g) 启用 Messages Tab {#g-enable-the-messages-tab}
 
 在左侧边栏中点击 **App Home**。向下滚动到 **Show Tabs** 部分：
 
@@ -192,23 +192,23 @@ Cortex 首先打印完整的 **Slack 应用清单**，并询问是否要复制�
 
 ![在 App Home 中启用 Messages Tab](./images/slack-messages-tab.png)
 
-#### h) 管理频道
+#### h) 管理频道 {#h-admin-channel}
 
 Cortex 会把启动通知、审批请求和其他运维消息发送到管理频道。设置过程中无需输入任何内容——Cortex 会在你第一次给机器人发私信时自动检测管理频道并持久化。
 
 如果你想把管理消息发送到指定频道（例如共享的运维频道），从 Slack 获取频道 ID（右键点击频道名称 → View channel details → 在对话框底部复制 Channel ID），然后在 `$CORTEX_HOME/config/settings.json` 中设置 `adminChannel` 键（见 [configuration.md](./configuration.md#configsettingsjson)）。`.env` 中的旧变量 `SLACK_ADMIN_CHANNEL` / `CORTEX_ADMIN_CHANNEL` 仍作为已弃用的回退可用。
 
-### 2.5 飞书应用设置（在浏览器中逐步操作）
+### 2.5 飞书应用设置（在浏览器中逐步操作） {#25-feishu-app-setup-step-by-step-in-the-browser}
 
 如果你没有选择飞书，跳过本节。Cortex 会打印设置指南，然后收集你的应用凭据。
 
-#### a) 创建飞书应用
+#### a) 创建飞书应用 {#a-create-a-feishu-app}
 
 前往 **[https://open.feishu.cn/app](https://open.feishu.cn/app)**，点击 **创建 agentic 应用**（Create Agentic App）。输入应用名称（例如 `CortexAgent`），选择头像，然后点击 **创建**。
 
 ![创建飞书智能体应用](./images/feishu-create-agentic-app.png)
 
-#### b) 复制 App ID 和 App Secret
+#### b) 复制 App ID 和 App Secret {#b-copy-the-app-id-and-app-secret}
 
 创建后，应用页面会显示 **App ID** 和 **App Secret**。复制它们。
 
@@ -216,11 +216,11 @@ Cortex 会把启动通知、审批请求和其他运维消息发送到管理频�
 
 回到终端，在 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET` 提示处粘贴。
 
-#### c) 订阅消息事件
+#### c) 订阅消息事件 {#c-subscribe-to-message-events}
 
 在应用的事件配置中，启用机器人事件并订阅 **`im.message.receive_v1`**。如果不订阅，机器人永远收不到你的消息。
 
-#### d) 域名（可选）
+#### d) 域名（可选） {#d-domain-optional}
 
 ```
 ? FEISHU_DOMAIN（可选，"feishu" 或 "lark"）：
@@ -229,7 +229,7 @@ Cortex 会把启动通知、审批请求和其他运维消息发送到管理频�
 
 输入 `feishu` 使用飞书（中国大陆）域名，或输入 `lark` 使用国际 Lark 域名。留空则使用默认值。
 
-#### e) 文档操作的身份
+#### e) 文档操作的身份 {#e-identity-for-document-operations}
 
 ```
 ? MCP 文档操作的身份：
@@ -241,25 +241,25 @@ Cortex 的 MCP 工具可以创建和编辑飞书文档（docx、wiki、bitable�
 
 如果选择 **user**，`cortex init` 会立即运行飞书用户登录（OAuth 设备流程），让你一次性完成授权。它会打印一个 URL——在任意浏览器中打开，批准访问，Cortex 会自动轮询获取令牌，无需重定向 URI。如果你跳过或中止登录，凭据仍会被保存，之后可用 `cortex feishu login` 完成授权。
 
-### 2.6 机器名称
+### 2.6 机器名称 {#26-machine-name}
 
 默认为你的主机名。除非你想要自定义标签，否则直接按回车。
 
-### 2.7 GPU 检测
+### 2.7 GPU 检测 {#27-gpu-detection}
 
 Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA GPU，它会打印 0 — 对于大多数使用场景完全没问题。
 
-### 2.8 aistatus 令牌使用报告？
+### 2.8 aistatus 令牌使用报告？ {#28-aistatus-token-usage-reporting}
 
 可选的，选择是否在 [aistatus.cc](https://aistatus.cc) 的公共排行榜上分享匿名令牌计数。如果选择是，需提供姓名、组织和邮箱（邮箱仅用于身份识别，不会显示）。
 
-### 2.9 注册为系统服务？
+### 2.9 注册为系统服务？ {#29-register-as-a-system-service}
 
 - **macOS** — 在 `~/Library/LaunchAgents/com.cortex.daemon.plist` 创建 `launchd` plist。守护进程在登录时自动启动。
 - **Linux** — 创建 `systemd --user` 单元（无需 `sudo`）。守护进程在登录时自动启动。
 - **Windows** — 不支持。需手动运行 `cortex daemon`。
 
-### 2.10 自动检测后端用于网关/配置？
+### 2.10 自动检测后端用于网关/配置？ {#210-auto-detect-backends-for-gatewayprofiles}
 
 如果你已在其他终端中登录过后端，回答 **Yes**。Cortex 会扫描你的 `~/.claude/.credentials.json` 和 `~/.pi/agent/` 来发现端点，并让你选择哪个发现的（mode, model）对成为 `plan` 配置（由执行智能体使用——planner、doc-writer、coder 等），哪个成为 `execute` 配置（由审查智能体使用）。
 
@@ -271,7 +271,7 @@ Cortex 运行 `nvidia-smi` 并打印数量。无需输入。如果没有 NVIDIA 
 
 你也可以稍后通过 `cortex setup-gateway` 运行此步骤。
 
-### 2.11 后端登录过期怎么办
+### 2.11 后端登录过期怎么办 {#211-when-the-backend-login-expires}
 
 后端凭据会在一段时间后过期。过期后智能体运行会失败并报认证错误，例如：
 
@@ -294,7 +294,7 @@ Re-authenticate to continue.
 Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 ```
 
-## `cortex init` 创建了什么
+## `cortex init` 创建了什么 {#what-cortex-init-created}
 
 所有内容都位于 `CORTEX_HOME`（默认 `~/.cortex/`）下：
 
@@ -341,7 +341,7 @@ Cortex initialized at /home/you/.cortex. Run `cortex daemon` to launch.
 └── config.yaml                 # aistatus 上传器设置（你的姓名/组织/邮箱）
 ```
 
-## 第三步 — 启动服务器
+## 第三步 — 启动服务器 {#step-3-start-the-server}
 
 ```bash
 cortex daemon         # 受监督运行，崩溃重启 + 热重载
@@ -357,11 +357,11 @@ cortex config         # 打印解析后的路径 + 初始化状态
 
 你应该看到确认守护进程正在运行的输出，包括 Slack 连接状态和活跃的配置。
 
-## 第四步 — 发送你的第一条消息
+## 第四步 — 发送你的第一条消息 {#step-4-send-your-first-messages}
 
 现在进入有趣的部分。打开 Slack 或飞书，找到你刚安装的 Cortex 机器人，发起私信（DM）。
 
-### 4.1 打个招呼
+### 4.1 打个招呼 {#41-say-hello}
 
 给机器人发私信：
 
@@ -372,7 +372,7 @@ hello
 第一条私信是 Cortex 用来自动检测管理频道的（除非你在 `config/settings.json` 中显式设置了 `adminChannel`）。你应该在几秒钟内收到回复。
 
 
-### 4.2 创建你的第一个项目
+### 4.2 创建你的第一个项目 {#42-create-your-first-project}
 
 给 Cortex 一个使命。Cortex 会创建项目、设置目录结构并回复确认：
 
@@ -383,7 +383,7 @@ hello
 Cortex 会回复它创建的项目结构、分解的初始任务，并询问是否要开始执行。
 
 
-### 4.3 在已有项目中创建任务
+### 4.3 在已有项目中创建任务 {#43-create-a-task-in-an-existing-project}
 
 有了项目后，可以直接从 Slack 添加任务：
 
@@ -394,7 +394,7 @@ Cortex 会回复它创建的项目结构、分解的初始任务，并询问是�
 Cortex 会将任务添加到项目的 `TASKS.yaml` 中，分配 hex ID、设置优先级和依赖关系，并回复确认。
 
 
-### 4.4 查看项目状态
+### 4.4 查看项目状态 {#44-check-project-status}
 
 ```
 天气看板项目进展如何
@@ -404,7 +404,7 @@ Cortex 会读取项目的 `STATUS.md`、`TASKS.yaml` 和最近的实验记录，
 
 一旦项目任务队列中有任务，Cortex 会自动挑选并派发优先级最高且就绪的任务——你不需要告诉它"开始执行"。只需持续添加任务，Cortex 会自主推进。
 
-## 接下来读什么
+## 接下来读什么 {#what-to-read-next}
 
 - 创建 Slack 应用时出了问题，或想在运行 `cortex init` 之前先完成设置 — 阅读 [slack-setup.md](./slack-setup.md)。
 - 想了解 Cortex 识别的每个配置文件和环境变量，或覆盖某个自动生成的路径 — 阅读 [configuration.md](./configuration.md)。

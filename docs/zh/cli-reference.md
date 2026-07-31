@@ -1,4 +1,4 @@
-# CLI 参考
+# CLI 参考 {#cli-reference}
 
 
 Cortex 提供三个可执行文件，在 `agent-server/package.json` 中注册：
@@ -21,7 +21,7 @@ cortex <command> [options]
 
 服务器生命周期和初始化 CLI。
 
-### 命令
+### 命令 {#commands}
 
 **`cortex init [--home <path>] [--gateway-config-dir <path>] [--force]`**
 
@@ -60,7 +60,7 @@ Fork `dist/entry/daemon.js` 作为子进程，继承 stdio。守护进程包装 
 - `--dry-run` — 将生成的 gateway.yaml 打印到 stdout 而不写入
 - `--output-dir <path>` — 在 `<path>` 下写入 gateway.yaml 和 profiles.json 而不是默认位置
 
-### 退出码
+### 退出码 {#exit-codes}
 
 | 代码 | 含义 |
 |---|---|
@@ -77,7 +77,7 @@ cortex-task <command> [options]
 
 跨项目读取和修改 TASKS.yaml 文件。完整的任务系统生命周期、格式参考和调度模型参见 [tasks.md](./tasks.md)。既可作为独立可执行文件使用，也可通过 `cortex task <command>` 使用。
 
-### 读取命令
+### 读取命令 {#read-commands}
 
 这些命令不修改任何文件。它们都支持 `--json` 以输出机器可读格式。
 
@@ -109,7 +109,7 @@ cortex-task <command> [options]
 
 打印每项目的任务供给统计：按状态和优先级的计数。
 
-### 状态命令
+### 状态命令 {#state-commands}
 
 这些命令需要 `--project` 和 `--task-id` 或 `--task`。
 
@@ -147,7 +147,7 @@ cortex-task <command> [options]
 
 撤销已完成的任务，将其返回到之前的状态。
 
-### 审批命令
+### 审批命令 {#approval-commands}
 
 **`request-approval --project <name> (--task-id <id> | --task <text>)`**
 
@@ -161,7 +161,7 @@ cortex-task <command> [options]
 
 清除任务的审批状态。
 
-### 阻塞命令
+### 阻塞命令 {#blocking-commands}
 
 **`block --project <name> (--task-id <id> | --task <text>) --reason <text>`**
 
@@ -171,13 +171,13 @@ cortex-task <command> [options]
 
 解除一个之前被阻塞的任务。
 
-### 验收命令
+### 验收命令 {#acceptance-commands}
 
 **`verdict --project <name> --task-id <parent id> --child <child id> --verdict accepted|rejected [--note <text>]`**
 
 将 manager 对已交付子任务的验收结论记入父任务节点的验收台账（DR-0017）。必需：`--project`、`--task-id`（父/manager 任务）、`--child`（子任务 id）以及 `--verdict`，其值必须严格为 `accepted` 或 `rejected`（其他任何值都会报错）。`--note` 可选，用于记录原因。`accepted` 的子任务结果**不会再次投递**给未来的 manager 化身；`rejected` 结论会递增该子任务的 `rework_round`，并在其返工后再次完成时**重新打开**以进行下一次验收。该命令写入的是每个节点的台账，**不需要项目锁**。验收台账的数据模型见 [tasks.md](./tasks.md)。
 
-### 修改命令
+### 修改命令 {#mutation-commands}
 
 这些命令需要项目锁（`cortex-task lock-acquire`）才能运行，以防止对同一 TASKS.yaml 的并发编辑。
 
@@ -197,7 +197,7 @@ cortex-task <command> [options]
 
 用 JSON 文件中定义的子任务替换一个任务。`-` 表示 stdin。`--dry-run` 预览而不执行。
 
-### 锁命令
+### 锁命令 {#lock-commands}
 
 项目锁系统防止对 TASKS.yaml 的并发编辑。每个锁有固定的 20 分钟 TTL。
 
@@ -217,7 +217,7 @@ cortex-task <command> [options]
 
 强制释放项目锁，无论所有者是谁。
 
-### 维护命令
+### 维护命令 {#maintenance-commands}
 
 **`assign-ids [--project <name>]`**
 
@@ -231,7 +231,7 @@ cortex-task <command> [options]
 
 终止一个已分发的任务进程。`--task-id` 可以是分发 ID（如 `dispatch_abc123`）或任务哈希。`--dry-run` 显示将被终止的内容而不执行。终止命令通过守护进程 webhook 转发到远程客户端。
 
-### 通用选项
+### 通用选项 {#common-options}
 
 | 标志 | 描述 |
 |---|---|
@@ -242,7 +242,7 @@ cortex-task <command> [options]
 | `--json` | 以 JSON 输出（读取命令和锁操作） |
 | `--help` | 显示命令帮助 |
 
-### 任务生命周期状态
+### 任务生命周期状态 {#task-lifecycle-states}
 
 ```
 open → claimed → done
@@ -257,7 +257,7 @@ approval states: request-approval → approve → clear-approval
 `block`/`unblock` 与 `reopen` 都会把任务状态归一回 `open`，因此在 `cortex-run` 中途失败
 （停留在 `pending`）的任务会回到可派发状态，而不会对调度器永久隐形。
 
-### 退出码
+### 退出码 {#exit-codes_1}
 
 | 代码 | 含义 |
 |---|---|
@@ -274,7 +274,7 @@ cortex-run [options] -- COMMAND [ARGS...]
 
 通过 Cortex 守护进程在远程设备上分发命令。所有执行通过 `sendCommand` 转发到 cortex-client；本地不生成任何进程。守护进程必须正在运行（它在 `127.0.0.1:3001` 上提供 webhook 服务）。定时重复运行参见 [scheduling.md](./scheduling.md)。基于线程的执行参见 [threads.md](./threads.md)。
 
-### 启动模式
+### 启动模式 {#launch-mode}
 
 ```
 cortex-run [--device <name>] --name <name> [--stall 10m] [--gpu auto]
@@ -299,7 +299,7 @@ cortex-run [--device <name>] --name <name> [--stall 10m] [--gpu auto]
 
 当提供 `--task-project` 和 `--task-id` 时，`cortex-run` 在分发前将任务标记为 pending，并将完成/阻塞推迟到客户端回调处理器。成功时任务自动完成；失败时自动阻塞，附带日志尾部上下文。
 
-### 取消模式
+### 取消模式 {#cancel-mode}
 
 ```
 cortex-run --cancel <name> [--device <name>] [--signal SIGTERM]
@@ -310,7 +310,7 @@ cortex-run --cancel <name> [--device <name>] [--signal SIGTERM]
 - `--device <name>` — 目标设备（默认：本地机器名称）
 - `--signal <sig>` — 要发送的信号（默认：`SIGTERM`）
 
-### 退出码
+### 退出码 {#exit-codes_2}
 
 | 代码 | 含义 |
 |---|---|
@@ -318,7 +318,7 @@ cortex-run --cancel <name> [--device <name>] [--signal SIGTERM]
 | 1 | 致命错误（无效 task-id、设备离线、启动/取消失败） |
 | 2 | 用法错误（缺少必需标志、`--` 后无命令） |
 
-### 示例
+### 示例 {#examples}
 
 ```bash
 # 在本地机器上启动训练脚本

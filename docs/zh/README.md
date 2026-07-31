@@ -13,26 +13,26 @@ Cortex 围绕长智能体运行的四种失败模式而设计。
 ## 特性
 
 - **使命驱动的任务系统** —— 交出一个目标；Cortex 将其分解为带优先级、依赖关系和可验证完成条件的追踪任务，自主完成它们，仅在受阻时停下来询问。你不再需要维护待办列表。
-  参见 [tasks.md](./tasks.md)。
+  参见 [tasks.md](https://fangxm233.github.io/cortex-agent/zh/tasks/)。
 
 - **多智能体线程管道** —— 长时间作业以聚焦智能体的接力方式运行，而非一个过载的会话。每一步以上干净的上下文和狭窄的范围开始，因此模型不会在中途丢失主线。交接仅携带下一阶段所需的内容。
-  参见 [threads.md](./threads.md)。
+  参见 [threads.md](https://fangxm233.github.io/cortex-agent/zh/threads/)。
 
 - **结构化的项目日志** —— 每个项目将 mission、roadmap、status、experiments、knowledge、patterns 和 decisions 作为纯文件保存在你的仓库中。一个全新的智能体（或数周后全新的你）可以从上一个中断的地方继续——无需滚动聊天记录，无需查询向量存储。
-  参见 [memory.md](./memory.md)。
+  参见 [memory.md](https://fangxm233.github.io/cortex-agent/zh/memory/)。
 
 - **Cron 和间隔调度** —— 调度 Cortex 每天早上扫描一个领域、发送每周摘要或每隔几分钟清理收件箱。调度在重启后持久化，并可在无停机的情况下热重载。
-  参见 [scheduling.md](./scheduling.md)。
+  参见 [scheduling.md](https://fangxm233.github.io/cortex-agent/zh/scheduling/)。
 
 - **自我进化的技能** —— 当 Cortex 发现自己第三次做同一件事时，它会起草一个新技能，你批准后，未来的运行会自动使用它。Cortex 运行得越久，你的模式越会成为一等公民行为。
-  参见 [skills-and-plugins.md](./skills-and-plugins.md)。
+  参见 [skills-and-plugins.md](https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/)。
 
 - **一个智能体横跨你的机器** —— 你的计算、文档、代码和工具很少在同一台机器上。通过 `cortex-client` 将任何 Mac、Windows 或 Linux 机器连接为远程主机，Cortex 可以从单一控制面跨所有机器读取、写入和执行。
-  参见 [cross-machine.md](./cross-machine.md)。
+  参见 [cross-machine.md](https://fangxm233.github.io/cortex-agent/zh/cross-machine/)。
 
 - **后端无关** —— 当前运行在 Claude Code 或 PI 上，具有适配器抽象以支持额外的编程智能体。使用你已经付费的 LLM 订阅——无需额外的 API 密钥，无需第二份账单。
 
-- **通过 Web、原生应用、聊天平台或终端使用 Cortex** —— 打开浏览器工作台，安装 Linux/macOS/Windows 桌面应用或 Android 应用，通过 Slack 或飞书发送消息，或使用 TUI。所有界面访问同一组项目、会话、任务和记忆。参见[浏览器访问](./browser-access.md)和[桌面与 Android 应用](./desktop-app.md)。
+- **通过 Web、原生应用、聊天平台或终端使用 Cortex** —— 打开浏览器工作台，安装 Linux/macOS/Windows 桌面应用或 Android 应用，通过 Slack 或飞书发送消息，或使用 TUI。所有界面访问同一组项目、会话、任务和记忆。参见[浏览器访问](https://fangxm233.github.io/cortex-agent/zh/browser-access/)和[桌面与 Android 应用](https://fangxm233.github.io/cortex-agent/zh/desktop-app/)。
 
 ## 快速入门
 
@@ -49,10 +49,10 @@ cortex init
 cortex daemon
 ```
 
-服务启动后，可以使用 Slack 或飞书、打开浏览器工作台，或连接原生应用。所有界面通过同一服务器读取项目上下文并调度工作。浏览器部署见[浏览器访问](./browser-access.md)，原生应用安装见[桌面与 Android 应用](./desktop-app.md)。
+服务启动后，可以使用 Slack 或飞书、打开浏览器工作台，或连接原生应用。所有界面通过同一服务器读取项目上下文并调度工作。浏览器部署见[浏览器访问](https://fangxm233.github.io/cortex-agent/zh/browser-access/)，原生应用安装见[桌面与 Android 应用](https://fangxm233.github.io/cortex-agent/zh/desktop-app/)。
 
 详细的分步指南（涵盖设置向导提示、创建的文件说明以及如何发送第一条消息）见
-[quickstart.md](./quickstart.md)。
+[quickstart.md](https://fangxm233.github.io/cortex-agent/zh/quickstart/)。
 
 ## 项目结构
 
@@ -88,29 +88,29 @@ Cortex 按影响范围分类操作。系统在工具调用层强制执行这一�
 
 ## 配置
 
-所有配置位于 `$CORTEX_HOME/config/` 下。仅需要 `CORTEX_PLATFORM` 和平台凭据（Slack 令牌）。运行 `cortex init` 进行引导式设置。完整的环境变量参考、文件布局和优先级规则见 [configuration.md](./configuration.md)。
+所有配置位于 `$CORTEX_HOME/config/` 下。仅需要 `CORTEX_PLATFORM` 和平台凭据（Slack 令牌）。运行 `cortex init` 进行引导式设置。完整的环境变量参考、文件布局和优先级规则见 [configuration.md](https://fangxm233.github.io/cortex-agent/zh/configuration/)。
 
 ## 文档
 
 | 文档 | 内容 |
 |---|---|
-| [Quickstart](./quickstart.md) | 安装、初始化、5 分钟内发送第一条 Slack 消息 |
-| [桌面与 Android 应用](./desktop-app.md) | 原生应用安装、连接、下载与更新 |
-| [浏览器访问](./browser-access.md) | Web 工作台认证与部署 |
-| [Slack Setup](./slack-setup.md) | 应用创建、令牌收集、Socket Mode、作用域 |
-| [Configuration](./configuration.md) | 完整 `.env` 与 `config/settings.json` 参考、`profiles.json`、文件布局、热重载 |
-| [CLI Reference](./cli-reference.md) | `cortex`、`cortex-task`、`cortex-run` — 每个子命令和标志 |
-| [Backends](./backends.md) | Claude Code vs PI，功能矩阵，回退，费用报告 |
-| [Architecture](./architecture.md) | 服务器层、WS 协议、事件总线 |
-| [Threads](./threads.md) | 多智能体管道、模板、转换、钩子 |
-| [Tasks](./tasks.md) | TASKS.yaml 格式、生命周期、分发、cortex-run 看门狗 |
-| [Memory](./memory.md) | EXP/K/PAT 原子化知识、项目日志治理 |
-| [Skills & Plugins](./skills-and-plugins.md) | 技能编写、插件布局、第三方插件 |
-| [Scheduling](./scheduling.md) | Interval/daily/weekly/once 调度、preCheck、回退 |
-| [Safety & Approvals](./safety-and-approvals.md) | 影响范围等级、审批工作流、审计追踪 |
-| [Hooks](./hooks.md) | 钩子生命周期、hook-bridge、settings.json 中的自定义钩子 |
-| [MCP](./mcp.md) | Cortex 按权限拆分的 MCP 服务器、第三方 MCP |
-| [Cross-machine](./cross-machine.md) | cortex-client 部署、远程工具、网络拓扑 |
+| [Quickstart](https://fangxm233.github.io/cortex-agent/zh/quickstart/) | 安装、初始化、5 分钟内发送第一条 Slack 消息 |
+| [桌面与 Android 应用](https://fangxm233.github.io/cortex-agent/zh/desktop-app/) | 原生应用安装、连接、下载与更新 |
+| [浏览器访问](https://fangxm233.github.io/cortex-agent/zh/browser-access/) | Web 工作台认证与部署 |
+| [Slack Setup](https://fangxm233.github.io/cortex-agent/zh/slack-setup/) | 应用创建、令牌收集、Socket Mode、作用域 |
+| [Configuration](https://fangxm233.github.io/cortex-agent/zh/configuration/) | 完整 `.env` 与 `config/settings.json` 参考、`profiles.json`、文件布局、热重载 |
+| [CLI Reference](https://fangxm233.github.io/cortex-agent/zh/cli-reference/) | `cortex`、`cortex-task`、`cortex-run` — 每个子命令和标志 |
+| [Backends](https://fangxm233.github.io/cortex-agent/zh/backends/) | Claude Code vs PI，功能矩阵，回退，费用报告 |
+| [Architecture](https://fangxm233.github.io/cortex-agent/zh/architecture/) | 服务器层、WS 协议、事件总线 |
+| [Threads](https://fangxm233.github.io/cortex-agent/zh/threads/) | 多智能体管道、模板、转换、钩子 |
+| [Tasks](https://fangxm233.github.io/cortex-agent/zh/tasks/) | TASKS.yaml 格式、生命周期、分发、cortex-run 看门狗 |
+| [Memory](https://fangxm233.github.io/cortex-agent/zh/memory/) | EXP/K/PAT 原子化知识、项目日志治理 |
+| [Skills & Plugins](https://fangxm233.github.io/cortex-agent/zh/skills-and-plugins/) | 技能编写、插件布局、第三方插件 |
+| [Scheduling](https://fangxm233.github.io/cortex-agent/zh/scheduling/) | Interval/daily/weekly/once 调度、preCheck、回退 |
+| [Safety & Approvals](https://fangxm233.github.io/cortex-agent/zh/safety-and-approvals/) | 影响范围等级、审批工作流、审计追踪 |
+| [Hooks](https://fangxm233.github.io/cortex-agent/zh/hooks/) | 钩子生命周期、hook-bridge、settings.json 中的自定义钩子 |
+| [MCP](https://fangxm233.github.io/cortex-agent/zh/mcp/) | Cortex 按权限拆分的 MCP 服务器、第三方 MCP |
+| [Cross-machine](https://fangxm233.github.io/cortex-agent/zh/cross-machine/) | cortex-client 部署、远程工具、网络拓扑 |
 
 ## 开发 Cortex
 
@@ -143,7 +143,7 @@ Cortex 的核心 workspace 与 plugin 包如下：
 | `@cortex-agent/deepseek-relay-worker` | `packages/deepseek-relay-worker/` | 用于 DeepSeek API 出站访问的鉴权 Cloudflare Worker |
 | Plugins | `plugins/` | 由线程智能体在运行时加载的角色限定技能 |
 
-服务器在六层（`src/`）中组织：core utilities → persistence → event bus → domain logic → orchestration → entry points。所有代码更改必须有测试覆盖。完整架构见 [architecture.md](./architecture.md)。
+服务器在六层（`src/`）中组织：core utilities → persistence → event bus → domain logic → orchestration → entry points。所有代码更改必须有测试覆盖。完整架构见 [architecture.md](https://fangxm233.github.io/cortex-agent/zh/architecture/)。
 
 ## License
 

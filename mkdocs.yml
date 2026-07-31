@@ -43,6 +43,12 @@ theme:
     - content.code.annotate
 
 markdown_extensions:
+  # attr_list lets headings carry an explicit `{#slug}`. Required by docs/zh:
+  # the toc slugifier strips CJK, so a Chinese-only heading would otherwise get
+  # a positional `_N` id that silently shifts whenever a heading is added or
+  # removed earlier on the page — and MkDocs logs the resulting dead anchors as
+  # INFO, so even `--strict` does not catch the breakage.
+  - attr_list
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite

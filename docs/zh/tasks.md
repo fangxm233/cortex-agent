@@ -1,9 +1,9 @@
-# Cortex 任务系统
+# Cortex 任务系统 {#cortex-task-system}
 
 
 任务系统是 Cortex 的结构化工作队列。任务存储在 `TASKS.yaml` 文件中——每个项目一个——并通过 `cortex-task` CLI 管理。系统支持将任务分发给队列工作器、追踪远程机器上的执行情况以及归档已完成的工作。
 
-## TASKS.yaml 格式
+## TASKS.yaml 格式 {#tasksyaml-format}
 
 每个项目的 `TASKS.yaml` 包含一个扁平的任务列表。每个任务有以下字段：
 
@@ -33,7 +33,7 @@
 
 YAML 键使用 kebab-case（`done-when`、`depends-on`、`claimed-by` 等），内部映射为 snake_case 字段。
 
-### 任务示例
+### 任务示例 {#example-tasks}
 
 ```yaml
 - id: f7cf
@@ -56,7 +56,7 @@ YAML 键使用 kebab-case（`done-when`、`depends-on`、`claimed-by` 等），�
   gpu-count: 1
 ```
 
-### 项目锁
+### 项目锁 {#project-lock}
 
 `TASKS.yaml` 可以可选地包含一个防止并发修改的 `lock` 部分：
 
@@ -70,9 +70,9 @@ lock:
 
 锁有固定的 20 分钟 TTL。修改任务列表的命令（`add`、`edit`、`batch-edit`、`decompose`）要求调用者持有锁。当拥有的执行完成时，锁会自动释放。
 
-## 任务生命周期
+## 任务生命周期 {#task-lifecycle}
 
-### 核心状态（存储的）
+### 核心状态（存储的） {#core-states-stored}
 
 任务有三个存储在 YAML 中的核心状态：
 
@@ -80,7 +80,7 @@ lock:
 - **`done`** — 已完成（终止状态）
 - **`pending`** — 已分发到远程机器，等待 cortex-run 完成
 
-### 派生状态（计算得出的）
+### 派生状态（计算得出的） {#derived-states-computed}
 
 附加状态从布尔标志计算得出：
 
@@ -92,7 +92,7 @@ lock:
 | `approval_needed` 为 true 且 `approved_at` 为 null | `approval-needed` |
 | `approved_at` 已设置 | `approved`（可被分发） |
 
-### 状态转换
+### 状态转换 {#state-transitions}
 
 ```
 open ──claim──→ in-progress ──complete──→ done
@@ -121,7 +121,7 @@ open ──claim──→ in-progress ──complete──→ done
 - `unblock` 清除 `blocked_by`，并把遗留的 `pending` 状态还原为 `open`
 - `reopen` 把卡住的 `pending` 任务还原为 `open`（cortex-run 回调丢失时的挽救路径）；拒绝 `done` 任务
 
-## Done-When 纪律
+## Done-When 纪律 {#done-when-discipline}
 
 `done-when` 字段是任务中最重要的字段。它必须描述**可验证的完成标准**，而不是模糊的意图。
 
@@ -137,7 +137,7 @@ open ──claim──→ in-progress ──complete──→ done
 - `"提高性能"`
 - `"写文档"`
 
-### 完成验证
+### 完成验证 {#completion-verification}
 
 当通过 `cortex-task complete` 将任务标记为完成时，系统运行自动验证（`verifyCompletionEvidence`）：
 
@@ -146,17 +146,17 @@ open ──claim──→ in-progress ──complete──→ done
 
 如果两项检查都不通过，命令返回错误：`"no evidence of work: no matching git commit and no Done-when artifact found in repo"`。用户可以通过 `--skip-verify` 绕过（可选地附带 `--skip-verify-reason`）。
 
-## Blocked-By 语义
+## Blocked-By 语义 {#blocked-by-semantics}
 
 `blocked_by` 字段用于**仅外部阻塞**——无法通过编写代码或配置工具来解决的事情。有效阻塞的例子：等待 GPU 分配、等待数据集交付、等待 API 访问审批。
 
 将任务设置为 blocked 会自动取消认领。不能完成被阻塞的任务——必须先解除阻塞。
 
-### 自动阻塞隔离
+### 自动阻塞隔离 {#auto-block-quarantine}
 
 任务调度系统有一个自动隔离机制：如果一个已分发的任务连续失败 3 次，任务会自动被阻塞，`blocked_by` 中填入最后的错误消息。这防止调度器重复尝试一个损坏的任务。
 
-## 陈旧认领检测
+## 陈旧认领检测 {#stale-claim-detection}
 
 服务器启动时会对照认领的归属方做一次核对。被 `task-dispatcher` 认领、但其执行没有跨过重启存活下来的任务会被自动取消认领，回到分发队列。有存活归属方的认领会被保留：等待子项的挂起 manager 线程、等待自动恢复的限流暂停线程、以及由 pending 任务追踪器追踪的远程 `cortex-run`，它们都合法地跨重启持有认领。手动认领（`claimed_by` 不是 `task-dispatcher` 的任何值）永远不会被触碰。
 
@@ -164,15 +164,15 @@ open ──claim──→ in-progress ──complete──→ done
 
 另外，pending 任务追踪器对远程机器上已分发的任务有 4 小时超时——如果已分发的任务在 4 小时内没有回报，其追踪状态被清除。
 
-## 任务分发
+## 任务分发 {#task-dispatch}
 
 分发管道是任务如何自动执行的机制。
 
-### 触发
+### 触发 {#trigger}
 
 一个 `task-dispatch` 调度器作业周期性触发（通常每 30 秒）。它驱动完整的分发循环。
 
-### 分发流程
+### 分发流程 {#dispatch-flow}
 
 1. **预演选择**：找到一个可以分发的任务（尚未认领）
 2. **速率限制检查**：确保系统未被限速
@@ -182,7 +182,7 @@ open ──claim──→ in-progress ──complete──→ done
 6. **线程创建**：从任务的模板创建线程，带项目上下文运行（线程执行模型参见 [threads.md](./threads.md)）
 7. **任务完成**：线程成功时自动完成任务。失败时递增失败计数器（3 次连续失败 → 自动阻塞）
 
-### 选择优先级
+### 选择优先级 {#selection-priority}
 
 任务按以下顺序选择：
 
@@ -190,11 +190,11 @@ open ──claim──→ in-progress ──complete──→ done
 2. 有 `done-when` 字段的任务优先于没有的
 3. 更高 `priority` 值的任务优先（`high` > `medium` > `low`）
 
-### Pending 任务
+### Pending 任务 {#pending-tasks}
 
 当任务被分发到远程机器进行长时间运行（通过 `cortex-run`）时，它被标记为 `pending`。远程机器的 `cortex-run-watcher` 追踪进程并通过 WebSocket `task-callback` 消息回报成功/失败。服务器随后相应地完成或阻塞任务。
 
-## Cortex-Run 看门狗（DR-0011）
+## Cortex-Run 看门狗（DR-0011） {#cortex-run-watchdog-dr-0011}
 
 `cortex-run` 系统处理远程机器上的长时间运行任务执行。完整的 `cortex-run` CLI 参考参见 [cli-reference.md](./cli-reference.md)，任务调度器如何驱动此管道参见 [scheduling.md](./scheduling.md)。
 
@@ -210,7 +210,7 @@ cortex-client（到服务器的 WebSocket 连接）
         └── 用户命令（如 python train.py）
 ```
 
-## 任务归档
+## 任务归档 {#task-archive}
 
 已完成的任务在 3 天后自动归档（`ARCHIVE_AGE_DAYS = 3`）。归档由 `task-archive` 调度器作业驱动（通常每 6 小时）。
 
@@ -228,7 +228,7 @@ cortex-client（到服务器的 WebSocket 连接）
 
 `cortex-task` CLI 提供完整的任务生命周期管理。完整的 CLI 参考（包括每个子命令和标志）参见 [cli-reference.md](./cli-reference.md)。所有命令操作当前工作目录中的项目，或接受 `--project` 标志。
 
-### 读取命令
+### 读取命令 {#read-commands}
 
 | 命令 | 描述 |
 |---------|-------------|
@@ -239,7 +239,7 @@ cortex-client（到服务器的 WebSocket 连接）
 | `lint` | 验证任务结构（缺失 ID、悬空依赖、循环） |
 | `stats` | 每项目任务供给统计（按状态和优先级计数） |
 
-### 状态命令
+### 状态命令 {#state-commands}
 
 | 命令 | 描述 |
 |---------|-------------|
@@ -251,9 +251,9 @@ cortex-client（到服务器的 WebSocket 连接）
 | `reopen --task-id <id>` | 把卡住的 `pending` 任务还原为 `open`（挽救丢失的 cortex-run 回调） |
 | `complete --task-id <id>` | 标记完成（`--note`、`--skip-verify` 绕过验证） |
 | `uncomplete --task-id <id>` | 撤销已完成的任务回到 open |
-| `verdict --task-id <parent> --child <id> --verdict accepted\|rejected` | 将 manager 对已交付子任务的验收裁决记录到父任务的验收账本（见 [Manager 任务与验收账本](#manager-dr-0017)；完整语法见 [cli-reference.md](./cli-reference.md)） |
+| `verdict --task-id <parent> --child <id> --verdict accepted\|rejected` | 将 manager 对已交付子任务的验收裁决记录到父任务的验收账本（见 [Manager 任务与验收账本](#manager-tasks-and-the-acceptance-ledger-dr-0017)；完整语法见 [cli-reference.md](./cli-reference.md)） |
 
-### 审批命令
+### 审批命令 {#approval-commands}
 
 | 命令 | 描述 |
 |---------|-------------|
@@ -261,14 +261,14 @@ cortex-client（到服务器的 WebSocket 连接）
 | `approve --task-id <id>` | 审批（设置 approved_at，清除 approval-needed） |
 | `clear-approval --task-id <id>` | 清除审批状态 |
 
-### 阻塞命令
+### 阻塞命令 {#blocking-commands}
 
 | 命令 | 描述 |
 |---------|-------------|
 | `block --task-id <id> --reason "..."` | 以某个原因阻塞任务 |
 | `unblock --task-id <id>` | 解除阻塞任务 |
 
-### 修改命令
+### 修改命令 {#mutation-commands}
 
 | 命令 | 描述 |
 |---------|-------------|
@@ -277,7 +277,7 @@ cortex-client（到服务器的 WebSocket 连接）
 | `batch-edit --task-ids <id1,id2>` | 对多个任务应用相同编辑 |
 | `decompose --task-id <id> --subtasks-file <path>` | 用子任务替换一个任务 |
 
-### 锁命令
+### 锁命令 {#lock-commands}
 
 | 命令 | 描述 |
 |---------|-------------|
@@ -286,7 +286,7 @@ cortex-client（到服务器的 WebSocket 连接）
 | `lock-status` | 显示所有或一个项目的锁状态 |
 | `lock-force-release` | 强制释放项目锁 |
 
-### 维护命令
+### 维护命令 {#maintenance-commands}
 
 | 命令 | 描述 |
 |---------|-------------|
@@ -296,15 +296,15 @@ cortex-client（到服务器的 WebSocket 连接）
 
 修改命令（`add`、`edit`、`batch-edit`、`decompose`）要求调用者持有项目锁。
 
-## 一个标准，一个任务（DR-0006）
+## 一个标准，一个任务（DR-0006） {#one-criterion-one-task-dr-0006}
 
 每个任务应只有一个可验证的完成标准。具有多个独立标准的任务应使用 `decompose` 命令分解为子任务。这确保了清晰的分发、明确的所有权和无歧义的完成验证。
 
-## Manager 任务与验收账本（DR-0017）
+## Manager 任务与验收账本（DR-0017） {#manager-tasks-and-the-acceptance-ledger-dr-0017}
 
 简单工作是分发给单个工作线程的叶子任务。**复合工作**——一个会分解为多个独立可验证单元、且需要协调、验收与返工的目标——则改用 **manager 任务**建模。
 
-### Manager 任务节点
+### Manager 任务节点 {#manager-task-node}
 
 `template` 为 `manager` 的任务是一个**复合任务节点**，由一个常驻的 **manager 线程**拥有。manager 本身不做具体工作，它的生命周期是：
 
@@ -316,7 +316,7 @@ cortex-client（到服务器的 WebSocket 连接）
 
 manager 线程的完整生命周期——其持久的按任务寻址的 artifact、`thread_wait` 检查点门、以及会话轮换/再水化——记录在 [threads.md](./threads.md)。
 
-### 验收账本
+### 验收账本 {#acceptance-ledger}
 
 验收账本是一份持久的、机器可读的记录，记载 manager 已收到并已裁决了哪些子任务结果。它位于：
 
@@ -348,7 +348,7 @@ context/projects/{project}/manager/{taskId}/ledger.json
 
 **Fail-open（失败即放行）：** 缺失或损坏的账本降级为空账本——最坏情况是结果被重复交付，绝不会丢失结果。
 
-### 验收循环中的 `verdict` 命令
+### 验收循环中的 `verdict` 命令 {#the-verdict-command-in-the-acceptance-loop}
 
 manager 通过 `cortex-task verdict` 命令把裁决写入账本——它是账本的写入路径。在 manager 的验证阶段，对每个已交付的子任务：
 
@@ -357,6 +357,6 @@ manager 通过 `cortex-task verdict` 命令把裁决写入账本——它是账�
 
 `--verdict` 必须恰好是 `accepted` 或 `rejected`，且 `--child` 为必填。命令的确切签名与标志见 [cli-reference.md](./cli-reference.md)。
 
-## 任务分发并发
+## 任务分发并发 {#task-dispatch-concurrency}
 
 任务分发器强制执行最多 4 个并发分发执行以防止资源耗尽。这在每次分发尝试前检查。

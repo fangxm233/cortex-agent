@@ -1,9 +1,9 @@
-# Cortex 架构
+# Cortex 架构 {#cortex-architecture}
 
 
 Cortex 是一个用于机器人学和 AI/ML 的自主研究智能体系统。它采用服务器-客户端架构运行：**agent-server** 编排工作——任务调度、线程执行、定时任务、Slack 集成和 MCP 工具——而远程 **agent clients** 通过 WebSocket 连接在远程机器上执行命令。关于这些子系统的深入探讨，参见 [threads.md](./threads.md)、[tasks.md](./tasks.md) 和 [memory.md](./memory.md)。
 
-## 两个软件包
+## 两个软件包 {#two-packages}
 
 Cortex 由两个 npm 包和一组插件组成：
 
@@ -13,7 +13,7 @@ Cortex 由两个 npm 包和一组插件组成：
 | `@cortex-agent/client` | `client/` | 轻量级远程智能体守护进程。通过 WebSocket 连接，在本地执行 shell/文件命令，支持用于长时间运行任务执行的 `cortex-run`。 |
 | 插件 | `plugins/cortex-*` | 8 个角色限定的插件包，包含技能。不是 npm 包——在运行时作为目录加载。 |
 
-## Agent-Server 架构：六层结构
+## Agent-Server 架构：六层结构 {#agent-server-architecture-six-layers}
 
 `agent-server/src/` 中的 agent-server 代码组织为六个严格层次（L0 到 L5）。每层只能从更低编号的层导入。此约束由 `agent-server/.dependency-cruiser.cjs` **在测试时强制执行**——`depcruise` 规则作为 `npm test` 的一部分运行，任何违规都会导致构建失败。
 
@@ -31,7 +31,7 @@ L5  entry/         → 所有层（组合根）
 - **`agent-adapter/`** — 两个 LLM 后端的抽象（Claude Code 和 PI）
 - **`platform/`** — 消息平台抽象（Slack）
 
-### 第 0 层：`core/` — 零依赖基础
+### 第 0 层：`core/` — 零依赖基础 {#layer-0-core-zero-dependency-foundation}
 
 基础层。仅包含纯 TypeScript，不依赖其他层的运行时。
 
@@ -51,7 +51,7 @@ L5  entry/         → 所有层（组合根）
 | `gateway-generator.ts` | API 网关 YAML 生成 |
 | `profile-generator.ts` | 配置 JSON 生成 |
 
-### 第 1 层：`store/` — 持久化
+### 第 1 层：`store/` — 持久化 {#layer-1-store-persistence}
 
 所有写操作通过 `AsyncMutex` 序列化以防止并发写入损坏。该层使用两种仓库模式：
 
@@ -76,7 +76,7 @@ L5  entry/         → 所有层（组合根）
 | `profile-repo.ts` | 混合同步/异步读取器。`startProfileWatcher()` 用于热重载 |
 | `task-repo.ts` | 读取 TASKS.yaml 文件。纯 I/O + 互斥锁 + git 同步（`commitAndPush`）。修改操作在 `domain/tasks/mutator.ts` 中 |
 
-### 第 2 层：`events/` — 事件总线
+### 第 2 层：`events/` — 事件总线 {#layer-2-events-event-bus}
 
 同步、类型安全的事件总线，带 JSONL 日志。
 
@@ -95,7 +95,7 @@ L5  entry/         → 所有层（组合根）
 - **Task**：`task.claimed`、`task.completed`、`task.dispatched`
 - **System**：`llm.active-count-delta`、`scheduler.tick`、`rate-limit.breach`
 
-### 第 3 层：`domain/` — 业务逻辑
+### 第 3 层：`domain/` — 业务逻辑 {#layer-3-domain-business-logic}
 
 最厚的层。包含 14 个子目录，每个封装一个领域关注点。
 
@@ -113,7 +113,7 @@ L5  entry/         → 所有层（组合根）
 | `threads/` | 完整线程系统：状态机、运行器、模板加载、提示构建、钩子执行、产物 I/O、auto-thread 逻辑 |
 | `mcp/` | MCP 服务器实现。16 个 Cortex MCP 工具，分布在 8 个工具模块中（参见 [mcp.md](./mcp.md)） |
 
-### 第 4 层：`orchestration/` — 消息路由和执行
+### 第 4 层：`orchestration/` — 消息路由和执行 {#layer-4-orchestration-message-routing-and-execution}
 
 将平台消息连接到领域逻辑。hook-bridge（本层的一部分）详见 [hooks.md](./hooks.md)。
 
@@ -133,7 +133,7 @@ L5  entry/         → 所有层（组合根）
 | `routing/hook-bridge-subscribers.ts` | 创建 Slack 模态框用于问题、将计划发送到 Slack 的订阅者 |
 | `interactions/` | AskUserQuestion 模态流程、计划审批状态机、按钮/模态动作路由 |
 
-### 第 5 层：`entry/` — 组合根
+### 第 5 层：`entry/` — 组合根 {#layer-5-entry-composition-root}
 
 | 文件 | 用途 |
 |------|---------|
@@ -144,7 +144,7 @@ L5  entry/         → 所有层（组合根）
 | `startup-helpers.ts` | 清理日志、确保 MCP 配置 |
 | `startup-notify.ts` | 向管理频道发送启动私信 |
 
-## LLM 后端适配器
+## LLM 后端适配器 {#llm-backend-adapter}
 
 `agent-adapter/` 目录在统一接口后抽象两个 LLM 后端：
 
@@ -155,7 +155,7 @@ L5  entry/         → 所有层（组合根）
 
 标准化层（`normalize/`）将后端特定事件转换为统一的 `NormalizedEvent` 流。`capabilities.ts` 文件声明 Claude 和 PI 的 `Capability` 能力集。
 
-## 平台适配器
+## 平台适配器 {#platform-adapter}
 
 `platform/` 目录在 `PlatformAdapter` 接口后抽象 Slack：
 
@@ -172,26 +172,26 @@ L5  entry/         → 所有层（组合根）
 
 `VirtualMessage` 处理消息聚合——将多次追加合并为更少的消息，并带有重试延迟以避免速率限制。
 
-## WebSocket 协议（服务器 ↔ 客户端）
+## WebSocket 协议（服务器 ↔ 客户端） {#websocket-protocol-server-client}
 
 WebSocket 协议用于**远程设备命令执行**，不用于 Slack/智能体通信。服务器通过 `startClientManager()` 运行 WebSocket 服务器（默认端口 3002）。完整的跨机器方案——部署、网络拓扑和安全——参见 [cross-machine.md](./cross-machine.md)。
 
-### 消息流
+### 消息流 {#message-flow}
 
 1. **客户端连接** → 发送 `{ type: 'hello', device, platform, capabilities }`
 2. **服务器验证** → 检查重复设备名称（如果重复，错误代码 `4002`）
 3. **心跳** → 客户端每 5 秒发送 `{ type: 'heartbeat', device, timestamp }`。服务器在 15 秒静默后标记设备离线（代码 `4003`）
 4. **命令分发** → 服务器发送 `{ type: 'command', commandId, action, params }`。客户端执行并以 `{ type: 'result', commandId, success, data, error }` 回复
 
-### 命令动作
+### 命令动作 {#command-actions}
 
 客户端支持这些远程动作：`bash`（带超时/后台的 shell 执行）、`read`（支持文本/图像/PDF 的文件读取）、`write`（带 CRLF 检测的文件写入）、`edit`（带 replace_all 的文本替换）、`glob`（带 VCS 排除的文件 glob）、`grep`（带分页的 ripgrep）、`cortex-run.launch`、`cortex-run.cancel`。
 
-### 客户端架构
+### 客户端架构 {#client-architecture}
 
 客户端（`client/src/client.ts`）是一个轻量级的 WebSocket 守护进程，维护持久连接。它支持带指数退避的自动重连（1s→30s 最大）。`cortex-run-watcher.ts` 实现客户端驻留的长时间运行任务看门狗，具有两层停滞检测（输出停滞和进度停滞）以及通过 `nvidia-smi` 的 GPU 自动检测。
 
-## 事件总线拓扑
+## 事件总线拓扑 {#event-bus-topology}
 
 EventBus 通过单例-注入模式在 `app.ts` 中连接。组件在构造时没有依赖，然后通过 `setBus(bus)` 连接：
 
@@ -204,7 +204,7 @@ EventBus 通过单例-注入模式在 `app.ts` 中连接。组件在构造时没
 | `interactionHandlers` | `ask-user.answered` | `ask-user.requested` |
 | `hookBridge` | `plan.submitted`、`ask-user.requested` | — |
 
-## 状态存储
+## 状态存储 {#state-storage}
 
 Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数据库——所有内容都是带原子写入（`tmp + rename`）的 JSON 文件。
 
@@ -221,7 +221,7 @@ Cortex 将所有状态存储在 `~/.cortex/` 下的文件系统中。没有数�
 | `costs.jsonl` | 每次调用的费用记录（90 天滚动） |
 | `logs/` | 守护进程和 LLM 日志 |
 
-## 命名约定
+## 命名约定 {#naming-conventions}
 
 - **线程 ID**：`thr_<8 位十六进制字符>`（如 `thr_a1b2c3d4`）
 - **执行 ID**：`exec_<kind>_<base36-timestamp>_<4 位随机字符>`（如 `exec_local_1a2b3c_xyzw`）

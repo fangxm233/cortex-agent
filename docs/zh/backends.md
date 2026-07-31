@@ -1,16 +1,16 @@
-# 后端
+# 后端 {#backends}
 
 
 后端是 Cortex 对特定编程智能体 CLI 的适配器。Cortex 不直接调用 LLM API。它将编程智能体（Claude Code 或 PI）作为子进程启动，向其发送消息，并消费标准化的事件流。每个后端实现 `agent-server/src/agent-adapter/types.ts` 中定义的 `AgentAdapter` 接口。
 
-## 支持的后端
+## 支持的后端 {#supported-backends}
 
 | 后端 | 状态 | 可执行文件 | npm 包 | 功能级别 |
 |---|---|---|---|---|
 | Claude Code | 已支持 | `claude` | `@anthropic-ai/claude-code` | 完整（10/10 能力） |
 | PI | 已支持 | `pi` | `@mariozechner/pi-coding-agent` | 完整（10/10 能力） |
 
-## 后端如何工作
+## 后端如何工作 {#how-backends-work}
 
 当智能体会话开始时，Cortex 解析活动配置（从 `profiles.json` 或 `--profile` 标志）以确定使用哪个后端。然后它调用 `getAdapter(backend)` 获取适配器实例，并调用 `adapter.spawn(config)` 启动会话。
 
@@ -18,7 +18,7 @@
 
 从那里，Cortex 发送用户消息并接收标准化的事件流。标准化层（`agent-adapter/normalize/`）将每个后端的原生事件格式转换为公共的 `NormalizedEvent` 可区分联合类型，因此编排层永远不需要知道运行的是哪个后端。
 
-## 功能矩阵
+## 功能矩阵 {#feature-matrix}
 
 Cortex 定义了后端可能支持的十种能力。编排层在尝试后端特定操作之前检查这些能力。
 
@@ -58,7 +58,7 @@ PI 会话使用 `--session <path>` 进行恢复，使用 `--system-prompt` 覆�
 
 PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是受支持的 PI provider（包括 `openai-codex-responses` API kind）；使用它的 profile 仍须设置 `"backend": "pi"`。
 
-## 选择后端
+## 选择后端 {#selecting-a-backend}
 
 后端在 `$CORTEX_HOME/config/profiles.json` 中按配置选择（完整配置模式参见 [configuration.md](./configuration.md)）：
 
@@ -82,11 +82,11 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 
 线程模板也可以为每个智能体指定配置，允许同一管道中的不同智能体使用不同的后端。模板配置参见 [threads.md](./threads.md)。
 
-## 思考档位
+## 思考档位 {#thinking-level}
 
 可选的 `thinking` 配置字段设置后端的推理深度。每个后端以其原生标志接收：Claude Code 为 `--effort <level>`（`low`/`medium`/`high`/`xhigh`/`max`），PI 为 `--thinking <level>`（`off`/`minimal`/`low`/`medium`/`high`/`xhigh`）。字段缺省时不传递任何标志，后端使用自身默认值，因此现有配置行为不变。fallback 条目不继承主配置的值——每条自行声明。
 
-## 回退行为
+## 回退行为 {#fallback-behavior}
 
 每个配置项可以指定一个 `fallback` 数组作为备选配置。如果主后端调用因瞬态错误失败（网络超时、速率限制、认证），Cortex 按顺序遍历回退链。每个回退项继承主配置中未指定的字段。
 
@@ -104,7 +104,7 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 }
 ```
 
-## 用量限流与自动恢复
+## 用量限流与自动恢复 {#usage-limit-throttling-and-auto-resume}
 
 回退链处理单次调用失败，滚动用量窗口由独立的限流机制处理。Provider 标识是任意字符串，不受固定枚举限制，因此 Cortex 可以同时维护任意数量的 provider、窗口类型和重置时间。限流门禁同时匹配 provider 与 route mode；两个 provider 即使使用相同 mode 名称，也不会互相阻塞。
 
@@ -116,7 +116,7 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 
 自动恢复默认开启。在 [`config/settings.json`](./configuration.md#configsettingsjson) 中设置 `"autoResume": false` 后，已经满足恢复条件的队列条目会被移除，但不会自动派发；改动无需重启守护进程即刻生效。`.env` 中的旧变量 `CORTEX_AUTO_RESUME=0` 仍作为已弃用的回退被读取。
 
-## 费用报告
+## 费用报告 {#cost-reporting}
 
 费用报告因后端而异：
 
@@ -125,7 +125,7 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 
 所有费用记录遵循相同的 JSONL 格式，并受 90 天滚动保留窗口的约束。通过 MCP 工具的费用查询汇总所有后端——`cost_query` 工具参见 [mcp.md](./mcp.md)。
 
-## 添加新后端
+## 添加新后端 {#adding-a-new-backend}
 
 新后端在 `agent-server/src/agent-adapter/` 下的新目录中实现 `AgentAdapter` 接口。所需接口：
 
