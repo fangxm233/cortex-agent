@@ -231,6 +231,18 @@ test('Test 1: cortex init creates valid directory structure (non-interactive)', 
       assert.ok(existsSync(f), `Expected file to exist: ${f}`);
     }
 
+    const shippedConfigFiles = readdirSync(path.join(TEST_ROOT, 'defaults', 'config'), {
+      withFileTypes: true,
+    })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+      .map((entry) => entry.name);
+    for (const file of shippedConfigFiles) {
+      assert.ok(
+        existsSync(path.join(tempDir, 'config', file)),
+        `cortex init must deploy shipped config default: ${file}`,
+      );
+    }
+
     const tasksConfig = JSON.parse(
       readFileSync(path.join(tempDir, 'config', 'mcp-config-tasks.json'), 'utf-8'),
     );
