@@ -1,6 +1,6 @@
 Please update me when files in this folder change
 
-Agent-run primitives freeze run identity and persist durable trajectories and lifecycle truth.
+Agent-run primitives freeze identity, persist lifecycle truth and gate process containment.
 
 | filename | role | function |
 |---|---|---|
@@ -8,3 +8,4 @@ Agent-run primitives freeze run identity and persist durable trajectories and li
 | journal.ts | core | appends durable run event journals |
 | manifest-contract.ts | types | validates terminal manifest values |
 | manifest.ts | core | publishes and validates lifecycle truth |
+| supervisor.ts | core | validates supervisor lifecycle and quiescence |

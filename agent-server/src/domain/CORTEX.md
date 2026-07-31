@@ -5,7 +5,7 @@ and consumed by orchestration and the platform surfaces.
 
 | filename | role | function |
 |---|---|---|
-| agent-run/ | subdir | Durable one-shot run trajectories and manifests |
+| agent-run/ | subdir | One-shot identity, trajectories and containment |
 | agents/ | subdir | Backend, model and profile selection per channel |
 | costs/ | subdir | Spend tracking, budgets and rate-limit throttle |
 | executions/ | subdir | Lifecycle and live output of dispatched runs |
