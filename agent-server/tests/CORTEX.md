@@ -9,7 +9,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
-| agent-adapter-claude.test.ts | test | Claude CLI, hooks, compact, and restored settings isolation |
+| agent-adapter-claude.test.ts | test | Claude CLI composition, hooks, compact and settings |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-event-parser.test.ts | test | PI RPC to normalized event translation |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
@@ -111,6 +111,9 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | slack-adapter-throttle.test.ts | test | Slack update throttle and 429 retry |
 | slack-message.test.ts | test | substantial output merge logic |
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
+| spawn-seam-direct.golden.json | golden | pins ordinary direct argv and environment |
+| spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
+| spawn-seam.test.ts | test | proves cwd and explicit MCP composition at spawn |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
 | store/ | subdir | JSON repository and store concurrency tests |
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |

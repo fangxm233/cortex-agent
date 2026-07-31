@@ -1,6 +1,6 @@
-// input:  filesystem, config paths, and server install roots
-// output: MCP config builders and startup file generation
-// pos:    MCP server configuration generator
+// input:  filesystem, config paths, server root
+// output: full, restricted, platform MCP configs
+// pos:    Generates declared MCP compositions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { writeFileSync } from 'fs';
@@ -15,6 +15,8 @@ const CORE_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-core.json');
 const TASKS_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
 const MANAGER_QA_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
 const THREAD_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-thread.json');
+const EMPTY_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-empty.json');
+const BENCHMARK_THREAD_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-benchmark-thread.json');
 const TUI_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-tui.json');
 const SLACK_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-slack.json');
 const FEISHU_MCP_CONFIG_PATH = path.join(CONFIG_DIR, 'mcp-config-feishu.json');
@@ -81,6 +83,20 @@ export function buildThreadConfig(serverRoot: string): object {
   };
 }
 
+/** Strict empty composition with no declared MCP servers. */
+export function buildEmptyConfig(): object {
+  return { mcpServers: {} };
+}
+
+/** Benchmark composition declaration; the server implementation is supplied separately. */
+export function buildBenchmarkThreadConfig(serverRoot: string): object {
+  return {
+    mcpServers: {
+      'cortex-benchmark-thread': serverEntry('dist/domain/mcp/benchmark-thread-server.js', serverRoot),
+    },
+  };
+}
+
 /** TUI MCP config — loaded ONLY by Claude TUI-mode sessions (DR-0012). Isolated tool set:
  *  cortex_plan_enter / cortex_plan_exit / cortex_ask_user replace the native
  *  EnterPlanMode / ExitPlanMode / AskUserQuestion tools, which are excluded from --tools in TUI mode. */
@@ -129,30 +145,21 @@ export function buildWebConfig(serverRoot: string): object {
 }
 
 export function generateMcpConfig(): void {
-  writeFileSync(MCP_CONFIG_PATH, JSON.stringify(buildFullConfig(SERVER_ROOT), null, 2));
-  log.info(`Generated full MCP config at ${MCP_CONFIG_PATH}`);
-
-  writeFileSync(CORE_MCP_CONFIG_PATH, JSON.stringify(buildCoreConfig(SERVER_ROOT), null, 2));
-  log.info(`Generated core MCP config at ${CORE_MCP_CONFIG_PATH}`);
-
-  writeFileSync(TASKS_MCP_CONFIG_PATH, JSON.stringify(buildTasksConfig(SERVER_ROOT), null, 2));
-  log.info(`Generated tasks MCP config at ${TASKS_MCP_CONFIG_PATH}`);
-
-  writeFileSync(MANAGER_QA_MCP_CONFIG_PATH, JSON.stringify(buildManagerQaConfig(SERVER_ROOT), null, 2));
-  log.info(`Generated manager-Q&A MCP config at ${MANAGER_QA_MCP_CONFIG_PATH}`);
-
-  writeFileSync(THREAD_MCP_CONFIG_PATH, JSON.stringify(buildThreadConfig(SERVER_ROOT), null, 2));
-  log.info(`Generated thread MCP config at ${THREAD_MCP_CONFIG_PATH}`);
-
-  writeFileSync(TUI_MCP_CONFIG_PATH, JSON.stringify(buildTuiConfig(SERVER_ROOT), null, 2));
-  log.info(`Generated TUI MCP config at ${TUI_MCP_CONFIG_PATH}`);
-
-  writeFileSync(SLACK_MCP_CONFIG_PATH, JSON.stringify(buildSlackConfig(SERVER_ROOT), null, 2));
-  log.info(`Generated Slack MCP config at ${SLACK_MCP_CONFIG_PATH}`);
-
-  writeFileSync(FEISHU_MCP_CONFIG_PATH, JSON.stringify(buildFeishuConfig(SERVER_ROOT), null, 2));
-  log.info(`Generated Feishu MCP config at ${FEISHU_MCP_CONFIG_PATH}`);
-
-  writeFileSync(WEB_MCP_CONFIG_PATH, JSON.stringify(buildWebConfig(SERVER_ROOT), null, 2));
-  log.info(`Generated Web MCP config at ${WEB_MCP_CONFIG_PATH}`);
+  const configs: Array<[string, string, object]> = [
+    ['full', MCP_CONFIG_PATH, buildFullConfig(SERVER_ROOT)],
+    ['core', CORE_MCP_CONFIG_PATH, buildCoreConfig(SERVER_ROOT)],
+    ['tasks', TASKS_MCP_CONFIG_PATH, buildTasksConfig(SERVER_ROOT)],
+    ['manager-Q&A', MANAGER_QA_MCP_CONFIG_PATH, buildManagerQaConfig(SERVER_ROOT)],
+    ['thread', THREAD_MCP_CONFIG_PATH, buildThreadConfig(SERVER_ROOT)],
+    ['empty', EMPTY_MCP_CONFIG_PATH, buildEmptyConfig()],
+    ['benchmark thread', BENCHMARK_THREAD_MCP_CONFIG_PATH, buildBenchmarkThreadConfig(SERVER_ROOT)],
+    ['TUI', TUI_MCP_CONFIG_PATH, buildTuiConfig(SERVER_ROOT)],
+    ['Slack', SLACK_MCP_CONFIG_PATH, buildSlackConfig(SERVER_ROOT)],
+    ['Feishu', FEISHU_MCP_CONFIG_PATH, buildFeishuConfig(SERVER_ROOT)],
+    ['Web', WEB_MCP_CONFIG_PATH, buildWebConfig(SERVER_ROOT)],
+  ];
+  for (const [label, configPath, config] of configs) {
+    writeFileSync(configPath, JSON.stringify(config, null, 2));
+    log.info(`Generated ${label} MCP config at ${configPath}`);
+  }
 }

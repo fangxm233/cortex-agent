@@ -5,7 +5,7 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | runs PI sessions with spawn-time settings |
+| adapter.ts | adapter | validates policy and runs PI sessions |
 | session-support.ts | core | PI session timers, queues, and probes |
 | spawn-args.ts | core | builds PI CLI arguments and environment |
 | defaults.ts | config | PI session and extension path defaults |

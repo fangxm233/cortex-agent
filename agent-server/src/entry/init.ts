@@ -1,6 +1,6 @@
-// input:  defaults, filesystem, MCP builders, platform setup
-// output: runInit and initialization helpers
-// pos:    Initializes Cortex home and runtime configuration
+// input:  defaults, filesystem, MCP builders, setup
+// output: runInit and runtime configuration
+// pos:    Initializes Cortex home and config surfaces
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { mkdirSync, writeFileSync, copyFileSync, existsSync, readFileSync, readdirSync } from 'fs';
@@ -14,7 +14,9 @@ import { stdin as processStdin } from 'process';
 import * as clack from '@clack/prompts';
 import * as yaml from 'yaml';
 import {
+  buildBenchmarkThreadConfig,
   buildCoreConfig,
+  buildEmptyConfig,
   buildFullConfig,
   buildManagerQaConfig,
   buildTasksConfig,
@@ -1282,6 +1284,8 @@ function writeMcpConfigs(configDir: string): void {
     ['mcp-config-tasks.json', buildTasksConfig(INSTALL_ROOT)],
     ['mcp-config-manager-qa.json', buildManagerQaConfig(INSTALL_ROOT)],
     ['mcp-config-thread.json', buildThreadConfig(INSTALL_ROOT)],
+    ['mcp-config-empty.json', buildEmptyConfig()],
+    ['mcp-config-benchmark-thread.json', buildBenchmarkThreadConfig(INSTALL_ROOT)],
     ['mcp-config-tui.json', buildTuiConfig(INSTALL_ROOT)],
   ];
   for (const [fileName, config] of configs) {

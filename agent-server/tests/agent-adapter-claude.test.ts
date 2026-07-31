@@ -1,6 +1,6 @@
-// input:  Claude modules, hook fixtures, runtime settings
-// output: CLI args, hooks, compact, and restored-settings regressions
-// pos:    Covers Claude adapter configuration and behavior
+// input:  Claude modules, compositions, hooks, settings
+// output: CLI args, composition, compact regressions
+// pos:    Covers Claude adapter spawn behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { afterAll, beforeAll, test } from 'vitest';
@@ -130,7 +130,7 @@ test('buildSpawnArgs thread session layers core, tasks, manager Q&A, and thread 
     tools: null,
     needsResume: false,
     sessionId: 'uuid-thread',
-    mcpConfigPath: CORE_MCP_CONFIG,
+    mcpComposition: 'thread-control',
   });
   const start = args.indexOf('--mcp-config');
   assert.deepEqual(
@@ -279,7 +279,7 @@ test('buildSpawnArgs without loadWebMcp — does NOT load the cortex-web config'
   assert.ok(!args.includes(WEB_MCP_CONFIG), 'non-web session must NOT load the cortex-web server');
 });
 
-test('buildSpawnArgs loadWebMcp — thread/core session (CORE_MCP_CONFIG) suppresses the web layer', () => {
+test('buildSpawnArgs loadWebMcp — thread-control composition suppresses the web layer', () => {
   const args = buildSpawnArgs({
     tools: null,
     systemPrompt: null,
@@ -290,13 +290,13 @@ test('buildSpawnArgs loadWebMcp — thread/core session (CORE_MCP_CONFIG) suppre
     outputStyle: null,
     needsResume: false,
     sessionId: 'uuid-web-thread',
-    mcpConfigPath: CORE_MCP_CONFIG,
+    mcpComposition: 'thread-control',
     loadWebMcp: true,
   });
   assert.ok(!args.includes(WEB_MCP_CONFIG), 'core/thread sessions must stay on the core server set only');
 });
 
-test('buildSpawnArgs loadFeishuMcp — thread/core session (CORE_MCP_CONFIG) suppresses the feishu layer', () => {
+test('buildSpawnArgs loadFeishuMcp — thread-control composition suppresses the feishu layer', () => {
   const args = buildSpawnArgs({
     tools: null,
     systemPrompt: null,
@@ -307,7 +307,7 @@ test('buildSpawnArgs loadFeishuMcp — thread/core session (CORE_MCP_CONFIG) sup
     outputStyle: null,
     needsResume: false,
     sessionId: 'uuid-feishu-thread',
-    mcpConfigPath: CORE_MCP_CONFIG,
+    mcpComposition: 'thread-control',
     loadFeishuMcp: true,
   });
   assert.ok(!args.includes(FEISHU_MCP_CONFIG), 'core/thread sessions must stay on the core server set only');
@@ -423,7 +423,7 @@ test("buildSpawnArgs mode='tui' — omits -p / stream-json flags, layers TUI bri
   assert.ok(args.includes('uuid-tui-1'));
 });
 
-test("buildSpawnArgs mode='tui' — thread/core session (mcpConfigPath=CORE_MCP_CONFIG) drops the TUI bridge", () => {
+test("buildSpawnArgs mode='tui' — thread-control composition drops the TUI bridge", () => {
   const args = buildSpawnArgs({
     tools: null,
     systemPrompt: null,
@@ -435,7 +435,7 @@ test("buildSpawnArgs mode='tui' — thread/core session (mcpConfigPath=CORE_MCP_
     needsResume: false,
     sessionId: 'uuid-tui-thread',
     mode: 'tui',
-    mcpConfigPath: CORE_MCP_CONFIG,
+    mcpComposition: 'thread-control',
   });
   assert.ok(args.includes(CORE_MCP_CONFIG), 'thread tui loads the remote execution server');
   assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread tui loads read-only task monitoring');
@@ -482,7 +482,7 @@ test("buildSpawnArgs mode='tui' — thread/core session also strips interaction 
     needsResume: false,
     sessionId: 'u',
     mode: 'tui',
-    mcpConfigPath: CORE_MCP_CONFIG,
+    mcpComposition: 'thread-control',
   });
   const toolsArg = args[args.indexOf('--tools') + 1];
   const tools = toolsArg.split(',');
@@ -604,7 +604,7 @@ test('buildSpawnArgs print + isUserInitiated — layers TUI bridge MCP config an
   }
 });
 
-test('buildSpawnArgs print + isUserInitiated + core (CORE_MCP_CONFIG) — thread session gets NO bridge', () => {
+test('buildSpawnArgs print + isUserInitiated + thread-control gets no bridge', () => {
   const args = buildSpawnArgs({
     tools: null,
     systemPrompt: null,
@@ -615,7 +615,7 @@ test('buildSpawnArgs print + isUserInitiated + core (CORE_MCP_CONFIG) — thread
     outputStyle: null,
     needsResume: false,
     sessionId: 'uuid-print-thread',
-    mcpConfigPath: CORE_MCP_CONFIG,
+    mcpComposition: 'thread-control',
     isUserInitiated: true,
   });
   assert.ok(args.includes(TASKS_MCP_CONFIG), 'thread session gets task monitoring');

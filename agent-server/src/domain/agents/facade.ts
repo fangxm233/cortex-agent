@@ -1,10 +1,10 @@
-// input:  configuration, adapters, profiles, runtime settings
-// output: attributed runs, provider identity, and notices
-// pos:    Backend-neutral agent execution facade
+// input:  configuration, adapters, profiles, settings
+// output: attributed runs, resolved spawn policy, notices
+// pos:    Backend-neutral agent spawn facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { getAdapter } from '../../agent-adapter/index.js';
-import type { AgentAdapter, AgentCompactResult, AgentSpawnConfig, Backend } from '../../agent-adapter/index.js';
+import { getAdapter, resolveMcpComposition } from '../../agent-adapter/index.js';
+import type { AgentAdapter, AgentCompactResult, AgentSpawnConfig, Backend, McpComposition } from '../../agent-adapter/index.js';
 import { shouldAwaitBgInline, waitForBgContinuation } from '../../agent-adapter/bg-wait.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
@@ -196,6 +196,8 @@ export interface RunAgentOptions {
   sessionKey?: string | null;
   channel?: string;
   files?: unknown[];
+  /** Absolute working directory resolved by the caller for the backend process. */
+  cwd?: string;
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   isUserInitiated?: boolean;
@@ -208,8 +210,10 @@ export interface RunAgentOptions {
   sessionName?: string | null;
   /** Cortex execution record id, surfaced as CORTEX_EXECUTION_ID to subprocess env. */
   executionId?: string | null;
-  /** When true, load core + tasks + manager-answer + thread MCP layers.
-   *  Default loads direct core + tasks + manager-answer + ext. */
+  /** Explicit MCP privilege surface for the spawned backend. */
+  mcpComposition?: McpComposition;
+  /** Legacy thread-surface selector. Accepted for existing callers and resolved when the explicit
+   *  composition is absent. */
   useCoreMcp?: boolean;
   /** Recursion depth of the owning thread, surfaced to the spawned agent as CORTEX_THREAD_DEPTH
    *  so the thread_start MCP tool can forward it for the depth guard. */
@@ -315,6 +319,8 @@ function buildSpawnConfig(
     model: config.model,
     systemPrompt: typeof options.systemPrompt === 'string' ? options.systemPrompt : undefined,
     outputStyle: typeof options.outputStyle === 'string' ? options.outputStyle : undefined,
+    cwd: options.cwd,
+    mcpComposition: resolveMcpComposition(options.mcpComposition, options.useCoreMcp),
     pluginDirs: filterChannelScopedPlugins(
       Array.isArray(options.pluginDirs) ? options.pluginDirs : undefined,
       options.channel,

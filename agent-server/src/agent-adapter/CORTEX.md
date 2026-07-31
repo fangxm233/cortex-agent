@@ -6,7 +6,7 @@ Defines the shared adapter contract, the capability matrix, and the normalized e
 | filename | role | function |
 |---|---|---|
 | index.ts | entry | selects the adapter for a backend |
-| types.ts | types | adapter, process, MCP-context, and sink contracts |
+| types.ts | types | adapter, process, MCP composition and sink contracts |
 | capabilities.ts | core | declares ten capabilities for each backend |
 | bg-wait.ts | core | waits for settings-enabled background work |
 | claude/ | subdir | Claude Code backend adapter |

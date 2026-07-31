@@ -1,6 +1,6 @@
-// input:  session context, Claude streams, MCP config, usage
-// output: ClaudeAdapter turns, events, usage, and compact control
-// pos:    Claude session pool and print-stream adapter
+// input:  session context, streams, spawn policy, usage
+// output: Claude turns, cwd, composition, compact control
+// pos:    Claude print and interactive adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { spawn, ChildProcess } from 'child_process';
@@ -13,13 +13,13 @@ import { createLogger } from '@core/log.js';
 import { handleRateLimitEvent } from '@domain/costs/rate-limit-throttle.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
-import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentSpawnConfig, AgentProcess, Backend, UserMessage, ContinuationSink, InjectionAckSink } from '../types.js';
+import { resolveMcpComposition } from '../types.js';
+import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentSpawnConfig, AgentProcess, Backend, UserMessage, ContinuationSink, InjectionAckSink, McpComposition } from '../types.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import {
   CancelledError,
-  CORE_MCP_CONFIG,
   DEFAULT_TOOLS,
   IDLE_SESSION_TIMEOUT,
   LOGS_DIR,
@@ -99,6 +99,8 @@ interface ClaudeSessionOptions {
   pluginDirs?: string[] | null;
   anthropicBaseUrl?: string;
   extraEnv?: Record<string, string>;
+  cwd?: string;
+  mcpComposition?: McpComposition;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string>;
   /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
@@ -122,6 +124,7 @@ function deriveClaudeSpawnOptions(fields: {
   thinking: string | null;
   needsResume: boolean;
   sessionId: string;
+  mcpComposition: McpComposition;
 }): ClaudeSpawnOptions {
   return {
     tools: fields.tools,
@@ -135,6 +138,7 @@ function deriveClaudeSpawnOptions(fields: {
     thinking: fields.thinking,
     needsResume: fields.needsResume,
     sessionId: fields.sessionId,
+    mcpComposition: fields.mcpComposition,
   };
 }
 
@@ -172,6 +176,8 @@ class ClaudeSession {
   private pluginDirs: string[] | null;
   private anthropicBaseUrl: string | undefined;
   private extraEnv: Record<string, string> | undefined;
+  private cwd: string;
+  private mcpComposition: McpComposition;
   private extraOption: Record<string, string> | undefined;
   private thinking: string | null;
   private context: CortexAgentContext | undefined;
@@ -230,6 +236,8 @@ class ClaudeSession {
     this.pluginDirs = options.pluginDirs || null;
     this.anthropicBaseUrl = options.anthropicBaseUrl;
     this.extraEnv = options.extraEnv;
+    this.cwd = options.cwd ?? DATA_DIR;
+    this.mcpComposition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
     this.extraOption = options.extraOption;
     this.thinking = options.thinking ?? null;
     this.context = options.context;
@@ -249,7 +257,12 @@ class ClaudeSession {
       thinking: this.thinking,
       needsResume: this.needsResume,
       sessionId: this.sessionId,
+      mcpComposition: this.mcpComposition,
     });
+  }
+
+  matchesSpawn(cwd: string, composition: McpComposition): boolean {
+    return this.cwd === cwd && this.mcpComposition === composition;
   }
 
   private handleProcessClose(code: number | null): void {
@@ -310,30 +323,22 @@ class ClaudeSession {
   private spawnProcess(): void {
     const env = buildClaudeEnv(this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId, this.anthropicBaseUrl, this.extraEnv, this.context);
     const spawnOptions = this.toSpawnOptions();
-    // CORE_MCP_CONFIG marks template threads; spawn args add task, answer, and control layers.
-    // Default/direct sessions use the full core + tasks + manager-answer + ext config.
-    if (this.context?.useCoreMcp) {
-      spawnOptions.mcpConfigPath = CORE_MCP_CONFIG;
-    }
     // Sessions that originate from Slack (channel carries the SlackAdapter `slack:` prefix) load the
-    // cortex-slack MCP server so the agent can send files to Slack. buildSpawnArgs suppresses
-    // it for thread/core sessions (CORE_MCP_CONFIG) regardless of this flag.
+    // cortex-slack MCP server so the agent can send files to Slack. Non-direct compositions suppress it.
     spawnOptions.loadSlackMcp = this.channel.startsWith('slack:');
     // Sessions that originate from Feishu (channel carries the FeishuAdapter `feishu:` prefix) load the
-    // cortex-feishu MCP server so the agent can read/write Feishu documents. buildSpawnArgs suppresses
-    // it for thread/core sessions (CORE_MCP_CONFIG) regardless of this flag.
+    // cortex-feishu MCP server so the agent can read/write Feishu documents. Non-direct compositions suppress it.
     spawnOptions.loadFeishuMcp = this.channel.startsWith('feishu:');
     // Sessions that originate from the Web UI (channel carries the `web:` prefix) load the cortex-web
-    // MCP server so the agent can send files into the chat via send_file. buildSpawnArgs suppresses
-    // it for thread/core sessions (CORE_MCP_CONFIG) regardless of this flag.
+    // MCP server so the agent can send files into the chat via send_file. Non-direct compositions suppress it.
     spawnOptions.loadWebMcp = this.channel.startsWith('web:');
-    // User-message-initiated (non-thread) print sessions get the cortex-tui-bridge interaction
-    // tools; buildSpawnArgs suppresses them for thread/core sessions (CORE_MCP_CONFIG).
+    // User-message-initiated direct print sessions get the cortex-tui-bridge interaction tools;
+    // non-direct compositions suppress them.
     spawnOptions.isUserInitiated = this.isUserInitiated;
     const args = buildSpawnArgs(spawnOptions);
     log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? '(resume)' : '(new)'}`);
 
-    this.proc = spawn('claude', args, { cwd: DATA_DIR, env, stdio: ['pipe', 'pipe', 'pipe'] });
+    this.proc = spawn('claude', args, { cwd: this.cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
     this.stderr = '';
     this.rl = createInterface({ input: this.proc.stdout!, crlfDelay: Infinity });
     this.rl.on('line', (line) => this.handleLine(line));
@@ -886,9 +891,12 @@ const sessions = new Map<string, ClaudeSession>();
 
 function getOrCreateSession(channel: string, sessionId: string, options: ClaudeSessionOptions): ClaudeSession {
   const key = options.sessionKey || channel;
+  const cwd = options.cwd ?? DATA_DIR;
+  const composition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
   let session = sessions.get(key);
 
-  if (!session || !session.isAlive() || (options.needsResume && session.sessionId !== sessionId)) {
+  const incompatible = session && !session.matchesSpawn(cwd, composition);
+  if (!session || !session.isAlive() || incompatible || (options.needsResume && session.sessionId !== sessionId)) {
     if (session) session.close();
     session = new ClaudeSession(channel, sessionId, { ...options, sessionKey: key });
     sessions.set(key, session);
@@ -950,8 +958,8 @@ export interface RunClaudeOptions {
 /**
  * Decide whether a print-mode ClaudeSession should spawn with `--resume <id>`.
  *
- * Print sessions always run with `cwd: DATA_DIR`, so their Claude transcript lives at
- * `computeJsonlPath(DATA_DIR, sessionId)`. A *fresh* session (notably the `cortex tui`
+ * Print sessions default to `DATA_DIR` and may receive an explicit cwd, so transcript lookup uses
+ * the same resolved cwd as the process spawn. A *fresh* session (notably the `cortex tui`
  * frontend) pre-registers its sessionId BEFORE the first Claude turn, so callers ask to
  * resume an id that has no transcript yet — Claude then exits with
  * "No conversation found with session ID: <id>". Gating the resume request on the
@@ -963,8 +971,9 @@ export function resolveResumeForPrint(
   requestedResume: boolean,
   sessionId: string,
   exists?: (p: string) => boolean,
+  cwd: string = DATA_DIR,
 ): boolean {
-  return resolveTuiResume(requestedResume, computeJsonlPath(DATA_DIR, sessionId), exists);
+  return resolveTuiResume(requestedResume, computeJsonlPath(cwd, sessionId), exists);
 }
 
 export function runClaude(userMessage: string, opts: RunClaudeOptions) {
@@ -1001,15 +1010,19 @@ export function selectClaudeMode(config: AgentSpawnConfig): 'print' | 'tui' {
 
 function getOrCreateTuiSession(config: AgentSpawnConfig, sessionIdEffective: string): ClaudeTuiSession {
   const key = config.sessionKey;
+  const cwd = config.cwd || DATA_DIR;
+  const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
   let session = tuiSessions.get(key);
-  // If existing session has a different sessionId (e.g. user passed --new), close and recreate.
-  if (session && session.sessionId !== sessionIdEffective) {
+  if (session && (
+    session.sessionId !== sessionIdEffective
+    || session.cwd !== cwd
+    || session.mcpComposition !== composition
+  )) {
     session.kill();
     session = undefined;
   }
   if (!session) {
     const channel = config.channel ?? config.env?.SLACK_CHANNEL ?? config.sessionKey;
-    const cwd = config.cwd || DATA_DIR;
     const opts = sessionOptionsFromSpawnConfig({ ...config, sessionId: sessionIdEffective });
     // `--resume` only works once a transcript exists. A fresh TUI session pre-registers its
     // sessionId before the first turn, so config.resume can be true with no transcript yet —
@@ -1030,9 +1043,7 @@ function getOrCreateTuiSession(config: AgentSpawnConfig, sessionIdEffective: str
       outputStyle: opts.outputStyle,
       extraOption: opts.extraOption ?? null,
       thinking: opts.thinking ?? null,
-      // Mirror print mode: CORE_MCP_CONFIG marks template threads. buildSpawnArgs adds task and
-      // control-plane layers while suppressing the direct-session TUI bridge.
-      mcpConfigPath: opts.context?.useCoreMcp ? CORE_MCP_CONFIG : undefined,
+      mcpComposition: composition,
       callbackSource: opts.callbackSource,
       scheduleTaskId: opts.scheduleTaskId,
       anthropicBaseUrl: opts.anthropicBaseUrl,
@@ -1090,6 +1101,8 @@ function sessionOptionsFromSpawnConfig(config: AgentSpawnConfig): ClaudeSessionO
     claudeAgent: config.claudeAgent ?? null,
     anthropicBaseUrl: config.anthropicBaseUrl,
     extraEnv: config.env,
+    cwd: config.cwd ?? DATA_DIR,
+    mcpComposition: resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp),
     extraOption: config.extraOption,
     thinking: config.thinking ?? null,
     context: config.cortexContext,
@@ -1114,6 +1127,7 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     thinking: opts.thinking ?? null,
     needsResume: opts.needsResume,
     sessionId: opts.sessionIdEffective,
+    mcpComposition: opts.mcpComposition ?? 'direct',
   });
   spawnOptions.isUserInitiated = config.isUserInitiated;
   return buildSpawnArgs(spawnOptions);
@@ -1130,7 +1144,12 @@ export class ClaudeAdapter implements AgentAdapter {
     // Gate resume on the transcript actually existing — a pre-registered sessionId
     // (e.g. cortex tui handshake) must spawn `--session-id` on its first turn, not
     // `--resume` (which fails "No conversation found"). See resolveResumeForPrint.
-    sessionOptions.needsResume = resolveResumeForPrint(sessionOptions.needsResume, sessionIdEffective);
+    sessionOptions.needsResume = resolveResumeForPrint(
+      sessionOptions.needsResume,
+      sessionIdEffective,
+      undefined,
+      sessionOptions.cwd,
+    );
     const channel = config.channel ?? config.env?.SLACK_CHANNEL ?? config.sessionKey;
     const session = getOrCreateSession(channel, sessionIdEffective, sessionOptions);
     const stream = createEventStream<NormalizedEvent>();

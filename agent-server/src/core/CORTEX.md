@@ -11,7 +11,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | bg-held-sessions.ts | state | tracks sessions held running in background |
 | calver.ts | util | compares CalVer YYYY.M.D[-N] versions |
 | cli-utils.ts | util | formats CLI help and errors, reads stdin |
-| config-generator.ts | config | generates shared and scoped MCP config files |
+| config-generator.ts | config | generates declared MCP composition files |
 | debug-mode.ts | config | reports DEBUG state and tool size limits |
 | gateway-generator.ts | config | discovers models and builds gateway.yaml |
 | hook-bus.ts | core | dispatches hooks with safe arguments and diagnostics |
