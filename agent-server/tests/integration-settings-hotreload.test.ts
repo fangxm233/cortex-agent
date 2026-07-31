@@ -300,9 +300,7 @@ function armDispatchSchedule(schedulesFile: string): void {
   writeFileSync(schedulesFile, `${JSON.stringify(data, null, 2)}\n`);
 }
 
-async function prepareScenario(): Promise<ScenarioPaths> {
-  const home = mkdtempSync(path.join(os.tmpdir(), 'cortex-settings-int-'));
-  await cortexInit(home);
+function populateScenario(home: string): ScenarioPaths {
   const envFile = path.join(home, 'config', '.env');
   const originalEnv = [
     '# integration fixture',
@@ -325,6 +323,17 @@ async function prepareScenario(): Promise<ScenarioPaths> {
   writeFileSync(observerFile, observerSource(evidenceFile));
   return { home, envFile, settingsFile: path.join(home, 'config', 'settings.json'), schedulesFile,
     evidenceFile, observerFile, binDir, originalEnv };
+}
+
+async function prepareScenario(init = cortexInit): Promise<ScenarioPaths> {
+  const home = mkdtempSync(path.join(os.tmpdir(), 'cortex-settings-int-'));
+  try {
+    await init(home);
+    return populateScenario(home);
+  } catch (error) {
+    rmSync(home, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 function startServer(paths: ScenarioPaths): { child: ChildProcess; logs: ChildLogs } {
@@ -416,7 +425,12 @@ function assertMigration(paths: ScenarioPaths): void {
   for (const line of legacyLines) {
     assert.doesNotMatch(migratedEnv, new RegExp(`^${line.split('=')[0]}=`, 'm'));
   }
-  assert.match(migratedEnv, /^KEEP_ME=preserved$/m);
+  const retainedLines = [
+    `CORTEX_CLIENT_TOKEN=${CLIENT_TOKEN}`,
+    `CORTEX_WEBHOOK_TOKEN=${WEBHOOK_TOKEN}`,
+    'KEEP_ME=preserved',
+  ];
+  for (const line of retainedLines) assert.ok(migratedEnv.split('\n').includes(line));
   const backups = readdirSync(path.dirname(paths.envFile)).filter((name) => name.startsWith('.env.bak-'));
   assert.equal(backups.length, 1);
   assert.equal(readFileSync(path.join(path.dirname(paths.envFile), backups[0]), 'utf8'), paths.originalEnv);
@@ -476,6 +490,9 @@ async function proveEventAdminAndDispatch(
   const notice = await sendDaemonNotice(child, paths.evidenceFile, 'event-log-on-marker');
   assert.equal(notice.ref.conduit, NEW_ADMIN);
   await waitFor(() => /event-log-on-marker/.test(eventLogText(paths.home)), 'enabled event log did not persist notice');
+  const flushedEvents = eventLogText(paths.home);
+  assert.match(flushedEvents, /event-log-on-marker/);
+  assert.doesNotMatch(flushedEvents, /event-log-off-marker/);
   await sendIntegrationRequest(child, 'integration-run-dispatch');
   await waitFor(() => logs.stdout.includes('Cycle complete: No dispatchable tasks available'),
     `dispatch did not pass the raised limit:\n${logs.stdout.slice(-4000)}`);
@@ -534,6 +551,21 @@ async function runScenario(): Promise<void> {
     rmSync(paths.home, { recursive: true, force: true });
   }
 }
+
+test('removes the isolated home when scenario preparation fails', async () => {
+  let createdHome: string | null = null;
+  const failInit = async (home: string): Promise<void> => {
+    createdHome = home;
+    throw new Error('forced scenario preparation failure');
+  };
+  try {
+    await assert.rejects(prepareScenario(failInit), /forced scenario preparation failure/);
+    assert.ok(createdHome);
+    assert.equal(existsSync(createdHome), false);
+  } finally {
+    if (createdHome) rmSync(createdHome, { recursive: true, force: true });
+  }
+});
 
 test('real server migrates all legacy settings and hot-reloads observable consumers', async () => {
   await runScenario();
