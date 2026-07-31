@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define DEFAULT_GRACE_MS 1000U
 
@@ -20,15 +21,23 @@ struct parse_state {
   bool deadline_seen;
 };
 
+static bool contains_only_digits(const char *value) {
+  if (*value == '\0') return false;
+  for (const unsigned char *cursor = (const unsigned char *)value; *cursor != '\0'; cursor += 1) {
+    if (*cursor < '0' || *cursor > '9') return false;
+  }
+  return true;
+}
+
 static int parse_u64(const char *flag, const char *value, uint64_t *result) {
   char *end = NULL;
   errno = 0;
-  unsigned long long parsed = strtoull(value, &end, 10);
-  if (errno == 0 && end != value && *end == '\0') {
+  unsigned long long parsed = contains_only_digits(value) ? strtoull(value, &end, 10) : 0;
+  if (errno == 0 && end != NULL && *end == '\0') {
     *result = (uint64_t)parsed;
     return 0;
   }
-  fprintf(stderr, "Error: invalid %s value '%s'; expected a non-negative integer.\n", flag, value);
+  fprintf(stderr, "Error: invalid %s value '%s'; expected a non-negative integer using ASCII digits only.\n", flag, value);
   return -1;
 }
 
@@ -108,16 +117,34 @@ void print_help(void) {
        "  --deadline-ms <N>  Absolute run duration in milliseconds (default: none)\n"
        "  -h, --help         Show this help\n"
        "\nExample:\n"
-       "  cortex-supervisor --control-fd 3 --grace-ms 500 -- /bin/sh -c 'exit 0'\n"
+       "  cortex-supervisor --control-fd 3 --grace-ms 500 -- /bin/sh -c 'exit 0' 3>&1\n"
        "\nTest injection:\n"
        "  CORTEX_SUPERVISOR_TEST_UNSUPPORTED_PLATFORM=1 exercises fail-closed platform handling.");
 }
 
-static enum cli_result validate_options(int argc, int separator, struct supervisor_options *options, const struct parse_state *state) {
+static enum cli_result validate_channels(const struct supervisor_options *options, const struct parse_state *state) {
   if (!state->control_seen) {
     fprintf(stderr, "Error: --control-fd is required.\n");
     return CLI_ERROR;
   }
+  if (options->control_fd <= STDERR_FILENO) {
+    fprintf(stderr, "Error: --control-fd must be greater than 2 to preserve command stdio.\n");
+    return CLI_ERROR;
+  }
+  if (options->has_cancel_fd && options->cancel_fd <= STDERR_FILENO) {
+    fprintf(stderr, "Error: --cancel-fd must be greater than 2 to preserve command stdio.\n");
+    return CLI_ERROR;
+  }
+  if (options->has_cancel_fd && options->control_fd == options->cancel_fd) {
+    fprintf(stderr, "Error: --control-fd and --cancel-fd must use different descriptors.\n");
+    return CLI_ERROR;
+  }
+  return CLI_OK;
+}
+
+static enum cli_result validate_options(int argc, int separator, struct supervisor_options *options, const struct parse_state *state) {
+  enum cli_result channels = validate_channels(options, state);
+  if (channels != CLI_OK) return channels;
   if (separator < 0 || separator + 1 >= argc) {
     fprintf(stderr, "Error: '--' followed by a command is required.\n");
     return CLI_ERROR;

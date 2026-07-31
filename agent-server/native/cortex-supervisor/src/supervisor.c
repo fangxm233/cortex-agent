@@ -87,8 +87,16 @@ static void report_exec_error(int fd, int error_number) {
   (void)ignored;
 }
 
+static int restore_child_sigpipe(void) {
+  struct sigaction action;
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = SIG_DFL;
+  sigemptyset(&action.sa_mask);
+  return sigaction(SIGPIPE, &action, NULL);
+}
+
 static void exec_child(char **command, int error_fd) {
-  if (setpgid(0, 0) != 0) {
+  if (setpgid(0, 0) != 0 || restore_child_sigpipe() != 0) {
     report_exec_error(error_fd, errno);
     _exit(125);
   }
@@ -165,12 +173,7 @@ static int cancel_fd_triggered(const struct supervisor_options *options, bool *t
   return errno == EINTR ? 0 : -1;
 }
 
-static int choose_trigger(const struct supervisor_options *options, uint64_t started_at, struct child_state *state, enum terminal_trigger *trigger) {
-  if (refresh_child_state(state) != 0) return -1;
-  if (state->main_known) {
-    *trigger = TRIGGER_NATURAL;
-    return 1;
-  }
+static int choose_external_trigger(const struct supervisor_options *options, uint64_t started_at, enum terminal_trigger *trigger) {
   bool fd_cancelled = false;
   if (cancel_fd_triggered(options, &fd_cancelled) != 0) return -1;
   if (cancel_requested || fd_cancelled) {
@@ -182,6 +185,17 @@ static int choose_trigger(const struct supervisor_options *options, uint64_t sta
     return 1;
   }
   return 0;
+}
+
+static int choose_trigger(const struct supervisor_options *options, uint64_t started_at, struct child_state *state, enum terminal_trigger *trigger) {
+  int external = choose_external_trigger(options, started_at, trigger);
+  if (external != 0) return external;
+  if (refresh_child_state(state) != 0) return -1;
+  external = choose_external_trigger(options, started_at, trigger);
+  if (external != 0) return external;
+  if (!state->main_known) return 0;
+  *trigger = TRIGGER_NATURAL;
+  return 1;
 }
 
 static int wait_for_trigger(const struct supervisor_options *options, uint64_t started_at, struct child_state *state, enum terminal_trigger *trigger) {
