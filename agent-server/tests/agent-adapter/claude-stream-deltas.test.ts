@@ -1,7 +1,7 @@
-// input:  Claude `stream_event` lines (--include-partial-messages), as observed from the real CLI
-// output: parseStreamEvent / takeTextBlockId regression tests
-// pos:    Token-level assistant streaming — the Claude-side parser contract
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Claude partial and complete stream events
+// output: reported-model and delta parser regressions
+// pos:    Covers Claude stream normalization
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { describe, test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -177,7 +177,7 @@ function fakeTurn(over: Record<string, unknown> = {}): any {
 }
 
 // The exact line sequence the CLI produces for "think, then answer" (live capture).
-const L_MSG_START = JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_A', content: [] } } });
+const L_MSG_START = JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_A', model: 'claude-reported-fixture', content: [] } } });
 const L_THINK_START = JSON.stringify({ type: 'stream_event', event: { type: 'content_block_start', index: 0, content_block: { type: 'thinking' } } });
 const L_THINK_DELTA = JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: '' } } });
 const L_ASSISTANT_THINK = JSON.stringify({ type: 'assistant', message: { id: 'msg_A', content: [{ type: 'thinking', thinking: '…' }] } });
@@ -216,6 +216,18 @@ describe('ClaudeSession.handleLine — delta emission', () => {
     }
     assert.deepEqual(finals, [['Tea begins as a leaf.', 'msg_A:1']]);
     assert.equal(deltas[0], 'msg_A:1', 'deltas and the complete message must share the blockId');
+  });
+
+  test('the finalizing assistant message carries the backend-reported model', (t) => {
+    const s: any = _test.makeSessionForTest();
+    t.onTestFinished(() => s.close());
+    const models: Array<string | null> = [];
+    s.currentTurn = fakeTurn({
+      onAssistantMessage: (_text: string, _blockId?: string, model?: string | null) => models.push(model ?? null),
+    });
+    s.handleLine(L_MSG_START);
+    s.handleLine(L_ASSISTANT_TEXT);
+    assert.deepEqual(models, ['claude-reported-fixture']);
   });
 
   test('the sum of the deltas equals the finalizing text (the UI preview is replaceable in place)', (t) => {

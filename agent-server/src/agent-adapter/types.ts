@@ -1,6 +1,6 @@
 // input:  normalized events, capabilities, spawn context
-// output: adapter, process, composition, sink contracts
-// pos:    Shared adapter spawn contracts
+// output: adapter, process, composition, continuation contracts
+// pos:    Shared adapter runtime contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { Capability } from './capabilities.js';
@@ -124,7 +124,7 @@ export interface AgentSpawnConfig {
  */
 export interface ContinuationSink {
   /** Assistant text from the continuation turn (append to the original reply). */
-  onAssistantText: (text: string) => void;
+  onAssistantText: (text: string, model?: string | null) => void;
   /** Optional tool_use trace from the continuation turn, preserving its correlation id. */
   onToolUse?: (name: string, input: any, toolUseId?: string) => void;
   /** Optional full normalized tool result from the continuation turn. */

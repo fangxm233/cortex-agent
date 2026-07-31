@@ -1,7 +1,7 @@
-// input:  nothing (leaf type-only module)
-// output: NormalizedEvent union with context usage + QuestionSpec
-// pos:    Unified event schema that all adapters translate to
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  core agent types
+// output: NormalizedEvent and QuestionSpec
+// pos:    Backend-neutral event schema
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ContextUsage } from '@core/types/agent-types.js';
 
@@ -13,7 +13,7 @@ export interface QuestionSpec {
 
 export type NormalizedEvent =
   | { type: 'session_started'; sessionId: string; sessionFile?: string }
-  | { type: 'assistant_text'; text: string; blockId?: string }
+  | { type: 'assistant_text'; text: string; blockId?: string; model?: string | null }
   | { type: 'assistant_delta'; text: string; blockId: string }
   | { type: 'tool_use'; toolUseId: string; name: string; input: unknown }
   | { type: 'tool_result'; toolUseId: string; ok: boolean; content: string }

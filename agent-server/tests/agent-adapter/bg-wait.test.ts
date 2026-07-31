@@ -1,13 +1,13 @@
-// input:  bg-wait, fake process, timers, runtime settings
-// output: continuation, timeout, and settings reset tests
-// pos:    Covers thread-session inline background waits
+// input:  background policy, fake process, timers, settings
+// output: continuation eligibility, merge, and timeout tests
+// pos:    Covers inline background waiting
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
-  waitForBgContinuation, shouldAwaitBgInline, remainingBg,
+  canAwaitBgContinuation, waitForBgContinuation, shouldAwaitBgInline, remainingBg,
 } from '../../src/agent-adapter/bg-wait.js';
 import type { ContinuationSink } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
@@ -181,6 +181,8 @@ test('shouldAwaitBgInline: only thread turns, claude backend, sink capability, w
   try {
     delete process.env.CORTEX_BG_CONTINUATION;
     const r = baseResult();
+    assert.equal(canAwaitBgContinuation('claude', r, true), true, 'eligible work can be explicitly awaited');
+    assert.equal(canAwaitBgContinuation('pi', r, true), false, 'unsupported backends are ineligible');
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', r, true), true, 'thread turn with running task waits');
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 1 }), true), true, 'undelivered-only also waits');
     assert.equal(shouldAwaitBgInline('claude', null, r, true), false, 'interactive turn (no threadId) handled by lifecycle hold instead');

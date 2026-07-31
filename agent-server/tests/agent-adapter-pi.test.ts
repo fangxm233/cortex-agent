@@ -1,7 +1,7 @@
-// input:  Node test runner, PIAdapter, stub subprocesses
-// output: PI spawn policy, context, compact and switch tests
-// pos:    Hermetic PI adapter and subprocess regressions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  PI adapter test hooks and fake subprocesses
+// output: PI spawn policy, bounded events, context and compact
+// pos:    Covers PI process and event lifecycle
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -456,6 +456,10 @@ test('settled PI turn emits context_usage before its terminal event', async () =
   assert.deepEqual((await iterator.next()).value, {
     type: 'turn_complete', numTurns: 0, totalCostUsd: null,
   });
+  let streamDone = false;
+  void iterator.next().then((entry) => { streamDone = entry.done; });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(streamDone, true, 'per-run stream closes after its terminal event');
 
   child.emit('close', 0, null);
   await proc.close();

@@ -1,6 +1,6 @@
 // input:  spawn config, composition, spawner, settings
-// output: PI sessions, policy errors, compact, steering
-// pos:    Validates and runs PI CLI sessions
+// output: PI sessions, bounded event streams, compact, steering
+// pos:    PI backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
@@ -604,6 +604,7 @@ class PISession {
     if (evt.type !== 'assistant_text') {
       this.flushTextBuffer();
       this.events.push(evt);
+      if (evt.type === 'turn_complete') this.events.close();
       return;
     }
     const blockId = evt.blockId ?? null;

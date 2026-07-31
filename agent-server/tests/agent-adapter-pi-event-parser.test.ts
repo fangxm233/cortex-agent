@@ -1,7 +1,7 @@
-// input:  piRpcLineToNormalized + createPIEventParserState
-// output: PI parser coverage including context usage and settled terminal boundaries
-// pos:    PI rpc → NormalizedEvent translator full coverage
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  PI RPC events and parser state
+// output: PI normalized-event regressions
+// pos:    Covers PI event translation
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -136,11 +136,7 @@ test('assistant_text: message_update text_delta with blockId', () => {
     line({ type: 'message_update', message: { id: 'm1' }, assistantMessageEvent: { type: 'text_delta', delta: 'hello' } }),
     state,
   );
-  assert.equal(events.length, 1);
-  const evt = events[0] as any;
-  assert.equal(evt.type, 'assistant_text');
-  assert.equal(evt.text, 'hello');
-  assert.equal(evt.blockId, 'm1');
+  assert.deepEqual(events, [{ type: 'assistant_text', text: 'hello', blockId: 'm1' }]);
 });
 
 test('assistant_text: blockId falls back to message.responseId (the real PI field)', () => {
