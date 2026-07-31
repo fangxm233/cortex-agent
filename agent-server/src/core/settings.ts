@@ -1,5 +1,5 @@
 // input:  CONFIG_DIR, settings spec, process env, filesystem
-// output: source snapshots and settings read/watch/write API
+// output: validated settings snapshots and read/watch/write API
 // pos:    L0 file-backed runtime settings boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -51,7 +51,7 @@ const typeValidators: Record<SettingType, (value: unknown) => boolean> = {
   'string|null': (value) => value === null || typeof value === 'string',
 };
 
-function validateOverrides(value: unknown): asserts value is Record<string, unknown> {
+export function validateSettingsOverrides(value: unknown): asserts value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new TypeError('settings.json must contain a JSON object');
   }
@@ -67,7 +67,7 @@ function validateOverrides(value: unknown): asserts value is Record<string, unkn
 function readOverrides(): Record<string, unknown> {
   try {
     const parsed = JSON.parse(readFileSync(SETTINGS_FILE, 'utf8')) as unknown;
-    validateOverrides(parsed);
+    validateSettingsOverrides(parsed);
     return parsed;
   } catch (error: any) {
     if (error?.code === 'ENOENT') return {};
@@ -105,7 +105,7 @@ export function resolveSettingsSnapshot(
   overrides: Record<string, unknown>,
   env: NodeJS.ProcessEnv = process.env,
 ): SettingSnapshotEntry[] {
-  validateOverrides(overrides);
+  validateSettingsOverrides(overrides);
   return SETTING_KEYS.map((key) => resolveSettingEntry(key, overrides, env, false));
 }
 

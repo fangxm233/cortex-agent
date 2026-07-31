@@ -1,5 +1,5 @@
 // input:  settings migration, isolated config files
-// output: env-to-settings migration regression tests
+// output: migration parsing, safety, mode, and idempotency tests
 // pos:    Specifies one-time legacy settings migration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -176,5 +176,107 @@ describe.sequential('migrateEnvToSettings', () => {
     await migrate();
 
     assert.deepEqual(await fs.readdir(CONFIG_DIR), []);
+  });
+
+  test('ignores SPEC-looking continuation lines inside an unrelated multiline value', async () => {
+    const original = [
+      'API_SECRET="first line',
+      'CORTEX_SHOW_TOOL_CALLS=inside-secret',
+      'last line"',
+      'KEEP_ME=yes',
+      '',
+    ].join('\n');
+    await fs.writeFile(ENV_FILE, original);
+
+    const migrate = await loadMigration();
+    await migrate();
+
+    assert.equal(await fs.readFile(ENV_FILE, 'utf8'), original);
+    assert.deepEqual(await backupNames(), []);
+    await assert.rejects(fs.access(SETTINGS_FILE));
+  });
+
+  test('removes the complete assignment span for a multiline SPEC value', async () => {
+    const original = [
+      'CORTEX_SHOW_TOOL_CALLS="yes',
+      'INNER_TEXT=still-part-of-the-value',
+      'last line"',
+      'KEEP_ME=yes',
+      '',
+    ].join('\n');
+    await fs.writeFile(ENV_FILE, original);
+
+    const migrate = await loadMigration();
+    await migrate();
+
+    assert.deepEqual(JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8')), {
+      showToolCalls: false,
+    });
+    assert.equal(await fs.readFile(ENV_FILE, 'utf8'), `${MIGRATION_COMMENT}\nKEEP_ME=yes\n`);
+    const backups = await backupNames();
+    assert.equal(backups.length, 1);
+    assert.equal(await fs.readFile(path.join(CONFIG_DIR, backups[0]), 'utf8'), original);
+  });
+
+  test('logs and leaves both files untouched when settings.json is malformed', async () => {
+    const originalEnv = 'CORTEX_SHOW_TOOL_CALLS=1\nKEEP_ME=yes\n';
+    const originalSettings = '{';
+    await fs.writeFile(ENV_FILE, originalEnv);
+    await fs.writeFile(SETTINGS_FILE, originalSettings);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const migrate = await loadMigration();
+    await migrate();
+
+    assert.equal(await fs.readFile(ENV_FILE, 'utf8'), originalEnv);
+    assert.equal(await fs.readFile(SETTINGS_FILE, 'utf8'), originalSettings);
+    assert.deepEqual(await backupNames(), []);
+    assert.match(errors.mock.calls.flat().join(' '), /Legacy settings migration failed/);
+  });
+
+  test('logs and leaves both files untouched when settings.json has a wrong-typed key', async () => {
+    const originalEnv = 'CORTEX_TURN_NOTIFY=0\nKEEP_ME=yes\n';
+    const originalSettings = '{"showToolCalls":"yes","unknownField":"preserved"}\n';
+    await fs.writeFile(ENV_FILE, originalEnv);
+    await fs.writeFile(SETTINGS_FILE, originalSettings);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const migrate = await loadMigration();
+    await migrate();
+
+    assert.equal(await fs.readFile(ENV_FILE, 'utf8'), originalEnv);
+    assert.equal(await fs.readFile(SETTINGS_FILE, 'utf8'), originalSettings);
+    assert.deepEqual(await backupNames(), []);
+    assert.match(errors.mock.calls.flat().join(' '), /showToolCalls/);
+  });
+
+  test('logs and leaves files untouched when a legacy parser produces a non-persistable value', async () => {
+    const original = 'CORTEX_INJECT_WAIT_MAX_S=garbage\nKEEP_ME=yes\n';
+    await fs.writeFile(ENV_FILE, original);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const migrate = await loadMigration();
+    await migrate();
+
+    assert.equal(await fs.readFile(ENV_FILE, 'utf8'), original);
+    assert.deepEqual(await backupNames(), []);
+    await assert.rejects(fs.access(SETTINGS_FILE));
+    assert.match(errors.mock.calls.flat().join(' '), /injectWaitMaxS/);
+  });
+
+  test('preserves restrictive .env permissions when replacing the file', async () => {
+    await fs.writeFile(ENV_FILE, 'CORTEX_SHOW_TOOL_CALLS=1\nKEEP_ME=yes\n');
+    await fs.chmod(ENV_FILE, 0o600);
+    const previousUmask = process.umask(0o022);
+
+    try {
+      const migrate = await loadMigration();
+      await migrate();
+    } finally {
+      process.umask(previousUmask);
+    }
+
+    const mode = (await fs.stat(ENV_FILE)).mode & 0o777;
+    assert.equal(mode, 0o600);
   });
 });

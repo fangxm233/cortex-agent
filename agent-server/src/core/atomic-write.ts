@@ -1,6 +1,6 @@
-// input:  filePath, data string
-// output: atomic file write (tmp → rename), async (atomicWrite) and sync (atomicWriteSync)
-// pos:    write primitive used by JsonRepository; guarantees original is never partially overwritten
+// input:  filePath, data string, optional permission mode
+// output: atomic file write (tmp → rename), async and sync variants
+// pos:    Write primitive that prevents partial file replacement
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import fs from 'node:fs/promises';
@@ -39,12 +39,21 @@ function assertNotRealHomeInTest(filePath: string): void {
   }
 }
 
-export async function atomicWrite(filePath: string, data: string): Promise<void> {
+export interface AtomicWriteOptions {
+  mode?: number;
+}
+
+export async function atomicWrite(
+  filePath: string,
+  data: string,
+  options: AtomicWriteOptions = {},
+): Promise<void> {
   assertNotRealHomeInTest(filePath);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const rnd = Math.random().toString(36).slice(2, 8);
   const tmp = `${filePath}.tmp.${process.pid}.${Date.now()}.${rnd}`;
   await fs.writeFile(tmp, data, 'utf8');
+  if (options.mode !== undefined) await fs.chmod(tmp, options.mode);
   await fs.rename(tmp, filePath);
 }
 

@@ -6,7 +6,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | filename | role | function |
 |---|---|---|
 | async-mutex.ts | util | serializes concurrent async operations |
-| atomic-write.ts | util | writes a file atomically, async or sync |
+| atomic-write.ts | util | writes atomically with optional permission mode |
 | auth.ts | core | issues and checks shared-secret auth tokens |
 | bg-held-sessions.ts | state | tracks sessions held running in background |
 | calver.ts | util | compares CalVer YYYY.M.D[-N] versions |
@@ -23,9 +23,9 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | paths.ts | config | defines install, data, and config paths |
 | profile-generator.ts | config | generates the agent profiles file |
 | running-executions.ts | state | registers and kills live agent executions |
-| settings-migration.ts | config | migrates legacy env settings at startup |
+| settings-migration.ts | config | safely migrates legacy env settings at startup |
 | settings-spec.ts | config | defines browser-safe settings metadata and parsers |
-| settings.ts | config | resolves cached values, sources and file hot reloads |
+| settings.ts | config | validates cached values, sources and file reloads |
 | singleton-lock.ts | util | claims and releases a process pidfile |
 | status-format.ts | util | formats status and progress messages |
 | task-node.ts | util | locates and creates task node artifacts |
