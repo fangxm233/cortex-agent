@@ -29,23 +29,37 @@ The Android APK is intended for arm64 devices and is distributed outside the Pla
 
 ## Server configuration
 
-The native shell talks to the server's opt-in Web UI endpoint. Add or confirm these settings in `$CORTEX_HOME/config/.env` on the server:
+The native shell talks to the server's opt-in Web UI endpoint. The endpoint itself is startup topology, so it stays in `$CORTEX_HOME/config/.env` on the server:
 
 ```bash
 CORTEX_UI_HTTP=1
 CORTEX_UI_PORT=3004
-CORTEX_UI_CORS_ORIGINS=cortexui://localhost,http://cortexui.localhost,tauri://localhost,http://tauri.localhost
 ```
 
-`cortex init` generates `CORTEX_CLIENT_TOKEN` in the same file. The native app uses that exact value; `CORTEX_TOKEN` is not the server-side client-token setting. Retrieve the configured token with:
+The allowed CORS origins are a runtime setting. Add or confirm the `uiCorsOrigins` key in `$CORTEX_HOME/config/settings.json` (see [configuration.md](./configuration.md#configsettingsjson)):
+
+```json
+{
+  "uiCorsOrigins": [
+    "cortexui://localhost",
+    "http://cortexui.localhost",
+    "tauri://localhost",
+    "http://tauri.localhost"
+  ]
+}
+```
+
+The legacy comma-separated `CORTEX_UI_CORS_ORIGINS` variable in `.env` is still read as a deprecated fallback.
+
+`cortex init` generates `CORTEX_CLIENT_TOKEN` in `.env`. The native app uses that exact value; `CORTEX_TOKEN` is not the server-side client-token setting. Retrieve the configured token with:
 
 ```bash
 grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
 ```
 
-Restart the daemon after changing the endpoint or CORS configuration. A native app connects to an HTTP or HTTPS URL that reaches this endpoint. When the endpoint is exposed through a tunnel, use a hostname that accepts the Cortex token directly rather than one that requires an interactive browser SSO page.
+Restart the daemon after changing the endpoint in `.env`. A change to `uiCorsOrigins` needs no restart — it is resolved per request. A native app connects to an HTTP or HTTPS URL that reaches this endpoint. When the endpoint is exposed through a tunnel, use a hostname that accepts the Cortex token directly rather than one that requires an interactive browser SSO page.
 
-Current builds serve the shell through the `cortexui` custom protocol, which appears as `cortexui://localhost` or `http://cortexui.localhost` depending on the WebView platform. The two `tauri` origins keep older native builds connectable. The server returns CORS headers only for origins explicitly listed in `CORTEX_UI_CORS_ORIGINS`.
+Current builds serve the shell through the `cortexui` custom protocol, which appears as `cortexui://localhost` or `http://cortexui.localhost` depending on the WebView platform. The two `tauri` origins keep older native builds connectable. The server returns CORS headers only for origins explicitly listed in `uiCorsOrigins`.
 
 ## First connection
 
@@ -111,7 +125,7 @@ Confirm that the app contains the value of `CORTEX_CLIENT_TOKEN`, not the webhoo
 
 ### Network error
 
-Confirm that the daemon is running, `CORTEX_UI_HTTP=1` is loaded, the URL reaches the configured port, and the tunnel is active. A successful page load with failed API calls usually indicates a token or CORS problem. Confirm that the current `cortexui` origins are present in `CORTEX_UI_CORS_ORIGINS`; retain the `tauri` origins when older app builds also connect to the server.
+Confirm that the daemon is running, `CORTEX_UI_HTTP=1` is loaded, the URL reaches the configured port, and the tunnel is active. A successful page load with failed API calls usually indicates a token or CORS problem. Confirm that the current `cortexui` origins are present in the `uiCorsOrigins` setting in `config/settings.json`; retain the `tauri` origins when older app builds also connect to the server.
 
 ### Credentials do not persist on Linux
 

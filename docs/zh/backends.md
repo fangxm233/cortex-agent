@@ -114,7 +114,7 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 
 限流窗口与带 provider 归属的恢复队列持久化在 `schedules.json` 中。启动时 Cortex 会重新装载仍有效的计时器，并立即恢复在停机期间已经解除限流的 provider 工作，即使另一个 provider 仍在限流。旧数据中没有 provider 的条目会等待所有 provider 都解除。已有活跃直接会话的频道或此后已结束的线程会被跳过；等待时长本身不会导致条目被丢弃。
 
-自动恢复默认开启。设置 `CORTEX_AUTO_RESUME=0` 后，已经满足恢复条件的队列条目会被移除，但不会自动派发。
+自动恢复默认开启。在 [`config/settings.json`](./configuration.md#configsettingsjson) 中设置 `"autoResume": false` 后，已经满足恢复条件的队列条目会被移除，但不会自动派发；改动无需重启守护进程即刻生效。`.env` 中的旧变量 `CORTEX_AUTO_RESUME=0` 仍作为已弃用的回退被读取。
 
 ## 费用报告
 

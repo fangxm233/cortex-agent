@@ -141,7 +141,7 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 }
 ```
 
-由于每次生成都会重新读取注册表，新声明会在下一个启动的智能体上生效。在环境中设置 `CORTEX_HOOKS_LEGACY=1` 会绕过注册表，改用一张固定的内置表。
+由于每次生成都会重新读取注册表，新声明会在下一个启动的智能体上生效。在 [`config/settings.json`](./configuration.md#configsettingsjson) 中设置 `"hooksLegacy": true` 会绕过注册表，改用一张固定的内置表；旧环境变量 `CORTEX_HOOKS_LEGACY=1` 仍作为已弃用的回退被读取。
 
 ### PI
 

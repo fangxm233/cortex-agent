@@ -182,8 +182,11 @@ different provider remains limited. Provider-less entries from older data
 wait until every active provider clears. A busy direct channel or a thread
 that has since finished is skipped; elapsed age alone does not discard work.
 
-Auto-resume is on by default. Set `CORTEX_AUTO_RESUME=0` in the `.env` file to
-drop ready resume entries instead of dispatching them automatically.
+Auto-resume is on by default. Set `"autoResume": false` in
+[`config/settings.json`](./configuration.md#configsettingsjson) to drop ready
+resume entries instead of dispatching them automatically; the change takes
+effect without a daemon restart. The legacy `CORTEX_AUTO_RESUME=0` variable in
+`.env` is still read as a deprecated fallback.
 
 ## Cost reporting
 

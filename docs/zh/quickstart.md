@@ -196,7 +196,7 @@ Cortex 首先打印完整的 **Slack 应用清单**，并询问是否要复制�
 
 Cortex 会把启动通知、审批请求和其他运维消息发送到管理频道。设置过程中无需输入任何内容——Cortex 会在你第一次给机器人发私信时自动检测管理频道并持久化。
 
-如果你想把管理消息发送到指定频道（例如共享的运维频道），从 Slack 获取频道 ID（右键点击频道名称 → View channel details → 在对话框底部复制 Channel ID），然后在 `$CORTEX_HOME/config/.env` 中设置 `CORTEX_ADMIN_CHANNEL`。
+如果你想把管理消息发送到指定频道（例如共享的运维频道），从 Slack 获取频道 ID（右键点击频道名称 → View channel details → 在对话框底部复制 Channel ID），然后在 `$CORTEX_HOME/config/settings.json` 中设置 `adminChannel` 键（见 [configuration.md](./configuration.md#configsettingsjson)）。`.env` 中的旧变量 `SLACK_ADMIN_CHANNEL` / `CORTEX_ADMIN_CHANNEL` 仍作为已弃用的回退可用。
 
 ### 2.5 飞书应用设置（在浏览器中逐步操作）
 
@@ -371,7 +371,7 @@ cortex config         # 打印解析后的路径 + 初始化状态
 hello
 ```
 
-第一条私信是 Cortex 用来自动检测管理频道的（除非你在 `.env` 中显式设置了 `CORTEX_ADMIN_CHANNEL`）。你应该在几秒钟内收到回复。
+第一条私信是 Cortex 用来自动检测管理频道的（除非你在 `config/settings.json` 中显式设置了 `adminChannel`）。你应该在几秒钟内收到回复。
 
 
 ### 4.2 创建你的第一个项目

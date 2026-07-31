@@ -154,7 +154,7 @@ and the Bot Token starts with `xoxb-` before writing them to `.env`.
 
 ## Admin channel: auto-detected, no setup needed
 
-`CORTEX_ADMIN_CHANNEL` is the channel Cortex DMs for startup
+The `adminChannel` setting is the channel Cortex DMs for startup
 notifications, approval requests, and other operator-facing chatter.
 `cortex init` does not ask for it. The first time you DM the bot, the
 Slack adapter records the channel ID and persists it. See
@@ -162,12 +162,19 @@ Slack adapter records the channel ID and persists it. See
 
 If you want to pin it explicitly (e.g. you want admin chatter to land
 in a different channel than your DM), grab the channel ID from Slack
-(channel name → View channel details → bottom of the page) and set it
-in `$CORTEX_HOME/config/.env`:
+(channel name → View channel details → bottom of the page) and set
+`adminChannel` in `$CORTEX_HOME/config/settings.json` (see
+[configuration.md](./configuration.md#configsettingsjson)):
 
+```json
+{
+  "adminChannel": "C0123456789"
+}
 ```
-CORTEX_ADMIN_CHANNEL=C0123456789
-```
+
+A change here reaches the running Slack adapter without a daemon
+restart. The legacy `SLACK_ADMIN_CHANNEL` and `CORTEX_ADMIN_CHANNEL`
+variables in `.env` are still read as deprecated fallbacks.
 
 ## After the bot is in your workspace
 
@@ -208,7 +215,10 @@ it periodically checks npm for a newer `@cortex-agent/server` version.
 The first check runs 60 seconds after startup, then every 24 hours.
 
 Auto-update is enabled by default. To disable it, set
-`CORTEX_SERVER_UPDATE_DISABLE=1` in your `.env` file.
+`"serverUpdateDisable": true` in `$CORTEX_HOME/config/settings.json`
+(see [configuration.md](./configuration.md#configsettingsjson)); the legacy
+`CORTEX_SERVER_UPDATE_DISABLE=1` variable in `.env` is still read as a
+deprecated fallback.
 
 When a newer version is found, Cortex sends an interactive message to the
 admin DM with three buttons:

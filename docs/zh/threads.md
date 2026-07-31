@@ -297,7 +297,7 @@ running → waiting     （等待用户输入 — 第 6 阶段缓冲）
 
 挂起中的 manager 等待它的子任务（以及子线程）。调用 `thread_wait` 时若不传 `on_tasks` 和 `on_threads`，系统会自动推断所有仍存活且已关联的子项。只要传入其中任一参数，就会切换到显式覆盖模式：系统仅等待参数数组中列出的 ID，未传的另一类按空数组处理。显式 ID 必须指向仍存活且已关联的子项；重复、缺失、无关和已终止的 ID 会被忽略。因此，传入空数组时没有需要等待的子项，线程会继续执行。
 
-每个完成或被阻塞的子项都会作为结果/升级通知投递进 manager 的 `pendingMessages`；当没有剩余等待项时，manager 被重新进入。投递由事件驱动（`task.completed` / `task.blocked`，投递前会对照 `TASKS.yaml` 验证），并有两张安全网：周期性的磁盘对账扫描（每 60 秒一次，可通过 `CORTEX_WAITING_SWEEP_MS` 配置），逐个核对每个等待中 manager 的磁盘任务状态；以及启动恢复流程，补投服务器停机期间转为终态的结果。未完成的子任务跨重启存续、继续被等待。
+每个完成或被阻塞的子项都会作为结果/升级通知投递进 manager 的 `pendingMessages`；当没有剩余等待项时，manager 被重新进入。投递由事件驱动（`task.completed` / `task.blocked`，投递前会对照 `TASKS.yaml` 验证），并有两张安全网：周期性的磁盘对账扫描（每 60 秒一次，可通过 [`config/settings.json`](./configuration.md#configsettingsjson) 中的 `waitingSweepMs` 键配置；旧变量 `CORTEX_WAITING_SWEEP_MS` 仍作为已弃用的回退被读取），逐个核对每个等待中 manager 的磁盘任务状态；以及启动恢复流程，补投服务器停机期间转为终态的结果。未完成的子任务跨重启存续、继续被等待。
 
 任务被阻塞不会级联到依赖它的任务，因此等待集可能进入这样的状态：每个剩余等待项都（直接或传递地）依赖某个被阻塞的任务，永远无法开始。唤醒路径会检测这种停滞，并用一条死锁通知唤醒 manager，通知中列出被卡住的任务及其阻塞源；manager 应当解除阻塞、重新规划分解，或通过 `thread_abort` 升级。每种不同的停滞状态只唤醒 manager 一次——停滞状态不变则不会重复唤醒。
 
@@ -503,7 +503,7 @@ Cortex 内部使用三种类型的线程记录：
 
 manager 线程是长生命周期的：随着子项运行，它跨越多次唤醒累积上下文。为保持上下文清洁，DR-0017 会周期性地**轮换 manager 的 LLM 会话**，依赖持久的**任务定址 manager 产物**（见上文）及其验收台账（见 [tasks.md](./tasks.md)）来跨越边界携带状态。
 
-- **触发**：在恢复的收窄点检查，就在重新进入一个被挂起的 manager 之前。当 `steps.length - rotationBaseStepIndex >= CORTEX_MANAGER_ROTATE_STEPS`（环境变量，**默认 10**）时，会话被轮换。只有 **manager（任务产物）模板**会轮换——普通线程从不轮换。
+- **触发**：在恢复的收窄点检查，就在重新进入一个被挂起的 manager 之前。当 `steps.length - rotationBaseStepIndex >= managerRotateSteps`（[`config/settings.json`](./configuration.md#configsettingsjson) 中的 `managerRotateSteps` 键，**默认 10**；旧变量 `CORTEX_MANAGER_ROTATE_STEPS` 仍作为已弃用的回退被读取）时，会话被轮换。只有 **manager（任务产物）模板**会轮换——普通线程从不轮换。
 - **轮换动作**：清空每个智能体槽位的 `sessionId`（这样下一步在一个**全新的 LLM 会话**上运行，会自然地重新注入完整的 manager 指令和原始任务契约提示），把 `rotationBaseStepIndex` 重置为当前步骤计数，并为新鲜化身入队一条**再水化通知**。
 - **再水化通知**：它指示新鲜化身：(1) **先读自己的产物**——该文件保存着前任的检查点；(2) **对账任务树**（例如 `cortex-task tree --task-id <id>`）；(3) **验证台账中待处理的交付**——仍在等待本 manager 裁决的子项结果，必须逐一按其 `done-when` 核验后才可信任。它还告诉化身**不要**重做已完成的工作或重新争论已记录的决策，而是从剩余计划继续。
 - 轮换是一次**刻意的击杀测试**：它与灾难/崩溃恢复同构——新鲜化身纯粹从持久状态再水化。它**故障放行**：轮换失败是非致命的（恢复在旧会话上继续），且非 manager 线程从不轮换。

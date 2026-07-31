@@ -83,7 +83,7 @@ A synchronous, type-safe event bus with JSONL logging.
 |------|---------|
 | `event-types.ts` | 22 user event types + 2 meta events in a `CortexEvent` discriminated union. Categories: message/interaction, agent lifecycle, thread lifecycle, task, system |
 | `event-bus.ts` | `EventBus` class — `subscribe(type, handler)` / `publish(event)`. Synchronous fan-out. Async handlers fire-and-forget. Re-entrant guard for `event-bus.handler-failed`. Close hooks for SIGTERM drain |
-| `event-logger.ts` | Subscribes to `'*'`, ring buffer of 1024 entries, 100ms flush interval, daily rolling JSONL, 14-day retention. Gated by `CORTEX_EVENT_LOG=off` |
+| `event-logger.ts` | Subscribes to `'*'`, ring buffer of 1024 entries, 100ms flush interval, daily rolling JSONL, 14-day retention. Gated by the `eventLog` setting in [`config/settings.json`](./configuration.md#configsettingsjson) (set it to `false` to disable; legacy env `CORTEX_EVENT_LOG=off` still works as a deprecated fallback) |
 | `event-replay.ts` | Debug CLI: `node events/event-replay.ts --date YYYY-MM-DD [--type xxx]` |
 
 **Event categories:**
