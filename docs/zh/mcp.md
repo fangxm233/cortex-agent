@@ -3,17 +3,17 @@
 
 Cortex 内置按权限面和平台面拆分的 MCP（Model Context Protocol）服务器，赋予智能体访问远程机器、任务监控、线程控制、调度、费用和平台集成的能力。本文档解释每个服务器提供什么、如何组合以及如何添加第三方 MCP 服务器。
 
-## 什么是 MCP
+## 什么是 MCP {#what-mcp-is}
 
 MCP 是一个开放协议，允许 LLM 应用通过标准化的 JSON-RPC 接口（基于 stdio 或 HTTP）向智能体暴露工具。Cortex 使用 MCP 在智能体进程（无法直接访问 agent-server 内部）和服务器能力之间架起桥梁。MCP 支持因后端而异——功能矩阵参见 [backends.md](./backends.md)。
 
 Claude Code 从 JSON 文件读取 MCP 服务器配置，并将每个服务器作为子进程生成。智能体可以像内置工具（Bash、Read、Edit 等）一样调用 MCP 工具，工具名称以 `mcp__<server-name>__` 为前缀。
 
-## 为什么 Cortex 内置自己的 MCP 服务器
+## 为什么 Cortex 内置自己的 MCP 服务器 {#why-cortex-ships-its-own-mcp-servers}
 
 Cortex 的 agent-server 维护智能体进程无法直接访问的状态：到远程机器的 WebSocket 连接、调度数据库、费用记录、Slack API 客户端和执行注册表。MCP 服务器充当受控桥梁——智能体调用 MCP 工具，MCP 服务器与 agent-server 内部通信（通过 HTTP 到本地 webhook 服务器端口 3001，或通过读取共享文件），结果流回智能体。
 
-## 内置 MCP 服务器
+## 内置 MCP 服务器 {#the-bundled-mcp-servers}
 
 ### cortex-core
 
@@ -122,7 +122,7 @@ skill 指南，见 `feishu-doc` skill。
 
 服务器实现在 `agent-server/src/domain/mcp/tui-server.ts`。工具在 `agent-server/src/domain/mcp/tools/tui-plan.js` 和 `tui-ask.js`。
 
-## MCP 配置文件
+## MCP 配置文件 {#mcp-configuration-files}
 
 Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core/config-generator.ts` 和 `agent-server/src/entry/startup-helpers.ts` 中的 `ensureMcpConfig()` 调用）。平台特定的服务器（cortex-slack、cortex-feishu）根据会话的源平台动态加载。
 
@@ -167,7 +167,7 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 
 配置文件在每次 agent-server 启动时重新生成。手动编辑它们将被覆盖。要自定义 MCP 配置，修改 `core/config-generator.ts` 中的生成器或工具读取的 profile/budget/schedule 设置。
 
-### 如何选择正确的配置
+### 如何选择正确的配置 {#how-the-right-config-gets-selected}
 
 在 `agent-adapter/claude/spawn-args.ts` 中，MCP 配置按会话上下文组合：
 
@@ -176,7 +176,7 @@ Cortex 在启动时自动生成 MCP 配置文件（通过 `agent-server/src/core
 
 线程分支由 `session.cortexContext.useCoreMcp` 标记。PI bridge 的顶层会话始终连接 core、tasks、manager-Q&A 和 ext；仅当 `CORTEX_THREAD_ID` 存在时，`shouldLoadThreadControl()` 才追加 cortex-thread。PI `Agent` 子代理只连接 cortex-core。平台服务器继续由来源频道谓词门控。
 
-## MCP 工具如何与 agent-server 通信
+## MCP 工具如何与 agent-server 通信 {#how-mcp-tools-communicate-with-agent-server}
 
 MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-server 的进程内状态（WebSocket 连接、调度仓库、执行注册表）。相反，它们通过两条路径通信：
 
@@ -184,7 +184,7 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 2. **共享文件访问** — 调度、费用和执行工具直接读取和写入 `~/.cortex/data/` 中的共享数据文件（schedules.json、costs.jsonl、executions.json），使用与主服务器进程相同的仓库层。
 
-## 添加第三方 MCP 服务器
+## 添加第三方 MCP 服务器 {#adding-a-third-party-mcp-server}
 
 要添加第三方 MCP 服务器（例如数据库连接器、网络搜索工具或自定义研究工具），将其添加到 `~/.cortex/config/mcp-config.json`。如果线程智能体也应拥有它，请把它加入某个线程组合配置 builder，而不是只加入直接会话配置：
 
@@ -207,7 +207,7 @@ MCP 服务器作为独立的子进程运行。它们不能直接访问 agent-ser
 
 类型系统已经通过 `AgentSpawnConfig.mcpServers` 字段（每后端 `McpServerConfig` 数组）支持第三方 MCP 服务器，但截至当前代码库，此字段尚未被适配器消费。所有 MCP 配置仍然通过 `--mcp-config` CLI 标志流动。
 
-## 权限模型
+## 权限模型 {#permission-model}
 
 MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信任边界。Cortex 应用以下控制：
 
@@ -221,7 +221,7 @@ MCP 工具跨越从智能体进程到 agent-server 内部和远程机器的信�
 
 5. **网络边界** — 与远程机器通信的 MCP 工具通过 client-manager 的 WebSocket 层。`machines.json` 注册表控制哪些设备是已知的。只有具有活跃 WebSocket 连接的设备才能接收命令。
 
-## 传递给 MCP 服务器的环境变量
+## 传递给 MCP 服务器的环境变量 {#environment-variables-passed-to-mcp-servers}
 
 MCP 服务器进程接收 agent server 环境变量的一个子集：
 
@@ -240,7 +240,7 @@ MCP 服务器进程接收 agent server 环境变量的一个子集：
 | `CORTEX_SCHEDULE_TASK_ID` | 可选调度任务 ID | cortex-ext |
 | `ANTHROPIC_BASE_URL` | 可选 API 基础 URL 覆盖 | 模型路由 |
 
-## 安全考量
+## 安全考量 {#security-considerations}
 
 MCP 工具赋予智能体在远程机器上执行 shell 命令、读写文件、上传到 Slack 和修改调度的能力。安全假设如下：
 

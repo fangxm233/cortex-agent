@@ -1,8 +1,8 @@
-# 钩子
+# 钩子 {#hooks}
 
 钩子是 Cortex 在某件事发生时运行的一条命令——工具即将执行、会话开始、线程结束、任务完成。每个钩子都是一份**声明**：`$CORTEX_HOME/config/hooks/` 下的一个 JSON 文件，声明一个事件、一个可选的匹配器，以及要运行的命令。服务器在启动时加载这些声明，各个消费方分别编译自己关心的子集：Claude Code 后端、PI 后端，以及服务器自身的事件派发器。添加一个钩子意味着添加一个文件，而不是改代码。关于钩子在整体系统中的位置，参见 [architecture.md](./architecture.md)。
 
-## 架构概览
+## 架构概览 {#architecture-overview}
 
 ```
         $CORTEX_HOME/config/hooks/*.json   — 一个文件一条声明
@@ -24,7 +24,7 @@
               $CORTEX_HOME/hooks/*.mjs — 脚本本体
 ```
 
-## 钩子注册表
+## 钩子注册表 {#the-hook-registry}
 
 注册表就是目录 `$CORTEX_HOME/config/hooks/`。其中每个 `.json` 文件是一条钩子声明。文件按文件名排序读取，这个顺序同时也是同一事件下钩子的执行顺序——随 Cortex 发布的声明带有数字前缀（`01-…`、`02-…`），使相对顺序显式可见。
 
@@ -34,7 +34,7 @@
 
 移动端对同一份注册表只读：钩子页展示分组后的清单以及每行背后的完整声明，但不提供编辑、新建与试跑。要改钩子请使用桌面端会话。
 
-### 条目 schema
+### 条目 schema {#entry-schema}
 
 ```json
 {
@@ -62,13 +62,13 @@
 | `enabled` | boolean | `false` 时从所有消费方移除该钩子而不删除文件。默认 `true` |
 | `version` | string | CalVer 版本戳（`2026.7.29`，可带 `-1`），标记该条目为 managed |
 
-### managed 条目与 user 条目
+### managed 条目与 user 条目 {#managed-and-user-entries}
 
 带合法 CalVer `version` 的条目是 **managed**：它随 Cortex 发布，启动时只要发布版本比已部署版本更新，就从 `defaults/config/hooks/` 刷新过来。没有 `version` 的条目是 **user** 条目，永不被覆盖——正是这条保证让你可以把自己的声明直接放在随发布的声明旁边。钩子脚本以同样方式同步，依据是脚本源码里的 `@cortex-hook-version` 注释。
 
-## 事件命名空间
+## 事件命名空间 {#event-namespaces}
 
-### `agent:*` — 后端中立的智能体事件
+### `agent:*` — 后端中立的智能体事件 {#agent-backend-neutral-agent-events}
 
 这些是两个编程智能体后端语义真正一致的事件。一条声明同时编译到 Claude Code 与 PI，且两边交给脚本的 payload 都是 Claude 形状，因此同一个脚本可以服务两个后端。
 
@@ -84,15 +84,15 @@
 
 Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂上对应的 Claude 挂载点，用原生形式声明为 `cc:SessionEnd`、`cc:PreCompact`、`cc:UserPromptSubmit` 或 `cc:Stop`。
 
-### `cc:*` — Claude Code 原生透传
+### `cc:*` — Claude Code 原生透传 {#cc-claude-code-passthrough}
 
 `cc:` 之后的部分原样用作 Claude 设置里的事件名，因此不改代码就能触达 Claude Code 的任意挂载点——`cc:PermissionRequest`（随发布的自动放行钩子即用它）、`cc:SessionEnd`、`cc:PreCompact`、`cc:UserPromptSubmit`、`cc:Stop`。这类声明只挂在 Claude 后端。
 
-### `pi:*` — PI 原生透传
+### `pi:*` — PI 原生透传 {#pi-pi-passthrough}
 
 `pi:` 之后的部分直接注册为 PI 扩展事件，因此 `pi:session_start`、`pi:before_provider_headers` 等 PI 独有挂载点也以同样方式可用。这类声明只挂在 PI 后端，且脚本收到的是原始 PI 事件对象，而非 Claude 形状的 payload。
 
-### `cortex:*` — 服务器端事件
+### `cortex:*` — 服务器端事件 {#cortex-server-side-events}
 
 这些事件在 agent-server 进程内部触发，由 HookBus 派发。
 
@@ -114,13 +114,13 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 
 三个 `cortex:thread.*` 事件携带的线程上下文为：`threadId`、`templateName`、`phase`、`source`、`project`、`projectId`、`taskId`、`taskProject`、`currentStepIndex`、`steps`、`activeAgent`、`previousAgent`、`artifactContent`、`userMessage`、`totalCostUsd`、`pendingControlAction`。
 
-### 匹配器
+### 匹配器 {#matchers}
 
 对 `agent:*`、`cc:*`、`pi:*` 事件，匹配器是对工具名求值的正则。`agent:*` 与 `cc:*` 的匹配器使用 Claude 的 PascalCase 名称（`Edit|Write`、`Read|Grep`）；在 PI 侧，桥接会先把 PI 的 `edit` / `read` / `web_fetch` 这类名称映射为上述规范名再做匹配，因此一个匹配器覆盖两个后端。`pi:*` 的匹配器则直接对 PI 的原生工具名求值。非工具事件的匹配对象不同：Claude 用 `SessionStart` 匹配器去匹配启动原因（`startup|resume|clear|compact`），而 PI 桥接只对工具事件应用匹配器，生命周期事件上忽略它。
 
 对 `cortex:*` 事件，匹配器是一个等值过滤对象，其中每个键都必须出现在 payload 中且值完全相等。随发布的分发钩子使用 `{"source": "task-dispatch"}`，因此它只对由任务分发启动的线程触发，而不是每个结束的线程都触发。
 
-## 编译到智能体后端
+## 编译到智能体后端 {#compiling-to-the-agent-backends}
 
 ### Claude Code
 
@@ -151,7 +151,7 @@ Claude 编译器为前三个事件生成设置；后四个只到达 PI。要挂�
 
 脚本输出会被原生地兑现。在 `tool_call` 上，`hookSpecificOutput.permissionDecision` 为 `deny` 会阻断该工具并给出 `permissionDecisionReason`，`hookSpecificOutput.updatedInput` 会替换工具输入。在 `tool_result` 上，`hookSpecificOutput.additionalContext` 会追加到工具内容中。在 `before_agent_start` 上，同一字段会追加到 system prompt。`pi:*` 条目还可以在 `pi:tool_call` 上返回 `{"block": true}`、整体替换 `input`，以及在 `pi:before_provider_headers` 上改写 `headers`。
 
-## 服务器端派发器
+## 服务器端派发器 {#the-server-side-dispatcher}
 
 `core/hook-bus.ts` 派发 `cortex:*` 事件。服务器在启动时把注册表快照进 bus，因此新增的 `cortex:*` 声明在服务器下次启动时生效。
 
@@ -165,7 +165,7 @@ bus 如何处理 stdout 取决于 `result`：
 
 超时、非零退出或输出无法解析的钩子会被记录并跳过，绝不会让其所处的主流程失败。
 
-## 线程模板作用域的钩子
+## 线程模板作用域的钩子 {#thread-template-scoped-hooks}
 
 有些钩子属于某一个线程模板而非整个系统，因此模板在 `$CORTEX_HOME/config/thread-templates/templates/<name>.json` 里保留自己的钩子块：
 
@@ -205,19 +205,19 @@ bus 如何处理 stdout 取决于 `result`：
 
 `targetAgent` 把提示发送到该智能体的持久会话；两种模式下都可用可选的 `directive` 前置到提示之前。
 
-## 会话事件与提示注入
+## 会话事件与提示注入 {#session-events-and-prompt-injection}
 
 `cortex:session.new` 在会话被 `!new` 或“New”状态按钮拆除之前触发，`cortex:session.messageEnd` 在每次助手回合之后触发。二者与其他钩子一样以声明方式配置；随发布的 `session-new-hook` 声明指向 `new-session-hook.mjs`，`result` 为 `stdout-as-prompt`。
 
 除了 stdin 上的 JSON payload，会话钩子还会在环境中收到 `CORTEX_HOOK_CHANNEL`、`CORTEX_HOOK_SESSION_ID`、`CORTEX_HOOK_SESSION_NAME`、`CORTEX_HOOK_TRIGGER` 和 `CORTEX_HOOK_EXECUTION_ID`。非空 stdout 会作为一次新的智能体回合注入——对 `session.new`，注入到仍存活的会话上，并使用一个事后关闭的隔离会话键，使这次关闭前的回合不会把旧会话复活到频道槽位上；对 `session.messageEnd`，注入在频道本身上，因此后续回合延续实时对话，其输出也挂在触发它的那条回复之下。
 
-## hook-bridge：经 HTTP 阻塞的工具调用
+## hook-bridge：经 HTTP 阻塞的工具调用 {#the-hook-bridge-blocking-tool-calls-over-http}
 
 有两个工具事件需要人介入，而智能体进程自己做不到。`ask-user-question-hook.mjs` 与 `exit-plan-mode-hook.mjs` 向服务器的 webhook 监听端口（`WEBHOOK_PORT`，默认 3001）POST 到 `/hook/ask-user-question` 和 `/hook/exit-plan-mode`，并阻塞等待响应。
 
 在服务器侧，`orchestration/routing/hook-bridge.ts` 注册一个带 30 分钟 TTL 的挂起 promise，并在事件总线上发布 `ask-user.requested` 或 `plan.submitted`。`hook-bridge-subscribers.ts` 中的订阅者把它们转成交互式 Slack 消息。当用户点击按钮或提交模态框时，交互处理器解析该 promise，HTTP 响应回到等待中的钩子脚本，脚本把答案写到 stdout——智能体将其读作该工具执行前的结果。
 
-## 钩子脚本
+## 钩子脚本 {#hook-scripts}
 
 脚本位于 `$CORTEX_HOME/hooks/`，是普通的 Node.js `.mjs` 文件：从 stdin 读 JSON 上下文，向 stdout 写 JSON（对 `stdout-as-prompt` 钩子则写纯文本）。随 Cortex 发布的脚本如下：
 
@@ -239,7 +239,7 @@ bus 如何处理 stdout 取决于 `result`：
 
 同目录下的 `cortex-hook-api.mjs` 不是钩子入口，而是供钩子脚本 import 的辅助库（见下一节）。
 
-## 从钩子向用户提问
+## 从钩子向用户提问 {#asking-the-user-from-a-hook}
 
 任何钩子都可以在当前会话绑定的消息平台——Slack、飞书或 Web UI——上弹出一张 ask-user-question 卡片，并阻塞等待用户作答。卡片与 `AskUserQuestion` 工具产生的交互表单相同，并接受可选的分级（`info`、`warning`、`error`，`warn` 是别名）：Web UI 复用 ChatNotice 的分级配色，Slack 与飞书在标题前加对应图标。不带分级时卡片保持中性外观。
 
@@ -276,7 +276,7 @@ cortex-hook ask --question "磁盘即将写满——清理旧 checkpoint？" \
 
 智能体本体则通过 `cortex_ask_user` MCP 工具的 `level` 参数获得同样的分级能力。
 
-## cortex-hook CLI
+## cortex-hook CLI {#the-cortex-hook-cli}
 
 `cortex-hook` 用于查看和操作已挂载的钩子。所有命令都输出 JSON。
 
@@ -303,7 +303,7 @@ cat payload.json | cortex-hook test --id sensitive-file-edit --payload -
 
 `test` 返回 `ok`、`id`、`exit_code`、`stdout`、`stderr`，进程失败时还有 `error`，并以钩子自身的退出码退出。
 
-## 添加一个钩子
+## 添加一个钩子 {#adding-a-hook}
 
 1. 把脚本写进 `$CORTEX_HOME/hooks/`，例如 `warn-sensitive-file.mjs`：
 
@@ -352,7 +352,7 @@ cat payload.json | cortex-hook test --id sensitive-file-edit --payload -
 
 同样的三步也适用于服务器端事件——声明 `"event": "cortex:task.completed"` 并配上 `{"project": "my-project"}` 这样的 `matcher`，即可在该项目每次完成任务时运行某个动作。
 
-## 引用追踪
+## 引用追踪 {#reference-tracking}
 
 `memory-ref-tracker` 钩子为原子化内存系统实现自动引用追踪（完整架构参见 [memory.md](./memory.md)）。它把对实验、知识和模式文件的每次 Read 与 Grep 访问记录为一行 JSONL——被访问的文件名、工具名与时间戳：
 
@@ -362,7 +362,7 @@ cat payload.json | cortex-hook test --id sensitive-file-edit --payload -
 
 日志位于 `<project>/_meta/access-log.jsonl`，每次写入后自动提交到 git。内存索引重建会读取它来计算访问计数（`refs`）和最后访问时间戳（`last-ref`），这些驱动索引排序与热/冷分类。
 
-## 调试钩子
+## 调试钩子 {#debugging-hooks}
 
 先用 `cortex-hook list` 确认钩子已挂载且已启用，再用 `cortex-hook test --id <id> --payload <file>` 以你控制的 payload 单独运行它——这能把“脚本坏了”和“声明根本没匹配上”分开。钩子的执行与失败记录在 `$CORTEX_HOME/logs/daemon.log`；脚本写到 stderr 的内容也会被捕获到那里。
 

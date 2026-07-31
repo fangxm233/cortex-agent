@@ -1,9 +1,9 @@
-# 配置
+# 配置 {#configuration}
 
 
 Cortex 在启动时从 `$CORTEX_HOME/config/` 加载所有配置。唯一必需的变量是 `CORTEX_PLATFORM` 和平台凭据（Slack）。其他所有内容都有合理的默认值，大多数用户无需修改。
 
-## 文件层次结构
+## 文件层次结构 {#file-hierarchy}
 
 以下所有路径均相对于 `$CORTEX_HOME`（默认：`~/.cortex/`）。
 
@@ -42,7 +42,7 @@ $CORTEX_HOME/
 └── tmp/                          # 临时工作区（线程等）
 ```
 
-## 加载顺序和优先级
+## 加载顺序和优先级 {#loading-order-and-precedence}
 
 1. **内置默认值**（`agent-server/defaults/`）随 npm 包一起发布，为每个配置文件提供回退值。
 2. **`$CORTEX_HOME/config/.env`** 在守护进程启动时通过 `dotenv` 加载。这些会覆盖守护进程和所有 fork 子进程的进程环境变量。
@@ -52,13 +52,13 @@ $CORTEX_HOME/
 
 `.env` 文件支持标准的 `KEY=VALUE` 语法和 `#` 注释。已在 shell 中设置的环境变量优先于 `.env` 文件（dotenv 默认行为）。
 
-## 环境变量
+## 环境变量 {#environment-variables}
 
 所有值从 `$CORTEX_HOME/config/.env` 文件加载。只有 `CORTEX_PLATFORM` 和平台凭据是必需的。
 
 服务器的行为设置已不在这里：它们迁到了 [`config/settings.json`](#configsettingsjson)，改了即刻生效，不再需要重启。旧的环境变量仍作为已弃用的回退继续可用，并会在下一次守护进程启动时自动从 `.env` 迁出。
 
-### 路径
+### 路径 {#paths}
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
@@ -66,7 +66,7 @@ $CORTEX_HOME/
 | `CORTEX_PROJECTS_DIR` | `<CORTEX_HOME>/context/projects/` | 覆盖项目目录 |
 | `CORTEX_REPO` | — | 用于守护进程自动重建/热重载的仓库路径 |
 
-### 启动
+### 启动 {#startup}
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
@@ -74,7 +74,7 @@ $CORTEX_HOME/
 | `CORTEX_RESTART_REASON` | — | 重启通知的原因字符串 |
 | `CORTEX_CLIENT_PORT` | `3002` | cortex-client 管理器的 WebSocket 端口 |
 
-### 平台
+### 平台 {#platform}
 
 `CORTEX_PLATFORM` 选择消息平台，可填单个值（`slack`、`feishu`），也可填**逗号列表**让多个平台同时在线（`slack,feishu`）。每个凭据齐全的平台都会启动，可选的 TUI 网关（`CORTEX_TUI`）叠加其上。多平台时消息按平台路由，系统通知扇出到各平台各自的 admin channel。
 
@@ -100,7 +100,7 @@ $CORTEX_HOME/
 | `ANTHROPIC_API_KEY` | 直接 API 模式的 Anthropic API 密钥 |
 | `ANTHROPIC_BASE_URL` | 覆盖 API 基础 URL（由网关代理自动设置） |
 
-### 速率限制（Slack）
+### 速率限制（Slack） {#rate-limiting-slack}
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
@@ -117,7 +117,7 @@ $CORTEX_HOME/
 | `WEBHOOK_HOST` | `127.0.0.1` | 远程客户端的回退主机（当 Tailscale/LAN IP 未检测到时） |
 | `GITHUB_WEBHOOK_SECRET` | — | GitHub webhook HMAC-SHA256 签名密钥 |
 
-### 数据文件覆盖
+### 数据文件覆盖 {#data-file-overrides}
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
@@ -125,7 +125,7 @@ $CORTEX_HOME/
 | `CORTEX_COSTS_FILE` | `<STORE_DIR>/costs.jsonl` | 费用追踪 |
 | `CORTEX_BUDGET_FILE` | `<CONFIG_DIR>/budget.json` | 预算配置 |
 
-### 功能标志
+### 功能标志 {#feature-flags}
 
 | 变量 | 默认值 | 用途 |
 |---|---|---|
@@ -141,7 +141,7 @@ $CORTEX_HOME/
 
 位于 `$CORTEX_HOME/config/profiles.json`。定义命名智能体配置，控制每个智能体会话使用的后端、模型和额外配置。可用后端对比参见 [backends.md](./backends.md)。
 
-### 模式
+### 模式 {#schema}
 
 ```json
 {
@@ -168,7 +168,7 @@ $CORTEX_HOME/
 }
 ```
 
-### 字段
+### 字段 {#fields}
 
 | 字段 | 类型 | 必需 | 描述 |
 |---|---|---|---|
@@ -183,7 +183,7 @@ $CORTEX_HOME/
 | `profiles.<name>.thinking` | string | 否 | 思考档位，取后端原生值域：`claude` 为 `low`/`medium`/`high`/`xhigh`/`max` 之一（以 `--effort` 传递），`pi` 为 `off`/`minimal`/`low`/`medium`/`high`/`xhigh` 之一（以 `--thinking` 传递）。不写则不传任何标志。fallback 条目不继承——每条自行声明。 |
 | `profiles.<name>.fallback` | array | 否 | 有序的回退配置项列表。如果主后端失败，Cortex 按顺序尝试每个回退项。每个回退项继承主配置中未指定的字段。 |
 
-### 配置解析
+### 配置解析 {#profile-resolution}
 
 在智能体生成时，Cortex 通过以下链解析配置：
 
@@ -192,7 +192,7 @@ $CORTEX_HOME/
 3. 解析后的配置提供 `model`、`backend`、`mode`、`extraEnv`、`extraOption`、`claudeBackend` 和 `thinking`。
 4. 如果后端调用因瞬态错误失败，Cortex 遍历 `fallback` 数组（如果有），按顺序尝试每个条目。
 
-### 验证规则
+### 验证规则 {#validation-rules}
 
 配置名称必须匹配 `^[a-zA-Z0-9_-]+$`。后端必须是 `claude` 或 `pi`。如果指定，`claudeBackend` 必须是 `print` 或 `tui`。如果指定 `thinking`，其值必须属于该条目后端的值域（见字段表）。未知字段会被静默忽略。
 
@@ -212,7 +212,7 @@ $CORTEX_HOME/
 
 读取文件时会按下表的类型逐键校验。类型不符的键会让整个文件被判为无效：启动时回退到环境变量与默认值，热重载时则保留上一份有效设置。两种情况都会记录原因日志。未知键被忽略。
 
-### 键
+### 键 {#keys}
 
 | 键 | 类型 | 默认值 | 作用 | 旧环境变量 |
 |---|---|---|---|---|
@@ -240,7 +240,7 @@ $CORTEX_HOME/
 
 Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）与**设置 → 高级**（`eventLog`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`）。其余键都靠手工编辑该文件。
 
-### 热更新
+### 热更新 {#hot-reload}
 
 config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读取文件，之后一律使用新值——**无需重启守护进程**。有两点值得注意：
 
@@ -249,13 +249,13 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 
 **例外——`waitingSweepMs`。** 等待中 manager 的扫描循环在每轮结束后按当前值自我重排，因此调大或调小间隔会从下一轮开始生效。但在运行中把它改成 `0` 会让循环彻底停下：没有任何东西会重排它，之后再改回正数也**不会**把它重新拉起，只有重启守护进程才行。（启动时值为 `0` 则该循环从不启动。）
 
-### 旧环境变量与弃用提示
+### 旧环境变量与弃用提示 {#legacy-environment-variables-and-deprecation}
 
 每个键都保留其旧环境变量作为回退，且解析语义与迁移前完全一致——`CORTEX_EVENT_LOG=off`、`CORTEX_TURN_NOTIFY=0`/`false`/`off`/`no`、`CORTEX_NOTIFY_COMPACTION=1`，两个 `string[]` 键用逗号分隔的列表，等等。优先级始终是：`settings.json` 中的键 → 旧环境变量 → 内置默认值。`adminChannel` 保留原有的优先级链：先看 `SLACK_ADMIN_CHANNEL`，再看 `CORTEX_ADMIN_CHANNEL`。
 
 当某个旧环境变量第一次实际供值时，守护进程会记录一条弃用警告，指明该变量和它喂给的设置项（`Deprecated env <VAR> supplies settings.<key>; move it to settings.json`）。这层回退只为迁移期的兼容而存在——新的配置应写进 `settings.json`。
 
-### 从 .env 自动迁移
+### 从 .env 自动迁移 {#automatic-migration-out-of-env}
 
 每次守护进程启动、`.env` 加载之后，Cortex 会扫描 `$CORTEX_HOME/config/.env` 中是否存在上表中的旧变量。只要发现至少一个：
 
@@ -266,7 +266,7 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 
 迁移是幂等的：`.env` 中没有旧变量时原样不动，之后的启动也什么都不做。若任一步失败，错误会被记录，`.env` 保持完整，服务器继续按环境变量回退运行——迁移失败的代价仅仅是那些弃用警告。
 
-### 仍然留在 .env 的内容
+### 仍然留在 .env 的内容 {#what-stays-in-env}
 
 有三类变量刻意留在 `.env`：
 
@@ -274,17 +274,17 @@ config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读�
 - **由子进程消费的变量**——`CORTEX_HOME`、`CORTEX_PROJECTS_DIR`、`WEBHOOK_PORT`、`DEBUG`、`CORTEX_LANG` 以及数据文件覆盖项。钩子、MCP server、CLI 和 `cortex-client` 都继承守护进程的环境；服务器侧的 JSON 文件根本传不到它们那里。
 - **启动拓扑**——`CORTEX_PLATFORM`、`CORTEX_MACHINE`、`CORTEX_UI_HTTP`、`CORTEX_UI_PORT`、`CORTEX_UI_SPA_DIR`。它们决定启动时存在哪些适配器与监听器，热更新对它们没有意义，结构上就必须重启。
 
-### 与 .claude/settings.json 同名不同物
+### 与 .claude/settings.json 同名不同物 {#not-the-same-file-as-claudesettingsjson}
 
 `$CORTEX_HOME/config/settings.json`（本文件）配置的是 **Cortex 服务器**。`$CORTEX_HOME/.claude/settings.json` 配置的是 **Claude Code** 的钩子与权限，由 Claude CLI 读取，Cortex 不读它。文件名相同，但目录不同、归属不同、schema 不同——见下一节。
 
-## .claude/settings.json（Claude Code）
+## .claude/settings.json（Claude Code） {#claudesettingsjson-claude-code}
 
 位于 `$CORTEX_HOME/.claude/settings.json`。此文件配置 Claude Code 的钩子和权限系统。Cortex 在 `cortex init` 期间从 `defaults/.claude/settings.json` 初始化它，并且在后续运行中从不覆盖它。
 
 文件遵循 Claude Code 的设置格式，包含 `hooks` 和 `permissions` 部分。钩子系统文档参见 [hooks.md](./hooks.md)。它与 [`config/settings.json`](#configsettingsjson) 中的 Cortex 运行时设置毫无关系。
 
-## defaults/config/ 布局
+## defaults/config/ 布局 {#defaultsconfig-layout}
 
 npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。多数在 init 期间复制到 `$CORTEX_HOME/`；钩子资产与线程模板实体还会在服务器每次启动时重新同步：
 
@@ -305,7 +305,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 
 这种设计意味着 npm 包升级会自动提供新的提示、插件、规则、钩子和线程模板实体，而不会覆盖用户的自定义内容。整文件型配置（如 `budget.json`）仍需 `--force` 才能替换；`config/thread-templates/` 则改为逐文件合并，新发货的实体能到达已有安装，同时不动你的改动。
 
-## 热重载行为
+## 热重载行为 {#hot-reload-behavior}
 
 - **`config/settings.json`** — 通过文件监视器监视，去抖 300 毫秒。新值在下一个使用点生效，无需重启；文件损坏时保留上一份设置。唯一的例外是运行中把 `waitingSweepMs` 改成 `0`，需重启才能恢复。参见 [config/settings.json](#configsettingsjson)。
 - **`schedules.json`** — 通过文件监视器监视。更改在几秒钟内生效，无需重启。完整调度系统参见 [scheduling.md](./scheduling.md)。
@@ -316,7 +316,7 @@ npm 包中的 `agent-server/defaults/` 目录包含随包发布的默认值。�
 - **钩子脚本（`hooks/*.mjs`）** — 每次钩子调用时重新读取。
 - **插件、提示、规则** — 每次智能体会话生成时重新读取。
 
-## 各文件位置
+## 各文件位置 {#where-each-file-lives}
 
 | 文件 | 用途 | 路径 |
 |---|---|---|

@@ -1,9 +1,9 @@
-# Cortex 技能和插件
+# Cortex 技能和插件 {#cortex-skills-and-plugins}
 
 
 技能系统让 Cortex 智能体按需加载专用能力。技能被包装成**插件**——将相关技能组合在一起的角色限定包。当智能体运行时，其插件目录被加载，其中包含的技能成为可调用的工具。
 
-## 什么是技能
+## 什么是技能 {#what-is-a-skill}
 
 技能是一个 markdown 文件（`SKILL.md`），指导智能体如何执行特定任务。技能通过在聊天中输入 `/<skill-name>` 来调用，或者当智能体的上下文匹配技能描述时自动触发。
 
@@ -12,7 +12,7 @@
 1. **YAML frontmatter** — 元数据：name、description（触发条件）、allowed tools
 2. **Markdown 正文** — 调用技能时展开的提示
 
-### SKILL.md 格式
+### SKILL.md 格式 {#skillmd-format}
 
 ```yaml
 ---
@@ -49,9 +49,9 @@ argument-hint: "[项目名称、时间范围、主题或文件路径]"
 - 好："当多个实验或分析积累起来，需要一起解读它们的发现时使用"
 - 坏："将多个实验的发现综合为统一结论"（这描述了技能做什么，而不是何时使用）
 
-## 插件架构
+## 插件架构 {#plugin-architecture}
 
-### 目录布局
+### 目录布局 {#directory-layout}
 
 技能组织在 `~/.cortex/plugins/` 下的插件中：
 
@@ -98,7 +98,7 @@ plugins/
 }
 ```
 
-### 八个内置插件
+### 八个内置插件 {#the-eight-built-in-plugins}
 
 | 插件 | 角色 | 技能数 | 用途 |
 |--------|------|--------|---------|
@@ -111,9 +111,9 @@ plugins/
 | `cortex-analyst` | Analyst | 1 | 知识精炼和矛盾解决 |
 | `cortex-writer` | Writer | 2 | CS 学术写作、PDF 生成 |
 
-## 技能如何加载
+## 技能如何加载 {#how-skills-are-loaded}
 
-### 每智能体插件配置
+### 每智能体插件配置 {#per-agent-plugin-configuration}
 
 智能体定义位于 `config/thread-templates/`——该目录每个实体一个 JSON 文件，分列于 `agents/`、`templates/`、`shells/` 三个子目录。每个智能体定义（`agents/` 下的一个文件）通过 `pluginDirs` 字段指定其插件（完整线程模板系统参见 [threads.md](./threads.md)）。每个文件中直接放智能体对象本身，其 `name` 必须与文件名一致——所以插件集不同的两个智能体就是两个文件。
 
@@ -145,7 +145,7 @@ plugins/
 
 相对路径相对于 `DATA_DIR`（默认：`~/.cortex/`）解析。绝对路径按原样使用。
 
-### 模板级覆盖
+### 模板级覆盖 {#template-level-overrides}
 
 模板可以覆盖智能体的插件集。模板同样是 `templates/` 下的一个文件，其中直接放模板对象本身。
 
@@ -163,7 +163,7 @@ plugins/
 }
 ```
 
-### 后端集成
+### 后端集成 {#backend-integration}
 
 插件在生成时传递给 LLM 后端：
 
@@ -172,7 +172,7 @@ plugins/
 
 后端本身处理扫描目录中的 `SKILL.md` 文件并通过 `Skill` 工具使其可用。
 
-## 技能发现
+## 技能发现 {#skill-discovery}
 
 Cortex 扫描多个根目录以查找 `SKILL.md` 文件：
 
@@ -181,15 +181,15 @@ Cortex 扫描多个根目录以查找 `SKILL.md` 文件：
 
 发现是递归的：任何包含 `SKILL.md` 的子目录都被视为技能。结果缓存有 60 秒 TTL。
 
-### 技能命名空间
+### 技能命名空间 {#skill-namespacing}
 
 在 `plugins/<name>/skills/<skill>/SKILL.md` 下发现的技能被命名为 `plugin:skill`（如 `cortex-common:synthesize`）。用户技能目录 `.claude/skills/<name>/SKILL.md` 中的技能使用裸名称（如 `synthesize`）。
 
-### 命令标准化
+### 命令标准化 {#command-normalization}
 
 如果用户输入的消息以已知技能名称开头（不带 `/` 前缀），消息路由器自动在前面加上 `/` 以确保它被视为技能调用。例如，在聊天中输入 `synthesize nimbus` 会被标准化为 `/synthesize nimbus`。
 
-## `!skills` 命令
+## `!skills` 命令 {#the-skills-command}
 
 在 Slack 中运行 `!skills` 会按插件分组显示所有可用技能：
 
@@ -208,7 +208,7 @@ _cortex-coder_
 ...
 ```
 
-## 创建新技能
+## 创建新技能 {#creating-a-new-skill}
 
 使用 `skill-creator` 技能创建新技能。一般流程：
 
@@ -217,7 +217,7 @@ _cortex-coder_
 3. **编写 SKILL.md**：创建 `<plugin>/skills/<name>/SKILL.md`，包含适当的 frontmatter 和正文
 4. **测试**：运行加载了该插件的智能体并调用该技能
 
-### 技能安全边界
+### 技能安全边界 {#skill-safety-boundary}
 
 Cortex 的安全规则区分技能的维护性更改和行为性更改：
 
@@ -226,7 +226,7 @@ Cortex 的安全规则区分技能的维护性更改和行为性更改：
 
 此区分基于行为影响，而非文件类别。修正 SKILL.md 中的拼写错误是安全的；添加新工作流阶段需要用户确认。
 
-## 第三方插件创作
+## 第三方插件创作 {#third-party-plugin-authoring}
 
 插件遵循标准结构：
 
@@ -245,6 +245,6 @@ my-plugin/
 2. 在智能体的 `pluginDirs` 中引用它：`"plugins/my-plugin"`
 3. 该技能将作为 `my-plugin:my-skill` 对该智能体可用
 
-## 钩子桥接和技能活动
+## 钩子桥接和技能活动 {#hook-bridge-and-skill-activity}
 
 当通过 `Skill` 工具调用技能时，Cortex 的钩子桥接通过 `session-activity-tracker.mjs` PostToolUse 钩子记录活动。这使得可以追踪研究会话期间使用了哪些技能——与实验和知识文件使用的访问日志基础设施相同。钩子桥接和 PostToolUse 钩子系统详见 [hooks.md](./hooks.md)。

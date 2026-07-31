@@ -1,4 +1,4 @@
-# 浏览器访问与部署
+# 浏览器访问与部署 {#browser-access-deployment}
 
 Cortex 提供一个浏览器工作台——与[桌面应用](desktop-app.md)所包装的是同一个 SPA——
 无需安装任何东西，即可从任意浏览器访问。本页同时覆盖**部署运行手册**（构建 SPA、
@@ -13,7 +13,7 @@ Cortex 提供一个浏览器工作台——与[桌面应用](desktop-app.md)所�
 
 本页是浏览器访问 + 部署参考。安装原生桌面应用请见 [桌面应用](desktop-app.md)。
 
-## 内置的 Web UI 传输层
+## 内置的 Web UI 传输层 {#the-in-core-web-ui-transport}
 
 Web UI 传输层**内置**于 `@cortex-agent/server`，按需在 `CORTEX_UI_HTTP` 标志后加载。它携带
 `@trpc/server` 与 `jose`，但二者是**运行期惰性**的：服务器仅通过一个只有在标志设置时才会到达
@@ -27,20 +27,20 @@ Web UI 传输层**内置**于 `@cortex-agent/server`，按需在 `CORTEX_UI_HTTP
   浏览器加载 `index.html` + 资源并调用 `/trpc`，无需任何跨域处理；
 - 在 `/trpc` 暴露 tRPC API（查询/变更走 HTTP 批量，订阅走 SSE），进程内直连服务器的
   domain 服务（无代理、无 sidecar）；
-- 每个 `/trpc` 请求都经过**双路认证**门控（见 [认证](#_3)）。
+- 每个 `/trpc` 请求都经过**双路认证**门控（见 [认证](#authentication)）。
 
 它与服务器运行在同一进程中，绑定到 `127.0.0.1`，设计上只应通过隧道对外暴露。
 
-## 部署运行手册（源码 → 运行中的服务器）
+## 部署运行手册（源码 → 运行中的服务器） {#deployment-runbook-source-running-server}
 
 以下步骤将你从全新检出带到一台提供浏览器工作台的 Cortex 服务器。
 
-### 1. 前置条件
+### 1. 前置条件 {#1-prerequisites}
 
 - Node.js ≥ 20 与 [pnpm](https://pnpm.io)（本仓库是 pnpm workspace）。
 - 一台运行中的 Cortex 服务器（见 [快速入门](quickstart.md)）。
 
-### 2. 构建 SPA
+### 2. 构建 SPA {#2-build-the-spa}
 
 网页 SPA 构建产物位于 `web/dist`。在仓库根目录：
 
@@ -60,7 +60,7 @@ pnpm --filter web run build      # 产出 web/dist
 `web/dist` 会被打包进包内（通过 `prepack` 步骤）并随包的 `files` 一同发布，因此已安装的服务器
 无需额外构建即可提供 SPA。从源码检出时，你用上面的步骤自行构建它。
 
-### 3. `web/dist` 从何处被提供
+### 3. `web/dist` 从何处被提供 {#3-where-webdist-is-served-from}
 
 服务器按以下顺序解析 SPA 目录：
 
@@ -74,7 +74,7 @@ pnpm --filter web run build      # 产出 web/dist
 `CORTEX_UI_SPA_DIR` 指向它。如果目录不存在（SPA 未构建），非 `/trpc` 路径返回 404 占位，
 而 `/trpc` 仍可工作。
 
-### 4. 启用 Web UI 端点
+### 4. 启用 Web UI 端点 {#4-enable-the-web-ui-endpoint}
 
 在服务器的 `~/.cortex/config/.env` 中添加：
 
@@ -86,7 +86,7 @@ CORTEX_UI_PORT=3004       # 可选，默认为 3004
 `CORTEX_UI_HTTP` 接受 `1`、`true`、`on` 或 `yes`。未设置时，该端点——以及 Web UI 传输层
 连同 `@trpc/server` / `jose`——都不会加载。
 
-### 5. 重启守护进程以生效
+### 5. 重启守护进程以生效 {#5-restart-the-daemon-to-apply}
 
 守护进程在启动时读取 SPA 与环境变量，因此新的构建或环境变量更改需在重启后生效：
 
@@ -102,7 +102,7 @@ cortex daemon   # 或：systemctl --user restart cortex（如果已注册系统�
 此时服务器**仅在服务器主机上**可通过 `http://127.0.0.1:3004` 访问。把它暴露给浏览器
 是下一节的内容。
 
-## 认证
+## 认证 {#authentication}
 
 `/trpc` 认证门在**任一**凭据有效时放行请求，否则在 tRPC 运行前返回 `401`：
 
@@ -115,7 +115,7 @@ cortex daemon   # 或：systemctl --user restart cortex（如果已注册系统�
 RS256 / ES256）、受众（AUD）标签、签发者与过期时间。如果服务器上**未**配置 Access，
 JWT 路径被禁用，认证门安全降级为仅令牌——未配置的 Access 路径绝不放行任何请求。
 
-## 经 Cloudflare Access 的浏览器访问
+## 经 Cloudflare Access 的浏览器访问 {#browser-access-via-cloudflare-access}
 
 浏览器路径在一个**专用 UI hostname 前放置 Cloudflare Access 边缘登录**，用户在边缘用
 邮箱 / IdP 登录，服务器只会看到已被验证的请求。
@@ -132,7 +132,7 @@ agent-server Web UI 传输层  （校验 JWT；浏览器从不持有 clientToken
   └─ 提供 /trpc     （同源真实数据，进程内直连）
 ```
 
-### 1. 建立专用 UI hostname 与隧道路由
+### 1. 建立专用 UI hostname 与隧道路由 {#1-create-a-dedicated-ui-hostname-and-tunnel-route}
 
 将一条 Cloudflare Tunnel 路由从一个**新的**公开 hostname（例如 `cortex-ui.example.com`）
 指向服务器的 loopback 端点（`http://127.0.0.1:3004`，或你的 `CORTEX_UI_PORT`）。
@@ -142,13 +142,13 @@ agent-server Web UI 传输层  （校验 JWT；浏览器从不持有 clientToken
     ——Access 会挡住这些 WebSocket 客户端。始终给浏览器 UI 一个**独立**的 hostname，
     只对这一个应用 Access。
 
-### 2. 添加 Cloudflare Access 应用（账户侧运维）
+### 2. 添加 Cloudflare Access 应用（账户侧运维） {#2-add-a-cloudflare-access-application-account-side-ops}
 
 在 Cloudflare Zero Trust 面板中，为该 UI hostname 创建一个 **self-hosted Access 应用**，
 策略放行你的登录邮箱（或 IdP 群组）。这是在 Cloudflare 面板中执行的账户级操作，不在
 Cortex 配置里。记下该应用的 **AUD 标签**——下一步需要用到。
 
-### 3. 配置服务器校验 Access JWT
+### 3. 配置服务器校验 Access JWT {#3-configure-the-server-to-verify-access-jwts}
 
 在服务器的 `~/.cortex/config/.env` 中添加：
 
@@ -164,13 +164,13 @@ CORTEX_ACCESS_AUD=<你的-Access-应用-AUD>  # Access 应用的 AUD 标签
 `CORTEX_ACCESS_TEAM_DOMAIN` 或 `CORTEX_ACCESS_AUD` 有**任一**未设置，浏览器路径保持禁用
 （仅令牌）。更改这些值后需重启守护进程。
 
-### 4. 打开工作台
+### 4. 打开工作台 {#4-open-the-workbench}
 
 访问 `https://cortex-ui.example.com`。Cloudflare Access 要求你用邮箱 / IdP 登录；认证后，
 边缘在每个请求上转发经校验的 `Cf-Access-Jwt-Assertion`，服务器提供同源 SPA，工作台加载
 真实 tRPC 数据——无需令牌，无需本地安装。
 
-## 浏览器路径与桌面 Bearer-Token 路径的区别
+## 浏览器路径与桌面 Bearer-Token 路径的区别 {#browser-path-vs-desktop-bearer-token-path}
 
 两条路径都到达同一个 `/trpc` API 与同一个工作台，但在**何处**及**如何**认证上不同：
 
@@ -188,7 +188,7 @@ hostname 连接（Access 会在边缘挡住 bearer 请求）。浏览器路径�
 浏览器**无需**持有令牌即可进入。当你想要原生窗口且愿意在本地存储令牌时，选择桌面应用；
 当你想要零安装、由 IdP 管理的访问时，选择浏览器路径。
 
-## 故障排查
+## 故障排查 {#troubleshooting}
 
 **浏览器出现 Cloudflare 登录循环或边缘 `403`**
 

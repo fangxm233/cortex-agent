@@ -1,15 +1,15 @@
-# Cortex 线程系统
+# Cortex 线程系统 {#cortex-thread-system}
 
 
 线程系统是 Cortex 的多智能体编排引擎。线程是一个聚焦的智能体接力——每个智能体拥有自己的系统提示、工具和插件——在它们之间传递共享的产物文件以完成复杂的多步骤研究工作。
 
-## 心智模型
+## 心智模型 {#mental-model}
 
 线程就像接力赛。每个智能体（跑者）拿起接力棒（`artifact.md` 文件），完成自己的工作，并根据转换规则将接力棒交给下一个智能体。产物文件是共享内存——智能体将发现写入其中，后续智能体读取之前的输出。
 
 线程由 `~/.cortex/config/thread-templates/` 下的**模板**定义（参见下方"配置文件"章节）。线程通常由任务调度系统启动——任务如何触发线程执行参见 [tasks.md](./tasks.md)。模板指定：哪些智能体参与、以什么顺序、按什么转换逻辑、以及在步骤之间触发什么生命周期钩子。
 
-## 配置文件
+## 配置文件 {#configuration-file}
 
 线程系统在 `~/.cortex/config/thread-templates/` 目录下配置（从 `$CORTEX_HOME/config/thread-templates/` 读取）——这是一个**目录**，每个实体一个 JSON 文件，分为三个子目录：
 
@@ -30,7 +30,7 @@
 
 **热重载。** 每个实体子目录（`agents/`、`templates/`、`shells/`）都被监视，`prompts/` 目录中的任何提示文件也一并监视。更改通过 `fs.watch` 检测、去抖（300ms）后整体重新加载，无需重启服务器。重载为 fail-soft：单个格式错误的 JSON 文件被跳过并告警，而非清空整张表。重载时向管理 Slack 频道发送通知。
 
-### 智能体定义
+### 智能体定义 {#agent-definitions}
 
 `agents/` 下的每个文件定义一个智能体——一个独立的实体，有自己的身份、工具和提示。文件中直接放智能体对象本身，其 `name` 必须与文件名一致。
 
@@ -64,7 +64,7 @@
 | `tools` | string? | 逗号分隔的工具列表（覆盖默认值） |
 | `pluginDirs` | string[]? | 要加载的插件目录（`--plugin-dir` 标志） |
 
-### 多阶段智能体
+### 多阶段智能体 {#multi-stage-agents}
 
 智能体可以通过 `stages` 字段声明多个**阶段**。当存在阶段时，`promptTemplate` 被忽略——引擎根据转换目标为每个步骤选择适当的阶段提示。
 
@@ -93,7 +93,7 @@
 
 当阶段上设置了 `continuesSession: true`，且智能体有一个正在恢复的持久会话时，引擎只发送阶段特定的增量提示——跳过指令、协议引言和自动的 `previousOutput` 注入。
 
-### 文件引用
+### 文件引用 {#file-references}
 
 接受 `file:filename.md` 语法的字段从 `prompts/<subdir>/filename.md` 加载内容：
 
@@ -105,7 +105,7 @@
 
 模板系统支持基于 YAML frontmatter 的格式，包括 `extends:`（继承）、`@fill(name)`/`@endfill` 命名块、`@block(name)`/`@endblock` 模板块、`${var}`/`${var:-default}` 变量插值和 `@if(var)`/`@endif` 条件。
 
-## 模板
+## 模板 {#templates}
 
 模板将智能体组合为多步骤管道。`templates/` 下的每个文件装一个模板对象。
 
@@ -146,7 +146,7 @@
 | `maxTotalCostUsd` | number? | USD 费用限制 |
 | `hooks` | ThreadHooks? | 生命周期钩子（onStart、onTransition、onEnd） |
 
-### 模板中的智能体引用
+### 模板中的智能体引用 {#agent-references-in-templates}
 
 模板按名称（字符串）或按模板覆盖（对象）引用智能体：
 
@@ -163,7 +163,7 @@
 
 覆盖字段：`promptTemplate`、`directive`、`systemPrompt`、`persistSession`、`claudeAgent`、`outputStyle`、`tools`、`pluginDirs`。
 
-### Shell 模板
+### Shell 模板 {#shell-templates}
 
 若多个管道共享同一转换图、仅在由哪些智能体担任角色上不同，可将其一次性定义为一个 **shell**——即一个参数化转换图，以纯 JSON 存于 `shells/<name>.json`——并由 `templates/` 中轻量的 **shell 绑定**引用。
 
@@ -227,15 +227,15 @@ shell 声明其参数，并在转换图中使用占位符：
 | `description` | string? | 人类可读描述（携带到展开后的模板上） |
 | `maxTotalSteps` | number? | 覆盖 shell 的默认步数预算 |
 
-## 转换
+## 转换 {#transitions}
 
 转换决定线程如何从一个智能体移动到下一个。它们在每个智能体步骤完成后进行评估。
 
-### 转换端点语法
+### 转换端点语法 {#transition-endpoint-syntax}
 
 端点使用 `"agent"` 或 `"agent:stage"` 语法。裸智能体名称匹配该智能体的任何阶段。`agent:stage` 端点仅匹配该特定阶段。
 
-### 条件类型
+### 条件类型 {#condition-types}
 
 | 类型 | 行为 | 参数 |
 |------|----------|------------|
@@ -244,13 +244,13 @@ shell 声明其参数，并在转换图中使用占位符：
 | `output_contains` | 如果产物输出匹配正则表达式模式则转换 | `pattern`（正则表达式字符串） |
 | `output_not_contains` | 如果产物输出不匹配正则表达式模式则转换 | `pattern`（正则表达式字符串） |
 
-### 评估顺序
+### 评估顺序 {#evaluation-order}
 
 转换按模板中出现的顺序评估。**第一个匹配的规则胜出**。如果没有规则匹配，线程停止（终止状态：`no_matching_transition`）。
 
 规则的 `from` 端点与最后完成的步骤匹配。只有 `from` 匹配最后步骤的智能体（和可选的阶段）的规则才会被考虑。
 
-### 收敛示例
+### 收敛示例 {#convergence-example}
 
 ```json
 {
@@ -266,16 +266,16 @@ shell 声明其参数，并在转换图中使用占位符：
 
 这表示：`coder:implement` 运行后，检查产物是否包含 `[IMPLEMENTATION COMPLETE]`。如果包含，转换到 `coder:review`。如果不包含，循环回 `coder:implement`。如果循环 5 次没有标记，以 `max_iterations` 停止。
 
-### 模板限制
+### 模板限制 {#template-limits}
 
 在评估任何转换之前检查两个硬限制：
 
 - `maxTotalSteps` — 如果线程已达到这么多的总步骤数，以 `max_iterations` 停止
 - `maxTotalCostUsd` — 如果累计费用超过此值，以 `cost_limit` 停止
 
-## 线程生命周期
+## 线程生命周期 {#thread-lifecycle}
 
-### 状态
+### 状态 {#states}
 
 线程在其生命周期中经历这些状态：
 
@@ -289,11 +289,11 @@ running → waiting     （等待用户输入 — 第 6 阶段缓冲）
 
 终止状态：`completed`、`failed`、`cancelled`、`aborted`。
 
-### 智能体发起的控制（中止 / 拆分 / 等待）
+### 智能体发起的控制（中止 / 拆分 / 等待） {#agent-initiated-control-abort-split-wait}
 
 线程控制是带外（out-of-band）的：智能体通过调用 `thread_abort`、`thread_split`、`thread_wait` MCP 工具来控制自己的线程，而不是向产物写入标记（在产物里提及这些关键字不会触发任何动作）。工具会在该智能体自己的线程上写入结构化的 `metadata.pendingControl`；runner 在每步完成后读取它，**优先级高于所有转换规则**。`thread_abort({ kind, diagnosis })` 立即将线程终止为 `aborted`（`onEnd` 钩子仍会触发）；`thread_split({ subtasks })` 提议对所属派发任务做分解；`thread_wait` 挂起直到被等待的子项完成。
 
-### 挂起与唤醒（thread_wait）
+### 挂起与唤醒（thread_wait） {#suspension-and-wake-up-thread_wait}
 
 挂起中的 manager 等待它的子任务（以及子线程）。调用 `thread_wait` 时若不传 `on_tasks` 和 `on_threads`，系统会自动推断所有仍存活且已关联的子项。只要传入其中任一参数，就会切换到显式覆盖模式：系统仅等待参数数组中列出的 ID，未传的另一类按空数组处理。显式 ID 必须指向仍存活且已关联的子项；重复、缺失、无关和已终止的 ID 会被忽略。因此，传入空数组时没有需要等待的子项，线程会继续执行。
 
@@ -301,7 +301,7 @@ running → waiting     （等待用户输入 — 第 6 阶段缓冲）
 
 任务被阻塞不会级联到依赖它的任务，因此等待集可能进入这样的状态：每个剩余等待项都（直接或传递地）依赖某个被阻塞的任务，永远无法开始。唤醒路径会检测这种停滞，并用一条死锁通知唤醒 manager，通知中列出被卡住的任务及其阻塞源；manager 应当解除阻塞、重新规划分解，或通过 `thread_abort` 升级。每种不同的停滞状态只唤醒 manager 一次——停滞状态不变则不会重复唤醒。
 
-### thread_wait 检查点门禁（DR-0017）
+### thread_wait 检查点门禁（DR-0017） {#thread_wait-checkpoint-gate-dr-0017}
 
 manager 通过 `thread_wait` 挂起之前，必须为它（可能被轮换过的）下一个化身留下一份新鲜的检查点。runner 通过**检查点门禁**强制这一点：
 
@@ -316,7 +316,7 @@ manager 写入的检查点始终覆盖四个部分：**当前委托及其验收�
 
 > `checkpoint gate (DR-0017): your artifact has not been updated during this step. Before suspending, write your checkpoint into the artifact — current delegations & their acceptance criteria, decisions made, remaining plan, assumptions — then call thread_wait again.`
 
-### 执行循环
+### 执行循环 {#execution-loop}
 
 `runner.ts` 中的主执行循环运行如下：
 
@@ -333,11 +333,11 @@ manager 写入的检查点始终覆盖四个部分：**当前委托及其验收�
 3. **onEnd 钩子**：主循环完成后触发
 4. 将线程标记为已完成（如果仍在运行）
 
-## 生命周期钩子
+## 生命周期钩子 {#lifecycle-hooks}
 
 钩子是在线程生命周期的特定点执行的 shell 命令。它们通过 stdin 接收 JSON 格式的上下文，并可以通过 stdout 返回 JSON 格式的指令。线程钩子是三个钩子子系统之一——完整的钩子架构（包括智能体级和会话级钩子）参见 [hooks.md](./hooks.md)。
 
-### 钩子点
+### 钩子点 {#hook-points}
 
 | 钩子 | 触发时机 | 上下文 |
 |------|--------------|---------|
@@ -345,7 +345,7 @@ manager 写入的检查点始终覆盖四个部分：**当前委托及其验收�
 | `onTransition` | 每次转换之后，下一个步骤之前 | 同上，加上标识刚完成的智能体的 `previousAgent` |
 | `onEnd` | 所有步骤完成后，线程被标记为完成之前 | 同上，包含最终产物内容和已完成的步骤 |
 
-### 钩子配置
+### 钩子配置 {#hook-configuration}
 
 ```json
 {
@@ -361,7 +361,7 @@ manager 写入的检查点始终覆盖四个部分：**当前委托及其验收�
 - `args` — 通过 `sh -c 'cmd "$@"'` 作为 `$1`、`$2`、...传递的位置参数
 - `timeout` — 执行超时（毫秒，默认：30000）
 
-### 钩子返回值
+### 钩子返回值 {#hook-return-values}
 
 钩子通过 stdout 返回 JSON 来控制接下来发生的事情：
 
@@ -385,11 +385,11 @@ manager 写入的检查点始终覆盖四个部分：**当前委托及其验收�
 ```
 这会将提示发送到 `reviewer` 智能体的持久会话（如果进程仍然存活则通过 stdin，如果已死则通过 `--resume`）。`targetAgent` 优先于 `insertAgent`。
 
-### 钩子执行顺序
+### 钩子执行顺序 {#hook-execution-order}
 
 模板钩子先触发，然后是调用者的 `extraHooks`（由调度器/分发器注入）在同一阶段。两者使用相同的执行语义。ExtraHooks 不会持久化到 ThreadRecord——它们仅对当前的 `runThread()` 调用有效。
 
-## 工作区和产物
+## 工作区和产物 {#workspace-and-artifact}
 
 每个线程在文件系统上获得一个隔离的工作区：
 
@@ -405,7 +405,7 @@ tmp/threads/thr_a1b2c3d4/
 - `{{previousOutput}}` — 上一个已完成步骤的完整输出
 - `{{modifiedFiles}}` — 上一个智能体编辑的文件列表（从只记录路径的会话活动日志中提取）
 
-### 任务定址的 manager 产物（DR-0017）
+### 任务定址的 manager 产物（DR-0017） {#task-keyed-manager-artifact-dr-0017}
 
 大多数线程把产物放在上文所示的**临时线程工作区**（`tmp/threads/{threadId}/artifact.md`），按线程 id 定址，并在线程清理时被删除。**manager 线程**不同：它拥有一个复合任务节点，其产物放在**任务定址**的路径下——按所属任务 id 定址，而非线程 id：
 
@@ -417,9 +417,9 @@ context/projects/{project}/manager/{taskId}/artifact.md
 
 它的角色是**再水化（rehydration）记忆**：一个新鲜的 manager 化身（在轮换或崩溃之后）从此文件继承上一个化身的检查点，因此 manager 应当把它写得让一个陌生人仅凭此文件就能继续这个任务。manager 节点概念及其验收台账记录在 [tasks.md](./tasks.md) 中。
 
-## 线程命令
+## 线程命令 {#thread-commands}
 
-### 启动线程
+### 启动线程 {#starting-a-thread}
 
 ```
 !thread coder-review 为 API 实现用户认证
@@ -428,7 +428,7 @@ context/projects/{project}/manager/{taskId}/artifact.md
 
 `!thread` 后的第一个词是模板名称（或单智能体执行的智能体名称）。其余是传递给第一个智能体的用户消息。
 
-### 添加智能体
+### 添加智能体 {#adding-an-agent}
 
 ```
 !thread add reviewer
@@ -437,7 +437,7 @@ context/projects/{project}/manager/{taskId}/artifact.md
 
 这会向已有线程动态添加一个智能体。线程必须已完成或等待中（不是当前正在运行）。如果线程是 auto-record（没有文件系统工作区），则延迟创建工作区。
 
-### 其他线程命令
+### 其他线程命令 {#other-thread-commands}
 
 | 命令 | 描述 |
 |---------|-------------|
@@ -447,7 +447,7 @@ context/projects/{project}/manager/{taskId}/artifact.md
 | `!thread agents` | 列出可用智能体 |
 | `!thread templates` | 列出可用模板 |
 
-## 线程类型
+## 线程类型 {#thread-types}
 
 Cortex 内部使用三种类型的线程记录：
 
@@ -459,7 +459,7 @@ Cortex 内部使用三种类型的线程记录：
 
 区别很重要，因为运行器对默认线程的处理不同：它们只运行一个步骤（无转换），使用频道的已有会话，并将流式输出直接转发给用户。
 
-## 线程记录
+## 线程记录 {#thread-record}
 
 每个线程的完整状态作为 `ThreadRecord` 持久化在 `~/.cortex/data/threads.json` 中：
 
@@ -481,7 +481,7 @@ Cortex 内部使用三种类型的线程记录：
 
 旧线程在启动时清理：7 天前的线程被移除（无工作区的 auto-records 为 24 小时）。
 
-## 提示变量
+## 提示变量 {#prompt-variables}
 
 智能体提示支持在运行时解析的模板变量：
 
@@ -493,13 +493,13 @@ Cortex 内部使用三种类型的线程记录：
 | `{{modifiedFiles}}` | 上一个智能体编辑的文件 |
 | `{{currentDateTime}}` | ISO 格式的当前日期和时间 |
 
-## 插件加载
+## 插件加载 {#plugin-loading}
 
 每个智能体定义通过 `pluginDirs` 指定要加载的插件目录。插件相对于 `DATA_DIR`（默认：`~/.cortex/`）解析。例如，`plugins/cortex-coder` 解析为 `~/.cortex/plugins/cortex-coder/`。
 
 插件目录作为 `--plugin-dir` 标志（Claude Code）或 `--skill` 标志（PI）传递给 LLM 后端。后端然后扫描 `SKILL.md` 文件并将其作为可调用技能提供。完整的技能和插件系统参见 [skills-and-plugins.md](./skills-and-plugins.md)。
 
-## Manager 会话轮换与再水化（DR-0017）
+## Manager 会话轮换与再水化（DR-0017） {#manager-session-rotation-rehydration-dr-0017}
 
 manager 线程是长生命周期的：随着子项运行，它跨越多次唤醒累积上下文。为保持上下文清洁，DR-0017 会周期性地**轮换 manager 的 LLM 会话**，依赖持久的**任务定址 manager 产物**（见上文）及其验收台账（见 [tasks.md](./tasks.md)）来跨越边界携带状态。
 
@@ -508,7 +508,7 @@ manager 线程是长生命周期的：随着子项运行，它跨越多次唤醒
 - **再水化通知**：它指示新鲜化身：(1) **先读自己的产物**——该文件保存着前任的检查点；(2) **对账任务树**（例如 `cortex-task tree --task-id <id>`）；(3) **验证台账中待处理的交付**——仍在等待本 manager 裁决的子项结果，必须逐一按其 `done-when` 核验后才可信任。它还告诉化身**不要**重做已完成的工作或重新争论已记录的决策，而是从剩余计划继续。
 - 轮换是一次**刻意的击杀测试**：它与灾难/崩溃恢复同构——新鲜化身纯粹从持久状态再水化。它**故障放行**：轮换失败是非致命的（恢复在旧会话上继续），且非 manager 线程从不轮换。
 
-## 线程清理
+## 线程清理 {#thread-cleanup}
 
 当线程完成、失败或被取消时：
 
