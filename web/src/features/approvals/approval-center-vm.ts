@@ -45,10 +45,12 @@ export interface ApprovalListCard {
   age: string | null;
   /** Verbatim provenance = the left-card origin slot; null → omit (no fabricated origin). */
   origin: string | null;
+  /** Real project attribution (ApprovalInfo.projectId); null = unattributed / global entry. */
+  project: string | null;
 }
 
 export function toListCard(a: ApprovalInfo): ApprovalListCard {
-  return { id: a.id, title: a.title, age: a.queuedAt, origin: a.provenance };
+  return { id: a.id, title: a.title, age: a.queuedAt, origin: a.provenance, project: a.projectId };
 }
 
 export interface ApprovalDetailVm {
@@ -69,6 +71,8 @@ export interface ApprovalDetailVm {
   origin: string | null;
   /** Parsed 4-hex task ref = the detail meta-row `task` slot; null → omit (no fabricated ref). */
   task: string | null;
+  /** Real project attribution (ApprovalInfo.projectId); null = unattributed / global entry. */
+  project: string | null;
 }
 
 export function toDetail(a: ApprovalInfo): ApprovalDetailVm {
@@ -76,6 +80,7 @@ export function toDetail(a: ApprovalInfo): ApprovalDetailVm {
   return {
     id: a.id,
     title: a.title,
+    project: a.projectId,
     pill: statusPill(a.status),
     queued: a.queuedAt ? `queued ${a.queuedAt}` : null,
     operation: a.operation ?? DASH,

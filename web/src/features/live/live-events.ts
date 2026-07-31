@@ -71,13 +71,16 @@ export const THREAD_LIVE_EVENTS = [
   'thread.failed',
 ] as const;
 
-/** Task lifecycle (Tasks panel). */
+/** Task lifecycle events carried by the shared stream. */
 export const TASK_LIVE_EVENTS = [
   'task.claimed',
   'task.completed',
   'task.blocked',
   'task.dispatched',
 ] as const;
+
+/** Task-list refresh hints, including the post-claim thread association becoming available. */
+export const TASK_LIST_LIVE_EVENTS = [...TASK_LIVE_EVENTS, 'thread.created'] as const;
 
 /** Server-classified system broadcasts (restart, hot-reload, disk, rate-limit). */
 export const SYSTEM_LIVE_EVENTS = ['system.notice'] as const;

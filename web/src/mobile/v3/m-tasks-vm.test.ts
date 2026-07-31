@@ -1,76 +1,65 @@
-// input:  grouped task fixtures and mobile segment model
-// output: executable/recent/all group regressions
-// pos:    Mobile task view-model unit tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Grouped mobile task fixtures and fixed list model
+// output: Complete six-group mobile task order regressions
+// pos:    Mobile task-list view-model unit tests
+// >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { describe, it, expect } from 'vitest';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { groupMobileTasks } from '@/mobile/mobile-tasks';
 import { buildMTaskGroups } from './m-tasks-vm';
 
-// Neutral placeholder tasks (守则11 — no real project names / ids).
-function task(over: Partial<TaskInfo>): TaskInfo {
+function task(overrides: Partial<TaskInfo>): TaskInfo {
   return {
-    id: 'T-000',
+    id: 'task-a',
     text: 'a task',
     project: 'nimbus',
     status: 'open',
     priority: 'medium',
     actionable: false,
     claimedBy: null,
+    claimThreadId: null,
     blockedBy: null,
+    approvalNeeded: false,
     dependsOn: [],
     plan: null,
     template: 'coder-review',
     why: null,
     doneWhen: null,
-    ...over,
+    ...overrides,
   };
 }
 
 describe('buildMTaskGroups', () => {
   const grouped = groupMobileTasks([
-    task({ id: 'A', claimedBy: 'thr_a' }), // in-progress
-    task({ id: 'B', actionable: true }), // claimable
-    task({ id: 'C', actionable: true }), // claimable
-    task({ id: 'D', actionable: true, dependsOn: ['A'] }), // waiting-deps (A is open)
-    task({ id: 'E', blockedBy: 'APR-0001' }), // blocked
-    task({ id: 'F', status: 'done' }), // done
+    task({ id: 'running', claimedBy: 'task-dispatcher' }),
+    task({ id: 'ready', actionable: true }),
+    task({ id: 'approval', approvalNeeded: true, actionable: true }),
+    task({ id: 'waiting', actionable: true, dependsOn: ['running'] }),
+    task({ id: 'blocked', blockedBy: 'offline' }),
+    task({ id: 'done', status: 'done' }),
   ]);
 
-  it('all: 进行中 → 可执行 → 阻塞 → 完成 order (waiting-deps is NEVER a 1d group)', () => {
-    expect(buildMTaskGroups(grouped, 'all').map((g) => g.key)).toEqual([
+  it('always returns the complete lifecycle order', () => {
+    expect(buildMTaskGroups(grouped).map((group) => group.key)).toEqual([
       'in-progress',
-      'claimable',
+      'actionable',
+      'approval-needed',
+      'waiting-deps',
       'blocked',
       'done',
     ]);
   });
 
-  it('executable: only 进行中 + 可执行 (blocked + done hidden)', () => {
-    expect(buildMTaskGroups(grouped, 'executable').map((g) => g.key)).toEqual([
-      'in-progress',
-      'claimable',
-    ]);
+  it('carries the real task into each lifecycle group', () => {
+    const views = buildMTaskGroups(grouped);
+    expect(views.find((group) => group.key === 'actionable')?.tasks.map((item) => item.id)).toEqual(['ready']);
+    expect(views.find((group) => group.key === 'approval-needed')?.tasks.map((item) => item.id)).toEqual(['approval']);
+    expect(views.find((group) => group.key === 'waiting-deps')?.tasks.map((item) => item.id)).toEqual(['waiting']);
+    expect(views.find((group) => group.key === 'done')?.tasks.map((item) => item.id)).toEqual(['done']);
   });
 
-  it('recent: only the prefiltered completed group', () => {
-    expect(buildMTaskGroups(grouped, 'recent').map((g) => g.key)).toEqual(['done']);
-  });
-
-  it('carries done tasks onto the done group in the 全部 segment', () => {
-    const views = buildMTaskGroups(grouped, 'all');
-    expect(views.find((v) => v.key === 'done')?.tasks.map((t) => t.id)).toEqual(['F']);
-  });
-
-  it('carries the real tasks onto each group view', () => {
-    const views = buildMTaskGroups(grouped, 'all');
-    expect(views.find((v) => v.key === 'claimable')?.tasks.map((t) => t.id)).toEqual(['B', 'C']);
-    expect(views.find((v) => v.key === 'blocked')?.tasks.map((t) => t.id)).toEqual(['E']);
-  });
-
-  it('drops empty groups', () => {
-    const g = groupMobileTasks([task({ id: 'B', actionable: true })]);
-    expect(buildMTaskGroups(g, 'all').map((v) => v.key)).toEqual(['claimable']);
+  it('drops empty groups without introducing a scope filter', () => {
+    const views = buildMTaskGroups(groupMobileTasks([task({ id: 'ready', actionable: true })]));
+    expect(views.map((group) => group.key)).toEqual(['actionable']);
   });
 });

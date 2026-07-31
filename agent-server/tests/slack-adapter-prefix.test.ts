@@ -1,11 +1,14 @@
-// input:  Node test runner + SlackAdapter conduit prefixing
-// output: Slack conduit prefix and queue-marker API regression tests
-// pos:    Verifies Slack SDK calls receive bare channel identifiers
+// input:  SlackAdapter, isolated config, mocked Slack client
+// output: conduit, admin persistence, and hot-routing regressions
+// pos:    Verifies Slack adapter platform boundaries
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { SlackAdapter } from '../src/platform/adapters/slack.js';
+import { CONFIG_DIR } from '../src/core/paths.js';
 import { shouldWarnReactionFailure } from '../src/platform/utils/reaction-diagnostics.js';
 import type { ActionContext, MessageContext } from '../src/platform/types.js';
 
@@ -95,6 +98,72 @@ test('SlackAdapter.onMessage: inbound ref + files carry slack: prefix', async ()
   assert.equal(captured.length, 1);
   assert.equal(captured[0].message.ref.conduit, 'slack:C9');
   assert.equal(captured[0].message.files?.[0].conduit, 'slack:C9');
+});
+
+test('SlackAdapter admin auto-detect persists settings without mutating process env', async () => {
+  const previous = process.env.CORTEX_ADMIN_CHANNEL;
+  delete process.env.CORTEX_ADMIN_CHANNEL;
+  try {
+    const a = makeAdapter();
+    let registeredCb: ((args: { event: any; client: any }) => Promise<void>) | null = null;
+    let persisted: string | null = null;
+    let noticeText: string | null = null;
+    a.app = { event: (_e: string, cb: any) => { registeredCb = cb; } };
+    a._persistAdminChannel = async (channel: string) => { persisted = channel; };
+    a.postMessage = async (_dest: any, content: any) => {
+      noticeText = content.text;
+      return { conduit: '', messageId: '' };
+    };
+    a.onMessage(async () => {});
+
+    await registeredCb!({
+      event: { type: 'message', channel: 'D_admin', ts: '223', user: 'U1', text: 'hello' },
+      client: {},
+    });
+
+    assert.equal(a.config.adminChannel, 'D_admin');
+    assert.equal(persisted, 'D_admin');
+    assert.equal(process.env.CORTEX_ADMIN_CHANNEL, undefined);
+    assert.match(noticeText!, /settings\.json/);
+    assert.doesNotMatch(noticeText!, /\.env/);
+  } finally {
+    if (previous === undefined) delete process.env.CORTEX_ADMIN_CHANNEL;
+    else process.env.CORTEX_ADMIN_CHANNEL = previous;
+  }
+});
+
+test('SlackAdapter persists a detected admin channel only to settings.json', async () => {
+  const envPath = path.join(CONFIG_DIR, '.env');
+  const settingsPath = path.join(CONFIG_DIR, 'settings.json');
+  const sentinel = 'SLACK_BOT_TOKEN=keep-me\n';
+  await fs.writeFile(envPath, sentinel);
+
+  const a = makeAdapter();
+  await a._persistAdminChannel('D_settings');
+
+  const settings = JSON.parse(await fs.readFile(settingsPath, 'utf8'));
+  assert.equal(settings.adminChannel, 'D_settings');
+  assert.equal(await fs.readFile(envPath, 'utf8'), sentinel);
+});
+
+test('SlackAdapter setAdminChannel routes subsequent notices to the new channel', async () => {
+  const a = makeAdapter();
+  a.config.adminChannel = 'D_old';
+  a.rateLimiter = { acquire: async () => {}, reportThrottled: () => {} };
+  let sentChannel: string | null = null;
+  a.client = {
+    chat: {
+      postMessage: async (payload: any) => {
+        sentChannel = payload.channel;
+        return { ts: '224' };
+      },
+    },
+  };
+
+  a.setAdminChannel('D_new');
+  await a.postMessage({ type: 'system-notice' }, { text: 'updated' });
+
+  assert.equal(sentChannel, 'D_new');
 });
 
 // ── onAction wraps channelId / messageRef.conduit / triggerId ──

@@ -20,7 +20,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, grace and wait cap |
 | lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |
 | mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |
-| mid-turn-inject.test.ts | test | Covers the mid-turn injection lifecycle |
+| mid-turn-inject.test.ts | test | Covers injection lifecycle and live wait caps |
 | orchestrator.test.ts | test | Covers thread versus agent routing choice |
 | pending-injection-recovery.test.ts | test | Covers injection idempotency and startup drain |
 | plan-approvals.test.ts | test | Covers plan approval state transitions |

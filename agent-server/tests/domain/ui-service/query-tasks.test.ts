@@ -1,5 +1,5 @@
 // input:  UI-service dependencies and task-store fixtures
-// output: Task list filters, fields, and completion time regressions
+// output: Task readiness, dependency, claim and field tests
 // pos:    UI task query contract tests
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -10,7 +10,7 @@ import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
 
 const mockTasks = [
   { id: 't1', text: 'Task one', project: 'proj1', status: 'open', priority: 'high', claimed_by: null, blocked_by: null, paused: false, approval_needed: true, approved_at: null, depends_on: [], plan: 'plan1', template: 'coder-review', why: 'because one', done_when: 'tests green' },
-  { id: 't2', text: 'Task two', project: 'proj1', status: 'open', priority: 'medium', claimed_by: 'agent1', blocked_by: null, paused: false, approval_needed: false, approved_at: '2026-07-30', depends_on: ['t1'], plan: null, template: 'research', why: '', done_when: '' },
+  { id: 't2', text: 'Task two', project: 'proj1', status: 'open', priority: 'medium', claimed_by: 'task-dispatcher', blocked_by: null, paused: false, approval_needed: false, approved_at: '2026-07-30', depends_on: ['t1'], plan: null, template: 'research', why: '', done_when: '' },
   { id: 't3', text: 'Task three', project: 'proj1', status: 'done', priority: 'low', claimed_by: 'agent1', blocked_by: null, paused: false, depends_on: [], plan: 'plan3', template: 'bugfix', why: 'because three', done_when: 'shipped', completed_at: '2026-07-30T16:00:00.000Z' },
   { id: 't4', text: 'Blocked task', project: 'proj2', status: 'open', priority: 'high', claimed_by: null, blocked_by: 'something', paused: false, depends_on: [], plan: null, template: 'coder-review' },
 ];
@@ -57,18 +57,15 @@ test('tasks.list filters by status', async () => {
   assert.equal(result[0].status, 'done');
 });
 
-test('tasks.list filters by actionable', async () => {
+test('tasks.list actionable filter excludes pending approvals and unresolved dependencies', async () => {
   const result = await handleTasksList(makeDeps(), { actionable: true });
-  // Only t1 is open, unclaimed, unblocked, unpaused
-  assert.equal(result.length, 1);
-  assert.equal(result[0].id, 't1');
-  assert.equal(result[0].actionable, true);
+  assert.deepEqual(result, []);
 });
 
-test('tasks.list non-actionable filter', async () => {
+test('tasks.list non-actionable filter uses canonical dispatch readiness', async () => {
   const result = await handleTasksList(makeDeps(), { actionable: false });
-  assert.equal(result.length, 3);
-  assert.ok(result.every(t => t.actionable === false));
+  assert.equal(result.length, 4);
+  assert.ok(result.every((task) => task.actionable === false));
 });
 
 test('tasks.list DTO shape is correct', async () => {
@@ -89,6 +86,48 @@ test('tasks.list exposes real why + doneWhen from the task store', async () => {
   const t1 = result.find(t => t.id === 't1')!;
   assert.equal(t1.why, 'because one');
   assert.equal(t1.doneWhen, 'tests green');
+});
+
+test('tasks.list exposes the newest project-matched claim thread without replacing the claim owner', async () => {
+  const threadStore = {
+    getAll: () => [
+      { id: 'thr_terminal', status: 'completed', projectId: 'proj1', metadata: { taskId: 't2', taskProject: 'proj1' } },
+      { id: 'thr_latest', status: 'running', projectId: 'proj1', metadata: { taskId: 't2', taskProject: 'proj1' } },
+      { id: 'thr_other_project', status: 'running', projectId: 'proj2', metadata: { taskId: 't2', taskProject: 'proj2' } },
+      { id: 'thr_older', status: 'waiting', projectId: 'proj1', metadata: { taskId: 't2', taskProject: 'proj1' } },
+    ],
+    get: () => null,
+  } as UiServiceDeps['threadStore'];
+  const result = await handleTasksList(makeDeps({ threadStore }), { projectId: 'proj1' });
+  const claimed = result.find((task) => task.id === 't2')!;
+  const unclaimed = result.find((task) => task.id === 't1')!;
+
+  assert.equal(claimed.claimedBy, 'task-dispatcher');
+  assert.equal(claimed.claimThreadId, 'thr_latest');
+  assert.equal(unclaimed.claimThreadId, null);
+});
+
+test('tasks.list resolves cross-project dependencies before applying project scope', async () => {
+  const tasks = [
+    { id: 'ready', text: 'Ready', project: 'proj1', status: 'open', claimed_by: null, blocked_by: null, paused: false, approval_needed: false, depends_on: ['done-dep'] },
+    { id: 'waiting', text: 'Waiting', project: 'proj1', status: 'open', claimed_by: null, blocked_by: null, paused: false, approval_needed: false, depends_on: ['open-dep'] },
+    { id: 'done-dep', text: 'Done dep', project: 'proj2', status: 'done', claimed_by: null, blocked_by: null, paused: false, depends_on: [] },
+    { id: 'open-dep', text: 'Open dep', project: 'proj2', status: 'open', claimed_by: null, blocked_by: null, paused: false, depends_on: [] },
+  ];
+  const taskStore = {
+    getAll: (project?: string) => project ? tasks.filter((task) => task.project === project) : tasks,
+    getById: () => null,
+    load: () => {},
+    refresh: () => {},
+  } as UiServiceDeps['taskStore'];
+  const result = await handleTasksList(makeDeps({ taskStore }), { projectId: 'proj1' });
+
+  assert.equal(result.find((task) => task.id === 'ready')!.actionable, true);
+  assert.deepEqual(result.find((task) => task.id === 'ready')!.unmetDependencyIds, []);
+  assert.equal(result.find((task) => task.id === 'waiting')!.actionable, false);
+  assert.deepEqual(result.find((task) => task.id === 'waiting')!.unmetDependencyIds, ['open-dep']);
+  const actionableOnly = await handleTasksList(makeDeps({ taskStore }), { projectId: 'proj1', actionable: true });
+  assert.deepEqual(actionableOnly.map((task) => task.id), ['ready']);
 });
 
 test('tasks.list exposes pending and completed approval state', async () => {

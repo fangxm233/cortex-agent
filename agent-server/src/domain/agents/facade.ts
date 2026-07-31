@@ -1,4 +1,4 @@
-// input:  configuration, adapters, profiles, MCP context
+// input:  configuration, adapters, profiles, runtime settings
 // output: attributed runs, provider identity, and notices
 // pos:    Backend-neutral agent execution facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -14,6 +14,7 @@ import { configureEnvForMode, isApiRateLimitError, isRetryableResult, isRetryabl
 import { isProviderModeRateLimited, isProviderRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
 import { t } from '../../core/i18n.js';
 
@@ -432,7 +433,7 @@ export function runWithAdapter(
           case 'context_compacted':
             // Off by default; when enabled, preserve the text path used by every platform while
             // giving chat clients explicit presentation semantics instead of an emoji convention.
-            if (process.env.CORTEX_NOTIFY_COMPACTION === '1') {
+            if (getSettings().notifyCompaction) {
               options.onAssistantMessage?.(t('notify.contextCompacted'), undefined, 'info');
             }
             break;

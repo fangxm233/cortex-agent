@@ -1,14 +1,12 @@
-// input:  project, notes, connectivity and provider throttle data
-// output: Projects tab with quick notes and project actions
+// input:  project, notes and provider throttle data
+// output: Projects tab with project-scoped cards and a settings gear
 // pos:    Presentational mobile Projects surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
 import type { CostSummary } from '@cortex-agent/ui-contract';
-import { MScreen, MTabHeader, MScrollBody, MCard, MDot, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MTabHeader, MScrollBody, MCard, MC, MONO } from '@/mobile/ui/kit';
 import { budgetPercent, formatMoney } from '@/features/overview/overview-vm';
-import type { ConnectionStatus } from '@/features/connection/connection-status';
-import { mConnTone, mConnPulse } from './m-connection';
 import type { MProjectSwitchRow } from './m-project-vm';
 import { MobileRateLimitStatus, type RateLimitView } from '@/features/rate-limit';
 import type { NotesCopy } from '@/features/notes/notes-copy';
@@ -17,10 +15,6 @@ import { MNotesProjectCard } from './MNotesProjectCard';
 
 export interface MProjectCopy {
   title: string;
-  daemonConnected: string;
-  daemonConnecting: string;
-  daemonReconnecting: string;
-  daemonDisconnected: string;
   current: string;
   threadsRunning: string;
   needsYou: string;
@@ -30,11 +24,10 @@ export interface MProjectCopy {
   forecastToday: string;
   approvals: string;
   pending: string;
+  globalPending: string;
   threadsWaiting: string;
   handle: string;
   memory: string;
-  machines: string;
-  machinesOk: string;
   settings: string;
   switchProject: string;
   running: string;
@@ -57,7 +50,7 @@ export interface MProjectCurrent {
   initials: string;
   runningThreads: number;
   waitingThreads: number;
-  /** GLOBAL pending-approval count (approvals carry no projectId — GAP, not project-scoped). */
+  /** THIS project's pending-approval count (real ApprovalInfo.projectId attribution). */
   needsYou: number;
   /** Scoped cost.summary for the budget row; null while unavailable (budget row omitted). */
   cost: CostSummary | null;
@@ -65,17 +58,16 @@ export interface MProjectCurrent {
 
 export interface MProjectViewProps {
   copy: MProjectCopy;
-  /** Live UI<->server connectivity (SSE link) driving the header badge — real, not query-inferred. */
-  connStatus: ConnectionStatus;
   current: MProjectCurrent | null;
-  /** GLOBAL pending approvals — drives the amber bar visibility (shown only when > 0). */
+  /** Amber-bar count = current project's pending approvals + unattributed (全局) entries. */
   pendingApprovals: number;
+  /** The unattributed (`projectId: null`) portion of `pendingApprovals` — labelled 全局 on the bar. */
+  globalPendingApprovals: number;
   /** Current project's ISSUES.md entries (24a card, hidden at 0 — issues never enter 需要你). */
   issues: MProjectIssues;
   notesVm: MNotesVm;
   notesCopy: NotesCopy;
   notesBusy: boolean;
-  onlineMachines: number;
   switchRows: MProjectSwitchRow[];
   rateLimitStatus: RateLimitView | null;
   onOpenRateLimit: () => void;
@@ -84,30 +76,47 @@ export interface MProjectViewProps {
   onAddNote: (text: string) => Promise<unknown>;
   onApprovals: () => void;
   onMemory: () => void;
-  onMachines: () => void;
   onSettings: () => void;
   onSwitch: (id: string) => void;
   onNewProject: () => void;
 }
 
-// Daemon status (header trailing): live UI<->server connectivity — green connected / amber pulsing
-// (re)connecting / red disconnected dot + text (replaces the former binary query-inferred green/gray).
-const CONN_LABEL: Record<ConnectionStatus, keyof MProjectCopy> = {
-  connected: 'daemonConnected',
-  connecting: 'daemonConnecting',
-  reconnecting: 'daemonReconnecting',
-  disconnected: 'daemonDisconnected',
-};
-function DaemonStatus({ status, copy }: { status: ConnectionStatus; copy: MProjectCopy }) {
-  const tone = mConnTone(status);
-  const color = tone === 'done' ? MC.done : tone === 'failed' ? MC.fail : MC.amber;
+// Header trailing gear → settings (机器/设置 moved off the body: the tab body is project-scoped
+// only; global system entries live behind this single entry point. Daemon status intentionally NOT
+// shown here — it lives inside settings and its daemon drill-in).
+function SettingsGear({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <span
-      style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color, fontWeight: 600 }}
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 30,
+        height: 30,
+        border: 'none',
+        background: 'transparent',
+        color: MC.sub,
+        cursor: 'pointer',
+        padding: 0,
+      }}
     >
-      <MDot color={color} pulse={mConnPulse(status)} />
-      {copy[CONN_LABEL[status]]}
-    </span>
+      <svg
+        width="19"
+        height="19"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="12" cy="12" r="3.2" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z" />
+      </svg>
+    </button>
   );
 }
 
@@ -203,13 +212,17 @@ function CurrentCard({ current, copy }: { current: MProjectCurrent; copy: MProje
   );
 }
 
+// Approval bar — project-scoped since ApprovalInfo.projectId: count = current project + 全局
+// (unattributed) pending entries; the 全局 portion is called out so the scoped part stays honest.
 function ApprovalBar({
   pending,
+  globalPending,
   waitingThreads,
   copy,
   onClick,
 }: {
   pending: number;
+  globalPending: number;
   waitingThreads: number;
   copy: MProjectCopy;
   onClick: () => void;
@@ -233,6 +246,7 @@ function ApprovalBar({
         {copy.approvals} · {pending} {copy.pending}
       </span>
       <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-amber-accent)' }}>
+        {globalPending > 0 ? `${globalPending} ${copy.globalPending} · ` : ''}
         {waitingThreads} {copy.threadsWaiting}
       </span>
       <span style={{ marginLeft: 'auto', fontSize: 11.5, fontWeight: 600, color: MC.amberInk }}>
@@ -345,8 +359,8 @@ function SwitchRow({
   onSwitch: (id: string) => void;
   divider: boolean;
 }) {
-  // Honest sub-line: running → `N 运行中 [· 今日 $x]`; idle → `空闲 [· 今日 $x]`. No per-project 需要你
-  // (approvals aren't project-scoped). 今日 $ omitted when the project has no cost bucket.
+  // Honest sub-line: running → `N 运行中 [· 今日 $x]`; idle → `空闲 [· 今日 $x]`. Per-project pending
+  // approvals ride the attention badge (vm actionRequired). 今日 $ omitted when no cost bucket.
   const money = row.todayCost != null ? `${copy.today} ${formatMoney(row.todayCost)}` : null;
   return (
     <div
@@ -404,7 +418,7 @@ function SwitchRow({
           )}
         </div>
       </div>
-      {/* One attention badge: unread + awaiting-input sessions; any action turns it amber. */}
+      {/* One attention badge: unread + awaiting-input sessions + pending approvals; any action turns it amber. */}
       {row.badgeCount > 0 && (
         <span
           aria-label="project attention"
@@ -430,25 +444,20 @@ function SwitchRow({
   );
 }
 
+// Project-scoped zone only: current card → approvals (scoped) → issues → notes → memory.
+// Global entries (machines / settings) moved behind the header gear — no mixed-scope card here.
 function PrimaryProjectCards({ props }: { props: MProjectViewProps }) {
-  const { copy, current, pendingApprovals, issues } = props;
+  const { copy, current, pendingApprovals, globalPendingApprovals, issues } = props;
   return (
     <>
       {current && <CurrentCard current={current} copy={copy} />}
-      {pendingApprovals > 0 && <ApprovalBar pending={pendingApprovals} waitingThreads={current?.waitingThreads ?? 0} copy={copy} onClick={props.onApprovals} />}
+      {pendingApprovals > 0 && <ApprovalBar pending={pendingApprovals} globalPending={globalPendingApprovals} waitingThreads={current?.waitingThreads ?? 0} copy={copy} onClick={props.onApprovals} />}
       {issues.count > 0 && <IssuesCard issues={issues} copy={copy} onClick={props.onIssues} />}
       <MNotesProjectCard vm={props.notesVm} copy={props.notesCopy} busy={props.notesBusy} onOpen={props.onNotes} onAdd={props.onAddNote} />
+      <MCard radius={13} padding={0} style={{ overflow: 'hidden' }}>
+        <InfoRow label={copy.memory} onClick={props.onMemory} divider={false} />
+      </MCard>
     </>
-  );
-}
-
-function ProjectInfoCard({ props }: { props: MProjectViewProps }) {
-  return (
-    <MCard radius={13} padding={0} style={{ overflow: 'hidden' }}>
-      <InfoRow label={props.copy.memory} onClick={props.onMemory} divider />
-      <InfoRow label={`${props.copy.machines} · ${props.onlineMachines} ${props.copy.machinesOk}`} onClick={props.onMachines} divider />
-      <InfoRow label={props.copy.settings} onClick={props.onSettings} divider={false} />
-    </MCard>
   );
 }
 
@@ -479,14 +488,13 @@ export function MProjectView(props: MProjectViewProps) {
   const trailing = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
       <MobileRateLimitStatus status={props.rateLimitStatus} onOpen={props.onOpenRateLimit} />
-      <DaemonStatus status={props.connStatus} copy={props.copy} />
+      <SettingsGear label={props.copy.settings} onClick={props.onSettings} />
     </div>
   );
   return (
     <MScreen label="1e 项目" header={<MTabHeader title={props.copy.title} trailing={trailing} />}>
       <MScrollBody gap={10}>
         <PrimaryProjectCards props={props} />
-        <ProjectInfoCard props={props} />
         <ProjectSwitchCards props={props} />
         <NewProjectButton copy={props.copy} onClick={props.onNewProject} />
       </MScrollBody>

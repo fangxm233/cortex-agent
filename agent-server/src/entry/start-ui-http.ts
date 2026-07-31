@@ -1,24 +1,6 @@
-// input:  a real UiService (injected) + env (CORTEX_UI_HTTP gate, CORTEX_UI_PORT,
-//          CORTEX_UI_CORS_ORIGINS, CORTEX_UI_SPA_DIR)
-// output: startUiHttpServer(opts) -> UiHttpServer | null — builds the tRPC AppRouter over the
-//         injected UiService and starts the Web UI HTTP+SSE transport-host behind the dual-path
-//         auth gate — x-cortex-token (getClientToken) OR a Cloudflare Access JWT verifier built
-//         from env (accessVerifierFromEnv) — bound 127.0.0.1. Returns null (clean skip) when the
-//         env gate is off. Same-origin: serves the built SPA (web/dist) and /trpc on one port.
-// pos:    Web UI wiring, in-core (entry layer). The only place that binds the AppRouter
-//         (createAppRouter, domain/ui-service) to the transport-host (createUiHttpServer,
-//         platform/ui-http) — kept out of both so the router stays transport-agnostic and the
-//         transport-host stays router-agnostic; the wiring sits in entry, the one layer allowed to
-//         depend on both domain and platform. app.ts loads this on demand via a CORTEX_UI_HTTP-gated
-//         dynamic import (entry/ui-http-gate.ts), so @trpc/server + jose stay runtime-lazy, and
-//         closes the returned handle on shutdown. SPA dir: opts.spaDir ?? CORTEX_UI_SPA_DIR ??
-//         web/dist resolved relative to this module's compiled location (installed-package root,
-//         else the monorepo repo-root — see defaultSpaDir).
-//         CORS: resolves the transport-host's allow-list from opts.corsOrigins else the
-//         CORTEX_UI_CORS_ORIGINS env var (comma-separated) — lets the Tauri desktop webview reach
-//         tRPC directly. Also mounts the frontend-OTA custom routes (createOtaRoutes(spaDir)) so the
-//         desktop shell can self-update its SPA (disabled cleanly when the SPA is not built), and
-//         the app-update manifest route (createAppUpdateRoutes) for native shell self-update.
+// input:  UiService, runtime settings, HTTP/auth/static dependencies
+// output: optional Web UI HTTP/SSE server with live CORS wiring
+// pos:    Entry-layer Web UI transport composition
 // >>> If I am updated, update CORTEX.md <<<
 
 import * as path from 'node:path';
@@ -37,6 +19,7 @@ import type { AccessJwtVerifier } from '@platform/ui-http/access-jwt.js';
 import type { UiService } from '@domain/ui-service/types.js';
 import { getClientToken } from '@core/auth.js';
 import { createLogger } from '@core/log.js';
+import { getSettings } from '@core/settings.js';
 import { WORKSPACE_DIR, resolveWorkspaceRelPath } from '@core/paths.js';
 
 const log = createLogger('ui-http');
@@ -78,20 +61,14 @@ export interface StartUiHttpOptions {
   uiService: UiService;
   /** Token accessor the server accepts. Defaults to getClientToken (the shared secret clients carry). */
   getToken?: () => string;
-  /** Env to read the gate/port from. Defaults to process.env (injectable for tests). */
+  /** Env to read the startup gate/port from. Defaults to process.env (injectable for tests). */
   env?: NodeJS.ProcessEnv;
   /**
    * Directory of the built SPA to serve for non-tRPC paths. When omitted, resolved from
    * CORTEX_UI_SPA_DIR else the monorepo web/dist. Absent/missing on disk → 404 stub.
    */
   spaDir?: string;
-  /**
-   * Explicit CORS allow-list forwarded to the transport-host. When omitted, the list is parsed
-   * from the CORTEX_UI_CORS_ORIGINS env var (comma-separated; entries trimmed, empties dropped).
-   * Env-driven so the running-server path (agent-server) can enable CORS for the Tauri desktop
-   * webview (e.g. tauri://localhost) with no code change — just the env var. Absent/empty → no
-   * CORS headers.
-   */
+  /** Explicit static CORS allow-list override; production reads runtime settings per request. */
   corsOrigins?: string[];
   /**
    * Explicit Cloudflare Access JWT verifier forwarded to the transport-host (the browser auth path).
@@ -100,17 +77,6 @@ export interface StartUiHttpOptions {
    * undefined and the gate degrades to token-only. Injectable for tests.
    */
   verifyAccessJwt?: AccessJwtVerifier;
-}
-
-/**
- * Parse a comma-separated origin list (from CORTEX_UI_CORS_ORIGINS) into a trimmed, empties-dropped
- * array. Returns undefined when the raw value is absent or yields no entries, so the transport-host
- * keeps its backward-compatible "no CORS headers" default rather than an empty allow-list.
- */
-function parseCorsOrigins(raw: string | undefined): string[] | undefined {
-  if (!raw) return undefined;
-  const origins = raw.split(',').map((o) => o.trim()).filter((o) => o.length > 0);
-  return origins.length > 0 ? origins : undefined;
 }
 
 // ── File upload route (15a attachments) ───────────────────────────────────────
@@ -305,13 +271,14 @@ export function startUiHttpServer(opts: StartUiHttpOptions): UiHttpServer | null
   const parsedPort = parseInt(env.CORTEX_UI_PORT ?? '', 10);
   const port = Number.isNaN(parsedPort) ? DEFAULT_UI_PORT : parsedPort;
   const router = createAppRouter(opts.uiService);
-  const corsOrigins = opts.corsOrigins ?? parseCorsOrigins(env.CORTEX_UI_CORS_ORIGINS);
+  const corsOrigins = opts.corsOrigins ?? (() => getSettings().uiCorsOrigins);
+  const initialCorsOrigins = typeof corsOrigins === 'function' ? corsOrigins() : corsOrigins;
   const spaDir = opts.spaDir ?? env.CORTEX_UI_SPA_DIR ?? defaultSpaDir();
   const verifyAccessJwt = opts.verifyAccessJwt ?? accessVerifierFromEnv(env);
   log.info(
     `Web UI enabled — starting tRPC HTTP+SSE on 127.0.0.1:${port}` +
       (spaDir ? ` (SPA: ${spaDir})` : ' (SPA: not built — non-tRPC paths 404)') +
-      (corsOrigins ? ` (CORS allow-list: ${corsOrigins.join(', ')})` : '') +
+      (initialCorsOrigins.length > 0 ? ` (CORS allow-list: ${initialCorsOrigins.join(', ')})` : '') +
       (verifyAccessJwt ? ' (Cloudflare Access JWT path enabled)' : ''),
   );
   return createUiHttpServer({

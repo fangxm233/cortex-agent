@@ -1,5 +1,5 @@
 // input:  TaskInfo and task verification fixtures
-// output: Task approval, dependency, claim, and history tests
+// output: Task approval, claim-thread, dependency and history tests
 // pos:    Mobile task-detail view-model regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -16,6 +16,7 @@ function task(over: Partial<TaskInfo>): TaskInfo {
     priority: 'high',
     actionable: false,
     claimedBy: null,
+    claimThreadId: null,
     blockedBy: null,
     dependsOn: [],
     plan: null,
@@ -117,14 +118,21 @@ describe('buildTaskDetailVm', () => {
     expect(vm.doneWhen).toBeNull();
   });
 
-  it('builds a claim card only when claimed, with real thread id + elapsed·cost meta', () => {
-    const claimed = task({ claimedBy: 'exec_dispatch_x' });
+  it('prefers the tasks.list owning thread over dispatch-history and persisted owner ids', () => {
+    const claimed = task({ claimedBy: 'task-dispatcher', claimThreadId: 'thr_owner' });
     const vm = buildTaskDetailVm('001', [claimed], verification({ dispatches: [dispatch({})] }), NOW);
     expect(vm.claim).not.toBeNull();
     expect(vm.claim!.template).toBe('experiment-pipeline');
-    expect(vm.claim!.threadId).toBe('thr_nimbus');
-    expect(vm.claim!.claimedBy).toBe('exec_dispatch_x');
+    expect(vm.claim!.threadId).toBe('thr_owner');
+    expect(vm.claim!.claimedBy).toBeNull();
     expect(vm.claim!.meta).toBe('42m · $2.31');
+  });
+
+  it('does not present an arbitrary history thread as the current owner', () => {
+    const claimed = task({ claimedBy: 'task-dispatcher' });
+    const vm = buildTaskDetailVm('001', [claimed], verification({ dispatches: [dispatch({})] }), NOW);
+    expect(vm.claim!.threadId).toBeNull();
+    expect(vm.claim!.claimedBy).toBeNull();
   });
 
   it('omits the claim card when unclaimed', () => {
@@ -132,8 +140,8 @@ describe('buildTaskDetailVm', () => {
     expect(vm.claim).toBeNull();
   });
 
-  it('claim meta omits fields with no source; threadId null when no dispatch carries one', () => {
-    const claimed = task({ claimedBy: 'exec_dispatch_x' });
+  it('claim meta omits fields with no source and never exposes task-dispatcher', () => {
+    const claimed = task({ claimedBy: 'task-dispatcher' });
     const vm = buildTaskDetailVm(
       '001',
       [claimed],
@@ -141,6 +149,7 @@ describe('buildTaskDetailVm', () => {
       NOW,
     );
     expect(vm.claim!.threadId).toBeNull();
+    expect(vm.claim!.claimedBy).toBeNull();
     expect(vm.claim!.meta).toBeNull();
   });
 

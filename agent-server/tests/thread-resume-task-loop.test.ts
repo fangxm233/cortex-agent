@@ -1,26 +1,29 @@
-// input:  Node test runner + thread-callback.closeResumedTaskLoop
-// output: regression for the resume-path missing task.completed/task.blocked publish
-// pos:    2026-06-29 finding — a task-dispatch thread that re-enters via a resume path
-//         (rate-limit resume OR DR-0014 child-completion resume) bypasses the dispatch cycle,
-//         so the task.completed event that wakes a waiting manager/session was never published.
-//         The worker marks the task done on disk, but nobody tells the parent → it stays
-//         suspended forever (leaf task ef14 left manager 5afd → e5be stuck). closeResumedTaskLoop
-//         re-emits that event after a resumed task-dispatch thread settles terminal.
+// input:  resumed task loops, waiting sweeps, mutable settings
+// output: task event closure and sweep scheduling regressions
+// pos:    Resumed dispatch and waiting-manager backstop tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import { test, afterAll } from 'vitest';
+import { test, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR } from '../src/core/paths.js';
 import { threadStore } from '../src/store/thread-repo.js';
-import { closeResumedTaskLoop, sweepWaitingManagers } from '../src/orchestration/thread-callback.js';
+import { closeResumedTaskLoop, startWaitingManagerSweep, sweepWaitingManagers } from '../src/orchestration/thread-callback.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
+
+const liveSettings = vi.hoisted(() => ({ managerRotateSteps: 10, waitingSweepMs: 60_000 }));
+vi.mock('@core/settings.js', () => ({ getSettings: () => liveSettings }));
 
 const createdThreadIds = new Set<string>();
 const projectDirs: string[] = [];
 let seq = 0;
+
+beforeEach(() => {
+  liveSettings.managerRotateSteps = 10;
+  liveSettings.waitingSweepMs = 60_000;
+});
 
 afterAll(async () => {
   for (const id of createdThreadIds) await threadStore.delete(id);
@@ -150,4 +153,32 @@ test('sweepWaitingManagers keeps a manager waiting on a still-open child (no spu
 
   assert.deepEqual(threadStore.get(mgr.id)!.metadata!.waitingOnTasks, ['cc31']);
   assert.equal(resumed.length, 0);
+});
+
+test('waiting sweep re-arms with the current interval and runtime zero stops the loop', async () => {
+  vi.useFakeTimers();
+  const timeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+  try {
+    liveSettings.waitingSweepMs = 100;
+    startWaitingManagerSweep();
+    assert.ok(timeoutSpy.mock.calls.some(([, delay]) => delay === 100));
+
+    liveSettings.waitingSweepMs = 250;
+    await vi.advanceTimersByTimeAsync(100);
+    assert.ok(timeoutSpy.mock.calls.some(([, delay]) => delay === 250), 'next round uses the updated interval');
+
+    liveSettings.waitingSweepMs = 0;
+    await vi.advanceTimersByTimeAsync(250);
+    const sweepDelays = timeoutSpy.mock.calls
+      .map(([, delay]) => delay)
+      .filter((delay) => delay === 100 || delay === 250);
+    assert.deepEqual(sweepDelays, [100, 250], 'zero prevents another re-arm after the pending round');
+
+    const timerCount = vi.getTimerCount();
+    startWaitingManagerSweep();
+    assert.equal(vi.getTimerCount(), timerCount, 'startup zero does not start a dormant loop');
+  } finally {
+    timeoutSpy.mockRestore();
+    vi.useRealTimers();
+  }
 });

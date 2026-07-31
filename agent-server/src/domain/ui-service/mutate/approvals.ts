@@ -115,7 +115,8 @@ export async function handleRejectApproval(
  * SECURITY: every prose field is SERVER-constructed from the closed `kind` enum — the browser never
  * supplies markdown. The only free-text input, `machineName`, is sanitized (newlines stripped,
  * length-capped) so it cannot inject a new `##` heading or bullet. Returns the heading line (for a
- * stable `headingId`) alongside the full block.
+ * stable `headingId`) alongside the full block. Deliberately NO `Project` bullet: both kinds are
+ * system-level operations → projectId stays null ("global") when parsed back.
  */
 export function buildApprovalEntry(
   args: ApprovalsRequestArgs,

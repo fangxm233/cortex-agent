@@ -311,8 +311,9 @@ function PendingList({
                   >
                     {card.title}
                   </div>
-                  {/* meta row: tag OMITTED (no safety-class field); origin = real provenance when
-                      present; age = queuedAt date */}
+                  {/* meta row: tag OMITTED (no safety-class field); project = real projectId chip
+                      (null = global entry, omitted); origin = real provenance when present; age =
+                      queuedAt date */}
                   <div
                     style={{
                       display: 'flex',
@@ -322,6 +323,9 @@ function PendingList({
                       flexWrap: 'wrap',
                     }}
                   >
+                    {card.project && (
+                      <span style={{ font: `600 9px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.project}</span>
+                    )}
                     {card.origin && (
                       <span style={{ font: `400 9px ${mono}`, color: 'var(--proto-muted-3)' }}>{card.origin}</span>
                     )}
@@ -397,8 +401,9 @@ function DetailPane({
           </span>
         </div>
 
-        {/* meta row: queued = queuedAt date; from = real provenance; task = parsed taskRef; ttl
-            OMITTED (zero source — no expiry in the markdown queue), never fabricated */}
+        {/* meta row: queued = queuedAt date; project = real projectId (null = global, omitted);
+            from = real provenance; task = parsed taskRef; ttl OMITTED (zero source — no expiry in
+            the markdown queue), never fabricated */}
         <div
           style={{
             display: 'flex',
@@ -411,6 +416,11 @@ function DetailPane({
           }}
         >
           {detail.queued && <span>{detail.queued}</span>}
+          {detail.project && (
+            <span>
+              {L.apProject} <span style={{ color: 'var(--proto-accent)' }}>{detail.project}</span>
+            </span>
+          )}
           {detail.origin && (
             <span>
               {L.apFrom} <span style={{ color: 'var(--proto-accent)' }}>{detail.origin}</span>

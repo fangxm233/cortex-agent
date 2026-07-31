@@ -253,8 +253,8 @@ describe.sequential('core settings', () => {
     try {
       assert.deepEqual(
         getSettingsSnapshot().find((entry) => entry.key === 'showToolCalls'),
-        { key: 'showToolCalls', value: true, source: 'env' },
-        'snapshot provenance must stay aligned with the cached effective value',
+        { key: 'showToolCalls', value: false, source: 'default' },
+        'snapshot provenance must refresh with the effective env fallback',
       );
     } finally {
       process.env.CORTEX_SHOW_TOOL_CALLS = ' yes ';
@@ -266,6 +266,20 @@ describe.sequential('core settings', () => {
     const warningCount = warn.mock.calls.length;
     getSettings();
     assert.equal(warn.mock.calls.length, warningCount, 'cached reads must not repeat deprecation logs');
+  });
+
+  test('getSettings refreshes legacy env fallbacks changed after initialization', () => {
+    const previous = process.env.CORTEX_AUTO_RESUME;
+    try {
+      process.env.CORTEX_AUTO_RESUME = '0';
+      assert.equal(getSettings().autoResume, false);
+      process.env.CORTEX_AUTO_RESUME = '1';
+      assert.equal(getSettings().autoResume, true);
+    } finally {
+      if (previous === undefined) delete process.env.CORTEX_AUTO_RESUME;
+      else process.env.CORTEX_AUTO_RESUME = previous;
+      getSettings();
+    }
   });
 
   test('external settings edits hot-reload and report effective keys in spec order', async (t) => {
@@ -325,11 +339,12 @@ describe.sequential('core settings', () => {
       await update;
       assert.deepEqual(
         getSettingsSnapshot().find((entry) => entry.key === 'taskDispatchMaxConcurrent'),
-        { key: 'taskDispatchMaxConcurrent', value: 8, source: 'env' },
-        'atomic writes must preserve the provenance used to resolve cached values',
+        { key: 'taskDispatchMaxConcurrent', value: null, source: 'default' },
+        'snapshot values and provenance must refresh together after an env change',
       );
     } finally {
       process.env.TASK_DISPATCH_MAX_CONCURRENT = '8';
+      getSettingsSnapshot();
     }
     assert.deepEqual(batches, [['turnNotify', 'adminChannel']]);
 

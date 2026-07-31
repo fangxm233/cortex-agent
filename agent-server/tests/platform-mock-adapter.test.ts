@@ -1,6 +1,6 @@
-// input:  Node test runner + MockAdapter + adapter types
-// output: PlatformAdapter method coverage tests including marker add/remove
-// pos:    Verifies MockAdapter records the complete platform contract
+// input:  MockAdapter and platform message types
+// output: mock contract, recording, and hot-admin tests
+// pos:    Verifies MockAdapter platform behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -110,6 +110,13 @@ test('getPermalink returns deterministic mock URL', async () => {
   const adapter = new MockAdapter();
   const ref = { conduit: 'C1', messageId: 'M7' };
   assert.equal(await adapter.getPermalink(ref), 'https://mock.test/permalink/C1/M7');
+});
+
+test('setAdminChannel routes subsequent system notices to the new channel', async () => {
+  const adapter = new MockAdapter({ adminChannel: 'C-old' });
+  adapter.setAdminChannel('C-new');
+  const ref = await adapter.postMessage({ type: 'system-notice' }, { text: 'updated' });
+  assert.equal(ref.conduit, 'C-new');
 });
 
 test('onMessage handlers fire for simulateMessage and receive context with reply()', async () => {

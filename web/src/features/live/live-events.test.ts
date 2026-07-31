@@ -1,5 +1,5 @@
 // input:  Vitest and shared live-event pure rules
-// output: shared-union, compact/context refresh, scope/reconnect tests
+// output: shared-union, task-link refresh and reconnect tests
 // pos:    Unit tests for the Web shared SSE event model
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -16,6 +16,7 @@ import {
   SESSION_LIVE_EVENTS,
   SYSTEM_LIVE_EVENTS,
   TASK_LIVE_EVENTS,
+  TASK_LIST_LIVE_EVENTS,
   THREAD_LIVE_EVENTS,
   type LiveEvent,
 } from './live-events';
@@ -44,6 +45,13 @@ describe('SESSION_LIVE_EVENTS', () => {
     expect(LIVE_EVENT_TYPES).toContain('session.context-compacted');
     expect(SESSION_LIVE_EVENTS).toContain('session.debug.updated');
     expect(LIVE_EVENT_TYPES).toContain('session.debug.updated');
+  });
+});
+
+describe('TASK_LIST_LIVE_EVENTS', () => {
+  it('refreshes after thread creation so a new task claim gains its owning thread id', () => {
+    expect(TASK_LIST_LIVE_EVENTS).toContain('thread.created');
+    for (const type of TASK_LIVE_EVENTS) expect(TASK_LIST_LIVE_EVENTS).toContain(type);
   });
 });
 

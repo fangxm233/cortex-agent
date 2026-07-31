@@ -17,11 +17,16 @@ import { parseTaskRef } from './memory.js';
 const DATE_RE = /\d{4}-\d{2}-\d{2}/;
 
 // Map a bullet field label → the ApprovalInfo key it fills.
-const FIELD_KEYS: Record<string, 'operation' | 'reason' | 'impact' | 'command' | 'provenance'> = {
+const FIELD_KEYS: Record<
+  string,
+  'operation' | 'reason' | 'impact' | 'command' | 'provenance' | 'projectId'
+> = {
   Operation: 'operation',
   Reason: 'reason',
   Impact: 'impact',
   'Command/Action': 'command',
+  // Owning project (need-approval skill template). Legacy/system-level entries omit it → null.
+  Project: 'projectId',
   // The only real origin/task carrier — an OPTIONAL freeform bullet a subset of entries add. Not
   // emitted by either writer (need-approval skill / approval-gate builder); honest null when absent.
   Provenance: 'provenance',
@@ -75,6 +80,7 @@ export function parseApprovals(md: string, filter?: ApprovalStatus): ApprovalInf
       current = {
         id: headingId(line),
         title,
+        projectId: null,
         operation: null,
         reason: null,
         impact: null,

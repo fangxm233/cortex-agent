@@ -1,6 +1,6 @@
 // input:  Router outlet and global UI/modal/note providers
 // output: Persistent desktop application shell
-// pos:    Keeps shared state and overlays mounted across routes
+// pos:    Keeps shared state and task/thread overlays across routes
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { Outlet } from 'react-router-dom';
 import { CommandPalette } from '@/features/command-palette/CommandPalette';
@@ -21,6 +21,7 @@ import { PinnedPreviewProvider } from '@/features/media/PinnedPreviewProvider';
 import { ConnectionStatusProvider } from '@/features/connection/ConnectionStatusProvider';
 import { LiveEventsProvider } from '@/features/live/LiveEventsProvider';
 import { ThreadDetailModalProvider } from '@/features/thread/ThreadDetailModal';
+import { TaskModalProvider } from '@/features/tasks/TaskModalProvider';
 import { NotesProvider } from '@/features/notes/NotesProvider';
 
 // App shell (Stage-R RB, task f528): a pass-through layout. The prototype is a single full-screen
@@ -39,7 +40,7 @@ export function AppShell() {
       <CurrentProjectProvider><SelectedSessionProvider><NotesProvider>
         <ExecutionLogDrawerProvider><ScheduleModalProvider>
           <ApprovalsProvider><SettingsProvider><IssuesProvider>
-            <ThreadDetailModalProvider><PinnedPreviewProvider>
+            <ThreadDetailModalProvider><TaskModalProvider><PinnedPreviewProvider>
               <MediaViewerProvider><DocViewerProvider>
                 <Outlet />
                 <CommandPalette open={open} onOpenChange={setOpen} />
@@ -47,7 +48,7 @@ export function AppShell() {
                 <HotUpdateProvider />
                 <AppUpdateProvider />
               </DocViewerProvider></MediaViewerProvider>
-            </PinnedPreviewProvider></ThreadDetailModalProvider>
+            </PinnedPreviewProvider></TaskModalProvider></ThreadDetailModalProvider>
           </IssuesProvider></SettingsProvider></ApprovalsProvider>
         </ScheduleModalProvider></ExecutionLogDrawerProvider>
       </NotesProvider></SelectedSessionProvider></CurrentProjectProvider>

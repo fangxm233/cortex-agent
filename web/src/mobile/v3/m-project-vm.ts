@@ -4,8 +4,9 @@
 //   · per-project thread counts from an UNSCOPED threads.list (ThreadInfo has projectId + status);
 //   · per-project today $ from the GLOBAL cost.summary byProject bucket (PeriodBucket.today);
 //   · online-machine count from machines.list (MachineInfo.online).
-// GAPs (never fabricated): approvals have NO projectId (ApprovalInfo) → the "需要你" / 待处理 count is
-// GLOBAL, not project-scoped; phase/milestone (Phase 2 · M2.3) have no DTO source → omitted.
+//   · per-project pending approvals from ApprovalInfo.projectId (the `Project` bullet); null
+//     attribution = 全局 (legacy/system entries), bucketed by pendingApprovalCounts.
+// GAP (never fabricated): phase/milestone (Phase 2 · M2.3) have no DTO source → omitted.
 import type { ThreadInfo, ProjectConduitInfo, CostSummary } from '@cortex-agent/ui-contract';
 import { projectInitials } from '@/features/workbench/session-groups';
 import { sortProjectsByActivity } from '@/features/workbench/left-rail-projects';
@@ -40,6 +41,31 @@ export function onlineMachineCount(machines: readonly { online: boolean }[]): nu
   return machines.reduce((n, m) => n + (m.online ? 1 : 0), 0);
 }
 
+export interface PendingApprovalCounts {
+  /** Pending count per owning project (`ApprovalInfo.projectId`). */
+  byProject: Record<string, number>;
+  /** Pending entries with NO project attribution (legacy / system-level) — rendered as 全局. */
+  global: number;
+  total: number;
+}
+
+/**
+ * Bucket pending approvals by their real `projectId` (the `- **Project**:` bullet). `null`
+ * attribution → the `global` bucket — honest, never guessed onto the current project.
+ */
+export function pendingApprovalCounts(
+  entries: readonly { status: string; projectId: string | null }[],
+): PendingApprovalCounts {
+  const counts: PendingApprovalCounts = { byProject: {}, global: 0, total: 0 };
+  for (const e of entries) {
+    if (e.status !== 'pending') continue;
+    counts.total++;
+    if (e.projectId == null) counts.global++;
+    else counts.byProject[e.projectId] = (counts.byProject[e.projectId] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export interface MProjectSwitchRow {
   /** Project id == display name (ProjectConduitInfo carries no `name`). */
   id: string;
@@ -52,7 +78,7 @@ export interface MProjectSwitchRow {
   todayCost: number | null;
   /** Unread direct-session count for this project. */
   unread: number;
-  /** Sessions blocked on a pending ask-user question or plan approval. */
+  /** Action items: sessions blocked on ask-user/plan input + this project's pending approvals. */
   actionRequired: number;
   /** Combined unread + action count shown in the single switch-row badge. */
   badgeCount: number;
@@ -68,8 +94,8 @@ export interface MProjectSwitchRow {
  * `lastActivity` comes from `lastActivityByProject` over an UNSCOPED direct sessions.list — the same
  * persistent session-registry signal the desktop rail uses, so the order survives server/app restarts.
  * `unreadCounts` still contributes to each row's attention badge but no longer drives ordering.
- * Session actions come from SessionInfo.awaitingInput; markdown approval counts remain absent because
- * ApprovalInfo has no projectId.
+ * Session actions come from SessionInfo.awaitingInput; `approvalCounts` (pendingApprovalCounts
+ * byProject — approvals are project-attributed now) folds into the same action side of the badge.
  */
 export function buildProjectSwitchRows(
   projects: ProjectConduitInfo[],
@@ -79,6 +105,7 @@ export function buildProjectSwitchRows(
   unreadCounts: Record<string, number> = {},
   lastActivity: Record<string, number> = {},
   actionCounts: Record<string, number> = {},
+  approvalCounts: Record<string, number> = {},
 ): MProjectSwitchRow[] {
   const others = projects.filter((p) => p.id !== currentId);
   return sortProjectsByActivity(others, lastActivity).map((p) => {
@@ -88,7 +115,7 @@ export function buildProjectSwitchRows(
     );
     const bucket = globalByProject?.[p.id];
     const unread = unreadCounts[p.id] ?? 0;
-    const actionRequired = actionCounts[p.id] ?? 0;
+    const actionRequired = (actionCounts[p.id] ?? 0) + (approvalCounts[p.id] ?? 0);
     const badge = projectAttentionBadge(unread, actionRequired);
     return {
       id: p.id,

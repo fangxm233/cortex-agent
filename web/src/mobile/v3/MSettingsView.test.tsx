@@ -11,6 +11,7 @@ import { MSettingsView, type MSettingsCopy } from './MSettingsView';
 
 const copy: MSettingsCopy = {
   title: 'Settings', daemonStatus: 'connected', daemon: 'Daemon',
+  machines: 'Machines', machinesOk: 'online',
   profileTitle: 'Profile', switchLabel: 'Switch', profileSheetTitle: 'Profiles',
   profileSheetCurrent: 'current', profileSheetFooter: 'new sessions', theme: 'Theme',
   themeLight: 'Light', themeDark: 'Dark', budget: 'Budget', budgetUnit: '/day',
@@ -34,7 +35,7 @@ const snapshot: ConfigSnapshot = {
   env: [],
 };
 
-function renderHooks(value: ConfigSnapshot): string {
+function renderHooks(value: ConfigSnapshot, onlineMachines = 0): string {
   return renderToStaticMarkup(
     <MSettingsView
       vm={buildMSettingsVm(value, undefined)}
@@ -45,6 +46,8 @@ function renderHooks(value: ConfigSnapshot): string {
       onSetTheme={() => {}}
       onBack={() => {}}
       onOpenDaemon={() => {}}
+      onlineMachines={onlineMachines}
+      onOpenMachines={() => {}}
       onOpenHooks={() => {}}
       profileSheet={null}
       onOpenProfile={() => {}}
@@ -79,5 +82,14 @@ describe('MSettingsView hooks', () => {
 
     expect(html).toContain('Hooks · 0');
     expect(html).toContain('aria-label="Hooks"');
+  });
+});
+
+describe('MSettingsView machines row', () => {
+  it('renders the machines drill-in row with the real online count (moved off the Projects tab)', () => {
+    const html = renderHooks(snapshot, 2);
+
+    expect(html).toContain('Machines · 2 online');
+    expect(html).toContain('aria-label="Machines"');
   });
 });

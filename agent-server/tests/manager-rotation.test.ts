@@ -1,13 +1,10 @@
-// input:  Node test runner + thread-callback rotation + acceptance-ledger + task bridge
-// output: manager session-rotation tests — step-count trigger / slot session clearing /
-//         rehydration notice content / resume-path integration
-// pos:    Verify DR-0017 W3: a manager thread exceeding CORTEX_MANAGER_ROTATE_STEPS steps
-//         since its last rotation is re-entered on a FRESH session (kill test == rotation ==
-//         crash recovery), rehydrated from the task-keyed artifact + acceptance ledger.
+// input:  thread rotation, mutable settings, acceptance ledger
+// output: rotation threshold, rehydration, and resume regressions
+// pos:    Manager session rotation behavioral tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
-import { test, afterAll } from 'vitest';
+import { test, afterAll, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -17,11 +14,22 @@ import { maybeRotateManager, notifyTaskParentThreads } from '../src/orchestratio
 import { recordDelivered, recordVerdict } from '../src/domain/tasks/acceptance-ledger.js';
 import type { ThreadRecord, ThreadStatus, AgentStep } from '../src/core/types/thread-types.js';
 
-process.env.CORTEX_MANAGER_ROTATE_STEPS = '5';
+const liveSettings = vi.hoisted(() => ({
+  managerRotateSteps: 5,
+  waitingSweepMs: 60_000,
+  taskArtifactTemplates: ['manager'],
+}));
+vi.mock('@core/settings.js', () => ({ getSettings: () => liveSettings }));
 
 const createdThreadIds = new Set<string>();
 const projectDirs: string[] = [];
 let seq = 0;
+
+beforeEach(() => {
+  liveSettings.managerRotateSteps = 5;
+  liveSettings.waitingSweepMs = 60_000;
+  liveSettings.taskArtifactTemplates = ['manager'];
+});
 
 afterAll(async () => {
   for (const id of createdThreadIds) await threadStore.delete(id);
@@ -90,6 +98,17 @@ test('below threshold → no rotation, session kept', async () => {
   const t = threadStore.get(mgr.id)!;
   assert.equal(t.agents.manager.sessionId, 'sess-old');
   assert.equal(t.metadata?.pendingMessages?.length ?? 0, 0);
+});
+
+test('runtime threshold flip affects the next rotation check without reloading the module', async () => {
+  const proj = `_rot_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + taskYaml('aa07'));
+  const mgr = makeManager(proj, 'aa07', { steps: dummySteps(4), currentStepIndex: 4 });
+
+  assert.equal(await maybeRotateManager(mgr.id), false, 'four steps stay below the initial threshold');
+  liveSettings.managerRotateSteps = 4;
+  assert.equal(await maybeRotateManager(mgr.id), true, 'the same live manager uses the new threshold');
+  assert.equal(threadStore.get(mgr.id)!.agents.manager.sessionId, null);
 });
 
 test('over threshold → session cleared, base reset, rehydration notice queued with ledger pendings', async () => {

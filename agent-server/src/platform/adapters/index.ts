@@ -1,6 +1,6 @@
-// input:  ../adapter.js, ./slack.js, ./feishu.js, ../testing.js, ./tui/index.js, ./composite-adapter.js
-// output: PlatformType + AdapterConfig + createAdapter factory + createAdapterFromEnv + createPrimaryAdapters(FromEnv)
-// pos:    Select & compose adapters based on CORTEX_PLATFORM (comma list) / CORTEX_TUI
+// input:  core/settings, adapter implementations, process env
+// output: adapter factories and primary adapter composition
+// pos:    Selects and composes configured platform adapters
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { PlatformAdapter } from '../adapter.js';
@@ -11,6 +11,7 @@ import type { FeishuAdapterConfig } from './feishu.js';
 import { MockAdapter } from '../testing.js';
 import { TuiGatewayAdapter } from './tui/index.js';
 import { CompositeAdapter } from './composite-adapter.js';
+import { getSettings } from '@core/settings.js';
 
 export type PlatformType = 'slack' | 'discord' | 'telegram' | 'feishu' | 'tui' | 'test';
 
@@ -46,13 +47,14 @@ export function createAdapter(config: AdapterConfig): PlatformAdapter {
 /** Options injected from the composition root for capabilities that cross layer boundaries. */
 export interface AdapterOverrides {}
 
-// ─── Primary adapter from env (existing detection logic factored out) ───
+// ─── Primary adapters from credentials and settings ────────────────────
 
 /**
- * Build a single primary adapter by platform name from environment variables.
+ * Build a primary adapter from env credentials and runtime settings.
  * Returns `null` when that platform's credentials are not configured.
  */
 function buildPrimaryAdapter(platform: string): PlatformAdapter | null {
+  const settings = getSettings();
   if (platform === 'slack') {
     const botToken = process.env.SLACK_BOT_TOKEN;
     const signingSecret = process.env.SLACK_SIGNING_SECRET;
@@ -66,7 +68,7 @@ function buildPrimaryAdapter(platform: string): PlatformAdapter | null {
       botToken,
       signingSecret,
       appToken,
-      adminChannel: process.env.SLACK_ADMIN_CHANNEL || process.env.CORTEX_ADMIN_CHANNEL || undefined,
+      adminChannel: settings.adminChannel ?? undefined,
     });
   }
 
@@ -83,16 +85,15 @@ function buildPrimaryAdapter(platform: string): PlatformAdapter | null {
       appSecret,
       encryptKey: process.env.FEISHU_ENCRYPT_KEY || undefined,
       verificationToken: process.env.FEISHU_VERIFICATION_TOKEN || undefined,
-      // Feishu must NOT inherit CORTEX_ADMIN_CHANNEL (that is a Slack channel id).
-      // The admin/DM channel is auto-detected from the first p2p message and
-      // persisted as FEISHU_ADMIN_CHANNEL (see FeishuAdapter.handleIncomingMessage).
-      adminChannel: process.env.FEISHU_ADMIN_CHANNEL || undefined,
+      // Feishu must not inherit adminChannel because Slack channel ids are incompatible.
+      // Its first p2p message is persisted independently as feishuAdminChannel.
+      adminChannel: settings.feishuAdminChannel ?? undefined,
       domain: (process.env.FEISHU_DOMAIN as 'feishu' | 'lark') || undefined,
     });
   }
 
   if (platform === 'test') {
-    return new MockAdapter({ adminChannel: process.env.CORTEX_ADMIN_CHANNEL || 'test-admin' });
+    return new MockAdapter({ adminChannel: settings.adminChannel ?? undefined });
   }
 
   return null;
@@ -100,7 +101,7 @@ function buildPrimaryAdapter(platform: string): PlatformAdapter | null {
 
 /**
  * Detect and create all primary (Slack / Feishu / test) adapters from
- * environment variables. `CORTEX_PLATFORM` is a comma-separated list (e.g.
+ * env credentials and settings. `CORTEX_PLATFORM` is a comma-separated list (e.g.
  * `slack,feishu`); a single value is fully back-compatible. Platforms whose
  * credentials are missing are silently skipped. Returns an empty array when no
  * primary platform is configured — the caller falls back to TUI-only mode.

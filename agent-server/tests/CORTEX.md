@@ -51,7 +51,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | facade-compact.test.ts | test | manual context compact via agent facade |
 | facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
 | facade.test.ts | test | provider identity and exact pre-flight gates |
-| feishu-adapter.test.ts | test | Feishu message, card and reaction mapping |
+| feishu-adapter.test.ts | test | Feishu messages, admin routing and persistence |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
 | feishu-login-cli.test.ts | test | Feishu login CLI dispatch and gating |
@@ -73,7 +73,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | lang-command.test.ts | test | language switch command and persistence |
 | machines-query.test.ts | test | machines list online/offline projection |
 | manager-qa.test.ts | test | manager ask/answer channel resolution |
-| manager-rotation.test.ts | test | manager session rotation and rehydration |
+| manager-rotation.test.ts | test | live settings and task-artifact rehydration |
 | manager-task-artifact.test.ts | test | task-keyed manager artifact placement |
 | memory-index-regen.test.ts | test | memory index rebuild lifecycle sections |
 | message-router.test.ts | test | message routing branches and edit handoff |
@@ -84,7 +84,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | output-stream.test.ts | test | Slack, Feishu and mock output streams |
 | pi-cost-record.test.ts | test | PI per-run cost recording end to end |
 | platform/ | subdir | platform adapters and UI HTTP transport tests |
-| platform-mock-adapter.test.ts | test | mock adapter platform contract coverage |
+| platform-mock-adapter.test.ts | test | Mock contract and live admin routing |
 | preferences.test.ts | test | operator display preferences store |
 | project-store.test.ts | test | project lookup, scaffolding and cache |
 | rate-limit-throttle.test.ts | test | committed views and queued expiry retries |
@@ -105,7 +105,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | session.test.ts | test | session CRUD and legacy key migration |
 | skill-scanner.test.ts | test | plugin skill discovery and namespacing |
 | slack-adapter-classification.test.ts | test | Slack subtype to message kind mapping |
-| slack-adapter-prefix.test.ts | test | Slack conduit prefix and queue markers |
+| slack-adapter-prefix.test.ts | test | Slack conduit, admin persistence and routing |
 | slack-adapter-throttle.test.ts | test | Slack update throttle and 429 retry |
 | slack-message.test.ts | test | substantial output merge logic |
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
@@ -114,7 +114,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-archiver.test.ts | test | accepts precise task completion timestamps |
 | task-completion.test.ts | test | checks timestamps, repos, artifacts and Git types |
-| task-dispatch-hooks.test.ts | test | dispatch, quarantine and reconciliation errors |
+| task-dispatch-hooks.test.ts | test | live/automatic limits, hooks and recovery |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
 | task-lifecycle.test.ts | test | task CLI argv parsing, guards and round-trips |
@@ -135,7 +135,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | thread-ledger-dedupe.test.ts | test | child result delivery dedupe across runs |
 | thread-manager.test.ts | test | thread prompt variables and transitions |
 | thread-resume-statusmsg.test.ts | test | Covers persisted thread resume options |
-| thread-resume-task-loop.test.ts | test | task events re-emitted on resumed threads |
+| thread-resume-task-loop.test.ts | test | resumed task events and live sweep cadence |
 | thread-runner.test.ts | test | thread runner lifecycle and wait control |
 | thread-stages.test.ts | test | stage parsing and step prompt building |
 | thread-statusmsg-seal.test.ts | test | stale suspended status message refresh |

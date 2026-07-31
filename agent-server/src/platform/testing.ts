@@ -1,5 +1,5 @@
-// input:  ./adapter.js + ./types.js
-// output: MockAdapter + recorded message/modal/marker types
+// input:  platform adapter, message, and stream contracts
+// output: configurable MockAdapter and recorded operations
 // pos:    In-memory platform adapter for unit tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -261,6 +261,10 @@ export class MockAdapter implements PlatformAdapter {
 
   async getPermalink(ref: MessageRef): Promise<string | null> {
     return `https://mock.test/permalink/${ref.conduit}/${ref.messageId}`;
+  }
+
+  setAdminChannel(channel: string | null): void {
+    this._adminChannel = channel;
   }
 
   // --- Output stream ---

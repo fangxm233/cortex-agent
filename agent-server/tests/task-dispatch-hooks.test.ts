@@ -1,6 +1,6 @@
-// input:  dispatch job, task/thread stores, runner doubles
-// output: hook, quarantine, and reconciliation error tests
-// pos:    Tests dispatch lifecycle and failure recovery
+// input:  dispatch job, settings, CPU topology, task doubles
+// output: limit policy, hook, quarantine, and recovery tests
+// pos:    Task dispatch lifecycle behavioral regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js';
@@ -10,6 +10,7 @@ import { afterEach, beforeEach, test, vi } from 'vitest';
 const deps = vi.hoisted(() => ({
   emitCortexEvent: vi.fn(),
   getRunningExecutions: vi.fn(),
+  cpus: vi.fn(),
   selectAndClaimTask: vi.fn(),
   updateScheduleInterval: vi.fn(),
   generateSessionName: vi.fn(),
@@ -28,7 +29,17 @@ const deps = vi.hoisted(() => ({
   unclaim: vi.fn(),
   block: vi.fn(),
   logError: vi.fn(),
+  settings: { taskDispatchMaxConcurrent: null as number | null },
 }));
+
+vi.mock('@core/settings.js', () => ({
+  getSettings: () => deps.settings,
+}));
+
+vi.mock('node:os', async () => {
+  const actual = await vi.importActual<typeof import('node:os')>('node:os');
+  return { ...actual, cpus: deps.cpus };
+});
 
 vi.mock('@core/log.js', () => ({
   createLogger: () => ({
@@ -138,7 +149,11 @@ function selectFixture(id: string): void {
 }
 
 beforeEach(() => {
-  for (const mock of Object.values(deps)) mock.mockReset();
+  for (const [key, mock] of Object.entries(deps)) {
+    if (key !== 'settings') (mock as ReturnType<typeof vi.fn>).mockReset();
+  }
+  deps.settings.taskDispatchMaxConcurrent = null;
+  deps.cpus.mockReturnValue(Array.from({ length: 8 }, () => ({})));
   threadRecord = {
     id: 'thread-1',
     templateName: 'coder-review',
@@ -189,6 +204,39 @@ afterEach(() => {
   ctx.bus = null;
   ctx.buildInteractiveCallbacks = null;
   ctx.onThreadSuspended = null;
+});
+
+test('runtime concurrency-limit flip affects the next dispatch guard evaluation', async () => {
+  deps.getRunningExecutions.mockReturnValue([{ kind: 'dispatch' }]);
+  deps.settings.taskDispatchMaxConcurrent = 1;
+
+  taskDispatchRunner({ channel: 'atlas', scheduleTaskId: 'schedule-1', profileName: 'execute' });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  if (deps.selectAndClaimTask.mock.calls.length > 0) await waitFor(() => completedCycleCount() === 1);
+  assert.equal(deps.selectAndClaimTask.mock.calls.length, 0, 'the initial limit blocks dispatch');
+
+  deps.settings.taskDispatchMaxConcurrent = 2;
+  await runDispatchCycle();
+  assert.equal(deps.runThread.mock.calls.length, 1, 'the next evaluation uses the higher live limit');
+});
+
+test.each([
+  { cpuCount: 8, automaticLimit: 6 },
+  { cpuCount: 2, automaticLimit: 4 },
+])('null concurrency uses limit $automaticLimit for $cpuCount CPUs', async ({ cpuCount, automaticLimit }) => {
+  deps.cpus.mockReturnValue(Array.from({ length: cpuCount }, () => ({})));
+  deps.getRunningExecutions.mockReturnValue(
+    Array.from({ length: automaticLimit }, () => ({ kind: 'dispatch' })),
+  );
+
+  taskDispatchRunner({ channel: 'atlas', scheduleTaskId: 'schedule-1', profileName: 'execute' });
+  assert.equal(deps.selectAndClaimTask.mock.calls.length, 0, 'the exact automatic limit blocks dispatch');
+
+  deps.getRunningExecutions.mockReturnValue(
+    Array.from({ length: automaticLimit - 1 }, () => ({ kind: 'dispatch' })),
+  );
+  await runDispatchCycle();
+  assert.equal(deps.runThread.mock.calls.length, 1, 'one slot below the automatic limit dispatches');
 });
 
 test('claimed dispatch emits cortex:dispatch.started immediately before thread execution', async () => {

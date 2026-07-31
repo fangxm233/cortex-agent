@@ -1,9 +1,10 @@
-// input:  tools, declarative hook registry, Claude defaults
-// output: buildHooksSettings + hardcoded rollback hook table
+// input:  tools, hook registry, Claude defaults, runtime settings
+// output: buildHooksSettings and hardcoded rollback table
 // pos:    Builds safe Claude hook settings from the registry
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as path from 'path';
+import { getSettings } from '@core/settings.js';
 import { filterHookEntries, loadHookRegistry, type HookEntry, type HookRun } from '../../store/hook-registry.js';
 import { DEFAULT_TOOLS, HOOKS_DIR, HOOK_TIMEOUT_S } from './defaults.js';
 
@@ -128,6 +129,6 @@ function compileRegistryHooks(toolsList: string[]): ClaudeHooksSettings {
 
 export function buildHooksSettings(tools: string | null) {
   const toolsList = (tools || DEFAULT_TOOLS).split(',').map((tool) => tool.trim());
-  if (process.env.CORTEX_HOOKS_LEGACY === '1') return buildLegacyHooksSettings(toolsList);
+  if (getSettings().hooksLegacy) return buildLegacyHooksSettings(toolsList);
   return compileRegistryHooks(toolsList);
 }

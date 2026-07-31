@@ -1,4 +1,4 @@
-// input:  Claude options, scoped MCP paths, hooks, environment
+// input:  Claude options, MCP paths, hooks, runtime settings
 // output: Claude CLI arguments and authoritative child environment
 // pos:    Claude process spawn configuration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -20,6 +20,7 @@ import {
 } from './defaults.js';
 // CORE_MCP_CONFIG is the thread marker: callers set mcpConfigPath to it for template sessions.
 // buildSpawnArgs then layers task monitoring, manager answers, and thread control onto that base.
+import { getSettings } from '@core/settings.js';
 import { buildHooksSettings } from './hooks-builder.js';
 
 /**
@@ -64,14 +65,9 @@ export interface ClaudeSpawnOptions {
   isUserInitiated?: boolean;
 }
 
-/**
- * Kill switch for token-level assistant streaming (`CORTEX_STREAM_DELTAS=0`). Read at call time, so
- * a daemon restart is enough to flip it. When off, print mode drops `--include-partial-messages`
- * and the CLI emits no `stream_event` lines at all — the delta pipeline goes dark at the source.
- * Only the literal `0` disables; anything else (unset included) keeps streaming on.
- */
+/** Token-level assistant streaming gate, read for each spawn argument build. */
 export function isStreamDeltasEnabled(): boolean {
-  return process.env.CORTEX_STREAM_DELTAS !== '0';
+  return getSettings().streamDeltas;
 }
 
 export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {

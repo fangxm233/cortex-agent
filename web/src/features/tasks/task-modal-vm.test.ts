@@ -16,6 +16,7 @@ function task(partial: Partial<TaskInfo>): TaskInfo {
     priority: 'medium',
     actionable: false,
     claimedBy: null,
+    claimThreadId: null,
     blockedBy: null,
     dependsOn: [],
     plan: null,
@@ -58,6 +59,13 @@ describe('buildTaskModalVm persisted fields', () => {
   it('uses approval-needed as the pending task pill before actionable', () => {
     const vm = buildTaskModalVm(task({ approvalNeeded: true, actionable: true }), []);
     expect(vm.pill.text).toBe('approval-needed');
+  });
+
+  it('prefers the owning thread id over the persisted claim owner', () => {
+    const claimed = task({ claimedBy: 'task-dispatcher', claimThreadId: 'thr_nimbus' });
+    const vm = buildTaskModalVm(claimed, []);
+    expect(fieldValue(claimed, 'claimed-by')).toBe('thr_nimbus');
+    expect(vm.pill.text).toBe('● in-progress · thr_nimbus');
   });
 
   it('uses theme-aware ink for the status and template values', () => {

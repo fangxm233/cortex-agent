@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { ThreadInfo, ProjectConduitInfo, CostSummary } from '@cortex-agent/ui-contract';
-import { threadCountsForProject, onlineMachineCount, buildProjectSwitchRows } from './m-project-vm';
+import {
+  threadCountsForProject,
+  onlineMachineCount,
+  buildProjectSwitchRows,
+  pendingApprovalCounts,
+} from './m-project-vm';
 
 // Neutral placeholder fixtures (守则11 — nimbus / atlas / orchard, no real project ids).
 function thread(over: Partial<ThreadInfo>): ThreadInfo {
@@ -49,6 +54,27 @@ describe('onlineMachineCount', () => {
 
   it('is 0 for an empty list', () => {
     expect(onlineMachineCount([])).toBe(0);
+  });
+});
+
+describe('pendingApprovalCounts', () => {
+  it('buckets pending entries by projectId, null → global, ignores decided entries', () => {
+    const entries = [
+      { status: 'pending' as const, projectId: 'atlas' },
+      { status: 'pending' as const, projectId: 'atlas' },
+      { status: 'pending' as const, projectId: null },
+      { status: 'approved' as const, projectId: 'atlas' },
+      { status: 'rejected' as const, projectId: null },
+    ];
+    expect(pendingApprovalCounts(entries)).toEqual({
+      byProject: { atlas: 2 },
+      global: 1,
+      total: 3,
+    });
+  });
+
+  it('is all-zero for an empty list', () => {
+    expect(pendingApprovalCounts([])).toEqual({ byProject: {}, global: 0, total: 0 });
   });
 });
 
@@ -127,5 +153,25 @@ describe('buildProjectSwitchRows', () => {
   it('preserves projects.list order when no activity is known (back-compat)', () => {
     const rows = buildProjectSwitchRows(projects, 'nimbus', threads, byProject, {});
     expect(rows.map((r) => r.id)).toEqual(['atlas', 'orchard']);
+  });
+
+  it('folds per-project pending approvals into the badge with the action tone', () => {
+    // orchard: 0 unread + 0 session actions + 2 pending approvals → amber badge of 2.
+    const rows = buildProjectSwitchRows(
+      projects,
+      'nimbus',
+      threads,
+      byProject,
+      {},
+      {},
+      {},
+      { orchard: 2 },
+    );
+    expect(rows.find((r) => r.id === 'orchard')).toMatchObject({
+      actionRequired: 2,
+      badgeCount: 2,
+      badgeTone: 'action',
+    });
+    expect(rows.find((r) => r.id === 'atlas')?.badgeCount).toBe(0);
   });
 });
