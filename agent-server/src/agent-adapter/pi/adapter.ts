@@ -1,6 +1,6 @@
-// input:  spawn config, session keys, spawner, runtime settings
-// output: PI sessions, context stats, compact, and steering
-// pos:    Owns the PI CLI session pool and runtime adapter
+// input:  spawn config, composition, spawner, settings
+// output: PI sessions, policy errors, compact, steering
+// pos:    Validates and runs PI CLI sessions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
@@ -10,7 +10,8 @@ import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
-import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentSpawnConfig, Backend, InjectionAckSink, UserMessage } from '../types.js';
+import { resolveMcpComposition } from '../types.js';
+import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentSpawnConfig, Backend, InjectionAckSink, McpComposition, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPiEnv, buildSpawnArgs } from './spawn-args.js';
@@ -42,6 +43,23 @@ import {
 import { DEFAULT_SESSION_DIR, HOOK_BRIDGE_PATH, MCP_BRIDGE_PATH, TOOL_SHIMS_PATH } from './defaults.js';
 export type { PIAgentProcess } from './session-support.js';
 const log = createLogger('pi-adapter');
+
+type UnsupportedPiMcpComposition = Extract<McpComposition, 'none' | 'benchmark-thread-run'>;
+
+export class UnsupportedMcpCompositionError extends Error {
+  readonly name = 'UnsupportedMcpCompositionError';
+
+  constructor(readonly composition: UnsupportedPiMcpComposition) {
+    super(`PI backend does not support MCP composition: ${composition}`);
+  }
+}
+
+function assertSupportedMcpComposition(config: AgentSpawnConfig): void {
+  const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
+  if (composition === 'none' || composition === 'benchmark-thread-run') {
+    throw new UnsupportedMcpCompositionError(composition);
+  }
+}
 type PiTurnComplete = Extract<NormalizedEvent, { type: 'turn_complete' }>;
 type CompactBase = Omit<AgentCompactResult, 'contextUsage'>;
 
@@ -797,6 +815,7 @@ export class PIAdapter implements AgentAdapter {
   }
 
   spawn(config: AgentSpawnConfig): PIAgentProcess {
+    assertSupportedMcpComposition(config);
     const sessionDir = this.sessionDir;
     mkdirSync(sessionDir, { recursive: true });
 

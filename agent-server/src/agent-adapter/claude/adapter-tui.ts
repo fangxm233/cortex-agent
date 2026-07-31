@@ -1,7 +1,7 @@
-// input:  Session config (channel, sessionId, cwd, prompts/tools/model) + TUI deps (TmuxControl, tailFactory)
-// output: ClaudeTuiSession — interactive Claude under tmux with jsonl tail; implements turn lifecycle
-// pos:    DR-0012 Phase 2 — parallel adapter to claude/adapter.ts; selects via spawn-args mode='tui'
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  cwd, composition, prompts, tools, TUI deps
+// output: interactive Claude session with spawn policy
+// pos:    Runs Claude TUI sessions under tmux
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
@@ -25,6 +25,7 @@ import {
 import { buildSpawnArgs, buildClaudeEnv, type CortexAgentContext } from './spawn-args.js';
 import { buildPrompt, mergeSubstantialOutput } from './event-parser.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
+import { resolveMcpComposition, type McpComposition } from '../types.js';
 import { usageToCost } from './cost-from-usage.js';
 
 const log = createLogger('claude-tui');
@@ -82,7 +83,7 @@ export interface ClaudeTuiSessionConfig {
   extraOption?: Record<string, string> | null;
   /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
   thinking?: string | null;
-  mcpConfigPath?: string;
+  mcpComposition?: McpComposition;
   // -- runtime context surfaced to MCP servers via env --
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
@@ -147,6 +148,7 @@ export class ClaudeTuiSession {
   readonly sessionId: string;
   readonly sessionKey: string;
   readonly cwd: string;
+  readonly mcpComposition: McpComposition;
   readonly tmuxName: string;
   readonly jsonlPath: string;
 
@@ -175,6 +177,7 @@ export class ClaudeTuiSession {
     this.sessionId = config.sessionId;
     this.sessionKey = config.sessionKey;
     this.cwd = config.cwd;
+    this.mcpComposition = resolveMcpComposition(config.mcpComposition, config.context?.useCoreMcp);
     this.needsResume = config.needsResume;
     this.tmux = config.deps.tmux;
     this.tailFactory = config.deps.tailFactory;
@@ -208,7 +211,7 @@ export class ClaudeTuiSession {
       outputStyle: this.config.outputStyle ?? null,
       extraOption: this.config.extraOption ?? null,
       thinking: this.config.thinking ?? null,
-      mcpConfigPath: this.config.mcpConfigPath,
+      mcpComposition: this.mcpComposition,
       needsResume: this.needsResume,
       sessionId: this.sessionId,
       mode: 'tui',

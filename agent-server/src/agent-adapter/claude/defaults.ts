@@ -1,6 +1,6 @@
-// input:  Cortex paths, filesystem, operating-system paths
-// output: Claude constants, MCP paths, and CancelledError
-// pos:    Shared Claude adapter defaults
+// input:  Cortex paths, filesystem, OS paths
+// output: Claude constants, MCP paths, CancelledError
+// pos:    Claude defaults and config paths
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as path from 'path';
@@ -41,6 +41,8 @@ export const CORE_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-core.json');
 export const TASKS_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-tasks.json');
 export const MANAGER_QA_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-manager-qa.json');
 export const THREAD_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-thread.json');
+export const EMPTY_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-empty.json');
+export const BENCHMARK_THREAD_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-benchmark-thread.json');
 /** DR-0012: TUI-mode-exclusive MCP set (only cortex-tui-bridge server, no core/ext leakage). */
 export const TUI_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-tui.json');
 /** Slack platform-specific tools (cortex-slack server). Layered on top of the full config via the variadic

@@ -1,6 +1,6 @@
-// input:  normalized events, backend capabilities, MCP context
-// output: agent adapter, process, context, and sink contracts
-// pos:    Shared backend adapter type definitions
+// input:  normalized events, capabilities, spawn context
+// output: adapter, process, composition, sink contracts
+// pos:    Shared adapter spawn contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { Capability } from './capabilities.js';
@@ -9,6 +9,15 @@ import type { NormalizedHookSpec } from './normalize/hooks.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 
 export type Backend = 'claude' | 'pi';
+export type McpComposition = 'direct' | 'thread-control' | 'none' | 'benchmark-thread-run';
+
+export function resolveMcpComposition(
+  explicit: McpComposition | undefined,
+  useCoreMcp: boolean | undefined,
+): McpComposition {
+  if (explicit !== undefined) return explicit;
+  return useCoreMcp === true ? 'thread-control' : 'direct';
+}
 
 export interface UserMessage {
   text: string;
@@ -44,6 +53,7 @@ export interface AgentSpawnConfig {
   hooks?: NormalizedHookSpec[];
   outputStyle?: string;
   cwd?: string;
+  mcpComposition?: McpComposition;
 
   // --- Claude-specific passthroughs (task f7cf); other backends ignore these ---
   /** Channel identifier used for Claude session-pool key fallback. */
