@@ -1,4 +1,4 @@
-// input:  env/settings, admin hot-reload, stores, services
+// input:  settings migration, admin hot-reload, stores, services
 // output: server runtime, lifecycle events, live settings pushes
 // pos:    Agent-server composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -13,6 +13,7 @@ import type { PlatformAdapter } from '@platform/index.js';
 import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
 import { createHotReloadingAdapter } from '@entry/admin-channel-hot-reload.js';
 import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_DIR } from '@core/utils.js';
+import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
 import { closeAllSessions, closeSession as closeClaudePooledSession } from '@domain/agents/index.js';
 import { closeAllAdapters } from '../agent-adapter/index.js';
@@ -108,6 +109,7 @@ import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
 
 dotenv.config({ path: path.join(CONFIG_DIR, '.env') });
+await migrateEnvToSettings();
 
 // Ensure the WebSocket + webhook bearer tokens exist before either server starts. Generates
 // and persists them to .env on first run (fail-closed auth — see core/auth.ts). Must run after
