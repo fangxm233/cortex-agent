@@ -21,13 +21,34 @@ static const struct signal_mapping SIGNALS[] = {
   { SIGHUP, "SIGHUP" },
   { SIGINT, "SIGINT" },
   { SIGQUIT, "SIGQUIT" },
-  { SIGKILL, "SIGKILL" },
-  { SIGTERM, "SIGTERM" },
-  { SIGSTOP, "SIGSTOP" },
+  { SIGILL, "SIGILL" },
+  { SIGTRAP, "SIGTRAP" },
   { SIGABRT, "SIGABRT" },
+  { SIGBUS, "SIGBUS" },
+  { SIGFPE, "SIGFPE" },
+  { SIGKILL, "SIGKILL" },
+  { SIGUSR1, "SIGUSR1" },
   { SIGSEGV, "SIGSEGV" },
+  { SIGUSR2, "SIGUSR2" },
   { SIGPIPE, "SIGPIPE" },
   { SIGALRM, "SIGALRM" },
+  { SIGTERM, "SIGTERM" },
+  { SIGSTKFLT, "SIGSTKFLT" },
+  { SIGCHLD, "SIGCHLD" },
+  { SIGCONT, "SIGCONT" },
+  { SIGSTOP, "SIGSTOP" },
+  { SIGTSTP, "SIGTSTP" },
+  { SIGTTIN, "SIGTTIN" },
+  { SIGTTOU, "SIGTTOU" },
+  { SIGURG, "SIGURG" },
+  { SIGXCPU, "SIGXCPU" },
+  { SIGXFSZ, "SIGXFSZ" },
+  { SIGVTALRM, "SIGVTALRM" },
+  { SIGPROF, "SIGPROF" },
+  { SIGWINCH, "SIGWINCH" },
+  { SIGIO, "SIGIO" },
+  { SIGPWR, "SIGPWR" },
+  { SIGSYS, "SIGSYS" },
 };
 
 static int utc_timestamp(char *target, size_t size) {
@@ -98,10 +119,20 @@ int protocol_error(int fd, const char *reason) {
   return write_record(fd, record, length, sizeof(record));
 }
 
+static const char *realtime_signal_name(int signal_number) {
+  static char name[32];
+  if (signal_number < SIGRTMIN || signal_number > SIGRTMAX) return NULL;
+  if (signal_number == SIGRTMIN) return "SIGRTMIN";
+  if (signal_number == SIGRTMAX) return "SIGRTMAX";
+  int length = snprintf(name, sizeof(name), "SIGRTMIN+%d", signal_number - SIGRTMIN);
+  return length > 0 && (size_t)length < sizeof(name) ? name : NULL;
+}
+
 const char *protocol_signal_name(int signal_number) {
   size_t count = sizeof(SIGNALS) / sizeof(SIGNALS[0]);
   for (size_t index = 0; index < count; index += 1) {
     if (SIGNALS[index].number == signal_number) return SIGNALS[index].name;
   }
-  return "UNKNOWN";
+  const char *realtime = realtime_signal_name(signal_number);
+  return realtime == NULL ? "UNKNOWN" : realtime;
 }

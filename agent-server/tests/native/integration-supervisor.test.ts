@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { afterAll, afterEach, beforeAll, test } from 'vitest';
 import {
@@ -99,6 +99,14 @@ function expectedExit(trigger: string): number {
   return 130;
 }
 
+function runCli(args: string[]) {
+  return spawnSync(SUPERVISOR_BIN, args, {
+    cwd: testRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe', 'pipe'],
+  });
+}
+
 test('build command emits a static binary and independently verifiable manifest', () => {
   const manifest = JSON.parse(readFileSync(BUILD_MANIFEST, 'utf8')) as BuildManifest;
   assert.equal(manifest.schema_version, 'cortex-supervisor-build/1');
@@ -169,6 +177,86 @@ test('natural child signal is reported with a null code and signal name', async 
   assertSuccessfulProtocol(result.control);
   assert.equal(result.control[1].code, null);
   assert.equal(result.control[1].signal, 'SIGTERM');
+});
+
+test('cancel byte delivered before child exit is latched as cancelled', async () => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const running = startSupervisor([
+      '--control-fd', '3', '--cancel-fd', '4', '--grace-ms', '0', '--', '/bin/cat',
+    ], { cwd: testRoot });
+    running.cancel!.write('cancel');
+    running.child.stdin?.end();
+    const result = await running.result;
+    assert.equal(result.exitCode, 130, `attempt ${attempt}: ${JSON.stringify(result.control)}`);
+    assertSuccessfulProtocol(result.control);
+  }
+});
+
+test('supervised command inherits default SIGPIPE semantics', async () => {
+  const running = startSupervisor([
+    '--control-fd', '3', '--grace-ms', '20', '--', '/bin/sh', '-c',
+    'kill -PIPE $$; printf survived-sigpipe',
+  ], { cwd: testRoot });
+  const result = await running.result;
+  assert.equal(result.exitCode, 141);
+  assert.equal(result.stdout, '');
+  assertSuccessfulProtocol(result.control);
+  assert.equal(result.control[1].code, null);
+  assert.equal(result.control[1].signal, 'SIGPIPE');
+});
+
+test('reports canonical names for terminating Linux signals', async () => {
+  const running = startSupervisor([
+    '--control-fd', '3', '--grace-ms', '20', '--', '/bin/sh', '-c', 'kill -USR1 $$',
+  ], { cwd: testRoot });
+  const result = await running.result;
+  assert.equal(result.exitCode, 138);
+  assertSuccessfulProtocol(result.control);
+  assert.equal(result.control[1].code, null);
+  assert.equal(result.control[1].signal, 'SIGUSR1');
+});
+
+test('rejects stdio fd aliases, channel aliases, and invalid unsigned integers', () => {
+  const marker = path.join(testRoot, 'invalid-cli-command-ran');
+  const command = ['--', '/bin/sh', '-c', `printf ran > ${JSON.stringify(marker)}`];
+  const cases: Array<{ args: string[]; error: RegExp }> = [
+    { args: ['--control-fd', '0', ...command], error: /control-fd.*greater than 2/i },
+    { args: ['--control-fd', '1', ...command], error: /control-fd.*greater than 2/i },
+    { args: ['--control-fd', '2', ...command], error: /control-fd.*greater than 2/i },
+    { args: ['--control-fd', '3', '--cancel-fd', '0', ...command], error: /cancel-fd.*greater than 2/i },
+    { args: ['--control-fd', '3', '--cancel-fd', '1', ...command], error: /cancel-fd.*greater than 2/i },
+    { args: ['--control-fd', '3', '--cancel-fd', '2', ...command], error: /cancel-fd.*greater than 2/i },
+    { args: ['--control-fd', '3', '--cancel-fd', '3', ...command], error: /must use different descriptors/i },
+    { args: ['--control-fd', '3', '--grace-ms', '-1', ...command], error: /non-negative integer/i },
+    { args: ['--control-fd', '3', '--grace-ms', '+1', ...command], error: /non-negative integer/i },
+    { args: ['--control-fd', '3', '--deadline-ms', ' 1', ...command], error: /non-negative integer/i },
+    { args: ['--control-fd', '3', '--deadline-ms', '1x', ...command], error: /non-negative integer/i },
+    { args: ['--control-fd', '3', '--deadline-ms', '', ...command], error: /non-negative integer/i },
+    { args: ['--control-fd', '3', '--deadline-ms', '18446744073709551616', ...command], error: /non-negative integer/i },
+  ];
+  for (const entry of cases) {
+    const result = runCli(entry.args);
+    assert.equal(result.status, 125, `${entry.args.join(' ')}: ${result.stderr}`);
+    assert.match(result.stderr, entry.error);
+  }
+  assert.equal(existsSync(marker), false);
+});
+
+test('help contains a copyable command that opens the control descriptor', () => {
+  const help = spawnSync(SUPERVISOR_BIN, ['--help'], { encoding: 'utf8' });
+  assert.equal(help.status, 0, help.stderr);
+  const example = help.stdout.split('\n').map((line) => line.trim())
+    .find((line) => line.startsWith('cortex-supervisor --control-fd'));
+  assert.ok(example, help.stdout);
+  assert.match(example, /3>&1/);
+  const executed = spawnSync('/bin/sh', ['-c', example], {
+    cwd: testRoot,
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${path.dirname(SUPERVISOR_BIN)}:${process.env.PATH}` },
+  });
+  assert.equal(executed.status, 0, executed.stderr);
+  const records = executed.stdout.trim().split('\n').map((line) => JSON.parse(line));
+  assert.deepEqual(records.map((record) => record.type), ['started', 'exited', 'quiescent']);
 });
 
 test('unsupported subreaper path fails closed before spawning the command', async () => {
