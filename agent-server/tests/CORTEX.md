@@ -9,13 +9,13 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
-| agent-adapter-claude.test.ts | test | Claude CLI, hook parity, event-key safety, compact |
+| agent-adapter-claude.test.ts | test | Claude CLI, settings, hooks, and compact |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-event-parser.test.ts | test | PI RPC to normalized event translation |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI native contracts, interaction dispatch, and task guard |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
-| agent-adapter-pi-streaming.test.ts | test | PI assistant delta streaming emission |
+| agent-adapter-pi-streaming.test.ts | test | PI spawn-time delta streaming settings |
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
@@ -92,7 +92,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
-| run-with-adapter.test.ts | test | normalized event dispatch and callbacks |
+| run-with-adapter.test.ts | test | normalized events and settings-backed notices |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |
@@ -109,7 +109,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | slack-adapter-throttle.test.ts | test | Slack update throttle and 429 retry |
 | slack-message.test.ts | test | substantial output merge logic |
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
-| status-helpers.test.ts | test | status message serialization and buttons |
+| status-helpers.test.ts | test | status serialization and settings-backed buttons |
 | store/ | subdir | JSON repository and store concurrency tests |
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-archiver.test.ts | test | accepts precise task completion timestamps |
@@ -146,13 +146,13 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | thread-wait-deadlock.test.ts | test | stuck wait-set detection and wake |
 | thread-wait-tasks.test.ts | test | manager suspension on child tasks |
 | threads/ | subdir | thread config, template and transcript tests |
-| tool-trace.test.ts | test | tool trace tail merge and env toggle |
+| tool-trace.test.ts | test | tool trace rendering and settings fallback |
 | tui/ | subdir | TUI rendering, hooks and protocol tests |
 | ui-service-compact.test.ts | test | session compact mutation outcome mapping |
 | update-prompt-slack.test.ts | test | Slack update prompt buttons and timeout |
 | update-prompt.test.ts | test | update prompt buttons, stale and timeout |
 | update-state.test.ts | test | update state file round-trip and errors |
-| user-context.test.ts | test | USER.md injection into conversations only |
+| user-context.test.ts | test | settings-gated USER.md conversation injection |
 | webhook-ask-user.test.ts | test | ask endpoint level and channel resolution |
 | webhook-auth.test.ts | test | webhook bearer token gate |
 | webhook-manager-qa.test.ts | test | manager Q&A webhook ask, poll, answer |

@@ -1,9 +1,9 @@
-// input:  Claude adapter modules, registry fixtures, assertions
-// output: CLI args, env, safe hooks, parsing, compact verification
-// pos:    Claude adapter behavior tests
+// input:  Claude modules, hook fixtures, runtime settings
+// output: CLI args, environments, hooks, and compact regressions
+// pos:    Covers Claude adapter configuration and behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { afterAll, beforeAll, test } from 'vitest';
+import { afterAll, beforeAll, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -338,11 +338,13 @@ test('buildSpawnArgs print: --include-partial-messages sits in the print block (
   assert.ok(idx < args.indexOf('--dangerously-skip-permissions'), 'must precede the shared flags');
 });
 
-test('buildSpawnArgs print: CORTEX_STREAM_DELTAS=0 kills --include-partial-messages', () => {
+test('buildSpawnArgs print: CORTEX_STREAM_DELTAS=0 kills --include-partial-messages', async () => {
   const prev = process.env.CORTEX_STREAM_DELTAS;
   process.env.CORTEX_STREAM_DELTAS = '0';
   try {
-    const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-2' });
+    vi.resetModules();
+    const { buildSpawnArgs: buildFresh } = await import('../src/agent-adapter/claude/spawn-args.js');
+    const args = buildFresh({ ...streamingBase, sessionId: 'uuid-stream-2' });
     assert.ok(!args.includes('--include-partial-messages'), 'kill switch must drop the flag');
     // Everything else is untouched — the rest of the print argv is the legacy sequence.
     assert.equal(args[0], '-p');
@@ -788,17 +790,25 @@ test('buildHooksSettings byte parity — interaction tools absent', () => {
   assert.equal(JSON.stringify(buildHooksSettings('Bash,Read,Edit,Write')), GOLDEN_HOOKS_WITHOUT_INTERACTION);
 });
 
-test('buildHooksSettings uses the hardcoded table when legacy mode is enabled', () => {
+test('buildHooksSettings uses the hardcoded table when legacy mode is enabled', async () => {
   const entries: HookEntry[] = [
     { id: 'only-notification', event: 'cc:Notification', matcher: 'idle', run: { command: 'notify' } },
   ];
-  withHookRegistry(entries, () => {
-    process.env.CORTEX_HOOKS_LEGACY = '1';
+  const legacy = process.env.CORTEX_HOOKS_LEGACY;
+  writeHookRegistry(entries);
+  process.env.CORTEX_HOOKS_LEGACY = '1';
+  try {
+    vi.resetModules();
+    const { buildHooksSettings: buildFresh } = await import('../src/agent-adapter/claude/hooks-builder.js');
     assert.equal(
-      JSON.stringify(buildHooksSettings('Bash,Read,Edit,Write')),
+      JSON.stringify(buildFresh('Bash,Read,Edit,Write')),
       GOLDEN_HOOKS_WITHOUT_INTERACTION,
     );
-  });
+  } finally {
+    resetHookRegistry();
+    if (legacy === undefined) delete process.env.CORTEX_HOOKS_LEGACY;
+    else process.env.CORTEX_HOOKS_LEGACY = legacy;
+  }
 });
 
 test('buildHooksSettings default — PreToolUse has only Edit|Write matcher', () => {

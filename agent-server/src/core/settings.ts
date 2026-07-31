@@ -193,10 +193,6 @@ export const SETTINGS_SPEC = {
 const log = createLogger('settings');
 const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json');
 const SETTING_KEYS = Object.keys(SETTINGS_SPEC) as SettingKey[];
-const LEGACY_ENV_VARS = Array.from(new Set(SETTING_KEYS.flatMap((key) => {
-  const envVar = SETTINGS_SPEC[key].envVar;
-  return typeof envVar === 'string' ? [envVar] : [...envVar];
-})));
 const TRUTHY_ENV_KEYS = new Set<SettingKey>(['adminChannel', 'feishuAdminChannel']);
 const callbacks = new Set<SettingsChangeCallback>();
 const loggedEnvFallbacks = new Set<string>();
@@ -205,7 +201,6 @@ const writeMutex = new AsyncMutex();
 let initialized = false;
 let cachedOverrides: Record<string, unknown> = {};
 let cachedSettings: Settings | null = null;
-let cachedEnvSignature = '';
 let settingsWatcher: FSWatcher | null = null;
 let reloadTimer: ReturnType<typeof setTimeout> | null = null;
 let selfWriting = false;
@@ -272,10 +267,6 @@ function resolveSettings(overrides: Record<string, unknown>): Settings {
   ) as unknown as Settings;
 }
 
-function legacyEnvSignature(): string {
-  return JSON.stringify(LEGACY_ENV_VARS.map((envVar) => process.env[envVar]));
-}
-
 function sameValue(left: Settings[SettingKey], right: Settings[SettingKey]): boolean {
   if (Array.isArray(left) && Array.isArray(right)) {
     return left.length === right.length && left.every((value, index) => value === right[index]);
@@ -303,7 +294,6 @@ function acceptSnapshot(overrides: Record<string, unknown>, next: Settings): voi
   const previous = cachedSettings;
   cachedOverrides = overrides;
   cachedSettings = next;
-  cachedEnvSignature = legacyEnvSignature();
   if (previous) emitChanges(previous, next);
 }
 
@@ -357,17 +347,11 @@ function initialize(): void {
     cachedOverrides = {};
     cachedSettings = resolveSettings(cachedOverrides);
   }
-  cachedEnvSignature = legacyEnvSignature();
   startWatcher();
 }
 
 export function getSettings(): Settings {
   initialize();
-  const envSignature = legacyEnvSignature();
-  if (envSignature !== cachedEnvSignature) {
-    cachedSettings = resolveSettings(cachedOverrides);
-    cachedEnvSignature = envSignature;
-  }
   return cachedSettings!;
 }
 

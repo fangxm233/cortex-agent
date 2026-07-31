@@ -244,17 +244,15 @@ describe.sequential('core settings', () => {
     assert.equal(warn.mock.calls.length, warningCount, 'cached reads must not repeat deprecation logs');
   });
 
-  test('getSettings refreshes legacy env fallbacks changed after initialization', () => {
+  test('getSettings caches legacy env fallbacks after initialization', () => {
     const previous = process.env.CORTEX_AUTO_RESUME;
     try {
-      process.env.CORTEX_AUTO_RESUME = '0';
-      assert.equal(getSettings().autoResume, false);
-      process.env.CORTEX_AUTO_RESUME = '1';
-      assert.equal(getSettings().autoResume, true);
+      const initial = getSettings().autoResume;
+      process.env.CORTEX_AUTO_RESUME = initial ? '0' : '1';
+      assert.equal(getSettings().autoResume, initial);
     } finally {
       if (previous === undefined) delete process.env.CORTEX_AUTO_RESUME;
       else process.env.CORTEX_AUTO_RESUME = previous;
-      getSettings();
     }
   });
 

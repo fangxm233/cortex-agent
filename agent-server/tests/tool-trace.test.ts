@@ -1,14 +1,19 @@
-// input:  node:test, MockAdapter, SlackOutputStream
-// output: tool-trace mutable-tail merge and env toggle regression
-// pos:    tool-trace.ts compact Slack rendering regression test
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Vitest, MockAdapter, OutputStream, runtime settings
+// output: tool-trace rendering and legacy env regressions
+// pos:    Covers compact tool trace rendering and enablement
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test, beforeEach, afterEach } from 'vitest';
+import { test, beforeEach, afterEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { MockAdapter } from '../src/platform/testing.js';
 import { SlackOutputStream, _testSetRetryDelays, _testResetRetryDelays } from '../src/platform/adapters/slack-output-stream.js';
 import type { Destination, OutputStream } from '../src/platform/index.js';
-import { ToolTrace, isToolTraceEnabled, createToolTrace, _test } from '../src/platform/tool-trace.js';
+import { ToolTrace, _test } from '../src/platform/tool-trace.js';
+
+async function freshToolTrace() {
+  vi.resetModules();
+  return import('../src/platform/tool-trace.js');
+}
 
 function testDest(channel: string): Destination {
   return { type: 'interactive-reply', conduit: channel, sessionId: '' };
@@ -26,36 +31,37 @@ async function settle(stream: OutputStream) {
 beforeEach(() => { _testSetRetryDelays([0, 0, 0, 0]); });
 afterEach(() => { _testResetRetryDelays(); });
 
-test('isToolTraceEnabled: gated by CORTEX_SHOW_TOOL_CALLS', () => {
+test('isToolTraceEnabled: gated by CORTEX_SHOW_TOOL_CALLS', async () => {
   const prev = process.env.CORTEX_SHOW_TOOL_CALLS;
   try {
     delete process.env.CORTEX_SHOW_TOOL_CALLS;
-    assert.equal(isToolTraceEnabled(), false);
+    assert.equal((await freshToolTrace()).isToolTraceEnabled(), false);
     process.env.CORTEX_SHOW_TOOL_CALLS = '0';
-    assert.equal(isToolTraceEnabled(), false);
+    assert.equal((await freshToolTrace()).isToolTraceEnabled(), false);
     process.env.CORTEX_SHOW_TOOL_CALLS = '1';
-    assert.equal(isToolTraceEnabled(), true);
+    assert.equal((await freshToolTrace()).isToolTraceEnabled(), true);
     process.env.CORTEX_SHOW_TOOL_CALLS = 'true';
-    assert.equal(isToolTraceEnabled(), true);
+    assert.equal((await freshToolTrace()).isToolTraceEnabled(), true);
     process.env.CORTEX_SHOW_TOOL_CALLS = 'yes';
-    assert.equal(isToolTraceEnabled(), true);
+    assert.equal((await freshToolTrace()).isToolTraceEnabled(), true);
   } finally {
     if (prev === undefined) delete process.env.CORTEX_SHOW_TOOL_CALLS;
     else process.env.CORTEX_SHOW_TOOL_CALLS = prev;
   }
 });
 
-test('createToolTrace returns null when disabled or stream missing', () => {
+test('createToolTrace returns null when disabled or stream missing', async () => {
   const prev = process.env.CORTEX_SHOW_TOOL_CALLS;
   try {
     const adapter = new MockAdapter();
     const stream = new SlackOutputStream(adapter as any, testDest('C1'));
     delete process.env.CORTEX_SHOW_TOOL_CALLS;
-    assert.equal(createToolTrace(stream), null);
+    assert.equal((await freshToolTrace()).createToolTrace(stream), null);
     process.env.CORTEX_SHOW_TOOL_CALLS = '1';
-    assert.equal(createToolTrace(null), null);
-    const trace = createToolTrace(stream);
-    assert.ok(trace instanceof ToolTrace);
+    const enabled = await freshToolTrace();
+    assert.equal(enabled.createToolTrace(null), null);
+    const trace = enabled.createToolTrace(stream);
+    assert.ok(trace instanceof enabled.ToolTrace);
   } finally {
     if (prev === undefined) delete process.env.CORTEX_SHOW_TOOL_CALLS;
     else process.env.CORTEX_SHOW_TOOL_CALLS = prev;

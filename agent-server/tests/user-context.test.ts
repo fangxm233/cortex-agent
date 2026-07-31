@@ -1,10 +1,9 @@
-// input:  node:test, user-context (loadUserContext), prompt-builder (buildConversationPrompt)
-// output: user-profile injection tests — injected into plain conversations, never into threads
-// pos:    regression guard for DR user-context split: USER.md is prepended to thread-free
-//         conversation turns (buildConversationPrompt) and gated only by CORTEX_DISABLE_USER_CONTEXT.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  user context, prompt builder, filesystem, settings
+// output: direct-conversation profile injection regressions
+// pos:    Covers settings-gated USER.md prompt injection
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -49,11 +48,13 @@ test('loadUserContext wraps USER.md content when the file exists', () => {
   assert.equal(loadUserContext(), `[User Context]\n${SAMPLE}\n[/User Context]`);
 });
 
-test('loadUserContext returns null when CORTEX_DISABLE_USER_CONTEXT=1', () => {
+test('loadUserContext returns null when CORTEX_DISABLE_USER_CONTEXT=1', async () => {
   writeUser(SAMPLE);
   process.env.CORTEX_DISABLE_USER_CONTEXT = '1';
   try {
-    assert.equal(loadUserContext(), null);
+    vi.resetModules();
+    const { loadUserContext: loadFresh } = await import('../src/domain/memory/user-context.js');
+    assert.equal(loadFresh(), null);
   } finally {
     delete process.env.CORTEX_DISABLE_USER_CONTEXT;
   }
@@ -103,11 +104,13 @@ test('buildConversationPrompt omits user context when includeUserContext is fals
   }
 });
 
-test('buildConversationPrompt omits user context when disabled', () => {
+test('buildConversationPrompt omits user context when disabled', async () => {
   writeUser(SAMPLE);
   process.env.CORTEX_DISABLE_USER_CONTEXT = '1';
   try {
-    const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hi');
+    vi.resetModules();
+    const { buildConversationPrompt: buildFresh } = await import('../src/domain/threads/prompt-builder.js');
+    const prompt = buildFresh(makeAgentConfig({ directive: '' }), 'hi');
     assert.equal(prompt, 'hi');
   } finally {
     delete process.env.CORTEX_DISABLE_USER_CONTEXT;
