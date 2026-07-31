@@ -1,5 +1,5 @@
 // input:  Claude modules, hook fixtures, runtime settings
-// output: CLI args, hooks, compact, and settings regressions
+// output: CLI args, hooks, compact, and restored-settings regressions
 // pos:    Covers Claude adapter configuration and behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -356,15 +356,29 @@ test('buildSpawnArgs print: CORTEX_STREAM_DELTAS=0 kills --include-partial-messa
   }
 });
 
-test('buildSpawnArgs: any other CORTEX_STREAM_DELTAS value keeps streaming on', () => {
-  const prev = process.env.CORTEX_STREAM_DELTAS;
-  process.env.CORTEX_STREAM_DELTAS = '1';
+test('buildSpawnArgs: any other CORTEX_STREAM_DELTAS value keeps streaming on and restores inherited setting', () => {
+  const original = process.env.CORTEX_STREAM_DELTAS;
+  process.env.CORTEX_STREAM_DELTAS = '0';
+  resetSettingsForTests();
   try {
-    const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-3' });
-    assert.ok(args.includes('--include-partial-messages'));
+    const prev = process.env.CORTEX_STREAM_DELTAS;
+    process.env.CORTEX_STREAM_DELTAS = '1';
+    try {
+      resetSettingsForTests();
+      const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-3' });
+      assert.ok(args.includes('--include-partial-messages'));
+    } finally {
+      if (prev === undefined) delete process.env.CORTEX_STREAM_DELTAS;
+      else process.env.CORTEX_STREAM_DELTAS = prev;
+      resetSettingsForTests();
+    }
+
+    const restoredArgs = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-3-restored' });
+    assert.ok(!restoredArgs.includes('--include-partial-messages'));
   } finally {
-    if (prev === undefined) delete process.env.CORTEX_STREAM_DELTAS;
-    else process.env.CORTEX_STREAM_DELTAS = prev;
+    if (original === undefined) delete process.env.CORTEX_STREAM_DELTAS;
+    else process.env.CORTEX_STREAM_DELTAS = original;
+    resetSettingsForTests();
   }
 });
 
