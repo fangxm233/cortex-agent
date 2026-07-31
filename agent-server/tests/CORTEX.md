@@ -69,6 +69,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | hook-exec.test.ts | test | hook subprocess output, exit status and stdin semantics |
 | init.test.ts | test | cortex init path, env and MCP config generation |
 | integration-init-startup.test.ts | e2e | init and server lifecycle hook behavior |
+| integration-settings-hotreload.test.ts | e2e | settings startup migration and live reload behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
 | machines-query.test.ts | test | machines list online/offline projection |
