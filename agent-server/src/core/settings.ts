@@ -1,5 +1,5 @@
 // input:  CONFIG_DIR, settings spec, process env, filesystem
-// output: validated settings snapshots and read/watch/write API
+// output: validated snapshots and disk-reconciled settings updates
 // pos:    L0 file-backed runtime settings boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -193,7 +193,7 @@ function reloadSettings(): void {
 }
 
 function handleWatchEvent(filename: string | Buffer | null): void {
-  if (filename?.toString() !== 'settings.json') return;
+  if (filename !== null && filename.toString() !== 'settings.json') return;
   scheduleReload();
 }
 
@@ -210,6 +210,7 @@ function startWatcher(): void {
 function initialize(): void {
   if (initialized) return;
   initialized = true;
+  startWatcher();
   try {
     const overrides = readOverrides();
     acceptSnapshot(overrides, resolveSettings(overrides));
@@ -217,7 +218,6 @@ function initialize(): void {
     log.error(`Load settings.json failed: ${(error as Error).message} — using env/default settings`);
     acceptSnapshot({}, resolveSettings({}));
   }
-  startWatcher();
 }
 
 export function getSettings(): Settings {
@@ -236,11 +236,20 @@ export function onSettingsChange(callback: SettingsChangeCallback): () => void {
   return () => callbacks.delete(callback);
 }
 
+function readOverridesForUpdate(): Record<string, unknown> {
+  try {
+    return readOverrides();
+  } catch (error) {
+    log.error(`Update settings.json read failed: ${(error as Error).message} — using previous settings`);
+    return cachedOverrides;
+  }
+}
+
 export async function updateSettings(partial: Partial<Settings>): Promise<void> {
   initialize();
   const env = { ...process.env };
   await writeMutex.run(async () => {
-    const nextOverrides = { ...cachedOverrides, ...partial };
+    const nextOverrides = { ...readOverridesForUpdate(), ...partial };
     const nextSnapshot = resolveSettingsSnapshot(nextOverrides, env);
     const nextSettings = settingsFromSnapshot(nextSnapshot);
     selfWriting = true;
