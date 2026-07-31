@@ -1,3 +1,8 @@
+// input:  Task argv, project files, lifecycle operations
+// output: cortex-task command parsing and structured results
+// pos:    Task-system command line entry point
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import * as fs from 'node:fs';
 import { isMainModule, listProjectDirs } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -37,6 +42,7 @@ import {
 } from './task-state.js';
 import { completeTask, uncompleteTask } from './task-completion.js';
 import { addTask, batchEdit, bulkAddTasks, decomposeTask, type TaskOrigin } from './task-mutations.js';
+import { readTaskSpec } from './task-file-input.js';
 import { stopTask, stopTaskDryRun } from './task-process.js';
 import {
   acquireLock,
@@ -65,6 +71,7 @@ interface ParsedValues {
   clearDependsOn: boolean;
   taskIds: string[];
   subtasksFile: string | null;
+  taskFile: string | null;
   bulkFile: string | null;
   status: string | null;
   hasDeps: boolean;
@@ -120,8 +127,8 @@ const COMMAND_FLAG_ALLOWLIST: Record<string, Set<string>> = {
   show: new Set([...COMMON_FLAGS, '--json', '--task-ids']),
   deps: new Set([...COMMON_FLAGS, '--json', '--task-ids']),
   tree: new Set([...COMMON_FLAGS]),
-  add: new Set([...COMMON_FLAGS, '--text', '--why', '--done-when', '--plan', '--priority', '--template', '--depends-on', '--auto-lock', '--no-notify']),
-  spawn: new Set([...COMMON_FLAGS, '--text', '--why', '--done-when', '--plan', '--priority', '--template', '--depends-on', '--auto-lock']),
+  add: new Set([...COMMON_FLAGS, '--text', '--why', '--done-when', '--plan', '--priority', '--template', '--depends-on', '--task-file', '--auto-lock', '--no-notify']),
+  spawn: new Set([...COMMON_FLAGS, '--text', '--why', '--done-when', '--plan', '--priority', '--template', '--depends-on', '--task-file', '--auto-lock']),
   lint: new Set([...COMMON_FLAGS, '--json']),
   stats: new Set([...COMMON_FLAGS, '--json']),
   claim: new Set([...COMMON_FLAGS, '--task', '--agent']),
@@ -206,8 +213,8 @@ const HELP_CONFIG = {
     {
       heading: 'Mutation',
       commands: [
-        { name: 'add', description: 'Add new task (--text, --why, --done-when, --plan, --template ...). Captures origin from env for completion wake.' },
-        { name: 'spawn', description: 'Create a child of the current task (CORTEX_TASK_ID or --task-id); parent becomes a join node. Pair with the thread_wait tool to await it.' },
+        { name: 'add', description: 'Add a task from --task-file or scalar fields. Captures origin from env for completion wake.' },
+        { name: 'spawn', description: 'Create a child from --task-file or scalar fields; parent becomes a join node. Pair with thread_wait.' },
         { name: 'bulk-add', description: 'Bulk-add tasks from JSON file (--file, use "key" for intra-batch deps)' },
         { name: 'edit', description: 'Edit task fields (--text, --why, --done-when, ...)' },
         { name: 'batch-edit', description: 'Apply same edit to multiple tasks (--task-ids)' },
@@ -253,6 +260,7 @@ const HELP_CONFIG = {
     { flag: '--remove-depends-on <id>', description: 'Remove a dependency (edit only, repeatable)' },
     { flag: '--clear-depends-on', description: 'Clear all dependencies (edit only)' },
     { flag: '--subtasks-file <path>', description: 'JSON file with subtasks (decompose; use - for stdin)' },
+    { flag: '--task-file <path>', description: 'JSON task object for add/spawn (use - for stdin)' },
     { flag: '--file <path>', description: 'JSON file of tasks (bulk-add; use - for stdin)' },
     { flag: '--status <status>', description: 'Filter by status (read commands)' },
     { flag: '--has-deps', description: 'Read-only: tasks with dependencies' },
@@ -272,7 +280,7 @@ const HELP_CONFIG = {
   examples: [
     { description: 'List actionable tasks (JSON)', command: 'task list --json' },
     { description: 'Filter blocked tasks in a project', command: 'task query --project example-project --status blocked --json' },
-    { description: 'Add a task with two dependencies', command: 'task add --project example-project --text "Run ablation" --why "Isolate variable contribution" --done-when "Results in EXP-017.md" --plan context/projects/example-project/experiments/EXP-017.md --priority high --template <name> --depends-on a111 a112' },
+    { description: 'Add a task from structured JSON', command: 'task add --project example-project --task-file /tmp/task.json' },
     { description: 'Complete a task with note', command: 'task complete --project example-project --task-id ab12 --note "Verified: 85% accuracy"' },
     { description: 'Append a dependency', command: 'task edit --project example-project --task-id ab12 --add-depends-on cd34' },
     { description: 'Clear dependencies', command: 'task edit --project example-project --task-id ab12 --clear-depends-on' },
@@ -296,6 +304,7 @@ const STRING_OPT_KEYS: Record<string, keyof ParsedValues> = {
   '--priority': 'priority',
   '--template': 'template',
   '--subtasks-file': 'subtasksFile',
+  '--task-file': 'taskFile',
   '--file': 'bulkFile',
   '--status': 'status',
   '--skip-verify-reason': 'skipVerifyReason',
@@ -343,6 +352,7 @@ function createDefaults(): ParsedValues {
     clearDependsOn: false,
     taskIds: [],
     subtasksFile: null,
+    taskFile: null,
     bulkFile: null,
     status: null,
     hasDeps: false,
@@ -499,6 +509,26 @@ function validateCommand(command: string, values: ParsedValues): void {
 
 }
 
+const TASK_SPEC_FLAGS = [
+  '--text', '--why', '--done-when', '--plan', '--priority', '--template', '--depends-on',
+];
+
+function applyTaskFile(values: ParsedValues, seen: Set<string>): void {
+  if (!values.taskFile) return;
+  const conflicts = TASK_SPEC_FLAGS.filter((flag) => seen.has(flag));
+  if (conflicts.length > 0) {
+    throw cliError(`--task-file cannot be combined with scalar task fields: ${conflicts.join(', ')}`);
+  }
+  const spec = readTaskSpec(values.taskFile);
+  values.text = spec.text;
+  values.why = spec.why;
+  values.doneWhen = spec.doneWhen;
+  values.plan = spec.plan;
+  values.priority = spec.priority;
+  values.template = spec.template;
+  values.dependsOn = spec.dependsOn;
+}
+
 /** Context-aware defaults: a running agent already knows its project (and current task) via
  *  CORTEX_* env. Fill --project from env for write commands so agents don't re-declare it.
  *  `spawn` lives under the current task, so it prefers that task's project. */
@@ -517,6 +547,7 @@ function parseArgs(argv: string[]) {
   const seen = new Set<string>();
   parseOptions(split.args, values, seen);
   validateFlagsForCommand(command, seen);
+  applyTaskFile(values, seen);
   applyContextDefaults(command, values);
   validateCommand(command, values);
   return { command, values };

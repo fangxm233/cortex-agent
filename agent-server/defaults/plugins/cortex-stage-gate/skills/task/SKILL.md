@@ -2,13 +2,13 @@
 name: task
 description: "MUST Use when adding, editing, querying, or managing cortex tasks — includes the execution-form triage (inline vs Agent-tool subagent vs task vs manager), task creation conventions (format, tagging, decomposition rules). MUST use before using cortex-task CLI."
 author: Cortex
-version: 2.1.0
+version: 2.1.1
 allowed-tools:
   - Read
   - Write
   - Edit
   - Bash
-date: 2026-07-05
+date: 2026-07-31
 ---
 
 # Task
@@ -98,8 +98,9 @@ cortex-task unblock --project <p> --task-id <id>
 cortex-task verdict --project <p> --task-id <parent-id> --child <child-id> --verdict accepted|rejected [--note <text>]
 
 # Mutation
-cortex-task add --project <p> --text <t> --why <w> --done-when <c> --plan <path> --template <name> [--priority high|medium|low] [--depends-on <id> [...]]
-cortex-task spawn --text <t> --done-when <c> --template <name> [...]   # child of current task (CORTEX_TASK_ID); pair with thread_wait
+# Use the Write tool to stage a JSON object; never put task specification prose in shell arguments.
+cortex-task add --project <p> --task-file <path|->
+cortex-task spawn --task-file <path|->   # child of current task (CORTEX_TASK_ID); pair with thread_wait
 cortex-task edit --project <p> --task-id <id> [--text <t>] [--why <w>] [--done-when <c>] [--plan <path>] [--priority <p>] \
   [--depends-on <id> [...]] [--add-depends-on <id>] [--remove-depends-on <id>] [--clear-depends-on]
 cortex-task batch-edit --project <p> --task-ids <id1,id2,...> [<edit flags>]
@@ -129,7 +130,8 @@ For incremental edits (only on `edit` / `batch-edit`):
 ### Other notes
 
 - `--dry-run` previews `stop` and `decompose` without mutating.
-- `decompose --subtasks-file -` reads JSON from stdin (pipeline-friendly).
+- `add` / `spawn --task-file -` and `decompose --subtasks-file -` read JSON from stdin.
+- Autonomous agents MUST stage add/spawn task JSON with the Write tool and pass only its path to Bash; shell heredocs and inline task fields are forbidden.
 - All mutation commands return JSON (`task_id`, `agent`, `claimed_at`, …) on success.
 - `stop` accepts either the dispatch ID (`dispatch_xxx`) or the TASKS.yaml hash; project is auto-resolved from `pending-tasks.json`.
 
@@ -172,7 +174,8 @@ cortex-task lock-acquire --project foo --note "splitting EXP-017 task"
 
 # 2. Edit/add tasks
 cortex-task edit --project foo --task-id ab12 --done-when "..."
-cortex-task add  --project foo --text "..." --why "..." --done-when "..." --plan ... --template ...
+# First stage /tmp/foo-task.json with the Write tool.
+cortex-task add --project foo --task-file /tmp/foo-task.json
 
 # 3. Release lock
 cortex-task lock-release --project foo
@@ -196,7 +199,7 @@ Examples:
 - Claim: `cortex-task claim --project <project> --task-id <id> --agent cortex-<machine>`
 - Complete: `cortex-task complete --project <project> --task-id <id> --note "Verified via smoke test"`
 - Block: `cortex-task block --project <project> --task-id <id> --reason "waiting for approval"`
-- Add: `cortex-task add --project <project> --text "Run ablation" --why "Isolate depth-sensor contribution" --done-when "Results in EXP-017.md" --plan context/projects/<project>/experiments/EXP-017.md --priority high --template <name>`
+- Add: use the Write tool to create `/tmp/task.json` containing `{"text":"Run ablation","why":"Isolate depth-sensor contribution","done-when":"Results in EXP-017.md","plan":"context/projects/<project>/experiments/EXP-017.md","priority":"high","template":"<name>"}`, then run `cortex-task add --project <project> --task-file /tmp/task.json`
 - Set deps: `cortex-task edit --project <project> --task-id <id> --depends-on a111 a112` (replaces full list)
 - Append a dep: `cortex-task edit --project <project> --task-id <id> --add-depends-on a113`
 - Assign IDs: `cortex-task assign-ids --project <project>`
@@ -214,7 +217,7 @@ different outcome.
 - Show / deps require `--task-id`.
 - All write commands except `assign-ids` / `validate` / `stop` require `--project`.
 - `assign-ids` is the canonical way to backfill missing task IDs.
-- **`add` required**: `--text`, `--why`, `--done-when`, `--plan`, `--template`. Omitting `--text` or `--template` is rejected.
+- **`add` required**: the task file must contain `text`; creation conventions also require `why`, `done-when`, `plan`, and `template`. Missing task-file `text` is rejected.
 - **Manual Task ID is prohibited**: New tasks must be created via the `add` command; directly editing TASKS.yaml to write IDs is forbidden.
 - **The `default` and `scheduler` templates are forbidden for task creation** and rejected at creation time. Small work that doesn't warrant a review pipeline belongs in the `Agent` tool (Step 0), not in a bare single-agent thread.
 

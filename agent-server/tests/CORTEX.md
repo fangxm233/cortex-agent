@@ -117,6 +117,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-completion.test.ts | test | checks timestamps, repos, artifacts and Git types |
 | task-dispatch-hooks.test.ts | test | live/automatic limits, hooks and recovery |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
+| task-file-input.test.ts | test | task-file creation and prompt literal preservation |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
 | task-lifecycle.test.ts | test | task CLI argv parsing, guards and round-trips |
 | task-lint.test.ts | test | unknown template lint error gating |
