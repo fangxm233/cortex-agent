@@ -456,8 +456,6 @@ cortex config         # prints resolved paths + init status
 You should see output confirming the daemon is running, including the
 Slack connection status and active profiles.
 
-![cortex config output](./images/cortex-config.png)
-
 ## Step 4 — Send your first messages
 
 Now the fun part. Open Slack or Feishu, find the Cortex bot you just

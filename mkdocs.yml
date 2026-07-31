@@ -6,6 +6,13 @@ repo_url: https://github.com/fangxm233/cortex-agent
 repo_name: fangxm233/cortex-agent
 edit_uri: edit/main/docs/
 
+# docs/zh/README.md is the GitHub-rendered Chinese README (the root README.md links
+# to ./docs/zh/, which GitHub resolves to that file). It is not a site page: the zh
+# landing page is docs/zh/index.md, mirroring docs/index.md. Without this exclusion
+# MkDocs maps both to the same URL and drops one with a build warning.
+exclude_docs: |
+  zh/README.md
+
 theme:
   name: material
   language: en

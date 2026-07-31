@@ -357,8 +357,6 @@ cortex config         # 打印解析后的路径 + 初始化状态
 
 你应该看到确认守护进程正在运行的输出，包括 Slack 连接状态和活跃的配置。
 
-![cortex config 输出](./images/cortex-config.png)
-
 ## 第四步 — 发送你的第一条消息
 
 现在进入有趣的部分。打开 Slack 或飞书，找到你刚安装的 Cortex 机器人，发起私信（DM）。
