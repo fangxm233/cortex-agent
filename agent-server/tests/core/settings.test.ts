@@ -1,5 +1,5 @@
 // input:  settings module, isolated config and env
-// output: parsing, provenance, reload, and write tests
+// output: parsing, provenance, race, reload, and write tests
 // pos:    Specifies the L0 runtime settings contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -59,6 +59,7 @@ beforeAll(async () => {
     delete process.env[name];
   }
   process.env.CORTEX_TURN_NOTIFY = '0';
+  process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S = '25';
   process.env.CORTEX_SHOW_TOOL_CALLS = ' yes ';
   process.env.TASK_DISPATCH_MAX_CONCURRENT = '8';
   process.env.CORTEX_UI_CORS_ORIGINS = 'https://env.example';
@@ -66,6 +67,7 @@ beforeAll(async () => {
   process.env.CORTEX_ADMIN_CHANNEL = 'cortex-admin';
   await fs.writeFile(SETTINGS_FILE, JSON.stringify({
     turnNotify: true,
+    turnNotifyThresholdS: 0,
     taskDispatchMaxConcurrent: null,
     uiCorsOrigins: [],
   }));
@@ -230,6 +232,7 @@ describe.sequential('core settings', () => {
     const settings = getSettings();
 
     assert.equal(settings.turnNotify, true, 'explicit file true must beat env false');
+    assert.equal(settings.turnNotifyThresholdS, 0, 'explicit file 0 must beat env');
     assert.equal(settings.showToolCalls, true, 'absent file key must use env');
     assert.equal(settings.managerRotateSteps, 10, 'absent file/env key must use default');
     assert.equal(settings.taskDispatchMaxConcurrent, null, 'explicit file null must beat env');
@@ -287,6 +290,7 @@ describe.sequential('core settings', () => {
 
     await fs.writeFile(SETTINGS_FILE, JSON.stringify({
       turnNotify: false,
+      turnNotifyThresholdS: 0,
       showToolCalls: false,
       managerRotateSteps: 7,
       taskArtifactTemplates: [],
@@ -306,6 +310,36 @@ describe.sequential('core settings', () => {
     assert.deepEqual(getSettings().taskArtifactTemplates, []);
   });
 
+  test('admin env fallback uses CORTEX_ADMIN_CHANNEL when Slack is empty or absent', async (t) => {
+    const batches: string[][] = [];
+    const unsubscribe = onSettingsChange((keys) => batches.push([...keys]));
+    t.onTestFinished(unsubscribe);
+    const current = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
+
+    process.env.SLACK_ADMIN_CHANNEL = '';
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify({ ...current, eventLog: false }));
+    await waitFor(() => batches.length === 1);
+    assert.equal(getSettings().adminChannel, 'cortex-admin');
+    assert.deepEqual(batches[0], ['eventLog', 'adminChannel']);
+
+    delete process.env.SLACK_ADMIN_CHANNEL;
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify({ ...current, eventLog: true }));
+    await waitFor(() => batches.length === 2);
+    assert.equal(getSettings().adminChannel, 'cortex-admin');
+    assert.deepEqual(batches[1], ['eventLog']);
+    process.env.SLACK_ADMIN_CHANNEL = 'slack-admin';
+  });
+
+  test('watcher ignores changes to unrelated config filenames', async (t) => {
+    const batches: string[][] = [];
+    const unsubscribe = onSettingsChange((keys) => batches.push([...keys]));
+    t.onTestFinished(unsubscribe);
+
+    await fs.writeFile(path.join(CONFIG_DIR, 'settings-unrelated.json'), '{"turnNotify":false}');
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    assert.deepEqual(batches, []);
+  });
+
   test('malformed JSON and type mismatches log errors and retain the last valid snapshot', async (t) => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     const batches: string[][] = [];
@@ -323,6 +357,23 @@ describe.sequential('core settings', () => {
     await waitFor(() => errors.mock.calls.length > firstErrorCount);
     assert.strictEqual(getSettings(), previous);
     assert.deepEqual(batches, []);
+  });
+
+  test('updateSettings merges a pending external edit before its watcher debounce fires', async () => {
+    getSettings();
+    const external = {
+      turnNotify: false,
+      showToolCalls: false,
+      uiCorsOrigins: ['https://external.example'],
+      futureSetting: { enabled: true },
+    };
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify(external));
+    await updateSettings({ managerRotateSteps: 9 });
+
+    const parsed = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
+    assert.deepEqual(parsed.futureSetting, { enabled: true });
+    assert.deepEqual(parsed.uiCorsOrigins, ['https://external.example']);
+    assert.equal(parsed.managerRotateSteps, 9);
   });
 
   test('updateSettings is atomic, has no watcher echo, and does not mask a following external edit', async (t) => {
@@ -370,6 +421,31 @@ describe.sequential('core settings', () => {
     const parsed = JSON.parse(await fs.readFile(SETTINGS_FILE, 'utf8'));
     assert.equal(parsed.turnNotify, false);
     assert.equal(parsed.showToolCalls, true);
+  });
+
+  test('deleting settings.json hot-reloads env and default fallbacks', async (t) => {
+    const batches: string[][] = [];
+    const unsubscribe = onSettingsChange((keys) => batches.push([...keys]));
+    t.onTestFinished(unsubscribe);
+
+    await fs.unlink(SETTINGS_FILE);
+    await waitFor(() => getSettings().managerRotateSteps === 10);
+    assert.equal(getSettings().showToolCalls, true);
+    assert.deepEqual(getSettings().uiCorsOrigins, ['https://env.example']);
+    assert.ok(batches.length >= 1);
+  });
+
+  test('a throwing subscriber does not block later settings subscribers', async (t) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const batches: string[][] = [];
+    const unsubscribeThrowing = onSettingsChange(() => { throw new Error('subscriber failed'); });
+    const unsubscribeRecording = onSettingsChange((keys) => batches.push([...keys]));
+    t.onTestFinished(unsubscribeThrowing);
+    t.onTestFinished(unsubscribeRecording);
+
+    await updateSettings({ eventLog: false });
+    assert.deepEqual(batches, [['eventLog']]);
+    assert.match(errors.mock.calls.map((args) => args.join(' ')).join('\n'), /subscriber failed/);
   });
 
   test('onSettingsChange unsubscribe stops future notifications', async () => {
