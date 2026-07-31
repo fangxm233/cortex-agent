@@ -125,13 +125,17 @@ Cortex 附带的应用清单设置了 `socket_mode_enabled: true` 和 `interacti
 
 ## 管理频道：自动检测，无需设置
 
-`CORTEX_ADMIN_CHANNEL` 是 Cortex 发送启动通知、审批请求和其他运维消息的频道。`cortex init` 不会询问它。第一次给机器人发私信时，Slack 适配器会记录频道 ID 并持久化。自动检测路径见 `src/platform/adapters/slack.ts`。
+设置项 `adminChannel` 是 Cortex 发送启动通知、审批请求和其他运维消息的频道。`cortex init` 不会询问它。第一次给机器人发私信时，Slack 适配器会记录频道 ID 并持久化。自动检测路径见 `src/platform/adapters/slack.ts`。
 
-如果你想显式指定（例如你想让管理消息发送到与私信不同的频道），从 Slack 获取频道 ID（频道名称 → View channel details → 页面底部），然后在 `$CORTEX_HOME/config/.env` 中设置：
+如果你想显式指定（例如你想让管理消息发送到与私信不同的频道），从 Slack 获取频道 ID（频道名称 → View channel details → 页面底部），然后在 `$CORTEX_HOME/config/settings.json` 中设置 `adminChannel`（见 [configuration.md](./configuration.md#configsettingsjson)）：
 
+```json
+{
+  "adminChannel": "C0123456789"
+}
 ```
-CORTEX_ADMIN_CHANNEL=C0123456789
-```
+
+这里的改动无需重启守护进程即可推送给正在运行的 Slack 适配器。`.env` 中的旧变量 `SLACK_ADMIN_CHANNEL` 与 `CORTEX_ADMIN_CHANNEL` 仍作为已弃用的回退被读取。
 
 ## 机器人加入工作区之后
 
@@ -163,8 +167,9 @@ cortex restart        # 触碰 $STORE_DIR/.restart
 它会定期检查 npm 上是否有更新的 `@cortex-agent/server` 版本。
 首次检查在启动后 60 秒进行，之后每 24 小时检查一次。
 
-自动更新默认开启。如需禁用，在 `.env` 文件中设置
-`CORTEX_SERVER_UPDATE_DISABLE=1`。
+自动更新默认开启。如需禁用，在 `$CORTEX_HOME/config/settings.json` 中设置
+`"serverUpdateDisable": true`（见 [configuration.md](./configuration.md#configsettingsjson)）；
+`.env` 中的旧变量 `CORTEX_SERVER_UPDATE_DISABLE=1` 仍作为已弃用的回退被读取。
 
 当发现新版本时，Cortex 会向管理员私信发送一条带三个按钮的交互消息：
 

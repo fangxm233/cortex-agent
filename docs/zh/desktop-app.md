@@ -29,23 +29,37 @@ Android APK 面向 arm64 设备，并通过 Play Store 之外的方式分发。�
 
 ## 服务器配置
 
-原生壳连接服务器上主动启用的 Web UI 端点。在服务器的 `$CORTEX_HOME/config/.env` 中添加或确认：
+原生壳连接服务器上主动启用的 Web UI 端点。端点本身属于启动拓扑，仍留在服务器的 `$CORTEX_HOME/config/.env` 中：
 
 ```bash
 CORTEX_UI_HTTP=1
 CORTEX_UI_PORT=3004
-CORTEX_UI_CORS_ORIGINS=cortexui://localhost,http://cortexui.localhost,tauri://localhost,http://tauri.localhost
 ```
 
-`cortex init` 会在同一文件中生成 `CORTEX_CLIENT_TOKEN`。原生应用使用这个值；`CORTEX_TOKEN` 不是服务器端客户端 token 的配置名。可用以下命令读取已配置的 token：
+允许的 CORS origin 是运行时设置。在 `$CORTEX_HOME/config/settings.json` 中添加或确认 `uiCorsOrigins` 键（见 [configuration.md](./configuration.md#configsettingsjson)）：
+
+```json
+{
+  "uiCorsOrigins": [
+    "cortexui://localhost",
+    "http://cortexui.localhost",
+    "tauri://localhost",
+    "http://tauri.localhost"
+  ]
+}
+```
+
+`.env` 中逗号分隔的旧变量 `CORTEX_UI_CORS_ORIGINS` 仍作为已弃用的回退被读取。
+
+`cortex init` 会在 `.env` 中生成 `CORTEX_CLIENT_TOKEN`。原生应用使用这个值；`CORTEX_TOKEN` 不是服务器端客户端 token 的配置名。可用以下命令读取已配置的 token：
 
 ```bash
 grep CORTEX_CLIENT_TOKEN "${CORTEX_HOME:-$HOME/.cortex}/config/.env"
 ```
 
-更改端点或 CORS 配置后重启 daemon。原生应用连接能够到达该端点的 HTTP 或 HTTPS URL。通过隧道暴露端点时，应使用可直接接受 Cortex token 的 hostname，而不是要求交互式浏览器 SSO 的地址。
+在 `.env` 中更改端点后需重启 daemon。改动 `uiCorsOrigins` 则无需重启——它在每个请求时解析。原生应用连接能够到达该端点的 HTTP 或 HTTPS URL。通过隧道暴露端点时，应使用可直接接受 Cortex token 的 hostname，而不是要求交互式浏览器 SSO 的地址。
 
-当前构建通过 `cortexui` custom protocol 提供原生壳；根据 WebView 平台，origin 表现为 `cortexui://localhost` 或 `http://cortexui.localhost`。两个 `tauri` origin 用于保持旧版原生应用可连接。服务器只为 `CORTEX_UI_CORS_ORIGINS` 中明确列出的 origin 返回 CORS header。
+当前构建通过 `cortexui` custom protocol 提供原生壳；根据 WebView 平台，origin 表现为 `cortexui://localhost` 或 `http://cortexui.localhost`。两个 `tauri` origin 用于保持旧版原生应用可连接。服务器只为 `uiCorsOrigins` 中明确列出的 origin 返回 CORS header。
 
 ## 首次连接
 
@@ -111,7 +125,7 @@ Server release 也可以在 GitHub Release 中携带原生安装包。服务器�
 
 ### Network error
 
-确认 daemon 正在运行、`CORTEX_UI_HTTP=1` 已加载、URL 能访问配置端口，且隧道正在工作。页面可加载但 API 全部失败时，通常是 token 或 CORS 问题。确认 `CORTEX_UI_CORS_ORIGINS` 包含当前的 `cortexui` origins；如果还有旧版应用连接服务器，请保留 `tauri` origins。
+确认 daemon 正在运行、`CORTEX_UI_HTTP=1` 已加载、URL 能访问配置端口，且隧道正在工作。页面可加载但 API 全部失败时，通常是 token 或 CORS 问题。确认 `config/settings.json` 中的 `uiCorsOrigins` 设置包含当前的 `cortexui` origins；如果还有旧版应用连接服务器，请保留 `tauri` origins。
 
 ### Linux 上凭据无法持久化
 

@@ -246,8 +246,11 @@ persists it.
 If you'd rather route admin messages to a specific channel (e.g., a
 shared ops channel), grab the channel ID from Slack — right-click the
 channel name → View channel details → copy the Channel ID from the
-bottom of the dialog — and set `CORTEX_ADMIN_CHANNEL` in
-`$CORTEX_HOME/config/.env`.
+bottom of the dialog — and set the `adminChannel` key in
+`$CORTEX_HOME/config/settings.json` (see
+[configuration.md](./configuration.md#configsettingsjson)). The legacy
+`SLACK_ADMIN_CHANNEL` / `CORTEX_ADMIN_CHANNEL` variables in `.env` still work
+as a deprecated fallback.
 
 ### 2.5 Feishu app setup (step by step in the browser)
 
@@ -469,8 +472,8 @@ hello
 ```
 
 The first DM is what Cortex uses to auto-detect your admin channel
-(unless you set `CORTEX_ADMIN_CHANNEL` explicitly in `.env`). You should
-get a reply within a few seconds.
+(unless you set `adminChannel` explicitly in `config/settings.json`). You
+should get a reply within a few seconds.
 
 
 ### 4.2 Create your first project

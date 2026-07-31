@@ -84,7 +84,7 @@ L5  entry/         → 所有层（组合根）
 |------|---------|
 | `event-types.ts` | 22 个用户事件类型 + 2 个元事件，在 `CortexEvent` 可区分联合中。类别：message/interaction、agent lifecycle、thread lifecycle、task、system |
 | `event-bus.ts` | `EventBus` 类 — `subscribe(type, handler)` / `publish(event)`。同步扇出。异步处理器即发即忘。`event-bus.handler-failed` 的重入保护。SIGTERM 排放的关闭钩子 |
-| `event-logger.ts` | 订阅 `'*'`，1024 条环形缓冲区，100ms 刷新间隔，按日滚动 JSONL，14 天保留。由 `CORTEX_EVENT_LOG=off` 控制 |
+| `event-logger.ts` | 订阅 `'*'`，1024 条环形缓冲区，100ms 刷新间隔，按日滚动 JSONL，14 天保留。由 [`config/settings.json`](./configuration.md#configsettingsjson) 中的 `eventLog` 设置控制（设为 `false` 即关闭；旧变量 `CORTEX_EVENT_LOG=off` 仍作为已弃用的回退可用） |
 | `event-replay.ts` | 调试 CLI：`node events/event-replay.ts --date YYYY-MM-DD [--type xxx]` |
 
 **事件类别：**

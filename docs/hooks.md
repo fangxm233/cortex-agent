@@ -211,8 +211,11 @@ matcher group:
 ```
 
 Because the registry is read on every spawn, a new declaration takes effect on
-the next agent that starts. Setting `CORTEX_HOOKS_LEGACY=1` in the environment
-bypasses the registry and emits a fixed built-in table instead.
+the next agent that starts. Setting `"hooksLegacy": true` in
+[`config/settings.json`](./configuration.md#configsettingsjson) bypasses the
+registry and emits a fixed built-in table instead; the legacy
+`CORTEX_HOOKS_LEGACY=1` environment variable is still read as a deprecated
+fallback.
 
 ### PI
 
