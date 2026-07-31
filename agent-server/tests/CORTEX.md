@@ -19,7 +19,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
-| agent-adapter-pi.test.ts | test | PI framing, spawn, context and compact |
+| agent-adapter-pi.test.ts | test | PI spawn policy, framing, context and compact |
 | agent-adapter.test.ts | test | adapter dispatch, capability sets and tool names |
 | agent-retry-classification.test.ts | test | retry policy, outage gates and direct bypass |
 | app.test.ts | test | startup DM notification behaviour |
@@ -113,7 +113,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
 | spawn-seam-direct.golden.json | golden | pins ordinary direct argv and environment |
 | spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
-| spawn-seam.test.ts | test | proves cwd and explicit MCP composition at spawn |
+| spawn-seam.test.ts | test | proves cwd usage, pool and MCP composition at spawn |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
 | store/ | subdir | JSON repository and store concurrency tests |
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
