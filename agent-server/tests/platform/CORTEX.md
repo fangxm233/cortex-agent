@@ -5,7 +5,7 @@ gateway and wire protocol, and the Web UI HTTP transport.
 
 | filename | role | function |
 |---|---|---|
-| adapter-factory.test.ts | test | Covers selection and admin fallback chains |
+| adapter-factory.test.ts | test | Covers reset-isolated admin fallback chains |
 | app-update.test.ts | test | Covers app shell update manifest and route |
 | composite-adapter.test.ts | test | Covers fan-out and nullable live settings |
 | interactive-builder.test.ts | test | Covers ask-card level banner and modal prefix |

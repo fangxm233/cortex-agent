@@ -1,5 +1,5 @@
 // input:  delta coalescer, fake timers, runtime settings
-// output: batching and session stream gate regressions
+// output: batching and settings-backed stream gate tests
 // pos:    Covers server-side assistant delta throttling
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -14,6 +14,7 @@ import {
   MAX_PENDING_CHARS,
   type DeltaFlush,
 } from '../../src/orchestration/delta-coalescer.js';
+import { resetSettingsForTests } from '../../src/core/settings.js';
 
 describe('resolveFlushMs', () => {
   test('defaults to 120ms', () => {
@@ -228,13 +229,13 @@ describe('createSessionDeltaStream — who is allowed to stream at all', () => {
     const prev = process.env.CORTEX_STREAM_DELTAS;
     process.env.CORTEX_STREAM_DELTAS = '0';
     try {
-      vi.resetModules();
-      const { createSessionDeltaStream: createFresh } = await import('../../src/orchestration/delta-coalescer.js');
+      resetSettingsForTests();
       const s = sink();
-      assert.equal(createFresh({ sessionId: 'sess-1', channel: 'web:abc', publish: s.publish }), null);
+      assert.equal(createSessionDeltaStream({ sessionId: 'sess-1', channel: 'web:abc', publish: s.publish }), null);
     } finally {
       if (prev === undefined) delete process.env.CORTEX_STREAM_DELTAS;
       else process.env.CORTEX_STREAM_DELTAS = prev;
+      resetSettingsForTests();
     }
   });
 

@@ -1,5 +1,5 @@
-// input:  settings migration, isolated config files
-// output: migration parsing, safety, mode, and idempotency tests
+// input:  settings migration/reset, isolated config files
+// output: migration safety, modes, and idempotency tests
 // pos:    Specifies one-time legacy settings migration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -9,6 +9,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { CONFIG_DIR } from '../../src/core/paths.js';
+import { migrateEnvToSettings } from '../../src/core/settings-migration.js';
+import { resetSettingsForTests } from '../../src/core/settings.js';
 
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json');
@@ -63,8 +65,7 @@ const expectedSettings = {
 };
 
 async function loadMigration(): Promise<() => Promise<void>> {
-  const module = await import('../../src/core/settings-migration.js');
-  return module.migrateEnvToSettings;
+  return migrateEnvToSettings;
 }
 
 async function backupNames(): Promise<string[]> {
@@ -73,7 +74,7 @@ async function backupNames(): Promise<string[]> {
 }
 
 beforeEach(async () => {
-  vi.resetModules();
+  resetSettingsForTests();
   assert.ok(
     !path.resolve(CONFIG_DIR).startsWith(`${path.join(os.homedir(), '.cortex')}${path.sep}`),
     `test CONFIG_DIR must be isolated, got ${CONFIG_DIR}`,

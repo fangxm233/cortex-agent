@@ -1,5 +1,5 @@
 // input:  adapter factories, settings, and isolated env
-// output: platform composition and admin fallback regressions
+// output: platform composition and settings reset regressions
 // pos:    Verifies multi-platform adapter factory behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -10,7 +10,7 @@ import {
   createAdapterFromEnv,
 } from '../../src/platform/adapters/index.js';
 import { CompositeAdapter } from '../../src/platform/adapters/composite-adapter.js';
-import { updateSettings } from '../../src/core/settings.js';
+import { resetSettingsForTests, updateSettings } from '../../src/core/settings.js';
 
 vi.mock('@slack/bolt', () => ({
   App: class {
@@ -52,13 +52,13 @@ async function withFreshEnv(
     for (const [key, value] of Object.entries(overrides)) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
-    vi.resetModules();
-    const module = await import('../../src/platform/adapters/index.js');
-    fn(module.createPrimaryAdaptersFromEnv);
+    resetSettingsForTests();
+    fn(createPrimaryAdaptersFromEnv);
   } finally {
     for (const key of ENV_KEYS) {
       if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key];
     }
+    resetSettingsForTests();
   }
 }
 

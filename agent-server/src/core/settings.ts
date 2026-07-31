@@ -1,5 +1,5 @@
 // input:  CONFIG_DIR, settings spec, process env, filesystem
-// output: validated snapshots and disk-reconciled settings updates
+// output: validated settings, disk updates, and test reset
 // pos:    L0 file-backed runtime settings boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -218,6 +218,18 @@ function initialize(): void {
     log.error(`Load settings.json failed: ${(error as Error).message} — using env/default settings`);
     acceptSnapshot({}, resolveSettings({}));
   }
+}
+
+export function resetSettingsForTests(): void {
+  if (reloadTimer) clearTimeout(reloadTimer);
+  reloadTimer = null;
+  settingsWatcher?.close();
+  settingsWatcher = null;
+  initialized = false;
+  cachedOverrides = {};
+  cachedSettings = null;
+  cachedSettingsSnapshot = null;
+  selfWriting = false;
 }
 
 export function getSettings(): Settings {

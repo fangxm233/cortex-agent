@@ -1,9 +1,9 @@
 // input:  bg-wait, fake process, timers, runtime settings
-// output: continuation merge, timeout, and gate regressions
+// output: continuation, timeout, and settings reset tests
 // pos:    Covers thread-session inline background waits
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import {
@@ -11,6 +11,7 @@ import {
 } from '../../src/agent-adapter/bg-wait.js';
 import type { ContinuationSink } from '../../src/agent-adapter/types.js';
 import type { AgentResult } from '../../src/core/types/agent-types.js';
+import { resetSettingsForTests } from '../../src/core/settings.js';
 
 function baseResult(overrides: Partial<AgentResult> = {}): AgentResult {
   return {
@@ -189,11 +190,11 @@ test('shouldAwaitBgInline: only thread turns, claude backend, sink capability, w
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', baseResult({ rateLimited: true }), true), false, 'rate-limited turn goes to the retry path');
     assert.equal(shouldAwaitBgInline('claude', 'thr_1', null, true), false, 'null result');
     process.env.CORTEX_BG_CONTINUATION = 'off';
-    vi.resetModules();
-    const disabled = await import('../../src/agent-adapter/bg-wait.js');
-    assert.equal(disabled.shouldAwaitBgInline('claude', 'thr_1', r, true), false, 'feature flag off');
+    resetSettingsForTests();
+    assert.equal(shouldAwaitBgInline('claude', 'thr_1', r, true), false, 'feature flag off');
   } finally {
     if (prev === undefined) delete process.env.CORTEX_BG_CONTINUATION;
     else process.env.CORTEX_BG_CONTINUATION = prev;
+    resetSettingsForTests();
   }
 });

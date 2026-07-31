@@ -1,5 +1,5 @@
 // input:  mocked fs watcher, isolated settings file
-// output: init-order and null-filename watcher tests
+// output: watcher ordering, reset, and null-filename tests
 // pos:    Settings watcher edge-case regressions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -12,6 +12,8 @@ import path from 'node:path';
 const watchState = vi.hoisted(() => ({
   callback: null as ((eventType: string, filename: string | Buffer | null) => void) | null,
   onWatch: null as (() => void) | null,
+  closeCount: 0,
+  watchCount: 0,
 }));
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -19,10 +21,11 @@ vi.mock('node:fs', async (importOriginal) => {
   return {
     ...actual,
     watch: vi.fn((_target, callback) => {
+      watchState.watchCount++;
       watchState.callback = callback as typeof watchState.callback;
       watchState.onWatch?.();
       const watcher: any = {
-        close: vi.fn(),
+        close: vi.fn(() => { watchState.closeCount++; }),
         on: vi.fn(() => watcher),
         unref: vi.fn(() => watcher),
       };
@@ -32,7 +35,7 @@ vi.mock('node:fs', async (importOriginal) => {
 });
 
 import { CONFIG_DIR } from '../../src/core/paths.js';
-import { getSettings } from '../../src/core/settings.js';
+import { getSettings, resetSettingsForTests } from '../../src/core/settings.js';
 
 const SETTINGS_FILE = path.join(CONFIG_DIR, 'settings.json');
 
@@ -66,5 +69,19 @@ describe.sequential('settings watcher ordering', () => {
     watchState.callback?.('rename', null);
 
     await waitFor(() => getSettings().turnNotify === target);
+  });
+
+  test('test reset closes the watcher and rebuilds settings from disk', async () => {
+    const current = getSettings().turnNotify;
+    const target = !current;
+    const closeCount = watchState.closeCount;
+    const watchCount = watchState.watchCount;
+    await fs.writeFile(SETTINGS_FILE, JSON.stringify({ turnNotify: target }));
+
+    assert.equal(getSettings().turnNotify, current, 'cached overrides remain until reset');
+    resetSettingsForTests();
+    assert.equal(watchState.closeCount, closeCount + 1, 'the active watcher is closed');
+    assert.equal(getSettings().turnNotify, target, 'the next read rebuilds the cached snapshot');
+    assert.equal(watchState.watchCount, watchCount + 1, 'exactly one replacement watcher starts');
   });
 });

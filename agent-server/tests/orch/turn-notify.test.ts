@@ -1,20 +1,15 @@
 // input:  Vitest, turn notification helpers, runtime settings
-// output: settings precedence, env fallback, and dispatch tests
+// output: settings reset, env fallback, and dispatch tests
 // pos:    Turn-completion notification orchestration tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
-import { getSettings, updateSettings } from '../../src/core/settings.js';
+import { getSettings, resetSettingsForTests, updateSettings } from '../../src/core/settings.js';
 import { isTurnNotifyEnabled, getTurnNotifyThresholdS, maybeNotifyTurnComplete } from '../../src/orchestration/turn-notify.js';
 
 type PostCall = { dest: any; content: any; opts: any };
-
-async function freshTurnNotify() {
-  vi.resetModules();
-  return import('../../src/orchestration/turn-notify.js');
-}
 
 function makeAdapter() {
   const calls: PostCall[] = [];
@@ -40,18 +35,23 @@ test('isTurnNotifyEnabled: default ON, opt-out via CORTEX_TURN_NOTIFY=0/false/of
   const prev = process.env.CORTEX_TURN_NOTIFY;
   try {
     delete process.env.CORTEX_TURN_NOTIFY;
-    assert.equal((await freshTurnNotify()).isTurnNotifyEnabled(), true, 'enabled by default when unset');
+    resetSettingsForTests();
+    assert.equal(isTurnNotifyEnabled(), true, 'enabled by default when unset');
     for (const off of ['0', 'false', 'off', 'no', 'OFF']) {
       process.env.CORTEX_TURN_NOTIFY = off;
-      assert.equal((await freshTurnNotify()).isTurnNotifyEnabled(), false, `disabled by "${off}"`);
+      resetSettingsForTests();
+      assert.equal(isTurnNotifyEnabled(), false, `disabled by "${off}"`);
     }
     process.env.CORTEX_TURN_NOTIFY = '1';
-    assert.equal((await freshTurnNotify()).isTurnNotifyEnabled(), true, 'explicitly enabled');
+    resetSettingsForTests();
+    assert.equal(isTurnNotifyEnabled(), true, 'explicitly enabled');
     process.env.CORTEX_TURN_NOTIFY = '';
-    assert.equal((await freshTurnNotify()).isTurnNotifyEnabled(), true, 'empty string is not an opt-out');
+    resetSettingsForTests();
+    assert.equal(isTurnNotifyEnabled(), true, 'empty string is not an opt-out');
   } finally {
     if (prev === undefined) delete process.env.CORTEX_TURN_NOTIFY;
     else process.env.CORTEX_TURN_NOTIFY = prev;
+    resetSettingsForTests();
   }
 });
 
@@ -59,18 +59,24 @@ test('getTurnNotifyThresholdS: default 60, parses int, falls back on invalid', a
   const prev = process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S;
   try {
     delete process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S;
-    assert.equal((await freshTurnNotify()).getTurnNotifyThresholdS(), 60, 'default when unset');
+    resetSettingsForTests();
+    assert.equal(getTurnNotifyThresholdS(), 60, 'default when unset');
     process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S = '30';
-    assert.equal((await freshTurnNotify()).getTurnNotifyThresholdS(), 30);
+    resetSettingsForTests();
+    assert.equal(getTurnNotifyThresholdS(), 30);
     process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S = 'abc';
-    assert.equal((await freshTurnNotify()).getTurnNotifyThresholdS(), 60, 'non-numeric falls back');
+    resetSettingsForTests();
+    assert.equal(getTurnNotifyThresholdS(), 60, 'non-numeric falls back');
     process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S = '0';
-    assert.equal((await freshTurnNotify()).getTurnNotifyThresholdS(), 60, 'non-positive falls back');
+    resetSettingsForTests();
+    assert.equal(getTurnNotifyThresholdS(), 60, 'non-positive falls back');
     process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S = '-5';
-    assert.equal((await freshTurnNotify()).getTurnNotifyThresholdS(), 60, 'negative falls back');
+    resetSettingsForTests();
+    assert.equal(getTurnNotifyThresholdS(), 60, 'negative falls back');
   } finally {
     if (prev === undefined) delete process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S;
     else process.env.CORTEX_TURN_NOTIFY_THRESHOLD_S = prev;
+    resetSettingsForTests();
   }
 });
 
@@ -100,13 +106,14 @@ test('maybeNotifyTurnComplete: disabled via env → no notification', async () =
   const prev = process.env.CORTEX_TURN_NOTIFY;
   try {
     process.env.CORTEX_TURN_NOTIFY = '0';
+    resetSettingsForTests();
     const { calls, adapter } = makeAdapter();
-    const { maybeNotifyTurnComplete: notify } = await freshTurnNotify();
-    await notify({ adapter, ...base, elapsedS: 999, status: 'completed' });
+    await maybeNotifyTurnComplete({ adapter, ...base, elapsedS: 999, status: 'completed' });
     assert.equal(calls.length, 0);
   } finally {
     if (prev === undefined) delete process.env.CORTEX_TURN_NOTIFY;
     else process.env.CORTEX_TURN_NOTIFY = prev;
+    resetSettingsForTests();
   }
 });
 

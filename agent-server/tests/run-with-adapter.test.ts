@@ -1,9 +1,9 @@
 // input:  fake adapters, continuation context, runtime settings
-// output: normalized callbacks and typed-notice regressions
+// output: normalized callbacks and settings notice regressions
 // pos:    Covers backend-neutral event dispatch
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { _test as modeManagerTest, isRetryableResult } from '../src/domain/agents/index.js';
@@ -12,6 +12,7 @@ import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/index.js';
 import type { NormalizedEvent } from '../src/agent-adapter/normalize/event-types.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
 import { getLocale, setLocale } from '../src/core/i18n.js';
+import { resetSettingsForTests } from '../src/core/settings.js';
 
 const { runWithAdapter } = modeManagerTest;
 
@@ -193,12 +194,12 @@ test('runWithAdapter: context compaction emits one concise info notice', async (
   t.onTestFinished(() => {
     if (previousFlag === undefined) delete process.env.CORTEX_NOTIFY_COMPACTION;
     else process.env.CORTEX_NOTIFY_COMPACTION = previousFlag;
+    resetSettingsForTests();
     setLocale(previousLocale);
   });
   process.env.CORTEX_NOTIFY_COMPACTION = '1';
+  resetSettingsForTests();
   setLocale('en');
-  vi.resetModules();
-  const { _test: compactionFacade } = await import('../src/domain/agents/index.js');
 
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
   const adapter = makeFakeAdapter('claude', {
@@ -211,7 +212,7 @@ test('runWithAdapter: context compaction emits one concise info notice', async (
   });
   const notices: Array<{ text: string; level?: string }> = [];
 
-  await compactionFacade.runWithAdapter(
+  await runWithAdapter(
     adapter,
     'msg',
     {
@@ -436,6 +437,7 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
   t.onTestFinished(() => {
     if (prev === undefined) delete process.env.CORTEX_NOTIFY_COMPACTION;
     else process.env.CORTEX_NOTIFY_COMPACTION = prev;
+    resetSettingsForTests();
   });
 
   const makeAdapter = () => makeFakeAdapter('claude', {
@@ -449,10 +451,9 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
 
   // OFF (env unset): no notification.
   delete process.env.CORTEX_NOTIFY_COMPACTION;
-  vi.resetModules();
-  const { _test: offFacade } = await import('../src/domain/agents/index.js');
+  resetSettingsForTests();
   const offMsgs: string[] = [];
-  await offFacade.runWithAdapter(
+  await runWithAdapter(
     makeAdapter(), 'msg',
     { channel: 'C1', onAssistantMessage: (m: string) => offMsgs.push(m) },
     { model: 'm', backend: 'claude', mode: null }, undefined,
@@ -461,10 +462,9 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
 
   // ON: exactly one concise notification; backend trigger/token details stay internal.
   process.env.CORTEX_NOTIFY_COMPACTION = '1';
-  vi.resetModules();
-  const { _test: onFacade } = await import('../src/domain/agents/index.js');
+  resetSettingsForTests();
   const onMsgs: string[] = [];
-  await onFacade.runWithAdapter(
+  await runWithAdapter(
     makeAdapter(), 'msg',
     { channel: 'C1', onAssistantMessage: (m: string) => onMsgs.push(m) },
     { model: 'm', backend: 'claude', mode: null }, undefined,

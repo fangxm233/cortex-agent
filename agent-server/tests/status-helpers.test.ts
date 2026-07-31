@@ -1,13 +1,16 @@
 // input:  Vitest, status helpers, MockAdapter, runtime settings
-// output: status serialization, sealing, and button regressions
+// output: status actions, sealing, and settings reset tests
 // pos:    Covers status message serialization and actions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test, vi } from 'vitest';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { writeStatus, sealStatus, buildStatusActionBlocks } from '../src/orchestration/status-helpers.js';
+import * as statusHelpers from '../src/orchestration/status-helpers.js';
+import { resetSettingsForTests } from '../src/core/settings.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import type { RichBlock, ActionElement } from '../src/platform/index.js';
+
+const { writeStatus, sealStatus, buildStatusActionBlocks } = statusHelpers;
 
 function cancelButtonValue(blocks: RichBlock[]): any {
   const actions = blocks.find((b: any) => b.type === 'actions') as any;
@@ -41,17 +44,18 @@ test('buildStatusActionBlocks: Cancel button carries threadId (thread path), exe
 
 async function withNewqEnv(
   value: string | undefined,
-  fn: (helpers: typeof import('../src/orchestration/status-helpers.js')) => void | Promise<void>,
+  fn: (helpers: typeof statusHelpers) => void | Promise<void>,
 ): Promise<void> {
   const prev = process.env.CORTEX_STATUS_NEWQ_BUTTON;
   if (value === undefined) delete process.env.CORTEX_STATUS_NEWQ_BUTTON;
   else process.env.CORTEX_STATUS_NEWQ_BUTTON = value;
   try {
-    vi.resetModules();
-    await fn(await import('../src/orchestration/status-helpers.js'));
+    resetSettingsForTests();
+    await fn(statusHelpers);
   } finally {
     if (prev === undefined) delete process.env.CORTEX_STATUS_NEWQ_BUTTON;
     else process.env.CORTEX_STATUS_NEWQ_BUTTON = prev;
+    resetSettingsForTests();
   }
 }
 

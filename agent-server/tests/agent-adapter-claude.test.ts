@@ -1,13 +1,14 @@
 // input:  Claude modules, hook fixtures, runtime settings
-// output: CLI args, environments, hooks, and compact regressions
+// output: CLI args, hooks, compact, and settings regressions
 // pos:    Covers Claude adapter configuration and behavior
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { afterAll, beforeAll, test, vi } from 'vitest';
+import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+import { resetSettingsForTests } from '../src/core/settings.js';
 import { buildSpawnArgs, buildClaudeEnv } from '../src/agent-adapter/claude/spawn-args.js';
 import {
   buildHooksSettings,
@@ -342,9 +343,8 @@ test('buildSpawnArgs print: CORTEX_STREAM_DELTAS=0 kills --include-partial-messa
   const prev = process.env.CORTEX_STREAM_DELTAS;
   process.env.CORTEX_STREAM_DELTAS = '0';
   try {
-    vi.resetModules();
-    const { buildSpawnArgs: buildFresh } = await import('../src/agent-adapter/claude/spawn-args.js');
-    const args = buildFresh({ ...streamingBase, sessionId: 'uuid-stream-2' });
+    resetSettingsForTests();
+    const args = buildSpawnArgs({ ...streamingBase, sessionId: 'uuid-stream-2' });
     assert.ok(!args.includes('--include-partial-messages'), 'kill switch must drop the flag');
     // Everything else is untouched — the rest of the print argv is the legacy sequence.
     assert.equal(args[0], '-p');
@@ -352,6 +352,7 @@ test('buildSpawnArgs print: CORTEX_STREAM_DELTAS=0 kills --include-partial-messa
   } finally {
     if (prev === undefined) delete process.env.CORTEX_STREAM_DELTAS;
     else process.env.CORTEX_STREAM_DELTAS = prev;
+    resetSettingsForTests();
   }
 });
 
@@ -798,16 +799,16 @@ test('buildHooksSettings uses the hardcoded table when legacy mode is enabled', 
   writeHookRegistry(entries);
   process.env.CORTEX_HOOKS_LEGACY = '1';
   try {
-    vi.resetModules();
-    const { buildHooksSettings: buildFresh } = await import('../src/agent-adapter/claude/hooks-builder.js');
+    resetSettingsForTests();
     assert.equal(
-      JSON.stringify(buildFresh('Bash,Read,Edit,Write')),
+      JSON.stringify(buildHooksSettings('Bash,Read,Edit,Write')),
       GOLDEN_HOOKS_WITHOUT_INTERACTION,
     );
   } finally {
     resetHookRegistry();
     if (legacy === undefined) delete process.env.CORTEX_HOOKS_LEGACY;
     else process.env.CORTEX_HOOKS_LEGACY = legacy;
+    resetSettingsForTests();
   }
 });
 

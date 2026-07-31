@@ -25,7 +25,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | running-executions.ts | state | registers and kills live agent executions |
 | settings-migration.ts | config | safely migrates legacy env settings at startup |
 | settings-spec.ts | config | defines browser-safe settings metadata and parsers |
-| settings.ts | config | loads, watches and safely merges runtime settings |
+| settings.ts | config | loads, watches, resets, and merges runtime settings |
 | singleton-lock.ts | util | claims and releases a process pidfile |
 | status-format.ts | util | formats status and progress messages |
 | task-node.ts | util | locates and creates task node artifacts |
