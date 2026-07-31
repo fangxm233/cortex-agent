@@ -47,7 +47,7 @@ export interface JournalEventInput {
   threadId: string | null;
   step: number | null;
   agentSlot: AgentSlot;
-  backend: string;
+  backend: 'claude';
   provider: string | null;
   requestedModel: string;
   reportedModel: string | null;
@@ -204,9 +204,9 @@ class FileJournal implements Journal {
   }
 
   writeEvent(input: JournalEventInput): void {
-    const fd = this.requireOpenFd();
-    const record = buildEvent(input, this.identity, this.nextSeq, isoTimestamp(this.now));
     try {
+      const fd = this.requireOpenFd();
+      const record = buildEvent(input, this.identity, this.nextSeq, isoTimestamp(this.now));
       writeFull(fd, serializeLine(record));
     } catch (error) {
       throwTrajectoryFailure('event write', error);
