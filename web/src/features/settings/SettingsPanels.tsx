@@ -1,6 +1,6 @@
 // input:  settings DTOs, localized copy, shared UI primitives
-// output: read-only desktop settings panels
-// pos:    Presentational settings panel collection
+// output: desktop platform, profile, machine, template and MCP panels
+// pos:    Presentational collection for non-runtime settings panels
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import type { CSSProperties } from 'react';
@@ -15,12 +15,10 @@ import {
   FEISHU_KEYS,
   API_KEYS,
   DAEMON_KEYS,
-  NOTIFY_KEYS,
-  ADVANCED_FLAGS,
 } from './platform-env';
 
-// The 7 presentational settings panels (Budget lives in BudgetPanel.tsx and Hooks in HooksPanel.tsx
-// — those two own their live writes).
+// The presentational settings panels without live writes (Budget, Hooks, Notifications and Advanced
+// live in focused modules that own their mutations).
 // Each renders the prototype's exact 1:1 structure with REAL config.get data substituted; every
 // affordance with no backend op is an inert placeholder and every field the contract does not carry
 // is shown honestly (— / a flagged structural note) — never a fabricated value. Raw inline styles
@@ -30,7 +28,7 @@ const MONO = "'IBM Plex Mono',monospace";
 
 // A green/gray "configured" pill derived HONESTLY from env presence (the prototype's
 // "connected · socket mode" is live runtime state the contract does not expose).
-function PresencePill({ present }: { present: boolean }) {
+export function PresencePill({ present }: { present: boolean }) {
   const L = useVocab();
   return (
     <span
@@ -48,7 +46,7 @@ function PresencePill({ present }: { present: boolean }) {
   );
 }
 
-function PlatformAvatar({ glyph }: { glyph: string }) {
+export function PlatformAvatar({ glyph }: { glyph: string }) {
   return (
     <span
       style={{
@@ -792,229 +790,6 @@ export function McpPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
       )}
       <div style={{ borderTop: '1px solid var(--proto-line-2)', padding: '8px 14px', fontSize: 10, color: 'var(--proto-faint)' }}>
         {L.stMcpFootNote}
-      </div>
-    </SCard>
-  );
-}
-
-export function NotificationsPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
-  const L = useVocab();
-  const idx = indexEnv(snapshot.env);
-  const slackPresent = hasAnyKey(snapshot.env, 'SLACK_');
-  const feishuPresent = hasAnyKey(snapshot.env, 'FEISHU_');
-  // Specific admin-channel key presence for notification routing.
-  // Values are always masked (••••••••) — never cleartext — enforced by config.get contract.
-  const slackChannel = envRow(idx, 'SLACK_ADMIN_CHANNEL');
-  const feishuChannel = envRow(idx, 'FEISHU_ADMIN_CHANNEL');
-  const toggles: { key: string; title: string; desc: string; env: string }[] = [
-    {
-      key: NOTIFY_KEYS.turn,
-      title: L.stNotifyTurnTitle,
-      desc: L.stNotifyTurnDesc,
-      env: 'CORTEX_TURN_NOTIFY',
-    },
-    {
-      key: NOTIFY_KEYS.resume,
-      title: L.stNotifyResumeTitle,
-      desc: L.stNotifyResumeDesc,
-      env: 'CORTEX_AUTO_RESUME',
-    },
-    {
-      key: NOTIFY_KEYS.compaction,
-      title: L.stNotifyCompactionTitle,
-      desc: L.stNotifyCompactionDesc,
-      env: 'CORTEX_NOTIFY_COMPACTION',
-    },
-  ];
-  return (
-    <>
-      {/* Env-flag toggles — REAL presence from config.get.
-          WRITE path (env toggle) belongs to settings-actions / M-B-9 — controls are inert here. */}
-      <SCard>
-        {toggles.map((t, i) => (
-          <div
-            key={t.env}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 13,
-              padding: '11px 14px',
-              borderBottom: i < toggles.length - 1 ? '1px solid var(--proto-alt)' : undefined,
-            }}
-          >
-            <Toggle on={idx[t.key]?.present === true} inert />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-ink)' }}>{t.title}</div>
-              <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 1 }}>{t.desc}</div>
-            </div>
-            <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-faint)', flex: 'none' }}>{t.env}</span>
-          </div>
-        ))}
-      </SCard>
-
-      {/* Platform routing — REAL data: shows SLACK_ADMIN_CHANNEL / FEISHU_ADMIN_CHANNEL key
-          presence (masked ••••••••; value never returned by config.get contract). */}
-      <SCard style={{ marginTop: 12 }}>
-        <SCardHeader title={L.stNotifyRoutingTitle} right={L.stNotifyRoutingRight} />
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '10px 14px',
-            borderBottom: '1px solid var(--proto-alt)',
-          }}
-        >
-          <PlatformAvatar glyph="S" />
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-ink)' }}>Slack</span>
-          <PresencePill present={slackPresent} />
-          {slackPresent && (
-            <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>
-              {'SLACK_ADMIN_CHANNEL: '}
-              <span style={{ color: slackChannel.present ? 'var(--proto-muted)' : 'var(--proto-faint)' }}>
-                {slackChannel.display}
-              </span>
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
-          <PlatformAvatar glyph="飞" />
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-ink)' }}>飞书</span>
-          <PresencePill present={feishuPresent} />
-          {feishuPresent && (
-            <span style={{ marginLeft: 'auto', font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>
-              {'FEISHU_ADMIN_CHANNEL: '}
-              <span style={{ color: feishuChannel.present ? 'var(--proto-muted)' : 'var(--proto-faint)' }}>
-                {feishuChannel.display}
-              </span>
-            </span>
-          )}
-        </div>
-      </SCard>
-
-      {/* Approval reminder — fixed policy: always on */}
-      <div
-        style={{
-          marginTop: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '9px 12px',
-          background: 'var(--proto-amber-bg)',
-          border: '1px solid var(--proto-amber-border)',
-          borderRadius: 9,
-          maxWidth: 760,
-          boxSizing: 'border-box',
-        }}
-      >
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-amber)', flex: 'none' }} />
-        <span style={{ fontSize: 10.5, color: 'var(--proto-amber-fg)' }}>
-          {L.stApprovalReminderNote}
-        </span>
-      </div>
-
-      {/* Recent notifications — honest placeholder (zero-source).
-          Investigation: the TUI client holds notifications in an in-memory ring buffer only
-          (useNotifications.ts, cap 50, no file persistence, no tRPC read scope).
-          No notification history is available in the web UI.
-          Fabricating a count or list is explicitly prohibited. */}
-      <SCard style={{ marginTop: 12, maxWidth: 760 }}>
-        <SCardHeader title={L.stRecentNotifications} right={L.stRecentNotifRight} />
-        <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: 'var(--proto-line-3)',
-              flex: 'none',
-              marginTop: 5,
-            }}
-          />
-          <span style={{ fontSize: 10.5, color: 'var(--proto-muted-3)', lineHeight: 1.6 }}>
-            {L.stRecentNotifNote}
-          </span>
-        </div>
-      </SCard>
-    </>
-  );
-}
-
-export function AdvancedPanel({ snapshot }: { snapshot: ConfigSnapshot }) {
-  const L = useVocab();
-  const idx = indexEnv(snapshot.env);
-  return (
-    <SCard style={{ marginTop: 12, maxWidth: 760 }}>
-      {ADVANCED_FLAGS.map((f) => (
-        <div
-          key={f.env}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '10px 14px',
-            borderBottom: '1px solid var(--proto-alt)',
-          }}
-        >
-          <Toggle on={idx[f.env]?.present === true} inert />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-ink)' }}>{L[f.titleKey]}</div>
-            <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 1 }}>{L[f.descKey]}</div>
-          </div>
-          <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-faint)', flex: 'none' }}>{f.env}</span>
-        </div>
-      ))}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '10px 14px',
-          borderBottom: '1px solid var(--proto-alt)',
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.advConc}</div>
-          <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 1 }}>
-            {L.stAdvConcNote}
-          </div>
-        </div>
-        <span
-          style={{
-            font: `500 10.5px ${MONO}`,
-            color: idx['TASK_DISPATCH_MAX_CONCURRENT']?.present ? 'var(--proto-ink)' : 'var(--proto-faint)',
-            border: '1px solid var(--proto-line)',
-            borderRadius: 7,
-            padding: '4px 11px',
-          }}
-        >
-          {idx['TASK_DISPATCH_MAX_CONCURRENT']?.present ? L.stSet : L.stAuto}
-        </span>
-        <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-faint)', flex: 'none' }}>
-          TASK_DISPATCH_MAX_CONCURRENT
-        </span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.stGpuMock}</div>
-          <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)', marginTop: 1 }}>
-            {L.advMock}
-          </div>
-        </div>
-        <span
-          style={{
-            font: `400 10.5px ${MONO}`,
-            color: 'var(--proto-faint)',
-            border: '1px dashed var(--proto-line-3)',
-            borderRadius: 7,
-            padding: '4px 11px',
-          }}
-        >
-          {idx['CORTEX_GPU_MONITOR_MOCK']?.present ? L.stSet : '—'}
-        </span>
-        <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-faint)', flex: 'none' }}>
-          CORTEX_GPU_MONITOR_MOCK
-        </span>
       </div>
     </SCard>
   );

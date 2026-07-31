@@ -1,14 +1,15 @@
 Please update me when files in this folder change
 
 Desktop settings overlay: one modal with left nav and ten sections, mounted globally by its provider.
-Most panels read one config snapshot; budget writes the daily limit, while hooks uses hooks.list and hooks.*
-mutations in a full-height master-detail surface.
+Panels read config snapshots; budget and runtime toggles write config, while hooks owns its registry mutations.
 
 | filename | role | function |
 |---|---|---|
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
 | SettingsModal.tsx | view | Dialog with nav and full-height panel content |
-| SettingsPanels.tsx | view | Renders the read-only config sections |
+| SettingsPanels.tsx | view | Renders non-runtime config sections |
+| RuntimeSettingsPanels.tsx | view | Reads and writes runtime settings toggles |
+| RuntimeSettingsPanels.test.tsx | test | Tests runtime settings reads and writes |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
 | BudgetPanel.tsx | view | Budget panel that writes the daily spend limit |
 | budget-vm.ts | vm | Derives budget chips, payload and spend bar |
@@ -17,7 +18,7 @@ mutations in a full-height master-detail surface.
 | HooksPanel.test.tsx | test | Tests hook layout, gating and the test runner |
 | hooks-panel-vm.ts | vm | Filters, groups, validates and builds hook mutation args |
 | hooks-panel-vm.test.ts | test | Unit tests for the hooks panel view model |
-| platform-env.ts | vm | Maps redacted env keys to safe settings rows |
-| platform-env.test.ts | test | Unit tests for env row redaction |
+| platform-env.ts | vm | Indexes redacted env and runtime settings rows |
+| platform-env.test.ts | test | Tests env redaction and settings indexing |
 | settings-nav.ts | vm | Lists settings sections and config sources |
 | settings-ui.tsx | view | Shared card, row, field, button, toggle and radio primitives |

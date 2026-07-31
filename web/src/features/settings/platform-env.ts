@@ -1,9 +1,9 @@
-// input:  redacted environment entries and vocabulary keys
-// output: safe settings rows plus supported environment-key groups
-// pos:    Pure settings model for environment-backed panels
+// input:  redacted env entries, runtime settings, vocabulary keys
+// output: indexed config rows and desktop toggle descriptors
+// pos:    Pure source model for environment and runtime settings panels
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { ConfigEnvEntry } from '@cortex-agent/ui-contract';
+import type { ConfigEnvEntry, ConfigSettingEntry } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
 // Pure helpers for the redacted .env view (Platform / Notifications / Advanced panels).
@@ -40,22 +40,25 @@ export function hasAnyKey(env: ConfigEnvEntry[], prefix: string): boolean {
   return env.some((e) => e.key.startsWith(prefix) && e.present);
 }
 
+export type SettingKey = ConfigSettingEntry['key'];
+export type SettingsIndex = Partial<Record<SettingKey, ConfigSettingEntry>>;
+
+export function indexSettings(settings: ConfigSettingEntry[] | undefined): SettingsIndex {
+  const out: SettingsIndex = {};
+  for (const entry of settings ?? []) out[entry.key] = entry;
+  return out;
+}
+
+export function getSetting(index: SettingsIndex, key: SettingKey): ConfigSettingEntry | undefined {
+  return index[key];
+}
+
 // ── Prototype key groups (Platform panel cards, L756–807) — used to render the design's exact
 // rows against real presence. The prototype showed cleartext mock values; the real contract
 // redacts them, so each present key renders as the mask, absent as a dash. ──────────────────────
 
-export const SLACK_KEYS = [
-  'SLACK_BOT_TOKEN',
-  'SLACK_SIGNING_SECRET',
-  'SLACK_APP_TOKEN',
-  'SLACK_ADMIN_CHANNEL',
-];
-export const FEISHU_KEYS = [
-  'FEISHU_APP_ID',
-  'FEISHU_APP_SECRET',
-  'FEISHU_DOMAIN',
-  'FEISHU_ADMIN_CHANNEL',
-];
+export const SLACK_KEYS = ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET', 'SLACK_APP_TOKEN'];
+export const FEISHU_KEYS = ['FEISHU_APP_ID', 'FEISHU_APP_SECRET', 'FEISHU_DOMAIN'];
 export const API_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL'];
 export const DAEMON_KEYS = [
   'CORTEX_MACHINE',
@@ -65,29 +68,60 @@ export const DAEMON_KEYS = [
   'CORTEX_REPO',
 ];
 
-// Notifications panel toggles (L1049–1063) and Advanced panel flags (L2477–2482). Presence-only;
-// there is no config.set for .env, so these render present/absent and their toggles are inert.
-export const NOTIFY_KEYS = {
-  turn: 'CORTEX_TURN_NOTIFY',
-  resume: 'CORTEX_AUTO_RESUME',
-  compaction: 'CORTEX_NOTIFY_COMPACTION',
-} as const;
+export const WRITABLE_SETTING_KEYS = [
+  'turnNotify',
+  'autoResume',
+  'notifyCompaction',
+  'eventLog',
+  'showToolCalls',
+  'disableUserContext',
+  'serverUpdateDisable',
+] as const;
+export type WritableSettingKey = (typeof WRITABLE_SETTING_KEYS)[number];
 
-export const ADVANCED_FLAGS: { env: string; titleKey: keyof Vocab; descKey: keyof Vocab }[] = [
-  { env: 'DEBUG', titleKey: 'stAdvDebugTitle', descKey: 'stAdvDebugDesc' },
-  { env: 'CORTEX_EVENT_LOG', titleKey: 'stAdvEventLogTitle', descKey: 'stAdvEventLogDesc' },
+export interface SettingToggleDescriptor {
+  setting: WritableSettingKey;
+  titleKey: keyof Vocab;
+  descKey: keyof Vocab;
+}
+
+export const NOTIFY_SETTINGS: SettingToggleDescriptor[] = [
+  { setting: 'turnNotify', titleKey: 'stNotifyTurnTitle', descKey: 'stNotifyTurnDesc' },
+  { setting: 'autoResume', titleKey: 'stNotifyResumeTitle', descKey: 'stNotifyResumeDesc' },
   {
-    env: 'CORTEX_SHOW_TOOL_CALLS',
+    setting: 'notifyCompaction',
+    titleKey: 'stNotifyCompactionTitle',
+    descKey: 'stNotifyCompactionDesc',
+  },
+];
+
+export type AdvancedFlag =
+  | { kind: 'env'; env: 'DEBUG'; titleKey: keyof Vocab; descKey: keyof Vocab }
+  | ({ kind: 'setting' } & SettingToggleDescriptor);
+
+export const ADVANCED_FLAGS: AdvancedFlag[] = [
+  { kind: 'env', env: 'DEBUG', titleKey: 'stAdvDebugTitle', descKey: 'stAdvDebugDesc' },
+  {
+    kind: 'setting',
+    setting: 'eventLog',
+    titleKey: 'stAdvEventLogTitle',
+    descKey: 'stAdvEventLogDesc',
+  },
+  {
+    kind: 'setting',
+    setting: 'showToolCalls',
     titleKey: 'stAdvToolCallsTitle',
     descKey: 'stAdvToolCallsDesc',
   },
   {
-    env: 'CORTEX_DISABLE_USER_CONTEXT',
+    kind: 'setting',
+    setting: 'disableUserContext',
     titleKey: 'stAdvDisableUserTitle',
     descKey: 'stAdvDisableUserDesc',
   },
   {
-    env: 'CORTEX_SERVER_UPDATE_DISABLE',
+    kind: 'setting',
+    setting: 'serverUpdateDisable',
     titleKey: 'stAdvDisableUpdateTitle',
     descKey: 'stAdvDisableUpdateDesc',
   },
