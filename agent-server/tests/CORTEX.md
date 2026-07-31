@@ -11,7 +11,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
 | agent-adapter-claude.test.ts | test | Claude CLI composition, hooks, compact and settings |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
-| agent-adapter-pi-event-parser.test.ts | test | PI RPC to normalized event translation |
+| agent-adapter-pi-event-parser.test.ts | test | PI RPC events without invented model metadata |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI native contracts, interaction dispatch, and task guard |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
@@ -19,7 +19,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
-| agent-adapter-pi.test.ts | test | PI framing, spawn, context and compact |
+| agent-adapter-pi.test.ts | test | PI framing, bounded events, context and compact |
 | agent-adapter.test.ts | test | adapter dispatch, capability sets and tool names |
 | agent-retry-classification.test.ts | test | retry policy, outage gates and direct bypass |
 | app.test.ts | test | startup DM notification behaviour |
@@ -94,7 +94,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
-| run-with-adapter.test.ts | test | normalized events and reset-isolated notices |
+| run-with-adapter.test.ts | test | event tee, required sinks and background policy |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |

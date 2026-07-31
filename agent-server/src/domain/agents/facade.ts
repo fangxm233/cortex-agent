@@ -1,11 +1,19 @@
 // input:  configuration, adapters, profiles, settings
-// output: attributed runs, resolved spawn policy, notices
-// pos:    Backend-neutral agent spawn facade
+// output: attributed runs, observer streams, spawn policy
+// pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { getAdapter, resolveMcpComposition } from '../../agent-adapter/index.js';
-import type { AgentAdapter, AgentCompactResult, AgentSpawnConfig, Backend, McpComposition } from '../../agent-adapter/index.js';
-import { shouldAwaitBgInline, waitForBgContinuation } from '../../agent-adapter/bg-wait.js';
+import type {
+  AgentAdapter, AgentCompactResult, AgentProcess, AgentSpawnConfig, Backend, McpComposition,
+  NormalizedEvent,
+} from '../../agent-adapter/index.js';
+import {
+  canAwaitBgContinuation, shouldAwaitBgInline, waitForBgContinuation,
+} from '../../agent-adapter/bg-wait.js';
+import {
+  consumeEventStream, createProcessCloser, createRunEventTee, settleEventfulRun,
+} from '../../agent-adapter/event-tee.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, ContextUsage } from '@core/types/agent-types.js';
@@ -185,6 +193,11 @@ export interface AgentConfig {
   thinking?: string | null;
 }
 
+export interface RunObserver {
+  onEvent(event: NormalizedEvent): void;
+  onClose?(): void | Promise<void>;
+}
+
 export interface RunAgentOptions {
   profileName?: string | null;
   /** Backend resume target (Claude `--resume` / PI `--session`). null → fresh (backend self-assigns
@@ -196,6 +209,12 @@ export interface RunAgentOptions {
   sessionKey?: string | null;
   channel?: string;
   files?: unknown[];
+  /** Best-effort synchronous event observers; failures are logged and ignored. */
+  observers?: RunObserver[];
+  /** Synchronous event sinks whose write or close failure aborts the run. */
+  requiredSinks?: RunObserver[];
+  /** Explicit background policy. Undefined preserves the legacy thread-keyed decision. */
+  awaitBackground?: boolean;
   /** Absolute working directory resolved by the caller for the backend process. */
   cwd?: string;
   callbackSource?: string | null;
@@ -350,6 +369,147 @@ function buildSpawnConfig(
   };
 }
 
+type LegacyEventHandler = (event: any) => void | Promise<void>;
+
+class LegacyEventDispatcher {
+  private active = true;
+  private readonly handlers: Partial<Record<NormalizedEvent['type'], LegacyEventHandler>>;
+
+  constructor(
+    private readonly adapter: AgentAdapter,
+    private readonly options: RunAgentOptions,
+    private readonly config: AgentConfig,
+    private readonly spawnConfig: AgentSpawnConfig,
+  ) {
+    this.handlers = {
+      session_started: (event) => this.sessionStarted(event),
+      assistant_text: (event) => this.assistantText(event),
+      assistant_delta: (event) => this.assistantDelta(event),
+      tool_use: (event) => this.toolUse(event),
+      tool_result: (event) => this.toolResult(event),
+      turn_progress: (event) => this.turnProgress(event),
+      context_usage: (event) => this.contextUsage(event),
+      turn_complete: (event) => this.turnComplete(event),
+      cost_record: (event) => this.costRecord(event),
+      context_compacted: () => this.contextCompacted(),
+      plan_written: (event) => this.planWritten(event),
+      ask_user_question: (event) => this.askUserQuestion(event),
+    };
+  }
+
+  async dispatch(event: NormalizedEvent): Promise<void> {
+    if (!this.active) return;
+    await this.handlers[event.type]?.(event);
+  }
+
+  private sessionStarted(event: Extract<NormalizedEvent, { type: 'session_started' }>): void {
+    if (!this.options.channel?.startsWith('web:')) return;
+    if (!this.spawnConfig.resume || !this.spawnConfig.sessionId) return;
+    if (event.sessionId === this.spawnConfig.sessionId) return;
+    this.options.onAssistantMessage?.(t('notify.backendSessionReset'), undefined, 'warning');
+  }
+
+  private assistantText(event: Extract<NormalizedEvent, { type: 'assistant_text' }>): void {
+    this.options.onAssistantMessage?.(event.text, event.blockId, assistantNoticeLevel(event.text));
+  }
+
+  private assistantDelta(event: Extract<NormalizedEvent, { type: 'assistant_delta' }>): void {
+    this.options.onAssistantDelta?.(event.text, event.blockId);
+  }
+
+  private toolUse(event: Extract<NormalizedEvent, { type: 'tool_use' }>): void {
+    this.options.onToolUse?.(event.name, event.input, event.toolUseId);
+  }
+
+  private toolResult(event: Extract<NormalizedEvent, { type: 'tool_result' }>): void {
+    this.options.onToolResult?.(event.toolUseId, event.content, !event.ok);
+  }
+
+  private progress(numTurns: number, totalCostUsd: number | null): void {
+    this.options.onProgress?.({ num_turns: numTurns, total_cost_usd: totalCostUsd, duration_ms: null });
+  }
+
+  private turnProgress(event: Extract<NormalizedEvent, { type: 'turn_progress' }>): void {
+    this.progress(event.numTurns, null);
+  }
+
+  private async contextUsage(event: Extract<NormalizedEvent, { type: 'context_usage' }>): Promise<void> {
+    await this.options.onContextUsage?.({
+      usedTokens: event.usedTokens,
+      contextWindow: event.contextWindow,
+      percent: event.percent,
+      accuracy: event.accuracy,
+    });
+  }
+
+  private turnComplete(event: Extract<NormalizedEvent, { type: 'turn_complete' }>): void {
+    this.progress(event.numTurns, event.totalCostUsd);
+    this.active = false;
+  }
+
+  private costRecord(event: Extract<NormalizedEvent, { type: 'cost_record' }>): void {
+    void recordCost({
+      project: this.options.project || 'general',
+      trigger: this.options.trigger || 'unknown',
+      cost_usd: event.cost_usd,
+      backend: this.adapter.backend,
+      mode: this.config.mode || 'api',
+      source: 'estimate',
+      input_tokens: event.tokens_in,
+      output_tokens: event.tokens_out,
+      provider: event.provider || undefined,
+      model: event.model || undefined,
+    }).catch(err => log.warn('recordCost failed:', (err as Error)?.message ?? err));
+  }
+
+  private contextCompacted(): void {
+    if (!getSettings().notifyCompaction) return;
+    this.options.onAssistantMessage?.(t('notify.contextCompacted'), undefined, 'info');
+  }
+
+  private planWritten(event: Extract<NormalizedEvent, { type: 'plan_written' }>): void {
+    this.options.onPlanWritten?.({ path: event.path, content: event.content, toolUseId: event.toolUseId });
+  }
+
+  private askUserQuestion(event: Extract<NormalizedEvent, { type: 'ask_user_question' }>): void {
+    this.options.onAskUserQuestion?.({ toolUseId: event.toolUseId, questions: event.questions });
+  }
+}
+function shouldAwaitRunBackground(
+  adapter: AgentAdapter,
+  options: RunAgentOptions,
+  result: AgentResult,
+  proc: AgentProcess,
+): boolean {
+  const canRegisterSink = typeof proc.setContinuationSink === 'function';
+  if (options.awaitBackground === false) return false;
+  if (options.awaitBackground === true) {
+    return canAwaitBgContinuation(adapter.backend, result, canRegisterSink);
+  }
+  return shouldAwaitBgInline(adapter.backend, options.threadId, result, canRegisterSink);
+}
+
+async function resolveRunResult(
+  turnPromise: Promise<AgentResult>,
+  adapter: AgentAdapter,
+  options: RunAgentOptions,
+  proc: AgentProcess,
+  onContinuationEvent: (event: NormalizedEvent) => void,
+): Promise<AgentResult> {
+  const result = await turnPromise;
+  if (!shouldAwaitRunBackground(adapter, options, result, proc)) return result;
+  log.info(`agent turn ${options.threadId ?? proc.sessionId ?? 'direct'} has background work remaining — waiting inline`);
+  return waitForBgContinuation({
+    proc,
+    baseResult: result,
+    onAssistantText: options.onAssistantMessage ?? null,
+    onToolUse: options.onToolUse ?? null,
+    onToolResult: options.onToolResult ?? null,
+    onContextUsage: options.onContextUsage ?? null,
+    onEvent: onContinuationEvent,
+  });
+}
+
 export function runWithAdapter(
   adapter: AgentAdapter,
   message: string,
@@ -359,136 +519,23 @@ export function runWithAdapter(
 ): AgentHandle {
   const spawnConfig = buildSpawnConfig(options, config, anthropicBaseUrl);
   const proc = adapter.spawn(spawnConfig);
-
-  const attachments = (options.files || []).map((f: any) => ({
-    mimeType: f.mimetype ?? f.mimeType,
-    path: f.localPath ?? f.path,
+  const attachments = (options.files || []).map((file: any) => ({
+    mimeType: file.mimetype ?? file.mimeType,
+    path: file.localPath ?? file.path,
   }));
   const turnPromise = proc.send({ text: message, attachments });
-
-  // Drive legacy callbacks from the normalized event stream
-  const eventLoop = (async (): Promise<void> => {
-    try {
-      for await (const event of proc.events) {
-        switch (event.type) {
-          case 'session_started': {
-            // A resumed backend may recover from a missing/stale target by creating a new session.
-            // The changed identity is structured evidence of context discontinuity; same-id resume
-            // and ordinary fresh starts stay silent.
-            const changedWebResume = options.channel?.startsWith('web:')
-              && spawnConfig.resume
-              && spawnConfig.sessionId
-              && event.sessionId !== spawnConfig.sessionId;
-            if (changedWebResume) {
-              options.onAssistantMessage?.(t('notify.backendSessionReset'), undefined, 'warning');
-            }
-            break;
-          }
-          case 'assistant_text':
-            options.onAssistantMessage?.(event.text, event.blockId, assistantNoticeLevel(event.text));
-            break;
-          case 'assistant_delta':
-            // Token-level preview. Only surfaces where a caller opted in by passing the callback —
-            // Slack / Feishu / Ink-TUI pass none, so no partial text can reach OutputStream.
-            options.onAssistantDelta?.(event.text, event.blockId);
-            break;
-          case 'tool_use':
-            options.onToolUse?.(event.name, event.input, event.toolUseId);
-            break;
-          case 'tool_result':
-            options.onToolResult?.(event.toolUseId, event.content, !event.ok);
-            break;
-          case 'turn_progress':
-            options.onProgress?.({
-              num_turns: event.numTurns,
-              total_cost_usd: null,
-              duration_ms: null,
-            });
-            break;
-          case 'context_usage':
-            await options.onContextUsage?.({
-              usedTokens: event.usedTokens,
-              contextWindow: event.contextWindow,
-              percent: event.percent,
-              accuracy: event.accuracy,
-            });
-            break;
-          case 'turn_complete':
-            options.onProgress?.({
-              num_turns: event.numTurns,
-              total_cost_usd: event.totalCostUsd,
-              duration_ms: null,
-            });
-            return;
-          case 'cost_record':
-            // All three backends emit cost_record via their event parser/adapter.
-            // This is the single recording point for all LLM costs.
-            recordCost({
-              project: options.project || 'general',
-              trigger: options.trigger || 'unknown',
-              cost_usd: event.cost_usd,
-              backend: adapter.backend,
-              mode: config.mode || 'api',
-              source: 'estimate',
-              input_tokens: event.tokens_in,
-              output_tokens: event.tokens_out,
-              provider: event.provider || undefined,
-              model: event.model || undefined,
-            }).catch(err => log.warn('recordCost failed:', (err as Error)?.message ?? err));
-            break;
-          case 'context_compacted':
-            // Off by default; when enabled, preserve the text path used by every platform while
-            // giving chat clients explicit presentation semantics instead of an emoji convention.
-            if (getSettings().notifyCompaction) {
-              options.onAssistantMessage?.(t('notify.contextCompacted'), undefined, 'info');
-            }
-            break;
-          case 'plan_written':
-            options.onPlanWritten?.({ path: event.path, content: event.content, toolUseId: event.toolUseId });
-            break;
-          case 'ask_user_question':
-            options.onAskUserQuestion?.({ toolUseId: event.toolUseId, questions: event.questions });
-            break;
-          default:
-            break;
-        }
-      }
-    } catch (e: any) {
-      log.warn('runWithAdapter event loop error:', e?.message ?? e);
-    }
-  })();
-
-  const promise: Promise<AgentResult> = (async () => {
-    try {
-      const [result] = await Promise.all([turnPromise, eventLoop]);
-      // Thread/dispatch turns (threadId set) wait INLINE for background-task continuations:
-      // a thread step's deliverable is its result, so the step must not complete while a
-      // run_in_background task is still running — the continuation output belongs to it.
-      // (Interactive turns return immediately; orchestration/lifecycle holds their status
-      // asynchronously.) Registration is race-free here: the sink lands within the same
-      // microtask drain as the result line, before the CLI's next stdout line is processed.
-      if (shouldAwaitBgInline(adapter.backend, options.threadId, result, typeof proc.setContinuationSink === 'function')) {
-        log.info(`thread turn ${options.threadId} has background work remaining — waiting inline for the continuation`);
-        return await waitForBgContinuation({
-          proc,
-          baseResult: result,
-          onAssistantText: options.onAssistantMessage ?? null,
-          onToolUse: options.onToolUse ?? null,
-          onToolResult: options.onToolResult ?? null,
-          onContextUsage: options.onContextUsage ?? null,
-        });
-      }
-      return result;
-    } catch (err) {
-      await eventLoop.catch(() => {});
-      throw err;
-    } finally {
-      await proc.close().catch(() => {});
-    }
-  })();
+  const closeProcess = createProcessCloser(proc);
+  const legacy = new LegacyEventDispatcher(adapter, options, config, spawnConfig);
+  const tee = createRunEventTee(proc, options.observers ?? [], options.requiredSinks ?? []);
+  const eventLoop = consumeEventStream({
+    proc, tee, onEvent: (event) => legacy.dispatch(event),
+  });
+  const resultPromise = resolveRunResult(turnPromise, adapter, options, proc, (event) => {
+    tee.dispatch(event);
+  });
 
   return {
-    promise,
+    promise: settleEventfulRun(resultPromise, eventLoop, () => tee.close(), closeProcess),
     kill: (): boolean => proc.kill(),
     get sessionId(): string | null { return proc.sessionId; },
     agentProcess: proc,

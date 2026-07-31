@@ -1,6 +1,6 @@
-// input:  session context, streams, spawn policy, usage
-// output: Claude turns, cwd, composition, compact control
-// pos:    Claude print and interactive adapter
+// input:  session streams, spawn config, usage
+// output: Claude normalized turns and session controls
+// pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { spawn, ChildProcess } from 'child_process';
@@ -68,7 +68,7 @@ interface PendingTurn {
   onProgress: ((progress: any) => void) | null;
   /** Complete assistant text block. `blockId` ties it to the deltas that streamed it (absent when
    *  nothing streamed — kill switch, older CLI, or a reply that produced no partial messages). */
-  onAssistantMessage: ((text: string, blockId?: string) => void) | null;
+  onAssistantMessage: ((text: string, blockId?: string, model?: string | null) => void) | null;
   /** Incremental text chunk while a block is still being generated (never the accumulated total).
    *  Web UI preview only — the complete message above stays authoritative. */
   onAssistantDelta: ((text: string, blockId: string) => void) | null;
@@ -487,7 +487,10 @@ class ClaudeSession {
       longestOutput: null,
       turnCount: 0,
       onProgress: null,
-      onAssistantMessage: sink ? (text: string) => { try { sink.onAssistantText(text); } catch (e) { log.warn('continuation onAssistantText threw:', (e as Error).message); } } : null,
+      onAssistantMessage: sink ? (text: string, _blockId?: string, model?: string | null) => {
+        try { sink.onAssistantText(text, model); }
+        catch (e) { log.warn('continuation onAssistantText threw:', (e as Error).message); }
+      } : null,
       // A spontaneous background-task continuation has no caller awaiting it and reaches the UI
       // through the sink's complete messages only — nothing streams a preview for it.
       onAssistantDelta: null,
@@ -539,7 +542,7 @@ class ClaudeSession {
     scheduleTaskId?: string | null;
     isUserInitiated?: boolean;
     onProgress?: ((progress: any) => void) | null;
-    onAssistantMessage?: ((text: string, blockId?: string) => void) | null;
+    onAssistantMessage?: ((text: string, blockId?: string, model?: string | null) => void) | null;
     onAssistantDelta?: ((text: string, blockId: string) => void) | null;
     onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
     onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
@@ -684,39 +687,40 @@ class ClaudeSession {
     }
   }
 
+  private handleAssistantToolBlock(turn: PendingTurn, block: any): void {
+    if (block.name === 'Write' && isPlanFilePath(block.input?.file_path)) {
+      turn.planFilePath = block.input.file_path;
+      setActivePlanFile(this.sessionId, block.input.file_path);
+    }
+    if (block.name === 'EnterPlanMode') turn.enteredPlanMode = true;
+    if (block.name === 'ExitPlanMode') turn.exitedPlanMode = true;
+    if (typeof turn.onToolUse !== 'function') return;
+    try {
+      turn.onToolUse(block.name || '?', block.input || {}, typeof block.id === 'string' ? block.id : '');
+    } catch (error) {
+      log.warn('onToolUse threw:', (error as Error).message);
+    }
+  }
+
+  private handleAssistantTextBlock(turn: PendingTurn, data: any, block: any): void {
+    if (!block.text) return;
+    turn.finalOutput = block.text;
+    if (block.text.length > (turn.longestOutput?.length || 0)) turn.longestOutput = block.text;
+    const blockId = takeTextBlockId(this.streamDeltaState) ?? undefined;
+    const streamedModel = this.streamDeltaState.messageId === data.message?.id
+      ? this.streamDeltaState.model
+      : null;
+    const model = typeof data.message?.model === 'string' ? data.message.model : streamedModel;
+    turn.onAssistantMessage?.(block.text, blockId, model);
+  }
+
   private handleAssistantEvent(turn: PendingTurn, data: any): void {
     turn.turnCount += 1;
     for (const block of (data.message?.content || [])) {
-      if (block.type === 'tool_use') {
-        if (block.name === 'Write' && isPlanFilePath(block.input?.file_path)) {
-          turn.planFilePath = block.input.file_path;
-          setActivePlanFile(this.sessionId, block.input.file_path);
-        }
-        if (block.name === 'EnterPlanMode') {
-          turn.enteredPlanMode = true;
-        }
-        if (block.name === 'ExitPlanMode') {
-          turn.exitedPlanMode = true;
-        }
-        if (typeof turn.onToolUse === 'function') {
-          try { turn.onToolUse(block.name || '?', block.input || {}, typeof block.id === 'string' ? block.id : ''); }
-          catch (e) { log.warn('onToolUse threw:', (e as Error).message); }
-        }
-      }
-      if (block.type === 'text' && block.text) {
-        turn.finalOutput = block.text;
-        if (block.text.length > (turn.longestOutput?.length || 0)) turn.longestOutput = block.text;
-        // Adopt the id of the text block that just streamed, so the UI can replace its accumulated
-        // preview with this authoritative text instead of appending a second row. The block's own
-        // position in `message.content` cannot serve: the CLI sends one assistant event per block,
-        // so that position is always 0 while the streamed index may be any number.
-        const blockId = takeTextBlockId(this.streamDeltaState) ?? undefined;
-        if (typeof turn.onAssistantMessage === 'function') turn.onAssistantMessage(block.text, blockId);
-      }
+      if (block.type === 'tool_use') this.handleAssistantToolBlock(turn, block);
+      if (block.type === 'text') this.handleAssistantTextBlock(turn, data, block);
     }
-    if (typeof turn.onProgress === 'function') {
-      turn.onProgress({ num_turns: turn.turnCount, total_cost_usd: null, duration_ms: null });
-    }
+    turn.onProgress?.({ num_turns: turn.turnCount, total_cost_usd: null, duration_ms: null });
   }
 
   private emitContextUsage(data: unknown): void {
@@ -1169,8 +1173,12 @@ export class ClaudeAdapter implements AgentAdapter {
         try {
           const result = await session.sendMessage(message.text, {
             files,
-            onAssistantMessage: (text: string, blockId?: string) =>
-              stream.push({ type: 'assistant_text', text, ...(blockId ? { blockId } : {}) }),
+            onAssistantMessage: (text: string, blockId?: string, model?: string | null) =>
+              stream.push({
+                type: 'assistant_text', text,
+                ...(blockId ? { blockId } : {}),
+                ...(model != null ? { model } : {}),
+              }),
             // Token-level preview of the block above. Same FIFO stream, so every delta is delivered
             // before the complete message that supersedes it.
             onAssistantDelta: (text: string, blockId: string) =>
@@ -1223,6 +1231,7 @@ export class ClaudeAdapter implements AgentAdapter {
             numTurns: result.num_turns ?? 0,
             totalCostUsd: result.total_cost_usd ?? null,
           });
+          stream.close();
           return result;
         } catch (err: any) {
           if (!err?.cancelled) {
@@ -1275,6 +1284,7 @@ export class ClaudeAdapter implements AgentAdapter {
             files,
             onEvent: (ev: NormalizedEvent) => stream.push(ev),
           });
+          stream.close();
           // TuiAgentResult shape lines up with AgentResult — only structural cast needed.
           return tuiResult as unknown as AgentResult;
         } catch (err: any) {

@@ -1,9 +1,9 @@
-// input:  fake adapters, continuation context, runtime settings
-// output: normalized callbacks and settings notice regressions
-// pos:    Covers backend-neutral event dispatch
+// input:  fake adapters, observers, continuations, settings
+// output: event tee, sink, callback, and background regressions
+// pos:    Covers backend-neutral run event semantics
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { _test as modeManagerTest, isRetryableResult } from '../src/domain/agents/index.js';
@@ -16,13 +16,12 @@ import { resetSettingsForTests } from '../src/core/settings.js';
 
 const { runWithAdapter } = modeManagerTest;
 
-// --- Fake adapter infrastructure ---
-
 interface FakeProcessSpec {
   /** Events to emit in order (push into stream as soon as send() is called). */
   events: NormalizedEvent[];
   /** If present, send() resolves with this AgentResult after emitting events. */
   resultOnResolve?: AgentResult;
+  afterResolveEvents?: NormalizedEvent[];
   /** If present, send() rejects with this error after emitting events (overrides resultOnResolve). */
   errorOnReject?: Error & { cancelled?: boolean };
   /** Track calls; populated by the fake. */
@@ -68,8 +67,15 @@ function makeFakeProcess(spec: FakeProcessSpec): AgentProcess {
         close();
         throw spec.errorOnReject;
       }
-      const result = spec.resultOnResolve ?? defaultAgentResult('fake-session-id');
-      return result;
+      if (spec.afterResolveEvents) {
+        setImmediate(() => {
+          for (const event of spec.afterResolveEvents!) push(event);
+          close();
+        });
+      } else {
+        close();
+      }
+      return spec.resultOnResolve ?? defaultAgentResult('fake-session-id');
     },
     events,
     async close(): Promise<void> {
@@ -110,8 +116,6 @@ function defaultAgentResult(sessionId: string): AgentResult {
     finalOutput: null,
   };
 }
-
-// --- Happy path: assistant_text + tool_use + turn_complete dispatch to callbacks in order ---
 
 test('runWithAdapter: assistant_text / tool_use / turn_complete drive callbacks in order and AgentResult flows through', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
@@ -327,8 +331,6 @@ test('runWithAdapter: tool_result preserves full multiline content, error status
   assert.deepEqual(seen, [{ toolUseId: 'toolu-result', content: 'first line\nsecond line\nthird line', isError: true }]);
 });
 
-// --- FIFO ordering: tool_use then assistant_text fires callbacks in that order (T2 plan-review) ---
-
 test('runWithAdapter: tool_use → assistant_text arrives to callbacks in FIFO order', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
   const adapter = makeFakeAdapter('claude', {
@@ -358,7 +360,91 @@ test('runWithAdapter: tool_use → assistant_text arrives to callbacks in FIFO o
   assert.deepEqual(log, ['tool:Read', 'text:after tool'], 'FIFO: tool event fires before subsequent text');
 });
 
-// --- Rate-limited path: send() resolves with rateLimited=true; outer fallback sees it (T1 Blocker) ---
+test('runWithAdapter: observers synchronously receive the complete source stream while legacy callbacks stop at completion', async () => {
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const initial: NormalizedEvent[] = [
+    { type: 'session_started', sessionId: 's-observed' },
+    { type: 'assistant_text', text: 'before completion', model: 'claude-reported-fixture' },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 },
+  ];
+  const tail: NormalizedEvent[] = [
+    { type: 'tool_use', toolUseId: 'late', name: 'Read', input: { file_path: '/late' } }];
+  const source = [...initial, ...tail];
+  const adapter = makeFakeAdapter('claude', {
+    events: initial, afterResolveEvents: tail,
+    resultOnResolve: defaultAgentResult('s-observed'), recorded,
+  });
+  const observed: NormalizedEvent[] = [], order: string[] = [];
+  let closed = 0;
+  await runWithAdapter(adapter, 'msg', {
+    observers: [{
+      onEvent: (event) => { observed.push(event); order.push(`observer:${event.type}`); },
+      onClose: () => { closed += 1; },
+    }],
+    onAssistantMessage: () => order.push('legacy:assistant_text'),
+    onProgress: () => order.push('legacy:turn_complete'),
+    onToolUse: () => order.push('legacy:tool_use'),
+  }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
+
+  assert.deepEqual(observed, source);
+  assert.deepEqual(order, [
+    'observer:session_started', 'observer:assistant_text', 'legacy:assistant_text',
+    'observer:turn_complete', 'legacy:turn_complete', 'observer:tool_use',
+  ]);
+  assert.equal(closed, 1);
+});
+test('runWithAdapter: a throwing legacy callback cannot truncate observer delivery', async () => {
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const seen: string[] = [];
+  const events: NormalizedEvent[] = [
+    { type: 'assistant_text', text: 'legacy throws' },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
+    { type: 'error', message: 'tail', fatal: false }];
+  await runWithAdapter(makeFakeAdapter('claude', { events, recorded }), 'msg', {
+    observers: [{ onEvent: (event) => seen.push(event.type) }],
+    onAssistantMessage: () => { throw new Error('legacy callback failed'); },
+  }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
+  assert.deepEqual(seen, events.map((event) => event.type));
+});
+
+test('runWithAdapter: throwing diagnostics observers are logged without breaking other observers', async (t) => {
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const source: NormalizedEvent[] = [
+    { type: 'assistant_text', text: 'ok' },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: null }];
+  const seen: string[] = [], warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  t.onTestFinished(() => warn.mockRestore());
+  const result = await runWithAdapter(makeFakeAdapter('claude', {
+    events: source, resultOnResolve: defaultAgentResult('s-diagnostics'), recorded,
+  }), 'msg', { observers: [
+    { onEvent: () => { throw new Error('diagnostics failed'); } },
+    { onEvent: (event) => seen.push(event.type) },
+  ] }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
+  assert.equal(result.sessionId, 's-diagnostics');
+  assert.deepEqual(seen, source.map((event) => event.type));
+  assert.ok(warn.mock.calls.some((call) => call.some((value) => String(value).includes('diagnostics failed'))));
+});
+
+test.each(['write', 'close'] as const)('runWithAdapter: required sink %s failure kills and rejects the run', async (failure) => {
+  const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
+  const sink = {
+    onEvent: () => { if (failure === 'write') throw new Error('sink write failed'); },
+    onClose: async () => { if (failure === 'close') throw new Error('sink close failed'); },
+  };
+  let completed = false;
+  const promise = runWithAdapter(makeFakeAdapter('claude', {
+    events: [
+      { type: 'assistant_text', text: 'partial' },
+      { type: 'turn_complete', numTurns: 1, totalCostUsd: null },
+    ],
+    resultOnResolve: defaultAgentResult('s-required'), recorded,
+  }), 'msg', { requiredSinks: [sink] }, { model: 'm', backend: 'claude', mode: null }, undefined)
+    .promise.then((result) => { completed = true; return result; });
+  await assert.rejects(promise, (error: Error & { reason?: string }) =>
+    error.reason === 'trajectory_write_failed' && error.cause instanceof Error);
+  assert.equal(recorded.killed, true);
+  assert.equal(completed, false);
+});
 
 test('runWithAdapter: rateLimited AgentResult passes through so runAgent outer fallback can retry', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
@@ -397,8 +483,6 @@ test('runWithAdapter: rateLimited AgentResult passes through so runAgent outer f
   assert.equal(isRetryableResult(result), true, 'isRetryableResult matches the runAgent outer fallback trigger');
 });
 
-// --- AgentResult.askUserQuestions passthrough (T3 plan-review) ---
-
 test('runWithAdapter: askUserQuestions on AgentResult survives through handle.promise', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
   const result: AgentResult = {
@@ -429,8 +513,6 @@ test('runWithAdapter: askUserQuestions on AgentResult survives through handle.pr
   assert.equal(final.askUserQuestions!.length, 1);
   assert.equal(final.askUserQuestions![0].toolUseId, 'q-1');
 });
-
-// --- context_compacted: gated by CORTEX_NOTIFY_COMPACTION (default off) ---
 
 test('runWithAdapter: context_compacted notifies via onAssistantMessage only when CORTEX_NOTIFY_COMPACTION=1', async (t) => {
   const prev = process.env.CORTEX_NOTIFY_COMPACTION;
@@ -471,11 +553,6 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
   ).promise;
   assert.deepEqual(onMsgs, ['Context auto-compacted.']);
 });
-
-// --- Thread-session inline background-task wait (2026-07-10) ---
-// A thread step (options.threadId set) whose turn left background work remaining must NOT
-// resolve until the spontaneous continuation completes — mirroring the interactive hold.
-// Interactive turns (threadId null) keep the async lifecycle-hold path and resolve immediately.
 
 interface SinkCapableSpec extends FakeProcessSpec { sinks: any[] }
 
@@ -540,6 +617,49 @@ test('runWithAdapter: thread turn with pending background task waits for the con
   assert.deepEqual(contextWindows, [1_000_000], 'continuation context uses the same callback path');
 });
 
+test('runWithAdapter: awaitBackground true waits without a threadId', async () => {
+  const spec: SinkCapableSpec = {
+    events: [{ type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 }],
+    resultOnResolve: { ...defaultAgentResult('s-explicit-bg'), pendingBackgroundTasks: 1 },
+    recorded: { sendCalls: [], killed: false, closed: false }, sinks: [],
+  };
+  const observed: NormalizedEvent[] = [];
+  let sinkClosed = 0;
+  const handle = runWithAdapter(makeSinkCapableAdapter('claude', spec), 'msg', {
+    awaitBackground: true,
+    requiredSinks: [{
+      onEvent: (event) => observed.push(event),
+      onClose: () => { sinkClosed += 1; },
+    }],
+  }, { model: 'm', backend: 'claude', mode: null }, undefined);
+  let resolved = false;
+  void handle.promise.then(() => { resolved = true; });
+  for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(resolved, false);
+  assert.equal(sinkClosed, 0, 'required sink stays open while background work is pending');
+  spec.sinks[0].onAssistantText('background text', 'claude-background-model');
+  spec.sinks[0].onResult({ ...defaultAgentResult('s-explicit-bg'), pendingBackgroundTasks: 0 });
+  await handle.promise;
+  assert.deepEqual(observed, [
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 },
+    { type: 'assistant_text', text: 'background text', model: 'claude-background-model' },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0 },
+  ]);
+  assert.equal(sinkClosed, 1);
+});
+
+test('runWithAdapter: awaitBackground false never waits for a thread turn', async () => {
+  const spec: SinkCapableSpec = {
+    events: [{ type: 'turn_complete', numTurns: 1, totalCostUsd: null }],
+    resultOnResolve: { ...defaultAgentResult('s-no-bg'), pendingBackgroundTasks: 1 },
+    recorded: { sendCalls: [], killed: false, closed: false }, sinks: [],
+  };
+  await runWithAdapter(makeSinkCapableAdapter('claude', spec), 'msg',
+    { threadId: 'thr_no_wait', awaitBackground: false },
+    { model: 'm', backend: 'claude', mode: null }, undefined).promise;
+  assert.equal(spec.sinks.length, 0);
+});
+
 test('runWithAdapter: interactive turn (no threadId) with pending background task resolves immediately', async () => {
   const spec: SinkCapableSpec = {
     events: [{ type: 'turn_complete', numTurns: 1, totalCostUsd: 0.01 }],
@@ -559,8 +679,6 @@ test('runWithAdapter: interactive turn (no threadId) with pending background tas
   assert.equal(final.pendingBackgroundTasks, 1, 'interactive path returns immediately (lifecycle holds the status instead)');
   assert.equal(spec.sinks.length, 0, 'no inline sink for interactive turns');
 });
-
-// --- Error path: send() rejects; handle.promise rejects with the same error ---
 
 test('runWithAdapter: fatal error from send() rejects handle.promise', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
@@ -585,8 +703,6 @@ test('runWithAdapter: fatal error from send() rejects handle.promise', async () 
   assert.equal(recorded.closed, true, 'proc.close() still runs in the finally block on rejection');
 });
 
-// --- Cancellation: handle.kill() invokes proc.kill() and promise rejects ---
-
 test('runWithAdapter: handle.kill() forwards to adapter process.kill()', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };
   const cancelled = Object.assign(new Error('Cancelled by user'), { cancelled: true });
@@ -610,8 +726,6 @@ test('runWithAdapter: handle.kill() forwards to adapter process.kill()', async (
   // catches it explicitly via assert.rejects.
   await assert.rejects(handle.promise, /Cancelled by user/);
 });
-
-// --- assistant_delta: token-level streaming dispatch (UI-only) ---
 
 test('runWithAdapter: assistant_delta drives onAssistantDelta, interleaved with the complete message in FIFO order', async () => {
   const recorded = { sendCalls: [] as UserMessage[], killed: false, closed: false };

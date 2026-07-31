@@ -1,7 +1,7 @@
-// input:  Claude stream-json events (complete + `stream_event` partials), user message, sessionId
-// output: formatters, extractors, buildPrompt, plan-file helpers, stream-delta cursor
-// pos:    Claude event parsing, plan file tracking, and token-level delta extraction
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Claude complete and partial stream events
+// output: prompt helpers and stream cursors
+// pos:    Claude stream event parser
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { readFileSync } from 'fs';
 import { CancelledError, DEFAULT_PLAN_DIRS, PROJECT_SETTINGS } from './defaults.js';
@@ -36,51 +36,49 @@ import { buildPrompt as sharedBuildPrompt } from '../normalize/prompt-builder.js
 export interface StreamDeltaState {
   /** `message.id` of the message being streamed — the first half of every blockId. */
   messageId: string | null;
+  /** Backend-reported model for the current message. */
+  model: string | null;
   /** blockId of the text block currently open, awaiting its complete `assistant` event. */
   textBlockId: string | null;
 }
 
 export function createStreamDeltaState(): StreamDeltaState {
-  return { messageId: null, textBlockId: null };
+  return { messageId: null, model: null, textBlockId: null };
 }
 
-/**
- * Translate one raw stdout line (already JSON-parsed) into an incremental text chunk, advancing
- * `state`. Returns null for every line that is not a non-empty text delta — including all complete
- * events, which keep travelling their existing path untouched.
- *
- * `blockId` is `${message.id}:${content_block_index}` per the streaming contract: stable for one
- * assistant text block and shared with the finalizing message via {@link takeTextBlockId}.
- */
+function observeMessageStart(event: any, state: StreamDeltaState): void {
+  state.messageId = typeof event.message?.id === 'string' ? event.message.id : null;
+  state.model = typeof event.message?.model === 'string' ? event.message.model : null;
+  state.textBlockId = null;
+}
+
+function observeBlockStart(event: any, state: StreamDeltaState): void {
+  if (event.content_block?.type !== 'text' || !state.messageId) return;
+  if (typeof event.index !== 'number') return;
+  state.textBlockId = `${state.messageId}:${event.index}`;
+}
+
+/** Translate a partial stdout event into one text delta while advancing the message cursor. */
 export function parseStreamEvent(
   data: any,
   state: StreamDeltaState,
 ): { text: string; blockId: string } | null {
   if (!data || data.type !== 'stream_event') return null;
-  const ev = data.event;
-  if (!ev || typeof ev.type !== 'string') return null;
-
-  if (ev.type === 'message_start') {
-    state.messageId = typeof ev.message?.id === 'string' ? ev.message.id : null;
-    state.textBlockId = null;
+  const event = data.event;
+  if (!event || typeof event.type !== 'string') return null;
+  if (event.type === 'message_start') {
+    observeMessageStart(event, state);
     return null;
   }
-  if (ev.type === 'content_block_start') {
-    if (ev.content_block?.type === 'text' && state.messageId && typeof ev.index === 'number') {
-      state.textBlockId = `${state.messageId}:${ev.index}`;
-    }
+  if (event.type === 'content_block_start') {
+    observeBlockStart(event, state);
     return null;
   }
-  if (ev.type !== 'content_block_delta') return null;
-  if (ev.delta?.type !== 'text_delta') return null;
-
-  const text = ev.delta.text;
+  if (event.type !== 'content_block_delta' || event.delta?.type !== 'text_delta') return null;
+  const text = event.delta.text;
   if (typeof text !== 'string' || text.length === 0) return null;
-  // No message_start seen (stream joined mid-flight): a blockId would be fabricated and could
-  // never match the finalizing message, so drop the chunk rather than render an orphan row.
-  if (!state.messageId || typeof ev.index !== 'number') return null;
-  const blockId = `${state.messageId}:${ev.index}`;
-  // A delta for a block whose content_block_start was missed still identifies its own block.
+  if (!state.messageId || typeof event.index !== 'number') return null;
+  const blockId = `${state.messageId}:${event.index}`;
   state.textBlockId = blockId;
   return { text, blockId };
 }
