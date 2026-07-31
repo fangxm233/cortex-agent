@@ -47,7 +47,11 @@ markdown_extensions:
   # the toc slugifier strips CJK, so a Chinese-only heading would otherwise get
   # a positional `_N` id that silently shifts whenever a heading is added or
   # removed earlier on the page — and MkDocs logs the resulting dead anchors as
-  # INFO, so even `--strict` does not catch the breakage.
+  # INFO, so even `--strict` does not catch the breakage. The docs-publish
+  # workflow asserts no positional ids survive, so do not delete these slugs:
+  # GitHub does not render attr_list and shows `{#slug}` literally when a
+  # docs/zh source file is opened in the file tree — that is expected, and is
+  # why docs/zh/README.md links to the published site rather than its siblings.
   - attr_list
   - pymdownx.highlight:
       anchor_linenums: true
