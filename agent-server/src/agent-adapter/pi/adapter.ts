@@ -1,4 +1,4 @@
-// input:  spawn config, composition, spawner, settings
+// input:  spawn config, provider cache, spawner, settings
 // output: PI sessions, bounded events, compact, steering
 // pos:    PI backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -17,9 +17,19 @@ import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPiEnv, buildSpawnArgs } from './spawn-args.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, piContextUsageFromStats, type PIEventParserState } from './event-parser.js';
-import { PI_AGENT_DIR, writeProvidersConfig, buildProviderOverrides, ensureAuthVisible } from './agent-dir.js';
+import {
+  PI_AGENT_DIR,
+  writeProvidersConfig,
+  buildProviderOverrides,
+  ensureAuthVisible,
+  type ProviderOverride,
+} from './agent-dir.js';
 import { fromCanonical } from '../normalize/tool-names.js';
-import { discoverPIProviders, findPISessionFilePath } from './discovery.js';
+import {
+  piProviderDiscovery,
+  findPISessionFilePath,
+  type PIProviderDiscovery,
+} from './discovery.js';
 import {
   CLOSE_EXIT_WAIT_MS,
   DEFAULT_PI_BINARY,
@@ -806,13 +816,36 @@ export class PIAdapter implements AgentAdapter {
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.pi;
   private readonly sessions = new Map<string, PISession>();
   private readonly spawner: SpawnFn;
+  private readonly providerDiscovery: PIProviderDiscovery;
+  private readonly configuredProviderOverrides = new Map<string, ProviderOverride>();
   private readonly sessionPathRegistry = new Map<string, string>();
   /** sessionDir for the <sessionId>.jsonl path convention. Exposed for tests. */
   readonly sessionDir: string;
 
-  constructor(spawner: SpawnFn = defaultSpawn, sessionDir: string = DEFAULT_SESSION_DIR) {
+  constructor(
+    spawner: SpawnFn = defaultSpawn,
+    sessionDir: string = DEFAULT_SESSION_DIR,
+    providerDiscovery: PIProviderDiscovery = piProviderDiscovery,
+  ) {
     this.spawner = spawner;
     this.sessionDir = sessionDir;
+    this.providerDiscovery = providerDiscovery;
+  }
+
+  private gatewayOverrides(
+    discovered: string[],
+    currentProvider: string | null,
+    gatewayPath: string | null,
+  ): ProviderOverride[] {
+    if (currentProvider) {
+      const [current] = buildProviderOverrides([], currentProvider, gatewayPath);
+      this.configuredProviderOverrides.set(currentProvider, current);
+    }
+    const byName = new Map(
+      buildProviderOverrides(discovered, null, null).map((override) => [override.name, override]),
+    );
+    for (const override of this.configuredProviderOverrides.values()) byName.set(override.name, override);
+    return Array.from(byName.values());
   }
 
   spawn(config: AgentSpawnConfig): PIAgentProcess {
@@ -865,8 +898,12 @@ export class PIAdapter implements AgentAdapter {
         // uses (config.piProvider). The current provider is always routed through the gateway even
         // when discovery doesn't list it (e.g. an anthropic-protocol relay whose key the gateway
         // injects). config.piGatewayPath, when set, decouples the gateway route from the provider name.
-        const discovered = discoverPIProviders();
-        const overrides = buildProviderOverrides(discovered, config.piProvider ?? null, config.piGatewayPath ?? null);
+        const discovered = this.providerDiscovery.getProviders();
+        const overrides = this.gatewayOverrides(
+          discovered,
+          config.piProvider ?? null,
+          config.piGatewayPath ?? null,
+        );
         if (overrides.length > 0) {
           writeProvidersConfig(overrides, config.piGatewayBaseUrl);
         } else {

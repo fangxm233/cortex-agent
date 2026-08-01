@@ -1,5 +1,5 @@
-// input:  PI adapter hooks and fake subprocesses
-// output: PI spawn, events, context, compact regressions
+// input:  PI adapter hooks, provider cache, fake subprocesses
+// output: PI spawn/cache policy, bounded events, context and compact
 // pos:    Covers PI process and event lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -9,9 +9,11 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { PI_MODELS_PATH } from '../src/agent-adapter/pi/agent-dir.js';
+import { createPIProviderDiscovery } from '../src/agent-adapter/pi/discovery.js';
 import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/framing.js';
 import { buildPiEnv, buildSpawnArgs } from '../src/agent-adapter/pi/spawn-args.js';
 import { CAPABILITIES_BY_BACKEND } from '../src/agent-adapter/capabilities.js';
@@ -290,6 +292,112 @@ test('buildSpawnArgs: provider is omitted when model is not set (no orphan flag)
   // Without --model, --provider is meaningless; omit both
   assert.ok(!args.includes('--provider'));
   assert.ok(!args.includes('--model'));
+});
+
+test('gateway spawns return while one slow discovery warms provider overrides', async () => {
+  let resolveDiscovery!: (providers: string[]) => void;
+  let scans = 0;
+  const slowDiscovery = new Promise<string[]>((resolve) => { resolveDiscovery = resolve; });
+  const discovery = createPIProviderDiscovery({
+    scan: () => {
+      scans += 1;
+      return slowDiscovery;
+    },
+  });
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR, discovery);
+  const processes = [];
+
+  processes.push(adapter.spawn({
+    sessionId: null,
+    sessionKey: 'gateway-cold-anthropic',
+    resume: false,
+    model: 'claude-sonnet-4-6',
+    piProvider: 'anthropic',
+    piGatewayBaseUrl: 'http://127.0.0.1:9880',
+    piGatewayPath: '/m/default/anthropic',
+  }));
+  let models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
+
+  processes.push(adapter.spawn({
+    sessionId: null,
+    sessionKey: 'gateway-cold-deepseek',
+    resume: false,
+    model: 'deepseek-chat',
+    piProvider: 'deepseek',
+    piGatewayBaseUrl: 'http://127.0.0.1:9880',
+    piGatewayPath: '/m/default/deepseek',
+  }));
+  models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek']);
+  assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/default/anthropic');
+  assert.equal(models.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/m/default/deepseek');
+
+  processes.push(adapter.spawn({
+    sessionId: null,
+    sessionKey: 'gateway-cold-no-provider',
+    resume: false,
+    piGatewayBaseUrl: 'http://127.0.0.1:9880',
+  }));
+  models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek']);
+  assert.equal(stub.calls.length, 3, 'all PI subprocesses start before discovery settles');
+
+  await Promise.resolve();
+  assert.equal(scans, 1, 'concurrent cold spawns coalesce provider discovery');
+  resolveDiscovery(['anthropic', 'anthropic', 'openai-codex']);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
+  processes.push(adapter.spawn({
+    sessionId: null,
+    sessionKey: 'gateway-warm-deepseek',
+    resume: false,
+    model: 'deepseek-chat',
+    piProvider: 'deepseek',
+    piGatewayBaseUrl: 'http://127.0.0.1:9880',
+    piGatewayPath: '/m/pro/deepseek',
+  }));
+  models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  assert.deepEqual(Object.keys(models.providers).sort(), ['anthropic', 'deepseek', 'openai-codex']);
+  assert.equal(models.providers.deepseek.baseUrl, 'http://127.0.0.1:9880/m/pro/deepseek');
+  assert.equal(scans, 1, 'fresh cache avoids another list-models call');
+
+  for (const child of stub.children) child.emit('close', 0, null);
+  await Promise.all(processes.map((process) => process.close()));
+});
+
+test('failed gateway discovery preserves current-provider fallback without delaying spawn', async () => {
+  let scans = 0;
+  const discovery = createPIProviderDiscovery({
+    scan: async () => {
+      scans += 1;
+      throw new Error('pi list-models failed');
+    },
+  });
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR, discovery);
+
+  const process = adapter.spawn({
+    sessionId: null,
+    sessionKey: 'gateway-failed-discovery',
+    resume: false,
+    model: 'claude-opus-4-8',
+    piProvider: 'anthropic',
+    piGatewayBaseUrl: 'http://127.0.0.1:9880',
+    piGatewayPath: '/m/gateway/anthropic',
+  });
+
+  assert.equal(stub.calls.length, 1, 'spawn is not gated on discovery failure');
+  const models = JSON.parse(readFileSync(PI_MODELS_PATH, 'utf8'));
+  assert.deepEqual(Object.keys(models.providers), ['anthropic']);
+  assert.equal(models.providers.anthropic.baseUrl, 'http://127.0.0.1:9880/m/gateway/anthropic');
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(scans, 1);
+
+  stub.children[0].emit('close', 0, null);
+  await process.close();
 });
 
 // --- Group C: bootstrap id capture (done-when: first get_state synthesizes session_started) ---

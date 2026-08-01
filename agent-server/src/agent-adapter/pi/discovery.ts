@@ -1,9 +1,9 @@
 // input:  PI model table and session filenames
-// output: provider list and filename session lookup
+// output: cached provider discovery and filename session lookup
 // pos:    PI provider and resume-target discovery
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
 import { readdirSync } from 'fs';
 import * as path from 'path';
 
@@ -13,21 +13,93 @@ import { createLogger } from '@core/log.js';
 
 const log = createLogger('pi-adapter');
 
+export const PI_PROVIDER_CACHE_TTL_MS = 5 * 60_000;
+export const PI_PROVIDER_RETRY_MS = 30_000;
+
+type ProviderScan = () => Promise<string[]>;
+
+export interface PIProviderDiscovery {
+  getProviders(): string[];
+}
+
+export interface PIProviderDiscoveryOptions {
+  scan?: ProviderScan;
+  now?: () => number;
+  cacheTtlMs?: number;
+  retryMs?: number;
+}
+
 /** Discover authenticated PI providers without inheriting Cortex's private agent directory. */
-export function discoverPIProviders(): string[] {
-  try {
-    const stdout = execSync('pi --list-models 2>&1', {
+export function discoverPIProviders(): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    execFile('pi', ['--list-models'], {
       timeout: 10_000,
       encoding: 'utf-8',
       env: { ...process.env, PI_CODING_AGENT_DIR: '' },
+    }, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      const models = parsePiListModelsOutput(`${stdout}\n${stderr}`);
+      resolve(Array.from(new Set(models.map((model) => model.provider))));
     });
-    const providers = new Set(parsePiListModelsOutput(stdout).map((model) => model.provider));
-    return Array.from(providers);
-  } catch (err) {
-    log.info(`pi --list-models failed at spawn: ${(err as Error).message ?? 'unknown'}`);
-    return [];
+  });
+}
+
+class CachedPIProviderDiscovery implements PIProviderDiscovery {
+  private providers: string[] = [];
+  private nextRefreshAt = 0;
+  private inFlight: Promise<void> | null = null;
+
+  constructor(
+    private readonly scan: ProviderScan,
+    private readonly now: () => number,
+    private readonly cacheTtlMs: number,
+    private readonly retryMs: number,
+  ) {}
+
+  getProviders(): string[] {
+    const snapshot = [...this.providers];
+    if (this.now() >= this.nextRefreshAt && !this.inFlight) this.startRefresh();
+    return snapshot;
+  }
+
+  private startRefresh(): void {
+    const refresh = Promise.resolve()
+      .then(this.scan)
+      .then((providers) => this.accept(providers))
+      .catch((error: unknown) => this.reject(error))
+      .finally(() => {
+        if (this.inFlight === refresh) this.inFlight = null;
+      });
+    this.inFlight = refresh;
+  }
+
+  private accept(providers: string[]): void {
+    this.providers = Array.from(new Set(providers));
+    this.nextRefreshAt = this.now() + this.cacheTtlMs;
+  }
+
+  private reject(error: unknown): void {
+    this.nextRefreshAt = this.now() + this.retryMs;
+    const message = error instanceof Error ? error.message : 'unknown';
+    log.info(`pi --list-models refresh failed: ${message}`);
   }
 }
+
+export function createPIProviderDiscovery(
+  options: PIProviderDiscoveryOptions = {},
+): PIProviderDiscovery {
+  return new CachedPIProviderDiscovery(
+    options.scan ?? discoverPIProviders,
+    options.now ?? Date.now,
+    options.cacheTtlMs ?? PI_PROVIDER_CACHE_TTL_MS,
+    options.retryMs ?? PI_PROVIDER_RETRY_MS,
+  );
+}
+
+export const piProviderDiscovery = createPIProviderDiscovery();
 
 /** Resolve PI's exact id-bearing filename without opening transcript bodies. */
 export function findPISessionFilePath(sessionDir: string, sessionId: string): string | null {

@@ -21,7 +21,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
-| agent-adapter-pi.test.ts | test | PI spawn policy, bounded events and context |
+| agent-adapter-pi.test.ts | test | PI spawn/cache policy, events and context |
 | agent-adapter.test.ts | test | adapter dispatch, capability sets and tool names |
 | agent-retry-classification.test.ts | test | retry policy, outage gates and direct bypass |
 | app.test.ts | test | startup DM notification behaviour |
