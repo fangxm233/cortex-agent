@@ -1,10 +1,11 @@
 // input:  mode/profile stores, gateway health, auth classifier
-// output: mode selection, saved API env, retry classifiers
+// output: mode selection, saved API env persistence, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { readFileSync, writeFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
+import { atomicWrite } from '@core/atomic-write.js';
 import * as path from 'path';
 import * as http from 'http';
 import { STORE_DIR, CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
@@ -58,11 +59,16 @@ function normalizeEnvValue(value: unknown): string | undefined {
   return trimmed;
 }
 
+function normalizeApiKey(value: unknown): string | undefined {
+  const key = normalizeEnvValue(value);
+  return key === GATEWAY_MANAGED_KEY_PLACEHOLDER ? undefined : key;
+}
+
 function readApiEnvFromDotenvFile(): ApiEnv {
   try {
     const parsed = parseDotenv(readFileSync(ENV_FILE, 'utf8'));
     return {
-      ANTHROPIC_API_KEY: normalizeEnvValue(parsed.ANTHROPIC_API_KEY),
+      ANTHROPIC_API_KEY: normalizeApiKey(parsed.ANTHROPIC_API_KEY),
       ANTHROPIC_BASE_URL: normalizeEnvValue(parsed.ANTHROPIC_BASE_URL),
     };
   } catch {
@@ -75,12 +81,8 @@ function readApiEnvFromDotenvFile(): ApiEnv {
 
 function captureApiEnvSnapshot(): ApiEnv {
   const fileEnv = readApiEnvFromDotenvFile();
-  // The gateway-managed placeholder is not a real credential — never let it
-  // pollute the saved env used for direct (gateway-down) connections.
-  const liveKey = normalizeEnvValue(process.env.ANTHROPIC_API_KEY);
-  const realLiveKey = liveKey === GATEWAY_MANAGED_KEY_PLACEHOLDER ? undefined : liveKey;
   return {
-    ANTHROPIC_API_KEY: realLiveKey || fileEnv.ANTHROPIC_API_KEY,
+    ANTHROPIC_API_KEY: normalizeApiKey(process.env.ANTHROPIC_API_KEY) || fileEnv.ANTHROPIC_API_KEY,
     ANTHROPIC_BASE_URL: normalizeEnvValue(process.env.ANTHROPIC_BASE_URL) || fileEnv.ANTHROPIC_BASE_URL,
   };
 }
@@ -92,6 +94,42 @@ export function getSavedApiEnv(): ApiEnv {
   if (liveEnv.ANTHROPIC_API_KEY) savedApiEnv.ANTHROPIC_API_KEY = liveEnv.ANTHROPIC_API_KEY;
   if (liveEnv.ANTHROPIC_BASE_URL) savedApiEnv.ANTHROPIC_BASE_URL = liveEnv.ANTHROPIC_BASE_URL;
   return { ...savedApiEnv };
+}
+
+function readDotenvForUpdate(): string {
+  try {
+    return readFileSync(ENV_FILE, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
+    throw error;
+  }
+}
+
+function requireAnthropicApiKey(value: string): string {
+  const key = normalizeApiKey(value);
+  if (!key || /[\s"\\]/.test(key)) throw new Error('Enter a valid Anthropic API key.');
+  return key;
+}
+
+function upsertAnthropicApiKey(contents: string, key: string): string {
+  const assignment = `ANTHROPIC_API_KEY=${JSON.stringify(key)}`;
+  const matcher = /^[ \t]*(?:export[ \t]+)?ANTHROPIC_API_KEY[ \t]*=.*$/m;
+  if (matcher.test(contents)) {
+    return contents.replace(
+      /^[ \t]*(?:export[ \t]+)?ANTHROPIC_API_KEY[ \t]*=.*$/gm,
+      () => assignment,
+    );
+  }
+  const separator = contents.length === 0 || contents.endsWith('\n') ? '' : '\n';
+  return `${contents}${separator}${assignment}\n`;
+}
+
+export async function saveAnthropicApiKey(value: string): Promise<void> {
+  const key = requireAnthropicApiKey(value);
+  const contents = upsertAnthropicApiKey(readDotenvForUpdate(), key);
+  await atomicWrite(ENV_FILE, contents, { mode: 0o600 });
+  savedApiEnv.ANTHROPIC_API_KEY = key;
+  process.env.ANTHROPIC_API_KEY = key;
 }
 
 function applySavedApiEnv(): void {
