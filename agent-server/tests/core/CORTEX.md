@@ -4,7 +4,7 @@ Core infrastructure tests: paths, config and profile generation, auth, locks, i1
 
 | filename | role | function |
 |---|---|---|
-| atomic-write-guard.test.ts | test | write tripwire protecting the real home dir |
+| atomic-write-guard.test.ts | test | mutation tripwire, modes and serialization |
 | auth.test.ts | test | shared-secret token compare and generation |
 | bg-held-sessions.test.ts | test | per-session background hold registry |
 | config-generator.test.ts | test | shared and scoped MCP config builders |

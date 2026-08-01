@@ -1,6 +1,6 @@
-// input:  node:test, entry/feishu-login (cmdFeishu) with injected env/prompt/fetch/token-file
-// output: TDD spec for `cortex feishu login|status|logout` dispatch + credential gating
-// pos:    Verifies the login CLI without touching real stdin/network/CONFIG_DIR.
+// input:  Feishu login CLI with injected auth and file dependencies
+// output: login, status, logout, and env persistence tests
+// pos:    Feishu login CLI regression suite
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -133,13 +133,13 @@ test('login with loadDotenv:false does not touch any .env', async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('upsertEnvVar replaces an existing key and appends a missing one', () => {
+test('upsertEnvVar replaces an existing key and appends a missing one', async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'feishu-upsert-'));
   const file = path.join(dir, '.env');
   writeFileSync(file, 'A=1\nFEISHU_AUTH_MODE=bot\nB=2\n');
-  upsertEnvVar(file, 'FEISHU_AUTH_MODE', 'user');
+  await upsertEnvVar(file, 'FEISHU_AUTH_MODE', 'user');
   assert.equal(readFileSync(file, 'utf8'), 'A=1\nFEISHU_AUTH_MODE=user\nB=2\n');
-  upsertEnvVar(file, 'C', '3');
+  await upsertEnvVar(file, 'C', '3');
   assert.match(readFileSync(file, 'utf8'), /^C=3$/m);
   rmSync(dir, { recursive: true, force: true });
 });

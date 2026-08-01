@@ -1,5 +1,5 @@
-// input:  Claude login consumer, LoginFlow, temporary config
-// output: API-key persistence, recovery, and privacy tests
+// input:  Claude/Feishu env writers, LoginFlow, temporary config
+// output: API-key persistence, concurrency, recovery, privacy tests
 // pos:    Claude API-key login regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -165,6 +165,20 @@ test('Claude API-key LoginFlow persists securely, reloads runtime, recovers auth
     fixture, result, account, persisted,
     savedKey: config.getSavedApiEnv().ANTHROPIC_API_KEY, recovered, consoleCalls,
   });
+});
+
+test('Claude and Feishu dotenv writes preserve both concurrent updates', async (t) => {
+  const fixture = setupAuthFixture(t);
+  const { saveAnthropicApiKey } = await import('../../src/domain/agents/config.js');
+  const { upsertEnvVar } = await import('../../src/entry/feishu-login.js');
+
+  const claudeWrite = saveAnthropicApiKey(NEW_KEY);
+  await upsertEnvVar(fixture.envFile, 'FEISHU_AUTH_MODE', 'user');
+  await claudeWrite;
+
+  const persisted = fs.readFileSync(fixture.envFile, 'utf8');
+  assert.match(persisted, /^ANTHROPIC_API_KEY="sk-ant-fixture-new"$/m);
+  assert.match(persisted, /^FEISHU_AUTH_MODE=user$/m);
 });
 
 test('Claude API-key login rejects the gateway placeholder without side effects', async (t) => {

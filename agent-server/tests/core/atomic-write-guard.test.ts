@@ -1,17 +1,35 @@
-// input:  atomicWrite, fs promises, test-process environment
-// output: production tripwire and secure creation-mode tests
+// input:  atomic writes, file mutations, fs, test-process env
+// output: tripwire, mode, and mutation serialization tests
 // pos:    Atomic-write safety regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
-import { existsSync, rmSync, mkdtempSync } from 'node:fs';
+import { existsSync, rmSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { atomicWrite } from '../../src/core/atomic-write.js';
+import { atomicWrite, mutateFileAtomically } from '../../src/core/atomic-write.js';
 
 const REAL_HOME_CORTEX = path.join(os.homedir(), '.cortex');
+
+interface Deferred {
+  promise: Promise<void>;
+  resolve: () => void;
+}
+
+function deferred(): Deferred {
+  let resolve!: () => void;
+  const promise = new Promise<void>(done => { resolve = done; });
+  return { promise, resolve };
+}
+
+function resolvesWithin(promise: Promise<void>, ms: number): Promise<boolean> {
+  return Promise.race([
+    promise.then(() => true),
+    new Promise<false>(resolve => setTimeout(() => resolve(false), ms)),
+  ]);
+}
 
 test('blocks a test-process write under the real ~/.cortex (and writes nothing)', async () => {
   // NODE_TEST_CONTEXT is set by the node test runner — assert our premise.
@@ -28,6 +46,20 @@ test('blocks a test-process write under the real ~/.cortex (and writes nothing)'
   assert.equal(existsSync(target), false, 'no file was created under the real home');
 });
 
+test('blocks a mutation before creating real-home lock state', async (t) => {
+  const target = path.join(REAL_HOME_CORTEX, 'data', '__mutation_guard_probe.json');
+  const mkdirSpy = vi.spyOn(fsPromises, 'mkdir').mockImplementation(async () => {
+    throw new Error('unexpected lock creation');
+  });
+  t.onTestFinished(() => mkdirSpy.mockRestore());
+
+  await assert.rejects(
+    () => mutateFileAtomically(target, contents => contents),
+    /~\/\.cortex|production|_test-home|CORTEX_HOME/i,
+  );
+  assert.equal(mkdirSpy.mock.calls.length, 0);
+});
+
 test('creates restricted atomic temp files with the requested mode', async (t) => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'atomic-mode-'));
   const target = path.join(dir, 'secret.env');
@@ -42,6 +74,47 @@ test('creates restricted atomic temp files with the requested mode', async (t) =
   await atomicWrite(target, 'secret', { mode: 0o600 });
 
   assert.deepEqual(creationModes, [0o600]);
+});
+
+test('repairs the requested mode after an idempotent mutation', async (t) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'atomic-mode-repair-'));
+  const target = path.join(dir, 'secret.env');
+  writeFileSync(target, 'SECRET=fixture\n', { mode: 0o644 });
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+
+  await mutateFileAtomically(target, contents => contents, { mode: 0o600 });
+
+  assert.equal(statSync(target).mode & 0o777, 0o600);
+});
+
+test('serializes overlapping mutations around an async transform barrier', async (t) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'atomic-mutation-'));
+  const target = path.join(dir, '.env');
+  writeFileSync(target, 'BASE=1\n');
+  t.onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+  const firstGate = deferred();
+  const firstEntered = deferred();
+
+  const first = mutateFileAtomically(target, async contents => {
+    firstEntered.resolve();
+    await firstGate.promise;
+    return `${contents}ANTHROPIC_API_KEY=fixture\n`;
+  });
+  await firstEntered.promise;
+  const secondEntered = deferred();
+  const second = mutateFileAtomically(target, contents => {
+    secondEntered.resolve();
+    return `${contents}FEISHU_AUTH_MODE=user\n`;
+  });
+  const enteredEarly = await resolvesWithin(secondEntered.promise, 50);
+  firstGate.resolve();
+  await Promise.all([first, second]);
+
+  assert.equal(enteredEarly, false);
+  assert.equal(
+    readFileSync(target, 'utf8'),
+    'BASE=1\nANTHROPIC_API_KEY=fixture\nFEISHU_AUTH_MODE=user\n',
+  );
 });
 
 test('allows writes outside the real ~/.cortex (explicit temp path)', async () => {

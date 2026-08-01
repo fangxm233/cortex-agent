@@ -1,11 +1,11 @@
-// input:  mode/profile stores, gateway health, auth classifier
+// input:  mode/profile stores, atomic mutation, auth classifier
 // output: mode selection, saved API env persistence, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { readFileSync, writeFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
-import { atomicWrite } from '@core/atomic-write.js';
+import { mutateFileAtomically } from '@core/atomic-write.js';
 import * as path from 'path';
 import * as http from 'http';
 import { STORE_DIR, CONFIG_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
@@ -96,15 +96,6 @@ export function getSavedApiEnv(): ApiEnv {
   return { ...savedApiEnv };
 }
 
-function readDotenvForUpdate(): string {
-  try {
-    return readFileSync(ENV_FILE, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
-    throw error;
-  }
-}
-
 function requireAnthropicApiKey(value: string): string {
   const key = normalizeApiKey(value);
   if (!key || /[\s"\\]/.test(key)) throw new Error('Enter a valid Anthropic API key.');
@@ -126,8 +117,11 @@ function upsertAnthropicApiKey(contents: string, key: string): string {
 
 export async function saveAnthropicApiKey(value: string): Promise<void> {
   const key = requireAnthropicApiKey(value);
-  const contents = upsertAnthropicApiKey(readDotenvForUpdate(), key);
-  await atomicWrite(ENV_FILE, contents, { mode: 0o600 });
+  await mutateFileAtomically(
+    ENV_FILE,
+    contents => upsertAnthropicApiKey(contents, key),
+    { mode: 0o600 },
+  );
   savedApiEnv.ANTHROPIC_API_KEY = key;
   process.env.ANTHROPIC_API_KEY = key;
 }

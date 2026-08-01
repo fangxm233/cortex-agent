@@ -1,14 +1,12 @@
-// input:  readline, dotenv, @core/utils (CONFIG_DIR), feishu/user-auth
-// output: cmdFeishu() — `cortex feishu login | status | logout` (user_access_token lifecycle)
-// pos:    CLI for FEISHU_AUTH_MODE=user. login runs the OAuth device-authorization flow (print a
-//         URL, poll for the token); --manual keeps the legacy paste-the-code flow. status/logout
-//         inspect/clear the on-disk token. Dispatched from cli.ts.
+// input:  readline, dotenv, atomic mutation, Feishu user auth
+// output: cmdFeishu and serialized dotenv updates
+// pos:    Feishu user-login command-line adapter
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as readline from 'readline';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { mutateFileAtomically } from '@core/atomic-write.js';
 import { CONFIG_DIR } from '@core/utils.js';
 import {
   buildAuthorizeUrl,
@@ -46,25 +44,27 @@ export interface FeishuCliDeps {
   envFile?: string;
 }
 
-/**
- * Idempotently set KEY=value in a dotenv file: rewrite the line if KEY already
- * exists, append it otherwise, creating the file (and parent dir) when missing.
- * The rest of the file is preserved so hand-written credentials stay intact.
- */
-export function upsertEnvVar(file: string, key: string, value: string): void {
+function upsertEnvContents(existing: string, key: string, value: string): string {
   const line = `${key}=${value}`;
-  const existing = existsSync(file) ? readFileSync(file, 'utf8') : '';
   const lines = existing === '' ? [] : existing.replace(/\n+$/, '').split('\n');
   const re = new RegExp(`^\\s*${key}\\s*=`);
-  const idx = lines.findIndex((l) => re.test(l));
+  const idx = lines.findIndex(candidate => re.test(candidate));
   if (idx >= 0) {
-    if (lines[idx] === line) return; // already set — skip the write
+    if (lines[idx] === line) return existing;
     lines[idx] = line;
   } else {
     lines.push(line);
   }
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, lines.join('\n') + '\n');
+  return lines.join('\n') + '\n';
+}
+
+/** Serialize dotenv read-modify-write across processes so unrelated settings survive. */
+export function upsertEnvVar(file: string, key: string, value: string): Promise<void> {
+  return mutateFileAtomically(
+    file,
+    existing => upsertEnvContents(existing, key, value),
+    { mode: 0o600 },
+  );
 }
 
 export function getFeishuHelp(): string {
@@ -134,10 +134,10 @@ export async function cmdFeishu(args: string[], deps: FeishuCliDeps = {}): Promi
       // restart — without it the login succeeds but the MCP server keeps bot identity.
       // Skipped when loadDotenv is off (tests) so the real .env is never touched there.
       const envFile = deps.envFile ?? path.join(CONFIG_DIR, '.env');
-      const persistAuthMode = (): boolean => {
+      const persistAuthMode = async (): Promise<boolean> => {
         if (deps.loadDotenv === false) return false;
         try {
-          upsertEnvVar(envFile, 'FEISHU_AUTH_MODE', 'user');
+          await upsertEnvVar(envFile, 'FEISHU_AUTH_MODE', 'user');
           return true;
         } catch {
           return false;
@@ -193,7 +193,7 @@ export async function cmdFeishu(args: string[], deps: FeishuCliDeps = {}): Promi
         try {
           const tok = await exchangeCode({ appId, appSecret, code, redirectUri, domain, fetchImpl: deps.fetchImpl, now: deps.now });
           saveUserToken(tok, tokenFile);
-          return successResult(tok, persistAuthMode());
+          return successResult(tok, await persistAuthMode());
         } catch (e) {
           return { exitCode: 1, stdout: '', stderr: `Login failed: ${(e as Error).message}\n` };
         }
@@ -224,7 +224,7 @@ export async function cmdFeishu(args: string[], deps: FeishuCliDeps = {}): Promi
           onPending: () => process.stdout.write('.'),
         });
         saveUserToken(tok, tokenFile);
-        return successResult(tok, persistAuthMode());
+        return successResult(tok, await persistAuthMode());
       } catch (e) {
         return { exitCode: 1, stdout: '', stderr: `\nLogin failed: ${(e as Error).message}\n` };
       }

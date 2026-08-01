@@ -58,7 +58,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | feishu-adapter.test.ts | test | Feishu messages, persistence and nullable routing |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
-| feishu-login-cli.test.ts | test | Feishu login CLI dispatch and gating |
+| feishu-login-cli.test.ts | test | Feishu login CLI, env locking and gating |
 | feishu-output-stream.test.ts | test | Feishu output stream coalescing |
 | feishu-user-auth.test.ts | test | Feishu user token exchange and refresh |
 | feishu-user-mode.test.ts | test | Feishu user-identity token injection |
