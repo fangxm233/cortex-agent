@@ -18,10 +18,14 @@ export interface PiApiKeyAuth {
   login?: (interaction: AuthInteraction) => Promise<Extract<PiCredential, { type: 'api_key' }>>;
 }
 
+export interface PiOAuthAuth {
+  login?: (interaction: AuthInteraction) => Promise<Extract<PiCredential, { type: 'oauth' }>>;
+}
+
 export interface PiProvider {
   readonly id: string;
   readonly name: string;
-  readonly auth: { apiKey?: PiApiKeyAuth; oauth?: unknown };
+  readonly auth: { apiKey?: PiApiKeyAuth; oauth?: PiOAuthAuth };
 }
 
 export interface PiProviderAuthStatus {

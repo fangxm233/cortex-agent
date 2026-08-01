@@ -1,5 +1,5 @@
-// input:  synthetic strace lines and C8 policy roots
-// output: parser, access-mode, path, socket, and fail-closed proofs
+// input:  synthetic strace streams and C8 policy roots
+// output: process, path, count, socket, stream proofs
 // pos:    Pure access-probe policy regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,9 +7,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { afterAll, beforeAll, it } from 'vitest';
 import {
   classifyTraceLines,
+  classifyTraceStream,
   type AccessProbePolicy,
 } from '../../../src/domain/agent-run/access-probe-policy.js';
 
@@ -137,7 +139,7 @@ it('applies parent segments after resolving a workspace symlink', () => {
 
   assert.deepEqual(result.violations.map(({ path: offender, reason }) => ({
     path: offender, reason,
-  })), [{ path: attempted, reason: 'host_cortex_path' }]);
+  })), [{ path: path.join(policy.hostCortexHome, 'secret.json'), reason: 'host_cortex_path' }]);
 });
 
 it('resolves a dangling workspace symlink before classifying a failed open', () => {
@@ -150,7 +152,7 @@ it('resolves a dangling workspace symlink before classifying a failed open', () 
 
   assert.deepEqual(result.violations.map(({ path: offender, reason }) => ({
     path: offender, reason,
-  })), [{ path: apparent, reason: 'host_cortex_path' }]);
+  })), [{ path: actual, reason: 'host_cortex_path' }]);
 });
 
 it('limits proc and Node runtime exceptions to traced pids and named paths', () => {
@@ -174,11 +176,11 @@ it('limits proc and Node runtime exceptions to traced pids and named paths', () 
 
   assert.deepEqual(result.violations.map(item => item.path), [
     '/proc/1/environ', path.join(nodeRoot, 'share/secret'),
-    `/proc/self/root${escaped}`, `/proc/321/root${escaped}`,
+    escaped, `/proc/321/root${escaped}`,
   ]);
 });
 
-it('denies Internet sockets, bind, listen, and connect but permits Unix socketpair', () => {
+it('denies Internet sockets, bind, listen, connect, and Unix socket creation', () => {
   const result = trace(
     '5.0 socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = 20<TCP:[1]>',
     '5.1 socketpair(AF_UNIX, SOCK_STREAM, 0, [21<UNIX-STREAM:[2]>, 22<UNIX-STREAM:[3]>]) = 0',
@@ -221,15 +223,83 @@ it('fails closed on socket operations outside the named Unix metadata exception'
 });
 
 it('fails closed on an unknown or malformed traced syscall', () => {
-    const result = trace(
-      '6.0 mystery_path_call("somewhere") = 0',
-      'this is not strace output',
-    );
+  const result = trace(
+    '6.0 mystery_path_call("somewhere") = 0',
+    'this is not strace output',
+  );
 
-    assert.equal(result.violations.length, 2);
-    assert.deepEqual(result.violations.map(item => item.reason), [
-      'unclassified_syscall',
-      'trace_parse_failed',
+  assert.equal(result.violations.length, 2);
+  assert.deepEqual(result.violations.map(item => item.reason), [
+    'unclassified_syscall',
+    'trace_parse_failed',
   ]);
   assert.ok(result.violations.every(item => item.path.length > 0));
+});
+
+it('tracks a transient symlink through create, dereference, and unlink', () => {
+  const link = path.join(policy.workspace, 'ephemeral-link');
+  const target = path.join(policy.hostCortexHome, 'data/secret.json');
+  const result = trace(
+    `7.0 symlink("${target}", "${link}") = 0`,
+    `7.1 newfstatat(AT_FDCWD<${policy.workspace}>, "${link}", {st_mode=S_IFREG}, 0) = 0`,
+    `7.2 unlink("${link}") = 0`,
+  );
+
+  assert.deepEqual(result.violations.map(item => ({ syscall: item.syscall, path: item.path })), [
+    { syscall: 'newfstatat', path: target },
+  ]);
+  assert.equal(result.counts.allowed, 2);
+});
+
+it('inherits cwd when a traced parent forks a child', () => {
+  const target = path.join(policy.hostCortexHome, 'data/secret.json');
+  const result = classifyTraceLines([
+    `100 8.0 chdir("${policy.hostCortexHome}") = 0`,
+    '100 8.1 clone(child_stack=NULL, flags=SIGCHLD) = 101',
+    '101 8.2 newfstatat(AT_FDCWD, "data/secret.json", {st_mode=S_IFREG}, 0) = 0',
+  ], {
+    policy, initialCwd: policy.workspace, pid: 100, traceFile: 'trace.run',
+  });
+
+  assert.deepEqual(result.violations.map(item => ({
+    syscall: item.syscall, path: item.path,
+  })), [
+    { syscall: 'chdir', path: policy.hostCortexHome },
+    { syscall: 'newfstatat', path: target },
+  ]);
+});
+
+it('emits one violation per malformed declared path operand with possible counts', () => {
+  const open = trace('9.0 openat(AT_FDCWD) = -1 EINVAL (Invalid argument)');
+  const rename = trace(
+    '9.1 renameat2(AT_FDCWD, 0x1, AT_FDCWD, 0x2, RENAME_NOREPLACE) = -1 EFAULT (Bad address)',
+  );
+
+  assert.deepEqual(open.counts, { traceLines: 1, fileCalls: 1, networkCalls: 0, allowed: 0 });
+  assert.deepEqual(open.violations.map(item => item.reason), ['unclassifiable_path']);
+  assert.deepEqual(rename.counts, { traceLines: 1, fileCalls: 2, networkCalls: 0, allowed: 0 });
+  assert.deepEqual(rename.violations.map(item => item.reason), [
+    'unclassifiable_path', 'unclassifiable_path',
+  ]);
+});
+
+it('streams high-volume trace chunks without requiring whole-file buffering', async () => {
+  const count = 5_000;
+  async function* chunks() {
+    for (let index = 0; index < count; index += 1) {
+      const line = `321 ${10 + index / count} access("${policy.workspace}/item-${index}", F_OK) = -1 ENOENT (No such file or directory)\n`;
+      const middle = Math.floor(line.length / 2);
+      yield line.slice(0, middle);
+      yield line.slice(middle);
+    }
+  }
+
+  const result = await classifyTraceStream(Readable.from(chunks()), {
+    policy, initialCwd: policy.workspace, pid: 321, traceFile: 'trace.stream',
+  });
+
+  assert.deepEqual(result.violations, []);
+  assert.deepEqual(result.counts, {
+    traceLines: count, fileCalls: count, networkCalls: 0, allowed: count,
+  });
 });
