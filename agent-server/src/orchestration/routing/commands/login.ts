@@ -99,7 +99,9 @@ function parseRequest(message: string): LoginRequest {
 }
 
 function loginProviders(snapshot: AuthStatusSnapshot) {
-  return snapshot.accounts.filter(account => account.backend === 'pi');
+  return snapshot.accounts.filter(account => (
+    account.backend === 'pi' && account.capabilities.length > 0
+  ));
 }
 
 function loginAccount(

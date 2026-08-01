@@ -125,6 +125,11 @@ function authSnapshot() {
         authType: null, state: 'logged-out', source: null, expiresAt: null,
         refreshExpiresAt: null, inUse: false, credentials: [],
       },
+      {
+        backend: 'pi', provider: 'metadata-only', label: 'Metadata only', capabilities: [],
+        authType: null, state: 'logged-out', source: null, expiresAt: null,
+        refreshExpiresAt: null, inUse: false, credentials: [],
+      },
     ],
     piRuntime: { available: true, version: 'test', entry: '/test/pi', error: null },
   } as any;

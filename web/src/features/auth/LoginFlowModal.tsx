@@ -145,7 +145,10 @@ function DeviceCodeNotice({
       <div data-auth-device-code className="font-mono text-xl font-semibold tracking-wider text-state-ink">
         {notice.userCode}
       </div>
-      <NoticeLink href={notice.verificationUri}>{L.authLoginOpenVerification}</NoticeLink>
+      <div className="space-y-1g">
+        <p>{L.authLoginOpenVerification}</p>
+        <NoticeLink href={notice.verificationUri}>{notice.verificationUri}</NoticeLink>
+      </div>
       {expiry ? <p className="text-caption text-state-muted">{expiry}</p> : null}
     </div>
   );
@@ -269,7 +272,9 @@ function ProviderSelect({ controller }: { controller: LoginController }) {
 }
 
 function piProviderOptions(accounts: AuthAccountStatus[]): ProviderOption[] {
-  return accounts.filter(account => account.backend === 'pi').map(account => ({
+  return accounts.filter(account => (
+    account.backend === 'pi' && account.capabilities.length > 0
+  )).map(account => ({
     provider: account.provider,
     label: account.label,
     capabilities: account.capabilities,
