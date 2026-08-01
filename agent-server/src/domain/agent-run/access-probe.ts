@@ -162,10 +162,12 @@ function classifyFiles(
 ): { counts: AccessProbeCounts; violations: AccessViolation[] } {
   const counts = emptyCounts();
   const violations: AccessViolation[] = [];
+  const tracedPids = new Set(files.map(file => Number(path.extname(file).slice(1))));
+  const tracedPolicy = { ...policy, tracedPids };
   for (const file of files) {
     const pid = Number(path.extname(file).slice(1));
     const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
-    const result = classifyTraceLines(lines, { policy, initialCwd, pid, traceFile: file });
+    const result = classifyTraceLines(lines, { policy: tracedPolicy, initialCwd, pid, traceFile: file });
     mergeCounts(counts, result.counts);
     violations.push(...result.violations);
   }

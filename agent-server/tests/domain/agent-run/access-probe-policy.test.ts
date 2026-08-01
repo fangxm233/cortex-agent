@@ -120,6 +120,40 @@ it('allows the pinned Node installation and system path ancestors as runtime rea
   assert.deepEqual(result.violations, []);
 });
 
+it('uses the resolved fd target so a removed workspace symlink cannot hide host access', () => {
+  const apparent = path.join(policy.workspace, 'removed-link');
+  const actual = path.join(policy.hostCortexHome, 'data/secret.json');
+  const result = trace(
+    `4.7 openat(AT_FDCWD<${policy.workspace}>, "${apparent}", O_RDONLY) = 3<${actual}>`,
+  );
+
+  assert.deepEqual(result.violations.map(({ path: offender, reason }) => ({
+    path: offender, reason,
+  })), [{ path: actual, reason: 'host_cortex_path' }]);
+});
+
+it('limits proc and Node runtime exceptions to traced pids and named runtime paths', () => {
+  const nodeRoot = path.join(policy.hostHome, '.local/node-runtime');
+  const nodeExecutable = path.join(nodeRoot, 'bin/node');
+  fs.mkdirSync(path.dirname(nodeExecutable), { recursive: true });
+  fs.writeFileSync(nodeExecutable, 'node');
+  const result = classifyTraceLines([
+    `4.8 openat(AT_FDCWD<${policy.workspace}>, "/proc/321/maps", O_RDONLY) = 3`,
+    `4.9 openat(AT_FDCWD<${policy.workspace}>, "/proc/1/environ", O_RDONLY) = 4`,
+    `4.10 openat(AT_FDCWD<${policy.workspace}>, "${nodeRoot}/share/secret", O_RDONLY) = 5`,
+  ], {
+    policy: { ...policy, nodeExecutable, tracedPids: new Set([321]) },
+    initialCwd: policy.workspace,
+    pid: 321,
+    traceFile: 'trace.321',
+  });
+
+  assert.deepEqual(result.violations.map(item => item.path), [
+    '/proc/1/environ',
+    path.join(nodeRoot, 'share/secret'),
+  ]);
+});
+
 it('denies bind, listen, and failed connect with normalized endpoints', () => {
     const result = trace(
       '5.0 bind(21<TCP:[1]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("127.0.0.1")}, 16) = 0',

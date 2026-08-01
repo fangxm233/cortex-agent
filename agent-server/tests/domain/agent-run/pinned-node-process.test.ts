@@ -56,7 +56,7 @@ async function runChild(parentEnv: NodeJS.ProcessEnv): Promise<Record<string, un
 }
 
 it('pins core paths at module load plus homedir and tmpdir under one trial root', async () => {
-  const result = await runChild({ PATH: process.env.PATH, LANG: 'C.UTF-8' });
+  const result = await runChild({ PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' });
   const cortexHome = path.join(root, 'cortex-home');
 
   assert.deepEqual(result, {
@@ -74,22 +74,30 @@ it('pins core paths at module load plus homedir and tmpdir under one trial root'
     ].sort(),
     forbiddenValue: null,
     nodeSentinel: null,
+    nodeOptions: null,
+    nodePath: null,
+    pathValue: '/usr/bin:/bin',
   });
 });
 
 it('drops a forbidden host variable while preserving allowlisted Node runtime variables', async () => {
   const result = await runChild({
-    PATH: process.env.PATH,
+    PATH: `${path.join(os.homedir(), '.cortex/bin')}${path.delimiter}/usr/bin`,
     SLACK_BOT_TOKEN: 'must-not-cross',
     HTTP_PROXY: 'http://host-proxy.invalid',
     SSH_AUTH_SOCK: '/host/ssh-agent.sock',
     CORTEX_HOST_PATH: '/host/.cortex',
-    NODE_PIN_TEST: 'preserved',
+    NODE_NO_WARNINGS: '1',
+    NODE_OPTIONS: '--require /host/preload.cjs',
+    NODE_PATH: '/host/node_modules',
   });
 
   assert.equal(result.forbiddenValue, null);
-  assert.equal(result.nodeSentinel, 'preserved');
-  assert.deepEqual(result.envKeys, [...PINNED_ENV_KEYS, 'NODE_PIN_TEST', 'PATH'].sort());
+  assert.equal(result.nodeSentinel, '1');
+  assert.equal(result.nodeOptions, null);
+  assert.equal(result.nodePath, null);
+  assert.equal(result.pathValue, '/usr/bin');
+  assert.deepEqual(result.envKeys, [...PINNED_ENV_KEYS, 'NODE_NO_WARNINGS', 'PATH'].sort());
 });
 
 it('disables Node global search paths before loading the entry', () => {

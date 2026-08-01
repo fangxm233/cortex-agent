@@ -28,6 +28,7 @@ export interface AccessProbePolicy {
   hostCortexHome: string;
   nodeExecutable: string;
   nodeModuleRoots?: string[];
+  tracedPids?: ReadonlySet<number>;
 }
 
 export interface AccessProbeCounts {
@@ -230,26 +231,37 @@ function isHostDotfile(candidate: string, policy: AccessProbePolicy): boolean {
   return first.startsWith('.');
 }
 
-function isProcessRuntimePath(candidate: string, pid: number): boolean {
-  return isWithin(candidate, '/proc/self')
-    || isWithin(candidate, '/proc/thread-self')
-    || isWithin(candidate, `/proc/${pid}`)
-    || /^\/proc\/\d+(?:\/|$)/.test(candidate);
+function isProcessRuntimePath(
+  candidate: string, pid: number, tracedPids: ReadonlySet<number> | undefined,
+): boolean {
+  if (isWithin(candidate, '/proc/self') || isWithin(candidate, '/proc/thread-self')) return true;
+  const match = /^\/proc\/(\d+)(?:\/|$)/.exec(candidate);
+  if (!match) return false;
+  const targetPid = Number(match[1]);
+  return targetPid === pid || tracedPids?.has(targetPid) === true;
 }
 
 function readOnlyRoots(policy: AccessProbePolicy): string[] {
   return [policy.installRoot, ...(policy.nodeModuleRoots ?? []), ...SYSTEM_ROOTS];
 }
 
-function nodeRuntimeRoot(policy: AccessProbePolicy): string {
-  return path.dirname(path.dirname(canonicalPath(policy.nodeExecutable)));
+function nodeRuntimeRoots(policy: AccessProbePolicy): string[] {
+  const executable = canonicalPath(policy.nodeExecutable);
+  const prefix = path.dirname(path.dirname(executable));
+  return [executable, path.join(prefix, 'lib/node')];
+}
+
+function isNodeRuntimeRead(candidate: string, policy: AccessProbePolicy): boolean {
+  return nodeRuntimeRoots(policy).some(root => (
+    isWithin(candidate, root) || isWithin(root, candidate)
+  ));
 }
 
 function isAllowedRootAncestor(candidate: string, policy: AccessProbePolicy): boolean {
   const roots = [
     policy.installRoot,
     ...(policy.nodeModuleRoots ?? []),
-    nodeRuntimeRoot(policy),
+    ...nodeRuntimeRoots(policy),
     ...SYSTEM_ROOTS,
     ...SYSTEM_FILES,
   ];
@@ -260,14 +272,15 @@ function classifyPath(
   candidate: string, access: AccessMode, policy: AccessProbePolicy, pid: number,
 ): string | null {
   const canonical = canonicalPath(candidate);
-  if (isWithin(canonical, nodeRuntimeRoot(policy)) && access === 'read') return null;
+  if (isNodeRuntimeRead(canonical, policy) && access === 'read') return null;
   if (isWithin(candidate, policy.hostCortexHome)) return 'host_cortex_path';
   if (isHostDotfile(candidate, policy)) return 'host_home_dotfile';
   const writable = [policy.workspace, policy.cortexHome, policy.logsDir];
   if (writable.some(root => isWithin(canonical, root))) return null;
   if (canonical === canonicalPath(policy.nodeExecutable) && access === 'read') return null;
   if (isAllowedRootAncestor(canonical, policy) && access === 'read') return null;
-  if ((SYSTEM_FILES.has(candidate) || isProcessRuntimePath(candidate, pid)) && access === 'read') {
+  if ((SYSTEM_FILES.has(candidate)
+    || isProcessRuntimePath(candidate, pid, policy.tracedPids)) && access === 'read') {
     return null;
   }
   const readOnly = readOnlyRoots(policy).some(root => isWithin(canonical, root));
@@ -342,6 +355,28 @@ function unknownViolation(
   return violation(syscall, offender, reason, 'unknown', options, line, raw);
 }
 
+function returnedFdPath(call: ParsedCall): string | null {
+  if (!new Set(['creat', 'open', 'openat', 'openat2']).has(call.syscall)) return null;
+  const match = /^\d+<(.+)>/.exec(call.result);
+  if (!match?.[1].startsWith('/')) return null;
+  return match[1].replace(/<(?:char|block) [^>]+>$/, '');
+}
+
+function pathViolation(
+  call: ParsedCall, candidate: string | null, observed: string | null, access: AccessMode,
+  options: TraceOptions, line: number, raw: string,
+): AccessViolation[] {
+  if (!candidate) return [violation(call.syscall, raw, 'unclassifiable_path', 'unknown',
+    options, line, raw)];
+  const attemptedReason = classifyPath(candidate, access, options.policy, options.pid);
+  if (attemptedReason) return [violation(call.syscall, candidate, attemptedReason, access,
+    options, line, raw)];
+  if (!observed || canonicalPath(observed) === canonicalPath(candidate)) return [];
+  const observedReason = classifyPath(observed, access, options.policy, options.pid);
+  return observedReason ? [violation(call.syscall, observed, observedReason, access,
+    options, line, raw)] : [];
+}
+
 function classifyFile(
   call: ParsedCall, cwd: string, options: TraceOptions, line: number, raw: string,
 ): { violations: AccessViolation[]; paths: string[] } {
@@ -353,12 +388,10 @@ function classifyFile(
     spec.dirIndex === undefined ? undefined : call.args[spec.dirIndex],
     cwd,
   ));
-  const violations = paths.flatMap((candidate) => {
-    if (!candidate) return [violation(call.syscall, raw, 'unclassifiable_path', 'unknown',
-      options, line, raw)];
-    const reason = classifyPath(candidate, access, options.policy, options.pid);
-    return reason ? [violation(call.syscall, candidate, reason, access, options, line, raw)] : [];
-  });
+  const observed = returnedFdPath(call);
+  const violations = paths.flatMap((candidate, index) => pathViolation(
+    call, candidate, index === 0 ? observed : null, access, options, line, raw,
+  ));
   return { violations, paths: paths.filter((value): value is string => value !== null) };
 }
 

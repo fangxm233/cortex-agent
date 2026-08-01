@@ -5,6 +5,7 @@
 
 import { spawn, type ChildProcess, type StdioOptions } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 export const PINNED_ENV_KEYS = [
@@ -50,19 +51,47 @@ export interface PinnedNodeLaunchSpec {
   paths: PinnedTrialPaths;
 }
 
+const SAFE_NODE_ENV_KEYS = new Set([
+  'NODE_DEBUG',
+  'NODE_DEBUG_NATIVE',
+  'NODE_DISABLE_COLORS',
+  'NODE_NO_WARNINGS',
+  'NODE_PENDING_DEPRECATION',
+  'NODE_PRESERVE_SYMLINKS',
+  'NODE_TLS_REJECT_UNAUTHORIZED',
+  'NODE_USE_ENV_PROXY',
+]);
+
 function isInheritedRuntimeKey(key: string): boolean {
   return key === 'PATH'
     || key === 'LANG'
     || key === 'LANGUAGE'
     || key === 'TZ'
     || key.startsWith('LC_')
-    || key.startsWith('NODE_');
+    || SAFE_NODE_ENV_KEYS.has(key);
+}
+
+function isForbiddenPathEntry(value: string, parentEnv: NodeJS.ProcessEnv): boolean {
+  const roots = [os.homedir(), parentEnv.CORTEX_HOME].filter(
+    (root): root is string => typeof root === 'string' && root.length > 0,
+  );
+  const resolved = path.resolve(value);
+  return roots.some(root => resolved === root || resolved.startsWith(`${path.resolve(root)}${path.sep}`))
+    || resolved.split(path.sep).includes('.cortex');
+}
+
+function sanitizedPath(value: string, parentEnv: NodeJS.ProcessEnv): string {
+  return value.split(path.delimiter)
+    .filter(entry => entry.length > 0 && !isForbiddenPathEntry(entry, parentEnv))
+    .join(path.delimiter);
 }
 
 function inheritedEnvironment(parentEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(parentEnv).filter(
+  const inherited = Object.fromEntries(Object.entries(parentEnv).filter(
     (entry): entry is [string, string] => entry[1] !== undefined && isInheritedRuntimeKey(entry[0]),
   ));
+  if (inherited.PATH) inherited.PATH = sanitizedPath(inherited.PATH, parentEnv);
+  return inherited;
 }
 
 function pinnedEnvironment(paths: PinnedTrialPaths): NodeJS.ProcessEnv {
