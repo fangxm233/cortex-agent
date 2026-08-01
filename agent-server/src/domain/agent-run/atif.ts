@@ -1,0 +1,264 @@
+// input:  validated journal fragments and thread links
+// output: deterministic ATIF-v1.7 trajectory tree
+// pos:    Journal-to-ATIF conversion boundary
+// >>> If I am updated, update my header and folder CORTEX.md <<<
+
+import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
+
+export interface SourceJournalHeader extends Record<string, unknown> {
+  schema_version: string;
+  root_run_id: string;
+  thread_id: string | null;
+  agent_slot: string;
+  resolved_cwd: string;
+  model_execution_identity_hash: string;
+  role_tool_surface_hash: string;
+  bundle_manifest_hash: string;
+}
+
+export interface SourceJournalEvent extends Record<string, unknown> {
+  root_run_id: string;
+  thread_id: string | null;
+  agent_slot: string;
+  seq: number;
+  ts: string;
+  requested_model: string;
+  reported_model: string | null;
+  event: NormalizedEvent;
+}
+
+export interface SourceFragment {
+  header: SourceJournalHeader;
+  events: SourceJournalEvent[];
+  terminal: Record<string, unknown>;
+}
+
+export interface ThreadLink {
+  callId: string;
+  threadId: string;
+}
+
+export interface AtifTrajectory {
+  schema_version: 'ATIF-v1.7';
+  session_id?: string;
+  trajectory_id: string;
+  agent: Record<string, unknown>;
+  steps: Array<Record<string, unknown>>;
+  extra: Record<string, unknown>;
+  subagent_trajectories?: AtifTrajectory[];
+}
+
+interface EventGroup {
+  records: SourceJournalEvent[];
+}
+
+function malformed(message: string): never {
+  throw new Error(`malformed_fragment:${message}`);
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function eventType(record: SourceJournalEvent): string {
+  return record.event.type;
+}
+
+function collectToolUses(
+  events: SourceJournalEvent[], start: number,
+): { records: SourceJournalEvent[]; next: number } {
+  const records: SourceJournalEvent[] = [];
+  let index = start;
+  while (index < events.length && eventType(events[index]) === 'tool_use') {
+    records.push(events[index]);
+    index += 1;
+  }
+  return { records, next: index };
+}
+
+function collectToolResults(
+  events: SourceJournalEvent[], start: number, callIds: Set<string>,
+): { records: SourceJournalEvent[]; next: number } {
+  const records: SourceJournalEvent[] = [];
+  let index = start;
+  while (index < events.length && eventType(events[index]) === 'tool_result') {
+    const result = events[index].event;
+    if (result.type !== 'tool_result' || !callIds.has(result.toolUseId)) break;
+    records.push(events[index]);
+    index += 1;
+  }
+  return { records, next: index };
+}
+
+function toolBatch(events: SourceJournalEvent[], start: number): { group: EventGroup; next: number } {
+  const uses = collectToolUses(events, start);
+  const callIds = new Set(uses.records.map(record => {
+    const event = record.event;
+    return event.type === 'tool_use' ? event.toolUseId : '';
+  }));
+  if (callIds.size !== uses.records.length) malformed('duplicate_tool_call_id');
+  const results = collectToolResults(events, uses.next, callIds);
+  const resultIds = results.records.map(record => (record.event as { toolUseId: string }).toolUseId);
+  if (new Set(resultIds).size !== resultIds.length) malformed('duplicate_tool_result');
+  return { group: { records: [...uses.records, ...results.records] }, next: results.next };
+}
+
+/** Preserve each fragment's C2 seq order; contiguous tool calls and results form one ATIF step. */
+function groupEvents(events: SourceJournalEvent[]): EventGroup[] {
+  const groups: EventGroup[] = [];
+  let index = 0;
+  while (index < events.length) {
+    const type = eventType(events[index]);
+    if (type === 'tool_result') malformed('unpaired_tool_result');
+    if (type !== 'tool_use') {
+      groups.push({ records: [events[index]] });
+      index += 1;
+      continue;
+    }
+    const batch = toolBatch(events, index);
+    groups.push(batch.group);
+    index = batch.next;
+  }
+  return groups;
+}
+
+function toolArguments(value: unknown): Record<string, unknown> {
+  return isObject(value) ? value : { value };
+}
+
+function toolCalls(group: EventGroup): Array<Record<string, unknown>> {
+  return group.records.flatMap(record => {
+    const event = record.event;
+    if (event.type !== 'tool_use') return [];
+    return [{
+      tool_call_id: event.toolUseId,
+      function_name: event.name,
+      arguments: toolArguments(event.input),
+    }];
+  });
+}
+
+function observationResults(
+  group: EventGroup, links: ReadonlyMap<string, string>,
+): Array<Record<string, unknown>> {
+  return group.records.flatMap(record => {
+    const event = record.event;
+    if (event.type !== 'tool_result') return [];
+    const childId = links.get(event.toolUseId);
+    return [{
+      source_call_id: event.toolUseId,
+      content: event.content,
+      subagent_trajectory_ref: childId ? [{ trajectory_id: childId }] : null,
+      extra: { ok: event.ok },
+    }];
+  });
+}
+
+function stepMessage(group: EventGroup): string {
+  if (group.records.length === 1) {
+    const event = group.records[0].event;
+    if (event.type === 'assistant_text' || event.type === 'assistant_delta') return event.text;
+  }
+  return JSON.stringify(group.records.map(record => record.event));
+}
+
+function buildStep(
+  group: EventGroup, stepId: number, links: ReadonlyMap<string, string>,
+): Record<string, unknown> {
+  const first = group.records[0];
+  const calls = toolCalls(group);
+  const results = observationResults(group, links);
+  return {
+    step_id: stepId,
+    timestamp: first.ts,
+    source: 'agent',
+    model_name: first.reported_model,
+    message: stepMessage(group),
+    reasoning_content: null,
+    ...(calls.length > 0 ? { tool_calls: calls } : {}),
+    ...(results.length > 0 ? { observation: { results } } : {}),
+    extra: { source_events: group.records },
+  };
+}
+
+function buildAgent(fragment: SourceFragment): Record<string, unknown> {
+  return {
+    name: `cortex-${fragment.header.agent_slot}`,
+    version: fragment.header.bundle_manifest_hash,
+    model_name: fragment.events[0]?.requested_model ?? null,
+    extra: {
+      agent_slot: fragment.header.agent_slot,
+      model_execution_identity_hash: fragment.header.model_execution_identity_hash,
+      role_tool_surface_hash: fragment.header.role_tool_surface_hash,
+      bundle_manifest_hash: fragment.header.bundle_manifest_hash,
+      journal_schema_version: fragment.header.schema_version,
+    },
+  };
+}
+
+function trajectoryExtra(fragment: SourceFragment): Record<string, unknown> {
+  return {
+    root_run_id: fragment.header.root_run_id,
+    thread_id: fragment.header.thread_id,
+    agent_slot: fragment.header.agent_slot,
+    resolved_cwd: fragment.header.resolved_cwd,
+    model_execution_identity_hash: fragment.header.model_execution_identity_hash,
+    role_tool_surface_hash: fragment.header.role_tool_surface_hash,
+    bundle_manifest_hash: fragment.header.bundle_manifest_hash,
+    journal_sha256: fragment.terminal.journal_sha256,
+    terminal: {
+      state: fragment.terminal.state,
+      terminal_reason: fragment.terminal.terminal_reason,
+    },
+  };
+}
+
+function terminalStep(fragment: SourceFragment): Record<string, unknown> {
+  const state = String(fragment.terminal.state);
+  const reason = String(fragment.terminal.terminal_reason);
+  return {
+    step_id: 1,
+    timestamp: fragment.terminal.ended_at,
+    source: 'system',
+    message: `Terminal state ${state}; reason ${reason}`,
+    extra: { synthesized_from: 'terminal_manifest' },
+  };
+}
+
+function buildSteps(
+  fragment: SourceFragment, links: ReadonlyMap<string, string>,
+): Array<Record<string, unknown>> {
+  if (fragment.events.length === 0) return [terminalStep(fragment)];
+  return groupEvents(fragment.events).map((group, index) => buildStep(group, index + 1, links));
+}
+
+function buildTrajectory(
+  fragment: SourceFragment, links: ReadonlyMap<string, string>,
+): AtifTrajectory {
+  const id = fragment.header.thread_id ?? fragment.header.root_run_id;
+  const trajectory: AtifTrajectory = {
+    schema_version: 'ATIF-v1.7',
+    trajectory_id: id,
+    agent: buildAgent(fragment),
+    steps: buildSteps(fragment, links),
+    extra: trajectoryExtra(fragment),
+  };
+  if (fragment.header.thread_id === null) trajectory.session_id = fragment.header.root_run_id;
+  return trajectory;
+}
+
+/** Children are supplied in parent thread_run call order; timestamps never order trajectories. */
+export function buildAtifTree(
+  parent: SourceFragment,
+  children: SourceFragment[],
+  threadLinks: ThreadLink[],
+  linkSource: 'tool_result' | 'explicit',
+): AtifTrajectory {
+  const links = new Map(threadLinks.map(link => [link.callId, link.threadId]));
+  const childById = new Map(children.map(child => [child.header.thread_id, child]));
+  const root = buildTrajectory(parent, links);
+  root.extra.subagent_link_source = linkSource;
+  if (threadLinks.length === 0) return root;
+  root.subagent_trajectories = threadLinks.map(link => buildTrajectory(childById.get(link.threadId)!, new Map()));
+  return root;
+}
