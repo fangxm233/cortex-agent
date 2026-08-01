@@ -1,5 +1,5 @@
 // input:  thread runner, fake agents, hook/throttle/profile stores
-// output: benchmark isolation and ordinary-thread regression proofs
+// output: benchmark isolation, cleanup, and ordinary regressions
 // pos:    Verifies the benchmark-only thread execution boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -402,6 +402,11 @@ test('benchmark removes thread protocol and MCP controls while ordinary prompts 
   }
 });
 
+function resetRateLimitState(): void {
+  throttle._testReset();
+  resumeRegistry._testReset();
+}
+
 async function activateUsageThrottle(provider = 'provider-b'): Promise<void> {
   await throttle.initRateLimitThrottle(new MockAdapter({ adminChannel: 'admin' }), {
     save: async () => {},
@@ -465,19 +470,41 @@ async function expectBenchmarkRateLimit(thread: ThreadRecord, failure: AgentResu
   return caught;
 }
 
+async function expectSynchronousBenchmarkRateLimit(thread: ThreadRecord): Promise<any> {
+  const attempt = { executionId: null as string | null };
+  agent.runAgent.mockImplementationOnce((_prompt: string, options: RunAgentOptions) => {
+    attempt.executionId = options.executionId ?? null;
+    throw new Error('HTTP 429 synchronous rate limit');
+  });
+  let caught: unknown;
+  try {
+    await threadRunner.runThread(
+      thread.id,
+      runOptions(thread, benchmarkOptions(path.join(tmpRoot, `rate-sync-${thread.id}`))),
+    );
+  } catch (error) {
+    caught = error;
+  }
+  assertTerminalRateLimit(thread, caught, attempt.executionId);
+  return caught;
+}
+
 test('benchmark rate limits fail terminally while ordinary threads pause and enqueue resume', async () => {
   const unthrottled = createFixtureThread('bench-active');
   const unthrottledError = await expectBenchmarkRateLimit(unthrottled, rateLimitedResult('provider-b'));
   assert.equal(unthrottledError.provider, 'provider-b');
 
-  throttle._testReset();
-  resumeRegistry._testReset();
+  resetRateLimitState();
   const thrown = createFixtureThread('bench-active');
   const thrownError = await expectBenchmarkRateLimit(thrown, new Error('HTTP 429 rate limit'));
   assert.equal(thrownError.provider, 'provider-b');
 
-  throttle._testReset();
-  resumeRegistry._testReset();
+  resetRateLimitState();
+  const synchronous = createFixtureThread('bench-active');
+  const synchronousError = await expectSynchronousBenchmarkRateLimit(synchronous);
+  assert.equal(synchronousError.provider, 'provider-b');
+
+  resetRateLimitState();
   await activateUsageThrottle();
   const throttled = createFixtureThread('bench-active');
   const throttledError = await expectBenchmarkRateLimit(throttled, rateLimitedResult('provider-b'));
