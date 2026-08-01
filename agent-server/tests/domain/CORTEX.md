@@ -9,7 +9,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 | auth-login-service.test.ts | test | backend selection and cancellation fencing |
 | auth-status.test.ts | test | backend auth state, manageability and output |
 | cc-login.test.ts | test | Claude API-key persistence, concurrency and recovery |
-| cc-subscription.test.ts | test | Claude subscription lifecycle, expiry and persistence |
+| cc-subscription.test.ts | test | Claude subscription security, expiry, and cancellation |
 | login-flow.test.ts | test | Covers login outcomes, safe errors, and abort scopes |
 | pi-login.test.ts | test | PI login receipts and safe failure payloads |
 | pi-oauth.test.ts | test | PI OAuth expiry, notices, aborts and failures |

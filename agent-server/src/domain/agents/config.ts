@@ -1,5 +1,5 @@
 // input:  mode/profile stores, atomic mutation, auth classifier
-// output: mode selection, saved Claude env persistence, retry policy
+// output: modes, abortable Claude credentials, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -124,11 +124,21 @@ function upsertSavedEnv(contents: string, name: string, value: string): string {
   return `${contents}${separator}${assignment}\n`;
 }
 
-async function saveCredential(name: string, value: string): Promise<void> {
+function throwIfSaveAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  if (signal.reason instanceof Error) throw signal.reason;
+  throw new Error('Credential save aborted.');
+}
+
+async function saveCredential(name: string, value: string, signal?: AbortSignal): Promise<void> {
+  throwIfSaveAborted(signal);
   await mutateFileAtomically(
     ENV_FILE,
-    contents => upsertSavedEnv(contents, name, value),
-    { mode: 0o600 },
+    contents => {
+      throwIfSaveAborted(signal);
+      return upsertSavedEnv(contents, name, value);
+    },
+    { mode: 0o600, signal },
   );
 }
 
@@ -139,9 +149,12 @@ export async function saveAnthropicApiKey(value: string): Promise<void> {
   process.env.ANTHROPIC_API_KEY = key;
 }
 
-export async function saveClaudeCodeOAuthToken(value: string): Promise<void> {
+export async function saveClaudeCodeOAuthToken(
+  value: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const token = requireClaudeOAuthToken(value);
-  await saveCredential('CLAUDE_CODE_OAUTH_TOKEN', token);
+  await saveCredential('CLAUDE_CODE_OAUTH_TOKEN', token, signal);
   savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = token;
   process.env.CLAUDE_CODE_OAUTH_TOKEN = token;
 }

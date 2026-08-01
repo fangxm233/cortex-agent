@@ -1,7 +1,7 @@
-// input:  tmux command argv, filesystem, temp directory
-// output: TmuxControl and private launcher/paste staging
-// pos:    Shared tmux command wrapper for Claude TUI sessions
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  child processes, filesystem, and tmux argv
+// output: TmuxControl and launcher staging
+// pos:    Claude tmux command wrapper
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
@@ -104,42 +104,31 @@ export class TmuxControl {
   }
 
   /**
-   * Paste arbitrary text (including multi-line + non-ASCII + shell metachars) into the session's
-   * input area without submitting it. Internally: write text to a tempfile → tmux load-buffer (named
-   * buffer to avoid concurrent collisions) → tmux paste-buffer -d (free buffer after paste) → unlink tempfile.
-   *
-   * Does NOT send Enter — caller decides whether to submit (typically `sendKeys(name, 'Enter')` after).
-   *
-   * Why a named buffer + -d: tmux has a global anonymous paste buffer; concurrent sessions on the same
-   * tmux server would race. Named buffers + -d (auto-delete after paste) avoid that.
-   *
-   * Why -p (bracketed paste): Claude's Ink TUI only registers input wrapped in bracketed-paste escape
-   * sequences (ESC[200~ … ESC[201~) as a paste. Without -p (Claude ≥2.1.162) the text lands but the
-   * prompt buffer never accepts it, so the follow-up Enter submits nothing and no jsonl is written —
-   * the turn then dies on the first-event watchdog. Verified: with -p, paste→Enter submits and Claude
-   * responds; without it the pane goes blank and the transcript only contains session-init lines.
-   *
-   * @see DR-0012 spike §4 — paste-buffer is more reliable than send-keys -l for special chars.
+   * Paste arbitrary text without exposing it in process argv. A unique 0600 tempfile feeds a named
+   * tmux buffer; cleanup explicitly removes both artifacts on success and every failure path.
+   * Does not submit Enter. `-p` supplies the bracketed-paste sequences required by Claude's Ink TUI.
    */
   pasteText(name: string, text: string): void {
     const bufName = `cortex-${crypto.randomBytes(6).toString('hex')}`;
     const tmpfile = path.join(os.tmpdir(), `cortex-tmux-paste-${bufName}.txt`);
+    let bufferLoaded = false;
     fs.writeFileSync(tmpfile, text, { encoding: 'utf8', mode: 0o600 });
     try {
-      const r1 = this.exec(['load-buffer', '-b', bufName, tmpfile]);
-      if (r1.status !== 0) {
-        throw new Error(`tmux load-buffer failed (status=${r1.status}): ${r1.stderr.trim()}`);
+      const loaded = this.exec(['load-buffer', '-b', bufName, tmpfile]);
+      if (loaded.status !== 0) {
+        throw new Error(`tmux load-buffer failed (status=${loaded.status}): ${loaded.stderr.trim()}`);
       }
-      const r2 = this.exec(['paste-buffer', '-p', '-d', '-b', bufName, '-t', name]);
-      if (r2.status !== 0) {
-        throw new Error(`tmux paste-buffer failed (status=${r2.status}): ${r2.stderr.trim()}`);
+      bufferLoaded = true;
+      const pasted = this.exec(['paste-buffer', '-p', '-b', bufName, '-t', name]);
+      if (pasted.status !== 0) {
+        throw new Error(`tmux paste-buffer failed (status=${pasted.status}): ${pasted.stderr.trim()}`);
       }
     } finally {
-      try { fs.unlinkSync(tmpfile); } catch { /* best effort */ }
+      cleanupPasteArtifacts(this.exec, bufName, tmpfile, bufferLoaded);
     }
   }
 
-  /** Read the current visible pane content. Used only for diagnostics — production paths rely on jsonl. */
+  /** Read visible pane content for TUI diagnostics and bounded authentication parsing. */
   capturePane(name: string): string {
     const r = this.exec(['capture-pane', '-t', name, '-p']);
     return r.stdout;
@@ -159,6 +148,25 @@ export class TmuxControl {
     if (!prefix) return names;
     return names.filter(n => n.startsWith(prefix));
   }
+}
+
+function cleanupPasteArtifacts(
+  exec: TmuxExec,
+  bufferName: string,
+  tempfile: string,
+  bufferLoaded: boolean,
+): void {
+  let failed = false;
+  try { fs.unlinkSync(tempfile); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') failed = true;
+  }
+  try {
+    const deleted = exec(['delete-buffer', '-b', bufferName]);
+    if (bufferLoaded && deleted.status !== 0) failed = true;
+  } catch {
+    if (bufferLoaded) failed = true;
+  }
+  if (failed) throw new Error('tmux paste cleanup failed.');
 }
 
 // =====================================================================================

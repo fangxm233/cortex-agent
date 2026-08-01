@@ -10,7 +10,7 @@ It routes required/recovered events into debounced user notices.
 | auth-status.ts | core | Produces secret-free account status snapshots |
 | auth-watch.ts | notify | Routes debounced authentication notices |
 | cc-login.ts | adapter | Persists Claude API keys and reloads auth |
-| cc-subscription.ts | adapter | Drives Claude subscription setup and expiry |
+| cc-subscription.ts | adapter | Drives abortable Claude subscription login |
 | index.ts | entry | Exports the authentication domain API |
 | login-flow.ts | core | Coordinates login outcomes, aborts, and safe errors |
 | login-service.ts | service | Selects consumers and fences post-handoff cancellation |

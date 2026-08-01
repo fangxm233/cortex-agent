@@ -6,7 +6,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | filename | role | function |
 |---|---|---|
 | async-mutex.ts | util | serializes concurrent async operations |
-| atomic-write.ts | util | serializes and atomically replaces files |
+| atomic-write.ts | util | Serializes cancellable atomic file replacements |
 | auth.ts | core | issues and checks shared-secret auth tokens |
 | bg-held-sessions.ts | state | tracks sessions held running in background |
 | calver.ts | util | compares CalVer YYYY.M.D[-N] versions |
