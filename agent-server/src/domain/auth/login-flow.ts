@@ -1,4 +1,4 @@
-// input:  AuthType, timers, UUIDs, abort and callbacks
+// input:  AuthType, timers, UUIDs, abort and safe errors
 // output: LoginFlow API, safe errors, and AuthInteraction bridge
 // pos:    In-memory backend login session coordinator
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -8,11 +8,8 @@ import type { AuthType } from './auth-status.js';
 
 export const LOGIN_FLOW_TTL_MS = 30 * 60 * 1000;
 
-const LOGIN_FLOW_ERROR_BRAND = Symbol('LoginFlowError');
-
 export class LoginFlowError extends Error {
   readonly name = 'LoginFlowError';
-  readonly [LOGIN_FLOW_ERROR_BRAND] = true;
 
   constructor(readonly code: string, message: string) {
     super(message);
@@ -20,8 +17,11 @@ export class LoginFlowError extends Error {
 }
 
 export function isLoginFlowError(error: unknown): error is LoginFlowError {
-  return typeof error === 'object' && error !== null
-    && (error as { [LOGIN_FLOW_ERROR_BRAND]?: unknown })[LOGIN_FLOW_ERROR_BRAND] === true;
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { name?: unknown; message?: unknown; code?: unknown };
+  return candidate.name === 'LoginFlowError'
+    && typeof candidate.message === 'string'
+    && typeof candidate.code === 'string';
 }
 
 export type LoginFlowStep = 'select_backend' | 'select_provider' | 'select_auth_type'

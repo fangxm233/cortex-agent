@@ -1,5 +1,5 @@
 // input:  LoginFlow API, fake consumers, fake timers
-// output: Lifecycle, bridge, abort, outcome, and privacy tests
+// output: Lifecycle, safe-error, abort, and privacy tests
 // pos:    Backend-neutral login flow regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -184,6 +184,22 @@ test('branded LoginFlowError exposes only safe message and code', async () => {
   assert.equal(failed.outcome, null);
   assert.equal(serialized.includes(causeSecret), false);
   assert.equal(serialized.includes(stackSecret), false);
+});
+
+test('structurally branded safe errors do not require instanceof', async () => {
+  const branded = {
+    name: 'LoginFlowError', message: 'Provider unavailable.', code: 'provider_unavailable',
+  };
+  assert.equal(branded instanceof LoginFlowError, false);
+  assert.equal(isLoginFlowError(branded), true);
+  assert.equal(isLoginFlowError({ ...branded, name: 'Error' }), false);
+  assert.equal(isLoginFlowError({ ...branded, code: 401 }), false);
+
+  const flow = await startFlow(input('structural-error'), async () => { throw branded; });
+  await flush();
+  const failed = requireState(flow.flowId);
+  assert.equal(failed.error, 'Provider unavailable.');
+  assert.equal(failed.errorCode, 'provider_unavailable');
 });
 
 test('a flow expires at 30 minutes and rejects its pending answer', async () => {
