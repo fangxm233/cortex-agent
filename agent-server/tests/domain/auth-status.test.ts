@@ -1,5 +1,5 @@
 // input:  temporary auth files, PI fixtures, and locale state
-// output: authentication snapshot and summary contracts
+// output: auth snapshot, manageability, and summary contracts
 // pos:    Backend authentication status regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -32,7 +32,10 @@ const providers = [
   { id: 'soon', name: 'Soon OAuth', auth: { apiKey: {}, oauth: {} } },
   { id: 'expired', name: 'Expired OAuth', auth: { oauth: {} } },
   { id: 'logged-out', name: 'Logged Out', auth: { apiKey: {} } },
+  { id: 'environment', name: 'Environment Key', auth: { apiKey: {} } },
+  { id: 'fallback', name: 'Fallback Key', auth: { apiKey: {} } },
   { id: 'models-key', name: 'Models Key', auth: { apiKey: {} } },
+  { id: 'models-command', name: 'Models Command', auth: { apiKey: {} } },
   { id: 'runtime-plus-stored', name: 'Runtime Override', auth: { apiKey: {}, oauth: {} } },
 ];
 
@@ -53,7 +56,10 @@ export class ModelRuntime {
     throw new Error('getRegisteredProviderIds must not be used');
   }
   getProviderAuthStatus(providerId) {
+    if (providerId === 'environment') return { configured: true, source: 'environment' };
+    if (providerId === 'fallback') return { configured: true, source: 'fallback' };
     if (providerId === 'models-key') return { configured: true, source: 'models_json_key' };
+    if (providerId === 'models-command') return { configured: true, source: 'models_json_command' };
     if (providerId === 'runtime-plus-stored') return { configured: true, source: 'runtime' };
     const credential = readStoredCredential(providerId, this.createOptions.authPath);
     return credential ? { configured: true, source: 'stored' } : { configured: false };
@@ -176,6 +182,31 @@ function assertRuntimeOverride(snapshot: AuthStatusSnapshot): void {
   ]);
 }
 
+function credentialManageable(
+  snapshot: AuthStatusSnapshot,
+  provider: string,
+  source: string,
+): boolean {
+  const credential = account(snapshot, provider).credentials.find(item => item.source === source);
+  assert.ok(credential, `missing ${provider}/${source} credential`);
+  return credential.manageable;
+}
+
+function assertManageability(snapshot: AuthStatusSnapshot): void {
+  assert.equal(credentialManageable(snapshot, 'anthropic', 'credentials.json'), true, 'Claude OAuth');
+  assert.equal(credentialManageable(snapshot, 'anthropic', 'env'), true, 'Claude API key');
+  assert.equal(credentialManageable(snapshot, 'fresh', 'stored'), true, 'PI stored');
+  assert.equal(credentialManageable(snapshot, 'runtime-plus-stored', 'runtime'), false, 'PI runtime');
+  assert.equal(credentialManageable(snapshot, 'environment', 'environment'), false, 'PI environment');
+  assert.equal(credentialManageable(snapshot, 'fallback', 'fallback'), false, 'PI fallback');
+  assert.equal(credentialManageable(snapshot, 'models-key', 'models_json_key'), false, 'PI models key');
+  assert.equal(
+    credentialManageable(snapshot, 'models-command', 'models_json_command'),
+    false,
+    'PI models command',
+  );
+}
+
 function writeStateCredentials(fixture: PiFixture, secrets: string[]): void {
   writeJson(fixture.authPath, {
     fresh: { type: 'oauth', access: secrets[3], refresh: secrets[4], expires: NOW_MS + 7 * DAY_MS },
@@ -220,6 +251,7 @@ test('getAuthStatus normalizes all states and models_json_key without secret fra
     assertOtherStates(snapshot);
     assertModelsJsonKey(snapshot);
     assertRuntimeOverride(snapshot);
+    assertManageability(snapshot);
     const serialized = JSON.stringify(snapshot);
     assert.equal(secrets.flatMap(secret => [...secret]).some(part => serialized.includes(part)), false);
   } finally {
@@ -313,7 +345,7 @@ const SUMMARY_FIXTURE: AuthStatusSnapshot = {
       expiresAt: '2030-01-02T00:00:00.000Z', refreshExpiresAt: null, inUse: true,
       credentials: [{
         authType: 'oauth', state: 'expiring', source: 'credentials.json',
-        expiresAt: '2030-01-02T00:00:00.000Z', refreshExpiresAt: null, manageable: false,
+        expiresAt: '2030-01-02T00:00:00.000Z', refreshExpiresAt: null, manageable: true,
       }],
     },
     {

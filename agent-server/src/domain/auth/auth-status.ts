@@ -214,7 +214,7 @@ function claudeOAuthCredential(
     source: 'credentials.json',
     expiresAt: toIso(oauth.expiresAt),
     refreshExpiresAt: toIso(oauth.refreshExpiresAt),
-    manageable: false,
+    manageable: true,
   };
 }
 
@@ -225,7 +225,7 @@ function claudeApiKeyCredential(): AuthCredentialStatus {
     source: 'env',
     expiresAt: null,
     refreshExpiresAt: null,
-    manageable: false,
+    manageable: true,
   };
 }
 
