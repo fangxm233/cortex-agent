@@ -1,5 +1,5 @@
-// input:  AuthInteraction, tmux control, saved env, auth lifecycle
-// output: Claude subscription LoginFlow consumer and safe outcome
+// input:  AuthInteraction, tmux control, saved env, clock
+// output: abortable Claude subscription consumer and expiry
 // pos:    Claude Code setup-token login adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -28,6 +28,8 @@ const SUBMIT_DELAY_MS = 100;
 const AUTH_PROMPT = 'Paste code here if prompted';
 const AUTH_URL_PATTERN = /https:\/\/claude\.com\/cai\/oauth\/authorize\?[\s\S]*?(?=\n\s*\n)/;
 const TOKEN_PATTERN = /\bsk-ant-[A-Za-z0-9_-]+\b/;
+const ANSI_PATTERN = /\x1B\[[0-?]*[ -/]*[@-~]/g;
+const EXPIRY_DETAIL = "Expiry derived from the Claude CLI's declared one-year validity.";
 const CLI_FAILURE_PATTERN = /(?:OAuth error:|Login failed:|setup-token creates .* does not permit)/i;
 const EXIT_FAILURE_PATTERN = /CORTEX_SETUP_TOKEN_EXIT=[1-9][0-9]*/;
 const HOLD_PANE_SCRIPT = '"$1" setup-token; status=$?; '
@@ -57,7 +59,7 @@ export interface ClaudeSubscriptionLoginDependencies {
   claudeExecutable?: string;
   cwd?: string;
   sessionName?: () => string;
-  saveToken?: (token: string) => Promise<void>;
+  saveToken?: (token: string, signal?: AbortSignal) => Promise<void>;
   reloadAuth?: () => void;
   publishRecovered?: (input: { backend: 'claude'; provider: string }) => void;
   now?: () => number;
@@ -70,7 +72,8 @@ export interface ClaudeSubscriptionLoginDependencies {
 export interface ClaudeSubscriptionLoginOutcome extends LoginOutcome {
   provider: 'anthropic';
   authType: 'oauth';
-  expiresAt: null;
+  expiresAt: string;
+  detail: string;
 }
 
 interface DriveContext {
@@ -143,10 +146,11 @@ function extractToken(pane: string): string | null {
 }
 
 function inspectPane<T>(pane: string, extract: (value: string) => T | null): T | null {
-  if (CLI_FAILURE_PATTERN.test(pane) || EXIT_FAILURE_PATTERN.test(pane)) {
+  const text = pane.replace(ANSI_PATTERN, '');
+  if (CLI_FAILURE_PATTERN.test(text) || EXIT_FAILURE_PATTERN.test(text)) {
     throw loginError('claude_subscription_failed', 'Claude subscription login failed.');
   }
-  return extract(pane);
+  return extract(text);
 }
 
 async function pollPane<T>(context: DriveContext, extract: (pane: string) => T | null): Promise<T> {
@@ -236,16 +240,21 @@ function safeFailure(error: unknown): LoginFlowError {
   return loginError('claude_subscription_failed', 'Claude subscription login failed.');
 }
 
+interface TokenAcquisition {
+  token: string;
+  context: DriveContext;
+}
+
 async function acquireToken(
   interaction: AuthInteraction,
   dependencies: ClaudeSubscriptionLoginDependencies,
-): Promise<string> {
+): Promise<TokenAcquisition> {
   const tmux = dependencies.tmux ?? new TmuxControl();
   const sessionName = (dependencies.sessionName ?? (() => `cortex-claude-auth-${randomUUID()}`))();
   const context = createContext(dependencies, tmux, sessionName, interaction.signal);
   try {
     startTmux(context, dependencies);
-    return await driveSetupToken(interaction, context);
+    return { token: await driveSetupToken(interaction, context), context };
   } catch (error) {
     throw safeFailure(error);
   } finally {
@@ -256,23 +265,40 @@ async function acquireToken(
 async function persistToken(
   token: string,
   dependencies: ClaudeSubscriptionLoginDependencies,
-): Promise<void> {
+  context: DriveContext,
+): Promise<number> {
   try {
-    await (dependencies.saveToken ?? saveClaudeCodeOAuthToken)(token);
+    throwIfInterrupted(context);
+    const save = dependencies.saveToken ?? saveClaudeCodeOAuthToken;
+    await waitWithDeadline(save(token, context.signal), context);
+    throwIfInterrupted(context);
+    const persistedAt = context.now();
     (dependencies.reloadAuth ?? (() => configureEnvForMode(getClaudeMode())))();
-  } catch {
+    return persistedAt;
+  } catch (error) {
+    if (isLoginFlowError(error)) throw error;
     throw loginError('claude_subscription_persist_failed', 'Claude subscription login could not be saved.');
   }
+}
+
+function oneYearAfter(timestamp: number): string {
+  const expiresAt = new Date(timestamp);
+  expiresAt.setUTCFullYear(expiresAt.getUTCFullYear() + 1);
+  return expiresAt.toISOString();
 }
 
 export async function loginClaudeSubscription(
   interaction: AuthInteraction,
   dependencies: ClaudeSubscriptionLoginDependencies = {},
 ): Promise<ClaudeSubscriptionLoginOutcome> {
-  const token = await acquireToken(interaction, dependencies);
-  await persistToken(token, dependencies);
+  const { token, context } = await acquireToken(interaction, dependencies);
+  const persistedAt = await persistToken(token, dependencies, context);
+  throwIfInterrupted(context);
   (dependencies.publishRecovered ?? publishAuthRecovered)({
     backend: 'claude', provider: 'anthropic',
   });
-  return { provider: 'anthropic', authType: 'oauth', expiresAt: null };
+  return {
+    provider: 'anthropic', authType: 'oauth',
+    expiresAt: oneYearAfter(persistedAt), detail: EXPIRY_DETAIL,
+  };
 }

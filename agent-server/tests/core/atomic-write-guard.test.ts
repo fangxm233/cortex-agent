@@ -1,7 +1,7 @@
-// input:  atomic writes, file mutations, fs, test-process env
-// output: tripwire, mode, and mutation serialization tests
+// input:  atomic writes, filesystem, abort signals, test env
+// output: tripwire, mode, cancellation, and serialization tests
 // pos:    Atomic-write safety regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
@@ -74,6 +74,34 @@ test('creates restricted atomic temp files with the requested mode', async (t) =
   await atomicWrite(target, 'secret', { mode: 0o600 });
 
   assert.deepEqual(creationModes, [0o600]);
+});
+
+test('abort after temp write prevents rename and removes the secret tempfile', async (t) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'atomic-abort-'));
+  const target = path.join(dir, 'secret.env');
+  writeFileSync(target, 'ORIGINAL=1\n', { mode: 0o600 });
+  const wroteTemp = deferred();
+  const releaseWrite = deferred();
+  const originalWrite = fsPromises.writeFile.bind(fsPromises);
+  const spy = vi.spyOn(fsPromises, 'writeFile').mockImplementation(async (file, data, options) => {
+    await originalWrite(file, data, options);
+    if (String(file).includes('.tmp.')) {
+      wroteTemp.resolve();
+      await releaseWrite.promise;
+    }
+  });
+  t.onTestFinished(() => { spy.mockRestore(); rmSync(dir, { recursive: true, force: true }); });
+  const controller = new AbortController();
+  const write = atomicWrite(target, 'SECRET=fixture\n', { mode: 0o600, signal: controller.signal });
+  await wroteTemp.promise;
+
+  controller.abort(new Error('fixture write cancelled'));
+  releaseWrite.resolve();
+
+  await assert.rejects(write, /fixture write cancelled/);
+  assert.equal(readFileSync(target, 'utf8'), 'ORIGINAL=1\n');
+  const tempfiles = (await fsPromises.readdir(dir)).filter(name => name.includes('.tmp.'));
+  assert.deepEqual(tempfiles, []);
 });
 
 test('repairs the requested mode after an idempotent mutation', async (t) => {

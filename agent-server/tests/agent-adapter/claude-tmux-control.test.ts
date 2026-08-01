@@ -1,7 +1,7 @@
-// input:  Node test runner + agent-adapter/claude/tmux-control module
-// output: TmuxControl pure-function argv + tempfile spec lock-down (DR-0012 Phase 1)
-// pos:    Claude TUI adapter foundational utility regression tests
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Node filesystem and Claude tmux control
+// output: tmux argv, secure paste-buffer, and launcher tests
+// pos:    Claude tmux utility regression tests
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -157,45 +157,70 @@ test('sendKeys with empty key list is a no-op (does not invoke tmux)', () => {
 
 // --- pasteText (load-buffer + paste-buffer) ---
 
-test('pasteText writes a tempfile, loads it into buffer, pastes, and cleans up', async (tCtx) => {
-  // Real tempfile path captured via mock exec — we'll inspect it before tmux pretends to consume it
+test('pasteText uses a 0600 tempfile and removes it after paste', () => {
   let observedTempfile: string | null = null;
   let observedContent: string | null = null;
+  let observedMode: number | null = null;
   const exec = (args: string[]): TmuxExecResult => {
     if (args[0] === 'load-buffer') {
-      // args: ['load-buffer', '-b', '<bufname>', <path>]
-      const p = args[args.length - 1];
-      observedTempfile = p;
-      try { observedContent = fs.readFileSync(p, 'utf8'); } catch {}
+      const tempfile = args.at(-1)!;
+      observedTempfile = tempfile;
+      observedContent = fs.readFileSync(tempfile, 'utf8');
+      observedMode = fs.statSync(tempfile).mode & 0o777;
     }
     return { stdout: '', stderr: '', status: 0 };
   };
-  const t = new TmuxControl(exec);
+  const tmux = new TmuxControl(exec);
   const text = 'hello\n你好\n`$\\"\'';
-  t.pasteText('cortex-claude-aaa', text);
+  tmux.pasteText('cortex-claude-aaa', text);
 
-  assert.equal(observedContent, text, 'tempfile content must match input exactly');
+  assert.equal(observedContent, text);
+  assert.equal(observedMode, 0o600);
   assert.ok(observedTempfile !== null);
-  assert.ok(!fs.existsSync(observedTempfile!), 'tempfile should be deleted after paste');
+  assert.equal(fs.existsSync(observedTempfile!), false);
 });
 
-test('pasteText invokes load-buffer with a named buffer, paste-buffer with -d to delete after paste', () => {
+test('pasteText loads, pastes, and explicitly deletes its named buffer', () => {
   const { exec, calls } = makeMockExec([
-    { status: 0 }, // load-buffer
-    { status: 0 }, // paste-buffer
+    { status: 0 },
+    { status: 0 },
+    { status: 0 },
   ]);
-  const t = new TmuxControl(exec);
-  t.pasteText('cortex-claude-aaa', 'hi');
+  const tmux = new TmuxControl(exec);
+  tmux.pasteText('cortex-claude-aaa', 'hi');
 
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0].args[0], 'load-buffer');
-  // Buffer is named (so concurrent calls don't collide) and -t/target session present
-  const loadArgs = calls[0].args;
-  assert.ok(loadArgs.includes('-b'), 'load-buffer must use named buffer (-b)');
-  assert.equal(calls[1].args[0], 'paste-buffer');
-  assert.ok(calls[1].args.includes('-p'), 'paste-buffer must use -p (bracketed paste) so Claude registers the paste');
-  assert.ok(calls[1].args.includes('-d'), 'paste-buffer must use -d to free buffer after paste');
-  assert.ok(calls[1].args.includes('-t'), 'paste-buffer must target the session');
+  assert.deepEqual(calls.map(call => call.args[0]), [
+    'load-buffer', 'paste-buffer', 'delete-buffer',
+  ]);
+  const bufferName = calls[0].args[calls[0].args.indexOf('-b') + 1];
+  assert.deepEqual(calls[2].args, ['delete-buffer', '-b', bufferName]);
+  assert.equal(calls[1].args.includes('-p'), true);
+  assert.equal(calls[1].args.includes('-d'), false);
+  assert.equal(calls[1].args.includes('-t'), true);
+});
+
+test('pasteText deletes the named buffer when paste fails', () => {
+  const buffers = new Set<string>();
+  let tempfile = '';
+  const calls: string[][] = [];
+  const exec = (args: string[]): TmuxExecResult => {
+    calls.push(args);
+    const name = args[args.indexOf('-b') + 1];
+    if (args[0] === 'load-buffer') {
+      tempfile = args.at(-1)!;
+      buffers.add(name);
+      return { stdout: '', stderr: '', status: 0 };
+    }
+    if (args[0] === 'paste-buffer') return { stdout: '', stderr: 'paste failed', status: 1 };
+    if (args[0] === 'delete-buffer') buffers.delete(name);
+    return { stdout: '', stderr: '', status: 0 };
+  };
+  const tmux = new TmuxControl(exec);
+
+  assert.throws(() => tmux.pasteText('cortex-claude-aaa', 'secret-code'), /paste-buffer failed/);
+  assert.deepEqual(calls.map(args => args[0]), ['load-buffer', 'paste-buffer', 'delete-buffer']);
+  assert.deepEqual([...buffers], []);
+  assert.equal(fs.existsSync(tempfile), false);
 });
 
 // --- capturePane ---

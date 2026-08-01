@@ -1,7 +1,7 @@
-// input:  file paths, text mutations, optional permission mode
-// output: atomic writes and cross-process serialized mutations
+// input:  file paths, text mutations, modes, abort signals
+// output: cancellable atomic writes and serialized mutations
 // pos:    Safe file replacement and mutation primitive
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import fs from 'node:fs/promises';
 import { writeFileSync, renameSync, mkdirSync } from 'node:fs';
@@ -42,6 +42,12 @@ function assertNotRealHomeInTest(filePath: string): void {
 const MUTATION_LOCK_WAIT_MS = 10;
 const MUTATION_LOCK_TIMEOUT_MS = 30_000;
 const OWNERLESS_LOCK_GRACE_MS = 1_000;
+
+function throwIfWriteAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return;
+  if (signal.reason instanceof Error) throw signal.reason;
+  throw new Error('Atomic write aborted.');
+}
 
 interface MutationLockOwner {
   pid: number;
@@ -135,11 +141,16 @@ async function tryAcquireLock(lockPath: string): Promise<(() => Promise<void>) |
   }
 }
 
-async function acquireMutationLock(filePath: string): Promise<() => Promise<void>> {
+async function acquireMutationLock(
+  filePath: string,
+  signal?: AbortSignal,
+): Promise<() => Promise<void>> {
+  throwIfWriteAborted(signal);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const lockPath = `${filePath}.mutation-lock`;
   const deadline = Date.now() + MUTATION_LOCK_TIMEOUT_MS;
   while (Date.now() < deadline) {
+    throwIfWriteAborted(signal);
     const release = await tryAcquireLock(lockPath);
     if (release) return release;
     if (await lockIsStale(lockPath)) await removeStaleLock(lockPath);
@@ -159,6 +170,7 @@ async function readOptionalText(filePath: string): Promise<string> {
 
 export interface AtomicWriteOptions {
   mode?: number;
+  signal?: AbortSignal;
 }
 
 async function applyModeIfPresent(filePath: string, mode: number): Promise<void> {
@@ -175,10 +187,13 @@ export async function mutateFileAtomically(
   options: AtomicWriteOptions = {},
 ): Promise<void> {
   assertNotRealHomeInTest(filePath);
-  const release = await acquireMutationLock(filePath);
+  const release = await acquireMutationLock(filePath, options.signal);
   try {
+    throwIfWriteAborted(options.signal);
     const contents = await readOptionalText(filePath);
+    throwIfWriteAborted(options.signal);
     const updated = await mutate(contents);
+    throwIfWriteAborted(options.signal);
     if (updated !== contents) await atomicWrite(filePath, updated, options);
     else if (options.mode !== undefined) await applyModeIfPresent(filePath, options.mode);
   } finally {
@@ -192,12 +207,22 @@ export async function atomicWrite(
   options: AtomicWriteOptions = {},
 ): Promise<void> {
   assertNotRealHomeInTest(filePath);
+  throwIfWriteAborted(options.signal);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
+  throwIfWriteAborted(options.signal);
   const rnd = Math.random().toString(36).slice(2, 8);
   const tmp = `${filePath}.tmp.${process.pid}.${Date.now()}.${rnd}`;
-  await fs.writeFile(tmp, data, { encoding: 'utf8', mode: options.mode });
-  if (options.mode !== undefined) await fs.chmod(tmp, options.mode);
-  await fs.rename(tmp, filePath);
+  let committed = false;
+  try {
+    await fs.writeFile(tmp, data, { encoding: 'utf8', mode: options.mode });
+    throwIfWriteAborted(options.signal);
+    if (options.mode !== undefined) await fs.chmod(tmp, options.mode);
+    throwIfWriteAborted(options.signal);
+    renameSync(tmp, filePath);
+    committed = true;
+  } finally {
+    if (!committed) await fs.rm(tmp, { force: true });
+  }
 }
 
 /** Synchronous variant for sync call sites (e.g. CLI write handlers). Same guard, same
