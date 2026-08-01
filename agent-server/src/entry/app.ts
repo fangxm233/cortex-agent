@@ -1,7 +1,7 @@
-// input:  settings migration, stores, services, lifecycle event publishers
-// output: server runtime, auth/lifecycle events, live settings pushes
+// input:  settings, stores, services, event publishers
+// output: server runtime and live settings pushes
 // pos:    Agent-server composition root
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import * as dotenv from 'dotenv';
 import { mkdirSync, promises as fsPromises } from 'fs';
 import * as path from 'path';

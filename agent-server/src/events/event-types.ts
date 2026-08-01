@@ -1,5 +1,5 @@
-// input:  ChatNoticeLevel, SessionContextUsage, and system state-change hints
-// output: CortexEvent and AuthErrorKind event contracts
+// input:  ChatNoticeLevel and SessionContextUsage
+// output: CortexEvent and AuthErrorKind contracts
 // pos:    Typed event contract for the shared EventBus
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 

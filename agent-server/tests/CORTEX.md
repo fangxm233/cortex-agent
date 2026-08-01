@@ -23,9 +23,9 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
 | agent-adapter-pi.test.ts | test | PI resume validation, cache, events and context |
 | agent-adapter.test.ts | test | adapter dispatch, capability sets and tool names |
-| agent-retry-classification.test.ts | test | retry, auth lifecycle, outage and notice policy |
+| agent-retry-classification.test.ts | test | retry, auth lifecycle, outage and rejection identity |
 | app.test.ts | test | startup DM notification behaviour |
-| auth-events.test.ts | test | auth classification, privacy and recovery events |
+| auth-events.test.ts | test | auth case, boundary, privacy and recovery events |
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | claim-recovery.test.ts | test | orphaned task claim recovery policy |
 | cli-utils.test.ts | test | shared CLI help and error rendering |

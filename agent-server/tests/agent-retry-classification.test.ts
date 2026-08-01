@@ -1,9 +1,9 @@
-// input:  retry config, auth events, facade, outages, stub processes
-// output: retry, authentication lifecycle, outage, and notice regressions
-// pos:    Covers provider retry and terminal authentication policy
+// input:  retry config, auth events, facade, stub processes
+// output: retry, auth lifecycle, outage, and notice tests
+// pos:    Provider retry and terminal authentication tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test, vi } from 'vitest';
+import { afterEach, test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { isRetryableError } from '../src/domain/agents/config.js';
@@ -174,13 +174,29 @@ for (const message of [
   });
 }
 
-const AUTH_BACKEND_CASES: Array<{
+interface AuthBackendCase {
   backend: Backend;
   provider?: string;
   expectedProvider: string;
   message: string;
   kind: AuthErrorKind;
-}> = [
+}
+
+type RequiredEvent = Extract<CortexEvent, { type: 'auth.required' }>;
+type RecoveredEvent = Extract<CortexEvent, { type: 'auth.recovered' }>;
+
+interface AuthRunHarness {
+  options: { profileName: string; channel: string; trackSessionId: string };
+  authError: Error;
+  nonAuthError: Error;
+  required: RequiredEvent[];
+  recovered: RecoveredEvent[];
+  spawnCount(): number;
+}
+
+afterEach(() => initAuthEvents(null));
+
+const AUTH_BACKEND_CASES: AuthBackendCase[] = [
   {
     backend: 'claude', expectedProvider: 'anthropic',
     message: 'Please run /login: credential-fragment-claude', kind: 'login_required',
@@ -191,52 +207,69 @@ const AUTH_BACKEND_CASES: Array<{
   },
 ];
 
+function createAuthRunHarness(authCase: AuthBackendCase): AuthRunHarness {
+  installAuthProfile(authCase.backend, authCase.provider);
+  const bus = new EventBus();
+  const required: RequiredEvent[] = [];
+  const recovered: RecoveredEvent[] = [];
+  bus.subscribe('auth.required', (event) => { required.push(event); });
+  bus.subscribe('auth.recovered', (event) => { recovered.push(event); });
+  initAuthEvents(bus);
+  const authError = new Error(authCase.message);
+  const nonAuthError = new Error('context window exceeded');
+  const spawn = vi.spyOn(getAdapter(authCase.backend), 'spawn')
+    .mockReturnValueOnce(makeProcess(authError))
+    .mockReturnValueOnce(makeProcess(nonAuthError))
+    .mockReturnValueOnce(makeProcess(RATE_LIMIT_RESULT))
+    .mockReturnValueOnce(makeProcess(SUCCESS_RESULT))
+    .mockReturnValueOnce(makeProcess(SUCCESS_RESULT));
+  const options = {
+    profileName: 'auth-test', channel: `web:auth-${authCase.backend}`,
+    trackSessionId: `track-${authCase.backend}`,
+  };
+  return { options, authError, nonAuthError, required, recovered, spawnCount: () => spawn.mock.calls.length };
+}
+
+async function assertInitialAuthFailure(h: AuthRunHarness, authCase: AuthBackendCase): Promise<void> {
+  await assert.rejects(runAgent('test', h.options).promise, (caught) => caught === h.authError);
+  assert.equal(h.spawnCount(), 1);
+  assert.equal(h.required.length, 1);
+  const { ts: _requiredTs, ...payload } = h.required[0];
+  assert.deepEqual(payload, {
+    type: 'auth.required', backend: authCase.backend, provider: authCase.expectedProvider,
+    authType: null, kind: authCase.kind, channel: h.options.channel,
+    sessionId: h.options.trackSessionId,
+  });
+  assert.equal(JSON.stringify(h.required[0]).includes('credential-fragment'), false);
+}
+
+async function assertPendingAcrossOtherFailures(h: AuthRunHarness): Promise<void> {
+  await assert.rejects(runAgent('test', h.options).promise, (caught) => caught === h.nonAuthError);
+  assert.equal(h.required.length, 1);
+  assert.deepEqual(h.recovered, []);
+  const rateLimited = await runAgent('test', h.options).promise;
+  assert.equal(rateLimited.rateLimited, true);
+  assert.deepEqual(h.recovered, []);
+}
+
+async function assertSingleRecovery(h: AuthRunHarness, authCase: AuthBackendCase): Promise<void> {
+  await runAgent('test', h.options).promise;
+  assert.equal(h.recovered.length, 1);
+  const { ts: _recoveredTs, ...payload } = h.recovered[0];
+  assert.deepEqual(payload, {
+    type: 'auth.recovered', backend: authCase.backend, provider: authCase.expectedProvider,
+  });
+  await runAgent('test', h.options).promise;
+  assert.equal(h.recovered.length, 1);
+  assert.equal(h.spawnCount(), 5);
+}
+
 for (const authCase of AUTH_BACKEND_CASES) {
-  test(`runAgent publishes required and recovered through the ${authCase.backend} facade path`, async (t) => {
-    installAuthProfile(authCase.backend, authCase.provider);
-    const bus = new EventBus();
-    const required: Array<Extract<CortexEvent, { type: 'auth.required' }>> = [];
-    const recovered: Array<Extract<CortexEvent, { type: 'auth.recovered' }>> = [];
-    bus.subscribe('auth.required', (event) => { required.push(event); });
-    bus.subscribe('auth.recovered', (event) => { recovered.push(event); });
-    initAuthEvents(bus);
-    t.onTestFinished(() => initAuthEvents(null));
-
-    const spawn = vi.spyOn(getAdapter(authCase.backend), 'spawn')
-      .mockReturnValueOnce(makeProcess(new Error(authCase.message)))
-      .mockReturnValueOnce(makeProcess(RATE_LIMIT_RESULT))
-      .mockReturnValueOnce(makeProcess(SUCCESS_RESULT))
-      .mockReturnValueOnce(makeProcess(SUCCESS_RESULT));
-    const options = {
-      profileName: 'auth-test', channel: `web:auth-${authCase.backend}`,
-      trackSessionId: `track-${authCase.backend}`,
-    };
-
-    await assert.rejects(runAgent('test', options).promise, new RegExp(authCase.message.split(':')[0]));
-    assert.equal(spawn.mock.calls.length, 1);
-    assert.equal(required.length, 1);
-    const { ts: _requiredTs, ...requiredPayload } = required[0];
-    assert.deepEqual(requiredPayload, {
-      type: 'auth.required', backend: authCase.backend, provider: authCase.expectedProvider,
-      authType: null, kind: authCase.kind, channel: options.channel,
-      sessionId: options.trackSessionId,
-    });
-    assert.equal(JSON.stringify(required[0]).includes('credential-fragment'), false);
-
-    const rateLimited = await runAgent('test', options).promise;
-    assert.equal(rateLimited.rateLimited, true);
-    assert.deepEqual(recovered, []);
-
-    await runAgent('test', options).promise;
-    assert.equal(recovered.length, 1);
-    const { ts: _recoveredTs, ...recoveredPayload } = recovered[0];
-    assert.deepEqual(recoveredPayload, {
-      type: 'auth.recovered', backend: authCase.backend, provider: authCase.expectedProvider,
-    });
-
-    await runAgent('test', options).promise;
-    assert.equal(recovered.length, 1);
-    assert.equal(spawn.mock.calls.length, 4);
+  test(`runAgent publishes required and recovered through the ${authCase.backend} facade path`, async () => {
+    const harness = createAuthRunHarness(authCase);
+    await assertInitialAuthFailure(harness, authCase);
+    await assertPendingAcrossOtherFailures(harness);
+    await assertSingleRecovery(harness, authCase);
   });
 }
 
