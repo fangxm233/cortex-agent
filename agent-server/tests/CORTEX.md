@@ -41,7 +41,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cortex-run-callback-handler.test.ts | test | task callback idempotency and ghost cases |
 | cortex-run-cli-dispatch.test.ts | test | cortex-run CLI flags and dispatch |
 | daemon.test.ts | test | daemon imports, rebuild order and abort notice |
-| disk-monitor.test.ts | test | disk alert decisions and byte formatting |
+| disk-monitor.test.ts | test | disk path, toggle, alerts and byte formatting |
 | dispatch-utils.test.ts | test | device registry, task id and session names |
 | domain/ | subdir | domain service, MCP tool and UI-service tests |
 | entry/ | subdir | Runtime wiring and CLI entry-point tests |

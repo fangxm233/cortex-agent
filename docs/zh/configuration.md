@@ -225,6 +225,7 @@ $CORTEX_HOME/
 | `streamDeltas` | boolean | `true` | 按 token 流式输出助手文本。关闭后每条助手消息整条投递 | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | 后台任务结束时，把其输出续投回会话 | `CORTEX_BG_CONTINUATION` |
 | `eventLog` | boolean | `true` | 把事件总线写入按日滚动的 JSONL 事件日志 | `CORTEX_EVENT_LOG` |
+| `diskMonitor` | boolean | `true` | 每五分钟检查 `$CORTEX_HOME` 所在文件系统的可用空间，低于 500 MiB 时发送系统通知。设为 `false` 会停止计时器；重新设为 `true` 会立即检查一次 | `CORTEX_DISK_MONITOR` |
 | `disableUserContext` | boolean | `false` | 设为 `true` 可停止把 `USER.md` 上下文注入普通直接对话轮次（默认注入；多 agent thread 步骤不会收到） | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | 设为 `true` 可禁用服务器自动更新检查（默认开启） | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `hooksLegacy` | boolean | `false` | 绕过钩子注册表，改用固定的内置表构建 Claude 的 hook 设置。参见 [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
@@ -238,13 +239,13 @@ $CORTEX_HOME/
 | `adminChannel` | string \| null | `null` | 发送系统通知（启动、限流、磁盘告警）的 Slack 频道。第一次给机器人发私信时会被自动探测并持久化到这里 | `SLACK_ADMIN_CHANNEL`，然后 `CORTEX_ADMIN_CHANNEL` |
 | `feishuAdminChannel` | string \| null | `null` | 同类通知的飞书 admin `chat_id`（`oc_...`）。与 `adminChannel` 相互独立——Slack 的频道 id 在飞书上不可用 | `FEISHU_ADMIN_CHANNEL` |
 
-Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）与**设置 → 高级**（`eventLog`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`）。其余键都靠手工编辑该文件。
+Web 工作台可写其中一部分：**设置 → 通知**（`turnNotify`、`autoResume`、`notifyCompaction`）与**设置 → 高级**（`eventLog`、`diskMonitor`、`showToolCalls`、`disableUserContext`、`serverUpdateDisable`）。其余键都靠手工编辑该文件。
 
 ### 热更新 {#hot-reload}
 
 config 目录被监视。`settings.json` 的变更去抖 300 毫秒后重新读取文件，之后一律使用新值——**无需重启守护进程**。有两点值得注意：
 
-- 每个设置在各自的使用点生效：下一个回合、下一次 agent 生成、下一轮派发，或下一个 HTTP 请求。`uiCorsOrigins` 在每个请求时解析；`adminChannel` 与 `feishuAdminChannel` 一变更就推送给正在运行的平台适配器。
+- 每个设置在各自的使用点生效：下一个回合、下一次 agent 生成、下一轮派发，或下一个 HTTP 请求。`uiCorsOrigins` 在每个请求时解析；`adminChannel` 与 `feishuAdminChannel` 一变更就推送给正在运行的平台适配器。`diskMonitor=false` 会停止计时器，恢复为 `true` 时会重新启动并立即检查。
 - 坏文件不会打挂服务器。JSON 非法或类型不符时保留上一份设置并记录错误日志；修好文件后，下一次写入即被重新加载。
 
 **例外——`waitingSweepMs`。** 等待中 manager 的扫描循环在每轮结束后按当前值自我重排，因此调大或调小间隔会从下一轮开始生效。但在运行中把它改成 `0` 会让循环彻底停下：没有任何东西会重排它，之后再改回正数也**不会**把它重新拉起，只有重启守护进程才行。（启动时值为 `0` 则该循环从不启动。）

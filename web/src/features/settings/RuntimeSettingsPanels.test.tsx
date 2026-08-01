@@ -53,6 +53,7 @@ const settings: ConfigSettingEntry[] = [
   { key: 'autoResume', value: true, source: 'default' },
   { key: 'notifyCompaction', value: false, source: 'file' },
   { key: 'eventLog', value: true, source: 'default' },
+  { key: 'diskMonitor', value: true, source: 'default' },
   { key: 'showToolCalls', value: false, source: 'file' },
   { key: 'disableUserContext', value: true, source: 'env' },
   { key: 'serverUpdateDisable', value: false, source: 'default' },
@@ -130,6 +131,7 @@ describe('runtime settings panel reads', () => {
     const html = renderAdvanced();
 
     expect(html).toContain('data-setting-key="eventLog" data-setting-value="true"');
+    expect(html).toContain('data-setting-key="diskMonitor" data-setting-value="true"');
     expect(html).toContain('data-setting-key="showToolCalls" data-setting-value="false"');
     expect(html).toContain('data-setting-key="disableUserContext" data-setting-value="true"');
     expect(html).toContain('data-setting-key="serverUpdateDisable" data-setting-value="false"');
@@ -143,7 +145,7 @@ describe('runtime settings panel reads', () => {
     const advanced = renderAdvanced(missing);
 
     expect(notifications.match(/data-setting-value="missing"/g)).toHaveLength(3);
-    expect(advanced.match(/data-setting-value="missing"/g)).toHaveLength(5);
+    expect(advanced.match(/data-setting-value="missing"/g)).toHaveLength(6);
     expect(notifications).not.toContain('role="button"');
     expect(advanced).not.toContain('role="button"');
     expect(notifications).not.toContain('••••••••');
@@ -202,6 +204,7 @@ describe('runtime setting writes', () => {
     ['autoResume', false],
     ['notifyCompaction', true],
     ['eventLog', false],
+    ['diskMonitor', false],
     ['showToolCalls', true],
     ['disableUserContext', false],
     ['serverUpdateDisable', true],

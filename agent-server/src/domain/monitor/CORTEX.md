@@ -4,5 +4,5 @@ Monitor domain: watches host resources and raises system notices when limits are
 
 | filename | role | function |
 |---|---|---|
-| disk-monitor.ts | core | Alerts when root filesystem space runs low |
+| disk-monitor.ts | core | Monitors Cortex data filesystem free space |
 | gpu-monitor.ts | core | Queries and renders GPU status across devices |

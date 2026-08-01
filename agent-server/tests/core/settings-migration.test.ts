@@ -26,6 +26,7 @@ const legacyLines = [
   'CORTEX_STREAM_DELTAS=0',
   'CORTEX_BG_CONTINUATION=no',
   'CORTEX_EVENT_LOG=off',
+  'CORTEX_DISK_MONITOR=off',
   'CORTEX_DISABLE_USER_CONTEXT=1',
   'CORTEX_SERVER_UPDATE_DISABLE=1',
   'CORTEX_HOOKS_LEGACY=1',
@@ -50,6 +51,7 @@ const expectedSettings = {
   streamDeltas: false,
   bgContinuation: false,
   eventLog: false,
+  diskMonitor: false,
   disableUserContext: true,
   serverUpdateDisable: true,
   hooksLegacy: true,
@@ -84,7 +86,7 @@ beforeEach(async () => {
 });
 
 describe.sequential('migrateEnvToSettings', () => {
-  test('migrates all 21 setting keys, strips legacy lines, preserves other lines, and is idempotent', async () => {
+  test('migrates all 22 setting keys, strips legacy lines, preserves other lines, and is idempotent', async () => {
     const preserved = [
       '# existing comment',
       'ANTHROPIC_API_KEY=secret-value',

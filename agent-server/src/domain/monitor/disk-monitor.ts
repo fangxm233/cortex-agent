@@ -1,12 +1,14 @@
-// input:  PlatformAdapter, periodic timer, fs.statfs
+// input:  PlatformAdapter, settings, DATA_DIR, fs.statfs
 // output: init/stop/checkDiskOnce + alert helpers
-// pos:    root filesystem capacity alert monitoring
+// pos:    Cortex data filesystem capacity alert monitoring
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { promises as fsp } from 'fs';
 import type { PlatformAdapter } from '@platform/index.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { createLogger } from '@core/log.js';
+import { DATA_DIR } from '@core/paths.js';
+import { getSettings, onSettingsChange } from '@core/settings.js';
 import { Icons } from '../../core/icons.js';
 
 const log = createLogger('disk-monitor');
@@ -15,7 +17,7 @@ const DEFAULT_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const WARN_BYTES = 500 * 1024 * 1024;
 const HYSTERESIS_BYTES = 1024 * 1024 * 1024;
 const REALERT_COOLDOWN_MS = 60 * 60 * 1000;
-const WATCH_PATH = '/';
+const WATCH_PATH = DATA_DIR;
 
 interface AlertState {
   hasAlerted: boolean;
@@ -29,6 +31,8 @@ interface AlertDecision {
 
 let _adapter: PlatformAdapter | null = null;
 let _timer: ReturnType<typeof setInterval> | null = null;
+let _unsubscribeSettings: (() => void) | null = null;
+let _intervalMs = DEFAULT_CHECK_INTERVAL_MS;
 let _state: AlertState = { hasAlerted: false, lastAlertAt: null };
 
 
@@ -66,6 +70,7 @@ function sendDM(text: string): void {
 }
 
 async function checkDiskOnce(): Promise<void> {
+  if (!getSettings().diskMonitor) return;
   let freeBytes: number;
   try {
     freeBytes = await getFreeBytes(WATCH_PATH);
@@ -73,6 +78,7 @@ async function checkDiskOnce(): Promise<void> {
     log.error(`statfs(${WATCH_PATH}) failed: ${(e as Error).message}`);
     return;
   }
+  if (!getSettings().diskMonitor) return;
 
   const decision = shouldAlert(freeBytes, _state, Date.now());
   _state = decision.newState;
@@ -84,30 +90,54 @@ async function checkDiskOnce(): Promise<void> {
   }
 }
 
+function stopTimer(): void {
+  if (!_timer) return;
+  clearInterval(_timer);
+  _timer = null;
+}
+
+function startTimer(): void {
+  if (_timer) return;
+  _timer = setInterval(() => {
+    checkDiskOnce().catch(e => log.error(`check failed: ${(e as Error).message}`));
+  }, _intervalMs);
+  checkDiskOnce().catch(e => log.error(`initial check failed: ${(e as Error).message}`));
+}
+
+function syncMonitorState(): void {
+  if (!getSettings().diskMonitor) {
+    stopTimer();
+    _state = { hasAlerted: false, lastAlertAt: null };
+    return;
+  }
+  startTimer();
+}
+
 function initDiskMonitor(adapter: PlatformAdapter, intervalMs: number = DEFAULT_CHECK_INTERVAL_MS): void {
-  if (_timer) {
+  if (_adapter) {
     log.info('Already initialized, skipping');
     return;
   }
   _adapter = adapter;
-  _timer = setInterval(() => { checkDiskOnce().catch(e => log.error(`check failed: ${(e as Error).message}`)); }, intervalMs);
-  checkDiskOnce().catch(e => log.error(`initial check failed: ${(e as Error).message}`));
-  log.info(`Initialized (interval=${Math.round(intervalMs / 1000)}s, warn<${formatBytes(WARN_BYTES)}, recover>=${formatBytes(HYSTERESIS_BYTES)})`);
+  _intervalMs = intervalMs;
+  _unsubscribeSettings = onSettingsChange((changedKeys) => {
+    if (changedKeys.includes('diskMonitor')) syncMonitorState();
+  });
+  syncMonitorState();
+  log.info(`Initialized (path=${WATCH_PATH}, enabled=${getSettings().diskMonitor}, interval=${Math.round(intervalMs / 1000)}s, warn<${formatBytes(WARN_BYTES)}, recover>=${formatBytes(HYSTERESIS_BYTES)})`);
 }
 
 function stopDiskMonitor(): void {
-  if (_timer) {
-    clearInterval(_timer);
-    _timer = null;
-  }
+  stopTimer();
+  _unsubscribeSettings?.();
+  _unsubscribeSettings = null;
   _adapter = null;
+  _intervalMs = DEFAULT_CHECK_INTERVAL_MS;
+  _state = { hasAlerted: false, lastAlertAt: null };
 }
 
 function _testReset(): void {
-  if (_timer) clearInterval(_timer);
-  _timer = null;
-  _adapter = null;
-  _state = { hasAlerted: false, lastAlertAt: null };
+  stopDiskMonitor();
 }
 
 export {

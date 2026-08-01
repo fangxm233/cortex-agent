@@ -73,6 +73,7 @@ export const WRITABLE_SETTING_KEYS = [
   'autoResume',
   'notifyCompaction',
   'eventLog',
+  'diskMonitor',
   'showToolCalls',
   'disableUserContext',
   'serverUpdateDisable',
@@ -106,6 +107,12 @@ export const ADVANCED_FLAGS: AdvancedFlag[] = [
     setting: 'eventLog',
     titleKey: 'stAdvEventLogTitle',
     descKey: 'stAdvEventLogDesc',
+  },
+  {
+    kind: 'setting',
+    setting: 'diskMonitor',
+    titleKey: 'stAdvDiskMonitorTitle',
+    descKey: 'stAdvDiskMonitorDesc',
   },
   {
     kind: 'setting',

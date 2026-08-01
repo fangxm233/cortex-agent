@@ -27,6 +27,7 @@ const ENV_NAMES = [
   'CORTEX_STREAM_DELTAS',
   'CORTEX_BG_CONTINUATION',
   'CORTEX_EVENT_LOG',
+  'CORTEX_DISK_MONITOR',
   'CORTEX_DISABLE_USER_CONTEXT',
   'CORTEX_SERVER_UPDATE_DISABLE',
   'CORTEX_HOOKS_LEGACY',
@@ -91,6 +92,7 @@ const expectedKeys = [
   'streamDeltas',
   'bgContinuation',
   'eventLog',
+  'diskMonitor',
   'disableUserContext',
   'serverUpdateDisable',
   'hooksLegacy',
@@ -115,6 +117,7 @@ const expectedDefaults = {
   streamDeltas: true,
   bgContinuation: true,
   eventLog: true,
+  diskMonitor: true,
   disableUserContext: false,
   serverUpdateDisable: false,
   hooksLegacy: false,
@@ -130,7 +133,7 @@ const expectedDefaults = {
 };
 
 describe.sequential('core settings', () => {
-  test('SETTINGS_SPEC declares all 21 keys with exact env mapping, type, default, and parser metadata', () => {
+  test('SETTINGS_SPEC declares all 22 keys with exact env mapping, type, default, and parser metadata', () => {
     assert.deepEqual(Object.keys(SETTINGS_SPEC), expectedKeys);
     assert.deepEqual(
       Object.fromEntries(Object.entries(SETTINGS_SPEC).map(([key, entry]) => [key, entry.envVar])),
@@ -144,6 +147,7 @@ describe.sequential('core settings', () => {
         streamDeltas: 'CORTEX_STREAM_DELTAS',
         bgContinuation: 'CORTEX_BG_CONTINUATION',
         eventLog: 'CORTEX_EVENT_LOG',
+        diskMonitor: 'CORTEX_DISK_MONITOR',
         disableUserContext: 'CORTEX_DISABLE_USER_CONTEXT',
         serverUpdateDisable: 'CORTEX_SERVER_UPDATE_DISABLE',
         hooksLegacy: 'CORTEX_HOOKS_LEGACY',
@@ -189,6 +193,8 @@ describe.sequential('core settings', () => {
       ['bgContinuation', '', true],
       ['eventLog', 'off', false],
       ['eventLog', 'OFF', true],
+      ['diskMonitor', ' OFF ', false],
+      ['diskMonitor', '', true],
       ['disableUserContext', '1', true],
       ['disableUserContext', 'true', false],
       ['serverUpdateDisable', '1', true],

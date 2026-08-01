@@ -273,6 +273,7 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 | `streamDeltas` | boolean | `true` | Stream assistant text token by token. Disable to deliver each assistant message in one piece | `CORTEX_STREAM_DELTAS` |
 | `bgContinuation` | boolean | `true` | Forward the output of background tasks back into the conversation when they finish | `CORTEX_BG_CONTINUATION` |
 | `eventLog` | boolean | `true` | Write the event bus to the daily rolling JSONL event log | `CORTEX_EVENT_LOG` |
+| `diskMonitor` | boolean | `true` | Check free space on the filesystem containing `$CORTEX_HOME` every five minutes and send a system notice below 500 MiB. `false` stops the timer; switching back to `true` runs an immediate check | `CORTEX_DISK_MONITOR` |
 | `disableUserContext` | boolean | `false` | Set to `true` to stop injecting `USER.md` context into direct conversation turns (injected by default; multi-agent thread steps never receive it) | `CORTEX_DISABLE_USER_CONTEXT` |
 | `serverUpdateDisable` | boolean | `false` | Set to `true` to disable the server auto-update check (enabled by default) | `CORTEX_SERVER_UPDATE_DISABLE` |
 | `hooksLegacy` | boolean | `false` | Bypass the hook registry and build Claude hook settings from the fixed built-in table instead. See [hooks.md](./hooks.md) | `CORTEX_HOOKS_LEGACY` |
@@ -288,8 +289,8 @@ valid settings. Either way the reason is logged. Unknown keys are ignored.
 
 The Web workbench writes a subset of these from **Settings → Notifications**
 (`turnNotify`, `autoResume`, `notifyCompaction`) and **Settings → Advanced**
-(`eventLog`, `showToolCalls`, `disableUserContext`, `serverUpdateDisable`).
-Every other key is edited by hand in the file.
+(`eventLog`, `diskMonitor`, `showToolCalls`, `disableUserContext`,
+`serverUpdateDisable`). Every other key is edited by hand in the file.
 
 ### Hot reload
 
@@ -300,7 +301,8 @@ daemon restart**. Two consequences worth knowing:
 - Each setting takes effect at its own point of use: the next turn, the next
   agent spawn, the next dispatch cycle, or the next HTTP request. `uiCorsOrigins`
   is resolved per request; `adminChannel` and `feishuAdminChannel` are pushed
-  into the running platform adapter as soon as they change.
+  into the running platform adapter as soon as they change. `diskMonitor=false`
+  stops its timer, while restoring `true` starts the timer and checks immediately.
 - A broken file never takes the server down. Invalid JSON or a type mismatch
   leaves the previous settings in place and logs the error; fix the file and the
   next write reloads it.

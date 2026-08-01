@@ -13,6 +13,7 @@ export interface Settings {
   streamDeltas: boolean;
   bgContinuation: boolean;
   eventLog: boolean;
+  diskMonitor: boolean;
   disableUserContext: boolean;
   serverUpdateDisable: boolean;
   hooksLegacy: boolean;
@@ -104,6 +105,12 @@ export const SETTINGS_SPEC = {
     type: 'boolean',
     default: true,
     legacyParse: (raw: string) => raw !== 'off',
+  },
+  diskMonitor: {
+    envVar: 'CORTEX_DISK_MONITOR',
+    type: 'boolean',
+    default: true,
+    legacyParse: (raw: string) => !['0', 'false', 'off', 'no'].includes(raw.trim().toLowerCase()),
   },
   disableUserContext: {
     envVar: 'CORTEX_DISABLE_USER_CONTEXT',
