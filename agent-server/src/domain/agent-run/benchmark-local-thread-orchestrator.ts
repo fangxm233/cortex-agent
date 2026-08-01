@@ -1,4 +1,4 @@
-// input:  frozen benchmark thread request, C6 runner, lifecycle primitives
+// input:  frozen request, injected thread runtime, lifecycle primitives
 // output: externally durable C9 terminal thread result
 // pos:    Daemon-free benchmark thread lifecycle coordinator
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -10,22 +10,33 @@ import path from 'node:path';
 import type {
   AgentProcessSpawner, AgentProcessSupervision,
 } from '../../agent-adapter/types.js';
-import { runningExecutions } from '../../core/running-executions.js';
+import { runningExecutions as daemonRunningExecutions } from '../../core/running-executions.js';
 import type { AgentSlotId, ThreadRecord } from '../../core/types/thread-types.js';
-import { resolveProfileConfig } from '../agents/profile-manager.js';
+import { resolveProfileConfig as daemonResolveProfile } from '../agents/profile-manager.js';
 import { ctx as jobCtx } from '../scheduling/job-registry.js';
 import {
-  cancelThread, createThread, getTemplate, loadConfig, resolveTemplateAgents,
+  cancelThread as daemonCancelThread,
+  createThread as daemonCreateThread,
+  getTemplate as daemonGetTemplate,
+  loadConfig as daemonLoadConfig,
+  resolveTemplateAgents as daemonResolveTemplateAgents,
 } from '../threads/index.js';
+import {
+  createLocalThreadRuntimeDeps,
+  getLocalThreadRuntimeDeps,
+  scopedLocalThreadService,
+  withLocalThreadRuntimeDeps,
+  type LocalThreadRuntimeDeps,
+} from '../threads/local-runtime-deps.js';
 import {
   BenchmarkRateLimitError, runThread, type ThreadRunResult,
 } from '../threads/runner.js';
 import type { PlatformAdapter } from '../../platform/adapter.js';
 import type { OutputStream } from '../../platform/output-stream.js';
 import type { PlatformCapabilities } from '../../platform/types.js';
-import { executionRepo } from '../../store/execution-repo.js';
-import { sessionStore } from '../../store/session-registry-repo.js';
-import { threadStore } from '../../store/thread-repo.js';
+import { executionRepo as daemonExecutionRepo } from '../../store/execution-repo.js';
+import { sessionStore as daemonSessionStore } from '../../store/session-registry-repo.js';
+import { threadStore as daemonThreadStore } from '../../store/thread-repo.js';
 import { canonicalJsonSha256 } from './identity.js';
 import {
   openJournal, TrajectoryWriteFailedError, type AgentSlot, type Journal,
@@ -48,18 +59,49 @@ interface BenchmarkThreadRequest {
   signal: AbortSignal;
 }
 
-interface BenchmarkThreadResult {
+export interface BenchmarkThreadResult {
   threadId: string;
   state: 'completed' | 'failed' | 'cancelled' | 'timeout';
   terminalReason: string | null;
   artifactPath: string | null;
   journalPath: string;
   manifestPath: string;
+  /** True iff a terminal manifest was written and validated successfully. */
+  manifestCommitted: boolean;
   steps: number;
   costUsd: number;
   durationMs: number;
   summary: string;
 }
+
+const runningExecutions = scopedLocalThreadService(
+  daemonRunningExecutions,
+  deps => deps.liveExecutions,
+);
+const executionRepo = scopedLocalThreadService(
+  daemonExecutionRepo,
+  deps => deps.executionStore,
+);
+const sessionStore = scopedLocalThreadService(daemonSessionStore, deps => deps.sessionStore);
+const threadStore = scopedLocalThreadService(daemonThreadStore, deps => deps.threadStore);
+const resolveProfileConfig: typeof daemonResolveProfile = (...args) => (
+  (getLocalThreadRuntimeDeps()?.resolveProfile ?? daemonResolveProfile)(...args)
+);
+const getTemplate: typeof daemonGetTemplate = (...args) => (
+  (getLocalThreadRuntimeDeps()?.getTemplate ?? daemonGetTemplate)(...args)
+);
+const loadConfig: typeof daemonLoadConfig = (...args) => (
+  (getLocalThreadRuntimeDeps()?.loadTemplates ?? daemonLoadConfig)(...args)
+);
+const resolveTemplateAgents: typeof daemonResolveTemplateAgents = (...args) => (
+  (getLocalThreadRuntimeDeps()?.resolveTemplateAgents ?? daemonResolveTemplateAgents)(...args)
+);
+const createThread: typeof daemonCreateThread = (...args) => (
+  (getLocalThreadRuntimeDeps()?.createThread ?? daemonCreateThread)(...args)
+);
+const cancelThread: typeof daemonCancelThread = (...args) => (
+  (getLocalThreadRuntimeDeps()?.cancelThread ?? daemonCancelThread)(...args)
+);
 
 type ResolvedProfile = ReturnType<typeof resolveProfileConfig>;
 type ResolvedTemplate = NonNullable<ReturnType<typeof getTemplate>>;
@@ -102,13 +144,13 @@ interface RunOutcome {
   result: ThreadRunResult | null;
   error: unknown;
   quiescent: boolean;
+  containmentFailure: unknown;
   durabilityError: unknown;
 }
 
-interface ClassifiedRun {
-  state: TerminalState;
-  reason: TerminalReason;
-}
+type NonQuiescentReason = 'containment_failed' | 'missing_quiescent';
+type ManifestClassifiedRun = { state: TerminalState; reason: TerminalReason };
+type ClassifiedRun = ManifestClassifiedRun | { state: 'failed'; reason: NonQuiescentReason };
 
 const BENCHMARK_SLOTS = new Set<AgentSlotId>(['benchmark-coder', 'benchmark-reviewer']);
 const SUMMARY_LIMIT = 2000;
@@ -199,7 +241,7 @@ function validateRequest(request: BenchmarkThreadRequest): void {
 }
 
 function initializeRuntime(): void {
-  jobCtx.bus = null;
+  jobCtx.bus = getLocalThreadRuntimeDeps()?.eventBus ?? null;
   executionRepo.load();
   threadStore.load();
   loadConfig();
@@ -492,20 +534,19 @@ function writeStepEvents(prepared: PreparedThreadRun, thread: ThreadRecord): unk
   }
 }
 
-async function settleOneSupervisor(session: SupervisorSession): Promise<boolean> {
+async function settleOneSupervisor(session: SupervisorSession): Promise<unknown> {
   try {
     await session.quiescent;
     await session.closed;
-    return true;
-  } catch {
-    return false;
+    return null;
+  } catch (error) {
+    return error;
   }
 }
 
-async function settleSupervisors(control: RunControl): Promise<boolean> {
-  if (control.sessions.length === 0) return true;
-  const settled = await Promise.all(control.sessions.map(settleOneSupervisor));
-  return settled.every(Boolean);
+async function settleSupervisors(control: RunControl): Promise<unknown> {
+  const failures = await Promise.all(control.sessions.map(settleOneSupervisor));
+  return firstFailure(...failures);
 }
 
 async function flushRepositories(): Promise<unknown> {
@@ -541,11 +582,12 @@ async function executeRun(prepared: PreparedThreadRun, control: RunControl): Pro
   enforceFinalCost(control, thread);
   const eventError = writeStepEvents(prepared, thread);
   if (eventError) cancelSessions(control);
-  const quiescent = await settleSupervisors(control);
+  const containmentFailure = await settleSupervisors(control);
+  const quiescent = containmentFailure === null;
   const repositoryError = await flushRepositories();
-  const journalError = quiescent ? await closeJournal(prepared.journal) : null;
+  const journalError = await closeJournal(prepared.journal);
   return {
-    ...execution, quiescent,
+    ...execution, quiescent, containmentFailure,
     durabilityError: firstFailure(eventError, repositoryError, journalError),
   };
 }
@@ -564,8 +606,16 @@ function classifyFailure(error: unknown): ClassifiedRun {
   return { state: 'failed', reason: 'child_failure' };
 }
 
+function containmentReason(error: unknown): NonQuiescentReason {
+  const detail = error && typeof error === 'object'
+    ? (error as { detail?: unknown }).detail : null;
+  return detail === 'missing_quiescent' ? 'missing_quiescent' : 'containment_failed';
+}
+
 function safetyClassification(outcome: RunOutcome): ClassifiedRun | null {
-  if (!outcome.quiescent) return { state: 'failed', reason: 'containment_failure' };
+  if (!outcome.quiescent) {
+    return { state: 'failed', reason: containmentReason(outcome.containmentFailure) };
+  }
   if (outcome.durabilityError) return { state: 'failed', reason: 'trajectory_write_failed' };
   return null;
 }
@@ -600,11 +650,12 @@ function classifyRun(
 
 function terminalInput(
   prepared: PreparedThreadRun,
-  classified: ClassifiedRun,
+  classified: ManifestClassifiedRun,
   thread: ThreadRecord,
 ): TerminalManifestInput {
   return {
     trajectoryRoot: prepared.request.trajectoryRoot,
+    canonicalTrajectoryRoot: true,
     rootRunId: prepared.request.rootRunId,
     threadId: thread.id,
     state: classified.state,
@@ -627,12 +678,13 @@ function terminalInput(
 function validCommittedManifest(
   prepared: PreparedThreadRun,
   file: string,
-  classified: ClassifiedRun,
+  classified: ManifestClassifiedRun,
 ): boolean {
   try {
     const record = JSON.parse(fs.readFileSync(file, 'utf8'));
     const lifecycle = validateTrajectoryLifecycle({
       trajectoryRoot: prepared.request.trajectoryRoot,
+      canonicalTrajectoryRoot: true,
       rootRunId: prepared.request.rootRunId,
       threadId: prepared.thread.id,
     });
@@ -654,24 +706,28 @@ function commitTerminal(
   prepared: PreparedThreadRun,
   classified: ClassifiedRun,
   thread: ThreadRecord,
-): { classified: ClassifiedRun; manifestPath: string } {
-  if (classified.reason === 'containment_failure') {
+): { classified: ClassifiedRun; manifestPath: string; manifestCommitted: boolean } {
+  if (classified.reason === 'containment_failed' || classified.reason === 'missing_quiescent') {
     return {
-      classified: { state: 'failed', reason: 'protocol_violation' },
-      manifestPath: prepared.lifecycle.terminal,
+      classified, manifestPath: prepared.lifecycle.terminal, manifestCommitted: false,
     };
   }
+  const terminalClassification = { state: classified.state, reason: classified.reason };
   try {
-    const manifestPath = writeTerminalManifest(terminalInput(prepared, classified, thread));
-    if (validCommittedManifest(prepared, manifestPath, classified)) {
-      return { classified, manifestPath };
+    const manifestPath = writeTerminalManifest(terminalInput(prepared, terminalClassification, thread));
+    if (validCommittedManifest(prepared, manifestPath, terminalClassification)) {
+      return { classified, manifestPath, manifestCommitted: true };
     }
     return {
       classified: { state: 'failed', reason: 'protocol_violation' },
-      manifestPath: prepared.lifecycle.terminal,
+      manifestPath: prepared.lifecycle.terminal, manifestCommitted: false,
     };
   } catch (error) {
-    return { classified: commitFailure(error), manifestPath: prepared.lifecycle.terminal };
+    return {
+      classified: commitFailure(error),
+      manifestPath: prepared.lifecycle.terminal,
+      manifestCommitted: false,
+    };
   }
 }
 
@@ -704,6 +760,7 @@ function buildResult(
     artifactPath: thread.artifactPath || null,
     journalPath: prepared.journal.path,
     manifestPath: committed.manifestPath,
+    manifestCommitted: committed.manifestCommitted,
     steps: thread.steps.length,
     costUsd: thread.totalCostUsd,
     durationMs: Math.max(0, Date.now() - new Date(prepared.startedAt).getTime()),
@@ -715,7 +772,7 @@ async function disposeSupervisors(control: RunControl): Promise<void> {
   await Promise.allSettled(control.sessions.map(session => session.dispose()));
 }
 
-export async function runBenchmarkThread(
+async function runBenchmarkThreadScoped(
   request: BenchmarkThreadRequest,
 ): Promise<BenchmarkThreadResult> {
   const prepared = await prepareRun(request);
@@ -730,4 +787,12 @@ export async function runBenchmarkThread(
     cleanupControl(control);
     await disposeSupervisors(control);
   }
+}
+
+export async function runBenchmarkThread(
+  request: BenchmarkThreadRequest,
+  overrides: Partial<LocalThreadRuntimeDeps> = {},
+): Promise<BenchmarkThreadResult> {
+  const deps = createLocalThreadRuntimeDeps(overrides);
+  return withLocalThreadRuntimeDeps(deps, () => runBenchmarkThreadScoped(request));
 }

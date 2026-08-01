@@ -1,5 +1,5 @@
 // input:  trial root, Node entry, allowlisted parent runtime env
-// output: pinned trial paths, exact child env, launch spec, child process
+// output: canonical trial paths, exact child env and process spec
 // pos:    Fresh-process boundary for benchmark Node entries
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -195,7 +195,9 @@ function assertEmptyProjectsDir(projectsDir: string): void {
 }
 
 export function preparePinnedTrialPaths(trialRoot: string): PinnedTrialPaths {
-  const root = path.resolve(trialRoot);
+  const requestedRoot = path.resolve(trialRoot);
+  fs.mkdirSync(requestedRoot, { recursive: true });
+  const root = fs.realpathSync(requestedRoot);
   const paths = {
     root,
     home: path.join(root, 'home'),
@@ -207,7 +209,6 @@ export function preparePinnedTrialPaths(trialRoot: string): PinnedTrialPaths {
     tempDir: path.join(root, 'tmp'),
     logsDir: path.join(root, 'logs'),
   };
-  fs.mkdirSync(root, { recursive: true });
   assertEmptyProjectsDir(paths.projectsDir);
   for (const value of Object.values(paths).slice(1)) fs.mkdirSync(value, { recursive: true });
   return paths;
