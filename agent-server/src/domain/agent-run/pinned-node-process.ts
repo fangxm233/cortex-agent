@@ -7,6 +7,7 @@ import { spawn, type ChildProcess, type StdioOptions } from 'node:child_process'
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const PINNED_RUNTIME_PATH = [
   path.dirname(process.execPath),
@@ -73,12 +74,41 @@ function splitPathValues(part: string): string[] {
   return token.split(path.delimiter);
 }
 
+function tokenPath(token: string, cwd: string): string | null {
+  const unquoted = token.replace(/^["']|["']$/g, '');
+  if (unquoted.startsWith('file://')) {
+    try { return fileURLToPath(unquoted); }
+    catch { return null; }
+  }
+  if (!unquoted.includes('/') || unquoted.includes('://')) return null;
+  return path.isAbsolute(unquoted) ? path.resolve(unquoted) : path.resolve(cwd, unquoted);
+}
+
 function pathCandidates(value: string, cwd: string): string[] {
-  return value.split(/[\s,;]+/).flatMap(splitPathValues).flatMap((token) => {
-    const unquoted = token.replace(/^["']|["']$/g, '');
-    if (!unquoted.includes('/') || unquoted.includes('://')) return [];
-    return [path.isAbsolute(unquoted) ? path.resolve(unquoted) : path.resolve(cwd, unquoted)];
-  });
+  return value.split(/[\s,;]+/).flatMap(splitPathValues)
+    .map(token => tokenPath(token, cwd)).filter((item): item is string => item !== null);
+}
+
+function physicalPath(value: string, depth = 0): string {
+  const absolute = path.resolve(value);
+  if (depth >= 40) return absolute;
+  let cursor = absolute;
+  const suffix: string[] = [];
+  while (true) {
+    try { return path.join(fs.realpathSync(cursor), ...suffix); }
+    catch {}
+    try {
+      if (fs.lstatSync(cursor).isSymbolicLink()) {
+        const target = fs.readlinkSync(cursor);
+        const resolved = path.isAbsolute(target) ? target : path.resolve(path.dirname(cursor), target);
+        return physicalPath(path.join(resolved, ...suffix), depth + 1);
+      }
+    } catch {}
+    const parent = path.dirname(cursor);
+    if (parent === cursor) return absolute;
+    suffix.unshift(path.basename(cursor));
+    cursor = parent;
+  }
 }
 
 function isWithin(candidate: string, root: string): boolean {
@@ -93,9 +123,12 @@ function referencesForbiddenRoot(
   const roots = [os.homedir(), parentEnv.CORTEX_HOME].filter(
     (root): root is string => typeof root === 'string' && root.length > 0,
   );
-  return pathCandidates(value, cwd).some(candidate => (
-    !isWithin(candidate, paths.root) && roots.some(root => isWithin(candidate, root))
-  ));
+  const trialRoot = physicalPath(paths.root);
+  return pathCandidates(value, cwd).some((candidate) => {
+    const physical = physicalPath(candidate);
+    return !isWithin(physical, trialRoot)
+      && roots.some(root => isWithin(physical, physicalPath(root)));
+  });
 }
 
 function assertPassthrough(

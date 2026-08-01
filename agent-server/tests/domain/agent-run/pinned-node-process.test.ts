@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, it } from 'vitest';
 import {
   PINNED_ENV_KEYS,
@@ -142,6 +142,26 @@ it('rejects absolute and cwd-relative passthrough references to host roots', () 
       CORTEX_HOME: hostCortex,
       CUSTOM_INPUT: `/usr/lib${path.delimiter}${hostCortex}/data`,
     },
+    passthroughEnv: ['CUSTOM_INPUT'],
+  }), /references a forbidden host root/);
+});
+
+it('rejects file URLs and trial symlinks that reference host roots', () => {
+  const workspace = path.join(root, 'workspace');
+  fs.mkdirSync(workspace);
+  const hostCortex = path.join(os.homedir(), '.cortex');
+  const base = { trialRoot: root, workspaceCwd: workspace, entry: CHILD };
+  assert.throws(() => preparePinnedNodeLaunch({
+    ...base,
+    parentEnv: { CUSTOM_INPUT: pathToFileURL(path.join(hostCortex, 'threads.json')).href },
+    passthroughEnv: ['CUSTOM_INPUT'],
+  }), /references a forbidden host root/);
+
+  const alias = path.join(root, 'host-alias');
+  fs.symlinkSync(hostCortex, alias, 'dir');
+  assert.throws(() => preparePinnedNodeLaunch({
+    ...base,
+    parentEnv: { CUSTOM_INPUT: path.join(alias, 'threads.json') },
     passthroughEnv: ['CUSTOM_INPUT'],
   }), /references a forbidden host root/);
 });
