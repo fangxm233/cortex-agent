@@ -1,5 +1,5 @@
 // input:  session state, optimistic send callbacks, media and drafts
-// output: desktop composer with lossless send failure recovery
+// output: guarded desktop composer with send failure recovery
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
@@ -541,7 +541,10 @@ export function Composer({
     });
   };
 
-  const doSend = (): void => doSendText(composer);
+  const doSend = (): void => {
+    if (!canSend) return;
+    doSendText(composer);
+  };
 
   const doStop = (): void => {
     if (!sessionId || cancelMut.isPending) return;
@@ -552,9 +555,7 @@ export function Composer({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       // Sending while a turn is running is intentional, not a fall-through: the server injects the
-      // text into the live turn instead of queuing it. Gated on canSend so ⏎ on an empty composer
-      // is inert rather than firing a no-op mutation, and so the key and the button agree.
-      if (!canSend) return;
+      // text into the live turn instead of queuing it. doSend owns the shared keyboard/click guard.
       doSend();
     } else if (e.key === 'Escape') {
       // The slash menu owns Escape while it is open; otherwise Escape is the Stop shortcut the
@@ -1012,14 +1013,18 @@ export function Composer({
                       marginTop: hasAttachments ? 2 : 0,
                     }}
                   >
-                    <div
+                    <button
+                      type="button"
                       data-action="send"
+                      aria-label={L.wbSend}
                       title={running ? `${L.wbSend} · ⏎` : undefined}
+                      disabled={!canSend}
                       onClick={doSend}
                       style={{
                         flex: 'none',
                         width: running ? 30 : 34,
                         height: running ? 30 : 34,
+                        padding: 0,
                         borderRadius: running ? 9 : 10,
                         // Running: outlined/secondary so Stop stays the primary action.
                         background: running ? 'transparent' : sendBg,
@@ -1041,7 +1046,7 @@ export function Composer({
                       >
                         <path d="M7 12V2M3 6l4-4 4 4" />
                       </svg>
-                    </div>
+                    </button>
                     {running && (
                       <div
                         data-action="stop"

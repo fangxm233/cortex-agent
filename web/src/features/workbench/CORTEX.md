@@ -45,14 +45,14 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Sends optimistically and restores rejected drafts |
+| Composer.tsx | view | Guards sends and restores rejected drafts |
 | Composer.test.tsx | test | Tests the visible rejected-send state |
 | ComposerStatusLine.tsx | view | Status row above the input with an accessory |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
 | optimistic-message.ts | vm | Reconciles local sends with source-aware message evidence |
 | optimistic-message.test.ts | test | Tests stale rows, de-duplication and failure |
-| optimistic-message.integration.test.tsx | test | Mounts deferred sends and authority races |
+| optimistic-message.integration.test.tsx | test | Tests pending sends and authority races |
 | composer-slash.ts | util | Resolves a slash-menu pick into a command |
 | composer-slash.test.ts | test | Unit tests for slash command dispatch |
 | ContextUsageControl.tsx | view | Context usage bar, details and compact action |
