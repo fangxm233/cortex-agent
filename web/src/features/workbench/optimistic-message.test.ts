@@ -1,5 +1,5 @@
-// input:  optimistic-message state machine, transcript/live fixtures, deferred mutations
-// output: immediate-render, reconciliation, and failure regressions
+// input:  source-aware optimistic state, authority fixtures, deferred mutations
+// output: stale-response, reconciliation, and failure regressions
 // pos:    Optimistic Web sender contract specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, expect, it, vi } from 'vitest';
@@ -187,21 +187,60 @@ describe('optimistic user reconciliation', () => {
     expect(renderedUsers([local], committed)).toEqual(['delivered first']);
   });
 
-  it('allows modest browser/server clock skew when a new authoritative occurrence arrives', () => {
+  it('allows modest browser/server clock skew when a new live occurrence arrives', () => {
     const local = optimistic('skewed');
     const serverBehind = authority({
-      transcript: transcript([user('skewed', '2026-08-01T00:59:30.000Z')]),
+      liveTail: [{ sessionId: 's1', role: 'user', text: 'skewed', ts: '2026-08-01T00:59:30.000Z' }],
     });
 
     expect(reconcileOptimisticUserMessages([local], serverBehind).matchedClientIds).toEqual(['local-1']);
   });
 
-  it('does not let an older identical transcript response consume a send made while it was loading', () => {
+  it('does not let a recent older transcript response consume a send made while it was loading', () => {
+    const local = optimistic('same');
+    const lateOld = authority({ transcript: transcript([user('same', '2026-08-01T00:59:30.000Z')]) });
+    const reconciled = reconcileOptimisticUserMessages([local], lateOld);
+
+    expect(reconciled.matchedClientIds).toEqual([]);
+    expect(reconciled.settledClientIds).toEqual([]);
+    expect(renderedUsers([local], lateOld)).toEqual(['same', 'same']);
+  });
+
+  it('does not let a much older identical transcript response consume a new send', () => {
     const local = optimistic('same');
     const lateOld = authority({ transcript: transcript([user('same', '2026-07-31T23:00:00.000Z')]) });
 
     expect(reconcileOptimisticUserMessages([local], lateOld).matchedClientIds).toEqual([]);
     expect(renderedUsers([local], lateOld)).toEqual(['same', 'same']);
+  });
+
+  it('does not count a late stale row toward two identical sends', () => {
+    const first = optimistic('same', [], authority(), 'local-1');
+    const second = optimistic('same', [first], authority(), 'local-2');
+    const staleAndOneNew = authority({ transcript: transcript([
+      user('same', '2026-08-01T00:59:30.000Z'),
+      user('same', T1),
+    ]) });
+    const reconciled = reconcileOptimisticUserMessages([first, second], staleAndOneNew);
+
+    expect(reconciled.matchedClientIds).toEqual(['local-1']);
+    expect(reconciled.settledClientIds).toEqual(['local-1']);
+    expect(renderedUsers([first, second], staleAndOneNew)).toEqual(['same', 'same', 'same']);
+  });
+
+  it('does not reuse one new occurrence when stale authority arrives between identical sends', () => {
+    const stale = authority({ transcript: transcript([user('same', '2026-08-01T00:59:30.000Z')]) });
+    const first = optimistic('same', [], authority(), 'local-1');
+    const second = optimistic('same', [first], stale, 'local-2');
+    const staleAndOneNew = authority({ transcript: transcript([
+      user('same', '2026-08-01T00:59:30.000Z'),
+      user('same', T1),
+    ]) });
+    const reconciled = reconcileOptimisticUserMessages([first, second], staleAndOneNew);
+
+    expect(reconciled.matchedClientIds).toEqual(['local-1']);
+    expect(reconciled.settledClientIds).toEqual(['local-1']);
+    expect(renderedUsers([first, second], staleAndOneNew)).toEqual(['same', 'same', 'same']);
   });
 
   it('matches identical sends one occurrence at a time without consuming an older identical row', () => {
