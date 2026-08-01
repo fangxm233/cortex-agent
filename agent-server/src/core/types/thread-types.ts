@@ -1,5 +1,5 @@
 // input:  thread template config and durable runtime state
-// output: thread state, outage retries, and lifecycle types
+// output: thread state, task generation, retries, lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -402,6 +402,8 @@ export interface ThreadMetadata {
   /** Task association persisted for lifecycle payloads and resumed dispatch work. */
   taskId?: string | null;
   taskProject?: string | null;
+  /** Opaque TASKS.yaml dispatch incarnation used to fence completion and terminal callbacks. */
+  dispatchGeneration?: string | null;
   /** Task text (TASKS.yaml `text`) at dispatch time, for the thread step status line so a glance
    *  shows what is running. Persisted because status updates outlive the in-memory selected task. */
   taskText?: string | null;

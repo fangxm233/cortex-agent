@@ -123,6 +123,10 @@ export function createPiApiKeyLoginConsumer(
   return async (interaction) => {
     const result = await loginPiApiKey(providerId, interaction, dependencies);
     if (result.ok === false) throw new PiApiKeyLoginFlowError(result);
-    return result;
+    return {
+      provider: result.provider,
+      authType: result.authType,
+      expiresAt: result.expiresAt,
+    };
   };
 }

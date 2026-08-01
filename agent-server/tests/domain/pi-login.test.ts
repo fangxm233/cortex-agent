@@ -156,16 +156,19 @@ test('PI login consumer drives LoginFlow to done without retaining the key', asy
     return { type: 'api_key', key: received };
   });
   const deps = dependencies(available(runtime([provider()], login)));
-  const flow = startFlow(startInput('deepseek'), createPiApiKeyLoginConsumer('deepseek', deps));
+  const flow = await startFlow(startInput('deepseek'), createPiApiKeyLoginConsumer('deepseek', deps));
   await flush();
 
   assert.equal(getFlowState(flow.flowId)?.pendingPrompt?.kind, 'secret');
-  respondPrompt(flow.flowId, SECRET);
+  await respondPrompt(flow.flowId, SECRET);
   await waitForStep(flow.flowId, 'done');
 
   const done = getFlowState(flow.flowId);
   assert.equal(received, SECRET);
   assert.equal(done?.step, 'done');
+  assert.deepEqual(done?.outcome, {
+    provider: 'deepseek', authType: 'api_key', expiresAt: null,
+  });
   assert.equal(JSON.stringify(done).includes(SECRET), false);
 });
 
@@ -180,7 +183,7 @@ async function assertStructuredFailure(
   assert.equal(result.error.code, expectedCode);
   assert.equal(JSON.stringify(result).includes(SECRET), false);
 
-  const flow = startFlow(startInput(providerId), createPiApiKeyLoginConsumer(providerId, deps));
+  const flow = await startFlow(startInput(providerId), createPiApiKeyLoginConsumer(providerId, deps));
   await waitForStep(flow.flowId, 'failed');
 }
 
@@ -220,9 +223,9 @@ test('runtime rejection for an invalid key is sanitized and never unhandled', as
     error: { code: 'login_failed', message: 'PI API-key login failed.' },
   });
 
-  const flow = startFlow(startInput('deepseek'), createPiApiKeyLoginConsumer('deepseek', deps));
+  const flow = await startFlow(startInput('deepseek'), createPiApiKeyLoginConsumer('deepseek', deps));
   await flush();
-  respondPrompt(flow.flowId, SECRET);
+  await respondPrompt(flow.flowId, SECRET);
   await waitForStep(flow.flowId, 'failed');
   await new Promise<void>(resolve => setImmediate(resolve));
 

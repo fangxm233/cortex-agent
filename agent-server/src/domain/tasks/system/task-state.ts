@@ -1,8 +1,19 @@
+// input:  task lifecycle storage, task generation, current date
+// output: claim, ownership-revocation, blocking, and approval transitions
+// pos:    Applies non-completion TASKS.yaml state changes
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import { todayISO } from '@core/utils.js';
-import { findTask, getTasksPath, readTasks, writeTasks } from './task-lifecycle-edit.js';
+import type { Task, TaskGenerationExpectation } from '@core/task-parser.js';
+import {
+  findTask, getTasksPath, readTasks, withTaskFileMutationLock, writeTasks,
+} from './task-lifecycle-edit.js';
 import * as fs from 'node:fs';
 
-function claimTask(taskText: string | null, project: string, agentId: string, taskId: string | null = null) {
+function claimTaskUnlocked(
+  taskText: string | null, project: string, agentId: string,
+  taskId: string | null = null, dispatchGeneration: string | null = null,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -18,11 +29,28 @@ function claimTask(taskText: string | null, project: string, agentId: string, ta
   const today = todayISO();
   task.claimed_by = agentId;
   task.claimed_at = today;
+  task.dispatch_generation = dispatchGeneration;
   writeTasks(project, tasks);
-  return { success: true, message: `Task claimed by ${agentId} on ${today}`, task_id: task.id, agent: agentId, claimed_at: today };
+  return {
+    success: true, message: `Task claimed by ${agentId} on ${today}`,
+    task_id: task.id, agent: agentId, claimed_at: today,
+    dispatch_generation: dispatchGeneration,
+  };
 }
 
-function unclaimTask(taskText: string | null, project: string, taskId: string | null = null) {
+function staleOwnership(task: Task, ownership?: TaskGenerationExpectation) {
+  if (!ownership || task.dispatch_generation === ownership.generation) return null;
+  return {
+    success: false as const,
+    message: 'Stale task dispatch generation; mutation ignored',
+    stale: true,
+  };
+}
+
+function unclaimTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -30,16 +58,21 @@ function unclaimTask(taskText: string | null, project: string, taskId: string | 
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
-
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
   if (!task.claimed_by) return { success: false, message: 'Task is not in-progress' };
 
   task.claimed_by = null;
   task.claimed_at = null;
+  task.dispatch_generation = null;
   writeTasks(project, tasks);
   return { success: true, message: 'Task unclaimed', task_id: task.id };
 }
 
-function pauseTask(taskText: string | null, project: string, taskId: string | null = null) {
+function pauseTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -47,17 +80,23 @@ function pauseTask(taskText: string | null, project: string, taskId: string | nu
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
 
   if (task.paused) return { success: false, message: 'Task is already paused' };
 
   task.claimed_by = null;
   task.claimed_at = null;
+  task.dispatch_generation = null;
   task.paused = true;
   writeTasks(project, tasks);
   return { success: true, message: 'Task paused' };
 }
 
-function resumeTask(taskText: string | null, project: string, taskId: string | null = null) {
+function resumeTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -65,6 +104,8 @@ function resumeTask(taskText: string | null, project: string, taskId: string | n
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
 
   if (!task.paused) return { success: false, message: 'Task is not paused' };
 
@@ -73,7 +114,10 @@ function resumeTask(taskText: string | null, project: string, taskId: string | n
   return { success: true, message: 'Task resumed' };
 }
 
-function requestApprovalTask(taskText: string | null, project: string, taskId: string | null = null) {
+function requestApprovalTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -81,6 +125,8 @@ function requestApprovalTask(taskText: string | null, project: string, taskId: s
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
 
   if (task.approval_needed) return { success: false, message: 'Task already requires approval' };
 
@@ -90,7 +136,10 @@ function requestApprovalTask(taskText: string | null, project: string, taskId: s
   return { success: true, message: 'Task marked as approval-needed' };
 }
 
-function approveTask(taskText: string | null, project: string, taskId: string | null = null) {
+function approveTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -98,6 +147,8 @@ function approveTask(taskText: string | null, project: string, taskId: string | 
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
 
   if (task.status === 'done') return { success: false, message: 'Cannot approve a completed task' };
   if (task.blocked_by) return { success: false, message: 'Cannot approve a blocked task — unblock it first' };
@@ -109,7 +160,10 @@ function approveTask(taskText: string | null, project: string, taskId: string | 
   return { success: true, message: `Task approved on ${today}` };
 }
 
-function clearApprovalTask(taskText: string | null, project: string, taskId: string | null = null) {
+function clearApprovalTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -117,6 +171,8 @@ function clearApprovalTask(taskText: string | null, project: string, taskId: str
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
 
   if (!task.approval_needed && !task.approved_at) {
     return { success: false, message: 'Task has no approval tags' };
@@ -128,7 +184,10 @@ function clearApprovalTask(taskText: string | null, project: string, taskId: str
   return { success: true, message: 'Approval tags cleared' };
 }
 
-function blockTask(taskText: string | null, project: string, reason: string, taskId: string | null = null) {
+function blockTaskUnlocked(
+  taskText: string | null, project: string, reason: string,
+  taskId: string | null = null, ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -136,9 +195,12 @@ function blockTask(taskText: string | null, project: string, reason: string, tas
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
 
   task.claimed_by = null;
   task.claimed_at = null;
+  task.dispatch_generation = ownership?.generation ?? null;
   task.pending_at = null;
   task.blocked_by = reason;
   // Normalize a 'pending' (mid cortex-run) task back to 'open'. `status === 'pending'`
@@ -150,7 +212,10 @@ function blockTask(taskText: string | null, project: string, reason: string, tas
   return { success: true, message: `Task blocked: ${reason}`, task_id: task.id };
 }
 
-function pendingTask(taskText: string | null, project: string, taskId: string | null = null) {
+function pendingTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -158,6 +223,8 @@ function pendingTask(taskText: string | null, project: string, taskId: string | 
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
 
   if (task.status === 'pending') return { success: true, message: 'Task is already pending (idempotent)', task_id: task.id };
   if (task.status === 'done') return { success: false, message: 'Cannot mark a completed task as pending' };
@@ -172,7 +239,10 @@ function pendingTask(taskText: string | null, project: string, taskId: string | 
   return { success: true, message: `Task marked pending on ${today}`, task_id: task.id };
 }
 
-function unblockTask(taskText: string | null, project: string, taskId: string | null = null) {
+function unblockTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -180,8 +250,11 @@ function unblockTask(taskText: string | null, project: string, taskId: string | 
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
 
   task.blocked_by = null;
+  task.dispatch_generation = null;
   // Defensively restore legacy stuck tasks (status=pending + blocked_by, produced before
   // blockTask normalized status) so they become dispatchable again on unblock.
   if (task.status === 'pending') {
@@ -192,7 +265,10 @@ function unblockTask(taskText: string | null, project: string, taskId: string | 
   return { success: true, message: 'Task unblocked', task_id: task.id };
 }
 
-function reopenTask(taskText: string | null, project: string, taskId: string | null = null) {
+function reopenTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -200,15 +276,36 @@ function reopenTask(taskText: string | null, project: string, taskId: string | n
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  const stale = staleOwnership(task, ownership);
+  if (stale) return stale;
 
   if (task.status === 'done') return { success: false, message: 'Cannot reopen a completed task — use uncomplete' };
   if (task.status !== 'pending') return { success: true, message: 'Task is already open (idempotent)', task_id: task.id };
 
   task.status = 'open';
   task.pending_at = null;
+  task.dispatch_generation = null;
   writeTasks(project, tasks);
   return { success: true, message: 'Task reopened', task_id: task.id };
 }
+
+function lockTaskMutation<T extends (...args: any[]) => any>(mutation: T): T {
+  return ((...args: Parameters<T>) => withTaskFileMutationLock(
+    args[1], () => mutation(...args),
+  )) as T;
+}
+
+const claimTask = lockTaskMutation(claimTaskUnlocked);
+const unclaimTask = lockTaskMutation(unclaimTaskUnlocked);
+const pauseTask = lockTaskMutation(pauseTaskUnlocked);
+const resumeTask = lockTaskMutation(resumeTaskUnlocked);
+const requestApprovalTask = lockTaskMutation(requestApprovalTaskUnlocked);
+const approveTask = lockTaskMutation(approveTaskUnlocked);
+const clearApprovalTask = lockTaskMutation(clearApprovalTaskUnlocked);
+const blockTask = lockTaskMutation(blockTaskUnlocked);
+const pendingTask = lockTaskMutation(pendingTaskUnlocked);
+const unblockTask = lockTaskMutation(unblockTaskUnlocked);
+const reopenTask = lockTaskMutation(reopenTaskUnlocked);
 
 export {
   approveTask,

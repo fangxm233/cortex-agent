@@ -1,5 +1,5 @@
-// input:  thread state, agents, provider throttle, hooks
-// output: thread runs, outage resume, and transcripts
+// input:  thread state, task generation, agents, throttle, hooks
+// output: task-aware thread runs, outage resume, and transcripts
 // pos:    Runs thread steps, controls, hooks, and resumes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -427,6 +427,7 @@ async function executeAndAwaitAgent(
     threadDepth: meta?.depth ?? 0,
     taskId: meta?.taskId ?? null,
     taskProject: meta?.taskProject ?? null,
+    taskGeneration: meta?.dispatchGeneration ?? null,
     useCoreMcp: true,
     sessionName: stepCtx.sessionName,
     claudeAgent: agentConfig.claudeAgent || null,

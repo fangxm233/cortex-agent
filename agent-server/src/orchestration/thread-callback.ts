@@ -1,5 +1,5 @@
-// input:  thread store, runtime settings, runner, outbound queue
-// output: callbacks, resumes, rotation, and waiting sweeps
+// input:  thread store, task generations, runner, outbound queue
+// output: fenced callbacks, resumes, rotation, waiting sweeps
 // pos:    Delivers child results and resumes suspended parents
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
@@ -13,8 +13,11 @@ import { isTerminalStatus } from '@domain/threads/tree.js';
 import { runThreadDetached } from './thread-executor.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
-import { scanAllTasks, type Task } from '@core/task-parser.js';
+import {
+  scanAllTasks, type Task, type TaskGenerationExpectation,
+} from '@core/task-parser.js';
 import { recordDelivered, pendingDeliveries } from '@domain/tasks/acceptance-ledger.js';
+import { withTaskFileMutationLockAsync } from '@domain/tasks/system/task-lifecycle-edit.js';
 import { isTaskArtifactTemplate } from '@domain/threads/index.js';
 import type { ThreadRecord, RunThreadOptions } from '@core/types/thread-types.js';
 import type { PlatformAdapter } from '@platform/index.js';
@@ -412,6 +415,13 @@ function readTaskFromDisk(project: string, taskId: string): Task | null {
   }
 }
 
+function matchesTaskGeneration(
+  task: Task, ownership: TaskGenerationExpectation | undefined,
+): boolean {
+  return !ownership || task.dispatch_generation === ownership.generation
+    || (task.status === 'done' && task.dispatch_generation === null);
+}
+
 /** Deliver one child-task result to one waiting manager thread. Returns true if delivered.
  *  Same-incarnation idempotency rides the persistent deliveredChildResults array (4-hex
  *  task ids cannot collide with thr_ thread ids). Cross-incarnation idempotency (DR-0017
@@ -457,30 +467,40 @@ async function deliverTaskResult(parentThreadId: string, task: Task, kind: 'comp
   return delivered;
 }
 
-/** Event-bridge entry: a task completed or got blocked — wake every manager thread waiting
- *  on it. For 'completed', the task's real status is verified on disk first: the dispatch
- *  cycle publishes task.completed loosely (thread ended ≠ task done), so the disk state is
- *  the source of truth. A rejected bogus event keeps the manager waiting; the genuine
- *  completion publishes again later. */
-export async function notifyTaskParentThreads(taskId: string, kind: 'completed' | 'blocked', deps: { resume?: ResumeFn } = {}): Promise<void> {
-  for (const parent of threadStore.getAll()) {
-    if (parent.status !== 'waiting') continue;
-    if (!parent.metadata?.waitingOnTasks?.includes(taskId)) continue;
-    const project = parent.metadata?.taskProject || parent.projectId;
+async function deliverCurrentTaskResult(
+  parent: ThreadRecord, taskId: string, kind: 'completed' | 'blocked',
+  deps: { resume?: ResumeFn }, ownership?: TaskGenerationExpectation,
+): Promise<void> {
+  const project = parent.metadata?.taskProject || parent.projectId;
+  await withTaskFileMutationLockAsync(project, async () => {
     const task = readTaskFromDisk(project, taskId);
     if (!task) {
-      log.warn(`task ${taskId} not found on disk for waiting manager ${parent.id} — leaving to reconcile/recovery`);
-      continue;
+      log.warn(`task ${taskId} missing for waiting manager ${parent.id}`);
+      return;
     }
     if (kind === 'completed' && task.status !== 'done') {
       log.info(`ignoring loose task.completed for ${taskId} (disk status=${task.status})`);
-      continue;
+      return;
     }
-    if (kind === 'blocked' && !task.blocked_by) {
-      log.info(`ignoring stale task.blocked for ${taskId} (no blocked_by on disk)`);
-      continue;
+    if (kind === 'completed' && !matchesTaskGeneration(task, ownership)) {
+      log.info(`ignoring stale task.completed for ${taskId} (dispatch generation mismatch)`);
+      return;
     }
+    if (kind === 'blocked' && !task.blocked_by) return;
+    if (kind === 'blocked' && !matchesTaskGeneration(task, ownership)) return;
     await deliverTaskResult(parent.id, task, kind, deps);
+  });
+}
+
+/** Verify task provenance while holding its mutation lock, then wake waiting managers. */
+export async function notifyTaskParentThreads(
+  taskId: string, kind: 'completed' | 'blocked', deps: { resume?: ResumeFn } = {},
+  ownership?: TaskGenerationExpectation,
+): Promise<void> {
+  for (const parent of threadStore.getAll()) {
+    if (parent.status !== 'waiting') continue;
+    if (!parent.metadata?.waitingOnTasks?.includes(taskId)) continue;
+    await deliverCurrentTaskResult(parent, taskId, kind, deps, ownership);
   }
 }
 
@@ -529,20 +549,30 @@ function buildTaskOriginNotice(task: Task, kind: 'completed' | 'blocked'): strin
  *  is set we always wake it. Mutually exclusive with the thread-parent path: if any thread is
  *  currently waiting on this task (waitingOnTasks), that path owns the result and we defer.
  *  `wake` is injectable for testing (mirrors the `resume` injection on notifyTaskParentThreads). */
-export async function notifyTaskOriginSession(taskId: string, kind: 'completed' | 'blocked', deps: { wake?: WakeFn } = {}): Promise<void> {
+export async function notifyTaskOriginSession(
+  taskId: string, kind: 'completed' | 'blocked', deps: { wake?: WakeFn } = {},
+  ownership?: TaskGenerationExpectation,
+): Promise<void> {
   for (const t of threadStore.getAll()) {
     if (t.status === 'waiting' && t.metadata?.waitingOnTasks?.includes(taskId)) return;
   }
   const key = `task_${taskId}_${kind}`;
   if (fired.has(key)) return;
-  // The event carries only the id; origin fields live on the task — scan disk to find it.
-  const task = scanAllTasks().find((t) => t.id === taskId);
-  if (!task || !task.origin_channel) return;
-  if (kind === 'completed' && task.status !== 'done') return; // dispatch publishes loosely
-  if (kind === 'blocked' && !task.blocked_by) return;
-  fired.add(key);
+  const located = scanAllTasks().find((task) => task.id === taskId);
+  if (!located?.origin_channel) return;
+  const delivery = await withTaskFileMutationLockAsync(located.project, async () => {
+    const task = readTaskFromDisk(located.project, taskId);
+    if (!task?.origin_channel) return null;
+    if (kind === 'completed' && task.status !== 'done') return null;
+    if (kind === 'completed' && !matchesTaskGeneration(task, ownership)) return null;
+    if (kind === 'blocked' && !task.blocked_by) return null;
+    if (kind === 'blocked' && !matchesTaskGeneration(task, ownership)) return null;
+    fired.add(key);
+    return { channel: task.origin_channel, notice: buildTaskOriginNotice(task, kind) };
+  });
+  if (!delivery) return;
   const wake = deps.wake ?? ((ch, n) => wakeSession(ch, n, `task_${taskId}`));
-  await wake(task.origin_channel, buildTaskOriginNotice(task, kind));
+  await wake(delivery.channel, delivery.notice);
 }
 
 /** Sweep one waiting thread's waitingOnTasks against disk state: deliver already-done and
@@ -593,7 +623,7 @@ export async function reconcileWaitingTasks(threadId: string, deps: { resume?: R
  *  done (→ task.completed) or blocked (→ task.blocked) on disk. */
 export async function closeResumedTaskLoop(
   threadId: string,
-  deps: { publish?: (e: { type: 'task.completed'; taskId: string } | { type: 'task.blocked'; taskId: string; reason: string }) => void } = {},
+  deps: { publish?: (e: { type: 'task.completed'; taskId: string; dispatchGeneration?: string | null } | { type: 'task.blocked'; taskId: string; reason: string; dispatchGeneration?: string | null }) => void } = {},
 ): Promise<void> {
   const t = threadStore.get(threadId);
   if (!t || !isTerminalStatus(t.status)) return; // suspension/rate-limit re-entry is not completion
@@ -603,9 +633,15 @@ export async function closeResumedTaskLoop(
   if (!task) return;
   const publish = deps.publish ?? ((e) => jobCtx.bus?.publish(e));
   if (task.status === 'done') {
-    publish({ type: 'task.completed', taskId: m.taskId });
+    publish({
+      type: 'task.completed', taskId: m.taskId,
+      dispatchGeneration: m.dispatchGeneration ?? null,
+    });
   } else if (task.blocked_by) {
-    publish({ type: 'task.blocked', taskId: m.taskId, reason: task.blocked_by });
+    publish({
+      type: 'task.blocked', taskId: m.taskId, reason: task.blocked_by,
+      dispatchGeneration: m.dispatchGeneration ?? null,
+    });
   }
 }
 
@@ -649,13 +685,23 @@ export function startWaitingManagerSweep(): void {
 /** Register the EventBus subscribers that wake suspended manager threads on child-task
  *  terminal events (DR-0014 §8). Call once at startup, before recoverWaitingThreads. */
 export function registerTaskTreeSubscribers(bus: { subscribe: (type: any, fn: (e: any) => void) => unknown }): void {
-  bus.subscribe('task.completed', (e: { taskId: string }) => {
-    void notifyTaskParentThreads(e.taskId, 'completed').catch((err) => log.error(`task.completed bridge: ${(err as Error).message}`));
-    void notifyTaskOriginSession(e.taskId, 'completed').catch((err) => log.error(`task.completed origin-wake: ${(err as Error).message}`));
+  bus.subscribe('task.completed', (e: { taskId: string; dispatchGeneration?: string | null }) => {
+    const ownership = Object.hasOwn(e, 'dispatchGeneration')
+      ? { generation: e.dispatchGeneration ?? null }
+      : undefined;
+    void notifyTaskParentThreads(e.taskId, 'completed', {}, ownership)
+      .catch((err) => log.error(`task.completed bridge: ${(err as Error).message}`));
+    void notifyTaskOriginSession(e.taskId, 'completed', {}, ownership)
+      .catch((err) => log.error(`task.completed origin-wake: ${(err as Error).message}`));
   });
-  bus.subscribe('task.blocked', (e: { taskId: string }) => {
-    void notifyTaskParentThreads(e.taskId, 'blocked').catch((err) => log.error(`task.blocked bridge: ${(err as Error).message}`));
-    void notifyTaskOriginSession(e.taskId, 'blocked').catch((err) => log.error(`task.blocked origin-wake: ${(err as Error).message}`));
+  bus.subscribe('task.blocked', (e: { taskId: string; dispatchGeneration?: string | null }) => {
+    const ownership = Object.hasOwn(e, 'dispatchGeneration')
+      ? { generation: e.dispatchGeneration ?? null }
+      : undefined;
+    void notifyTaskParentThreads(e.taskId, 'blocked', {}, ownership)
+      .catch((err) => log.error(`task.blocked bridge: ${(err as Error).message}`));
+    void notifyTaskOriginSession(e.taskId, 'blocked', {}, ownership)
+      .catch((err) => log.error(`task.blocked origin-wake: ${(err as Error).message}`));
   });
 }
 

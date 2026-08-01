@@ -6,5 +6,5 @@ launch, cancel and callback handlers.
 | filename | role | function |
 |---|---|---|
 | auth-headers.test.ts | test | Covers token resolution and auth headers |
-| cortex-run-launch.test.ts | test | Covers launch, cancel, callbacks, orphans |
+| cortex-run-launch.test.ts | test | Covers launch, callback generations and orphans |
 | server-url.test.ts | test | Covers server URL precedence and defaults |

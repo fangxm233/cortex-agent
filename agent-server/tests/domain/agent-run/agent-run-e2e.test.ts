@@ -1,5 +1,5 @@
-// input:  cortex CLI, stdin config, fake Claude accounting, procfs
-// output: isolation, journal, accounting, and completion proofs
+// input:  cortex CLI, stdin config, fake Claude results, procfs
+// output: isolation, journal, zero-accounting, completion proofs
 // pos:    Process-level one-shot agent-run regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -728,15 +728,20 @@ it('keeps unreported cost and usage null without fabricating cost records', asyn
   assert.deepEqual(terminal.tokens, { input: null, output: null });
 }, 45_000);
 
-it('preserves explicitly reported cost and usage exactly', async () => {
-  const fixture = createFixture('reported-accounting');
+it.each([
+  { kind: 'non-zero', fixtureName: 'reported-accounting', cost: 0.375, input: 321, tokenOutput: 54 },
+  { kind: 'zero', fixtureName: 'reported-zero-accounting', cost: 0, input: 0, tokenOutput: 0 },
+])('preserves explicitly reported $kind accounting exactly', async ({
+  fixtureName, cost, input, tokenOutput,
+}) => {
+  const fixture = createFixture(fixtureName);
   const reported = fakeClaudeResult('e2e-run', 'reported', {
-    total_cost_usd: 0.375,
-    usage: { input_tokens: 321, output_tokens: 54 },
+    total_cost_usd: cost,
+    usage: { input_tokens: input, output_tokens: tokenOutput },
     modelUsage: { 'claude-reported-accounting': {} },
   });
   const continuation = fakeClaudeResult('e2e-run', 'reported continuation', {
-    origin: { kind: 'task-notification' }, total_cost_usd: 0.375,
+    origin: { kind: 'task-notification' }, total_cost_usd: cost,
   });
   const child = spawnRun(fixture, {
     FAKE_CLAUDE_FIRST_RESULT: reported,
@@ -751,11 +756,11 @@ it('preserves explicitly reported cost and usage exactly', async () => {
     .map(record => record.event);
   assert.deepEqual(costEvents, [{
     type: 'cost_record', provider: 'anthropic', model: 'claude-reported-accounting',
-    tokens_in: 321, tokens_out: 54, cost_usd: 0.375,
+    tokens_in: input, tokens_out: tokenOutput, cost_usd: cost,
   }]);
   const terminal = terminalRecord(fixture);
-  assert.equal(terminal.cost_usd, 0.375);
-  assert.deepEqual(terminal.tokens, { input: 321, output: 54 });
+  assert.equal(terminal.cost_usd, cost);
+  assert.deepEqual(terminal.tokens, { input, output: tokenOutput });
 }, 45_000);
 
 it('includes the probed Claude version in frozen model identity', async () => {

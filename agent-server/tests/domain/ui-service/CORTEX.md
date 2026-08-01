@@ -24,7 +24,7 @@ Scopes covered are approvals, config, executions, issues, memory, projects, sche
 | mutate-tasks.test.ts | test | Covers task lock acquire, release and force |
 | mutate-threads.test.ts | test | Covers thread cancellation outcomes |
 | query-approvals.test.ts | test | Covers approval queue parsing and listing |
-| query-auth.test.ts | test | Covers authentication snapshot passthrough |
+| query-auth.test.ts | test | Covers handler, facade and tRPC auth passthrough |
 | query-config.test.ts | test | Covers redaction and settings source snapshots |
 | query-cost.test.ts | test | Covers cost summary and project filter |
 | query-hooks.test.ts | test | Covers the hook registry read model DTO |

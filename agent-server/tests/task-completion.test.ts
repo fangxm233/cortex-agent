@@ -1,6 +1,6 @@
-// input:  Node test runner + task-system/task-completion API
-// output: completion lifecycle, timestamp, and evidence regressions
-// pos:    verifies project repos, artifacts, Git types, and lifecycle
+// input:  Vitest, completion and state lifecycle APIs
+// output: generation fencing, timestamps, and evidence regressions
+// pos:    Verifies completion ownership and persisted evidence
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -9,10 +9,11 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { parse as yamlParse } from 'yaml';
-import { DATA_DIR, PROJECTS_DIR } from '../src/core/paths.js';
+import { DATA_DIR, PROJECTS_DIR, STORE_DIR } from '../src/core/paths.js';
 import { completeTask, uncompleteTask } from '../src/domain/tasks/system/task-completion.js';
+import { claimTask, unclaimTask } from '../src/domain/tasks/system/task-state.js';
 
 function readYaml(filePath: string): any {
   return yamlParse(fs.readFileSync(filePath, 'utf8'));
@@ -41,6 +42,14 @@ function makeRepo(project: string, content: string): { tasksPath: string; cleanu
 const P = '_test_comp_';
 let n = 0;
 function np(): string { return `${P}${++n}`; }
+
+async function waitForFile(filePath: string, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!fs.existsSync(filePath)) {
+    if (Date.now() >= deadline) throw new Error(`timed out waiting for ${filePath}`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 
 function initializeImplementationRepo(dir: string): { sha: string; nonCommitShas: string[] } {
   execFileSync('git', ['init', '--quiet'], { cwd: dir });
@@ -205,6 +214,153 @@ test('completeTask marks status done, sets completed_at, clears in-progress stat
   } finally { cleanup(); }
 });
 
+test('ownerless mutation locks are reclaimed after the crash grace period', () => {
+  const proj = np();
+  const { tasksPath, cleanup } = makeRepo(proj, 'tasks:\n  - id: a115\n    text: Crash recovery\n    why: test\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n');
+  const lockPath = path.join(STORE_DIR, 'task-mutation-locks', encodeURIComponent(proj));
+  let tombstone = '';
+  try {
+    fs.mkdirSync(lockPath, { recursive: true });
+    fs.writeFileSync(path.join(lockPath, '.reclaimed'), '');
+    const old = new Date(Date.now() - 2_000);
+    fs.utimesSync(lockPath, old, old);
+    const stat = fs.statSync(lockPath);
+    const ctime = String(stat.ctimeMs).replace('.', '-');
+    tombstone = `${lockPath}.reclaimed.${stat.dev}.${stat.ino}.${ctime}`;
+    const result = claimTask(null, proj, 'task-dispatcher', 'a115');
+    assert.equal(result.success, true);
+    assert.equal(findTask(readYaml(tasksPath).tasks, 'a115')['claimed-by'], 'task-dispatcher');
+  } finally {
+    fs.rmSync(lockPath, { recursive: true, force: true });
+    if (tombstone) fs.rmSync(tombstone, { recursive: true, force: true });
+    cleanup();
+  }
+});
+
+test('task generation transitions wait for the cross-process mutation lock', async () => {
+  const proj = np();
+  const marker = path.join(os.tmpdir(), `task-mutation-lock-${process.pid}-${n}`);
+  const { cleanup } = makeRepo(proj, 'tasks:\n  - id: a114\n    text: Locked task\n    why: test\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n');
+  const script = `import fs from 'node:fs'; import { withTaskFileMutationLock } from './src/domain/tasks/system/task-lifecycle-edit.ts'; withTaskFileMutationLock(${JSON.stringify(proj)}, () => { fs.writeFileSync(${JSON.stringify(marker)}, 'ready'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300); });`;
+  const holder = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', script], {
+    cwd: process.cwd(), env: process.env, stdio: 'ignore',
+  });
+  try {
+    await waitForFile(marker);
+    const started = Date.now();
+    const result = claimTask(null, proj, 'task-dispatcher', 'a114', 'generation-a');
+    assert.equal(result.success, true);
+    assert.ok(Date.now() - started >= 150, 'claim must wait for the other process to release the task lock');
+  } finally {
+    holder.kill();
+    fs.rmSync(marker, { force: true });
+    cleanup();
+  }
+});
+
+test('cross-process lock contention retries publication races instead of throwing', async () => {
+  const proj = np();
+  const { cleanup } = makeRepo(proj, 'tasks:\n  - id: a117\n    text: Contended lock\n    why: test\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n');
+  const script = [
+    `import { withTaskFileMutationLock } from './src/domain/tasks/system/task-lifecycle-edit.ts';`,
+    `for (let i = 0; i < 100; i++) withTaskFileMutationLock(${JSON.stringify(proj)}, () => {});`,
+  ].join(' ');
+  try {
+    const runs = Array.from({ length: 4 }, () => new Promise<void>((resolve, reject) => {
+      const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '--eval', script], {
+        cwd: process.cwd(), env: process.env, stdio: 'ignore',
+      });
+      child.once('error', reject);
+      child.once('close', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`lock contender exited ${code}`));
+      });
+    }));
+    await Promise.all(runs);
+  } finally {
+    cleanup();
+  }
+});
+
+test('a late stale reclaimer cannot rename a newly acquired lock over the inode tombstone', () => {
+  const proj = np();
+  const { cleanup } = makeRepo(proj, 'tasks:\n  - id: a116\n    text: Reclaim ABA\n    why: test\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n');
+  const lockPath = path.join(STORE_DIR, 'task-mutation-locks', encodeURIComponent(proj));
+  fs.mkdirSync(lockPath, { recursive: true });
+  fs.writeFileSync(path.join(lockPath, '.reclaimed'), '');
+  const old = new Date(Date.now() - 2_000);
+  fs.utimesSync(lockPath, old, old);
+  const stat = fs.statSync(lockPath);
+  const ctime = String(stat.ctimeMs).replace('.', '-');
+  const tombstone = `${lockPath}.reclaimed.${stat.dev}.${stat.ino}.${ctime}`;
+  try {
+    assert.equal(claimTask(null, proj, 'task-dispatcher', 'a116').success, true);
+    assert.equal(fs.existsSync(tombstone), true);
+    fs.mkdirSync(lockPath);
+    fs.writeFileSync(path.join(lockPath, 'owner.json'), JSON.stringify({
+      pid: process.pid, token: 'new-owner', processStart: null,
+    }));
+    assert.throws(() => fs.renameSync(lockPath, tombstone));
+    assert.equal(fs.existsSync(lockPath), true);
+  } finally {
+    fs.rmSync(lockPath, { recursive: true, force: true });
+    fs.rmSync(tombstone, { recursive: true, force: true });
+    cleanup();
+  }
+});
+
+test('completeTask rejects a stale dispatch generation and accepts the current owner', () => {
+  const proj = np();
+  const { tasksPath, cleanup } = makeRepo(proj, 'tasks:\n  - id: a112\n    text: Reworked task\n    why: test\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n');
+  try {
+    assert.equal(claimTask(null, proj, 'task-dispatcher', 'a112', 'generation-a').success, true);
+    assert.equal(completeTask(
+      null, proj, 'Implementation SHA: aaaaaaa', 'a112', false, null,
+      { generation: 'generation-a' },
+    ).success, true);
+    assert.equal(uncompleteTask(null, proj, 'a112').success, true);
+    assert.equal(claimTask(null, proj, 'task-dispatcher', 'a112', 'rework-claim').success, true);
+    assert.equal(unclaimTask(null, proj, 'a112').success, true);
+    assert.equal(claimTask(null, proj, 'task-dispatcher', 'a112', 'generation-b').success, true);
+
+    const stale = completeTask(
+      null, proj, 'Implementation SHA: aaaaaaa', 'a112', false, null,
+      { generation: 'generation-a' },
+    );
+    assert.equal(stale.success, false);
+    assert.match(stale.message, /stale|generation/i);
+
+    let task = findTask(readYaml(tasksPath).tasks, 'a112');
+    assert.equal(task.status, 'open');
+    assert.equal(task['claimed-by'], 'task-dispatcher');
+    assert.equal(task['dispatch-generation'], 'generation-b');
+    assert.equal(task['completed-note'] ?? null, null);
+
+    const current = completeTask(
+      null, proj, 'Implementation SHA: bbbbbbb', 'a112', false, null,
+      { generation: 'generation-b' },
+    );
+    assert.equal(current.success, true);
+    task = findTask(readYaml(tasksPath).tasks, 'a112');
+    assert.equal(task.status, 'done');
+    assert.equal(task['dispatch-generation'], 'generation-b');
+    assert.equal(task['completed-note'], 'Implementation SHA: bbbbbbb');
+  } finally { cleanup(); }
+});
+
+test('manual complete remains an explicit override and clears dispatch ownership', () => {
+  const proj = np();
+  const { tasksPath, cleanup } = makeRepo(proj, 'tasks:\n  - id: a113\n    text: Manual override\n    why: test\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n    claimed-by: task-dispatcher\n    claimed-at: "2026-01-02"\n    dispatch-generation: generation-b\n');
+  try {
+    const result = completeTask(null, proj, 'manual result', 'a113');
+    assert.equal(result.success, true);
+    const task = findTask(readYaml(tasksPath).tasks, 'a113');
+    assert.equal(task.status, 'done');
+    assert.equal(task['completed-note'], 'manual result');
+    assert.equal(task['dispatch-generation'] ?? null, null);
+  } finally { cleanup(); }
+});
+
 test('completeTask refuses already-completed, paused, or blocked tasks', () => {
   const p1 = np();
   const r1 = makeRepo(p1, 'tasks:\n  - id: a111\n    text: Task\n    why: ""\n    done-when: ""\n    priority: medium\n    status: done\n    template: coder-review\n    plan: ""\n');
@@ -259,9 +415,9 @@ test('completeTask returns project-missing error when TASKS.yaml absent', () => 
   assert.match(result.message, /TASKS\.yaml not found/);
 });
 
-test('uncompleteTask flips status back to open and clears completed_at/completed_note', () => {
+test('uncompleteTask flips status back to open and clears completion provenance', () => {
   const proj = np();
-  const { tasksPath, cleanup } = makeRepo(proj, 'tasks:\n  - id: a111\n    text: Task\n    why: ""\n    done-when: ""\n    priority: high\n    status: done\n    template: coder-review\n    plan: ""\n    completed-at: "2026-01-01"\n    completed-note: done\n');
+  const { tasksPath, cleanup } = makeRepo(proj, 'tasks:\n  - id: a111\n    text: Task\n    why: ""\n    done-when: ""\n    priority: high\n    status: done\n    template: coder-review\n    plan: ""\n    completed-at: "2026-01-01"\n    completed-note: done\n    dispatch-generation: generation-a\n');
   try {
     const result = uncompleteTask(null, proj, 'a111');
     assert.equal(result.success, true);
@@ -271,6 +427,7 @@ test('uncompleteTask flips status back to open and clears completed_at/completed
     assert.equal(task.status, 'open');
     assert.equal(task['completed-at'] || null, null);
     assert.equal(task['completed-note'] || null, null);
+    assert.equal(task['dispatch-generation'] || null, null);
     assert.equal(task.priority, 'high');
   } finally { cleanup(); }
 });

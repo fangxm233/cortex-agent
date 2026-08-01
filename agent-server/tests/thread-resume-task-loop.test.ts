@@ -1,5 +1,5 @@
-// input:  resumed task loops, waiting sweeps, mutable settings
-// output: task event closure and sweep scheduling regressions
+// input:  resumed task generations, waiting sweeps, settings
+// output: fenced event closure and sweep scheduling regressions
 // pos:    Resumed dispatch and waiting-manager backstop tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -82,7 +82,9 @@ test('closeResumedTaskLoop publishes task.completed for a terminal task-dispatch
   const w = makeWorker(proj, 'aa20', 'completed');
   const { published, publish } = capture();
   await closeResumedTaskLoop(w.id, { publish });
-  assert.deepEqual(published, [{ type: 'task.completed', taskId: 'aa20' }]);
+  assert.deepEqual(published, [{
+    type: 'task.completed', taskId: 'aa20', dispatchGeneration: null,
+  }]);
 });
 
 test('closeResumedTaskLoop publishes task.blocked when the task is blocked on disk', async () => {
@@ -92,7 +94,10 @@ test('closeResumedTaskLoop publishes task.blocked when the task is blocked on di
   const w = makeWorker(proj, 'aa21', 'failed');
   const { published, publish } = capture();
   await closeResumedTaskLoop(w.id, { publish });
-  assert.deepEqual(published, [{ type: 'task.blocked', taskId: 'aa21', reason: 'worker-abort:too-big' }]);
+  assert.deepEqual(published, [{
+    type: 'task.blocked', taskId: 'aa21', reason: 'worker-abort:too-big',
+    dispatchGeneration: null,
+  }]);
 });
 
 test('closeResumedTaskLoop is a no-op for a non-terminal (re-suspended) thread', async () => {

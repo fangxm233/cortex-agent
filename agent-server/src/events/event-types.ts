@@ -1,5 +1,5 @@
 // input:  ChatNoticeLevel and SessionContextUsage
-// output: CortexEvent and AuthErrorKind contracts
+// output: CortexEvent with task provenance and auth contracts
 // pos:    Typed event contract for the shared EventBus
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -73,9 +73,9 @@ export type CortexEvent =
   // Task
   | { type: 'task.claimed';           ts: string; taskId: string; by: string }
   | { type: 'task.unclaimed';         ts: string; taskId: string }
-  | { type: 'task.completed';         ts: string; taskId: string }
+  | { type: 'task.completed';         ts: string; taskId: string; dispatchGeneration?: string | null }
   | { type: 'task.dispatched';        ts: string; taskId: string; machine: string }
-  | { type: 'task.blocked';           ts: string; taskId: string; reason: string }
+  | { type: 'task.blocked';           ts: string; taskId: string; reason: string; dispatchGeneration?: string | null }
   | { type: 'task.unblocked';         ts: string; taskId: string }
 
   // System

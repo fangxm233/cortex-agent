@@ -1,6 +1,6 @@
-// input:  Node test runner + lintTasks unit
-// output: validates unknown-template lint error gating
-// pos:    Ensure lint throws error when X in [template:X] does not exist
+// input:  Vitest, lintTasks, complete Task fixtures
+// output: unknown-template lint error gating tests
+// pos:    Verifies task template lint decisions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -24,6 +24,7 @@ function task(overrides: Record<string, any>) {
     paused: false,
     claimed_by: null,
     claimed_at: null,
+    dispatch_generation: null,
     blocked_by: null,
     approval_needed: false,
     approved_at: null,

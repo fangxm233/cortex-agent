@@ -1,6 +1,6 @@
-// input:  Node test runner + unified task-cli
-// output: rich query + deps + lint CLI tests (TASKS.yaml format)
-// pos:    Verify task-cli read-path filtering and health report
+// input:  Vitest, task parser, task CLI
+// output: schema round trips, query, deps, and lint tests
+// pos:    Verifies TASKS.yaml parsing and read-path health
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -534,6 +534,7 @@ test('serializeTasksFileWithLock: round-trip non-empty tasks', () => {
     blocked_by: null,
     claimed_by: null,
     claimed_at: null,
+    dispatch_generation: null,
     paused: false,
     approval_needed: false,
     approved_at: null,

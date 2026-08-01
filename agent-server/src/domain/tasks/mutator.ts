@@ -1,9 +1,10 @@
-// input:  task repo, lifecycle and project-lock operations
-// output: task mutations and terminal events
+// input:  task repo, lifecycle ownership, project locks, EventBus
+// output: serialized task mutations and generation-aware events
 // pos:    Serializes task mutations across processes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { taskStore, TaskRepo } from '@store/task-repo.js';
+import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import type { EventBus } from '@events/index.js';
 import { emitCortexEvent } from '@core/hook-bus.js';
 import {
@@ -34,6 +35,20 @@ import {
   isProjectLocked,
   releaseLock,
 } from './system/task-lock.js';
+
+interface ClaimTaskOptions {
+  generation?: string | null;
+}
+
+interface OwnedMutationOptions {
+  ownership?: TaskGenerationExpectation;
+}
+
+interface CompleteTaskOptions extends OwnedMutationOptions {
+  skipVerify?: boolean;
+  skipVerifyReason?: string;
+  ownership?: TaskGenerationExpectation;
+}
 
 interface AddTaskOptions {
   plan?: string;
@@ -96,11 +111,13 @@ export class TaskMutator {
     return task;
   }
 
-  async claim(taskId: string, agent: string): Promise<any> {
+  async claim(taskId: string, agent: string, options: ClaimTaskOptions = {}): Promise<any> {
     return this.store.runExclusive(() => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleClaimTask(task.text, task.project, agent, taskId);
+      const result = lifecycleClaimTask(
+        task.text, task.project, agent, taskId, options.generation ?? null,
+      );
       if (result.success) {
         this.store.refresh(); this.store.commitAndPush(`task-store: claim ${taskId} by ${agent}`);
         this.bus?.publish({ type: 'task.claimed', taskId, by: agent });
@@ -109,11 +126,13 @@ export class TaskMutator {
     });
   }
 
-  async unclaim(taskId: string): Promise<any> {
+  async unclaim(taskId: string, options: OwnedMutationOptions = {}): Promise<any> {
     return this.store.runExclusive(() => {
       const task = this.store.getById(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleUnclaimTask(task.text, task.project, taskId);
+      const result = lifecycleUnclaimTask(
+        task.text, task.project, taskId, options.ownership,
+      );
       if (result.success) {
         this.store.refresh(); this.store.commitAndPush(`task-store: unclaim ${taskId}`);
         this.bus?.publish({ type: 'task.unclaimed', taskId });
@@ -122,15 +141,20 @@ export class TaskMutator {
     });
   }
 
-  async complete(taskId: string, note?: string, options: { skipVerify?: boolean; skipVerifyReason?: string } = {}): Promise<any> {
+  async complete(taskId: string, note?: string, options: CompleteTaskOptions = {}): Promise<any> {
     return this.store.runExclusive(() => {
       const task = this.getByIdFresh(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleCompleteTask(task.text, task.project, note || '', taskId,
-        options.skipVerify ?? false, options.skipVerifyReason ?? null);
+      const result = lifecycleCompleteTask(
+        task.text, task.project, note || '', taskId,
+        options.skipVerify ?? false, options.skipVerifyReason ?? null, options.ownership,
+      );
       if (result.success) {
         this.store.refresh(); this.store.commitAndPush(`task-store: complete ${taskId}`);
-        this.bus?.publish({ type: 'task.completed', taskId });
+        this.bus?.publish({
+          type: 'task.completed', taskId,
+          ...(options.ownership ? { dispatchGeneration: options.ownership.generation } : {}),
+        });
         void emitCortexEvent('cortex:task.completed', { taskId, project: task.project }).catch(() => {});
       }
       return result;
@@ -147,15 +171,20 @@ export class TaskMutator {
     });
   }
 
-  async block(taskId: string, reason: string): Promise<any> {
+  async block(taskId: string, reason: string, options: OwnedMutationOptions = {}): Promise<any> {
     return this.store.runExclusive(() => {
       const task = this.getByIdFresh(taskId);
       if (!task) return { success: false, message: `Task not found: ${taskId}` };
-      const result = lifecycleBlockTask(task.text, task.project, reason, taskId);
+      const result = lifecycleBlockTask(
+        task.text, task.project, reason, taskId, options.ownership,
+      );
       if (result.success) {
         this.store.refresh(); this.store.commitAndPush(`task-store: block ${taskId}`);
         // DR-0014 §8: a blocked task is a child's escalation — wake its waiting manager.
-        this.bus?.publish({ type: 'task.blocked', taskId, reason });
+        this.bus?.publish({
+          type: 'task.blocked', taskId, reason,
+          ...(options.ownership ? { dispatchGeneration: options.ownership.generation } : {}),
+        });
         void emitCortexEvent('cortex:task.blocked', { taskId, project: task.project, reason }).catch(() => {});
       }
       return result;

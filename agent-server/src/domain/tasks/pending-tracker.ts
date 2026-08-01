@@ -1,6 +1,6 @@
-// input:  pending-tasks.json + channel/execution registries
-// output: init/onTaskLaunched/handleTaskProgress + trackers
-// pos:    dispatched task tracking view and Slack status messages
+// input:  pending-tasks.json + channel/execution registries + dispatch generation
+// output: generation-aware launch/progress tracking and status messages
+// pos:    Durable dispatch tracking used by stop and orphan-claim recovery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { readFileSync, writeFileSync } from 'fs';
 import * as path from 'path';
@@ -24,6 +24,7 @@ interface PendingTaskEntry {
   sessionName: string | null;
   tmuxName: string | null;
   pid: string | null;
+  dispatchGeneration: string | null;
 }
 
 const PENDING_TASKS_FILE = path.join(STORE_DIR, 'pending-tasks.json');
@@ -85,10 +86,11 @@ function init(adapter: PlatformAdapter): void {
   _adapter = adapter;
 }
 
-async function onTaskLaunched({ taskId, machine, channel, scheduleTaskId, taskText, taskHash, project, sessionName, tmuxName, pid }: {
+async function onTaskLaunched({ taskId, machine, channel, scheduleTaskId, taskText, taskHash, project, sessionName, tmuxName, pid, dispatchGeneration }: {
   taskId: string; machine: string; channel: string; scheduleTaskId?: string | null;
   taskText?: string | null; taskHash?: string | null; project?: string | null;
   sessionName?: string | null; tmuxName?: string | null; pid?: string | null;
+  dispatchGeneration?: string | null;
 }): Promise<void> {
   executionRegistry.registerDispatchExecution({
     taskId,
@@ -108,6 +110,7 @@ async function onTaskLaunched({ taskId, machine, channel, scheduleTaskId, taskTe
     scheduleTaskId: scheduleTaskId || null, taskText: taskText || null, taskHash: taskHash || null,
     project: project || null, trackingTs: null,
     sessionName: sessionName || null, tmuxName: tmuxName || null, pid: pid || null,
+    dispatchGeneration: dispatchGeneration ?? null,
   });
   savePendingTasks();
   log.info(`Task registered: ${taskId} on ${machine} (channel: ${channel}, project: ${project || 'none'}, schedule: ${scheduleTaskId || 'none'}, pending: ${pendingTasks.size})`);
@@ -195,6 +198,13 @@ function getTask(taskId: string): PendingTaskEntry | null {
   return pendingTasks.get(taskId) || null;
 }
 
+function isTaskTracked(taskHash: string, project: string, generation: string | null): boolean {
+  return [...pendingTasks.entries()].some(([taskId, task]) =>
+    (task.taskHash === taskHash || taskId === taskHash)
+      && task.project === project
+      && (task.dispatchGeneration ?? null) === generation);
+}
+
 function hasPendingTasks(): boolean {
   return pendingTasks.size > 0;
 }
@@ -211,6 +221,7 @@ export {
   getPendingTasksForSchedule,
   findPendingTaskMatch,
   getTask,
+  isTaskTracked,
   hasPendingTasks,
   pendingTaskCount,
   buildTrackingMessage,
