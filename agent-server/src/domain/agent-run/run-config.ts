@@ -1,5 +1,5 @@
 // input:  optional run-config JSON, resolved profile, package defaults
-// output: validated frozen inputs and one exact spawn role
+// output: argv-closed frozen inputs and one non-empty spawn role
 // pos:    Configuration boundary for daemon-free one-shot runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -14,7 +14,9 @@ import type { FrozenIdentityInput, IdentityJsonValue } from './identity.js';
 
 const roleSchema = z.object({
   system_prompt: z.string(),
-  tools: z.array(z.string().min(1).refine(value => !value.includes(','), 'tool names may not contain commas')),
+  tools: z.array(
+    z.string().min(1).refine(value => !value.includes(','), 'tool names may not contain commas'),
+  ).min(1, 'role tools must contain at least one tool'),
   plugin_dirs: z.array(z.string()),
   mcp_composition: z.enum(['direct', 'thread-control', 'none', 'benchmark-thread-run']),
   mcp_config_paths: z.array(z.string().min(1)),
@@ -164,16 +166,10 @@ export function resolvedRouteHost(profile: ResolvedProfileConfig): string | null
   }
 }
 
-const FROZEN_OPTION_KEYS = new Set([
-  '--model', '--tools', '--mcp-config', '--strict-mcp-config', '--settings', '--effort',
-  '--session-id', '--resume', '--input-format', '--output-format', '--system-prompt',
-  '--append-system-prompt', '--plugin-dir',
-]);
-
 export function validateResolvedExecution(
   profile: ResolvedProfileConfig,
   _config: ResolvedAgentRunConfig,
 ): void {
-  const override = Object.keys(profile.extraOption).find(key => FROZEN_OPTION_KEYS.has(key));
-  if (override) throw new Error(`Resolved profile may not override ${override} in agent-run`);
+  const extra = Object.keys(profile.extraOption)[0];
+  if (extra) throw new Error(`agent-run does not support profile extraOption ${extra}`);
 }

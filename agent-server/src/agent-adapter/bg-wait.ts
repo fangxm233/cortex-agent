@@ -1,5 +1,5 @@
-// input:  continuation sinks, results, timers, settings
-// output: normalized continuation events and merged results
+// input:  continuation sinks, results, timers, settings, process-stop boundary
+// output: bounded or completion-only continuation results
 // pos:    Background continuation wait policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
@@ -7,9 +7,9 @@
 // bg-wait-guard). Thread/dispatch turns have no status message to hold — the step's
 // RESULT is the deliverable — so they wait INLINE: the facade keeps the turn promise
 // open until the spontaneous continuation completes, then resolves with the merged
-// result. The thread's own busy bracket covers the wait (no extra track here); the
-// same grace/cap bounds apply so an undelivered notification or a never-ending task
-// cannot hang a thread step forever.
+// result. The thread's own busy bracket covers the wait (no extra track here). Ordinary
+// callers use grace/cap bounds; supervised one-shot runs use completion-only mode and their
+// process-stop boundary so ambient caps cannot publish success while work remains.
 
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
@@ -83,6 +83,10 @@ export interface WaitForBgOpts {
   onEvent?: ((event: NormalizedEvent) => void) | null;
   graceMs?: number;
   maxWaitMs?: number;
+  /** Wait without ambient release timers until continuation completion or supervised stop. */
+  completionOnly?: boolean;
+  /** Process termination boundary required by completion-only waits. */
+  stopPromise?: Promise<unknown>;
   /** Injectable timers for tests. Production timers are unref'd. */
   timers?: { set: (fn: () => void, ms: number) => unknown; clear: (h: unknown) => void };
 }
@@ -131,12 +135,13 @@ class BackgroundContinuationWait {
     private readonly timers: typeof realTimers,
     private readonly graceMs: number,
     private readonly maxWaitMs: number,
+    private readonly completionOnly: boolean,
   ) {
     this.acc = opts.baseResult;
   }
 
   run(): Promise<AgentResult> {
-    return new Promise<AgentResult>((resolve, reject) => {
+    const promise = new Promise<AgentResult>((resolve, reject) => {
       this.resolve = resolve;
       this.reject = reject;
       this.opts.proc.setContinuationSink?.(this.sink());
@@ -145,6 +150,13 @@ class BackgroundContinuationWait {
         this.opts.baseResult.undeliveredBackgroundTasks ?? 0,
       );
     });
+    if (this.opts.stopPromise) {
+      void this.opts.stopPromise.then(
+        () => this.stop(),
+        error => this.stop(error),
+      );
+    }
+    return promise;
   }
 
   private settle(complete: () => void): void {
@@ -159,6 +171,13 @@ class BackgroundContinuationWait {
     this.settle(() => this.resolve(result));
   }
 
+  private stop(error?: unknown): void {
+    const failure = error instanceof Error
+      ? error
+      : new Error('Agent process stopped before background continuation completed');
+    this.settle(() => this.reject(failure));
+  }
+
   private emit(event: NormalizedEvent): boolean {
     try { this.opts.onEvent?.(event); return true; }
     catch (error) { this.settle(() => this.reject(error)); return false; }
@@ -168,6 +187,7 @@ class BackgroundContinuationWait {
     if (this.handle !== null) this.timers.clear(this.handle);
     this.handle = null;
     if (running > 0) {
+      if (this.completionOnly) return;
       this.handle = this.timers.set(() => {
         log.info(`bg-wait cap (${this.maxWaitMs}ms) reached with ${running} task(s) still running — releasing the step`);
         this.finish(this.acc);
@@ -175,6 +195,7 @@ class BackgroundContinuationWait {
       return;
     }
     if (undelivered > 0) {
+      if (this.completionOnly) return;
       this.handle = this.timers.set(() => {
         log.info(`bg-wait grace (${this.graceMs}ms) elapsed with no notification — releasing the step`);
         this.finish(this.acc);
@@ -226,7 +247,8 @@ class BackgroundContinuationWait {
   private result(continuation: AgentResult): void {
     if (this.settled) return;
     if (continuation.backgroundInterrupted) {
-      this.finish({ ...this.acc, backgroundInterrupted: true });
+      if (this.completionOnly) this.stop();
+      else this.finish({ ...this.acc, backgroundInterrupted: true });
       return;
     }
     if (!this.emit({
@@ -243,10 +265,15 @@ class BackgroundContinuationWait {
 }
 
 export function waitForBgContinuation(opts: WaitForBgOpts): Promise<AgentResult> {
+  const completionOnly = opts.completionOnly === true;
+  if (completionOnly && !opts.stopPromise) {
+    return Promise.reject(new Error('Completion-only background wait requires a stop promise'));
+  }
   return new BackgroundContinuationWait(
     opts,
     opts.timers ?? realTimers,
-    opts.graceMs ?? getBgGraceMs(),
-    opts.maxWaitMs ?? getBgMaxWaitMs(),
+    completionOnly ? 0 : (opts.graceMs ?? getBgGraceMs()),
+    completionOnly ? 0 : (opts.maxWaitMs ?? getBgMaxWaitMs()),
+    completionOnly,
   ).run();
 }

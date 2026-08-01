@@ -1,5 +1,5 @@
-// input:  parsed one-shot options, resolved config, Claude adapter
-// output: supervised turn, journal, terminal manifest, exit status
+// input:  parsed one-shot options, argv-closed config, Claude adapter
+// output: completion-only supervised turn, journal, terminal manifest, exit status
 // pos:    Agent-run lifecycle coordinator
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -288,6 +288,7 @@ function baseRunOptions(
     profileName: profile.name,
     cwd: options.cwd,
     awaitBackground: true,
+    backgroundWaitPolicy: 'completion-only',
     mcpComposition: config.role.mcpComposition,
     mcpConfigPaths: config.role.mcpConfigPaths,
     disableHooks: config.role.disableHooks,

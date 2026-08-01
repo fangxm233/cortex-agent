@@ -1,5 +1,5 @@
-// input:  cortex CLI, fake Claude/supervisor executables, procfs
-// output: daemon-free cwd, lifecycle, journal, and background proofs
+// input:  cortex CLI, fake Claude/supervisor executables, procfs, ambient settings
+// output: argv closure, daemon-free isolation, journal, and completion-only proofs
 // pos:    Process-level one-shot agent-run regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -96,6 +96,9 @@ lines.once('line', (line) => {
   const child = spawn('/bin/bash', ['-c', command], { cwd: process.cwd(), env: process.env });
   appendFileSync(process.env.FAKE_CLAUDE_MARKER, '\\n' + JSON.stringify({ bash_pid: child.pid }));
   console.log(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'bg1', task_type: 'local_bash' }));
+  if (process.env.FAKE_CLAUDE_COMPACT === '1') {
+    console.log(JSON.stringify({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 42 } }));
+  }
   console.log(JSON.stringify({ type: 'assistant', message: { id: 'a1', model: 'claude-reported-fixture', content: [{ type: 'text', text: 'first result' }] } }));
   console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: 'first result', total_cost_usd: 0.25, num_turns: 1 }));
   child.once('close', () => {
@@ -107,13 +110,13 @@ lines.once('line', (line) => {
 `);
 }
 
-function writeProfile(file: string): void {
+function writeProfile(file: string, extraOption: Record<string, string> = {}): void {
   fs.writeFileSync(file, JSON.stringify({
     defaultProfile: 'fixture',
     profiles: {
       fixture: {
         model: 'claude-requested-fixture', backend: 'claude', claudeBackend: 'print',
-        provider: 'anthropic', fallback: [],
+        provider: 'anthropic', fallback: [], extraOption,
       },
     },
   }));
@@ -460,6 +463,24 @@ it('runs one daemon-free contained turn through background quiescence', async ()
   assert.deepEqual(snapshotTree(fixture.home), homeAfter);
 }, 45_000);
 
+it('ignores ambient background caps and journals the held continuation before success', async () => {
+  const fixture = createFixture('ambient-background-cap');
+  const child = spawnRun(fixture, {
+    CORTEX_BG_WAIT_MAX_S: '0.05', CORTEX_BG_GRACE_S: '0.05',
+  });
+  await waitForText(fixture.eventsFile, 'turn_complete');
+  await new Promise(resolve => setTimeout(resolve, 250));
+  assert.equal(child.exitCode, null, 'ambient wait caps must not release a one-shot run');
+  assert.equal(fs.existsSync(terminalPath(fixture)), false, 'success cannot publish before continuation');
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+  const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
+  assert.ok(records.some(record => record.event?.type === 'assistant_text'
+    && record.event.text === 'background done'));
+  assert.equal(terminalRecord(fixture).terminal_reason, 'ok');
+}, 45_000);
+
 it('falls back to one when a signalled child has no exit code', async () => {
   const fixture = createFixture();
   const child = spawnRun(fixture, { FAKE_CLAUDE_MODE: 'signal' });
@@ -542,6 +563,30 @@ for (const invalidProfile of ['pi', 'fallback'] as const) {
   }, 45_000);
 }
 
+it('rejects an empty tool role before probing or spawning Claude', async () => {
+  const fixture = createFixture('empty-role-tools');
+  const configPath = fixture.args[fixture.args.indexOf('--run-config') + 1];
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  config.role.tools = [];
+  fs.writeFileSync(configPath, JSON.stringify(config));
+  const output = await processOutput(spawnRun(fixture));
+  assert.equal(parseNdjson(output.stdout).at(-1).terminal_reason, 'protocol_violation');
+  assert.equal(fs.existsSync(fixture.claudeInvocationMarker), false);
+  assert.equal(fs.existsSync(fixture.eventsFile), false);
+}, 45_000);
+
+it('rejects profile argv extras before probing or spawning Claude', async () => {
+  const fixture = createFixture('profile-extra-option');
+  writeProfile(
+    path.join(fixture.home, 'config', 'profiles.json'),
+    { '--permission-mode': 'default' },
+  );
+  const output = await processOutput(spawnRun(fixture));
+  assert.equal(parseNdjson(output.stdout).at(-1).terminal_reason, 'protocol_violation');
+  assert.equal(fs.existsSync(fixture.claudeInvocationMarker), false);
+  assert.equal(fs.existsSync(fixture.eventsFile), false);
+}, 45_000);
+
 it('fails closed before Claude when the supervisor binary is not executable', async () => {
   const fixture = createFixture();
   fixture.args.push('--supervisor-binary', path.join(root, 'missing-supervisor'));
@@ -583,6 +628,21 @@ it('runs with neutral defaults while treating agent-slot only as a journal label
   assert.equal(child.exitCode, 0, output.stderr);
   const header = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'))[0];
   assert.equal(header.agent_slot, 'benchmark-coder');
+}, 45_000);
+
+it('journals compaction without reading or watching daemon settings', async () => {
+  const fixture = createFixture('compact-isolation');
+  const homeBefore = snapshotTree(fixture.home);
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const child = spawnRun(fixture, {
+    FAKE_CLAUDE_COMPACT: '1', CORTEX_NOTIFY_COMPACTION: 'on',
+  });
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+  assert.doesNotMatch(output.stderr, /Deprecated env CORTEX_NOTIFY_COMPACTION/);
+  assert.deepEqual(snapshotTree(fixture.home), homeBefore);
+  const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
+  assert.ok(records.some(record => record.event?.type === 'context_compacted'));
 }, 45_000);
 
 it('preserves raw stdin bytes while hashing the model-visible string', async () => {

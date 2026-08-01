@@ -4,7 +4,7 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 
 | filename | role | function |
 |---|---|---|
-| bg-wait.test.ts | test | explicit and legacy background wait policy |
+| bg-wait.test.ts | test | bounded, completion-only, and legacy background wait policy |
 | claude-adapter.test.ts | test | Claude stream-json to normalized event replay |
 | claude-adapter-tui.test.ts | test | Claude TUI session turn lifecycle and cost |
 | claude-bg-continuation.test.ts | test | Claude spontaneous continuation routing |
