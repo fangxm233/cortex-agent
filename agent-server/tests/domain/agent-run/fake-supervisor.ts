@@ -1,5 +1,5 @@
 // input:  supervisor arguments, deadline, signals, control fd
-// output: deterministic lifecycle edge cases from a real process group
+// output: lifecycle edge cases and fixture process ownership
 // pos:    Fake supervisor fixture for agent-run client tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -68,6 +68,11 @@ function timestamp(): string {
 function recordArguments(): void {
   const file = process.env.FAKE_SUPERVISOR_ARGV_FILE;
   if (file) fs.writeFileSync(file, JSON.stringify(process.argv.slice(2)));
+}
+
+function recordProcess(): void {
+  const file = process.env.FAKE_SUPERVISOR_PID_FILE;
+  if (file) fs.writeFileSync(file, JSON.stringify({ pid: process.pid }));
 }
 
 function recordSignal(): void {
@@ -178,6 +183,7 @@ function terminalExitCode(
 
 async function runFixture(): Promise<void> {
   recordArguments();
+  recordProcess();
   const invocation = parseInvocation(process.argv.slice(2));
   const mode = (process.env.FAKE_SUPERVISOR_MODE ?? 'clean') as FixtureMode;
   if (mode === 'error') return emitError(invocation.controlFd);
