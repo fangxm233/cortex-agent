@@ -1,5 +1,5 @@
-// input:  session ids, turn indexes, transcript directories
-// output: async lookup/copy and backup cleanup helpers
+// input:  session ids, turn indexes, recorded backup paths
+// output: async snapshot restore and cleanup helpers
 // pos:    Backend transcript snapshot and restore
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { unlinkSync, readdirSync } from 'fs';
@@ -67,11 +67,17 @@ async function backupSessionFile(filePath: string, turnIndex: number): Promise<s
   }
 }
 
-/** Restore a session file from a turn backup without blocking the event loop. */
-async function restoreSessionFile(filePath: string, turnIndex: number): Promise<boolean> {
-  const backup = `${filePath}.turn-${turnIndex}.bak`;
+/** Derive the exact transcript path encoded by a recorded turn backup. */
+function sessionFileFromBackupPath(backupPath: string, turnIndex: number): string | null {
+  const suffix = `.turn-${turnIndex}.bak`;
+  if (!backupPath.endsWith(suffix)) return null;
+  const filePath = backupPath.slice(0, -suffix.length);
+  return filePath.length > 0 ? filePath : null;
+}
+
+async function restoreFromPaths(backupPath: string, filePath: string, turnIndex: number): Promise<boolean> {
   try {
-    await copyFile(backup, filePath);
+    await copyFile(backupPath, filePath);
     log.info(`Restored from backup: turn-${turnIndex} for ${path.basename(filePath)}`);
     return true;
   } catch (e) {
@@ -79,6 +85,17 @@ async function restoreSessionFile(filePath: string, turnIndex: number): Promise<
     else log.error(`Failed to restore backup:`, (e as Error).message);
     return false;
   }
+}
+
+/** Restore from an immutable backup pathname recorded in the conversation ledger. */
+async function restoreSessionBackup(backupPath: string, turnIndex: number): Promise<boolean> {
+  const filePath = sessionFileFromBackupPath(backupPath, turnIndex);
+  return filePath ? restoreFromPaths(backupPath, filePath, turnIndex) : false;
+}
+
+/** Restore a session file from a turn backup without blocking the event loop. */
+async function restoreSessionFile(filePath: string, turnIndex: number): Promise<boolean> {
+  return restoreFromPaths(`${filePath}.turn-${turnIndex}.bak`, filePath, turnIndex);
 }
 
 function isNotFound(error: unknown): boolean {
@@ -100,13 +117,15 @@ function cleanupBackupsForFile(filePath: string, afterTurnIndex: number): void {
       if (!file.startsWith(prefix) || !file.endsWith(suffix)) continue;
       const turnStr = file.slice(prefix.length, -suffix.length);
       const turnIdx = parseInt(turnStr, 10);
-      if (!isNaN(turnIdx) && turnIdx > afterTurnIndex) {
-        unlinkSync(path.join(dir, file));
-      }
+      if (!isNaN(turnIdx) && turnIdx > afterTurnIndex) unlinkSync(path.join(dir, file));
     }
   } catch (e) {
     log.error(`cleanupBackupsForFile failed:`, (e as Error).message);
   }
+}
+
+function cleanupAllBackupsForFile(filePath: string): void {
+  cleanupBackupsForFile(filePath, -1);
 }
 
 /**
@@ -199,5 +218,8 @@ export {
   findPISessionFile,
   backupSessionFile,
   restoreSessionFile,
+  restoreSessionBackup,
+  sessionFileFromBackupPath,
   cleanupBackupsForFile,
+  cleanupAllBackupsForFile,
 };

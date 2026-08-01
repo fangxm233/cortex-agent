@@ -4,7 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
-import { mkdirSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
@@ -860,8 +860,7 @@ export class PIAdapter implements AgentAdapter {
     // A missing target starts fresh because PI cannot create an externally assigned session id.
     const wantResume = !!(config.resume && config.sessionId);
     const sessionPathForSpawn = wantResume
-      ? this.sessionPathRegistry.get(config.sessionId!)
-        ?? findPISessionFilePath(sessionDir, config.sessionId!)
+      ? this.resolveSessionPath(config.sessionId!)
       : null;
     if (wantResume && sessionPathForSpawn === null) {
       log.info(`PI resume target '${config.sessionId}' not found (no live session or file in ${sessionDir}); starting fresh`);
@@ -963,7 +962,7 @@ export class PIAdapter implements AgentAdapter {
           session.beginTurn(resolve, reject);
           const targetId = session.sessionId;
           if (targetId !== null) {
-            const targetPath = this.sessionPathRegistry.get(targetId) ?? null;
+            const targetPath = this.resolveSessionPath(targetId);
             // sendTurn errors (e.g. switch_session timeout) surface via the events stream
             // as a fatal error event, which will reject pendingTurn. The catch here is a
             // belt-and-suspenders guard for programming errors in sendTurn itself.
@@ -998,11 +997,16 @@ export class PIAdapter implements AgentAdapter {
   }
 
   /**
-   * Resolve the JSONL file path for a given PI session ID.
-   * Returns null if the session has not been registered yet (not spawned or bootstrap pending).
+   * Resolve an existing JSONL path from the live registry or filename-only disk discovery.
+   * Stale and synthesized registry entries are evicted before discovery.
    */
   resolveSessionPath(sessionId: string): string | null {
-    return this.sessionPathRegistry.get(sessionId) ?? null;
+    const registered = this.sessionPathRegistry.get(sessionId);
+    if (registered && existsSync(registered)) return registered;
+    if (registered) this.sessionPathRegistry.delete(sessionId);
+    const discovered = findPISessionFilePath(this.sessionDir, sessionId);
+    if (discovered) this.sessionPathRegistry.set(sessionId, discovered);
+    return discovered;
   }
 
   /**

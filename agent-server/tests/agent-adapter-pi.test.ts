@@ -705,6 +705,12 @@ function emitBootstrap(child: StubChild, sessionId: string): void {
   );
 }
 
+function stageCanonicalSession(sessionId: string): string {
+  const sessionPath = pathJoin(G_SESSION_DIR, `${sessionId}.jsonl`);
+  writeFileSync(sessionPath, '{}\n');
+  return sessionPath;
+}
+
 // Helper: push a switch_session response onto a stub child's stdout.
 function emitSwitchResponse(child: StubChild, id: string, cancelled: boolean): void {
   child.stdout.emit(
@@ -728,7 +734,7 @@ function lastSwitchCmd(child: StubChild): { id: string; sessionPath: string } | 
   return null;
 }
 
-test('G-1: spawn + bootstrap → resolveSessionPath returns derived path for the bootstrapped sessionId', async () => {
+test('G-1: bootstrap without a transcript does not expose a synthesized resume path', async () => {
   const stub = makeStubSpawner();
   const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
   const proc = adapter.spawn({ sessionId: null, sessionKey: 'k1', resume: false });
@@ -742,8 +748,9 @@ test('G-1: spawn + bootstrap → resolveSessionPath returns derived path for the
   emitBootstrap(child, 'abc-123');
   await Promise.resolve();
 
-  // After bootstrap: path registered as <sessionDir>/<sessionId>.jsonl
-  assert.equal(adapter.resolveSessionPath('abc-123'), pathJoin(G_SESSION_DIR, 'abc-123.jsonl'));
+  // Bootstrap may omit sessionFile before PI has created the transcript. A guessed path is not
+  // resumable until it exists on disk.
+  assert.equal(adapter.resolveSessionPath('abc-123'), null);
   assert.equal(proc.sessionId, 'abc-123');
 
   child.emit('close', 0, null);
@@ -783,10 +790,12 @@ test('G-4: switchSession sends switch_session RPC and resolves with cancelled=fa
   const child1 = stub.children[0];
   const child2 = stub.children[1];
 
-  // Bootstrap both sessions.
+  // Bootstrap both sessions and stage the files required by switch_session.
   emitBootstrap(child1, 'abc-123');
   emitBootstrap(child2, 'xyz-456');
   await Promise.resolve();
+  stageCanonicalSession('abc-123');
+  stageCanonicalSession('xyz-456');
 
   // Switch k1's subprocess to serve xyz-456.
   const switchPromise = adapter.switchSession('xyz-456', 'k1');
@@ -821,6 +830,8 @@ test('G-5: switchSession propagates cancelled=true from switch_session response'
   emitBootstrap(child1, 'abc-123');
   emitBootstrap(child2, 'xyz-456');
   await Promise.resolve();
+  stageCanonicalSession('abc-123');
+  stageCanonicalSession('xyz-456');
 
   const switchPromise = adapter.switchSession('xyz-456', 'k1');
   const sw = lastSwitchCmd(child1);
@@ -851,6 +862,8 @@ test('G-6: sendTurn no-op when same session; auto-switches and writes prompt whe
   emitBootstrap(child1, 'abc-123');
   emitBootstrap(child2, 'xyz-456');
   await Promise.resolve();
+  stageCanonicalSession('abc-123');
+  stageCanonicalSession('xyz-456');
 
   // --- no-op path: send to same session ---
   // proc1.send routes through sendTurn(abc-123, path, msg); currentSessionId=abc-123 → no switch.
@@ -900,6 +913,40 @@ test('G-6: sendTurn no-op when same session; auto-switches and writes prompt whe
   child2.emit('close', 0, null);
   await proc1.close();
   await proc2.close();
+});
+
+test('G-6b: internal switch-back refreshes a synthesized registry path from disk', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const proc1 = adapter.spawn({ sessionId: null, sessionKey: 'refresh-k1', resume: false });
+  const proc2 = adapter.spawn({ sessionId: null, sessionKey: 'refresh-k2', resume: false });
+  await Promise.resolve();
+  const child1 = stub.children[0];
+  const child2 = stub.children[1];
+  const sessionA = `refresh-a-${Date.now()}`;
+  const sessionB = `refresh-b-${Date.now()}`;
+  emitBootstrap(child1, sessionA);
+  emitBootstrap(child2, sessionB);
+  await Promise.resolve();
+  const timestampedA = pathJoin(G_SESSION_DIR, `2026-08-01T00-00-00Z_${sessionA}.jsonl`);
+  writeFileSync(timestampedA, '{}\n');
+  stageCanonicalSession(sessionB);
+
+  const divert = adapter.switchSession(sessionB, 'refresh-k1');
+  const divertCommand = lastSwitchCmd(child1)!;
+  emitSwitchResponse(child1, divertCommand.id, false);
+  await divert;
+
+  const sendPromise = proc1.send({ text: 'return to A' }).catch(() => undefined);
+  await Promise.resolve();
+  const switchBack = lastSwitchCmd(child1)!;
+  const observedPath = switchBack.sessionPath;
+  emitSwitchResponse(child1, switchBack.id, false);
+  child1.emit('close', 0, null);
+  child2.emit('close', 0, null);
+  await Promise.all([proc1.close(), proc2.close(), sendPromise]);
+
+  assert.equal(observedPath, timestampedA);
 });
 
 test('compact waits for bootstrap, sends correlated RPC, then returns post-compact stats', async () => {
@@ -1006,7 +1053,7 @@ test('compact rejects promptly when the PI subprocess exits', async () => {
   await proc.close();
 });
 
-test('G-7: spawn with resume=true + known sessionId passes --session flag', async () => {
+test('G-7: bootstrap without sessionFile does not resume a nonexistent synthesized path', async () => {
   const stub = makeStubSpawner();
   const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
 
@@ -1018,15 +1065,31 @@ test('G-7: spawn with resume=true + known sessionId passes --session flag', asyn
   stub.children[0].emit('close', 0, null);
   await proc1.close();
 
-  assert.equal(adapter.resolveSessionPath('known-id'), pathJoin(G_SESSION_DIR, 'known-id.jsonl'));
+  assert.equal(adapter.resolveSessionPath('known-id'), null);
 
-  // Resume passes the already-known path so PI does not scan session bodies by id.
   adapter.spawn({ sessionId: 'known-id', sessionKey: 'k2', resume: true });
   const { args } = stub.calls[1];
-  const sessionIdx = args.indexOf('--session');
-  assert.ok(sessionIdx !== -1, '--session flag present');
-  assert.equal(args[sessionIdx + 1], pathJoin(G_SESSION_DIR, 'known-id.jsonl'));
+  assert.equal(args.indexOf('--session'), -1, 'nonexistent synthesized path is not passed to PI');
 
+  stub.children[1].emit('close', 0, null);
+});
+
+test('G-7b: a registered transcript deleted before resume is evicted and starts fresh', async () => {
+  const stub = makeStubSpawner();
+  const adapter = new PIAdapter(stub.spawn, G_SESSION_DIR);
+  const sessionId = `deleted-${Date.now()}`;
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'delete-source', resume: false });
+  await Promise.resolve();
+  const sessionPath = stageCanonicalSession(sessionId);
+  emitBootstrap(stub.children[0], sessionId);
+  await Promise.resolve();
+  assert.equal(adapter.resolveSessionPath(sessionId), sessionPath);
+  rmSync(sessionPath, { force: true });
+  stub.children[0].emit('close', 0, null);
+  await proc.close();
+
+  adapter.spawn({ sessionId, sessionKey: 'delete-resume', resume: true });
+  assert.equal(stub.calls[1].args.indexOf('--session'), -1, 'deleted registry target is not resumed');
   stub.children[1].emit('close', 0, null);
 });
 

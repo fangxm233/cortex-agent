@@ -1,4 +1,4 @@
-// input:  turns, results, status and continuation callbacks
+// input:  turns, mutation leases, results and callbacks
 // output: snapshot barriers and provider finalization
 // pos:    Agent turn initialization and completion
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -11,7 +11,7 @@ import type { ExecutionRecord } from '@domain/executions/registry.js';
 import { trackPendingTask } from './busy-tracker.js';
 import { enqueue } from './conduit-queue.js';
 import { supersededEdits } from './superseded-edits.js';
-import { acquireTurnMutationLock } from './turn-mutation-lock.js';
+import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
 import { runningExecutions } from '../core/running-executions.js';
 
 import { finalizeLocalExecution, buildSessionTag, buildUserProcessingMessage, makeFallbackNotifier, makeStreamingMessageCallback, computeElapsed, formatMetricsSuffix, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
@@ -497,6 +497,7 @@ interface TurnTrackingDeps {
 
 export interface TurnTrackingOptions {
   onAccepted?: () => void;
+  mutationRelease?: TurnMutationRelease;
   deps?: TurnTrackingDeps;
 }
 
@@ -580,7 +581,7 @@ async function runTurnTracking(
   options: TurnTrackingOptions,
   token: TurnTrackingToken,
 ): Promise<TurnTrackingToken> {
-  const release = await acquireTurnMutationLock(args.channel);
+  const release = options.mutationRelease ?? await acquireTurnMutationLock(args.channel);
   try {
     const deps = options.deps ?? defaultTurnTrackingDeps;
     const backend = deps.resolveBackend(args.channel);

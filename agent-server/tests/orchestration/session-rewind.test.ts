@@ -46,11 +46,17 @@ function makeDeps(log: CallLog, overrides: Partial<RewindDeps> = {}): RewindDeps
       cleanupAllBackups: (sid) => { log.calls.push(`cleanupAll:${sid}`); },
       findPISessionFile: async () => null,
       restoreSessionFile: async () => false,
+      restoreSessionBackup: async () => false,
+      sessionFileFromBackupPath: () => null,
       cleanupBackupsForFile: () => {},
+      cleanupAllBackupsForFile: () => {},
     },
     resolveBackend: () => 'claude',
     closePooledSession: (ch, backend) => { log.calls.push(`closePooled:${ch}:${backend}`); },
-    send: (opts) => { log.calls.push(`send:${opts.channel}:${opts.text}:${opts.attachments?.length ?? 0}`); },
+    send: (opts) => {
+      log.calls.push(`send:${opts.channel}:${opts.text}:${opts.attachments?.length ?? 0}`);
+      opts.mutationRelease?.();
+    },
     publishRewound: (p) => { log.calls.push(`rewound:${p.sessionId}:${p.turnIndex}`); },
     ...overrides,
   };
@@ -137,6 +143,77 @@ test('missing backup on turn ≥ 1 falls back to clearing the backend session id
   const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps);
   assert.deepEqual(res, { ok: true });
   assert.ok(log.calls.includes('updateSession:cortex-1:{"backendSessionId":null}'), 'fallback clears backend id');
+});
+
+test('PI rewind restores the ledger backup even when filename discovery now prefers another file', async () => {
+  const log: CallLog = { calls: [] };
+  const base = makeDeps(log);
+  const source = '/sessions/2026-08-01_backend-1.jsonl';
+  const backupPath = `${source}.turn-1.bak`;
+  const conversation = await base.ledger.getConversation('web:track-1');
+  conversation!.backend = 'pi';
+  conversation!.turns[1].backupPath = backupPath;
+
+  const deps = makeDeps(log, {
+    resolveBackend: () => 'pi',
+    ledger: { ...base.ledger, getConversation: async () => conversation },
+    backup: {
+      ...base.backup,
+      findPISessionFile: async () => {
+        log.calls.push('findPI:canonical');
+        return '/sessions/backend-1.jsonl';
+      },
+      sessionFileFromBackupPath: (candidate, turnIndex) => {
+        log.calls.push(`derive:${candidate}:${turnIndex}`);
+        return source;
+      },
+      restoreSessionBackup: async (candidate, turnIndex) => {
+        log.calls.push(`restoreRecorded:${candidate}:${turnIndex}`);
+        return true;
+      },
+      cleanupBackupsForFile: (filePath, turnIndex) => {
+        log.calls.push(`cleanupForFile:${filePath}:${turnIndex}`);
+      },
+    },
+  });
+
+  assert.deepEqual(
+    await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps),
+    { ok: true },
+  );
+  assert.ok(log.calls.includes(`restoreRecorded:${backupPath}:1`));
+  assert.ok(log.calls.includes(`cleanupForFile:${source}:1`));
+  assert.ok(!log.calls.includes('findPI:canonical'), 'persisted backup identity bypasses rediscovery');
+});
+
+test('failed PI rewind cleans every backup beside the recorded session file', async () => {
+  const log: CallLog = { calls: [] };
+  const base = makeDeps(log);
+  const source = '/sessions/2026-08-01_backend-1.jsonl';
+  const backupPath = `${source}.turn-1.bak`;
+  const conversation = await base.ledger.getConversation('web:track-1');
+  conversation!.backend = 'pi';
+  conversation!.turns[1].backupPath = backupPath;
+
+  const deps = makeDeps(log, {
+    resolveBackend: () => 'pi',
+    ledger: { ...base.ledger, getConversation: async () => conversation },
+    backup: {
+      ...base.backup,
+      sessionFileFromBackupPath: () => source,
+      restoreSessionBackup: async () => false,
+      cleanupAllBackupsForFile: (filePath) => {
+        log.calls.push(`cleanupAllForFile:${filePath}`);
+      },
+    },
+  });
+
+  assert.deepEqual(
+    await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps),
+    { ok: true },
+  );
+  assert.ok(log.calls.includes(`cleanupAllForFile:${source}`));
+  assert.ok(!log.calls.includes('cleanupAll:backend-1'), 'PI cleanup must not scan Claude projects');
 });
 
 test('integration: real ledger + history + session registry round-trip (isolated CORTEX_HOME)', async () => {
