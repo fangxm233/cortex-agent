@@ -173,18 +173,20 @@ test('PI login consumer drives LoginFlow to done without retaining the key', asy
 });
 
 async function assertStructuredFailure(
-  expectedCode: string,
+  expected: { code: string; message: string },
   providerId: string,
   deps: PiApiKeyLoginDependencies,
 ): Promise<void> {
   const result = await loginPiApiKey(providerId, interaction(), deps);
   assert.equal(result.ok, false);
   if (result.ok) return;
-  assert.equal(result.error.code, expectedCode);
+  assert.deepEqual(result.error, expected);
   assert.equal(JSON.stringify(result).includes(SECRET), false);
 
   const flow = await startFlow(startInput(providerId), createPiApiKeyLoginConsumer(providerId, deps));
   await waitForStep(flow.flowId, 'failed');
+  assert.equal(getFlowState(flow.flowId)?.errorCode, expected.code);
+  assert.equal(getFlowState(flow.flowId)?.error, expected.message);
 }
 
 test('runtime and provider failures are structured and fail the flow', async () => {
@@ -193,13 +195,17 @@ test('runtime and provider failures are structured and fail the flow', async () 
     error: 'pi executable not found', runtime: null, readStoredCredential: null,
   };
   const inertLogin = vi.fn(async (): Promise<PiCredential> => ({ type: 'api_key' }));
-  await assertStructuredFailure('runtime_unavailable', 'deepseek', dependencies(unavailable));
   await assertStructuredFailure(
-    'provider_not_found', 'missing', dependencies(available(runtime([], inertLogin))),
+    { code: 'runtime_unavailable', message: 'PI runtime is unavailable.' },
+    'deepseek', dependencies(unavailable),
   );
   await assertStructuredFailure(
-    'api_key_login_unsupported', 'ambient',
-    dependencies(available(runtime([provider('ambient', false)], inertLogin))),
+    { code: 'provider_not_found', message: 'PI provider was not found.' },
+    'missing', dependencies(available(runtime([], inertLogin))),
+  );
+  await assertStructuredFailure(
+    { code: 'api_key_login_unsupported', message: 'PI provider does not support API-key login.' },
+    'ambient', dependencies(available(runtime([provider('ambient', false)], inertLogin))),
   );
   assert.equal(inertLogin.mock.calls.length, 0);
 });
@@ -217,9 +223,7 @@ test('runtime rejection for an invalid key is sanitized and never unhandled', as
   const deps = dependencies(available(runtime([provider()], login)));
   const direct = await loginPiApiKey('deepseek', interaction(), deps);
   assert.deepEqual(direct, {
-    ok: false,
-    provider: 'deepseek',
-    authType: 'api_key',
+    ok: false, provider: 'deepseek', authType: 'api_key',
     error: { code: 'login_failed', message: 'PI API-key login failed.' },
   });
 
@@ -230,6 +234,8 @@ test('runtime rejection for an invalid key is sanitized and never unhandled', as
   await new Promise<void>(resolve => setImmediate(resolve));
 
   assert.equal(getFlowState(flow.flowId)?.step, 'failed');
+  assert.equal(getFlowState(flow.flowId)?.errorCode, 'login_failed');
+  assert.equal(getFlowState(flow.flowId)?.error, 'PI API-key login failed.');
   assert.equal(JSON.stringify({ direct, state: getFlowState(flow.flowId), consoleCalls }).includes(SECRET), false);
   assert.deepEqual(unhandled, []);
 });

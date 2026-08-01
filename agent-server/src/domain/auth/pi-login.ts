@@ -1,11 +1,15 @@
-// input:  PI runtime loader, AuthInteraction, discovery, auth events
-// output: PI api-key login result and LoginFlow consumer
+// input:  PI runtime loader, LoginFlow API, discovery, auth events
+// output: PI api-key result, safe error, and LoginFlow consumer
 // pos:    PI api-key login adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import { publishAuthRecovered } from './auth-events.js';
-import type { AuthInteraction, LoginFlowConsumer } from './login-flow.js';
+import {
+  LoginFlowError,
+  type AuthInteraction,
+  type LoginFlowConsumer,
+} from './login-flow.js';
 import {
   loadPiRuntime,
   type PiModelRuntime,
@@ -46,11 +50,9 @@ export interface PiApiKeyLoginDependencies {
   publishRecovered?: (input: { backend: 'pi'; provider: string }) => void;
 }
 
-export class PiApiKeyLoginFlowError extends Error {
-  readonly name = 'PiApiKeyLoginFlowError';
-
+export class PiApiKeyLoginFlowError extends LoginFlowError {
   constructor(readonly result: PiApiKeyLoginFailure) {
-    super(result.error.message);
+    super(result.error.code, result.error.message);
   }
 }
 
