@@ -122,7 +122,7 @@ async function startNotificationFlow(
     authType: metadata.authType,
     channel: metadata.channel,
     sessionId: null,
-  });
+  }, { reuseExistingPair: true });
   const effective = metadataForState(metadata, state);
   await bindFlow(context, effective, state, dependencies);
   const actionable = await dependencies.waitForActionable(state);
