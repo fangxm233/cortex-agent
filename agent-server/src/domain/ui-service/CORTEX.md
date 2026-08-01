@@ -5,9 +5,9 @@ Serves the TUI dashboard directly and the Web UI through the tRPC router bound h
 
 | filename | role | function |
 |---|---|---|
-| types.ts | types | UI DTOs including auth, tasks and settings |
+| types.ts | types | UI DTOs, operation maps and service dependencies |
 | input-schemas.ts | schemas | Validates UI query and mutation inputs |
-| ui-service.ts | facade | routes query and mutate keys to handlers |
+| ui-service.ts | facade | routes UI operations through registered handlers |
 | subscribe.ts | subscribe | turns event bus traffic into a UI event stream |
 | trpc.ts | tRPC | shared tRPC router and procedure builders |
 | app-router.ts | tRPC | tRPC router mirroring the UI operations |

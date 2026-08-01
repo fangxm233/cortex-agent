@@ -7,7 +7,9 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 |---|---|---|
 | admin-channel-hot-reload.ts | wiring | creates adapter with live admin settings |
 | app.ts | entry | Wires runtime services and event bus clients |
-| cli.ts | entry | dispatches server and daemon-free commands |
+| auth-cli.ts | cli | handles auth status arguments and rendering |
+| cli-help.ts | cli | builds top-level and subcommand help |
+| cli.ts | entry | dispatches process and modular CLI handlers |
 | daemon.ts | entry | supervises and restarts the app process |
 | daemon-notice.ts | wiring | broadcasts supervisor notices to the operator |
 | doctor-cli.ts | cli | runs environment diagnostics and safe fixes |

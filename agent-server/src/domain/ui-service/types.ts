@@ -1556,6 +1556,8 @@ export interface UiService {
 // ── Deps ──────────────────────────────────────────────────────────
 
 export interface UiServiceDeps {
+  /** Optional seam for deterministic auth.status dispatch tests. */
+  getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   projectStore: {
     list(): Project[];
     get(id: string): Project | undefined;
