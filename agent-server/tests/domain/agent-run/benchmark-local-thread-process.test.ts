@@ -16,7 +16,11 @@ import {
   formatAccessProbeSummary,
   runNodeAccessProbe,
 } from '../../../src/domain/agent-run/access-probe.js';
-import { validateTrajectoryLifecycle } from '../../../src/domain/agent-run/manifest.js';
+import { openJournal, type Journal } from '../../../src/domain/agent-run/journal.js';
+import {
+  validateTrajectoryLifecycle,
+  writeStartedMarker,
+} from '../../../src/domain/agent-run/manifest.js';
 import {
   preparePinnedTrialPaths,
   spawnPinnedNode,
@@ -92,6 +96,7 @@ interface ProcessFixture {
   requestFile: string;
   supervisor: string;
   tsconfig: string;
+  parentJournal: Journal;
 }
 
 function writeTsconfig(file: string): void {
@@ -108,19 +113,41 @@ function writeTsconfig(file: string): void {
   });
 }
 
+function openParentJournal(trajectoryRoot: string, workspace: string): Journal {
+  const rootRunId = 'fresh-process';
+  const journal = openJournal({
+    path: path.join(trajectoryRoot, 'parent.journal.ndjson'),
+    header: {
+      rootRunId, threadId: null, agentSlot: 'parent', resolvedCwd: workspace,
+      canonicalInstructionSha256: 'a'.repeat(64), modelVisiblePromptSha256: 'b'.repeat(64),
+      systemPromptSha256: 'c'.repeat(64), toolManifestSha256: 'd'.repeat(64),
+      pluginManifestSha256: 'e'.repeat(64), modelExecutionIdentityHash: '1'.repeat(64),
+      roleToolSurfaceHash: '2'.repeat(64), bundleManifestHash: '3'.repeat(64),
+    },
+  });
+  journal.writeEvent({
+    threadId: null, step: null, agentSlot: 'parent', backend: 'claude', provider: 'anthropic',
+    requestedModel: 'fixture-model', reportedModel: null,
+    event: { type: 'tool_use', toolUseId: 'thread-call', name: 'thread_run', input: {} },
+  });
+  writeStartedMarker({ trajectoryRoot, rootRunId, threadId: null, journalPath: journal.path });
+  return journal;
+}
+
 function prepareFixture(): ProcessFixture {
   const paths = preparePinnedTrialPaths(root);
   seedConfig(paths.cortexHome);
   const workspace = path.join(root, 'workspace');
   const trajectoryRoot = path.join(root, 'trajectory');
+  fs.mkdirSync(workspace);
+  fs.mkdirSync(trajectoryRoot);
+  const parentJournal = openParentJournal(trajectoryRoot, workspace);
   const fixture = {
-    workspace, outputFile: path.join(root, 'output.json'),
+    workspace, parentJournal, outputFile: path.join(root, 'output.json'),
     requestFile: path.join(root, 'request.json'),
     supervisor: path.join(root, 'cortex-supervisor'),
     tsconfig: path.join(root, 'tsx-tsconfig.json'),
   };
-  fs.mkdirSync(workspace);
-  fs.mkdirSync(trajectoryRoot);
   installSupervisor(fixture.supervisor);
   writeTsconfig(fixture.tsconfig);
   writeJson(fixture.requestFile, {
@@ -145,12 +172,15 @@ async function runFixture(fixture: ProcessFixture): Promise<any> {
   });
   let stderr = '';
   child.stderr?.on('data', chunk => { stderr += chunk.toString(); });
-  assert.equal(await waitForExit(child), 0, stderr);
+  const exitCode = await waitForExit(child);
+  await fixture.parentJournal.close();
+  assert.equal(exitCode, 0, stderr);
   return JSON.parse(fs.readFileSync(fixture.outputFile, 'utf8'));
 }
 
 function assertPinnedResult(value: any, workspace: string): void {
   assert.equal(value.result.state, 'completed');
+  assert.equal(value.result.manifestCommitted, true);
   assert.equal(value.threadCount, 1);
   assert.equal(value.busIsNull, true);
   assert.equal(value.listeningSocket, false);

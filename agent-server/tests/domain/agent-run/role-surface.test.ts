@@ -56,6 +56,16 @@ it('content-addresses plugin files and discovers skill directories', () => {
   assert.notEqual(directoryContentSha256(plugin), before);
 });
 
+it('hashes a caller-supplied thread directive instead of the one-shot empty directive', () => {
+  const empty = roleSurfaceFromSpawnConfig(spawnConfig());
+  const directed = roleSurfaceFromSpawnConfig(spawnConfig(), 'benchmark directive');
+  assert.notEqual(directed.directiveSha256, empty.directiveSha256);
+  assert.equal(
+    directed.directiveSha256,
+    '66ef966ddb7cadb3286bb29d17558fff3e1028b6a47659e57247d3464ba0e357',
+  );
+});
+
 it('hashes the exact tools, MCP composition, and hook policy used by Claude argv', () => {
   const config = spawnConfig();
   fs.writeFileSync(config.mcpConfigPaths![0], '{"mcpServers":{}}\n');

@@ -97,11 +97,14 @@ function hookPolicy(config: AgentSpawnConfig): IdentityJsonValue {
   return buildHooksSettings(tools) as unknown as IdentityJsonValue;
 }
 
-export function roleSurfaceFromSpawnConfig(config: AgentSpawnConfig): RoleToolSurfaceInput {
+export function roleSurfaceFromSpawnConfig(
+  config: AgentSpawnConfig,
+  directive = '',
+): RoleToolSurfaceInput {
   const pluginDirs = config.pluginDirs ?? [];
   return {
     systemPromptSha256: sha256(config.systemPrompt ?? ''),
-    directiveSha256: sha256(''),
+    directiveSha256: sha256(directive),
     tools: spawnedTools(config),
     pluginDirs: pluginIdentities(pluginDirs),
     skills: discoveredSkills(pluginDirs),
