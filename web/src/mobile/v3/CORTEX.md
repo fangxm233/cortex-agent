@@ -16,8 +16,8 @@ The view models are framework-free record to slot mappings and each one has a co
 | m-session-list-vm.ts | vm | Groups sessions by day and derives status lines |
 | m-session-list-vm.test.ts | test | Unit tests for the session list view model |
 | MThreadsScreen.tsx | screen | Loads active and historical thread sections |
-| MThreadsView.tsx | view | Grouped thread sections and pipeline cards |
-| MThreadsView.test.tsx | test | Tests fixed thread sections and header |
+| MThreadsView.tsx | view | Grouped thread sections and wrapped pipelines |
+| MThreadsView.test.tsx | test | Tests sections, header and pipeline containment |
 | m-threads-vm.ts | vm | Derives budget, steps and task-linked card meta |
 | m-threads-vm.test.ts | test | Tests mobile task-linked thread metadata |
 | MThreadDetailScreen.tsx | screen | Binds routed mobile detail and cancellation |

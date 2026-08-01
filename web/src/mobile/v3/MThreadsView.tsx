@@ -1,5 +1,5 @@
 // input:  thread groups, detail DTOs, budget state, mobile copy
-// output: grouped mobile Threads view and pipeline cards
+// output: grouped mobile Threads view and wrapped pipeline cards
 // pos:    Presentational mobile thread-list view
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 // @ds-adherence-ignore -- mobile v3 uses the approved raw visual tokens
@@ -101,7 +101,7 @@ export function MThreadSections({ groups, copy, renderThread }: {
   ))}</>;
 }
 
-// ── Horizontal pipeline (scheme L201–209) ─────────────────────────────────────
+// ── Responsive pipeline (scheme L201–209) ────────────────────────────────────
 function PipelineDot({ state }: { state: MPipelineStep['state'] }) {
   if (state === 'done') {
     return (
@@ -118,28 +118,52 @@ function PipelineDot({ state }: { state: MPipelineStep['state'] }) {
   return <span style={{ width: 14, height: 14, borderRadius: '50%', border: '1.5px solid var(--proto-line-3)', boxSizing: 'border-box', flex: 'none' }} />;
 }
 
-function Pipeline({ steps }: { steps: MPipelineStep[] }) {
+const PIPELINE_COLUMNS = 4;
+
+function PipelineLabel({ step }: { step: MPipelineStep }) {
+  const color = step.state === 'active' ? MC.ink : step.state === 'done' ? MC.sub : MC.faint;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', padding: '10px 0 4px' }}>
-      {steps.map((s, i) => (
-        <div key={i} style={{ display: 'contents' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 'none' }}>
-            <PipelineDot state={s.state} />
-            <span
-              style={{
-                fontSize: 10.5,
-                color: s.state === 'active' ? MC.ink : s.state === 'done' ? MC.sub : MC.faint,
-                fontWeight: s.state === 'active' ? 600 : 400,
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {s.label}
-            </span>
-          </div>
-          {i < steps.length - 1 && (
-            <div style={{ flex: 1, height: 1.5, margin: '0 6px', background: s.state === 'done' ? 'var(--proto-success-bg)' : MC.hairline }} />
-          )}
-        </div>
+    <span
+      title={step.label}
+      style={{
+        minWidth: 0,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        fontSize: 10.5,
+        color,
+        fontWeight: step.state === 'active' ? 600 : 400,
+      }}
+    >
+      {step.label}
+    </span>
+  );
+}
+
+function PipelineStep({ step, connected }: { step: MPipelineStep; connected: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, flex: '0 1 auto' }}>
+        <PipelineDot state={step.state} />
+        <PipelineLabel step={step} />
+      </div>
+      {connected && (
+        <div style={{ flex: 1, minWidth: 2, height: 1.5, margin: '0 6px', background: step.state === 'done' ? 'var(--proto-success-bg)' : MC.hairline }} />
+      )}
+    </div>
+  );
+}
+
+function Pipeline({ steps }: { steps: MPipelineStep[] }) {
+  const columns = Math.min(PIPELINE_COLUMNS, steps.length);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, rowGap: 8, padding: '10px 0 4px' }}>
+      {steps.map((step, index) => (
+        <PipelineStep
+          key={index}
+          step={step}
+          connected={index < steps.length - 1 && (index + 1) % PIPELINE_COLUMNS !== 0}
+        />
       ))}
     </div>
   );
