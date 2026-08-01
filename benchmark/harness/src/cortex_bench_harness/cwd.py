@@ -47,7 +47,9 @@ async def _exec(environment: ExecEnvironment, command: str, failure: str) -> Exe
 
 
 def _path_output(result: ExecResult, empty_message: str) -> str:
-    value = (result.stdout or "").strip()
+    value = result.stdout or ""
+    if value.endswith("\n"):
+        value = value[:-1]
     if not value:
         raise WorkdirResolutionError(empty_message)
     if "\n" in value or "\r" in value:

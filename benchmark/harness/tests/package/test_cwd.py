@@ -37,6 +37,21 @@ def test_resolves_pwd_with_realpath_and_exists_probe() -> None:
     assert environment.commands == ["pwd", "realpath -- /app", "test -d /app"]
 
 
+def test_preserves_trailing_space_in_container_path() -> None:
+    path = "/app-with-trailing-space "
+    environment = FakeEnvironment([result(f"{path}\n"), result(f"{path}\n"), result()])
+
+    resolved = asyncio.run(resolve_task_workdir(environment))
+
+    assert resolved.pwd_raw == path
+    assert resolved.realpath == path
+    assert environment.commands == [
+        "pwd",
+        "realpath -- '/app-with-trailing-space '",
+        "test -d '/app-with-trailing-space '",
+    ]
+
+
 @pytest.mark.parametrize(
     ("results", "message"),
     [
