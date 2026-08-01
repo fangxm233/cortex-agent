@@ -331,20 +331,6 @@ function pauseDispatchSchedule(schedulesFile: string): void {
   writeFileSync(schedulesFile, `${JSON.stringify(data, null, 2)}\n`);
 }
 
-function armDispatchSchedule(schedulesFile: string): void {
-  const data = JSON.parse(readFileSync(schedulesFile, 'utf8'));
-  const dispatch = data.tasks[0];
-  data.tasks = [{
-    ...dispatch,
-    isPaused: false,
-    pausedAt: null,
-    pausedBy: null,
-    intervalMs: 500,
-    nextRun: Date.now(),
-  }];
-  writeFileSync(schedulesFile, `${JSON.stringify(data, null, 2)}\n`);
-}
-
 function populateScenario(home: string): ScenarioPaths {
   const envFile = path.join(home, 'config', '.env');
   const originalEnv = [
@@ -537,7 +523,7 @@ async function proveInitialBehavior(
   await sendIntegrationRequest(started.child, 'integration-register-dispatch');
   const limited = waitForOutput(started.child, started.logs, 'Skipping — at concurrency limit (1/1)',
     'server exited before reporting the dispatch concurrency limit');
-  armDispatchSchedule(paths.schedulesFile);
+  await sendIntegrationRequest(started.child, 'integration-run-dispatch');
   await limited;
   const port = uiPort(started.logs);
   assert.equal(await corsHeader(port, OLD_ORIGIN), OLD_ORIGIN);
