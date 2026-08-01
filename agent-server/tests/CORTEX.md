@@ -54,7 +54,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | execution-log-tailer.test.ts | test | live execution log tailing and refcounts |
 | facade-compact.test.ts | test | manual context compact via agent facade |
 | facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
-| facade.test.ts | test | provider identity and exact pre-flight gates |
+| facade.test.ts | test | provider identity and isolated pre-flight gates |
 | feishu-adapter.test.ts | test | Feishu messages, persistence and nullable routing |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
