@@ -140,7 +140,10 @@ function DeviceCodeNotice({
       <div data-auth-device-code className="font-mono text-xl font-semibold tracking-wider text-state-ink">
         {notice.userCode}
       </div>
-      <NoticeLink href={notice.verificationUri}>{L.authLoginOpenVerification}</NoticeLink>
+      <div className="space-y-1g">
+        <p>{L.authLoginOpenVerification}</p>
+        <NoticeLink href={notice.verificationUri}>{notice.verificationUri}</NoticeLink>
+      </div>
       {expiry ? <p className="text-caption text-state-muted">{expiry}</p> : null}
     </div>
   );

@@ -355,6 +355,9 @@ describe('LoginFlowModal', () => {
     if (kind === 'device_code') {
       expect(html).toContain('ABCD-EFGH');
       expect(html).toContain('600');
+      expect(renderer.root.findByType('a').children.join('')).toBe(
+        'https://verify.example.test',
+      );
     }
     if (kind === 'progress') {
       expect(renderer.root.findAllByProps({ 'data-auth-progress': true })).toHaveLength(1);
