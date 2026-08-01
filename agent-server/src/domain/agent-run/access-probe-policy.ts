@@ -191,33 +191,44 @@ function annotatedPath(value: string): string | null {
   return match?.[1] ?? null;
 }
 
+function appendRaw(base: string, segments: string[]): string {
+  if (segments.length === 0) return base;
+  const separator = base.endsWith(path.sep) ? '' : path.sep;
+  return `${base}${separator}${segments.join(path.sep)}`;
+}
+
 function resolveTracedPath(
   argument: string, dirArgument: string | undefined, cwd: string,
 ): string | null {
   const value = decodeQuoted(argument);
   if (value === null) return null;
-  if (path.isAbsolute(value)) return path.normalize(value);
+  if (path.isAbsolute(value)) return value;
   const base = dirArgument === undefined || dirArgument.startsWith('AT_FDCWD')
     ? annotatedPath(dirArgument ?? '') ?? cwd
     : annotatedPath(dirArgument);
-  return base ? path.resolve(base, value) : null;
+  if (!base) return null;
+  return value.length === 0 ? base : appendRaw(base, [value]);
 }
 
 function canonicalPath(value: string, depth = 0): string {
-  const absolute = path.resolve(value);
+  const absolute = path.isAbsolute(value) ? value : appendRaw(process.cwd(), [value]);
   if (depth >= 40) return absolute;
   const parsed = path.parse(absolute);
   const segments = absolute.slice(parsed.root.length).split(path.sep).filter(Boolean);
   let cursor = parsed.root;
   for (let index = 0; index < segments.length; index += 1) {
+    if (segments[index] === '..') { cursor = path.dirname(cursor); continue; }
+    if (segments[index] === '.') continue;
     const next = path.join(cursor, segments[index]);
     let stat: fs.Stats;
     try { stat = fs.lstatSync(next); }
-    catch { return path.join(next, ...segments.slice(index + 1)); }
+    catch { return appendRaw(next, segments.slice(index + 1)); }
     if (stat.isSymbolicLink()) {
-      const target = fs.readlinkSync(next);
-      const resolved = path.isAbsolute(target) ? target : path.resolve(path.dirname(next), target);
-      return canonicalPath(path.join(resolved, ...segments.slice(index + 1)), depth + 1);
+      let target: string;
+      try { target = fs.readlinkSync(next); }
+      catch { return appendRaw(next, segments.slice(index + 1)); }
+      const resolved = path.isAbsolute(target) ? target : appendRaw(path.dirname(next), [target]);
+      return canonicalPath(appendRaw(resolved, segments.slice(index + 1)), depth + 1);
     }
     cursor = next;
   }
@@ -237,12 +248,14 @@ function isHostDotfile(candidate: string, policy: AccessProbePolicy): boolean {
   return first.startsWith('.');
 }
 
+const SAFE_PROC_FILES = new Set(['auxv', 'cgroup', 'exe', 'maps', 'stat', 'statm', 'status']);
+
 function isProcessRuntimePath(
   candidate: string, pid: number, tracedPids: ReadonlySet<number> | undefined,
 ): boolean {
-  if (isWithin(candidate, '/proc/self') || isWithin(candidate, '/proc/thread-self')) return true;
-  const match = /^\/proc\/(\d+)(?:\/|$)/.exec(candidate);
-  if (!match) return false;
+  const match = /^\/proc\/(self|thread-self|\d+)\/([^/]+)$/.exec(candidate);
+  if (!match || !SAFE_PROC_FILES.has(match[2])) return false;
+  if (match[1] === 'self' || match[1] === 'thread-self') return true;
   const targetPid = Number(match[1]);
   return targetPid === pid || tracedPids?.has(targetPid) === true;
 }
@@ -335,7 +348,6 @@ function classifyNetwork(
 ): AccessViolation | null {
   if (call.syscall === 'socket' || call.syscall === 'socketpair') {
     const family = /^AF_[A-Z0-9_]+/.exec(call.args[0] ?? '')?.[0] ?? 'unknown';
-    if (family === 'AF_UNIX') return null;
     const reason = family === 'AF_INET' || family === 'AF_INET6'
       ? 'network_socket_denied' : 'unclassified_network_socket';
     return violation(call.syscall, family, reason, 'network', options, line, raw);
@@ -349,7 +361,7 @@ function classifyNetwork(
       'network', options, line, raw);
   }
   const unixMetadata = call.syscall === 'getsockname' || call.syscall === 'getsockopt';
-  if (unixMetadata && /UNIX-|sa_family=AF_UNIX/.test(call.args.join(','))) return null;
+  if (unixMetadata && /^[12]<UNIX-STREAM:/.test(call.args[0] ?? '')) return null;
   return violation(call.syscall, raw, 'unclassified_network_syscall', 'unknown', options, line, raw);
 }
 

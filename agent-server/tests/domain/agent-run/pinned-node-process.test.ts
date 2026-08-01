@@ -102,11 +102,11 @@ it('drops a forbidden host variable while preserving allowlisted Node runtime va
   assert.deepEqual(result.envKeys, [...PINNED_ENV_KEYS, 'NODE_ENV', 'PATH', 'TERM'].sort());
 });
 
-it('accepts only caller-named safe passthroughs and rejects host-root values', () => {
+it('accepts a caller-named passthrough confined to the trial root', () => {
   const workspace = path.join(root, 'workspace');
   fs.mkdirSync(workspace);
   const safeValue = path.join(root, 'input.json');
-  const safe = preparePinnedNodeLaunch({
+  const launch = preparePinnedNodeLaunch({
     trialRoot: root,
     workspaceCwd: workspace,
     entry: CHILD,
@@ -114,12 +114,26 @@ it('accepts only caller-named safe passthroughs and rejects host-root values', (
     passthroughEnv: ['CUSTOM_INPUT'],
   });
 
-  assert.equal(safe.env.CUSTOM_INPUT, safeValue);
+  assert.equal(launch.env.CUSTOM_INPUT, safeValue);
+});
+
+it('rejects absolute and cwd-relative passthrough references to host roots', () => {
+  const workspace = path.join(root, 'workspace');
+  fs.mkdirSync(workspace);
+  const base = { trialRoot: root, workspaceCwd: workspace, entry: CHILD };
   assert.throws(() => preparePinnedNodeLaunch({
-    trialRoot: root,
-    workspaceCwd: workspace,
-    entry: CHILD,
+    ...base,
     parentEnv: { CUSTOM_INPUT: path.join(os.homedir(), '.ssh/config') },
+    passthroughEnv: ['CUSTOM_INPUT'],
+  }), /references a forbidden host root/);
+
+  const hostCortex = path.join(path.dirname(root), `${path.basename(root)}-host-cortex`);
+  assert.throws(() => preparePinnedNodeLaunch({
+    ...base,
+    parentEnv: {
+      CORTEX_HOME: hostCortex,
+      CUSTOM_INPUT: path.relative(workspace, path.join(hostCortex, 'config/settings.json')),
+    },
     passthroughEnv: ['CUSTOM_INPUT'],
   }), /references a forbidden host root/);
 });

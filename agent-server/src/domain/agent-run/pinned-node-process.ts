@@ -67,18 +67,35 @@ function isInheritedRuntimeKey(key: string): boolean {
   return INHERITED_ENV_KEYS.has(key) || key.startsWith('LC_');
 }
 
+function pathCandidates(value: string, cwd: string): string[] {
+  return value.split(/[\s,;]+/).flatMap((part) => {
+    const token = part.includes('=') ? part.slice(part.lastIndexOf('=') + 1) : part;
+    const unquoted = token.replace(/^["']|["']$/g, '');
+    if (!unquoted.includes('/') || unquoted.includes('://')) return [];
+    return [path.isAbsolute(unquoted) ? path.resolve(unquoted) : path.resolve(cwd, unquoted)];
+  });
+}
+
+function isWithin(candidate: string, root: string): boolean {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..'
+    && !path.isAbsolute(relative));
+}
+
 function referencesForbiddenRoot(
-  value: string, paths: PinnedTrialPaths, parentEnv: NodeJS.ProcessEnv,
+  value: string, cwd: string, paths: PinnedTrialPaths, parentEnv: NodeJS.ProcessEnv,
 ): boolean {
-  const outsideTrial = value.split(paths.root).join('');
   const roots = [os.homedir(), parentEnv.CORTEX_HOME].filter(
     (root): root is string => typeof root === 'string' && root.length > 0,
   );
-  return roots.some(root => outsideTrial.includes(root));
+  return pathCandidates(value, cwd).some(candidate => (
+    !isWithin(candidate, paths.root) && roots.some(root => isWithin(candidate, root))
+  ));
 }
 
 function assertPassthrough(
-  key: string, value: string, paths: PinnedTrialPaths, parentEnv: NodeJS.ProcessEnv,
+  key: string, value: string, cwd: string,
+  paths: PinnedTrialPaths, parentEnv: NodeJS.ProcessEnv,
 ): void {
   if (!ENV_KEY.test(key)) throw new Error(`Invalid passthrough environment key: ${key}`);
   if (PINNED_ENV_KEYS.includes(key as typeof PINNED_ENV_KEYS[number])) {
@@ -87,33 +104,33 @@ function assertPassthrough(
   if (NEVER_INHERIT.has(key) || key.startsWith('NODE_REPL_')) {
     throw new Error(`Unsafe Node environment key cannot be inherited: ${key}`);
   }
-  if (referencesForbiddenRoot(value, paths, parentEnv)) {
+  if (referencesForbiddenRoot(value, cwd, paths, parentEnv)) {
     throw new Error(`Passthrough ${key} references a forbidden host root`);
   }
 }
 
 function passthroughEnvironment(
-  names: string[], parentEnv: NodeJS.ProcessEnv, paths: PinnedTrialPaths,
+  names: string[], parentEnv: NodeJS.ProcessEnv, paths: PinnedTrialPaths, cwd: string,
 ): NodeJS.ProcessEnv {
   const result: NodeJS.ProcessEnv = {};
   for (const name of names) {
     const value = parentEnv[name];
     if (value === undefined) continue;
-    assertPassthrough(name, value, paths, parentEnv);
+    assertPassthrough(name, value, cwd, paths, parentEnv);
     result[name] = value;
   }
   return result;
 }
 
 function inheritedEnvironment(
-  parentEnv: NodeJS.ProcessEnv, paths: PinnedTrialPaths, passthrough: string[],
+  parentEnv: NodeJS.ProcessEnv, paths: PinnedTrialPaths, passthrough: string[], cwd: string,
 ): NodeJS.ProcessEnv {
   const inherited = Object.fromEntries(Object.entries(parentEnv).filter(
     (entry): entry is [string, string] => entry[1] !== undefined && isInheritedRuntimeKey(entry[0]),
   ));
   return {
     ...inherited,
-    ...passthroughEnvironment(passthrough, parentEnv, paths),
+    ...passthroughEnvironment(passthrough, parentEnv, paths, cwd),
     PATH: PINNED_RUNTIME_PATH,
   };
 }
@@ -169,6 +186,7 @@ function resolveDirectory(directory: string, label: string): string {
 export function preparePinnedNodeLaunch(options: PinnedNodeLaunchOptions): PinnedNodeLaunchSpec {
   const paths = preparePinnedTrialPaths(options.trialRoot);
   const parentEnv = options.parentEnv ?? process.env;
+  const cwd = resolveDirectory(options.workspaceCwd, 'workspaceCwd');
   return {
     command: process.execPath,
     args: [
@@ -177,9 +195,9 @@ export function preparePinnedNodeLaunch(options: PinnedNodeLaunchOptions): Pinne
       path.resolve(options.entry),
       ...(options.args ?? []),
     ],
-    cwd: resolveDirectory(options.workspaceCwd, 'workspaceCwd'),
+    cwd,
     env: {
-      ...inheritedEnvironment(parentEnv, paths, options.passthroughEnv ?? []),
+      ...inheritedEnvironment(parentEnv, paths, options.passthroughEnv ?? [], cwd),
       ...pinnedEnvironment(paths),
     },
     stdio: options.stdio ?? 'inherit',

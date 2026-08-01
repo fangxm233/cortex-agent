@@ -155,13 +155,15 @@ it('limits proc and Node runtime exceptions to traced pids and named paths', () 
     `4.9 openat(AT_FDCWD<${policy.workspace}>, "/proc/1/environ", O_RDONLY) = 4`,
     `4.10 openat(AT_FDCWD<${policy.workspace}>, "${nodeRoot}/share/secret", O_RDONLY) = 5`,
     `4.11 openat(AT_FDCWD<${policy.workspace}>, "/proc/self/root${escaped}", O_RDONLY) = 6<${escaped}>`,
+    `4.12 openat(AT_FDCWD<${policy.workspace}>, "/proc/321/root${escaped}", O_RDONLY) = 7`,
   ], {
     policy: { ...policy, nodeExecutable, tracedPids: new Set([321]) },
     initialCwd: policy.workspace, pid: 321, traceFile: 'trace.321',
   });
 
   assert.deepEqual(result.violations.map(item => item.path), [
-    '/proc/1/environ', path.join(nodeRoot, 'share/secret'), `/proc/self/root${escaped}`,
+    '/proc/1/environ', path.join(nodeRoot, 'share/secret'),
+    `/proc/self/root${escaped}`, `/proc/321/root${escaped}`,
   ]);
 });
 
@@ -178,10 +180,23 @@ it('denies Internet sockets, bind, listen, and connect but permits Unix socketpa
     syscall, path: offender, reason,
   })), [
     { syscall: 'socket', path: 'AF_INET', reason: 'network_socket_denied' },
+    { syscall: 'socketpair', path: 'AF_UNIX', reason: 'unclassified_network_socket' },
     { syscall: 'bind', path: '127.0.0.1:0', reason: 'network_bind_denied' },
     { syscall: 'listen', path: '127.0.0.1:43123', reason: 'network_listen_denied' },
     { syscall: 'connect', path: '127.0.0.1:9', reason: 'network_connect_denied' },
   ]);
+});
+
+it('allows Unix metadata only on probe stdout/stderr and denies other descriptors', () => {
+  const result = trace(
+    '5.41 getsockname(1<UNIX-STREAM:[1->2]>, {sa_family=AF_UNIX}, [128 => 2]) = 0',
+    '5.42 getsockopt(2<UNIX-STREAM:[3->4]>, SOL_SOCKET, SO_TYPE, [1], [4]) = 0',
+    '5.43 getsockname(3<UNIX-STREAM:[5->6]>, {sa_family=AF_UNIX}, [128 => 2]) = 0',
+  );
+
+  assert.deepEqual(result.violations.map(({ syscall, reason }) => ({ syscall, reason })), [{
+    syscall: 'getsockname', reason: 'unclassified_network_syscall',
+  }]);
 });
 
 it('fails closed on socket operations outside the named Unix metadata exception', () => {
