@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, it } from 'vitest';
 import {
   PINNED_ENV_KEYS,
+  PINNED_RUNTIME_PATH,
   preparePinnedNodeLaunch,
   spawnPinnedNode,
 } from '../../../src/domain/agent-run/pinned-node-process.js';
@@ -76,7 +77,7 @@ it('pins core paths at module load plus homedir and tmpdir under one trial root'
     nodeSentinel: null,
     nodeOptions: null,
     nodePath: null,
-    pathValue: '/usr/bin:/bin',
+    pathValue: PINNED_RUNTIME_PATH,
   });
 });
 
@@ -87,17 +88,40 @@ it('drops a forbidden host variable while preserving allowlisted Node runtime va
     HTTP_PROXY: 'http://host-proxy.invalid',
     SSH_AUTH_SOCK: '/host/ssh-agent.sock',
     CORTEX_HOST_PATH: '/host/.cortex',
-    NODE_NO_WARNINGS: '1',
+    NODE_ENV: 'test',
     NODE_OPTIONS: '--require /host/preload.cjs',
     NODE_PATH: '/host/node_modules',
+    TERM: 'xterm-256color',
   });
 
   assert.equal(result.forbiddenValue, null);
-  assert.equal(result.nodeSentinel, '1');
+  assert.equal(result.nodeSentinel, 'test');
   assert.equal(result.nodeOptions, null);
   assert.equal(result.nodePath, null);
-  assert.equal(result.pathValue, '/usr/bin');
-  assert.deepEqual(result.envKeys, [...PINNED_ENV_KEYS, 'NODE_NO_WARNINGS', 'PATH'].sort());
+  assert.equal(result.pathValue, PINNED_RUNTIME_PATH);
+  assert.deepEqual(result.envKeys, [...PINNED_ENV_KEYS, 'NODE_ENV', 'PATH', 'TERM'].sort());
+});
+
+it('accepts only caller-named safe passthroughs and rejects host-root values', () => {
+  const workspace = path.join(root, 'workspace');
+  fs.mkdirSync(workspace);
+  const safeValue = path.join(root, 'input.json');
+  const safe = preparePinnedNodeLaunch({
+    trialRoot: root,
+    workspaceCwd: workspace,
+    entry: CHILD,
+    parentEnv: { CUSTOM_INPUT: safeValue },
+    passthroughEnv: ['CUSTOM_INPUT'],
+  });
+
+  assert.equal(safe.env.CUSTOM_INPUT, safeValue);
+  assert.throws(() => preparePinnedNodeLaunch({
+    trialRoot: root,
+    workspaceCwd: workspace,
+    entry: CHILD,
+    parentEnv: { CUSTOM_INPUT: path.join(os.homedir(), '.ssh/config') },
+    passthroughEnv: ['CUSTOM_INPUT'],
+  }), /references a forbidden host root/);
 });
 
 it('disables Node global search paths before loading the entry', () => {

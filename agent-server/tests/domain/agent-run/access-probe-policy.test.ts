@@ -98,26 +98,23 @@ it('tracks chdir before resolving relative paths', () => {
   assert.equal(result.counts.allowed, 2);
 });
 
-it('allows the pinned Node installation and system path ancestors as runtime reads', () => {
-    const nodeRoot = path.join(policy.hostHome, '.local/node-runtime');
-    const nodeExecutable = path.join(nodeRoot, 'bin/node');
-    fs.mkdirSync(path.dirname(nodeExecutable), { recursive: true });
-    fs.writeFileSync(nodeExecutable, 'node');
-    const runtimePolicy = { ...policy, nodeExecutable };
-    const result = classifyTraceLines([
-      `4.2 execve("${nodeExecutable}", ["node"], 0x0) = 0`,
-      `4.3 openat(AT_FDCWD<${policy.workspace}>, "${nodeRoot}/lib/node", O_RDONLY) = -1 ENOENT (No such file or directory)`,
-      `4.4 readlink("/etc", 0x0, 1024) = -1 EINVAL (Invalid argument)`,
-      `4.5 readlink("/usr/share", 0x0, 1024) = -1 EINVAL (Invalid argument)`,
-      `4.6 inotify_add_watch(20, "${policy.cortexHome}/config", IN_MODIFY) = 1`,
-    ], {
-      policy: runtimePolicy,
-      initialCwd: policy.workspace,
-      pid: 321,
-      traceFile: 'trace.321',
-    });
+it('allows only the pinned Node binary plus system path ancestors as runtime reads', () => {
+  const nodeRoot = path.join(policy.hostHome, '.local/node-runtime');
+  const nodeExecutable = path.join(nodeRoot, 'bin/node');
+  fs.mkdirSync(path.dirname(nodeExecutable), { recursive: true });
+  fs.writeFileSync(nodeExecutable, 'node');
+  const result = classifyTraceLines([
+    `4.2 execve("${nodeExecutable}", ["node"], 0x0) = 0`,
+    `4.3 openat(AT_FDCWD<${policy.workspace}>, "${nodeRoot}/lib/node", O_RDONLY) = -1 ENOENT (No such file or directory)`,
+    '4.4 readlink("/etc", 0x0, 1024) = -1 EINVAL (Invalid argument)',
+    '4.5 readlink("/usr/share", 0x0, 1024) = -1 EINVAL (Invalid argument)',
+    `4.6 inotify_add_watch(20, "${policy.cortexHome}/config", IN_MODIFY) = 1`,
+  ], {
+    policy: { ...policy, nodeExecutable }, initialCwd: policy.workspace,
+    pid: 321, traceFile: 'trace.321',
+  });
 
-  assert.deepEqual(result.violations, []);
+  assert.deepEqual(result.violations.map(item => item.path), [`${nodeRoot}/lib/node`]);
 });
 
 it('uses the resolved fd target so a removed workspace symlink cannot hide host access', () => {
@@ -132,42 +129,69 @@ it('uses the resolved fd target so a removed workspace symlink cannot hide host 
   })), [{ path: actual, reason: 'host_cortex_path' }]);
 });
 
-it('limits proc and Node runtime exceptions to traced pids and named runtime paths', () => {
+it('resolves a dangling workspace symlink before classifying a failed open', () => {
+  const apparent = path.join(policy.workspace, 'dangling-link');
+  const actual = path.join(policy.hostCortexHome, 'data/missing.json');
+  fs.symlinkSync(actual, apparent);
+  const result = trace(
+    `4.71 openat(AT_FDCWD<${policy.workspace}>, "${apparent}", O_RDONLY) = -1 ENOENT (No such file or directory)`,
+  );
+
+  assert.deepEqual(result.violations.map(({ path: offender, reason }) => ({
+    path: offender, reason,
+  })), [{ path: apparent, reason: 'host_cortex_path' }]);
+});
+
+it('limits proc and Node runtime exceptions to traced pids and named paths', () => {
   const nodeRoot = path.join(policy.hostHome, '.local/node-runtime');
   const nodeExecutable = path.join(nodeRoot, 'bin/node');
+  const escaped = path.join(policy.hostCortexHome, 'data/escaped.json');
   fs.mkdirSync(path.dirname(nodeExecutable), { recursive: true });
   fs.writeFileSync(nodeExecutable, 'node');
+  fs.mkdirSync(path.dirname(escaped), { recursive: true });
+  fs.writeFileSync(escaped, '{}');
   const result = classifyTraceLines([
     `4.8 openat(AT_FDCWD<${policy.workspace}>, "/proc/321/maps", O_RDONLY) = 3`,
     `4.9 openat(AT_FDCWD<${policy.workspace}>, "/proc/1/environ", O_RDONLY) = 4`,
     `4.10 openat(AT_FDCWD<${policy.workspace}>, "${nodeRoot}/share/secret", O_RDONLY) = 5`,
+    `4.11 openat(AT_FDCWD<${policy.workspace}>, "/proc/self/root${escaped}", O_RDONLY) = 6<${escaped}>`,
   ], {
     policy: { ...policy, nodeExecutable, tracedPids: new Set([321]) },
-    initialCwd: policy.workspace,
-    pid: 321,
-    traceFile: 'trace.321',
+    initialCwd: policy.workspace, pid: 321, traceFile: 'trace.321',
   });
 
   assert.deepEqual(result.violations.map(item => item.path), [
-    '/proc/1/environ',
-    path.join(nodeRoot, 'share/secret'),
+    '/proc/1/environ', path.join(nodeRoot, 'share/secret'), `/proc/self/root${escaped}`,
   ]);
 });
 
-it('denies bind, listen, and failed connect with normalized endpoints', () => {
-    const result = trace(
-      '5.0 bind(21<TCP:[1]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("127.0.0.1")}, 16) = 0',
-      '5.1 listen(21<TCP:[127.0.0.1:43123]>, 511) = 0',
-      '5.2 connect(22<TCP:[2]>, {sa_family=AF_INET, sin_port=htons(9), sin_addr=inet_addr("127.0.0.1")}, 16) = -1 ECONNREFUSED (Connection refused)',
-    );
+it('denies Internet sockets, bind, listen, and connect but permits Unix socketpair', () => {
+  const result = trace(
+    '5.0 socket(AF_INET, SOCK_STREAM|SOCK_CLOEXEC, IPPROTO_IP) = 20<TCP:[1]>',
+    '5.1 socketpair(AF_UNIX, SOCK_STREAM, 0, [21<UNIX-STREAM:[2]>, 22<UNIX-STREAM:[3]>]) = 0',
+    '5.2 bind(21<TCP:[1]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("127.0.0.1")}, 16) = 0',
+    '5.3 listen(21<TCP:[127.0.0.1:43123]>, 511) = 0',
+    '5.4 connect(22<TCP:[2]>, {sa_family=AF_INET, sin_port=htons(9), sin_addr=inet_addr("127.0.0.1")}, 16) = -1 ECONNREFUSED (Connection refused)',
+  );
 
-    assert.deepEqual(result.violations.map(({ syscall, path, reason }) => ({
-      syscall, path, reason,
-    })), [
-      { syscall: 'bind', path: '127.0.0.1:0', reason: 'network_bind_denied' },
-      { syscall: 'listen', path: '127.0.0.1:43123', reason: 'network_listen_denied' },
+  assert.deepEqual(result.violations.map(({ syscall, path: offender, reason }) => ({
+    syscall, path: offender, reason,
+  })), [
+    { syscall: 'socket', path: 'AF_INET', reason: 'network_socket_denied' },
+    { syscall: 'bind', path: '127.0.0.1:0', reason: 'network_bind_denied' },
+    { syscall: 'listen', path: '127.0.0.1:43123', reason: 'network_listen_denied' },
     { syscall: 'connect', path: '127.0.0.1:9', reason: 'network_connect_denied' },
   ]);
+});
+
+it('fails closed on socket operations outside the named Unix metadata exception', () => {
+  const result = trace(
+    '5.5 sendto(21<UNIX-STREAM:[2]>, "x", 1, 0, NULL, 0) = 1',
+  );
+
+  assert.deepEqual(result.violations.map(({ syscall, reason }) => ({ syscall, reason })), [{
+    syscall: 'sendto', reason: 'unclassified_network_syscall',
+  }]);
 });
 
 it('fails closed on an unknown or malformed traced syscall', () => {

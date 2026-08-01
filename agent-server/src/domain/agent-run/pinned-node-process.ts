@@ -8,6 +8,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+export const PINNED_RUNTIME_PATH = [
+  path.dirname(process.execPath),
+  '/usr/local/bin',
+  '/usr/bin',
+  '/bin',
+].filter((value, index, values) => values.indexOf(value) === index).join(path.delimiter);
+
 export const PINNED_ENV_KEYS = [
   'CLAUDE_CONFIG_DIR',
   'CORTEX_HOME',
@@ -39,6 +46,7 @@ export interface PinnedNodeLaunchOptions {
   args?: string[];
   nodeArgs?: string[];
   parentEnv?: NodeJS.ProcessEnv;
+  passthroughEnv?: string[];
   stdio?: StdioOptions;
 }
 
@@ -51,47 +59,63 @@ export interface PinnedNodeLaunchSpec {
   paths: PinnedTrialPaths;
 }
 
-const SAFE_NODE_ENV_KEYS = new Set([
-  'NODE_DEBUG',
-  'NODE_DEBUG_NATIVE',
-  'NODE_DISABLE_COLORS',
-  'NODE_NO_WARNINGS',
-  'NODE_PENDING_DEPRECATION',
-  'NODE_PRESERVE_SYMLINKS',
-  'NODE_TLS_REJECT_UNAUTHORIZED',
-  'NODE_USE_ENV_PROXY',
-]);
+const INHERITED_ENV_KEYS = new Set(['LANG', 'TZ', 'TERM', 'NODE_ENV']);
+const NEVER_INHERIT = new Set(['NODE_OPTIONS', 'NODE_PATH', 'NODE_EXTRA_CA_CERTS']);
+const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function isInheritedRuntimeKey(key: string): boolean {
-  return key === 'PATH'
-    || key === 'LANG'
-    || key === 'LANGUAGE'
-    || key === 'TZ'
-    || key.startsWith('LC_')
-    || SAFE_NODE_ENV_KEYS.has(key);
+  return INHERITED_ENV_KEYS.has(key) || key.startsWith('LC_');
 }
 
-function isForbiddenPathEntry(value: string, parentEnv: NodeJS.ProcessEnv): boolean {
+function referencesForbiddenRoot(
+  value: string, paths: PinnedTrialPaths, parentEnv: NodeJS.ProcessEnv,
+): boolean {
+  const outsideTrial = value.split(paths.root).join('');
   const roots = [os.homedir(), parentEnv.CORTEX_HOME].filter(
     (root): root is string => typeof root === 'string' && root.length > 0,
   );
-  const resolved = path.resolve(value);
-  return roots.some(root => resolved === root || resolved.startsWith(`${path.resolve(root)}${path.sep}`))
-    || resolved.split(path.sep).includes('.cortex');
+  return roots.some(root => outsideTrial.includes(root));
 }
 
-function sanitizedPath(value: string, parentEnv: NodeJS.ProcessEnv): string {
-  return value.split(path.delimiter)
-    .filter(entry => entry.length > 0 && !isForbiddenPathEntry(entry, parentEnv))
-    .join(path.delimiter);
+function assertPassthrough(
+  key: string, value: string, paths: PinnedTrialPaths, parentEnv: NodeJS.ProcessEnv,
+): void {
+  if (!ENV_KEY.test(key)) throw new Error(`Invalid passthrough environment key: ${key}`);
+  if (PINNED_ENV_KEYS.includes(key as typeof PINNED_ENV_KEYS[number])) {
+    throw new Error(`Cannot passthrough pinned environment key: ${key}`);
+  }
+  if (NEVER_INHERIT.has(key) || key.startsWith('NODE_REPL_')) {
+    throw new Error(`Unsafe Node environment key cannot be inherited: ${key}`);
+  }
+  if (referencesForbiddenRoot(value, paths, parentEnv)) {
+    throw new Error(`Passthrough ${key} references a forbidden host root`);
+  }
 }
 
-function inheritedEnvironment(parentEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+function passthroughEnvironment(
+  names: string[], parentEnv: NodeJS.ProcessEnv, paths: PinnedTrialPaths,
+): NodeJS.ProcessEnv {
+  const result: NodeJS.ProcessEnv = {};
+  for (const name of names) {
+    const value = parentEnv[name];
+    if (value === undefined) continue;
+    assertPassthrough(name, value, paths, parentEnv);
+    result[name] = value;
+  }
+  return result;
+}
+
+function inheritedEnvironment(
+  parentEnv: NodeJS.ProcessEnv, paths: PinnedTrialPaths, passthrough: string[],
+): NodeJS.ProcessEnv {
   const inherited = Object.fromEntries(Object.entries(parentEnv).filter(
     (entry): entry is [string, string] => entry[1] !== undefined && isInheritedRuntimeKey(entry[0]),
   ));
-  if (inherited.PATH) inherited.PATH = sanitizedPath(inherited.PATH, parentEnv);
-  return inherited;
+  return {
+    ...inherited,
+    ...passthroughEnvironment(passthrough, parentEnv, paths),
+    PATH: PINNED_RUNTIME_PATH,
+  };
 }
 
 function pinnedEnvironment(paths: PinnedTrialPaths): NodeJS.ProcessEnv {
@@ -154,7 +178,10 @@ export function preparePinnedNodeLaunch(options: PinnedNodeLaunchOptions): Pinne
       ...(options.args ?? []),
     ],
     cwd: resolveDirectory(options.workspaceCwd, 'workspaceCwd'),
-    env: { ...inheritedEnvironment(parentEnv), ...pinnedEnvironment(paths) },
+    env: {
+      ...inheritedEnvironment(parentEnv, paths, options.passthroughEnv ?? []),
+      ...pinnedEnvironment(paths),
+    },
     stdio: options.stdio ?? 'inherit',
     paths,
   };

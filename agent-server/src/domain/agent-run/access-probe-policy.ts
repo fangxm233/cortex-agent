@@ -126,9 +126,10 @@ const NETWORK_DENIALS: Record<string, string> = {
   listen: 'network_listen_denied',
   connect: 'network_connect_denied',
 };
-const NETWORK_METADATA = new Set([
-  'accept', 'accept4', 'getpeername', 'getsockname', 'getsockopt', 'recvfrom', 'recvmmsg', 'recvmsg',
-  'sendmmsg', 'sendmsg', 'sendto', 'setsockopt', 'shutdown', 'socket', 'socketpair',
+const NETWORK_SYSCALLS = new Set([
+  'accept', 'accept4', 'bind', 'connect', 'getpeername', 'getsockname', 'getsockopt', 'listen',
+  'recvfrom', 'recvmmsg', 'recvmsg', 'sendmmsg', 'sendmsg', 'sendto', 'setsockopt', 'shutdown',
+  'socket', 'socketpair',
 ]);
 const SYSTEM_ROOTS = [
   '/lib', '/lib64', '/usr/lib', '/usr/lib64', '/usr/share/zoneinfo', '/sys/fs/cgroup',
@@ -202,21 +203,26 @@ function resolveTracedPath(
   return base ? path.resolve(base, value) : null;
 }
 
-function canonicalPath(value: string): string {
+function canonicalPath(value: string, depth = 0): string {
   const absolute = path.resolve(value);
-  let cursor = absolute;
-  const suffix: string[] = [];
-  while (!fs.existsSync(cursor)) {
-    const parent = path.dirname(cursor);
-    if (parent === cursor) return absolute;
-    suffix.unshift(path.basename(cursor));
-    cursor = parent;
+  if (depth >= 40) return absolute;
+  const parsed = path.parse(absolute);
+  const segments = absolute.slice(parsed.root.length).split(path.sep).filter(Boolean);
+  let cursor = parsed.root;
+  for (let index = 0; index < segments.length; index += 1) {
+    const next = path.join(cursor, segments[index]);
+    let stat: fs.Stats;
+    try { stat = fs.lstatSync(next); }
+    catch { return path.join(next, ...segments.slice(index + 1)); }
+    if (stat.isSymbolicLink()) {
+      const target = fs.readlinkSync(next);
+      const resolved = path.isAbsolute(target) ? target : path.resolve(path.dirname(next), target);
+      return canonicalPath(path.join(resolved, ...segments.slice(index + 1)), depth + 1);
+    }
+    cursor = next;
   }
-  try {
-    return path.join(fs.realpathSync(cursor), ...suffix);
-  } catch {
-    return absolute;
-  }
+  try { return fs.realpathSync(cursor); }
+  catch { return absolute; }
 }
 
 function isWithin(candidate: string, root: string): boolean {
@@ -245,23 +251,14 @@ function readOnlyRoots(policy: AccessProbePolicy): string[] {
   return [policy.installRoot, ...(policy.nodeModuleRoots ?? []), ...SYSTEM_ROOTS];
 }
 
-function nodeRuntimeRoots(policy: AccessProbePolicy): string[] {
-  const executable = canonicalPath(policy.nodeExecutable);
-  const prefix = path.dirname(path.dirname(executable));
-  return [executable, path.join(prefix, 'lib/node')];
-}
-
-function isNodeRuntimeRead(candidate: string, policy: AccessProbePolicy): boolean {
-  return nodeRuntimeRoots(policy).some(root => (
-    isWithin(candidate, root) || isWithin(root, candidate)
-  ));
+function isNodeExecutable(candidate: string, policy: AccessProbePolicy): boolean {
+  return candidate === canonicalPath(policy.nodeExecutable);
 }
 
 function isAllowedRootAncestor(candidate: string, policy: AccessProbePolicy): boolean {
   const roots = [
     policy.installRoot,
     ...(policy.nodeModuleRoots ?? []),
-    ...nodeRuntimeRoots(policy),
     ...SYSTEM_ROOTS,
     ...SYSTEM_FILES,
   ];
@@ -272,12 +269,14 @@ function classifyPath(
   candidate: string, access: AccessMode, policy: AccessProbePolicy, pid: number,
 ): string | null {
   const canonical = canonicalPath(candidate);
-  if (isNodeRuntimeRead(canonical, policy) && access === 'read') return null;
-  if (isWithin(candidate, policy.hostCortexHome)) return 'host_cortex_path';
-  if (isHostDotfile(candidate, policy)) return 'host_home_dotfile';
+  if (isWithin(candidate, policy.hostCortexHome)
+    || isWithin(canonical, policy.hostCortexHome)) return 'host_cortex_path';
+  if (isNodeExecutable(canonical, policy) && access === 'read') return null;
+  if (isHostDotfile(candidate, policy) || isHostDotfile(canonical, policy)) {
+    return 'host_home_dotfile';
+  }
   const writable = [policy.workspace, policy.cortexHome, policy.logsDir];
   if (writable.some(root => isWithin(canonical, root))) return null;
-  if (canonical === canonicalPath(policy.nodeExecutable) && access === 'read') return null;
   if (isAllowedRootAncestor(canonical, policy) && access === 'read') return null;
   if ((SYSTEM_FILES.has(candidate)
     || isProcessRuntimePath(candidate, pid, policy.tracedPids)) && access === 'read') {
@@ -334,6 +333,13 @@ function violation(
 function classifyNetwork(
   call: ParsedCall, options: TraceOptions, line: number, raw: string,
 ): AccessViolation | null {
+  if (call.syscall === 'socket' || call.syscall === 'socketpair') {
+    const family = /^AF_[A-Z0-9_]+/.exec(call.args[0] ?? '')?.[0] ?? 'unknown';
+    if (family === 'AF_UNIX') return null;
+    const reason = family === 'AF_INET' || family === 'AF_INET6'
+      ? 'network_socket_denied' : 'unclassified_network_socket';
+    return violation(call.syscall, family, reason, 'network', options, line, raw);
+  }
   const reason = NETWORK_DENIALS[call.syscall];
   if (reason) {
     const endpoint = call.syscall === 'listen'
@@ -342,7 +348,8 @@ function classifyNetwork(
     return violation(call.syscall, endpoint ?? `fd:${call.args[0] ?? 'unknown'}`, reason,
       'network', options, line, raw);
   }
-  if (NETWORK_METADATA.has(call.syscall)) return null;
+  const unixMetadata = call.syscall === 'getsockname' || call.syscall === 'getsockopt';
+  if (unixMetadata && /UNIX-|sa_family=AF_UNIX/.test(call.args.join(','))) return null;
   return violation(call.syscall, raw, 'unclassified_network_syscall', 'unknown', options, line, raw);
 }
 
@@ -355,8 +362,10 @@ function unknownViolation(
   return violation(syscall, offender, reason, 'unknown', options, line, raw);
 }
 
+const FD_RETURNING_FILE_CALLS = new Set(['creat', 'open', 'openat', 'openat2']);
+
 function returnedFdPath(call: ParsedCall): string | null {
-  if (!new Set(['creat', 'open', 'openat', 'openat2']).has(call.syscall)) return null;
+  if (!FD_RETURNING_FILE_CALLS.has(call.syscall)) return null;
   const match = /^\d+<(.+)>/.exec(call.result);
   if (!match?.[1].startsWith('/')) return null;
   return match[1].replace(/<(?:char|block) [^>]+>$/, '');
@@ -396,7 +405,7 @@ function classifyFile(
 }
 
 function isNetworkCall(call: ParsedCall): boolean {
-  return call.syscall in NETWORK_DENIALS || NETWORK_METADATA.has(call.syscall);
+  return NETWORK_SYSCALLS.has(call.syscall);
 }
 
 function isSignalMetadata(raw: string): boolean {

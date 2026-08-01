@@ -22,7 +22,7 @@ process.stdout.write(`${JSON.stringify({
   tempDir: os.tmpdir(),
   envKeys: Object.keys(process.env).sort(),
   forbiddenValue: process.env.SLACK_BOT_TOKEN ?? null,
-  nodeSentinel: process.env.NODE_NO_WARNINGS ?? null,
+  nodeSentinel: process.env.NODE_ENV ?? null,
   nodeOptions: process.env.NODE_OPTIONS ?? null,
   nodePath: process.env.NODE_PATH ?? null,
   pathValue: process.env.PATH ?? null,
