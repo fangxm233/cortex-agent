@@ -1,8 +1,7 @@
-// input:  node:test, prompt-builder (buildConversationPrompt)
-// output: prompt-assembly tests for the thread-free conversation path
-// pos:    regression guard that runConversation's prompt is the directive + user message,
-//         with no thread protocol preamble (plain user messages are not threads)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  prompt builder and execution registration seams
+// output: prompt and registration ordering tests
+// pos:    Verifies thread-free conversation execution
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Plain user messages no longer run as a `templateName:'default'` thread; they run via
 // runConversation, which assembles its prompt with buildConversationPrompt (no thread, no
@@ -12,7 +11,10 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { buildConversationPrompt, THREAD_PROTOCOL_PREAMBLE } from '../src/domain/threads/prompt-builder.js';
-import { resolveConversationProject } from '../src/orchestration/conversation-runner.js';
+import {
+  registerConversationHandle,
+  resolveConversationProject,
+} from '../src/orchestration/conversation-runner.js';
 import type { AgentSlotConfig } from '../src/core/types/thread-types.js';
 import type { Project } from '../src/domain/projects/project-types.js';
 
@@ -33,6 +35,16 @@ function makeAgentConfig(overrides: Partial<AgentSlotConfig> = {}): AgentSlotCon
     ...overrides,
   } as AgentSlotConfig;
 }
+
+test('registration callback fires only after the backend handle is cancellable', () => {
+  const order: string[] = [];
+  registerConversationHandle(
+    { register: () => { order.push('register'); return 'execution-id'; } },
+    {} as never,
+    () => { order.push('release-start-guard'); },
+  );
+  assert.deepEqual(order, ['register', 'release-start-guard']);
+});
 
 test('buildConversationPrompt with the default {{input}} template and empty directive is just the message', () => {
   const prompt = buildConversationPrompt(makeAgentConfig({ directive: '' }), 'hello world');

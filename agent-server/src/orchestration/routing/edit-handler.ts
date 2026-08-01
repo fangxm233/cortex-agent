@@ -1,9 +1,10 @@
-// input:  Slack message_changed events, orch/active-agents, orch/channel-queue, orch/superseded-edits, ledger, session-backup
-// output: createEditHandler factory
-// pos:    Slack message edit detection and session rollback retry orchestration
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  message edits, ledger, async backup, active runs
+// output: debounced rollback, restore, and reprocessing
+// pos:    Platform message edit retry orchestration
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import type { PlatformAdapter, MessageEditContext } from '@platform/index.js';
 import type { LedgerTurn, ChannelConversation } from '@store/conversation-ledger-repo.js';
+import { effectiveBackendSessionId, sessionStore } from '@store/session-registry-repo.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -13,6 +14,8 @@ import { resolveBackendForChannel } from '@domain/agents/index.js';
 import type { RunningExecutions } from '../../core/running-executions.js';
 import { conduitQueues } from '../conduit-queue.js';
 import { supersededEdits } from '../superseded-edits.js';
+import { isTurnTrackingPending, markPendingTurnSuperseded, waitForTurnTracking } from '../lifecycle.js';
+import { acquireTurnMutationLock } from '../turn-mutation-lock.js';
 
 const log = createLogger('edit-handler');
 
@@ -41,6 +44,9 @@ function createEditHandler(deps: {
     supersededStatusTimestamps?: string[];
   }) => void;
   closePooledSession?: (channel: string, backend: string) => void;
+  isTurnTrackingPending?: (channel: string) => boolean;
+  markPendingTurnSuperseded?: (channel: string) => void;
+  waitForTurnTracking?: (channel: string) => Promise<void>;
 }) {
   return async function handleMessageEdit(ctx: MessageEditContext, adapter: PlatformAdapter) {
     const { originalRef, newText } = ctx;
@@ -82,17 +88,34 @@ function createEditHandler(deps: {
   };
 }
 
-async function processEdit({ channel, adapter, originalTs, newText, turnIndex, conversation, deps }: { channel: string; adapter: PlatformAdapter; originalTs: string; newText: string; turnIndex: number; conversation: ChannelConversation; deps: Parameters<typeof createEditHandler>[0] }): Promise<void> {
-  const { activeAgents, reprocessMessage, closePooledSession } = deps;
+interface ProcessEditArgs {
+  channel: string;
+  adapter: PlatformAdapter;
+  originalTs: string;
+  newText: string;
+  turnIndex: number;
+  conversation: ChannelConversation;
+  deps: Parameters<typeof createEditHandler>[0];
+}
 
-  // Resolve the *effective* backend for this channel. conversation.backend was captured at
-  // initTurnTracking time using the global activeBackend, which doesn't honor channel
-  // profiles — a channel running profile `execute` (backend=pi) but global backend=claude
-  // would otherwise be routed to the Claude restore branch and miss the PI backup file.
-  // resolveBackendForChannel reads the channel's profile and falls back to global if absent.
+async function processEdit(args: ProcessEditArgs): Promise<void> {
+  const snapshotPending = args.deps.isTurnTrackingPending ?? isTurnTrackingPending;
+  if (snapshotPending(args.channel)) {
+    (args.deps.markPendingTurnSuperseded ?? markPendingTurnSuperseded)(args.channel);
+    await (args.deps.waitForTurnTracking ?? waitForTurnTracking)(args.channel);
+  }
+  const releaseMutation = await acquireTurnMutationLock(args.channel);
+  try {
+    await processEditLocked(args);
+  } finally {
+    releaseMutation();
+  }
+}
+
+async function processEditLocked({ channel, adapter, originalTs, newText, turnIndex, conversation, deps }: ProcessEditArgs): Promise<void> {
+  const { activeAgents, reprocessMessage, closePooledSession } = deps;
   const backend = resolveBackendForChannel(channel) || conversation.backend;
 
-  // Step 1: Cancel any active processing on this channel
   if (activeAgents.hasChannel(channel)) {
     supersededEdits.mark(channel);
     activeAgents.supersedeByChannel(channel, 'edit');
@@ -114,6 +137,8 @@ async function processEdit({ channel, adapter, originalTs, newText, turnIndex, c
 
   // Step 4: Restore session backup
   const sessionId = conversation.sessionId;
+  const sessionRecord = sessionId ? await sessionStore.getById(sessionId) : null;
+  const backendSessionId = sessionRecord ? effectiveBackendSessionId(sessionRecord) : sessionId;
   let useSessionId = sessionId;
   let sessionName = conversation.sessionName;
 
@@ -124,8 +149,8 @@ async function processEdit({ channel, adapter, originalTs, newText, turnIndex, c
     sessionName = null;
   } else if (backend === 'pi') {
     // PI: restore via file-path-based backup + switch_session on next spawn
-    const piFile = sessionId ? sessionBackup.findPISessionFile(sessionId) : null;
-    const restored = piFile ? sessionBackup.restoreSessionFile(piFile, turnIndex) : false;
+    const piFile = backendSessionId ? await sessionBackup.findPISessionFile(backendSessionId) : null;
+    const restored = piFile ? await sessionBackup.restoreSessionFile(piFile, turnIndex) : false;
     if (!restored) {
       log.warn('No backup found for PI session, falling back to new session');
       await deleteSessionAsync(channel, backend);
@@ -134,7 +159,7 @@ async function processEdit({ channel, adapter, originalTs, newText, turnIndex, c
     }
   } else {
     // Claude / other backends: restore via sessionId-based backup
-    const restored = sessionId ? sessionBackup.restoreBackup(sessionId, turnIndex) : false;
+    const restored = backendSessionId ? await sessionBackup.restoreBackup(backendSessionId, turnIndex) : false;
     if (!restored) {
       log.warn('No backup found, falling back to new session');
       await deleteSessionAsync(channel, backend);
@@ -154,11 +179,11 @@ async function processEdit({ channel, adapter, originalTs, newText, turnIndex, c
 
   // Step 5: Cleanup — remove superseded turns from ledger and invalidated backups
   await conversationLedger.truncateTurns(channel, turnIndex);
-  if (backend === 'pi' && sessionId) {
-    const piFile = sessionBackup.findPISessionFile(sessionId);
+  if (backend === 'pi' && backendSessionId) {
+    const piFile = await sessionBackup.findPISessionFile(backendSessionId);
     if (piFile) sessionBackup.cleanupBackupsForFile(piFile, turnIndex);
   } else {
-    sessionBackup.cleanupBackupsAfter(sessionId ?? '', turnIndex);
+    sessionBackup.cleanupBackupsAfter(backendSessionId ?? '', turnIndex);
   }
 
   // Step 6: Re-enqueue the edited message for processing

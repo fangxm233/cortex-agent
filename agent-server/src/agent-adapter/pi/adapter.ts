@@ -1,5 +1,5 @@
 // input:  spawn config, composition, spawner, settings
-// output: PI sessions, bounded event streams, compact, steering
+// output: PI sessions, bounded events, compact, steering
 // pos:    PI backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -19,7 +19,7 @@ import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, piContextUsageFromStats, type PIEventParserState } from './event-parser.js';
 import { PI_AGENT_DIR, writeProvidersConfig, buildProviderOverrides, ensureAuthVisible } from './agent-dir.js';
 import { fromCanonical } from '../normalize/tool-names.js';
-import { discoverPIProviders, piSessionFileExists } from './discovery.js';
+import { discoverPIProviders, findPISessionFilePath } from './discovery.js';
 import {
   CLOSE_EXIT_WAIT_MS,
   DEFAULT_PI_BINARY,
@@ -820,34 +820,23 @@ export class PIAdapter implements AgentAdapter {
     const sessionDir = this.sessionDir;
     mkdirSync(sessionDir, { recursive: true });
 
-    // Resume: pass the session ID (UUID) directly to --session.  PI scans the
-    // --session-dir and matches by filename or internal session `id` field, so we
-    // don't need to construct the exact file path (which may differ from the
-    // session UUID due to PI's internal session chaining).
-    //
-    // The sessionPathRegistry is populated below from the bootstrap session_started
-    // event for switchSession / sendTurn path lookups — it is NOT used for the
-    // --session CLI flag here.
-    //
-    // Guard (mirrors Claude's resolveResumeForPrint): PI's `--session <id>` can only RESUME an
-    // existing session — unlike Claude it cannot create/force a session under an externally-supplied
-    // id. If the requested id has no matching session (a fresh session, or a stale backendSessionId
-    // whose file was pruned), passing --session makes PI exit with "No session found matching <id>".
-    // So only resume when the session is known: either bootstrapped in THIS adapter instance (path
-    // registry) or present on disk (a prior process / persisted backendSessionId). Otherwise start
-    // fresh and let PI bootstrap its own id (captured back as backendSessionId by the caller).
+    // Resolve the backend id to one exact path before spawn and pass that path to --session.
+    // PI therefore opens the selected transcript directly instead of scanning session bodies.
+    // The live registry carries PI's authoritative sessionFile; after restart, deterministic
+    // filename lookup prefers the canonical id form, then the newest timestamp-prefixed form.
+    // A missing target starts fresh because PI cannot create an externally assigned session id.
     const wantResume = !!(config.resume && config.sessionId);
-    const sessionKnown =
-      wantResume &&
-      (this.sessionPathRegistry.has(config.sessionId!) || piSessionFileExists(sessionDir, config.sessionId!));
-    const sessionIdForSpawn = sessionKnown ? config.sessionId! : null;
-    if (wantResume && sessionIdForSpawn === null) {
+    const sessionPathForSpawn = wantResume
+      ? this.sessionPathRegistry.get(config.sessionId!)
+        ?? findPISessionFilePath(sessionDir, config.sessionId!)
+      : null;
+    if (wantResume && sessionPathForSpawn === null) {
       log.info(`PI resume target '${config.sessionId}' not found (no live session or file in ${sessionDir}); starting fresh`);
     }
 
     const cliArgs = buildSpawnArgs({
       sessionDir,
-      sessionId: sessionIdForSpawn,
+      sessionPath: sessionPathForSpawn,
       model: config.model ?? null,
       provider: config.piProvider ?? null,
       systemPrompt: config.systemPrompt ?? null,

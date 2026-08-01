@@ -1,5 +1,5 @@
 // input:  AgentRunner, queue, MockAdapter, agent config
-// output: context persistence, queue-marker, injection, busy, routing regressions
+// output: routing, injection, and snapshot regressions
 // pos:    Verifies plain user-message orchestration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 

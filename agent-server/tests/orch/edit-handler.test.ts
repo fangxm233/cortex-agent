@@ -1,10 +1,9 @@
-// input:  edit-handler.processEdit + injected deps (closePooledSession, reprocessMessage)
-// output: regression tests for two rollback bugs:
-//           Bug 1 — pooled Claude CLI session reused across rollback, edit appended as new turn
-//           Bug 2 — channel profile overrides global backend, edit-handler routes to wrong restore path
-// pos:    verifies createEditHandler dispatches the correct restore branch and tears down stale pooled processes
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import '../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
+// input:  edit handler, session registry, backup fixtures
+// output: backend-id restore and retry routing regressions
+// pos:    Verifies platform edit rollback orchestration
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
+import '../_test-home.js';
 import { test, vi, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
 import { createEditHandler } from '../../src/orchestration/routing/edit-handler.js';
@@ -18,6 +17,7 @@ import {
   getActiveBackend,
 } from '../../src/domain/agents/config.js';
 import * as sessionBackup from '../../src/domain/sessions/session-backup.js';
+import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { resolveProfileConfig } from '../../src/domain/agents/profile-manager.js';
 import { mkdirSync, writeFileSync, existsSync, rmSync } from 'fs';
 import * as path from 'path';
@@ -120,14 +120,18 @@ function hasPiProfile(): boolean {
 
 // ── Bug 1 + Bug 2 regression: processEdit closes pool, uses channel backend ──
 
-test('Bug 1: edit on Claude conversation invokes closePooledSession with backend=claude', async () => {
+test('Bug 1: edit restores the backend id then invokes closePooledSession', async () => {
   const channel = freshChannel();
-  const sessionId = `claude-${Date.now()}-test`;
+  const sessionId = `track-${Date.now()}-test`;
+  const backendSessionId = `claude-${Date.now()}-backend`;
+  const sessionName = `cortex-edit-${Date.now()}`;
   await seedConversationWithTurns(channel, { sessionId, backend: 'claude', turnCount: 3 });
+  await sessionStore.registerSession(sessionName, {
+    sessionId, backendSessionId, channel, backend: 'claude', kind: 'local',
+  });
 
-  // Stage a fake JSONL + turn-1 backup so restoreBackup() succeeds and we exercise the
-  // Step 4 → Step 4.5 → Step 6 path. The directory mirrors sessionBackup.getProjectDir().
-  const jsonlPath = sessionBackup.getSessionFilePath(sessionId);
+  // The ledger stores the stable tracking id, while transcript backups use the backend id.
+  const jsonlPath = sessionBackup.getSessionFilePath(backendSessionId);
 
   // Stage the JSONL + turn-1 backup so restoreBackup() succeeds. closePooledSession
   // is called regardless of restore outcome (Step 4.5 runs after restore branch), but
@@ -161,7 +165,7 @@ test('Bug 1: edit on Claude conversation invokes closePooledSession with backend
     assert.equal(closeCalls[0].channel, channel);
     assert.equal(closeCalls[0].backend, 'claude');
     assert.equal(reprocessCalls.length, 1, 'reprocessMessage must run after close');
-    assert.equal(reprocessCalls[0].opts.sessionId, sessionId, 'session id preserved across rollback');
+    assert.equal(reprocessCalls[0].opts.sessionId, sessionId, 'stable tracking id is preserved after backend restore');
   } finally {
     await clearLedgerEntry(channel);
     try { rmSync(jsonlPath, { force: true }); } catch {}
@@ -218,6 +222,40 @@ test('Bug 2: edit on conversation with PI channel profile routes through PI rest
     clearChannelProfile(channel);
     try { rmSync(piDir, { recursive: true, force: true }); } catch {}
   }
+});
+
+test('edit waits for an in-flight snapshot and supersedes the not-yet-started backend run', async () => {
+  const channel = freshChannel();
+  const sessionId = `track-pending-${Date.now()}`;
+  await seedConversationWithTurns(channel, { sessionId, backend: 'claude', turnCount: 1 });
+  let releaseSnapshot!: () => void;
+  const snapshot = new Promise<void>((resolve) => { releaseSnapshot = resolve; });
+  const order: string[] = [];
+  const reprocessCalls: any[] = [];
+  let markedSuperseded = false;
+  const handler = createEditHandler({
+    activeAgents: runningExecutions,
+    reprocessMessage: (...args) => { order.push('reprocess'); reprocessCalls.push(args); },
+    isTurnTrackingPending: () => true,
+    markPendingTurnSuperseded: () => { markedSuperseded = true; },
+    waitForTurnTracking: async () => { order.push('wait-start'); await snapshot; order.push('wait-end'); },
+  });
+
+  vi.useFakeTimers();
+  await handler({
+    originalRef: { conduit: channel, messageId: 'M0', threadId: null },
+    newText: 'edited before backend start',
+  } as any, new MockAdapter() as any);
+  await fireDebounce();
+  await waitFor(() => order.includes('wait-start'));
+
+  assert.deepEqual(order, ['wait-start']);
+  assert.equal(markedSuperseded, true);
+  releaseSnapshot();
+  await waitFor(() => reprocessCalls.length === 1);
+  assert.deepEqual(order, ['wait-start', 'wait-end', 'reprocess']);
+
+  await clearLedgerEntry(channel);
 });
 
 test('processEdit no-ops when ledger has no entry for the edited message', async () => {

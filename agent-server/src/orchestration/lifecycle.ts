@@ -1,7 +1,7 @@
-// input:  result, status/queue services, continuation tool/context callbacks
-// output: provider-attributed lifecycle and continuation finalization
-// pos:    Agent completion, failure, and continuation lifecycle
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  turns, results, status and continuation callbacks
+// output: snapshot barriers and provider finalization
+// pos:    Agent turn initialization and completion
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { createLogger } from '@core/log.js';
 import { Icons } from '../core/icons.js';
 import { t } from '../core/i18n.js';
@@ -11,6 +11,7 @@ import type { ExecutionRecord } from '@domain/executions/registry.js';
 import { trackPendingTask } from './busy-tracker.js';
 import { enqueue } from './conduit-queue.js';
 import { supersededEdits } from './superseded-edits.js';
+import { acquireTurnMutationLock } from './turn-mutation-lock.js';
 import { runningExecutions } from '../core/running-executions.js';
 
 import { finalizeLocalExecution, buildSessionTag, buildUserProcessingMessage, makeFallbackNotifier, makeStreamingMessageCallback, computeElapsed, formatMetricsSuffix, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
@@ -389,12 +390,23 @@ async function executeRetry(channel: string, text: string, adapter: PlatformAdap
   initStatusBlocks(statusMsg, retryBlocksTemplate);
 
   updateRetryPermalinks(adapter, channel, userMessageTs, statusMsg, opts.supersededStatusTimestamps, retryPrefix, startTime, sessionName, sessionId);
-  await initTurnTracking(channel, sessionId, backendSessionId, sessionName, userMessageTs, text, statusMsg.messageId);
+  const turnTrackingToken = await initTurnTracking(
+    channel, sessionId, backendSessionId, sessionName,
+    userMessageTs, text, statusMsg.messageId,
+  );
+  if (consumePendingTurnSupersession(channel, turnTrackingToken)) {
+    finishTurnTracking(channel, turnTrackingToken);
+    return;
+  }
   const onMessagePosted = (ref: MessageRef) => void conversationLedger.addResponseTs(channel, userMessageTs, ref.messageId).catch((e) => log.error(e));
-  await runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest });
+  await runRetryAgent({
+    channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId,
+    sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted,
+    retryDest, turnTrackingToken,
+  });
 }
 
-async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination }): Promise<void> {
+async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, sessionId, backendSessionId, sessionName, projectId, userMessageTs, retryPrefix, onMessagePosted, retryDest, turnTrackingToken }: { channel: string; text: string; adapter: PlatformAdapter; statusMsg: MessageRef; startTime: number; sessionId: string | null; backendSessionId: string | null; sessionName: string | null; projectId: string; userMessageTs: string; retryPrefix: string; onMessagePosted: (ref: MessageRef) => void; retryDest: Destination; turnTrackingToken: TurnTrackingToken }): Promise<void> {
   const agentMessage = normalizeSkillCommandPrefix(text || '');
   let executionId = null;
   let handle;
@@ -416,6 +428,7 @@ async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, ses
       onProgress: buildRetryProgressUpdater(adapter, channel, statusMsg, retryPrefix, startTime, sessionName, sessionId),
     });
     runningExecutions.register({ threadId: null /* A5: edit-retry — threadId not yet wired; Cancel button will warn */, channel, agentSlotId: null, executionId, kill: () => handle.kill(), backend: retryBackend });
+    finishTurnTracking(channel, turnTrackingToken);
     const result = await handle.promise;
     runningExecutions.complete(executionId, result?.total_cost_usd ?? 0);
     clearStreamingCallback(channel);
@@ -437,6 +450,8 @@ async function runRetryAgent({ channel, text, adapter, statusMsg, startTime, ses
   } catch (error) {
     clearStreamingCallback(channel);
     await handleAgentError({ error, channel, adapter, statusMsg, startTime, executionId, sessionName, sessionId, effectiveSessionId: handle?.sessionId, userMessageTs });
+  } finally {
+    finishTurnTracking(channel, turnTrackingToken);
   }
 }
 
@@ -473,37 +488,136 @@ function updateRetryPermalinks(adapter: PlatformAdapter, channel: string, userMe
   }).catch(() => {});
 }
 
-export async function initTurnTracking(channel: string, trackSessionId: string | null, backendSessionId: string | null, sessionName: string | null, userMessageTs: string, userMessageText: string, statusMessageTs: string): Promise<void> {
-  // resolveBackendForChannel honors per-channel profile overrides so the conversation
-  // ledger records the actual backend used (e.g. 'pi' when channel uses profile=execute),
-  // not the global default. This is the primary fix for Bug 2: rollback routing.
-  const backend = resolveBackendForChannel(channel);
-  const profileName = getActiveProfile(channel);
-  const { turnIndex } = await conversationLedger.initAndBeginTurn(channel, {
-    // Ledger keys on the STABLE track id (matches the UI / conversation-history).
-    sessionId: trackSessionId || null,
-    sessionName,
-    backend,
-    profileName,
-    userMessageTs,
-    userMessageText: userMessageText || '',
-    statusMessageTs,
-  });
-  // Session backup keys on the BACKEND session id (the jsonl file name): Claude's own id, PI's own
-  // id. On a fresh session backendSessionId is null (backend hasn't assigned yet) → nothing to back
-  // up. Runs outside the mutex (different file path, safe to run concurrently).
-  if (backendSessionId) {
-    let backupPath: string | null = null;
-    if (backend === 'pi') {
-      const piFile = sessionBackup.findPISessionFile(backendSessionId);
-      if (piFile) {
-        backupPath = sessionBackup.backupSessionFile(piFile, turnIndex);
-      }
-    } else {
-      backupPath = sessionBackup.createBackup(backendSessionId, turnIndex);
-    }
-    if (backupPath) {
-      await conversationLedger.setBackupPath(channel, userMessageTs, backupPath);
-    }
+interface TurnTrackingDeps {
+  resolveBackend(channel: string): string;
+  getProfile(channel: string): string | null;
+  ledger: Pick<typeof conversationLedger, 'initAndBeginTurn' | 'setBackupPath'>;
+  backup: Pick<typeof sessionBackup, 'findPISessionFile' | 'backupSessionFile' | 'createBackup'>;
+}
+
+export interface TurnTrackingOptions {
+  onAccepted?: () => void;
+  deps?: TurnTrackingDeps;
+}
+
+const defaultTurnTrackingDeps: TurnTrackingDeps = {
+  resolveBackend: resolveBackendForChannel,
+  getProfile: getActiveProfile,
+  ledger: conversationLedger,
+  backup: sessionBackup,
+};
+
+async function snapshotTurn(
+  deps: TurnTrackingDeps,
+  backend: string,
+  backendSessionId: string | null,
+  turnIndex: number,
+): Promise<string | null> {
+  if (!backendSessionId) return null;
+  if (backend !== 'pi') return deps.backup.createBackup(backendSessionId, turnIndex);
+  const piFile = await deps.backup.findPISessionFile(backendSessionId);
+  return piFile ? deps.backup.backupSessionFile(piFile, turnIndex) : null;
+}
+
+interface TurnTrackingArgs {
+  channel: string;
+  trackSessionId: string | null;
+  backendSessionId: string | null;
+  sessionName: string | null;
+  userMessageTs: string;
+  userMessageText: string;
+  statusMessageTs: string;
+}
+
+export type TurnTrackingToken = symbol;
+
+interface TurnTrackingState {
+  channel: string;
+  operation: Promise<TurnTrackingToken>;
+  release: (() => void) | null;
+}
+
+const currentTurnTracking = new Map<string, TurnTrackingToken>();
+const turnTrackingByToken = new Map<TurnTrackingToken, TurnTrackingState>();
+const supersededPendingTurns = new Map<string, TurnTrackingToken>();
+
+export function markPendingTurnSuperseded(channel: string): void {
+  const token = currentTurnTracking.get(channel);
+  if (token) supersededPendingTurns.set(channel, token);
+}
+
+export function isPendingTurnSuperseded(channel: string): boolean {
+  return supersededPendingTurns.has(channel);
+}
+
+export function consumePendingTurnSupersession(channel: string, token: TurnTrackingToken): boolean {
+  if (supersededPendingTurns.get(channel) !== token) return false;
+  supersededPendingTurns.delete(channel);
+  return true;
+}
+
+export function finishTurnTracking(channel: string, token: TurnTrackingToken): void {
+  const state = turnTrackingByToken.get(token);
+  if (!state || state.channel !== channel) return;
+  turnTrackingByToken.delete(token);
+  if (currentTurnTracking.get(channel) === token) currentTurnTracking.delete(channel);
+  if (supersededPendingTurns.get(channel) === token) supersededPendingTurns.delete(channel);
+  state.release?.();
+}
+
+export function isTurnTrackingPending(channel: string): boolean {
+  return currentTurnTracking.has(channel);
+}
+
+export function waitForTurnTracking(channel: string): Promise<void> {
+  const token = currentTurnTracking.get(channel);
+  const operation = token ? turnTrackingByToken.get(token)?.operation : null;
+  return operation ? operation.then(() => undefined) : Promise.resolve();
+}
+
+async function runTurnTracking(
+  args: TurnTrackingArgs,
+  options: TurnTrackingOptions,
+  token: TurnTrackingToken,
+): Promise<TurnTrackingToken> {
+  const release = await acquireTurnMutationLock(args.channel);
+  try {
+    const deps = options.deps ?? defaultTurnTrackingDeps;
+    const backend = deps.resolveBackend(args.channel);
+    const { turnIndex } = await deps.ledger.initAndBeginTurn(args.channel, {
+      sessionId: args.trackSessionId || null, sessionName: args.sessionName, backend,
+      profileName: deps.getProfile(args.channel), userMessageTs: args.userMessageTs,
+      userMessageText: args.userMessageText || '', statusMessageTs: args.statusMessageTs,
+    });
+    const backupPath = await snapshotTurn(deps, backend, args.backendSessionId, turnIndex);
+    if (backupPath) await deps.ledger.setBackupPath(args.channel, args.userMessageTs, backupPath);
+    options.onAccepted?.();
+    const state = turnTrackingByToken.get(token);
+    if (state) state.release = release;
+    return token;
+  } catch (error) {
+    release();
+    throw error;
   }
+}
+
+export function initTurnTracking(
+  channel: string,
+  trackSessionId: string | null,
+  backendSessionId: string | null,
+  sessionName: string | null,
+  userMessageTs: string,
+  userMessageText: string,
+  statusMessageTs: string,
+  options: TurnTrackingOptions = {},
+): Promise<TurnTrackingToken> {
+  const token = Symbol(channel);
+  const operation = runTurnTracking({
+    channel, trackSessionId, backendSessionId, sessionName,
+    userMessageTs, userMessageText, statusMessageTs,
+  }, options, token);
+  currentTurnTracking.set(channel, token);
+  turnTrackingByToken.set(token, { channel, operation, release: null });
+  void operation.catch(() => finishTurnTracking(channel, token));
+  return operation;
 }

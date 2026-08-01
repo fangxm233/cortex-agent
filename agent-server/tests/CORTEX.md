@@ -101,6 +101,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | scheduler-precheck.test.ts | test | preCheck exit codes and env passing |
 | server-update-check.test.ts | test | CalVer compare and server update check |
 | session-activity-tracker.test.ts | test | path-only tool activity logging hook |
+| session-backup-discovery.test.ts | test | PI filename lookup latency and body-read isolation |
 | session-backup.test.ts | test | PI session file backup and restore |
 | session-hooks-inject-isolation.test.ts | test | onNew hook injection session isolation |
 | session-hooks-profile-resolution.test.ts | test | onNew hook profile lookup priority |

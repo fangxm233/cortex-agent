@@ -1,12 +1,7 @@
-// input:  { sessionId, channel, turnIndex, text, adapter } + ledger/backup/history/session singletons
-// output: rewindWebSession — channel-agnostic message edit + rewind for web sessions
-// pos:    orch/ — the web analogue of routing/edit-handler.ts processEdit: rollback the ledger,
-//         restore the backend session backup, close the pooled CLI, truncate the display history,
-//         then re-send the edited text as a genuine user turn. Unlike the Slack path there are no
-//         platform messages to delete (the web transcript refetches) and the track sessionId /
-//         channel binding is ALWAYS kept — a turn-0 edit only clears the backendSessionId so the
-//         backend starts a fresh conversation under the same UI identity.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  rewind request, ledger, async backup, history
+// output: rewindWebSession restore and resend result
+// pos:    Web message edit rollback orchestration
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { PlatformAdapter } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
@@ -18,6 +13,8 @@ import * as sessionBackup from '@domain/sessions/session-backup.js';
 import { resolveBackendForChannel, closeSession as closeClaudePooledSession } from '@domain/agents/index.js';
 import { publishSessionRewound } from './session-events.js';
 import { sendWebUserMessage } from './session-send.js';
+import { isTurnTrackingPending } from './lifecycle.js';
+import { tryAcquireTurnMutationLock } from './turn-mutation-lock.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 
 const log = createLogger('session-rewind');
@@ -27,6 +24,8 @@ export type RewindResult = { ok: true } | { ok: false; reason: 'running' | 'not-
 /** Injectable dependency surface (unit tests). Defaults bind the production singletons. */
 export interface RewindDeps {
   activeAgents: { hasChannel(channel: string): boolean };
+  snapshotPending(channel: string): boolean;
+  tryAcquireMutation(channel: string): (() => void) | null;
   ledger: {
     getConversation(channel: string): Promise<ChannelConversation | null>;
     rollbackTo(channel: string, turnIndex: number): Promise<{ supersededTurns: LedgerTurn[]; conversation: ChannelConversation } | null>;
@@ -50,6 +49,8 @@ export interface RewindDeps {
 function defaultDeps(): RewindDeps {
   return {
     activeAgents: runningExecutions,
+    snapshotPending: isTurnTrackingPending,
+    tryAcquireMutation: tryAcquireTurnMutationLock,
     ledger: conversationLedger,
     history: conversationHistory,
     sessionStore,
@@ -74,9 +75,21 @@ export async function rewindWebSession(
   opts: { sessionId: string; channel: string; turnIndex: number; text: string; adapter: PlatformAdapter },
   deps: RewindDeps = defaultDeps(),
 ): Promise<RewindResult> {
-  const { sessionId, channel, turnIndex, text, adapter } = opts;
+  if (deps.snapshotPending(opts.channel)) return { ok: false, reason: 'running' };
+  const releaseMutation = deps.tryAcquireMutation(opts.channel);
+  if (!releaseMutation) return { ok: false, reason: 'running' };
+  try {
+    return await rewindLocked(opts, deps);
+  } finally {
+    releaseMutation();
+  }
+}
 
-  // Editing is only allowed while idle (design: 运行中编辑置灰). Server-side guard mirrors the UI.
+async function rewindLocked(
+  opts: { sessionId: string; channel: string; turnIndex: number; text: string; adapter: PlatformAdapter },
+  deps: RewindDeps,
+): Promise<RewindResult> {
+  const { sessionId, channel, turnIndex, text, adapter } = opts;
   if (deps.activeAgents.hasChannel(channel)) return { ok: false, reason: 'running' };
 
   const conv = await deps.ledger.getConversation(channel);
@@ -98,10 +111,10 @@ export async function rewindWebSession(
   let restored = false;
   if (turnIndex > 0 && backendSessionId) {
     if (backend === 'pi') {
-      const piFile = deps.backup.findPISessionFile(backendSessionId);
-      restored = piFile ? deps.backup.restoreSessionFile(piFile, turnIndex) : false;
+      const piFile = await deps.backup.findPISessionFile(backendSessionId);
+      restored = piFile ? await deps.backup.restoreSessionFile(piFile, turnIndex) : false;
     } else {
-      restored = deps.backup.restoreBackup(backendSessionId, turnIndex);
+      restored = await deps.backup.restoreBackup(backendSessionId, turnIndex);
     }
   }
   if (!restored) {
@@ -118,7 +131,7 @@ export async function rewindWebSession(
   await deps.ledger.truncateTurns(channel, turnIndex);
   if (restored && backendSessionId) {
     if (backend === 'pi') {
-      const piFile = deps.backup.findPISessionFile(backendSessionId);
+      const piFile = await deps.backup.findPISessionFile(backendSessionId);
       if (piFile) deps.backup.cleanupBackupsForFile(piFile, turnIndex);
     } else {
       deps.backup.cleanupBackupsAfter(backendSessionId, turnIndex);

@@ -7,10 +7,10 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 |---|---|---|
 | adapter.ts | adapter | runs PI sessions with bounded turn event streams |
 | session-support.ts | core | PI session timers, queues, and probes |
-| spawn-args.ts | core | builds PI CLI arguments and environment |
+| spawn-args.ts | core | builds PI arguments, resume paths, and environment |
 | defaults.ts | config | PI session and extension path defaults |
 | agent-dir.ts | config | manages the private PI agent directory |
-| discovery.ts | core | finds PI providers and session files |
+| discovery.ts | core | finds providers and filename-backed sessions |
 | event-parser.ts | parser | translates PI events to normalized events |
 | framing.ts | codec | encodes and splits PI newline JSON records |
 | mcp-bridge.ts | bridge | composes shared and privilege-scoped MCP tools |
