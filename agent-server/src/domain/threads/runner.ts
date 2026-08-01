@@ -67,6 +67,10 @@ import type {
 const log = createLogger('thread-runner');
 const OUTAGE_BACKOFF_MS = [5, 15, 45].map((minutes) => minutes * 60_000);
 const OUTAGE_MAX_RESUMES = OUTAGE_BACKOFF_MS.length;
+const NOOP_STEP_TRANSCRIPT_RECORDER: StepTranscriptRecorder = {
+  recordUser: () => {}, recordAssistant: () => {}, recordTool: () => {},
+  recordToolResult: () => {}, settle: async () => {},
+};
 
 // --- Result types ---
 
@@ -353,22 +357,22 @@ async function buildStepConfig(
     agentSlotId,
   });
 
-  // Live transcript recorder: every streamed event appends to conversation-history (keyed by
-  // the track id) AND publishes session.message with the same ts — snapshot + delta for the UI.
-  const recorder = createStepTranscriptRecorder(conversationHistory, trackSessionId, (ev) => {
-    jobCtx.bus?.publish({
-      type: 'session.message',
-      sessionId: trackSessionId,
-      channel: opts.channel,
-      role: ev.role,
-      text: ev.text ?? '',
-      ...(ev.toolName !== undefined ? { toolName: ev.toolName } : {}),
-      ...(ev.toolInput !== undefined ? { toolInput: ev.toolInput } : {}),
-      ts: ev.ts,
-    });
-  }, () => {
-    jobCtx.bus?.publish({ type: 'session.debug.updated', sessionId: trackSessionId, channel: opts.channel });
-  });
+  // Benchmark journals are authoritative and must not initialize the daemon conversation store.
+  const recorder = opts.benchmark ? NOOP_STEP_TRANSCRIPT_RECORDER : createStepTranscriptRecorder(
+    conversationHistory,
+    trackSessionId,
+    (ev) => {
+      jobCtx.bus?.publish({
+        type: 'session.message', sessionId: trackSessionId, channel: opts.channel,
+        role: ev.role, text: ev.text ?? '',
+        ...(ev.toolName !== undefined ? { toolName: ev.toolName } : {}),
+        ...(ev.toolInput !== undefined ? { toolInput: ev.toolInput } : {}), ts: ev.ts,
+      });
+    },
+    () => jobCtx.bus?.publish({
+      type: 'session.debug.updated', sessionId: trackSessionId, channel: opts.channel,
+    }),
+  );
   // The step prompt opens the turn — recorded now so a reload mid-step shows it.
   recorder.recordUser(prompt);
 

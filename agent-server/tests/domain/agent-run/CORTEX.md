@@ -10,6 +10,9 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | access-probe.test.ts | e2e | proves real clean and forbidden syscall verdicts |
 | agent-run-cli.test.ts | test | verifies required flags, stdin ownership and help |
 | agent-run-e2e.test.ts | e2e | proves nullable usage, event order and completion |
+| benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
+| benchmark-local-thread-orchestrator.test.ts | test | proves C9 lifecycle ordering and isolation |
+| benchmark-local-thread-process.test.ts | e2e | proves fresh-process local thread confinement |
 | fake-run-agent-loader.mjs | fixture | redirects runner agent imports to a fake |
 | fake-run-agent-module.mjs | fixture | returns one deterministic no-model result |
 | fake-run-agent-register.mjs | fixture | installs the fake agent loader before import |
