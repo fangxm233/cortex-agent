@@ -12,5 +12,5 @@ It routes required/recovered events into debounced user notices.
 | cc-login.ts | adapter | Persists Claude API keys and reloads auth |
 | index.ts | entry | Exports the authentication domain API |
 | login-flow.ts | core | Coordinates login outcomes, aborts, and safe errors |
-| pi-login.ts | adapter | Logs PI providers in through the installed runtime |
+| pi-login.ts | adapter | Logs PI providers in with safe flow errors |
 | pi-runtime.ts | adapter | Loads the installed PI model runtime |
