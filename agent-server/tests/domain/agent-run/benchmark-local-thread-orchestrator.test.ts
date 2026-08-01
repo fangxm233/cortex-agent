@@ -433,6 +433,27 @@ it('projects C4 identities per role while inheriting one model identity', async 
   }));
 });
 
+it('includes an available resolved route host in standalone model identity', async () => {
+  queueSuccess('routed model');
+  const resolveProfile = () => ({
+    name: 'benchmark-fixture', backend: 'claude' as const, model: 'fixture-model',
+    mode: null, provider: 'anthropic',
+    extraEnv: { ANTHROPIC_BASE_URL: 'https://gateway.invalid/anthropic' }, extraOption: {},
+    claudeBackend: 'print' as const, thinking: null, fallback: [],
+  });
+  const req = request(path.join(root, 'route-host'), new AbortController().signal);
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { resolveProfile });
+
+  assert.equal(value.state, 'completed');
+  const expected = computeModelExecutionIdentityHash({
+    backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: null,
+    providerProtocol: 'anthropic', configuredRouteBaseHost: 'gateway.invalid',
+    claudeCliVersion: null, reasoningEffort: null, fallbackEmpty: true,
+  });
+  assert.equal(records(value.journalPath)[0].model_execution_identity_hash, expected);
+});
+
 it('inherits the parent journal model identity across every child record', async () => {
   const parentModelHash = 'a'.repeat(64);
   const req = request(path.join(root, 'parent-model'), new AbortController().signal);

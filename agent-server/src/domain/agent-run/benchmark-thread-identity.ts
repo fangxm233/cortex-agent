@@ -21,6 +21,7 @@ import {
   confinedJournalPath, inspectActiveJournalModelIdentity,
   resolveLifecyclePaths, startedMarkerProblem,
 } from './manifest.js';
+import { resolvedRouteHost } from './run-config.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
 
 export interface BenchmarkIdentityRequest {
@@ -138,7 +139,7 @@ function modelIdentityHash(profile: ResolvedProfileConfig): string {
     requestedModel: profile.model,
     modelAliasPolicy: null,
     providerProtocol: profile.provider,
-    configuredRouteBaseHost: null,
+    configuredRouteBaseHost: resolvedRouteHost(profile),
     claudeCliVersion: null,
     reasoningEffort: profile.thinking,
     fallbackEmpty: true,
