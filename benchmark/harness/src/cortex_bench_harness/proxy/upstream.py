@@ -7,7 +7,7 @@ import json
 import threading
 import time
 from dataclasses import dataclass
-from http.client import HTTPConnection, HTTPSConnection, HTTPResponse
+from http.client import HTTPConnection, HTTPException, HTTPSConnection, HTTPResponse
 from typing import Mapping
 from urllib.parse import SplitResult, urlsplit
 
@@ -29,6 +29,12 @@ class UpstreamResult:
     usage: ProxyUsage
 
 
+class UpstreamAttemptError(OSError):
+    def __init__(self, may_have_reached_upstream: bool) -> None:
+        super().__init__("fixed upstream request failed")
+        self.may_have_reached_upstream = may_have_reached_upstream
+
+
 class FixedUpstream:
     def __init__(self, base_url: str, credential: str) -> None:
         self._target = validate_upstream(base_url)
@@ -45,10 +51,22 @@ class FixedUpstream:
         connection = self._connection(timeout_seconds)
         self._activate(connection)
         try:
+            self._connect(connection)
             connection.request("POST", self._path(path), body, self._headers(headers, body))
             return read_response(connection.getresponse(), expires_at)
+        except UpstreamAttemptError:
+            raise
+        except (HTTPException, OSError) as error:
+            raise UpstreamAttemptError(True) from error
         finally:
             self._release(connection)
+
+    def _connect(self, connection: HTTPConnection) -> None:
+        try:
+            connection.connect()
+            connection.auto_open = False
+        except OSError as error:
+            raise UpstreamAttemptError(False) from error
 
     def deactivate(self) -> None:
         with self._lock:
@@ -60,7 +78,7 @@ class FixedUpstream:
         with self._lock:
             if self._revoked:
                 connection.close()
-                raise OSError("upstream route is revoked")
+                raise UpstreamAttemptError(False)
             self._active = connection
 
     def _release(self, connection: HTTPConnection) -> None:
@@ -142,13 +160,15 @@ def parse_usage(body: bytes, content_type: str) -> ProxyUsage:
     output_tokens = 0
     seen_input = False
     seen_output = False
+    malformed = False
     for document in documents:
         usage = _usage(document)
+        malformed = malformed or _invalid_present_token(usage)
         seen_input = seen_input or _valid_token(usage, "input_tokens")
         seen_output = seen_output or _valid_token(usage, "output_tokens")
         model, input_tokens, output_tokens = _merge_usage(
             document, model, input_tokens, output_tokens)
-    accounted = seen_input and seen_output and bool(model and model.strip())
+    accounted = seen_input and seen_output and not malformed and bool(model and model.strip())
     return ProxyUsage(model, input_tokens, output_tokens, accounted)
 
 
@@ -200,6 +220,13 @@ def _valid_token(usage: dict[str, object] | None, key: str) -> bool:
         return False
     value = usage.get(key)
     return type(value) is int and value >= 0
+
+
+def _invalid_present_token(usage: dict[str, object] | None) -> bool:
+    if usage is None:
+        return False
+    keys = ("input_tokens", "output_tokens")
+    return any(key in usage and not _valid_token(usage, key) for key in keys)
 
 
 def _token_value(usage: dict[str, object], key: str, previous: int) -> int:
