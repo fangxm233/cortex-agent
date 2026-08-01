@@ -66,6 +66,7 @@ vi.mock('../../../src/domain/agent-run/manifest.js', async (importOriginal) => {
 import { CONFIG_DIR, STORE_DIR } from '../../../src/core/paths.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { RunAgentOptions } from '../../../src/domain/agents/facade.js';
+import * as executionRegistry from '../../../src/domain/executions/registry.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
 import {
   openJournal,
@@ -347,6 +348,22 @@ it('uses the landed lifecycle modules rather than a forked writer surface', asyn
   assert.equal(typeof writeTerminalManifest, 'function');
   assert.equal(typeof validateTrajectoryLifecycle, 'function');
   assert.equal(typeof validateTrajectoryRoot, 'function');
+});
+
+it('tears down local executions without the daemon execution registry', async () => {
+  const start = vi.spyOn(executionRegistry, 'startLocalExecution');
+  const teardown = vi.spyOn(executionRegistry, 'teardownExecution');
+  queueSuccess('local execution');
+  const req = request(path.join(root, 'local-ledger'), new AbortController().signal);
+  try {
+    const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+    assert.equal(value.state, 'completed');
+    assert.equal(start.mock.calls.length, 0);
+    assert.equal(teardown.mock.calls.length, 0);
+  } finally {
+    start.mockRestore();
+    teardown.mockRestore();
+  }
 });
 
 function queueCancelableAgent(quiescence: Deferred<void>): FakeSupervisor {
