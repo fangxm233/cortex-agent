@@ -181,6 +181,36 @@ test('shared login service rejects reuse owned by another channel surface', asyn
   );
 });
 
+test('shared login service rejects pair reuse with a different auth type', async () => {
+  const blockingConsumer = (authType: StartLoginFlowInput['authType']): LoginFlowConsumer => (
+    async interaction => {
+      await interaction.prompt({ type: 'secret', message: 'credential' });
+      return { provider: 'anthropic', authType, expiresAt: null };
+    }
+  );
+  const service = createAuthLoginService({
+    claudeConsumer: blockingConsumer('api_key'),
+    claudeOAuthConsumer: blockingConsumer('oauth'),
+  });
+  const first = await service.start({
+    backend: 'claude', provider: 'anthropic', authType: 'api_key',
+    channel: 'slack:C1', sessionId: null,
+  });
+  await waitForStep(service, first.flowId, 'prompt');
+
+  try {
+    await assert.rejects(
+      () => service.start({
+        backend: 'claude', provider: 'anthropic', authType: 'oauth',
+        channel: 'slack:C1', sessionId: null,
+      }),
+      (error: any) => error?.code === 'flow_conflict',
+    );
+  } finally {
+    await service.cancel(first.flowId);
+  }
+});
+
 test('shared login service rejects cancellation after credential handoff begins', async () => {
   const fixture = makeDependencies();
   let cancelCalls = 0;

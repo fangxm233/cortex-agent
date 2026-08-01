@@ -142,6 +142,9 @@ export function createAuthLoginService(
     async start(input) {
       const consumer = selectConsumer(input, dependencies);
       const state = await (dependencies.startFlow ?? startFlow)(input, consumer);
+      if (state.authType !== input.authType) {
+        throw new LoginFlowError('flow_conflict', 'Login is already active with another auth type.');
+      }
       if (state.channel !== input.channel || state.sessionId !== input.sessionId) {
         throw new LoginFlowError('flow_conflict', 'Login is already active on another surface.');
       }

@@ -146,6 +146,7 @@ function authStatus() {
       { backend: 'pi', provider: 'deepseek', label: 'DeepSeek', capabilities: ['api_key'] },
       { backend: 'pi', provider: 'oauth-only', label: 'OAuth only', capabilities: ['oauth'] },
       { backend: 'pi', provider: 'dual-auth', label: 'Dual auth', capabilities: ['api_key', 'oauth'] },
+      { backend: 'pi', provider: 'metadata-only', label: 'Metadata only', capabilities: [] },
     ],
     piRuntime: { available: true, version: 'test', entry: null, error: null },
   };
@@ -425,6 +426,9 @@ describe('LoginFlowModal', () => {
     if (kind === 'device_code') {
       expect(html).toContain('ABCD-EFGH');
       expect(html).toContain('600');
+      expect(renderer.root.findByType('a').children.join('')).toBe(
+        'https://verify.example.test',
+      );
     }
     if (kind === 'progress') {
       expect(renderer.root.findAllByProps({ 'data-auth-progress': true })).toHaveLength(1);
