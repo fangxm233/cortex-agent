@@ -1,5 +1,5 @@
 // input:  supervisor CLI arguments, process signals, control fd
-// output: deterministic protocol records from a real child process
+// output: deterministic lifecycle edge cases from a real child
 // pos:    Fake supervisor fixture for agent-run client tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -13,7 +13,19 @@ interface Invocation {
   commandArgs: string[];
 }
 
-type FixtureMode = 'clean' | 'error' | 'hold-quiescent' | 'malformed' | 'no-quiescent';
+type FixtureMode =
+  | 'clean'
+  | 'control-close'
+  | 'duplicate-started'
+  | 'error'
+  | 'hang'
+  | 'hold-quiescent'
+  | 'malformed'
+  | 'no-quiescent'
+  | 'out-of-order'
+  | 'trailing-duplicate'
+  | 'trailing-error'
+  | 'trailing-malformed';
 
 function optionValue(args: string[], name: string): string {
   const index = args.indexOf(name);
@@ -66,6 +78,27 @@ function emitError(controlFd: number): void {
   process.exitCode = 125;
 }
 
+function startedRecord(pid: number): Record<string, unknown> {
+  return { v: 1, type: 'started', pid, pgid: pid, ts: timestamp() };
+}
+
+function exitedRecord(
+  code: number | null,
+  signal: NodeJS.Signals | null,
+): Record<string, unknown> {
+  return { v: 1, type: 'exited', code, signal, ts: timestamp() };
+}
+
+function emitTrailingRecord(controlFd: number, mode: FixtureMode): void {
+  if (mode === 'trailing-malformed') fs.writeSync(controlFd, '{trailing-malformed\n');
+  if (mode === 'trailing-duplicate') {
+    writeControl(controlFd, { v: 1, type: 'quiescent', descendants: 0, ts: timestamp() });
+  }
+  if (mode === 'trailing-error') {
+    writeControl(controlFd, { v: 1, type: 'error', reason: 'containment_failed', ts: timestamp() });
+  }
+}
+
 function installCancellation(child: ChildProcess): () => boolean {
   let cancelled = false;
   const cancel = () => {
@@ -86,29 +119,45 @@ function waitForChild(child: ChildProcess): Promise<{ code: number | null; signa
   });
 }
 
+function emitOpening(controlFd: number, pid: number, mode: FixtureMode): boolean {
+  if (mode === 'out-of-order') {
+    writeControl(controlFd, exitedRecord(0, null));
+    return false;
+  }
+  const started = startedRecord(pid);
+  writeControl(controlFd, started);
+  if (mode === 'duplicate-started') writeControl(controlFd, started);
+  if (mode === 'control-close') fs.closeSync(controlFd);
+  if (mode === 'malformed') fs.writeSync(controlFd, '{malformed-json\n');
+  return !['control-close', 'duplicate-started', 'malformed'].includes(mode);
+}
+
+async function hangForever(): Promise<never> {
+  process.once('SIGTERM', () => process.exit(130));
+  while (true) await delay(1000);
+}
+
 async function runFixture(): Promise<void> {
   recordArguments();
   const invocation = parseInvocation(process.argv.slice(2));
   const mode = (process.env.FAKE_SUPERVISOR_MODE ?? 'clean') as FixtureMode;
   if (mode === 'error') return emitError(invocation.controlFd);
-  const child = spawn(invocation.command, invocation.commandArgs, { stdio: 'inherit' });
+  const child = spawn(invocation.command, invocation.commandArgs, {
+    detached: mode === 'hang',
+    stdio: 'inherit',
+  });
   if (child.pid === undefined) throw new Error('child did not start');
   const wasCancelled = installCancellation(child);
-  writeControl(invocation.controlFd, {
-    v: 1, type: 'started', pid: child.pid, pgid: child.pid, ts: timestamp(),
-  });
-  if (mode === 'malformed') {
-    fs.writeSync(invocation.controlFd, '{malformed-json\n');
-    child.kill('SIGTERM');
-  }
+  const continueProtocol = emitOpening(invocation.controlFd, child.pid, mode);
+  if (!continueProtocol) child.kill('SIGTERM');
+  if (mode === 'hang') await hangForever();
   const result = await waitForChild(child);
-  if (mode === 'malformed') return void (process.exitCode = 125);
-  writeControl(invocation.controlFd, {
-    v: 1, type: 'exited', code: result.code, signal: result.signal, ts: timestamp(),
-  });
+  if (!continueProtocol) return void (process.exitCode = 125);
+  writeControl(invocation.controlFd, exitedRecord(result.code, result.signal));
   if (mode === 'no-quiescent') return void (process.exitCode = result.code ?? 125);
   if (mode === 'hold-quiescent') await waitForRelease();
   writeControl(invocation.controlFd, { v: 1, type: 'quiescent', descendants: 0, ts: timestamp() });
+  emitTrailingRecord(invocation.controlFd, mode);
   process.exitCode = wasCancelled() ? 130 : (result.code ?? 125);
 }
 

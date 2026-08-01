@@ -1,5 +1,5 @@
 // input:  supervisor executable, control-fd records, shutdown signals
-// output: strict protocol parser, supervised session, exit taxonomy
+// output: strict parser, watchdog session, exit taxonomy
 // pos:    Process-supervisor client for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -8,6 +8,9 @@ import { createInterface, type Interface } from 'node:readline';
 import type { Readable } from 'node:stream';
 
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+// Keep the omitted option aligned with the supervisor CLI default.
+const DEFAULT_GRACE_MS = 1000;
+const BACKSTOP_MARGIN_MS = 5000;
 
 export type SupervisorLine =
   | { v: 1; type: 'started'; pid: number; pgid: number; ts: string }
@@ -26,12 +29,14 @@ export type ExitReason =
 export type SupervisorContainmentDetail =
   | 'unsupported_platform'
   | 'containment_failed'
+  | 'deadline_backstop_descendants_may_survive'
   | 'missing_quiescent'
   | 'spawn_failed'
   | 'signal_failed';
 
 export class SupervisorProtocolError extends Error {
-  readonly reason = 'protocol_violation' as const;
+  readonly reason = 'containment_failure' as const;
+  readonly detail = 'protocol_violation' as const;
 
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
@@ -69,7 +74,13 @@ interface SessionDeferreds {
   quiescent: Deferred<void>;
 }
 
-type ProtocolPhase = 'await_started' | 'await_exited' | 'await_quiescent' | 'quiescent' | 'failed';
+type ProtocolPhase =
+  | 'await_started'
+  | 'await_exited'
+  | 'await_quiescent'
+  | 'saw_quiescent'
+  | 'quiescent'
+  | 'failed';
 type StdioMode = 'inherit' | 'ignore' | 'pipe';
 
 function createDeferred<T>(): Deferred<T> {
@@ -179,6 +190,7 @@ export function parseSupervisorLine(line: string): SupervisorLine {
 export function exitCodeFor(reason: ExitReason, childCode?: number): number {
   if (reason === 'ok') return 0;
   if (reason === 'child_failure') return Number.isInteger(childCode) && childCode !== 0 ? childCode : 1;
+  if (reason === 'trajectory_write_failed') return 74;
   if (reason === 'deadline') return 124;
   if (reason === 'cancelled') return 130;
   return 125;
@@ -190,6 +202,8 @@ class ProtocolState {
   constructor(
     private readonly deferreds: SessionDeferreds,
     private readonly terminate: () => void,
+    private readonly onTerminal: () => void,
+    private readonly onStarted: (pgid: number) => void,
   ) {}
 
   get terminal(): boolean {
@@ -209,10 +223,12 @@ class ProtocolState {
     this.deferreds.started.reject(error);
     this.deferreds.exited.reject(error);
     this.deferreds.quiescent.reject(error);
+    this.onTerminal();
     if (terminate) this.terminate();
   }
 
   controlClosed(): void {
+    if (this.phase === 'saw_quiescent') return this.completeQuiescence();
     if (this.terminal) return;
     this.fail(new SupervisorContainmentError('missing_quiescent'), false);
   }
@@ -220,6 +236,7 @@ class ProtocolState {
   private acceptStarted(record: Extract<SupervisorLine, { type: 'started' }>): void {
     if (this.phase !== 'await_started') return this.fail(protocolError('Unexpected started record'));
     this.phase = 'await_exited';
+    this.onStarted(record.pgid);
     this.deferreds.started.resolve({ pid: record.pid, pgid: record.pgid });
   }
 
@@ -231,8 +248,13 @@ class ProtocolState {
 
   private acceptQuiescent(): void {
     if (this.phase !== 'await_quiescent') return this.fail(protocolError('Unexpected quiescent record'));
+    this.phase = 'saw_quiescent';
+  }
+
+  private completeQuiescence(): void {
     this.phase = 'quiescent';
     this.deferreds.quiescent.resolve();
+    this.onTerminal();
   }
 }
 
@@ -284,6 +306,24 @@ function stopProcess(child: ChildProcess): boolean {
   }
 }
 
+function forceStopGroup(pgid: number | null): void {
+  if (pgid === null) return;
+  try {
+    process.kill(-pgid, 'SIGKILL');
+  } catch {
+    // Best effort: the failure verdict records possible survivors.
+  }
+}
+
+function forceStopProcess(child: ChildProcess): void {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  try {
+    child.kill('SIGKILL');
+  } catch {
+    // The failure verdict records possible survivors.
+  }
+}
+
 function handleLine(state: ProtocolState, line: string): void {
   try {
     state.accept(parseSupervisorLine(line));
@@ -307,6 +347,8 @@ class AttachedSupervisorSession implements SupervisorSession {
   private readonly state: ProtocolState;
   private shutdownReason: 'cancel' | 'deadline' | null = null;
   private disposePromise: Promise<void> | null = null;
+  private backstop: NodeJS.Timeout | null = null;
+  private rootPgid: number | null = null;
   readonly started = this.deferreds.started.promise;
   readonly exited = this.deferreds.exited.promise;
   readonly quiescent = this.deferreds.quiescent.promise;
@@ -315,8 +357,16 @@ class AttachedSupervisorSession implements SupervisorSession {
     private readonly child: ChildProcess,
     private readonly control: Readable,
     private readonly lines: Interface,
+    deadlineMs: number | undefined,
+    graceMs: number | undefined,
   ) {
-    this.state = new ProtocolState(this.deferreds, () => { stopProcess(this.child); });
+    this.state = new ProtocolState(
+      this.deferreds,
+      () => { stopProcess(this.child); },
+      () => this.clearBackstop(),
+      pgid => { this.rootPgid = pgid; },
+    );
+    this.armBackstop(deadlineMs, graceMs);
     this.wireListeners();
   }
 
@@ -353,6 +403,28 @@ class AttachedSupervisorSession implements SupervisorSession {
     this.processClosed.resolve();
   }
 
+  private armBackstop(deadlineMs: number | undefined, graceMs: number | undefined): void {
+    if (deadlineMs === undefined) return;
+    const delayMs = deadlineMs + (graceMs ?? DEFAULT_GRACE_MS) + BACKSTOP_MARGIN_MS;
+    this.backstop = setTimeout(() => this.onBackstop(), delayMs);
+    this.backstop.unref();
+  }
+
+  private clearBackstop(): void {
+    if (this.backstop === null) return;
+    clearTimeout(this.backstop);
+    this.backstop = null;
+  }
+
+  private onBackstop(): void {
+    const detail = 'deadline_backstop_descendants_may_survive';
+    this.state.fail(new SupervisorContainmentError(detail), false);
+    forceStopGroup(this.rootPgid);
+    forceStopProcess(this.child);
+    this.lines.close();
+    this.control.destroy();
+  }
+
   private async finishDisposal(): Promise<void> {
     if (!this.state.terminal) this.cancel('cancel');
     await Promise.allSettled([
@@ -360,6 +432,7 @@ class AttachedSupervisorSession implements SupervisorSession {
       this.processClosed.promise,
       this.controlClosed.promise,
     ]);
+    this.clearBackstop();
     this.lines.close();
     removeSessionListeners(this.child, this.control, this.lines);
   }
@@ -390,5 +463,11 @@ export function attachSupervisor(options: {
   });
   const control = child.stdio[controlFd] as Readable;
   const lines = createInterface({ input: control, crlfDelay: Infinity });
-  return new AttachedSupervisorSession(child, control, lines);
+  return new AttachedSupervisorSession(
+    child,
+    control,
+    lines,
+    options.deadlineMs,
+    options.graceMs,
+  );
 }

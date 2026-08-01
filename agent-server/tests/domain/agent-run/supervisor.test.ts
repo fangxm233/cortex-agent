@@ -1,5 +1,5 @@
 // input:  supervisor client, fake fixture, child processes
-// output: protocol, shutdown-order, and exit-taxonomy evidence
+// output: protocol, watchdog, shutdown, and taxonomy evidence
 // pos:    Agent-run supervisor client regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -99,6 +99,53 @@ async function capturedRejection<T>(promise: Promise<T>): Promise<Error> {
   throw new Error('expected promise to reject');
 }
 
+async function within<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function attachMissingBinary(): SupervisorSession {
+  const session = attachSupervisor({
+    binary: path.join(root, 'missing-supervisor'),
+    args: [process.execPath, '-e', 'process.exit(0)'],
+  });
+  sessions.push(session);
+  return session;
+}
+
+function processIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!processIsAlive(pid)) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  throw new Error(`process ${pid} survived for ${timeoutMs}ms`);
+}
+
+function cleanupProcessGroup(pgid: number): void {
+  try {
+    process.kill(-pgid, 'SIGKILL');
+  } catch {
+    // The process group already exited.
+  }
+}
+
 beforeAll(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-run-supervisor-'));
   launcher = createLauncher();
@@ -114,37 +161,39 @@ afterAll(() => {
   if (root) fs.rmSync(root, { recursive: true, force: true });
 });
 
-describe('parseSupervisorLine', () => {
-  const timestamp = '2026-07-31T01:02:03.004Z';
-  const valid = [
-    [{ v: 1, type: 'started', pid: 10, pgid: 10, ts: timestamp }],
-    [{ v: 1, type: 'exited', code: 42, signal: null, ts: timestamp }],
-    [{ v: 1, type: 'quiescent', descendants: 0, ts: timestamp }],
-    [{ v: 1, type: 'error', reason: 'unsupported_platform', ts: timestamp }],
-  ] as const;
+const PARSER_TIMESTAMP = '2026-07-31T01:02:03.004Z';
+const VALID_RECORDS = [
+  { v: 1, type: 'started', pid: 10, pgid: 10, ts: PARSER_TIMESTAMP },
+  { v: 1, type: 'exited', code: 42, signal: null, ts: PARSER_TIMESTAMP },
+  { v: 1, type: 'quiescent', descendants: 0, ts: PARSER_TIMESTAMP },
+  { v: 1, type: 'error', reason: 'unsupported_platform', ts: PARSER_TIMESTAMP },
+] as const;
+const INVALID_RECORDS = [
+  ['malformed JSON', '{not-json'],
+  ['missing version', JSON.stringify({ type: 'quiescent', descendants: 0, ts: PARSER_TIMESTAMP })],
+  ['unknown version', JSON.stringify({ v: 2, type: 'quiescent', descendants: 0, ts: PARSER_TIMESTAMP })],
+  ['unknown type', JSON.stringify({ v: 1, type: 'unknown', ts: PARSER_TIMESTAMP })],
+  ['invalid variant field', JSON.stringify({ v: 1, type: 'started', pid: '10', pgid: 10, ts: PARSER_TIMESTAMP })],
+  ['nonzero descendants', JSON.stringify({ v: 1, type: 'quiescent', descendants: 1, ts: PARSER_TIMESTAMP })],
+  ['invalid timestamp', JSON.stringify({ v: 1, type: 'quiescent', descendants: 0, ts: 'today' })],
+  ['unknown field', JSON.stringify({ v: 1, type: 'quiescent', descendants: 0, ts: PARSER_TIMESTAMP, extra: true })],
+];
 
-  for (const [record] of valid) {
+describe('valid supervisor lines', () => {
+  for (const record of VALID_RECORDS) {
     it(`accepts ${record.type} records`, () => {
       assert.deepEqual(parseSupervisorLine(JSON.stringify(record)), record);
     });
   }
+});
 
-  const invalid = [
-    ['malformed JSON', '{not-json'],
-    ['missing version', JSON.stringify({ type: 'quiescent', descendants: 0, ts: timestamp })],
-    ['unknown version', JSON.stringify({ v: 2, type: 'quiescent', descendants: 0, ts: timestamp })],
-    ['unknown type', JSON.stringify({ v: 1, type: 'unknown', ts: timestamp })],
-    ['invalid variant field', JSON.stringify({ v: 1, type: 'started', pid: '10', pgid: 10, ts: timestamp })],
-    ['nonzero descendants', JSON.stringify({ v: 1, type: 'quiescent', descendants: 1, ts: timestamp })],
-    ['invalid timestamp', JSON.stringify({ v: 1, type: 'quiescent', descendants: 0, ts: 'today' })],
-    ['unknown field', JSON.stringify({ v: 1, type: 'quiescent', descendants: 0, ts: timestamp, extra: true })],
-  ];
-
-  for (const [label, line] of invalid) {
+describe('invalid supervisor lines', () => {
+  for (const [label, line] of INVALID_RECORDS) {
     it(`rejects ${label} explicitly`, () => {
       assert.throws(() => parseSupervisorLine(line), error => {
         assert.ok(error instanceof SupervisorProtocolError);
-        assert.equal(error.reason, 'protocol_violation');
+        assert.equal(error.reason, 'containment_failure');
+        assert.equal(error.detail, 'protocol_violation');
         return true;
       });
     });
@@ -202,9 +251,69 @@ it('fails the session when malformed data appears mid-stream', async () => {
   const quiescent = capturedRejection(session.quiescent);
   for (const error of await Promise.all([exited, quiescent])) {
     assert.ok(error instanceof SupervisorProtocolError);
-    assert.equal(error.reason, 'protocol_violation');
+    assert.equal(error.reason, 'containment_failure');
+    assert.equal(error.detail, 'protocol_violation');
+    assert.equal(exitCodeFor(error.reason), 125);
   }
 });
+
+for (const mode of ['out-of-order', 'duplicate-started'] as const) {
+  it(`rejects the ${mode} lifecycle sequence`, async () => {
+    const session = attachFixture(mode, CHILD);
+    const error = await capturedRejection(session.quiescent);
+    assert.ok(error instanceof SupervisorProtocolError);
+    assert.equal(error.reason, 'containment_failure');
+    assert.equal(exitCodeFor(error.reason), 125);
+  });
+}
+
+for (const mode of ['trailing-malformed', 'trailing-duplicate', 'trailing-error'] as const) {
+  it(`rejects ${mode} after a quiescent record`, async () => {
+    const session = attachFixture(mode, [process.execPath, '-e', 'process.exit(0)']);
+    await session.started;
+    await session.exited;
+    const error = await capturedRejection(session.quiescent);
+    if (mode !== 'trailing-error') assert.ok(error instanceof SupervisorProtocolError);
+    else assert.ok(error instanceof SupervisorContainmentError);
+    assert.equal(exitCodeFor(error.reason), 125);
+  });
+}
+
+it('rejects a control fd that closes before the lifecycle is complete', async () => {
+  const session = attachFixture('control-close', CHILD);
+  await session.started;
+  const error = await capturedRejection(session.quiescent);
+  assert.ok(error instanceof SupervisorContainmentError);
+  assert.equal(error.detail, 'missing_quiescent');
+  assert.equal(exitCodeFor(error.reason), 125);
+});
+
+it('rejects spawn failure with a directly mappable containment reason', async () => {
+  const session = attachMissingBinary();
+  const error = await capturedRejection(session.quiescent);
+  assert.ok(error instanceof SupervisorContainmentError);
+  assert.equal(error.detail, 'spawn_failed');
+  assert.equal(exitCodeFor(error.reason), 125);
+});
+
+it('backstops a hung supervisor by killing its live process group first', async () => {
+  const session = attachFixture('hang', CHILD, { deadlineMs: 5000, graceMs: 0 });
+  const attachedAt = Date.now();
+  let pgid = 0;
+  try {
+    const started = await session.started;
+    pgid = started.pgid;
+    const error = await within(capturedRejection(session.quiescent), 14_000);
+    assert.ok(error instanceof SupervisorContainmentError);
+    assert.equal(error.detail, 'deadline_backstop_descendants_may_survive');
+    assert.equal(exitCodeFor(error.reason), 125);
+    assert.ok(Date.now() - attachedAt >= 9900);
+    await within(session.dispose(), 2000);
+    await waitForProcessExit(started.pid, 2000);
+  } finally {
+    if (pgid > 0) cleanupProcessGroup(pgid);
+  }
+}, 20_000);
 
 for (const reason of ['cancel', 'deadline'] as const) {
   it(`latches ${reason} before signalling and waits for delayed quiescence`, async () => {
@@ -233,8 +342,9 @@ it('maps terminal reasons to the pinned process exit taxonomy', () => {
   assert.equal(exitCodeFor('ok'), 0);
   assert.equal(exitCodeFor('child_failure', 42), 42);
   assert.equal(exitCodeFor('child_failure'), 1);
+  assert.equal(exitCodeFor('child_failure', 0), 1);
   assert.equal(exitCodeFor('deadline'), 124);
   assert.equal(exitCodeFor('cancelled'), 130);
   assert.equal(exitCodeFor('containment_failure'), 125);
-  assert.equal(exitCodeFor('trajectory_write_failed'), 125);
+  assert.equal(exitCodeFor('trajectory_write_failed'), 74);
 });
