@@ -1,11 +1,12 @@
-// input:  session streams, spawn config, usage
-// output: cwd-aware Claude turns with reported model metadata
+// input:  session streams, spawn and containment config, usage
+// output: cwd-aware supervised Claude turns and reported models
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { spawn, ChildProcess } from 'child_process';
-import { createWriteStream, WriteStream } from 'fs';
+import { createWriteStream, mkdirSync } from 'fs';
 import { createInterface, Interface } from 'readline';
+import { Writable } from 'stream';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { DATA_DIR, readableTimestamp } from '@core/utils.js';
@@ -14,7 +15,11 @@ import { handleRateLimitEvent } from '@domain/costs/rate-limit-throttle.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
-import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentSpawnConfig, AgentProcess, Backend, UserMessage, ContinuationSink, InjectionAckSink, McpComposition } from '../types.js';
+import type {
+  AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcess, AgentProcessSpawner,
+  AgentProcessSupervision, AgentSpawnConfig, Backend, ContinuationSink, InjectionAckSink,
+  McpComposition, SpawnedAgentProcess, UserMessage,
+} from '../types.js';
 import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { createEventStream } from '../normalize/event-stream.js';
@@ -52,6 +57,15 @@ import { resolveAutoCompactWindow } from './compact-window.js';
 
 const log = createLogger('claude-bridge');
 
+function spawnClaudeProcess(
+  spawner: AgentProcessSpawner | undefined,
+  args: string[],
+  options: { cwd: string; env: NodeJS.ProcessEnv },
+): SpawnedAgentProcess {
+  if (spawner) return spawner('claude', args, options);
+  return { process: spawn('claude', args, { ...options, stdio: ['pipe', 'pipe', 'pipe'] }) };
+}
+
 // --- Persistent session ---
 
 interface PendingTurn {
@@ -76,8 +90,8 @@ interface PendingTurn {
   onToolResult: ((toolUseId: string, content: string, isError: boolean) => void) | null;
   onCompact: ((info: { trigger: string; preTokens?: number }) => void) | null;
   onContextUsage: ((usage: ContextUsage) => void) | null;
-  rawStream: WriteStream;
-  txtStream: WriteStream;
+  rawStream: Writable;
+  txtStream: Writable;
   killed: boolean;
   /** True for a synthetic turn opened to capture a background-task continuation
    *  (the spontaneous turn the CLI emits after a run_in_background task finishes). */
@@ -101,6 +115,11 @@ interface ClaudeSessionOptions {
   extraEnv?: Record<string, string>;
   cwd?: string;
   mcpComposition?: McpComposition;
+  mcpConfigPaths?: string[];
+  disableHooks?: boolean;
+  streamDeltas?: boolean;
+  captureTranscriptLogs?: boolean;
+  processSpawner?: AgentProcessSpawner;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string>;
   /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
@@ -125,6 +144,9 @@ function deriveClaudeSpawnOptions(fields: {
   needsResume: boolean;
   sessionId: string;
   mcpComposition: McpComposition;
+  mcpConfigPaths?: string[];
+  disableHooks?: boolean;
+  streamDeltas?: boolean;
 }): ClaudeSpawnOptions {
   return {
     tools: fields.tools,
@@ -139,6 +161,9 @@ function deriveClaudeSpawnOptions(fields: {
     needsResume: fields.needsResume,
     sessionId: fields.sessionId,
     mcpComposition: fields.mcpComposition,
+    mcpConfigPaths: fields.mcpConfigPaths,
+    disableHooks: fields.disableHooks,
+    streamDeltas: fields.streamDeltas,
   };
 }
 
@@ -178,6 +203,12 @@ class ClaudeSession {
   private extraEnv: Record<string, string> | undefined;
   private cwd: string;
   private mcpComposition: McpComposition;
+  private mcpConfigPaths: string[] | undefined;
+  private disableHooks: boolean;
+  private streamDeltas: boolean | undefined;
+  private captureTranscriptLogs: boolean;
+  private processSpawner: AgentProcessSpawner | undefined;
+  private supervision: AgentProcessSupervision | undefined;
   private extraOption: Record<string, string> | undefined;
   private thinking: string | null;
   private context: CortexAgentContext | undefined;
@@ -237,6 +268,11 @@ class ClaudeSession {
     this.anthropicBaseUrl = options.anthropicBaseUrl;
     this.extraEnv = options.extraEnv;
     this.mcpComposition = resolveMcpComposition(options.mcpComposition, options.context?.useCoreMcp);
+    this.mcpConfigPaths = options.mcpConfigPaths;
+    this.disableHooks = options.disableHooks === true;
+    this.streamDeltas = options.streamDeltas;
+    this.captureTranscriptLogs = options.captureTranscriptLogs !== false;
+    this.processSpawner = options.processSpawner;
     this.extraOption = options.extraOption;
     this.thinking = options.thinking ?? null;
     this.context = options.context;
@@ -257,6 +293,9 @@ class ClaudeSession {
       needsResume: this.needsResume,
       sessionId: this.sessionId,
       mcpComposition: this.mcpComposition,
+      mcpConfigPaths: this.mcpConfigPaths,
+      disableHooks: this.disableHooks,
+      streamDeltas: this.streamDeltas,
     });
   }
 
@@ -266,6 +305,12 @@ class ClaudeSession {
 
   private handleProcessClose(code: number | null): void {
     log.info(`Process closed: ${this.sessionId.substring(0, 8)} code=${code}`);
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    if (this.maxTimer) clearTimeout(this.maxTimer);
+    if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
+    this.idleTimer = null;
+    this.maxTimer = null;
+    this.turnIdleTimer = null;
     this.alive = false;
     clearActivePlanFile(this.sessionId);
     if (this.currentTurn) {
@@ -337,7 +382,9 @@ class ClaudeSession {
     const args = buildSpawnArgs(spawnOptions);
     log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? '(resume)' : '(new)'}`);
 
-    this.proc = spawn('claude', args, { cwd: this.cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+    const spawned = spawnClaudeProcess(this.processSpawner, args, { cwd: this.cwd, env });
+    this.proc = spawned.process;
+    this.supervision = spawned.supervision;
     this.stderr = '';
     this.rl = createInterface({ input: this.proc.stdout!, crlfDelay: Infinity });
     this.rl.on('line', (line) => this.handleLine(line));
@@ -352,7 +399,12 @@ class ClaudeSession {
     }, MAX_TIMEOUT);
   }
 
-  private createTurnStreams(userMessage: string): { rawStream: WriteStream; txtStream: WriteStream } {
+  private createTurnStreams(userMessage: string): { rawStream: Writable; txtStream: Writable } {
+    if (!this.captureTranscriptLogs) {
+      const sink = () => new Writable({ write(_chunk, _encoding, done) { done(); } });
+      return { rawStream: sink(), txtStream: sink() };
+    }
+    mkdirSync(LOGS_DIR, { recursive: true });
     const ts = readableTimestamp();
     const rawStream = createWriteStream(path.join(LOGS_DIR, `claude-output-${ts}.jsonl`), { flags: 'a' });
     const txtStream = createWriteStream(path.join(LOGS_DIR, `claude-output-${ts}.txt`), { flags: 'a' });
@@ -361,7 +413,7 @@ class ClaudeSession {
     return { rawStream, txtStream };
   }
 
-  private registerTurn(resolve: any, reject: any, streams: { rawStream: WriteStream; txtStream: WriteStream }, options: any): void {
+  private registerTurn(resolve: any, reject: any, streams: { rawStream: Writable; txtStream: Writable }, options: any): void {
     clearActivePlanFile(this.sessionId);
     this.currentTurn = {
       resolve, reject,
@@ -877,10 +929,16 @@ class ClaudeSession {
     if (!this.proc || this.proc.exitCode !== null) return false;
     this.alive = false;
     if (sessions.get(this.sessionKey) === this) sessions.delete(this.sessionKey);
-    if (this.currentTurn) {
-      this.currentTurn.killed = true;
+    if (this.currentTurn) this.currentTurn.killed = true;
+    if (this.supervision) {
+      this.supervision.cancel('cancel');
+      return true;
     }
     try { this.proc.kill('SIGTERM'); return true; } catch { return false; }
+  }
+
+  getSupervision(): AgentProcessSupervision | undefined {
+    return this.supervision;
   }
 
   isAlive(): boolean {
@@ -1106,6 +1164,11 @@ function sessionOptionsFromSpawnConfig(config: AgentSpawnConfig): ClaudeSessionO
     extraEnv: config.env,
     cwd: config.cwd ?? DATA_DIR,
     mcpComposition: resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp),
+    mcpConfigPaths: config.mcpConfigPaths,
+    disableHooks: config.disableHooks,
+    streamDeltas: config.streamDeltas,
+    captureTranscriptLogs: config.captureTranscriptLogs,
+    processSpawner: config.processSpawner,
     extraOption: config.extraOption,
     thinking: config.thinking ?? null,
     context: config.cortexContext,
@@ -1131,6 +1194,9 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     needsResume: opts.needsResume,
     sessionId: opts.sessionIdEffective,
     mcpComposition: opts.mcpComposition ?? 'direct',
+    mcpConfigPaths: opts.mcpConfigPaths,
+    disableHooks: opts.disableHooks,
+    streamDeltas: opts.streamDeltas,
   });
   spawnOptions.isUserInitiated = config.isUserInitiated;
   return buildSpawnArgs(spawnOptions);
@@ -1161,6 +1227,7 @@ export class ClaudeAdapter implements AgentAdapter {
     return {
       sessionKey: config.sessionKey,
       get sessionId(): string | null { return session.sessionId; },
+      get supervision(): AgentProcessSupervision | undefined { return session.getSupervision(); },
       async send(message: UserMessage): Promise<AgentResult> {
         if (!started) {
           stream.push({ type: 'session_started', sessionId: session.sessionId });

@@ -1,6 +1,6 @@
 // input:  help spec objects, error context, stdin fd
-// output: formatHelp / formatError / readStdinSync
-// pos:    shared help/error/stdin utilities for all TS CLIs (canonical location; src/cli-utils.ts is a legacy copy frozen pending S12 removal)
+// output: help/error formatting and text/raw-byte stdin readers
+// pos:    Shared CLI presentation and stdin utilities
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
@@ -94,8 +94,12 @@ function formatError(message: string, opts?: { validValues?: string[]; hint?: st
 
 // ─── Stdin Reading (Rule ③) ────────────────────────────────────
 
+function readStdinBufferSync(): Buffer {
+  return fs.readFileSync(0);
+}
+
 function readStdinSync(): string {
-  return fs.readFileSync(0, 'utf8');
+  return readStdinBufferSync().toString('utf8');
 }
 
 // ─── CLI Error Helper ─────────────────────────────────────────
@@ -111,6 +115,7 @@ export {
   formatHelp,
   formatError,
   readStdinSync,
+  readStdinBufferSync,
   cliError,
 };
 export type { HelpSpec, CommandSpec, OptionSpec, ExampleSpec };

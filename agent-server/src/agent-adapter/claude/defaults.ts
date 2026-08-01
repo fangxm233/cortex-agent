@@ -5,7 +5,6 @@
 
 import * as path from 'path';
 import * as os from 'os';
-import { mkdirSync } from 'fs';
 import { DATA_DIR, CONFIG_DIR, HOOKS_DIR } from '../../core/utils.js';
 
 export const MAX_TIMEOUT = 30_000_000;
@@ -34,7 +33,6 @@ export const PANE_READY_POLL_MS = 250;
 export const PANE_READY_MARKER = /bypass permissions on|\? for shortcuts/;
 
 export const LOGS_DIR = path.join(DATA_DIR, 'logs', 'sessions');
-mkdirSync(LOGS_DIR, { recursive: true });
 
 export const MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config.json');
 export const CORE_MCP_CONFIG = path.join(CONFIG_DIR, 'mcp-config-core.json');

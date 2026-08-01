@@ -255,6 +255,17 @@ function lifecyclePath(
   return path.join(trajectoryRoot, `${lifecycleStem(rootRunId, threadId)}.${suffix}.json`);
 }
 
+export function resolveLifecyclePaths(input: {
+  trajectoryRoot: string;
+  rootRunId: string;
+  threadId: string | null;
+}): { started: string; terminal: string } {
+  return {
+    started: lifecyclePath(input.trajectoryRoot, input.rootRunId, input.threadId, 'started'),
+    terminal: lifecyclePath(input.trajectoryRoot, input.rootRunId, input.threadId, 'terminal'),
+  };
+}
+
 function temporaryPath(finalPath: string): string {
   const nonce = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
   return `${finalPath}.tmp.${nonce}`;

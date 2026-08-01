@@ -17,6 +17,7 @@
   "files": [
     "dist/",
     "defaults/",
+    "native/cortex-supervisor/dist/",
     "web/dist/",
     "scripts/postinstall-restart-trigger.mjs",
     "README.md"

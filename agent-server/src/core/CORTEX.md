@@ -10,7 +10,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | auth.ts | core | issues and checks shared-secret auth tokens |
 | bg-held-sessions.ts | state | tracks sessions held running in background |
 | calver.ts | util | compares CalVer YYYY.M.D[-N] versions |
-| cli-utils.ts | util | formats CLI help and errors, reads stdin |
+| cli-utils.ts | util | formats CLI help/errors and reads stdin as text or raw bytes |
 | config-generator.ts | config | generates declared MCP composition files |
 | debug-mode.ts | config | reports DEBUG state and tool size limits |
 | gateway-generator.ts | config | discovers models and builds gateway.yaml |
@@ -19,7 +19,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | i18n.ts | core | resolves localized messages by key |
 | icons.ts | data | provides the semantic icon character set |
 | json-repository.ts | core | reads and writes cached JSON stores |
-| log.ts | core | creates console and rotating file loggers |
+| log.ts | core | creates loggers with process-scoped sink policy |
 | paths.ts | config | defines install, data, and config paths |
 | pi-session-filename.ts | util | selects deterministic PI transcript filenames |
 | profile-generator.ts | config | generates the agent profiles file |

@@ -4,8 +4,12 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 
 | filename | role | function |
 |---|---|---|
-| fake-supervisor.ts | fixture | emits lifecycle edge cases over a real control fd |
+| agent-run-cli.test.ts | test | verifies one-shot CLI parsing and help |
+| agent-run-e2e.test.ts | e2e | proves daemon-free one-shot lifecycle behavior |
+| fake-supervisor.ts | fixture | emits lifecycle edges from a real process group |
 | identity.test.ts | test | verifies deterministic run identity hashes |
 | journal.test.ts | test | verifies journal durability and validation |
 | manifest-contract.test.ts | test | verifies lifecycle and linkage contracts |
-| supervisor.test.ts | test | verifies protocol, watchdog and exit taxonomy |
+| role-surface.test.ts | test | verifies plugin hashing and argv alignment |
+| run-config.test.ts | test | verifies optional role and MCP inputs |
+| supervisor.test.ts | test | verifies protocol, stdio, watchdog and taxonomy |
