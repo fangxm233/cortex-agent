@@ -1,5 +1,5 @@
-// input:  session streams, spawn and containment config, usage
-// output: cwd-aware supervised Claude turns and reported models
+// input:  session streams, spawn/containment config, reported usage
+// output: cwd-aware Claude turns, models, and accounting events
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -119,6 +119,7 @@ interface ClaudeSessionOptions {
   disableHooks?: boolean;
   streamDeltas?: boolean;
   captureTranscriptLogs?: boolean;
+  preserveUnreportedAccounting?: boolean;
   processSpawner?: AgentProcessSpawner;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string>;
@@ -207,6 +208,7 @@ class ClaudeSession {
   private disableHooks: boolean;
   private streamDeltas: boolean | undefined;
   private captureTranscriptLogs: boolean;
+  private preserveUnreportedAccounting: boolean;
   private processSpawner: AgentProcessSpawner | undefined;
   private supervision: AgentProcessSupervision | undefined;
   private extraOption: Record<string, string> | undefined;
@@ -272,6 +274,7 @@ class ClaudeSession {
     this.disableHooks = options.disableHooks === true;
     this.streamDeltas = options.streamDeltas;
     this.captureTranscriptLogs = options.captureTranscriptLogs !== false;
+    this.preserveUnreportedAccounting = options.preserveUnreportedAccounting === true;
     this.processSpawner = options.processSpawner;
     this.extraOption = options.extraOption;
     this.thinking = options.thinking ?? null;
@@ -663,15 +666,19 @@ class ClaudeSession {
     this.startTurnIdleTimer();
   }
 
+  private turnCost(data: any): number | null {
+    if (this.preserveUnreportedAccounting && data.total_cost_usd == null) return null;
+    const cumulativeCost = data.total_cost_usd ?? 0;
+    const turnCost = cumulativeCost - this.cumulativeCostUsd;
+    this.cumulativeCostUsd = cumulativeCost;
+    return turnCost > 0 ? turnCost : 0;
+  }
+
   private handleResultEvent(turn: PendingTurn, data: any): void {
     // Reset per-turn capture fields so we never leak stale data from a previous turn
     this.lastTokenUsage = null;
     this.lastModelName = null;
-
-    const cumulativeCost = data.total_cost_usd ?? 0;
-    const turnCost = cumulativeCost - this.cumulativeCostUsd;
-    this.cumulativeCostUsd = cumulativeCost;
-    turn.resultData = { ...data, total_cost_usd: turnCost > 0 ? turnCost : 0 };
+    turn.resultData = { ...data, total_cost_usd: this.turnCost(data) };
 
     // Capture token data from the result event for cost_record (per-turn, non-cumulative)
     if (data.usage) {
@@ -1168,6 +1175,7 @@ function sessionOptionsFromSpawnConfig(config: AgentSpawnConfig): ClaudeSessionO
     disableHooks: config.disableHooks,
     streamDeltas: config.streamDeltas,
     captureTranscriptLogs: config.captureTranscriptLogs,
+    preserveUnreportedAccounting: config.preserveUnreportedAccounting,
     processSpawner: config.processSpawner,
     extraOption: config.extraOption,
     thinking: config.thinking ?? null,
@@ -1281,7 +1289,9 @@ export class ClaudeAdapter implements AgentAdapter {
             stream.push({ type: 'rate_limit', raw: { message: result.rateLimitMessage } });
           }
           // Emit cost_record from Claude CLI result data (tokens from usage, model from modelUsage)
-          if (result.total_cost_usd != null || session.lastTokenUsage) {
+          const hasReportableAccounting = session.lastTokenUsage
+            || (!config.preserveUnreportedAccounting && result.total_cost_usd != null);
+          if (hasReportableAccounting) {
             const tu = session.lastTokenUsage;
             stream.push({
               type: 'cost_record',
@@ -1450,6 +1460,7 @@ function makeSessionForTest(
   s.turnIdleTimer = null;
   s.maxTimer = null;
   s.cumulativeCostUsd = 0;
+  s.preserveUnreportedAccounting = false;
   s.lastTokenUsage = null;
   s.lastModelName = null;
   s.alive = true;

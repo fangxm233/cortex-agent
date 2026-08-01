@@ -1,5 +1,5 @@
 // input:  normalized events, capabilities, child-process types
-// output: adapter, process, supervision, continuation contracts
+// output: adapter, supervision, accounting, continuation contracts
 // pos:    Shared adapter runtime contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -83,6 +83,8 @@ export interface AgentSpawnConfig {
   streamDeltas?: boolean;
   /** Disable legacy raw/text transcript files when the required journal is authoritative. */
   captureTranscriptLogs?: boolean;
+  /** Preserve absent backend cost/usage for provenance-sensitive one-shot runs. */
+  preserveUnreportedAccounting?: boolean;
   /** Optional process boundary used by daemon-free runs. Ordinary callers spawn directly. */
   processSpawner?: AgentProcessSpawner;
 

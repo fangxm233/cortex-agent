@@ -1,5 +1,5 @@
-// input:  agent-run CLI parser, temporary paths, shared help utilities
-// output: explicit-flag, validation, stdin, and help contracts
+// input:  agent-run CLI entry, temporary paths, shared help utilities
+// output: explicit-flag, required-option, stdin, and help contracts
 // pos:    One-shot agent-run command surface regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
   getAgentRunHelp,
   parseAgentRunArgs,
+  runAgentRunCli,
 } from '../../../src/domain/agent-run/agent-run-cli.js';
 
 let root = '';
@@ -81,6 +82,22 @@ describe('parseAgentRunArgs', () => {
     assert.equal(parsed.rootRunId, 'run.fixture-1');
   });
 
+  it('preserves the run-config stdin marker', () => {
+    const parsed = parseAgentRunArgs([...validArgs(), '--run-config', '-']);
+    assert.equal(parsed.runConfigFile, '-');
+  });
+
+  it('rejects assigning the single stdin stream to both file inputs', () => {
+    const args = [...validArgs(), '--run-config', '-'];
+    args[1] = '-';
+    assert.throws(
+      () => parseAgentRunArgs(args),
+      (error: Error) => error.message.includes("Cannot use '-' for both --prompt-file and --run-config")
+        && error.message.includes('Use --prompt-file <path> with --run-config -')
+        && error.message.includes('--prompt-file - with --run-config <path>'),
+    );
+  });
+
   it('uses explicit supervisor over environment over the package default', () => {
     const fromEnvironment = parseAgentRunArgs(
       validArgs(), { CORTEX_SUPERVISOR_BINARY: '/env/supervisor' },
@@ -132,12 +149,28 @@ describe('parseAgentRunArgs', () => {
   });
 });
 
+it('keeps output-format required in both help and the real parser', async () => {
+  const help = getAgentRunHelp();
+  assert.match(help, /Usage: .* --output-format jsonl --events-file/);
+  assert.doesNotMatch(help, /--output-format[^\n]+\(default: jsonl\)/);
+  const args = validArgs();
+  args.splice(args.indexOf('--output-format'), 2);
+  let stderr = '';
+  const exitCode = await runAgentRunCli(args, {
+    stdout: { write: () => true },
+    stderr: { write: value => { stderr += String(value); return true; } },
+  });
+  assert.equal(exitCode, 1);
+  assert.match(stderr, /Missing required --output-format/);
+});
+
 it('renders copyable help with defaults and stdin support', () => {
   const help = getAgentRunHelp();
   assert.match(help, /Usage: cortex agent-run --prompt-file <path\|->/);
   assert.match(help, /--agent-slot <slot>/);
   assert.match(help, /--trajectory-root <dir>/);
-  assert.match(help, /--run-config <path>/);
+  assert.match(help, /--run-config <path\|->/);
+  assert.match(help, /stdin paths use process cwd/);
   assert.match(help, /CORTEX_SUPERVISOR_BINARY/);
   assert.doesNotMatch(help, /--dry-run/);
   assert.match(help, /cat prompt\.txt \| cortex agent-run --prompt-file -/);
