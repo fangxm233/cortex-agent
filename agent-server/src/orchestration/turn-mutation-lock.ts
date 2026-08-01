@@ -1,18 +1,18 @@
-// input:  channel ids and turn-state mutation requests
-// output: keyed lock acquisition and release functions
+// input:  channel ids and turn mutation requests
+// output: keyed mutation lease type and acquisition functions
 // pos:    Serializes snapshot and rewind mutations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-type Release = () => void;
+export type TurnMutationRelease = () => void;
 
 interface LockEntry {
   locked: boolean;
-  waiters: Array<(release: Release) => void>;
+  waiters: Array<(release: TurnMutationRelease) => void>;
 }
 
 const entries = new Map<string, LockEntry>();
 
-function releaseFor(channel: string, entry: LockEntry): Release {
+function releaseFor(channel: string, entry: LockEntry): TurnMutationRelease {
   let released = false;
   return () => {
     if (released) return;
@@ -27,7 +27,7 @@ function releaseFor(channel: string, entry: LockEntry): Release {
   };
 }
 
-export function tryAcquireTurnMutationLock(channel: string): Release | null {
+export function tryAcquireTurnMutationLock(channel: string): TurnMutationRelease | null {
   const entry = entries.get(channel) ?? { locked: false, waiters: [] };
   entries.set(channel, entry);
   if (entry.locked) return null;
@@ -35,7 +35,7 @@ export function tryAcquireTurnMutationLock(channel: string): Release | null {
   return releaseFor(channel, entry);
 }
 
-export function acquireTurnMutationLock(channel: string): Promise<Release> {
+export function acquireTurnMutationLock(channel: string): Promise<TurnMutationRelease> {
   const release = tryAcquireTurnMutationLock(channel);
   if (release) return Promise.resolve(release);
   const entry = entries.get(channel)!;

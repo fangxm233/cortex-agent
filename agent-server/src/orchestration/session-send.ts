@@ -1,13 +1,12 @@
-// input:  { channel, text, adapter } + agentRunner.route
-// output: sendWebUserMessage — inject a GENUINE user turn into a session (S4 chat send)
-// pos:    orch/ — reuses the agentRunner.route synthetic-message path (like wakeSession), but with a
-//         non-synthetic senderId so it is treated as a real user turn (eligible for the human
-//         backstop). Wired into ui-service via the injected `sendSessionMessage` dep in entry/app.ts,
-//         keeping the ui-service domain free of any orchestration import (layer safety).
+// input:  channel text, adapter, optional mutation lease
+// output: fire-and-forget Web user turn routing
+// pos:    Web session turn admission adapter
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { IncomingMessage, PlatformAdapter } from '@platform/index.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import { agentRunner, type AgentRunnerCtx } from './agent-runner.js';
+import type { TurnMutationRelease } from './turn-mutation-lock.js';
 
 /** Sender id for web-originated user turns. Distinct from SYNTHETIC_CALLBACK_SENDER so the message
  *  flows through route as a real user message (not a self-consumed callback). */
@@ -39,6 +38,7 @@ export function sendWebUserMessage(opts: {
   text: string;
   attachments?: AttachmentMeta[];
   adapter: PlatformAdapter;
+  mutationRelease?: TurnMutationRelease;
   route?: (ctx: AgentRunnerCtx) => Promise<void>;
 }): void {
   const message = buildWebUserMessage(opts.channel, opts.text, opts.attachments);
@@ -51,5 +51,6 @@ export function sendWebUserMessage(opts: {
     hasFiles: false,
     userMessage: opts.text,
     agentMessage: opts.text,
+    mutationRelease: opts.mutationRelease,
   }).catch(() => { /* fire-and-forget */ });
 }

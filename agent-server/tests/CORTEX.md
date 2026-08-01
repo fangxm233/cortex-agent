@@ -6,7 +6,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | filename | role | function |
 |---|---|---|
 | _global-setup.ts | setup | allocates the run-scoped temp-home root and removes it after all workers finish |
-| _shared-pool-manifest.ts | setup | shared-pool manifest read by vitest.config.ts: test files vetted safe for the isolate:false fork pool |
+| _shared-pool-manifest.ts | setup | lists tests safe for shared non-isolated forks |
 | _test-home-root.ts | setup | allocates test homes under one parent, redirects TMPDIR, sweeps stale leftovers |
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
@@ -21,7 +21,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
-| agent-adapter-pi.test.ts | test | PI spawn/cache policy, events and context |
+| agent-adapter-pi.test.ts | test | PI resume validation, cache, events and context |
 | agent-adapter.test.ts | test | adapter dispatch, capability sets and tool names |
 | agent-retry-classification.test.ts | test | retry policy, outage gates and direct bypass |
 | app.test.ts | test | startup DM notification behaviour |
@@ -103,6 +103,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | scheduler-precheck.test.ts | test | preCheck exit codes and env passing |
 | server-update-check.test.ts | test | CalVer compare and server update check |
 | session-activity-tracker.test.ts | test | path-only tool activity logging hook |
+| session-backup-async.test.ts | test | Claude async copy and failure contracts |
 | session-backup-discovery.test.ts | test | PI filename lookup latency and body-read isolation |
 | session-backup.test.ts | test | PI session file backup and restore |
 | session-hooks-inject-isolation.test.ts | test | onNew hook injection session isolation |

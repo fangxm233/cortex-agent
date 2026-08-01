@@ -1,5 +1,5 @@
-// input:  user turns, snapshot barriers, agent callbacks
-// output: provider runs, continuations, visible transcripts
+// input:  user turns, mutation leases, agent callbacks
+// output: admitted provider runs and visible transcripts
 // pos:    Plain user-message and injection path
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -47,12 +47,13 @@ import { holdWebForBg } from './web-bg-hold.js';
 import type { ContinuationSink } from '../agent-adapter/types.js';
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
 import { WORKSPACE_DIR, resolveWorkspaceRelPath } from '@core/utils.js';
+import { acquireTurnMutationLock, type TurnMutationRelease } from './turn-mutation-lock.js';
 
 const TEMP_DIR = WORKSPACE_DIR;
 
 type Enqueuer = (channel: string, fn: () => Promise<void>) => boolean;
 type Tracker = (delta: number) => void;
-type Executor = (ctx: AgentRunnerCtx) => Promise<void>;
+type Executor = (ctx: AgentRunnerCtx, mutationRelease: TurnMutationRelease) => Promise<void>;
 /** Attempt mid-turn injection; true ⇒ the message was delivered into the live turn and must NOT
  *  be queued. Injectable so the routing branch is testable without a live backend. */
 type Injector = (ctx: AgentRunnerCtx) => Promise<boolean>;
@@ -101,6 +102,7 @@ export interface AgentRunnerCtx {
   hasFiles: boolean;
   userMessage: string;
   agentMessage: string;
+  mutationRelease?: TurnMutationRelease;
 }
 
 export class AgentRunner {
@@ -113,11 +115,24 @@ export class AgentRunner {
   constructor(opts: { enqueue?: Enqueuer; track?: Tracker; execute?: Executor; tryInject?: Injector } = {}) {
     this._enqueue = opts.enqueue ?? enqueue;
     this._track = opts.track ?? trackPendingTask;
-    this._execute = opts.execute ?? ((ctx) => this._executeReal(ctx));
+    this._execute = opts.execute ?? ((ctx, release) => this._executeReal(ctx, release));
     this._tryInject = opts.tryInject ?? ((ctx) => this._tryInjectReal(ctx));
   }
 
   async route(ctx: AgentRunnerCtx): Promise<void> {
+    const mutationRelease = ctx.mutationRelease ?? await acquireTurnMutationLock(ctx.channel);
+    let queued = false;
+    try {
+      queued = await this._routeWithAdmission(ctx, mutationRelease);
+    } finally {
+      if (!queued) mutationRelease();
+    }
+  }
+
+  private async _routeWithAdmission(
+    ctx: AgentRunnerCtx,
+    mutationRelease: TurnMutationRelease,
+  ): Promise<boolean> {
     const { message, channel, adapter } = ctx;
     // DR-0016 top-level fallback: if this channel has a pending human-escalated subtask question,
     // consume this message as the answer and short-circuit normal turn handling. Scope is narrow —
@@ -128,7 +143,7 @@ export class AgentRunner {
     if (message.senderId !== SYNTHETIC_CALLBACK_SENDER && tryAnswerFromHuman(channel, ctx.userMessage || '')) {
       const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
       await adapter.postMessage(dest, { text: `${Icons.ok} ${t('subtask.replyDelivered')}` }).catch(() => {});
-      return;
+      return false;
     }
     // A plain user message arriving while this channel already has a live turn is delivered INTO
     // that turn (backend stdin) rather than waiting behind it, when the backend can take it. The
@@ -136,19 +151,25 @@ export class AgentRunner {
     // bracket — so we return before the queue machinery. Everything it declines (no live turn,
     // incapable backend, !command, synthetic wake, backend refusal) falls through to today's
     // queue behaviour unchanged.
-    if (await this._tryInject(ctx)) return;
+    if (await this._tryInject(ctx)) return false;
     const markerRef = conduitQueues.has(channel)
       ? { conduit: channel, messageId: message.ref.messageId }
       : null;
     if (markerRef) await adapter.markQueued(markerRef).catch(() => {});
     this._track(+1);
-    this._enqueue(channel, () => this._runQueued(ctx, markerRef));
+    this._enqueue(channel, () => this._runQueued(ctx, markerRef, mutationRelease));
+    return true;
   }
 
-  private async _runQueued(ctx: AgentRunnerCtx, markerRef: MessageRef | null): Promise<void> {
+  private async _runQueued(
+    ctx: AgentRunnerCtx,
+    markerRef: MessageRef | null,
+    mutationRelease: TurnMutationRelease,
+  ): Promise<void> {
     try {
-      await this._execute(ctx);
+      await this._execute(ctx, mutationRelease);
     } finally {
+      mutationRelease();
       if (markerRef) await ctx.adapter.unmarkQueued(markerRef).catch(() => {});
       this._track(-1);
     }
@@ -183,7 +204,10 @@ export class AgentRunner {
     }
   }
 
-  private async _executeReal(ctx: AgentRunnerCtx): Promise<void> {
+  private async _executeReal(
+    ctx: AgentRunnerCtx,
+    mutationRelease: TurnMutationRelease,
+  ): Promise<void> {
     const { message, channel, adapter, threadAnchorId, hasFiles, userMessage, agentMessage } = ctx;
     const downloadedFiles = await downloadFiles(message.files, hasFiles, adapter);
     // Web-uploaded attachments are already on disk — map to DownloadedFile shape.
@@ -241,6 +265,7 @@ export class AgentRunner {
       channel, sessionId, backendSessionId, sessionName,
       messageTs, userMessage || '', statusMsg.messageId,
       {
+        mutationRelease,
         onAccepted: () => acceptUserMessage({
           sessionId, channel, sessionName, text: userMessage || '',
           attachments: message.webAttachments,

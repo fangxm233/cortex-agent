@@ -1,5 +1,5 @@
-// input:  rewind request, ledger, async backup, history
-// output: rewindWebSession restore and resend result
+// input:  rewind request, ledger snapshots, mutation lease
+// output: immutable restore and admitted resend result
 // pos:    Web message edit rollback orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -39,10 +39,20 @@ export interface RewindDeps {
     getById(sessionId: string): Promise<Session | null>;
     updateSession(name: string, updates: { backendSessionId: string | null }): Promise<void>;
   };
-  backup: Pick<typeof sessionBackup, 'restoreBackup' | 'cleanupBackupsAfter' | 'cleanupAllBackups' | 'findPISessionFile' | 'restoreSessionFile' | 'cleanupBackupsForFile'>;
+  backup: Pick<typeof sessionBackup,
+    'restoreBackup' | 'cleanupBackupsAfter' | 'cleanupAllBackups' |
+    'findPISessionFile' | 'restoreSessionFile' | 'restoreSessionBackup' |
+    'sessionFileFromBackupPath' | 'cleanupBackupsForFile' | 'cleanupAllBackupsForFile'
+  >;
   resolveBackend: (channel: string) => string;
   closePooledSession: (channel: string, backend: string) => void;
-  send: (opts: { channel: string; text: string; attachments?: AttachmentMeta[]; adapter: PlatformAdapter }) => void;
+  send: (opts: {
+    channel: string;
+    text: string;
+    attachments?: AttachmentMeta[];
+    adapter: PlatformAdapter;
+    mutationRelease?: () => void;
+  }) => void;
   publishRewound: (payload: { sessionId: string; channel: string; turnIndex: number }) => void;
 }
 
@@ -76,18 +86,70 @@ export async function rewindWebSession(
   deps: RewindDeps = defaultDeps(),
 ): Promise<RewindResult> {
   if (deps.snapshotPending(opts.channel)) return { ok: false, reason: 'running' };
-  const releaseMutation = deps.tryAcquireMutation(opts.channel);
+  let releaseMutation = deps.tryAcquireMutation(opts.channel);
   if (!releaseMutation) return { ok: false, reason: 'running' };
   try {
-    return await rewindLocked(opts, deps);
+    const result = await rewindLocked(opts, deps, releaseMutation);
+    if (result.ok) releaseMutation = null;
+    return result;
   } finally {
-    releaseMutation();
+    releaseMutation?.();
   }
+}
+
+interface SnapshotRestore {
+  restored: boolean;
+  piSessionFile: string | null;
+}
+
+async function restoreSnapshot(
+  backend: string,
+  backendSessionId: string | null,
+  backupPath: string | null,
+  turnIndex: number,
+  backup: RewindDeps['backup'],
+): Promise<SnapshotRestore> {
+  if (backend !== 'pi') {
+    const restored = turnIndex > 0 && backendSessionId
+      ? await backup.restoreBackup(backendSessionId, turnIndex)
+      : false;
+    return { restored, piSessionFile: null };
+  }
+  const recordedFile = backupPath
+    ? backup.sessionFileFromBackupPath(backupPath, turnIndex)
+    : null;
+  const piSessionFile = backupPath || !backendSessionId
+    ? recordedFile
+    : await backup.findPISessionFile(backendSessionId);
+  if (turnIndex === 0 || !backendSessionId) return { restored: false, piSessionFile };
+  const restored = backupPath
+    ? await backup.restoreSessionBackup(backupPath, turnIndex)
+    : piSessionFile ? await backup.restoreSessionFile(piSessionFile, turnIndex) : false;
+  return { restored, piSessionFile };
+}
+
+function cleanupSnapshot(
+  backend: string,
+  backendSessionId: string | null,
+  turnIndex: number,
+  snapshot: SnapshotRestore,
+  backup: RewindDeps['backup'],
+): void {
+  if (backend === 'pi') {
+    if (!snapshot.piSessionFile) return;
+    if (snapshot.restored) backup.cleanupBackupsForFile(snapshot.piSessionFile, turnIndex);
+    else backup.cleanupAllBackupsForFile(snapshot.piSessionFile);
+    return;
+  }
+  if (!backendSessionId) return;
+  if (snapshot.restored) backup.cleanupBackupsAfter(backendSessionId, turnIndex);
+  else backup.cleanupAllBackups(backendSessionId);
 }
 
 async function rewindLocked(
   opts: { sessionId: string; channel: string; turnIndex: number; text: string; adapter: PlatformAdapter },
   deps: RewindDeps,
+  mutationRelease: () => void,
 ): Promise<RewindResult> {
   const { sessionId, channel, turnIndex, text, adapter } = opts;
   if (deps.activeAgents.hasChannel(channel)) return { ok: false, reason: 'running' };
@@ -102,25 +164,19 @@ async function rewindLocked(
 
   log.info('Rewinding session:', { channel, turnIndex, backend });
 
+  const backupPath = conv.turns[turnIndex].backupPath;
+
   // 1. Ledger: mark turns from turnIndex onward superseded.
   await deps.ledger.rollbackTo(channel, turnIndex);
 
-  // 2. Backend session file: restore the pre-turn backup. A turn-0 edit (or a missing backup)
-  //    resets the BACKEND conversation only — clear backendSessionId so the next turn starts a
-  //    fresh CLI session; the track sessionId and channel binding are untouched (web identity).
-  let restored = false;
-  if (turnIndex > 0 && backendSessionId) {
-    if (backend === 'pi') {
-      const piFile = await deps.backup.findPISessionFile(backendSessionId);
-      restored = piFile ? await deps.backup.restoreSessionFile(piFile, turnIndex) : false;
-    } else {
-      restored = await deps.backup.restoreBackup(backendSessionId, turnIndex);
-    }
-  }
-  if (!restored) {
+  // 2. Restore the immutable pre-turn snapshot. Legacy turns without backupPath retain the
+  // filename-discovery fallback; a recorded PI path is never replaced by a newer filename.
+  const snapshot = await restoreSnapshot(
+    backend, backendSessionId, backupPath, turnIndex, deps.backup,
+  );
+  if (!snapshot.restored) {
     if (turnIndex > 0) log.warn('No backup found — starting a fresh backend session (display history keeps earlier turns)');
     await deps.sessionStore.updateSession(rec.name, { backendSessionId: null });
-    if (backendSessionId) deps.backup.cleanupAllBackups(backendSessionId);
   }
 
   // 3. Kill any pooled CLI process — an alive stream-json Claude keeps the old conversation in
@@ -129,14 +185,7 @@ async function rewindLocked(
 
   // 4. Ledger + backup cleanup for the superseded range.
   await deps.ledger.truncateTurns(channel, turnIndex);
-  if (restored && backendSessionId) {
-    if (backend === 'pi') {
-      const piFile = await deps.backup.findPISessionFile(backendSessionId);
-      if (piFile) deps.backup.cleanupBackupsForFile(piFile, turnIndex);
-    } else {
-      deps.backup.cleanupBackupsAfter(backendSessionId, turnIndex);
-    }
-  }
+  cleanupSnapshot(backend, backendSessionId, turnIndex, snapshot, deps.backup);
 
   // 5. Display history: drop the edited turn and everything after; remember the original message.
   const removed = await deps.history.truncateFromTurn(sessionId, turnIndex);
@@ -148,7 +197,9 @@ async function rewindLocked(
 
   // 7. Re-send the edited text as a genuine user turn (original attachments preserved —
   //    the edit UI cannot add or remove them).
-  deps.send({ channel, text, attachments: removed?.attachments, adapter });
+  deps.send({
+    channel, text, attachments: removed?.attachments, adapter, mutationRelease,
+  });
 
   return { ok: true };
 }

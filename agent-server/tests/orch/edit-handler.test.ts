@@ -1,5 +1,5 @@
-// input:  edit handler, session registry, backup fixtures
-// output: backend-id restore and retry routing regressions
+// input:  edit handler, ledger backup paths, registry fixtures
+// output: immutable restore and retry routing regressions
 // pos:    Verifies platform edit rollback orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -19,9 +19,10 @@ import {
 import * as sessionBackup from '../../src/domain/sessions/session-backup.js';
 import { sessionStore } from '../../src/store/session-registry-repo.js';
 import { resolveProfileConfig } from '../../src/domain/agents/profile-manager.js';
-import { mkdirSync, writeFileSync, existsSync, rmSync } from 'fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { DATA_DIR } from '../../src/core/utils.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -221,6 +222,53 @@ test('Bug 2: edit on conversation with PI channel profile routes through PI rest
     await clearLedgerEntry(channel);
     clearChannelProfile(channel);
     try { rmSync(piDir, { recursive: true, force: true }); } catch {}
+  }
+});
+
+test('PI edit restores the ledger backup when filename preference changes after snapshot', async () => {
+  const channel = freshChannel();
+  const sessionId = `track-pi-recorded-${Date.now()}`;
+  const backendSessionId = `01234567-89ab-7cde-8fab-${Date.now().toString(16).padStart(12, '0')}`;
+  const sessionName = `cortex-pi-recorded-${Date.now()}`;
+  await seedConversationWithTurns(channel, { sessionId, backend: 'pi', turnCount: 2 });
+  await sessionStore.registerSession(sessionName, {
+    sessionId, backendSessionId, channel, backend: 'pi', kind: 'local',
+  });
+
+  const piDir = path.join(DATA_DIR, 'logs', 'sessions-pi');
+  const recordedFile = path.join(piDir, `2026-08-01T00-00-00Z_${backendSessionId}.jsonl`);
+  const canonicalFile = path.join(piDir, `${backendSessionId}.jsonl`);
+  const backupPath = `${recordedFile}.turn-1.bak`;
+  mkdirSync(piDir, { recursive: true });
+  writeFileSync(recordedFile, 'after-turn', 'utf8');
+  writeFileSync(backupPath, 'before-turn', 'utf8');
+  writeFileSync(canonicalFile, 'new-canonical', 'utf8');
+  await conversationLedger.setBackupPath(channel, 'M1', backupPath);
+
+  const reprocessCalls: any[] = [];
+  const handler = createEditHandler({
+    activeAgents: runningExecutions,
+    reprocessMessage: (ch, text, _adapter, opts) => { reprocessCalls.push({ ch, text, opts }); },
+    resolveBackend: () => 'pi',
+  });
+
+  vi.useFakeTimers();
+  await handler({
+    originalRef: { conduit: channel, messageId: 'M1', threadId: null },
+    newText: 'edited PI turn',
+  } as any, new MockAdapter() as any);
+  await fireDebounce();
+  await waitFor(() => reprocessCalls.length === 1);
+
+  try {
+    assert.equal(readFileSync(recordedFile, 'utf8'), 'before-turn');
+    assert.equal(readFileSync(canonicalFile, 'utf8'), 'new-canonical');
+    assert.equal(reprocessCalls[0].opts.sessionId, sessionId, 'successful immutable restore keeps the tracking session');
+  } finally {
+    await clearLedgerEntry(channel);
+    for (const file of [recordedFile, canonicalFile, backupPath]) {
+      try { rmSync(file, { force: true }); } catch {}
+    }
   }
 });
 

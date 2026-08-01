@@ -8,4 +8,5 @@ assistant delta streaming, context compaction, and message rewind.
 | agent-file-send.test.ts | test | Covers agent file delivery and copying |
 | delta-coalescer.test.ts | test | Covers reset-isolated delta stream gating |
 | session-compact.test.ts | test | Covers manual context compaction outcomes |
-| session-rewind.test.ts | test | Covers async restore and web turn rewind |
+| session-rewind.test.ts | test | Covers immutable restore and web turn rewind |
+| session-send-rewind-race.test.ts | test | Covers send and rewind admission ordering |
