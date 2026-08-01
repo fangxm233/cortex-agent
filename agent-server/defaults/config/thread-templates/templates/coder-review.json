@@ -1,46 +1,22 @@
 {
   "name": "coder-review",
-  "description": "Stage-driven coder loop: coder(plan) → coder(implement) → reviewer(implReview) → (if implReview lacks [IMPL-APPROVED]) coder(retry, write [REVISED] at end) → END. Each stage's prompt is selected by the transition graph in thread-engine, no longer inferred from artifact sections.",
+  "description": "Stage-driven coder loop: coder(implement) → coder-reviewer(implReview) → END. Coder implements the task directly; the reviewer audits the result and lands the fixes for what it finds. Each stage's prompt is selected by the transition graph in thread-engine.",
   "agents": [
     "coder",
     "coder-reviewer"
   ],
   "transitions": [
     {
-      "from": "coder:plan",
-      "to": "coder:implement",
-      "condition": {
-        "type": "always"
-      }
-    },
-    {
       "from": "coder:implement",
       "to": "coder-reviewer:implReview",
       "condition": {
         "type": "always"
       }
-    },
-    {
-      "from": "coder-reviewer:implReview",
-      "to": "coder:retry",
-      "condition": {
-        "type": "convergence",
-        "marker": "[IMPL-APPROVED]",
-        "maxIterations": 1
-      }
-    },
-    {
-      "from": "coder:retry",
-      "to": "coder-reviewer:implReview",
-      "condition": {
-        "type": "output_not_contains",
-        "pattern": "\\[REVISED\\]"
-      }
     }
   ],
   "entryAgent": "coder",
-  "entryStage": "plan",
-  "maxTotalSteps": 6,
+  "entryStage": "implement",
+  "maxTotalSteps": 4,
   "hooks": {
     "onEnd": {
       "command": "node ~/.cortex/hooks/post-task-hook.mjs",

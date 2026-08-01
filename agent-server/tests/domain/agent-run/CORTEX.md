@@ -13,13 +13,14 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | agent-run-e2e.test.ts | e2e | proves containment, cleanup and completion |
 | agent-run-protocol-e2e.test.ts | e2e | proves stdin, accounting and trajectory failures |
 | benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
-| benchmark-local-thread-orchestrator.test.ts | test | proves C9.2 bounds, event capture and identity |
-| benchmark-local-thread-process.test.ts | e2e | proves fresh-process journal and daemon isolation |
-| fake-run-agent-loader.mjs | fixture | redirects runner agent imports to a fake |
+| benchmark-local-thread-orchestrator.test.ts | test | proves C9.2 bounds, events, identity and isolation |
+| benchmark-local-thread-process.test.ts | e2e | proves fresh-process journal and C8 confinement |
+| fake-run-agent-loader.mjs | fixture | redirects thread-runtime agent imports to a fake |
 | fake-run-agent-module.mjs | fixture | returns one deterministic no-model result |
 | fake-run-agent-register.mjs | fixture | installs the fake agent loader before import |
 | fake-supervisor.ts | fixture | emits lifecycle and ownership process edges |
 | fake-thread-probe-entry.mjs | fixture | runs one current-runner step and flushes stores |
+| full-benchmark-thread-probe-entry.mjs | fixture | runs a complete fake thread for C8 tracing |
 | identity.test.ts | test | verifies deterministic run identity hashes |
 | journal.test.ts | test | verifies durable events and per-role identities |
 | manifest-contract.test.ts | test | verifies lifecycle, linkage and child identity contracts |

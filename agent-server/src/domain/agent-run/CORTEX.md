@@ -13,9 +13,9 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | benchmark-thread-identity.ts | identity | projects parent model and per-role C4 child hashes |
 | identity.ts | core | freezes deterministic run identity hashes |
 | journal.ts | core | appends durable run event journals with role identity |
-| manifest-contract.ts | types | validates terminal manifest values |
-| manifest.ts | core | validates linked multi-role journals and lifecycle truth |
-| pinned-node-process.ts | process | launches Node with trial-pinned paths and env |
+| manifest-contract.ts | types | validates canonical-root terminal manifest inputs |
+| manifest.ts | core | validates confined multi-role journals and lifecycle truth |
+| pinned-node-process.ts | process | launches Node with canonical trial-pinned paths |
 | role-surface.ts | identity | hashes the exact resolved spawn role surface |
 | run-config.ts | config | loads file/stdin config and validates inputs |
 | runner.ts | core | coordinates lifecycle and reported accounting |

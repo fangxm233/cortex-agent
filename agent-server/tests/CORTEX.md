@@ -76,7 +76,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | integration-settings-hotreload.test.ts | e2e | Settings migration and live reload behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
-| login-command-interactions.test.ts | test | staged chat validation, expiry and secret routing |
+| login-command-interactions.test.ts | test | chat login notices, validation, expiry and privacy |
 | machines-query.test.ts | test | machines list online/offline projection |
 | manager-qa.test.ts | test | manager ask/answer channel resolution |
 | manager-rotation.test.ts | test | live settings and task-artifact rehydration |

@@ -1,5 +1,5 @@
 // input:  Node runner, command handlers, and auth fixture
-// output: Bang-command routing including !login status
+// output: Bang-command routing including selector-based login usage
 // pos:    Command handler regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -180,7 +180,10 @@ test('!login rejects unsupported arguments with localized usage', async () => {
 
   assert.equal(dispatchCommand('!login now', 'C-auth', adapter), true);
   await new Promise(resolve => setImmediate(resolve));
-  assert.match(adapter.posted[0].content.text, /!login \[status\|cc\|pi \[provider\]\]/);
+  assert.match(
+    adapter.posted[0].content.text,
+    /!login \[status\|cc\|pi \[provider\]\]/,
+  );
 });
 
 test('!schedule add without --profile fixes task profile to defaultProfile', async () => {

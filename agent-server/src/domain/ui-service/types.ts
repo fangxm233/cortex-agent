@@ -1,5 +1,5 @@
 // input:  domain types, auth flows, runtime settings, stores
-// output: UI DTOs/maps including authentication operations
+// output: UI DTOs/maps including API-key/OAuth operations
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -30,6 +30,7 @@ import type { ProjectNote } from '@store/project-notes-repo.js';
 import type {
   AuthLoginService,
   AuthStatusSnapshot,
+  AuthType,
   LoginFlowState,
 } from '@domain/auth/index.js';
 export type {
@@ -271,7 +272,7 @@ export interface ProjectCreateArgs {
 export interface AuthStartLoginArgs {
   backend: 'claude' | 'pi';
   provider: string;
-  authType: 'api_key';
+  authType: AuthType;
 }
 
 export interface AuthRespondPromptArgs {

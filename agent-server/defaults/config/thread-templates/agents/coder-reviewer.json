@@ -1,20 +1,15 @@
 {
   "name": "coder-reviewer",
-  "description": "Coder Reviewer — works in two stages (planReview / implReview) in the coder-review template, transition graph determines stage rather than artifact inference",
+  "description": "Coder Reviewer — runs the `implReview` stage of the coder-review template, auditing Coder's implementation and landing the fixes for the Blockers it finds",
   "profile": "execute",
   "persistSession": true,
   "directive": "file:coder-reviewer.md",
   "systemPrompt": "file:coder.md",
-  "entryStage": "planReview",
+  "entryStage": "implReview",
   "stages": {
-    "planReview": {
-      "description": "Read `## Plan` and append `## Plan Review (iteration N)` — no approval marker here.",
-      "promptTemplate": "Task:\n{{input}}\n\nRead {{artifactPath}} end-to-end and review the latest `## Plan (iteration N)` section. Confirm Coder only touched the artifact file (no premature implementation). Append `## Plan Review (iteration N)` to {{artifactPath}}. Do NOT write any approval marker in Plan Review — Coder decides per-Blocker what to accept/reject."
-    },
     "implReview": {
-      "description": "Read `## Implementation Summary` + diff and append `## Impl Review (iteration M)` — must end with `[IMPL-APPROVED]` or list Blockers.",
-      "continuesSession": true,
-      "promptTemplate": "Original task:\n{{input}}\n\nAudit Coder's project-file changes (changes by other agents in the same files may appear — ignore those):\n{{modifiedFiles}}\n\nRead the latest `## Implementation Summary (iteration M)` in {{artifactPath}} (and the following `## Response to Impl Review` if present). Append `## Impl Review (iteration M)` to {{artifactPath}}. **Remember: you MUST write your review to {{artifactPath}}.** If approved, end with `[IMPL-APPROVED]`; otherwise list the Blockers. Coder gets only 1 retry after the first block; beyond that the pipeline ends. Do not fabricate approval markers.\n\nBefore writing your review, run the project's full test suite (`npm test` or equivalent). Check that every stage passes: architecture linter, unit tests, integration tests. Any failure is a Blocker — do not write [IMPL-APPROVED] until the full suite is green."
+      "description": "Audit `## Implementation Summary` + diff, fix every Blocker, and append `## Impl Review`.",
+      "promptTemplate": "Original task:\n{{input}}\n\nAudit Coder's project-file changes (changes by other agents in the same files may appear — ignore those):\n{{modifiedFiles}}\n\nRead the `## Implementation Summary` in {{artifactPath}} and audit the implementation against the task. Run the project's full test suite (`npm test` or equivalent) yourself and check that every stage passes: architecture linter, unit tests, integration tests.\n\nYou are the last step of this pipeline — fix every Blocker you find rather than returning it. Re-verify each Blocker against its cited source first, keep the fix minimal and scoped to that Blocker, cover it with a test where the project allows, re-run the suite, and commit. Then append `## Impl Review` to {{artifactPath}}, listing each issue with its citation, severity, and disposition: fixed (with the fixing commit's short SHA) or left open (with the reason). **Remember: you MUST write your review to {{artifactPath}}.**"
     }
   },
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",

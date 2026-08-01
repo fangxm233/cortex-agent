@@ -77,9 +77,9 @@ The view models are framework-free record to slot mappings and each one has a co
 | MDaemonView.test.tsx | test | Tests disconnect action layout |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
-| MSettingsScreen.tsx | screen | Loads settings data, machines and hook counts |
+| MSettingsScreen.tsx | screen | Loads settings data and OAuth-capable login entry |
 | MSettingsView.tsx | view | Settings rows with machines and hooks drill-ins |
-| MSettingsView.test.tsx | test | Tests login, hooks and machines settings rows |
+| MSettingsView.test.tsx | test | Tests auth, hooks and machines settings rows |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
 | MHooksScreen.tsx | screen | Loads the hook registry and sheet selection |

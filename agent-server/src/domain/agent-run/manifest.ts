@@ -1,4 +1,4 @@
-// input:  trajectory roots, lifecycle metadata, nullable journals
+// input:  canonical trajectory roots, lifecycle metadata, journals
 // output: atomic markers/manifests and trajectory validation
 // pos:    Lifecycle truth and validator for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -421,7 +421,11 @@ function assertManifestLinkage(
   input: TerminalManifestInput,
   options: TerminalManifestValidationOptions,
 ): void {
-  const journalPath = confinedJournalPath(input.trajectoryRoot, input.journalPath);
+  const journalPath = confinedJournalPath(
+    input.trajectoryRoot,
+    input.journalPath,
+    input.canonicalTrajectoryRoot === true,
+  );
   if (!journalPath) throw trajectoryFailure('terminal linkage', [new Error('journal_outside_root')]);
   flushJournal(journalPath);
   const scan = scanJournal(journalPath, options.roleIdentities);
@@ -756,10 +760,31 @@ function isWithin(root: string, candidate: string): boolean {
   return candidate === root || candidate.startsWith(`${root}${path.sep}`);
 }
 
-function confinedJournalPath(root: string, candidate: string): string | null {
+function hasSymlinkBelowRoot(root: string, candidate: string): boolean {
+  const segments = path.relative(root, candidate).split(path.sep).filter(Boolean);
+  let cursor = root;
+  for (const segment of segments) {
+    cursor = path.join(cursor, segment);
+    try {
+      if (fs.lstatSync(cursor).isSymbolicLink()) return true;
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
+
+function confinedJournalPath(
+  root: string,
+  candidate: string,
+  canonicalRoot = false,
+): string | null {
   const resolvedRoot = path.resolve(root);
   const resolvedCandidate = path.resolve(root, candidate);
   if (!isWithin(resolvedRoot, resolvedCandidate)) return null;
+  if (canonicalRoot) {
+    return hasSymlinkBelowRoot(resolvedRoot, resolvedCandidate) ? null : resolvedCandidate;
+  }
   try {
     const realRoot = fs.realpathSync(resolvedRoot);
     const realCandidate = fs.realpathSync(resolvedCandidate);
@@ -862,6 +887,7 @@ function validateStarted(
   startedPath: string,
   problems: string[],
   expectedRoleIdentities?: ReadonlyMap<string, JournalRoleIdentity>,
+  canonicalRoot = false,
 ): void {
   const startedResult = readStartedMarker(startedPath);
   if (!startedResult.record) {
@@ -872,7 +898,11 @@ function validateStarted(
   const terminalPath = startedPath.replace(/\.started\.json$/, '.terminal.json');
   const terminal = validateTerminal(terminalPath, started, problems);
   if (!terminal) return;
-  const journalPath = confinedJournalPath(root, String(started.journal_path));
+  const journalPath = confinedJournalPath(
+    root,
+    String(started.journal_path),
+    canonicalRoot,
+  );
   if (!journalPath) {
     problems.push(`journal_outside_root:${started.journal_path}`);
     return;
@@ -885,6 +915,7 @@ function validateStarted(
 
 function startedJournalScan(input: {
   trajectoryRoot: string;
+  canonicalTrajectoryRoot?: true;
   rootRunId: string;
   threadId: string | null;
 }): JournalScanResult {
@@ -894,7 +925,11 @@ function startedJournalScan(input: {
     || started.record.thread_id !== input.threadId) {
     throw new TrajectoryWriteFailedError(`Cannot read parent lifecycle identity: ${startedPath}`);
   }
-  const journalPath = confinedJournalPath(input.trajectoryRoot, String(started.record.journal_path));
+  const journalPath = confinedJournalPath(
+    input.trajectoryRoot,
+    String(started.record.journal_path),
+    input.canonicalTrajectoryRoot === true,
+  );
   if (!journalPath) throw new TrajectoryWriteFailedError('Parent journal is outside trajectory root');
   const scan = scanJournal(journalPath);
   const linked = scan.header?.rootRunId === input.rootRunId
@@ -912,6 +947,7 @@ export interface StartedJournalIdentity extends JournalHeaderRecord {
 
 export function readStartedJournalIdentity(input: {
   trajectoryRoot: string;
+  canonicalTrajectoryRoot?: true;
   rootRunId: string;
   threadId: string | null;
 }): StartedJournalIdentity {
@@ -924,6 +960,7 @@ export function readStartedJournalIdentity(input: {
 
 export function validateTrajectoryLifecycle(input: {
   trajectoryRoot: string;
+  canonicalTrajectoryRoot?: true;
   rootRunId: string;
   threadId: string | null;
   roleIdentities?: ReadonlyMap<string, JournalRoleIdentity>;
@@ -931,7 +968,13 @@ export function validateTrajectoryLifecycle(input: {
   const started = resolveLifecyclePaths(input).started;
   if (!fs.existsSync(started)) return { ok: false, problems: [`missing_started_marker:${started}`] };
   const problems: string[] = [];
-  validateStarted(input.trajectoryRoot, started, problems, input.roleIdentities);
+  validateStarted(
+    input.trajectoryRoot,
+    started,
+    problems,
+    input.roleIdentities,
+    input.canonicalTrajectoryRoot === true,
+  );
   return { ok: problems.length === 0, problems };
 }
 

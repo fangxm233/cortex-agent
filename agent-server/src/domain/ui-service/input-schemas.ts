@@ -1,5 +1,5 @@
 // input:  Zod, settings spec, UI-service operation unions
-// output: input schemas/maps including authentication flows
+// output: input schemas/maps including API-key/OAuth flows
 // pos:    Runtime validation source for the UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -113,7 +113,7 @@ export const executionsLogInput = z.object({
 export const authStartLoginInput = z.object({
   backend: z.enum(['claude', 'pi']),
   provider: z.string().min(1),
-  authType: z.literal('api_key'),
+  authType: z.enum(['api_key', 'oauth']),
 });
 
 export const authRespondPromptInput = z.object({

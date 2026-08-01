@@ -15,6 +15,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, it, vi } from 'vitest';
 const harness = vi.hoisted(() => ({
   attachOptions: [] as any[],
   lifecycle: [] as string[],
+  journalCloseError: false,
   manifestMode: 'normal' as 'normal' | 'omit' | 'wrong_linkage',
   parentJournals: [] as any[],
   runAgent: vi.fn(),
@@ -69,6 +70,7 @@ import { CONFIG_DIR, STORE_DIR } from '../../../src/core/paths.js';
 import type { NormalizedEvent } from '../../../src/agent-adapter/normalize/event-types.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { RunAgentOptions } from '../../../src/domain/agents/facade.js';
+import * as executionRegistry from '../../../src/domain/executions/registry.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
 import {
   computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
@@ -131,6 +133,7 @@ function wrapJournal(journal: any): any {
     close: async () => {
       await journal.close();
       harness.lifecycle.push('journal_closed');
+      if (harness.journalCloseError) throw new Error('forced journal close error');
     },
   };
 }
@@ -367,6 +370,7 @@ beforeAll(async () => {
 beforeEach(() => {
   harness.attachOptions.length = 0;
   harness.lifecycle.length = 0;
+  harness.journalCloseError = false;
   harness.manifestMode = 'normal';
   harness.runAgent.mockReset();
   harness.supervisors.length = 0;
@@ -377,6 +381,7 @@ afterEach(async () => {
   for (const [index, spy] of forbiddenSpies.entries()) {
     assert.equal(spy.mock.calls.length, 0, `${FORBIDDEN_SUBSYSTEMS[index]} must stay stopped`);
   }
+  harness.journalCloseError = false;
   await Promise.all(harness.parentJournals.map(journal => journal.close()));
   harness.parentJournals.length = 0;
 });
@@ -497,6 +502,22 @@ it('journals every normalized event verbatim exactly once in observed order', as
   assert.deepEqual(journalEvents.map(row => row.seq), [1, 2, 3, 4, 5]);
 });
 
+it('tears down local executions without the daemon execution registry', async () => {
+  const start = vi.spyOn(executionRegistry, 'startLocalExecution');
+  const teardown = vi.spyOn(executionRegistry, 'teardownExecution');
+  queueSuccess('local execution');
+  const req = request(path.join(root, 'local-ledger'), new AbortController().signal);
+  try {
+    const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+    assert.equal(value.state, 'completed');
+    assert.equal(start.mock.calls.length, 0);
+    assert.equal(teardown.mock.calls.length, 0);
+  } finally {
+    start.mockRestore();
+    teardown.mockRestore();
+  }
+});
+
 function queueCancelableAgent(quiescence: Deferred<void>): FakeSupervisor {
   const agent = deferred<AgentResult>();
   const supervisor = fakeSupervisor(quiescence.promise);
@@ -556,7 +577,7 @@ it('cancel closes admission, waits for delayed quiescence, then closes and commi
   assertCancelledResult(await pending);
 });
 
-it('closes the journal and reports containment_failed without a manifest', async () => {
+it('closes a C2 journal but withholds the manifest when containment fails', async () => {
   const quiescence = deferred<void>();
   queueSuccess('unsafe');
   harness.supervisors[0] = fakeSupervisor(quiescence.promise);
@@ -567,7 +588,9 @@ it('closes the journal and reports containment_failed without a manifest', async
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'containment_failed');
   assert.equal(value.manifestCommitted, false);
+  assert.ok(value.manifestPath);
   assert.equal(fs.existsSync(value.manifestPath), false);
+  assertC2(value);
   assert.equal(harness.lifecycle.includes('journal_closed'), true);
   assert.equal(harness.lifecycle.includes('manifest_committed'), false);
 });
@@ -594,6 +617,33 @@ it('bounds a never-settling supervisor and reports missing_quiescent', async () 
   assert.equal(value.manifestCommitted, false);
   assert.equal(fs.existsSync(value.manifestPath), false);
   assert.equal(harness.lifecycle.includes('journal_closed'), true);
+});
+
+it('preserves an explicit missing_quiescent supervisor error', async () => {
+  queueSuccess('missing signal');
+  harness.supervisors[0] = fakeSupervisor(Promise.reject(
+    new SupervisorContainmentError('missing_quiescent'),
+  ));
+  const req = request(path.join(root, 'missing-quiescent-error'), new AbortController().signal);
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'missing_quiescent');
+  assert.equal(value.manifestCommitted, false);
+  assert.equal(fs.existsSync(value.manifestPath), false);
+});
+
+it('resolves a structured containment result when journal close reports an error', async () => {
+  harness.journalCloseError = true;
+  queueSuccess('close error');
+  harness.supervisors[0] = fakeSupervisor(Promise.reject(
+    new SupervisorContainmentError('containment_failed'),
+  ));
+  const req = request(path.join(root, 'containment-close-error'), new AbortController().signal);
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'containment_failed');
+  assert.equal(value.manifestCommitted, false);
+  assert.equal(fs.existsSync(value.manifestPath), false);
 });
 
 it('does not treat ThreadRecord completed as success before external truth is durable', async () => {

@@ -1,18 +1,26 @@
-// input:  pinned Node launcher, fake agent loader, orchestrator fixture
-// output: fresh-process path, repository, and one-thread proofs
+// input:  pinned launcher, C8 probe, fake agents and supervisors
+// output: one-step and full-run process isolation proofs
 // pos:    Process integration test for benchmark local threads
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { afterEach, beforeEach, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, it } from 'vitest';
+import {
+  formatAccessProbeSummary,
+  runNodeAccessProbe,
+} from '../../../src/domain/agent-run/access-probe.js';
 import { openJournal, type Journal } from '../../../src/domain/agent-run/journal.js';
-import { writeStartedMarker } from '../../../src/domain/agent-run/manifest.js';
+import {
+  validateTrajectoryLifecycle,
+  writeStartedMarker,
+} from '../../../src/domain/agent-run/manifest.js';
 import {
   preparePinnedTrialPaths,
   spawnPinnedNode,
@@ -21,8 +29,15 @@ import {
 const require = createRequire(import.meta.url);
 const tsx = require.resolve('tsx');
 const entry = fileURLToPath(new URL('./benchmark-local-thread-entry.ts', import.meta.url));
+const fullProbeEntry = fileURLToPath(
+  new URL('./full-benchmark-thread-probe-entry.mjs', import.meta.url),
+);
 const register = fileURLToPath(new URL('./fake-run-agent-register.mjs', import.meta.url));
 const fakeSupervisor = fileURLToPath(new URL('./fake-supervisor.ts', import.meta.url));
+const installRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const realSupervisor = fileURLToPath(
+  new URL('../../../native/cortex-supervisor/dist/cortex-supervisor', import.meta.url),
+);
 let root = '';
 
 function writeJson(file: string, value: unknown): void {
@@ -187,6 +202,43 @@ function assertPinnedResult(value: any, workspace: string): void {
   assert.deepEqual(fs.readdirSync(path.join(root, 'projects')), []);
 }
 
+async function runFullProbe(workspace: string, trialRoot: string) {
+  return runNodeAccessProbe({
+    trialRoot,
+    workspaceCwd: workspace,
+    entry: fullProbeEntry,
+    args: [realSupervisor],
+    parentEnv: { PATH: process.env.PATH, LANG: 'C.UTF-8' },
+    installRoot,
+    hostHome: os.homedir(),
+    hostCortexHome: path.join(os.homedir(), '.cortex'),
+    supervisorBinary: realSupervisor,
+    timeoutMs: 60_000,
+  });
+}
+
+function assertFullProbeReceipt(trialRoot: string): void {
+  const receipt = JSON.parse(fs.readFileSync(
+    path.join(trialRoot, 'logs/full-benchmark-thread-receipt.json'), 'utf8',
+  ));
+  assert.equal(receipt.result.state, 'completed');
+  assert.equal(receipt.result.steps, 4);
+  assert.equal(receipt.invocations, 4);
+  assert.deepEqual(validateTrajectoryLifecycle({
+    trajectoryRoot: path.join(trialRoot, 'cortex-home/tmp/trajectory'),
+    rootRunId: 'full-benchmark-thread-probe',
+    threadId: receipt.result.threadId,
+  }), { ok: true, problems: [] });
+  assert.equal(receipt.manifestState, 'completed');
+}
+
+beforeAll(() => {
+  const built = spawnSync('flock', [
+    '-x', '/tmp/cortex-supervisor-build.lock', 'npm', 'run', 'build:supervisor',
+  ], { cwd: installRoot, encoding: 'utf8' });
+  assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+});
+
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-thread-process-'));
 });
@@ -199,3 +251,13 @@ it('runs exactly one fake benchmark thread inside the path-pinned fresh process'
   const fixture = prepareFixture();
   assertPinnedResult(await runFixture(fixture), fixture.workspace);
 }, 45_000);
+
+it('keeps a complete four-step orchestrator run inside the unchanged C8 boundary', async () => {
+  const workspace = path.join(root, 'probe-workspace');
+  const trialRoot = path.join(root, 'probe-trial');
+  fs.mkdirSync(workspace);
+  const verdict = await runFullProbe(workspace, trialRoot);
+  assert.equal(verdict.ok, true, formatAccessProbeSummary(verdict));
+  assert.deepEqual(verdict.violations, []);
+  assertFullProbeReceipt(trialRoot);
+}, 75_000);

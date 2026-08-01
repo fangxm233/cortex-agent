@@ -158,7 +158,8 @@ export function freezeBenchmarkThreadIdentities(
   template: ThreadTemplate,
 ): BenchmarkThreadIdentities {
   const parent = readStartedJournalIdentity({
-    trajectoryRoot: request.trajectoryRoot, rootRunId: request.rootRunId, threadId: null,
+    trajectoryRoot: request.trajectoryRoot, canonicalTrajectoryRoot: true,
+    rootRunId: request.rootRunId, threadId: null,
   });
   assertParentModelObservation(parent, profile);
   const roles = roleIdentityMap(request, profile, template, parent.modelExecutionIdentityHash);

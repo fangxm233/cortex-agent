@@ -522,6 +522,24 @@ it('rejects invalid lifecycle ids stored inside a marker', async () => {
   }
 });
 
+it('rejects a journal symlink below a trusted canonical trajectory root', async () => {
+  const root = makeRoot();
+  const outside = makeRoot();
+  try {
+    const journal = await createJournal(outside);
+    const linkedJournal = path.join(root, 'linked.ndjson');
+    fs.symlinkSync(journal.journalPath, linkedJournal);
+    const input = manifestInput(root, linkedJournal, journal.journalSha256, {
+      canonicalTrajectoryRoot: true,
+    });
+    assert.throws(() => writeTerminalManifest(input), expectTrajectoryError);
+    assert.equal(fs.existsSync(terminalPath(root)), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
 it('reports an escaping journal path without opening it', async () => {
   const root = makeRoot();
   const outside = makeRoot();
