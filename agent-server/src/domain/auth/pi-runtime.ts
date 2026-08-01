@@ -1,5 +1,5 @@
-// input:  installed pi executable and auth path
-// output: PI runtime handle and availability metadata
+// input:  installed pi executable, auth path, AuthInteraction
+// output: PI runtime login handle and availability metadata
 // pos:    Installed PI package loader
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -8,11 +8,20 @@ import { readFileSync, realpathSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import type { AuthInteraction } from './login-flow.js';
+
+export type PiCredential =
+  | { type: 'api_key'; key?: string; env?: Record<string, string> }
+  | { type: 'oauth'; access: string; refresh: string; expires: number; [key: string]: unknown };
+
+export interface PiApiKeyAuth {
+  login?: (interaction: AuthInteraction) => Promise<Extract<PiCredential, { type: 'api_key' }>>;
+}
 
 export interface PiProvider {
   readonly id: string;
   readonly name: string;
-  readonly auth: { apiKey?: unknown; oauth?: unknown };
+  readonly auth: { apiKey?: PiApiKeyAuth; oauth?: unknown };
 }
 
 export interface PiProviderAuthStatus {
@@ -21,13 +30,14 @@ export interface PiProviderAuthStatus {
   label?: string;
 }
 
-export type PiCredential =
-  | { type: 'api_key'; key?: string; env?: Record<string, string> }
-  | { type: 'oauth'; access: string; refresh: string; expires: number; [key: string]: unknown };
-
 export interface PiModelRuntime {
   getProviders(): readonly PiProvider[];
   getProviderAuthStatus(providerId: string): PiProviderAuthStatus;
+  login(
+    providerId: string,
+    type: 'api_key' | 'oauth',
+    interaction: AuthInteraction,
+  ): Promise<PiCredential>;
 }
 
 interface PiRuntimeModule {
