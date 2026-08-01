@@ -199,7 +199,7 @@ When implementing against a specification (an experiment protocol or a scoped ta
 
 ### Commit & handoff
 - Commit **before** handing off (before downstream execution, before review, before the thread hands back). The SHA anchors the delivered code.
-- Commit messages reference the spec identifier (task ID, EXP ID, issue, plan section).
+- Task/spec identifiers belong in commit subjects only when repository policy permits. Repository-local privacy rules take precedence; omission required by such a rule is compliant, and attribution must instead use the implementation SHA in the summary/artifact.
 - Do not amend or force-push shared branches without explicit user authorization; do not bypass pre-commit hooks (`--no-verify`); do not hardcode secrets in committed files.
 - Produce an implementation summary: changed files, commit SHAs, flagged ambiguities, environment changes, and test-suite pass/fail status.
 
