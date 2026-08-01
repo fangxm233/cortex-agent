@@ -1,5 +1,5 @@
-// input:  thread template config and durable runtime state
-// output: thread state, task generation, retries, lifecycle types
+// input:  thread template config, runtime state, process spawning
+// output: thread state, benchmark run, retries, lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -461,6 +461,24 @@ export interface TransitionResult {
 // can consume RunThreadOptions without creating a circular import.
 
 import type { PlatformAdapter, MessageRef, Destination } from '@platform/index.js';
+import type { AgentProcessSpawner } from '../../agent-adapter/types.js';
+
+export interface BenchmarkThreadRunOptions {
+  /** Absolute grader workspace used by every benchmark step's backend process. */
+  workspaceCwd: string;
+  /** Frozen trial profile; benchmark templates cannot select a different identity. */
+  resolvedProfileName: string;
+  disableHooks: true;
+  disableControlPlane: true;
+  failFastOnRateLimit: true;
+  /** Optional containment-aware process boundary forwarded to every step. */
+  spawner?: AgentProcessSpawner;
+  limits?: {
+    maxSteps: number;
+    maxCostUsd?: number;
+    deadlineMs?: number;
+  };
+}
 
 export interface RunThreadOptions {
   adapter: PlatformAdapter;
@@ -488,4 +506,6 @@ export interface RunThreadOptions {
     onTransition?: ThreadHookConfig;
     onEnd?: ThreadHookConfig;
   };
+  /** Presence selects the isolated benchmark runtime; absence preserves daemon behavior. */
+  benchmark?: BenchmarkThreadRunOptions;
 }

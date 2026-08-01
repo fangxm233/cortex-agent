@@ -1,5 +1,5 @@
-// input:  templates, artifacts, thread and backend state
-// output: resume-aware thread prompts and slot configs
+// input:  templates, artifacts, thread and control-plane state
+// output: benchmark-aware thread prompts and slot configs
 // pos:    Thread prompt assembly and agent slot resolution
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
@@ -186,7 +186,7 @@ export function buildStepPrompt(
   threadId: string,
   agentConfig: AgentSlotConfig,
   stage: string | null = null,
-  opts: { interruptedResume?: boolean } = {},
+  opts: { interruptedResume?: boolean; disableControlPlane?: boolean } = {},
 ): string {
   const thread = threadStore.get(threadId);
   if (!thread) return '';
@@ -195,11 +195,14 @@ export function buildStepPrompt(
   // user replies), mirroring the direct-session resume (orchestration/resume-dispatcher).
   const prompt = opts.interruptedResume
     ? buildResumeReminder()
-    : buildRegularStepPrompt(thread, agentConfig, stage);
+    : buildRegularStepPrompt(thread, agentConfig, stage, opts.disableControlPlane === true);
   return appendPendingMessages(thread, prompt).trim();
 }
 
-function buildRegularStepPrompt(thread: ThreadRecord, agentConfig: AgentSlotConfig, stage: string | null): string {
+function buildRegularStepPrompt(
+  thread: ThreadRecord, agentConfig: AgentSlotConfig,
+  stage: string | null, disableControlPlane: boolean,
+): string {
   const { template: templateStr, continuesSession } = pickStepTemplate(agentConfig, stage);
   const lastStep = [...thread.steps].reverse().find(s => s.output != null);
   const vars = buildPromptVars(thread, lastStep);
@@ -219,7 +222,7 @@ function buildRegularStepPrompt(thread: ThreadRecord, agentConfig: AgentSlotConf
     // Thread steps never carry the user profile — only thread-free conversation turns do
     // (see buildConversationPrompt). This keeps multi-agent pipelines profile-agnostic.
     if (agentConfig.directive) prefixes.push(resolveSystemVars(agentConfig.directive));
-    if (thread.artifactPath) prefixes.push(THREAD_PROTOCOL_PREAMBLE);
+    if (thread.artifactPath && !disableControlPlane) prefixes.push(THREAD_PROTOCOL_PREAMBLE);
     if (prefixes.length > 0) prompt = prefixes.join('\n\n') + '\n\n' + prompt;
   }
 
