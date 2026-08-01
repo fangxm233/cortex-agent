@@ -1,10 +1,10 @@
-// input:  task schema, lifecycle storage/locks, ids, template validation
-// output: atomically locked add, edit, decompose, and bulk task mutations
-// pos:    Constructs new task records and decomposition trees without lost updates
+// input:  task schema, lifecycle locks, ids, templates
+// output: locked task creation and generation-fenced decomposition
+// pos:    Task creation and decomposition persistence
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as fs from 'node:fs';
-import { type Task } from '@core/task-parser.js';
+import { type Task, type TaskGenerationExpectation } from '@core/task-parser.js';
 import { collectAllExistingHashes, generateHash } from './task-id-utils.js';
 import {
   editTask, findTask, getTasksPath, readTasks, VALID_PRIORITIES, validateTemplateName,
@@ -136,6 +136,11 @@ interface DecomposeSubtaskInput {
 }
 
 const HEX_ID_RE = /^[0-9a-fA-F]{4}$/;
+
+interface DecomposeOptions {
+  keepParent?: boolean;
+  ownership?: TaskGenerationExpectation;
+}
 
 function decomposeTaskUnlocked(
   project: string,
@@ -374,8 +379,22 @@ function lockProjectMutation<T extends (project: string, ...args: any[]) => any>
   )) as T;
 }
 
+function decomposeTaskOwnedUnlocked(
+  project: string, originalText: string | null, subtasks: DecomposeSubtaskInput[],
+  taskId: string | null = null, options: DecomposeOptions = {},
+) {
+  if (options.ownership) {
+    const found = findTask(readTasks(project), originalText, taskId);
+    if ('error' in found) return { success: false, message: found.error };
+    if (found.task.dispatch_generation !== options.ownership.generation) {
+      return { success: false, message: 'Stale task dispatch generation; decomposition ignored', stale: true };
+    }
+  }
+  return decomposeTaskUnlocked(project, originalText, subtasks, taskId, options);
+}
+
 const addTask = lockProjectMutation(addTaskUnlocked);
 const bulkAddTasks = lockProjectMutation(bulkAddTasksUnlocked);
-const decomposeTask = lockProjectMutation(decomposeTaskUnlocked);
+const decomposeTask = lockProjectMutation(decomposeTaskOwnedUnlocked);
 
 export { addTask, batchEdit, bulkAddTasks, decomposeTask };

@@ -1,6 +1,6 @@
 // input:  Vitest, WebSocket task callbacks, execution registry
-// output: callback idempotency, generation fencing, GPU and block tests
-// pos:    Verifies remote task callback lifecycle mutations
+// output: callback idempotency, state-first fencing, GPU tests
+// pos:    Remote task callback lifecycle regression coverage
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -241,6 +241,31 @@ test('stale generation callback is acknowledged without overwriting the current 
   assert.equal(task['dispatch-generation'], 'generation-b');
   ws.close();
 });
+
+for (const state of ['paused', 'blocked'] as const) {
+  test(`stale successful callback is acknowledged for a newer ${state} task`, async (t) => {
+    const proj = nextProject();
+    const taskId = state === 'paused' ? 'a225' : 'a226';
+    const stateYaml = state === 'paused' ? '    paused: true\n' : '    blocked-by: newer blocker\n';
+    const { tasksPath, cleanup } = makeRepo(proj, `${OWNED_TASK_YAML(taskId)}${stateYaml}`);
+    t.onTestFinished(() => cleanup());
+    const port = await findEphemeralPort();
+    startClientManager(port);
+    t.onTestFinished(() => stopClientManager());
+    const ws = await connectClient(port);
+
+    const ack = await sendGenerationCallback(ws, proj, taskId, 'generation-a');
+    assert.equal(ack.ok, true);
+    assert.match(ack.message, /stale|generation/i);
+    const task = findTaskInYaml(yamlParse(fs.readFileSync(tasksPath, 'utf8')).tasks, taskId);
+    assert.equal(task.status, 'open');
+    assert.equal(task['dispatch-generation'], 'generation-b');
+    assert.equal(task['completed-note'] ?? null, null);
+    const persistedState = state === 'paused' ? task.paused : task['blocked-by'];
+    assert.equal(persistedState, state === 'paused' ? true : 'newer blocker');
+    ws.close();
+  });
+}
 
 test('stale failed callback cannot block the current dispatch owner', async (t) => {
   const proj = nextProject();

@@ -282,6 +282,9 @@ test('dispatch persists generation on the thread and terminal event', async () =
 
   const createOptions = deps.createThread.mock.calls[0][1];
   assert.equal(createOptions.metadata.dispatchGeneration, 'generation-b');
+  assert.deepEqual(deps.processSplitOutcome.mock.calls[0][0].ownership, {
+    generation: 'generation-b',
+  });
   const terminal = (ctx.bus!.publish as any).mock.calls
     .map(([event]) => event)
     .find((event) => event.type === 'task.completed');
