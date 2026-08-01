@@ -21,3 +21,4 @@ They support packaging and manual verification outside the running daemon.
 | smoke-tui-phase3.mjs | smoke | checks dashboard mutation operations |
 | smoke-tui-s2-e2e.mjs | smoke | checks live task event delivery |
 | smoke-tui-s2-live-daemon.mjs | smoke | checks notifications from the live daemon |
+| validate-atif.py | validate | provisions Harbor and validates ATIF trajectories |

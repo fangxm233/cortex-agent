@@ -1,5 +1,5 @@
 // input:  run config, adapters, profiles, task/cost events
-// output: attributed runs, daemon cost defaults, spawn/wait policy
+// output: attributed runs and ordered continuation event delivery
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -491,6 +491,7 @@ function shouldAwaitRunBackground(
 
 async function resolveRunResult(
   turnPromise: Promise<AgentResult>,
+  foregroundEventsDrained: Promise<void>,
   adapter: AgentAdapter,
   options: RunAgentOptions,
   proc: AgentProcess,
@@ -498,6 +499,7 @@ async function resolveRunResult(
 ): Promise<AgentResult> {
   const result = await turnPromise;
   if (!shouldAwaitRunBackground(adapter, options, result, proc)) return result;
+  await foregroundEventsDrained;
   log.info(`agent turn ${options.threadId ?? proc.sessionId ?? 'direct'} has background work remaining — waiting inline`);
   const completionOnly = options.backgroundWaitPolicy === 'completion-only';
   return waitForBgContinuation({
@@ -534,7 +536,7 @@ export function runWithAdapter(
   const eventLoop = consumeEventStream({
     proc, tee, onEvent: (event) => legacy.dispatch(event),
   });
-  const resultPromise = resolveRunResult(turnPromise, adapter, options, proc, (event) => {
+  const resultPromise = resolveRunResult(turnPromise, eventLoop, adapter, options, proc, (event) => {
     tee.dispatch(event);
   });
 

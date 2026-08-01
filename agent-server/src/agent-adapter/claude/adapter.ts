@@ -1,5 +1,5 @@
 // input:  session streams, spawn config, reported accounting
-// output: cwd-aware Claude turns, models, and nullable cost events
+// output: Claude turns with immutable accounting and continuations
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -20,7 +20,7 @@ import type {
   AgentProcessSupervision, AgentSpawnConfig, Backend, ContinuationSink, InjectionAckSink,
   McpComposition, SpawnedAgentProcess, UserMessage,
 } from '../types.js';
-import type { AgentResult, ContextUsage } from '@core/types/agent-types.js';
+import type { AgentResult, ContextUsage, ReportedAccountingSnapshot } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { createEventStream } from '../normalize/event-stream.js';
 import {
@@ -99,6 +99,13 @@ interface PendingTurn {
 }
 
 type ContinuationDelivery = (sink: ContinuationSink) => void;
+
+type TurnTokenUsage = {
+  input: number | null;
+  output: number | null;
+  cacheCreation: number | null;
+  cacheRead: number | null;
+};
 
 interface ClaudeSessionOptions {
   needsResume: boolean;
@@ -247,8 +254,8 @@ class ClaudeSession {
   private cumulativeCostUsd: number = 0;
   /** Captured from result event's modelUsage key for cost_record. */
   lastModelName: string | null = null;
-  /** Captured from result event's usage for cost_record (per-turn, non-cumulative). */
-  lastTokenUsage: { input: number; output: number; cacheCreation: number; cacheRead: number } | null = null;
+  /** Captured from result event's usage for legacy cost_record and compact accounting. */
+  lastTokenUsage: TurnTokenUsage | null = null;
 
   constructor(channel: string, sessionId: string, options: ClaudeSessionOptions) {
     this.channel = channel;
@@ -675,28 +682,33 @@ class ClaudeSession {
   }
 
   private turnCost(data: any): number {
-    const cumulativeCost = data.total_cost_usd ?? 0;
+    if (data.total_cost_usd == null) return 0;
+    const cumulativeCost = data.total_cost_usd;
     const turnCost = cumulativeCost - this.cumulativeCostUsd;
     this.cumulativeCostUsd = cumulativeCost;
     return turnCost > 0 ? turnCost : 0;
   }
 
   private captureTurnAccounting(data: any): number {
-    this.lastTokenUsage = null;
-    this.lastModelName = null;
-    if (data.usage) {
-      this.lastTokenUsage = {
-        input: data.usage.input_tokens ?? 0,
-        output: data.usage.output_tokens ?? 0,
-        cacheCreation: data.usage.cache_creation_input_tokens ?? 0,
-        cacheRead: data.usage.cache_read_input_tokens ?? 0,
-      };
-    }
-    if (data.modelUsage) {
-      const keys = Object.keys(data.modelUsage);
-      if (keys.length > 0) this.lastModelName = keys[0];
-    }
+    const missingToken = this.preserveUnreportedAccounting ? null : 0;
+    this.lastTokenUsage = data.usage ? {
+      input: data.usage.input_tokens ?? missingToken,
+      output: data.usage.output_tokens ?? missingToken,
+      cacheCreation: data.usage.cache_creation_input_tokens ?? missingToken,
+      cacheRead: data.usage.cache_read_input_tokens ?? missingToken,
+    } : null;
+    const models = data.modelUsage ? Object.keys(data.modelUsage) : [];
+    this.lastModelName = models[0] ?? null;
     return this.turnCost(data);
+  }
+
+  private reportedAccounting(data: any): ReportedAccountingSnapshot {
+    return {
+      usageReported: data.usage != null,
+      inputTokens: data.usage?.input_tokens ?? null,
+      outputTokens: data.usage?.output_tokens ?? null,
+      model: data.modelUsage ? Object.keys(data.modelUsage)[0] ?? null : null,
+    };
   }
 
   private settleResultTurn(
@@ -704,7 +716,10 @@ class ClaudeSession {
   ): void {
     if (result.resolved) {
       const value = result.value as AgentResult;
-      if (this.preserveUnreportedAccounting) value.costReported = data.total_cost_usd != null;
+      if (this.preserveUnreportedAccounting) {
+        value.costReported = data.total_cost_usd != null;
+        value.reportedAccounting = this.reportedAccounting(data);
+      }
       value.pendingBackgroundTasks = this.bgTracker.pendingCount;
       value.undeliveredBackgroundTasks = this.bgTracker.undeliveredCount;
     }
@@ -1296,19 +1311,21 @@ export class ClaudeAdapter implements AgentAdapter {
           if (result.rateLimited) {
             stream.push({ type: 'rate_limit', raw: { message: result.rateLimitMessage } });
           }
-          // Emit cost_record from Claude CLI result data (tokens from usage, model from modelUsage)
+          // Emit cost_record from the resolved turn, not mutable session accounting.
           const preserveReportedness = config.preserveUnreportedAccounting === true;
+          const accounting = result.reportedAccounting;
           const hasReportableAccounting = preserveReportedness
-            ? result.costReported === true || session.lastTokenUsage !== null
+            ? result.costReported === true || accounting?.usageReported === true
             : result.total_cost_usd != null || session.lastTokenUsage !== null;
           if (hasReportableAccounting) {
-            const tu = session.lastTokenUsage;
+            const legacyUsage = session.lastTokenUsage;
             stream.push({
               type: 'cost_record',
               provider: 'anthropic',
-              model: session.lastModelName || session.modelName || 'unknown',
-              tokens_in: tu?.input ?? (preserveReportedness ? null : 0),
-              tokens_out: tu?.output ?? (preserveReportedness ? null : 0),
+              model: (preserveReportedness ? accounting?.model : session.lastModelName)
+                || session.modelName || 'unknown',
+              tokens_in: preserveReportedness ? accounting?.inputTokens ?? null : legacyUsage?.input ?? 0,
+              tokens_out: preserveReportedness ? accounting?.outputTokens ?? null : legacyUsage?.output ?? 0,
               cost_usd: preserveReportedness && result.costReported !== true
                 ? null
                 : result.total_cost_usd ?? null,

@@ -1,5 +1,5 @@
 // input:  nothing (leaf type-only module)
-// output: Agent results with reported-cost, handles, and usage types
+// output: Agent results with accounting snapshots and usage types
 // pos:    Shared type definitions for agent execution and messages
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -24,11 +24,20 @@ export interface AskUserQuestionInfo {
   sessionId: string;
 }
 
+export interface ReportedAccountingSnapshot {
+  readonly usageReported: boolean;
+  readonly inputTokens: number | null;
+  readonly outputTokens: number | null;
+  readonly model: string | null;
+}
+
 export interface AgentResult {
   sessionId: string | null;
   total_cost_usd: number | null;
   /** Present only when a provenance-sensitive caller needs reported zero distinguished from absent cost. */
   costReported?: boolean;
+  /** Immutable result-event accounting used by provenance-sensitive event serialization. */
+  reportedAccounting?: ReportedAccountingSnapshot;
   num_turns: number | null;
   rateLimited: boolean;
   rateLimitMessage: string | null;

@@ -1,5 +1,5 @@
-// input:  ClaudeSession lines, late sinks, context events
-// output: background continuation, buffering, and compaction specs
+// input:  ClaudeSession lines, cumulative costs, late sinks
+// output: continuation routing, cursor, and compaction specs
 // pos:    Claude print spontaneous-continuation wiring tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,6 +7,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { _test } from '../../src/agent-adapter/claude/adapter.js';
+import { waitForBgContinuation } from '../../src/agent-adapter/bg-wait.js';
 import { buildContinuationSink } from '../../src/orchestration/bg-continuation.js';
 import { MockAdapter, MockOutputStream } from '../../src/platform/testing.js';
 
@@ -67,6 +68,48 @@ test('handleLine: one-shot buffers a continuation until its sink is registered',
   assert.deepEqual(texts, ['Background task done: DONE']);
   assert.equal(results.length, 1);
   assert.equal(results[0].costReported, true);
+});
+
+test('handleLine: absent middle cost preserves the cumulative cursor across chained continuations', async (t) => {
+  const s: any = _test.makeSessionForTest();
+  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
+  s.preserveUnreportedAccounting = true;
+  t.onTestFinished(() => s.close());
+
+  const first: { value?: any } = {};
+  s.currentTurn = fakeTurn(first);
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'first' }));
+  s.handleLine(JSON.stringify({
+    type: 'result', subtype: 'success', is_error: false, session_id: 'test-session',
+    total_cost_usd: 0.05, num_turns: 1,
+  }));
+
+  const mergedPromise = waitForBgContinuation({
+    proc: { setContinuationSink: (sink) => s.setContinuationSink(sink) },
+    baseResult: first.value,
+    graceMs: 1_000,
+    maxWaitMs: 5_000,
+  });
+  s.handleLine(JSON.stringify({
+    type: 'system', subtype: 'task_notification', task_id: 'first', status: 'completed',
+  }));
+  s.handleLine(ASSISTANT_CONT);
+  s.handleLine(JSON.stringify({ type: 'system', subtype: 'task_started', task_id: 'second' }));
+  s.handleLine(JSON.stringify({
+    type: 'result', subtype: 'success', is_error: false, session_id: 'test-session', num_turns: 1,
+  }));
+  s.handleLine(JSON.stringify({
+    type: 'system', subtype: 'task_notification', task_id: 'second', status: 'completed',
+  }));
+  s.handleLine(ASSISTANT_CONT);
+  s.handleLine(JSON.stringify({
+    type: 'result', subtype: 'success', is_error: false, session_id: 'test-session',
+    total_cost_usd: 0.1, num_turns: 1,
+  }));
+
+  const merged = await mergedPromise;
+  assert.equal(merged.total_cost_usd, 0.1);
+  assert.equal(merged.costReported, true);
 });
 
 test('handleLine: spontaneous continuation routes assistant text + final result to the sink', (t) => {

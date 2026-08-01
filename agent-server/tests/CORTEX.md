@@ -99,7 +99,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
-| run-with-adapter.test.ts | test | event tee, required sinks and background policy |
+| run-with-adapter.test.ts | test | tests event order, sinks and background policy |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |
@@ -141,10 +141,12 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
+| thread-benchmark-run.test.ts | test | benchmark isolation, cleanup and resolved identity |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
+| thread-benchmark-coder-review.e2e.test.ts | e2e | benchmark graph, tools, MCP and identity isolation |
 | thread-coder-review.e2e.test.ts | e2e | coder-review stages and commit evidence policy |
 | thread-contract.test.ts | test | delegation contracts and budget breaker |
-| thread-extra-hooks.test.ts | test | Covers lifecycle and per-call HookBus routing |
+| thread-extra-hooks.test.ts | test | Covers lifecycle isolation and per-call HookBus routing |
 | thread-ledger-dedupe.test.ts | test | child result delivery dedupe across runs |
 | thread-manager.test.ts | test | thread prompt variables and transitions |
 | thread-resume-statusmsg.test.ts | test | Covers persisted thread resume options |

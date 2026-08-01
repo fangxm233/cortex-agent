@@ -1,8 +1,9 @@
-// input:  thread state, task generation, agents, throttle, hooks
-// output: task-aware thread runs, outage resume, and transcripts
+// input:  thread state, benchmark/agent policy, throttle, hooks
+// output: isolated/daemon runs, balanced ledgers, transcripts
 // pos:    Runs thread steps, controls, hooks, and resumes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import * as path from 'node:path';
 import { threadStore } from '@store/thread-repo.js';
 import {
   resolveNextStep,
@@ -49,7 +50,7 @@ import { buildThreadStatusMessage } from '@core/status-format.js';
 import type { OutputStream } from '@platform/index.js';
 import { runningExecutions } from '../../core/running-executions.js';
 import type { RunningExecution } from '../../core/running-executions.js';
-import { executeLifecycleHooks } from './hook-runner.js';
+import { executeLifecycleHooks, type LifecycleHookConfigs } from './hook-runner.js';
 import { createToolTrace } from '@platform/index.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { createStepTranscriptRecorder, type StepTranscriptRecorder } from './thread-transcript.js';
@@ -68,6 +69,15 @@ const OUTAGE_BACKOFF_MS = [5, 15, 45].map((minutes) => minutes * 60_000);
 const OUTAGE_MAX_RESUMES = OUTAGE_BACKOFF_MS.length;
 
 // --- Result types ---
+
+export class BenchmarkRateLimitError extends Error {
+  readonly code = 'BENCHMARK_RATE_LIMITED';
+
+  constructor(readonly provider: string | null, options?: ErrorOptions) {
+    super('Benchmark thread step was rate limited', options);
+    this.name = 'BenchmarkRateLimitError';
+  }
+}
 
 interface ThreadRunResult {
   thread: ThreadRecord;
@@ -122,6 +132,8 @@ interface StepContext {
   sessionKey: string | null;
   sessionName: string;
   profileName: string;
+  profileBackend: string;
+  rateLimitProvider: string | null;
   execution: { id: string; [k: string]: any };
   /** Always set in buildStepConfig — never an empty placeholder. */
   stepStartTime: string;
@@ -140,11 +152,31 @@ interface StepCallbacks {
 }
 
 type StepInfo = Pick<StepContext, 'agentSlotId' | 'agentConfig' | 'isFirstStep' | 'multiAgent' | 'stage'>;
+type ThreadAgentOptions = Parameters<typeof runAgent>[1];
+type ThreadAgentHandle = ReturnType<typeof runAgent>;
 
 /** Render `agent` or `agent:stage` for log/status display — matches the transition endpoint syntax
  *  used in thread-templates.json transitions. Falls back to bare agent name when stage is null. */
 function formatAgentStageLabel(agentSlotId: AgentSlotId, stage: string | null): string {
   return stage ? `${agentSlotId}:${stage}` : agentSlotId;
+}
+
+function validateBenchmarkOptions(opts: RunThreadOptions): void {
+  const benchmark = opts.benchmark;
+  if (!benchmark) return;
+  if (!path.isAbsolute(benchmark.workspaceCwd)) {
+    throw new Error('Benchmark workspaceCwd must be absolute');
+  }
+  if (
+    benchmark.disableHooks !== true
+    || benchmark.disableControlPlane !== true
+    || benchmark.failFastOnRateLimit !== true
+  ) {
+    throw new Error('Benchmark isolation flags must all be true');
+  }
+  if (jobCtx.bus !== null) {
+    throw new Error('Benchmark thread requires a null event bus');
+  }
 }
 
 /** Validate thread, load template/metadata, init the aggregating OutputStream. */
@@ -158,6 +190,19 @@ function initThreadContext(threadId: string, opts: RunThreadOptions): ThreadCont
   // thread anchor for each sub-stream (a Slack ts must not be used as a Feishu message_id).
   const stream = opts.adapter.openOutputStream(opts.destination, { threadId: opts.threadAnchorId, anchorRef: opts.statusMsg });
   return { thread, template, meta: thread.metadata, stream, lastAgentResult: null, totalNumTurns: 0 };
+}
+
+async function executeConfiguredLifecycleHooks(
+  ctx: ThreadContext,
+  threadId: string,
+  phase: 'start' | 'transition' | 'end',
+  configs: LifecycleHookConfigs,
+  opts: RunThreadOptions,
+  previousAgent?: string,
+  logSuffix?: string,
+): Promise<void> {
+  if (opts.benchmark || ctx.template?.disableHooks === true) return;
+  await executeLifecycleHooks(threadId, phase, configs, opts, previousAgent, logSuffix);
 }
 
 /** Resolve next step, post boundary notifications, update the status message.
@@ -222,6 +267,21 @@ function resolveEffectiveProfileName(
     : configuredProfile;
 }
 
+function resolveStepProfile(
+  profileName: string,
+  requireResolved: boolean,
+): { backend: string; provider: string | null } {
+  try {
+    const profile = resolveProfileConfig(profileName);
+    return { backend: profile.backend, provider: resolveRateLimitProvider(profile) };
+  } catch (error) {
+    if (requireResolved) throw error;
+    // Preserve ordinary preflight ordering: the facade remains responsible for rejecting a
+    // missing profile after the execution record has been opened with the legacy active backend.
+    return { backend: getActiveBackend(), provider: null };
+  }
+}
+
 function resolveActiveStepProvider(thread: ThreadRecord, channel: string): string | null {
   const slot = thread.agents[thread.activeAgent];
   if (!slot) return null;
@@ -252,7 +312,10 @@ async function buildStepConfig(
   // ORDER MATTERS: buildStepPrompt reads slot.sessionId truthiness as "resuming a persistent
   // session" — it must run BEFORE beginStepSession mints the track id, or a fresh slot's first
   // step would be misdetected as a resume and skip its directive.
-  const prompt = buildStepPrompt(threadId, agentConfig, stage, { interruptedResume });
+  const prompt = buildStepPrompt(threadId, agentConfig, stage, {
+    interruptedResume,
+    disableControlPlane: opts.benchmark?.disableControlPlane === true,
+  });
 
   // Session identity (track/backend decoupling): mint + persist the stable track id on the slot
   // (the UI transcript key, visible to threads.get while the step RUNS) and resolve the backend
@@ -262,10 +325,13 @@ async function buildStepConfig(
   // Thread steps use a thread-scoped session key.
   const sessionKey = getSessionKey(threadId, agentSlotId);
 
-  // Resolve profile: agents with a hardcoded profile always use their own declaration.
-  // metadata.profileOverride only applies to __active__ agents (default/main/scheduler-main),
-  // letting scheduler/dispatch inject a concrete profile without overriding research-pipeline agents.
-  const profileName = resolveEffectiveProfileName(agentConfig.profile, ctx.meta, opts.channel);
+  // Benchmark runs use the trial's frozen profile. Ordinary hardcoded profiles keep their own
+  // declaration; metadata.profileOverride applies only to ordinary __active__ agents.
+  const profileName = opts.benchmark?.resolvedProfileName
+    ?? resolveEffectiveProfileName(agentConfig.profile, ctx.meta, opts.channel);
+  const profile = resolveStepProfile(profileName, opts.benchmark !== undefined);
+  const profileBackend = profile.backend;
+  const rateLimitProvider = profile.provider;
 
   // Register execution
   const executionKind = ctx.meta?.trigger === 'task-dispatch' ? 'dispatch'
@@ -278,7 +344,7 @@ async function buildStepConfig(
     channel: opts.channel,
     project: threadStore.get(threadId)?.projectId ?? 'general',
     trigger: executionTrigger,
-    backend: getActiveBackend(),
+    backend: profileBackend,
     billingMode: getClaudeMode(),
     sessionId: trackSessionId,
     label: `[${label}] ${prompt.substring(0, 40)}`,
@@ -310,7 +376,7 @@ async function buildStepConfig(
     agentSlotId, agentConfig, isFirstStep, multiAgent, stage,
     prompt, interruptedResume, sawActivity: false, resumeSessionId, trackSessionId, sessionKey,
     sessionName: await sessionStore.generateSessionName(),
-    profileName, execution,
+    profileName, profileBackend, rateLimitProvider, execution,
     stepStartTime: new Date().toISOString(),
     recorder,
   };
@@ -400,89 +466,103 @@ function setupStepCallbacks(
   return { onAssistantMessage, onProgress, onToolUse, onToolResult };
 }
 
-/** Run the agent, manage handle, await result; fail execution + rethrow on error.
- *  Returns the agent result. */
-async function executeAndAwaitAgent(
-  threadId: string,
+function resolveStepSpawnPolicy(
   stepCtx: StepContext,
-  callbacks: StepCallbacks,
   ctx: ThreadContext,
   opts: RunThreadOptions,
-): Promise<any> {
-  const { agentConfig, isFirstStep, prompt, resumeSessionId, trackSessionId, sessionKey, profileName, execution, stepStartTime } = stepCtx;
+): Partial<ThreadAgentOptions> {
+  if (opts.benchmark) {
+    return {
+      cwd: opts.benchmark.workspaceCwd, processSpawner: opts.benchmark.spawner,
+      mcpComposition: 'none', disableHooks: true,
+    };
+  }
+  return {
+    useCoreMcp: stepCtx.agentConfig.mcpComposition === undefined,
+    mcpComposition: stepCtx.agentConfig.mcpComposition,
+    disableHooks: ctx.template?.disableHooks === true,
+  };
+}
+
+function buildThreadAgentOptions(
+  threadId: string, stepCtx: StepContext, callbacks: StepCallbacks,
+  ctx: ThreadContext, opts: RunThreadOptions,
+): ThreadAgentOptions {
+  const { agentConfig, execution, profileName } = stepCtx;
   const meta = ctx.meta;
-
-  const handle = runAgent(prompt, {
-    channel: opts.channel,
-    executionId: execution.id,
-    sessionId: resumeSessionId,
-    trackSessionId,
-    sessionKey,
-    // Interrupted rerun: the resumed session already received the first-step files.
-    files: isFirstStep && !stepCtx.interruptedResume ? (opts.files || []) : [],
-    profileName,
-    project: threadStore.get(threadId)?.projectId,
-    trigger: meta?.trigger || undefined,
-    threadId,
-    threadDepth: meta?.depth ?? 0,
-    taskId: meta?.taskId ?? null,
-    taskProject: meta?.taskProject ?? null,
+  return {
+    channel: opts.channel, executionId: execution.id,
+    sessionId: stepCtx.resumeSessionId, trackSessionId: stepCtx.trackSessionId,
+    sessionKey: stepCtx.sessionKey,
+    files: stepCtx.isFirstStep && !stepCtx.interruptedResume ? (opts.files || []) : [],
+    profileName, project: threadStore.get(threadId)?.projectId,
+    trigger: meta?.trigger || undefined, threadId, threadDepth: meta?.depth ?? 0,
+    taskId: meta?.taskId ?? null, taskProject: meta?.taskProject ?? null,
     taskGeneration: meta?.dispatchGeneration ?? null,
-    useCoreMcp: true,
-    sessionName: stepCtx.sessionName,
-    claudeAgent: agentConfig.claudeAgent || null,
+    ...resolveStepSpawnPolicy(stepCtx, ctx, opts),
+    sessionName: stepCtx.sessionName, claudeAgent: agentConfig.claudeAgent || null,
     systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,
-    outputStyle: agentConfig.outputStyle || null,
-    tools: agentConfig.tools || null,
-    pluginDirs: agentConfig.pluginDirs || null,
-    onFallback: null,
-    isUserInitiated: false,
-    onAssistantMessage: callbacks.onAssistantMessage,
-    onProgress: callbacks.onProgress,
-    onToolUse: callbacks.onToolUse,
-    onToolResult: callbacks.onToolResult,
-    onPlanWritten: opts.onPlanWritten ?? null,
-    onAskUserQuestion: opts.onAskUserQuestion ?? null,
-  });
+    outputStyle: agentConfig.outputStyle || null, tools: agentConfig.tools || null,
+    pluginDirs: agentConfig.pluginDirs || null, onFallback: null, isUserInitiated: false,
+    onAssistantMessage: callbacks.onAssistantMessage, onProgress: callbacks.onProgress,
+    onToolUse: callbacks.onToolUse, onToolResult: callbacks.onToolResult,
+    onPlanWritten: opts.onPlanWritten ?? null, onAskUserQuestion: opts.onAskUserQuestion ?? null,
+  };
+}
 
-  // Track handle for cancellation
-  runningExecutions.register({
-    threadId,
-    channel: opts.channel,
-    agentSlotId: stepCtx.agentSlotId,
-    executionId: stepCtx.execution.id,
-    kind: stepCtx.execution.kind,
-    kill: () => handle.kill(),
-    backend: getActiveBackend(),
-    agentProcess: handle.agentProcess,
-    sessionId: handle.sessionId,
+function failStepExecution(stepCtx: StepContext, error: any): void {
+  const durationS = (Date.now() - new Date(stepCtx.stepStartTime).getTime()) / 1000;
+  executionRegistry.teardownExecution({
+    executionId: stepCtx.execution.id, status: 'failed', durationS,
+    error: { message: error?.message || 'Agent process error' },
   });
+}
 
+function launchThreadAgent(stepCtx: StepContext, options: ThreadAgentOptions): ThreadAgentHandle {
   try {
-    // On success the registry entry stays live until recordStepOutcome tears it down
-    // (so the agent.completed event fires there). On error we tear down here.
+    return runAgent(stepCtx.prompt, options);
+  } catch (error) {
+    failStepExecution(stepCtx, error);
+    throw error;
+  }
+}
+
+function registerStepHandle(
+  threadId: string, stepCtx: StepContext, handle: ThreadAgentHandle, opts: RunThreadOptions,
+): void {
+  runningExecutions.register({
+    threadId, channel: opts.channel, agentSlotId: stepCtx.agentSlotId,
+    executionId: stepCtx.execution.id, kind: stepCtx.execution.kind,
+    kill: () => handle.kill(), backend: stepCtx.profileBackend,
+    agentProcess: handle.agentProcess, sessionId: handle.sessionId,
+  });
+}
+
+async function awaitStepHandle(stepCtx: StepContext, handle: ThreadAgentHandle): Promise<any> {
+  try {
     return await handle.promise;
-  } catch (agentError: any) {
-    // Finalize execution as failed (persistent record + registry + agent.failed event)
-    // so it doesn't stay stuck in 'running' and the dashboards see a balanced lifecycle.
-    const failDurationS = (Date.now() - new Date(stepStartTime).getTime()) / 1000;
-    executionRegistry.teardownExecution({
-      executionId: execution.id,
-      status: 'failed',
-      durationS: failDurationS,
-      error: { message: agentError?.message || 'Agent process error' },
-    });
-    // Carry the interrupted attempt's identity to the thrown-path pause handler
-    // (pauseRetryableProviderError) so a retryable outage can resume this session.
-    if (agentError && typeof agentError === 'object') {
-      agentError.interruptedStep = {
+  } catch (error: any) {
+    failStepExecution(stepCtx, error);
+    if (error && typeof error === 'object') {
+      error.interruptedStep = {
         agentSlotId: stepCtx.agentSlotId,
         backendSessionId: handle.sessionId ?? null,
         sawActivity: stepCtx.sawActivity,
       };
     }
-    throw agentError;
+    throw error;
   }
+}
+
+/** Run the agent, manage its live handle, and balance failed executions. */
+async function executeAndAwaitAgent(
+  threadId: string, stepCtx: StepContext, callbacks: StepCallbacks,
+  ctx: ThreadContext, opts: RunThreadOptions,
+): Promise<any> {
+  const options = buildThreadAgentOptions(threadId, stepCtx, callbacks, ctx, opts);
+  const handle = launchThreadAgent(stepCtx, options);
+  registerStepHandle(threadId, stepCtx, handle, opts);
+  return awaitStepHandle(stepCtx, handle);
 }
 
 /** Record step result, register session, finalize execution; update aggregate counters. */
@@ -499,6 +579,16 @@ async function recordStepOutcome(
   // Record the step result
   const stepEndTime = new Date().toISOString();
   const stepDurationS = (new Date(stepEndTime).getTime() - new Date(stepStartTime).getTime()) / 1000;
+
+  if (result?.rateLimited && opts.benchmark?.failFastOnRateLimit) {
+    executionRegistry.teardownExecution({
+      executionId: execution.id, status: 'failed', durationS: stepDurationS,
+      error: { message: 'Rate limited' },
+    });
+    throw new BenchmarkRateLimitError(
+      result.rateLimitProvider ?? stepCtx.rateLimitProvider,
+    );
+  }
 
   // Rate-limit interruption (graceful path): the API window is exhausted and the throttle is
   // active. Do NOT record the step result — leaving currentStepIndex unadvanced so resume
@@ -545,11 +635,11 @@ async function recordStepOutcome(
     await sessionStore.registerSession(sessionName, {
       sessionId: stepCtx.trackSessionId,
       channel: opts.channel,
-      backend: getActiveBackend(),
+      backend: stepCtx.profileBackend,
       kind: 'local',
       origin: 'thread',
       label: `[${threadId}:${agentSlotId}]`,
-      profileName: getActiveProfile(opts.channel),
+      profileName: stepCtx.profileName,
       projectId: currentThread.projectId,
     });
   }
@@ -622,7 +712,8 @@ async function evaluateAndTransition(
   const prevAgent = stepCtx.agentSlotId;
   const fromLabel = formatAgentStageLabel(prevAgent, stepCtx.stage);
   const toLabel = formatAgentStageLabel(transition.nextAgent!, transition.nextStage ?? null);
-  await executeLifecycleHooks(
+  await executeConfiguredLifecycleHooks(
+    ctx,
     threadId,
     'transition',
     {
@@ -740,12 +831,22 @@ async function pauseRetryableProviderError(
   return handleRateLimitInterruption(threadId, ctx, opts, provider, interrupted);
 }
 
+function benchmarkRateLimitError(error: any, opts: RunThreadOptions): BenchmarkRateLimitError | null {
+  if (!opts.benchmark?.failFastOnRateLimit) return null;
+  if (error instanceof BenchmarkRateLimitError) return error;
+  if (!isApiRateLimitError(error?.message)) return null;
+  const profile = resolveProfileConfig(opts.benchmark.resolvedProfileName);
+  const provider = error?.rateLimitProvider ?? resolveRateLimitProvider(profile);
+  return new BenchmarkRateLimitError(provider, { cause: error });
+}
+
 async function runThread(threadId: string, opts: RunThreadOptions): Promise<ThreadRunResult> {
+  validateBenchmarkOptions(opts);
   const ctx = initThreadContext(threadId, opts);
   let enteredWaiting = false;
 
   try {
-    await executeLifecycleHooks(threadId, 'start', {
+    await executeConfiguredLifecycleHooks(ctx, threadId, 'start', {
       template: ctx.template?.hooks?.onStart,
       extra: opts.extraHooks?.onStart,
     }, opts);
@@ -832,10 +933,10 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
     }
 
     // End means true termination. A suspended or provider-paused run emits it on re-entry.
-    if (!enteredWaiting && !ctx.rateLimited) {
+    if (!opts.benchmark && !enteredWaiting && !ctx.rateLimited) {
       const threadForEnd = threadStore.get(threadId)!;
       const lastStep = threadForEnd.steps[threadForEnd.steps.length - 1];
-      await executeLifecycleHooks(threadId, 'end', {
+      await executeConfiguredLifecycleHooks(ctx, threadId, 'end', {
         template: ctx.template?.hooks?.onEnd,
         extra: opts.extraHooks?.onEnd,
       }, opts, lastStep?.agentSlotId);
@@ -849,6 +950,12 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
     }
 
   } catch (error: any) {
+    const benchmarkError = benchmarkRateLimitError(error, opts);
+    if (benchmarkError) {
+      const thread = threadStore.get(threadId);
+      if (thread?.status === 'running') await failThread(threadId, benchmarkError.message);
+      throw benchmarkError;
+    }
     // Retryable provider failures pause on a synthetic outage window and return normally;
     // permanent errors and the fourth transient failure keep the original fail + rethrow path.
     if (!await pauseRetryableProviderError(threadId, ctx, opts, error)) {

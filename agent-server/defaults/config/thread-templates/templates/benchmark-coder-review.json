@@ -1,0 +1,37 @@
+{
+  "name": "benchmark-coder-review",
+  "description": "Hook-free benchmark loop: coder implement, reviewer audit, one conditional coder retry, and reviewer final audit",
+  "agents": [
+    "benchmark-coder",
+    "benchmark-reviewer"
+  ],
+  "transitions": [
+    {
+      "from": "benchmark-coder:implement",
+      "to": "benchmark-reviewer:audit",
+      "condition": {
+        "type": "always"
+      }
+    },
+    {
+      "from": "benchmark-reviewer:audit",
+      "to": "benchmark-coder:retry",
+      "condition": {
+        "type": "convergence",
+        "marker": "[IMPL-APPROVED]",
+        "maxIterations": 1
+      }
+    },
+    {
+      "from": "benchmark-coder:retry",
+      "to": "benchmark-reviewer:finalAudit",
+      "condition": {
+        "type": "always"
+      }
+    }
+  ],
+  "entryAgent": "benchmark-coder",
+  "entryStage": "implement",
+  "maxTotalSteps": 4,
+  "disableHooks": true
+}

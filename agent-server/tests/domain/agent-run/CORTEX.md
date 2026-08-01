@@ -5,7 +5,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | filename | role | function |
 |---|---|---|
 | agent-run-cli.test.ts | test | verifies required flags, stdin ownership and help |
-| agent-run-e2e.test.ts | e2e | proves stdin, nullable accounting and completion |
+| agent-run-e2e.test.ts | e2e | proves nullable usage, event order and completion |
 | fake-supervisor.ts | fixture | emits lifecycle edges from a real process group |
 | identity.test.ts | test | verifies deterministic run identity hashes |
 | journal.test.ts | test | verifies journal durability and validation |
@@ -13,3 +13,6 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | role-surface.test.ts | test | verifies plugin hashing and argv alignment |
 | run-config.test.ts | test | verifies non-empty roles, argv closure, and MCP inputs |
 | supervisor.test.ts | test | verifies protocol, stdio, watchdog and taxonomy |
+| trajectory-merge-cli.test.ts | test | verifies reason codes and fail-closed cleanup |
+| trajectory-merge-fixtures.ts | fixture | writes literal parent and child lifecycle records |
+| trajectory-merge.test.ts | test | verifies exact-once ATIF tree conversion |
