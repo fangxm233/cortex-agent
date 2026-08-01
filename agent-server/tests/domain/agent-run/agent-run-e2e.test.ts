@@ -668,8 +668,9 @@ it('reads a stdin run config with relative paths based at the invoking cwd', asy
   const mcpPath = path.join(path.dirname(configPath), 'mcp-config-empty.json');
   config.role.mcp_config_paths = [path.relative(process.cwd(), mcpPath)];
   fixture.args[configIndex + 1] = '-';
-  fs.writeFileSync(fixture.releaseMarker, 'release');
   const child = spawnRun(fixture, {}, JSON.stringify(config));
+  await waitForText(fixture.eventsFile, 'turn_complete');
+  fs.writeFileSync(fixture.releaseMarker, 'release');
   const output = await processOutput(child);
   assert.equal(child.exitCode, 0, output.stderr);
   assert.equal(terminalRecord(fixture).terminal_reason, 'ok');
