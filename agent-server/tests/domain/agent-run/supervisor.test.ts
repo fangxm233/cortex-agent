@@ -236,5 +236,9 @@ it('maps terminal reasons to the pinned process exit taxonomy', () => {
   assert.equal(exitCodeFor('deadline'), 124);
   assert.equal(exitCodeFor('cancelled'), 130);
   assert.equal(exitCodeFor('containment_failure'), 125);
-  assert.equal(exitCodeFor('trajectory_write_failed'), 125);
+  const trajectoryWriteFailureCode = exitCodeFor('trajectory_write_failed');
+  assert.equal(trajectoryWriteFailureCode, 74);
+  for (const otherCode of [0, 1, 124, 125, 130]) {
+    assert.notEqual(trajectoryWriteFailureCode, otherCode);
+  }
 });
