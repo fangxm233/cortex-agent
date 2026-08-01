@@ -3,8 +3,7 @@
 // pos:    Dependency boundary for daemon-free benchmark threads
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import { AsyncLocalStorage } from 'node:async_hooks';
-import { runningExecutions } from '../../core/running-executions.js';
+import { RunningExecutions, runningExecutions } from '../../core/running-executions.js';
 import { runAgent } from '../agents/index.js';
 import { resolveProfileConfig } from '../agents/profile-manager.js';
 import * as executionRegistry from '../executions/registry.js';
@@ -16,6 +15,11 @@ import { executeLifecycleHooks } from './hook-runner.js';
 import {
   cancelThread, createThread, getTemplate, loadConfig, resolveTemplateAgents,
 } from './index.js';
+import {
+  getLocalThreadRuntimeScope,
+  withLocalThreadRuntimeScope,
+} from './local-runtime-scope.js';
+import type { runThread } from './runner.js';
 
 export interface LocalThreadRuntimeDeps {
   runAgent: typeof runAgent;
@@ -32,13 +36,12 @@ export interface LocalThreadRuntimeDeps {
   emitLifecycleHooks: typeof executeLifecycleHooks;
   eventBus: typeof jobCtx.bus;
   createThread: typeof createThread;
+  runThread: typeof runThread;
   cancelThread: typeof cancelThread;
 }
 
 type TeardownInput = Parameters<typeof executionRegistry.teardownExecution>[0];
 type ExecutionRecord = ReturnType<typeof executionRepo.getExecution>;
-
-const runtimeScope = new AsyncLocalStorage<LocalThreadRuntimeDeps>();
 
 function settlePersistentExecution(
   store: typeof executionRepo,
@@ -89,10 +92,11 @@ function createLocalExecutionLedger(
 async function ignoreLifecycleHooks(): Promise<void> {}
 
 export function createLocalThreadRuntimeDeps(
+  defaultRunThread: typeof runThread,
   overrides: Partial<LocalThreadRuntimeDeps> = {},
 ): LocalThreadRuntimeDeps {
   const executionStore = overrides.executionStore ?? executionRepo;
-  const liveExecutions = overrides.liveExecutions ?? runningExecutions;
+  const liveExecutions = overrides.liveExecutions ?? new RunningExecutions();
   return {
     runAgent,
     executionLedger: overrides.executionLedger
@@ -108,13 +112,14 @@ export function createLocalThreadRuntimeDeps(
     emitLifecycleHooks: ignoreLifecycleHooks,
     eventBus: null,
     createThread,
+    runThread: defaultRunThread,
     cancelThread,
     ...overrides,
   };
 }
 
 export function getLocalThreadRuntimeDeps(): LocalThreadRuntimeDeps | null {
-  return runtimeScope.getStore() ?? null;
+  return getLocalThreadRuntimeScope() as LocalThreadRuntimeDeps | null;
 }
 
 export function scopedLocalThreadService<T extends object>(
@@ -135,5 +140,5 @@ export function withLocalThreadRuntimeDeps<T>(
   deps: LocalThreadRuntimeDeps,
   action: () => Promise<T>,
 ): Promise<T> {
-  return runtimeScope.run(deps, action);
+  return withLocalThreadRuntimeScope(deps, action);
 }
