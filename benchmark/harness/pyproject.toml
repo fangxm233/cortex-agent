@@ -20,5 +20,5 @@ dev = [
 packages = ["src/cortex_bench_harness"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/package"]
+testpaths = ["tests/package", "tests/proxy"]
 pythonpath = ["src"]
