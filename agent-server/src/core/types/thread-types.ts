@@ -1,7 +1,9 @@
-// input:  thread template config and durable runtime state
-// output: thread state, task generation, retries, lifecycle types
+// input:  thread config, benchmark policy, process spawning
+// output: thread state, runtime policy, lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
+import type { AgentProcessSpawner, McpComposition } from '../../agent-adapter/types.js';
 
 // --- Thread Identity ---
 
@@ -47,6 +49,7 @@ export interface AgentDefinition {
   outputStyle?: string;              // Claude Code output style (--settings '{"outputStyle":"<value>"}')
   tools?: string;                    // Claude Code tools list (--tools flag, overrides default tool set)
   pluginDirs?: string[];             // plugin directories (--plugin-dir flags, repeatable)
+  mcpComposition?: McpComposition;   // explicit MCP privilege surface for this agent
   /** Optional per-stage prompt map. When set, `promptTemplate` is ignored and the engine
    *  selects one stage per step based on the transition target (`"agent:stage"` syntax). */
   stages?: Record<string, StageDefinition>;
@@ -84,6 +87,7 @@ export interface AgentSlotConfig {
   outputStyle?: string;              // Claude Code output style (--settings)
   tools?: string;                    // Claude Code tools list (--tools flag)
   pluginDirs?: string[];             // plugin directories (--plugin-dir flags)
+  mcpComposition?: McpComposition;   // explicit MCP privilege surface for this agent
   /** Per-stage prompts (merged from AgentDefinition; templates currently don't override per stage). */
   stages?: Record<string, StageDefinition>;
   /** Default stage when a transition target omits the `:stage` suffix. */
@@ -181,6 +185,8 @@ export interface ThreadTemplate {
   entryStage?: string;
   maxTotalSteps: number;
   maxTotalCostUsd?: number;
+  /** Suppress registry, scoped lifecycle, and backend hooks for isolated templates. */
+  disableHooks?: boolean;
   hooks?: ThreadHooks;               // optional: lifecycle hooks (onStart, onTransition, onEnd)
 }
 
@@ -462,6 +468,23 @@ export interface TransitionResult {
 
 import type { PlatformAdapter, MessageRef, Destination } from '@platform/index.js';
 
+export interface BenchmarkThreadRunOptions {
+  /** Absolute grader workspace used by every benchmark step's backend process. */
+  workspaceCwd: string;
+  /** Frozen trial profile; benchmark templates cannot select a different identity. */
+  resolvedProfileName: string;
+  disableHooks: true;
+  disableControlPlane: true;
+  failFastOnRateLimit: true;
+  /** Optional containment-aware process boundary forwarded to every step. */
+  spawner?: AgentProcessSpawner;
+  limits?: {
+    maxSteps: number;
+    maxCostUsd?: number;
+    deadlineMs?: number;
+  };
+}
+
 export interface RunThreadOptions {
   adapter: PlatformAdapter;
   channel: string;
@@ -488,4 +511,6 @@ export interface RunThreadOptions {
     onTransition?: ThreadHookConfig;
     onEnd?: ThreadHookConfig;
   };
+  /** Presence selects the isolated benchmark runtime; absence preserves daemon behavior. */
+  benchmark?: BenchmarkThreadRunOptions;
 }
