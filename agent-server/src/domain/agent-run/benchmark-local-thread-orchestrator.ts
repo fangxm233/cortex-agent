@@ -10,12 +10,9 @@ import path from 'node:path';
 import type {
   AgentProcessSpawner, AgentProcessSupervision,
 } from '../../agent-adapter/types.js';
-import { runningExecutions as daemonRunningExecutions } from '../../core/running-executions.js';
 import type { AgentSlotId, ThreadRecord } from '../../core/types/thread-types.js';
 import { resolveProfileConfig as daemonResolveProfile } from '../agents/profile-manager.js';
-import { ctx as jobCtx } from '../scheduling/job-registry.js';
 import {
-  cancelThread as daemonCancelThread,
   createThread as daemonCreateThread,
   getTemplate as daemonGetTemplate,
   loadConfig as daemonLoadConfig,
@@ -29,7 +26,7 @@ import {
   type LocalThreadRuntimeDeps,
 } from '../threads/local-runtime-deps.js';
 import {
-  BenchmarkRateLimitError, runThread, type ThreadRunResult,
+  BenchmarkRateLimitError, runThread as daemonRunThread, type ThreadRunResult,
 } from '../threads/runner.js';
 import type { PlatformAdapter } from '../../platform/adapter.js';
 import type { OutputStream } from '../../platform/output-stream.js';
@@ -72,10 +69,6 @@ interface BenchmarkThreadResult {
   summary: string;
 }
 
-const runningExecutions = scopedLocalThreadService(
-  daemonRunningExecutions,
-  deps => deps.liveExecutions,
-);
 const executionRepo = scopedLocalThreadService(
   daemonExecutionRepo,
   deps => deps.executionStore,
@@ -96,9 +89,6 @@ const resolveTemplateAgents: typeof daemonResolveTemplateAgents = (...args) => (
 );
 const createThread: typeof daemonCreateThread = (...args) => (
   (getLocalThreadRuntimeDeps()?.createThread ?? daemonCreateThread)(...args)
-);
-const cancelThread: typeof daemonCancelThread = (...args) => (
-  (getLocalThreadRuntimeDeps()?.cancelThread ?? daemonCancelThread)(...args)
 );
 
 type ResolvedProfile = ReturnType<typeof resolveProfileConfig>;
@@ -136,6 +126,8 @@ interface RunControl {
   request: BenchmarkThreadRequest;
   timer: NodeJS.Timeout | null;
   abortHandler: () => void;
+  deps: LocalThreadRuntimeDeps;
+  cancellation: Promise<unknown> | null;
 }
 
 interface RunOutcome {
@@ -239,7 +231,6 @@ function validateRequest(request: BenchmarkThreadRequest): void {
 }
 
 function initializeRuntime(): void {
-  jobCtx.bus = getLocalThreadRuntimeDeps()?.eventBus ?? null;
   executionRepo.load();
   threadStore.load();
   loadConfig();
@@ -392,12 +383,23 @@ function cancelSessions(control: RunControl): void {
   for (const session of control.sessions) session.cancel(reason);
 }
 
+function cancelThreadState(control: RunControl): Promise<unknown> {
+  try {
+    return withLocalThreadRuntimeDeps(
+      control.deps,
+      () => control.deps.cancelThread(control.threadId),
+    ).then(() => null, error => error);
+  } catch (error) {
+    return Promise.resolve(error);
+  }
+}
+
 function closeAdmission(control: RunControl, reason: StopReason): void {
   if (control.reason !== null) return;
   control.admissionOpen = false;
   control.reason = reason;
-  void cancelThread(control.threadId).catch(() => {});
-  runningExecutions.killByThreadId(control.threadId);
+  control.cancellation = cancelThreadState(control);
+  control.deps.liveExecutions.killByThreadId(control.threadId);
   cancelSessions(control);
 }
 
@@ -406,10 +408,12 @@ function deadlineDelay(deadlineEpochMs: number): number {
 }
 
 function installControl(prepared: PreparedThreadRun): RunControl {
+  const deps = getLocalThreadRuntimeDeps();
+  if (!deps) throw new Error('Local thread runtime dependencies are not installed');
   const control = {
     admissionOpen: true, admitted: 0, reason: null, sessions: [],
     threadId: prepared.thread.id, request: prepared.request,
-    timer: null, abortHandler: () => {},
+    timer: null, abortHandler: () => {}, deps, cancellation: null,
   } as RunControl;
   control.abortHandler = () => closeAdmission(control, 'cancel');
   prepared.request.signal.addEventListener('abort', control.abortHandler, { once: true });
@@ -500,7 +504,7 @@ async function runLocalThread(
   control: RunControl,
 ): Promise<{ result: ThreadRunResult | null; error: unknown }> {
   try {
-    const result = await runThread(
+    const result = await control.deps.runThread(
       prepared.thread.id,
       threadRunOptions(prepared, createSpawner(control)),
     );
@@ -582,11 +586,13 @@ async function executeRun(prepared: PreparedThreadRun, control: RunControl): Pro
   const eventError = writeStepEvents(prepared, thread);
   if (eventError) cancelSessions(control);
   const quiescent = await settleSupervisors(control);
+  cleanupControl(control);
+  const cancellationError = control.cancellation ? await control.cancellation : null;
   const repositoryError = await flushRepositories();
   const journalError = quiescent ? await closeJournal(prepared.journal) : null;
   return {
     ...execution, quiescent,
-    durabilityError: firstFailure(eventError, repositoryError, journalError),
+    durabilityError: firstFailure(cancellationError, eventError, repositoryError, journalError),
   };
 }
 
@@ -778,6 +784,6 @@ export async function runBenchmarkThread(
   request: BenchmarkThreadRequest,
   overrides: Partial<LocalThreadRuntimeDeps> = {},
 ): Promise<BenchmarkThreadResult> {
-  const deps = createLocalThreadRuntimeDeps(overrides);
+  const deps = createLocalThreadRuntimeDeps(daemonRunThread, overrides);
   return withLocalThreadRuntimeDeps(deps, () => runBenchmarkThreadScoped(request));
 }

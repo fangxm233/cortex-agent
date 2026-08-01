@@ -1,5 +1,5 @@
-// input:  benchmark orchestrator, fake agents/supervisors, lifecycle writers
-// output: C9 shape, daemon isolation, durable ordering regressions
+// input:  orchestrator, injected runtime, fake agents/supervisors
+// output: C9 shape, scoped cancellation and durable ordering
 // pos:    Benchmark local-thread lifecycle contract tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -64,10 +64,13 @@ vi.mock('../../../src/domain/agent-run/manifest.js', async (importOriginal) => {
 });
 
 import { CONFIG_DIR, STORE_DIR } from '../../../src/core/paths.js';
+import { RunningExecutions, runningExecutions as daemonRunningExecutions } from '../../../src/core/running-executions.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { RunAgentOptions } from '../../../src/domain/agents/facade.js';
 import * as executionRegistry from '../../../src/domain/executions/registry.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
+import { cancelThread as daemonCancelThread } from '../../../src/domain/threads/index.js';
+import { runThread as daemonRunThread } from '../../../src/domain/threads/runner.js';
 import {
   openJournal,
 } from '../../../src/domain/agent-run/journal.js';
@@ -247,6 +250,15 @@ function assertC2(resultValue: any): void {
   }
 }
 
+function assertCompletedResult(value: any): void {
+  assert.equal(value.state, 'completed');
+  assert.equal(value.terminalReason, null);
+  assert.equal(value.steps, 1);
+  assert.equal(value.costUsd, 0.25);
+  assert.equal(value.summary, `${'x'.repeat(1966)}😀… [truncated, 1967 of 2100 chars]`);
+  assert.equal(Array.from(value.summary).length, 2000);
+}
+
 async function moduleUnderTest(): Promise<any> {
   return import('../../../src/domain/agent-run/benchmark-local-thread-orchestrator.js');
 }
@@ -316,7 +328,9 @@ it('exports exactly C9 and completes one bounded thread with C2/C3 artifacts', a
   queueSuccess(output);
   const api = await moduleUnderTest();
   assert.deepEqual(Object.keys(api), ['runBenchmarkThread']);
-  jobCtx.bus = { publish: vi.fn() } as any;
+  const publish = vi.fn();
+  const daemonBus = { publish } as any;
+  jobCtx.bus = daemonBus;
   const req = request(path.join(root, 'success'), new AbortController().signal);
 
   const value = await api.runBenchmarkThread(req);
@@ -325,13 +339,9 @@ it('exports exactly C9 and completes one bounded thread with C2/C3 artifacts', a
     'artifactPath', 'costUsd', 'durationMs', 'journalPath', 'manifestPath',
     'state', 'steps', 'summary', 'terminalReason', 'threadId',
   ].sort());
-  assert.equal(value.state, 'completed');
-  assert.equal(value.terminalReason, null);
-  assert.equal(value.steps, 1);
-  assert.equal(value.costUsd, 0.25);
-  assert.equal(value.summary, `${'x'.repeat(1966)}😀… [truncated, 1967 of 2100 chars]`);
-  assert.equal(Array.from(value.summary).length, 2000);
-  assert.equal(jobCtx.bus, null);
+  assertCompletedResult(value);
+  assert.equal(jobCtx.bus, daemonBus);
+  assert.equal(publish.mock.calls.length, 0);
   assertC2(value);
   assert.deepEqual(validateTrajectoryRoot(req.trajectoryRoot), { ok: true, problems: [] });
   assert.deepEqual(harness.lifecycle.slice(-3), [
@@ -364,6 +374,31 @@ it('tears down local executions without the daemon execution registry', async ()
     start.mockRestore();
     teardown.mockRestore();
   }
+});
+
+it('keeps local live-execution events off the daemon event bus', async () => {
+  const publish = vi.fn();
+  daemonRunningExecutions.setBus({ publish } as any);
+  queueSuccess('isolated live execution');
+  const req = request(path.join(root, 'local-live-ledger'), new AbortController().signal);
+  try {
+    const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+    assert.equal(value.state, 'completed');
+    assert.equal(publish.mock.calls.length, 0);
+  } finally {
+    daemonRunningExecutions.setBus(null as any);
+  }
+});
+
+it('runs the thread through the injected runtime operation', async () => {
+  const runThread = vi.fn((...args: Parameters<typeof daemonRunThread>) => daemonRunThread(...args));
+  queueSuccess('injected run operation');
+  const req = request(path.join(root, 'injected-run'), new AbortController().signal);
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { runThread } as any);
+
+  assert.equal(value.state, 'completed');
+  assert.equal(runThread.mock.calls.length, 1);
 });
 
 function queueCancelableAgent(quiescence: Deferred<void>): FakeSupervisor {
@@ -421,6 +456,36 @@ it('cancel closes admission, waits for delayed quiescence, then closes and commi
   monitor.stop();
   assert.equal(monitor.seen(), false);
   quiescence.resolve();
+  assertCancelledResult(await pending);
+});
+
+it('keeps external abort on injected cancellation and waits for it before commit', async () => {
+  const cancellation = deferred<void>();
+  const quiescence = deferred<void>();
+  queueCancelableAgent(quiescence);
+  const cancelThread = vi.fn(async (threadId: string) => {
+    const cancelled = await daemonCancelThread(threadId);
+    await cancellation.promise;
+    return cancelled;
+  });
+  const controller = new AbortController();
+  const req = request(path.join(root, 'injected-cancel'), controller.signal);
+  let settled = false;
+  const pending = (await moduleUnderTest()).runBenchmarkThread(
+    req,
+    { cancelThread } as any,
+  ).finally(() => { settled = true; });
+  await vi.waitFor(() => assert.equal(harness.runAgent.mock.calls.length, 1));
+
+  controller.abort();
+
+  await vi.waitFor(() => assert.equal(cancelThread.mock.calls.length, 1));
+  quiescence.resolve();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(settled, false);
+  assert.equal(terminalExists(req.trajectoryRoot), false);
+  assert.equal(harness.lifecycle.includes('journal_closed'), false);
+  cancellation.resolve();
   assertCancelledResult(await pending);
 });
 
