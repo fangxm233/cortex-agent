@@ -230,6 +230,16 @@ test('PI OAuth failures distinguish unavailable, missing, and unsupported provid
   assert.equal(inertLogin.mock.calls.length, 0);
 });
 
+test('PI OAuth maps a rejected runtime loader to a safe unavailable failure', async () => {
+  const deps: PiOAuthLoginDependencies = {
+    loadRuntime: vi.fn(async () => { throw new Error(`${SECRET}-loader`); }),
+  };
+  await assertFailure(
+    'future-oauth', deps,
+    { code: 'runtime_unavailable', message: 'PI runtime is unavailable.' },
+  );
+});
+
 test('PI OAuth consumer forwards device-code and progress notices to LoginFlow', async () => {
   const deviceShown = deferred<void>();
   const finish = deferred<void>();
