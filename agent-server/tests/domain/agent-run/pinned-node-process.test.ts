@@ -14,6 +14,7 @@ import {
   PINNED_ENV_KEYS,
   PINNED_RUNTIME_PATH,
   preparePinnedNodeLaunch,
+  preparePinnedTrialPaths,
   spawnPinnedNode,
 } from '../../../src/domain/agent-run/pinned-node-process.js';
 
@@ -164,6 +165,18 @@ it('rejects file URLs and trial symlinks that reference host roots', () => {
     parentEnv: { CUSTOM_INPUT: path.join(alias, 'threads.json') },
     passthroughEnv: ['CUSTOM_INPUT'],
   }), /references a forbidden host root/);
+});
+
+it('canonicalizes a symlinked trial root before exporting pinned paths', () => {
+  const physical = path.join(root, 'physical');
+  const alias = path.join(root, 'alias');
+  fs.mkdirSync(physical);
+  fs.symlinkSync(physical, alias, 'dir');
+
+  const paths = preparePinnedTrialPaths(alias);
+
+  assert.equal(paths.root, fs.realpathSync(physical));
+  assert.equal(paths.cortexHome, path.join(fs.realpathSync(physical), 'cortex-home'));
 });
 
 it('disables Node global search paths before loading the entry', () => {

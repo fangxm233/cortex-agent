@@ -1,4 +1,4 @@
-// input:  frozen benchmark thread request, C6 runner, lifecycle primitives
+// input:  frozen request, injected thread runtime, lifecycle primitives
 // output: externally durable C9 terminal thread result
 // pos:    Daemon-free benchmark thread lifecycle coordinator
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -10,22 +10,33 @@ import path from 'node:path';
 import type {
   AgentProcessSpawner, AgentProcessSupervision,
 } from '../../agent-adapter/types.js';
-import { runningExecutions } from '../../core/running-executions.js';
+import { runningExecutions as daemonRunningExecutions } from '../../core/running-executions.js';
 import type { AgentSlotId, ThreadRecord } from '../../core/types/thread-types.js';
-import { resolveProfileConfig } from '../agents/profile-manager.js';
+import { resolveProfileConfig as daemonResolveProfile } from '../agents/profile-manager.js';
 import { ctx as jobCtx } from '../scheduling/job-registry.js';
 import {
-  cancelThread, createThread, getTemplate, loadConfig, resolveTemplateAgents,
+  cancelThread as daemonCancelThread,
+  createThread as daemonCreateThread,
+  getTemplate as daemonGetTemplate,
+  loadConfig as daemonLoadConfig,
+  resolveTemplateAgents as daemonResolveTemplateAgents,
 } from '../threads/index.js';
+import {
+  createLocalThreadRuntimeDeps,
+  getLocalThreadRuntimeDeps,
+  scopedLocalThreadService,
+  withLocalThreadRuntimeDeps,
+  type LocalThreadRuntimeDeps,
+} from '../threads/local-runtime-deps.js';
 import {
   BenchmarkRateLimitError, runThread, type ThreadRunResult,
 } from '../threads/runner.js';
 import type { PlatformAdapter } from '../../platform/adapter.js';
 import type { OutputStream } from '../../platform/output-stream.js';
 import type { PlatformCapabilities } from '../../platform/types.js';
-import { executionRepo } from '../../store/execution-repo.js';
-import { sessionStore } from '../../store/session-registry-repo.js';
-import { threadStore } from '../../store/thread-repo.js';
+import { executionRepo as daemonExecutionRepo } from '../../store/execution-repo.js';
+import { sessionStore as daemonSessionStore } from '../../store/session-registry-repo.js';
+import { threadStore as daemonThreadStore } from '../../store/thread-repo.js';
 import { canonicalJsonSha256 } from './identity.js';
 import {
   openJournal, TrajectoryWriteFailedError, type AgentSlot, type Journal,
@@ -60,6 +71,35 @@ interface BenchmarkThreadResult {
   durationMs: number;
   summary: string;
 }
+
+const runningExecutions = scopedLocalThreadService(
+  daemonRunningExecutions,
+  deps => deps.liveExecutions,
+);
+const executionRepo = scopedLocalThreadService(
+  daemonExecutionRepo,
+  deps => deps.executionStore,
+);
+const sessionStore = scopedLocalThreadService(daemonSessionStore, deps => deps.sessionStore);
+const threadStore = scopedLocalThreadService(daemonThreadStore, deps => deps.threadStore);
+const resolveProfileConfig: typeof daemonResolveProfile = (...args) => (
+  (getLocalThreadRuntimeDeps()?.resolveProfile ?? daemonResolveProfile)(...args)
+);
+const getTemplate: typeof daemonGetTemplate = (...args) => (
+  (getLocalThreadRuntimeDeps()?.getTemplate ?? daemonGetTemplate)(...args)
+);
+const loadConfig: typeof daemonLoadConfig = (...args) => (
+  (getLocalThreadRuntimeDeps()?.loadTemplates ?? daemonLoadConfig)(...args)
+);
+const resolveTemplateAgents: typeof daemonResolveTemplateAgents = (...args) => (
+  (getLocalThreadRuntimeDeps()?.resolveTemplateAgents ?? daemonResolveTemplateAgents)(...args)
+);
+const createThread: typeof daemonCreateThread = (...args) => (
+  (getLocalThreadRuntimeDeps()?.createThread ?? daemonCreateThread)(...args)
+);
+const cancelThread: typeof daemonCancelThread = (...args) => (
+  (getLocalThreadRuntimeDeps()?.cancelThread ?? daemonCancelThread)(...args)
+);
 
 type ResolvedProfile = ReturnType<typeof resolveProfileConfig>;
 type ResolvedTemplate = NonNullable<ReturnType<typeof getTemplate>>;
@@ -199,7 +239,7 @@ function validateRequest(request: BenchmarkThreadRequest): void {
 }
 
 function initializeRuntime(): void {
-  jobCtx.bus = null;
+  jobCtx.bus = getLocalThreadRuntimeDeps()?.eventBus ?? null;
   executionRepo.load();
   threadStore.load();
   loadConfig();
@@ -605,6 +645,7 @@ function terminalInput(
 ): TerminalManifestInput {
   return {
     trajectoryRoot: prepared.request.trajectoryRoot,
+    canonicalTrajectoryRoot: true,
     rootRunId: prepared.request.rootRunId,
     threadId: thread.id,
     state: classified.state,
@@ -633,6 +674,7 @@ function validCommittedManifest(
     const record = JSON.parse(fs.readFileSync(file, 'utf8'));
     const lifecycle = validateTrajectoryLifecycle({
       trajectoryRoot: prepared.request.trajectoryRoot,
+      canonicalTrajectoryRoot: true,
       rootRunId: prepared.request.rootRunId,
       threadId: prepared.thread.id,
     });
@@ -715,7 +757,7 @@ async function disposeSupervisors(control: RunControl): Promise<void> {
   await Promise.allSettled(control.sessions.map(session => session.dispose()));
 }
 
-export async function runBenchmarkThread(
+async function runBenchmarkThreadScoped(
   request: BenchmarkThreadRequest,
 ): Promise<BenchmarkThreadResult> {
   const prepared = await prepareRun(request);
@@ -730,4 +772,12 @@ export async function runBenchmarkThread(
     cleanupControl(control);
     await disposeSupervisors(control);
   }
+}
+
+export async function runBenchmarkThread(
+  request: BenchmarkThreadRequest,
+  overrides: Partial<LocalThreadRuntimeDeps> = {},
+): Promise<BenchmarkThreadResult> {
+  const deps = createLocalThreadRuntimeDeps(overrides);
+  return withLocalThreadRuntimeDeps(deps, () => runBenchmarkThreadScoped(request));
 }

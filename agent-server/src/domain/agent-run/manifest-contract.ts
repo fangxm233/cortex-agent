@@ -1,4 +1,4 @@
-// input:  lifecycle values and frozen manifest schemas
+// input:  lifecycle values, canonical roots, manifest schemas
 // output: terminal manifest types, builder, and validator
 // pos:    Value contract for terminal run truth
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -34,6 +34,8 @@ export interface StartedMarkerInput {
 
 export interface TerminalManifestInput {
   trajectoryRoot: string;
+  /** The pinned launcher already resolved this root and created its private subtree. */
+  canonicalTrajectoryRoot?: true;
   rootRunId: string;
   threadId: string | null;
   state: TerminalState;

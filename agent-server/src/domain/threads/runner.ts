@@ -1,10 +1,10 @@
-// input:  thread state, benchmark/agent policy, throttle, hooks
+// input:  thread state, scoped runtime policy, throttle, hooks
 // output: isolated/daemon runs, balanced ledgers, transcripts
 // pos:    Runs thread steps, controls, hooks, and resumes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'node:path';
-import { threadStore } from '@store/thread-repo.js';
+import { threadStore as daemonThreadStore } from '@store/thread-repo.js';
 import {
   resolveNextStep,
   buildStepPrompt,
@@ -21,20 +21,20 @@ import {
   checkContractBudget,
   isAdHocThread,
   getSessionKey,
-  getTemplate,
+  getTemplate as daemonGetTemplate,
   readArtifact,
   resolveSystemVars,
   type PendingControl,
 } from './index.js';
 import {
-  runAgent,
+  runAgent as daemonRunAgent,
   getClaudeMode,
   getActiveBackend,
   getActiveProfile,
   resolveRateLimitProvider,
 } from '../agents/index.js';
 import { isApiRateLimitError, isRetryableError } from '../agents/config.js';
-import { resolveProfileConfig } from '../agents/profile-manager.js';
+import { resolveProfileConfig as daemonResolveProfile } from '../agents/profile-manager.js';
 import {
   activateOutageWindow,
   isProviderRateLimited,
@@ -43,18 +43,21 @@ import {
 import { recordResume, removeThreadResume } from '../costs/resume-registry.js';
 import { Icons } from '../../core/icons.js';
 import { closeSessionsByPrefix } from '../agents/index.js';
-import * as executionRegistry from '../executions/registry.js';
-import { sessionStore } from '@store/session-registry-repo.js';
+import * as daemonExecutionRegistry from '../executions/registry.js';
+import { sessionStore as daemonSessionStore } from '@store/session-registry-repo.js';
 import { formatDurationCompact } from '@core/utils.js';
 import { buildThreadStatusMessage } from '@core/status-format.js';
-import type { OutputStream } from '@platform/index.js';
-import { runningExecutions } from '../../core/running-executions.js';
+import type { OutputStream } from '@platform/output-stream.js';
+import { runningExecutions as daemonRunningExecutions } from '../../core/running-executions.js';
 import type { RunningExecution } from '../../core/running-executions.js';
-import { executeLifecycleHooks, type LifecycleHookConfigs } from './hook-runner.js';
-import { createToolTrace } from '@platform/index.js';
+import {
+  executeLifecycleHooks as daemonExecuteLifecycleHooks,
+  type LifecycleHookConfigs,
+} from './hook-runner.js';
+import { createToolTrace } from '@platform/tool-trace.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { createStepTranscriptRecorder, type StepTranscriptRecorder } from './thread-transcript.js';
-import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
+import { ctx as daemonJobCtx } from '@domain/scheduling/job-registry.js';
 import { createLogger } from '@core/log.js';
 import type {
   ThreadRecord,
@@ -63,10 +66,46 @@ import type {
   ThreadTemplate,
   RunThreadOptions,
 } from '@core/types/thread-types.js';
+import {
+  getLocalThreadRuntimeDeps,
+  scopedLocalThreadService,
+} from './local-runtime-deps.js';
 
 const log = createLogger('thread-runner');
 const OUTAGE_BACKOFF_MS = [5, 15, 45].map((minutes) => minutes * 60_000);
 const OUTAGE_MAX_RESUMES = OUTAGE_BACKOFF_MS.length;
+
+const threadStore = scopedLocalThreadService(daemonThreadStore, deps => deps.threadStore);
+const sessionStore = scopedLocalThreadService(daemonSessionStore, deps => deps.sessionStore);
+const executionRegistry = scopedLocalThreadService(
+  daemonExecutionRegistry,
+  deps => deps.executionLedger as typeof daemonExecutionRegistry,
+);
+const runningExecutions = scopedLocalThreadService(
+  daemonRunningExecutions,
+  deps => deps.liveExecutions,
+);
+const jobCtx = new Proxy(daemonJobCtx, {
+  get(target, key, receiver) {
+    const deps = getLocalThreadRuntimeDeps();
+    if (key === 'bus' && deps) return deps.eventBus;
+    return Reflect.get(target, key, receiver);
+  },
+});
+
+const runAgent: typeof daemonRunAgent = (...args) => (
+  (getLocalThreadRuntimeDeps()?.runAgent ?? daemonRunAgent)(...args)
+);
+const resolveProfileConfig: typeof daemonResolveProfile = (...args) => (
+  (getLocalThreadRuntimeDeps()?.resolveProfile ?? daemonResolveProfile)(...args)
+);
+const getTemplate: typeof daemonGetTemplate = (...args) => (
+  (getLocalThreadRuntimeDeps()?.getTemplate ?? daemonGetTemplate)(...args)
+);
+const executeLifecycleHooks: typeof daemonExecuteLifecycleHooks = (...args) => (
+  (getLocalThreadRuntimeDeps()?.emitLifecycleHooks ?? daemonExecuteLifecycleHooks)(...args)
+);
+
 const NOOP_STEP_TRANSCRIPT_RECORDER: StepTranscriptRecorder = {
   recordUser: () => {}, recordAssistant: () => {}, recordTool: () => {},
   recordToolResult: () => {}, settle: async () => {},
