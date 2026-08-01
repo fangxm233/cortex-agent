@@ -1,5 +1,5 @@
 // input:  runner prompt/options and pinned CORTEX_HOME
-// output: deterministic zero-cost agent handle and invocation marker
+// output: deterministic normalized events, handle, invocation marker
 // pos:    No-model agent facade for the current-runner baseline
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -16,6 +16,13 @@ export function runAgent(prompt, options) {
     cwd: options.cwd,
     env: process.env,
   });
+  const events = [
+    { type: 'assistant_text', text: 'fake step complete', model: 'fixture-model' },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0 },
+  ];
+  for (const event of events) {
+    for (const sink of options.requiredSinks ?? []) sink.onEvent(event);
+  }
   options.onAssistantMessage?.('fake step complete');
   return {
     sessionId: 'fake-backend-session',

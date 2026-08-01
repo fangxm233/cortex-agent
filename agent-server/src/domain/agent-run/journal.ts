@@ -43,7 +43,7 @@ export interface JournalHeaderInput {
   bundleManifestHash: string;
 }
 
-export interface JournalIdentityInput {
+export interface JournalEventIdentity {
   modelExecutionIdentityHash: string;
   roleToolSurfaceHash: string;
   bundleManifestHash: string;
@@ -57,8 +57,8 @@ export interface JournalEventInput {
   provider: string | null;
   requestedModel: string;
   reportedModel: string | null;
-  identity?: JournalIdentityInput;
   event: NormalizedEvent;
+  identity?: JournalEventIdentity;
 }
 
 export interface Journal {
@@ -70,8 +70,11 @@ export interface Journal {
   close(): Promise<void>;
 }
 
-interface IdentityFields extends JournalIdentityInput {
+interface IdentityFields {
   rootRunId: string;
+  modelExecutionIdentityHash: string;
+  roleToolSurfaceHash: string;
+  bundleManifestHash: string;
 }
 
 function operationFailure(operation: string, cause: unknown): FilesystemOperationError {
@@ -166,15 +169,15 @@ function buildHeader(input: JournalHeaderInput, ts: string): Record<string, unkn
 
 function buildEvent(
   input: JournalEventInput,
-  identity: IdentityFields,
+  headerIdentity: IdentityFields,
   seq: number,
   ts: string,
 ): Record<string, unknown> {
-  const eventIdentity = input.identity ?? identity;
+  const identity = input.identity ?? headerIdentity;
   return {
     schema_version: JOURNAL_SCHEMA,
     type: 'event',
-    root_run_id: identity.rootRunId,
+    root_run_id: headerIdentity.rootRunId,
     thread_id: input.threadId,
     step: input.step,
     agent_slot: input.agentSlot,
@@ -184,9 +187,9 @@ function buildEvent(
     provider: input.provider,
     requested_model: input.requestedModel,
     reported_model: input.reportedModel,
-    model_execution_identity_hash: eventIdentity.modelExecutionIdentityHash,
-    role_tool_surface_hash: eventIdentity.roleToolSurfaceHash,
-    bundle_manifest_hash: eventIdentity.bundleManifestHash,
+    model_execution_identity_hash: identity.modelExecutionIdentityHash,
+    role_tool_surface_hash: identity.roleToolSurfaceHash,
+    bundle_manifest_hash: identity.bundleManifestHash,
     event: input.event,
   };
 }

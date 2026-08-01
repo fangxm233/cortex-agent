@@ -76,7 +76,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | integration-settings-hotreload.test.ts | e2e | Settings migration and live reload behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
-| login-command-interactions.test.ts | test | staged chat validation, expiry and secret routing |
+| login-command-interactions.test.ts | test | chat login notices, validation, expiry and privacy |
 | machines-query.test.ts | test | machines list online/offline projection |
 | manager-qa.test.ts | test | manager ask/answer channel resolution |
 | manager-rotation.test.ts | test | live settings and task-artifact rehydration |
@@ -141,7 +141,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
-| thread-benchmark-run.test.ts | test | benchmark isolation, frozen roles and resolved identity |
+| thread-benchmark-run.test.ts | test | benchmark isolation and frozen identity checks |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
 | thread-benchmark-coder-review.e2e.test.ts | e2e | benchmark graph, tools, MCP and identity isolation |
 | thread-coder-review.e2e.test.ts | e2e | coder-review stages and commit evidence policy |

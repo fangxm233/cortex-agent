@@ -1,8 +1,9 @@
-// input:  thread config, benchmark policy, process spawning
+// input:  thread config, benchmark events, process spawning
 // output: thread state, runtime policy, lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
 import type { AgentProcessSpawner, McpComposition } from '../../agent-adapter/types.js';
 
 // --- Thread Identity ---
@@ -468,6 +469,12 @@ export interface TransitionResult {
 
 import type { PlatformAdapter, MessageRef, Destination } from '@platform/index.js';
 
+export interface BenchmarkThreadEvent {
+  step: number;
+  agentSlotId: AgentSlotId;
+  event: NormalizedEvent;
+}
+
 export interface BenchmarkThreadRunOptions {
   /** Absolute grader workspace used by every benchmark step's backend process. */
   workspaceCwd: string;
@@ -480,8 +487,8 @@ export interface BenchmarkThreadRunOptions {
   failFastOnRateLimit: true;
   /** Optional containment-aware process boundary forwarded to every step. */
   spawner?: AgentProcessSpawner;
-  /** Role configs resolved once at benchmark start and reused by every matching step. */
-  resolvedAgents?: ReadonlyMap<AgentSlotId, AgentSlotConfig>;
+  /** Required trajectory sink invoked synchronously for every normalized event. */
+  requiredEventSink?: (input: BenchmarkThreadEvent) => void;
   limits?: {
     maxSteps: number;
     maxCostUsd?: number;

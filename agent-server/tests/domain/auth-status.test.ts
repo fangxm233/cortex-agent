@@ -1,5 +1,5 @@
 // input:  temporary auth files, PI fixtures, locale
-// output: auth state, manageability, and summary contracts
+// output: auth state, login capability, and summary contracts
 // pos:    Backend authentication status regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -37,11 +37,21 @@ const providers = [
   { id: 'models-key', name: 'Models Key', auth: { apiKey: {} } },
   { id: 'models-command', name: 'Models Command', auth: { apiKey: {} } },
   { id: 'runtime-plus-stored', name: 'Runtime Override', auth: { apiKey: {}, oauth: {} } },
+  { id: 'api-key-metadata-only', name: 'API Key Metadata Only', auth: { apiKey: {} } },
+  { id: 'oauth-metadata-only', name: 'OAuth Metadata Only', auth: { oauth: {} } },
 ];
 
 const RUNTIME_FIXTURE_SOURCE = `
 import { readFileSync } from 'node:fs';
-const providers = ${JSON.stringify(providers)};
+const providers = ${JSON.stringify(providers)}.map(provider => {
+  if (provider.auth.apiKey && provider.id !== 'api-key-metadata-only') {
+    provider.auth.apiKey.login = async () => ({});
+  }
+  if (provider.auth.oauth && provider.id !== 'oauth-metadata-only') {
+    provider.auth.oauth.login = async () => ({});
+  }
+  return provider;
+});
 export class ModelRuntime {
   static async create(options) {
     return new ModelRuntime(options);
@@ -252,6 +262,8 @@ test('getAuthStatus normalizes all states and models_json_key without secret fra
     assertModelsJsonKey(snapshot);
     assertRuntimeOverride(snapshot);
     assertManageability(snapshot);
+    assert.deepEqual(account(snapshot, 'api-key-metadata-only').capabilities, []);
+    assert.deepEqual(account(snapshot, 'oauth-metadata-only').capabilities, []);
     const serialized = JSON.stringify(snapshot);
     assert.equal(secrets.flatMap(secret => [...secret]).some(part => serialized.includes(part)), false);
   } finally {

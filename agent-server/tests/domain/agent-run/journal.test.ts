@@ -256,6 +256,28 @@ it('writes the exact header and event envelopes with contiguous sequence numbers
   }
 });
 
+it('writes a per-event role and bundle identity while keeping the model identity fixed', async () => {
+  const root = makeRoot();
+  try {
+    const journalPath = path.join(root, 'role-events.ndjson');
+    const journal = openJournal({ path: journalPath, header: header() });
+    journal.writeEvent(event({
+      identity: {
+        modelExecutionIdentityHash: HASHES.modelExecutionIdentityHash,
+        roleToolSurfaceHash: '8'.repeat(64),
+        bundleManifestHash: '9'.repeat(64),
+      },
+    }));
+    await journal.close();
+    const record = JSON.parse(fs.readFileSync(journalPath, 'utf8').trim().split('\n')[1]);
+    assert.equal(record.model_execution_identity_hash, HASHES.modelExecutionIdentityHash);
+    assert.equal(record.role_tool_surface_hash, '8'.repeat(64));
+    assert.equal(record.bundle_manifest_hash, '9'.repeat(64));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
   it('leaves every synchronous event complete when the caller exits without close', () => {
     const root = makeRoot();
     try {

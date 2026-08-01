@@ -12,9 +12,10 @@ Consumed by the orchestration and UI layers through the index barrel.
 | template-resolver.ts | config | expands vars and blocks in prompt templates |
 | shell-templates.ts | config | turns a shell binding into a full template |
 | prompt-builder.ts | build | assembles prompts and agent control policy |
-| state-machine.ts | state | Drives lifecycle and task artifact placement |
-| runner.ts | runtime | Runs steps with frozen benchmark profiles and roles |
-| local-runtime-deps.ts | runtime | Injects daemon-free stores, resolvers and ledgers |
+| state-machine.ts | state | Drives lifecycle with scoped events and task artifacts |
+| runner.ts | runtime | Runs scoped steps with frozen benchmark identity |
+| local-runtime-deps.ts | runtime | Injects daemon-free stores, operations and ledgers |
+| local-runtime-scope.ts | runtime | Propagates local event policy across async callbacks |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus and hook agents |
 | thread-transcript.ts | record | records each step's conversation to history |
 | tree.ts | tree | tracks thread trees and spawn resource guards |

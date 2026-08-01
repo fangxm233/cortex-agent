@@ -249,61 +249,56 @@ async function executeConfiguredLifecycleHooks(
   await executeLifecycleHooks(threadId, phase, configs, opts, previousAgent, logSuffix);
 }
 
-function emitStepBoundary(
-  ctx: ThreadContext,
-  thread: ThreadRecord,
-  isFirstStep: boolean,
-  label: string,
-): void {
-  if (!ctx.stream || Object.keys(thread.agents).length <= 1 || isFirstStep) return;
-  const previous = thread.steps.at(-1);
-  const previousLabel = previous
-    ? formatAgentStageLabel(previous.agentSlotId, previous.stage) : '?';
-  ctx.stream.emitText(
-    `${Icons.arrowRight} Step ${thread.currentStepIndex + 1}: *${label}* starting (prev: ${previousLabel})`,
-  );
-}
-
-async function updateStepStatus(
-  ctx: ThreadContext,
-  opts: RunThreadOptions,
-  thread: ThreadRecord,
-  label: string,
-): Promise<void> {
-  if (!ctx.stream || Object.keys(thread.agents).length <= 1 || opts.onProgress || !opts.statusMsg) return;
-  const statusText = buildThreadStatusMessage({
-    threadId: thread.id, stepNumber: thread.currentStepIndex + 1, label,
-    elapsedS: (Date.now() - opts.startTime) / 1000,
-    taskProject: thread.metadata?.taskProject ?? null,
-    taskId: thread.metadata?.taskId ?? null,
-    taskText: thread.metadata?.taskText ?? null,
-  });
-  try { await opts.adapter.updateMessage(opts.statusMsg, { text: statusText }); }
-  catch {}
-}
-
+/** Resolve next step, post boundary notifications, update the status message.
+ *  Returns null if the loop should break (cancelled, no next step). */
 async function resolveAndNotifyStep(
   threadId: string,
   ctx: ThreadContext,
   opts: RunThreadOptions,
 ): Promise<StepInfo | null> {
+  // Check if thread was cancelled externally
   const current = threadStore.get(threadId);
   if (!current || current.status === 'cancelled') return null;
+
+  // Resolve the next step
   const nextStep = resolveNextStep(threadId);
   if (!nextStep) {
     await completeThread(threadId);
     return null;
   }
-  const { agentSlotId, isFirstStep, stage } = nextStep;
-  const agentConfig = opts.benchmark?.resolvedAgents?.get(agentSlotId) ?? nextStep.agentConfig;
-  const thread = threadStore.get(threadId)!;
+
+  const { agentSlotId, agentConfig, isFirstStep, stage } = nextStep;
+  const threadRecord = threadStore.get(threadId)!;
+  const multiAgent = Object.keys(threadRecord.agents).length > 1;
   const label = formatAgentStageLabel(agentSlotId, stage);
-  emitStepBoundary(ctx, thread, isFirstStep, label);
-  await updateStepStatus(ctx, opts, thread, label);
-  return {
-    agentSlotId, agentConfig, isFirstStep,
-    multiAgent: Object.keys(thread.agents).length > 1, stage,
-  };
+
+  // Post step boundary notification for multi-agent threads via OutputStream
+  if (ctx.stream && multiAgent && !isFirstStep) {
+    const prevStep = threadRecord.steps[threadRecord.steps.length - 1];
+    const prevLabel = prevStep ? formatAgentStageLabel(prevStep.agentSlotId, prevStep.stage) : '?';
+    ctx.stream.emitText(`${Icons.arrowRight} Step ${threadRecord.currentStepIndex + 1}: *${label}* starting (prev: ${prevLabel})`);
+  }
+
+  // Update status message (multi-agent thread format; skip if caller provides onProgress)
+  if (ctx.stream && multiAgent && !opts.onProgress) {
+    const elapsed = (Date.now() - opts.startTime) / 1000;
+    const statusText = buildThreadStatusMessage({
+      threadId: threadRecord.id,
+      stepNumber: threadRecord.currentStepIndex + 1,
+      label,
+      elapsedS: elapsed,
+      taskProject: threadRecord.metadata?.taskProject ?? null,
+      taskId: threadRecord.metadata?.taskId ?? null,
+      taskText: threadRecord.metadata?.taskText ?? null,
+    });
+    try {
+      if (opts.statusMsg) {
+        await opts.adapter.updateMessage(opts.statusMsg, { text: statusText });
+      }
+    } catch {}
+  }
+
+  return { agentSlotId, agentConfig, isFirstStep, multiAgent, stage };
 }
 
 function resolveEffectiveProfileName(
@@ -334,14 +329,15 @@ function assertBenchmarkProfile(
 
 function resolveStepProfile(
   profileName: string,
-  benchmark: BenchmarkThreadRunOptions | undefined,
+  requireResolved: boolean,
 ): { backend: string; provider: string | null } {
   try {
     const profile = resolveProfileConfig(profileName);
-    if (benchmark) assertBenchmarkProfile(profile, benchmark);
     return { backend: profile.backend, provider: resolveRateLimitProvider(profile) };
   } catch (error) {
-    if (benchmark) throw error;
+    if (requireResolved) throw error;
+    // Preserve ordinary preflight ordering: the facade remains responsible for rejecting a
+    // missing profile after the execution record has been opened with the legacy active backend.
     return { backend: getActiveBackend(), provider: null };
   }
 }
@@ -393,7 +389,7 @@ async function buildStepConfig(
   // declaration; metadata.profileOverride applies only to ordinary __active__ agents.
   const profileName = opts.benchmark?.resolvedProfileName
     ?? resolveEffectiveProfileName(agentConfig.profile, ctx.meta, opts.channel);
-  const profile = resolveStepProfile(profileName, opts.benchmark);
+  const profile = resolveStepProfile(profileName, opts.benchmark !== undefined);
   const profileBackend = profile.backend;
   const rateLimitProvider = profile.provider;
 
@@ -539,6 +535,7 @@ function resolveStepSpawnPolicy(
     return {
       cwd: opts.benchmark.workspaceCwd, processSpawner: opts.benchmark.spawner,
       mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
+      streamDeltas: false, captureTranscriptLogs: false, recordCost: false,
     };
   }
   return {
@@ -546,6 +543,17 @@ function resolveStepSpawnPolicy(
     mcpComposition: stepCtx.agentConfig.mcpComposition,
     disableHooks: ctx.template?.disableHooks === true,
   };
+}
+
+function benchmarkRequiredSinks(
+  threadId: string,
+  stepCtx: StepContext,
+  opts: RunThreadOptions,
+): ThreadAgentOptions['requiredSinks'] {
+  const sink = opts.benchmark?.requiredEventSink;
+  if (!sink) return undefined;
+  const step = threadStore.get(threadId)?.currentStepIndex ?? 0;
+  return [{ onEvent: event => sink({ step, agentSlotId: stepCtx.agentSlotId, event }) }];
 }
 
 function buildThreadAgentOptions(
@@ -570,6 +578,7 @@ function buildThreadAgentOptions(
     pluginDirs: agentConfig.pluginDirs || null, onFallback: null, isUserInitiated: false,
     onAssistantMessage: callbacks.onAssistantMessage, onProgress: callbacks.onProgress,
     onToolUse: callbacks.onToolUse, onToolResult: callbacks.onToolResult,
+    requiredSinks: benchmarkRequiredSinks(threadId, stepCtx, opts),
     onPlanWritten: opts.onPlanWritten ?? null, onAskUserQuestion: opts.onAskUserQuestion ?? null,
   };
 }

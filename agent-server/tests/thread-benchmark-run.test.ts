@@ -265,6 +265,31 @@ test('benchmark forwards workspace cwd and spawner through every step to a real 
   assertCwdProbe(call, spawns, marker, workspace);
 });
 
+test('benchmark forwards every normalized event through its required per-step sink', async () => {
+  const seen: Array<{ step: number; agentSlotId: string; event: unknown }> = [];
+  const benchmark = benchmarkOptions(path.join(tmpRoot, 'event-sink')) as any;
+  benchmark.requiredEventSink = (input: (typeof seen)[number]) => { seen.push(input); };
+  let call = 0;
+  agent.runAgent.mockImplementation((_prompt: string, options: RunAgentOptions) => {
+    const event = { type: 'assistant_text' as const, text: `event-${call}` };
+    assert.equal(options.loadCortexRules, false);
+    assert.equal(options.streamDeltas, false);
+    assert.equal(options.captureTranscriptLogs, false);
+    assert.equal(options.recordCost, false);
+    assert.equal(options.requiredSinks?.length, 1);
+    options.requiredSinks![0].onEvent(event);
+    return handle(result(`backend-event-${call}`, `event-${call++}`));
+  });
+  const thread = createFixtureThread();
+
+  await threadRunner.runThread(thread.id, runOptions(thread, benchmark));
+
+  assert.deepEqual(seen, [
+    { step: 0, agentSlotId: 'bench-alpha', event: { type: 'assistant_text', text: 'event-0' } },
+    { step: 1, agentSlotId: 'bench-beta', event: { type: 'assistant_text', text: 'event-1' } },
+  ]);
+});
+
 function markerHook(tag: string, markers: Map<string, string>): ThreadHookConfig {
   const marker = path.join(tmpRoot, `${tag}.marker`);
   const script = path.join(tmpRoot, `${tag}.mjs`);

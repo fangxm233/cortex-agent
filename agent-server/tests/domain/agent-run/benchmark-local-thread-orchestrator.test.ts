@@ -1,5 +1,5 @@
-// input:  benchmark orchestrator, fake agents/supervisors, lifecycle writers
-// output: C9 shape, daemon isolation, durable ordering regressions
+// input:  orchestrator, injected runtime, fake agents/supervisors
+// output: C9 shape, scoped cancellation and durable ordering
 // pos:    Benchmark local-thread lifecycle contract tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -17,6 +17,7 @@ const harness = vi.hoisted(() => ({
   lifecycle: [] as string[],
   journalCloseError: false,
   manifestMode: 'normal' as 'normal' | 'omit' | 'wrong_linkage',
+  parentJournals: [] as any[],
   runAgent: vi.fn(),
   supervisors: [] as any[],
 }));
@@ -50,11 +51,11 @@ vi.mock('../../../src/domain/agent-run/manifest.js', async (importOriginal) => {
   const actual = await importOriginal<any>();
   return {
     ...actual,
-    writeTerminalManifest: (input: any) => {
+    writeTerminalManifest: (input: any, options?: any) => {
       if (harness.manifestMode === 'omit') {
         return actual.resolveLifecyclePaths(input).terminal;
       }
-      const result = actual.writeTerminalManifest(input);
+      const result = actual.writeTerminalManifest(input, options);
       if (harness.manifestMode === 'wrong_linkage') {
         const record = JSON.parse(fs.readFileSync(result, 'utf8'));
         fs.writeFileSync(result, JSON.stringify({ ...record, journal_path: `${record.journal_path}.wrong` }));
@@ -66,11 +67,19 @@ vi.mock('../../../src/domain/agent-run/manifest.js', async (importOriginal) => {
 });
 
 import { CONFIG_DIR, STORE_DIR } from '../../../src/core/paths.js';
+import type { NormalizedEvent } from '../../../src/agent-adapter/normalize/event-types.js';
+import {
+  RunningExecutions, runningExecutions as daemonRunningExecutions,
+} from '../../../src/core/running-executions.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { RunAgentOptions } from '../../../src/domain/agents/facade.js';
 import * as executionRegistry from '../../../src/domain/executions/registry.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
-import { computeModelExecutionIdentityHash, computeRoleToolSurfaceHash } from '../../../src/domain/agent-run/identity.js';
+import { cancelThread as daemonCancelThread } from '../../../src/domain/threads/index.js';
+import { runThread as daemonRunThread } from '../../../src/domain/threads/runner.js';
+import {
+  computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
+} from '../../../src/domain/agent-run/identity.js';
 import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import {
   resolveLifecyclePaths,
@@ -79,8 +88,8 @@ import {
   writeStartedMarker,
   writeTerminalManifest,
 } from '../../../src/domain/agent-run/manifest.js';
-import { roleSurfaceFromSpawnConfig } from '../../../src/domain/agent-run/role-surface.js';
 import { SupervisorContainmentError } from '../../../src/domain/agent-run/supervisor.js';
+import { resolveSystemVars } from '../../../src/domain/threads/index.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
 
 interface Deferred<T> {
@@ -100,6 +109,11 @@ interface FakeSupervisor {
 }
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-local-thread-'));
+const PARENT_MODEL_HASH = computeModelExecutionIdentityHash({
+  backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: { fixture: true },
+  providerProtocol: 'anthropic', configuredRouteBaseHost: 'proxy.fixture',
+  claudeCliVersion: 'fixture-cli/1', reasoningEffort: null, fallbackEmpty: true,
+});
 const FORBIDDEN_SUBSYSTEMS = [
   'profile watcher', 'template watcher', 'settings runtime', 'memory watcher',
   'gateway', 'client manager', 'scheduler', 'webhook', 'claim startup recovery',
@@ -149,12 +163,41 @@ function writeJson(file: string, value: unknown): void {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function sha256Text(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function seedParentLifecycle(trajectoryRoot: string, rootRunId: string): void {
+  const journal = openJournal({
+    path: path.join(trajectoryRoot, `parent-${rootRunId}.journal.ndjson`),
+    header: {
+      rootRunId, threadId: null, agentSlot: 'parent', resolvedCwd: path.join(root, 'workspace'),
+      canonicalInstructionSha256: sha256Text('fix the fixture'),
+      modelVisiblePromptSha256: sha256Text('fix the fixture'),
+      systemPromptSha256: '1'.repeat(64), toolManifestSha256: '2'.repeat(64),
+      pluginManifestSha256: '3'.repeat(64), modelExecutionIdentityHash: PARENT_MODEL_HASH,
+      roleToolSurfaceHash: '4'.repeat(64), bundleManifestHash: '5'.repeat(64),
+    },
+  });
+  journal.writeEvent({
+    threadId: null, step: null, agentSlot: 'parent', backend: 'claude', provider: 'anthropic',
+    requestedModel: 'fixture-model', reportedModel: 'fixture-reported',
+    event: { type: 'tool_use', toolUseId: 'thread-call', name: 'thread_run', input: {} },
+  });
+  harness.parentJournals.push(journal);
+  writeStartedMarker({ trajectoryRoot, rootRunId, threadId: null, journalPath: journal.path });
+}
+
 function seedProfiles(): void {
   writeJson(path.join(CONFIG_DIR, 'profiles.json'), {
     defaultProfile: 'benchmark-fixture',
     profiles: {
       'benchmark-fixture': {
         model: 'fixture-model', backend: 'claude', claudeBackend: 'print',
+        provider: 'anthropic', fallback: [],
+      },
+      'mismatched-fixture': {
+        model: 'other-model', backend: 'claude', claudeBackend: 'print',
         provider: 'anthropic', fallback: [],
       },
     },
@@ -165,16 +208,13 @@ function seedProfiles(): void {
 function benchmarkAgent(name: string): Record<string, unknown> {
   return {
     name, profile: '__active__', persistSession: false,
-    directive: `${name} directive {{currentDateTime}}`,
-    systemPrompt: `${name} system {{currentDateTime}}`,
-    promptTemplate: 'Complete {{input}}', tools: 'Read,Write',
-    pluginDirs: [path.join(root, 'cortex-feishu')],
+    directive: `${name} directive {{CORTEX_HOME}}`, systemPrompt: `${name} system`,
+    promptTemplate: 'Complete {{input}}', tools: 'Read,Write', pluginDirs: [],
   };
 }
 
 function seedTemplates(): void {
   const base = path.join(CONFIG_DIR, 'thread-templates');
-  fs.mkdirSync(path.join(root, 'cortex-feishu'), { recursive: true });
   writeJson(path.join(base, 'agents', 'benchmark-coder.json'), benchmarkAgent('benchmark-coder'));
   writeJson(path.join(base, 'agents', 'benchmark-reviewer.json'), benchmarkAgent('benchmark-reviewer'));
   writeJson(path.join(base, 'templates', 'fixture-one-step.json'), {
@@ -218,17 +258,30 @@ function spawnThrough(options: RunAgentOptions): void {
   });
 }
 
-function queueSuccess(output: string, cost = 0.25): void {
+function emitRequiredEvents(options: RunAgentOptions, events: NormalizedEvent[]): void {
+  for (const event of events) {
+    for (const sink of options.requiredSinks ?? []) sink.onEvent(event);
+  }
+}
+
+function queueAgentEvents(output: string, cost: number, events: NormalizedEvent[]): void {
   harness.supervisors.push(fakeSupervisor());
   harness.runAgent.mockImplementationOnce((_prompt: string, options: RunAgentOptions) => {
     spawnThrough(options);
+    emitRequiredEvents(options, events);
     options.onAssistantMessage?.(output);
     return {
-      promise: Promise.resolve(result(output, cost)),
-      kill: () => true,
+      promise: Promise.resolve(result(output, cost)), kill: () => true,
       sessionId: 'fixture-session',
     };
   });
+}
+
+function queueSuccess(output: string, cost = 0.25): void {
+  queueAgentEvents(output, cost, [
+    { type: 'assistant_text', text: output, model: 'fixture-reported' },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: cost },
+  ]);
 }
 
 function request(
@@ -239,46 +292,19 @@ function request(
   const workspaceCwd = path.join(root, 'workspace');
   fs.mkdirSync(workspaceCwd, { recursive: true });
   fs.mkdirSync(trajectoryRoot, { recursive: true });
-  return {
+  const value = {
     workspaceCwd, template: 'fixture-one-step', instruction: 'fix the fixture',
     profileName: 'benchmark-fixture', rootRunId: `run-${path.basename(trajectoryRoot)}`,
     trajectoryRoot,
     limits: { maxSteps: 2, maxCostUsd: 1, deadlineEpochMs: Date.now() + 30_000 },
     signal, ...overrides,
   };
+  seedParentLifecycle(value.trajectoryRoot, value.rootRunId);
+  return value;
 }
 
 function records(file: string): any[] {
   return fs.readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
-}
-
-async function writeParentJournal(
-  req: any,
-  modelHash: string,
-  requestedModel = 'fixture-model',
-): Promise<void> {
-  const journalPath = path.join(req.trajectoryRoot, 'parent.journal.ndjson');
-  const parent = openJournal({
-    path: journalPath,
-    header: {
-      rootRunId: req.rootRunId, threadId: null, agentSlot: 'parent',
-      resolvedCwd: req.workspaceCwd, canonicalInstructionSha256: '1'.repeat(64),
-      modelVisiblePromptSha256: '2'.repeat(64), systemPromptSha256: '3'.repeat(64),
-      toolManifestSha256: '4'.repeat(64), pluginManifestSha256: '5'.repeat(64),
-      modelExecutionIdentityHash: modelHash, roleToolSurfaceHash: '6'.repeat(64),
-      bundleManifestHash: '7'.repeat(64),
-    },
-  });
-  parent.writeEvent({
-    threadId: null, step: null, agentSlot: 'parent', backend: 'claude',
-    provider: 'anthropic', requestedModel, reportedModel: null,
-    event: { type: 'assistant_text', text: 'parent', model: null },
-  });
-  await parent.close();
-  writeStartedMarker({
-    trajectoryRoot: req.trajectoryRoot, rootRunId: req.rootRunId,
-    threadId: null, journalPath,
-  });
 }
 
 const IDENTITY_HASH_FIELDS = [
@@ -313,25 +339,44 @@ function assertC2(resultValue: any): any[] {
   return journal;
 }
 
+function assertCompletedResult(result: any): void {
+  assert.deepEqual(Object.keys(result).sort(), [
+    'artifactPath', 'costUsd', 'durationMs', 'journalPath', 'manifestCommitted',
+    'manifestPath', 'state', 'steps', 'summary', 'terminalReason', 'threadId',
+  ].sort());
+  assert.equal(result.state, 'completed');
+  assert.equal(result.terminalReason, null);
+  assert.equal(result.manifestCommitted, true);
+}
+
+function expectedRoleHash(slot: 'benchmark-coder' | 'benchmark-reviewer'): string {
+  return computeRoleToolSurfaceHash({
+    systemPromptSha256: sha256Text(`${slot} system`),
+    directiveSha256: sha256Text(resolveSystemVars(`${slot} directive {{CORTEX_HOME}}`)),
+    tools: ['Read', 'Write'], pluginDirs: [], skills: [],
+    mcpComposition: 'none', hookPolicy: {},
+  });
+}
+
 async function moduleUnderTest(): Promise<any> {
   return import('../../../src/domain/agent-run/benchmark-local-thread-orchestrator.js');
 }
 
 async function loadForbiddenModules(): Promise<any[]> {
-  return Promise.all([
-    import('../../../src/store/profile-repo.js'),
-    import('../../../src/domain/threads/template-loader.js'),
-    import('../../../src/core/settings.js'),
-    import('../../../src/domain/memory/watcher.js'),
-    import('../../../src/domain/costs/gateway-manager.js'),
-    import('../../../src/domain/remote/client-manager.js'),
-    import('../../../src/domain/scheduling/scheduler.js'),
-    import('../../../src/orchestration/routing/webhook.js'),
-    import('../../../src/domain/tasks/claim-recovery.js'),
-    import('../../../src/orchestration/thread-callback.js'),
-    import('../../../src/orchestration/pending-injection-recovery.js'),
-    import('../../../src/orchestration/resume-dispatcher.js'),
-  ]);
+  return [
+    await import('../../../src/store/profile-repo.js'),
+    await import('../../../src/domain/threads/template-loader.js'),
+    await import('../../../src/core/settings.js'),
+    await import('../../../src/domain/memory/watcher.js'),
+    await import('../../../src/domain/costs/gateway-manager.js'),
+    await import('../../../src/domain/remote/client-manager.js'),
+    await import('../../../src/domain/scheduling/scheduler.js'),
+    await import('../../../src/orchestration/routing/webhook.js'),
+    await import('../../../src/domain/tasks/claim-recovery.js'),
+    await import('../../../src/orchestration/thread-callback.js'),
+    await import('../../../src/orchestration/pending-injection-recovery.js'),
+    await import('../../../src/orchestration/resume-dispatcher.js'),
+  ];
 }
 
 function registerForbiddenSpies(modules: any[]): void {
@@ -367,10 +412,13 @@ beforeEach(() => {
   jobCtx.bus = null;
 });
 
-afterEach(() => {
+afterEach(async () => {
   for (const [index, spy] of forbiddenSpies.entries()) {
     assert.equal(spy.mock.calls.length, 0, `${FORBIDDEN_SUBSYSTEMS[index]} must stay stopped`);
   }
+  harness.journalCloseError = false;
+  await Promise.all(harness.parentJournals.map(journal => journal.close()));
+  harness.parentJournals.length = 0;
 });
 
 afterAll(() => {
@@ -383,25 +431,24 @@ it('exports exactly C9 and completes one bounded thread with C2/C3 artifacts', a
   queueSuccess(output);
   const api = await moduleUnderTest();
   assert.deepEqual(Object.keys(api), ['runBenchmarkThread']);
-  jobCtx.bus = { publish: vi.fn() } as any;
+  const publish = vi.fn();
+  const daemonBus = { publish } as any;
+  jobCtx.bus = daemonBus;
   const req = request(path.join(root, 'success'), new AbortController().signal);
 
   const value = await api.runBenchmarkThread(req);
 
-  assert.deepEqual(Object.keys(value).sort(), [
-    'artifactPath', 'costUsd', 'durationMs', 'journalPath', 'manifestCommitted',
-    'manifestPath', 'state', 'steps', 'summary', 'terminalReason', 'threadId',
-  ].sort());
-  assert.equal(value.state, 'completed');
-  assert.equal(value.terminalReason, null);
-  assert.equal(value.manifestCommitted, true);
+  assertCompletedResult(value);
   assert.equal(value.steps, 1);
   assert.equal(value.costUsd, 0.25);
   assert.equal(value.summary, `${'x'.repeat(1966)}😀… [truncated, 1967 of 2100 chars]`);
   assert.equal(Array.from(value.summary).length, 2000);
-  assert.equal(jobCtx.bus, null);
+  assert.equal(jobCtx.bus, daemonBus);
+  assert.equal(publish.mock.calls.length, 0);
   assertC2(value);
-  assert.deepEqual(validateTrajectoryRoot(req.trajectoryRoot), { ok: true, problems: [] });
+  assert.deepEqual(validateTrajectoryLifecycle({
+    trajectoryRoot: req.trajectoryRoot, rootRunId: req.rootRunId, threadId: value.threadId,
+  }), { ok: true, problems: [] });
   assert.deepEqual(harness.lifecycle.slice(-3), [
     'supervisor_quiescent', 'journal_closed', 'manifest_committed',
   ]);
@@ -409,9 +456,41 @@ it('exports exactly C9 and completes one bounded thread with C2/C3 artifacts', a
   assert.equal(fs.existsSync(path.join(STORE_DIR, 'conversation-history')), false);
 });
 
-it('projects C4 identities per role while inheriting one model identity', async () => {
-  for (let step = 0; step < 4; step += 1) queueSuccess(`step-${step}`, 0);
+it('uses the landed lifecycle modules rather than a forked writer surface', async () => {
+  assert.equal(typeof openJournal, 'function');
+  assert.equal(typeof resolveLifecyclePaths, 'function');
+  assert.equal(typeof writeStartedMarker, 'function');
+  assert.equal(typeof writeTerminalManifest, 'function');
+  assert.equal(typeof validateTrajectoryLifecycle, 'function');
+  assert.equal(typeof validateTrajectoryRoot, 'function');
+});
+
+it('inherits the parent model identity and records each agent role identity', async () => {
+  queueSuccess('coder');
+  queueSuccess('reviewer');
   const req = request(path.join(root, 'role-identities'), new AbortController().signal, {
+    template: 'fixture-two-step',
+  });
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  const journal = assertC2(value);
+  assert.equal(journal[0].model_execution_identity_hash, PARENT_MODEL_HASH);
+  assert.equal(journal[0].role_tool_surface_hash, expectedRoleHash('benchmark-coder'));
+  const events = journal.slice(1);
+  assert.ok(events.every(row => row.model_execution_identity_hash === PARENT_MODEL_HASH));
+  for (const slot of ['benchmark-coder', 'benchmark-reviewer'] as const) {
+    const roleEvents = events.filter(row => row.agent_slot === slot);
+    assert.ok(roleEvents.length > 0);
+    assert.ok(roleEvents.every(row => row.role_tool_surface_hash === expectedRoleHash(slot)));
+  }
+  assert.notEqual(
+    events.find(row => row.agent_slot === 'benchmark-coder').bundle_manifest_hash,
+    events.find(row => row.agent_slot === 'benchmark-reviewer').bundle_manifest_hash,
+  );
+});
+
+it('keeps each role identity stable across a complete four-step run', async () => {
+  for (let step = 0; step < 4; step += 1) queueSuccess(`step-${step}`, 0);
+  const req = request(path.join(root, 'role-stability'), new AbortController().signal, {
     template: 'fixture-four-step',
     limits: { maxSteps: 4, maxCostUsd: 0, deadlineEpochMs: Date.now() + 30_000 },
   });
@@ -421,73 +500,15 @@ it('projects C4 identities per role while inheriting one model identity', async 
   assert.equal(value.state, 'completed');
   assert.equal(value.steps, 4);
   const journal = assertC2(value);
-  assert.deepEqual(journal.map(row => row.agent_slot), [
-    'benchmark-coder', 'benchmark-coder', 'benchmark-reviewer',
-    'benchmark-coder', 'benchmark-reviewer',
-  ]);
-  assert.notEqual(journal[1].bundle_manifest_hash, journal[2].bundle_manifest_hash);
-  assert.equal(journal[0].model_execution_identity_hash, computeModelExecutionIdentityHash({
-    backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: null,
-    providerProtocol: 'anthropic', configuredRouteBaseHost: null,
-    claudeCliVersion: null, reasoningEffort: null, fallbackEmpty: true,
-  }));
+  assert.equal(identityHashes(journal, 'benchmark-coder', 'role_tool_surface_hash').size, 1);
+  assert.equal(identityHashes(journal, 'benchmark-reviewer', 'role_tool_surface_hash').size, 1);
 });
 
-it('includes an available resolved route host in standalone model identity', async () => {
-  queueSuccess('routed model');
-  const resolveProfile = () => ({
-    name: 'benchmark-fixture', backend: 'claude' as const, model: 'fixture-model',
-    mode: null, provider: 'anthropic',
-    extraEnv: { ANTHROPIC_BASE_URL: 'https://gateway.invalid/anthropic' }, extraOption: {},
-    claudeBackend: 'print' as const, thinking: null, fallback: [],
-  });
-  const req = request(path.join(root, 'route-host'), new AbortController().signal);
-
-  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { resolveProfile });
-
-  assert.equal(value.state, 'completed');
-  const expected = computeModelExecutionIdentityHash({
-    backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: null,
-    providerProtocol: 'anthropic', configuredRouteBaseHost: 'gateway.invalid',
-    claudeCliVersion: null, reasoningEffort: null, fallbackEmpty: true,
-  });
-  assert.equal(records(value.journalPath)[0].model_execution_identity_hash, expected);
-});
-
-it('inherits the parent journal model identity across every child record', async () => {
-  const parentModelHash = 'a'.repeat(64);
-  const req = request(path.join(root, 'parent-model'), new AbortController().signal);
-  await writeParentJournal(req, parentModelHash);
-  queueSuccess('inherited model');
-
-  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
-
-  assert.equal(value.state, 'completed');
-  assert.deepEqual(records(value.journalPath).map(row => row.model_execution_identity_hash), [
-    parentModelHash, parentModelHash,
-  ]);
-});
-
-it('rejects parent identity from a journal with mismatched header linkage', async () => {
-  const req = request(path.join(root, 'parent-linkage-drift'), new AbortController().signal);
-  await writeParentJournal(req, 'b'.repeat(64));
-  const journalPath = path.join(req.trajectoryRoot, 'parent.journal.ndjson');
-  const parentRecords = records(journalPath);
-  parentRecords[0].ts = 'invalid-timestamp';
-  fs.writeFileSync(journalPath, `${parentRecords.map(record => JSON.stringify(record)).join('\n')}\n`);
+it('fails with protocol_violation when the child model differs from its parent', async () => {
   queueSuccess('must not run');
-
-  await assert.rejects(
-    () => (moduleUnderTest()).then(api => api.runBenchmarkThread(req)),
-    /parent journal header/i,
-  );
-  assert.equal(harness.runAgent.mock.calls.length, 0);
-});
-
-it('rejects a parent model subset that disagrees with the resolved profile', async () => {
-  const req = request(path.join(root, 'parent-model-drift'), new AbortController().signal);
-  await writeParentJournal(req, 'b'.repeat(64), 'other-model');
-  queueSuccess('must not run');
+  const req = request(path.join(root, 'model-mismatch'), new AbortController().signal, {
+    profileName: 'mismatched-fixture',
+  });
 
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
 
@@ -496,53 +517,27 @@ it('rejects a parent model subset that disagrees with the resolved profile', asy
   assert.equal(harness.runAgent.mock.calls.length, 0);
 });
 
-it('freezes the exact resolved role surface used by the benchmark spawn', async () => {
-  queueSuccess('resolved role');
-  let resolutions = 0;
-  const resolveProfile = () => {
-    if (resolutions++ === 1) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_100);
-    return {
-      name: 'benchmark-fixture', backend: 'claude' as const, model: 'fixture-model',
-      mode: null, provider: 'anthropic', extraEnv: {}, extraOption: {},
-      claudeBackend: 'print' as const, thinking: null, fallback: [],
-    };
+it('rejects ambiguous parent identity when a same-model profile changes thinking', async () => {
+  const file = path.join(CONFIG_DIR, 'profiles.json');
+  const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+  config.profiles['same-model-thinking'] = {
+    model: 'fixture-model', backend: 'claude', claudeBackend: 'print',
+    provider: 'anthropic', thinking: 'high', fallback: [],
   };
-  const req = request(path.join(root, 'resolved-role'), new AbortController().signal);
-
-  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { resolveProfile });
-
-  assert.equal(value.state, 'completed');
-  const [prompt, options] = harness.runAgent.mock.calls[0] as [string, RunAgentOptions];
-  assert.deepEqual(options.pluginDirs, []);
-  assert.equal(options.loadCortexRules, false);
-  assert.doesNotMatch(prompt, /\{\{currentDateTime\}\}/);
-  const directive = prompt.slice(0, prompt.indexOf('\n\n'));
-  const surface = roleSurfaceFromSpawnConfig({
-    sessionId: null, sessionKey: 'fixture', resume: false,
-    systemPrompt: options.systemPrompt, rawTools: options.tools,
-    pluginDirs: options.pluginDirs, mcpComposition: options.mcpComposition,
-    disableHooks: options.disableHooks,
-  }, directive);
-  const header = records(value.journalPath)[0];
-  assert.equal(header.system_prompt_sha256, createHash('sha256').update(options.systemPrompt).digest('hex'));
-  assert.equal(header.role_tool_surface_hash, computeRoleToolSurfaceHash(surface));
-});
-
-it('fails with protocol_violation when the spawned profile drifts from the header', async () => {
-  queueSuccess('drifted spawn');
-  let resolutions = 0;
-  const resolveProfile = () => ({
-    name: 'benchmark-fixture', backend: 'claude' as const, model: resolutions++ === 0
-      ? 'fixture-model' : 'drifted-model', mode: null, provider: 'anthropic',
-    extraEnv: {}, extraOption: {}, claudeBackend: 'print' as const, thinking: null, fallback: [],
-  });
-  const req = request(path.join(root, 'model-identity-drift'), new AbortController().signal);
-
-  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { resolveProfile });
-
-  assert.equal(value.state, 'failed');
-  assert.equal(value.terminalReason, 'protocol_violation');
-  assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason, 'protocol_violation');
+  writeJson(file, config);
+  profileRepo.invalidate();
+  try {
+    queueSuccess('must not run');
+    const req = request(path.join(root, 'thinking-mismatch'), new AbortController().signal, {
+      profileName: 'same-model-thinking',
+    });
+    const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+    assert.equal(value.state, 'failed');
+    assert.equal(value.terminalReason, 'protocol_violation');
+    assert.equal(harness.runAgent.mock.calls.length, 0);
+  } finally {
+    seedProfiles();
+  }
 });
 
 it('rejects model drift immediately before launch rather than after an agent ran', async () => {
@@ -563,13 +558,20 @@ it('rejects model drift immediately before launch rather than after an agent ran
   assert.equal(harness.runAgent.mock.calls.length, 0);
 });
 
-it('uses the landed lifecycle modules rather than a forked writer surface', async () => {
-  assert.equal(typeof openJournal, 'function');
-  assert.equal(typeof resolveLifecyclePaths, 'function');
-  assert.equal(typeof writeStartedMarker, 'function');
-  assert.equal(typeof writeTerminalManifest, 'function');
-  assert.equal(typeof validateTrajectoryLifecycle, 'function');
-  assert.equal(typeof validateTrajectoryRoot, 'function');
+it('journals every normalized event verbatim exactly once in observed order', async () => {
+  const events: NormalizedEvent[] = [
+    { type: 'assistant_text', text: 'inspect', model: 'fixture-reported' },
+    { type: 'tool_use', toolUseId: 'tool-1', name: 'Read', input: { file_path: 'a.ts' } },
+    { type: 'tool_result', toolUseId: 'tool-1', ok: true, content: 'source' },
+    { type: 'error', message: 'recoverable diagnostic', fatal: false },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.25 },
+  ];
+  queueAgentEvents('inspect', 0.25, events);
+  const req = request(path.join(root, 'verbatim-events'), new AbortController().signal);
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  const journalEvents = records(value.journalPath).slice(1);
+  assert.deepEqual(journalEvents.map(row => row.event), events);
+  assert.deepEqual(journalEvents.map(row => row.seq), [1, 2, 3, 4, 5]);
 });
 
 it('tears down local executions without the daemon execution registry', async () => {
@@ -586,6 +588,31 @@ it('tears down local executions without the daemon execution registry', async ()
     start.mockRestore();
     teardown.mockRestore();
   }
+});
+
+it('keeps local live-execution events off the daemon event bus', async () => {
+  const publish = vi.fn();
+  daemonRunningExecutions.setBus({ publish } as any);
+  queueSuccess('isolated live execution');
+  const req = request(path.join(root, 'local-live-ledger'), new AbortController().signal);
+  try {
+    const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+    assert.equal(value.state, 'completed');
+    assert.equal(publish.mock.calls.length, 0);
+  } finally {
+    daemonRunningExecutions.setBus(null as any);
+  }
+});
+
+it('runs the thread through the injected runtime operation', async () => {
+  const runThread = vi.fn((...args: Parameters<typeof daemonRunThread>) => daemonRunThread(...args));
+  queueSuccess('injected run operation');
+  const req = request(path.join(root, 'injected-run'), new AbortController().signal);
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { runThread } as any);
+
+  assert.equal(value.state, 'completed');
+  assert.equal(runThread.mock.calls.length, 1);
 });
 
 function queueCancelableAgent(quiescence: Deferred<void>): FakeSupervisor {
@@ -617,6 +644,7 @@ function monitorTerminal(trajectoryRoot: string) {
 function assertCancelledResult(value: any): void {
   assert.equal(value.state, 'cancelled');
   assert.equal(value.terminalReason, 'cancelled');
+  assert.equal(value.manifestCommitted, true);
   assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).state, 'cancelled');
   assert.deepEqual(harness.lifecycle.slice(-3), [
     'supervisor_quiescent', 'journal_closed', 'manifest_committed',
@@ -646,13 +674,44 @@ it('cancel closes admission, waits for delayed quiescence, then closes and commi
   assertCancelledResult(await pending);
 });
 
+it('keeps external abort on injected cancellation and waits for it before commit', async () => {
+  const cancellation = deferred<void>();
+  const quiescence = deferred<void>();
+  queueCancelableAgent(quiescence);
+  const cancelThread = vi.fn(async (threadId: string) => {
+    const cancelled = await daemonCancelThread(threadId);
+    await cancellation.promise;
+    return cancelled;
+  });
+  const controller = new AbortController();
+  const req = request(path.join(root, 'injected-cancel'), controller.signal);
+  let settled = false;
+  const pending = (await moduleUnderTest()).runBenchmarkThread(
+    req,
+    { cancelThread } as any,
+  ).finally(() => { settled = true; });
+  await vi.waitFor(() => assert.equal(harness.runAgent.mock.calls.length, 1));
+
+  controller.abort();
+
+  await vi.waitFor(() => assert.equal(cancelThread.mock.calls.length, 1));
+  quiescence.resolve();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(settled, false);
+  assert.equal(terminalExists(req.trajectoryRoot), false);
+  assert.equal(harness.lifecycle.includes('journal_closed'), false);
+  cancellation.resolve();
+  assertCancelledResult(await pending);
+});
+
 it('closes a C2 journal but withholds the manifest when containment fails', async () => {
   const quiescence = deferred<void>();
   queueSuccess('unsafe');
   harness.supervisors[0] = fakeSupervisor(quiescence.promise);
-  setTimeout(() => quiescence.reject(new SupervisorContainmentError('containment_failed')), 20);
+  const api = await moduleUnderTest();
   const req = request(path.join(root, 'containment-failed'), new AbortController().signal);
-  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  setTimeout(() => quiescence.reject(new SupervisorContainmentError('containment_failed')), 20);
+  const value = await api.runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'containment_failed');
   assert.equal(value.manifestCommitted, false);
@@ -663,12 +722,36 @@ it('closes a C2 journal but withholds the manifest when containment fails', asyn
   assert.equal(harness.lifecycle.includes('manifest_committed'), false);
 });
 
-it('preserves missing_quiescent when no quiescence signal arrives', async () => {
+async function within<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('orchestrator did not settle within its bound')), milliseconds);
+  });
+  try { return await Promise.race([promise, timeout]); }
+  finally { clearTimeout(timer!); }
+}
+
+it('bounds a never-settling supervisor and reports missing_quiescent', async () => {
+  queueSuccess('never settles');
+  harness.supervisors[0] = fakeSupervisor(new Promise<void>(() => {}));
+  const api = await moduleUnderTest();
+  const req = request(path.join(root, 'missing-quiescent'), new AbortController().signal, {
+    limits: { maxSteps: 2, maxCostUsd: 1, deadlineEpochMs: Date.now() + 500 },
+  });
+  const value = await within<any>(api.runBenchmarkThread(req), 1_500);
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'missing_quiescent');
+  assert.equal(value.manifestCommitted, false);
+  assert.equal(fs.existsSync(value.manifestPath), false);
+  assert.equal(harness.lifecycle.includes('journal_closed'), true);
+});
+
+it('preserves an explicit missing_quiescent supervisor error', async () => {
   queueSuccess('missing signal');
   harness.supervisors[0] = fakeSupervisor(Promise.reject(
     new SupervisorContainmentError('missing_quiescent'),
   ));
-  const req = request(path.join(root, 'missing-quiescent'), new AbortController().signal);
+  const req = request(path.join(root, 'missing-quiescent-error'), new AbortController().signal);
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'missing_quiescent');
@@ -751,6 +834,7 @@ it('refuses step N+1 through the orchestrator terminal path', async () => {
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'step_limit_exceeded');
+  assert.equal(value.manifestCommitted, true);
   assert.equal(value.steps, 1);
   assert.equal(harness.attachOptions.length, 1);
   assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason, 'step_limit_exceeded');
@@ -764,6 +848,7 @@ it('fails when a completed step crosses the frozen cost limit', async () => {
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'cost_limit_exceeded');
+  assert.equal(value.manifestCommitted, true);
   assert.equal(value.costUsd, 0.25);
   assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason, 'cost_limit_exceeded');
 });
@@ -804,6 +889,7 @@ it('converts the absolute deadline once and returns deadline_exceeded', async ()
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'timeout');
   assert.equal(value.terminalReason, 'deadline_exceeded');
+  assert.equal(value.manifestCommitted, true);
   assert.deepEqual(supervisor.cancel.mock.calls[0], ['deadline']);
   assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason, 'deadline_exceeded');
 });

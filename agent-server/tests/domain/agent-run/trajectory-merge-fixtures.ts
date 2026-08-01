@@ -10,8 +10,6 @@ import path from 'node:path';
 const ROOT_RUN_ID = 'run-001';
 const MODEL_HASH = '1'.repeat(64);
 const BUNDLE_HASH = '3'.repeat(64);
-const REVIEWER_ROLE_HASH = '6'.repeat(64);
-const REVIEWER_BUNDLE_HASH = '7'.repeat(64);
 const HASH_KEYS = {
   canonical_instruction_sha256: 'a'.repeat(64),
   model_visible_prompt_sha256: 'b'.repeat(64),
@@ -80,11 +78,15 @@ function header(spec: JournalSpec, root: string): Record<string, unknown> {
   };
 }
 
-function eventIdentity(spec: JournalSpec, event: EventSpec) {
-  if (event.agentSlot === spec.agentSlot) {
+function eventIdentity(spec: JournalSpec, event: EventSpec): {
+  roleHash: string;
+  bundleHash: string;
+} {
+  if (event.agentSlot !== 'benchmark-reviewer') {
     return { roleHash: spec.roleHash, bundleHash: BUNDLE_HASH };
   }
-  return { roleHash: REVIEWER_ROLE_HASH, bundleHash: REVIEWER_BUNDLE_HASH };
+  const prefix = `${spec.threadId}:benchmark-reviewer`;
+  return { roleHash: sha256(`${prefix}:role`), bundleHash: sha256(`${prefix}:bundle`) };
 }
 
 function eventRecord(spec: JournalSpec, event: EventSpec, seq: number): Record<string, unknown> {

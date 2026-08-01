@@ -1,6 +1,6 @@
 // input:  mobile settings view, auth/hooks snapshot, UI copy
-// output: authentication entry and mounted-hook drill regressions
-// pos:    Verifies mobile settings drills into hooks instead of listing them
+// output: API-key/OAuth entry and mounted-hook drill regressions
+// pos:    Verifies mobile settings auth and hook entries
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -18,7 +18,7 @@ const copy: MSettingsCopy = {
   notify: 'Notifications', notifySub: 'notify', autoResume: 'Auto resume',
   autoResumeSub: 'resume', language: 'Language', platform: 'Platform',
   desktopEdit: 'Desktop', templates: 'Templates', hooks: 'Hooks',
-  backendLogin: 'Backend login', backendLoginSub: 'Claude Code and PI API keys',
+  backendLogin: 'Backend login', backendLoginSub: 'Claude Code and PI API keys and OAuth',
   footerBrand: 'cortex mobile',
 };
 
@@ -65,7 +65,7 @@ describe('MSettingsView authentication', () => {
 
     expect(html).toContain('data-auth-login-entry="mobile"');
     expect(html).toContain('aria-label="Backend login"');
-    expect(html).toContain('Claude Code and PI API keys');
+    expect(html).toContain('Claude Code and PI API keys and OAuth');
   });
 });
 

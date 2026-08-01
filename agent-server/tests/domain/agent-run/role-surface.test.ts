@@ -57,10 +57,14 @@ it('content-addresses plugin files and discovers skill directories', () => {
   assert.notEqual(directoryContentSha256(plugin), before);
 });
 
-it('hashes the resolved role directive supplied alongside the spawn config', () => {
-  const first = roleSurfaceFromSpawnConfig(spawnConfig(), 'first role directive');
-  const second = roleSurfaceFromSpawnConfig(spawnConfig(), 'second role directive');
-  assert.notEqual(first.directiveSha256, second.directiveSha256);
+it('hashes a caller-supplied thread directive instead of the one-shot empty directive', () => {
+  const empty = roleSurfaceFromSpawnConfig(spawnConfig());
+  const directed = roleSurfaceFromSpawnConfig(spawnConfig(), 'benchmark directive');
+  assert.notEqual(directed.directiveSha256, empty.directiveSha256);
+  assert.equal(
+    directed.directiveSha256,
+    '66ef966ddb7cadb3286bb29d17558fff3e1028b6a47659e57247d3464ba0e357',
+  );
 });
 
 it('hashes Claude default tools when the spawn omits or blanks raw tools', () => {

@@ -1,280 +1,181 @@
-// input:  resolved profile, parent journal, template roles, paths
-// output: frozen model and per-role journal identity projections
-// pos:    C4 identity freezer for daemon-free benchmark threads
+// input:  parent lifecycle, resolved benchmark profile and roles
+// output: per-role C4 identity and child journal header hashes
+// pos:    Identity freezer for daemon-free benchmark threads
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
-import fs from 'node:fs';
 import type { AgentSpawnConfig } from '../../agent-adapter/types.js';
-import type {
-  AgentSlotConfig, AgentSlotId, ThreadTemplate,
-} from '../../core/types/thread-types.js';
-import { filterChannelScopedPlugins } from '../agents/facade.js';
-import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
-import { resolveSystemVars } from '../threads/prompt-builder.js';
+import type { AgentSlotConfig, ThreadTemplate } from '../../core/types/thread-types.js';
 import {
-  canonicalJsonSha256, computeBundleManifestHash, computeModelExecutionIdentityHash,
-  computeRoleToolSurfaceHash, resolvedRouteHost,
-  type IdentityJsonValue, type RoleToolSurfaceInput,
+  buildAgentSpawnConfig, type AgentConfig, type RunAgentOptions,
+} from '../agents/facade.js';
+import {
+  listProfiles, resolveProfileConfig, type ResolvedProfileConfig,
+} from '../agents/profile-manager.js';
+import { resolveSystemVars, resolveTemplateAgents } from '../threads/index.js';
+import {
+  canonicalJsonSha256, computeBundleManifestHash, computeRoleToolSurfaceHash,
+  resolvedRouteHost, type FrozenIdentity, type RoleToolSurfaceInput,
 } from './identity.js';
-import type { JournalIdentityInput } from './journal.js';
-import {
-  confinedJournalPath, inspectActiveJournalModelIdentity,
-  resolveLifecyclePaths, startedMarkerProblem,
-} from './manifest.js';
+import { readStartedJournalIdentity } from './manifest.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
 
 export interface BenchmarkIdentityRequest {
+  workspaceCwd: string;
+  template: string;
   instruction: string;
   profileName: string;
   rootRunId: string;
+  trajectoryRoot: string;
   limits: { maxSteps: number; maxCostUsd: number; deadlineEpochMs: number };
-  paths: { workspaceCwd: string; trajectoryRoot: string };
 }
 
-export interface BenchmarkRoleIdentity extends JournalIdentityInput {
+export interface BenchmarkRoleIdentity extends FrozenIdentity {
   systemPromptSha256: string;
   toolManifestSha256: string;
   pluginManifestSha256: string;
 }
 
-export interface BenchmarkThreadIdentity {
-  canonicalInstructionSha256: string;
-  modelVisiblePromptSha256: string;
-  modelExecutionIdentityHash: string;
-  expectedBackend: 'claude';
-  expectedModel: string;
+export interface BenchmarkThreadIdentities {
+  entry: BenchmarkRoleIdentity;
+  roles: Map<string, BenchmarkRoleIdentity>;
   modelProtocolProblem: string | null;
-  resolvedAgents: ReadonlyMap<AgentSlotId, AgentSlotConfig>;
-  roles: ReadonlyMap<AgentSlotId, BenchmarkRoleIdentity>;
 }
 
 export class BenchmarkIdentityProtocolError extends Error {
   readonly reason = 'protocol_violation' as const;
-
-  constructor(message: string) {
-    super(message);
-    this.name = 'BenchmarkIdentityProtocolError';
-  }
 }
 
 function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
-function resolveRoleConfig(agent: AgentSlotConfig, channel: string): AgentSlotConfig {
+function agentConfig(profile: ResolvedProfileConfig): AgentConfig {
   return {
-    ...agent,
-    directive: agent.directive ? resolveSystemVars(agent.directive) : undefined,
-    systemPrompt: agent.systemPrompt ? resolveSystemVars(agent.systemPrompt) : undefined,
-    pluginDirs: filterChannelScopedPlugins(agent.pluginDirs, channel),
+    model: profile.model, backend: profile.backend, mode: profile.mode,
+    provider: profile.provider, extraEnv: profile.extraEnv, extraOption: profile.extraOption,
+    claudeBackend: profile.claudeBackend, thinking: profile.thinking,
   };
 }
 
-function spawnConfig(agent: AgentSlotConfig): AgentSpawnConfig {
+function roleRunOptions(
+  request: BenchmarkIdentityRequest,
+  agent: AgentSlotConfig,
+): RunAgentOptions {
   return {
-    sessionId: null,
-    sessionKey: agent.slotId,
-    resume: false,
-    systemPrompt: agent.systemPrompt,
-    rawTools: agent.tools,
-    pluginDirs: agent.pluginDirs,
-    mcpComposition: 'none',
-    disableHooks: true,
+    channel: `benchmark:${request.rootRunId}`, profileName: request.profileName,
+    cwd: request.workspaceCwd, mcpComposition: 'none', disableHooks: true,
+    loadCortexRules: false, streamDeltas: false, captureTranscriptLogs: false,
+    recordCost: false, systemPrompt: resolveSystemVars(agent.systemPrompt ?? ''),
+    tools: agent.tools ?? '', pluginDirs: agent.pluginDirs ?? [],
   };
 }
 
-function pluginManifest(role: RoleToolSurfaceInput): string {
-  return canonicalJsonSha256({
-    plugin_dirs: role.pluginDirs,
-    skills: role.skills,
-  });
-}
-
-function bundleBase(
+function roleSpawnConfig(
   request: BenchmarkIdentityRequest,
   profile: ResolvedProfileConfig,
-  template: ThreadTemplate,
-) {
-  return {
-    runConfig: {
-      instruction_sha256: sha256(request.instruction),
-      profile_name: profile.name,
-      template,
-    } as unknown as IdentityJsonValue,
-    limits: request.limits as unknown as IdentityJsonValue,
-    resolvedPaths: request.paths as unknown as IdentityJsonValue,
-    adapterHashes: null,
-    harnessHashes: null,
-  };
+  agent: AgentSlotConfig,
+): AgentSpawnConfig {
+  return buildAgentSpawnConfig(roleRunOptions(request, agent), agentConfig(profile), undefined);
+}
+
+function manifests(role: RoleToolSurfaceInput): {
+  plugin_dirs: RoleToolSurfaceInput['pluginDirs'];
+  skills: RoleToolSurfaceInput['skills'];
+} {
+  return { plugin_dirs: role.pluginDirs, skills: role.skills };
 }
 
 function roleIdentity(
   request: BenchmarkIdentityRequest,
   profile: ResolvedProfileConfig,
-  template: ThreadTemplate,
   agent: AgentSlotConfig,
   modelExecutionIdentityHash: string,
 ): BenchmarkRoleIdentity {
-  const role = roleSurfaceFromSpawnConfig(spawnConfig(agent), agent.directive ?? '');
-  const roleToolSurfaceHash = computeRoleToolSurfaceHash(role);
+  const spawn = roleSpawnConfig(request, profile, agent);
+  const directive = resolveSystemVars(agent.directive ?? '');
+  const surface = roleSurfaceFromSpawnConfig(spawn, directive);
+  const roleToolSurfaceHash = computeRoleToolSurfaceHash(surface);
   const bundleManifestHash = computeBundleManifestHash({
-    ...bundleBase(request, profile, template),
-    modelExecutionIdentityHash,
-    roleToolSurfaceHash,
+    runConfig: {
+      template: request.template, profile_name: request.profileName, agent_slot: agent.slotId,
+    },
+    limits: request.limits,
+    resolvedPaths: {
+      workspace_cwd: request.workspaceCwd, trajectory_root: request.trajectoryRoot,
+    },
+    adapterHashes: null, harnessHashes: null,
+    modelExecutionIdentityHash, roleToolSurfaceHash,
   });
   return {
-    systemPromptSha256: role.systemPromptSha256,
-    toolManifestSha256: canonicalJsonSha256([...role.tools].sort()),
-    pluginManifestSha256: pluginManifest(role),
-    modelExecutionIdentityHash,
-    roleToolSurfaceHash,
-    bundleManifestHash,
+    modelExecutionIdentityHash, roleToolSurfaceHash, bundleManifestHash,
+    systemPromptSha256: surface.systemPromptSha256,
+    toolManifestSha256: canonicalJsonSha256(surface.tools),
+    pluginManifestSha256: canonicalJsonSha256(manifests(surface)),
   };
 }
 
-function modelIdentityHash(profile: ResolvedProfileConfig): string {
-  return computeModelExecutionIdentityHash({
-    backend: profile.backend,
-    requestedModel: profile.model,
-    modelAliasPolicy: null,
-    providerProtocol: profile.provider,
-    configuredRouteBaseHost: resolvedRouteHost(profile),
-    claudeCliVersion: null,
-    reasoningEffort: profile.thinking,
-    fallbackEmpty: true,
-  });
-}
-
-interface ParentModelIdentity {
-  hash: string;
-  backend: string;
-  requestedModel: string;
-}
-
-interface ModelIdentityResolution {
-  hash: string;
-  problem: string | null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function assertParentMarker(
-  marker: unknown,
-  markerPath: string,
-  request: BenchmarkIdentityRequest,
-): asserts marker is Record<string, unknown> & { journal_path: string } {
-  const problem = startedMarkerProblem(marker, markerPath);
-  const linked = isRecord(marker)
-    && marker.root_run_id === request.rootRunId
-    && marker.thread_id === null;
-  if (problem || !linked) {
-    throw new BenchmarkIdentityProtocolError('Parent started marker is malformed');
-  }
-}
-
-function readParentModelIdentity(request: BenchmarkIdentityRequest): ParentModelIdentity | null {
-  const paths = resolveLifecyclePaths({
-    trajectoryRoot: request.paths.trajectoryRoot, rootRunId: request.rootRunId, threadId: null,
-  });
-  if (!fs.existsSync(paths.started)) return null;
-  const marker = JSON.parse(fs.readFileSync(paths.started, 'utf8')) as unknown;
-  assertParentMarker(marker, paths.started, request);
-  const journal = confinedJournalPath(request.paths.trajectoryRoot, marker.journal_path, true);
-  if (!journal) throw new BenchmarkIdentityProtocolError('Parent journal escapes trajectory root');
-  const inspected = inspectActiveJournalModelIdentity(journal);
-  const identity = inspected.identity;
-  const linked = identity?.rootRunId === request.rootRunId
-    && identity.threadId === null && identity.agentSlot === 'parent';
-  if (!identity || inspected.problems.length > 0 || !linked) {
-    throw new BenchmarkIdentityProtocolError('Parent journal header or event is invalid');
-  }
-  return {
-    hash: identity.modelExecutionIdentityHash,
-    backend: identity.backend,
-    requestedModel: identity.requestedModel,
-  };
-}
-
-function resolveModelIdentity(
+function roleIdentityMap(
   request: BenchmarkIdentityRequest,
   profile: ResolvedProfileConfig,
-): ModelIdentityResolution {
-  const parent = readParentModelIdentity(request);
-  if (!parent) return { hash: modelIdentityHash(profile), problem: null };
-  const matches = parent.backend === profile.backend && parent.requestedModel === profile.model;
-  return {
-    hash: parent.hash,
-    problem: matches ? null : 'Parent model identity subset disagrees with resolved profile',
-  };
-}
-
-interface FreezeIdentityOptions {
-  request: BenchmarkIdentityRequest;
-  profile: ResolvedProfileConfig;
-  template: ThreadTemplate;
-  agents: AgentSlotConfig[];
-  channel: string;
-}
-
-function resolveAgents(options: FreezeIdentityOptions): Map<AgentSlotId, AgentSlotConfig> {
-  return new Map(options.agents.map(agent => {
-    const resolved = resolveRoleConfig(agent, options.channel);
-    return [resolved.slotId, resolved];
-  }));
-}
-
-function resolveRoleIdentities(
-  options: FreezeIdentityOptions,
-  agents: ReadonlyMap<AgentSlotId, AgentSlotConfig>,
-  modelHash: string,
-): Map<AgentSlotId, BenchmarkRoleIdentity> {
-  return new Map([...agents.values()].map(agent => [
-    agent.slotId,
-    roleIdentity(options.request, options.profile, options.template, agent, modelHash),
+  template: ThreadTemplate,
+  modelExecutionIdentityHash: string,
+): Map<string, BenchmarkRoleIdentity> {
+  return new Map(resolveTemplateAgents(template).map(agent => [
+    agent.slotId, roleIdentity(request, profile, agent, modelExecutionIdentityHash),
   ]));
 }
 
-export function freezeBenchmarkThreadIdentity(
-  options: FreezeIdentityOptions,
-): BenchmarkThreadIdentity {
-  const model = resolveModelIdentity(options.request, options.profile);
-  const resolvedAgents = resolveAgents(options);
-  const roles = resolveRoleIdentities(options, resolvedAgents, model.hash);
-  return {
-    canonicalInstructionSha256: sha256(options.request.instruction),
-    modelVisiblePromptSha256: sha256(options.request.instruction),
-    modelExecutionIdentityHash: model.hash,
-    expectedBackend: 'claude',
-    expectedModel: options.profile.model,
-    modelProtocolProblem: model.problem,
-    resolvedAgents,
-    roles,
-  };
+function modelProfileProjection(profile: ResolvedProfileConfig): string {
+  return canonicalJsonSha256({
+    backend: profile.backend, requested_model: profile.model,
+    provider_protocol: profile.provider, configured_route_base_host: resolvedRouteHost(profile),
+    reasoning_effort: profile.thinking, fallback_empty: profile.fallback.length === 0,
+  });
 }
 
-export function benchmarkRoleIdentity(
-  identity: BenchmarkThreadIdentity,
-  slot: AgentSlotId,
-): BenchmarkRoleIdentity {
-  const role = identity.roles.get(slot);
-  if (role) return role;
-  throw new BenchmarkIdentityProtocolError(`No frozen C4 role identity for '${slot}'`);
+function compatibleModelProfiles(
+  parent: ReturnType<typeof readStartedJournalIdentity>,
+): ResolvedProfileConfig[] {
+  return listProfiles().map(profile => resolveProfileConfig(profile.name)).filter(profile => (
+    profile.backend === 'claude' && profile.fallback.length === 0
+    && profile.model === parent.requestedModel && profile.provider === parent.provider
+  ));
 }
 
-export function verifyBenchmarkModelIdentity(
-  identity: BenchmarkThreadIdentity,
+function parentModelObservationProblem(
+  parent: ReturnType<typeof readStartedJournalIdentity>,
   profile: ResolvedProfileConfig,
-): void {
-  if (identity.modelProtocolProblem) {
-    throw new BenchmarkIdentityProtocolError(identity.modelProtocolProblem);
-  }
-  const matches = profile.backend === identity.expectedBackend
-    && profile.model === identity.expectedModel;
-  if (matches) return;
-  throw new BenchmarkIdentityProtocolError(
-    `Resolved profile drifted from ${identity.expectedBackend}/${identity.expectedModel}`,
-  );
+): string | null {
+  const matches = parent.agentSlot === 'parent' && profile.backend === 'claude'
+    && parent.requestedModel === profile.model && parent.provider === profile.provider;
+  if (!matches) return 'Benchmark resolved profile does not match parent model observation';
+  const selected = modelProfileProjection(profile);
+  const ambiguous = compatibleModelProfiles(parent)
+    .some(candidate => modelProfileProjection(candidate) !== selected);
+  return ambiguous ? 'Benchmark cannot prove parent model identity from ambiguous profiles' : null;
+}
+
+export function freezeBenchmarkThreadIdentities(
+  request: BenchmarkIdentityRequest,
+  profile: ResolvedProfileConfig,
+  template: ThreadTemplate,
+): BenchmarkThreadIdentities {
+  const parent = readStartedJournalIdentity({
+    trajectoryRoot: request.trajectoryRoot, canonicalTrajectoryRoot: true,
+    rootRunId: request.rootRunId, threadId: null,
+  });
+  const modelProtocolProblem = parentModelObservationProblem(parent, profile);
+  const roles = roleIdentityMap(request, profile, template, parent.modelExecutionIdentityHash);
+  const entry = roles.get(template.entryAgent);
+  if (!entry) throw new Error(`Missing benchmark entry identity: ${template.entryAgent}`);
+  return { entry, roles, modelProtocolProblem };
+}
+
+export function benchmarkInstructionHashes(instruction: string): {
+  canonicalInstructionSha256: string;
+  modelVisiblePromptSha256: string;
+} {
+  const hash = sha256(instruction);
+  return { canonicalInstructionSha256: hash, modelVisiblePromptSha256: hash };
 }

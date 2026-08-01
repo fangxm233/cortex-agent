@@ -10,4 +10,4 @@ Compile-time parity checks keep operation maps and runtime validators aligned.
 | dto.ts | types | Re-exports UI DTOs including auth flows |
 | index.ts | barrel | Exposes DTOs, schemas, and router types |
 | schemas.ts | schemas | Re-exports server input schemas including auth |
-| schemas.test.ts | test | Tests schema coverage and settings validation |
+| schemas.test.ts | test | Tests schema coverage including OAuth login |
