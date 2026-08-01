@@ -1,4 +1,4 @@
-// input:  process argv, child processes, commands, and auth
+// input:  process argv, child processes, CLI handler modules
 // output: cortex CLI dispatch and process exit status
 // pos:    Top-level cortex command dispatcher
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -10,8 +10,6 @@ import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { existsSync, readdirSync, mkdirSync, writeFileSync, utimesSync, readFileSync, unlinkSync } from 'fs';
 import { INSTALL_ROOT, DATA_DIR, STORE_DIR, PROJECTS_DIR, WORKSPACE_DIR, isMainModule } from '@core/utils.js';
-import { formatError, formatHelp } from '@core/cli-utils.js';
-import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
 import {
   getResolvedPaths,
@@ -24,8 +22,16 @@ import { cmdDoctor, getDoctorHelp } from './doctor-cli.js';
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway, dryRunGatewayYaml } from '@core/gateway-generator.js';
 import { generateProfiles, writeProfilesJson } from '@core/profile-generator.js';
 import { CORTEX_VERSION } from '@core/version.js';
-import { formatAuthStatusSummary } from '@domain/auth/auth-format.js';
-import { getAuthStatus, type AuthStatusSnapshot } from '@domain/auth/auth-status.js';
+import { getAuthStatus } from '@domain/auth/auth-status.js';
+import { runAuthCli, type AuthCliDeps } from './auth-cli.js';
+import {
+  getCliHelp,
+  getInitHelp,
+  getSetupGatewayHelp,
+  getTuiHelp,
+} from './cli-help.js';
+
+export { getAuthHelp, getCliHelp, getInitHelp, getSetupGatewayHelp, getTuiHelp } from './cli-help.js';
 
 // ─── Paths ──────────────────────────────────────────────────────
 
@@ -35,44 +41,6 @@ const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const APP_JS = path.join(MODULE_DIR, 'app.js');
 const DAEMON_JS = path.join(MODULE_DIR, 'daemon.js');
 const TUI_JS = path.join(MODULE_DIR, '..', 'tui', 'index.js');
-
-// ─── Help ───────────────────────────────────────────────────────
-
-export function getInitHelp(): string {
-  return [
-    'Initialize Cortex data directory',
-    '',
-    'Usage: cortex init [--home <path>] [--gateway-config-dir <path>]',
-    '',
-    'Creates the CORTEX_HOME directory structure, prompts for backends,',
-    'interaction platform (Slack / Feishu), gateway usage, and system service.',
-    'Generates .env with platform tokens, copies default configs, and',
-    'auto-generates mcp-config.json and mode.json.',
-    '',
-    'Options:',
-    '  --home <path>               Set CORTEX_HOME (default: $CORTEX_HOME or ~/.cortex/)',
-    '  --gateway-config-dir <path>  Gateway config output directory (default: ~/.aistatus/)',
-    '  --force                     Overwrite existing configs (.env, budget.json, mode.json, etc.)',
-    '  --help, -h                  Show this help',
-  ].join('\n');
-}
-
-export function getSetupGatewayHelp(): string {
-  return [
-    'Auto-detect Claude Code / PI configurations and generate gateway.yaml + profiles.json',
-    '',
-    'Usage: cortex setup-gateway [--dry-run] [--output-dir <path>]',
-    '',
-    'Discovers backend endpoints from local Claude Code and PI configs, then',
-    'writes ~/.aistatus/gateway.yaml (with backup) and $CORTEX_HOME/config/profiles.json.',
-    'Without flags, this command writes files in place.',
-    '',
-    'Options:',
-    '  --dry-run               Print the generated gateway.yaml to stdout without writing anything',
-    '  --output-dir <path>     Write gateway.yaml and profiles.json under <path> instead of the defaults',
-    '  --help, -h              Show this help',
-  ].join('\n');
-}
 
 // ─── TUI arguments ─────────────────────────────────────────────────
 
@@ -114,23 +82,6 @@ export function tuiPortListening(port: number): Promise<boolean> {
   });
 }
 
-export function getTuiHelp(): string {
-  return [
-    'Start the Cortex TUI (terminal UI) client',
-    '',
-    'Usage: cortex tui [options]',
-    '',
-    'Connects to a running Cortex daemon via WebSocket and opens',
-    'a terminal-based chat interface.',
-    '',
-    'Options:',
-    '  --resume              Open the resume-session picker on connect',
-    '  --project <id>        Start a fresh session in the named project',
-    '  --port <n>            Override TUI port (default: 3003, or CORTEX_TUI_PORT)',
-    '  --help, -h            Show this help',
-  ].join('\n');
-}
-
 /** Execute the `cortex tui` subcommand: check daemon liveness, fork Ink client. */
 export async function cmdTui(args: string[]): Promise<void> {
   const opts = parseTuiArgs(args);
@@ -160,61 +111,6 @@ export async function cmdTui(args: string[]): Promise<void> {
   });
   child.on('exit', code => process.exit(code ?? 0));
   await new Promise<never>(() => {}); // keep alive until child exits
-}
-
-function getCliCommands() {
-  return [
-    { name: 'init', description: 'Initialize CORTEX_HOME directory with configs and API keys' },
-    { name: 'start', description: 'Start the Cortex server (node dist/entry/app.js)' },
-    { name: 'daemon', description: 'Start daemon mode with file watching and auto-restart' },
-    { name: 'daemon stop', description: 'Stop the running daemon gracefully (SIGTERM)' },
-    { name: 'daemon status', description: 'Check daemon + child status (PID, uptime)' },
-    { name: 'daemon restart', description: 'Graceful restart — signal daemon to drain and respawn app.js' },
-    { name: 'daemon restart --hard', description: 'Hard restart — send SIGTERM directly to app.js (daemon auto-recovers)' },
-    { name: 'daemon restart --force', description: 'Force restart — send SIGKILL immediately to app.js' },
-    { name: 'daemon restart-self', description: 'Stop and restart the daemon process itself' },
-    { name: 'restart', description: 'Legacy alias for daemon restart (touches $STORE_DIR/.restart)' },
-    { name: 'task', description: 'Task system CLI (delegate to cortex-task)' },
-    { name: 'agent-run', description: 'Run one supervised daemon-free Claude print turn' },
-    { name: 'install latest', description: 'Install the latest version of Cortex from npm' },
-    { name: 'config', description: 'Show resolved paths and initialization status' },
-    { name: 'doctor', description: 'Health-check the install (runtime, login, platform, gateway); --fix to repair' },
-    { name: 'auth status', description: t('cmd.auth.cli.statusDescription') },
-    { name: 'feishu', description: 'Manage Feishu user-identity login (login / status / logout)' },
-    { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + profiles.json' },
-    { name: 'tui', description: 'Start the Terminal UI (TUI) client for local interaction' },
-  ];
-}
-
-function getCliExamples() {
-  return [
-    { description: 'Interactive init', command: 'cortex init' },
-    { description: 'Init to custom directory', command: 'cortex init --home /tmp/my-cortex' },
-    { description: 'Show resolved paths', command: 'cortex config' },
-    { description: 'Health-check the install', command: 'cortex doctor' },
-    { description: t('cmd.auth.cli.exampleSummary'), command: 'cortex auth status' },
-    { description: t('cmd.auth.cli.exampleJson'), command: 'cortex auth status --json' },
-    { description: 'Diagnose and auto-repair', command: 'cortex doctor --fix' },
-    { description: 'Re-generate gateway config', command: 'cortex setup-gateway' },
-    { description: 'Run a one-shot prompt', command: 'cortex agent-run --prompt-file prompt.txt --agent-slot parent --profile benchmark --cwd /workspace --output-format jsonl --events-file /logs/events.jsonl' },
-    { description: 'Start the server', command: 'cortex start' },
-    { description: 'Stop the daemon', command: 'cortex daemon stop' },
-    { description: 'Check daemon status', command: 'cortex daemon status' },
-    { description: 'Graceful restart', command: 'cortex daemon restart' },
-    { description: 'Hard restart app.js', command: 'cortex daemon restart --hard' },
-    { description: 'Restart daemon itself', command: 'cortex daemon restart-self' },
-  ];
-}
-
-export function getCliHelp(): string {
-  return formatHelp({
-    name: 'cortex',
-    description: 'Cortex CLI — server management and initialization',
-    usage: 'cortex <command> [options]',
-    commands: getCliCommands(),
-    options: [{ flag: '--help, -h', description: 'Show this help' }],
-    examples: getCliExamples(),
-  });
 }
 
 // ─── Daemon stop ──────────────────────────────────────────────────
@@ -531,79 +427,7 @@ export interface CliResult {
   stderr: string;
 }
 
-export interface RunCliDeps {
-  getAuthStatus?: () => Promise<AuthStatusSnapshot>;
-}
-
-export function getAuthHelp(): string {
-  return formatHelp({
-    name: 'cortex auth',
-    description: t('cmd.auth.cli.description'),
-    usage: 'cortex auth status [--json]',
-    commands: [{ name: 'status', description: t('cmd.auth.cli.statusDescription') }],
-    options: [
-      { flag: '--json', description: t('cmd.auth.cli.jsonDescription') },
-      { flag: '--help, -h', description: t('cmd.auth.cli.helpDescription') },
-    ],
-    examples: [
-      { description: t('cmd.auth.cli.exampleSummary'), command: 'cortex auth status' },
-      { description: t('cmd.auth.cli.exampleJson'), command: 'cortex auth status --json' },
-    ],
-    labels: {
-      usage: t('cmd.auth.cli.helpUsage'),
-      commands: t('cmd.auth.cli.helpCommands'),
-      options: t('cmd.auth.cli.helpOptions'),
-      examples: t('cmd.auth.cli.helpExamples'),
-    },
-  });
-}
-
-function authErrorLabels() {
-  return {
-    validValues: t('cmd.auth.cli.validValues'),
-    hint: t('cmd.auth.cli.hint'),
-  };
-}
-
-function parseAuthCommand(args: string[]): CliResult | string[] {
-  if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
-    return { exitCode: 0, stdout: getAuthHelp(), stderr: '' };
-  }
-  if (args[0] === 'status') return args.slice(1);
-  const message = t('cmd.auth.cli.unknownSubcommand', { command: args[0] });
-  const stderr = formatError(message, {
-    validValues: ['status'], hint: 'cortex auth --help', labels: authErrorLabels(),
-  });
-  return { exitCode: 1, stdout: '', stderr };
-}
-
-function validateAuthOptions(options: string[]): CliResult | null {
-  if (options.includes('--help') || options.includes('-h')) {
-    return { exitCode: 0, stdout: getAuthHelp(), stderr: '' };
-  }
-  const invalid = options.find(option => option !== '--json');
-  if (!invalid) return null;
-  const message = t('cmd.auth.cli.unknownFlag', { flag: invalid });
-  const stderr = formatError(message, {
-    validValues: ['--json'], hint: 'cortex auth status --help', labels: authErrorLabels(),
-  });
-  return { exitCode: 1, stdout: '', stderr };
-}
-
-async function runAuthCli(
-  args: string[],
-  readStatus: () => Promise<AuthStatusSnapshot>,
-): Promise<CliResult> {
-  const parsed = parseAuthCommand(args);
-  if (!Array.isArray(parsed)) return parsed;
-  const invalid = validateAuthOptions(parsed);
-  if (invalid) return invalid;
-  const snapshot = await readStatus();
-  const stdout = parsed.includes('--json')
-    ? `${JSON.stringify(snapshot, null, 2)}\n`
-    : `${formatAuthStatusSummary(snapshot)}\n`;
-  return { exitCode: 0, stdout, stderr: '' };
-}
+export interface RunCliDeps extends AuthCliDeps {}
 
 // ─── runCli (synchronous/async commands) ────────────────────────
 

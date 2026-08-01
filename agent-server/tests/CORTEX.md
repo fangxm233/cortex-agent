@@ -30,7 +30,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | claim-recovery.test.ts | test | orphaned task claim recovery policy |
 | cli-utils.test.ts | test | shared CLI help and error rendering |
-| cli.test.ts | test | cortex CLI routing, auth status and exit codes |
+| cli.test.ts | test | cortex CLI routing, output framing and size limit |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
 | client-manager.test.ts | test | client lifecycle hooks, auth and commands |
 | command-handlers.test.ts | test | bang command routing including authentication |
