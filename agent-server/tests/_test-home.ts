@@ -19,13 +19,17 @@
 // seeded config (profiles.json, machines.json, thread-templates.json, gateway, …); when unset
 // (case 1) we create a minimal empty skeleton. ESM evaluates imports in source order, so as long
 // as this is the first import (or the first --import) the guarantee holds.
+//
+// Allocation and cleanup of the temp home live in _test-home-root.ts: homes are parked under a
+// single parent so they can be swept as a unit, and cleanup is layered (exit + signal handlers
+// here, authoritative removal from vitest's main process, stale sweep on the next run).
 
-import { mkdtempSync, mkdirSync, rmSync, cpSync } from 'node:fs';
-import * as os from 'node:os';
+import { mkdirSync, cpSync } from 'node:fs';
 import * as path from 'node:path';
+import { allocateTestHome, redirectTmpdir } from './_test-home-root.js';
 
 const _shared = process.env.CORTEX_HOME;
-const _home = mkdtempSync(path.join(os.tmpdir(), 'cortex-test-home-'));
+const _home = allocateTestHome();
 
 if (_shared) {
   // Clone the shared seeded home so this process gets a private, fully-seeded copy.
@@ -40,10 +44,10 @@ for (const d of ['data', 'config', 'context', path.join('context', 'projects'), 
 }
 
 process.env.CORTEX_HOME = _home;
+// Keep the temp dirs the test files allocate themselves inside the run-scoped root too.
+redirectTmpdir();
 
-// Best-effort cleanup when the test process exits (must be synchronous in 'exit').
-process.on('exit', () => {
-  try { rmSync(_home, { recursive: true, force: true }); } catch { /* best-effort */ }
-});
+// Cleanup (exit + signal handlers, and the stale sweep on the next run) is owned by
+// _test-home-root.ts — allocateTestHome() already registered this home.
 
 export {};

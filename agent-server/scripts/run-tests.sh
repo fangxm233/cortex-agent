@@ -20,6 +20,18 @@ if [[ "${1:-}" == "--quick" ]]; then
   QUICK=true
 fi
 
+# ── Sweep temp homes orphaned by earlier runs ────────────────────
+#
+# vitest's globalSetup (tests/_global-setup.ts) owns cleanup for a normal run, but a run that
+# dies before vitest starts — or a reboot — leaves homes nobody will collect. Age-gated at 2h so
+# a suite running concurrently in another worktree is never touched. The second pattern drains
+# leftovers from the pre-fix layout, which wrote homes to the top level of /tmp.
+
+find "${TMPDIR:-/tmp}/cortex-test-homes" -mindepth 1 -maxdepth 1 -mmin +120 \
+  -exec rm -rf {} + 2>/dev/null || true
+find "${TMPDIR:-/tmp}" -mindepth 1 -maxdepth 1 -name 'cortex-test-home-*' -mmin +120 \
+  -exec rm -rf {} + 2>/dev/null || true
+
 # ── Create isolated CORTEX_HOME ──────────────────────────────────
 
 CORTEX_HOME=$(mktemp -d)

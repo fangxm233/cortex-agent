@@ -5,7 +5,9 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 
 | filename | role | function |
 |---|---|---|
+| _global-setup.ts | setup | allocates the run-scoped temp-home root and removes it after all workers finish |
 | _shared-pool-manifest.ts | setup | shared-pool manifest read by vitest.config.ts: test files vetted safe for the isolate:false fork pool |
+| _test-home-root.ts | setup | allocates test homes under one parent, redirects TMPDIR, sweeps stale leftovers |
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |

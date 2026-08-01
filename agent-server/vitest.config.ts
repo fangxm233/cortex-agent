@@ -45,6 +45,10 @@ export default defineConfig({
     disableConsoleIntercept: true,
     // Per-file CORTEX_HOME isolation — replaces `--import ./tests/_test-home.ts`.
     setupFiles: ['./tests/_vitest-setup.ts'],
+    // Allocates the run-scoped temp-home root and removes it once every worker is done.
+    // Required: fork workers are killed with SIGTERM/SIGKILL, so worker-side 'exit'
+    // handlers never fire and the homes would leak into /tmp (see tests/_test-home-root.ts).
+    globalSetup: ['./tests/_global-setup.ts'],
     // Process-per-file model (mirrors node:test) — safest for the singleton
     // stores, native modules, and subprocess-spawning tests. The transpile is
     // still done ONCE by the shared Vite server and cached, so we keep the win.

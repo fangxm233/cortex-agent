@@ -22,6 +22,7 @@ export default defineConfig({
     environment: 'node',
     disableConsoleIntercept: true,
     setupFiles: ['./tests/_vitest-setup.ts'],
+    globalSetup: ['./tests/_global-setup.ts'],
     pool: 'forks',
     isolate: true,
     poolOptions: { forks: { singleFork: true } },
