@@ -1,6 +1,6 @@
 Please update me when files in this folder change
 
-Authentication domain normalizes provider state, formats summaries, and publishes credential lifecycle events.
+Authentication domain normalizes provider state, formats summaries, and coordinates login flows and lifecycle events.
 It routes required/recovered events into debounced user notices.
 
 | filename | role | function |
@@ -10,4 +10,5 @@ It routes required/recovered events into debounced user notices.
 | auth-status.ts | core | Produces secret-free account status snapshots |
 | auth-watch.ts | notify | Routes debounced authentication notices |
 | index.ts | entry | Exports the authentication domain API |
+| login-flow.ts | core | Coordinates expiring login prompts and notices |
 | pi-runtime.ts | adapter | Loads the installed PI model runtime |

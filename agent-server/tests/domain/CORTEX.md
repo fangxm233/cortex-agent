@@ -7,6 +7,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 | agent-run/ | subdir | run journals, manifests and process containment |
 | agents/ | subdir | agent profile resolution and switching |
 | auth-status.test.ts | test | backend auth state, manageability and output |
+| login-flow.test.ts | test | login lifecycle, prompt bridge, and secret exclusion |
 | costs/ | subdir | cost attribution and summary reporting |
 | hook-view.test.ts | test | mount targets, result modes and apply time |
 | mcp/ | subdir | MCP tool registration and handlers |
