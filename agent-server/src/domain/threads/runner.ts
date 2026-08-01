@@ -1,5 +1,5 @@
 // input:  thread state, benchmark/agent policy, throttle, hooks
-// output: isolated/daemon thread runs, outage policy, transcripts
+// output: isolated/daemon runs, balanced ledgers, transcripts
 // pos:    Runs thread steps, controls, hooks, and resumes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -152,6 +152,8 @@ interface StepCallbacks {
 }
 
 type StepInfo = Pick<StepContext, 'agentSlotId' | 'agentConfig' | 'isFirstStep' | 'multiAgent' | 'stage'>;
+type ThreadAgentOptions = Parameters<typeof runAgent>[1];
+type ThreadAgentHandle = ReturnType<typeof runAgent>;
 
 /** Render `agent` or `agent:stage` for log/status display — matches the transition endpoint syntax
  *  used in thread-templates.json transitions. Falls back to bare agent name when stage is null. */
@@ -464,104 +466,103 @@ function setupStepCallbacks(
   return { onAssistantMessage, onProgress, onToolUse, onToolResult };
 }
 
-/** Run the agent, manage handle, await result; fail execution + rethrow on error.
- *  Returns the agent result. */
-async function executeAndAwaitAgent(
-  threadId: string,
+function resolveStepSpawnPolicy(
   stepCtx: StepContext,
-  callbacks: StepCallbacks,
   ctx: ThreadContext,
   opts: RunThreadOptions,
-): Promise<any> {
-  const {
-    agentConfig, isFirstStep, prompt, resumeSessionId, trackSessionId, sessionKey,
-    profileName, profileBackend, execution, stepStartTime,
-  } = stepCtx;
+): Partial<ThreadAgentOptions> {
+  if (opts.benchmark) {
+    return {
+      cwd: opts.benchmark.workspaceCwd, processSpawner: opts.benchmark.spawner,
+      mcpComposition: 'none', disableHooks: true,
+    };
+  }
+  return {
+    useCoreMcp: stepCtx.agentConfig.mcpComposition === undefined,
+    mcpComposition: stepCtx.agentConfig.mcpComposition,
+    disableHooks: ctx.template?.disableHooks === true,
+  };
+}
+
+function buildThreadAgentOptions(
+  threadId: string, stepCtx: StepContext, callbacks: StepCallbacks,
+  ctx: ThreadContext, opts: RunThreadOptions,
+): ThreadAgentOptions {
+  const { agentConfig, execution, profileName } = stepCtx;
   const meta = ctx.meta;
-  const spawnPolicy = opts.benchmark
-    ? {
-        cwd: opts.benchmark.workspaceCwd,
-        processSpawner: opts.benchmark.spawner,
-        mcpComposition: 'none' as const,
-        disableHooks: true,
-      }
-    : {
-        useCoreMcp: agentConfig.mcpComposition === undefined,
-        mcpComposition: agentConfig.mcpComposition,
-        disableHooks: ctx.template?.disableHooks === true,
-      };
-
-  const handle = runAgent(prompt, {
-    channel: opts.channel,
-    executionId: execution.id,
-    sessionId: resumeSessionId,
-    trackSessionId,
-    sessionKey,
-    // Interrupted rerun: the resumed session already received the first-step files.
-    files: isFirstStep && !stepCtx.interruptedResume ? (opts.files || []) : [],
-    profileName,
-    project: threadStore.get(threadId)?.projectId,
-    trigger: meta?.trigger || undefined,
-    threadId,
-    threadDepth: meta?.depth ?? 0,
-    taskId: meta?.taskId ?? null,
-    taskProject: meta?.taskProject ?? null,
+  return {
+    channel: opts.channel, executionId: execution.id,
+    sessionId: stepCtx.resumeSessionId, trackSessionId: stepCtx.trackSessionId,
+    sessionKey: stepCtx.sessionKey,
+    files: stepCtx.isFirstStep && !stepCtx.interruptedResume ? (opts.files || []) : [],
+    profileName, project: threadStore.get(threadId)?.projectId,
+    trigger: meta?.trigger || undefined, threadId, threadDepth: meta?.depth ?? 0,
+    taskId: meta?.taskId ?? null, taskProject: meta?.taskProject ?? null,
     taskGeneration: meta?.dispatchGeneration ?? null,
-    ...spawnPolicy,
-    sessionName: stepCtx.sessionName,
-    claudeAgent: agentConfig.claudeAgent || null,
+    ...resolveStepSpawnPolicy(stepCtx, ctx, opts),
+    sessionName: stepCtx.sessionName, claudeAgent: agentConfig.claudeAgent || null,
     systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,
-    outputStyle: agentConfig.outputStyle || null,
-    tools: agentConfig.tools || null,
-    pluginDirs: agentConfig.pluginDirs || null,
-    onFallback: null,
-    isUserInitiated: false,
-    onAssistantMessage: callbacks.onAssistantMessage,
-    onProgress: callbacks.onProgress,
-    onToolUse: callbacks.onToolUse,
-    onToolResult: callbacks.onToolResult,
-    onPlanWritten: opts.onPlanWritten ?? null,
-    onAskUserQuestion: opts.onAskUserQuestion ?? null,
-  });
+    outputStyle: agentConfig.outputStyle || null, tools: agentConfig.tools || null,
+    pluginDirs: agentConfig.pluginDirs || null, onFallback: null, isUserInitiated: false,
+    onAssistantMessage: callbacks.onAssistantMessage, onProgress: callbacks.onProgress,
+    onToolUse: callbacks.onToolUse, onToolResult: callbacks.onToolResult,
+    onPlanWritten: opts.onPlanWritten ?? null, onAskUserQuestion: opts.onAskUserQuestion ?? null,
+  };
+}
 
-  // Track handle for cancellation
-  runningExecutions.register({
-    threadId,
-    channel: opts.channel,
-    agentSlotId: stepCtx.agentSlotId,
-    executionId: stepCtx.execution.id,
-    kind: stepCtx.execution.kind,
-    kill: () => handle.kill(),
-    backend: profileBackend,
-    agentProcess: handle.agentProcess,
-    sessionId: handle.sessionId,
+function failStepExecution(stepCtx: StepContext, error: any): void {
+  const durationS = (Date.now() - new Date(stepCtx.stepStartTime).getTime()) / 1000;
+  executionRegistry.teardownExecution({
+    executionId: stepCtx.execution.id, status: 'failed', durationS,
+    error: { message: error?.message || 'Agent process error' },
   });
+}
 
+function launchThreadAgent(stepCtx: StepContext, options: ThreadAgentOptions): ThreadAgentHandle {
   try {
-    // On success the registry entry stays live until recordStepOutcome tears it down
-    // (so the agent.completed event fires there). On error we tear down here.
+    return runAgent(stepCtx.prompt, options);
+  } catch (error) {
+    failStepExecution(stepCtx, error);
+    throw error;
+  }
+}
+
+function registerStepHandle(
+  threadId: string, stepCtx: StepContext, handle: ThreadAgentHandle, opts: RunThreadOptions,
+): void {
+  runningExecutions.register({
+    threadId, channel: opts.channel, agentSlotId: stepCtx.agentSlotId,
+    executionId: stepCtx.execution.id, kind: stepCtx.execution.kind,
+    kill: () => handle.kill(), backend: stepCtx.profileBackend,
+    agentProcess: handle.agentProcess, sessionId: handle.sessionId,
+  });
+}
+
+async function awaitStepHandle(stepCtx: StepContext, handle: ThreadAgentHandle): Promise<any> {
+  try {
     return await handle.promise;
-  } catch (agentError: any) {
-    // Finalize execution as failed (persistent record + registry + agent.failed event)
-    // so it doesn't stay stuck in 'running' and the dashboards see a balanced lifecycle.
-    const failDurationS = (Date.now() - new Date(stepStartTime).getTime()) / 1000;
-    executionRegistry.teardownExecution({
-      executionId: execution.id,
-      status: 'failed',
-      durationS: failDurationS,
-      error: { message: agentError?.message || 'Agent process error' },
-    });
-    // Carry the interrupted attempt's identity to the thrown-path pause handler
-    // (pauseRetryableProviderError) so a retryable outage can resume this session.
-    if (agentError && typeof agentError === 'object') {
-      agentError.interruptedStep = {
+  } catch (error: any) {
+    failStepExecution(stepCtx, error);
+    if (error && typeof error === 'object') {
+      error.interruptedStep = {
         agentSlotId: stepCtx.agentSlotId,
         backendSessionId: handle.sessionId ?? null,
         sawActivity: stepCtx.sawActivity,
       };
     }
-    throw agentError;
+    throw error;
   }
+}
+
+/** Run the agent, manage its live handle, and balance failed executions. */
+async function executeAndAwaitAgent(
+  threadId: string, stepCtx: StepContext, callbacks: StepCallbacks,
+  ctx: ThreadContext, opts: RunThreadOptions,
+): Promise<any> {
+  const options = buildThreadAgentOptions(threadId, stepCtx, callbacks, ctx, opts);
+  const handle = launchThreadAgent(stepCtx, options);
+  registerStepHandle(threadId, stepCtx, handle, opts);
+  return awaitStepHandle(stepCtx, handle);
 }
 
 /** Record step result, register session, finalize execution; update aggregate counters. */
