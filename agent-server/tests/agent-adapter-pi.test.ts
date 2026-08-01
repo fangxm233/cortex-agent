@@ -1,5 +1,5 @@
-// input:  PI adapter hooks, provider cache, fake subprocesses
-// output: PI spawn/cache policy, bounded events, context and compact
+// input:  PI hooks, provider cache, transcripts, fake processes
+// output: PI resume identity, spawn policy, events and compact
 // pos:    Covers PI process and event lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -1124,6 +1124,32 @@ test('G-9: disk resume recognizes the exact timestamp-prefixed session filename'
 
     const { args } = stub.calls[0];
     assert.equal(args[args.indexOf('--session') + 1], sessionPath);
+    stub.children[0].emit('close', 0, null);
+  } finally {
+    rmSync(sessionDir, { recursive: true, force: true });
+  }
+});
+
+test('G-9b: a restored transcript registration overrides a canonical duplicate on the next spawn', () => {
+  const sessionDir = pathJoin(tmpdir(), `pi-restored-resume-${process.pid}-${Date.now()}`);
+  mkdirSync(sessionDir, { recursive: true });
+  const sessionId = 'restored-session-id';
+  const restoredPath = pathJoin(sessionDir, `2026-08-01T01-02-03Z_${sessionId}.jsonl`);
+  const canonicalPath = pathJoin(sessionDir, `${sessionId}.jsonl`);
+  writeFileSync(restoredPath, 'restored-context');
+  writeFileSync(canonicalPath, 'selector-preferred-context');
+
+  try {
+    const stub = makeStubSpawner();
+    const adapter = new PIAdapter(stub.spawn, sessionDir);
+    adapter.registerSessionPath(sessionId, restoredPath);
+
+    adapter.spawn({ sessionId, sessionKey: 'k-restored', resume: true });
+
+    const { args } = stub.calls[0];
+    assert.equal(args[args.indexOf('--session') + 1], restoredPath);
+    assert.equal(readFileSync(restoredPath, 'utf8'), 'restored-context');
+    assert.equal(readFileSync(canonicalPath, 'utf8'), 'selector-preferred-context');
     stub.children[0].emit('close', 0, null);
   } finally {
     rmSync(sessionDir, { recursive: true, force: true });

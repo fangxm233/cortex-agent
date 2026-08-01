@@ -1,8 +1,9 @@
-// input:  rewind request, ledger snapshots, mutation lease
-// output: immutable restore and admitted resend result
+// input:  rewind request, ledger snapshots, PI path registry
+// output: exact transcript restore and admitted resend result
 // pos:    Web message edit rollback orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import { registerPISessionPath } from '../agent-adapter/index.js';
 import type { PlatformAdapter } from '@platform/index.js';
 import { createLogger } from '@core/log.js';
 import { runningExecutions } from '@core/running-executions.js';
@@ -45,6 +46,7 @@ export interface RewindDeps {
     'sessionFileFromBackupPath' | 'cleanupBackupsForFile' | 'cleanupAllBackupsForFile'
   >;
   resolveBackend: (channel: string) => string;
+  registerPISessionPath: (sessionId: string, sessionPath: string) => void;
   closePooledSession: (channel: string, backend: string) => void;
   send: (opts: {
     channel: string;
@@ -66,6 +68,7 @@ function defaultDeps(): RewindDeps {
     sessionStore,
     backup: sessionBackup,
     resolveBackend: (channel) => resolveBackendForChannel(channel),
+    registerPISessionPath,
     closePooledSession: (channel, backend) => { if (backend === 'claude') closeClaudePooledSession(channel); },
     send: sendWebUserMessage,
     publishRewound: publishSessionRewound,
@@ -128,6 +131,16 @@ async function restoreSnapshot(
   return { restored, piSessionFile };
 }
 
+function registerRestoredPIPath(
+  backend: string,
+  backendSessionId: string | null,
+  snapshot: SnapshotRestore,
+  register: RewindDeps['registerPISessionPath'],
+): void {
+  if (backend !== 'pi' || !backendSessionId || !snapshot.restored || !snapshot.piSessionFile) return;
+  register(backendSessionId, snapshot.piSessionFile);
+}
+
 function cleanupSnapshot(
   backend: string,
   backendSessionId: string | null,
@@ -174,6 +187,7 @@ async function rewindLocked(
   const snapshot = await restoreSnapshot(
     backend, backendSessionId, backupPath, turnIndex, deps.backup,
   );
+  registerRestoredPIPath(backend, backendSessionId, snapshot, deps.registerPISessionPath);
   if (!snapshot.restored) {
     if (turnIndex > 0) log.warn('No backup found — starting a fresh backend session (display history keeps earlier turns)');
     await deps.sessionStore.updateSession(rec.name, { backendSessionId: null });

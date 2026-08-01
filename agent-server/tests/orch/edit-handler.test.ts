@@ -1,11 +1,12 @@
-// input:  edit handler, ledger backup paths, registry fixtures
-// output: immutable restore and retry routing regressions
+// input:  edit handler, backup paths, PI registry fixtures
+// output: exact restore identity and retry routing regressions
 // pos:    Verifies platform edit rollback orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import '../_test-home.js';
 import { test, vi, afterEach } from 'vitest';
 import assert from 'node:assert/strict';
+import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import { createEditHandler } from '../../src/orchestration/routing/edit-handler.js';
 import { conversationLedger } from '../../src/store/conversation-ledger-repo.js';
 import { runningExecutions } from '../../src/core/running-executions.js';
@@ -245,10 +246,18 @@ test('PI edit restores the ledger backup when filename preference changes after 
   writeFileSync(canonicalFile, 'new-canonical', 'utf8');
   await conversationLedger.setBackupPath(channel, 'M1', backupPath);
 
+  const piAdapter = new PIAdapter(undefined, piDir);
   const reprocessCalls: any[] = [];
+  let resendPath: string | null = null;
   const handler = createEditHandler({
     activeAgents: runningExecutions,
-    reprocessMessage: (ch, text, _adapter, opts) => { reprocessCalls.push({ ch, text, opts }); },
+    registerPISessionPath: (id, filePath) => {
+      piAdapter.registerSessionPath(id, filePath);
+    },
+    reprocessMessage: (ch, text, _adapter, opts) => {
+      resendPath = piAdapter.resolveSessionPath(backendSessionId);
+      reprocessCalls.push({ ch, text, opts });
+    },
     resolveBackend: () => 'pi',
   });
 
@@ -263,6 +272,7 @@ test('PI edit restores the ledger backup when filename preference changes after 
   try {
     assert.equal(readFileSync(recordedFile, 'utf8'), 'before-turn');
     assert.equal(readFileSync(canonicalFile, 'utf8'), 'new-canonical');
+    assert.equal(resendPath, recordedFile, 'retry resumes the exact transcript restored from the ledger backup');
     assert.equal(reprocessCalls[0].opts.sessionId, sessionId, 'successful immutable restore keeps the tracking session');
   } finally {
     await clearLedgerEntry(channel);

@@ -23,7 +23,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
 | session-compact.ts | control | compacts an idle session's context |
 | session-events.ts | events | publishes session state events on the bus |
-| session-rewind.ts | chat | restores snapshots and transfers resend admission |
+| session-rewind.ts | chat | restores and pins snapshots before Web resend |
 | session-send.ts | chat | forwards admitted Web user turns |
 | status-helpers.ts | helper | builds settings-aware status messages |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |

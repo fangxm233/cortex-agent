@@ -65,6 +65,7 @@ function makeRewindDeps(channel: string, overrides: Partial<RewindDeps> = {}): R
       cleanupAllBackupsForFile: () => {},
     },
     resolveBackend: () => 'claude',
+    registerPISessionPath: () => {},
     closePooledSession: () => {},
     send: (opts) => { opts.mutationRelease?.(); },
     publishRewound: () => {},
