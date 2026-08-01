@@ -1,12 +1,13 @@
-// input:  machines.json config (hot-reloadable)
-// output: getMachineRegistry + task ID generators
-// pos:    device registry and task ID generation utilities
+// input:  machine config, task generation ownership
+// output: device registry, task IDs, dispatch outcome helpers
+// pos:    Shared task dispatch utilities
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as crypto from 'crypto';
 import { readFileSync, watch, existsSync, type FSWatcher } from 'fs';
 import * as path from 'path';
 import { CONFIG_DIR } from '@core/utils.js';
+import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 
@@ -191,37 +192,59 @@ export interface SplitOutcome {
   error?: string;
 }
 
-/** Process a worker thread's [SPLIT] decomposition proposal after dispatch:
- *  decompose keep-parent (the task becomes a join/acceptance node over its new children)
- *  and unclaim it so the children flow through the normal queue. Parse errors are surfaced
- *  (and the task still unclaimed) instead of silently dropped. Deps are injected by the
- *  caller (task-dispatch wires the real detect/decompose/unclaim) — keeps this testable
- *  and this module free of thread-system imports. */
-async function processSplitOutcome(
-  args: { threadId: string; taskId: string | null; project: string },
-  deps: {
-    detect: (threadId: string) => { split: boolean; subtasks: any[] | null; error: string | null };
-    decompose: (project: string, text: string | null, subtasks: any[], taskId: string | null, options: { keepParent?: boolean }) => { success: boolean; message: string } | Promise<{ success: boolean; message: string }>;
-    unclaim: (taskId: string) => Promise<unknown>;
-  },
-): Promise<SplitOutcome> {
-  const detection = deps.detect(args.threadId);
-  if (!detection.split) return { handled: false };
+interface SplitOutcomeArgs {
+  threadId: string;
+  taskId: string | null;
+  project: string;
+  ownership?: TaskGenerationExpectation;
+}
+
+interface SplitDetection {
+  split: boolean;
+  subtasks: any[] | null;
+  error: string | null;
+}
+
+interface SplitOutcomeDeps {
+  detect: (threadId: string) => SplitDetection;
+  decompose: (
+    project: string, text: string | null, subtasks: any[], taskId: string | null,
+    options: { keepParent?: boolean; ownership?: TaskGenerationExpectation },
+  ) => { success: boolean; message: string } | Promise<{ success: boolean; message: string }>;
+  unclaim: (taskId: string) => Promise<unknown>;
+}
+
+async function invalidSplitOutcome(
+  args: SplitOutcomeArgs, detection: SplitDetection, deps: SplitOutcomeDeps,
+): Promise<SplitOutcome | null> {
   if (!args.taskId) {
     log.warn(`[SPLIT] marker in thread ${args.threadId} but no associated task — ignoring`);
     return { handled: false };
   }
-  if (detection.error || !detection.subtasks) {
-    await deps.unclaim(args.taskId);
-    return { handled: true, error: detection.error || '[SPLIT] proposal empty' };
-  }
-  const result = await deps.decompose(args.project, null, detection.subtasks, args.taskId, { keepParent: true });
+  if (!detection.error && detection.subtasks) return null;
+  await deps.unclaim(args.taskId);
+  return { handled: true, error: detection.error || '[SPLIT] proposal empty' };
+}
+
+/** Process a worker thread's [SPLIT] proposal and preserve dispatch ownership. */
+async function processSplitOutcome(
+  args: SplitOutcomeArgs, deps: SplitOutcomeDeps,
+): Promise<SplitOutcome> {
+  const detection = deps.detect(args.threadId);
+  if (!detection.split) return { handled: false };
+  const invalid = await invalidSplitOutcome(args, detection, deps);
+  if (invalid) return invalid;
+  const ownershipOption = args.ownership ? { ownership: args.ownership } : {};
+  const result = await deps.decompose(args.project, null, detection.subtasks!, args.taskId, {
+    keepParent: true,
+    ...ownershipOption,
+  });
   if (!result.success) {
-    await deps.unclaim(args.taskId);
+    await deps.unclaim(args.taskId!);
     return { handled: true, error: result.message };
   }
-  await deps.unclaim(args.taskId);
-  return { handled: true, note: `split into ${detection.subtasks.length} subtask(s) — parent kept as join node` };
+  await deps.unclaim(args.taskId!);
+  return { handled: true, note: `split into ${detection.subtasks!.length} subtask(s) — parent kept as join node` };
 }
 
 // --- [ABORT] outcome handling (DR-0014 §8: worker escalation) ---

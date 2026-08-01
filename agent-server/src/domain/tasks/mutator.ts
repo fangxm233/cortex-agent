@@ -1,5 +1,5 @@
 // input:  task repo, lifecycle ownership, project locks, EventBus
-// output: serialized task mutations and generation-aware events
+// output: serialized owned mutations and generation-aware events
 // pos:    Serializes task mutations across processes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -55,6 +55,11 @@ interface AddTaskOptions {
   system?: boolean;
 }
 
+interface DecomposeTaskOptions extends OwnedMutationOptions {
+  keepParent?: boolean;
+  system?: boolean;
+}
+
 interface AddTaskRequest {
   project: string;
   text: string;
@@ -87,6 +92,12 @@ async function acquireSystemProjectLock(project: string): Promise<string> {
 function releaseSystemProjectLock(project: string, owner: string): void {
   const result = releaseLock(project, owner);
   if (!result.released) throw new Error(result.message || `Failed to release project lock for ${project}`);
+}
+
+function decomposeLockError(project: string, options: DecomposeTaskOptions): string | null {
+  if (!options.system) return assertLockHeld(project, getOwnerIdentity());
+  const lock = isProjectLocked(project);
+  return lock.locked ? `Project lock held by ${lock.owner} — split deferred` : null;
 }
 
 export class TaskMutator {
@@ -323,19 +334,15 @@ export class TaskMutator {
     taskText: string | null,
     subtasks: any[],
     taskId?: string | null,
-    options: { keepParent?: boolean; system?: boolean } = {},
+    options: DecomposeTaskOptions = {},
   ): Promise<any> {
     return this.store.runExclusive(() => {
-      if (options.system) {
-        // System-initiated decompose ([SPLIT] dispatch path, DR-0014): no agent holds the
-        // lock here — proceed unless a FOREIGN lock exists (defer to the lock holder).
-        const l = isProjectLocked(project);
-        if (l.locked) return { success: false, message: `Project lock held by ${l.owner} — split deferred` };
-      } else {
-        const lockError = assertLockHeld(project, getOwnerIdentity());
-        if (lockError) return { success: false, message: lockError };
-      }
-      const result = lifecycleDecomposeTask(project, taskText, subtasks, taskId || null, { keepParent: options.keepParent });
+      const lockError = decomposeLockError(project, options);
+      if (lockError) return { success: false, message: lockError };
+      const result = lifecycleDecomposeTask(project, taskText, subtasks, taskId || null, {
+        keepParent: options.keepParent,
+        ownership: options.ownership,
+      });
       if (result.success) { this.store.refresh(); this.store.commitAndPush(`task-store: decompose task in ${project}${options.keepParent ? ' (keep-parent)' : ''}`); }
       return result;
     });

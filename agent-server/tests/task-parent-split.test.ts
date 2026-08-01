@@ -1,6 +1,6 @@
-// input:  Node test runner + task-parser parent field + decompose keep-parent + lint + split outcome
-// output: Task.parent round-trip / decomposeTask keepParent / lint parent rules / processSplitOutcome tests
-// pos:    Verify task-tree infrastructure (DR-0014 Phase 5)
+// input:  Vitest, task parser, split lifecycle
+// output: parent round trips and generation-fenced split tests
+// pos:    Task tree and dispatched split regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -13,6 +13,7 @@ import { rawToTask, taskToYamlObj, parseTasksFile, serializeTasksFile } from '..
 import { decomposeTask } from '../src/domain/tasks/system/task-mutations.js';
 import { lintTasks } from '../src/domain/tasks/lint.js';
 import { processSplitOutcome } from '../src/domain/tasks/dispatch-utils.js';
+import { taskMutator } from '../src/domain/tasks/mutator.js';
 
 // --- helpers (mirrors task-mutations.test.ts repo scaffolding) ---
 
@@ -199,4 +200,32 @@ test('processSplitOutcome reports decompose failure without unclaiming twice', a
   assert.equal(r.handled, true);
   assert.match(r.error || '', /lock held/);
   assert.deepEqual(calls.unclaim, ['t111'], 'task returned to open exactly once');
+});
+
+test('delayed split cannot mutate a task reclaimed by a newer generation', async () => {
+  const proj = nextProject();
+  const owned = [
+    BASE_TASK.trimEnd(),
+    '    claimed-by: task-dispatcher',
+    '    claimed-at: "2026-08-01"',
+    '    dispatch-generation: generation-b',
+    '',
+  ].join('\n');
+  const { tasksPathFor, cleanup } = makeRepo({ [proj]: owned });
+  const tasksPath = tasksPathFor(proj);
+  const before = fs.readFileSync(tasksPath, 'utf8');
+  try {
+    const result = await processSplitOutcome({
+      threadId: 'thr_stale', taskId: 'p111', project: proj,
+      ownership: { generation: 'generation-a' },
+    }, {
+      detect: () => ({ split: true, subtasks: [{ text: 'Old child' }], error: null }),
+      decompose: (project, text, subtasks, taskId, options) =>
+        taskMutator.decompose(project, text, subtasks, taskId, { ...options, system: true }),
+      unclaim: async () => {},
+    });
+    assert.equal(result.handled, true);
+    assert.match(result.error || '', /stale|generation/i);
+    assert.equal(fs.readFileSync(tasksPath, 'utf8'), before);
+  } finally { cleanup(); }
 });

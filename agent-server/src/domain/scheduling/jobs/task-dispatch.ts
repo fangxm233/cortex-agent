@@ -215,7 +215,10 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
   // Decompose keep-parent (task becomes the join/acceptance node) and unclaim; the children flow
   // through the normal dispatch queue.
   const splitOutcome = await processSplitOutcome(
-    { threadId: thread.id, taskId: selectedTask.id ?? null, project: selectedTask.project },
+    {
+      threadId: thread.id, taskId: selectedTask.id ?? null,
+      project: selectedTask.project, ownership,
+    },
     {
       detect: detectSplitFromControl,
       // system:true — no agent lock in the dispatch path; defer if a foreign lock exists.
