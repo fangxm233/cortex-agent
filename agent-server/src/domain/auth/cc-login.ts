@@ -9,9 +9,9 @@ import {
   saveAnthropicApiKey,
 } from '../agents/config.js';
 import { publishAuthRecovered } from './auth-events.js';
-import type { AuthInteraction } from './login-flow.js';
+import type { AuthInteraction, LoginOutcome } from './login-flow.js';
 
-export interface ClaudeApiKeyLoginOutcome {
+export interface ClaudeApiKeyLoginOutcome extends LoginOutcome {
   provider: 'anthropic';
   authType: 'api_key';
   expiresAt: null;

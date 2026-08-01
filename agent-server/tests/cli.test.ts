@@ -84,14 +84,18 @@ test('real auth status JSON CLI emits exactly one trailing newline', () => {
     process.execPath,
     ['--import', 'tsx', CLI_SOURCE, 'auth', 'status', '--json'],
     { encoding: 'utf8', env: {
-      ...process.env, CORTEX_LANG: 'en', HOME: isolatedHome, PATH: '/usr/bin:/bin',
+      CORTEX_HOME: isolatedHome,
+      CORTEX_LANG: 'en',
+      HOME: isolatedHome,
+      PATH: '',
+      TMPDIR: isolatedHome,
     } },
   );
 
   assert.equal(child.status, 0, child.stderr);
-  assert.doesNotThrow(() => JSON.parse(child.stdout));
-  assert.match(child.stdout, /\n$/);
-  assert.doesNotMatch(child.stdout, /\n\n$/);
+  assert.equal(child.stderr, '');
+  const snapshot = JSON.parse(child.stdout) as AuthStatusSnapshot;
+  assert.equal(child.stdout, `${JSON.stringify(snapshot, null, 2)}\n`);
 });
 
 test('runCli auth help and invalid arguments provide a localized correction path', async (t) => {

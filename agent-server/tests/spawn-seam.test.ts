@@ -1,5 +1,5 @@
-// input:  spawn facade, adapters, MCP configs, goldens
-// output: cwd, composition, pool, context and golden proofs
+// input:  spawn facade, task context, adapters, MCP configs, goldens
+// output: cwd, composition, generation, pool, and golden proofs
 // pos:    Verifies the backend process spawn contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -25,6 +25,7 @@ import {
   UnsupportedMcpCompositionError,
   PIAdapter,
 } from '../src/agent-adapter/pi/adapter.js';
+import { buildPiEnv } from '../src/agent-adapter/pi/spawn-args.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
 import { resetSettingsForTests } from '../src/core/settings.js';
@@ -202,6 +203,38 @@ test('buildSpawnConfig carries isolated one-shot values and resolves legacy comp
   assert.equal(explicit.appendSystemPrompt, undefined);
   assert.equal(explicit.cortexContext?.useCoreMcp, true);
   assert.equal(legacy.mcpComposition, 'thread-control');
+});
+
+test('task dispatch generation reaches both backend environments without inheriting stale state', () => {
+  const config = facadeTest.buildSpawnConfig({
+    channel: 'thread-fixture',
+    sessionId: '33333333-3333-4333-8333-333333333333',
+    sessionKey: 'thread-fixture:2',
+    threadId: 'thr_generation',
+    taskId: 'abcd',
+    taskProject: 'atlas',
+    taskGeneration: 'generation-b',
+  }, FIXTURE_CONFIG, undefined);
+  assert.equal(config.cortexContext?.taskGeneration, 'generation-b');
+
+  const claudeEnv = buildClaudeEnv(
+    'thread-fixture', config.sessionId!, null, null, undefined,
+    { CORTEX_TASK_GENERATION: 'forged-generation' }, config.cortexContext,
+  );
+  assert.equal(claudeEnv.CORTEX_TASK_GENERATION, 'generation-b');
+
+  const piEnv = buildPiEnv({
+    sessionId: config.sessionId,
+    channel: 'thread-fixture',
+    context: config.cortexContext,
+    piAgentDir: '/fixture/pi-agent',
+  }, { CORTEX_TASK_GENERATION: 'stale-generation' });
+  assert.equal(piEnv.CORTEX_TASK_GENERATION, 'generation-b');
+
+  const cleanPiEnv = buildPiEnv({ piAgentDir: '/fixture/pi-agent' }, {
+    CORTEX_TASK_GENERATION: 'stale-generation',
+  });
+  assert.equal(cleanPiEnv.CORTEX_TASK_GENERATION, undefined);
 });
 
 test('restricted one-shot options override MCP paths and disable hooks', () => {

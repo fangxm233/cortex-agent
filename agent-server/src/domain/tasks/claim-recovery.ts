@@ -1,5 +1,5 @@
-// input:  TASKS.yaml (core scanAllTasks), threadStore, pending-tracker, taskMutator
-// output: recoverOrphanedClaims() — startup reconciliation of dispatch claims orphaned by a crash
+// input:  TASKS.yaml generations, threadStore, pending-tracker, taskMutator
+// output: generation-fenced startup reconciliation of orphaned dispatch claims
 // pos:    called once from entry/app.ts right after threadStore.markRunningAsFailedOnStartup.
 //         A claimed task is invisible to the dispatcher (isActionable excludes claimed_by), so a
 //         dispatch claim whose owner died with the server would otherwise stay in-progress forever
@@ -29,19 +29,24 @@ const CLAIM_HOLDING_THREAD_STATUSES = new Set(['running', 'waiting', 'rate_limit
 
 export interface ClaimRecoveryDeps {
   scan?: () => Task[];
-  ownedByLiveThread?: (taskId: string) => boolean;
-  isTracked?: (taskId: string) => boolean;
-  unclaim?: (taskId: string) => Promise<unknown>;
+  ownedByLiveThread?: (task: Task) => boolean;
+  isTracked?: (task: Task) => boolean;
+  unclaim?: (taskId: string, generation: string | null) => Promise<unknown>;
 }
 
 /** Unclaim every dispatcher claim with no surviving owner. Returns the recovered task ids.
  *  Idempotent and fail-soft: one failing unclaim never aborts the sweep. */
 export async function recoverOrphanedClaims(deps: ClaimRecoveryDeps = {}): Promise<string[]> {
   const scan = deps.scan ?? (() => scanAllTasks());
-  const ownedByLiveThread = deps.ownedByLiveThread ?? ((taskId: string) =>
-    threadStore.getAll().some((t) => CLAIM_HOLDING_THREAD_STATUSES.has(t.status) && t.metadata?.taskId === taskId));
-  const isTracked = deps.isTracked ?? ((taskId: string) => pendingTaskTracker.getTask(taskId) !== null);
-  const unclaim = deps.unclaim ?? ((taskId: string) => taskMutator.unclaim(taskId));
+  const ownedByLiveThread = deps.ownedByLiveThread ?? ((task: Task) =>
+    threadStore.getAll().some((t) => CLAIM_HOLDING_THREAD_STATUSES.has(t.status)
+      && t.metadata?.taskId === task.id
+      && (t.metadata?.dispatchGeneration ?? null) === task.dispatch_generation));
+  const isTracked = deps.isTracked ?? ((task: Task) => pendingTaskTracker.isTaskTracked(
+    task.id!, task.project, task.dispatch_generation,
+  ));
+  const unclaim = deps.unclaim ?? ((taskId: string, generation: string | null) =>
+    taskMutator.unclaim(taskId, { ownership: { generation } }));
 
   let tasks: Task[];
   try {
@@ -56,10 +61,11 @@ export async function recoverOrphanedClaims(deps: ClaimRecoveryDeps = {}): Promi
     if (!task.id || task.claimed_by !== DISPATCHER_AGENT) continue;
     if (task.status === 'done' || task.status === 'pending') continue; // pending → cortex-run owns it
     if (task.blocked_by) continue;              // blocked is already a terminal signal for the tree
-    if (ownedByLiveThread(task.id)) continue;   // suspended manager / rate-limit-paused thread
-    if (isTracked(task.id)) continue;           // remote dispatch tracked in pending-tasks.json
+    if (ownedByLiveThread(task)) continue;      // suspended manager / rate-limit-paused thread
+    if (isTracked(task)) continue;              // remote dispatch tracked in pending-tasks.json
     try {
-      await unclaim(task.id);
+      const result = await unclaim(task.id, task.dispatch_generation);
+      if ((result as any)?.success === false) continue;
       recovered.push(task.id);
       log.info(`recovered orphaned dispatch claim on [${task.project}] ${task.id} — task returned to the queue`);
     } catch (e) {

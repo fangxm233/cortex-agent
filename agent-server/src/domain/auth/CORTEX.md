@@ -11,5 +11,6 @@ It routes required/recovered events into debounced user notices.
 | auth-watch.ts | notify | Routes debounced authentication notices |
 | cc-login.ts | adapter | Persists Claude API keys and reloads auth |
 | index.ts | entry | Exports the authentication domain API |
-| login-flow.ts | core | Coordinates expiring login prompts and notices |
+| login-flow.ts | core | Coordinates login prompts, outcomes, and aborts |
+| pi-login.ts | adapter | Logs PI providers in through the installed runtime |
 | pi-runtime.ts | adapter | Loads the installed PI model runtime |

@@ -18,6 +18,7 @@ import {
   respondPrompt,
   startFlow,
   type AuthInteraction,
+  type LoginFlowConsumer,
   type LoginFlowStep,
 } from '../../src/domain/auth/login-flow.js';
 
@@ -25,7 +26,6 @@ const PLACEHOLDER = 'cortex-gateway-managed';
 const OLD_KEY = 'sk-ant-fixture-old';
 const NEW_KEY = 'sk-ant-fixture-new';
 
-type LoginConsumer = (interaction: AuthInteraction) => Promise<unknown>;
 type GetAuthStatus = typeof import('../../src/domain/auth/auth-status.js')['getAuthStatus'];
 
 interface AuthFixture {
@@ -92,12 +92,16 @@ async function waitForStep(flowId: string, expected: LoginFlowStep): Promise<voi
   assert.fail(`flow ${flowId} did not reach ${expected}`);
 }
 
-async function runLogin(login: LoginConsumer, key: string) {
+async function runLogin(login: LoginFlowConsumer, key: string) {
   let outcome: unknown;
-  const flow = startFlow({
+  const flow = await startFlow({
     backend: 'claude', provider: 'anthropic', authType: 'api_key',
     channel: 'web:fixture', sessionId: 'fixture-session',
-  }, async interaction => { outcome = await login(interaction); });
+  }, async interaction => {
+    const result = await login(interaction);
+    outcome = result;
+    return result;
+  });
   await waitForStep(flow.flowId, 'prompt');
   const response = respondPrompt(flow.flowId, key);
   await waitForStep(flow.flowId, 'done');
@@ -126,9 +130,9 @@ interface LoginEvidence {
 }
 
 function assertSuccessfulLogin(evidence: LoginEvidence): void {
-  assert.deepEqual(evidence.result.outcome, {
-    provider: 'anthropic', authType: 'api_key', expiresAt: null,
-  });
+  const expectedOutcome = { provider: 'anthropic', authType: 'api_key', expiresAt: null };
+  assert.deepEqual(evidence.result.outcome, expectedOutcome);
+  assert.deepEqual(evidence.result.state?.outcome, expectedOutcome);
   assert.equal(evidence.account.authType, 'api_key');
   assert.equal(evidence.account.state, 'logged-in');
   assert.equal(evidence.savedKey, NEW_KEY);

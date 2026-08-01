@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { threadStore } from '../src/store/thread-repo.js';
 import { rawToTask } from '../src/core/task-parser.js';
 import { recoverOrphanedClaims } from '../src/domain/tasks/claim-recovery.js';
+import * as pendingTaskTracker from '../src/domain/tasks/pending-tracker.js';
 import type { Task } from '../src/core/task-parser.js';
 import type { ThreadRecord, ThreadStatus } from '../src/core/types/thread-types.js';
 
@@ -26,7 +27,9 @@ function makeTask(id: string, over: Record<string, unknown> = {}): Task {
   return rawToTask({ id, text: `task ${id}`, status: 'open', ...over }, '_cr_proj');
 }
 
-function makeThread(taskId: string | null, status: ThreadStatus): ThreadRecord {
+function makeThread(
+  taskId: string | null, status: ThreadStatus, dispatchGeneration: string | null = null,
+): ThreadRecord {
   const id = `thr_cr${(seq++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date().toISOString();
   const rec: ThreadRecord = {
@@ -36,14 +39,14 @@ function makeThread(taskId: string | null, status: ThreadStatus): ThreadRecord {
     agents: {}, activeAgent: 'manager', activeStage: null, currentStepIndex: 1,
     steps: [], iterationCounts: {}, totalCostUsd: 0, createdAt: now, updatedAt: now,
     endedAt: null, error: null, abortReason: null,
-    metadata: { trigger: 'task-dispatch', taskId, taskProject: '_cr_proj' },
+    metadata: { trigger: 'task-dispatch', taskId, taskProject: '_cr_proj', dispatchGeneration },
   };
   threadStore.set(rec);
   createdThreadIds.add(id);
   return rec;
 }
 
-function run(tasks: Task[], over: { isTracked?: (id: string) => boolean; failOn?: string[] } = {}) {
+function run(tasks: Task[], over: { isTracked?: (task: Task) => boolean; failOn?: string[] } = {}) {
   const unclaimed: string[] = [];
   const result = recoverOrphanedClaims({
     scan: () => tasks,
@@ -90,17 +93,57 @@ test('a rate_limited thread protects its task claim', async () => {
   assert.deepEqual(ids, []);
 });
 
+test('a live thread from an older generation does not protect the reclaimed task', async () => {
+  makeThread('ab05', 'waiting', 'generation-a');
+  const { ids } = await run([makeTask('ab05', {
+    'claimed-by': 'task-dispatcher', 'dispatch-generation': 'generation-b',
+  })]);
+  assert.deepEqual(ids, ['ab05']);
+});
+
 test('a failed thread does NOT protect its task claim (the crash orphan case)', async () => {
   makeThread('aa06', 'failed');
   const { ids } = await run([makeTask('aa06', { 'claimed-by': 'task-dispatcher' })]);
   assert.deepEqual(ids, ['aa06']);
 });
 
+test('pending tracker retains dispatch generation for recovery and stop fencing', async () => {
+  const dispatchId = `dispatch-cr-${seq++}`;
+  try {
+    await pendingTaskTracker.onTaskLaunched({
+      taskId: dispatchId, machine: 'test', channel: '', taskHash: 'ab09',
+      project: '_cr_proj', dispatchGeneration: 'generation-a',
+    });
+    assert.equal(pendingTaskTracker.getTask(dispatchId)?.dispatchGeneration, 'generation-a');
+    assert.equal(pendingTaskTracker.isTaskTracked('ab09', '_cr_proj', 'generation-a'), true);
+    assert.equal(pendingTaskTracker.isTaskTracked('ab09', '_cr_proj', 'generation-b'), false);
+  } finally {
+    pendingTaskTracker.clearTask(dispatchId);
+  }
+});
+
 test('remote-tracked tasks (pending-tracker) are left alone', async () => {
   const { ids } = await run(
     [makeTask('aa07', { 'claimed-by': 'task-dispatcher' })],
-    { isTracked: (id) => id === 'aa07' },
+    { isTracked: (task) => task.id === 'aa07' },
   );
+  assert.deepEqual(ids, []);
+});
+
+test('passes the scanned generation to unclaim and does not report a stale rejection', async () => {
+  const calls: Array<[string, string | null]> = [];
+  const ids = await recoverOrphanedClaims({
+    scan: () => [makeTask('ab07', {
+      'claimed-by': 'task-dispatcher', 'dispatch-generation': 'generation-a',
+    })],
+    ownedByLiveThread: () => false,
+    isTracked: () => false,
+    unclaim: async (id, generation) => {
+      calls.push([id, generation]);
+      return { success: false, stale: true };
+    },
+  });
+  assert.deepEqual(calls, [['ab07', 'generation-a']]);
   assert.deepEqual(ids, []);
 });
 

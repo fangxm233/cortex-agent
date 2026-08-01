@@ -1,7 +1,15 @@
+// input:  task files and cross-process mutation locks
+// output: collision-safe task ID generation, assignment, and validation
+// pos:    Assigns IDs without overwriting concurrent task lifecycle changes
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { PROJECTS_DIR, listProjectDirs } from '@core/utils.js';
-import { parseTasksFile, serializeTasksFile, type Task } from '@core/task-parser.js';
+import { parseTasksFile } from '@core/task-parser.js';
+import {
+  readTasks, taskFileProjects, withTaskFileMutationLocks, writeTasks,
+} from './task-lifecycle-edit.js';
 
 function generateHash(existingHashes: Set<string> = new Set()): string {
   while (true) {
@@ -24,7 +32,7 @@ function collectAllExistingHashes(): Set<string> {
   return allHashes;
 }
 
-function assignIds(project: string | null = null) {
+function assignIdsUnlocked(project: string | null = null) {
   if (!fs.existsSync(PROJECTS_DIR)) {
     return { success: false, message: 'Projects directory not found' };
   }
@@ -35,7 +43,7 @@ function assignIds(project: string | null = null) {
   for (const projectName of projects) {
     const tasksPath = path.join(PROJECTS_DIR, projectName, 'TASKS.yaml');
     if (!fs.existsSync(tasksPath)) continue;
-    const tasks = parseTasksFile(fs.readFileSync(tasksPath, 'utf8'), projectName);
+    const tasks = readTasks(projectName);
     let modified = false;
     for (const task of tasks) {
       if (!task.id || task.id === '') {
@@ -47,7 +55,7 @@ function assignIds(project: string | null = null) {
       }
     }
     if (modified) {
-      fs.writeFileSync(tasksPath, serializeTasksFile(tasks), 'utf8');
+      writeTasks(projectName, tasks);
     }
   }
   return { success: true, message: `Assigned ${totalAssigned} task ID(s)`, assigned: totalAssigned };
@@ -80,6 +88,11 @@ function validateIds() {
     return { success: true, message: `No collisions found (${idToProjects.size} unique IDs across all projects)`, collisions: [] };
   }
   return { success: false, message: `Found ${collisions.length} cross-project ID collision(s)`, collisions };
+}
+
+function assignIds(project: string | null = null) {
+  const projects = project ? [project] : taskFileProjects();
+  return withTaskFileMutationLocks(projects, () => assignIdsUnlocked(project));
 }
 
 export { assignIds, collectAllExistingHashes, generateHash, validateIds };

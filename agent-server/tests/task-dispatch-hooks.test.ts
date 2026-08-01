@@ -1,5 +1,5 @@
 // input:  dispatch job, settings, CPU topology, task doubles
-// output: limit policy, hook, quarantine, and recovery tests
+// output: limits, generations, hooks, quarantine, recovery tests
 // pos:    Task dispatch lifecycle behavioral regressions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -106,6 +106,8 @@ vi.mock('../src/domain/tasks/mutator.js', () => ({
 import { ctx } from '../src/domain/scheduling/job-registry.js';
 import { taskDispatchRunner } from '../src/domain/scheduling/jobs/task-dispatch.js';
 
+const OWNERSHIP = { ownership: { generation: 'generation-b' } };
+
 const selected = {
   task: {
     id: 'task-1',
@@ -116,6 +118,7 @@ const selected = {
   },
   template: 'coder-review',
   prompt: 'Implement the queued task',
+  dispatchGeneration: 'generation-b',
 };
 
 let threadRecord: Record<string, any>;
@@ -269,6 +272,24 @@ test('claimed dispatch emits cortex:dispatch.started immediately before thread e
   ]);
 });
 
+test('dispatch persists generation on the thread and terminal event', async () => {
+  deps.runThread.mockResolvedValueOnce({
+    thread: { status: 'completed', metadata: {} },
+    lastAgentResult: null,
+  });
+
+  await runDispatchCycle();
+
+  const createOptions = deps.createThread.mock.calls[0][1];
+  assert.equal(createOptions.metadata.dispatchGeneration, 'generation-b');
+  const terminal = (ctx.bus!.publish as any).mock.calls
+    .map(([event]) => event)
+    .find((event) => event.type === 'task.completed');
+  assert.deepEqual(terminal, {
+    type: 'task.completed', taskId: 'task-1', dispatchGeneration: 'generation-b',
+  });
+});
+
 test('a rejected dispatch hook does not prevent the claimed thread from running', async () => {
   deps.emitCortexEvent.mockRejectedValueOnce(new Error('hook failed'));
 
@@ -292,6 +313,7 @@ test('third consecutive dispatch failure auto-blocks and clears the counter', as
   assert.deepEqual(deps.block.mock.calls, [[
     'quarantine-target',
     'dispatch-failed-3x: provider unavailable',
+    OWNERSHIP,
   ]]);
 
   deps.block.mockClear();
@@ -337,7 +359,7 @@ test('failed dispatch reconciliation is a no-op when the owning task is not done
   assert.equal(deps.readArtifact.mock.calls.length, 0);
   assert.equal(deps.add.mock.calls.length, 0);
   assert.equal(deps.mutateThread.mock.calls.length, 0);
-  assert.deepEqual(deps.unclaim.mock.calls, [['owner-open']]);
+  assert.deepEqual(deps.unclaim.mock.calls, [['owner-open', OWNERSHIP]]);
   const texts = (ctx.adapter!.postMessage as any).mock.calls.map(([, content]) => content.text);
   assert.equal(texts.filter((text) => text.includes('Review reconciliation')).length, 0);
   assert.equal(texts.filter((text) => text.includes('Task dispatch error: provider unavailable')).length, 1);
@@ -413,13 +435,14 @@ test('reconciliation failure logs separately while original dispatch error drive
     ([message]) => message === 'Failed dispatch reconciliation: project lock failed',
   ).length, 3);
   assert.deepEqual(deps.unclaim.mock.calls, [
-    ['reconcile-failure'],
-    ['reconcile-failure'],
-    ['reconcile-failure'],
+    ['reconcile-failure', OWNERSHIP],
+    ['reconcile-failure', OWNERSHIP],
+    ['reconcile-failure', OWNERSHIP],
   ]);
   assert.deepEqual(deps.block.mock.calls, [[
     'reconcile-failure',
     'dispatch-failed-3x: provider unavailable',
+    OWNERSHIP,
   ]]);
   const texts = (ctx.adapter!.postMessage as any).mock.calls.map(([, message]) => message.text);
   assert.equal(texts.filter((text: string) => text.includes('Task dispatch error: provider unavailable')).length, 2);
@@ -446,5 +469,6 @@ test('failed block mutation keeps the quarantine count and reports dispatch erro
   assert.deepEqual(deps.block.mock.calls[1], [
     'stale-target',
     'dispatch-failed-4x: provider unavailable',
+    OWNERSHIP,
   ]);
 });

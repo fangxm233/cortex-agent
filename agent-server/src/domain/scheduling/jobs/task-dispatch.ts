@@ -1,5 +1,5 @@
-// input:  task store, runtime settings, thread runner, reconciler
-// output: bounded dispatch, hooks, followups, and quarantine
+// input:  task store, dispatch generation, thread runner, reconciler
+// output: fenced dispatch threads, hooks, followups, and quarantine
 // pos:    Starts dispatch threads for claimed tasks
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -90,7 +90,10 @@ async function runDispatchAsync({ channel, scheduleTaskId, profileName }: { chan
       outcome = { success: false, skipped: true, note: 'No dispatchable tasks available' };
       return;
     }
-    selectedTask = selected.task;
+    selectedTask = {
+      ...selected.task,
+      dispatch_generation: selected.dispatchGeneration ?? null,
+    };
     ctx.bus!.publish({ type: 'task.claimed', taskId: selectedTask.id, by: 'task-dispatcher' });
     ctx.bus!.publish({ type: 'task.dispatched', taskId: selectedTask.id, machine: 'local' });
     outcome = await executeDispatchTask({ selected, selectedTask: selectedTask!, channel, scheduleTaskId, profileName, startTime });
@@ -108,6 +111,7 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
   selected: Record<string, any>; selectedTask: Record<string, any>; channel: string; scheduleTaskId: string; profileName: string; startTime: number;
 }): Promise<{ success: boolean; skipped: boolean; note: string }> {
   const adapter = ctx.adapter!;
+  const ownership = { generation: selected.dispatchGeneration ?? null };
   const sessionName = await sessionStore.generateSessionName();
   const effectiveProfile = profileName;
 
@@ -120,7 +124,7 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
 
   if (!selected.template) {
     log.error(`Task [${selectedTask.project}] ${selectedTask.text.substring(0, 60)} missing required [template:] tag — skipping`);
-    await taskMutator.unclaim(selectedTask.id);
+    await taskMutator.unclaim(selectedTask.id, { ownership });
     return { success: false, skipped: true, note: 'Task missing required [template:] tag' };
   }
   const thread = createThread(channel, {
@@ -130,6 +134,7 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
     metadata: {
       scheduleTaskId, trigger: 'task-dispatch', profileOverride: effectiveProfile,
       taskId: selectedTask.id ?? null, taskProject: selectedTask.project ?? null,
+      dispatchGeneration: selected.dispatchGeneration ?? null,
       taskText: selectedTask.text ?? null,
       resumeDest: 'project-report',
     },
@@ -147,7 +152,9 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
     destination: { type: 'project-report', projectId: selectedTask.project || channel, trigger: 'task-dispatch', sessionId: '' },
     onToolUse: icb?.onToolUse ?? null, onPlanWritten: icb?.onPlanWritten ?? null, onAskUserQuestion: icb?.onAskUserQuestion ?? null,
     // Block the owning task before lifecycle end hooks inspect task state.
-    onAbort: async ({ taskId, reason }) => { await taskMutator.block(taskId, formatWorkerAbortReason(reason)); },
+    onAbort: async ({ taskId, reason }) => {
+      await taskMutator.block(taskId, formatWorkerAbortReason(reason), { ownership });
+    },
   }).catch(async (error) => {
     try {
       await reconcileFailedDispatchThread(thread.id, selectedTask);
@@ -187,7 +194,7 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
     { threadId: thread.id, taskId: selectedTask.id ?? null, project: selectedTask.project },
     {
       getThread: (id) => threadStore.get(id),
-      block: (tid, reason) => taskMutator.block(tid, reason),
+      block: (tid, reason) => taskMutator.block(tid, reason, { ownership }),
     },
   );
   if (abortOutcome.handled) {
@@ -213,7 +220,7 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
       detect: detectSplitFromControl,
       // system:true — no agent lock in the dispatch path; defer if a foreign lock exists.
       decompose: (p, t, subs, tid, opts) => taskMutator.decompose(p, t, subs, tid, { ...opts, system: true }),
-      unclaim: (tid) => taskMutator.unclaim(tid),
+      unclaim: (tid) => taskMutator.unclaim(tid, { ownership }),
     },
   );
   if (splitOutcome.handled) {
@@ -250,7 +257,7 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
   if (result?.rateLimited) {
     // Fallback: rate-limited but no active throttle, so the runner did not pause the thread.
     const { elapsedStr } = computeElapsed(startTime);
-    await taskMutator.unclaim(selectedTask.id);
+    await taskMutator.unclaim(selectedTask.id, { ownership });
     if (statusMsg) {
       const text = `${Icons.warning} [${selectedTask.project}] ${selectedTask.text.substring(0, 80)} | ${buildSessionTag(sessionName, result?.sessionId)}Rate limited — all fallbacks exhausted (${elapsedStr})`;
       const queue = getOutboundQueue();
@@ -267,7 +274,10 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
   });
   if (selectedTask.id) {
     dispatchFailureCounts.delete(selectedTask.id);
-    ctx.bus!.publish({ type: 'task.completed', taskId: selectedTask.id });
+    ctx.bus!.publish({
+      type: 'task.completed', taskId: selectedTask.id,
+      dispatchGeneration: selected.dispatchGeneration ?? null,
+    });
   }
   return { success: true, skipped: false, note: `Completed [${selectedTask.project}] ${selectedTask.text.substring(0, 60)}` };
 }
@@ -276,7 +286,9 @@ async function handleDispatchError(error: Error, selectedTask: Record<string, an
   const adapter = ctx.adapter!;
   log.error(`Error: ${error.message}`);
   if (selectedTask) {
-    try { await taskMutator.unclaim(selectedTask.id); } catch (e) { log.error(`Failed to unclaim task: ${(e as Error).message}`); }
+    const ownership = { generation: selectedTask.dispatch_generation ?? null };
+    try { await taskMutator.unclaim(selectedTask.id, { ownership }); }
+    catch (e) { log.error(`Failed to unclaim task: ${(e as Error).message}`); }
   }
   const errChannel = channel;
   let blocked = false;
@@ -289,7 +301,8 @@ async function handleDispatchError(error: Error, selectedTask: Record<string, an
     if (next.count >= DISPATCH_FAILURE_QUARANTINE_THRESHOLD) {
       blockReason = sanitizeBlockReason(`dispatch-failed-${next.count}x: ${error.message}`);
       try {
-        const blockResult = await taskMutator.block(taskId, blockReason);
+        const ownership = { generation: selectedTask.dispatch_generation ?? null };
+        const blockResult = await taskMutator.block(taskId, blockReason, { ownership });
         if (blockResult.success) {
           blocked = true;
           dispatchFailureCounts.delete(taskId);

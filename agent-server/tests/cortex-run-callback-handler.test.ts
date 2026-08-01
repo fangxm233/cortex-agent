@@ -1,6 +1,7 @@
-// input:  Node test runner + task-callback handler (DR-0011 §4.4)
-// output: task-callback handler unit tests: idempotency, skipVerify, ghost callback, blockTask note
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Vitest, WebSocket task callbacks, execution registry
+// output: callback idempotency, generation fencing, GPU and block tests
+// pos:    Verifies remote task callback lifecycle mutations
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
@@ -71,6 +72,36 @@ const BASE_TASK_YAML = (id: string) => `tasks:
     template: coder-review
     plan: ""
 `;
+
+const OWNED_TASK_YAML = (id: string) => `${BASE_TASK_YAML(id).trimEnd()}
+    claimed-by: task-dispatcher
+    claimed-at: "2026-08-01"
+    dispatch-generation: generation-b
+`;
+
+async function connectClient(port: number): Promise<WebSocket> {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}`, { headers: authHeaders });
+  await new Promise<void>((resolve, reject) => {
+    ws.once('open', () => resolve());
+    ws.once('error', reject);
+  });
+  return ws;
+}
+
+async function sendGenerationCallback(
+  ws: WebSocket, project: string, taskId: string, generation: string,
+  exitCode = 0,
+): Promise<any> {
+  const ack = new Promise<any>((resolve) => {
+    ws.once('message', (payload) => resolve(JSON.parse(payload.toString())));
+  });
+  ws.send(JSON.stringify({
+    type: 'task-callback', device: 'test-device', callbackId: `test:${generation}:223`,
+    name: 'generation-run', taskProject: project, taskId, dispatchGeneration: generation,
+    termination: 'completed', exitCode, remoteResultPath: '/remote/result.json',
+  }));
+  return ack;
+}
 
 // ── Tests ──
 
@@ -181,6 +212,53 @@ test('task already done — sends ack idempotent when task already done', async 
   assert.equal(ack.ok, true);
   assert.match(ack.message, /idempotent/i);
 
+  ws.close();
+});
+
+test('stale generation callback is acknowledged without overwriting the current owner', async (t) => {
+  const proj = nextProject();
+  const taskId = 'a223';
+  const { tasksPath, cleanup } = makeRepo(proj, OWNED_TASK_YAML(taskId));
+  t.onTestFinished(() => cleanup());
+  const port = await findEphemeralPort();
+  startClientManager(port);
+  t.onTestFinished(() => stopClientManager());
+  const ws = await connectClient(port);
+
+  const staleAck = await sendGenerationCallback(ws, proj, taskId, 'generation-a');
+  assert.equal(staleAck.ok, true);
+  assert.match(staleAck.message, /stale|generation/i);
+  let task = findTaskInYaml(yamlParse(fs.readFileSync(tasksPath, 'utf8')).tasks, taskId);
+  assert.equal(task.status, 'open');
+  assert.equal(task['dispatch-generation'], 'generation-b');
+  assert.equal(task['completed-note'] ?? null, null);
+
+  const currentAck = await sendGenerationCallback(ws, proj, taskId, 'generation-b');
+  assert.equal(currentAck.ok, true);
+  task = findTaskInYaml(yamlParse(fs.readFileSync(tasksPath, 'utf8')).tasks, taskId);
+  assert.equal(task.status, 'done');
+  assert.match(task['completed-note'], /test-device/);
+  assert.equal(task['dispatch-generation'], 'generation-b');
+  ws.close();
+});
+
+test('stale failed callback cannot block the current dispatch owner', async (t) => {
+  const proj = nextProject();
+  const taskId = 'a224';
+  const { tasksPath, cleanup } = makeRepo(proj, OWNED_TASK_YAML(taskId));
+  t.onTestFinished(() => cleanup());
+  const port = await findEphemeralPort();
+  startClientManager(port);
+  t.onTestFinished(() => stopClientManager());
+  const ws = await connectClient(port);
+
+  const staleAck = await sendGenerationCallback(ws, proj, taskId, 'generation-a', 1);
+  assert.equal(staleAck.ok, true);
+  assert.match(staleAck.message, /stale|generation/i);
+  const task = findTaskInYaml(yamlParse(fs.readFileSync(tasksPath, 'utf8')).tasks, taskId);
+  assert.equal(task.status, 'open');
+  assert.equal(task['blocked-by'] ?? null, null);
+  assert.equal(task['dispatch-generation'], 'generation-b');
   ws.close();
 });
 
