@@ -16,7 +16,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | manifest-contract.ts | types | types canonical-root terminal manifest inputs |
 | manifest.ts | core | validates per-role journals and lifecycle truth |
 | pinned-node-process.ts | process | launches Node with canonical trial-pinned paths |
-| role-surface.ts | identity | hashes resolved spawn and role directive surfaces |
+| role-surface.ts | identity | hashes resolved spawn defaults and directives |
 | run-config.ts | config | loads file/stdin config and validates inputs |
 | runner.ts | core | coordinates lifecycle and reported accounting |
 | supervisor.ts | core | gates lifecycle, stdio modes, watchdog and taxonomy |

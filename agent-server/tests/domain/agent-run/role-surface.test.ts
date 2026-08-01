@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, it } from 'vitest';
+import { DEFAULT_TOOLS } from '../../../src/agent-adapter/claude/defaults.js';
 import { buildSpawnArgs } from '../../../src/agent-adapter/claude/spawn-args.js';
 import type { AgentSpawnConfig } from '../../../src/agent-adapter/types.js';
 import {
@@ -60,6 +61,15 @@ it('hashes the resolved role directive supplied alongside the spawn config', () 
   const first = roleSurfaceFromSpawnConfig(spawnConfig(), 'first role directive');
   const second = roleSurfaceFromSpawnConfig(spawnConfig(), 'second role directive');
   assert.notEqual(first.directiveSha256, second.directiveSha256);
+});
+
+it('hashes Claude default tools when the spawn omits or blanks raw tools', () => {
+  const expected = DEFAULT_TOOLS.split(',');
+  for (const rawTools of [undefined, '']) {
+    const config = spawnConfig();
+    config.rawTools = rawTools;
+    assert.deepEqual(roleSurfaceFromSpawnConfig(config).tools, expected);
+  }
 });
 
 it('hashes the exact tools, MCP composition, and hook policy used by Claude argv', () => {
