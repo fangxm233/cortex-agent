@@ -1,5 +1,5 @@
-// input:  cortex CLI, stdin configs, fake Claude/supervisor, procfs
-// output: argv closure, isolation, journal, and completion-only proofs
+// input:  cortex CLI, stdin config, fake Claude accounting, procfs
+// output: isolation, journal, accounting, and completion proofs
 // pos:    Process-level one-shot agent-run regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -100,14 +100,29 @@ lines.once('line', (line) => {
     console.log(JSON.stringify({ type: 'system', subtype: 'compact_boundary', compact_metadata: { trigger: 'auto', pre_tokens: 42 } }));
   }
   console.log(JSON.stringify({ type: 'assistant', message: { id: 'a1', model: 'claude-reported-fixture', content: [{ type: 'text', text: 'first result' }] } }));
-  console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: 'first result', total_cost_usd: 0.25, num_turns: 1 }));
+  const firstResult = process.env.FAKE_CLAUDE_FIRST_RESULT
+    ? JSON.parse(process.env.FAKE_CLAUDE_FIRST_RESULT)
+    : { type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: 'first result', total_cost_usd: 0.25, num_turns: 1 };
+  console.log(JSON.stringify(firstResult));
   child.once('close', () => {
     console.log(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'bg1', status: 'completed', summary: 'done' }));
     console.log(JSON.stringify({ type: 'assistant', message: { id: 'a2', model: 'claude-reported-fixture', content: [{ type: 'text', text: 'background done' }] } }));
-    console.log(JSON.stringify({ type: 'result', subtype: 'success', origin: { kind: 'task-notification' }, is_error: false, session_id: request.session_id, result: 'background done', total_cost_usd: 0.1, num_turns: 1 }));
+    const continuationResult = process.env.FAKE_CLAUDE_CONTINUATION_RESULT
+      ? JSON.parse(process.env.FAKE_CLAUDE_CONTINUATION_RESULT)
+      : { type: 'result', subtype: 'success', origin: { kind: 'task-notification' }, is_error: false, session_id: request.session_id, result: 'background done', total_cost_usd: 0.1, num_turns: 1 };
+    console.log(JSON.stringify(continuationResult));
   });
 });
 `);
+}
+
+function fakeClaudeResult(
+  sessionId: string, result: string, additions: Record<string, unknown> = {},
+): string {
+  return JSON.stringify({
+    type: 'result', subtype: 'success', is_error: false,
+    session_id: sessionId, result, num_turns: 1, ...additions,
+  });
 }
 
 function writeProfile(file: string, extraOption: Record<string, string> = {}): void {
@@ -689,6 +704,57 @@ it('preserves raw stdin bytes while hashing the model-visible string', async () 
   const header = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'))[0];
   assert.equal(header.canonical_instruction_sha256, sha256(prompt));
   assert.equal(header.model_visible_prompt_sha256, sha256(modelVisible));
+}, 45_000);
+
+it('keeps unreported cost and usage null without fabricating cost records', async () => {
+  const fixture = createFixture('unknown-accounting');
+  const first = fakeClaudeResult('e2e-run', 'unknown');
+  const continuation = fakeClaudeResult('e2e-run', 'unknown', {
+    origin: { kind: 'task-notification' },
+  });
+  const child = spawnRun(fixture, {
+    FAKE_CLAUDE_FIRST_RESULT: first,
+    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
+  });
+  await waitForText(fixture.eventsFile, 'turn_complete');
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+  const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
+  assert.deepEqual(records.filter(record => record.event?.type === 'cost_record'), []);
+  const terminal = terminalRecord(fixture);
+  assert.equal(terminal.cost_usd, null);
+  assert.deepEqual(terminal.tokens, { input: null, output: null });
+}, 45_000);
+
+it('preserves explicitly reported cost and usage exactly', async () => {
+  const fixture = createFixture('reported-accounting');
+  const reported = fakeClaudeResult('e2e-run', 'reported', {
+    total_cost_usd: 0.375,
+    usage: { input_tokens: 321, output_tokens: 54 },
+    modelUsage: { 'claude-reported-accounting': {} },
+  });
+  const continuation = fakeClaudeResult('e2e-run', 'reported continuation', {
+    origin: { kind: 'task-notification' }, total_cost_usd: 0.375,
+  });
+  const child = spawnRun(fixture, {
+    FAKE_CLAUDE_FIRST_RESULT: reported,
+    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
+  });
+  await waitForText(fixture.eventsFile, 'turn_complete');
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+  const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
+  const costEvents = records.filter(record => record.event?.type === 'cost_record')
+    .map(record => record.event);
+  assert.deepEqual(costEvents, [{
+    type: 'cost_record', provider: 'anthropic', model: 'claude-reported-accounting',
+    tokens_in: 321, tokens_out: 54, cost_usd: 0.375,
+  }]);
+  const terminal = terminalRecord(fixture);
+  assert.equal(terminal.cost_usd, 0.375);
+  assert.deepEqual(terminal.tokens, { input: 321, output: 54 });
 }, 45_000);
 
 it('includes the probed Claude version in frozen model identity', async () => {

@@ -11,5 +11,5 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | manifest.ts | core | publishes and locates lifecycle truth |
 | role-surface.ts | identity | hashes the exact resolved spawn role surface |
 | run-config.ts | config | loads file/stdin config and validates frozen inputs |
-| runner.ts | core | coordinates a completion-only supervised one-shot lifecycle |
+| runner.ts | core | coordinates lifecycle and nullable accounting truth |
 | supervisor.ts | core | gates lifecycle, stdio, watchdog and exit taxonomy |

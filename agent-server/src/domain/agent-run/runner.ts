@@ -1,5 +1,5 @@
-// input:  parsed one-shot options, argv-closed config, Claude adapter
-// output: completion-only supervised turn, journal, terminal manifest, exit status
+// input:  parsed options, frozen config, provenance-aware Claude adapter
+// output: supervised turn, journal, nullable accounting, manifest
 // pos:    Agent-run lifecycle coordinator
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -324,6 +324,7 @@ function prepareRun(rawOptions: AgentRunCliOptions, rootRunId: string): Prepared
   const config = resolveRunConfig(options, profile);
   const baseOptions = baseRunOptions(options, profile, config, `agent-run:${rootRunId}`);
   const spawnConfig = buildAgentSpawnConfig(baseOptions, agentConfig(profile), undefined);
+  spawnConfig.preserveUnreportedAccounting = true;
   const roleSurface = roleSurfaceFromSpawnConfig(spawnConfig);
   return {
     options, rootRunId, profile, config, spawnConfig, baseOptions,
