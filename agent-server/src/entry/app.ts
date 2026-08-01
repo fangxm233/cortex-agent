@@ -1,5 +1,5 @@
-// input:  settings migration, stores, services, lifecycle event publishers
-// output: server runtime, auth/lifecycle events, live settings pushes
+// input:  settings migration, stores, services, event publishers
+// output: server runtime, auth notification wiring, settings pushes
 // pos:    Agent-server composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
@@ -108,6 +108,7 @@ import { createTuiSessionService } from '@domain/tui-session/index.js';
 import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
 import { initAuthEvents } from '@domain/auth/auth-events.js';
+import { registerAuthWatch } from '@domain/auth/auth-watch.js';
 
 dotenv.config({ path: path.join(CONFIG_DIR, '.env') });
 await migrateEnvToSettings();
@@ -257,6 +258,7 @@ const oq = initOutboundQueue(adapter);
 // --- Init extracted modules ---
 initScheduledRunner(adapter);
 setBus(bus);
+registerAuthWatch(bus, adapter);
 setInteractiveCallbacksFactory(buildInteractiveCallbacks);
 const scheduler = createScheduler();
 scheduler.setAdminNotifier(notifyAdmin);
