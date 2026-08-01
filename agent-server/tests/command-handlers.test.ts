@@ -1,4 +1,4 @@
-// input:  Node test runner + command handlers + auth fixture
+// input:  Node runner, command handlers, and auth fixture
 // output: Bang-command routing including !login status
 // pos:    Command handler regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -141,7 +141,7 @@ const COMMAND_AUTH_SNAPSHOT: AuthStatusSnapshot = {
     authType: 'oauth', state: 'logged-in', source: 'credentials.json', expiresAt: null,
     refreshExpiresAt: null, inUse: true, credentials: [{
       authType: 'oauth', state: 'logged-in', source: 'credentials.json', expiresAt: null,
-      refreshExpiresAt: null, manageable: false,
+      refreshExpiresAt: null, manageable: true,
     }],
   }],
   piRuntime: { available: false, version: null, entry: null, error: 'pi executable not found' },

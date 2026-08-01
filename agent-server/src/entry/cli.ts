@@ -1,4 +1,4 @@
-// input:  process argv, child processes, command and auth modules
+// input:  process argv, child processes, commands, and auth
 // output: cortex CLI dispatch and process exit status
 // pos:    Top-level cortex command dispatcher
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -24,11 +24,8 @@ import { cmdDoctor, getDoctorHelp } from './doctor-cli.js';
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway, dryRunGatewayYaml } from '@core/gateway-generator.js';
 import { generateProfiles, writeProfilesJson } from '@core/profile-generator.js';
 import { CORTEX_VERSION } from '@core/version.js';
-import {
-  formatAuthStatusSummary,
-  getAuthStatus,
-  type AuthStatusSnapshot,
-} from '@domain/auth/index.js';
+import { formatAuthStatusSummary } from '@domain/auth/auth-format.js';
+import { getAuthStatus, type AuthStatusSnapshot } from '@domain/auth/auth-status.js';
 
 // ─── Paths ──────────────────────────────────────────────────────
 
