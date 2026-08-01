@@ -1,3 +1,8 @@
+// input:  shell config, tRPC/query clients, theme, language, overlays
+// output: global application provider stack including LoginFlow
+// pos:    Root dependency and cross-surface provider composition
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { TRPCProvider, createTrpcClient } from '@/lib/trpc';
@@ -5,6 +10,7 @@ import { readDesktopConfig, isNativeShell } from '@/lib/desktop-config';
 import { TooltipProvider, ToastProvider } from '@/design';
 import { LangProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
+import { LoginFlowProvider } from '@/features/auth/LoginFlowProvider';
 
 // How long the native shell will wait for its injected credentials before giving up and falling
 // back to browser mode. The Tauri shell now BAKES the credentials into the initialization_script
@@ -81,7 +87,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <TooltipProvider>
             <ToastProvider>
-              <LangProvider>{children}</LangProvider>
+              <LangProvider><LoginFlowProvider>{children}</LoginFlowProvider></LangProvider>
             </ToastProvider>
           </TooltipProvider>
         </ThemeProvider>

@@ -1,5 +1,5 @@
-// input:  config queries, settings panels, Radix Dialog
-// output: global settings modal with section navigation
+// input:  config queries, settings panels, LoginFlow, Radix Dialog
+// output: global settings modal with auth entry and navigation
 // pos:    Desktop settings overlay shell and data bindings
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -21,6 +21,7 @@ import { AdvancedPanel, NotificationsPanel } from './RuntimeSettingsPanels';
 import { BudgetPanel } from './BudgetPanel';
 import { HooksPanel } from './HooksPanel';
 import { AppearancePanel } from './AppearancePanel';
+import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 
 // Settings modal (design 12a–g, prototype.dc.html L721–1088; proto-shot 14-settings.png). Rebuilt
 // 1:1 on Radix Dialog (focus trap / Esc-close / focus-restore + backdrop scrim). Header + 210px left
@@ -100,6 +101,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { openLogin } = useLoginFlow();
   const [section, setSection] = useState<SettingsSectionKey>('appearance');
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
@@ -256,6 +258,7 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               onSetDefaultProfile={onSetDefaultProfile}
               onReconnect={onReconnect}
               onAddMachine={onAddMachine}
+              onOpenLogin={openLogin}
             />
           ) : null}
         </div>
@@ -272,6 +275,7 @@ function PanelBody({
   onSetDefaultProfile,
   onReconnect,
   onAddMachine,
+  onOpenLogin,
 }: {
   section: SettingsSectionKey;
   snapshot: import('@cortex-agent/ui-contract').ConfigSnapshot;
@@ -280,10 +284,11 @@ function PanelBody({
   onSetDefaultProfile: (name: string) => void;
   onReconnect: (platform: 'slack' | 'feishu') => void;
   onAddMachine: (machineName: string) => void;
+  onOpenLogin: () => void;
 }) {
   switch (section) {
     case 'platform':
-      return <PlatformPanel snapshot={snapshot} onReconnect={onReconnect} />;
+      return <PlatformPanel snapshot={snapshot} onReconnect={onReconnect} onOpenLogin={onOpenLogin} />;
     case 'profiles':
       return <ProfilesPanel snapshot={snapshot} onSetDefaultProfile={onSetDefaultProfile} />;
     case 'budget':

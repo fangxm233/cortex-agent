@@ -1,5 +1,5 @@
-// input:  config/cost queries, language/theme state, navigation
-// output: data-bound mobile settings screen with a hooks drill-in
+// input:  config/cost queries, language/theme/login state, navigation
+// output: data-bound mobile settings with auth and hooks entries
 // pos:    Mobile settings query and mutation container
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -16,6 +16,7 @@ import { MSettingsView, type MSettingsCopy } from './MSettingsView';
 import { buildMSettingsVm } from './m-settings-vm';
 import { onlineMachineCount } from './m-project-vm';
 import { buildProfileSheetItems } from './m-chat-vm';
+import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 
 const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
   en: {
@@ -43,6 +44,8 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     desktopEdit: 'Edit on desktop',
     templates: 'Thread templates',
     hooks: 'Hooks',
+    backendLogin: 'Backend login',
+    backendLoginSub: 'Claude Code and PI API keys',
     footerBrand: 'cortex mobile',
   },
   zh: {
@@ -70,6 +73,8 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     desktopEdit: '桌面编辑',
     templates: 'Thread templates',
     hooks: '钩子',
+    backendLogin: 'Backend 登录',
+    backendLoginSub: 'Claude Code 与 PI API key',
     footerBrand: 'cortex mobile',
   },
 };
@@ -92,6 +97,7 @@ export function MSettingsScreen() {
   const setLang = useSetLang();
   const theme = useTheme();
   const setTheme = useSetTheme();
+  const { openLogin } = useLoginFlow();
   const copy = pickCopy(lang, COPY);
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
@@ -138,6 +144,7 @@ export function MSettingsScreen() {
           onlineMachines={onlineMachines}
           onOpenMachines={() => navigate('/m/machines')}
           onOpenHooks={() => navigate('/m/settings/hooks')}
+          onOpenLogin={openLogin}
           profileSheet={profileSheet}
           onOpenProfile={() => setProfileOpen(true)}
           onCloseProfile={() => setProfileOpen(false)}

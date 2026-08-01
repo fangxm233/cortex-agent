@@ -1,5 +1,5 @@
 // input:  FeishuAdapter, isolated config, mocked Lark calls
-// output: messaging, persistence, and nullable hot-routing tests
+// output: messaging, form callbacks, persistence, and routing tests
 // pos:    Verifies Feishu adapter platform mappings
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -627,6 +627,41 @@ test('Feishu modalToFeishuCard: submit button carries privateMetadata as value (
   assert.deepEqual(submit.value, { groupId: 'sid:rid' });
   // behaviors must NOT be present: it's mutually exclusive with form_submit in Feishu 2.0.
   assert.equal(submit.behaviors, undefined);
+});
+
+test('Feishu login modal becomes an inline form with no secret value in card JSON', () => {
+  const a = makeAdapter();
+  const card = a.modalToFeishuCard({
+    title: 'Login', callbackId: 'cmd_login_submit',
+    privateMetadata: JSON.stringify({ flowId: 'flow-1' }),
+    fields: [{
+      type: 'text_input', blockId: 'login_secret', actionId: 'value', label: 'API key',
+    }],
+  });
+  const form = card.body.elements[0];
+  const input = form.elements.find((element: any) => element.tag === 'input');
+  assert.equal(input.name, 'login_secret::value::text');
+  assert.equal(input.value, undefined);
+  assert.ok(!JSON.stringify(card).includes('sentinel-feishu-secret'));
+});
+
+test('Feishu login form submission passes the secret only to the modal callback', async () => {
+  const a = makeAdapter();
+  let received: any = null;
+  a.onModalSubmit('cmd_login_submit', async (context: any) => { received = context; });
+
+  await a.handleCardAction({ event: {
+    action: {
+      name: 'cmd_login_submit',
+      value: { flowId: 'flow-1' },
+      form_value: { 'login_secret::value::text': 'sentinel-feishu-secret' },
+    },
+    operator: { open_id: 'ou_1' },
+    context: { open_chat_id: 'oc_1', open_message_id: 'om_1' },
+  } });
+
+  assert.equal(received.values.login_secret.value.value, 'sentinel-feishu-secret');
+  assert.deepEqual(JSON.parse(received.privateMetadata), { flowId: 'flow-1' });
 });
 
 test('Feishu queue marker stores create reaction_id, deletes that exact OnIt reaction, and marks it consumed', async () => {

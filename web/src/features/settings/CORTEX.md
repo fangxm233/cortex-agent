@@ -7,7 +7,8 @@ Panels read config snapshots; budget and runtime toggles write config, while hoo
 |---|---|---|
 | SettingsProvider.tsx | provider | Provides global open and close for the modal |
 | SettingsModal.tsx | view | Dialog with nav and full-height panel content |
-| SettingsPanels.tsx | view | Renders non-runtime config sections |
+| SettingsPanels.tsx | view | Renders non-runtime config sections and backend login entry |
+| AuthLoginEntry.test.tsx | test | Tests the desktop backend login entry |
 | RuntimeSettingsPanels.tsx | view | Reads and writes runtime settings toggles |
 | RuntimeSettingsPanels.test.tsx | test | Tests toggle rows and production write adapter |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |

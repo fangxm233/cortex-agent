@@ -9,4 +9,4 @@ Language is persisted in local storage and falls back to the browser preference.
 | LangProvider.tsx | provider | Holds active language and exposes vocab hooks |
 | lang.ts | util | Resolves, persists and maps the language choice |
 | lang.test.ts | test | Tests language derivation and lifecycle copy |
-| vocab.ts | types | Bilingual chat, runtime, lifecycle and hook copy |
+| vocab.ts | types | Bilingual chat, auth, runtime and lifecycle copy |

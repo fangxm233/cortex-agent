@@ -13,6 +13,7 @@ Cross-cutting concerns that any surface can pull in (live stream, media preview,
 | skills/ | subdir | Installed-skill browser |
 | execution/ | subdir | Execution detail drawer with live logs |
 | approvals/ | subdir | Approval queue overlay |
+| auth/ | subdir | Shared backend login flow overlay |
 | issues/ | subdir | Non-blocking issue queue overlay |
 | notes/ | subdir | Private project notes on desktop surfaces |
 | schedule/ | subdir | New-schedule overlay |

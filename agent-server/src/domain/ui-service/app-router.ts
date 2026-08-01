@@ -1,5 +1,5 @@
 // input:  UiService, zod operation schemas, and tRPC init
-// output: createAppRouter including auth.status
+// output: createAppRouter including authentication flows
 // pos:    Typed tRPC mirror of UI operations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -55,6 +55,10 @@ import {
   configGetInput,
   configSetInput,
   authStatusInput,
+  authFlowStateInput,
+  authStartLoginInput,
+  authRespondPromptInput,
+  authCancelFlowInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,
@@ -267,6 +271,16 @@ function hooksRouter(service: UiService) {
   });
 }
 
+function authRouter(service: UiService) {
+  return router({
+    status: makeQuery(service, 'auth.status', authStatusInput),
+    flowState: makeQuery(service, 'auth.flowState', authFlowStateInput),
+    startLogin: makeMutation(service, 'auth.startLogin', authStartLoginInput),
+    respondPrompt: makeMutation(service, 'auth.respondPrompt', authRespondPromptInput),
+    cancelFlow: makeMutation(service, 'auth.cancelFlow', authCancelFlowInput),
+  });
+}
+
 function systemRouter(service: UiService) {
   return router({
     daemonStatus: makeQuery(service, 'system.daemonStatus', systemDaemonStatusInput),
@@ -304,7 +318,7 @@ export function createAppRouter(service: UiService) {
       get: makeQuery(service, 'config.get', configGetInput),
       set: makeMutation(service, 'config.set', configSetInput),
     }),
-    auth: router({ status: makeQuery(service, 'auth.status', authStatusInput) }),
+    auth: authRouter(service),
     hooks: hooksRouter(service),
     machines: router({ list: makeQuery(service, 'machines.list', machinesListInput) }),
     skills: router({ list: makeQuery(service, 'skills.list', skillsListInput) }),

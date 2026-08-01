@@ -1,5 +1,5 @@
-// input:  mobile settings view, mounted-hook snapshot, UI copy
-// output: mounted-hook drill-row regressions (count, pill, no inlining)
+// input:  mobile settings view, auth/hooks snapshot, UI copy
+// output: authentication entry and mounted-hook drill regressions
 // pos:    Verifies mobile settings drills into hooks instead of listing them
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -18,6 +18,7 @@ const copy: MSettingsCopy = {
   notify: 'Notifications', notifySub: 'notify', autoResume: 'Auto resume',
   autoResumeSub: 'resume', language: 'Language', platform: 'Platform',
   desktopEdit: 'Desktop', templates: 'Templates', hooks: 'Hooks',
+  backendLogin: 'Backend login', backendLoginSub: 'Claude Code and PI API keys',
   footerBrand: 'cortex mobile',
 };
 
@@ -49,6 +50,7 @@ function renderHooks(value: ConfigSnapshot, onlineMachines = 0): string {
       onlineMachines={onlineMachines}
       onOpenMachines={() => {}}
       onOpenHooks={() => {}}
+      onOpenLogin={() => {}}
       profileSheet={null}
       onOpenProfile={() => {}}
       onCloseProfile={() => {}}
@@ -56,6 +58,16 @@ function renderHooks(value: ConfigSnapshot, onlineMachines = 0): string {
     />,
   );
 }
+
+describe('MSettingsView authentication', () => {
+  it('renders the shared LoginFlow entry on mobile settings', () => {
+    const html = renderHooks(snapshot);
+
+    expect(html).toContain('data-auth-login-entry="mobile"');
+    expect(html).toContain('aria-label="Backend login"');
+    expect(html).toContain('Claude Code and PI API keys');
+  });
+});
 
 describe('MSettingsView hooks', () => {
   it('renders one drill-in row carrying the mounted-hook count and the desktop-edit pill', () => {

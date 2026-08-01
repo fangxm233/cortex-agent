@@ -1,5 +1,5 @@
 // input:  isolated test home, fake UiService, typed tRPC caller
-// output: AppRouter routing including auth status and errors
+// output: AppRouter routing including auth flows and errors
 // pos:    Transport-contract regression coverage for UI routes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -95,6 +95,7 @@ const QUERY_CASES: Array<{ scope: QueryScope; call: (c: any) => Promise<unknown>
   { scope: 'executions.get', call: (c) => c.executions.get({ executionId: 'e1' }), input: {} },
   { scope: 'cost.summary', call: (c) => c.cost.summary({}), input: {} },
   { scope: 'auth.status', call: (c) => c.auth.status({}), input: {} },
+  { scope: 'auth.flowState', call: (c) => c.auth.flowState({ flowId: 'flow-1' }), input: {} },
   { scope: 'skills.list', call: (c) => c.skills.list({}), input: {} },
   { scope: 'system.rateLimitStatus', call: (c) => c.system.rateLimitStatus({}), input: {} },
 ];
@@ -117,6 +118,9 @@ const MUTATE_CASES: Array<{ op: MutateOp; call: (c: any) => Promise<unknown>; }>
   { op: 'sessions.send', call: (c) => c.sessions.send({ sessionId: 's1', text: 'hi' }) },
   { op: 'sessions.cancel', call: (c) => c.sessions.cancel({ sessionId: 's1' }) },
   { op: 'sessions.compact', call: (c) => c.sessions.compact({ sessionId: 's1' }) },
+  { op: 'auth.startLogin', call: (c) => c.auth.startLogin({ backend: 'claude', provider: 'anthropic', authType: 'api_key' }) },
+  { op: 'auth.respondPrompt', call: (c) => c.auth.respondPrompt({ flowId: 'flow-1', value: 'secret' }) },
+  { op: 'auth.cancelFlow', call: (c) => c.auth.cancelFlow({ flowId: 'flow-1' }) },
   { op: 'threads.cancel', call: (c) => c.threads.cancel({ threadId: 't1' }) },
   { op: 'executions.cancel', call: (c) => c.executions.cancel({ executionId: 'e1' }) },
   { op: 'schedules.pause', call: (c) => c.schedules.pause({ scheduleId: 's1' }) },

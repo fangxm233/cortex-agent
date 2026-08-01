@@ -1,5 +1,5 @@
 // input:  Selected language and shared product copy keys
-// output: Shape-checked English/Chinese copy including send recovery
+// output: Shape-checked English/Chinese copy including auth login
 // pos:    Shared source of localized UI copy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -637,6 +637,24 @@ export const en = {
   exLinesDropped: 'lines dropped',
   exFooterHeartbeat: 'heartbeat 30s · missed 0 · → costs.jsonl',
   exKillRun: 'Kill run',
+  authLoginTitle: 'Backend login',
+  authLoginIntro: 'Choose a backend and API-key provider.',
+  authLoginBackend: 'Backend',
+  authLoginProvider: 'Provider',
+  authLoginStart: 'Start login',
+  authLoginSubmit: 'Submit',
+  authLoginClose: 'Close',
+  authLoginRunning: 'Starting login…',
+  authLoginSecretPrompt: 'Enter the API key. It will not be stored in chat or transcripts.',
+  authLoginDone: 'Login complete',
+  authLoginDoneSummary: 'Logged in to {provider}.',
+  authLoginFailed: 'Login failed',
+  authLoginUnknownFailure: 'The login flow failed.',
+  authLoginExpired: 'This login flow expired or is no longer available.',
+  authLoginCancelled: 'Login cancelled',
+  authLoginCancelledSummary: 'No credential was submitted.',
+  authLoginEntry: 'Backend login',
+  authLoginEntrySub: 'Claude Code and PI API keys',
 };
 
 export type Vocab = typeof en;
@@ -1275,4 +1293,22 @@ export const zh: Record<keyof Vocab, string> = {
   exLinesDropped: '行日志被丢弃',
   exFooterHeartbeat: '心跳 30s · 丢失 0 · → costs.jsonl',
   exKillRun: '终止运行',
+  authLoginTitle: 'Backend 登录',
+  authLoginIntro: '选择 backend 与 API key provider。',
+  authLoginBackend: 'Backend',
+  authLoginProvider: 'Provider',
+  authLoginStart: '开始登录',
+  authLoginSubmit: '提交',
+  authLoginClose: '关闭',
+  authLoginRunning: '正在启动登录…',
+  authLoginSecretPrompt: '输入 API key。它不会进入聊天消息或 transcript。',
+  authLoginDone: '登录完成',
+  authLoginDoneSummary: '已登录 {provider}。',
+  authLoginFailed: '登录失败',
+  authLoginUnknownFailure: '登录流程失败。',
+  authLoginExpired: '此登录流程已过期或不再可用。',
+  authLoginCancelled: '登录已取消',
+  authLoginCancelledSummary: '未提交凭据。',
+  authLoginEntry: 'Backend 登录',
+  authLoginEntrySub: 'Claude Code 与 PI API key',
 };

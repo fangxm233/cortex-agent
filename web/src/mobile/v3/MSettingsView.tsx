@@ -1,5 +1,5 @@
-// input:  mobile settings view model, copy, and UI primitives
-// output: read-only mobile settings screen with a hooks drill-in row
+// input:  mobile settings model, LoginFlow entry, and UI primitives
+// output: mobile settings with active login and config drill-ins
 // pos:    Presentational mobile settings view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -37,6 +37,8 @@ export interface MSettingsCopy {
   desktopEdit: string; // `桌面编辑`
   templates: string; // `Thread templates`
   hooks: string; // `Hooks`, rendered as `Hooks · N` on the drill-in row
+  backendLogin: string;
+  backendLoginSub: string;
   footerBrand: string; // `cortex mobile`
 }
 
@@ -267,6 +269,7 @@ export function MSettingsView({
   onlineMachines,
   onOpenMachines,
   onOpenHooks,
+  onOpenLogin,
   profileSheet,
   onOpenProfile,
   onCloseProfile,
@@ -284,6 +287,7 @@ export function MSettingsView({
   onlineMachines: number;
   onOpenMachines: () => void;
   onOpenHooks: () => void;
+  onOpenLogin: () => void;
   profileSheet: ProfileSheetItem[] | null;
   onOpenProfile: () => void;
   onCloseProfile: () => void;
@@ -422,6 +426,25 @@ export function MSettingsView({
               darkLabel={copy.themeDark}
             />
           </div>
+        </Card>
+
+        <Card>
+          <button
+            type="button"
+            data-auth-login-entry="mobile"
+            aria-label={copy.backendLogin}
+            onClick={onOpenLogin}
+            style={{
+              ...rowStyle(false), cursor: 'pointer', width: '100%',
+              border: 0, background: 'transparent', textAlign: 'left', font: 'inherit',
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={TITLE}>{copy.backendLogin}</div>
+              <div style={SUB}>{copy.backendLoginSub}</div>
+            </div>
+            <span style={CHEV}>›</span>
+          </button>
         </Card>
 
         {/* card3 — Platform · Templates · Hooks (desktop-only editing, opacity .92) */}
