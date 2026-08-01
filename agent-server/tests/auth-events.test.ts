@@ -1,9 +1,9 @@
-// input:  auth event classifier, EventBus, lifecycle publisher state
-// output: auth kind, payload privacy, repeated-required, and recovery tests
-// pos:    Covers the backend authentication event contract
+// input:  auth classifier, EventBus, lifecycle state
+// output: auth classification, privacy, and recovery tests
+// pos:    Backend authentication event contract tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { test } from 'vitest';
+import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventBus } from '../src/events/event-bus.js';
 import type { AuthErrorKind, CortexEvent } from '../src/events/index.js';
@@ -24,6 +24,12 @@ const AUTH_CASES: Array<[message: string, kind: AuthErrorKind]> = [
   ['HTTP 401: token rejected', 'unauthorized'],
   ['unauthorized', 'unauthorized'],
   ['invalid_grant', 'invalid_grant'],
+  ['PLEASE RUN /LOGIN', 'login_required'],
+  ['OAUTH TOKEN HAS EXPIRED', 'oauth_expired'],
+  ['AUTHENTICATION_ERROR', 'invalid_api_key'],
+  ['INVALID X-API-KEY', 'invalid_api_key'],
+  ['UNAUTHORIZED', 'unauthorized'],
+  ['INVALID_GRANT', 'invalid_grant'],
 ];
 
 for (const [message, kind] of AUTH_CASES) {
@@ -38,24 +44,32 @@ for (const message of [
   'billing account unavailable',
   'request body too large',
   'model not found',
+  'HTTP 1401: proxy-specific status',
+  'HTTP 4010: proxy-specific status',
+  '',
 ]) {
   test(`classifyAuthError ignores non-auth permanent failure: ${message}`, () => {
     assert.equal(classifyAuthError(message), null);
   });
 }
 
+afterEach(() => initAuthEvents(null));
+
 function withoutTs(event: CortexEvent): Omit<CortexEvent, 'ts'> {
   const { ts: _ts, ...payload } = event;
   return payload;
 }
 
-test('publishAuthRequired emits every hit with the frozen secret-free payload', (t) => {
+function captureAllAuthEvents(): CortexEvent[] {
   const bus = new EventBus();
   const seen: CortexEvent[] = [];
   bus.subscribe('*', (event) => { seen.push(event); });
   initAuthEvents(bus);
-  t.onTestFinished(() => initAuthEvents(null));
+  return seen;
+}
 
+test('publishAuthRequired emits every hit with the frozen secret-free payload', () => {
+  const seen = captureAllAuthEvents();
   const raw = 'authentication_error: invalid x-api-key sk-secret-suffix';
   const kind = classifyAuthError(raw);
   assert.equal(kind, 'invalid_api_key');
@@ -84,12 +98,11 @@ test('publishAuthRequired emits every hit with the frozen secret-free payload', 
   assert.equal(serialized.includes('sk-secret-suffix'), false);
 });
 
-test('publishAuthRecovered emits once only after success for the same pending pair', (t) => {
+test('publishAuthRecovered emits once only after success for the same pending pair', () => {
   const bus = new EventBus();
   const recovered: CortexEvent[] = [];
   bus.subscribe('auth.recovered', (event) => { recovered.push(event); });
   initAuthEvents(bus);
-  t.onTestFinished(() => initAuthEvents(null));
 
   publishAuthRequired({
     backend: 'pi', provider: 'openai-codex', authType: 'oauth', kind: 'oauth_expired',
@@ -122,5 +135,4 @@ test('auth lifecycle observation is inert while no EventBus is configured', () =
   publishAuthRecovered({ backend: 'pi', provider: 'deepseek' });
 
   assert.deepEqual(recovered, []);
-  initAuthEvents(null);
 });

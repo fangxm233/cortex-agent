@@ -1,5 +1,5 @@
-// input:  run configuration, adapters, profiles, sinks, auth events
-// output: attributed runs, observer streams, auth lifecycle, spawn policy
+// input:  adapters, profiles, settings, lifecycle helpers
+// output: attributed agent runs and observer streams
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -19,13 +19,18 @@ import type { ResolvedProfileConfig } from './profile-manager.js';
 import type { AgentHandle, AgentResult, ChatNoticeLevel, ContextUsage } from '@core/types/agent-types.js';
 import { recordCost } from '../costs/cost-tracker.js';
 import { configureEnvForMode, isApiRateLimitError, isRetryableResult, isRetryableError } from './config.js';
-import { isProviderModeRateLimited, isProviderRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
+import { isProviderRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
-import { classifyAuthError, publishAuthRecovered, publishAuthRequired } from '../auth/auth-events.js';
+import {
+  configIsRateLimited, rateLimitedResult, resolveRateLimitProvider,
+  withAuthLifecycle, withRateLimitProvider,
+} from './provider-run-lifecycle.js';
 import { t } from '../../core/i18n.js';
+
+export { resolveRateLimitProvider };
 
 const log = createLogger('facade');
 
@@ -116,70 +121,6 @@ class AttemptNoticeTracker {
     if (typeof detail === 'string' && detail.startsWith('API Error:')) this.emitTerminal(detail);
     else this.emitTerminal(t('status.rateLimitedExhausted'), t('status.rateLimitedExhausted'));
   }
-}
-
-const DEFAULT_PROVIDER_BY_BACKEND: Partial<Record<Backend, string>> = {
-  claude: 'anthropic',
-};
-
-export function resolveRateLimitProvider(config: Pick<AgentConfig, 'backend' | 'provider'>): string {
-  return config.provider || DEFAULT_PROVIDER_BY_BACKEND[config.backend] || config.backend;
-}
-
-function withRateLimitProvider(handle: AgentHandle, provider: string): AgentHandle {
-  return {
-    promise: handle.promise.then(
-      (result) => ({ ...result, rateLimitProvider: result.rateLimitProvider || provider }),
-      (error) => {
-        if (isRetryableError(error as Error)) {
-          (error as Error & { rateLimitProvider?: string }).rateLimitProvider ??= provider;
-        }
-        throw error;
-      },
-    ),
-    kill: () => handle.kill(),
-    get sessionId(): string | null { return handle.sessionId ?? null; },
-    get agentProcess() { return handle.agentProcess; },
-  };
-}
-
-function withAuthLifecycle(handle: AgentHandle, options: RunAgentOptions, config: AgentConfig): AgentHandle {
-  const identity = { backend: config.backend, provider: resolveRateLimitProvider(config) };
-  return {
-    promise: handle.promise.then(
-      (result) => {
-        if (!result.rateLimited) publishAuthRecovered(identity);
-        return result;
-      },
-      (error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        const kind = classifyAuthError(message);
-        if (kind) {
-          publishAuthRequired({
-            ...identity, authType: null, kind,
-            channel: options.channel ?? null,
-            sessionId: options.trackSessionId ?? options.sessionId ?? handle.sessionId ?? null,
-          });
-        }
-        throw error;
-      },
-    ),
-    kill: () => handle.kill(),
-    get sessionId(): string | null { return handle.sessionId ?? null; },
-    get agentProcess() { return handle.agentProcess; },
-  };
-}
-
-function configIsRateLimited(config: AgentConfig): boolean {
-  return isProviderModeRateLimited(resolveRateLimitProvider(config), config.mode || 'api');
-}
-
-function rateLimitedResult(mode: string, provider: string): AgentResult {
-  return {
-    sessionId: null, total_cost_usd: null, num_turns: null,
-    rateLimited: true, rateLimitMessage: `Mode ${mode} is rate-limited`, rateLimitProvider: provider,
-    planFilePath: null, enteredPlanMode: false, exitedPlanMode: false, finalOutput: null,
-  };
 }
 
 function withTerminalNotices(handle: AgentHandle, notices: AttemptNoticeTracker): AgentHandle {
