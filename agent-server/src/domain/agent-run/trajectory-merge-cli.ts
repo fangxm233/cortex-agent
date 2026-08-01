@@ -102,7 +102,7 @@ export function getTrajectoryMergeHelp(): string {
     usage: 'node dist/domain/agent-run/trajectory-merge-cli.js --trajectory-root <dir> --output <file>',
     options: [
       { flag: '--trajectory-root <dir>', description: 'Directory containing C2/C3 lifecycle files' },
-      { flag: '--output <file>', description: 'Owned ATIF output path; stale content is replaced' },
+      { flag: '--output <file>', description: 'Fresh ATIF path in a writable directory; never overwritten' },
       { flag: '--subagent-link <tool=id>', description: 'Repeatable tool_use_id=thread_id override', default: 'tool result JSON' },
       { flag: '--help, -h', description: 'Show this help' },
     ],

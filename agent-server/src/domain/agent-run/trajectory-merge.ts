@@ -5,6 +5,7 @@
 
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { validateTrajectoryRoot } from './manifest.js';
 import {
@@ -17,7 +18,8 @@ import {
 
 export type TrajectoryMergeReason = 'started_without_terminal' | 'EACCES' | 'ENOSPC'
   | 'malformed_fragment' | 'identity_hash_drift' | 'unresolvable_subagent_link'
-  | 'unbound_child_fragment' | 'missing_child_fragment' | 'ambiguous_subagent_link';
+  | 'unbound_child_fragment' | 'missing_child_fragment' | 'ambiguous_subagent_link'
+  | 'output_path_exists' | 'output_path_not_writable' | 'containment_failure';
 
 export class TrajectoryMergeError extends Error {
   constructor(readonly reason: TrajectoryMergeReason, message: string, options?: { cause?: unknown }) {
@@ -31,6 +33,7 @@ export interface TrajectoryMergeFileSystem {
   readFile(filePath: string): Buffer;
   exists(filePath: string): boolean;
   realpath(filePath: string): string;
+  access(filePath: string, mode: number): void;
   open(filePath: string, flags: number, mode: number): number;
   write(fd: number, data: Buffer, offset: number, length?: number): number;
   fsync(fd: number): void;
@@ -44,6 +47,7 @@ export const NODE_TRAJECTORY_MERGE_FS: TrajectoryMergeFileSystem = {
   readFile: filePath => fs.readFileSync(filePath),
   exists: filePath => fs.existsSync(filePath),
   realpath: filePath => fs.realpathSync(filePath),
+  access: (filePath, mode) => fs.accessSync(filePath, mode),
   open: (filePath, flags, mode) => fs.openSync(filePath, flags, mode),
   write: (fd, data, offset, length = data.length - offset) => fs.writeSync(fd, data, offset, length),
   fsync: fd => fs.fsyncSync(fd),
@@ -74,7 +78,10 @@ export interface MergeTrajectoryResult {
 interface LifecycleInput {
   markerPath: string;
   marker: Record<string, unknown>;
+  markerBytes: Buffer;
+  terminalPath: string;
   terminal: Record<string, unknown>;
+  terminalBytes: Buffer;
   journalPath: string;
   journalBytes: Buffer;
 }
@@ -129,15 +136,20 @@ function loadLifecycle(
   root: string, name: string, fileSystem: TrajectoryMergeFileSystem,
 ): LifecycleInput {
   const markerPath = path.join(root, name);
-  const marker = parseObject(fileSystem.readFile(markerPath), markerPath);
+  const markerBytes = fileSystem.readFile(markerPath);
+  const marker = parseObject(markerBytes, markerPath);
   const terminalPath = markerPath.replace(/\.started\.json$/, '.terminal.json');
   if (!fileSystem.exists(terminalPath)) {
     return mergeError('started_without_terminal', `Missing terminal manifest for ${name}`);
   }
-  const terminal = parseObject(fileSystem.readFile(terminalPath), terminalPath);
+  const terminalBytes = fileSystem.readFile(terminalPath);
+  const terminal = parseObject(terminalBytes, terminalPath);
   const journalPath = confinedJournalPath(root, marker.journal_path, fileSystem);
   const journalBytes = fileSystem.readFile(journalPath);
-  return { markerPath, marker, terminal, journalPath, journalBytes };
+  return {
+    markerPath, marker, markerBytes, terminalPath, terminal, terminalBytes,
+    journalPath, journalBytes,
+  };
 }
 
 function loadInputs(root: string, fileSystem: TrajectoryMergeFileSystem): LifecycleInput[] {
@@ -146,22 +158,53 @@ function loadInputs(root: string, fileSystem: TrajectoryMergeFileSystem): Lifecy
   return names.map(name => loadLifecycle(root, name, fileSystem));
 }
 
-function validateInputs(root: string): void {
-  const validation = validateTrajectoryRoot(root);
-  if (validation.ok) return;
-  const reason = validation.problems.some(problem => problem.startsWith('started_without_terminal:'))
-    ? 'started_without_terminal' : 'malformed_fragment';
-  mergeError(reason, validation.problems.join('\n'));
-}
-
-function assertQuiescent(terminal: Record<string, unknown>): void {
+function supervisorEvidence(terminal: Record<string, unknown>): Record<string, unknown> {
   const supervisor = terminal.supervisor;
   if (!supervisor || typeof supervisor !== 'object' || Array.isArray(supervisor)) {
-    mergeError('malformed_fragment', 'Terminal manifest has no supervisor evidence');
+    return mergeError('malformed_fragment', 'Terminal manifest has no supervisor evidence');
   }
   const evidence = supervisor as Record<string, unknown>;
-  if (evidence.quiescent !== true || evidence.descendants !== 0) {
-    mergeError('malformed_fragment', 'Terminal manifest is not quiescent');
+  if (typeof evidence.quiescent !== 'boolean' || !Number.isInteger(evidence.descendants)) {
+    return mergeError('malformed_fragment', 'Terminal supervisor evidence is unparseable');
+  }
+  return evidence;
+}
+
+function assertContainment(inputs: LifecycleInput[]): void {
+  for (const input of inputs) {
+    const evidence = supervisorEvidence(input.terminal);
+    if (evidence.quiescent !== true || evidence.descendants !== 0) {
+      mergeError('containment_failure', 'Terminal manifest is not quiescent');
+    }
+  }
+}
+
+function assertJournalLinkage(input: LifecycleInput): void {
+  if (input.terminal.journal_path !== input.marker.journal_path) {
+    mergeError('malformed_fragment', 'Lifecycle journal paths disagree');
+  }
+}
+
+// Remap only journal_path; validate all other fields and exact journal bytes from one snapshot.
+function writeValidationInput(root: string, input: LifecycleInput, index: number): void {
+  assertJournalLinkage(input);
+  const journalPath = path.join(root, `journal-${index}.ndjson`);
+  fs.writeFileSync(journalPath, input.journalBytes);
+  const marker = { ...input.marker, journal_path: journalPath };
+  const terminal = { ...input.terminal, journal_path: journalPath };
+  fs.writeFileSync(path.join(root, path.basename(input.markerPath)), `${JSON.stringify(marker)}\n`);
+  fs.writeFileSync(path.join(root, path.basename(input.terminalPath)), `${JSON.stringify(terminal)}\n`);
+}
+
+function validateSnapshot(inputs: LifecycleInput[]): void {
+  assertContainment(inputs);
+  const validationRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'trajectory-merge-validate-'));
+  try {
+    inputs.forEach((input, index) => writeValidationInput(validationRoot, input, index));
+    const validation = validateTrajectoryRoot(validationRoot);
+    if (!validation.ok) mergeError('malformed_fragment', validation.problems.join('\n'));
+  } finally {
+    fs.rmSync(validationRoot, { recursive: true, force: true });
   }
 }
 
@@ -171,7 +214,6 @@ function parseJournal(input: LifecycleInput): SourceFragment {
   const lines = text.slice(0, -1).split('\n');
   const records = lines.map((line, index) => parseObject(Buffer.from(line), `${input.journalPath}:${index + 1}`));
   if (records.length < 1) return mergeError('malformed_fragment', 'Journal has no header');
-  assertQuiescent(input.terminal);
   return {
     header: records[0] as SourceJournalHeader,
     events: records.slice(1) as SourceJournalEvent[],
@@ -254,14 +296,23 @@ function payloadThreadId(content: string): string | null {
   return typeof threadId === 'string' && threadId.length > 0 ? threadId : null;
 }
 
-function threadIdFromResults(records: SourceJournalEvent[] | undefined): string {
-  if (!records || records.length !== 1) {
+function successfulResult(records: SourceJournalEvent[] | undefined): SourceJournalEvent {
+  if (!records || records.length === 0) {
+    return mergeError('unresolvable_subagent_link', 'Thread call has no tool result');
+  }
+  if (records.length !== 1) {
     return mergeError('ambiguous_subagent_link', 'Thread call has ambiguous tool results');
   }
   const event = records[0].event;
   if (event.type !== 'tool_result' || !event.ok) {
     return mergeError('unresolvable_subagent_link', 'Thread run has no successful result');
   }
+  return records[0];
+}
+
+function threadIdFromResults(records: SourceJournalEvent[] | undefined): string {
+  const record = successfulResult(records);
+  const event = record.event as Extract<SourceJournalEvent['event'], { type: 'tool_result' }>;
   const threadId = payloadThreadId(event.content);
   if (!threadId) return mergeError('unresolvable_subagent_link', 'Thread result has no thread_id');
   return threadId;
@@ -283,14 +334,26 @@ function collectThreadLinks(events: SourceJournalEvent[]): ThreadLink[] {
   }));
 }
 
-function validateExplicitLinks(events: SourceJournalEvent[], links: ThreadLink[]): void {
-  const callIds = new Set(threadCalls(events).map(call => call.callId));
+function explicitLinksInCallOrder(
+  events: SourceJournalEvent[], links: ThreadLink[],
+): ThreadLink[] {
+  const calls = threadCalls(events);
+  const callIds = new Set(calls.map(call => call.callId));
   if (links.some(link => !callIds.has(link.callId))) {
-    mergeError('unresolvable_subagent_link', 'Explicit link has no thread_run tool call');
+    return mergeError('unresolvable_subagent_link', 'Explicit link has no thread_run tool call');
   }
   if (new Set(links.map(link => link.callId)).size !== links.length) {
-    mergeError('ambiguous_subagent_link', 'Thread call is explicitly linked more than once');
+    return mergeError('ambiguous_subagent_link', 'Thread call is explicitly linked more than once');
   }
+  if (links.length !== calls.length) {
+    return mergeError('unresolvable_subagent_link', 'Explicit link map is incomplete');
+  }
+  const byCall = new Map(links.map(link => [link.callId, link.threadId]));
+  const results = toolResults(events);
+  return calls.map(call => {
+    successfulResult(results.get(call.callId));
+    return { callId: call.callId, threadId: byCall.get(call.callId)! };
+  });
 }
 
 function orderChildren(children: SourceFragment[], links: ThreadLink[]): SourceFragment[] {
@@ -313,6 +376,19 @@ function removeIfExists(filePath: string, fileSystem: TrajectoryMergeFileSystem)
   if (fileSystem.exists(filePath)) fileSystem.unlink(filePath);
 }
 
+function assertOutputPrecondition(
+  outputPath: string, fileSystem: TrajectoryMergeFileSystem,
+): void {
+  if (fileSystem.exists(outputPath)) {
+    mergeError('output_path_exists', 'Output path already exists');
+  }
+  try {
+    fileSystem.access(path.dirname(outputPath), fs.constants.W_OK);
+  } catch (error) {
+    mergeError('output_path_not_writable', 'Output directory is not writable', error);
+  }
+}
+
 function writeFull(fd: number, bytes: Buffer, fileSystem: TrajectoryMergeFileSystem): void {
   let offset = 0;
   while (offset < bytes.length) {
@@ -328,23 +404,26 @@ function safeCleanup(filePath: string, fileSystem: TrajectoryMergeFileSystem): v
   } catch {}
 }
 
+function temporaryPath(outputPath: string): string {
+  const nonce = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+  return `${outputPath}.tmp.${nonce}`;
+}
+
 function publish(outputPath: string, bytes: Buffer, fileSystem: TrajectoryMergeFileSystem): void {
-  const temporaryPath = `${outputPath}.tmp.${process.pid}`;
+  const temporary = temporaryPath(outputPath);
   let fd: number | null = null;
   try {
-    removeIfExists(temporaryPath, fileSystem);
-    fd = fileSystem.open(temporaryPath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL, 0o600);
+    fd = fileSystem.open(temporary, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL, 0o600);
     writeFull(fd, bytes, fileSystem);
     fileSystem.fsync(fd);
     fileSystem.close(fd);
     fd = null;
-    fileSystem.rename(temporaryPath, outputPath);
+    fileSystem.rename(temporary, outputPath);
   } catch (error) {
     if (fd !== null) {
       try { fileSystem.close(fd); } catch {}
     }
-    safeCleanup(temporaryPath, fileSystem);
-    safeCleanup(outputPath, fileSystem);
+    safeCleanup(temporary, fileSystem);
     throw normalizeError(error);
   }
 }
@@ -363,15 +442,14 @@ function resolveLinks(
   if (!explicit || explicit.length === 0) {
     return { links: collectThreadLinks(parent.events), source: 'tool_result' };
   }
-  validateExplicitLinks(parent.events, explicit);
-  return { links: explicit, source: 'explicit' };
+  return { links: explicitLinksInCallOrder(parent.events, explicit), source: 'explicit' };
 }
 
 function mergeBytes(
   root: string, fileSystem: TrajectoryMergeFileSystem, explicit: ThreadLink[] | undefined,
 ): { bytes: Buffer; trajectoryId: string; fragments: FragmentOutcome[] } {
   const inputs = loadInputs(root, fileSystem);
-  validateInputs(root);
+  validateSnapshot(inputs);
   const fragments = inputs.map(parseJournal);
   const { parent, children } = partitionFragments(fragments);
   assertRootIdentity(parent, children);
@@ -392,7 +470,7 @@ export function mergeTrajectory(
 ): MergeTrajectoryResult {
   const outputPath = path.resolve(options.outputPath);
   try {
-    removeIfExists(outputPath, fileSystem);
+    assertOutputPrecondition(outputPath, fileSystem);
     const merged = mergeBytes(
       path.resolve(options.trajectoryRoot), fileSystem, options.subagentLinks,
     );
@@ -404,7 +482,6 @@ export function mergeTrajectory(
       fragments: merged.fragments,
     };
   } catch (error) {
-    safeCleanup(outputPath, fileSystem);
     throw normalizeError(error);
   }
 }

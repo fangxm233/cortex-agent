@@ -36,10 +36,11 @@ def parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  python3 scripts/validate-atif.py --trajectory-file ./artifacts/trajectory.json"
+            "  python3 scripts/validate-atif.py --trajectory-file ./artifacts/trajectory.json\n"
+            "  cat trajectory.json | python3 scripts/validate-atif.py --trajectory-file -"
         ),
     )
-    value.add_argument("--trajectory-file", required=True, help="ATIF JSON file to validate")
+    value.add_argument("--trajectory-file", required=True, help="ATIF JSON file, or - for stdin")
     return value
 
 
@@ -66,16 +67,28 @@ def provision(uv: str, environment: Path) -> tuple[Path | None, str | None]:
     return python, None
 
 
+def resolve_trajectory(value: str, temporary: Path) -> tuple[Path | None, str | None]:
+    if value == "-":
+        trajectory = temporary / "stdin-trajectory.json"
+        trajectory.write_bytes(sys.stdin.buffer.read())
+        return trajectory, None
+    trajectory = Path(value).resolve()
+    if trajectory.is_file():
+        return trajectory, None
+    return None, str(trajectory)
+
+
 def main() -> int:
     args = parser().parse_args()
-    trajectory = Path(args.trajectory_file).resolve()
-    if not trajectory.is_file():
-        return emit_failure("file_not_found", str(trajectory))
     uv = shutil.which("uv")
     if uv is None:
         return emit_failure("uv_not_found", "Install uv and ensure it is on PATH")
     with tempfile.TemporaryDirectory(prefix="cortex-atif-validator-") as temporary:
-        python, error = provision(uv, Path(temporary) / "venv")
+        root = Path(temporary)
+        trajectory, missing = resolve_trajectory(args.trajectory_file, root)
+        if trajectory is None:
+            return emit_failure("file_not_found", missing or args.trajectory_file)
+        python, error = provision(uv, root / "venv")
         if python is None:
             return emit_failure("provision_failed", error or "unknown uv failure")
         validated = run_command([str(python), "-c", RUNNER, str(trajectory)])

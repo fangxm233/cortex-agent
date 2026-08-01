@@ -274,6 +274,20 @@ export function setSupervisor(
   fs.writeFileSync(journal.terminalPath, `${JSON.stringify(terminal)}\n`);
 }
 
+export function setMalformedSupervisor(journal: FixtureJournal): void {
+  const terminal = JSON.parse(fs.readFileSync(journal.terminalPath, 'utf8'));
+  terminal.supervisor = 'not-an-object';
+  fs.writeFileSync(journal.terminalPath, `${JSON.stringify(terminal)}\n`);
+}
+
+export function removeToolResult(journal: FixtureJournal, callId: string): void {
+  const records = readRecords(journal).filter(record => (
+    record.event?.type !== 'tool_result' || record.event.toolUseId !== callId
+  ));
+  records.slice(1).forEach((record, index) => { record.seq = index + 1; });
+  writeRecords(journal, records);
+}
+
 export function truncateTerminalJournal(journal: FixtureJournal): void {
   const records = readRecords(journal);
   records.pop();

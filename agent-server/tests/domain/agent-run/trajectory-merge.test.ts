@@ -210,8 +210,12 @@ it('passes Harbor 0.20.0 authoritative validation with zero errors', () => {
   const outputPath = path.join(root, 'trajectory.json');
   mergeTrajectory({ trajectoryRoot: root, outputPath });
   const result = spawnSync('python3', [
-    'scripts/validate-atif.py', '--trajectory-file', outputPath,
-  ], { cwd: AGENT_SERVER_ROOT, encoding: 'utf8' });
+    'scripts/validate-atif.py', '--trajectory-file', '-',
+  ], {
+    cwd: AGENT_SERVER_ROOT,
+    encoding: 'utf8',
+    input: fs.readFileSync(outputPath),
+  });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), {
     ok: true,
