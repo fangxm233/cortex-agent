@@ -9,6 +9,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | journal.ts | core | appends durable run event journals |
 | manifest-contract.ts | types | validates terminal manifest values |
 | manifest.ts | core | validates journals and publishes lifecycle truth |
+| pinned-node-process.ts | process | launches Node with trial-pinned paths and env |
 | role-surface.ts | identity | hashes the exact resolved spawn role surface |
 | run-config.ts | config | loads file/stdin config and validates inputs |
 | runner.ts | core | coordinates lifecycle and reported accounting |
