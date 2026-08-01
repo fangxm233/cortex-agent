@@ -8,7 +8,7 @@ import type { AuthErrorKind, EventBus } from '@events/index.js';
 const AUTH_ERROR_PATTERNS: ReadonlyArray<readonly [RegExp, AuthErrorKind]> = [
   [/(?:\blogin_required\b|please\s+run\s+\/login\b)/i, 'login_required'],
   [/(?:\boauth_expired\b|oauth\s+token\s+has\s+expired\b)/i, 'oauth_expired'],
-  [/(?:\bauthentication_error\b|\binvalid[_ -]api[_ -]key\b|\binvalid\s+x-api-key\b)/i, 'invalid_api_key'],
+  [/(?:\bauthentication_error\b|\bauthentication\b|\binvalid[_ -]api[_ -]key\b|\binvalid\s+x-api-key\b)/i, 'invalid_api_key'],
   [/(?:\bunauthorized\b|\b401\b)/i, 'unauthorized'],
   [/\binvalid_grant\b/i, 'invalid_grant'],
 ];
