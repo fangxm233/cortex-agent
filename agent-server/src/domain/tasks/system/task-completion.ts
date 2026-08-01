@@ -1,14 +1,17 @@
-// input:  node fs/path/child_process, core paths, task lifecycle
-// output: completeTask/uncompleteTask lifecycle transitions
-// pos:    resolves project commits and persisted artifact evidence
+// input:  node fs/path/child_process, task generation, lifecycle storage
+// output: generation-fenced completeTask/uncompleteTask transitions
+// pos:    Verifies completion evidence and dispatch ownership
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { type Task } from '@core/task-parser.js';
+import { type Task, type TaskGenerationExpectation } from '@core/task-parser.js';
 import { DATA_DIR, INSTALL_ROOT, PROJECTS_DIR, STORE_DIR, WORKSPACE_DIR } from '@core/utils.js';
-import { clearDependsOnAll, findTask, getTasksPath, readTasks, writeTasks } from './task-lifecycle-edit.js';
+import {
+  clearDependsOnAll, findTask, getTasksPath, readTasks, taskFileProjects,
+  withTaskFileMutationLock, withTaskFileMutationLocks, writeTasks,
+} from './task-lifecycle-edit.js';
 
 const EXPLICIT_SHA = /\b(?:implementation\s+sha|commit(?:\s+sha)?|sha)\s*[:=#]?\s*`?([0-9a-f]{7,40})(?![0-9a-f])`?/gi;
 
@@ -162,10 +165,14 @@ function completionWarning(
   return 'no evidence of work: no verified implementation SHA, persisted thread artifact, matching git commit, or Done-when artifact. Re-run with --skip-verify to bypass.';
 }
 
-function markTaskCompleted(task: Task, completionNote: string, completedAt: string): void {
+function markTaskCompleted(
+  task: Task, completionNote: string, completedAt: string,
+  ownership: TaskGenerationExpectation | undefined,
+): void {
   task.status = 'done';
   task.claimed_by = null;
   task.claimed_at = null;
+  task.dispatch_generation = ownership?.generation ?? null;
   task.blocked_by = null;
   task.approval_needed = false;
   task.paused = false;
@@ -174,18 +181,22 @@ function markTaskCompleted(task: Task, completionNote: string, completedAt: stri
   task.completed_note = completionNote || null;
 }
 
-function completeTask(
+function completeTaskUnlocked(
   taskText: string | null, project: string,
   completionNote: string = '', taskId: string | null = null,
   skipVerify: boolean = false, skipVerifyReason: string | null = null,
+  ownership?: TaskGenerationExpectation,
 ) {
   const loaded = loadCompletableTask(taskText, project, taskId);
   if ('error' in loaded) return { success: false, message: loaded.error };
   const { task, tasks } = loaded;
+  if (ownership && task.dispatch_generation !== ownership.generation) {
+    return { success: false, message: 'Stale task dispatch generation; completion ignored', stale: true };
+  }
   const verifyWarning = completionWarning(project, task, completionNote, skipVerify, skipVerifyReason);
   const completedAt = new Date().toISOString();
   const today = completedAt.slice(0, 10);
-  markTaskCompleted(task, completionNote, completedAt);
+  markTaskCompleted(task, completionNote, completedAt, ownership);
   writeTasks(project, tasks);
 
   const unblockResult = task.id ? clearDependsOnAll(task.id) : { count: 0, tasks: [] };
@@ -197,7 +208,10 @@ function completeTask(
   return { success: true, message, task_id: task.id, unblocked: unblockResult.tasks, verify_warning: verifyWarning };
 }
 
-function uncompleteTask(taskText: string | null, project: string, taskId: string | null = null) {
+function uncompleteTaskUnlocked(
+  taskText: string | null, project: string, taskId: string | null = null,
+  ownership?: TaskGenerationExpectation,
+) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { success: false, message: `TASKS.yaml not found for project ${project}` };
@@ -205,14 +219,30 @@ function uncompleteTask(taskText: string | null, project: string, taskId: string
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
+  if (ownership && task.dispatch_generation !== ownership.generation) {
+    return { success: false, message: 'Stale task dispatch generation; mutation ignored', stale: true };
+  }
 
   if (task.status !== 'done') return { success: false, message: 'Task is not completed' };
 
   task.status = 'open';
   task.completed_at = null;
   task.completed_note = null;
+  task.dispatch_generation = null;
   writeTasks(project, tasks);
   return { success: true, message: 'Task marked as incomplete' };
 }
+
+function lockCompletionMutation<T extends (...args: any[]) => any>(mutation: T): T {
+  return ((...args: Parameters<T>) => withTaskFileMutationLock(
+    args[1], () => mutation(...args),
+  )) as T;
+}
+
+const completeTask = ((...args: Parameters<typeof completeTaskUnlocked>) =>
+  withTaskFileMutationLocks(
+    [...taskFileProjects(), args[1]], () => completeTaskUnlocked(...args),
+  )) as typeof completeTaskUnlocked;
+const uncompleteTask = lockCompletionMutation(uncompleteTaskUnlocked);
 
 export { completeTask, uncompleteTask };

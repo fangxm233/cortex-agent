@@ -4,6 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
+import type { TaskGenerationExpectation } from '@core/task-parser.js';
 import { isMainModule, listProjectDirs } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { cliError, formatHelp, readStdinSync } from '@core/cli-utils.js';
@@ -25,7 +26,7 @@ import {
 import { lintTasks } from '../lint.js';
 import { recordVerdict, readLedger } from '../acceptance-ledger.js';
 import { loadConfig, listTemplateNames } from '../../threads/template-loader.js';
-import { editTask } from './task-lifecycle-edit.js';
+import { editTask, findTask, readTasks } from './task-lifecycle-edit.js';
 import { assignIds, validateIds } from './task-id-utils.js';
 import {
   approveTask,
@@ -921,21 +922,37 @@ function handleVerdict(v: ParsedValues): any {
   return { success: true, task_id: v.taskId, child: v.child, verdict: v.verdict, rework_round: entry?.rework_round ?? 0 };
 }
 
+function taskOwnership(v: ParsedValues): TaskGenerationExpectation | undefined {
+  const envTaskId = process.env.CORTEX_TASK_ID;
+  const sameProject = process.env.CORTEX_TASK_PROJECT === v.project;
+  if (!process.env.CORTEX_THREAD_ID || !envTaskId || !sameProject || !v.project) return undefined;
+  let selectedId = v.taskId;
+  if (!selectedId && v.task) {
+    const found = findTask(readTasks(v.project), v.task, null);
+    if (!('error' in found)) selectedId = found.task.id;
+  }
+  if (selectedId !== envTaskId) return undefined;
+  return { generation: process.env.CORTEX_TASK_GENERATION ?? null };
+}
+
 const WRITE_HANDLERS: Record<string, WriteHandler> = {
   claim: (v) => claimTask(v.task, v.project!, v.agent, v.taskId),
-  unclaim: (v) => unclaimTask(v.task, v.project!, v.taskId),
-  pause: (v) => pauseTask(v.task, v.project!, v.taskId),
-  resume: (v) => resumeTask(v.task, v.project!, v.taskId),
-  pending: (v) => pendingTask(v.task, v.project!, v.taskId),
-  reopen: (v) => reopenTask(v.task, v.project!, v.taskId),
-  complete: (v) => completeTask(v.task, v.project!, v.note, v.taskId, v.skipVerify, v.skipVerifyReason),
-  uncomplete: (v) => uncompleteTask(v.task, v.project!, v.taskId),
-  'request-approval': (v) => requestApprovalTask(v.task, v.project!, v.taskId),
-  approve: (v) => approveTask(v.task, v.project!, v.taskId),
-  'clear-approval': (v) => clearApprovalTask(v.task, v.project!, v.taskId),
-  block: (v) => blockTask(v.task, v.project!, v.reason!, v.taskId),
+  unclaim: (v) => unclaimTask(v.task, v.project!, v.taskId, taskOwnership(v)),
+  pause: (v) => pauseTask(v.task, v.project!, v.taskId, taskOwnership(v)),
+  resume: (v) => resumeTask(v.task, v.project!, v.taskId, taskOwnership(v)),
+  pending: (v) => pendingTask(v.task, v.project!, v.taskId, taskOwnership(v)),
+  reopen: (v) => reopenTask(v.task, v.project!, v.taskId, taskOwnership(v)),
+  complete: (v) => completeTask(
+    v.task, v.project!, v.note, v.taskId, v.skipVerify, v.skipVerifyReason,
+    taskOwnership(v),
+  ),
+  uncomplete: (v) => uncompleteTask(v.task, v.project!, v.taskId, taskOwnership(v)),
+  'request-approval': (v) => requestApprovalTask(v.task, v.project!, v.taskId, taskOwnership(v)),
+  approve: (v) => approveTask(v.task, v.project!, v.taskId, taskOwnership(v)),
+  'clear-approval': (v) => clearApprovalTask(v.task, v.project!, v.taskId, taskOwnership(v)),
+  block: (v) => blockTask(v.task, v.project!, v.reason!, v.taskId, taskOwnership(v)),
   verdict: handleVerdict,
-  unblock: (v) => unblockTask(v.task, v.project!, v.taskId),
+  unblock: (v) => unblockTask(v.task, v.project!, v.taskId, taskOwnership(v)),
   add: (v) => addTask(v.project!, v.text, v.why, v.doneWhen, v.priority || 'medium', v.template, v.dependsOn.length > 0 ? v.dependsOn : null, v.plan, readOriginFromEnv(v.noNotify)),
   spawn: handleSpawn,
   edit: handleEdit,

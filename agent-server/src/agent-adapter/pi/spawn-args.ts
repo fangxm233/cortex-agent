@@ -1,5 +1,5 @@
-// input:  PI spawn options, AgentSpawnConfig context
-// output: PI argv and authoritative subprocess environment
+// input:  PI spawn options and task-aware AgentSpawnConfig context
+// output: PI argv and isolated CORTEX_* subprocess environment
 // pos:    Pure PI argument and environment construction
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -50,6 +50,7 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_SESSION_ID', 'CORTEX_THREAD_ID', 'CORTEX_PROFILE',
   'CORTEX_PROJECT', 'CORTEX_SESSION_NAME', 'CORTEX_EXECUTION_ID',
   'CORTEX_THREAD_DEPTH', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT',
+  'CORTEX_TASK_GENERATION',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
   'CORTEX_PI_ALLOWED_TOOLS',
 ] as const;
@@ -71,6 +72,7 @@ function applyContext(env: NodeJS.ProcessEnv, options: PIEnvOptions): void {
   setOptional(env, 'CORTEX_THREAD_DEPTH', context?.threadDepth);
   setOptional(env, 'CORTEX_TASK_ID', context?.taskId);
   setOptional(env, 'CORTEX_TASK_PROJECT', context?.taskProject);
+  setOptional(env, 'CORTEX_TASK_GENERATION', context?.taskGeneration);
 }
 
 export function buildPiEnv(

@@ -7,7 +7,7 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 |---|---|---|
 | adapter.ts | adapter | runs PI sessions with authoritative resume paths |
 | session-support.ts | core | PI session timers, queues, and probes |
-| spawn-args.ts | core | builds PI arguments, resume paths, and environment |
+| spawn-args.ts | core | Builds PI arguments and isolated task-aware environment |
 | defaults.ts | config | PI session and extension path defaults |
 | agent-dir.ts | config | manages the private PI agent directory |
 | discovery.ts | core | caches providers and finds filename sessions |
