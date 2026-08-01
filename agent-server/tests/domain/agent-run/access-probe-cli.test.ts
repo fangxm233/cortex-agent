@@ -1,22 +1,29 @@
-// input:  access-probe CLI, real strace, and clean Node fixture
-// output: help, correction errors, JSON stdout, and human stderr
+// input:  probe CLI, supervisor, strace, Node fixture
+// output: help, errors, JSON, and human summary
 // pos:    Standalone access-probe CLI regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, it } from 'vitest';
 
 const CLI = fileURLToPath(new URL('../../../src/domain/agent-run/access-probe-cli.ts', import.meta.url));
 const ENTRY = fileURLToPath(new URL('./access-probe-fixture.mjs', import.meta.url));
 const INSTALL_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const TSX = createRequire(import.meta.url).resolve('tsx');
 let root = '';
+
+beforeAll(() => {
+  const result = spawnSync('flock', [
+    '-x', '/tmp/cortex-supervisor-build.lock', 'npm', 'run', 'build:supervisor',
+  ], { cwd: INSTALL_ROOT, encoding: 'utf8' });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'access-probe-cli-'));
@@ -51,6 +58,8 @@ it('prints copyable help without running a probe', async () => {
   assert.equal(result.code, 0);
   assert.match(result.stdout, /Usage: node .*access-probe-cli/);
   assert.match(result.stdout, /Examples:/);
+  assert.match(result.stdout, /mkdir -p \/tmp\/cortex-access-probe\/workspace/);
+  assert.doesNotMatch(result.stdout, /--workspace \/workspace/);
   assert.equal(result.stderr, '');
 });
 

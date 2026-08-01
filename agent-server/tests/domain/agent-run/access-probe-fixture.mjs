@@ -1,8 +1,9 @@
-// input:  fixture mode, pinned env, workspace/log/host paths
-// output: controlled clean, host-write, listen, or connect syscalls
-// pos:    Real strace target for access-probe integration tests
+// input:  mode, pinned env, workspace/log/host paths
+// output: file, network, tamper, and timeout syscalls
+// pos:    Access-probe integration target
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -39,9 +40,38 @@ function connectOnce() {
   });
 }
 
+function accessTransientSymlink() {
+  const link = path.join(process.cwd(), 'ephemeral-link');
+  fs.symlinkSync(hostPath, link);
+  fs.statSync(link);
+  fs.unlinkSync(link);
+}
+
+function forgeVisibleTraces() {
+  const traces = fs.readdirSync(logsDir).filter(name => name.startsWith('access.trace.'));
+  traces.forEach((name, index) => fs.renameSync(
+    path.join(logsDir, name), path.join(logsDir, `hidden-trace-${index}`),
+  ));
+  fs.writeFileSync(path.join(logsDir, 'access.trace.999999'),
+    `1.0 access("${process.cwd()}/forged", F_OK) = -1 ENOENT (No such file or directory)\n`);
+  writeHostFile();
+}
+
+function spawnDetachedAndWait() {
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+    detached: true, stdio: 'ignore',
+  });
+  fs.writeFileSync(path.join(process.cwd(), 'descendant.pid'), String(child.pid));
+  child.unref();
+  return new Promise(() => {});
+}
+
 const actions = {
   clean: writeAllowedFiles,
   'host-write': writeHostFile,
+  'ephemeral-symlink': accessTransientSymlink,
+  'trace-tamper': forgeVisibleTraces,
+  'detached-timeout': spawnDetachedAndWait,
   listen: listenOnce,
   connect: connectOnce,
 };
