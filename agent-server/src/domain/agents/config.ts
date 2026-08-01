@@ -1,5 +1,5 @@
 // input:  mode/profile stores, atomic mutation, auth classifier
-// output: mode selection, saved API env persistence, retry policy
+// output: mode selection, saved Claude env persistence, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -35,6 +35,7 @@ export interface ModeFileData {
 export interface ApiEnv {
   ANTHROPIC_API_KEY: string | undefined;
   ANTHROPIC_BASE_URL: string | undefined;
+  CLAUDE_CODE_OAUTH_TOKEN: string | undefined;
 }
 
 // Gateway proxy URL for Claude Code's ANTHROPIC_BASE_URL (DR-0001)
@@ -70,11 +71,13 @@ function readApiEnvFromDotenvFile(): ApiEnv {
     return {
       ANTHROPIC_API_KEY: normalizeApiKey(parsed.ANTHROPIC_API_KEY),
       ANTHROPIC_BASE_URL: normalizeEnvValue(parsed.ANTHROPIC_BASE_URL),
+      CLAUDE_CODE_OAUTH_TOKEN: normalizeEnvValue(parsed.CLAUDE_CODE_OAUTH_TOKEN),
     };
   } catch {
     return {
       ANTHROPIC_API_KEY: undefined,
       ANTHROPIC_BASE_URL: undefined,
+      CLAUDE_CODE_OAUTH_TOKEN: undefined,
     };
   }
 }
@@ -84,6 +87,8 @@ function captureApiEnvSnapshot(): ApiEnv {
   return {
     ANTHROPIC_API_KEY: normalizeApiKey(process.env.ANTHROPIC_API_KEY) || fileEnv.ANTHROPIC_API_KEY,
     ANTHROPIC_BASE_URL: normalizeEnvValue(process.env.ANTHROPIC_BASE_URL) || fileEnv.ANTHROPIC_BASE_URL,
+    CLAUDE_CODE_OAUTH_TOKEN: normalizeEnvValue(process.env.CLAUDE_CODE_OAUTH_TOKEN)
+      || fileEnv.CLAUDE_CODE_OAUTH_TOKEN,
   };
 }
 
@@ -93,6 +98,9 @@ export function getSavedApiEnv(): ApiEnv {
   const liveEnv = captureApiEnvSnapshot();
   if (liveEnv.ANTHROPIC_API_KEY) savedApiEnv.ANTHROPIC_API_KEY = liveEnv.ANTHROPIC_API_KEY;
   if (liveEnv.ANTHROPIC_BASE_URL) savedApiEnv.ANTHROPIC_BASE_URL = liveEnv.ANTHROPIC_BASE_URL;
+  if (liveEnv.CLAUDE_CODE_OAUTH_TOKEN) {
+    savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = liveEnv.CLAUDE_CODE_OAUTH_TOKEN;
+  }
   return { ...savedApiEnv };
 }
 
@@ -102,28 +110,40 @@ function requireAnthropicApiKey(value: string): string {
   return key;
 }
 
-function upsertAnthropicApiKey(contents: string, key: string): string {
-  const assignment = `ANTHROPIC_API_KEY=${JSON.stringify(key)}`;
-  const matcher = /^[ \t]*(?:export[ \t]+)?ANTHROPIC_API_KEY[ \t]*=.*$/m;
-  if (matcher.test(contents)) {
-    return contents.replace(
-      /^[ \t]*(?:export[ \t]+)?ANTHROPIC_API_KEY[ \t]*=.*$/gm,
-      () => assignment,
-    );
-  }
+function requireClaudeOAuthToken(value: string): string {
+  const token = normalizeEnvValue(value);
+  if (!token || /[\s"\\]/.test(token)) throw new Error('Enter a valid Claude OAuth token.');
+  return token;
+}
+
+function upsertSavedEnv(contents: string, name: string, value: string): string {
+  const assignment = `${name}=${JSON.stringify(value)}`;
+  const matcher = new RegExp(`^[ \\t]*(?:export[ \\t]+)?${name}[ \\t]*=.*$`, 'm');
+  if (matcher.test(contents)) return contents.replace(new RegExp(matcher.source, 'gm'), assignment);
   const separator = contents.length === 0 || contents.endsWith('\n') ? '' : '\n';
   return `${contents}${separator}${assignment}\n`;
 }
 
-export async function saveAnthropicApiKey(value: string): Promise<void> {
-  const key = requireAnthropicApiKey(value);
+async function saveCredential(name: string, value: string): Promise<void> {
   await mutateFileAtomically(
     ENV_FILE,
-    contents => upsertAnthropicApiKey(contents, key),
+    contents => upsertSavedEnv(contents, name, value),
     { mode: 0o600 },
   );
+}
+
+export async function saveAnthropicApiKey(value: string): Promise<void> {
+  const key = requireAnthropicApiKey(value);
+  await saveCredential('ANTHROPIC_API_KEY', key);
   savedApiEnv.ANTHROPIC_API_KEY = key;
   process.env.ANTHROPIC_API_KEY = key;
+}
+
+export async function saveClaudeCodeOAuthToken(value: string): Promise<void> {
+  const token = requireClaudeOAuthToken(value);
+  await saveCredential('CLAUDE_CODE_OAUTH_TOKEN', token);
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = token;
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = token;
 }
 
 function applySavedApiEnv(): void {
@@ -132,6 +152,15 @@ function applySavedApiEnv(): void {
   else delete process.env.ANTHROPIC_API_KEY;
   if (apiEnv.ANTHROPIC_BASE_URL) process.env.ANTHROPIC_BASE_URL = apiEnv.ANTHROPIC_BASE_URL;
   else delete process.env.ANTHROPIC_BASE_URL;
+  if (apiEnv.CLAUDE_CODE_OAUTH_TOKEN) {
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = apiEnv.CLAUDE_CODE_OAUTH_TOKEN;
+  } else delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+}
+
+function applySavedOAuthToken(): void {
+  const token = getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN;
+  if (token) process.env.CLAUDE_CODE_OAUTH_TOKEN = token;
+  else delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
 }
 
 function normalizeClaudeMode(mode: string): string {
@@ -310,44 +339,38 @@ export function isRetryableError(error: Error | null | undefined): boolean {
     || TRANSIENT_PROVIDER_GUIDANCE.test(message);
 }
 
-export function configureEnvForMode(mode: string, metadata?: Record<string, string>): string | undefined {
-  if (isGatewayHealthy()) {
-    const url = gatewayModeUrl(mode, metadata);
-    process.env.ANTHROPIC_BASE_URL = url;
-    if (mode === 'plan') {
-      // Plan mode rides the gateway's passthrough: Claude Code must send its own OAuth
-      // bearer token, and an env API key would take precedence over OAuth — delete it.
-      delete process.env.ANTHROPIC_API_KEY;
-    } else {
-      // Non-plan modes: upstream auth is the gateway's job (it injects its own configured
-      // keys). Keep a key in env purely so Claude Code passes its startup credential check
-      // on machines without OAuth login (otherwise it exits with "Please run /login").
-      const saved = getSavedApiEnv();
-      process.env.ANTHROPIC_API_KEY = saved.ANTHROPIC_API_KEY || GATEWAY_MANAGED_KEY_PLACEHOLDER;
-    }
+function configureGatewayEnv(mode: string, metadata?: Record<string, string>): string {
+  const url = gatewayModeUrl(mode, metadata);
+  process.env.ANTHROPIC_BASE_URL = url;
+  if (mode === 'plan') {
+    // An API key takes precedence over the subscription token on the passthrough route.
+    delete process.env.ANTHROPIC_API_KEY;
     return url;
   }
+  const saved = getSavedApiEnv();
+  process.env.ANTHROPIC_API_KEY = saved.ANTHROPIC_API_KEY || GATEWAY_MANAGED_KEY_PLACEHOLDER;
+  return url;
+}
 
-  // Gateway unhealthy — fallback to direct connection
+function configureDirectEnv(mode: string): string | undefined {
   log.debug(`Gateway unhealthy — using direct Anthropic connection (mode=${mode})`);
-
   if (mode === 'plan') {
-    // Plan mode direct: delete everything, let Claude Code use OAuth
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_BASE_URL;
     return undefined;
-  } else {
-    // API mode direct: restore saved API key and base URL
-    applySavedApiEnv();
-    const saved = getSavedApiEnv();
-    if (saved.ANTHROPIC_BASE_URL) {
-      process.env.ANTHROPIC_BASE_URL = saved.ANTHROPIC_BASE_URL;
-      return saved.ANTHROPIC_BASE_URL;
-    } else {
-      delete process.env.ANTHROPIC_BASE_URL;
-      return undefined;
-    }
   }
+  applySavedApiEnv();
+  const baseUrl = getSavedApiEnv().ANTHROPIC_BASE_URL;
+  if (baseUrl) process.env.ANTHROPIC_BASE_URL = baseUrl;
+  else delete process.env.ANTHROPIC_BASE_URL;
+  return baseUrl;
+}
+
+export function configureEnvForMode(mode: string, metadata?: Record<string, string>): string | undefined {
+  applySavedOAuthToken();
+  return isGatewayHealthy()
+    ? configureGatewayEnv(mode, metadata)
+    : configureDirectEnv(mode);
 }
 
 export function setGatewayMode(mode: string): Promise<string> {
