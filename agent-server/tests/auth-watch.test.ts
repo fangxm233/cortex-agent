@@ -105,12 +105,12 @@ test('a repeated unresolved pair within 24 hours is suppressed', async () => {
   assert.equal(adapter.posted.length, 1);
 });
 
-test('an unresolved pair is delivered again after 24 hours', async () => {
+test('an unresolved pair is delivered again at exactly 24 hours', async () => {
   const { bus, adapter, clock } = setup();
 
   publishRequired(bus);
   await flush();
-  clock.now = 24 * HOUR_MS + 1;
+  clock.now = 24 * HOUR_MS;
   publishRequired(bus);
   await flush();
 
