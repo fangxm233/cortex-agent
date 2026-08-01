@@ -159,61 +159,74 @@ function cleanupSnapshot(
   else backup.cleanupAllBackups(backendSessionId);
 }
 
+interface RewindContext {
+  conversation: ChannelConversation;
+  session: Session;
+  backend: string;
+  backendSessionId: string | null;
+}
+
+async function resolveRewindContext(
+  opts: { sessionId: string; channel: string; turnIndex: number },
+  deps: RewindDeps,
+): Promise<RewindContext | null> {
+  const conversation = await deps.ledger.getConversation(opts.channel);
+  if (!conversation || opts.turnIndex < 0 || opts.turnIndex >= conversation.turns.length) return null;
+  const session = await deps.sessionStore.getById(opts.sessionId);
+  if (!session) return null;
+  const backend = deps.resolveBackend(opts.channel) || conversation.backend;
+  return { conversation, session, backend, backendSessionId: effectiveBackendSessionId(session) };
+}
+
+async function restoreRewindBackend(
+  context: RewindContext,
+  channel: string,
+  turnIndex: number,
+  deps: RewindDeps,
+): Promise<void> {
+  await deps.ledger.rollbackTo(channel, turnIndex);
+  const backupPath = context.conversation.turns[turnIndex].backupPath;
+  const snapshot = await restoreSnapshot(
+    context.backend, context.backendSessionId, backupPath, turnIndex, deps.backup,
+  );
+  registerRestoredPIPath(context.backend, context.backendSessionId, snapshot, deps.registerPISessionPath);
+  if (!snapshot.restored) {
+    if (turnIndex > 0) log.warn('No backup found — starting a fresh backend session (display history keeps earlier turns)');
+    await deps.sessionStore.updateSession(context.session.name, { backendSessionId: null });
+  }
+  deps.closePooledSession(channel, context.backend);
+  await deps.ledger.truncateTurns(channel, turnIndex);
+  cleanupSnapshot(context.backend, context.backendSessionId, turnIndex, snapshot, deps.backup);
+}
+
+async function resendRewoundTurn(
+  opts: { sessionId: string; channel: string; turnIndex: number; text: string; adapter: PlatformAdapter },
+  conversation: ChannelConversation,
+  deps: RewindDeps,
+  mutationRelease: () => void,
+): Promise<void> {
+  const removed = await deps.history.truncateFromTurn(opts.sessionId, opts.turnIndex);
+  const originalText = removed?.text ?? conversation.turns[opts.turnIndex]?.userMessageText ?? '';
+  await deps.history.appendEditMarker(opts.sessionId, {
+    originalText, originalTs: removed?.ts ?? '',
+  });
+  deps.publishRewound({ sessionId: opts.sessionId, channel: opts.channel, turnIndex: opts.turnIndex });
+  deps.send({
+    channel: opts.channel, text: opts.text, attachments: removed?.attachments,
+    adapter: opts.adapter, mutationRelease,
+  });
+}
+
 async function rewindLocked(
   opts: { sessionId: string; channel: string; turnIndex: number; text: string; adapter: PlatformAdapter },
   deps: RewindDeps,
   mutationRelease: () => void,
 ): Promise<RewindResult> {
-  const { sessionId, channel, turnIndex, text, adapter } = opts;
-  if (deps.activeAgents.hasChannel(channel)) return { ok: false, reason: 'running' };
-
-  const conv = await deps.ledger.getConversation(channel);
-  if (!conv || turnIndex < 0 || turnIndex >= conv.turns.length) return { ok: false, reason: 'not-found' };
-
-  const rec = await deps.sessionStore.getById(sessionId);
-  if (!rec) return { ok: false, reason: 'not-found' };
-  const backendSessionId = effectiveBackendSessionId(rec);
-  const backend = deps.resolveBackend(channel) || conv.backend;
-
-  log.info('Rewinding session:', { channel, turnIndex, backend });
-
-  const backupPath = conv.turns[turnIndex].backupPath;
-
-  // 1. Ledger: mark turns from turnIndex onward superseded.
-  await deps.ledger.rollbackTo(channel, turnIndex);
-
-  // 2. Restore the immutable pre-turn snapshot. Legacy turns without backupPath retain the
-  // filename-discovery fallback; a recorded PI path is never replaced by a newer filename.
-  const snapshot = await restoreSnapshot(
-    backend, backendSessionId, backupPath, turnIndex, deps.backup,
-  );
-  registerRestoredPIPath(backend, backendSessionId, snapshot, deps.registerPISessionPath);
-  if (!snapshot.restored) {
-    if (turnIndex > 0) log.warn('No backup found — starting a fresh backend session (display history keeps earlier turns)');
-    await deps.sessionStore.updateSession(rec.name, { backendSessionId: null });
-  }
-
-  // 3. Kill any pooled CLI process — an alive stream-json Claude keeps the old conversation in
-  //    memory and would ignore the restored jsonl on disk.
-  deps.closePooledSession(channel, backend);
-
-  // 4. Ledger + backup cleanup for the superseded range.
-  await deps.ledger.truncateTurns(channel, turnIndex);
-  cleanupSnapshot(backend, backendSessionId, turnIndex, snapshot, deps.backup);
-
-  // 5. Display history: drop the edited turn and everything after; remember the original message.
-  const removed = await deps.history.truncateFromTurn(sessionId, turnIndex);
-  const originalText = removed?.text ?? conv.turns[turnIndex]?.userMessageText ?? '';
-  await deps.history.appendEditMarker(sessionId, { originalText, originalTs: removed?.ts ?? '' });
-
-  // 6. Tell live clients the transcript changed shape (they drop their live tails + refetch).
-  deps.publishRewound({ sessionId, channel, turnIndex });
-
-  // 7. Re-send the edited text as a genuine user turn (original attachments preserved —
-  //    the edit UI cannot add or remove them).
-  deps.send({
-    channel, text, attachments: removed?.attachments, adapter, mutationRelease,
-  });
-
+  if (deps.activeAgents.hasChannel(opts.channel)) return { ok: false, reason: 'running' };
+  const context = await resolveRewindContext(opts, deps);
+  if (!context) return { ok: false, reason: 'not-found' };
+  log.info('Rewinding session:', { channel: opts.channel, turnIndex: opts.turnIndex, backend: context.backend });
+  await restoreRewindBackend(context, opts.channel, opts.turnIndex, deps);
+  await resendRewoundTurn(opts, context.conversation, deps, mutationRelease);
   return { ok: true };
 }

@@ -19,43 +19,71 @@ const adapter = {} as PlatformAdapter;
 
 interface CallLog { calls: string[] }
 
+function makeConversation() {
+  return {
+    sessionId: 'track-1', sessionName: 'cortex-1', backend: 'claude', profileName: null,
+    turns: [
+      { turnIndex: 0, userMessageTs: 'ts0', userMessageText: 'first', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
+      { turnIndex: 1, userMessageTs: 'ts1', userMessageText: 'orig text', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
+    ],
+    updatedAt: '',
+  };
+}
+
+function makeBackupDeps(log: CallLog): RewindDeps['backup'] {
+  return {
+    restoreBackup: async (sid, i) => { log.calls.push(`restoreBackup:${sid}:${i}`); return true; },
+    cleanupBackupsAfter: (sid, i) => { log.calls.push(`cleanupAfter:${sid}:${i}`); },
+    cleanupAllBackups: (sid) => { log.calls.push(`cleanupAll:${sid}`); },
+    findPISessionFile: async () => null,
+    restoreSessionFile: async () => false,
+    restoreSessionBackup: async () => false,
+    sessionFileFromBackupPath: () => null,
+    cleanupBackupsForFile: () => {},
+    cleanupAllBackupsForFile: () => {},
+  };
+}
+
+function makeLedgerDeps(log: CallLog): RewindDeps['ledger'] {
+  return {
+    getConversation: async () => makeConversation(),
+    rollbackTo: async (ch, i) => {
+      log.calls.push(`rollbackTo:${ch}:${i}`);
+      return { supersededTurns: [], conversation: {} as any };
+    },
+    truncateTurns: async (ch, i) => { log.calls.push(`truncateTurns:${ch}:${i}`); },
+  };
+}
+
+function makeHistoryDeps(log: CallLog): RewindDeps['history'] {
+  const removed = { text: 'orig text', ts: '2026-07-17T00:00:00.000Z', attachments: [{ name: 'a.png', path: 'p', size: 1, mimeType: 'image/png', type: 'image' as const }] };
+  return {
+    truncateFromTurn: async (sid, i) => { log.calls.push(`historyTruncate:${sid}:${i}`); return removed; },
+    appendEditMarker: async (sid, marker) => { log.calls.push(`marker:${sid}:${marker.originalText}`); },
+  };
+}
+
+function makeSessionStoreDeps(log: CallLog): RewindDeps['sessionStore'] {
+  return {
+    getById: async () => ({
+      name: 'cortex-1', sessionId: 'track-1', backendSessionId: 'backend-1',
+      channel: 'web:track-1', backend: 'claude',
+    } as any),
+    updateSession: async (name, updates) => {
+      log.calls.push(`updateSession:${name}:${JSON.stringify(updates)}`);
+    },
+  };
+}
+
 function makeDeps(log: CallLog, overrides: Partial<RewindDeps> = {}): RewindDeps {
-  const removedUser = { text: 'orig text', ts: '2026-07-17T00:00:00.000Z', attachments: [{ name: 'a.png', path: 'p', size: 1, mimeType: 'image/png', type: 'image' as const }] };
   return {
     activeAgents: { hasChannel: () => false },
     snapshotPending: () => false,
     tryAcquireMutation: () => () => {},
-    ledger: {
-      getConversation: async () => ({
-        sessionId: 'track-1', sessionName: 'cortex-1', backend: 'claude', profileName: null,
-        turns: [
-          { turnIndex: 0, userMessageTs: 'ts0', userMessageText: 'first', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
-          { turnIndex: 1, userMessageTs: 'ts1', userMessageText: 'orig text', statusMessageTs: null, responseMessageTimestamps: [], executionId: null, backupPath: null, status: 'completed' as const, createdAt: '', updatedAt: '' },
-        ],
-        updatedAt: '',
-      }),
-      rollbackTo: async (ch, i) => { log.calls.push(`rollbackTo:${ch}:${i}`); return { supersededTurns: [], conversation: {} as any }; },
-      truncateTurns: async (ch, i) => { log.calls.push(`truncateTurns:${ch}:${i}`); },
-    },
-    history: {
-      truncateFromTurn: async (sid, i) => { log.calls.push(`historyTruncate:${sid}:${i}`); return removedUser; },
-      appendEditMarker: async (sid, m) => { log.calls.push(`marker:${sid}:${m.originalText}`); },
-    },
-    sessionStore: {
-      getById: async () => ({ name: 'cortex-1', sessionId: 'track-1', backendSessionId: 'backend-1', channel: 'web:track-1', backend: 'claude' } as any),
-      updateSession: async (name, updates) => { log.calls.push(`updateSession:${name}:${JSON.stringify(updates)}`); },
-    },
-    backup: {
-      restoreBackup: async (sid, i) => { log.calls.push(`restoreBackup:${sid}:${i}`); return true; },
-      cleanupBackupsAfter: (sid, i) => { log.calls.push(`cleanupAfter:${sid}:${i}`); },
-      cleanupAllBackups: (sid) => { log.calls.push(`cleanupAll:${sid}`); },
-      findPISessionFile: async () => null,
-      restoreSessionFile: async () => false,
-      restoreSessionBackup: async () => false,
-      sessionFileFromBackupPath: () => null,
-      cleanupBackupsForFile: () => {},
-      cleanupAllBackupsForFile: () => {},
-    },
+    ledger: makeLedgerDeps(log),
+    history: makeHistoryDeps(log),
+    sessionStore: makeSessionStoreDeps(log),
+    backup: makeBackupDeps(log),
     resolveBackend: () => 'claude',
     registerPISessionPath: () => {},
     closePooledSession: (ch, backend) => { log.calls.push(`closePooled:${ch}:${backend}`); },
@@ -66,6 +94,83 @@ function makeDeps(log: CallLog, overrides: Partial<RewindDeps> = {}): RewindDeps
     publishRewound: (p) => { log.calls.push(`rewound:${p.sessionId}:${p.turnIndex}`); },
     ...overrides,
   };
+}
+
+interface PIRewindFixture {
+  sessionDir: string;
+  source: string;
+  canonical: string;
+  backupPath: string;
+  piAdapter: PIAdapter;
+}
+
+function stagePIRewindFixture(): PIRewindFixture {
+  const sessionDir = pathJoin(tmpdir(), `web-rewind-pi-${process.pid}-${Date.now()}`);
+  const source = pathJoin(sessionDir, '2026-08-01T00-00-00Z_backend-1.jsonl');
+  const canonical = pathJoin(sessionDir, 'backend-1.jsonl');
+  const backupPath = `${source}.turn-1.bak`;
+  mkdirSync(sessionDir, { recursive: true });
+  writeFileSync(source, 'after-turn');
+  writeFileSync(backupPath, 'restored-context');
+  writeFileSync(canonical, 'selector-preferred-context');
+  return { sessionDir, source, canonical, backupPath, piAdapter: new PIAdapter(undefined, sessionDir) };
+}
+
+function makeRecordedPIBackup(log: CallLog, fixture: PIRewindFixture): RewindDeps['backup'] {
+  return {
+    ...makeBackupDeps(log),
+    findPISessionFile: async () => { log.calls.push('findPI:canonical'); return fixture.canonical; },
+    sessionFileFromBackupPath: realSessionBackup.sessionFileFromBackupPath,
+    restoreSessionBackup: realSessionBackup.restoreSessionBackup,
+    cleanupBackupsForFile: (filePath, turnIndex) => {
+      log.calls.push(`cleanupForFile:${filePath}:${turnIndex}`);
+    },
+  };
+}
+
+async function makeRecordedPIRewindDeps(
+  log: CallLog,
+  fixture: PIRewindFixture,
+  run: { resendPath: string | null },
+): Promise<RewindDeps> {
+  const base = makeDeps(log);
+  const conversation = await base.ledger.getConversation('web:track-1');
+  conversation!.backend = 'pi';
+  conversation!.turns[1].backupPath = fixture.backupPath;
+  return makeDeps(log, {
+    resolveBackend: () => 'pi',
+    ledger: { ...base.ledger, getConversation: async () => conversation },
+    backup: makeRecordedPIBackup(log, fixture),
+    registerPISessionPath: (sessionId, filePath) => {
+      log.calls.push(`registerPI:${sessionId}:${filePath}`);
+      fixture.piAdapter.registerSessionPath(sessionId, filePath);
+    },
+    send: (opts) => {
+      run.resendPath = fixture.piAdapter.resolveSessionPath('backend-1');
+      log.calls.push(`send:${opts.channel}:${opts.text}`);
+      opts.mutationRelease?.();
+    },
+  });
+}
+
+async function makeFailedPIRewindDeps(log: CallLog, source: string): Promise<RewindDeps> {
+  const base = makeDeps(log);
+  const conversation = await base.ledger.getConversation('web:track-1');
+  conversation!.backend = 'pi';
+  conversation!.turns[1].backupPath = `${source}.turn-1.bak`;
+  return makeDeps(log, {
+    resolveBackend: () => 'pi',
+    ledger: { ...base.ledger, getConversation: async () => conversation },
+    backup: {
+      ...base.backup,
+      sessionFileFromBackupPath: () => source,
+      restoreSessionBackup: async () => false,
+      cleanupAllBackupsForFile: (filePath) => { log.calls.push(`cleanupAllForFile:${filePath}`); },
+    },
+    registerPISessionPath: (sessionId, filePath) => {
+      log.calls.push(`registerPI:${sessionId}:${filePath}`);
+    },
+  });
 }
 
 test('rejects when the channel has a live run (edit is disabled while running)', async () => {
@@ -153,95 +258,35 @@ test('missing backup on turn ≥ 1 falls back to clearing the backend session id
 
 test('PI rewind resends from the recorded restored path when an empty registry would prefer a canonical duplicate', async () => {
   const log: CallLog = { calls: [] };
-  const base = makeDeps(log);
-  const sessionDir = pathJoin(tmpdir(), `web-rewind-pi-${process.pid}-${Date.now()}`);
-  const source = pathJoin(sessionDir, '2026-08-01T00-00-00Z_backend-1.jsonl');
-  const canonical = pathJoin(sessionDir, 'backend-1.jsonl');
-  const backupPath = `${source}.turn-1.bak`;
-  mkdirSync(sessionDir, { recursive: true });
-  writeFileSync(source, 'after-turn');
-  writeFileSync(backupPath, 'restored-context');
-  writeFileSync(canonical, 'selector-preferred-context');
-
-  const conversation = await base.ledger.getConversation('web:track-1');
-  conversation!.backend = 'pi';
-  conversation!.turns[1].backupPath = backupPath;
-  const piAdapter = new PIAdapter(undefined, sessionDir);
-  let resendPath: string | null = null;
-
-  const deps = makeDeps(log, {
-    resolveBackend: () => 'pi',
-    ledger: { ...base.ledger, getConversation: async () => conversation },
-    backup: {
-      ...base.backup,
-      findPISessionFile: async () => {
-        log.calls.push('findPI:canonical');
-        return canonical;
-      },
-      sessionFileFromBackupPath: realSessionBackup.sessionFileFromBackupPath,
-      restoreSessionBackup: realSessionBackup.restoreSessionBackup,
-      cleanupBackupsForFile: (filePath, turnIndex) => {
-        log.calls.push(`cleanupForFile:${filePath}:${turnIndex}`);
-      },
-    },
-    registerPISessionPath: (sessionId, filePath) => {
-      log.calls.push(`registerPI:${sessionId}:${filePath}`);
-      piAdapter.registerSessionPath(sessionId, filePath);
-    },
-    send: (opts) => {
-      resendPath = piAdapter.resolveSessionPath('backend-1');
-      log.calls.push(`send:${opts.channel}:${opts.text}`);
-      opts.mutationRelease?.();
-    },
-  });
-
+  const fixture = stagePIRewindFixture();
+  const run = { resendPath: null as string | null };
+  const deps = await makeRecordedPIRewindDeps(log, fixture, run);
   try {
-    assert.deepEqual(
-      await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps),
-      { ok: true },
+    const result = await rewindWebSession(
+      { sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps,
     );
-    assert.equal(readFileSync(source, 'utf8'), 'restored-context');
-    assert.equal(readFileSync(canonical, 'utf8'), 'selector-preferred-context');
-    assert.equal(resendPath, source);
-    assert.ok(log.calls.includes(`registerPI:backend-1:${source}`));
-    assert.ok(!log.calls.includes('findPI:canonical'), 'recorded backup identity bypasses rediscovery');
+    assert.deepEqual(result, { ok: true });
+    assert.equal(readFileSync(fixture.source, 'utf8'), 'restored-context');
+    assert.equal(readFileSync(fixture.canonical, 'utf8'), 'selector-preferred-context');
+    assert.equal(run.resendPath, fixture.source);
+    assert.ok(log.calls.includes(`registerPI:backend-1:${fixture.source}`));
+    assert.ok(!log.calls.includes('findPI:canonical'));
   } finally {
-    rmSync(sessionDir, { recursive: true, force: true });
+    rmSync(fixture.sessionDir, { recursive: true, force: true });
   }
 });
 
 test('failed PI rewind cleans every backup beside the recorded session file', async () => {
   const log: CallLog = { calls: [] };
-  const base = makeDeps(log);
   const source = '/sessions/2026-08-01_backend-1.jsonl';
-  const backupPath = `${source}.turn-1.bak`;
-  const conversation = await base.ledger.getConversation('web:track-1');
-  conversation!.backend = 'pi';
-  conversation!.turns[1].backupPath = backupPath;
-
-  const deps = makeDeps(log, {
-    resolveBackend: () => 'pi',
-    ledger: { ...base.ledger, getConversation: async () => conversation },
-    backup: {
-      ...base.backup,
-      sessionFileFromBackupPath: () => source,
-      restoreSessionBackup: async () => false,
-      cleanupAllBackupsForFile: (filePath) => {
-        log.calls.push(`cleanupAllForFile:${filePath}`);
-      },
-    },
-    registerPISessionPath: (sessionId, filePath) => {
-      log.calls.push(`registerPI:${sessionId}:${filePath}`);
-    },
-  });
-
-  assert.deepEqual(
-    await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps),
-    { ok: true },
+  const deps = await makeFailedPIRewindDeps(log, source);
+  const result = await rewindWebSession(
+    { sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps,
   );
+  assert.deepEqual(result, { ok: true });
   assert.ok(log.calls.includes(`cleanupAllForFile:${source}`));
-  assert.ok(!log.calls.some((call) => call.startsWith('registerPI:')), 'failed restore must not pin a resume path');
-  assert.ok(!log.calls.includes('cleanupAll:backend-1'), 'PI cleanup must not scan Claude projects');
+  assert.ok(!log.calls.some((call) => call.startsWith('registerPI:')));
+  assert.ok(!log.calls.includes('cleanupAll:backend-1'));
 });
 
 test('integration: real ledger + history + session registry round-trip (isolated CORTEX_HOME)', async () => {

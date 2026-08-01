@@ -78,6 +78,79 @@ async function clearLedgerEntry(channel: string): Promise<void> {
   await conversationLedger.clearConversation(channel);
 }
 
+interface PIEditFixture {
+  channel: string;
+  sessionId: string;
+  backendSessionId: string;
+  piDir: string;
+  recordedFile: string;
+  canonicalFile: string;
+  backupPath: string;
+}
+
+interface PIEditRun {
+  reprocessCalls: any[];
+  registerCalls: string[];
+  resendPath: string | null;
+}
+
+async function stagePIEditFixture(withBackup: boolean): Promise<PIEditFixture> {
+  const stamp = Date.now();
+  const channel = freshChannel();
+  const sessionId = `track-pi-recorded-${stamp}`;
+  const backendSessionId = `01234567-89ab-7cde-8fab-${stamp.toString(16).padStart(12, '0')}`;
+  await seedConversationWithTurns(channel, { sessionId, backend: 'pi', turnCount: 2 });
+  await sessionStore.registerSession(`cortex-pi-recorded-${stamp}`, {
+    sessionId, backendSessionId, channel, backend: 'pi', kind: 'local',
+  });
+  const piDir = path.join(DATA_DIR, 'logs', 'sessions-pi');
+  const recordedFile = path.join(piDir, `2026-08-01T00-00-00Z_${backendSessionId}.jsonl`);
+  const canonicalFile = path.join(piDir, `${backendSessionId}.jsonl`);
+  const backupPath = `${recordedFile}.turn-1.bak`;
+  mkdirSync(piDir, { recursive: true });
+  writeFileSync(recordedFile, 'after-turn', 'utf8');
+  writeFileSync(canonicalFile, 'new-canonical', 'utf8');
+  if (withBackup) writeFileSync(backupPath, 'before-turn', 'utf8');
+  await conversationLedger.setBackupPath(channel, 'M1', backupPath);
+  return { channel, sessionId, backendSessionId, piDir, recordedFile, canonicalFile, backupPath };
+}
+
+function buildPIEditHandler(fixture: PIEditFixture, run: PIEditRun) {
+  const piAdapter = new PIAdapter(undefined, fixture.piDir);
+  return createEditHandler({
+    activeAgents: runningExecutions,
+    registerPISessionPath: (id, filePath) => {
+      run.registerCalls.push(`${id}:${filePath}`);
+      piAdapter.registerSessionPath(id, filePath);
+    },
+    reprocessMessage: (ch, text, _adapter, opts) => {
+      run.resendPath = piAdapter.resolveSessionPath(fixture.backendSessionId);
+      run.reprocessCalls.push({ ch, text, opts });
+    },
+    resolveBackend: () => 'pi',
+  });
+}
+
+async function runPIEditFixture(fixture: PIEditFixture): Promise<PIEditRun> {
+  const run: PIEditRun = { reprocessCalls: [], registerCalls: [], resendPath: null };
+  const handler = buildPIEditHandler(fixture, run);
+  vi.useFakeTimers();
+  await handler({
+    originalRef: { conduit: fixture.channel, messageId: 'M1', threadId: null },
+    newText: 'edited PI turn',
+  } as any, new MockAdapter() as any);
+  await fireDebounce();
+  await waitFor(() => run.reprocessCalls.length === 1);
+  return run;
+}
+
+async function cleanupPIEditFixture(fixture: PIEditFixture): Promise<void> {
+  await clearLedgerEntry(fixture.channel);
+  for (const file of [fixture.recordedFile, fixture.canonicalFile, fixture.backupPath]) {
+    try { rmSync(file, { force: true }); } catch {}
+  }
+}
+
 // ── Bug 2 (root cause): channel-aware backend resolution ─────────────────────
 
 test('resolveBackendForChannel returns global activeBackend when channel has no profile', () => {
@@ -227,58 +300,27 @@ test('Bug 2: edit on conversation with PI channel profile routes through PI rest
 });
 
 test('PI edit restores the ledger backup when filename preference changes after snapshot', async () => {
-  const channel = freshChannel();
-  const sessionId = `track-pi-recorded-${Date.now()}`;
-  const backendSessionId = `01234567-89ab-7cde-8fab-${Date.now().toString(16).padStart(12, '0')}`;
-  const sessionName = `cortex-pi-recorded-${Date.now()}`;
-  await seedConversationWithTurns(channel, { sessionId, backend: 'pi', turnCount: 2 });
-  await sessionStore.registerSession(sessionName, {
-    sessionId, backendSessionId, channel, backend: 'pi', kind: 'local',
-  });
-
-  const piDir = path.join(DATA_DIR, 'logs', 'sessions-pi');
-  const recordedFile = path.join(piDir, `2026-08-01T00-00-00Z_${backendSessionId}.jsonl`);
-  const canonicalFile = path.join(piDir, `${backendSessionId}.jsonl`);
-  const backupPath = `${recordedFile}.turn-1.bak`;
-  mkdirSync(piDir, { recursive: true });
-  writeFileSync(recordedFile, 'after-turn', 'utf8');
-  writeFileSync(backupPath, 'before-turn', 'utf8');
-  writeFileSync(canonicalFile, 'new-canonical', 'utf8');
-  await conversationLedger.setBackupPath(channel, 'M1', backupPath);
-
-  const piAdapter = new PIAdapter(undefined, piDir);
-  const reprocessCalls: any[] = [];
-  let resendPath: string | null = null;
-  const handler = createEditHandler({
-    activeAgents: runningExecutions,
-    registerPISessionPath: (id, filePath) => {
-      piAdapter.registerSessionPath(id, filePath);
-    },
-    reprocessMessage: (ch, text, _adapter, opts) => {
-      resendPath = piAdapter.resolveSessionPath(backendSessionId);
-      reprocessCalls.push({ ch, text, opts });
-    },
-    resolveBackend: () => 'pi',
-  });
-
-  vi.useFakeTimers();
-  await handler({
-    originalRef: { conduit: channel, messageId: 'M1', threadId: null },
-    newText: 'edited PI turn',
-  } as any, new MockAdapter() as any);
-  await fireDebounce();
-  await waitFor(() => reprocessCalls.length === 1);
-
+  const fixture = await stagePIEditFixture(true);
   try {
-    assert.equal(readFileSync(recordedFile, 'utf8'), 'before-turn');
-    assert.equal(readFileSync(canonicalFile, 'utf8'), 'new-canonical');
-    assert.equal(resendPath, recordedFile, 'retry resumes the exact transcript restored from the ledger backup');
-    assert.equal(reprocessCalls[0].opts.sessionId, sessionId, 'successful immutable restore keeps the tracking session');
+    const run = await runPIEditFixture(fixture);
+    assert.equal(readFileSync(fixture.recordedFile, 'utf8'), 'before-turn');
+    assert.equal(readFileSync(fixture.canonicalFile, 'utf8'), 'new-canonical');
+    assert.equal(run.resendPath, fixture.recordedFile, 'retry resumes the exact restored transcript');
+    assert.equal(run.reprocessCalls[0].opts.sessionId, fixture.sessionId);
   } finally {
-    await clearLedgerEntry(channel);
-    for (const file of [recordedFile, canonicalFile, backupPath]) {
-      try { rmSync(file, { force: true }); } catch {}
-    }
+    await cleanupPIEditFixture(fixture);
+  }
+});
+
+test('PI edit with a missing recorded backup skips registration and retries fresh', async () => {
+  const fixture = await stagePIEditFixture(false);
+  try {
+    const run = await runPIEditFixture(fixture);
+    assert.deepEqual(run.registerCalls, []);
+    assert.equal(run.reprocessCalls[0].opts.sessionId, null);
+    assert.equal(run.reprocessCalls[0].opts.sessionName, null);
+  } finally {
+    await cleanupPIEditFixture(fixture);
   }
 });
 
