@@ -1,7 +1,7 @@
 // input:  auth status/LoginFlow services, command router, platform forms
-// output: Validated chat auth prompts, actions, and expiry results
+// output: Channel-bound chat and system-notice auth actions
 // pos:    Chat authentication entry, notice, and prompt coordinator
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { setTimeout as delay } from 'node:timers/promises';
 import { t } from '@core/i18n.js';
@@ -487,17 +487,27 @@ async function openStandardLogin(
   ));
 }
 
+function noticeMetadataForContext(
+  metadata: LoginOpenMetadata,
+  context: ActionContext,
+): LoginOpenMetadata | null {
+  if (metadata.channel && metadata.channel !== context.channelId) return null;
+  return { ...metadata, channel: context.channelId };
+}
+
 async function openLoginModal(
   context: ActionContext,
   dependencies: InteractiveLoginDependencies,
 ): Promise<void> {
   const metadata = JSON.parse(context.value) as LoginOpenMetadata;
   const adapter = dependencies.router.getAdapter();
-  if (!adapter || metadata.channel !== context.channelId) return;
+  if (!adapter) return;
   if (metadata.stage === 'notice') {
-    await openRequiredNotice(context, metadata, adapter, dependencies);
+    const resolved = noticeMetadataForContext(metadata, context);
+    if (resolved) await openRequiredNotice(context, resolved, adapter, dependencies);
     return;
   }
+  if (metadata.channel !== context.channelId) return;
   await openStandardLogin(context, metadata, adapter, dependencies);
 }
 

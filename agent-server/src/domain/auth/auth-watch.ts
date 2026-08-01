@@ -1,5 +1,5 @@
 // input:  auth events, capability snapshot, PlatformAdapter, i18n
-// output: actionable channel auth notices with process-local debounce
+// output: actionable auth notices and recent-reminder query
 // pos:    Authentication-required notification subscriber
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -47,6 +47,20 @@ export interface AuthWatchDependencies {
 
 function pairKey(event: { backend: string; provider: string }): string {
   return `${event.backend}:${event.provider}`;
+}
+
+export type WasAuthRecentlyNotified = (
+  backend: AuthRequiredEvent['backend'],
+  provider: string,
+) => boolean;
+
+let recentNotificationQuery: WasAuthRecentlyNotified = () => false;
+
+export function wasAuthRecentlyNotified(
+  backend: AuthRequiredEvent['backend'],
+  provider: string,
+): boolean {
+  return recentNotificationQuery(backend, provider);
 }
 
 function buildNotice(
@@ -157,11 +171,15 @@ export function registerAuthWatch(
   // A restart may repeat one reminder; keeping this local avoids shared mutable publisher state.
   const lastNotificationAt = new Map<string, number>();
   const now = dependencies.now ?? Date.now;
+  const wasRecentlyNotified: WasAuthRecentlyNotified = (backend, provider) => {
+    const previous = lastNotificationAt.get(pairKey({ backend, provider }));
+    return previous !== undefined && now() - previous < REMINDER_INTERVAL_MS;
+  };
+  recentNotificationQuery = wasRecentlyNotified;
   bus.subscribe('auth.required', (event) => {
     const key = pairKey(event);
     const current = now();
-    const previous = lastNotificationAt.get(key);
-    if (previous !== undefined && current - previous < REMINDER_INTERVAL_MS) return;
+    if (wasRecentlyNotified(event.backend, event.provider)) return;
     // Record before async delivery so concurrent failures cannot create a retry storm.
     lastNotificationAt.set(key, current);
     void deliverNotice(bus, adapter, event, dependencies).catch(() => {

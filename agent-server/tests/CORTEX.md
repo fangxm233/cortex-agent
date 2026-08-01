@@ -26,6 +26,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |
+| auth-expiry-scan.test.ts | test | daily in-use auth warning filtering and privacy |
 | auth-watch.test.ts | test | auth notification actions, debounce and recovery |
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |
