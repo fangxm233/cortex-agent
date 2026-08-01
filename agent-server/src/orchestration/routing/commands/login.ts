@@ -1,5 +1,5 @@
 // input:  auth status/LoginFlow services, command router, platform forms
-// output: Validated chat auth prompts, notices, and expiry results
+// output: Validated chat auth prompts, actions, and expiry results
 // pos:    Chat authentication entry, notice, and prompt coordinator
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -19,6 +19,7 @@ import {
 import type { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import type {
   ActionContext,
+  ButtonElement,
   Destination,
   MessageContent,
   MessageRef,
@@ -29,6 +30,10 @@ import type {
   RichBlock,
 } from '@platform/index.js';
 import type { CommandResult } from './command-context.js';
+import {
+  openAuthRequiredLoginAction,
+  type AuthRequiredLoginMetadata,
+} from './login-notice.js';
 
 const LOGIN_MODAL_CALLBACK = 'cmd_login_submit';
 const FLOW_WAIT_MS = LOGIN_FLOW_TTL_MS;
@@ -56,8 +61,10 @@ interface LoginOpenMetadata {
   provider?: string;
   authType?: AuthType;
   flowId?: string;
+  noticeId?: string;
+  noticeText?: string;
   channel: string;
-  stage: 'provider' | 'auth_type' | 'prompt';
+  stage: 'provider' | 'auth_type' | 'prompt' | 'notice';
   allowedProviders?: string[];
   providerCapabilities?: Record<string, AuthType[]>;
   allowedAuthTypes?: AuthType[];
@@ -173,7 +180,11 @@ function modalFields(
 ): ModalField[] {
   if (metadata.stage === 'provider') return [providerField(snapshot!)];
   if (metadata.stage === 'auth_type') return [authTypeField(metadata)];
-  return [promptField(state!)];
+  const notice = state?.notice ? renderNotice(state.notice).text : null;
+  return [
+    ...(notice ? [{ type: 'section' as const, text: notice }] : []),
+    promptField(state!),
+  ];
 }
 
 function buildLoginModal(
@@ -346,13 +357,13 @@ function promptButtonText(state: LoginFlowState): string {
   return t('cmd.auth.loginContinue');
 }
 
-function openAction(metadata: LoginOpenMetadata, label: string) {
+function openAction(metadata: LoginOpenMetadata, label: string): ButtonElement[] {
   return [{
-    type: 'button' as const,
+    type: 'button',
     text: label,
     actionId: 'cmd:login:open',
     value: JSON.stringify(metadata),
-    style: 'primary' as const,
+    style: 'primary',
   }];
 }
 
@@ -422,13 +433,45 @@ function monitorInBackground(
     .catch(() => postBackgroundFailure(metadata, dependencies));
 }
 
-async function openLoginModal(
+async function presentNotificationFlow(
   context: ActionContext,
+  metadata: AuthRequiredLoginMetadata,
+  state: LoginFlowState,
   dependencies: InteractiveLoginDependencies,
 ): Promise<void> {
-  const metadata = JSON.parse(context.value) as LoginOpenMetadata;
   const adapter = dependencies.router.getAdapter();
-  if (!adapter || metadata.channel !== context.channelId) return;
+  if (!adapter) return;
+  if (TERMINAL_STEPS.has(state.step)) {
+    await postFlowResult(adapter, metadata.channel, state);
+    return;
+  }
+  await adapter.openModal(context.triggerId, buildLoginModal(
+    { ...metadata, stage: 'prompt' }, undefined, state,
+  ));
+}
+
+async function openRequiredNotice(
+  context: ActionContext,
+  metadata: LoginOpenMetadata,
+  adapter: PlatformAdapter,
+  dependencies: InteractiveLoginDependencies,
+): Promise<void> {
+  await openAuthRequiredLoginAction(context, metadata as AuthRequiredLoginMetadata, {
+    adapter,
+    authLogin: dependencies.authLogin,
+    waitForActionable: state => waitForActionable(dependencies.authLogin, state),
+    present: (actionContext, noticeMetadata, state) => (
+      presentNotificationFlow(actionContext, noticeMetadata, state, dependencies)
+    ),
+  });
+}
+
+async function openStandardLogin(
+  context: ActionContext,
+  metadata: LoginOpenMetadata,
+  adapter: PlatformAdapter,
+  dependencies: InteractiveLoginDependencies,
+): Promise<void> {
   const state = metadata.flowId ? dependencies.authLogin.getState(metadata.flowId) : null;
   if (metadata.stage === 'prompt' && (!state || !ownsFlow(state, metadata) || state.step !== 'prompt')) {
     if (state && TERMINAL_STEPS.has(state.step)) await postFlowResult(adapter, metadata.channel, state);
@@ -436,12 +479,24 @@ async function openLoginModal(
     return;
   }
   const snapshot = metadata.stage === 'provider' ? await dependencies.readStatus() : undefined;
-  const modalMetadata = snapshot
-    ? providerSelectionMetadata(metadata, snapshot)
-    : metadata;
+  const modalMetadata = snapshot ? providerSelectionMetadata(metadata, snapshot) : metadata;
   await adapter.openModal(context.triggerId, buildLoginModal(
     modalMetadata, snapshot, state ?? undefined,
   ));
+}
+
+async function openLoginModal(
+  context: ActionContext,
+  dependencies: InteractiveLoginDependencies,
+): Promise<void> {
+  const metadata = JSON.parse(context.value) as LoginOpenMetadata;
+  const adapter = dependencies.router.getAdapter();
+  if (!adapter || metadata.channel !== context.channelId) return;
+  if (metadata.stage === 'notice') {
+    await openRequiredNotice(context, metadata, adapter, dependencies);
+    return;
+  }
+  await openStandardLogin(context, metadata, adapter, dependencies);
 }
 
 function submittedValue(context: ModalSubmitContext, blockId: string, actionId: string): string {

@@ -1,5 +1,5 @@
 // input:  Claude/PI credentials, profiles, and runtime
-// output: Login-capable AuthStatusSnapshot types and reader
+// output: AuthStatusSnapshot reader and preferred login type
 // pos:    Backend authentication status snapshot producer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -64,6 +64,18 @@ export interface AuthStatusSnapshot {
   generatedAt: string;
   accounts: AuthAccountStatus[];
   piRuntime: { available: boolean; version: string | null; entry: string | null; error: string | null };
+}
+
+export function preferredAuthType(
+  snapshot: AuthStatusSnapshot,
+  backend: 'claude' | 'pi',
+  provider: string,
+): AuthType | null {
+  const account = snapshot.accounts.find(item => (
+    item.backend === backend && item.provider === provider
+  ));
+  if (account?.capabilities.includes('oauth')) return 'oauth';
+  return account?.capabilities.includes('api_key') ? 'api_key' : null;
 }
 
 interface ActiveProfileReference {

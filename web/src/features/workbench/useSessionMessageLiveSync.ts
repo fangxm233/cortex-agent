@@ -1,5 +1,5 @@
 // input:  shared SSE context/notices, React Query, durable snapshots
-// output: synchronous message authority and converged live session state
+// output: message/auth-action authority and live session state
 // pos:    React bridge from session events to desktop/mobile chat rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -294,7 +294,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; attachments?: LiveSessionMessage['attachments'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; attachments?: LiveSessionMessage['attachments'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
@@ -326,6 +326,7 @@ export function useSessionMessageLiveSync(
         toolName: p.toolName,
         toolInput: p.toolInput,
         noticeLevel: p.noticeLevel,
+        authAction: p.authAction,
         ts: p.ts ?? new Date().toISOString(),
         blockId: p.blockId,
         attachments: p.attachments,

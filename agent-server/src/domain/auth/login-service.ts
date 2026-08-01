@@ -1,5 +1,5 @@
 // input:  LoginFlow API and Claude/PI login consumers
-// output: shared OAuth/API-key service with cancel fencing
+// output: shared login service, notice bindings, and cancel fencing
 // pos:    Selects one credential adapter per LoginFlow start request
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -23,6 +23,40 @@ export interface AuthLoginService {
   getState(flowId: string): LoginFlowState | null;
   respond(flowId: string, value: string): Promise<LoginFlowState>;
   cancel(flowId: string): Promise<LoginFlowState>;
+}
+
+export type AuthNoticeFlowResolution =
+  | { kind: 'unbound' }
+  | { kind: 'expired' }
+  | { kind: 'state'; state: LoginFlowState };
+
+const authNoticeBindings = new WeakMap<AuthLoginService, Map<string, string>>();
+
+function noticeBindings(service: AuthLoginService): Map<string, string> {
+  const existing = authNoticeBindings.get(service);
+  if (existing) return existing;
+  const created = new Map<string, string>();
+  authNoticeBindings.set(service, created);
+  return created;
+}
+
+export function bindAuthNoticeFlow(
+  service: AuthLoginService,
+  noticeId: string,
+  flowId: string,
+): void {
+  noticeBindings(service).set(noticeId, flowId);
+}
+
+export function resolveAuthNoticeFlow(
+  service: AuthLoginService,
+  noticeId: string,
+  explicitFlowId?: string,
+): AuthNoticeFlowResolution {
+  const flowId = explicitFlowId ?? noticeBindings(service).get(noticeId);
+  if (!flowId) return { kind: 'unbound' };
+  const state = service.getState(flowId);
+  return state ? { kind: 'state', state } : { kind: 'expired' };
 }
 
 export interface AuthLoginServiceDependencies {

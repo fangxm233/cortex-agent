@@ -1,9 +1,11 @@
-// input:  ChatNoticeLevel and plain notice text
-// output: info/warning/error notice box + noticeTone level tokens
+// input:  ChatNoticeLevel, text, and optional auth action
+// output: semantic notice box, auth CTA, and noticeTone tokens
 // pos:    Shared semantic notice renderer for desktop and mobile chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { CSSProperties } from 'react';
-import type { ChatNoticeLevel } from '@cortex-agent/ui-contract';
+import type { AuthNoticeAction, ChatNoticeLevel } from '@cortex-agent/ui-contract';
+import { useOptionalLoginFlow } from '@/features/auth/LoginFlowProvider';
+import { useVocab } from '@/i18n';
 
 export interface NoticeTone {
   bg: string;
@@ -41,9 +43,39 @@ export function noticeTone(level: ChatNoticeLevel): NoticeTone {
 export interface ChatNoticeProps {
   level: ChatNoticeLevel;
   text: string;
+  authAction?: AuthNoticeAction;
+  authActionLabel?: string;
+  onAuthAction?: (action: AuthNoticeAction) => void;
 }
 
-export function ChatNotice({ level, text }: ChatNoticeProps): JSX.Element {
+function AuthActionButton({
+  action, label, onAction,
+}: {
+  action: AuthNoticeAction;
+  label?: string;
+  onAction?: (action: AuthNoticeAction) => void;
+}) {
+  const L = useVocab();
+  const loginFlow = useOptionalLoginFlow();
+  const activate = onAction ?? loginFlow?.openLogin;
+  if (!activate) return null;
+  return (
+    <button
+      type="button" data-auth-notice-action onClick={() => activate(action)}
+      style={{
+        border: `1px solid ${TONES.error.fg}`, borderRadius: 7, background: 'transparent',
+        color: TONES.error.fg, padding: '5px 9px', fontSize: 12, fontWeight: 650,
+        cursor: 'pointer', flex: 'none', alignSelf: 'center',
+      }}
+    >
+      {label ?? L.authLoginAgain}
+    </button>
+  );
+}
+
+export function ChatNotice({
+  level, text, authAction, authActionLabel, onAuthAction,
+}: ChatNoticeProps): JSX.Element {
   const tone = TONES[level];
   const style: CSSProperties = {
     display: 'flex', alignItems: 'flex-start', gap: 9, width: '100%',
@@ -63,7 +95,10 @@ export function ChatNotice({ level, text }: ChatNoticeProps): JSX.Element {
       >
         {tone.icon}
       </span>
-      <span>{text}</span>
+      <span style={{ flex: 1 }}>{text}</span>
+      {authAction ? (
+        <AuthActionButton action={authAction} label={authActionLabel} onAction={onAuthAction} />
+      ) : null}
     </div>
   );
 }

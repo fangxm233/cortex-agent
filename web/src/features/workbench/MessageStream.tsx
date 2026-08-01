@@ -1,5 +1,5 @@
 // input:  desktop ChatRows with notices, DEBUG details, interactions, and edits
-// output: scroll-stable transcript with semantic notices and message inspectors
+// output: scroll-stable transcript with actionable notices and inspectors
 // pos:    Desktop workbench message presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -606,7 +606,7 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
     case 'assistant':
       return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} regen={regen} preview={row.preview} streamKey={streamKey} />;
     case 'notice':
-      return <ChatNotice level={row.level} text={row.text} />;
+      return <ChatNotice level={row.level} text={row.text} authAction={row.authAction} />;
     case 'interaction':
       return <InteractionRowCard row={row} actions={interactionActions} />;
     default:

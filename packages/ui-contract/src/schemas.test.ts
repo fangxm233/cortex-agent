@@ -1,5 +1,5 @@
 // input:  runtime shared Zod schema maps
-// output: operation coverage including API-key/OAuth flows
+// output: operation coverage including notice-bound auth starts
 // pos:    Runtime UI-contract schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -60,6 +60,12 @@ test('auth flow schemas accept both auth types and require the prompt response v
       { backend: 'pi', provider: 'deepseek', authType },
     );
   }
+  assert.deepEqual(
+    mutateInputSchemas['auth.startLogin'].parse({
+      backend: 'pi', provider: 'deepseek', authType: 'oauth', noticeId: 'notice-1',
+    }),
+    { backend: 'pi', provider: 'deepseek', authType: 'oauth', noticeId: 'notice-1' },
+  );
   assert.deepEqual(
     mutateInputSchemas['auth.respondPrompt'].parse({ flowId: 'flow-1', value: 'secret' }),
     { flowId: 'flow-1', value: 'secret' },

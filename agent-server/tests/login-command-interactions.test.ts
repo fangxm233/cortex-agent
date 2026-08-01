@@ -1,5 +1,5 @@
 // input:  !login command registry, CommandActionRouter, and stub auth service
-// output: Chat auth notice, validation, expiry, and privacy regressions
+// output: Chat auth action, reuse, expiry, and privacy regressions
 // pos:    Tests chat backend login entry and callback delivery
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -17,6 +17,7 @@ import type {
   StartLoginFlowInput,
 } from '../src/domain/auth/login-flow.js';
 import { CommandActionRouter } from '../src/orchestration/interactions/command-action-router.js';
+import { buildAuthRequiredLoginAction } from '../src/orchestration/routing/commands/login-notice.js';
 import { registerCommands } from '../src/orchestration/routing/commands/index.js';
 import { MockAdapter } from '../src/platform/testing.js';
 
@@ -85,6 +86,9 @@ function makeAuthService(
   const states = new Map<string, LoginFlowState>();
   const service: AuthLoginService = {
     start: async input => {
+      const flowId = `flow-${input.backend}-${input.provider}`;
+      const existing = states.get(flowId);
+      if (existing && !['done', 'failed', 'cancelled'].includes(existing.step)) return existing;
       starts.push(input);
       const state = flowState(input, startStep, startNotice, expiresAt);
       states.set(state.flowId, state);
@@ -224,6 +228,83 @@ test('!login cc selects auth type before submitting a Slack secret without posti
   }]);
   assert.ok(!JSON.stringify(fixture.adapter.posted).includes(secret));
   assert.ok(fixture.adapter.posted.at(-1)?.content.text.includes('anthropic'));
+});
+
+function requiredLoginAction(channel: string) {
+  return buildAuthRequiredLoginAction({
+    kind: 'auth-login', noticeId: `notice-${channel}`,
+    backend: 'pi', provider: 'dual-auth', authType: 'oauth',
+  }, channel, 'Authentication expired.');
+}
+
+async function clickRequiredAction(
+  fixture: ReturnType<typeof setup>,
+  channel: string,
+  action = requiredLoginAction(channel),
+): Promise<void> {
+  await fixture.adapter.simulateAction(action.actionId, action.value, {
+    channelId: channel,
+    triggerId: `${channel}:trigger`,
+    messageRef: { conduit: channel, messageId: 'expired-card' },
+  });
+}
+
+test('expired-card action adopts the auth type of an existing same-pair flow', async () => {
+  const fixture = setup();
+  const channel = 'slack:C-existing-type';
+  await fixture.auth.service.start({
+    backend: 'pi', provider: 'dual-auth', authType: 'api_key', channel, sessionId: null,
+  });
+
+  await clickRequiredAction(fixture, channel);
+
+  assert.equal(fixture.auth.starts.length, 1);
+  const metadata = JSON.parse(fixture.adapter.modals.at(-1)?.modal.privateMetadata ?? '{}');
+  assert.equal(metadata.authType, 'api_key');
+  assert.equal(metadata.flowId, 'flow-pi-dual-auth');
+});
+
+test('Slack expired-card action reuses its flow and reports terminal or expired state', async () => {
+  const fixture = setup();
+  const channel = 'slack:C-expired';
+  const initial = requiredLoginAction(channel);
+
+  await clickRequiredAction(fixture, channel, initial);
+  await clickRequiredAction(fixture, channel, initial);
+  assert.equal(fixture.auth.starts.length, 1);
+  assert.equal(fixture.auth.starts[0].authType, 'oauth');
+  assert.equal(fixture.adapter.modals.length, 2);
+  const updated = fixture.adapter.updated.at(-1)?.content.richBlocks?.find(block => block.type === 'actions');
+  assert.ok(updated?.type === 'actions');
+  const bound = updated.elements[0];
+  const current = fixture.auth.states.get('flow-pi-dual-auth')!;
+  fixture.auth.states.set(current.flowId, {
+    ...current, step: 'done', pendingPrompt: null,
+    outcome: { provider: 'dual-auth', authType: 'oauth', expiresAt: null },
+  });
+  await clickRequiredAction(fixture, channel, bound);
+  assert.match(fixture.adapter.posted.at(-1)?.content.text ?? '', /succeeded/i);
+  fixture.auth.states.delete(current.flowId);
+  await clickRequiredAction(fixture, channel, bound);
+  assert.match(fixture.adapter.posted.at(-1)?.content.text ?? '', /expired/i);
+  assert.equal(fixture.auth.starts.length, 1);
+});
+
+test('Feishu expired-card action opens the existing inline login form', async () => {
+  const fixture = setup('prompt', {
+    kind: 'auth_url', url: 'https://login.example.test/notification',
+    instructions: 'Authorize the notification flow.',
+  });
+  const channel = 'feishu:oc_expired';
+
+  await clickRequiredAction(fixture, channel);
+  await delay(75);
+
+  assert.equal(fixture.auth.starts.length, 1);
+  assert.equal(fixture.auth.starts[0].authType, 'oauth');
+  assert.deepEqual(fixture.adapter.modals.at(-1)?.modal.fields.map(field => field.type), [
+    'section', 'text_input',
+  ]);
 });
 
 test('a running explicit flow does not expose the secret form before its prompt is ready', async () => {

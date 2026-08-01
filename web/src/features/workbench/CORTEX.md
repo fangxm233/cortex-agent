@@ -21,14 +21,14 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | CenterChat.tsx | view | Reconciles transcript, live and optimistic chat rows |
 | ChatHeader.tsx | view | Session title, profile, status and notes entry |
-| MessageStream.tsx | view | Scroll-stable transcript of chat rows and cards |
+| MessageStream.tsx | view | Scroll-stable transcript with actionable notices |
 | ChatMarkdown.tsx | view | Renders assistant markdown with chat typography |
-| ChatNotice.tsx | view | Info, warning and error notice boxes |
-| ChatNotice.test.tsx | test | Unit tests for notice semantics |
+| ChatNotice.tsx | view | Semantic notice boxes with optional auth actions |
+| ChatNotice.test.tsx | test | Tests notice semantics and auth activation |
 | MessageEdit.tsx | view | Message hover actions, edit box and rewind |
 | chat-content.ts | types | Tool call, attachment and slash command types |
-| transcript-vm.ts | vm | Builds chat rows from transcript and live events |
-| transcript-vm.test.ts | test | Unit tests for the transcript view model |
+| transcript-vm.ts | vm | Builds chat rows including safe auth actions |
+| transcript-vm.test.ts | test | Tests transcript rows and auth action retention |
 | ToolCallsRow.tsx | view | Collapsed tool chips that expand on click |
 | tool-call-overflow.ts | util | Computes visible tool chips and hidden count |
 | tool-call-overflow.test.ts | test | Unit tests for tool chip overflow |
@@ -64,8 +64,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useRevealedText.ts | hook | Drives the frame loop revealing streamed text |
 | reveal-pacing.ts | util | Computes how much streamed text to show |
 | reveal-pacing.test.ts | test | Unit tests for reveal pacing |
-| useSessionMessageLiveSync.ts | hook | Streams events and exposes synchronous message authority |
-| useSessionMessageLiveSync.test.tsx | test | Tests synchronous pending and delivery authority |
+| useSessionMessageLiveSync.ts | hook | Streams messages with notice action metadata |
+| useSessionMessageLiveSync.test.tsx | test | Tests message authority and auth action retention |
 | useMarkSessionRead.ts | hook | Marks the visible session read |
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |

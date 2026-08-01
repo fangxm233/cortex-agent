@@ -7,7 +7,7 @@ Compile-time parity checks keep operation maps and runtime validators aligned.
 |---|---|---|
 | app-router.ts | types | Re-exports the server AppRouter type |
 | contract.parity.ts | guard | Checks schema and operation map parity |
-| dto.ts | types | Re-exports UI DTOs including auth flows |
+| dto.ts | types | Re-exports UI DTOs including auth notice actions |
 | index.ts | barrel | Exposes DTOs, schemas, and router types |
 | schemas.ts | schemas | Re-exports server input schemas including auth |
-| schemas.test.ts | test | Tests schema coverage including OAuth login |
+| schemas.test.ts | test | Tests schema coverage for notice-bound login |

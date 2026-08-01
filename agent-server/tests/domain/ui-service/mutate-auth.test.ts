@@ -1,5 +1,5 @@
 // input:  auth UI-service handlers, stub login service, and EventBus audit sink
-// output: auth lifecycle, conflict, and secret-redaction regressions
+// output: auth notice reuse, conflict, and redaction regressions
 // pos:    Tests the transport-neutral Web authentication write surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -80,6 +80,31 @@ test('auth mutation handlers start, answer, and cancel through the injected serv
   const cancelled = await handleAuthCancelFlow(deps, { flowId: 'flow-web' });
   assert.equal(cancelled.ok, true);
   assert.deepEqual(fixture.calls.cancellations, ['flow-web']);
+});
+
+test('Web notice starts once, then returns terminal or expired state across clients', async () => {
+  const fixture = makeAuthService();
+  let current: LoginFlowState | null = STATE;
+  fixture.service.getState = () => current;
+  const deps = { authLogin: fixture.service } as UiServiceDeps;
+  const args = {
+    backend: 'pi' as const, provider: 'deepseek', authType: 'api_key' as const,
+    noticeId: 'notice-across-clients',
+  };
+
+  const first = await handleAuthStartLogin(deps, args);
+  current = { ...STATE, step: 'done', pendingPrompt: null,
+    outcome: { provider: 'deepseek', authType: 'api_key', expiresAt: null } };
+  const terminal = await handleAuthStartLogin(deps, args);
+  current = null;
+  const expired = await handleAuthStartLogin(deps, args);
+
+  assert.equal(first.ok, true);
+  assert.equal(terminal.ok && terminal.data.step, 'done');
+  assert.equal(fixture.calls.starts.length, 1);
+  assert.deepEqual(expired, {
+    ok: false, code: 'not-found', message: 'Login flow not found or expired.',
+  });
 });
 
 test('auth mutations map missing and inactive flows without exposing response values', async () => {

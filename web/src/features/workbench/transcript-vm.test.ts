@@ -1,5 +1,5 @@
 // input:  transcript helpers, DEBUG warnings, notices, pending fixtures
-// output: warning, notice, streaming, and pending-row regressions
+// output: auth-action, notice, streaming, and pending regressions
 // pos:    Workbench transcript view-model specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { describe, it, expect } from 'vitest';
@@ -68,13 +68,22 @@ describe('buildTranscriptRows', () => {
       }] }]),
       [],
     );
+    const authAction = {
+      kind: 'auth-login' as const, noticeId: 'notice-web',
+      backend: 'pi' as const, provider: 'deepseek', authType: 'api_key' as const,
+    };
     const live = buildTranscriptRows(
       tx([]),
-      [{ sessionId: 's1', role: 'assistant', text: 'Heads up', noticeLevel: 'warning', ts: T }],
+      [{
+        sessionId: 's1', role: 'assistant', text: 'Heads up', noticeLevel: 'warning',
+        authAction, ts: T,
+      }],
     );
 
     expect(fetched[1]).toEqual({ kind: 'notice', level: 'info', text: 'Context auto-compacted.' });
-    expect(live[1]).toEqual({ kind: 'notice', level: 'warning', text: 'Heads up' });
+    expect(live[1]).toEqual({
+      kind: 'notice', level: 'warning', text: 'Heads up', authAction,
+    });
     expect(fetched.some((row) => row.kind === 'assistant')).toBe(false);
   });
 

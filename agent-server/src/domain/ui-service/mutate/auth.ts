@@ -1,11 +1,13 @@
 // input:  auth mutation args and shared backend login service
-// output: Result envelopes with auth conflict classification
+// output: Notice-bound Web login results and conflict classification
 // pos:    Write handlers for Web-managed LoginFlow sessions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import {
   authLoginService,
+  bindAuthNoticeFlow,
   isLoginFlowError,
+  resolveAuthNoticeFlow,
   type AuthLoginService,
   type LoginFlowState,
 } from '@domain/auth/index.js';
@@ -56,15 +58,34 @@ function missingWebFlow(): Result<never> {
   return { ok: false, code: 'not-found', message: 'Login flow not found or expired.' };
 }
 
+function startWebFlow(service: AuthLoginService, args: AuthStartLoginArgs) {
+  const { noticeId: _noticeId, ...input } = args;
+  return service.start({ ...input, channel: null, sessionId: null });
+}
+
+async function startWebNoticeFlow(
+  service: AuthLoginService,
+  args: AuthStartLoginArgs & { noticeId: string },
+): Promise<Result<LoginFlowState>> {
+  const resolved = resolveAuthNoticeFlow(service, args.noticeId);
+  if (resolved.kind === 'expired') return missingWebFlow();
+  if (resolved.kind === 'state') {
+    return resolved.state.channel === null && resolved.state.sessionId === null
+      ? { ok: true, data: resolved.state }
+      : { ok: false, code: 'already-exists', message: 'Login is active on another surface.' };
+  }
+  const result = await asResult(() => startWebFlow(service, args));
+  if (result.ok) bindAuthNoticeFlow(service, args.noticeId, result.data.flowId);
+  return result;
+}
+
 export async function handleAuthStartLogin(
   deps: UiServiceDeps,
   args: AuthStartLoginArgs,
 ): Promise<Result<LoginFlowState>> {
-  return asResult(() => serviceFor(deps).start({
-    ...args,
-    channel: null,
-    sessionId: null,
-  }));
+  const service = serviceFor(deps);
+  if (args.noticeId) return startWebNoticeFlow(service, { ...args, noticeId: args.noticeId });
+  return asResult(() => startWebFlow(service, args));
 }
 
 export async function handleAuthRespondPrompt(

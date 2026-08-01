@@ -1,9 +1,17 @@
 // input:  nothing (leaf type-only module)
-// output: Agent results with accounting snapshots and usage types
+// output: Agent results, auth notice actions, and usage types
 // pos:    Shared type definitions for agent execution and messages
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 export type ChatNoticeLevel = 'info' | 'warning' | 'error';
+
+export interface AuthNoticeAction {
+  kind: 'auth-login';
+  noticeId: string;
+  backend: 'claude' | 'pi';
+  provider: string;
+  authType: 'oauth' | 'api_key';
+}
 
 /** Backend-neutral snapshot of the tokens currently occupying an agent's context window. */
 export interface ContextUsage {

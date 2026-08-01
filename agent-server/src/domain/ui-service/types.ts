@@ -1,5 +1,5 @@
 // input:  domain types, auth flows, runtime settings, stores
-// output: UI DTOs/maps including API-key/OAuth operations
+// output: UI DTOs/maps including auth notice actions
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -8,8 +8,16 @@ import type { CostSummary } from '@domain/costs/cost-tracker.js';
 import type { EventBus } from '@events/index.js';
 import type { RunningExecutions } from '@core/running-executions.js';
 import type { Settings, SettingSnapshotEntry } from '@core/settings-spec.js';
-import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
-export type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
+import type {
+  AuthNoticeAction,
+  ChatNoticeLevel,
+  SessionContextUsage,
+} from '@core/types/agent-types.js';
+export type {
+  AuthNoticeAction,
+  ChatNoticeLevel,
+  SessionContextUsage,
+} from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
 import type {
   HookBackend,
@@ -273,6 +281,7 @@ export interface AuthStartLoginArgs {
   backend: 'claude' | 'pi';
   provider: string;
   authType: AuthType;
+  noticeId?: string;
 }
 
 export interface AuthRespondPromptArgs {
@@ -625,6 +634,8 @@ export interface TranscriptMessage {
   debug?: TranscriptDebugDetails;
   /** Semantic chat-notice styling for system-authored assistant messages. */
   noticeLevel?: ChatNoticeLevel;
+  /** Secret-free one-click target carried only by authentication notices. */
+  authAction?: AuthNoticeAction;
   /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (legacy rows)
    *  or derived from kind+status for entity rows (display compat). */
   subtype?: string;
