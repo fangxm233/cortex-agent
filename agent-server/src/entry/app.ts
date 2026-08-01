@@ -1,5 +1,5 @@
-// input:  settings migration, admin hot-reload, stores, services
-// output: server runtime, lifecycle events, live settings pushes
+// input:  settings migration, stores, services, lifecycle event publishers
+// output: server runtime, auth/lifecycle events, live settings pushes
 // pos:    Agent-server composition root
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import * as dotenv from 'dotenv';
@@ -107,6 +107,7 @@ import { recoverPendingInjections } from '../orchestration/pending-injection-rec
 import { createTuiSessionService } from '@domain/tui-session/index.js';
 import { enqueue, conduitQueues } from '@orch/conduit-queue.js';
 import { getCostSummary } from '@domain/costs/cost-tracker.js';
+import { initAuthEvents } from '@domain/auth/auth-events.js';
 
 dotenv.config({ path: path.join(CONFIG_DIR, '.env') });
 await migrateEnvToSettings();
@@ -193,6 +194,7 @@ process.on('uncaughtException', (err) => {
 // --- EventBus + logger ---
 const bus = new EventBus();
 createEventLogger(bus);
+initAuthEvents(bus);
 initHookBridge(bus); // S5: wire hook-bridge to publish ask-user.requested / plan.submitted
 interactionRecords.init({ history: conversationHistory, bus }); // web-interactions-redesign: persistent interaction entities
 // TTL expiry: mark the web interaction entity expired + clean the live resolver maps, so every

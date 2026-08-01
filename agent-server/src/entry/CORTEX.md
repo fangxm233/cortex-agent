@@ -6,7 +6,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | filename | role | function |
 |---|---|---|
 | admin-channel-hot-reload.ts | wiring | creates adapter with live admin settings |
-| app.ts | entry | Wires migrations, runtime and admin hot reload |
+| app.ts | entry | Wires runtime services and shared event publishers |
 | cli.ts | entry | dispatches the cortex command line |
 | daemon.ts | entry | supervises and restarts the app process |
 | daemon-notice.ts | wiring | broadcasts supervisor notices to the operator |

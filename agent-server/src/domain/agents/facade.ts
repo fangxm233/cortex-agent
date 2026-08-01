@@ -1,5 +1,5 @@
-// input:  configuration, adapters, profiles, settings
-// output: attributed runs, observer streams, spawn policy
+// input:  configuration, adapters, profiles, settings, auth events
+// output: attributed runs, observer streams, auth lifecycle, spawn policy
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -24,6 +24,7 @@ import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
+import { classifyAuthError, publishAuthRecovered, publishAuthRequired } from '../auth/auth-events.js';
 import { t } from '../../core/i18n.js';
 
 const log = createLogger('facade');
@@ -132,6 +133,33 @@ function withRateLimitProvider(handle: AgentHandle, provider: string): AgentHand
       (error) => {
         if (isRetryableError(error as Error)) {
           (error as Error & { rateLimitProvider?: string }).rateLimitProvider ??= provider;
+        }
+        throw error;
+      },
+    ),
+    kill: () => handle.kill(),
+    get sessionId(): string | null { return handle.sessionId ?? null; },
+    get agentProcess() { return handle.agentProcess; },
+  };
+}
+
+function withAuthLifecycle(handle: AgentHandle, options: RunAgentOptions, config: AgentConfig): AgentHandle {
+  const identity = { backend: config.backend, provider: resolveRateLimitProvider(config) };
+  return {
+    promise: handle.promise.then(
+      (result) => {
+        if (!result.rateLimited) publishAuthRecovered(identity);
+        return result;
+      },
+      (error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        const kind = classifyAuthError(message);
+        if (kind) {
+          publishAuthRequired({
+            ...identity, authType: null, kind,
+            channel: options.channel ?? null,
+            sessionId: options.trackSessionId ?? options.sessionId ?? handle.sessionId ?? null,
+          });
         }
         throw error;
       },
@@ -675,7 +703,8 @@ export function runAgentOnce(message: string, options: RunAgentOptions, config: 
   );
   const adapter = getAdapter(config.backend as Backend);
   const handle = runWithAdapter(adapter, message, options, config, anthropicBaseUrl);
-  return withRateLimitProvider(handle, resolveRateLimitProvider(config));
+  const attributed = withRateLimitProvider(handle, resolveRateLimitProvider(config));
+  return withAuthLifecycle(attributed, options, config);
 }
 
 export function runAgent(message: string, options: RunAgentOptions = {}): AgentHandle {
