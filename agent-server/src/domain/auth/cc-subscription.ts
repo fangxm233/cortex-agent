@@ -1,5 +1,5 @@
 // input:  AuthInteraction, tmux control, saved env, auth lifecycle
-// output: Claude subscription LoginFlow consumer and safe outcome
+// output: Claude subscription LoginFlow consumer and dated outcome
 // pos:    Claude Code setup-token login adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -26,6 +26,7 @@ export const CLAUDE_SUBSCRIPTION_TIMEOUT_MS = 30 * 60 * 1000;
 const POLL_INTERVAL_MS = 250;
 const SUBMIT_DELAY_MS = 100;
 const AUTH_PROMPT = 'Paste code here if prompted';
+const EXPIRY_DETAIL = "Expiration is derived from the Claude CLI's stated one-year validity.";
 const AUTH_URL_PATTERN = /https:\/\/claude\.com\/cai\/oauth\/authorize\?[\s\S]*?(?=\n\s*\n)/;
 const TOKEN_PATTERN = /\bsk-ant-[A-Za-z0-9_-]+\b/;
 const CLI_FAILURE_PATTERN = /(?:OAuth error:|Login failed:|setup-token creates .* does not permit)/i;
@@ -70,7 +71,8 @@ export interface ClaudeSubscriptionLoginDependencies {
 export interface ClaudeSubscriptionLoginOutcome extends LoginOutcome {
   provider: 'anthropic';
   authType: 'oauth';
-  expiresAt: null;
+  expiresAt: string;
+  detail: string;
 }
 
 interface DriveContext {
@@ -256,13 +258,21 @@ async function acquireToken(
 async function persistToken(
   token: string,
   dependencies: ClaudeSubscriptionLoginDependencies,
-): Promise<void> {
+): Promise<number> {
   try {
     await (dependencies.saveToken ?? saveClaudeCodeOAuthToken)(token);
+    const writtenAt = (dependencies.now ?? Date.now)();
     (dependencies.reloadAuth ?? (() => configureEnvForMode(getClaudeMode())))();
+    return writtenAt;
   } catch {
     throw loginError('claude_subscription_persist_failed', 'Claude subscription login could not be saved.');
   }
+}
+
+function tokenExpiresAt(writtenAt: number): string {
+  const expiresAt = new Date(writtenAt);
+  expiresAt.setUTCFullYear(expiresAt.getUTCFullYear() + 1);
+  return expiresAt.toISOString();
 }
 
 export async function loginClaudeSubscription(
@@ -270,9 +280,12 @@ export async function loginClaudeSubscription(
   dependencies: ClaudeSubscriptionLoginDependencies = {},
 ): Promise<ClaudeSubscriptionLoginOutcome> {
   const token = await acquireToken(interaction, dependencies);
-  await persistToken(token, dependencies);
+  const writtenAt = await persistToken(token, dependencies);
   (dependencies.publishRecovered ?? publishAuthRecovered)({
     backend: 'claude', provider: 'anthropic',
   });
-  return { provider: 'anthropic', authType: 'oauth', expiresAt: null };
+  return {
+    provider: 'anthropic', authType: 'oauth', expiresAt: tokenExpiresAt(writtenAt),
+    detail: EXPIRY_DETAIL,
+  };
 }

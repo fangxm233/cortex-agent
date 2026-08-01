@@ -1,5 +1,5 @@
 // input:  Claude subscription consumer, LoginFlow, fake tmux, saved env
-// output: tmux interaction, cleanup, persistence, and privacy regressions
+// output: tmux, expiry, persistence, cleanup, and privacy tests
 // pos:    Claude subscription login regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -33,6 +33,10 @@ const REAL_HOME = process.env.HOME!;
 const TOKEN = 'sk-ant-oat01-fixture-private-token';
 const CODE = 'fixture-code#fixture-state';
 const AUTH_URL = 'https://claude.com/cai/oauth/authorize?code=true&scope=user%3Ainference&state=fixture';
+const LOGIN_STARTED_AT = Date.parse('2030-01-01T00:00:00.000Z');
+const TOKEN_WRITTEN_AT = Date.parse('2030-01-01T00:00:00.500Z');
+const TOKEN_EXPIRES_AT = '2031-01-01T00:00:00.500Z';
+const EXPIRY_DETAIL = "Expiration is derived from the Claude CLI's stated one-year validity.";
 const INITIAL_PANE = `Browser didn't open? Use the url below to sign in (c to copy)\n\nhttps://claude.com/cai/oauth/authorize?code=true&scope=user%3\nAinference&state=fixture\n\nPaste code here if prompted >`;
 const SUCCESS_PANE = `Long-lived authentication token created successfully!\n\nYour OAuth token (valid for 1 year):\n${TOKEN}\n\nStore this token securely.`;
 
@@ -190,7 +194,8 @@ function assertSuccessfulFlow(
   consoleCalls: unknown[][],
 ): void {
   assert.deepEqual(completed.outcome, {
-    provider: 'anthropic', authType: 'oauth', expiresAt: null,
+    provider: 'anthropic', authType: 'oauth', expiresAt: TOKEN_EXPIRES_AT,
+    detail: EXPIRY_DETAIL,
   });
   assert.deepEqual(completed.notice, {
     kind: 'progress', message: 'Completing Claude subscription login.',
@@ -218,6 +223,12 @@ afterEach(() => {
 
 test('Claude subscription LoginFlow forwards URL and code, persists privately, recovers, and cleans up', async (t) => {
   const evidence = successDependencies();
+  let now = LOGIN_STARTED_AT;
+  evidence.dependencies.now = () => now;
+  evidence.dependencies.saveToken = async token => {
+    evidence.saved.push(token);
+    now = TOKEN_WRITTEN_AT;
+  };
   evidence.tmux.exitCliOnSubmit = true;
   const consoleCalls = captureConsole(t);
   const flow = await startFlow(flowInput(), interaction =>
