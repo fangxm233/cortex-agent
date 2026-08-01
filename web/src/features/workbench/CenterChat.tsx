@@ -1,4 +1,4 @@
-// input:  selected session, transcript/live state and optimistic sends
+// input:  selected session, live authority snapshots and optimistic sends
 // output: reconciled desktop chat with context controls and composer
 // pos:    Workbench conversation pane orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -81,8 +81,10 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   // delta subscription. The reply then appears token by token instead of arriving whole after the
   // whole block is generated (measured on a long answer: first text at ~3.6s, complete at ~22s).
   // `transcript` is passed back in only so a pending row self-heals if its delivered event is lost.
-  const { liveTail, streaming, running, backgroundRunning, liveTurns, contextUsage, streamingText, pendingUser } =
-    useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
+  const {
+    liveTail, getMessageSnapshot, streaming, running, backgroundRunning,
+    liveTurns, contextUsage, streamingText, pendingUser,
+  } = useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
       deltas: true,
       transcript: transcriptQuery.data ?? null,
       contextUsage: active?.contextUsage ?? null,
@@ -102,6 +104,10 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
     pendingUser,
   }), [transcriptQuery.data, sessionId, liveTail, pendingUser]);
   authorityRef.current = authority;
+  const currentAuthority = useCallback((): UserMessageAuthority => {
+    const snapshot = getMessageSnapshot();
+    return { ...authorityRef.current, ...snapshot };
+  }, [getMessageSnapshot]);
 
   const updateOptimistic = useCallback((update: (current: OptimisticUserMessage[]) => OptimisticUserMessage[]) => {
     setOptimisticUser((current) => {
@@ -130,8 +136,8 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
       : { kind: 'session' as const, sessionId };
     return createOptimisticUserMessage({
       clientId: crypto.randomUUID(), target, text, attachments, ts: new Date().toISOString(),
-    }, optimisticRef.current, authorityRef.current);
-  }, [isDraft, currentProjectId, sessionId]);
+    }, optimisticRef.current, currentAuthority());
+  }, [isDraft, currentProjectId, sessionId, currentAuthority]);
   const enqueueOptimistic = useCallback((message: OptimisticUserMessage) => {
     updateOptimistic((current) => [...current, message]);
   }, [updateOptimistic]);
@@ -145,10 +151,10 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
     return createdSessionId ? selectCreated : true;
   }, [updateOptimistic]);
   const rejectOptimistic = useCallback((clientId: string) => {
-    const resolution = resolveOptimisticRejection(optimisticRef.current, clientId, authorityRef.current);
+    const resolution = resolveOptimisticRejection(optimisticRef.current, clientId, currentAuthority());
     updateOptimistic(() => resolution.messages);
     return resolution.restore;
-  }, [updateOptimistic]);
+  }, [currentAuthority, updateOptimistic]);
   // Interaction cards are transcript rows now (web-interactions-redesign) — this hook only
   // provides the answer/approve/reject actions; state lives in the transcript.
   const interactionActions = useInteractionActions(sessionId);

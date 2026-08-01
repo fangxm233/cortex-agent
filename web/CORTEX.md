@@ -10,7 +10,7 @@ Holds build tooling, design tokens and the source tree; the built bundle also sh
 | tailwind.config.ts | config | Design tokens, dark mode and animation utilities |
 | postcss.config.js | config | Enables Tailwind and autoprefixer processing |
 | tsconfig.json | config | Strict TypeScript options and path alias |
-| package.json | config | Scripts and runtime dependencies |
+| package.json | config | Scripts, runtime and mounted-test dependencies |
 | .gitignore | config | Excludes the build output from git |
 | public/ | assets | Favicons and the touch icon |
 | src/ | subdir | All application source code |

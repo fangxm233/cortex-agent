@@ -50,8 +50,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ComposerStatusLine.tsx | view | Status row above the input with an accessory |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
-| optimistic-message.ts | vm | Reconciles local sends with server message evidence |
-| optimistic-message.test.ts | test | Tests immediate rows, de-duplication and failure |
+| optimistic-message.ts | vm | Reconciles local sends with source-aware message evidence |
+| optimistic-message.test.ts | test | Tests stale rows, de-duplication and failure |
+| optimistic-message.integration.test.tsx | test | Mounts deferred sends and authority races |
 | composer-slash.ts | util | Resolves a slash-menu pick into a command |
 | composer-slash.test.ts | test | Unit tests for slash command dispatch |
 | ContextUsageControl.tsx | view | Context usage bar, details and compact action |
@@ -63,7 +64,8 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | useRevealedText.ts | hook | Drives the frame loop revealing streamed text |
 | reveal-pacing.ts | util | Computes how much streamed text to show |
 | reveal-pacing.test.ts | test | Unit tests for reveal pacing |
-| useSessionMessageLiveSync.ts | hook | Streams live session events into chat state |
+| useSessionMessageLiveSync.ts | hook | Streams events and exposes synchronous message authority |
+| useSessionMessageLiveSync.test.tsx | test | Tests synchronous pending and delivery authority |
 | useMarkSessionRead.ts | hook | Marks the visible session read |
 | SessionIdModal.tsx | view | Shows session identifiers with copy actions |
 | session-id.ts | vm | Builds identifier rows with a dash fallback |

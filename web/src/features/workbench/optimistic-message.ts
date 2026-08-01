@@ -1,5 +1,5 @@
 // input:  local sends plus transcript, live, and server-pending user rows
-// output: optimistic submission lifecycle and de-duplicated pending rows
+// output: source-aware optimistic lifecycle and de-duplicated pending rows
 // pos:    Pure Web sender reconciliation state machine
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { SessionTranscript } from '@cortex-agent/ui-contract';
@@ -13,6 +13,7 @@ export interface OptimisticUserMessage extends PendingUserMessage {
   clientId: string;
   target: OptimisticTarget;
   fingerprint: string;
+  authorityBaselineKeys: string[];
   authorityOrdinal: number;
   phase: 'sending' | 'accepted';
 }
@@ -26,6 +27,7 @@ export interface UserMessageAuthority {
 interface UserOccurrence {
   fingerprint: string;
   ts: string;
+  allowClockSkew: boolean;
 }
 
 export interface OptimisticReconciliation {
@@ -59,23 +61,38 @@ function occurrenceKey(occurrence: UserOccurrence): string {
   return `${occurrence.ts}\u0000${occurrence.fingerprint}`;
 }
 
+function addOccurrence(
+  out: UserOccurrence[],
+  seen: Map<string, number>,
+  occurrence: UserOccurrence,
+): void {
+  const key = occurrenceKey(occurrence);
+  const existing = seen.get(key);
+  if (existing !== undefined) {
+    if (occurrence.allowClockSkew) out[existing] = { ...out[existing], allowClockSkew: true };
+    return;
+  }
+  seen.set(key, out.length);
+  out.push(occurrence);
+}
+
 function committedOccurrences(source: UserMessageAuthority, sessionId: string): UserOccurrence[] {
   const out: UserOccurrence[] = [];
-  const seen = new Set<string>();
-  const push = (text: string, attachments: Attachment[] | undefined, ts: string): void => {
-    const occurrence = { fingerprint: userMessageFingerprint(text, attachments), ts };
-    const key = occurrenceKey(occurrence);
-    if (!seen.has(key)) { seen.add(key); out.push(occurrence); }
+  const seen = new Map<string, number>();
+  const push = (text: string, attachments: Attachment[] | undefined, ts: string, allowClockSkew: boolean): void => {
+    addOccurrence(out, seen, { fingerprint: userMessageFingerprint(text, attachments), ts, allowClockSkew });
   };
   if (source.transcript.sessionId === sessionId) {
     for (const turn of source.transcript.turns) {
       for (const message of turn.messages) {
-        if (message.type === 'user') push(message.text ?? '', message.attachments, message.ts);
+        if (message.type === 'user') push(message.text ?? '', message.attachments, message.ts, false);
       }
     }
   }
   for (const message of source.liveTail) {
-    if (message.sessionId === sessionId && message.role === 'user') push(message.text, message.attachments, message.ts);
+    if (message.sessionId === sessionId && message.role === 'user') {
+      push(message.text, message.attachments, message.ts, true);
+    }
   }
   return out;
 }
@@ -114,13 +131,19 @@ function activePendingOccurrences(
 function authorityOccurrences(source: UserMessageAuthority, sessionId: string): UserOccurrence[] {
   const committed = committedOccurrences(source, sessionId);
   const pending = activePendingOccurrences(source, sessionId, committed).map((message) => ({
-    fingerprint: userMessageFingerprint(message.text, message.attachments), ts: message.ts,
+    fingerprint: userMessageFingerprint(message.text, message.attachments),
+    ts: message.ts,
+    allowClockSkew: true,
   }));
   return [...committed, ...pending];
 }
 
-function authorityCount(source: UserMessageAuthority, sessionId: string, fingerprint: string): number {
-  return authorityOccurrences(source, sessionId).filter((item) => item.fingerprint === fingerprint).length;
+function matchingAuthorityOccurrences(
+  source: UserMessageAuthority,
+  sessionId: string,
+  fingerprint: string,
+): UserOccurrence[] {
+  return authorityOccurrences(source, sessionId).filter((item) => item.fingerprint === fingerprint);
 }
 
 function sameTarget(a: OptimisticTarget, b: OptimisticTarget): boolean {
@@ -137,11 +160,17 @@ export function createOptimisticUserMessage(
 ): OptimisticUserMessage {
   const fingerprint = userMessageFingerprint(input.text, input.attachments);
   const baseline = input.target.kind === 'session'
-    ? authorityCount(source, input.target.sessionId, fingerprint)
-    : 0;
+    ? matchingAuthorityOccurrences(source, input.target.sessionId, fingerprint)
+    : [];
   const prior = current.filter((item) => sameTarget(item.target, input.target) && item.fingerprint === fingerprint);
-  const authorityOrdinal = Math.max(baseline, ...prior.map((item) => item.authorityOrdinal), 0) + 1;
-  return { ...input, fingerprint, authorityOrdinal, phase: 'sending' };
+  const authorityOrdinal = Math.max(baseline.length, ...prior.map((item) => item.authorityOrdinal), 0) + 1;
+  return {
+    ...input,
+    fingerprint,
+    authorityBaselineKeys: baseline.map(occurrenceKey),
+    authorityOrdinal,
+    phase: 'sending',
+  };
 }
 
 function promotedAttachments(attachments: Attachment[] | undefined, sessionId: string): Attachment[] | undefined {
@@ -193,7 +222,7 @@ export function resolveOptimisticRejection(
 ): { messages: OptimisticUserMessage[]; restore: boolean } {
   const message = messages.find((item) => item.clientId === clientId);
   if (!message) return { messages, restore: false };
-  if (hasAuthoritativeMatch(message, source)) {
+  if (allocatedClientIds(messages, source, false).includes(clientId)) {
     return { messages: acceptOptimisticUserMessage(messages, clientId), restore: false };
   }
   return { messages: removeOptimisticUserMessage(messages, clientId), restore: true };
@@ -211,20 +240,6 @@ function indexOccurrences(occurrences: UserOccurrence[]): OccurrenceIndex {
   return index;
 }
 
-function matchesOccurrences(message: OptimisticUserMessage, index: OccurrenceIndex): boolean {
-  const matching = index.get(message.fingerprint) ?? [];
-  return matching.length >= message.authorityOrdinal
-    && matching.some((item) => isRecentAuthority(item.ts, message.ts));
-}
-
-export function hasAuthoritativeMatch(
-  message: OptimisticUserMessage,
-  source: UserMessageAuthority,
-): boolean {
-  if (message.target.kind === 'draft') return false;
-  return matchesOccurrences(message, indexOccurrences(authorityOccurrences(source, message.target.sessionId)));
-}
-
 function cachedOccurrences(
   cache: Map<string, OccurrenceIndex>,
   sessionId: string,
@@ -237,6 +252,51 @@ function cachedOccurrences(
   return loaded;
 }
 
+function availableOccurrence(
+  message: OptimisticUserMessage,
+  occurrences: UserOccurrence[],
+  used: ReadonlySet<number>,
+): number {
+  const baseline = new Set(message.authorityBaselineKeys);
+  return occurrences.findIndex((item, index) => {
+    if (used.has(index) || baseline.has(occurrenceKey(item))) return false;
+    return item.allowClockSkew ? isRecentAuthority(item.ts, message.ts) : isAtOrAfter(item.ts, message.ts);
+  });
+}
+
+function allocatedClientIds(
+  messages: OptimisticUserMessage[],
+  source: UserMessageAuthority,
+  committedOnly: boolean,
+): string[] {
+  const cache = new Map<string, OccurrenceIndex>();
+  const used = new Map<string, Set<number>>();
+  const matched: string[] = [];
+  for (const message of messages) {
+    if (message.target.kind === 'draft') continue;
+    const sessionId = message.target.sessionId;
+    const index = cachedOccurrences(cache, sessionId, (id) => committedOnly
+      ? committedOccurrences(source, id)
+      : authorityOccurrences(source, id));
+    const occurrences = index.get(message.fingerprint) ?? [];
+    const key = `${sessionId}\u0000${message.fingerprint}`;
+    const claimed = used.get(key) ?? new Set<number>();
+    const occurrence = availableOccurrence(message, occurrences, claimed);
+    if (occurrence === -1) continue;
+    claimed.add(occurrence);
+    used.set(key, claimed);
+    matched.push(message.clientId);
+  }
+  return matched;
+}
+
+export function hasAuthoritativeMatch(
+  message: OptimisticUserMessage,
+  source: UserMessageAuthority,
+): boolean {
+  return allocatedClientIds([message], source, false).includes(message.clientId);
+}
+
 export function reconcileOptimisticUserMessages(
   messages: OptimisticUserMessage[],
   source: UserMessageAuthority,
@@ -244,17 +304,8 @@ export function reconcileOptimisticUserMessages(
   const sessionId = source.transcript.sessionId;
   const committed = committedOccurrences(source, sessionId);
   const serverPending = activePendingOccurrences(source, sessionId, committed);
-  const allCache = new Map<string, OccurrenceIndex>();
-  const committedCache = new Map<string, OccurrenceIndex>();
-  const matches = (message: OptimisticUserMessage, settled: boolean): boolean => {
-    if (message.target.kind === 'draft') return false;
-    const occurrences = settled
-      ? cachedOccurrences(committedCache, message.target.sessionId, (id) => committedOccurrences(source, id))
-      : cachedOccurrences(allCache, message.target.sessionId, (id) => authorityOccurrences(source, id));
-    return matchesOccurrences(message, occurrences);
-  };
-  const matchedClientIds = messages.filter((message) => matches(message, false)).map((message) => message.clientId);
-  const settledClientIds = messages.filter((message) => matches(message, true)).map((message) => message.clientId);
+  const matchedClientIds = allocatedClientIds(messages, source, false);
+  const settledClientIds = allocatedClientIds(messages, source, true);
   const matched = new Set(matchedClientIds);
   const localPending = messages.filter((message) => !matched.has(message.clientId)).map((message) => ({
     id: message.clientId,

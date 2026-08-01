@@ -1,5 +1,5 @@
 // input:  shared SSE context/notices, React Query, durable snapshots
-// output: live session state converging compact/context/messages
+// output: synchronous message authority and converged live session state
 // pos:    React bridge from session events to desktop/mobile chat rows
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -47,6 +47,8 @@ const STREAM_IDLE_MS = 2500; // treat the session as streaming until this quiet 
 
 export interface SessionLiveState {
   liveTail: LiveSessionMessage[];
+  /** Read the latest message authority synchronously, before queued React state renders. */
+  getMessageSnapshot: () => Pick<SessionLiveState, 'liveTail' | 'pendingUser'>;
   streaming: boolean;
   /** The session's REAL running state: the live `session.status` event once received, else the
    *  sessions.list snapshot (`snapshotRunning`), else the message-stream heuristic. This is what
@@ -102,7 +104,13 @@ export function useSessionMessageLiveSync(
 ): SessionLiveState {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [liveTail, setLiveTail] = useState<LiveSessionMessage[]>([]);
+  const [liveTail, setLiveTailState] = useState<LiveSessionMessage[]>([]);
+  const liveTailRef = useRef<LiveSessionMessage[]>([]);
+  const setLiveTail = useCallback((update: LiveSessionMessage[] | ((current: LiveSessionMessage[]) => LiveSessionMessage[])): void => {
+    const next = typeof update === 'function' ? update(liveTailRef.current) : update;
+    liveTailRef.current = next;
+    setLiveTailState(next);
+  }, []);
   const [streaming, setStreaming] = useState(false);
   // Delta from the backend `session.status` event (real turn lifecycle). Null until the first status
   // event arrives for this session — until then the snapshot (then the stream heuristic) governs.
@@ -132,6 +140,10 @@ export function useSessionMessageLiveSync(
     pendingRef.current = next;
     setPendingUser(next);
   }, []);
+  const getMessageSnapshot = useCallback(() => ({
+    liveTail: liveTailRef.current,
+    pendingUser: pendingRef.current,
+  }), []);
 
   // Session switch resets every delta; the snapshot then governs until the first event lands.
   useEffect(() => {
@@ -147,7 +159,7 @@ export function useSessionMessageLiveSync(
     return () => {
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
-  }, [sessionId, setPending]);
+  }, [sessionId, setLiveTail, setPending]);
 
   // Self-heal: the live stream is lossy by design, so a delivered event can be dropped. Any pending
   // message the authoritative transcript already holds was read and recorded — stop dimming it.
@@ -342,5 +354,8 @@ export function useSessionMessageLiveSync(
   const running = resolveRunning(statusRunning, snapshotRunning, streaming);
   const backgroundRunning = resolveBackgroundRunning(statusBackground, snapshotBackgroundRunning);
   const contextUsage = resolveContextUsage(liveContextUsage, options.contextUsage);
-  return { liveTail, streaming, running, backgroundRunning, liveTurns, contextUsage, streamingText: assistantPreview.active?.text ?? null, pendingUser };
+  return {
+    liveTail, getMessageSnapshot, streaming, running, backgroundRunning, liveTurns,
+    contextUsage, streamingText: assistantPreview.active?.text ?? null, pendingUser,
+  };
 }
