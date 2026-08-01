@@ -6,7 +6,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | filename | role | function |
 |---|---|---|
 | admin-channel-hot-reload.ts | wiring | creates adapter with live admin settings |
-| app.ts | entry | Wires runtime services and shared event publishers |
+| app.ts | entry | Wires runtime services and event bus clients |
 | cli.ts | entry | dispatches server and daemon-free commands |
 | daemon.ts | entry | supervises and restarts the app process |
 | daemon-notice.ts | wiring | broadcasts supervisor notices to the operator |

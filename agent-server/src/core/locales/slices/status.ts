@@ -28,6 +28,16 @@ export const statusEn = {
   'notify.agentFallback': 'Model fallback: ${from} → ${to}.',
   'notify.backendSessionReset': 'Previous backend session was unavailable; started a fresh session.',
   'notify.rateLimitAutoResume': 'Rate limited — this chat will resume automatically when the limit resets.',
+  // --- Authentication-required notification ---
+  'notify.authRequired.title': 'Authentication required',
+  'notify.authRequired.body': 'Authentication required for backend `${backend}` / provider `${provider}` (${kind}). ${guidance}',
+  'notify.authRequired.kind.loginRequired': 'login required',
+  'notify.authRequired.kind.oauthExpired': 'OAuth login expired',
+  'notify.authRequired.kind.invalidApiKey': 'invalid API key',
+  'notify.authRequired.kind.unauthorized': 'unauthorized request',
+  'notify.authRequired.kind.invalidGrant': 'invalid OAuth grant',
+  'notify.authRequired.guide.claude': 'SSH to the Cortex host and run `claude /login` to sign in again.',
+  'notify.authRequired.guide.pi': 'SSH to the Cortex host, run `pi`, then enter `/login` and select provider `${provider}`.',
   // --- Execution report ---
   'status.noRunningExecutions': 'No running executions.',
   'status.runningExecutions': 'Running executions: ${count}',
@@ -63,6 +73,16 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'notify.agentFallback': '模型回退：${from} → ${to}。',
   'notify.backendSessionReset': '之前的后端会话不可用，已启动新会话。',
   'notify.rateLimitAutoResume': '触发限流，解除后此对话将自动续跑。',
+  // --- Authentication-required notification ---
+  'notify.authRequired.title': '需要重新认证',
+  'notify.authRequired.body': '后端 `${backend}` / Provider `${provider}` 的认证已失效（${kind}）。${guidance}',
+  'notify.authRequired.kind.loginRequired': '需要登录',
+  'notify.authRequired.kind.oauthExpired': 'OAuth 登录已过期',
+  'notify.authRequired.kind.invalidApiKey': 'API Key 无效',
+  'notify.authRequired.kind.unauthorized': '请求未获授权',
+  'notify.authRequired.kind.invalidGrant': 'OAuth 授权已失效',
+  'notify.authRequired.guide.claude': '请 SSH 到 Cortex 主机并运行 `claude /login` 重新登录。',
+  'notify.authRequired.guide.pi': '请 SSH 到 Cortex 主机，运行 `pi`，然后输入 `/login` 并选择 Provider `${provider}`。',
   // --- Execution report ---
   'status.noRunningExecutions': '没有正在运行的执行。',
   'status.runningExecutions': '正在运行的执行：${count}',
