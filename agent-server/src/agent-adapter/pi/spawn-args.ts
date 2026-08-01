@@ -1,5 +1,5 @@
 // input:  PI spawn options, AgentSpawnConfig context
-// output: PI CLI argv and authoritative subprocess environment
+// output: PI argv and authoritative subprocess environment
 // pos:    Pure PI argument and environment construction
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,11 +7,9 @@ import type { AgentSpawnConfig } from '../types.js';
 
 export interface PISpawnOptions {
   sessionDir: string;
-  /** Session UUID for --session flag.  PI scans --session-dir to find the matching file
-   *  by filename or internal session id field — no need for the full file path. */
+  /** Session UUID for legacy callers that intentionally delegate lookup to PI. */
   sessionId?: string | null;
-  /** @deprecated Full path to an existing PI session JSONL file.  Prefer sessionId
-   *  which lets PI handle session lookup internally.  Kept for backward compat. */
+  /** Exact session JSONL path; preferred so PI opens one transcript without scanning. */
   sessionPath?: string | null;
   /** Model identifier (e.g. "deepseek-v4-flash[1m]"); context-window suffix is stripped. */
   model?: string | null;
@@ -106,9 +104,8 @@ export function buildSpawnArgs(opts: PISpawnOptions): string[] {
     }
   }
 
-  // --session accepts both a UUID (scanned from --session-dir) and a full file path.
-  // Prefer sessionId (UUID) — it's robust to PI's internal file naming which may
-  // differ from the session UUID.
+  // --session accepts a UUID or an exact path. The adapter resolves and supplies a path;
+  // sessionId remains for explicit legacy callers.
   if (opts.sessionId && opts.sessionId.length > 0) {
     args.push('--session', opts.sessionId);
   } else if (opts.sessionPath && opts.sessionPath.length > 0) {

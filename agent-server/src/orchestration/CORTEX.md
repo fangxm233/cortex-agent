@@ -6,16 +6,16 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | filename | role | function |
 |---|---|---|
 | agent-file-send.ts | chat | delivers an agent-produced file into a session |
-| agent-runner.ts | core | Routes provider-attributed plain user turns |
+| agent-runner.ts | core | routes visible user turns behind snapshot barriers |
 | bg-continuation.ts | helper | forwards background continuation output |
 | bg-wait-guard.ts | guard | bounds the background task waiting window |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |
 | conduit-queue.ts | queue | serializes work per conduit |
-| conversation-runner.ts | runner | runs one plain user turn end to end |
+| conversation-runner.ts | runner | runs and registers one plain user turn |
 | delta-coalescer.ts | stream | batches assistant text deltas for web sessions |
 | dispatch-reconciler.ts | timer | cleans up stale dispatch executions |
 | durable-helpers.ts | util | builds durable post and update hooks |
-| lifecycle.ts | core | Finalizes provider-attributed turn outcomes |
+| lifecycle.ts | core | initializes snapshots and finalizes turn outcomes |
 | manager-qa.ts | channel | relays subtask questions to managers and humans |
 | mid-turn-inject.ts | core | injects turns with a live wait cap |
 | orchestrator.ts | router | picks the thread or default routing branch |
@@ -23,12 +23,13 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
 | session-compact.ts | control | compacts an idle session's context |
 | session-events.ts | events | publishes session state events on the bus |
-| session-rewind.ts | chat | rewinds a web session to an edited turn |
+| session-rewind.ts | chat | asynchronously restores and rewinds web sessions |
 | session-send.ts | chat | sends a user turn into a web session |
 | status-helpers.ts | helper | builds settings-aware status messages |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |
 | thread-callback.ts | callback | Resumes parents with safe child-result guidance |
 | thread-executor.ts | core | routes thread turns and runs threads |
+| turn-mutation-lock.ts | guard | serializes snapshots, rewinds, and edit restores |
 | turn-notify.ts | notify | applies settings and notifies completed long turns |
 | web-bg-hold.ts | helper | holds web turns until background work seals |
 | interactions/ | subdir | approvals, prompts, and user interaction handling |

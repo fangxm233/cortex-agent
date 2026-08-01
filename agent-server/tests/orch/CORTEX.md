@@ -6,14 +6,14 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | filename | role | function |
 |---|---|---|
 | agent-runner-wake-guard.test.ts | test | Covers synthetic wake notice routing guard |
-| agent-runner.test.ts | test | Covers plain message routing and queue markers |
+| agent-runner.test.ts | test | Covers message routing and snapshot supersession |
 | ask-user-question-pi.test.ts | test | Covers PI ask-user-question resolution |
 | bg-continuation.test.ts | test | Covers reset-isolated continuation dispatch |
 | bg-wait-guard.test.ts | test | Covers background wait bracket, grace and cap |
 | busy-tracker.test.ts | test | Covers busy counter publish and aggregation |
 | cancel-bg-hold.test.ts | test | Covers stop during a background hold |
 | channel-queue.test.ts | test | Covers per-channel queue serialization |
-| edit-handler.test.ts | test | Covers message edit rollback and backend pick |
+| edit-handler.test.ts | test | Covers backend-id restore and edit retry routing |
 | first-turn-interrupt-resume.test.ts | test | Covers prompt capture and first-turn interrupt |
 | hook-bridge-subscribers-web.test.ts | test | Covers hook to Web interaction delivery |
 | interaction-records.test.ts | test | Covers interaction create and resolve lifecycle |
@@ -36,4 +36,5 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | thread-detached.test.ts | test | Covers detached thread busy gate bracket |
 | thread-executor.test.ts | test | Covers thread queue markers and routing |
 | turn-notify.test.ts | test | Covers reset-isolated notification gating |
+| turn-tracking.test.ts | test | Covers snapshot barriers and turn mutation locks |
 | web-bg-hold.test.ts | test | Covers Web background hold status and seal |

@@ -21,6 +21,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | json-repository.ts | core | reads and writes cached JSON stores |
 | log.ts | core | creates console and rotating file loggers |
 | paths.ts | config | defines install, data, and config paths |
+| pi-session-filename.ts | util | selects deterministic PI transcript filenames |
 | profile-generator.ts | config | generates the agent profiles file |
 | running-executions.ts | state | registers and kills live agent executions |
 | settings-migration.ts | config | safely migrates legacy env settings at startup |

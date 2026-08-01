@@ -1,7 +1,9 @@
-import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before paths bind
-// input:  src/orchestration/session-rewind.js
-// output: Unit tests — channel-agnostic message edit + rewind for web sessions
-// pos:    Guards the web rewind orchestration (ledger rollback + backup restore + history truncate + resend)
+// input:  web rewinds and injected async backup
+// output: rollback, restore, cleanup, resend regressions
+// pos:    Verifies web session rewind orchestration
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
+import '../_test-home.js';
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -16,6 +18,8 @@ function makeDeps(log: CallLog, overrides: Partial<RewindDeps> = {}): RewindDeps
   const removedUser = { text: 'orig text', ts: '2026-07-17T00:00:00.000Z', attachments: [{ name: 'a.png', path: 'p', size: 1, mimeType: 'image/png', type: 'image' as const }] };
   return {
     activeAgents: { hasChannel: () => false },
+    snapshotPending: () => false,
+    tryAcquireMutation: () => () => {},
     ledger: {
       getConversation: async () => ({
         sessionId: 'track-1', sessionName: 'cortex-1', backend: 'claude', profileName: null,
@@ -37,11 +41,11 @@ function makeDeps(log: CallLog, overrides: Partial<RewindDeps> = {}): RewindDeps
       updateSession: async (name, updates) => { log.calls.push(`updateSession:${name}:${JSON.stringify(updates)}`); },
     },
     backup: {
-      restoreBackup: (sid, i) => { log.calls.push(`restoreBackup:${sid}:${i}`); return true; },
+      restoreBackup: async (sid, i) => { log.calls.push(`restoreBackup:${sid}:${i}`); return true; },
       cleanupBackupsAfter: (sid, i) => { log.calls.push(`cleanupAfter:${sid}:${i}`); },
       cleanupAllBackups: (sid) => { log.calls.push(`cleanupAll:${sid}`); },
-      findPISessionFile: () => null,
-      restoreSessionFile: () => false,
+      findPISessionFile: async () => null,
+      restoreSessionFile: async () => false,
       cleanupBackupsForFile: () => {},
     },
     resolveBackend: () => 'claude',
@@ -58,6 +62,33 @@ test('rejects when the channel has a live run (edit is disabled while running)',
   const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'new', adapter }, deps);
   assert.deepEqual(res, { ok: false, reason: 'running' });
   assert.equal(log.calls.length, 0, 'nothing was touched');
+});
+
+test('rejects while the pre-turn snapshot is pending', async () => {
+  const log: CallLog = { calls: [] };
+  const deps = makeDeps(log, { snapshotPending: () => true });
+  const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'new', adapter }, deps);
+  assert.deepEqual(res, { ok: false, reason: 'running' });
+  assert.equal(log.calls.length, 0, 'rewind cannot race an incomplete snapshot');
+});
+
+test('holds the turn mutation lock through rewind validation', async () => {
+  const log: CallLog = { calls: [] };
+  let releaseCount = 0;
+  let resolveConversation!: (value: null) => void;
+  const conversation = new Promise<null>((resolve) => { resolveConversation = resolve; });
+  const base = makeDeps(log);
+  const deps = makeDeps(log, {
+    tryAcquireMutation: () => () => { releaseCount++; },
+    ledger: { ...base.ledger, getConversation: async () => conversation },
+  });
+
+  const attempt = rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'new', adapter }, deps);
+  await Promise.resolve();
+  assert.equal(releaseCount, 0);
+  resolveConversation(null);
+  assert.deepEqual(await attempt, { ok: false, reason: 'not-found' });
+  assert.equal(releaseCount, 1);
 });
 
 test('rejects when the ledger has no conversation or the turn is out of range', async () => {
@@ -101,7 +132,7 @@ test('turn 0: no backup restore — backend session id is cleared (fresh backend
 test('missing backup on turn ≥ 1 falls back to clearing the backend session id', async () => {
   const log: CallLog = { calls: [] };
   const deps = makeDeps(log, {
-    backup: { ...makeDeps({ calls: [] }).backup, restoreBackup: (sid, i) => { log.calls.push(`restoreBackup:${sid}:${i}`); return false; }, cleanupAllBackups: (sid) => { log.calls.push(`cleanupAll:${sid}`); } },
+    backup: { ...makeDeps({ calls: [] }).backup, restoreBackup: async (sid, i) => { log.calls.push(`restoreBackup:${sid}:${i}`); return false; }, cleanupAllBackups: (sid) => { log.calls.push(`cleanupAll:${sid}`); } },
   });
   const res = await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps);
   assert.deepEqual(res, { ok: true });

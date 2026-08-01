@@ -1,7 +1,7 @@
-// input:  conversation/context execution, lifecycle, queue, DEBUG stores
-// output: Provider-attributed runs, continuations, and transcripts
-// pos:    Sole plain user-message and injection path
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  user turns, snapshot barriers, agent callbacks
+// output: provider runs, continuations, visible transcripts
+// pos:    Plain user-message and injection path
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import * as path from 'path';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
@@ -17,7 +17,7 @@ import { conversationHistory, summarizeToolInputForHistory } from '@store/conver
 import { pendingInjectionRepo } from '@store/pending-injection-repo.js';
 import { getActiveProfile, getDefaultAgent, resolveBackendForChannel } from '@domain/agents/index.js';
 import { registerNamedSession } from '@domain/sessions/session-lifecycle.js';
-import { handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecycle.js';
+import { consumePendingTurnSupersession, finishTurnTracking, handleAgentSuccess, handleAgentError, initTurnTracking } from './lifecycle.js';
 import { buildSessionTag, buildUserProcessingMessage, makeFallbackNotifier, makeStreamingMessageCallback, computeElapsed, writeStatus, sealStatus, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks } from './status-helpers.js';
 import { readFileSync } from 'fs';
 import { createLogger } from '@core/log.js';
@@ -73,6 +73,24 @@ interface AgentCallbacks {
   onAssistantMsg: ((text: string) => void) & { stream?: OutputStream };
   onProgress: (progress: any) => void;
   onToolUse: ((name: string, input: any, toolUseId: string) => void) | null;
+}
+
+function acceptUserMessage(opts: {
+  sessionId: string;
+  channel: string;
+  sessionName: string;
+  text: string;
+  attachments: IncomingMessage['webAttachments'];
+}): void {
+  const ts = new Date().toISOString();
+  recordHistory(conversationHistory.appendUser(opts.sessionId, {
+    text: opts.text, ts, attachments: opts.attachments,
+  }));
+  publishSessionMessage({
+    sessionId: opts.sessionId, channel: opts.channel, role: 'user',
+    text: opts.text, ts, attachments: opts.attachments,
+  });
+  void ensureSessionLabel(opts.sessionName, opts.text);
 }
 
 export interface AgentRunnerCtx {
@@ -219,31 +237,19 @@ export class AgentRunner {
       richBlocks: buildSealedStatusActionBlocks(statusText, blocksTemplate),
     }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
     const messageTs = message.ref.messageId;
-    await initTurnTracking(channel, sessionId, backendSessionId, sessionName, messageTs, userMessage || '', statusMsg.messageId);
-    // Backend-independent conversation history (keyed by sessionId, the TUI display source).
-    // Record the user message now; assistant messages + tool calls are appended via the
-    // callbacks below as they stream. Only when we have a sessionId to key by.
-    if (sessionId) {
-      // Share a single timestamp between the conversation-history entry and the EventBus
-      // event so the web UI's content-based de-dup (transcript query vs SSE live-tail)
-      // produces identical msgKeys for the same message.
-      const userTs = new Date().toISOString();
-      recordHistory(conversationHistory.appendUser(sessionId, {
-        text: userMessage || '',
-        ts: userTs,
-        attachments: message.webAttachments,
-      }));
-      publishSessionMessage({
-        sessionId,
-        channel,
-        role: 'user',
-        text: userMessage || '',
-        ts: userTs,
-        attachments: message.webAttachments,
-      });
-      // Give an unlabeled session a human-readable title from its first user message (web sessions are
-      // pre-registered without a label; this is the single unified place a session gets titled).
-      void ensureSessionLabel(sessionName, userMessage || '');
+    const turnTrackingToken = await initTurnTracking(
+      channel, sessionId, backendSessionId, sessionName,
+      messageTs, userMessage || '', statusMsg.messageId,
+      {
+        onAccepted: () => acceptUserMessage({
+          sessionId, channel, sessionName, text: userMessage || '',
+          attachments: message.webAttachments,
+        }),
+      },
+    );
+    if (consumePendingTurnSupersession(channel, turnTrackingToken)) {
+      finishTurnTracking(channel, turnTrackingToken);
+      return;
     }
     const onMessagePosted = (ref: MessageRef) => void conversationLedger.addResponseTs(channel, messageTs, ref.messageId).catch((e) => log.error(e));
     // 2. Build agent callbacks (streaming, fallback, progress)
@@ -317,6 +323,7 @@ export class AgentRunner {
           }).catch(() => {});
           initStatusBlocks(statusMsg, blocksTemplateWithExec);
         },
+        onExecutionRegistered: () => finishTurnTracking(channel, turnTrackingToken),
         onAssistantDelta: deltaStream ? (text: string, blockId: string) => deltaStream.onDelta(text, blockId) : null,
         onAssistantMessage: (text: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => {
           // Drain this block's preview FIRST: the authoritative message must never be overtaken by
@@ -415,6 +422,7 @@ export class AgentRunner {
         sessionName, sessionId, threadAnchorId, userMessageTs: messageTs, userMessage,
       });
     } finally {
+      finishTurnTracking(channel, turnTrackingToken);
       // The turn is over (successfully, in error, or cancelled): no preview may outlive it.
       deltaStream?.dispose();
       // Skip the idle seal when a web bg-hold is active — it owns the terminal running:false

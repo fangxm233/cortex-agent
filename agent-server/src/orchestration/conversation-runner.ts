@@ -1,7 +1,7 @@
-// input:  agent facade, prompt assembly, registries, project context
-// output: runConversation with prompt, context, notice, and tool callbacks
-// pos:    Plain user-turn execution without thread machinery
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  agent facade, prompt assembly, execution registry
+// output: registered plain-turn execution and callbacks
+// pos:    Thread-free user-turn execution
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
 // Why this exists: plain user chat messages used to be wrapped in a `templateName:'default'`
 // ThreadRecord and run through runThread() with ~12 `isDefault` short-circuits. That coupled
@@ -48,6 +48,8 @@ export interface RunConversationOptions {
   /** Fired once the execution record is created, before the agent starts — lets the caller
    *  attach an execution-scoped Cancel button to the status message. */
   onExecutionStarted?: (executionId: string) => void | Promise<void>;
+  /** Fired synchronously after the backend handle is registered for cancellation. */
+  onExecutionRegistered?: () => void;
   /** `blockId` identifies prior deltas; `noticeLevel` marks system-authored chat notices. */
   onAssistantMessage?: ((text: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => void) | null;
   /** Incremental chunk of a block still being generated. Web chat only — see delta-coalescer. */
@@ -69,6 +71,15 @@ export interface ConversationResult {
   /** Underlying agent process for the turn. Used by the background-task continuation path to
    *  register a ContinuationSink on the (Claude) session. Opaque to other consumers. */
   agentProcess?: unknown;
+}
+
+export function registerConversationHandle(
+  registry: Pick<typeof runningExecutions, 'register'>,
+  registration: Parameters<typeof runningExecutions.register>[0],
+  onRegistered?: () => void,
+): void {
+  registry.register(registration);
+  onRegistered?.();
 }
 
 /**
@@ -183,7 +194,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
 
   // Track the handle for cancellation under the channel key (preserves !cancel / supersede /
   // killByKey paths); executionId is indexed too so the Cancel button can resolve it.
-  runningExecutions.register({
+  registerConversationHandle(runningExecutions, {
     threadId: null,
     channel: opts.channel,
     agentSlotId: null,
@@ -193,7 +204,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     backend: channelBackend,
     agentProcess: handle.agentProcess,
     sessionId: handle.sessionId,
-  });
+  }, opts.onExecutionRegistered);
 
   let result: AgentResult;
   try {

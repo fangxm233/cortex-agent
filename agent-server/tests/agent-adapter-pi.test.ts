@@ -1,5 +1,5 @@
-// input:  PI adapter test hooks and fake subprocesses
-// output: PI spawn policy, bounded events, context and compact
+// input:  PI adapter hooks and fake subprocesses
+// output: PI spawn, events, context, compact regressions
 // pos:    Covers PI process and event lifecycle
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -9,7 +9,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { encodeCommand, createLineSplitter } from '../src/agent-adapter/pi/framing.js';
@@ -912,13 +912,12 @@ test('G-7: spawn with resume=true + known sessionId passes --session flag', asyn
 
   assert.equal(adapter.resolveSessionPath('known-id'), pathJoin(G_SESSION_DIR, 'known-id.jsonl'));
 
-  // Now resume using the known session. --session receives the UUID directly
-  // (PI scans --session-dir to find the matching file).
+  // Resume passes the already-known path so PI does not scan session bodies by id.
   adapter.spawn({ sessionId: 'known-id', sessionKey: 'k2', resume: true });
   const { args } = stub.calls[1];
   const sessionIdx = args.indexOf('--session');
   assert.ok(sessionIdx !== -1, '--session flag present');
-  assert.equal(args[sessionIdx + 1], 'known-id', '--session receives UUID, not full path');
+  assert.equal(args[sessionIdx + 1], pathJoin(G_SESSION_DIR, 'known-id.jsonl'));
 
   stub.children[1].emit('close', 0, null);
 });
@@ -938,4 +937,43 @@ test('G-8: spawn with resume=true but UNKNOWN sessionId omits --session (starts 
   assert.equal(args.indexOf('--session'), -1, '--session omitted for an unknown resume target');
 
   stub.children[0].emit('close', 0, null);
+});
+
+test('G-9: disk resume recognizes the exact timestamp-prefixed session filename', () => {
+  const sessionDir = pathJoin(tmpdir(), `pi-resume-name-${process.pid}-${Date.now()}`);
+  mkdirSync(sessionDir, { recursive: true });
+  const sessionId = '01234567-89ab-7cde-8fab-0123456789ab';
+  const sessionPath = pathJoin(sessionDir, `2026-08-01T01-02-03Z_${sessionId}.jsonl`);
+  writeFileSync(sessionPath, 'not-json');
+
+  try {
+    const stub = makeStubSpawner();
+    const adapter = new PIAdapter(stub.spawn, sessionDir);
+    adapter.spawn({ sessionId, sessionKey: 'k-name', resume: true });
+
+    const { args } = stub.calls[0];
+    assert.equal(args[args.indexOf('--session') + 1], sessionPath);
+    stub.children[0].emit('close', 0, null);
+  } finally {
+    rmSync(sessionDir, { recursive: true, force: true });
+  }
+});
+
+test('G-10: disk resume does not discover an id only by reading an unrelated header', () => {
+  const sessionDir = pathJoin(tmpdir(), `pi-resume-header-${process.pid}-${Date.now()}`);
+  mkdirSync(sessionDir, { recursive: true });
+  const sessionId = 'header-only-session';
+  writeFileSync(pathJoin(sessionDir, 'unrelated-name.jsonl'), JSON.stringify({ type: 'session', id: sessionId }) + '\n');
+
+  try {
+    const stub = makeStubSpawner();
+    const adapter = new PIAdapter(stub.spawn, sessionDir);
+    adapter.spawn({ sessionId, sessionKey: 'k-header', resume: true });
+
+    const { args } = stub.calls[0];
+    assert.equal(args.indexOf('--session'), -1, 'resume discovery must not open unrelated bodies');
+    stub.children[0].emit('close', 0, null);
+  } finally {
+    rmSync(sessionDir, { recursive: true, force: true });
+  }
 });
