@@ -7,8 +7,12 @@ import json
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
+from cortex_bench_harness.proxy import ProxyBudget
 from synthetic import SyntheticUpstream
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-CLI-UNIQUE"
@@ -50,6 +54,40 @@ def test_module_cli_reads_credential_from_stdin_not_argv(tmp_path: Path) -> None
     assert document["dummy_token"]
     assert return_code == 0
     assert REAL_CREDENTIAL not in repr(command) + started + remaining + stderr
+
+
+def test_cli_rejects_nonfinite_budget_with_structured_error(tmp_path: Path) -> None:
+    with SyntheticUpstream() as upstream:
+        command = _start_command(tmp_path, upstream.base_url)
+        command[command.index("--budget-usd") + 1] = "NaN"
+        result = subprocess.run(
+            command, input=REAL_CREDENTIAL, capture_output=True, text=True, timeout=20,
+        )
+    document = json.loads(result.stderr)
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert document["ok"] is False
+    assert "finite decimal" in document["error"]
+    assert "Traceback" not in result.stderr
+
+
+def test_cli_missing_required_input_uses_structured_error() -> None:
+    result = subprocess.run(
+        [_python(), "-m", "cortex_bench_harness.proxy", "--trial-id", "trial-cli"],
+        capture_output=True, text=True, timeout=20,
+    )
+    document = json.loads(result.stderr)
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert document["ok"] is False
+    assert "required" in document["error"]
+
+
+def test_budget_model_rejects_nonfinite_decimals() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        ProxyBudget(
+            Decimal("Infinity"), Decimal("1"), Decimal("1"), Decimal("1"),
+        )
 
 
 def _python() -> str:

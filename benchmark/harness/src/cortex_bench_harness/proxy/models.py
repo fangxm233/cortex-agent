@@ -19,6 +19,12 @@ class ProxyBudget:
     output_cost_per_million_usd: Decimal
 
     def __post_init__(self) -> None:
+        values = (
+            self.max_cost_usd, self.max_request_cost_usd,
+            self.input_cost_per_million_usd, self.output_cost_per_million_usd,
+        )
+        if not all(value.is_finite() for value in values):
+            raise ValueError("budget values must be finite decimals")
         if min(self.max_cost_usd, self.max_request_cost_usd) <= 0:
             raise ValueError("budget limits must be greater than zero")
         if min(self.input_cost_per_million_usd,
