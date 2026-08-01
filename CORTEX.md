@@ -11,6 +11,7 @@ Cortex is an autonomous research agent system for robotics and AI/ML. It runs as
 | `web/` | Web SPA (Vite + React 18, tRPC client), including active-only provider throttle status on desktop and mobile Projects. Built to `web/dist`, served by the in-core UI host and desktop shell. |
 | `desktop/` | Tauri v2 desktop shell. Loads `web/dist` via asset protocol in a native webview. Exposes `get_connection_config` / `set_connection_config` Tauri commands plus `window.__CORTEX_DESKTOP_CONFIG` for injecting `{serverUrl, token}` into the SPA. See [desktop/CORTEX.md](desktop/CORTEX.md). |
 | `packages/` | Shared/deployment packages: `ui-contract` provides Web UI tRPC types; `deepseek-relay-worker` is the authenticated, fixed-upstream Cloudflare Worker used when lab2 cannot reach DeepSeek directly. |
+| `benchmark/` | Installable adapters and reproducibility tooling for external benchmark harnesses. |
 | `context/` | Structured knowledge repository for research projects (experiments, knowledge entries, patterns). |
 | `tmp/` | Experiment artifacts, analysis scripts, logs, and working files. |
 | `.claude/` | Claude Code configuration (settings.json, hooks, plans). |
