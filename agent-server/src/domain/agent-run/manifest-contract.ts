@@ -8,8 +8,9 @@ const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
 export type TerminalState = 'completed' | 'failed' | 'cancelled' | 'timeout';
-export type TerminalReason = 'ok' | 'child_failure' | 'deadline' | 'cancelled'
-  | 'containment_failure' | 'trajectory_write_failed' | 'rate_limited' | 'protocol_violation';
+export type TerminalReason = 'ok' | 'child_failure' | 'deadline' | 'deadline_exceeded' | 'cancelled'
+  | 'containment_failure' | 'trajectory_write_failed' | 'rate_limited' | 'protocol_violation'
+  | 'step_limit_exceeded' | 'cost_limit_exceeded';
 
 export interface SupervisorEvidence {
   quiescent: boolean;
@@ -65,10 +66,10 @@ const TERMINAL_REASONS: Record<TerminalState, readonly TerminalReason[]> = {
   completed: ['ok'],
   failed: [
     'child_failure', 'trajectory_write_failed', 'containment_failure',
-    'rate_limited', 'protocol_violation',
+    'rate_limited', 'protocol_violation', 'step_limit_exceeded', 'cost_limit_exceeded',
   ],
   cancelled: ['cancelled'],
-  timeout: ['deadline'],
+  timeout: ['deadline', 'deadline_exceeded'],
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {

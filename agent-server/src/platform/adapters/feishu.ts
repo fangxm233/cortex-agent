@@ -1,5 +1,5 @@
 // input:  Lark SDK, core/settings, platform types
-// output: FeishuAdapter messaging and live admin-chat routing
+// output: FeishuAdapter messaging, forms, and admin routing
 // pos:    Feishu PlatformAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -772,6 +772,26 @@ export class FeishuAdapter implements PlatformAdapter {
     }
   }
 
+  private async handleFormSubmission(action: any, userId: string): Promise<any> {
+    const formName = action.name || '';
+    const handler = this.modalHandlers.get(formName);
+    if (!handler) return undefined;
+    let ackResponse: { errors?: Record<string, string> } | undefined;
+    await handler({
+      callbackId: formName,
+      privateMetadata: JSON.stringify(action.value || {}),
+      values: this.normalizeFormValues(action.form_value),
+      userId,
+      async ack(response) {
+        ackResponse = response;
+      },
+    });
+    const error = Object.values(ackResponse?.errors ?? {})[0];
+    return error
+      ? { toast: { type: 'error', content: error } }
+      : { toast: { type: 'success', content: 'OK' } };
+  }
+
   private async handleCardAction(data: any): Promise<any> {
     const event = data.event || data;
     const action = event.action || {};
@@ -782,27 +802,8 @@ export class FeishuAdapter implements PlatformAdapter {
     const messageId = context.open_message_id || '';
     const userId = operator.open_id || '';
 
-    // Check if this is a form submission (has form_value)
     if (action.form_value && typeof action.form_value === 'object') {
-      // Form submission → route to modalHandlers
-      // The form name serves as the callbackId
-      const formName = action.name || '';
-      const handler = this.modalHandlers.get(formName);
-      if (handler) {
-        const normalizedValues = this.normalizeFormValues(action.form_value);
-        await handler({
-          callbackId: formName,
-          privateMetadata: JSON.stringify(action.value || {}),
-          values: normalizedValues,
-          userId,
-          async ack(_response) {
-            // Feishu ack is implicit via the callback return value — nothing to do.
-          },
-        });
-        // Return toast or updated card if needed
-        return { toast: { type: 'success', content: 'OK' } };
-      }
-      return undefined;
+      return this.handleFormSubmission(action, userId);
     }
 
     // Button click → route to actionHandlers

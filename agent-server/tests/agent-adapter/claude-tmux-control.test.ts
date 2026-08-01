@@ -172,7 +172,12 @@ test('pasteText uses a 0600 tempfile and removes it after paste', () => {
   };
   const tmux = new TmuxControl(exec);
   const text = 'hello\n你好\n`$\\"\'';
-  tmux.pasteText('cortex-claude-aaa', text);
+  const originalUmask = process.umask(0o022);
+  try {
+    tmux.pasteText('cortex-claude-aaa', text);
+  } finally {
+    process.umask(originalUmask);
+  }
 
   assert.equal(observedContent, text);
   assert.equal(observedMode, 0o600);

@@ -9,12 +9,21 @@ import path from 'node:path';
 export function runAgent(prompt, options) {
   const marker = path.join(process.env.CORTEX_HOME, 'data/fake-run-agent.jsonl');
   fs.mkdirSync(path.dirname(marker), { recursive: true });
-  fs.appendFileSync(marker, `${JSON.stringify({ prompt, profileName: options.profileName })}\n`);
+  fs.appendFileSync(marker, `${JSON.stringify({
+    prompt, profileName: options.profileName, cwd: options.cwd,
+  })}\n`);
+  const spawned = options.processSpawner?.(process.execPath, ['-e', ''], {
+    cwd: options.cwd,
+    env: process.env,
+  });
   options.onAssistantMessage?.('fake step complete');
   return {
     sessionId: 'fake-backend-session',
-    agentProcess: null,
-    kill: () => {},
+    agentProcess: spawned?.process ?? null,
+    kill: () => {
+      spawned?.supervision?.cancel('cancel');
+      return true;
+    },
     promise: Promise.resolve({
       finalOutput: 'fake step complete',
       sessionId: 'fake-backend-session',

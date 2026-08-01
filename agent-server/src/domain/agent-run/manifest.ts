@@ -793,6 +793,18 @@ function validateStarted(root: string, startedPath: string, problems: string[]):
   validateTerminalIdentities(terminal, scan.header, journalPath, problems);
 }
 
+export function validateTrajectoryLifecycle(input: {
+  trajectoryRoot: string;
+  rootRunId: string;
+  threadId: string | null;
+}): { ok: boolean; problems: string[] } {
+  const started = resolveLifecyclePaths(input).started;
+  if (!fs.existsSync(started)) return { ok: false, problems: [`missing_started_marker:${started}`] };
+  const problems: string[] = [];
+  validateStarted(input.trajectoryRoot, started, problems);
+  return { ok: problems.length === 0, problems };
+}
+
 export function validateTrajectoryRoot(root: string): { ok: boolean; problems: string[] } {
   let startedFiles: string[];
   try {

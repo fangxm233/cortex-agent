@@ -13,6 +13,7 @@ import {
   type Fixture,
   assertNoListeningSocket,
   bashPid,
+  cleanupRuns,
   collect,
   createFixture,
   fileTree,
@@ -35,6 +36,15 @@ interface CapturedRun {
   stdout: Promise<string>;
   stderr: Promise<string>;
   diagnostics(): string;
+}
+
+function processExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function captureRun(fixture: Fixture, child: ChildProcess): CapturedRun {
@@ -146,6 +156,20 @@ async function assertCollisionRetry(
   assert.equal(fs.existsSync(fixture.claudeMarker), false, 'retry must fail before spawning Claude');
   assert.deepEqual(snapshotTree(fixture.home), homeAfter);
 }
+
+it('cleans the complete fixture process tree after a forced run abort', async () => {
+  const fixture = createFixture('forced-abort-cleanup');
+  const child = spawnRun(fixture, { FAKE_CLAUDE_PROBE_SIGNAL: '1' });
+  await waitForText(fixture.claudeMarker, 'bash_pid', child);
+  const runPids = processTree(child.pid!).map(line => Number(line.split(':', 1)[0]));
+  assert.ok(runPids.length >= 4, JSON.stringify(processTree(child.pid!)));
+  assert.equal(child.kill('SIGKILL'), true);
+  await waitForExit(child);
+
+  await cleanupRuns();
+
+  assert.deepEqual(runPids.filter(processExists), []);
+});
 
 it('runs one daemon-free contained turn through background quiescence', async () => {
   const fixture = createFixture();

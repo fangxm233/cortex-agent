@@ -13,7 +13,7 @@ It routes required/recovered events into debounced user notices.
 | cc-subscription.ts | adapter | Drives abortable Claude subscription login |
 | index.ts | entry | Exports the authentication domain API |
 | login-flow.ts | core | Coordinates login outcomes, aborts, and safe errors |
-| login-service.ts | service | Selects backend consumers for shared login starts |
+| login-service.ts | service | Selects consumers and fences post-handoff cancellation |
 | pi-login.ts | adapter | Logs PI providers in with safe flow errors |
 | pi-oauth.ts | adapter | Logs OAuth-capable PI providers in safely |
 | pi-runtime.ts | adapter | Loads the installed PI model runtime |

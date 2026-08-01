@@ -6,7 +6,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 |---|---|---|
 | agent-run/ | subdir | run journals, manifests and process containment |
 | agents/ | subdir | agent profile resolution and switching |
-| auth-login-service.test.ts | test | shared backend login entry and delegation |
+| auth-login-service.test.ts | test | backend selection and cancellation fencing |
 | auth-status.test.ts | test | backend auth state, manageability and output |
 | cc-login.test.ts | test | Claude API-key persistence, concurrency and recovery |
 | cc-subscription.test.ts | test | Claude subscription security, expiry, and cancellation |

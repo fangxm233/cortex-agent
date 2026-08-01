@@ -1,5 +1,5 @@
 // input:  mounted LoginFlowModal, fake auth tRPC operations, and status fixtures
-// output: password, mutation, polling, cancellation, and non-echo regressions
+// output: accessible prompt, safe cancel, polling, and non-echo regressions
 // pos:    Mounted Web API-key login flow specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -21,6 +21,7 @@ const harness = vi.hoisted(() => ({
   queryState: null as LoginFlowState | null,
   startError: null as string | null,
   startPromise: null as Promise<LoginFlowState> | null,
+  respondPromise: null as Promise<LoginFlowState> | null,
 }));
 
 vi.mock('@/design', () => ({
@@ -44,6 +45,7 @@ vi.mock('@/lib/trpc', () => ({
       respondPrompt: {
         mutate: async (variables: unknown) => {
           harness.respondCalls.push(variables);
+          if (harness.respondPromise) return harness.respondPromise;
           return harness.respondState;
         },
       },
@@ -177,6 +179,7 @@ beforeEach(() => {
   harness.queryState = state('prompt');
   harness.startError = null;
   harness.startPromise = null;
+  harness.respondPromise = null;
 });
 
 describe('LoginFlowModal', () => {
@@ -200,7 +203,10 @@ describe('LoginFlowModal', () => {
     const renderer = mount();
     await clickAsync(renderer, 'auth-start');
 
-    expect(renderer.root.findByProps({ 'data-auth-secret': true }).props.type).toBe('password');
+    const input = renderer.root.findByProps({ 'data-auth-secret': true });
+    expect(input.props.type).toBe('password');
+    expect(input.props['aria-labelledby']).toBe('auth-login-prompt-label');
+    expect(renderer.root.findByProps({ id: 'auth-login-prompt-label' }).children.join('')).toContain('API key');
   });
 
   it('uses an uncached direct mutation and never re-renders a submitted secret', async () => {
@@ -219,6 +225,30 @@ describe('LoginFlowModal', () => {
     expect(JSON.stringify(renderer.toJSON())).not.toContain(secret);
     expect(renderer.root.findByProps({ 'data-auth-flow-step': 'done' })).toBeTruthy();
     expect(harness.invalidations.some((entry: any) => entry.__kind === 'auth.status')).toBe(true);
+  });
+
+  it('hides cancellation while the credential response is pending', async () => {
+    const pending = deferred<LoginFlowState>();
+    harness.respondPromise = pending.promise;
+    const renderer = mount();
+    await clickAsync(renderer, 'auth-start');
+    const input = renderer.root.findByProps({ 'data-auth-secret': true });
+    act(() => { input.props.onChange({ target: { value: 'sentinel-web-secret' } }); });
+    click(renderer, 'auth-submit');
+
+    expect(renderer.root.findAllByProps({ 'data-action': 'auth-cancel' })).toHaveLength(0);
+    await act(async () => { pending.resolve(state('running')); await pending.promise; });
+  });
+
+  it('does not offer cancellation after the credential handoff begins', async () => {
+    harness.respondState = state('running');
+    const renderer = mount();
+    await clickAsync(renderer, 'auth-start');
+    const input = renderer.root.findByProps({ 'data-auth-secret': true });
+    act(() => { input.props.onChange({ target: { value: 'sentinel-web-secret' } }); });
+    await clickAsync(renderer, 'auth-submit');
+
+    expect(renderer.root.findAllByProps({ 'data-action': 'auth-cancel' })).toHaveLength(0);
   });
 
   it('cancels the active flow and stops polling terminal state', async () => {

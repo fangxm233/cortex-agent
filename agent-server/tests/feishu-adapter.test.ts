@@ -1,5 +1,5 @@
 // input:  FeishuAdapter, isolated config, mocked Lark calls
-// output: messaging, form callbacks, persistence, and routing tests
+// output: messaging, validated form callbacks, and routing tests
 // pos:    Verifies Feishu adapter platform mappings
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -330,6 +330,24 @@ test('Feishu handleCardAction: form submit reaches the modal handler with normal
   assert.deepEqual(received.values.b1.a1, { selectedOption: { value: 'v2' } });
   assert.deepEqual(received.values.b2.a2, { value: 'hi' });
   assert.deepEqual(ret, { toast: { type: 'success', content: 'OK' } });
+});
+
+test.each([
+  ['login_provider', 'Provider is required.'],
+  ['login_secret', 'API key is required.'],
+])('Feishu handleCardAction returns modal validation for an empty %s', async (field, message) => {
+  const a = makeAdapter();
+  a.onModalSubmit('cmd_login_submit', async context => {
+    await context.ack({ errors: { [field]: message } });
+  });
+
+  const result = await a.handleCardAction({ event: {
+    operator: { open_id: 'ou_user' },
+    context: { open_chat_id: 'oc_1', open_message_id: 'om_1' },
+    action: { name: 'cmd_login_submit', value: {}, form_value: {} },
+  } });
+
+  assert.deepEqual(result, { toast: { type: 'error', content: message } });
 });
 
 // =========================================================================

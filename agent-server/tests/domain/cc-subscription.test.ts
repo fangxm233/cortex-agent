@@ -34,8 +34,9 @@ import {
 const TOKEN = 'sk-ant-oat01-fixture-private-token';
 const CODE = 'fixture-code#fixture-state';
 const AUTH_URL = 'https://claude.com/cai/oauth/authorize?code=true&scope=user%3Ainference&state=fixture';
-const WRITE_TIME_MS = Date.parse('2030-01-01T00:00:00.000Z');
-const EXPECTED_EXPIRY = '2031-01-01T00:00:00.000Z';
+const LOGIN_STARTED_AT = Date.parse('2030-01-01T00:00:00.000Z');
+const TOKEN_WRITTEN_AT = Date.parse('2030-01-01T00:00:00.500Z');
+const EXPECTED_EXPIRY = '2031-01-01T00:00:00.500Z';
 const EXPECTED_DETAIL = "Expiry derived from the Claude CLI's declared one-year validity.";
 const INITIAL_PANE = `Browser didn't open? Use the url below to sign in (c to copy)\n\nhttps://claude.com/cai/oauth/authorize?code=true&scope=user%3\nAinference&state=fixture\n\nPaste code here if prompted >`;
 const SUCCESS_PANE = `Long-lived authentication token created successfully!\n\nYour OAuth token (valid for 1 year):\n${TOKEN}\n\nStore this token securely.`;
@@ -102,7 +103,7 @@ interface SuccessEvidence {
   dependencies: ClaudeSubscriptionLoginDependencies;
 }
 
-function successDependencies(tmux = new FakeTmux(), useRealSave = false): SuccessEvidence {
+function successDependencies(tmux = new FakeTmux()): SuccessEvidence {
   const saved: string[] = [];
   const recovered: Array<{ backend: 'claude'; provider: string }> = [];
   let reloads = 0;
@@ -113,10 +114,7 @@ function successDependencies(tmux = new FakeTmux(), useRealSave = false): Succes
       tmux,
       cwd: process.env.CORTEX_HOME!,
       sessionName: () => 'cortex-claude-auth-fixture',
-      saveToken: async (token, signal) => {
-        if (useRealSave) await saveClaudeCodeOAuthToken(token, signal);
-        saved.push(token);
-      },
+      saveToken: async token => { saved.push(token); },
       reloadAuth: () => { reloads += 1; },
       publishRecovered: input => { recovered.push(input); },
       submitDelayMs: 0,
@@ -249,8 +247,14 @@ afterEach(() => {
 });
 
 test('ANSI success pane persists to isolated env, derives expiry, recovers, and leaves no pane artifact', async (t) => {
-  const evidence = successDependencies(new FakeTmux(INITIAL_PANE, ANSI_SUCCESS_PANE), true);
-  evidence.dependencies.now = () => WRITE_TIME_MS;
+  const evidence = successDependencies(new FakeTmux(INITIAL_PANE, ANSI_SUCCESS_PANE));
+  let now = LOGIN_STARTED_AT;
+  evidence.dependencies.now = () => now;
+  evidence.dependencies.saveToken = async (token, signal) => {
+    await saveClaudeCodeOAuthToken(token, signal);
+    evidence.saved.push(token);
+    now = TOKEN_WRITTEN_AT;
+  };
   evidence.tmux.exitCliOnSubmit = true;
   const consoleCalls = captureConsole(t);
   const flow = await startFlow(flowInput(), interaction =>

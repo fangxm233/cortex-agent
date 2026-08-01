@@ -1,5 +1,5 @@
 // input:  cortex CLI, fake supervisor, temp process fixtures
-// output: shared agent-run E2E setup and observable-state helpers
+// output: shared agent-run E2E setup and process cleanup helpers
 // pos:    Process fixture support for serial agent-run E2E tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -9,28 +9,45 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
-import { afterEach, beforeEach } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest';
 
 const ENTRY = fileURLToPath(new URL('../../../src/entry/cli.ts', import.meta.url));
 const FAKE_SUPERVISOR = fileURLToPath(new URL('./fake-supervisor.ts', import.meta.url));
+const WORKER_SIGNALS = ['SIGINT', 'SIGTERM'] as const;
 export const SHA256 = /^[a-f0-9]{64}$/;
+
+interface TrackedRun {
+  child: ChildProcess;
+  fixture: Fixture;
+}
+
+interface OwnedRun {
+  child: ChildProcess;
+  owner: string;
+  pids: number[];
+  groups: number[];
+}
+
 let root = '';
-let children: ChildProcess[] = [];
+let runs: TrackedRun[] = [];
+const signalHandlers = new Map<NodeJS.Signals, () => void>();
+
+beforeAll(installWorkerCleanup);
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-run-e2e-'));
-  children = [];
+  runs = [];
 });
 
 afterEach(async () => {
-  for (const child of children) {
-    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-  }
-  await Promise.all(children.map(waitForExit));
+  await cleanupRuns();
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+afterAll(removeWorkerCleanup);
 
 const FAKE_CLAUDE_SOURCE = `#!/usr/bin/env node
 import { appendFileSync, writeFileSync } from 'node:fs';
@@ -91,6 +108,7 @@ export interface Fixture {
   bashCwdMarker: string;
   claudeMarker: string;
   claudeInvocationMarker: string;
+  supervisorMarker: string;
   args: string[];
   env: NodeJS.ProcessEnv;
 }
@@ -205,6 +223,7 @@ function fixturePaths(base: string, seeded: ReturnType<typeof seedFixture>): Fix
     bashCwdMarker: path.join(base, 'bash-cwd'),
     claudeMarker: path.join(base, 'claude.jsonl'),
     claudeInvocationMarker: path.join(base, 'claude-invocations.jsonl'),
+    supervisorMarker: path.join(base, 'supervisor.json'),
     args: [], env: {},
   };
 }
@@ -226,8 +245,10 @@ function fixtureEnv(base: string, fixture: Fixture): NodeJS.ProcessEnv {
     CORTEX_PROJECTS_DIR: path.join(base, 'projects'),
     HOME: path.join(base, 'user-home'), XDG_CONFIG_HOME: path.join(base, 'xdg-config'),
     XDG_CACHE_HOME: path.join(base, 'xdg-cache'), CLAUDE_CONFIG_DIR: path.join(base, 'claude-config'),
+    AGENT_RUN_E2E_OWNER: base,
     FAKE_SUPERVISOR_MODE: 'clean',
     FAKE_SUPERVISOR_FAILURE_FILE: path.join(base, 'supervisor-failure.txt'),
+    FAKE_SUPERVISOR_PID_FILE: fixture.supervisorMarker,
     FAKE_CLAUDE_MARKER: fixture.claudeMarker,
     FAKE_CLAUDE_INVOCATIONS: fixture.claudeInvocationMarker,
     BASH_CWD_MARKER: fixture.bashCwdMarker,
@@ -388,15 +409,139 @@ export function sha256(value: string | Buffer): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
+function markerRecords(file: string): Array<Record<string, unknown>> {
+  if (!fs.existsSync(file)) return [];
+  try {
+    return fs.readFileSync(file, 'utf8').trim().split('\n')
+      .filter(Boolean).map(line => JSON.parse(line));
+  } catch {
+    return [];
+  }
+}
+
+function markerPids(file: string): number[] {
+  return markerRecords(file).flatMap(record => [record.pid, record.bash_pid])
+    .filter((value): value is number => typeof value === 'number' && value > 0);
+}
+
+function processStat(pid: number): { state: string; group: number } | null {
+  try {
+    const value = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const fields = value.slice(value.lastIndexOf(') ') + 2).split(' ');
+    return { state: fields[0], group: Number(fields[2]) };
+  } catch {
+    return null;
+  }
+}
+
+function processHasOwner(pid: number, owner: string): boolean {
+  try {
+    const environment = fs.readFileSync(`/proc/${pid}/environ`);
+    return environment.includes(Buffer.from(`AGENT_RUN_E2E_OWNER=${owner}\0`));
+  } catch {
+    return false;
+  }
+}
+
+function ownedProcessExists(pid: number, owner: string): boolean {
+  const stat = processStat(pid);
+  if (stat === null) return false;
+  return stat.state === 'Z' || processHasOwner(pid, owner);
+}
+
+function ownerPids(owner: string): number[] {
+  return fs.readdirSync('/proc').filter(value => /^\d+$/.test(value))
+    .map(Number).filter(pid => processHasOwner(pid, owner));
+}
+
+function snapshotRun(run: TrackedRun): OwnedRun {
+  const owner = run.fixture.env.AGENT_RUN_E2E_OWNER!;
+  const claudePids = markerPids(run.fixture.claudeMarker);
+  const supervisorPids = markerPids(run.fixture.supervisorMarker);
+  const pids = [run.child.pid, ...supervisorPids, ...claudePids, ...ownerPids(owner)]
+    .filter((value): value is number => value !== undefined);
+  return {
+    child: run.child,
+    owner,
+    pids: [...new Set(pids)],
+    groups: [...new Set([run.child.pid, claudePids[0]].filter(
+      (value): value is number => value !== undefined,
+    ))],
+  };
+}
+
+function signalOwnedGroup(run: OwnedRun, group: number, signal: NodeJS.Signals): void {
+  const hasMember = run.pids.some(pid =>
+    ownedProcessExists(pid, run.owner) && processStat(pid)?.group === group);
+  if (!hasMember) return;
+  try {
+    process.kill(-group, signal);
+  } catch {}
+}
+
+function signalOwnedRun(run: OwnedRun, signal: NodeJS.Signals): void {
+  for (const group of run.groups) signalOwnedGroup(run, group, signal);
+  for (const pid of run.pids) {
+    if (!ownedProcessExists(pid, run.owner)) continue;
+    try {
+      process.kill(pid, signal);
+    } catch {}
+  }
+}
+
+function processGroupExists(group: number): boolean {
+  return fs.readdirSync('/proc').filter(value => /^\d+$/.test(value))
+    .map(Number).some(pid => processStat(pid)?.group === group);
+}
+
+async function waitForOwnedExit(run: OwnedRun): Promise<void> {
+  const active = () => run.pids.some(pid => ownedProcessExists(pid, run.owner))
+    || run.groups.some(processGroupExists);
+  while (active()) await delay(5);
+}
+
+export async function cleanupRuns(): Promise<void> {
+  const active = [...runs];
+  const owned = active.map(snapshotRun);
+  for (const run of owned) signalOwnedRun(run, 'SIGTERM');
+  await Promise.all(active.map(run => waitForExit(run.child)));
+  await Promise.all(owned.map(waitForOwnedExit));
+  runs = runs.filter(run => !active.includes(run));
+}
+
+function forceCleanupRuns(): void {
+  for (const run of runs.map(snapshotRun)) signalOwnedRun(run, 'SIGKILL');
+}
+
+function installWorkerCleanup(): void {
+  process.on('exit', forceCleanupRuns);
+  for (const signal of WORKER_SIGNALS) {
+    const handler = () => {
+      forceCleanupRuns();
+      process.removeListener(signal, handler);
+      process.kill(process.pid, signal);
+    };
+    signalHandlers.set(signal, handler);
+    process.on(signal, handler);
+  }
+}
+
+function removeWorkerCleanup(): void {
+  process.removeListener('exit', forceCleanupRuns);
+  for (const [signal, handler] of signalHandlers) process.removeListener(signal, handler);
+  signalHandlers.clear();
+}
+
 export function spawnRun(
   fixture: Fixture, env: NodeJS.ProcessEnv = {}, stdin?: string | Buffer,
   imports: string[] = [],
 ): ChildProcess {
   const importArgs = imports.flatMap(value => ['--import', value]);
   const child = spawn(process.execPath, [...importArgs, '--import', 'tsx', ENTRY, 'agent-run', ...fixture.args], {
+    detached: true,
     env: { ...fixture.env, ...env }, stdio: [stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
   });
-  children.push(child);
+  runs.push({ child, fixture });
   if (stdin !== undefined) child.stdin!.end(stdin);
   return child;
 }

@@ -6,8 +6,9 @@
 const FAKE_AGENT = new URL('./fake-run-agent-module.mjs', import.meta.url).href;
 
 export async function resolve(specifier, context, nextResolve) {
-  const runnerImport = context.parentURL?.endsWith('/dist/domain/threads/runner.js')
-    && specifier === '../agents/index.js';
+  const runnerParent = context.parentURL?.endsWith('/dist/domain/threads/runner.js')
+    || context.parentURL?.endsWith('/src/domain/threads/runner.ts');
+  const runnerImport = runnerParent && specifier === '../agents/index.js';
   if (runnerImport) return { url: FAKE_AGENT, shortCircuit: true };
   return nextResolve(specifier, context);
 }
