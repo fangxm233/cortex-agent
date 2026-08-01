@@ -129,6 +129,17 @@ it('uses the resolved fd target so a removed workspace symlink cannot hide host 
   })), [{ path: actual, reason: 'host_cortex_path' }]);
 });
 
+it('applies parent segments after resolving a workspace symlink', () => {
+  const jump = path.join(policy.workspace, 'jump');
+  fs.symlinkSync(path.join(policy.hostCortexHome, 'data'), jump);
+  const attempted = `${jump}/../secret.json`;
+  const result = trace(`4.70 chmod("${attempted}", 0600) = 0`);
+
+  assert.deepEqual(result.violations.map(({ path: offender, reason }) => ({
+    path: offender, reason,
+  })), [{ path: attempted, reason: 'host_cortex_path' }]);
+});
+
 it('resolves a dangling workspace symlink before classifying a failed open', () => {
   const apparent = path.join(policy.workspace, 'dangling-link');
   const actual = path.join(policy.hostCortexHome, 'data/missing.json');

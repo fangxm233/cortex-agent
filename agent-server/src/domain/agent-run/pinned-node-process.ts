@@ -67,9 +67,14 @@ function isInheritedRuntimeKey(key: string): boolean {
   return INHERITED_ENV_KEYS.has(key) || key.startsWith('LC_');
 }
 
+function splitPathValues(part: string): string[] {
+  const token = part.includes('=') ? part.slice(part.lastIndexOf('=') + 1) : part;
+  if (token.includes('://')) return [token];
+  return token.split(path.delimiter);
+}
+
 function pathCandidates(value: string, cwd: string): string[] {
-  return value.split(/[\s,;]+/).flatMap((part) => {
-    const token = part.includes('=') ? part.slice(part.lastIndexOf('=') + 1) : part;
+  return value.split(/[\s,;]+/).flatMap(splitPathValues).flatMap((token) => {
     const unquoted = token.replace(/^["']|["']$/g, '');
     if (!unquoted.includes('/') || unquoted.includes('://')) return [];
     return [path.isAbsolute(unquoted) ? path.resolve(unquoted) : path.resolve(cwd, unquoted)];

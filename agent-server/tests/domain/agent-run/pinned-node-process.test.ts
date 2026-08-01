@@ -136,6 +136,14 @@ it('rejects absolute and cwd-relative passthrough references to host roots', () 
     },
     passthroughEnv: ['CUSTOM_INPUT'],
   }), /references a forbidden host root/);
+  assert.throws(() => preparePinnedNodeLaunch({
+    ...base,
+    parentEnv: {
+      CORTEX_HOME: hostCortex,
+      CUSTOM_INPUT: `/usr/lib${path.delimiter}${hostCortex}/data`,
+    },
+    passthroughEnv: ['CUSTOM_INPUT'],
+  }), /references a forbidden host root/);
 });
 
 it('disables Node global search paths before loading the entry', () => {
