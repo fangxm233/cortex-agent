@@ -794,14 +794,20 @@ function handleStop(v: ParsedValues) {
 }
 
 /** Capture provenance from env so task.completed can wake the originating session (Problem 1).
- *  Suppressed by --no-notify. Returns null when no env context (e.g. a human at a raw shell). */
+ *  Suppressed by --no-notify. Returns null when no env context (e.g. a human at a raw shell).
+ *  Inside a thread (CORTEX_THREAD_ID set) only the thread id is recorded: a thread's
+ *  SLACK_CHANNEL is the dispatch conduit, not a human session — capturing it would wake a
+ *  context-less session there at completion and pollute the manager-qa escalation walk
+ *  (which reads origin_channel as "the human who set the work in motion"). Thread-origin
+ *  tasks are fire-and-forget: completion degrades to a durable project-report notice. */
 function readOriginFromEnv(noNotify: boolean): TaskOrigin | null {
   if (noNotify) return null;
+  const threadId = process.env.CORTEX_THREAD_ID || null;
+  if (threadId) return { sessionId: null, channel: null, threadId };
   const channel = process.env.SLACK_CHANNEL || process.env.FEISHU_CHANNEL || null;
   const sessionId = process.env.CORTEX_SESSION_ID || null;
-  const threadId = process.env.CORTEX_THREAD_ID || null;
-  if (!channel && !sessionId && !threadId) return null;
-  return { sessionId, channel, threadId };
+  if (!channel && !sessionId) return null;
+  return { sessionId, channel, threadId: null };
 }
 
 const MAX_SPAWN_DEPTH = 6;

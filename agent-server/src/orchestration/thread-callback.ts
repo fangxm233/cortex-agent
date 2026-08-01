@@ -78,17 +78,22 @@ export function buildChildResultNotice(child: ThreadRecord): string {
   return lines.join('\n');
 }
 
-/** Durable degraded-path notice to the project-report channel. */
-async function postProjectNotice(t: ThreadRecord, text: string): Promise<void> {
+/** Durable notice to a project's report channel (falls back to a direct post without a queue). */
+async function postProjectNoticeTo(projectId: string, trigger: string, text: string): Promise<void> {
   const adapter = jobCtx.adapter;
-  if (!adapter) { log.error(`no adapter; cannot post notice for ${t.id}`); return; }
-  const dest: Destination = { type: 'project-report', projectId: t.projectId, trigger: 'mcp-thread', sessionId: '' };
+  if (!adapter) { log.error(`no adapter; cannot post project notice for ${projectId}`); return; }
+  const dest: Destination = { type: 'project-report', projectId, trigger, sessionId: '' };
   const queue = getOutboundQueue();
   if (queue) {
     await durablePost(queue, adapter, dest, { text });
   } else {
     await adapter.postMessage(dest, { text });
   }
+}
+
+/** Durable degraded-path notice to the project-report channel. */
+async function postProjectNotice(t: ThreadRecord, text: string): Promise<void> {
+  await postProjectNoticeTo(t.projectId, 'mcp-thread', text);
 }
 
 /** Rebuild run options for a suspended or provider-paused thread.
@@ -544,13 +549,32 @@ function buildTaskOriginNotice(task: Task, kind: 'completed' | 'blocked'): strin
   return `[Task blocked] The task you dispatched #${task.id} (${task.project}) "${task.text}" is blocked.\nBlocked by: ${task.blocked_by || '(unrecorded)'}\nRun cortex-task show --task-id ${task.id} for details; once handled, cortex-task unblock.`;
 }
 
+/** Human-facing project-channel notice for a fire-and-forget task queued from inside a thread:
+ *  the thread has (most likely) ended and never consumes the result, so nobody is woken —
+ *  the outcome just surfaces in the project's report stream. */
+export function buildThreadOriginTaskNotice(task: Task, kind: 'completed' | 'blocked'): string {
+  const origin = `queued by thread ${task.origin_thread_id}`;
+  if (kind === 'completed') {
+    const note = task.completed_note ? `\nNote: ${task.completed_note}` : '';
+    return `[Task done] #${task.id} (${task.project}) "${task.text}" — ${origin}.${note}\nRun cortex-task show --task-id ${task.id} for details.`;
+  }
+  return `[Task blocked] #${task.id} (${task.project}) "${task.text}" — ${origin}.\nBlocked by: ${task.blocked_by || '(unrecorded)'}\nRun cortex-task show --task-id ${task.id} for details; once handled, cortex-task unblock.`;
+}
+
+type PostNoticeFn = (projectId: string, text: string) => void | Promise<void>;
+
 /** Session→task wake (Problem 1): when a task created by an interactive session/agent turns
  *  terminal, route a notice back to its origin channel. Default-on, no fallback — if origin_channel
  *  is set we always wake it. Mutually exclusive with the thread-parent path: if any thread is
  *  currently waiting on this task (waitingOnTasks), that path owns the result and we defer.
- *  `wake` is injectable for testing (mirrors the `resume` injection on notifyTaskParentThreads). */
+ *  Thread-origin tasks (origin_thread_id set — fire-and-forget adds from inside a thread) never
+ *  wake a session: the creating thread has likely ended, and its recorded channel is an
+ *  unattended dispatch conduit; the result degrades to a durable project-report notice instead.
+ *  origin_thread_id takes precedence over origin_channel so legacy tasks that captured both
+ *  are fixed retroactively. `wake`/`postNotice` are injectable for testing (mirrors the
+ *  `resume` injection on notifyTaskParentThreads). */
 export async function notifyTaskOriginSession(
-  taskId: string, kind: 'completed' | 'blocked', deps: { wake?: WakeFn } = {},
+  taskId: string, kind: 'completed' | 'blocked', deps: { wake?: WakeFn; postNotice?: PostNoticeFn } = {},
   ownership?: TaskGenerationExpectation,
 ): Promise<void> {
   for (const t of threadStore.getAll()) {
@@ -559,20 +583,28 @@ export async function notifyTaskOriginSession(
   const key = `task_${taskId}_${kind}`;
   if (fired.has(key)) return;
   const located = scanAllTasks().find((task) => task.id === taskId);
-  if (!located?.origin_channel) return;
+  if (!located?.origin_channel && !located?.origin_thread_id) return;
   const delivery = await withTaskFileMutationLockAsync(located.project, async () => {
     const task = readTaskFromDisk(located.project, taskId);
-    if (!task?.origin_channel) return null;
+    if (!task || (!task.origin_channel && !task.origin_thread_id)) return null;
     if (kind === 'completed' && task.status !== 'done') return null;
     if (kind === 'completed' && !matchesTaskGeneration(task, ownership)) return null;
     if (kind === 'blocked' && !task.blocked_by) return null;
     if (kind === 'blocked' && !matchesTaskGeneration(task, ownership)) return null;
     fired.add(key);
-    return { channel: task.origin_channel, notice: buildTaskOriginNotice(task, kind) };
+    if (task.origin_thread_id) {
+      return { channel: null, project: task.project, notice: buildThreadOriginTaskNotice(task, kind) };
+    }
+    return { channel: task.origin_channel!, project: task.project, notice: buildTaskOriginNotice(task, kind) };
   });
   if (!delivery) return;
-  const wake = deps.wake ?? ((ch, n) => wakeSession(ch, n, `task_${taskId}`));
-  await wake(delivery.channel, delivery.notice);
+  if (delivery.channel) {
+    const wake = deps.wake ?? ((ch, n) => wakeSession(ch, n, `task_${taskId}`));
+    await wake(delivery.channel, delivery.notice);
+  } else {
+    const post = deps.postNotice ?? ((p, n) => postProjectNoticeTo(p, 'task-origin', n));
+    await post(delivery.project, delivery.notice);
+  }
 }
 
 /** Sweep one waiting thread's waitingOnTasks against disk state: deliver already-done and
