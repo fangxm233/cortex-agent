@@ -1,5 +1,5 @@
 // input:  mounted CenterChat/Composer, deferred mutations, captured live events
-// output: production optimistic-send wiring and authority-race regressions
+// output: optimistic-send authority and concurrent-submission regressions
 // pos:    Mounted desktop optimistic sender integration specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +15,8 @@ const harness = vi.hoisted(() => ({
   selectionListeners: new Set<() => void>(),
   sendMutateAsync: vi.fn(),
   createAndSendMutateAsync: vi.fn(),
+  sendPending: false,
+  createAndSendPending: false,
   selectCreatedSession: vi.fn(),
   invalidateQueries: vi.fn(),
   liveState: {} as any,
@@ -37,10 +39,10 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
     },
     useMutation: (options: any) => {
       if (options.__kind === 'sessions.send') {
-        return { mutateAsync: harness.sendMutateAsync, isPending: false };
+        return { mutateAsync: harness.sendMutateAsync, isPending: harness.sendPending };
       }
       if (options.__kind === 'sessions.createAndSend') {
-        return { mutateAsync: harness.createAndSendMutateAsync, isPending: false };
+        return { mutateAsync: harness.createAndSendMutateAsync, isPending: harness.createAndSendPending };
       }
       return { mutate: vi.fn(), isPending: false };
     },
@@ -192,13 +194,21 @@ function mountCenterChat(): ReactTestRenderer {
   return renderer;
 }
 
-function typeAndSend(renderer: ReactTestRenderer, text: string): void {
+function typeComposer(renderer: ReactTestRenderer, text: string): void {
   act(() => {
     renderer.root.findByProps({ 'data-composer-input': true }).props.onChange({ target: { value: text } });
   });
+}
+
+function clickSend(renderer: ReactTestRenderer): void {
   act(() => {
     renderer.root.findByProps({ 'data-action': 'send' }).props.onClick();
   });
+}
+
+function typeAndSend(renderer: ReactTestRenderer, text: string): void {
+  typeComposer(renderer, text);
+  clickSend(renderer);
 }
 
 function renderedUsers(renderer: ReactTestRenderer): string[] {
@@ -215,6 +225,8 @@ beforeEach(() => {
   harness.selectionListeners.clear();
   harness.sendMutateAsync.mockReset();
   harness.createAndSendMutateAsync.mockReset();
+  harness.sendPending = false;
+  harness.createAndSendPending = false;
   harness.selectCreatedSession.mockReset();
   harness.invalidateQueries.mockReset();
   harness.liveState = emptyLiveState();
@@ -321,5 +333,69 @@ describe('mounted optimistic sender wiring', () => {
     });
 
     expect(renderedUsers(mounted)).toEqual(['new conversation']);
+  });
+
+  it('blocks a second existing-session click while the first send is pending', async () => {
+    const gate = deferred<{ accepted: boolean }>();
+    harness.sendMutateAsync.mockReturnValue(gate.promise);
+    mounted = mountCenterChat();
+
+    typeAndSend(mounted, 'first existing message');
+    harness.sendPending = true;
+    act(() => mounted?.update(<LangProvider><CenterChat /></LangProvider>));
+    typeComposer(mounted, 'second existing message');
+
+    const sendControl = mounted.root.findByProps({ 'data-action': 'send' });
+    expect(sendControl.type).toBe('button');
+    expect(sendControl.props.disabled).toBe(true);
+    expect(sendControl.props['aria-label']).toBe('send');
+    clickSend(mounted);
+
+    expect(harness.sendMutateAsync).toHaveBeenCalledOnce();
+    expect(mounted.root.findByProps({ 'data-composer-input': true }).props.value).toBe('second existing message');
+
+    await act(async () => {
+      gate.resolve({ accepted: true });
+      await gate.promise;
+    });
+  });
+
+  it('blocks a second draft click while create-and-send is pending', async () => {
+    const gate = deferred<{ sessionId: string }>();
+    harness.sessions = [];
+    harness.selection = selection(true);
+    harness.createAndSendMutateAsync.mockReturnValue(gate.promise);
+    mounted = mountCenterChat();
+
+    typeAndSend(mounted, 'first draft message');
+    harness.createAndSendPending = true;
+    act(() => mounted?.update(<LangProvider><CenterChat /></LangProvider>));
+    typeComposer(mounted, 'second draft message');
+
+    const sendControl = mounted.root.findByProps({ 'data-action': 'send' });
+    expect(sendControl.props.disabled).toBe(true);
+    clickSend(mounted);
+
+    expect(harness.createAndSendMutateAsync).toHaveBeenCalledOnce();
+    expect(harness.sendMutateAsync).not.toHaveBeenCalled();
+    expect(mounted.root.findByProps({ 'data-composer-input': true }).props.value).toBe('second draft message');
+
+    await act(async () => {
+      gate.resolve({ sessionId: 's-new' });
+      await gate.promise;
+    });
+  });
+
+  it('allows an intentional running-turn send when no mutation is pending', () => {
+    harness.sessions = [{ ...SESSION, running: true }];
+    harness.sendMutateAsync.mockResolvedValue({ accepted: true });
+    mounted = mountCenterChat();
+
+    typeComposer(mounted, 'inject into running turn');
+    const sendControl = mounted.root.findByProps({ 'data-action': 'send' });
+    expect(sendControl.props.disabled).toBe(false);
+    clickSend(mounted);
+
+    expect(harness.sendMutateAsync).toHaveBeenCalledOnce();
   });
 });
