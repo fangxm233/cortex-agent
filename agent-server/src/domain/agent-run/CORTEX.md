@@ -4,6 +4,9 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 
 | filename | role | function |
 |---|---|---|
+| access-probe-cli.ts | cli | runs a pinned Node syscall probe from flags |
+| access-probe-policy.ts | policy | parses and classifies file and network traces |
+| access-probe.ts | process | executes strace and emits isolation verdicts |
 | agent-run-cli.ts | cli | parses required file/stdin flags and runs a turn |
 | identity.ts | core | freezes deterministic run identity hashes |
 | journal.ts | core | appends durable run event journals |

@@ -4,6 +4,10 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 
 | filename | role | function |
 |---|---|---|
+| access-probe-cli.test.ts | test | verifies help and dual-format probe output |
+| access-probe-fixture.mjs | fixture | emits clean and forbidden syscall patterns |
+| access-probe-policy.test.ts | test | proves path and socket policy classification |
+| access-probe.test.ts | e2e | proves real clean and forbidden syscall verdicts |
 | agent-run-cli.test.ts | test | verifies required flags, stdin ownership and help |
 | agent-run-e2e.test.ts | e2e | proves stdin, nullable accounting and completion |
 | fake-supervisor.ts | fixture | emits lifecycle edges from a real process group |
