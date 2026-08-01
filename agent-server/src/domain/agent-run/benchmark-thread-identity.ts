@@ -14,14 +14,14 @@ import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import { resolveSystemVars } from '../threads/prompt-builder.js';
 import {
   canonicalJsonSha256, computeBundleManifestHash, computeModelExecutionIdentityHash,
-  computeRoleToolSurfaceHash, type IdentityJsonValue, type RoleToolSurfaceInput,
+  computeRoleToolSurfaceHash, resolvedRouteHost,
+  type IdentityJsonValue, type RoleToolSurfaceInput,
 } from './identity.js';
 import type { JournalIdentityInput } from './journal.js';
 import {
   confinedJournalPath, inspectActiveJournalModelIdentity,
   resolveLifecyclePaths, startedMarkerProblem,
 } from './manifest.js';
-import { resolvedRouteHost } from './run-config.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
 
 export interface BenchmarkIdentityRequest {
