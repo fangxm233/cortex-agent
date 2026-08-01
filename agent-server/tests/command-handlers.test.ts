@@ -180,7 +180,7 @@ test('!login rejects unsupported arguments with localized usage', async () => {
 
   assert.equal(dispatchCommand('!login now', 'C-auth', adapter), true);
   await new Promise(resolve => setImmediate(resolve));
-  assert.match(adapter.posted[0].content.text, /!login \[status\]/);
+  assert.match(adapter.posted[0].content.text, /!login \[status\|cc\|pi \[provider\]\]/);
 });
 
 test('!schedule add without --profile fixes task profile to defaultProfile', async () => {

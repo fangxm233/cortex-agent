@@ -1,5 +1,5 @@
 // input:  command dependencies, platform adapter, command handlers
-// output: registerCommands dispatcher including auth status
+// output: registerCommands dispatcher including auth flows
 // pos:    Orchestration command registry and dispatcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -29,7 +29,7 @@ import { handleDispatchCmd } from './dispatch.js';
 import { handleLangCmd } from './lang.js';
 import { handleRestartCmd } from './restart.js';
 import { createLoginHandler } from './login.js';
-import type { AuthStatusSnapshot } from '@domain/auth/index.js';
+import type { AuthLoginService, AuthStatusSnapshot } from '@domain/auth/index.js';
 
 const log = createLogger('command-handler');
 
@@ -40,6 +40,7 @@ export interface CommandDeps {
   commandRouter?: CommandActionRouter;
   compactSessionByChannel?: CompactSessionByChannel | null;
   getAuthStatus?: (() => Promise<AuthStatusSnapshot>) | null;
+  authLogin?: AuthLoginService;
 }
 
 type Handler = (channel: string, adapter: PlatformAdapter, trimmedMessage: string, threadAnchorId?: string | null) => Promise<CommandResult | void>;
@@ -107,7 +108,11 @@ function createHandlerSet(deps: CommandDeps) {
     register: createRegisterHandler(router),
     projectDir: createProjectDirHandler(router),
     schedule: createScheduleHandler(deps.scheduler, router),
-    login: createLoginHandler(deps.getAuthStatus ?? undefined),
+    login: createLoginHandler({
+      readStatus: deps.getAuthStatus ?? undefined,
+      authLogin: deps.authLogin,
+      router,
+    }),
   };
 }
 
@@ -133,7 +138,7 @@ function createExactCommands(h: HandlerSet): Record<string, Handler> {
     '!agent': (ch, ad, msg) => h.agent(ch, ad, msg),
     '!orient': (ch, ad) => handleOrientCmd(ch, ad),
     '!lang': (ch, ad, msg) => handleLangCmd(ch, ad, msg),
-    '!login': (_ch, _ad, msg) => h.login(msg),
+    '!login': (ch, ad, msg) => h.login(ch, ad, msg),
     '!restart': (ch, ad, msg) => handleRestartCmd(ch, ad, msg),
   };
 }
@@ -160,7 +165,7 @@ function createPrefixCommands(h: HandlerSet): PrefixHandler[] {
     { prefix: '!sendFile', handler: handleSendFileCmd },
     { prefix: '!dispatch', handler: handleDispatchCmd as Handler },
     { prefix: '!lang', handler: handleLangCmd },
-    { prefix: '!login ', handler: (_ch, _ad, msg) => h.login(msg) },
+    { prefix: '!login ', handler: (ch, ad, msg) => h.login(ch, ad, msg) },
   ];
 }
 

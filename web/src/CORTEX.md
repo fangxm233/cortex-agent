@@ -6,7 +6,7 @@ Splits into shared layers (design, i18n, theme, lib) and screen layers (features
 | filename | role | function |
 |---|---|---|
 | main.tsx | entry | Mounts the React root with providers and router |
-| providers.tsx | provider | Nests the global providers around the app |
+| providers.tsx | provider | Nests global clients, themes and login overlay |
 | RootRouter.tsx | core | Chooses the mobile or desktop router |
 | router.tsx | core | Declares desktop page routes under the app shell |
 | index.css | style | Theme variables, base layer and animations |

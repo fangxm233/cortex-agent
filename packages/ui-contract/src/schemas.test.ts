@@ -1,5 +1,5 @@
 // input:  runtime shared Zod schema maps
-// output: operation coverage including auth.status
+// output: operation coverage including authentication flows
 // pos:    Runtime UI-contract schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -11,7 +11,7 @@ const QUERY_SCOPES = [
   'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
   'threads.get', 'tasks.list', 'tasks.verification', 'schedules.list', 'executions.list', 'executions.get',
   'memory.tree', 'memory.file', 'approvals.list', 'issues.list', 'notes.list', 'cost.summary', 'config.get',
-  'auth.status', 'hooks.list', 'machines.list', 'skills.list', 'threadTemplates.get', 'system.daemonStatus',
+  'auth.status', 'auth.flowState', 'hooks.list', 'machines.list', 'skills.list', 'threadTemplates.get', 'system.daemonStatus',
   'system.rateLimitStatus',
 ] as const;
 
@@ -24,7 +24,7 @@ const MUTATE_OPS = [
   'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',
   'issues.handle', 'issues.delete', 'notes.add', 'notes.update', 'notes.setCompleted', 'notes.delete',
   'notes.clearCompleted', 'config.set', 'hooks.create', 'hooks.update', 'hooks.setEnabled', 'hooks.remove',
-  'hooks.test', 'system.restart',
+  'hooks.test', 'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'system.restart',
 ] as const;
 
 test('every QueryScope has an input schema', () => {
@@ -45,6 +45,31 @@ test('empty query schemas accept empty input', () => {
   assert.deepEqual(queryInputSchemas['projects.list'].parse({}), {});
   assert.deepEqual(queryInputSchemas['auth.status'].parse({}), {});
   assert.deepEqual(queryInputSchemas['system.rateLimitStatus'].parse({}), {});
+});
+
+test('auth flow schemas accept metadata and require the secret response value', () => {
+  assert.deepEqual(
+    queryInputSchemas['auth.flowState'].parse({ flowId: 'flow-1' }),
+    { flowId: 'flow-1' },
+  );
+  assert.deepEqual(
+    mutateInputSchemas['auth.startLogin'].parse({
+      backend: 'pi', provider: 'deepseek', authType: 'api_key',
+    }),
+    { backend: 'pi', provider: 'deepseek', authType: 'api_key' },
+  );
+  assert.deepEqual(
+    mutateInputSchemas['auth.respondPrompt'].parse({ flowId: 'flow-1', value: 'secret' }),
+    { flowId: 'flow-1', value: 'secret' },
+  );
+  assert.deepEqual(
+    mutateInputSchemas['auth.cancelFlow'].parse({ flowId: 'flow-1' }),
+    { flowId: 'flow-1' },
+  );
+  assert.throws(() => mutateInputSchemas['auth.respondPrompt'].parse({ flowId: 'flow-1' }));
+  assert.throws(() => mutateInputSchemas['auth.startLogin'].parse({
+    backend: 'pi', provider: 'deepseek', authType: 'oauth',
+  }));
 });
 
 test('list and detail query schemas accept valid input', () => {

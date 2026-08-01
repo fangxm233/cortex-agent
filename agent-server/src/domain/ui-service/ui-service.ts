@@ -1,5 +1,5 @@
 // input:  UiServiceDeps and query/mutation handlers
-// output: createUiService with authentication status routing
+// output: createUiService with authentication flow routing
 // pos:    Transport-neutral UI-service dispatcher
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -17,7 +17,7 @@ import { handleIssuesList } from './query/issues.js';
 import { handleNotesList } from './query/notes.js';
 import { handleCostSummary } from './query/cost.js';
 import { handleConfigGet } from './query/config.js';
-import { handleAuthStatus } from './query/auth.js';
+import { handleAuthFlowState, handleAuthStatus } from './query/auth.js';
 import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleSkillsList } from './query/skills.js';
@@ -58,6 +58,11 @@ import {
   handleNotesUpdate,
 } from './mutate/notes.js';
 import { handleSystemRestart } from './mutate/system.js';
+import {
+  handleAuthCancelFlow,
+  handleAuthRespondPrompt,
+  handleAuthStartLogin,
+} from './mutate/auth.js';
 import { createSubscription } from './subscribe.js';
 import { resolveExecutionLogLocation } from '@domain/executions/log-tailer.js';
 
@@ -84,6 +89,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'cost.summary': (deps, params) => handleCostSummary(deps, params),
   'config.get': (deps, params) => handleConfigGet(deps, params),
   'auth.status': (deps, params) => handleAuthStatus(params, deps.getAuthStatus),
+  'auth.flowState': (deps, params) => handleAuthFlowState(params, deps.authLogin?.getState),
   'hooks.list': (deps, params) => handleHooksList(deps, params),
   'machines.list': (deps, params) => handleMachinesList(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),
@@ -126,6 +132,9 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'notes.delete': (deps, args) => handleNotesDelete(deps, args),
   'notes.clearCompleted': (deps, args) => handleNotesClearCompleted(deps, args),
   'config.set': (deps, args) => handleConfigSet(deps, args),
+  'auth.startLogin': (deps, args) => handleAuthStartLogin(deps, args),
+  'auth.respondPrompt': (deps, args) => handleAuthRespondPrompt(deps, args),
+  'auth.cancelFlow': (deps, args) => handleAuthCancelFlow(deps, args),
   'hooks.create': (deps, args) => handleHooksCreate(deps, args),
   'hooks.update': (deps, args) => handleHooksUpdate(deps, args),
   'hooks.setEnabled': (deps, args) => handleHooksSetEnabled(deps, args),
@@ -135,7 +144,12 @@ const mutateHandlers: Record<string, MutateHandler> = {
 };
 
 export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {
-  if (!op.startsWith('notes.') || !args || typeof args !== 'object') return args;
+  if (!args || typeof args !== 'object') return args;
+  if (op === 'auth.respondPrompt') {
+    const { flowId } = args as { flowId?: unknown };
+    return { flowId };
+  }
+  if (!op.startsWith('notes.')) return args;
   const { text: _privateText, ...safe } = args as Record<string, unknown>;
   return safe;
 }

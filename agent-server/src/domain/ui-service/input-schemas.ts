@@ -1,5 +1,5 @@
 // input:  Zod, settings spec, UI-service operation unions
-// output: input schemas/maps including authentication status
+// output: input schemas/maps including authentication flows
 // pos:    Runtime validation source for the UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -86,6 +86,10 @@ export const configGetInput = z.object({});
 
 export const authStatusInput = z.object({});
 
+export const authFlowStateInput = z.object({
+  flowId: z.string().min(1),
+});
+
 export const machinesListInput = z.object({});
 
 export const skillsListInput = z.object({});
@@ -105,6 +109,21 @@ export const executionsLogInput = z.object({
 });
 
 // ── Mutate input schemas ──────────────────────────────────────────
+
+export const authStartLoginInput = z.object({
+  backend: z.enum(['claude', 'pi']),
+  provider: z.string().min(1),
+  authType: z.literal('api_key'),
+});
+
+export const authRespondPromptInput = z.object({
+  flowId: z.string().min(1),
+  value: z.string().min(1),
+});
+
+export const authCancelFlowInput = z.object({
+  flowId: z.string().min(1),
+});
 
 // Presence/type guard only; deep name validation (traversal / reserved / separators) lives in
 // ProjectStore.createProject so the rule has one source of truth.
@@ -448,6 +467,7 @@ export const queryInputSchemas = {
   'cost.summary': costSummaryInput,
   'config.get': configGetInput,
   'auth.status': authStatusInput,
+  'auth.flowState': authFlowStateInput,
   'hooks.list': hooksListInput,
   'machines.list': machinesListInput,
   'skills.list': skillsListInput,
@@ -490,6 +510,9 @@ export const mutateInputSchemas = {
   'notes.delete': noteActionInput,
   'notes.clearCompleted': notesClearCompletedInput,
   'config.set': configSetInput,
+  'auth.startLogin': authStartLoginInput,
+  'auth.respondPrompt': authRespondPromptInput,
+  'auth.cancelFlow': authCancelFlowInput,
   'hooks.create': hooksCreateInput,
   'hooks.update': hooksUpdateInput,
   'hooks.setEnabled': hooksSetEnabledInput,

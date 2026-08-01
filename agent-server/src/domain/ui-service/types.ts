@@ -1,5 +1,5 @@
-// input:  domain types, auth status, runtime settings, stores
-// output: UI DTOs/maps including authentication snapshots
+// input:  domain types, auth flows, runtime settings, stores
+// output: UI DTOs/maps including authentication operations
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -27,13 +27,23 @@ import type { LogLocation } from '@domain/executions/log-tailer.js';
 import type { SessionHistory } from '@store/conversation-history-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import type { ProjectNote } from '@store/project-notes-repo.js';
-import type { AuthStatusSnapshot } from '@domain/auth/index.js';
+import type {
+  AuthLoginService,
+  AuthStatusSnapshot,
+  LoginFlowState,
+} from '@domain/auth/index.js';
 export type {
   AuthAccountState,
   AuthAccountStatus,
   AuthCredentialStatus,
   AuthStatusSnapshot,
   AuthType,
+  LoginFlowNotice,
+  LoginFlowState,
+  LoginFlowStep,
+  LoginOutcome,
+  LoginPendingPrompt,
+  LoginPromptOption,
 } from '@domain/auth/index.js';
 
 // ── Result ────────────────────────────────────────────────────────
@@ -64,6 +74,7 @@ export type QueryScope =
   | 'cost.summary'
   | 'config.get'
   | 'auth.status'
+  | 'auth.flowState'
   | 'hooks.list'
   | 'machines.list'
   | 'skills.list'
@@ -107,6 +118,9 @@ export type MutateOp =
   | 'notes.delete'
   | 'notes.clearCompleted'
   | 'config.set'
+  | 'auth.startLogin'
+  | 'auth.respondPrompt'
+  | 'auth.cancelFlow'
   | 'hooks.create'
   | 'hooks.update'
   | 'hooks.setEnabled'
@@ -234,6 +248,10 @@ export type ConfigGetParams = Record<string, never>;
 
 export type AuthStatusParams = Record<string, never>;
 
+export interface AuthFlowStateParams {
+  flowId: string;
+}
+
 export type MachinesListParams = Record<string, never>;
 
 export type SkillsListParams = Record<string, never>;
@@ -248,6 +266,21 @@ export type SystemRateLimitStatusParams = Record<string, never>;
 
 export interface ProjectCreateArgs {
   name: string;
+}
+
+export interface AuthStartLoginArgs {
+  backend: 'claude' | 'pi';
+  provider: string;
+  authType: 'api_key';
+}
+
+export interface AuthRespondPromptArgs {
+  flowId: string;
+  value: string;
+}
+
+export interface AuthCancelFlowArgs {
+  flowId: string;
 }
 
 export interface SessionsCreateArgs {
@@ -1414,6 +1447,7 @@ export interface QueryParamMap {
   'cost.summary': CostSummaryParams;
   'config.get': ConfigGetParams;
   'auth.status': AuthStatusParams;
+  'auth.flowState': AuthFlowStateParams;
   'hooks.list': HooksListParams;
   'machines.list': MachinesListParams;
   'skills.list': SkillsListParams;
@@ -1442,6 +1476,7 @@ export interface QueryReturnMap {
   'cost.summary': CostSummary;
   'config.get': ConfigSnapshot;
   'auth.status': AuthStatusSnapshot;
+  'auth.flowState': LoginFlowState | null;
   'hooks.list': HooksOverview;
   'machines.list': MachineInfo[];
   'skills.list': SkillGroup[];
@@ -1484,6 +1519,9 @@ export interface MutateArgsMap {
   'notes.delete': NoteActionArgs;
   'notes.clearCompleted': NotesClearCompletedArgs;
   'config.set': ConfigSetArgs;
+  'auth.startLogin': AuthStartLoginArgs;
+  'auth.respondPrompt': AuthRespondPromptArgs;
+  'auth.cancelFlow': AuthCancelFlowArgs;
   'hooks.create': HooksCreateArgs;
   'hooks.update': HooksUpdateArgs;
   'hooks.setEnabled': HooksSetEnabledArgs;
@@ -1526,6 +1564,9 @@ export interface MutateReturnMap {
   'notes.delete': NotesDeleteReturn;
   'notes.clearCompleted': NotesClearCompletedReturn;
   'config.set': ConfigSetReturn;
+  'auth.startLogin': LoginFlowState;
+  'auth.respondPrompt': LoginFlowState;
+  'auth.cancelFlow': LoginFlowState;
   'hooks.create': HooksCreateReturn;
   'hooks.update': HooksUpdateReturn;
   'hooks.setEnabled': HooksSetEnabledReturn;
@@ -1556,8 +1597,9 @@ export interface UiService {
 // ── Deps ──────────────────────────────────────────────────────────
 
 export interface UiServiceDeps {
-  /** Optional seam for deterministic auth.status dispatch tests. */
+  /** Optional seam for deterministic authentication dispatch tests. */
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
+  authLogin?: AuthLoginService;
   projectStore: {
     list(): Project[];
     get(id: string): Project | undefined;
