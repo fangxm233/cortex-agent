@@ -1,5 +1,5 @@
 // input:  temporary auth files, PI fixtures, locale
-// output: auth state, login capability, and summary contracts
+// output: auth state, preferred capability, and summary contracts
 // pos:    Backend authentication status regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -12,6 +12,7 @@ import { getSavedApiEnv } from '../../src/domain/agents/config.js';
 import { formatAuthStatusSummary } from '../../src/domain/auth/auth-format.js';
 import {
   getAuthStatus,
+  preferredAuthType,
   type AuthStatusSnapshot,
 } from '../../src/domain/auth/auth-status.js';
 import { getLocale, setLocale } from '../../src/core/i18n.js';
@@ -19,6 +20,19 @@ import { loadPiRuntime, type PiRuntimeLoadResult } from '../../src/domain/auth/p
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NOW_MS = Date.parse('2030-01-01T00:00:00.000Z');
+
+test('preferred auth type uses probed capabilities with OAuth first', () => {
+  const snapshot = {
+    accounts: [
+      { backend: 'pi', provider: 'dual', capabilities: ['api_key', 'oauth'] },
+      { backend: 'pi', provider: 'key-only', capabilities: ['api_key'] },
+    ],
+  } as AuthStatusSnapshot;
+
+  assert.equal(preferredAuthType(snapshot, 'pi', 'dual'), 'oauth');
+  assert.equal(preferredAuthType(snapshot, 'pi', 'key-only'), 'api_key');
+  assert.equal(preferredAuthType(snapshot, 'pi', 'missing'), null);
+});
 
 interface PiFixture {
   root: string;

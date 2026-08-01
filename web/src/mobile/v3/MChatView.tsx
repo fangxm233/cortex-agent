@@ -744,7 +744,7 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
           )}
           {row.kind === 'notice' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
-              <ChatNotice level={row.level} text={row.text} />
+              <ChatNotice level={row.level} text={row.text} authAction={row.authAction} />
             </div>
           )}
           {row.kind === 'assistant' && (

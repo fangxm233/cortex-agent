@@ -14,6 +14,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AuthAccountStatus,
+  AuthNoticeAction,
   AuthType,
   LoginFlowNotice,
   LoginFlowState,
@@ -31,6 +32,9 @@ type Setter<T> = Dispatch<SetStateAction<T>>;
 export interface LoginFlowModalProps {
   open: boolean;
   onClose: () => void;
+  target?: AuthNoticeAction | null;
+  initialState?: LoginFlowState | null;
+  onFlowStateChange?: (state: LoginFlowState) => void;
 }
 
 interface ProviderOption {
@@ -42,6 +46,7 @@ interface ProviderOption {
 interface LoginController {
   backend: 'claude' | 'pi';
   authType: AuthType;
+  noticeId?: string;
   authTypes: AuthType[];
   provider: string;
   providers: ProviderOption[];
@@ -140,7 +145,10 @@ function DeviceCodeNotice({
       <div data-auth-device-code className="font-mono text-xl font-semibold tracking-wider text-state-ink">
         {notice.userCode}
       </div>
-      <NoticeLink href={notice.verificationUri}>{L.authLoginOpenVerification}</NoticeLink>
+      <div className="space-y-1g">
+        <p>{L.authLoginOpenVerification}</p>
+        <NoticeLink href={notice.verificationUri}>{notice.verificationUri}</NoticeLink>
+      </div>
       {expiry ? <p className="text-caption text-state-muted">{expiry}</p> : null}
     </div>
   );
@@ -264,7 +272,9 @@ function ProviderSelect({ controller }: { controller: LoginController }) {
 }
 
 function piProviderOptions(accounts: AuthAccountStatus[]): ProviderOption[] {
-  return accounts.filter(account => account.backend === 'pi').map(account => ({
+  return accounts.filter(account => (
+    account.backend === 'pi' && account.capabilities.length > 0
+  )).map(account => ({
     provider: account.provider,
     label: account.label,
     capabilities: account.capabilities,
@@ -283,7 +293,42 @@ function selectedAuthTypes(
   return selected?.capabilities ?? [];
 }
 
-function useLoginSelection(open: boolean) {
+function useTargetSelection(
+  open: boolean,
+  target: AuthNoticeAction | null | undefined,
+  setBackend: Setter<'claude' | 'pi'>,
+  setProvider: Setter<string>,
+  setAuthType: Setter<AuthType>,
+): void {
+  useEffect(() => {
+    if (!open || !target) return;
+    setBackend(target.backend);
+    setProvider(target.provider);
+    setAuthType(target.authType);
+  }, [open, target, setBackend, setProvider, setAuthType]);
+}
+
+function useAvailableSelection(
+  backend: 'claude' | 'pi',
+  provider: string,
+  providers: ProviderOption[],
+  authType: AuthType,
+  authTypes: AuthType[],
+  setProvider: Setter<string>,
+  setAuthType: Setter<AuthType>,
+): void {
+  useEffect(() => {
+    if (backend === 'pi' && providers.length > 0
+      && !providers.some(option => option.provider === provider)) {
+      setProvider(providers[0]?.provider ?? '');
+    }
+  }, [backend, provider, providers, setProvider]);
+  useEffect(() => {
+    if (!authTypes.includes(authType) && authTypes[0]) setAuthType(authTypes[0]);
+  }, [authType, authTypes, setAuthType]);
+}
+
+function useLoginSelection(open: boolean, target?: AuthNoticeAction | null) {
   const trpc = useTRPC();
   const [backend, setBackend] = useState<'claude' | 'pi'>('claude');
   const [authType, setAuthType] = useState<AuthType>('api_key');
@@ -292,22 +337,17 @@ function useLoginSelection(open: boolean) {
   const accounts = status.data?.accounts ?? [];
   const providers = useMemo(() => piProviderOptions(accounts), [accounts]);
   const authTypes = selectedAuthTypes(accounts, providers, backend, provider);
-  useEffect(() => {
-    if (backend === 'pi' && !providers.some(option => option.provider === provider)) {
-      setProvider(providers[0]?.provider ?? '');
-    }
-  }, [backend, provider, providers]);
-  useEffect(() => {
-    if (!authTypes.includes(authType) && authTypes[0]) setAuthType(authTypes[0]);
-  }, [authType, authTypes]);
+  useTargetSelection(open, target, setBackend, setProvider, setAuthType);
+  useAvailableSelection(
+    backend, provider, providers, authType, authTypes, setProvider, setAuthType,
+  );
   const chooseBackend = (next: 'claude' | 'pi') => {
     setBackend(next);
     setProvider(next === 'claude' ? 'anthropic' : (providers[0]?.provider ?? ''));
   };
-  return {
-    backend, authType, authTypes, provider, providers, chooseBackend,
+  return { backend, authType, authTypes, provider, providers, chooseBackend,
     chooseProvider: setProvider, chooseAuthType: setAuthType,
-  };
+    ...(target ? { noticeId: target.noticeId } : {}) };
 }
 
 function useFlowData(
@@ -338,8 +378,14 @@ function useFlowData(
   }, [latest?.step, queryClient, trpc.auth.status]);
 }
 
-function errorMessage(reason: unknown): string {
-  return reason instanceof Error ? reason.message : String(reason);
+function errorMessage(
+  reason: unknown,
+  expiredMessage: string,
+  conflictMessage: string,
+): string {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (message === 'Login flow not found or expired.') return expiredMessage;
+  return message.includes('active on another surface') ? conflictMessage : message;
 }
 
 interface LoginActionState {
@@ -352,6 +398,8 @@ interface LoginActionState {
   setResponse: Setter<string>;
   setResponseSent: Setter<boolean>;
   setError: Setter<string | null>;
+  expiredMessage: string;
+  conflictMessage: string;
 }
 
 type LoginClient = ReturnType<typeof useTRPCClient>;
@@ -368,11 +416,14 @@ async function startLogin(client: LoginClient, input: LoginActionState): Promise
       backend: input.selection.backend,
       provider: input.selection.provider,
       authType: input.selection.authType,
+      ...(input.selection.noticeId ? { noticeId: input.selection.noticeId } : {}),
     });
     if (!isCurrent(input, request)) return;
     input.setFlowId(state.flowId); input.setLatest(state); input.setResponse('');
   } catch (reason) {
-    if (isCurrent(input, request)) input.setError(errorMessage(reason));
+    if (isCurrent(input, request)) {
+      input.setError(errorMessage(reason, input.expiredMessage, input.conflictMessage));
+    }
   }
 }
 
@@ -385,7 +436,9 @@ async function submitLogin(client: LoginClient, input: LoginActionState): Promis
     const state = await client.auth.respondPrompt.mutate({ flowId: input.flowId, value });
     if (isCurrent(input, request)) input.setLatest(state);
   } catch (reason) {
-    if (isCurrent(input, request)) input.setError(errorMessage(reason));
+    if (isCurrent(input, request)) {
+      input.setError(errorMessage(reason, input.expiredMessage, input.conflictMessage));
+    }
   }
 }
 
@@ -396,7 +449,9 @@ async function cancelLogin(client: LoginClient, input: LoginActionState): Promis
     const state = await client.auth.cancelFlow.mutate({ flowId: input.flowId });
     if (isCurrent(input, request)) input.setLatest(state);
   } catch (reason) {
-    if (isCurrent(input, request)) input.setError(errorMessage(reason));
+    if (isCurrent(input, request)) {
+      input.setError(errorMessage(reason, input.expiredMessage, input.conflictMessage));
+    }
   }
 }
 
@@ -409,32 +464,84 @@ function useLoginActions(input: LoginActionState) {
   };
 }
 
-function useLoginController(open: boolean): LoginController {
-  const selection = useLoginSelection(open);
+function selectionMatchesTarget(
+  selection: ReturnType<typeof useLoginSelection>,
+  target: AuthNoticeAction,
+): boolean {
+  return selection.backend === target.backend
+    && selection.provider === target.provider
+    && selection.authType === target.authType;
+}
+
+interface LoginResetState {
+  generation: { current: number };
+  autoStarted: { current: string | null };
+  setFlowId: Setter<string | null>;
+  setLatest: Setter<LoginFlowState | null>;
+  setResponse: Setter<string>;
+  setResponseSent: Setter<boolean>;
+  setError: Setter<string | null>;
+}
+
+function useLoginReset(
+  open: boolean,
+  target: AuthNoticeAction | null | undefined,
+  initialState: LoginFlowState | null | undefined,
+  state: LoginResetState,
+): void {
+  useEffect(() => {
+    state.generation.current += 1;
+    state.setFlowId(open && initialState ? initialState.flowId : null);
+    state.setLatest(open ? initialState ?? null : null);
+    state.setResponse(''); state.setResponseSent(false); state.setError(null);
+    state.autoStarted.current = initialState ? target?.noticeId ?? null : null;
+  }, [open, target?.noticeId, initialState]);
+}
+
+function useNoticeAutoStart(
+  open: boolean,
+  target: AuthNoticeAction | null | undefined,
+  initialState: LoginFlowState | null | undefined,
+  controller: Pick<LoginController, 'canStart' | 'start'>,
+  matches: boolean,
+  autoStarted: { current: string | null },
+): void {
+  useEffect(() => {
+    if (!open || !target || initialState || !controller.canStart || !matches) return;
+    if (autoStarted.current === target.noticeId) return;
+    autoStarted.current = target.noticeId;
+    void controller.start();
+  }, [open, target, initialState, controller.canStart, controller.start, matches, autoStarted]);
+}
+
+function useLoginController(
+  open: boolean,
+  target?: AuthNoticeAction | null,
+  initialState?: LoginFlowState | null,
+  onFlowStateChange?: (state: LoginFlowState) => void,
+): LoginController {
+  const L = useVocab();
+  const selection = useLoginSelection(open, target);
   const [flowId, setFlowId] = useState<string | null>(null);
   const [latest, setLatest] = useState<LoginFlowState | null>(null);
   const [response, setResponse] = useState('');
   const [responseSent, setResponseSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
+  const autoStarted = useRef<string | null>(null);
   useFlowData(open, flowId, latest, responseSent, setLatest);
-  const actions = useLoginActions({
-    selection, flowId, response, generation,
+  const actions = useLoginActions({ selection, flowId, response, generation,
     setFlowId, setLatest, setResponse, setResponseSent, setError,
-  });
-  useEffect(() => {
-    if (open) return;
-    setFlowId(null); setLatest(null); setResponse(''); setError(null);
-    generation.current += 1;
-    setResponseSent(false);
-  }, [open]);
-  return {
-    ...selection, latest, response, error,
-    canCancel: !responseSent,
-    canStart: !!selection.provider && selection.authTypes.includes(selection.authType),
-    setResponse,
-    ...actions,
-  };
+    expiredMessage: L.authLoginExpired,
+    conflictMessage: L.authLoginAlreadyActive });
+  const canStart = !!selection.provider && selection.authTypes.includes(selection.authType);
+  useLoginReset(open, target, initialState, { generation, autoStarted,
+    setFlowId, setLatest, setResponse, setResponseSent, setError });
+  useNoticeAutoStart(open, target, initialState, { canStart, start: actions.start },
+    !!target && selectionMatchesTarget(selection, target), autoStarted);
+  useEffect(() => { if (latest) onFlowStateChange?.(latest); }, [latest, onFlowStateChange]);
+  return { ...selection, latest, response, error, canCancel: !responseSent,
+    canStart, setResponse, ...actions };
 }
 
 function modalBody(controller: LoginController, vm: LoginFlowVm) {
@@ -479,9 +586,11 @@ function modalFooter(
   return null;
 }
 
-export function LoginFlowModal({ open, onClose }: LoginFlowModalProps) {
+export function LoginFlowModal({
+  open, onClose, target, initialState, onFlowStateChange,
+}: LoginFlowModalProps) {
   const L = useVocab();
-  const controller = useLoginController(open);
+  const controller = useLoginController(open, target, initialState, onFlowStateChange);
   const vm = buildLoginFlowVm(controller.latest, L);
   return (
     <Modal

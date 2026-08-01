@@ -6,7 +6,7 @@ Write side of the UI service — one handler module per domain area the UI is al
 |---|---|---|
 | sessions.ts | mutate | creates, sends to, and controls sessions |
 | approvals.ts | mutate | approves, rejects, and queues approvals |
-| auth.ts | mutate | Starts, answers and classifies login conflicts |
+| auth.ts | mutate | Reuses notice-bound Web login flows |
 | issues.ts | mutate | handles or deletes project issue entries |
 | notes.ts | mutate | edits and completes private project notes |
 | config.ts | mutate | writes budget, profile and runtime settings |

@@ -1,5 +1,5 @@
 // input:  settings, stores, services, auth publishers
-// output: server runtime, auth notices, settings pushes
+// output: server runtime, actionable auth notices, settings pushes
 // pos:    Agent-server composition root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import * as dotenv from 'dotenv';
@@ -26,6 +26,7 @@ import { initHookBridge, resolveRequest as resolveHookRequest, setOnStale } from
 import { interactionRecords } from '@orch/interactions/interaction-records.js';
 import * as askUserQuestion from '@orch/interactions/ask-user-question.js';
 import { registerCommands } from '@orch/routing/commands/index.js';
+import { buildAuthRequiredLoginAction } from '@orch/routing/commands/login-notice.js';
 import { cancelChannelRuns } from '@orch/routing/commands/cancel.js';
 import { taskStore } from '@domain/tasks/store.js';
 import { taskMutator } from '@domain/tasks/mutator.js';
@@ -258,7 +259,9 @@ const oq = initOutboundQueue(adapter);
 // --- Init extracted modules ---
 initScheduledRunner(adapter);
 setBus(bus);
-registerAuthWatch(bus, adapter);
+registerAuthWatch(bus, adapter, {
+  buildPlatformAction: buildAuthRequiredLoginAction,
+});
 setInteractiveCallbacksFactory(buildInteractiveCallbacks);
 const scheduler = createScheduler();
 scheduler.setAdminNotifier(notifyAdmin);

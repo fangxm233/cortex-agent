@@ -6,7 +6,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | filename | role | function |
 |---|---|---|
 | admin-channel-hot-reload.ts | wiring | creates adapter with live admin settings |
-| app.ts | entry | Wires runtime services and event bus clients |
+| app.ts | entry | Wires runtime services, auth actions, and event clients |
 | auth-cli.ts | cli | handles auth status arguments and rendering |
 | cli-help.ts | cli | builds top-level and subcommand help |
 | cli.ts | entry | dispatches process and modular CLI handlers |

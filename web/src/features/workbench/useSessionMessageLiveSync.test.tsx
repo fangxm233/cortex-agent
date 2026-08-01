@@ -1,5 +1,5 @@
 // input:  mounted session live-sync hook and captured pending/delivery events
-// output: synchronous message-authority snapshot regression
+// output: synchronous message and auth-action authority regression
 // pos:    Verifies live authority is readable before React renders queued state
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -68,6 +68,25 @@ afterEach(async () => {
 });
 
 describe('useSessionMessageLiveSync message authority snapshot', () => {
+  it('preserves the safe auth action on a live notice', () => {
+    const authAction = {
+      kind: 'auth-login', noticeId: 'notice-web',
+      backend: 'pi', provider: 'deepseek', authType: 'api_key',
+    };
+
+    act(() => {
+      harness.liveHandler?.({
+        type: 'session.message',
+        payload: {
+          sessionId: 's1', role: 'assistant', text: 'Authentication expired',
+          noticeLevel: 'error', authAction, ts: '2026-08-01T01:00:00.000Z',
+        },
+      });
+    });
+
+    expect(observed?.getMessageSnapshot().liveTail[0]).toMatchObject({ authAction });
+  });
+
   it('updates synchronously for pending and delivered events before consumers render state', () => {
     const readSnapshot = observed?.getMessageSnapshot;
     const initialRender = observed;

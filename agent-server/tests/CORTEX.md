@@ -26,7 +26,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |
-| auth-watch.test.ts | test | auth notification routing, debounce and recovery |
+| auth-watch.test.ts | test | auth notification actions, debounce and recovery |
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |
 | cli-utils.test.ts | test | shared CLI help and error rendering |
@@ -76,7 +76,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | integration-settings-hotreload.test.ts | e2e | Settings migration and live reload behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
-| login-command-interactions.test.ts | test | chat login notices, validation, expiry and privacy |
+| login-command-interactions.test.ts | test | chat login actions, reuse, expiry and privacy |
 | machines-query.test.ts | test | machines list online/offline projection |
 | manager-qa.test.ts | test | manager ask/answer channel resolution |
 | manager-rotation.test.ts | test | live settings and task-artifact rehydration |

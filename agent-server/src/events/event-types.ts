@@ -1,9 +1,13 @@
 // input:  ChatNoticeLevel and SessionContextUsage
-// output: CortexEvent with task provenance and auth contracts
+// output: CortexEvent with task provenance and auth notice actions
 // pos:    Typed event contract for the shared EventBus
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
+import type {
+  AuthNoticeAction,
+  ChatNoticeLevel,
+  SessionContextUsage,
+} from '@core/types/agent-types.js';
 
 export type AuthErrorKind = 'login_required' | 'oauth_expired' | 'invalid_api_key' | 'unauthorized' | 'invalid_grant';
 
@@ -17,7 +21,7 @@ export type CortexEvent =
   // `pending` marks a user message written into a live turn's backend stdin but not yet read by the
   // model. It is NOT in conversation history yet — clients show it as a provisional row pinned below
   // everything the agent is currently emitting, and `session.message.delivered` later commits it.
-  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string; noticeLevel?: ChatNoticeLevel; pending?: boolean; pendingId?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }
+  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string; noticeLevel?: ChatNoticeLevel; authAction?: AuthNoticeAction; pending?: boolean; pendingId?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }
   // Token-level preview of an assistant text block still being generated. `text` is the INCREMENT
   // since the previous event of that `blockId`, never the accumulated total; `seq` starts at 0 per
   // block. Superseded by the `session.message` carrying the same `blockId`, which is authoritative.

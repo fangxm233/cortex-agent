@@ -1,11 +1,11 @@
 // input:  mounted LoginFlowModal, fake auth tRPC operations, and status fixtures
-// output: Auth notice, prompt, cancel, polling, and non-echo regressions
+// output: Auth prefill, reuse, prompt, and non-echo regressions
 // pos:    Mounted Web backend login flow specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LoginFlowNotice, LoginFlowState } from '@cortex-agent/ui-contract';
+import type { AuthNoticeAction, LoginFlowNotice, LoginFlowState } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 
 const harness = vi.hoisted(() => ({
@@ -116,7 +116,9 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   };
 });
 
-import { LoginFlowModal } from './LoginFlowModal';
+import { ChatNotice } from '@/features/workbench/ChatNotice';
+import { LoginFlowModal, type LoginFlowModalProps } from './LoginFlowModal';
+import { LoginFlowProvider } from './LoginFlowProvider';
 
 function state(
   step: LoginFlowState['step'],
@@ -144,6 +146,7 @@ function authStatus() {
       { backend: 'pi', provider: 'deepseek', label: 'DeepSeek', capabilities: ['api_key'] },
       { backend: 'pi', provider: 'oauth-only', label: 'OAuth only', capabilities: ['oauth'] },
       { backend: 'pi', provider: 'dual-auth', label: 'Dual auth', capabilities: ['api_key', 'oauth'] },
+      { backend: 'pi', provider: 'metadata-only', label: 'Metadata only', capabilities: [] },
     ],
     piRuntime: { available: true, version: 'test', entry: null, error: null },
   };
@@ -155,14 +158,41 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function mount(): ReactTestRenderer {
+function mount(props: Partial<LoginFlowModalProps> = {}): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
-  act(() => { renderer = create(<LangProvider><LoginFlowModal open onClose={() => {}} /></LangProvider>); });
+  act(() => {
+    renderer = create(
+      <LangProvider><LoginFlowModal open onClose={() => {}} {...props} /></LangProvider>,
+    );
+  });
+  return renderer;
+}
+
+const NOTICE_TARGET: AuthNoticeAction = {
+  kind: 'auth-login', noticeId: 'notice-web',
+  backend: 'pi', provider: 'dual-auth', authType: 'oauth',
+};
+
+function NoticeLauncher(): JSX.Element {
+  return <ChatNotice level="error" text="Authentication expired" authAction={NOTICE_TARGET} />;
+}
+
+function mountProvider(): ReactTestRenderer {
+  let renderer!: ReactTestRenderer;
+  act(() => {
+    renderer = create(
+      <LangProvider><LoginFlowProvider><NoticeLauncher /></LoginFlowProvider></LangProvider>,
+    );
+  });
   return renderer;
 }
 
 function click(renderer: ReactTestRenderer, action: string): void {
   act(() => { renderer.root.findByProps({ 'data-action': action }).props.onClick(); });
+}
+
+function clickNotice(renderer: ReactTestRenderer): void {
+  act(() => { renderer.root.findByProps({ 'data-auth-notice-action': true }).props.onClick(); });
 }
 
 async function clickAsync(renderer: ReactTestRenderer, action: string): Promise<void> {
@@ -195,6 +225,48 @@ const NOTICE_CASES: Array<[LoginFlowNotice, LoginFlowNotice['kind']]> = [
 ];
 
 describe('LoginFlowModal', () => {
+  it('auto-starts a notice target with the server-selected OAuth capability', async () => {
+    harness.startState = state('prompt', {
+      backend: 'pi', provider: 'dual-auth', authType: 'oauth',
+      pendingPrompt: { kind: 'manual_code', message: 'Enter code' },
+    });
+    harness.queryState = harness.startState;
+    mount({ target: NOTICE_TARGET });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(harness.startCalls).toEqual([{
+      backend: 'pi', provider: 'dual-auth', authType: 'oauth', noticeId: 'notice-web',
+    }]);
+  });
+
+  it('reopens a terminal notice flow instead of creating another flow', async () => {
+    harness.startState = state('done', {
+      backend: 'pi', provider: 'dual-auth', authType: 'oauth',
+      outcome: { provider: 'dual-auth', authType: 'oauth', expiresAt: null },
+    });
+    harness.queryState = harness.startState;
+    const renderer = mountProvider();
+    clickNotice(renderer);
+    await act(async () => { await Promise.resolve(); });
+    click(renderer, 'auth-close');
+    clickNotice(renderer);
+    await act(async () => { await Promise.resolve(); });
+
+    expect(harness.startCalls).toHaveLength(1);
+    expect(renderer.root.findByProps({ 'data-auth-flow-step': 'done' })).toBeTruthy();
+  });
+
+  it('shows cached terminal feedback for an already-bound notice target', () => {
+    const terminal = state('done', {
+      backend: 'pi', provider: 'dual-auth', authType: 'oauth',
+      outcome: { provider: 'dual-auth', authType: 'oauth', expiresAt: null },
+    });
+    const renderer = mount({ target: NOTICE_TARGET, initialState: terminal });
+
+    expect(harness.startCalls).toHaveLength(0);
+    expect(renderer.root.findByProps({ 'data-auth-flow-step': 'done' })).toBeTruthy();
+  });
+
   it('lists all PI providers and skips auth selection for an API-key-only provider', async () => {
     const renderer = mount();
     act(() => {
@@ -354,6 +426,9 @@ describe('LoginFlowModal', () => {
     if (kind === 'device_code') {
       expect(html).toContain('ABCD-EFGH');
       expect(html).toContain('600');
+      expect(renderer.root.findByType('a').children.join('')).toBe(
+        'https://verify.example.test',
+      );
     }
     if (kind === 'progress') {
       expect(renderer.root.findAllByProps({ 'data-auth-progress': true })).toHaveLength(1);
@@ -396,7 +471,19 @@ describe('LoginFlowModal', () => {
     const renderer = mount();
     await clickAsync(renderer, 'auth-start');
 
-    expect(renderer.root.findByProps({ role: 'alert' }).children.join('')).toContain('another surface');
+    expect(renderer.root.findByProps({ role: 'alert' }).children.join('')).toBe(
+      'A login flow is already active on another surface.',
+    );
+  });
+
+  it('localizes a server-reported expired notice binding', async () => {
+    harness.startError = 'Login flow not found or expired.';
+    const renderer = mount({ target: NOTICE_TARGET });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(renderer.root.findByProps({ role: 'alert' }).children.join('')).toContain(
+      'This login flow expired',
+    );
   });
 
   it('renders an expired error when flowState returns null', async () => {

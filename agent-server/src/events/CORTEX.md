@@ -8,5 +8,5 @@ Other layers publish state changes here and subscribers observe them.
 | event-bus.ts | core | publishes events to subscribers |
 | event-logger.ts | logger | writes hot-toggleable daily event logs |
 | event-replay.ts | cli | prints logged events for a chosen day |
-| event-types.ts | types | Declares Cortex events with task completion provenance |
+| event-types.ts | types | Declares Cortex events including auth notice actions |
 | index.ts | barrel | exports the public events API and types |

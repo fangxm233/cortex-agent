@@ -1,5 +1,5 @@
 // input:  built UI-service declarations and cost types
-// output: browser DTO contract including authentication flows
+// output: browser DTO contract including auth notice actions
 // pos:    Shared server-to-client compile-time DTO boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -75,6 +75,7 @@ export type {
   InteractionQuestion,
   TranscriptInteractionDetail,
   TranscriptDebugDetails,
+  AuthNoticeAction,
   ChatNoticeLevel,
   SessionContextUsage,
   // Output DTOs

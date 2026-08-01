@@ -14,6 +14,7 @@ Each file covers one command family, from sessions and threads to devices, costs
 | dispatch.ts | command | overrides the profile of a dispatch thread |
 | index.ts | entry | matches command text and dispatches handlers |
 | lang.ts | command | shows and switches the interface language |
+| login-notice.ts | helper | Starts and reuses login flows from auth notices |
 | login.ts | command | Drives validated auth prompts and replaceable notices |
 | mode.ts | command | switches Claude/PI backend, model, profile and agent |
 | nvtop.ts | command | reports GPU usage on registered machines |
