@@ -33,7 +33,7 @@ export function isAutoResumeEnabled(): boolean {
 export function buildResumeReminder(): string {
   return [
     '<system-reminder>',
-    'The previous turn was interrupted by an API rate limit (the 5-hour window). That window has now reset; you may continue.',
+    'The previous turn was interrupted by an API error. The provider has recovered; you may continue.',
     'Resume from where you left off: review the recent conversation context above, work out what is still unfinished, and finish it.',
     'Do not restart the task from scratch, and do not re-ask for information the user already provided. If the previous turn was in fact already complete, briefly confirm and stop.',
     'This message is only a resume signal; it should not change your original task.',
