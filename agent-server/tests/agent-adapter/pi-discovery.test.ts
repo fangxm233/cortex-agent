@@ -57,6 +57,15 @@ test('authenticated provider scan parses the PI table emitted on stderr', async 
   assert.equal(options.timeout, 10_000);
 });
 
+test('authenticated provider scan rejects when the PI command fails', async () => {
+  const commandError = new Error('pi executable unavailable');
+  execFileMock.mockImplementationOnce((_file, _args, _options, callback) => {
+    callback(commandError, '', '');
+  });
+
+  await assert.rejects(discoverPIProviders(), commandError);
+});
+
 test('cold reads return immediately and coalesce one provider refresh', async () => {
   const pending = deferred<string[]>();
   let scans = 0;
