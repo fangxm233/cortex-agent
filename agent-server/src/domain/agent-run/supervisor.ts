@@ -1,4 +1,4 @@
-// input:  supervisor executable, control-fd records, shutdown signals
+// input:  supervisor, control records, stdio, signals
 // output: strict parser, watchdog session, exit taxonomy
 // pos:    Process-supervisor client for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -92,6 +92,7 @@ type ProtocolPhase =
   | 'quiescent'
   | 'failed';
 type StdioMode = 'inherit' | 'ignore' | 'pipe';
+type StandardStdio = StdioMode | [StdioMode, StdioMode, StdioMode];
 
 function createDeferred<T>(): Deferred<T> {
   let resolvePromise!: (value: T) => void;
@@ -290,8 +291,10 @@ function buildSupervisorArgs(options: {
   return [...result, '--', ...options.args];
 }
 
-function buildStdio(controlFd: number, standard: StdioMode): StdioMode[] {
-  const stdio: StdioMode[] = [standard, standard, standard];
+function buildStdio(controlFd: number, standard: StandardStdio): StdioMode[] {
+  const stdio: StdioMode[] = Array.isArray(standard)
+    ? [...standard]
+    : [standard, standard, standard];
   while (stdio.length <= controlFd) stdio.push('ignore');
   stdio[controlFd] = 'pipe';
   return stdio;
@@ -471,7 +474,7 @@ export function attachSupervisor(options: {
   controlFd?: number;
   cwd?: string;
   env?: NodeJS.ProcessEnv;
-  stdio?: 'inherit' | 'pipe';
+  stdio?: 'inherit' | 'pipe' | ['ignore', 'pipe', 'pipe'];
 }): SupervisorSession {
   const controlFd = validateAttachOptions(options);
   const child = spawn(options.binary, buildSupervisorArgs({ ...options, controlFd }), {
