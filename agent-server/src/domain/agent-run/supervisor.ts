@@ -23,6 +23,14 @@ export type ExitReason =
   | 'containment_failure'
   | 'trajectory_write_failed';
 
+const EXIT_CODES = {
+  ok: 0,
+  deadline: 124,
+  cancelled: 130,
+  containment_failure: 125,
+  trajectory_write_failed: 74,
+} satisfies Record<Exclude<ExitReason, 'child_failure'>, number>;
+
 export type SupervisorContainmentDetail =
   | 'unsupported_platform'
   | 'containment_failed'
@@ -177,11 +185,8 @@ export function parseSupervisorLine(line: string): SupervisorLine {
 }
 
 export function exitCodeFor(reason: ExitReason, childCode?: number): number {
-  if (reason === 'ok') return 0;
   if (reason === 'child_failure') return Number.isInteger(childCode) && childCode !== 0 ? childCode : 1;
-  if (reason === 'deadline') return 124;
-  if (reason === 'cancelled') return 130;
-  return 125;
+  return EXIT_CODES[reason];
 }
 
 class ProtocolState {
