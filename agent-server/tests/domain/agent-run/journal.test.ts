@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { it } from 'vitest';
 import {
   TrajectoryWriteFailedError,
@@ -26,6 +26,9 @@ import {
   type TerminalReason,
   type TerminalState,
 } from '../../../src/domain/agent-run/manifest.js';
+
+const AGENT_SERVER_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const JOURNAL_MODULE_URL = new URL('../../../src/domain/agent-run/journal.ts', import.meta.url).href;
 
 const HASHES = {
   modelExecutionIdentityHash: '1'.repeat(64),
@@ -257,9 +260,8 @@ it('writes the exact header and event envelopes with contiguous sequence numbers
     const root = makeRoot();
     try {
       const journalPath = path.join(root, 'crash.ndjson');
-      const moduleUrl = pathToFileURL(path.resolve('src/domain/agent-run/journal.ts')).href;
       const script = `
-        const { openJournal } = await import(${JSON.stringify(moduleUrl)});
+        const { openJournal } = await import(${JSON.stringify(JOURNAL_MODULE_URL)});
         const h = ${JSON.stringify(header())};
         const e = ${JSON.stringify(event())};
         const j = openJournal({ path: ${JSON.stringify(journalPath)}, header: h,
@@ -268,7 +270,7 @@ it('writes the exact header and event envelopes with contiguous sequence numbers
         process.exit(23);
       `;
       const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
-        cwd: path.resolve('.'),
+        cwd: AGENT_SERVER_ROOT,
         encoding: 'utf8',
       });
       assert.equal(child.status, 23, child.stderr);
