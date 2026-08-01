@@ -3,7 +3,8 @@
 // pos:    Defines stock-text directive migrations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-const REVIEWER_HANDOFF_BOUNDARY = '- Commits must land **before** the handoff boundary (before downstream consumers run it, before QA reviews, before the thread ends). Uncommitted changes at handoff are **Blockers**.';
+const REVIEWER_HANDOFF_BOUNDARY_BASE = '- Commits must land **before** the handoff boundary (before downstream consumers run it, before QA reviews, before the thread ends). Uncommitted changes at handoff are **Blockers**.';
+const REVIEWER_HANDOFF_BOUNDARY = `${REVIEWER_HANDOFF_BOUNDARY_BASE} Your own fixes are held to the same rule: they are committed before you write the review artifact, and the artifact cites their SHAs.`;
 const REVIEWER_COMMIT_RULES = [
   "- Attribute the implementation from the summary/artifact's explicit SHA evidence and verify the commit and diff with Git. Missing or unverifiable attribution is a **Blocker**.",
   '- Commit subjects should reference the spec identifier when repository policy permits; omission is a **Nice-to-have** in that case. When repository policy forbids internal or context identifiers, their omission is compliant, must not be treated as a Blocker, and must not require a metadata-only follow-up commit.',
@@ -85,6 +86,9 @@ export const CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS: ReadonlyArray<readonly [
     '- Commits must land **before** the handoff boundary (before Engineer launches, before QA reviews, before the thread ends). Uncommitted changes at handoff are **Blockers**.',
     REVIEWER_HANDOFF_BOUNDARY,
   ],
+  // Newline-anchored: the base sentence is a prefix of REVIEWER_HANDOFF_BOUNDARY, so an
+  // unanchored pair would re-match its own output and append the clause on every run.
+  [`${REVIEWER_HANDOFF_BOUNDARY_BASE}\n`, `${REVIEWER_HANDOFF_BOUNDARY}\n`],
   [
     '- Commit message should reference the spec identifier (task ID, issue reference) when one is clearly available; missing reference is a **Nice-to-have**.',
     REVIEWER_COMMIT_RULES,

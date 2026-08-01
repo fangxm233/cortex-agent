@@ -1,25 +1,15 @@
 {
   "name": "coder",
-  "description": "Coder — code implementation executor. Works in multiple stages in the coder-review template: plan → implement → retry, driven by transition graph rather than artifact section inference",
+  "description": "Coder — code implementation executor. Runs the `implement` stage of the coder-review template, implementing the task directly from the task description",
   "profile": "plan",
   "persistSession": true,
   "directive": "file:coder.md",
   "systemPrompt": "file:coder.md",
-  "entryStage": "plan",
+  "entryStage": "implement",
   "stages": {
-    "plan": {
-      "description": "Draft the implementation plan under `## Plan (iteration 1)`.",
-      "promptTemplate": "Task:\n{{input}}\n\nDraft your implementation plan under a new `## Plan (iteration 1)` section into {{artifactPath}}. You MUST DO NOT implement yet. JUST WRITE THE PLAN."
-    },
     "implement": {
-      "description": "After `## Plan Review`: exit plan mode, implement, append `## Implementation Summary (iteration 1)`.",
-      "continuesSession": true,
-      "promptTemplate": "Begin implementation. When done, append `## Implementation Summary (iteration 1)` to the end of the artifact, listing changed files, commit short-SHAs, flagged ambiguities, env changes, and accept/reject with rationale for each plan-review item. Do NOT write `[IMPL-APPROVED]` — only the reviewer writes that. After committing, run the full test suite (`npm test` or equivalent) and confirm every stage passes before writing your summary."
-    },
-    "retry": {
-      "description": "After a blocking `## Impl Review`: fix and append `## Implementation Summary (iteration 2)` + `[REVISED]`.",
-      "continuesSession": true,
-      "promptTemplate": "The latest `## Impl Review` did not provide `[IMPL-APPROVED]`. Re-verify each Blocker against its cited source, then fix the code per the feedback. When finished revising, MUST write `[REVISED]`  to {{artifactPath}} on its own line."
+      "description": "Implement the task and append `## Implementation Summary`.",
+      "promptTemplate": "Task:\n{{input}}\n\nImplement this task. When done, append `## Implementation Summary` to {{artifactPath}}, listing changed files, commit short-SHAs, flagged ambiguities, and env changes. After committing, run the full test suite (`npm test` or equivalent) and confirm every stage passes before writing your summary."
     }
   },
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",

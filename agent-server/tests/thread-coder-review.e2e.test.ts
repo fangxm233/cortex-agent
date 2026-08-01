@@ -7,13 +7,14 @@ import { test, beforeAll, afterAll } from 'vitest';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { DATA_DIR, DEFAULTS_DIR } from '../src/core/utils.js';
+import { CONFIG_DIR, DATA_DIR, DEFAULTS_DIR } from '../src/core/utils.js';
 import { threadStore } from '../src/store/thread-repo.js';
 import {
   buildStepPrompt,
   createThread,
   evaluateTransitions,
   loadConfig,
+  mergeThreadTemplates,
   recordStepResult,
   resolveNextStep,
   getTemplate,
@@ -35,6 +36,12 @@ beforeAll(() => {
     threadsBackup = null;
     threadsBackupExisted = false;
   }
+  // The per-file temp CORTEX_HOME has no thread-templates when run standalone (test:file):
+  // seed the shipped defaults so the coder-review template resolves, then load.
+  mergeThreadTemplates(
+    path.join(DEFAULTS_DIR, 'config', 'thread-templates'),
+    path.join(CONFIG_DIR, 'thread-templates'),
+  );
   loadConfig();
 });
 
@@ -89,18 +96,13 @@ async function simulateStep(threadId: string, output: string): Promise<void> {
 
 // --- Template structural sanity ---
 
-test('coder-review template exposes 4 stage-qualified transitions + entryStage=plan', () => {
+test('coder-review template exposes a single stage-qualified transition + entryStage=implement', () => {
   const tpl = getTemplate('coder-review');
   assert.ok(tpl, 'coder-review template should exist after loadConfig');
   assert.equal(tpl!.entryAgent, 'coder');
-  assert.equal(tpl!.entryStage, 'plan');
+  assert.equal(tpl!.entryStage, 'implement');
   const edges = tpl!.transitions.map(t => `${t.from}→${t.to}`);
-  assert.deepEqual(edges.sort(), [
-    'coder-reviewer:implReview→coder:retry',
-    'coder:implement→coder-reviewer:implReview',
-    'coder:plan→coder:implement',
-    'coder:retry→coder-reviewer:implReview',
-  ]);
+  assert.deepEqual(edges, ['coder:implement→coder-reviewer:implReview']);
 });
 
 test('coder-reviewer policy accepts verified public commits without internal identifiers', () => {
@@ -117,128 +119,65 @@ test('coder-reviewer policy accepts verified public commits without internal ide
   assert.match(directive, /must not require a metadata-only follow-up commit/);
 });
 
+test('coder-reviewer policy makes the reviewer fix the Blockers it finds', () => {
+  const directive = fs.readFileSync(
+    path.join(DEFAULTS_DIR, 'prompts', 'directives', 'coder-reviewer.md'),
+    'utf8',
+  );
+
+  assert.match(directive, /fix every Blocker you find/);
+  assert.doesNotMatch(directive, /\[IMPL-APPROVED\]/);
+  assert.doesNotMatch(directive, /Plan Review/);
+});
+
 // --- Entry / happy-path ---
 
-test('coder-review entry: first step is coder:plan with a stage-specific prompt (not the legacy phase-branching blob)', () => {
+test('coder-review entry: first step is coder:implement with a stage-specific prompt', () => {
   const thread = freshThread('C-entry');
   const next = resolveNextStep(thread.id)!;
   assert.equal(next.agentSlotId, 'coder');
-  assert.equal(next.stage, 'plan');
+  assert.equal(next.stage, 'implement');
   const prompt = buildStepPrompt(thread.id, next.agentConfig, next.stage);
-  // Stage-specific text appears, legacy `## Phase A` branching blob does NOT.
-  assert.match(prompt, /## Plan \(iteration 1\)/);
-  assert.doesNotMatch(prompt, /## Phase A/);
+  assert.match(prompt, /## Implementation Summary/);
+  assert.match(prompt, /Cortex Thread Protocol/); // fresh session → full bootstrap
 });
 
-test('coder-review happy path: plan → implement → implReview[IMPL-APPROVED] ends in 3 steps', async () => {
+test('coder-review happy path: implement → implReview ends in 2 steps', async () => {
   const thread = freshThread('C-happy');
 
-  // 1. coder:plan
-  await simulateStep(thread.id, '## Plan (iteration 1)\nstep-plan\n\n');
+  // 1. coder:implement
+  await simulateStep(thread.id, '## Implementation Summary\nchanged files: a.ts\n\n');
   let transition = evaluateTransitions(thread.id);
-  assert.equal(transition.shouldTransition, true);
-  assert.equal(transition.nextAgent, 'coder');
-  assert.equal(transition.nextStage, 'implement');
-
-  // 2. coder:implement
-  await simulateStep(thread.id, '## Implementation Summary (iteration 1)\nchanged files: a.ts\n\n');
-  transition = evaluateTransitions(thread.id);
   assert.equal(transition.shouldTransition, true);
   assert.equal(transition.nextAgent, 'coder-reviewer');
   assert.equal(transition.nextStage, 'implReview');
 
-  // 3. coder-reviewer:implReview — emits [IMPL-APPROVED] → convergence → loop ends.
-  await simulateStep(thread.id, '## Impl Review (iteration 1)\nLGTM. [IMPL-APPROVED]\n');
-  transition = evaluateTransitions(thread.id);
-  assert.equal(transition.shouldTransition, false);
-  assert.equal(transition.reason, 'converged');
-
-  // Verify thread progressed exactly through 3 steps with the expected stages.
-  const stored = threadStore.get(thread.id)!;
-  assert.deepEqual(
-    stored.steps.map(s => `${s.agentSlotId}:${s.stage}`),
-    ['coder:plan', 'coder:implement', 'coder-reviewer:implReview'],
-  );
-});
-
-// --- Retry path + iteration cap ---
-
-test('coder-review retry path: impl review without [IMPL-APPROVED] transitions to coder:retry, then [REVISED] halts', async () => {
-  const thread = freshThread('C-retry');
-
-  await simulateStep(thread.id, '## Plan (iteration 1)\nstep-plan\n\n');
-  evaluateTransitions(thread.id);
-  await simulateStep(thread.id, '## Implementation Summary (iteration 1)\nfirst pass\n\n');
-  evaluateTransitions(thread.id);
-
-  // 3. reviewer blocks
-  await simulateStep(thread.id, '## Impl Review (iteration 1)\nBlocker: foo\n');
-  let transition = evaluateTransitions(thread.id);
-  assert.equal(transition.shouldTransition, true);
-  assert.equal(transition.nextAgent, 'coder');
-  assert.equal(transition.nextStage, 'retry');
-  assert.equal(
-    threadStore.get(thread.id)!.iterationCounts['coder-reviewer:implReview→coder:retry'],
-    1,
-    'convergence edge counter should increment on retry transition',
-  );
-
-  // 4. coder:retry writes [REVISED] → no transition → end.
-  await simulateStep(thread.id, '## Implementation Summary (iteration 2)\n## Response to Impl Review\n[REVISED]\n');
+  // 2. coder-reviewer:implReview — reviews and fixes, then the graph is exhausted.
+  await simulateStep(thread.id, '## Impl Review\nBlocker: foo — fixed in a1b2c3d.\n');
   transition = evaluateTransitions(thread.id);
   assert.equal(transition.shouldTransition, false);
   assert.equal(transition.reason, 'no_matching_transition');
 
+  // Verify thread progressed exactly through 2 steps with the expected stages.
   const stored = threadStore.get(thread.id)!;
   assert.deepEqual(
     stored.steps.map(s => `${s.agentSlotId}:${s.stage}`),
-    ['coder:plan', 'coder:implement', 'coder-reviewer:implReview', 'coder:retry'],
+    ['coder:implement', 'coder-reviewer:implReview'],
   );
 });
 
-test('coder-review iteration cap: after 1 retry, a second would-retry stops with max_iterations', async () => {
-  const thread = freshThread('C-cap');
+test('coder-review reviewer step: no artifact marker gates the handoff to the reviewer', async () => {
+  const thread = freshThread('C-nomarker');
 
-  // Fast-forward through plan + implement + first implReview (Blocker) + retry
-  await simulateStep(thread.id, '## Plan (iteration 1)\n'); evaluateTransitions(thread.id);
-  await simulateStep(thread.id, '## Implementation Summary (iteration 1)\n'); evaluateTransitions(thread.id);
-  await simulateStep(thread.id, '## Impl Review (iteration 1)\nBlocker\n');
-  const t1 = evaluateTransitions(thread.id);
-  assert.equal(t1.shouldTransition, true);
-  // Retry writes something WITHOUT [REVISED] — simulating a missed terminator — and a reviewer picks it up.
-  await simulateStep(thread.id, '## Implementation Summary (iteration 2)\nforgot revised marker\n');
-  const t2 = evaluateTransitions(thread.id);
-  assert.equal(t2.shouldTransition, true, 'coder:retry → implReview via output_not_contains when no [REVISED]');
-  assert.equal(t2.nextStage, 'implReview');
+  // A summary with no terminator of any kind still reaches the reviewer.
+  await simulateStep(thread.id, '## Implementation Summary\nno markers anywhere\n');
+  const transition = evaluateTransitions(thread.id);
+  assert.equal(transition.shouldTransition, true);
+  assert.equal(transition.nextStage, 'implReview');
 
-  await simulateStep(thread.id, '## Impl Review (iteration 2)\nStill Blocker\n');
-  const t3 = evaluateTransitions(thread.id);
-  // Second reviewer→retry transition: counter already 1, max is 1 → max_iterations, no transition.
-  assert.equal(t3.shouldTransition, false);
-  assert.equal(t3.reason, 'max_iterations');
-});
-
-// --- Incremental-mode invariant across stages ---
-
-test('coder-review incremental: second coder stage (implement) sees incremental prompt when session is live', async () => {
-  const thread = freshThread('C-inc');
-
-  // Step 1: coder:plan (first trigger, no session yet) — full bootstrap.
-  const first = resolveNextStep(thread.id)!;
-  const planPrompt = buildStepPrompt(thread.id, first.agentConfig, first.stage);
-  assert.match(planPrompt, /Cortex Thread Protocol/);
-  await simulateStep(thread.id, '## Plan (iteration 1)\n');
-  evaluateTransitions(thread.id);
-
-  // Step 2: coder:implement — coder's persistent session from step 1 is live and persistSession=true.
-  // Stage has continuesSession=true, so prompt should be incremental (no directive, no preamble).
-  const second = resolveNextStep(thread.id)!;
-  assert.equal(second.agentSlotId, 'coder');
-  assert.equal(second.stage, 'implement');
-  const implPrompt = buildStepPrompt(thread.id, second.agentConfig, second.stage);
-  assert.doesNotMatch(implPrompt, /Cortex Thread Protocol/);
-  // The directive file content should NOT leak into the prompt body either.
-  assert.doesNotMatch(implPrompt, /\n\n---\n\n/); // no prefix block separator
-  // Stage-specific text appears (incremental prompt for implement stage).
-  assert.match(implPrompt, /Implementation Summary \(iteration 1\)/);
+  const next = resolveNextStep(thread.id)!;
+  assert.equal(next.agentSlotId, 'coder-reviewer');
+  const prompt = buildStepPrompt(thread.id, next.agentConfig, next.stage);
+  assert.doesNotMatch(prompt, /\[IMPL-APPROVED\]/);
+  assert.doesNotMatch(prompt, /\[REVISED\]/);
 });
