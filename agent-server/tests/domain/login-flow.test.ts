@@ -1,5 +1,5 @@
 // input:  LoginFlow API, fake consumers, fake timers
-// output: Lifecycle, outcome, abort, and privacy tests
+// output: Lifecycle, safe-error, abort, and privacy tests
 // pos:    Backend-neutral login flow regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,8 +7,10 @@ import assert from 'node:assert/strict';
 import { afterEach, test, vi } from 'vitest';
 import {
   LOGIN_FLOW_TTL_MS,
+  LoginFlowError,
   cancelFlow,
   getFlowState,
+  isLoginFlowError,
   respondPrompt,
   startFlow,
   type AuthInteraction,
@@ -145,28 +147,56 @@ test('startFlow reuses one active flow per backend and provider', async () => {
   await flush();
 });
 
-test('consumer rejection exposes only the error message and releases the active pair', async () => {
-  const causeSecret = '\uE202\uE203-sensitive-consumer-cause';
-  const stackSecret = '\uE204\uE205-sensitive-consumer-stack';
-  const publicMessage = 'Provider rejected the login request.';
+test('consumer rejection fails safely and releases the active pair', async () => {
+  const secretInError = '\uE202\uE203-sensitive-consumer-error';
   const flow = await startFlow(input('consumer-failure'), async () => {
-    const error = new Error(publicMessage, { cause: new Error(causeSecret) });
-    error.stack = `${error.stack}\n${stackSecret}`;
-    throw error;
+    throw new Error(secretInError);
   });
   await flush();
 
   const failed = requireState(flow.flowId);
-  const serialized = JSON.stringify(failed);
   assert.equal(failed.step, 'failed');
-  assert.equal(failed.error, publicMessage);
   assert.equal(failed.outcome, null);
-  assert.equal(serialized.includes(causeSecret), false);
-  assert.equal(serialized.includes(stackSecret), false);
+  assert.equal(failed.error, 'Login failed.');
+  assert.equal(failed.errorCode, null);
+  assert.equal(JSON.stringify(failed).includes(secretInError), false);
   const replacement = await startFlow(
     input('consumer-failure'), async () => outcome('consumer-failure'),
   );
   assert.notEqual(replacement.flowId, flow.flowId);
+});
+
+test('LoginFlowError exposes only explicitly safe failure metadata', async () => {
+  const secretCause = '\uE204\uE205-sensitive-cause';
+  const safeError = new LoginFlowError('Unknown provider: orchard', 'unknown_provider');
+  Object.defineProperty(safeError, 'cause', { value: new Error(secretCause), enumerable: true });
+  const flow = await startFlow(input('safe-failure'), async () => { throw safeError; });
+  await flush();
+
+  const failed = requireState(flow.flowId);
+  assert.equal(failed.step, 'failed');
+  assert.equal(failed.outcome, null);
+  assert.equal(failed.error, 'Unknown provider: orchard');
+  assert.equal(failed.errorCode, 'unknown_provider');
+  assert.equal(JSON.stringify(failed).includes(secretCause), false);
+  assert.equal('stack' in failed, false);
+  assert.equal('cause' in failed, false);
+});
+
+test('structurally branded safe errors do not require instanceof', async () => {
+  const branded = {
+    name: 'LoginFlowError', message: 'Provider unavailable.', code: 'provider_unavailable',
+  };
+  assert.equal(branded instanceof LoginFlowError, false);
+  assert.equal(isLoginFlowError(branded), true);
+  assert.equal(isLoginFlowError({ ...branded, name: 'Error' }), false);
+  assert.equal(isLoginFlowError({ ...branded, code: 401 }), false);
+
+  const flow = await startFlow(input('structural-error'), async () => { throw branded; });
+  await flush();
+  const failed = requireState(flow.flowId);
+  assert.equal(failed.error, 'Provider unavailable.');
+  assert.equal(failed.errorCode, 'provider_unavailable');
 });
 
 test('a flow expires at 30 minutes and rejects its pending answer', async () => {
@@ -234,6 +264,7 @@ test('successful consumers store defensive receipt metadata', async () => {
   assert.equal(completed.step, 'done');
   assert.deepEqual(completed.outcome, result);
   assert.equal(completed.error, null);
+  assert.equal(completed.errorCode, null);
 
   result.detail = 'mutated consumer value';
   completed.outcome!.detail = 'mutated snapshot value';
@@ -325,6 +356,7 @@ test('cancelFlow rejects a pending prompt and releases the pair', async () => {
   await flush();
   assert.equal(cancelled.step, 'cancelled');
   assert.equal(cancelled.pendingPrompt, null);
+  assert.equal(cancelled.errorCode, null);
   assert.equal((promptError as Error).name, 'AbortError');
   assert.equal(requireState(flow.flowId).step, 'cancelled');
   assert.equal(requireState(flow.flowId).outcome, null);

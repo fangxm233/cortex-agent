@@ -1,5 +1,5 @@
 // input:  AuthType, timers, UUIDs, abort and outcomes
-// output: LoginFlow API and AuthInteraction bridge
+// output: LoginFlow API, safe errors, AuthInteraction bridge
 // pos:    In-memory backend login session coordinator
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -42,6 +42,22 @@ export interface LoginOutcome {
   detail?: string;
 }
 
+export class LoginFlowError extends Error {
+  readonly name = 'LoginFlowError';
+
+  constructor(message: string, readonly code: string) {
+    super(message);
+  }
+}
+
+export function isLoginFlowError(error: unknown): error is LoginFlowError {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { name?: unknown; message?: unknown; code?: unknown };
+  return candidate.name === 'LoginFlowError'
+    && typeof candidate.message === 'string'
+    && typeof candidate.code === 'string';
+}
+
 export interface LoginFlowState {
   flowId: string;
   backend: 'claude' | 'pi';
@@ -56,6 +72,7 @@ export interface LoginFlowState {
   expiresAt: string;
   outcome: LoginOutcome | null;
   error: string | null;
+  errorCode: string | null;
 }
 
 export type AuthPrompt = { signal?: AbortSignal } & (
@@ -261,15 +278,18 @@ function settleConsumerSuccess(flow: InternalFlow, outcome: LoginOutcome): void 
   flow.state.pendingPrompt = null;
   flow.state.outcome = { ...outcome };
   flow.state.error = null;
+  flow.state.errorCode = null;
   releasePair(flow);
 }
 
 function settleConsumerFailure(flow: InternalFlow, error: unknown): void {
   if (!canSettleConsumer(flow)) return;
+  const safeError = isLoginFlowError(error) ? error : null;
   flow.state.step = 'failed';
   flow.state.pendingPrompt = null;
   flow.state.outcome = null;
-  flow.state.error = error instanceof Error ? error.message : 'Login failed.';
+  flow.state.error = safeError?.message ?? 'Login failed.';
+  flow.state.errorCode = safeError?.code ?? null;
   releasePair(flow);
 }
 
@@ -298,7 +318,7 @@ function createFlow(input: StartLoginFlowInput): InternalFlow {
     step: 'running', pendingPrompt: null, notice: null,
     channel: input.channel, sessionId: input.sessionId,
     createdAt: new Date(now).toISOString(), expiresAt: new Date(now + LOGIN_FLOW_TTL_MS).toISOString(),
-    outcome: null, error: null,
+    outcome: null, error: null, errorCode: null,
   };
   const flow = {
     state, pairKey: pairKey(input), expiresAtMs: now + LOGIN_FLOW_TTL_MS,
@@ -337,6 +357,7 @@ export async function cancelFlow(flowId: string): Promise<LoginFlowState> {
   flow.state.step = 'cancelled';
   flow.state.outcome = null;
   flow.state.error = null;
+  flow.state.errorCode = null;
   releasePair(flow);
   abortFlow(flow, 'Login flow cancelled.');
   pending?.reject(abortError('Login flow cancelled.'));
