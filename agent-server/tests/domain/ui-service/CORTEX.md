@@ -15,6 +15,7 @@ Scopes covered are approvals, config, executions, issues, memory, projects, sche
 | mutate-schedules.test.ts | test | Covers schedule add, pause, resume, remove |
 | mutate-sessions-cancel.test.ts | test | Covers session cancellation outcomes |
 | mutate-sessions-create.test.ts | test | Covers session creation and default project |
+| mutate-sessions-create-pi.test.ts | test | Covers fresh PI response and event ordering |
 | mutate-sessions-interactions.test.ts | test | Covers question answer and plan response |
 | mutate-sessions-markread.test.ts | test | Covers session mark-read outcomes |
 | mutate-sessions-rewind.test.ts | test | Covers session rewind guards and outcomes |

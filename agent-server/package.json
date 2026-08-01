@@ -30,6 +30,7 @@
     "postinstall": "node scripts/postinstall-restart-trigger.mjs",
     "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/copy-assets.js",
     "build:supervisor": "bash native/cortex-supervisor/build.sh",
+    "benchmark:pi-provider-discovery": "node --import tsx scripts/benchmark-pi-provider-discovery.ts",
     "typecheck": "tsc --noEmit",
     "test": "bash scripts/run-tests.sh",
     "test:quick": "bash scripts/run-tests.sh --quick",
