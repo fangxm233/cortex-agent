@@ -1,6 +1,6 @@
-// input:  thread runner, HookBus registry entries, scoped hooks
-// output: lifecycle payload and scoped/per-call regressions
-// pos:    Verifies thread lifecycle hooks share the HookBus execution path
+// input:  thread runner, template isolation, HookBus entries
+// output: lifecycle payload, isolation, and scoped-hook regressions
+// pos:    Verifies thread lifecycle hook routing and suppression
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { afterAll, afterEach, beforeAll, beforeEach, test, vi } from 'vitest';
@@ -50,56 +50,56 @@ import type {
 const createdThreadIds = new Set<string>();
 let tmpRoot: string;
 
-function writeThreadConfig(): void {
-  const agentConfig = (name: string, persistSession = true) => ({
+function agentConfig(name: string, mcpComposition?: 'none') {
+  return {
     name,
     profile: '__active__',
-    persistSession,
+    persistSession: true,
     promptTemplate: '{{input}}',
-  });
-  const config = {
-    agents: {
-      alpha: agentConfig('alpha'),
-      beta: agentConfig('beta'),
-    },
-    templates: {
-      lifecycle: {
-        name: 'lifecycle',
-        description: 'two-step lifecycle fixture',
-        agents: ['alpha', 'beta'],
-        transitions: [{ from: 'alpha', to: 'beta', condition: { type: 'always' } }],
-        entryAgent: 'alpha',
-        maxTotalSteps: 3,
-      },
-      suspend: {
-        name: 'suspend',
-        description: 'single-agent suspension fixture',
-        agents: ['alpha'],
-        transitions: [],
-        entryAgent: 'alpha',
-        maxTotalSteps: 4,
-      },
-      scoped: {
-        name: 'scoped',
-        description: 'template hook fixture',
-        agents: ['alpha'],
-        transitions: [],
-        entryAgent: 'alpha',
-        maxTotalSteps: 3,
-      },
-    },
+    mcpComposition,
   };
-  const configRoot = path.join(CONFIG_DIR, 'thread-templates');
-  for (const [kind, entries] of Object.entries({
-    agents: config.agents,
-    templates: config.templates,
-  })) {
-    const directory = path.join(configRoot, kind);
-    fs.mkdirSync(directory, { recursive: true });
-    for (const [name, value] of Object.entries(entries)) {
-      fs.writeFileSync(path.join(directory, `${name}.json`), `${JSON.stringify(value, null, 2)}\n`);
-    }
+}
+
+const AGENT_CONFIGS = {
+  alpha: agentConfig('alpha'),
+  beta: agentConfig('beta'),
+  'benchmark-alpha': agentConfig('benchmark-alpha', 'none'),
+  'benchmark-beta': agentConfig('benchmark-beta', 'none'),
+};
+
+const TEMPLATE_CONFIGS = {
+  lifecycle: {
+    name: 'lifecycle', description: 'two-step lifecycle fixture', agents: ['alpha', 'beta'],
+    transitions: [{ from: 'alpha', to: 'beta', condition: { type: 'always' } }],
+    entryAgent: 'alpha', maxTotalSteps: 3,
+  },
+  suspend: {
+    name: 'suspend', description: 'single-agent suspension fixture', agents: ['alpha'],
+    transitions: [], entryAgent: 'alpha', maxTotalSteps: 4,
+  },
+  scoped: {
+    name: 'scoped', description: 'template hook fixture', agents: ['alpha'],
+    transitions: [], entryAgent: 'alpha', maxTotalSteps: 3,
+  },
+  'benchmark-hookless': {
+    name: 'benchmark-hookless', description: 'isolated lifecycle fixture',
+    agents: ['benchmark-alpha', 'benchmark-beta'],
+    transitions: [{ from: 'benchmark-alpha', to: 'benchmark-beta', condition: { type: 'always' } }],
+    entryAgent: 'benchmark-alpha', maxTotalSteps: 2, disableHooks: true,
+  },
+};
+
+function writeConfigEntries(kind: string, entries: Record<string, unknown>): void {
+  const directory = path.join(CONFIG_DIR, 'thread-templates', kind);
+  fs.mkdirSync(directory, { recursive: true });
+  for (const [name, value] of Object.entries(entries)) {
+    fs.writeFileSync(path.join(directory, `${name}.json`), `${JSON.stringify(value, null, 2)}\n`);
   }
+}
+
+function writeThreadConfig(): void {
+  writeConfigEntries('agents', AGENT_CONFIGS);
+  writeConfigEntries('templates', TEMPLATE_CONFIGS);
 }
 
 beforeAll(() => {
@@ -117,7 +117,7 @@ beforeEach(() => {
   initHookBus({ entries: [], hooksDir: tmpRoot });
   throttle._testReset();
   resumeRegistry._testReset();
-  for (const name of ['lifecycle', 'suspend', 'scoped']) {
+  for (const name of ['lifecycle', 'suspend', 'scoped', 'benchmark-hookless']) {
     const template = getTemplate(name);
     if (template) delete template.hooks;
   }
@@ -291,6 +291,32 @@ test('runThread emits start, transition, and end with the complete lifecycle pay
     assert.equal(typeof payload.artifactContent, 'string');
     assert.equal(typeof payload.totalCostUsd, 'number');
     assert.equal(payload.pendingControlAction, null);
+  }
+});
+
+test('hook-free template suppresses registry lifecycle hooks and isolates every step', async () => {
+  const capturePath = path.join(tmpRoot, 'benchmark-marker.jsonl');
+  const script = path.basename(writeCaptureScript('benchmark-marker.mjs', capturePath));
+  initHookBus({
+    entries: [
+      registryEntry('benchmark-start', 'cortex:thread.start', script),
+      registryEntry('benchmark-transition', 'cortex:thread.transition', script),
+      registryEntry('benchmark-end', 'cortex:thread.end', script),
+    ],
+    hooksDir: tmpRoot,
+  });
+  const thread = createTestThread('benchmark-hookless');
+  queueAgentResult(result('backend-benchmark-alpha'));
+  queueAgentResult(result('backend-benchmark-beta'));
+
+  await runThread(thread.id, makeOptions(thread.channel));
+
+  assert.deepEqual(captures(capturePath), []);
+  assert.equal(agent.runAgent.mock.calls.length, 2);
+  for (const call of agent.runAgent.mock.calls) {
+    assert.equal(call[1].mcpComposition, 'none');
+    assert.equal(call[1].disableHooks, true);
+    assert.equal(call[1].useCoreMcp, false);
   }
 });
 

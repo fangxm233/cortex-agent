@@ -1,5 +1,5 @@
 // input:  templates, artifacts, thread and backend state
-// output: resume-aware thread prompts and slot configs
+// output: resume-aware prompts and resolved runtime slot configs
 // pos:    Thread prompt assembly and agent slot resolution
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
@@ -78,6 +78,7 @@ export function resolveAgentSlotConfig(ref: TemplateAgentRef): AgentSlotConfig |
     outputStyle: overrides.outputStyle ?? agentDef.outputStyle,
     tools: overrides.tools ?? agentDef.tools,
     pluginDirs: overrides.pluginDirs ?? agentDef.pluginDirs,
+    mcpComposition: agentDef.mcpComposition,
     stages: agentDef.stages,
     entryStage: agentDef.entryStage,
   };

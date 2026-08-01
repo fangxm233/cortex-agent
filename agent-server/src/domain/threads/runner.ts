@@ -1,5 +1,5 @@
-// input:  thread state, task generation, agents, throttle, hooks
-// output: task-aware thread runs, outage resume, and transcripts
+// input:  thread state, agent runtime policy, throttle, hooks
+// output: isolated thread runs, outage resume, and transcripts
 // pos:    Runs thread steps, controls, hooks, and resumes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -49,7 +49,7 @@ import { buildThreadStatusMessage } from '@core/status-format.js';
 import type { OutputStream } from '@platform/index.js';
 import { runningExecutions } from '../../core/running-executions.js';
 import type { RunningExecution } from '../../core/running-executions.js';
-import { executeLifecycleHooks } from './hook-runner.js';
+import { executeLifecycleHooks, type LifecycleHookConfigs } from './hook-runner.js';
 import { createToolTrace } from '@platform/index.js';
 import { conversationHistory } from '@store/conversation-history-repo.js';
 import { createStepTranscriptRecorder, type StepTranscriptRecorder } from './thread-transcript.js';
@@ -158,6 +158,19 @@ function initThreadContext(threadId: string, opts: RunThreadOptions): ThreadCont
   // thread anchor for each sub-stream (a Slack ts must not be used as a Feishu message_id).
   const stream = opts.adapter.openOutputStream(opts.destination, { threadId: opts.threadAnchorId, anchorRef: opts.statusMsg });
   return { thread, template, meta: thread.metadata, stream, lastAgentResult: null, totalNumTurns: 0 };
+}
+
+async function executeConfiguredLifecycleHooks(
+  ctx: ThreadContext,
+  threadId: string,
+  phase: 'start' | 'transition' | 'end',
+  configs: LifecycleHookConfigs,
+  opts: RunThreadOptions,
+  previousAgent?: string,
+  logSuffix?: string,
+): Promise<void> {
+  if (ctx.template?.disableHooks === true) return;
+  await executeLifecycleHooks(threadId, phase, configs, opts, previousAgent, logSuffix);
 }
 
 /** Resolve next step, post boundary notifications, update the status message.
@@ -428,7 +441,9 @@ async function executeAndAwaitAgent(
     taskId: meta?.taskId ?? null,
     taskProject: meta?.taskProject ?? null,
     taskGeneration: meta?.dispatchGeneration ?? null,
-    useCoreMcp: true,
+    useCoreMcp: agentConfig.mcpComposition === undefined,
+    mcpComposition: agentConfig.mcpComposition,
+    disableHooks: ctx.template?.disableHooks === true,
     sessionName: stepCtx.sessionName,
     claudeAgent: agentConfig.claudeAgent || null,
     systemPrompt: agentConfig.systemPrompt ? resolveSystemVars(agentConfig.systemPrompt) : null,
@@ -622,7 +637,8 @@ async function evaluateAndTransition(
   const prevAgent = stepCtx.agentSlotId;
   const fromLabel = formatAgentStageLabel(prevAgent, stepCtx.stage);
   const toLabel = formatAgentStageLabel(transition.nextAgent!, transition.nextStage ?? null);
-  await executeLifecycleHooks(
+  await executeConfiguredLifecycleHooks(
+    ctx,
     threadId,
     'transition',
     {
@@ -745,7 +761,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
   let enteredWaiting = false;
 
   try {
-    await executeLifecycleHooks(threadId, 'start', {
+    await executeConfiguredLifecycleHooks(ctx, threadId, 'start', {
       template: ctx.template?.hooks?.onStart,
       extra: opts.extraHooks?.onStart,
     }, opts);
@@ -835,7 +851,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
     if (!enteredWaiting && !ctx.rateLimited) {
       const threadForEnd = threadStore.get(threadId)!;
       const lastStep = threadForEnd.steps[threadForEnd.steps.length - 1];
-      await executeLifecycleHooks(threadId, 'end', {
+      await executeConfiguredLifecycleHooks(ctx, threadId, 'end', {
         template: ctx.template?.hooks?.onEnd,
         extra: opts.extraHooks?.onEnd,
       }, opts, lastStep?.agentSlotId);
