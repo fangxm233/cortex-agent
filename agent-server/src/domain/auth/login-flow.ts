@@ -1,4 +1,4 @@
-// input:  AuthType, timers, UUIDs, abort and callbacks
+// input:  AuthType, timers, UUIDs, abort and outcomes
 // output: LoginFlow API and AuthInteraction bridge
 // pos:    In-memory backend login session coordinator
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -35,6 +35,13 @@ export type LoginFlowNotice =
   }
   | { kind: 'progress'; message: string };
 
+export interface LoginOutcome {
+  provider: string;
+  authType: AuthType;
+  expiresAt: string | null;
+  detail?: string;
+}
+
 export interface LoginFlowState {
   flowId: string;
   backend: 'claude' | 'pi';
@@ -47,6 +54,7 @@ export interface LoginFlowState {
   sessionId: string | null;
   createdAt: string;
   expiresAt: string;
+  outcome: LoginOutcome | null;
   error: string | null;
 }
 
@@ -83,7 +91,7 @@ export interface StartLoginFlowInput {
   sessionId: string | null;
 }
 
-export type LoginFlowConsumer = (interaction: AuthInteraction) => Promise<unknown>;
+export type LoginFlowConsumer = (interaction: AuthInteraction) => Promise<LoginOutcome>;
 
 interface PendingResponse {
   resolve(value: string): void;
@@ -131,11 +139,16 @@ function cloneNotice(notice: LoginFlowNotice | null): LoginFlowNotice | null {
   return { ...notice, links: notice.links.map(link => ({ ...link })) };
 }
 
+function cloneOutcome(outcome: LoginOutcome | null): LoginOutcome | null {
+  return outcome ? { ...outcome } : null;
+}
+
 function snapshot(flow: InternalFlow): LoginFlowState {
   return {
     ...flow.state,
     pendingPrompt: clonePrompt(flow.state.pendingPrompt),
     notice: cloneNotice(flow.state.notice),
+    outcome: cloneOutcome(flow.state.outcome),
   };
 }
 
@@ -238,11 +251,25 @@ function createInteraction(flow: InternalFlow): AuthInteraction {
   };
 }
 
-function settleConsumer(flow: InternalFlow, succeeded: boolean): void {
-  if (flows.get(flow.state.flowId) !== flow || isTerminal(flow)) return;
-  flow.state.step = succeeded ? 'done' : 'failed';
+function canSettleConsumer(flow: InternalFlow): boolean {
+  return flows.get(flow.state.flowId) === flow && !isTerminal(flow);
+}
+
+function settleConsumerSuccess(flow: InternalFlow, outcome: LoginOutcome): void {
+  if (!canSettleConsumer(flow)) return;
+  flow.state.step = 'done';
   flow.state.pendingPrompt = null;
-  flow.state.error = succeeded ? null : 'Login failed.';
+  flow.state.outcome = { ...outcome };
+  flow.state.error = null;
+  releasePair(flow);
+}
+
+function settleConsumerFailure(flow: InternalFlow, error: unknown): void {
+  if (!canSettleConsumer(flow)) return;
+  flow.state.step = 'failed';
+  flow.state.pendingPrompt = null;
+  flow.state.outcome = null;
+  flow.state.error = error instanceof Error ? error.message : 'Login failed.';
   releasePair(flow);
 }
 
@@ -250,8 +277,8 @@ function runConsumer(flow: InternalFlow, consumer: LoginFlowConsumer): void {
   void Promise.resolve()
     .then(() => consumer(createInteraction(flow)))
     .then(
-      () => settleConsumer(flow, true),
-      () => settleConsumer(flow, false),
+      outcome => settleConsumerSuccess(flow, outcome),
+      error => settleConsumerFailure(flow, error),
     );
 }
 
@@ -271,7 +298,7 @@ function createFlow(input: StartLoginFlowInput): InternalFlow {
     step: 'running', pendingPrompt: null, notice: null,
     channel: input.channel, sessionId: input.sessionId,
     createdAt: new Date(now).toISOString(), expiresAt: new Date(now + LOGIN_FLOW_TTL_MS).toISOString(),
-    error: null,
+    outcome: null, error: null,
   };
   const flow = {
     state, pairKey: pairKey(input), expiresAtMs: now + LOGIN_FLOW_TTL_MS,
@@ -308,6 +335,7 @@ export async function cancelFlow(flowId: string): Promise<LoginFlowState> {
   const flow = requireActiveFlow(flowId);
   const pending = takePending(flow);
   flow.state.step = 'cancelled';
+  flow.state.outcome = null;
   flow.state.error = null;
   releasePair(flow);
   abortFlow(flow, 'Login flow cancelled.');
