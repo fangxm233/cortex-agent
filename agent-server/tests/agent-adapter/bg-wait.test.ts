@@ -1,5 +1,5 @@
-// input:  background policy, fake process, timers, settings
-// output: continuation eligibility, merge, and timeout tests
+// input:  bounded/completion-only policy, fake process, timers, settings
+// output: continuation eligibility, merge, timeout, and supervised-stop tests
 // pos:    Covers inline background waiting
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -31,6 +31,13 @@ function fakeProc() {
     proc: { setContinuationSink: (s: ContinuationSink) => sinks.push(s) },
     sink: () => sinks.at(-1)!,
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
 }
 
 function fakeTimers() {
@@ -159,6 +166,33 @@ test('waitForBgContinuation: running task arms the max-wait cap; firing resolves
   ft.live()[0].fn();
   const merged = await p;
   assert.equal(merged.pendingBackgroundTasks, 2, 'remaining count preserved so the caller can log it');
+});
+
+test('waitForBgContinuation: completion-only policy ignores caps until continuation completion', async () => {
+  const { proc, sink } = fakeProc();
+  const ft = fakeTimers();
+  const stopped = deferred<void>();
+  const p = waitForBgContinuation({
+    proc, baseResult: baseResult(), completionOnly: true, stopPromise: stopped.promise,
+    graceMs: 1, maxWaitMs: 1, timers: ft.timers,
+  });
+  assert.equal(ft.live().length, 0, 'completion-only waits do not arm ambient release timers');
+  let settled = false;
+  void p.then(() => { settled = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(settled, false);
+  sink().onResult(baseResult({ pendingBackgroundTasks: 0, undeliveredBackgroundTasks: 0 }));
+  assert.equal((await p).pendingBackgroundTasks, 0);
+});
+
+test('waitForBgContinuation: completion-only policy rejects if supervision stops first', async () => {
+  const { proc } = fakeProc();
+  const stopped = deferred<void>();
+  const p = waitForBgContinuation({
+    proc, baseResult: baseResult(), completionOnly: true, stopPromise: stopped.promise,
+  });
+  stopped.resolve();
+  await assert.rejects(p, /stopped before background continuation completed/);
 });
 
 test('waitForBgContinuation: late sink events after resolution are ignored (no double resolve / no throw)', async () => {

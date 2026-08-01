@@ -1,5 +1,5 @@
-// input:  adapters, profiles, settings, lifecycle helpers
-// output: attributed agent runs and observer streams
+// input:  run configuration, adapters, profiles, settings, sinks, wait policy, lifecycle helpers
+// output: attributed runs, observer streams, spawn and wait policy
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -184,6 +184,8 @@ export interface RunAgentOptions {
   requiredSinks?: RunObserver[];
   /** Explicit background policy. Undefined preserves the legacy thread-keyed decision. */
   awaitBackground?: boolean;
+  /** Completion-only disables ambient caps and waits until continuation or process termination. */
+  backgroundWaitPolicy?: 'bounded' | 'completion-only';
   /** Absolute working directory resolved by the caller for the backend process. */
   cwd?: string;
   /** Optional containment-aware process boundary for daemon-free runs. */
@@ -454,8 +456,9 @@ class LegacyEventDispatcher {
   }
 
   private contextCompacted(): void {
+    if (!this.options.onAssistantMessage) return;
     if (!getSettings().notifyCompaction) return;
-    this.options.onAssistantMessage?.(t('notify.contextCompacted'), undefined, 'info');
+    this.options.onAssistantMessage(t('notify.contextCompacted'), undefined, 'info');
   }
 
   private planWritten(event: Extract<NormalizedEvent, { type: 'plan_written' }>): void {
@@ -490,6 +493,7 @@ async function resolveRunResult(
   const result = await turnPromise;
   if (!shouldAwaitRunBackground(adapter, options, result, proc)) return result;
   log.info(`agent turn ${options.threadId ?? proc.sessionId ?? 'direct'} has background work remaining — waiting inline`);
+  const completionOnly = options.backgroundWaitPolicy === 'completion-only';
   return waitForBgContinuation({
     proc,
     baseResult: result,
@@ -498,6 +502,8 @@ async function resolveRunResult(
     onToolResult: options.onToolResult ?? null,
     onContextUsage: options.onContextUsage ?? null,
     onEvent: onContinuationEvent,
+    completionOnly,
+    stopPromise: completionOnly ? proc.supervision?.closed : undefined,
   });
 }
 

@@ -1,5 +1,5 @@
 // input:  optional run-config files, resolved profiles, MCP declarations
-// output: closed-schema, route, role, and restricted-surface proofs
+// output: closed-schema, non-empty-role, argv, and restricted-surface proofs
 // pos:    One-shot configuration boundary regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -83,7 +83,7 @@ it('resolves one role independently of the agent-slot label', () => {
   assert.deepEqual(config.adapterHashes, { adapter: 'fixture' });
 });
 
-it('derives the route host and rejects late CLI option overrides', () => {
+it('derives the route host and rejects every profile argv extra', () => {
   const mcpFile = path.join(root, 'mcp.json');
   fs.writeFileSync(mcpFile, JSON.stringify({ mcpServers: {} }));
   const config = loadAgentRunConfig(writeRunConfig('none', mcpFile));
@@ -91,8 +91,21 @@ it('derives the route host and rejects late CLI option overrides', () => {
   assert.equal(resolvedRouteHost(profile), 'route.example');
   profile.extraEnv = {};
   assert.equal(resolvedRouteHost(profile), null);
-  profile.extraOption = { '--model': 'different-model' };
-  assert.throws(() => validateResolvedExecution(profile, config), /may not override --model/);
+  profile.extraOption = { '--permission-mode': 'default' };
+  assert.throws(
+    () => validateResolvedExecution(profile, config),
+    /does not support profile extraOption --permission-mode/,
+  );
+});
+
+it('rejects an empty role tool list instead of expanding it to Claude defaults', () => {
+  const mcpFile = path.join(root, 'mcp.json');
+  fs.writeFileSync(mcpFile, JSON.stringify({ mcpServers: {} }));
+  const file = writeRunConfig('none', mcpFile);
+  const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+  value.role.tools = [];
+  fs.writeFileSync(file, JSON.stringify(value));
+  assert.throws(() => loadAgentRunConfig(file), /role tools must contain at least one tool/i);
 });
 
 it('requires one-shot hooks to stay disabled', () => {
