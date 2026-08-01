@@ -31,6 +31,7 @@ type FixtureMode =
 interface CancellationState {
   cancelled(): boolean;
   deadline(): boolean;
+  triggerDeadline(): void;
   stop(): void;
 }
 
@@ -134,6 +135,7 @@ function installCancellation(child: ChildProcess, deadlineMs: number | null): Ca
   return {
     cancelled: () => cancelled,
     deadline: () => deadline,
+    triggerDeadline: () => cancel(true),
     stop: () => { if (timer) clearTimeout(timer); },
   };
 }
@@ -184,6 +186,7 @@ async function runFixture(): Promise<void> {
   const cancellation = installCancellation(child, invocation.deadlineMs);
   const continueProtocol = emitOpening(invocation.controlFd, child.pid, mode);
   if (!continueProtocol) signalGroup(child);
+  if (process.env.FAKE_SUPERVISOR_TRIGGER_DEADLINE === '1') cancellation.triggerDeadline();
   if (mode === 'hang') await hangForever();
   const result = await waitForChild(child);
   cancellation.stop();

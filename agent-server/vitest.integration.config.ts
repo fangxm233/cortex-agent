@@ -1,9 +1,14 @@
+// input:  Vitest, tsconfig paths, integration test globs
+// output: serial process-level integration test configuration
+// pos:    Runs server and agent-run process tests in one fork
+// >>> If I am updated, update my header and folder CORTEX.md <<<
+
 import { defineConfig } from 'vitest/config';
 import tsconfigPaths from 'vite-tsconfig-paths';
 
 // Standalone config (NOT mergeConfig — that concatenates include arrays and would
-// drag in the unit suite). Integration tests fork real server subprocesses
-// (app.ts) and need a far longer timeout than the 15s unit budget; run serially.
+// drag in the unit suite). Process-level tests run serially so their child trees do
+// not compete with the unit suite's parallel worker pool.
 const jsToTsResolver = {
   name: 'cortex-js-to-ts',
   enforce: 'pre' as const,
@@ -26,7 +31,10 @@ export default defineConfig({
     pool: 'forks',
     isolate: true,
     poolOptions: { forks: { singleFork: true } },
-    include: ['tests/**/integration-*.test.ts'],
+    include: [
+      'tests/**/integration-*.test.ts',
+      'tests/domain/agent-run/*-e2e.test.ts',
+    ],
     exclude: ['node_modules/**'],
     testTimeout: 120000,
     hookTimeout: 120000,
