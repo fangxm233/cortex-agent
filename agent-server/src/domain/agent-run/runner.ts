@@ -1,4 +1,4 @@
-// input:  parsed options, frozen config, provenance-aware Claude adapter
+// input:  parsed options, frozen config, Claude accounting adapter
 // output: supervised turn, journal, nullable accounting, manifest
 // pos:    Agent-run lifecycle coordinator
 // >>> If I am updated, update my header and folder CORTEX.md <<<
