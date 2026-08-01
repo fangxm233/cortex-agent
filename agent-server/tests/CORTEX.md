@@ -98,7 +98,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
-| run-with-adapter.test.ts | test | event tee, required sinks and background policy |
+| run-with-adapter.test.ts | test | tests event order, sinks and background policy |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |

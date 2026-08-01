@@ -1,5 +1,5 @@
 // input:  fake adapters, observers, continuations, settings
-// output: event tee, sink, callback, and background regressions
+// output: ordered event tee, sink, callback, and wait regressions
 // pos:    Covers backend-neutral run event semantics
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -554,7 +554,10 @@ test('runWithAdapter: context_compacted notifies via onAssistantMessage only whe
   assert.deepEqual(onMsgs, ['Context auto-compacted.']);
 });
 
-interface SinkCapableSpec extends FakeProcessSpec { sinks: any[] }
+interface SinkCapableSpec extends FakeProcessSpec {
+  sinks: any[];
+  replayOnRegister?: (sink: any) => void;
+}
 
 function makeSinkCapableAdapter(backend: Backend, spec: SinkCapableSpec): AgentAdapter {
   return {
@@ -562,7 +565,10 @@ function makeSinkCapableAdapter(backend: Backend, spec: SinkCapableSpec): AgentA
     capabilities: CAPABILITIES_BY_BACKEND[backend],
     spawn(_config: AgentSpawnConfig): AgentProcess {
       const proc = makeFakeProcess(spec) as AgentProcess & { setContinuationSink?: (s: any) => void };
-      proc.setContinuationSink = (s: any) => spec.sinks.push(s);
+      proc.setContinuationSink = (sink: any) => {
+        spec.sinks.push(sink);
+        spec.replayOnRegister?.(sink);
+      };
       return proc;
     },
     async close(_key: string): Promise<void> {},
@@ -646,6 +652,37 @@ test('runWithAdapter: awaitBackground true waits without a threadId', async () =
     { type: 'turn_complete', numTurns: 1, totalCostUsd: 0 },
   ]);
   assert.equal(sinkClosed, 1);
+});
+
+test('runWithAdapter: synchronous continuation replay follows the foreground terminal event', async () => {
+  const observed: NormalizedEvent[] = [];
+  const spec: SinkCapableSpec = {
+    events: [
+      { type: 'cost_record', provider: 'anthropic', model: 'foreground', tokens_in: 8, tokens_out: 3, cost_usd: 0.2 },
+      { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.2 },
+    ],
+    resultOnResolve: {
+      ...defaultAgentResult('s-ordered-bg'), total_cost_usd: 0.2, pendingBackgroundTasks: 1,
+    },
+    recorded: { sendCalls: [], killed: false, closed: false },
+    sinks: [],
+    replayOnRegister: (sink) => {
+      sink.onAssistantText('buffered continuation', 'continuation');
+      sink.onResult({
+        ...defaultAgentResult('s-ordered-bg'), total_cost_usd: 0.1,
+        pendingBackgroundTasks: 0,
+      });
+    },
+  };
+
+  await runWithAdapter(makeSinkCapableAdapter('claude', spec), 'msg', {
+    awaitBackground: true,
+    requiredSinks: [{ onEvent: (event) => observed.push(event) }],
+  }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
+
+  assert.deepEqual(observed.map(event => event.type), [
+    'cost_record', 'turn_complete', 'assistant_text', 'turn_complete',
+  ]);
 });
 
 test('runWithAdapter: awaitBackground false never waits for a thread turn', async () => {
