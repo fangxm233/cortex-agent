@@ -356,7 +356,7 @@ test('failed dispatch creates one review followup and deduplicates a second fail
     'atlas',
     'Close unresolved review left by failed thread thread-1 on completed task owner-leak',
     'Review artifact: /tmp/thread-artifact.md; failed stage: coder-reviewer:implReview.',
-    'Every open Blocker in the failed thread artifact is fixed or explicitly rebutted, and the full test suite is green.',
+    'Every open Blocker in the failed thread artifact is fixed or explicitly rebutted, and tests scoped to the fixes are green.',
     'high',
     'coder-review',
     [],

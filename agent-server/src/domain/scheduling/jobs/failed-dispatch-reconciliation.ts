@@ -61,7 +61,7 @@ async function createFollowup(thread: ThreadRecord, task: DispatchTask): Promise
     task.project,
     `Close unresolved review left by failed thread ${thread.id} on completed task ${task.id}`,
     `Review artifact: ${thread.artifactPath}; failed stage: ${failedStage(thread)}.`,
-    'Every open Blocker in the failed thread artifact is fixed or explicitly rebutted, and the full test suite is green.',
+    'Every open Blocker in the failed thread artifact is fixed or explicitly rebutted, and tests scoped to the fixes are green.',
     'high',
     task.template,
     [],

@@ -74,7 +74,7 @@ Use the `/develop` skill for all code changes. It enforces the TDD workflow:
 1. **Understand** — read relevant source, check `context/decisions/`, search for existing patterns to reuse.
 2. **Write tests** — happy path, edge cases, integration points. Run them, confirm they fail.
 3. **Implement** — minimum code to make tests pass. Follow existing naming, error handling, and type patterns.
-4. **Verify** — all tests pass (`npm test`). Review diff with `git diff`.
+4. **Verify** — required scoped tests pass; include the nearest affected integration boundary when the change crosses it. Review diff with `git diff`.
 5. **Document** — update relevant STATUS.md, add Decision Record if warranted.
 
 ### Bugfixes
