@@ -1,5 +1,5 @@
-// input:  PI model table and session filenames
-// output: cached provider discovery and filename session lookup
+// input:  PI model table, refresh requests, session filenames
+// output: refreshable provider cache and filename session lookup
 // pos:    PI provider and resume-target discovery
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -20,6 +20,7 @@ type ProviderScan = () => Promise<string[]>;
 
 export interface PIProviderDiscovery {
   getProviders(): string[];
+  refresh(): void;
 }
 
 export interface PIProviderDiscoveryOptions {
@@ -51,6 +52,7 @@ class CachedPIProviderDiscovery implements PIProviderDiscovery {
   private providers: string[] = [];
   private nextRefreshAt = 0;
   private inFlight: Promise<void> | null = null;
+  private refreshQueued = false;
 
   constructor(
     private readonly scan: ProviderScan,
@@ -65,15 +67,29 @@ class CachedPIProviderDiscovery implements PIProviderDiscovery {
     return snapshot;
   }
 
+  refresh(): void {
+    if (!this.inFlight) {
+      this.startRefresh();
+      return;
+    }
+    this.refreshQueued = true;
+  }
+
   private startRefresh(): void {
     const refresh = Promise.resolve()
       .then(this.scan)
       .then((providers) => this.accept(providers))
       .catch((error: unknown) => this.reject(error))
-      .finally(() => {
-        if (this.inFlight === refresh) this.inFlight = null;
-      });
+      .finally(() => this.finishRefresh(refresh));
     this.inFlight = refresh;
+  }
+
+  private finishRefresh(refresh: Promise<void>): void {
+    if (this.inFlight !== refresh) return;
+    this.inFlight = null;
+    if (!this.refreshQueued) return;
+    this.refreshQueued = false;
+    this.startRefresh();
   }
 
   private accept(providers: string[]): void {

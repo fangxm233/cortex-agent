@@ -8,6 +8,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 | agents/ | subdir | agent profile resolution and switching |
 | auth-status.test.ts | test | backend auth state, manageability and output |
 | login-flow.test.ts | test | Covers login outcomes, aborts, errors, and secrecy |
+| pi-login.test.ts | test | PI api-key login, recovery, and secret exclusion |
 | costs/ | subdir | cost attribution and summary reporting |
 | hook-view.test.ts | test | mount targets, result modes and apply time |
 | mcp/ | subdir | MCP tool registration and handlers |
