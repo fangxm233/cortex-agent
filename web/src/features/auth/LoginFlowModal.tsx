@@ -264,7 +264,9 @@ function ProviderSelect({ controller }: { controller: LoginController }) {
 }
 
 function piProviderOptions(accounts: AuthAccountStatus[]): ProviderOption[] {
-  return accounts.filter(account => account.backend === 'pi').map(account => ({
+  return accounts.filter(account => (
+    account.backend === 'pi' && account.capabilities.length > 0
+  )).map(account => ({
     provider: account.provider,
     label: account.label,
     capabilities: account.capabilities,

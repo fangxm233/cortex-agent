@@ -144,6 +144,7 @@ function authStatus() {
       { backend: 'pi', provider: 'deepseek', label: 'DeepSeek', capabilities: ['api_key'] },
       { backend: 'pi', provider: 'oauth-only', label: 'OAuth only', capabilities: ['oauth'] },
       { backend: 'pi', provider: 'dual-auth', label: 'Dual auth', capabilities: ['api_key', 'oauth'] },
+      { backend: 'pi', provider: 'metadata-only', label: 'Metadata only', capabilities: [] },
     ],
     piRuntime: { available: true, version: 'test', entry: null, error: null },
   };
