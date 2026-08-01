@@ -1,9 +1,10 @@
-// input:  LoginFlow API and Claude/PI API-key consumers
-// output: shared login service with post-handoff cancel fencing
+// input:  LoginFlow API and Claude/PI login consumers
+// output: shared OAuth/API-key service with cancel fencing
 // pos:    Selects one credential adapter per LoginFlow start request
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { loginClaudeApiKey } from './cc-login.js';
+import { loginClaudeSubscription } from './cc-subscription.js';
 import {
   cancelFlow,
   getFlowState,
@@ -15,6 +16,7 @@ import {
   type StartLoginFlowInput,
 } from './login-flow.js';
 import { createPiApiKeyLoginConsumer } from './pi-login.js';
+import { createPiOAuthLoginConsumer } from './pi-oauth.js';
 
 export interface AuthLoginService {
   start(input: StartLoginFlowInput): Promise<LoginFlowState>;
@@ -29,7 +31,34 @@ export interface AuthLoginServiceDependencies {
   respondPrompt?: typeof respondPrompt;
   cancelFlow?: typeof cancelFlow;
   claudeConsumer?: LoginFlowConsumer;
+  claudeOAuthConsumer?: LoginFlowConsumer;
   piConsumerFactory?: (provider: string) => LoginFlowConsumer;
+  piOAuthConsumerFactory?: (provider: string) => LoginFlowConsumer;
+}
+
+function selectClaudeConsumer(
+  input: StartLoginFlowInput,
+  dependencies: AuthLoginServiceDependencies,
+): LoginFlowConsumer {
+  if (input.provider !== 'anthropic') {
+    throw new LoginFlowError('provider_not_found', 'Claude provider must be anthropic.');
+  }
+  return input.authType === 'oauth'
+    ? dependencies.claudeOAuthConsumer ?? loginClaudeSubscription
+    : dependencies.claudeConsumer ?? loginClaudeApiKey;
+}
+
+function selectPiConsumer(
+  input: StartLoginFlowInput,
+  dependencies: AuthLoginServiceDependencies,
+): LoginFlowConsumer {
+  if (!input.provider.trim()) {
+    throw new LoginFlowError('provider_not_found', 'PI provider is required.');
+  }
+  const factory = input.authType === 'oauth'
+    ? dependencies.piOAuthConsumerFactory ?? createPiOAuthLoginConsumer
+    : dependencies.piConsumerFactory ?? createPiApiKeyLoginConsumer;
+  return factory(input.provider);
 }
 
 const TERMINAL_STEPS = new Set(['done', 'failed', 'cancelled']);
@@ -38,19 +67,9 @@ function selectConsumer(
   input: StartLoginFlowInput,
   dependencies: AuthLoginServiceDependencies,
 ): LoginFlowConsumer {
-  if (input.authType !== 'api_key') {
-    throw new LoginFlowError('unsupported_auth_type', 'Only API-key login is available.');
-  }
-  if (input.backend === 'claude') {
-    if (input.provider !== 'anthropic') {
-      throw new LoginFlowError('provider_not_found', 'Claude provider must be anthropic.');
-    }
-    return dependencies.claudeConsumer ?? loginClaudeApiKey;
-  }
-  if (!input.provider.trim()) {
-    throw new LoginFlowError('provider_not_found', 'PI provider is required.');
-  }
-  return (dependencies.piConsumerFactory ?? createPiApiKeyLoginConsumer)(input.provider);
+  return input.backend === 'claude'
+    ? selectClaudeConsumer(input, dependencies)
+    : selectPiConsumer(input, dependencies);
 }
 
 function createFlowOperations(
