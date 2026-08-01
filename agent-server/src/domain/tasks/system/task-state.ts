@@ -1,5 +1,5 @@
 // input:  task lifecycle storage, task generation, current date
-// output: claim, ownership-revocation, blocking, and approval transitions
+// output: owned claim, pending, block and approval transitions
 // pos:    Applies non-completion TASKS.yaml state changes
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -212,6 +212,13 @@ function blockTaskUnlocked(
   return { success: true, message: `Task blocked: ${reason}`, task_id: task.id };
 }
 
+function pendingOwnershipError(task: Task, ownership?: TaskGenerationExpectation) {
+  if (!ownership && task.dispatch_generation !== null) {
+    return { success: false as const, message: 'Active dispatch generation requires ownership', stale: true };
+  }
+  return staleOwnership(task, ownership);
+}
+
 function pendingTaskUnlocked(
   taskText: string | null, project: string, taskId: string | null = null,
   ownership?: TaskGenerationExpectation,
@@ -223,8 +230,8 @@ function pendingTaskUnlocked(
   const found = findTask(tasks, taskText, taskId);
   if ('error' in found) return { success: false, message: found.error };
   const task = found.task;
-  const stale = staleOwnership(task, ownership);
-  if (stale) return stale;
+  const ownershipError = pendingOwnershipError(task, ownership);
+  if (ownershipError) return ownershipError;
 
   if (task.status === 'pending') return { success: true, message: 'Task is already pending (idempotent)', task_id: task.id };
   if (task.status === 'done') return { success: false, message: 'Cannot mark a completed task as pending' };

@@ -1,16 +1,38 @@
-// input:  Vitest, cortex-run CLI, built command entry
-// output: CLI parsing, task generation, device, env passthrough tests
-// pos:    Verifies cortex-run launch argument and ownership wiring
+// input:  Vitest, cortex-run CLI, task lifecycle fixtures
+// output: CLI parsing, ownership rejection, dispatch argument tests
+// pos:    Cortex-run launch and ownership regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { AGENT_SERVER_DIR } from './module-loader.js';
+import { PROJECTS_DIR } from '../src/core/paths.js';
+import { parseTasksFile } from '../src/core/task-parser.js';
 import { resolveTaskGeneration } from '../src/domain/tasks/system/cortex-run.js';
+import { runCli as runTaskCli } from '../src/domain/tasks/system/task-cli.js';
 
 const CORTEX_RUN = path.join(AGENT_SERVER_DIR, 'dist', 'domain', 'tasks', 'system', 'cortex-run.js');
+const TASK_CONTEXT_KEYS = [
+  'CORTEX_THREAD_ID', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT', 'CORTEX_TASK_GENERATION',
+] as const;
+
+function withoutTaskContext<T>(run: () => T): T {
+  const previous = Object.fromEntries(TASK_CONTEXT_KEYS.map((key) => [key, process.env[key]]));
+  try {
+    for (const key of TASK_CONTEXT_KEYS) delete process.env[key];
+    return run();
+  } finally {
+    for (const key of TASK_CONTEXT_KEYS) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
 
 interface CortexRunArgsExpected {
   name?: string;
@@ -74,6 +96,28 @@ test('resolveTaskGeneration only forwards the matching dispatch ownership', () =
   assert.equal(resolveTaskGeneration('atlas', 'a3f2', env), 'generation-b');
   assert.equal(resolveTaskGeneration('atlas', 'ffff', env), null);
   assert.equal(resolveTaskGeneration('other', 'a3f2', env), null);
+});
+
+test('unowned cortex-run linkage cannot mark a generated task pending', () => {
+  const project = `_test_cr_unowned_${process.pid}`;
+  const projectDir = path.join(PROJECTS_DIR, project);
+  const tasksPath = path.join(projectDir, 'TASKS.yaml');
+  fs.mkdirSync(projectDir, { recursive: true });
+  fs.writeFileSync(tasksPath, 'tasks:\n  - id: a3f2\n    text: Generated task\n    status: open\n    dispatch-generation: generation-b\n    claimed-by: task-dispatcher\n');
+  try {
+    const result = withoutTaskContext(() => runTaskCli([
+      'pending', '--project', project, '--task-id', 'a3f2',
+    ]));
+    assert.equal(result.exitCode, 1);
+    assert.match(result.stdout, /generation|ownership/i);
+    const task = parseTasksFile(fs.readFileSync(tasksPath, 'utf8'), project)[0];
+    assert.equal(task.status, 'open');
+    assert.equal(task.claimed_by, 'task-dispatcher');
+    assert.equal(task.dispatch_generation, 'generation-b');
+    assert.equal(task.pending_at, null);
+  } finally {
+    fs.rmSync(projectDir, { recursive: true, force: true });
+  }
 });
 
 test('parseCliArgs reads --device', () => {

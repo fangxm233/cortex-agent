@@ -7,15 +7,15 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 |---|---|---|
 | _global-setup.ts | setup | allocates the run-scoped temp-home root and removes it after all workers finish |
 | _shared-pool-manifest.ts | setup | lists tests safe for shared non-isolated forks |
-| _test-home-root.ts | setup | allocates test homes under one parent, redirects TMPDIR, sweeps stale leftovers |
+| _test-home-root.ts | setup | Allocates test homes and sweeps stale leftovers |
 | _test-home.ts | setup | isolates the data home per test process |
 | _vitest-setup.ts | setup | isolates the data home per test file |
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
-| agent-adapter-claude.test.ts | test | Claude CLI composition, hooks, compact and settings |
+| agent-adapter-claude.test.ts | test | Claude CLI, hooks, compact and settings |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
 | agent-adapter-pi-event-parser.test.ts | test | PI RPC events without invented model metadata |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
-| agent-adapter-pi-hook-registry.test.ts | test | PI native contracts, interaction dispatch, and task guard |
+| agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
@@ -23,12 +23,12 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-web-search.test.ts | test | PI WebSearch dispatch, terminal and SSE decoding |
 | agent-adapter-pi.test.ts | test | PI resume identity, cache, events and context |
 | agent-adapter.test.ts | test | adapter dispatch, PI path wiring and capabilities |
-| agent-retry-classification.test.ts | test | retry, auth lifecycle, outage and rejection identity |
+| agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |
 | auth-watch.test.ts | test | auth notification routing, debounce and recovery |
 | auto-compound.test.ts | test | compound trigger gating and output merge |
-| claim-recovery.test.ts | test | generation-fenced orphan claim and durable tracking recovery |
+| claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |
 | cli-utils.test.ts | test | shared CLI help and error rendering |
 | cli.test.ts | test | cortex CLI routing, output framing and size limit |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
@@ -42,8 +42,8 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cortex-md-injector-hook.test.ts | test | CORTEX.md hook injection subprocess |
 | cortex-md-injector.test.ts | test | CORTEX.md injection cache and dedup |
 | cortex-md-scanner.test.ts | test | CORTEX.md ancestor chain scanning |
-| cortex-run-callback-handler.test.ts | test | Remote callback generation fencing and idempotency |
-| cortex-run-cli-dispatch.test.ts | test | cortex-run CLI ownership metadata and dispatch |
+| cortex-run-callback-handler.test.ts | test | Remote callback generation and state-first fencing |
+| cortex-run-cli-dispatch.test.ts | test | Cortex-run parsing and unowned linkage rejection |
 | daemon.test.ts | test | daemon imports, rebuild order and abort notice |
 | disk-monitor.test.ts | test | disk path, toggle, alerts and byte formatting |
 | dispatch-utils.test.ts | test | device registry, task id and session names |
@@ -70,10 +70,10 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | hook-bus-script-path.test.ts | test | runs registry scripts from paths containing spaces |
 | hook-bus.test.ts | test | HookBus ordering, timeout and diagnostics |
 | hook-callers.test.ts | test | Session timeout, diagnostics and injection |
-| hook-exec.test.ts | test | hook subprocess output, exit status and stdin semantics |
+| hook-exec.test.ts | test | Hook subprocess output, status and stdin |
 | init.test.ts | test | cortex init path, env and MCP config generation |
 | integration-init-startup.test.ts | e2e | init and server lifecycle hook behavior |
-| integration-settings-hotreload.test.ts | e2e | settings startup migration and live reload behavior |
+| integration-settings-hotreload.test.ts | e2e | Settings migration and live reload behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
 | machines-query.test.ts | test | machines list online/offline projection |
@@ -134,7 +134,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-mutations.test.ts | test | task add, batch edit and decompose |
 | task-node-ledger.test.ts | test | task artifact paths and acceptance ledger |
 | task-origin-wake.test.ts | test | origin wake precedence and notice framing |
-| task-parent-split.test.ts | test | task parent field and split outcome |
+| task-parent-split.test.ts | test | Task parent fields and owned split outcomes |
 | task-parser.test.ts | test | Task schema round trips, query, lint and health |
 | task-store.test.ts | test | task store exclusive mutex serialization |
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |

@@ -1,6 +1,6 @@
-// input:  node fs/path/child_process, task generation, lifecycle storage
-// output: generation-fenced completeTask/uncompleteTask transitions
-// pos:    Verifies completion evidence and dispatch ownership
+// input:  fs/path, git process, task generation, lifecycle storage
+// output: ownership-first completeTask/uncompleteTask transitions
+// pos:    Verifies completion ownership, state and evidence
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'node:fs';
@@ -145,15 +145,13 @@ function completionStateError(task: Task): string | null {
   return null;
 }
 
-function loadCompletableTask(taskText: string | null, project: string, taskId: string | null) {
+function loadCompletionTask(taskText: string | null, project: string, taskId: string | null) {
   const tasks = readTasks(project);
   if (tasks.length === 0 && !fs.existsSync(getTasksPath(project))) {
     return { error: `TASKS.yaml not found for project ${project}` };
   }
   const found = findTask(tasks, taskText, taskId);
-  if ('error' in found) return found;
-  const stateError = completionStateError(found.task);
-  return stateError ? { error: stateError } : { tasks, task: found.task };
+  return 'error' in found ? found : { tasks, task: found.task };
 }
 
 function completionWarning(
@@ -187,12 +185,14 @@ function completeTaskUnlocked(
   skipVerify: boolean = false, skipVerifyReason: string | null = null,
   ownership?: TaskGenerationExpectation,
 ) {
-  const loaded = loadCompletableTask(taskText, project, taskId);
+  const loaded = loadCompletionTask(taskText, project, taskId);
   if ('error' in loaded) return { success: false, message: loaded.error };
   const { task, tasks } = loaded;
   if (ownership && task.dispatch_generation !== ownership.generation) {
     return { success: false, message: 'Stale task dispatch generation; completion ignored', stale: true };
   }
+  const stateError = completionStateError(task);
+  if (stateError) return { success: false, message: stateError };
   const verifyWarning = completionWarning(project, task, completionNote, skipVerify, skipVerifyReason);
   const completedAt = new Date().toISOString();
   const today = completedAt.slice(0, 10);
