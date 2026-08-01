@@ -1,7 +1,8 @@
-// input:  message edits, ledger snapshots, active runs
-// output: immutable rollback restore and reprocessing
+// input:  message edits, ledger snapshots, PI path registry
+// output: exact transcript rollback and reprocessing
 // pos:    Platform message edit retry orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+import { registerPISessionPath } from '../../agent-adapter/index.js';
 import type { PlatformAdapter, MessageEditContext } from '@platform/index.js';
 import type { LedgerTurn, ChannelConversation } from '@store/conversation-ledger-repo.js';
 import { effectiveBackendSessionId, sessionStore } from '@store/session-registry-repo.js';
@@ -48,6 +49,7 @@ function createEditHandler(deps: {
   markPendingTurnSuperseded?: (channel: string) => void;
   waitForTurnTracking?: (channel: string) => Promise<void>;
   resolveBackend?: (channel: string) => string;
+  registerPISessionPath?: (sessionId: string, sessionPath: string) => void;
 }) {
   return async function handleMessageEdit(ctx: MessageEditContext, adapter: PlatformAdapter) {
     const { originalRef, newText } = ctx;
@@ -197,6 +199,10 @@ async function processEditLocked({ channel, adapter, originalTs, newText, turnIn
       useSessionId = null;
       sessionName = null;
     }
+  }
+
+  if (backend === 'pi' && restored && backendSessionId && piSessionFile) {
+    (deps.registerPISessionPath ?? registerPISessionPath)(backendSessionId, piSessionFile);
   }
 
   // Step 4.5: Tear down any pooled agent process for this channel BEFORE reprocessing.

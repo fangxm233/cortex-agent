@@ -1,5 +1,5 @@
-// input:  web rewinds and injected async backup
-// output: rollback, restore, cleanup, resend regressions
+// input:  web rewinds, PI path registry, async backups
+// output: exact restore, cleanup and resend regressions
 // pos:    Verifies web session rewind orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,6 +7,11 @@ import '../_test-home.js';
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join as pathJoin } from 'node:path';
+import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
+import * as realSessionBackup from '../../src/domain/sessions/session-backup.js';
 import { rewindWebSession, type RewindDeps } from '../../src/orchestration/session-rewind.js';
 import type { PlatformAdapter } from '../../src/platform/index.js';
 
@@ -52,6 +57,7 @@ function makeDeps(log: CallLog, overrides: Partial<RewindDeps> = {}): RewindDeps
       cleanupAllBackupsForFile: () => {},
     },
     resolveBackend: () => 'claude',
+    registerPISessionPath: () => {},
     closePooledSession: (ch, backend) => { log.calls.push(`closePooled:${ch}:${backend}`); },
     send: (opts) => {
       log.calls.push(`send:${opts.channel}:${opts.text}:${opts.attachments?.length ?? 0}`);
@@ -145,14 +151,23 @@ test('missing backup on turn ≥ 1 falls back to clearing the backend session id
   assert.ok(log.calls.includes('updateSession:cortex-1:{"backendSessionId":null}'), 'fallback clears backend id');
 });
 
-test('PI rewind restores the ledger backup even when filename discovery now prefers another file', async () => {
+test('PI rewind resends from the recorded restored path when an empty registry would prefer a canonical duplicate', async () => {
   const log: CallLog = { calls: [] };
   const base = makeDeps(log);
-  const source = '/sessions/2026-08-01_backend-1.jsonl';
+  const sessionDir = pathJoin(tmpdir(), `web-rewind-pi-${process.pid}-${Date.now()}`);
+  const source = pathJoin(sessionDir, '2026-08-01T00-00-00Z_backend-1.jsonl');
+  const canonical = pathJoin(sessionDir, 'backend-1.jsonl');
   const backupPath = `${source}.turn-1.bak`;
+  mkdirSync(sessionDir, { recursive: true });
+  writeFileSync(source, 'after-turn');
+  writeFileSync(backupPath, 'restored-context');
+  writeFileSync(canonical, 'selector-preferred-context');
+
   const conversation = await base.ledger.getConversation('web:track-1');
   conversation!.backend = 'pi';
   conversation!.turns[1].backupPath = backupPath;
+  const piAdapter = new PIAdapter(undefined, sessionDir);
+  let resendPath: string | null = null;
 
   const deps = makeDeps(log, {
     resolveBackend: () => 'pi',
@@ -161,29 +176,38 @@ test('PI rewind restores the ledger backup even when filename discovery now pref
       ...base.backup,
       findPISessionFile: async () => {
         log.calls.push('findPI:canonical');
-        return '/sessions/backend-1.jsonl';
+        return canonical;
       },
-      sessionFileFromBackupPath: (candidate, turnIndex) => {
-        log.calls.push(`derive:${candidate}:${turnIndex}`);
-        return source;
-      },
-      restoreSessionBackup: async (candidate, turnIndex) => {
-        log.calls.push(`restoreRecorded:${candidate}:${turnIndex}`);
-        return true;
-      },
+      sessionFileFromBackupPath: realSessionBackup.sessionFileFromBackupPath,
+      restoreSessionBackup: realSessionBackup.restoreSessionBackup,
       cleanupBackupsForFile: (filePath, turnIndex) => {
         log.calls.push(`cleanupForFile:${filePath}:${turnIndex}`);
       },
     },
+    registerPISessionPath: (sessionId, filePath) => {
+      log.calls.push(`registerPI:${sessionId}:${filePath}`);
+      piAdapter.registerSessionPath(sessionId, filePath);
+    },
+    send: (opts) => {
+      resendPath = piAdapter.resolveSessionPath('backend-1');
+      log.calls.push(`send:${opts.channel}:${opts.text}`);
+      opts.mutationRelease?.();
+    },
   });
 
-  assert.deepEqual(
-    await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps),
-    { ok: true },
-  );
-  assert.ok(log.calls.includes(`restoreRecorded:${backupPath}:1`));
-  assert.ok(log.calls.includes(`cleanupForFile:${source}:1`));
-  assert.ok(!log.calls.includes('findPI:canonical'), 'persisted backup identity bypasses rediscovery');
+  try {
+    assert.deepEqual(
+      await rewindWebSession({ sessionId: 'track-1', channel: 'web:track-1', turnIndex: 1, text: 'edited', adapter }, deps),
+      { ok: true },
+    );
+    assert.equal(readFileSync(source, 'utf8'), 'restored-context');
+    assert.equal(readFileSync(canonical, 'utf8'), 'selector-preferred-context');
+    assert.equal(resendPath, source);
+    assert.ok(log.calls.includes(`registerPI:backend-1:${source}`));
+    assert.ok(!log.calls.includes('findPI:canonical'), 'recorded backup identity bypasses rediscovery');
+  } finally {
+    rmSync(sessionDir, { recursive: true, force: true });
+  }
 });
 
 test('failed PI rewind cleans every backup beside the recorded session file', async () => {
@@ -206,6 +230,9 @@ test('failed PI rewind cleans every backup beside the recorded session file', as
         log.calls.push(`cleanupAllForFile:${filePath}`);
       },
     },
+    registerPISessionPath: (sessionId, filePath) => {
+      log.calls.push(`registerPI:${sessionId}:${filePath}`);
+    },
   });
 
   assert.deepEqual(
@@ -213,6 +240,7 @@ test('failed PI rewind cleans every backup beside the recorded session file', as
     { ok: true },
   );
   assert.ok(log.calls.includes(`cleanupAllForFile:${source}`));
+  assert.ok(!log.calls.some((call) => call.startsWith('registerPI:')), 'failed restore must not pin a resume path');
   assert.ok(!log.calls.includes('cleanupAll:backend-1'), 'PI cleanup must not scan Claude projects');
 });
 

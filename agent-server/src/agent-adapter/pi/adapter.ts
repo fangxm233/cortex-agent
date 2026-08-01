@@ -1,5 +1,5 @@
 // input:  spawn config, provider cache, spawner, settings
-// output: PI sessions, bounded events, compact, steering
+// output: PI sessions, resume path registry, events and compact
 // pos:    PI backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -994,6 +994,11 @@ export class PIAdapter implements AgentAdapter {
         return ok;
       },
     };
+  }
+
+  /** Record the exact transcript path restored by rewind before the next resume spawn. */
+  registerSessionPath(sessionId: string, sessionPath: string): void {
+    this.sessionPathRegistry.set(sessionId, sessionPath);
   }
 
   /**

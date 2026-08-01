@@ -5,7 +5,7 @@ Defines the shared adapter contract, the capability matrix, and the normalized e
 
 | filename | role | function |
 |---|---|---|
-| index.ts | entry | selects the adapter for a backend |
+| index.ts | entry | selects adapters and pins PI transcript paths |
 | types.ts | types | adapter, process and continuation contracts |
 | capabilities.ts | core | declares ten capabilities for each backend |
 | bg-wait.ts | core | resolves and awaits background continuations |
