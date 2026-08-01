@@ -1,7 +1,7 @@
-// input:  retry config, facade, outages, stub processes
-// output: retry, direct-outage, and notice regressions
-// pos:    Covers provider retry and terminal notice policy
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  retry config, auth events, facade, outages, stub processes
+// output: retry, authentication lifecycle, outage, and notice regressions
+// pos:    Covers provider retry and terminal authentication policy
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
@@ -9,8 +9,11 @@ import { writeFileSync } from 'node:fs';
 import { isRetryableError } from '../src/domain/agents/config.js';
 import { allConfigsRateLimited, runAgent } from '../src/domain/agents/facade.js';
 import { getAdapter } from '../src/agent-adapter/index.js';
-import type { AgentProcess } from '../src/agent-adapter/types.js';
+import type { AgentProcess, Backend } from '../src/agent-adapter/types.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
+import { EventBus } from '../src/events/event-bus.js';
+import type { AuthErrorKind, CortexEvent } from '../src/events/index.js';
+import { initAuthEvents } from '../src/domain/auth/auth-events.js';
 import { profileRepo, PROFILES_FILE } from '../src/store/profile-repo.js';
 import {
   activateOutageWindow,
@@ -91,6 +94,21 @@ function installSingleProfile(): void {
   profileRepo.invalidate();
 }
 
+function installAuthProfile(backend: Backend, provider?: string): void {
+  writeFileSync(PROFILES_FILE, JSON.stringify({
+    defaultProfile: 'auth-test',
+    profiles: {
+      'auth-test': {
+        model: backend === 'claude' ? 'claude-sonnet-4-6' : 'deepseek-v4-pro',
+        backend,
+        mode: backend === 'claude' ? 'plan' : 'deepseek',
+        ...(provider ? { provider } : {}),
+      },
+    },
+  }));
+  profileRepo.invalidate();
+}
+
 async function initProviderThrottle(): Promise<void> {
   throttleReset();
   await initRateLimitThrottle(new MockAdapter({ adminChannel: 'admin' }) as any, {
@@ -130,8 +148,20 @@ for (const message of [
 }
 
 for (const message of [
+  'Please run /login',
+  'OAuth token has expired',
+  'authentication_error',
+  'invalid x-api-key',
+  'HTTP 401: token rejected. You can retry your request.',
+  'invalid_grant',
+]) {
+  test(`isRetryableError keeps authentication failure non-retryable: ${message}`, () => {
+    assert.equal(isRetryableError(new Error(message)), false);
+  });
+}
+
+for (const message of [
   'HTTP 400 invalid request',
-  'HTTP 401 unauthorized',
   'HTTP 403 forbidden',
   'HTTP 404 model not found',
   'request body too large',
@@ -141,6 +171,72 @@ for (const message of [
 ]) {
   test(`isRetryableError rejects deterministic failure: ${message}`, () => {
     assert.equal(isRetryableError(new Error(message)), false);
+  });
+}
+
+const AUTH_BACKEND_CASES: Array<{
+  backend: Backend;
+  provider?: string;
+  expectedProvider: string;
+  message: string;
+  kind: AuthErrorKind;
+}> = [
+  {
+    backend: 'claude', expectedProvider: 'anthropic',
+    message: 'Please run /login: credential-fragment-claude', kind: 'login_required',
+  },
+  {
+    backend: 'pi', provider: 'deepseek', expectedProvider: 'deepseek',
+    message: 'authentication_error: credential-fragment-pi', kind: 'invalid_api_key',
+  },
+];
+
+for (const authCase of AUTH_BACKEND_CASES) {
+  test(`runAgent publishes required and recovered through the ${authCase.backend} facade path`, async (t) => {
+    installAuthProfile(authCase.backend, authCase.provider);
+    const bus = new EventBus();
+    const required: Array<Extract<CortexEvent, { type: 'auth.required' }>> = [];
+    const recovered: Array<Extract<CortexEvent, { type: 'auth.recovered' }>> = [];
+    bus.subscribe('auth.required', (event) => { required.push(event); });
+    bus.subscribe('auth.recovered', (event) => { recovered.push(event); });
+    initAuthEvents(bus);
+    t.onTestFinished(() => initAuthEvents(null));
+
+    const spawn = vi.spyOn(getAdapter(authCase.backend), 'spawn')
+      .mockReturnValueOnce(makeProcess(new Error(authCase.message)))
+      .mockReturnValueOnce(makeProcess(RATE_LIMIT_RESULT))
+      .mockReturnValueOnce(makeProcess(SUCCESS_RESULT))
+      .mockReturnValueOnce(makeProcess(SUCCESS_RESULT));
+    const options = {
+      profileName: 'auth-test', channel: `web:auth-${authCase.backend}`,
+      trackSessionId: `track-${authCase.backend}`,
+    };
+
+    await assert.rejects(runAgent('test', options).promise, new RegExp(authCase.message.split(':')[0]));
+    assert.equal(spawn.mock.calls.length, 1);
+    assert.equal(required.length, 1);
+    const { ts: _requiredTs, ...requiredPayload } = required[0];
+    assert.deepEqual(requiredPayload, {
+      type: 'auth.required', backend: authCase.backend, provider: authCase.expectedProvider,
+      authType: null, kind: authCase.kind, channel: options.channel,
+      sessionId: options.trackSessionId,
+    });
+    assert.equal(JSON.stringify(required[0]).includes('credential-fragment'), false);
+
+    const rateLimited = await runAgent('test', options).promise;
+    assert.equal(rateLimited.rateLimited, true);
+    assert.deepEqual(recovered, []);
+
+    await runAgent('test', options).promise;
+    assert.equal(recovered.length, 1);
+    const { ts: _recoveredTs, ...recoveredPayload } = recovered[0];
+    assert.deepEqual(recoveredPayload, {
+      type: 'auth.recovered', backend: authCase.backend, provider: authCase.expectedProvider,
+    });
+
+    await runAgent('test', options).promise;
+    assert.equal(recovered.length, 1);
+    assert.equal(spawn.mock.calls.length, 4);
   });
 }
 

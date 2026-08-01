@@ -1,9 +1,11 @@
 // input:  ChatNoticeLevel, SessionContextUsage, and system state-change hints
-// output: CortexEvent union including context/compact/notices/lifecycle
+// output: CortexEvent and AuthErrorKind event contracts
 // pos:    Typed event contract for the shared EventBus
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
+
+export type AuthErrorKind = 'login_required' | 'oauth_expired' | 'invalid_api_key' | 'unauthorized' | 'invalid_grant';
 
 // ── User-facing events (§5.1) ────────────────────────────────────────────────
 
@@ -55,6 +57,10 @@ export type CortexEvent =
   | { type: 'agent.failed';           ts: string; executionId: string; error: string }
   | { type: 'agent.superseded';       ts: string; executionId: string; reason: string }
   | { type: 'execution.log';          ts: string; executionId: string; seq: number; lines: string[]; dropped?: number }
+
+  // Authentication lifecycle
+  | { type: 'auth.required';          ts: string; backend: 'claude' | 'pi'; provider: string; authType: 'oauth' | 'api_key' | null; kind: AuthErrorKind; channel: string | null; sessionId: string | null }
+  | { type: 'auth.recovered';         ts: string; backend: 'claude' | 'pi'; provider: string }
 
   // Thread lifecycle
   | { type: 'thread.created';         ts: string; threadId: string; templateName: string }
