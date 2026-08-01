@@ -1,5 +1,5 @@
 // input:  composer scope, text and uploaded attachment metadata
-// output: per-session draft storage and project draft prefill
+// output: per-session draft storage, prefill, and send restoration
 // pos:    Persistent composer utilities for desktop and mobile
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -120,6 +120,15 @@ export function mergeDraftPrefill(existing: ComposerDraft | null, text: string):
     attachments: existing?.attachments ?? [],
     ...(existing?.draftUploadId ? { draftUploadId: existing.draftUploadId } : {}),
   };
+}
+
+/** Restore a rejected send without discarding content entered while its mutation was pending. */
+export function mergeRestoredDraft(current: ComposerDraft, sent: ComposerDraft): ComposerDraft {
+  const text = [sent.text, current.text].filter((value) => value.length > 0).join('\n');
+  const attachments = [...sent.attachments, ...current.attachments]
+    .filter((attachment, index, all) => all.findIndex((item) => item.path === attachment.path) === index);
+  const draftUploadId = current.draftUploadId ?? sent.draftUploadId;
+  return { text, attachments, ...(draftUploadId ? { draftUploadId } : {}) };
 }
 
 /** Seed a project's new-session draft without sending or creating a session. */

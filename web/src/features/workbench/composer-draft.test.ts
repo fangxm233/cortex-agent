@@ -1,5 +1,5 @@
 // input:  composer draft helpers and attachment metadata
-// output: storage key, parsing and prefill merge regressions
+// output: storage key, parsing, prefill, and failed-send restore tests
 // pos:    Tests persistent desktop/mobile composer drafts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,6 +10,7 @@ import {
   parseDraft,
   serializeDraft,
   mergeDraftPrefill,
+  mergeRestoredDraft,
   DRAFT_KEY_PREFIX,
   type ComposerDraft,
 } from './composer-draft';
@@ -68,6 +69,30 @@ describe('mergeDraftPrefill', () => {
     expect(mergeDraftPrefill(null, 'private reminder')).toEqual({
       text: 'private reminder',
       attachments: [],
+    });
+  });
+});
+
+describe('mergeRestoredDraft', () => {
+  it('restores a rejected send without overwriting text typed while it was pending', () => {
+    expect(mergeRestoredDraft(
+      { text: 'new thought', attachments: [meta('new.png')] },
+      { text: 'failed message', attachments: [meta('sent.png')], draftUploadId: 'upload-1' },
+    )).toEqual({
+      text: 'failed message\nnew thought',
+      attachments: [meta('sent.png'), meta('new.png')],
+      draftUploadId: 'upload-1',
+    });
+  });
+
+  it('deduplicates already-restored attachments by server path', () => {
+    expect(mergeRestoredDraft(
+      { text: '', attachments: [meta('same.png')], draftUploadId: 'current-upload' },
+      { text: '', attachments: [meta('same.png')], draftUploadId: 'sent-upload' },
+    )).toEqual({
+      text: '',
+      attachments: [meta('same.png')],
+      draftUploadId: 'current-upload',
     });
   });
 });

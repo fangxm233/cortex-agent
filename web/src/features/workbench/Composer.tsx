@@ -1,5 +1,5 @@
-// input:  session state, tRPC, media and reloadable draft storage
-// output: desktop composer with status, attachments and external prefill
+// input:  session state, optimistic send callbacks, media and drafts
+// output: desktop composer with lossless send failure recovery
 // pos:    Workbench message input and turn-control surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useRef, useState, useCallback, useEffect, useLayoutEffect, type ReactNode } from 'react';
@@ -17,9 +17,12 @@ import { mediaKindOf } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOf } from '@/features/media/doc-kind';
 import { fetchFileObjectUrl } from '@/lib/files';
-import { draftStorageKey, loadDraft, saveDraft, clearDraft } from './composer-draft';
+import {
+  draftStorageKey, loadDraft, saveDraft, clearDraft, mergeRestoredDraft, type ComposerDraft,
+} from './composer-draft';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import { ComposerStatusLine } from './ComposerStatusLine';
+import { runOptimisticMutation, type OptimisticUserMessage } from './optimistic-message';
 
 // Composer — extended with file attachment support (15a 附件输入与消息).
 // Three entry points for files: "+ attach" button · paste (clipboard images) · drag & drop.
@@ -30,6 +33,19 @@ import { ComposerStatusLine } from './ComposerStatusLine';
 const mono = "'IBM Plex Mono',monospace";
 const DASH = '—';
 const UPLOAD_PATH = '/api/attachments/upload';
+
+export function ComposerSendFailure({ error }: { error: string }): JSX.Element {
+  const L = useVocab();
+  return (
+    <div
+      data-send-error
+      role="alert"
+      style={{ marginTop: 7, padding: '0 2px', font: `500 10.5px ${mono}`, color: 'var(--proto-danger)' }}
+    >
+      {L.wbSendFailed} · {L.wbDraftRestored}: {error}
+    </div>
+  );
+}
 
 interface PendingAttachment {
   id: string;
@@ -125,6 +141,21 @@ async function uploadFile(
 let _attachId = 0;
 function nextId(): string { return `att_${++_attachId}_${Date.now()}`; }
 
+function completedAttachmentMetas(items: PendingAttachment[]): AttachmentMeta[] {
+  return items.filter((item) => item.status === 'done' && item.meta).map((item) => item.meta!);
+}
+
+function mergeRestoredAttachments(
+  current: PendingAttachment[],
+  sent: AttachmentMeta[],
+): PendingAttachment[] {
+  const currentPaths = new Set(current.flatMap((item) => item.meta?.path ? [item.meta.path] : []));
+  const restored = sent.filter((meta) => !currentPaths.has(meta.path)).map((meta) => ({
+    id: nextId(), status: 'done' as const, progress: 100, meta,
+  }));
+  return [...restored, ...current];
+}
+
 export function Composer({
   sessionId,
   running,
@@ -136,6 +167,10 @@ export function Composer({
   draftProfile = null,
   draftReloadToken = 0,
   projectId = 'general',
+  prepareOptimistic,
+  enqueueOptimistic,
+  acceptOptimistic,
+  rejectOptimistic,
   statusAccessory,
 }: {
   sessionId: string;
@@ -153,6 +188,10 @@ export function Composer({
   draftProfile?: string | null;
   draftReloadToken?: number;
   projectId?: string;
+  prepareOptimistic: (text: string, attachments?: AttachmentMeta[]) => OptimisticUserMessage;
+  enqueueOptimistic: (message: OptimisticUserMessage) => void;
+  acceptOptimistic: (clientId: string, createdSessionId?: string) => boolean;
+  rejectOptimistic: (clientId: string, error: Error) => boolean;
   statusAccessory?: ReactNode;
 }): JSX.Element {
   const trpc = useTRPC();
@@ -163,20 +202,9 @@ export function Composer({
   const { selectCreatedSession } = useSelectedSession();
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
   const cancelMut = useMutation(trpc.sessions.cancel.mutationOptions());
-  const createAndSendMut = useMutation(
-    trpc.sessions.createAndSend.mutationOptions({
-      onSuccess: (data) => {
-        // Transition from draft to the real session: invalidate the session list so
-        // the new session appears, then select it (triggers transcript + live sync).
-        // selectCreatedSession marks the id as pending so the chat stays on the new session
-        // across the gap before the refetched list contains its row (no flip to the previous
-        // most-recent session).
-        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-        selectCreatedSession(data.sessionId);
-      },
-    }),
-  );
+  const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
   const [composer, setComposer] = useState('');
+  const [sendError, setSendError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -216,6 +244,10 @@ export function Composer({
 
   // ── Attachment state ──
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const composerRef = useRef(composer);
+  const attachmentsRef = useRef(attachments);
+  composerRef.current = composer;
+  attachmentsRef.current = attachments;
   const [dragOver, setDragOver] = useState(false);
   const dragCount = useRef(0);
   const dragFileCount = useRef(0);
@@ -238,6 +270,8 @@ export function Composer({
   // draft cleanly and never writes the outgoing content under the incoming key.
   const draftKey = draftStorageKey({ isDraft, sessionId, projectId });
   const draftIdentity = `${draftKey ?? ''}:${isDraft ? draftReloadToken : 0}`;
+  const currentDraftIdentityRef = useRef(draftIdentity);
+  currentDraftIdentityRef.current = draftIdentity;
   const draftKeyRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (draftKeyRef.current !== draftIdentity) {
@@ -428,41 +462,83 @@ export function Composer({
   }, [addFiles]);
 
   // ── Send ──
-  const doSendText = (raw: string): void => {
-    const text = raw.trim();
-    const metas = doneAttachments.map((a) => a.meta!);
-    if (!text && metas.length === 0) return;
+  const restoreRejectedSend = (
+    sent: ComposerDraft,
+    sentKey: string | null,
+    sentIdentity: string,
+    error: Error,
+  ): void => {
+    const stillCurrent = currentDraftIdentityRef.current === sentIdentity;
+    const current = stillCurrent
+      ? {
+          text: composerRef.current,
+          attachments: completedAttachmentMetas(attachmentsRef.current),
+          ...(draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
+        }
+      : (loadDraft(sentKey) ?? { text: '', attachments: [] });
+    const restored = mergeRestoredDraft(current, sent);
+    saveDraft(sentKey, restored);
+    if (!stillCurrent) return;
+    if (restored.draftUploadId) draftUploadId.current = restored.draftUploadId;
+    setComposer(restored.text);
+    setAttachments((items) => mergeRestoredAttachments(items, sent.attachments));
+    setSendError(error.message);
+  };
 
-    if (isDraft) {
-      // Draft mode: create session + send first message atomically.
-      createAndSendMut.mutate({
-        projectId,
-        profileName: draftProfile ?? undefined,
-        text,
-        draftUploadId: draftUploadId.current ?? undefined,
-        ...(metas.length > 0 ? { attachments: metas } : {}),
-      } as any);
-    } else {
-      if (!sessionId) return;
-      sendMut.mutate({
-        sessionId,
-        text,
-        ...(metas.length > 0 ? { attachments: metas } : {}),
-      } as any);
-    }
-    // Draft consumed — drop the persisted copy for this scope (and reset the draft upload dir so a
-    // subsequent new-session draft in the same project gets a fresh directory).
+  const clearConsumedComposer = (): void => {
     clearDraft(draftKey);
-    if (isDraft) draftUploadId.current = null;
     setComposer('');
-    setAttachments((prev) => {
-      prev.forEach((a) => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
+    setAttachments((items) => {
+      items.forEach((item) => { if (item.previewUrl) URL.revokeObjectURL(item.previewUrl); });
       return [];
     });
     setSlashOpen(false);
-    abortControllers.current.forEach((c) => c.abort());
+    abortControllers.current.forEach((controller) => controller.abort());
     abortControllers.current.clear();
     if (inputRef.current) inputRef.current.style.height = 'auto';
+  };
+
+  const doSendText = (raw: string): void => {
+    const text = raw.trim();
+    const metas = doneAttachments.map((attachment) => attachment.meta!);
+    if (!text && metas.length === 0) return;
+    if (!isDraft && !sessionId) return;
+    const sent: ComposerDraft = {
+      text, attachments: metas,
+      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
+    };
+    const message = prepareOptimistic(text, metas);
+    const sentKey = draftKey;
+    const sentIdentity = draftIdentity;
+    setSendError(null);
+    const mutation = runOptimisticMutation<{ sessionId: string } | { accepted: boolean }>({
+      message,
+      mutate: () => isDraft
+        ? createAndSendMut.mutateAsync({
+            projectId, profileName: draftProfile ?? undefined, text,
+            draftUploadId: sent.draftUploadId,
+            ...(metas.length > 0 ? { attachments: metas } : {}),
+          } as any)
+        : sendMut.mutateAsync({ sessionId, text, ...(metas.length > 0 ? { attachments: metas } : {}) } as any),
+      onEnqueue: enqueueOptimistic,
+      onAccepted: (entry, data) => {
+        if ('sessionId' in data) {
+          const selectCreated = acceptOptimistic(entry.clientId, data.sessionId);
+          queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+          if (selectCreated) {
+            draftUploadId.current = null;
+            selectCreatedSession(data.sessionId);
+          }
+        } else {
+          acceptOptimistic(entry.clientId);
+        }
+      },
+      onRejected: (entry, error) => rejectOptimistic(entry.clientId, error),
+    });
+    clearConsumedComposer();
+    void mutation.then((result) => {
+      if (!result.ok && result.restore) restoreRejectedSend(sent, sentKey, sentIdentity, result.error);
+    });
   };
 
   const doSend = (): void => doSendText(composer);
@@ -855,6 +931,7 @@ export function Composer({
                       onChange={(e) => {
                         const v = e.target.value;
                         setComposer(v);
+                        setSendError(null);
                         setSlashOpen(v.startsWith('/'));
                         // Height is re-fit by the useLayoutEffect on `composer`.
                       }}
@@ -1024,6 +1101,8 @@ export function Composer({
             </>
           )}
         </div>
+
+        {sendError && <ComposerSendFailure error={sendError} />}
 
         {/* Hidden file input */}
         <input

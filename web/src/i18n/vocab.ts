@@ -1,5 +1,5 @@
 // input:  Selected language and shared product copy keys
-// output: Shape-checked English and Chinese vocabulary
+// output: Shape-checked English/Chinese copy including send recovery
 // pos:    Shared source of localized UI copy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -165,6 +165,8 @@ export const en = {
   wbEscToStop: 'esc to stop',
   wbNewConversation: 'New conversation',
   wbSend: 'send',
+  wbSendFailed: 'Send failed',
+  wbDraftRestored: 'message restored',
   wbNewline: 'newline',
   wbNavigate: 'navigate',
   wbRun: 'run',
@@ -801,6 +803,8 @@ export const zh: Record<keyof Vocab, string> = {
   wbEscToStop: 'esc 停止',
   wbNewConversation: '新对话',
   wbSend: '发送',
+  wbSendFailed: '发送失败',
+  wbDraftRestored: '消息已恢复',
   wbNewline: '换行',
   wbNavigate: '导航',
   wbRun: '执行',

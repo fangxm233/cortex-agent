@@ -19,7 +19,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ProfileMenu.tsx | view | Lists selectable profiles with disabled reasons |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
-| CenterChat.tsx | view | Assembles chat header, stream and composer |
+| CenterChat.tsx | view | Reconciles transcript, live and optimistic chat rows |
 | ChatHeader.tsx | view | Session title, profile, status and notes entry |
 | MessageStream.tsx | view | Scroll-stable transcript of chat rows and cards |
 | ChatMarkdown.tsx | view | Renders assistant markdown with chat typography |
@@ -45,10 +45,13 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | InlineThreadCardProto.tsx | view | Live thread card opening modal detail |
 | thread-card-proto.ts | vm | Maps thread detail to inline card rows and pill |
 | thread-card-proto.test.ts | test | Unit tests for the inline thread card model |
-| Composer.tsx | view | Message input, attachments and draft reload |
+| Composer.tsx | view | Sends optimistically and restores rejected drafts |
+| Composer.test.tsx | test | Tests the visible rejected-send state |
 | ComposerStatusLine.tsx | view | Status row above the input with an accessory |
 | composer-draft.ts | util | Persists, restores and prefills drafts |
-| composer-draft.test.ts | test | Unit tests for draft keys and parsing |
+| composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
+| optimistic-message.ts | vm | Reconciles local sends with server message evidence |
+| optimistic-message.test.ts | test | Tests immediate rows, de-duplication and failure |
 | composer-slash.ts | util | Resolves a slash-menu pick into a command |
 | composer-slash.test.ts | test | Unit tests for slash command dispatch |
 | ContextUsageControl.tsx | view | Context usage bar, details and compact action |
