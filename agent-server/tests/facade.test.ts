@@ -1,21 +1,94 @@
-// input:  facade.ts, rate-limit-throttle, MockAdapter
+// input:  facade, throttle, temp profiles, MockAdapter
 // output: provider identity, exact pre-flight, notice regressions
 // pos:    Facade pre-flight policy tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 //
-// Rate-limit-throttle is a mutable singleton (module-level state). Tests use regular
-// await import() (not importFresh) so facade imports the same module instance and
-// sees the injected state. _testReset() before/after each test prevents leakage.
+// Rate-limit-throttle is a mutable singleton (module-level state). The suite loads
+// throttle and facade together after binding its private home, so both see the same
+// instance. _testReset() before/after each test prevents leakage.
 
-import { test } from 'vitest';
+import { afterAll, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { MockAdapter } from '../src/platform/testing.js';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
+function writeProfilesFixture(home: string): void {
+  const configDir = path.join(home, 'config');
+  mkdirSync(configDir, { recursive: true });
+  writeFileSync(path.join(configDir, 'profiles.json'), JSON.stringify({
+    defaultProfile: 'plan',
+    profiles: {
+      plan: {
+        model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan',
+        fallback: [
+          { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'api' },
+          { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+        ],
+      },
+      scan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+    },
+  }));
+}
+
+function restoreHome(previousHome: string | undefined): void {
+  if (previousHome === undefined) delete process.env.CORTEX_HOME;
+  else process.env.CORTEX_HOME = previousHome;
+}
+
+async function loadSuiteModules() {
+  const { setProcessLogPolicy } = await import('../src/core/log.js');
+  const restoreLogPolicy = setProcessLogPolicy({ consoleToStderr: false, files: false });
+  try {
+    const [testing, rl, facade, profiles] = await Promise.all([
+      import('../src/platform/testing.js'),
+      import('../src/domain/costs/rate-limit-throttle.js'),
+      import('../src/domain/agents/facade.js'),
+      import('../src/store/profile-repo.js'),
+    ]);
+    return { MockAdapter: testing.MockAdapter, rl, facade, profileRepo: profiles.profileRepo, restoreLogPolicy };
+  } catch (error) {
+    restoreLogPolicy();
+    throw error;
+  }
+}
+
+const previousCortexHome = process.env.CORTEX_HOME;
+const suiteHome = mkdtempSync(path.join(os.tmpdir(), 'facade-test-'));
+process.env.CORTEX_HOME = suiteHome;
+
+let suiteModules;
+try {
+  writeProfilesFixture(suiteHome);
+  suiteModules = await loadSuiteModules();
+} catch (error) {
+  restoreHome(previousCortexHome);
+  rmSync(suiteHome, { recursive: true, force: true });
+  throw error;
+}
+
+const { MockAdapter, rl, facade: facadeModule, profileRepo, restoreLogPolicy } = suiteModules;
 
 // --- Helpers ---
 
 async function getRl() {
-  return await import('../src/domain/costs/rate-limit-throttle.js');
+  return rl;
 }
+
+async function getFacade() {
+  return facadeModule;
+}
+
+afterAll(() => {
+  try {
+    rl._testReset();
+    profileRepo.invalidate();
+  } finally {
+    restoreHome(previousCortexHome);
+    rmSync(suiteHome, { recursive: true, force: true });
+    restoreLogPolicy();
+  }
+});
 
 /** Init throttle with one or more rate-limited modes, returning the rl module.
  *  handleRateLimitEvent only adds a mode on the extension path (resetsAt > current),
@@ -46,7 +119,7 @@ test('allConfigsRateLimited returns false when not throttled', async (t) => {
   rl._testReset();
   t.onTestFinished(() => rl._testReset());
 
-  const facade = await import('../src/domain/agents/facade.js');
+  const facade = await getFacade();
   assert.equal(facade.allConfigsRateLimited('plan'), false);
   assert.equal(facade.allConfigsRateLimited('scan'), false);
   assert.equal(facade.allConfigsRateLimited(null), false);
@@ -58,7 +131,7 @@ test('allConfigsRateLimited returns true when all modes in profile are rate-limi
   const rl = await initThrottle(['plan', 'api']);
   t.onTestFinished(() => rl._testReset());
 
-  const facade = await import('../src/domain/agents/facade.js');
+  const facade = await getFacade();
   assert.equal(facade.allConfigsRateLimited('plan'), true);
 });
 
@@ -68,7 +141,7 @@ test('allConfigsRateLimited returns false when only some modes rate-limited', as
   const rl = await initThrottle(['plan']);
   t.onTestFinished(() => rl._testReset());
 
-  const facade = await import('../src/domain/agents/facade.js');
+  const facade = await getFacade();
   assert.equal(facade.allConfigsRateLimited('plan'), false);
 });
 
@@ -77,7 +150,7 @@ test('allConfigsRateLimited returns false on unknown profile', async (t) => {
   const rl = await getRl();
   t.onTestFinished(() => rl._testReset());
 
-  const facade = await import('../src/domain/agents/facade.js');
+  const facade = await getFacade();
   // Unknown profile — catch in resolveProfileConfig -> return false (conservative)
   assert.equal(facade.allConfigsRateLimited('nonexistent-profile'), false);
 });
@@ -89,7 +162,7 @@ test('runAgent single-config path skips runAgentOnce when mode rate-limited', as
   const rl = await initThrottle(['plan']);
   t.onTestFinished(() => rl._testReset());
 
-  const facade = await import('../src/domain/agents/facade.js');
+  const facade = await getFacade();
   const notices: Array<{ text: string; level?: string }> = [];
   const handle = facade.runAgent('test', {
     profileName: 'scan',
@@ -112,7 +185,7 @@ test('runAgent fallback loop skips rate-limited configs and returns synthetic re
   const rl = await initThrottle(['plan', 'api']);
   t.onTestFinished(() => rl._testReset());
 
-  const facade = await import('../src/domain/agents/facade.js');
+  const facade = await getFacade();
   const handle = facade.runAgent('test', { profileName: 'plan' });
   const result = await handle.promise;
 
@@ -124,13 +197,13 @@ test('runAgent fallback loop skips rate-limited configs and returns synthetic re
 });
 
 test('provider identity accepts arbitrary configured providers and generic backend fallback', async () => {
-  const facade = await import('../src/domain/agents/facade.js');
+  const facade = await getFacade();
   assert.equal(facade._test.resolveRateLimitProvider({ backend: 'pi', provider: 'provider-z' } as any), 'provider-z');
   assert.equal(facade._test.resolveRateLimitProvider({ backend: 'custom-backend', provider: null } as any), 'custom-backend');
 });
 
 test('provider wrapper attributes results and retryable thrown errors', async () => {
-  const facade = await import('../src/domain/agents/facade.js');
+  const facade = await getFacade();
   const baseResult = {
     sessionId: 's', total_cost_usd: 0, num_turns: 1,
     rateLimited: false, rateLimitMessage: null, planFilePath: null,
@@ -152,7 +225,7 @@ test('runAgent fallback loop calls onFallback for each skipped config', async (t
   const rl = await initThrottle(['plan', 'api']);
   t.onTestFinished(() => rl._testReset());
 
-  const facade = await import('../src/domain/agents/facade.js');
+  const facade = await getFacade();
   const fallbackCalls: Array<{ current: any; next: any; result: any }> = [];
 
   const handle = facade.runAgent('test', {
