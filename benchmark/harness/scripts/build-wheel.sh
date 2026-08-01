@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HARNESS_DIR="$(dirname "$SCRIPT_DIR")"
 UV_BIN="${UV_BIN:-uv}"
 WHEEL_NAME="cortex_bench_harness-0.1.0-py3-none-any.whl"
-SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-315532800}"
+SOURCE_DATE_EPOCH="315532800"
 BUILD_ROOT="$(mktemp -d)"
 
 cleanup() {
