@@ -10,6 +10,6 @@ It routes required/recovered events into debounced user notices.
 | auth-status.ts | core | Produces secret-free account status snapshots |
 | auth-watch.ts | notify | Routes debounced authentication notices |
 | index.ts | entry | Exports the authentication domain API |
-| login-flow.ts | core | Coordinates login prompts, outcomes, and aborts |
+| login-flow.ts | core | Coordinates login outcomes, aborts, and safe errors |
 | pi-login.ts | adapter | Logs PI providers in through the installed runtime |
 | pi-runtime.ts | adapter | Loads the installed PI model runtime |
