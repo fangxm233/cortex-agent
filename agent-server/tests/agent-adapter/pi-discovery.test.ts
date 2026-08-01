@@ -1,5 +1,5 @@
 // input:  PI exec boundary, provider scanner, fake clock
-// output: PI provider parsing and cache refresh contracts
+// output: PI parsing, forced refresh, and cache retry contracts
 // pos:    Covers non-blocking cached PI provider discovery
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -87,6 +87,40 @@ test('cold reads return immediately and coalesce one provider refresh', async ()
   assert.equal(scans, 1, 'fresh cache does not rescan on another spawn');
 });
 
+test('explicit refresh bypasses a fresh cache', async () => {
+  const results = [Promise.resolve(['anthropic']), Promise.resolve(['deepseek'])];
+  let scans = 0;
+  const discovery = createPIProviderDiscovery({ scan: () => results[scans++] });
+
+  discovery.getProviders();
+  await flushRefresh();
+  assert.deepEqual(discovery.getProviders(), ['anthropic']);
+
+  discovery.refresh();
+  await flushRefresh();
+  assert.equal(scans, 2);
+  assert.deepEqual(discovery.getProviders(), ['deepseek']);
+});
+
+test('explicit refresh queues a post-login scan behind an in-flight scan', async () => {
+  const beforeLogin = deferred<string[]>();
+  const afterLogin = deferred<string[]>();
+  const results = [beforeLogin, afterLogin];
+  let scans = 0;
+  const discovery = createPIProviderDiscovery({ scan: () => results[scans++].promise });
+
+  discovery.getProviders();
+  await Promise.resolve();
+  discovery.refresh();
+  beforeLogin.resolve(['anthropic']);
+  await flushRefresh();
+  assert.equal(scans, 2, 'post-login refresh must run after the stale in-flight scan');
+
+  afterLogin.resolve(['deepseek']);
+  await flushRefresh();
+  assert.deepEqual(discovery.getProviders(), ['deepseek']);
+});
+
 test('expired cache serves stale providers while one refresh deduplicates the replacement', async () => {
   let now = 1_000;
   const first = deferred<string[]>();
@@ -133,40 +167,44 @@ test('a successful empty refresh authoritatively clears stale providers', async 
   assert.deepEqual(discovery.getProviders(), []);
 });
 
-test('failed refresh retains last-good providers and waits for the retry interval', async () => {
-  let now = 10_000;
+function retryScenario() {
+  const clock = { now: 10_000 };
+  const scans = { count: 0 };
   const first = deferred<string[]>();
   const failed = deferred<string[]>();
   const recovered = deferred<string[]>();
   const results = [first, failed, recovered];
-  let scans = 0;
   const discovery = createPIProviderDiscovery({
-    now: () => now,
-    scan: () => results[scans++].promise,
+    now: () => clock.now,
+    scan: () => results[scans.count++].promise,
   });
+  return { clock, scans, first, failed, recovered, discovery };
+}
 
-  discovery.getProviders();
+test('failed refresh retains last-good providers and waits for the retry interval', async () => {
+  const scenario = retryScenario();
+  scenario.discovery.getProviders();
   await Promise.resolve();
-  first.resolve(['anthropic']);
+  scenario.first.resolve(['anthropic']);
   await flushRefresh();
 
-  now += PI_PROVIDER_CACHE_TTL_MS;
-  assert.deepEqual(discovery.getProviders(), ['anthropic']);
+  scenario.clock.now += PI_PROVIDER_CACHE_TTL_MS;
+  assert.deepEqual(scenario.discovery.getProviders(), ['anthropic']);
   await Promise.resolve();
-  failed.reject(new Error('list models unavailable'));
+  scenario.failed.reject(new Error('list models unavailable'));
   await flushRefresh();
-  assert.deepEqual(discovery.getProviders(), ['anthropic']);
+  assert.deepEqual(scenario.discovery.getProviders(), ['anthropic']);
 
-  now += PI_PROVIDER_RETRY_MS - 1;
-  discovery.getProviders();
+  scenario.clock.now += PI_PROVIDER_RETRY_MS - 1;
+  scenario.discovery.getProviders();
   await Promise.resolve();
-  assert.equal(scans, 2, 'failure retry is suppressed before the retry interval');
+  assert.equal(scenario.scans.count, 2, 'retry is suppressed before the retry interval');
 
-  now += 1;
-  assert.deepEqual(discovery.getProviders(), ['anthropic']);
+  scenario.clock.now += 1;
+  scenario.discovery.getProviders();
   await Promise.resolve();
-  assert.equal(scans, 3);
-  recovered.resolve(['deepseek']);
+  assert.equal(scenario.scans.count, 3);
+  scenario.recovered.resolve(['deepseek']);
   await flushRefresh();
-  assert.deepEqual(discovery.getProviders(), ['deepseek']);
+  assert.deepEqual(scenario.discovery.getProviders(), ['deepseek']);
 });
