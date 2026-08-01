@@ -1,11 +1,14 @@
-// input:  PIAdapter + stub PI RPC lifecycle events
-// output: PI steering, settled-boundary, rejection, and exit guarantees
-// pos:    PI backend mid-turn injection wiring regression (hermetic, no provider)
+// input:  PIAdapter, temp session files, stub PI RPC events
+// output: PI switch guard, steering, rejection, and exit guarantees
+// pos:    PI backend mid-turn injection wiring regression
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 
@@ -19,6 +22,17 @@ interface StubChild extends EventEmitter {
   stderr: PassThrough;
   kill: (signal?: NodeJS.Signals | number) => boolean;
   closed: boolean;
+}
+
+interface SwitchingFixture {
+  adapter: PIAdapter;
+  first: AgentProcess;
+  second: AgentProcess;
+  firstChild: StubChild;
+  secondChild: StubChild;
+  firstPath: string;
+  secondPath: string;
+  sessionDir: string;
 }
 
 function makeStubChild(): StubChild {
@@ -98,6 +112,51 @@ async function nextEvent(proc: AgentProcess): Promise<NormalizedEvent | undefine
   return result.done ? undefined : result.value;
 }
 
+function spawnSwitchingFixture(): SwitchingFixture {
+  const children: StubChild[] = [];
+  const sessionDir = mkdtempSync(join(tmpdir(), 'cortex-pi-switch-'));
+  const firstPath = join(sessionDir, 'session-a.jsonl');
+  const secondPath = join(sessionDir, 'session-b.jsonl');
+  writeFileSync(firstPath, '{}\n');
+  writeFileSync(secondPath, '{}\n');
+  const spawn = (_cmd: string, _args: string[], _opts: SpawnOptions): ChildProcess => {
+    const child = makeStubChild();
+    children.push(child);
+    return child as unknown as ChildProcess;
+  };
+  const adapter = new PIAdapter(spawn, sessionDir);
+  const first = adapter.spawn({ sessionId: null, sessionKey: 'pi-switch-first', resume: false });
+  const second = adapter.spawn({ sessionId: null, sessionKey: 'pi-switch-second', resume: false });
+  return {
+    adapter, first, second, firstChild: children[0]!, secondChild: children[1]!,
+    firstPath, secondPath, sessionDir,
+  };
+}
+
+async function cleanupSwitchingFixture(fixture: SwitchingFixture): Promise<void> {
+  try {
+    await Promise.all([
+      cleanup(fixture.first, fixture.firstChild),
+      cleanup(fixture.second, fixture.secondChild),
+    ]);
+  } finally {
+    rmSync(fixture.sessionDir, { recursive: true, force: true });
+  }
+}
+
+function bootstrapSession(child: StubChild, sessionId: string, sessionFile: string): void {
+  pushLine(child, {
+    type: 'response', id: 'bootstrap', command: 'get_state', success: true,
+    data: { sessionId, sessionFile },
+  });
+}
+
+function acknowledgeSwitch(child: StubChild, id: unknown): void {
+  pushLine(child, {
+    type: 'response', id, command: 'switch_session', success: true, data: { cancelled: false },
+  });
+}
+
 test('injectUserMessage refuses an idle PI process without writing a prompt', async (t) => {
   const { proc, child } = spawnProcess();
   t.onTestFinished(() => cleanup(proc, child));
@@ -108,50 +167,31 @@ test('injectUserMessage refuses an idle PI process without writing a prompt', as
 });
 
 test('injection refuses while sendTurn is still switching to the target session', async (t) => {
-  const children: StubChild[] = [];
-  const spawn = (_cmd: string, _args: string[], _opts: SpawnOptions): ChildProcess => {
-    const child = makeStubChild();
-    children.push(child);
-    return child as unknown as ChildProcess;
-  };
-  const adapter = new PIAdapter(spawn);
-  const first = adapter.spawn({ sessionId: null, sessionKey: 'pi-switch-first', resume: false });
-  const second = adapter.spawn({ sessionId: null, sessionKey: 'pi-switch-second', resume: false });
-  const [firstChild, secondChild] = children;
-  t.onTestFinished(async () => {
-    await cleanup(first, firstChild!);
-    await cleanup(second, secondChild!);
-  });
-  pushLine(firstChild!, {
-    type: 'response', id: 'bootstrap', command: 'get_state', success: true,
-    data: { sessionId: 'session-a', sessionFile: '/tmp/session-a.jsonl' },
-  });
-  pushLine(secondChild!, {
-    type: 'response', id: 'bootstrap', command: 'get_state', success: true,
-    data: { sessionId: 'session-b', sessionFile: '/tmp/session-b.jsonl' },
-  });
+  const fixture = spawnSwitchingFixture();
+  const { adapter, first, firstChild, firstPath, secondChild, secondPath } = fixture;
+  t.onTestFinished(() => cleanupSwitchingFixture(fixture));
+  bootstrapSession(firstChild, 'session-a', firstPath);
+  bootstrapSession(secondChild, 'session-b', secondPath);
 
   const divert = adapter.switchSession('session-b', 'pi-switch-first');
-  const divertCommand = JSON.parse(firstChild!.stdin.writeHistory.at(-1)!) as Record<string, unknown>;
-  pushLine(firstChild!, {
-    type: 'response', id: divertCommand['id'], command: 'switch_session', success: true, data: { cancelled: false },
-  });
-  await divert;
+  const divertCommand = JSON.parse(firstChild.stdin.writeHistory.at(-1)!) as Record<string, unknown>;
+  acknowledgeSwitch(firstChild, divertCommand['id']);
+  assert.deepEqual(await divert, { ok: true, cancelled: false });
 
   const turn = first.send({ text: 'opening after switch-back' });
-  assert.equal(first.injectUserMessage?.({ text: 'too early' }), false);
-  const switchBack = JSON.parse(firstChild!.stdin.writeHistory.at(-1)!) as Record<string, unknown>;
+  // Keep cleanup-time rejection observed if an earlier assertion aborts the test.
+  void turn.catch(() => undefined);
+  const switchBack = JSON.parse(firstChild.stdin.writeHistory.at(-1)!) as Record<string, unknown>;
   assert.equal(switchBack['type'], 'switch_session');
-  pushLine(firstChild!, {
-    type: 'response', id: switchBack['id'], command: 'switch_session', success: true, data: { cancelled: false },
-  });
+  assert.equal(first.injectUserMessage?.({ text: 'too early' }), false);
+  acknowledgeSwitch(firstChild, switchBack['id']);
   await Promise.resolve();
   assert.equal(first.injectUserMessage?.({ text: 'now safe' }), true);
 
-  pushLine(firstChild!, userStart('opening after switch-back'));
-  pushLine(firstChild!, userStart('now safe'));
-  pushLine(firstChild!, agentEnd(0.01));
-  pushLine(firstChild!, { type: 'agent_settled' });
+  pushLine(firstChild, userStart('opening after switch-back'));
+  pushLine(firstChild, userStart('now safe'));
+  pushLine(firstChild, agentEnd(0.01));
+  pushLine(firstChild, { type: 'agent_settled' });
   await turn;
 });
 

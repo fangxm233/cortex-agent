@@ -24,5 +24,5 @@ Agent adapter tests: Claude and PI streams normalized into shared events, plus s
 | pi-adapter.test.ts | test | PI RPC to normalized event replay |
 | pi-context-usage-probe.test.ts | test | PI end-of-turn context usage probe |
 | pi-discovery.test.ts | test | cached PI provider refresh and retry policy |
-| pi-mid-turn-inject.test.ts | test | PI mid-turn prompt steering |
+| pi-mid-turn-inject.test.ts | test | PI switch guard and mid-turn prompt steering |
 | replay-harness.ts | helper | fixture replay and golden comparison helpers |
