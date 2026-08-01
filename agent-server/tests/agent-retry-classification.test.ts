@@ -13,7 +13,7 @@ import type { AgentProcess, Backend } from '../src/agent-adapter/types.js';
 import type { AgentResult } from '../src/core/types/agent-types.js';
 import { EventBus } from '../src/events/event-bus.js';
 import type { AuthErrorKind, CortexEvent } from '../src/events/index.js';
-import { initAuthEvents } from '../src/domain/auth/auth-events.js';
+import { classifyAuthError, initAuthEvents } from '../src/domain/auth/auth-events.js';
 import { profileRepo, PROFILES_FILE } from '../src/store/profile-repo.js';
 import {
   activateOutageWindow,
@@ -160,6 +160,37 @@ for (const message of [
   });
 }
 
+const PRE_SPLIT_PERMANENT_CASES: Array<{
+  message: string;
+  authKind: AuthErrorKind | null;
+}> = [
+  { message: 'invalid_request', authKind: null },
+  { message: 'unauthorized upstream connection error', authKind: 'unauthorized' },
+  { message: 'connection timed out during authentication', authKind: 'invalid_api_key' },
+  { message: 'authentication service upstream connection error', authKind: 'invalid_api_key' },
+  { message: 'authentication failed', authKind: 'invalid_api_key' },
+  { message: 'Authentication error: token expired', authKind: 'invalid_api_key' },
+  { message: 'forbidden', authKind: null },
+  { message: 'model not found', authKind: null },
+  { message: 'request body too large', authKind: null },
+  { message: 'context window exceeded', authKind: null },
+  { message: 'insufficient_balance', authKind: null },
+  { message: 'billing unavailable', authKind: null },
+  { message: 'quota exhausted', authKind: null },
+];
+
+for (const { message, authKind } of PRE_SPLIT_PERMANENT_CASES) {
+  test(`preserves pre-split permanent handling: ${message}`, () => {
+    const classified = classifyAuthError(message);
+    const retryable = isRetryableError(new Error(message));
+    assert.equal(!retryable || classified !== null, true);
+    if (authKind) {
+      assert.equal(classified, authKind);
+      assert.equal(retryable, false);
+    }
+  });
+}
+
 for (const message of [
   'HTTP 400 invalid request',
   'HTTP 403 forbidden',
@@ -187,7 +218,7 @@ const AUTH_BACKEND_CASES: Array<{
   },
   {
     backend: 'pi', provider: 'deepseek', expectedProvider: 'deepseek',
-    message: 'authentication_error: credential-fragment-pi', kind: 'invalid_api_key',
+    message: 'authentication failed: credential-fragment-pi', kind: 'invalid_api_key',
   },
 ];
 
