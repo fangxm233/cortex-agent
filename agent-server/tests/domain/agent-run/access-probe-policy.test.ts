@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, it } from 'vitest';
 import {
   classifyTraceLines,
   type AccessProbePolicy,
@@ -45,8 +45,7 @@ function trace(...calls: string[]) {
   });
 }
 
-describe('C8 file policy', () => {
-  it('allows workspace and trial state writes plus install reads', () => {
+it('allows workspace and trial state writes plus install reads', () => {
     const result = trace(
       `1.0 openat(AT_FDCWD<${policy.workspace}>, "result.txt", O_WRONLY|O_CREAT, 0666) = 3<${policy.workspace}/result.txt>`,
       `1.1 openat(AT_FDCWD<${policy.workspace}>, "${policy.cortexHome}/data/state.json", O_RDWR|O_CREAT, 0666) = 4`,
@@ -56,10 +55,10 @@ describe('C8 file policy', () => {
 
     assert.equal(result.violations.length, 0);
     assert.equal(result.counts.fileCalls, 4);
-    assert.equal(result.counts.allowed, 4);
-  });
+  assert.equal(result.counts.allowed, 4);
+});
 
-  it('denies a failed host Cortex access and names the offender', () => {
+it('denies a failed host Cortex access and names the offender', () => {
     const offender = path.join(policy.hostCortexHome, 'data/secret.json');
     const result = trace(
       `2.0 openat(AT_FDCWD<${policy.workspace}>, "${offender}", O_WRONLY|O_CREAT, 0666) = -1 EACCES (Permission denied)`,
@@ -71,11 +70,11 @@ describe('C8 file policy', () => {
       syscall: 'openat',
       path: offender,
       access: 'write',
-      reason: 'host_cortex_path',
-    }]);
-  });
+    reason: 'host_cortex_path',
+  }]);
+});
 
-  it('classifies both rename paths and rejects a write to the read-only install root', () => {
+it('classifies both rename paths and rejects a write to the read-only install root', () => {
     const source = path.join(policy.workspace, 'source');
     const destination = path.join(policy.installRoot, 'destination');
     const result = trace(
@@ -83,11 +82,11 @@ describe('C8 file policy', () => {
     );
 
     assert.equal(result.counts.fileCalls, 2);
-    assert.deepEqual(result.violations.map(item => item.path), [destination]);
-    assert.equal(result.violations[0].reason, 'read_only_root_write');
-  });
+  assert.deepEqual(result.violations.map(item => item.path), [destination]);
+  assert.equal(result.violations[0].reason, 'read_only_root_write');
+});
 
-  it('tracks chdir before resolving relative paths', () => {
+it('tracks chdir before resolving relative paths', () => {
     const nested = path.join(policy.workspace, 'nested');
     fs.mkdirSync(nested);
     const result = trace(
@@ -95,11 +94,11 @@ describe('C8 file policy', () => {
       '4.1 openat(AT_FDCWD, "relative.txt", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)',
     );
 
-    assert.equal(result.violations.length, 0);
-    assert.equal(result.counts.allowed, 2);
-  });
+  assert.equal(result.violations.length, 0);
+  assert.equal(result.counts.allowed, 2);
+});
 
-  it('allows the pinned Node installation and system path ancestors as runtime reads', () => {
+it('allows the pinned Node installation and system path ancestors as runtime reads', () => {
     const nodeRoot = path.join(policy.hostHome, '.local/node-runtime');
     const nodeExecutable = path.join(nodeRoot, 'bin/node');
     fs.mkdirSync(path.dirname(nodeExecutable), { recursive: true });
@@ -118,12 +117,10 @@ describe('C8 file policy', () => {
       traceFile: 'trace.321',
     });
 
-    assert.deepEqual(result.violations, []);
-  });
+  assert.deepEqual(result.violations, []);
 });
 
-describe('C8 network and parser policy', () => {
-  it('denies bind, listen, and failed connect with normalized endpoints', () => {
+it('denies bind, listen, and failed connect with normalized endpoints', () => {
     const result = trace(
       '5.0 bind(21<TCP:[1]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("127.0.0.1")}, 16) = 0',
       '5.1 listen(21<TCP:[127.0.0.1:43123]>, 511) = 0',
@@ -135,11 +132,11 @@ describe('C8 network and parser policy', () => {
     })), [
       { syscall: 'bind', path: '127.0.0.1:0', reason: 'network_bind_denied' },
       { syscall: 'listen', path: '127.0.0.1:43123', reason: 'network_listen_denied' },
-      { syscall: 'connect', path: '127.0.0.1:9', reason: 'network_connect_denied' },
-    ]);
-  });
+    { syscall: 'connect', path: '127.0.0.1:9', reason: 'network_connect_denied' },
+  ]);
+});
 
-  it('fails closed on an unknown or malformed traced syscall', () => {
+it('fails closed on an unknown or malformed traced syscall', () => {
     const result = trace(
       '6.0 mystery_path_call("somewhere") = 0',
       'this is not strace output',
@@ -149,7 +146,6 @@ describe('C8 network and parser policy', () => {
     assert.deepEqual(result.violations.map(item => item.reason), [
       'unclassified_syscall',
       'trace_parse_failed',
-    ]);
-    assert.ok(result.violations.every(item => item.path.length > 0));
-  });
+  ]);
+  assert.ok(result.violations.every(item => item.path.length > 0));
 });

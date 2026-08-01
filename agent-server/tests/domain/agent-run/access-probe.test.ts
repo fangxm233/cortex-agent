@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, describe, it } from 'vitest';
+import { afterEach, beforeEach, it } from 'vitest';
 import {
   formatAccessProbeSummary,
   runNodeAccessProbe,
@@ -53,47 +53,44 @@ function offender(verdict: AccessProbeVerdict, syscall: string, reason?: string)
     && (reason === undefined || item.reason === reason));
 }
 
-describe('real syscall detection', () => {
-  it('returns ok for a fixture confined to C8 allowed roots', async () => {
+it('returns ok for a fixture confined to C8 allowed roots', async () => {
     const verdict = await runFixture('clean');
 
     assert.equal(verdict.failureReason, undefined, formatAccessProbeSummary(verdict));
     assert.deepEqual(verdict.violations, []);
-    assert.equal(verdict.ok, true);
-    assert.ok(verdict.counts.fileCalls > 0);
-  }, 20_000);
+  assert.equal(verdict.ok, true);
+  assert.ok(verdict.counts.fileCalls > 0);
+}, 20_000);
 
-  it('detects a deliberate write below host ~/.cortex and names its path', async () => {
+it('detects a deliberate write below host ~/.cortex and names its path', async () => {
     const verdict = await runFixture('host-write');
     const violation = offender(verdict, 'openat', 'host_cortex_path');
 
     assert.equal(verdict.ok, false);
     assert.ok(violation, formatAccessProbeSummary(verdict));
-    assert.match(violation.path, /host-home\/\.cortex\/data\/probe-fixture\.txt$/);
-    assert.equal(violation.reason, 'host_cortex_path');
-  }, 20_000);
+  assert.match(violation.path, /host-home\/\.cortex\/data\/probe-fixture\.txt$/);
+  assert.equal(violation.reason, 'host_cortex_path');
+}, 20_000);
 
-  it('detects a deliberate listen syscall', async () => {
+it('detects a deliberate listen syscall', async () => {
     const verdict = await runFixture('listen');
     const violation = offender(verdict, 'listen');
 
     assert.equal(verdict.ok, false);
-    assert.ok(violation, formatAccessProbeSummary(verdict));
-    assert.match(violation.path, /127\.0\.0\.1:\d+/);
-  }, 20_000);
+  assert.ok(violation, formatAccessProbeSummary(verdict));
+  assert.match(violation.path, /127\.0\.0\.1:\d+/);
+}, 20_000);
 
-  it('detects a deliberate connect syscall even when the connection fails', async () => {
+it('detects a deliberate connect syscall even when the connection fails', async () => {
     const verdict = await runFixture('connect');
     const violation = offender(verdict, 'connect');
 
     assert.equal(verdict.ok, false);
-    assert.ok(violation, formatAccessProbeSummary(verdict));
-    assert.equal(violation.path, '127.0.0.1:9');
-  }, 20_000);
-});
+  assert.ok(violation, formatAccessProbeSummary(verdict));
+  assert.equal(violation.path, '127.0.0.1:9');
+}, 20_000);
 
-describe('probe capability failures', () => {
-  it('fails loudly when strace is unavailable', async () => {
+it('fails loudly when strace is unavailable', async () => {
     const verdict = await runNodeAccessProbe({
       trialRoot: path.join(root, 'trial'),
       workspaceCwd: root,
@@ -105,11 +102,11 @@ describe('probe capability failures', () => {
       stracePath: path.join(root, 'missing-strace'),
     });
 
-    assert.equal(verdict.ok, false);
-    assert.equal(verdict.failureReason, 'strace_unavailable');
-  });
+  assert.equal(verdict.ok, false);
+  assert.equal(verdict.failureReason, 'strace_unavailable');
+});
 
-  it('fails loudly when ptrace is unavailable', async () => {
+it('fails loudly when ptrace is unavailable', async () => {
     const fakeStrace = path.join(root, 'ptrace-denied');
     fs.writeFileSync(fakeStrace,
       '#!/bin/sh\necho "strace: ptrace(PTRACE_TRACEME): Operation not permitted" >&2\nexit 1\n',
@@ -125,7 +122,6 @@ describe('probe capability failures', () => {
       stracePath: fakeStrace,
     });
 
-    assert.equal(verdict.ok, false);
-    assert.equal(verdict.failureReason, 'ptrace_unavailable');
-  });
+  assert.equal(verdict.ok, false);
+  assert.equal(verdict.failureReason, 'ptrace_unavailable');
 });

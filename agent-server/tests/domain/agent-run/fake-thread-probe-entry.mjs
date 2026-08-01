@@ -17,7 +17,7 @@ function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function seedConfig() {
+function seedProfile() {
   writeJson(path.join(cortexHome, 'config/profiles.json'), {
     defaultProfile: 'baseline',
     profiles: {
@@ -30,6 +30,9 @@ function seedConfig() {
       },
     },
   });
+}
+
+function seedThreadConfig() {
   writeJson(path.join(cortexHome, 'config/thread-templates/agents/probe-agent.json'), {
     name: 'probe-agent',
     description: 'No-model access baseline agent',
@@ -49,6 +52,11 @@ function seedConfig() {
     maxTotalSteps: 1,
   });
   fs.mkdirSync(path.join(cortexHome, 'config/thread-templates/shells'), { recursive: true });
+}
+
+function seedConfig() {
+  seedProfile();
+  seedThreadConfig();
 }
 
 function markPhase(name) {
