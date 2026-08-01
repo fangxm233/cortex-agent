@@ -1,5 +1,5 @@
 // input:  auth tRPC procedures, LoginFlow metadata, modal primitives
-// output: masked, resumable backend login dialog
+// output: accessible masked login dialog with safe cancellation
 // pos:    Shared desktop/mobile Web authentication workflow
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -40,6 +40,7 @@ interface LoginController {
   latest: LoginFlowState | null;
   response: string;
   error: string | null;
+  canCancel: boolean;
   chooseBackend: (backend: 'claude' | 'pi') => void;
   setProvider: (provider: string) => void;
   setResponse: (value: string) => void;
@@ -108,6 +109,7 @@ function PromptControl({
     return (
       <select
         data-auth-secret
+        aria-labelledby="auth-login-prompt-label"
         value={value}
         onChange={event => onChange(event.target.value)}
         className="w-full rounded-card border border-card bg-surface-card px-2g py-1g text-ui"
@@ -121,6 +123,7 @@ function PromptControl({
   return (
     <input
       data-auth-secret
+      aria-labelledby="auth-login-prompt-label"
       type={type}
       value={value}
       autoComplete="off"
@@ -292,7 +295,12 @@ function useLoginController(open: boolean): LoginController {
     generation.current += 1;
     setResponseSent(false);
   }, [open]);
-  return { ...selection, latest, response, error, setResponse, ...actions };
+  return {
+    ...selection, latest, response, error,
+    canCancel: !responseSent,
+    setResponse,
+    ...actions,
+  };
 }
 
 function modalBody(controller: LoginController, vm: LoginFlowVm) {
@@ -306,7 +314,7 @@ function modalBody(controller: LoginController, vm: LoginFlowVm) {
   }
   return (
     <div className="space-y-2g" data-auth-flow-step={vm.kind}>
-      <p>{vm.message}</p>
+      <p id={vm.kind === 'prompt' ? 'auth-login-prompt-label' : undefined}>{vm.message}</p>
       {controller.error ? <p role="alert" className="text-state-fail">{controller.error}</p> : null}
       {controller.latest ? <NoticeBody state={controller.latest} /> : null}
       {controller.latest ? (
@@ -326,10 +334,13 @@ function modalFooter(
     return <Button data-action="auth-start" variant="primary" disabled={!controller.provider} onClick={controller.start}>{L.authLoginStart}</Button>;
   }
   if (vm.kind === 'prompt') {
-    return <><Button data-action="auth-cancel" onClick={controller.cancel}>{L.cancel}</Button><Button data-action="auth-submit" variant="primary" disabled={!controller.response} onClick={controller.submit}>{L.authLoginSubmit}</Button></>;
+    return <>{controller.canCancel ? <Button data-action="auth-cancel" onClick={controller.cancel}>{L.cancel}</Button> : null}<Button data-action="auth-submit" variant="primary" disabled={!controller.response} onClick={controller.submit}>{L.authLoginSubmit}</Button></>;
   }
   if (vm.terminal) return <Button data-action="auth-close" onClick={onClose}>{L.authLoginClose}</Button>;
-  return <Button data-action="auth-cancel" onClick={controller.cancel}>{L.cancel}</Button>;
+  if (controller.canCancel) {
+    return <Button data-action="auth-cancel" onClick={controller.cancel}>{L.cancel}</Button>;
+  }
+  return null;
 }
 
 export function LoginFlowModal({ open, onClose }: LoginFlowModalProps) {

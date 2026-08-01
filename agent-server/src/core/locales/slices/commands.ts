@@ -1,5 +1,5 @@
 // input:  nothing (leaf data slice)
-// output: English/Chinese command and auth-status messages
+// output: English/Chinese command and authentication messages
 // pos:    Localized message table for orchestration commands
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -192,6 +192,7 @@ export const commandsEn = {
   'cmd.auth.loginCancel': 'Cancel',
   'cmd.auth.loginRequired': 'Provider and API key are required.',
   'cmd.auth.loginInProgress': 'Login is still in progress.',
+  'cmd.auth.loginExpired': 'Login flow expired.',
   'cmd.auth.loginSucceeded': 'Login succeeded: `${provider}` · ${authType} · expires ${expires}',
   'cmd.auth.loginNoExpiry': 'no expiry',
   'cmd.auth.loginFailed': 'Login failed: ${error}',
@@ -511,6 +512,7 @@ export const commandsZh: Record<keyof typeof commandsEn, string> = {
   'cmd.auth.loginCancel': '取消',
   'cmd.auth.loginRequired': '必须选择 provider 并填写 API key。',
   'cmd.auth.loginInProgress': '登录仍在进行中。',
+  'cmd.auth.loginExpired': '登录流程已过期。',
   'cmd.auth.loginSucceeded': '登录成功：`${provider}` · ${authType} · 过期时间 ${expires}',
   'cmd.auth.loginNoExpiry': '不过期',
   'cmd.auth.loginFailed': '登录失败：${error}',

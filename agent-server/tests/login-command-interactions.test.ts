@@ -1,5 +1,5 @@
 // input:  !login command registry, CommandActionRouter, and stub auth service
-// output: Slack/Feishu-neutral modal flow and secret-privacy regressions
+// output: staged chat validation, expiry, and secret regressions
 // pos:    Tests chat API-key login entry and callback delivery
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -17,6 +17,7 @@ const flush = () => setImmediate();
 function flowState(
   input: StartLoginFlowInput,
   step: LoginFlowState['step'] = 'prompt',
+  expiresAt = '2030-01-01T00:30:00.000Z',
 ): LoginFlowState {
   return {
     flowId: `flow-${input.backend}-${input.provider}`,
@@ -29,7 +30,7 @@ function flowState(
     channel: input.channel,
     sessionId: input.sessionId,
     createdAt: '2030-01-01T00:00:00.000Z',
-    expiresAt: '2030-01-01T00:30:00.000Z',
+    expiresAt,
     outcome: step === 'done'
       ? { provider: input.provider, authType: 'api_key', expiresAt: null }
       : null,
@@ -38,14 +39,17 @@ function flowState(
   };
 }
 
-function makeAuthService(startStep: LoginFlowState['step'] = 'prompt') {
+function makeAuthService(
+  startStep: LoginFlowState['step'] = 'prompt',
+  expiresAt = '2030-01-01T00:30:00.000Z',
+) {
   const starts: StartLoginFlowInput[] = [];
   const responses: Array<{ flowId: string; value: string }> = [];
   const states = new Map<string, LoginFlowState>();
   const service: AuthLoginService = {
     start: async input => {
       starts.push(input);
-      const state = flowState(input, startStep);
+      const state = flowState(input, startStep, expiresAt);
       states.set(state.flowId, state);
       return state;
     },
@@ -97,14 +101,18 @@ function authSnapshot() {
   } as any;
 }
 
-function setup(startStep: LoginFlowState['step'] = 'prompt') {
+function setup(
+  startStep: LoginFlowState['step'] = 'prompt',
+  expiresAt = '2030-01-01T00:30:00.000Z',
+  readStatus = async () => authSnapshot(),
+) {
   const adapter = new MockAdapter();
   const router = new CommandActionRouter();
-  const auth = makeAuthService(startStep);
+  const auth = makeAuthService(startStep, expiresAt);
   const dispatch = registerCommands({
     scheduler: null as any,
     commandRouter: router,
-    getAuthStatus: async () => authSnapshot(),
+    getAuthStatus: readStatus,
     authLogin: auth.service,
   });
   router.bindToAdapter(adapter);
@@ -172,6 +180,44 @@ test('a running explicit flow does not expose the secret form before its prompt 
   assert.equal(actionButton(fixture.adapter).actionId, 'cmd:login:open');
 });
 
+test('a pre-prompt flow disappearance posts a localized expiry failure', async () => {
+  const fixture = setup('running', new Date(Date.now() + 50).toISOString());
+  fixture.dispatch('!login cc', 'slack:C1', fixture.adapter);
+  await flush();
+  fixture.auth.states.delete('flow-claude-anthropic');
+  await delay(150);
+
+  assert.match(fixture.adapter.posted.at(-1)?.content.text ?? '', /expired/i);
+});
+
+test('a post-response flow disappearance posts a localized expiry failure', async () => {
+  const fixture = setup();
+  fixture.dispatch('!login cc', 'slack:C1', fixture.adapter);
+  await flush();
+  const button = actionButton(fixture.adapter);
+  await fixture.adapter.simulateAction(button.actionId, button.value, {
+    channelId: 'slack:C1', triggerId: 'slack:trigger',
+  });
+  const opened = fixture.adapter.modals.at(-1)!;
+  fixture.auth.service.respond = async (flowId, value) => {
+    fixture.auth.responses.push({ flowId, value });
+    const current = fixture.auth.states.get(flowId)!;
+    fixture.auth.states.delete(flowId);
+    return {
+      ...current, step: 'running', pendingPrompt: null,
+      expiresAt: new Date(Date.now() - 1).toISOString(),
+    };
+  };
+  await fixture.adapter.simulateModalSubmit('cmd_login_submit', {
+    login_secret: { value: { value: 'sentinel-expired-secret' } },
+  }, { privateMetadata: opened.modal.privateMetadata });
+  await flush();
+  await flush();
+
+  assert.match(fixture.adapter.posted.at(-1)?.content.text ?? '', /expired/i);
+  assert.ok(!JSON.stringify(fixture.adapter.posted).includes('sentinel-expired-secret'));
+});
+
 test('!login pi collects provider before opening the secret form', async () => {
   const fixture = setup();
   const secret = 'sentinel-feishu-secret';
@@ -189,6 +235,12 @@ test('!login pi collects provider before opening the secret form', async () => {
   const providerField = providerModal.modal.fields[0];
   assert.equal(providerField.type, 'select');
   assert.deepEqual(providerField.options.map(option => option.value), ['deepseek']);
+
+  await fixture.adapter.simulateModalSubmit('cmd_login_submit', {
+    login_provider: { selection: { selectedOption: { value: 'forged-provider' } } },
+  }, { privateMetadata: providerModal.modal.privateMetadata });
+  await flush();
+  assert.equal(fixture.auth.starts.length, 0);
 
   await fixture.adapter.simulateModalSubmit('cmd_login_submit', {
     login_provider: { selection: { selectedOption: { value: 'deepseek' } } },
@@ -222,6 +274,27 @@ test('!login pi validates an explicit provider and starts that flow immediately'
   await flush();
   assert.equal(fixture.auth.starts.length, 1);
   assert.ok(fixture.adapter.posted.at(-1)?.content.text.includes('oauth-only'));
+});
+
+test('Feishu provider action returns before status discovery settles', async () => {
+  let statusCalls = 0;
+  const pendingStatus = new Promise<ReturnType<typeof authSnapshot>>(() => {});
+  const fixture = setup('prompt', undefined, async () => {
+    statusCalls += 1;
+    return statusCalls === 1 ? authSnapshot() : pendingStatus;
+  });
+  fixture.dispatch('!login pi', 'feishu:oc_fast', fixture.adapter);
+  await flush();
+  const button = actionButton(fixture.adapter);
+  const action = fixture.adapter.simulateAction(button.actionId, button.value, {
+    channelId: 'feishu:oc_fast', triggerId: 'feishu:oc_fast:om_1',
+  });
+
+  const result = await Promise.race([
+    action.then(() => 'returned'),
+    delay(100).then(() => 'timeout'),
+  ]);
+  assert.equal(result, 'returned');
 });
 
 test('Feishu form callback returns before backend login settlement', async () => {

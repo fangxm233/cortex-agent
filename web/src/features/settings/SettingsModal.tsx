@@ -1,5 +1,5 @@
 // input:  config queries, settings panels, LoginFlow, Radix Dialog
-// output: global settings modal with auth entry and navigation
+// output: settings overlay with non-stacked auth handoff
 // pos:    Desktop settings overlay shell and data bindings
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -258,7 +258,10 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               onSetDefaultProfile={onSetDefaultProfile}
               onReconnect={onReconnect}
               onAddMachine={onAddMachine}
-              onOpenLogin={openLogin}
+              onOpenLogin={() => {
+                onClose();
+                openLogin();
+              }}
             />
           ) : null}
         </div>

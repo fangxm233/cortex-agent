@@ -55,7 +55,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | facade-compact.test.ts | test | manual context compact via agent facade |
 | facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
 | facade.test.ts | test | provider identity and isolated pre-flight gates |
-| feishu-adapter.test.ts | test | Feishu messages, persistence and nullable routing |
+| feishu-adapter.test.ts | test | Feishu messages, form validation and routing |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
 | feishu-login-cli.test.ts | test | Feishu login CLI, env locking and gating |
@@ -76,7 +76,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | integration-settings-hotreload.test.ts | e2e | Settings migration and live reload behavior |
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
-| login-command-interactions.test.ts | test | staged chat login modal and prompt-ready secret routing |
+| login-command-interactions.test.ts | test | staged chat validation, expiry and secret routing |
 | machines-query.test.ts | test | machines list online/offline projection |
 | manager-qa.test.ts | test | manager ask/answer channel resolution |
 | manager-rotation.test.ts | test | live settings and task-artifact rehydration |

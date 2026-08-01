@@ -1,5 +1,5 @@
 // input:  LoginFlow API and Claude/PI API-key consumers
-// output: shared backend login service for chat and Web
+// output: shared login service with post-handoff cancel fencing
 // pos:    Selects one credential adapter per LoginFlow start request
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -32,6 +32,8 @@ export interface AuthLoginServiceDependencies {
   piConsumerFactory?: (provider: string) => LoginFlowConsumer;
 }
 
+const TERMINAL_STEPS = new Set(['done', 'failed', 'cancelled']);
+
 function selectConsumer(
   input: StartLoginFlowInput,
   dependencies: AuthLoginServiceDependencies,
@@ -51,6 +53,35 @@ function selectConsumer(
   return (dependencies.piConsumerFactory ?? createPiApiKeyLoginConsumer)(input.provider);
 }
 
+function createFlowOperations(
+  dependencies: AuthLoginServiceDependencies,
+): Pick<AuthLoginService, 'getState' | 'respond' | 'cancel'> {
+  const handedOff = new Set<string>();
+  return {
+    getState(flowId) {
+      const state = (dependencies.getFlowState ?? getFlowState)(flowId);
+      if (!state || TERMINAL_STEPS.has(state.step)) handedOff.delete(flowId);
+      return state;
+    },
+    async respond(flowId, value) {
+      const previouslyHandedOff = handedOff.has(flowId);
+      handedOff.add(flowId);
+      try {
+        return await (dependencies.respondPrompt ?? respondPrompt)(flowId, value);
+      } catch (error) {
+        if (!previouslyHandedOff) handedOff.delete(flowId);
+        throw error;
+      }
+    },
+    async cancel(flowId) {
+      if (handedOff.has(flowId)) {
+        throw new LoginFlowError('flow_conflict', 'Login credential handoff is already in progress.');
+      }
+      return (dependencies.cancelFlow ?? cancelFlow)(flowId);
+    },
+  };
+}
+
 export function createAuthLoginService(
   dependencies: AuthLoginServiceDependencies = {},
 ): AuthLoginService {
@@ -63,15 +94,7 @@ export function createAuthLoginService(
       }
       return state;
     },
-    getState(flowId) {
-      return (dependencies.getFlowState ?? getFlowState)(flowId);
-    },
-    respond(flowId, value) {
-      return (dependencies.respondPrompt ?? respondPrompt)(flowId, value);
-    },
-    cancel(flowId) {
-      return (dependencies.cancelFlow ?? cancelFlow)(flowId);
-    },
+    ...createFlowOperations(dependencies),
   };
 }
 

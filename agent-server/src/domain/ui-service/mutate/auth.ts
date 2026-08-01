@@ -1,5 +1,5 @@
 // input:  auth mutation args and shared backend login service
-// output: Result envelopes for start, response, and cancellation
+// output: Result envelopes with auth conflict classification
 // pos:    Write handlers for Web-managed LoginFlow sessions
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -28,6 +28,9 @@ function failure(error: unknown): Result<never> {
   }
   if (message === 'Login flow is not active.') {
     return { ok: false, code: 'already-terminal', message };
+  }
+  if (message === 'Login flow is not waiting for a prompt response.') {
+    return { ok: false, code: 'invalid-args', message };
   }
   if (isLoginFlowError(error)) {
     const code = error.code === 'flow_conflict' ? 'already-exists' : 'invalid-args';
