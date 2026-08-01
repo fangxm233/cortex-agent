@@ -56,6 +56,12 @@ it('content-addresses plugin files and discovers skill directories', () => {
   assert.notEqual(directoryContentSha256(plugin), before);
 });
 
+it('hashes the resolved role directive supplied alongside the spawn config', () => {
+  const first = roleSurfaceFromSpawnConfig(spawnConfig(), 'first role directive');
+  const second = roleSurfaceFromSpawnConfig(spawnConfig(), 'second role directive');
+  assert.notEqual(first.directiveSha256, second.directiveSha256);
+});
+
 it('hashes the exact tools, MCP composition, and hook policy used by Claude argv', () => {
   const config = spawnConfig();
   fs.writeFileSync(config.mcpConfigPaths![0], '{"mcpServers":{}}\n');

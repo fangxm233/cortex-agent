@@ -43,6 +43,12 @@ export interface JournalHeaderInput {
   bundleManifestHash: string;
 }
 
+export interface JournalIdentityInput {
+  modelExecutionIdentityHash: string;
+  roleToolSurfaceHash: string;
+  bundleManifestHash: string;
+}
+
 export interface JournalEventInput {
   threadId: string | null;
   step: number | null;
@@ -51,6 +57,7 @@ export interface JournalEventInput {
   provider: string | null;
   requestedModel: string;
   reportedModel: string | null;
+  identity?: JournalIdentityInput;
   event: NormalizedEvent;
 }
 
@@ -63,11 +70,8 @@ export interface Journal {
   close(): Promise<void>;
 }
 
-interface IdentityFields {
+interface IdentityFields extends JournalIdentityInput {
   rootRunId: string;
-  modelExecutionIdentityHash: string;
-  roleToolSurfaceHash: string;
-  bundleManifestHash: string;
 }
 
 function operationFailure(operation: string, cause: unknown): FilesystemOperationError {
@@ -166,6 +170,7 @@ function buildEvent(
   seq: number,
   ts: string,
 ): Record<string, unknown> {
+  const eventIdentity = input.identity ?? identity;
   return {
     schema_version: JOURNAL_SCHEMA,
     type: 'event',
@@ -179,9 +184,9 @@ function buildEvent(
     provider: input.provider,
     requested_model: input.requestedModel,
     reported_model: input.reportedModel,
-    model_execution_identity_hash: identity.modelExecutionIdentityHash,
-    role_tool_surface_hash: identity.roleToolSurfaceHash,
-    bundle_manifest_hash: identity.bundleManifestHash,
+    model_execution_identity_hash: eventIdentity.modelExecutionIdentityHash,
+    role_tool_surface_hash: eventIdentity.roleToolSurfaceHash,
+    bundle_manifest_hash: eventIdentity.bundleManifestHash,
     event: input.event,
   };
 }

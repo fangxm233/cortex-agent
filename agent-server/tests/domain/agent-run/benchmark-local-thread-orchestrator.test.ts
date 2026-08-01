@@ -5,6 +5,7 @@
 
 import '../../_test-home.js';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -69,9 +70,8 @@ import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { RunAgentOptions } from '../../../src/domain/agents/facade.js';
 import * as executionRegistry from '../../../src/domain/executions/registry.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
-import {
-  openJournal,
-} from '../../../src/domain/agent-run/journal.js';
+import { computeModelExecutionIdentityHash, computeRoleToolSurfaceHash } from '../../../src/domain/agent-run/identity.js';
+import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import {
   resolveLifecyclePaths,
   validateTrajectoryLifecycle,
@@ -79,6 +79,7 @@ import {
   writeStartedMarker,
   writeTerminalManifest,
 } from '../../../src/domain/agent-run/manifest.js';
+import { roleSurfaceFromSpawnConfig } from '../../../src/domain/agent-run/role-surface.js';
 import { SupervisorContainmentError } from '../../../src/domain/agent-run/supervisor.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
 
@@ -164,13 +165,16 @@ function seedProfiles(): void {
 function benchmarkAgent(name: string): Record<string, unknown> {
   return {
     name, profile: '__active__', persistSession: false,
-    directive: `${name} directive`, systemPrompt: `${name} system`,
-    promptTemplate: 'Complete {{input}}', tools: 'Read,Write', pluginDirs: [],
+    directive: `${name} directive {{currentDateTime}}`,
+    systemPrompt: `${name} system {{currentDateTime}}`,
+    promptTemplate: 'Complete {{input}}', tools: 'Read,Write',
+    pluginDirs: [path.join(root, 'cortex-feishu')],
   };
 }
 
 function seedTemplates(): void {
   const base = path.join(CONFIG_DIR, 'thread-templates');
+  fs.mkdirSync(path.join(root, 'cortex-feishu'), { recursive: true });
   writeJson(path.join(base, 'agents', 'benchmark-coder.json'), benchmarkAgent('benchmark-coder'));
   writeJson(path.join(base, 'agents', 'benchmark-reviewer.json'), benchmarkAgent('benchmark-reviewer'));
   writeJson(path.join(base, 'templates', 'fixture-one-step.json'), {
@@ -182,6 +186,18 @@ function seedTemplates(): void {
     agents: ['benchmark-coder', 'benchmark-reviewer'],
     transitions: [{ from: 'benchmark-coder', to: 'benchmark-reviewer', condition: { type: 'always' } }],
     entryAgent: 'benchmark-coder', maxTotalSteps: 2, disableHooks: true,
+  });
+  writeJson(path.join(base, 'templates', 'fixture-four-step.json'), {
+    name: 'fixture-four-step', description: 'fixture',
+    agents: ['benchmark-coder', 'benchmark-reviewer'],
+    transitions: [
+      { from: 'benchmark-coder', to: 'benchmark-reviewer', condition: { type: 'always' } },
+      {
+        from: 'benchmark-reviewer', to: 'benchmark-coder',
+        condition: { type: 'convergence', marker: '[APPROVED]', maxIterations: 2 },
+      },
+    ],
+    entryAgent: 'benchmark-coder', maxTotalSteps: 4, disableHooks: true,
   });
   fs.mkdirSync(path.join(base, 'shells'), { recursive: true });
 }
@@ -236,18 +252,65 @@ function records(file: string): any[] {
   return fs.readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
 }
 
-function assertC2(resultValue: any): void {
+async function writeParentJournal(
+  req: any,
+  modelHash: string,
+  requestedModel = 'fixture-model',
+): Promise<void> {
+  const journalPath = path.join(req.trajectoryRoot, 'parent.journal.ndjson');
+  const parent = openJournal({
+    path: journalPath,
+    header: {
+      rootRunId: req.rootRunId, threadId: null, agentSlot: 'parent',
+      resolvedCwd: req.workspaceCwd, canonicalInstructionSha256: '1'.repeat(64),
+      modelVisiblePromptSha256: '2'.repeat(64), systemPromptSha256: '3'.repeat(64),
+      toolManifestSha256: '4'.repeat(64), pluginManifestSha256: '5'.repeat(64),
+      modelExecutionIdentityHash: modelHash, roleToolSurfaceHash: '6'.repeat(64),
+      bundleManifestHash: '7'.repeat(64),
+    },
+  });
+  parent.writeEvent({
+    threadId: null, step: null, agentSlot: 'parent', backend: 'claude',
+    provider: 'anthropic', requestedModel, reportedModel: null,
+    event: { type: 'assistant_text', text: 'parent', model: null },
+  });
+  await parent.close();
+  writeStartedMarker({
+    trajectoryRoot: req.trajectoryRoot, rootRunId: req.rootRunId,
+    threadId: null, journalPath,
+  });
+}
+
+const IDENTITY_HASH_FIELDS = [
+  'model_execution_identity_hash', 'role_tool_surface_hash', 'bundle_manifest_hash',
+] as const;
+
+function identityHashes(journal: any[], slot: string, field: string): Set<string> {
+  return new Set(journal.filter(row => row.agent_slot === slot).map(row => row[field]));
+}
+
+function assertC2(resultValue: any): any[] {
   const journal = records(resultValue.journalPath);
   assert.equal(journal[0].type, 'run_header');
   assert.equal(journal[0].seq, 0);
   assert.equal(journal[0].thread_id, resultValue.threadId);
   assert.equal(journal[0].agent_slot, 'benchmark-coder');
   assert.deepEqual(journal.map(row => row.seq), journal.map((_, index) => index));
+  for (const row of journal) {
+    for (const field of IDENTITY_HASH_FIELDS) assert.ok(row[field], `${field} must be non-empty`);
+  }
+  assert.ok(identityHashes(journal, 'benchmark-coder', 'role_tool_surface_hash').size <= 1);
+  assert.ok(identityHashes(journal, 'benchmark-reviewer', 'role_tool_surface_hash').size <= 1);
+  assert.equal(new Set(journal.map(row => row.model_execution_identity_hash)).size, 1);
+  const coderRole = journal.find(row => row.agent_slot === 'benchmark-coder')?.role_tool_surface_hash;
+  const reviewerRole = journal.find(row => row.agent_slot === 'benchmark-reviewer')?.role_tool_surface_hash;
+  if (reviewerRole) assert.notEqual(coderRole, reviewerRole);
   for (const row of journal.slice(1)) {
     assert.ok(['benchmark-coder', 'benchmark-reviewer'].includes(row.agent_slot));
     assert.ok(Object.hasOwn(row, 'reported_model'));
     assert.ok(Object.hasOwn(row, 'provider'));
   }
+  return journal;
 }
 
 async function moduleUnderTest(): Promise<any> {
@@ -344,6 +407,121 @@ it('exports exactly C9 and completes one bounded thread with C2/C3 artifacts', a
   ]);
   assert.equal(harness.attachOptions.length, 1);
   assert.equal(fs.existsSync(path.join(STORE_DIR, 'conversation-history')), false);
+});
+
+it('projects C4 identities per role while inheriting one model identity', async () => {
+  for (let step = 0; step < 4; step += 1) queueSuccess(`step-${step}`, 0);
+  const req = request(path.join(root, 'role-identities'), new AbortController().signal, {
+    template: 'fixture-four-step',
+    limits: { maxSteps: 4, maxCostUsd: 0, deadlineEpochMs: Date.now() + 30_000 },
+  });
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+
+  assert.equal(value.state, 'completed');
+  assert.equal(value.steps, 4);
+  const journal = assertC2(value);
+  assert.deepEqual(journal.map(row => row.agent_slot), [
+    'benchmark-coder', 'benchmark-coder', 'benchmark-reviewer',
+    'benchmark-coder', 'benchmark-reviewer',
+  ]);
+  assert.notEqual(journal[1].bundle_manifest_hash, journal[2].bundle_manifest_hash);
+  assert.equal(journal[0].model_execution_identity_hash, computeModelExecutionIdentityHash({
+    backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: null,
+    providerProtocol: 'anthropic', configuredRouteBaseHost: null,
+    claudeCliVersion: null, reasoningEffort: null, fallbackEmpty: true,
+  }));
+});
+
+it('inherits the parent journal model identity across every child record', async () => {
+  const parentModelHash = 'a'.repeat(64);
+  const req = request(path.join(root, 'parent-model'), new AbortController().signal);
+  await writeParentJournal(req, parentModelHash);
+  queueSuccess('inherited model');
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+
+  assert.equal(value.state, 'completed');
+  assert.deepEqual(records(value.journalPath).map(row => row.model_execution_identity_hash), [
+    parentModelHash, parentModelHash,
+  ]);
+});
+
+it('rejects parent identity from a journal with mismatched header linkage', async () => {
+  const req = request(path.join(root, 'parent-linkage-drift'), new AbortController().signal);
+  await writeParentJournal(req, 'b'.repeat(64));
+  const journalPath = path.join(req.trajectoryRoot, 'parent.journal.ndjson');
+  const parentRecords = records(journalPath);
+  parentRecords[0].ts = 'invalid-timestamp';
+  fs.writeFileSync(journalPath, `${parentRecords.map(record => JSON.stringify(record)).join('\n')}\n`);
+  queueSuccess('must not run');
+
+  await assert.rejects(
+    () => (moduleUnderTest()).then(api => api.runBenchmarkThread(req)),
+    /parent journal header/i,
+  );
+  assert.equal(harness.runAgent.mock.calls.length, 0);
+});
+
+it('rejects a parent model subset that disagrees with the resolved profile', async () => {
+  const req = request(path.join(root, 'parent-model-drift'), new AbortController().signal);
+  await writeParentJournal(req, 'b'.repeat(64), 'other-model');
+  queueSuccess('must not run');
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(harness.runAgent.mock.calls.length, 0);
+});
+
+it('freezes the exact resolved role surface used by the benchmark spawn', async () => {
+  queueSuccess('resolved role');
+  let resolutions = 0;
+  const resolveProfile = () => {
+    if (resolutions++ === 1) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_100);
+    return {
+      name: 'benchmark-fixture', backend: 'claude' as const, model: 'fixture-model',
+      mode: null, provider: 'anthropic', extraEnv: {}, extraOption: {},
+      claudeBackend: 'print' as const, thinking: null, fallback: [],
+    };
+  };
+  const req = request(path.join(root, 'resolved-role'), new AbortController().signal);
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { resolveProfile });
+
+  assert.equal(value.state, 'completed');
+  const [prompt, options] = harness.runAgent.mock.calls[0] as [string, RunAgentOptions];
+  assert.deepEqual(options.pluginDirs, []);
+  assert.equal(options.loadCortexRules, false);
+  assert.doesNotMatch(prompt, /\{\{currentDateTime\}\}/);
+  const directive = prompt.slice(0, prompt.indexOf('\n\n'));
+  const surface = roleSurfaceFromSpawnConfig({
+    sessionId: null, sessionKey: 'fixture', resume: false,
+    systemPrompt: options.systemPrompt, rawTools: options.tools,
+    pluginDirs: options.pluginDirs, mcpComposition: options.mcpComposition,
+    disableHooks: options.disableHooks,
+  }, directive);
+  const header = records(value.journalPath)[0];
+  assert.equal(header.system_prompt_sha256, createHash('sha256').update(options.systemPrompt).digest('hex'));
+  assert.equal(header.role_tool_surface_hash, computeRoleToolSurfaceHash(surface));
+});
+
+it('fails with protocol_violation when the spawned profile drifts from the header', async () => {
+  queueSuccess('drifted spawn');
+  let resolutions = 0;
+  const resolveProfile = () => ({
+    name: 'benchmark-fixture', backend: 'claude' as const, model: resolutions++ === 0
+      ? 'fixture-model' : 'drifted-model', mode: null, provider: 'anthropic',
+    extraEnv: {}, extraOption: {}, claudeBackend: 'print' as const, thinking: null, fallback: [],
+  });
+  const req = request(path.join(root, 'model-identity-drift'), new AbortController().signal);
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { resolveProfile });
+
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason, 'protocol_violation');
 });
 
 it('uses the landed lifecycle modules rather than a forked writer surface', async () => {

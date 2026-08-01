@@ -3,7 +3,6 @@
 // pos:    Daemon-free benchmark thread lifecycle coordinator
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import { createHash } from 'node:crypto';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,7 +36,10 @@ import type { PlatformCapabilities } from '../../platform/types.js';
 import { executionRepo as daemonExecutionRepo } from '../../store/execution-repo.js';
 import { sessionStore as daemonSessionStore } from '../../store/session-registry-repo.js';
 import { threadStore as daemonThreadStore } from '../../store/thread-repo.js';
-import { canonicalJsonSha256 } from './identity.js';
+import {
+  benchmarkRoleIdentity, BenchmarkIdentityProtocolError, freezeBenchmarkThreadIdentity,
+  verifyBenchmarkModelIdentity, type BenchmarkThreadIdentity,
+} from './benchmark-thread-identity.js';
 import {
   openJournal, TrajectoryWriteFailedError, type AgentSlot, type Journal,
 } from './journal.js';
@@ -107,17 +109,6 @@ type ResolvedProfile = ReturnType<typeof resolveProfileConfig>;
 type ResolvedTemplate = NonNullable<ReturnType<typeof getTemplate>>;
 type StopReason = 'cancel' | 'deadline' | 'step_limit' | 'cost_limit';
 
-interface RunIdentity {
-  canonicalInstructionSha256: string;
-  modelVisiblePromptSha256: string;
-  systemPromptSha256: string;
-  toolManifestSha256: string;
-  pluginManifestSha256: string;
-  modelExecutionIdentityHash: string;
-  roleToolSurfaceHash: string;
-  bundleManifestHash: string;
-}
-
 interface PreparedThreadRun {
   request: BenchmarkThreadRequest;
   profile: ResolvedProfile;
@@ -125,7 +116,7 @@ interface PreparedThreadRun {
   thread: ThreadRecord;
   journal: Journal;
   lifecycle: { started: string; terminal: string };
-  identity: RunIdentity;
+  identity: BenchmarkThreadIdentity;
   startedAt: string;
 }
 
@@ -205,10 +196,6 @@ function createNoopAdapter(): PlatformAdapter {
   };
 }
 
-function sha256(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
-}
-
 function isDirectory(directory: string): boolean {
   try { return fs.statSync(directory).isDirectory(); }
   catch { return false; }
@@ -271,49 +258,25 @@ function resolveTemplate(name: string): ResolvedTemplate {
   return template;
 }
 
-function roleAgent(template: ResolvedTemplate) {
-  return resolveTemplateAgents(template).find(agent => agent.slotId === template.entryAgent)!;
-}
-
-function identityInput(
-  request: BenchmarkThreadRequest,
-  profile: ResolvedProfile,
-  template: ResolvedTemplate,
-) {
-  const agent = roleAgent(template);
-  return {
-    agent,
-    instruction: request.instruction,
-    limits: request.limits,
-    paths: { workspaceCwd: request.workspaceCwd, trajectoryRoot: request.trajectoryRoot },
-    profile,
-    template,
-  };
-}
-
 function freezeRunIdentity(
   request: BenchmarkThreadRequest,
   profile: ResolvedProfile,
   template: ResolvedTemplate,
-): RunIdentity {
-  const frozen = identityInput(request, profile, template);
-  const agent = frozen.agent;
-  const modelExecutionIdentityHash = canonicalJsonSha256(profile);
-  const roleToolSurfaceHash = canonicalJsonSha256({
-    agent, template, mcpComposition: 'none', hookPolicy: {},
+  channel: string,
+): BenchmarkThreadIdentity {
+  return freezeBenchmarkThreadIdentity({
+    request: {
+      instruction: request.instruction,
+      profileName: request.profileName,
+      rootRunId: request.rootRunId,
+      limits: request.limits,
+      paths: { workspaceCwd: request.workspaceCwd, trajectoryRoot: request.trajectoryRoot },
+    },
+    profile,
+    template,
+    agents: resolveTemplateAgents(template),
+    channel,
   });
-  return {
-    canonicalInstructionSha256: sha256(request.instruction),
-    modelVisiblePromptSha256: sha256(request.instruction),
-    systemPromptSha256: sha256(agent.systemPrompt ?? ''),
-    toolManifestSha256: canonicalJsonSha256((agent.tools ?? '').split(',').filter(Boolean)),
-    pluginManifestSha256: canonicalJsonSha256(agent.pluginDirs ?? []),
-    modelExecutionIdentityHash,
-    roleToolSurfaceHash,
-    bundleManifestHash: canonicalJsonSha256({
-      ...frozen, modelExecutionIdentityHash, roleToolSurfaceHash,
-    }),
-  };
 }
 
 function createBenchmarkRecord(request: BenchmarkThreadRequest): ThreadRecord {
@@ -330,15 +293,18 @@ function openThreadJournal(
   request: BenchmarkThreadRequest,
   template: ResolvedTemplate,
   thread: ThreadRecord,
-  identity: RunIdentity,
+  identity: BenchmarkThreadIdentity,
 ): Journal {
   const journalPath = path.join(request.trajectoryRoot, `thread-${thread.id}.journal.ndjson`);
+  const role = benchmarkRoleIdentity(identity, template.entryAgent);
   return openJournal({
     path: journalPath,
     header: {
       rootRunId: request.rootRunId, threadId: thread.id,
-      agentSlot: template.entryAgent as AgentSlot,
-      resolvedCwd: request.workspaceCwd, ...identity,
+      agentSlot: template.entryAgent as AgentSlot, resolvedCwd: request.workspaceCwd,
+      canonicalInstructionSha256: identity.canonicalInstructionSha256,
+      modelVisiblePromptSha256: identity.modelVisiblePromptSha256,
+      ...role,
     },
   });
 }
@@ -365,7 +331,7 @@ async function createRunArtifacts(
   const lifecycle = resolveLifecyclePaths({
     trajectoryRoot: request.trajectoryRoot, rootRunId: request.rootRunId, threadId: thread.id,
   });
-  const identity = freezeRunIdentity(request, profile, template);
+  const identity = freezeRunIdentity(request, profile, template, thread.channel);
   const journal = openThreadJournal(request, template, thread, identity);
   const startedAt = new Date().toISOString();
   try { writeRunStarted(request, thread, journal, startedAt); }
@@ -484,10 +450,13 @@ function threadRunOptions(prepared: PreparedThreadRun, spawner: AgentProcessSpaw
     benchmark: {
       workspaceCwd: prepared.request.workspaceCwd,
       resolvedProfileName: prepared.request.profileName,
+      expectedBackend: prepared.identity.expectedBackend,
+      expectedModel: prepared.identity.expectedModel,
       disableHooks: true as const,
       disableControlPlane: true as const,
       failFastOnRateLimit: true as const,
       spawner,
+      resolvedAgents: prepared.identity.resolvedAgents,
       limits: {
         maxSteps: prepared.request.limits.maxSteps,
         maxCostUsd: prepared.request.limits.maxCostUsd,
@@ -501,6 +470,12 @@ async function runLocalThread(
   prepared: PreparedThreadRun,
   control: RunControl,
 ): Promise<{ result: ThreadRunResult | null; error: unknown }> {
+  if (prepared.identity.modelProtocolProblem) {
+    return {
+      result: null,
+      error: new BenchmarkIdentityProtocolError(prepared.identity.modelProtocolProblem),
+    };
+  }
   try {
     const result = await runThread(
       prepared.thread.id,
@@ -517,14 +492,26 @@ function asAgentSlot(value: string): AgentSlot {
   return value as AgentSlot;
 }
 
+function verifyPreparedModelIdentity(prepared: PreparedThreadRun): void {
+  let profile: ResolvedProfile;
+  try {
+    profile = resolveProfile(prepared.request.profileName);
+  } catch {
+    throw new BenchmarkIdentityProtocolError('Frozen benchmark profile is no longer resolvable');
+  }
+  verifyBenchmarkModelIdentity(prepared.identity, profile);
+}
+
 function writeStepEvents(prepared: PreparedThreadRun, thread: ThreadRecord): unknown {
   try {
+    verifyPreparedModelIdentity(prepared);
     for (const step of thread.steps) {
+      const identity = benchmarkRoleIdentity(prepared.identity, step.agentSlotId);
       prepared.journal.writeEvent({
         threadId: thread.id, step: step.stepIndex,
         agentSlot: asAgentSlot(step.agentSlotId), backend: 'claude',
         provider: prepared.profile.provider, requestedModel: prepared.profile.model,
-        reportedModel: null,
+        reportedModel: null, identity,
         event: { type: 'assistant_text', text: step.output ?? '', model: null },
       });
     }
@@ -600,6 +587,9 @@ function errorReason(error: unknown): string | null {
 
 function classifyFailure(error: unknown): ClassifiedRun {
   if (error instanceof BenchmarkRateLimitError) return { state: 'failed', reason: 'rate_limited' };
+  if (errorReason(error) === 'protocol_violation') {
+    return { state: 'failed', reason: 'protocol_violation' };
+  }
   if (errorReason(error) === 'trajectory_write_failed') {
     return { state: 'failed', reason: 'trajectory_write_failed' };
   }
@@ -615,6 +605,9 @@ function containmentReason(error: unknown): NonQuiescentReason {
 function safetyClassification(outcome: RunOutcome): ClassifiedRun | null {
   if (!outcome.quiescent) {
     return { state: 'failed', reason: containmentReason(outcome.containmentFailure) };
+  }
+  if (errorReason(outcome.durabilityError) === 'protocol_violation') {
+    return { state: 'failed', reason: 'protocol_violation' };
   }
   if (outcome.durabilityError) return { state: 'failed', reason: 'trajectory_write_failed' };
   return null;
@@ -653,6 +646,7 @@ function terminalInput(
   classified: ManifestClassifiedRun,
   thread: ThreadRecord,
 ): TerminalManifestInput {
+  const role = benchmarkRoleIdentity(prepared.identity, prepared.template.entryAgent);
   return {
     trajectoryRoot: prepared.request.trajectoryRoot,
     canonicalTrajectoryRoot: true,
@@ -668,9 +662,9 @@ function terminalInput(
     steps: thread.steps.length,
     costUsd: thread.totalCostUsd,
     tokens: { input: null, output: null },
-    modelExecutionIdentityHash: prepared.identity.modelExecutionIdentityHash,
-    roleToolSurfaceHash: prepared.identity.roleToolSurfaceHash,
-    bundleManifestHash: prepared.identity.bundleManifestHash,
+    modelExecutionIdentityHash: role.modelExecutionIdentityHash,
+    roleToolSurfaceHash: role.roleToolSurfaceHash,
+    bundleManifestHash: role.bundleManifestHash,
     terminalReason: classified.reason,
   };
 }

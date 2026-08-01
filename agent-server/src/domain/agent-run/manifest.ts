@@ -1,6 +1,6 @@
 // input:  canonical trajectory roots, lifecycle metadata, journals
 // output: atomic markers/manifests and trajectory validation
-// pos:    Lifecycle truth and validator for one-shot agent runs
+// pos:    Lifecycle truth and validator for benchmark agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { createHash, type Hash } from 'node:crypto';
@@ -22,12 +22,16 @@ const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const READ_BUFFER_BYTES = 64 * 1024;
 
-interface JournalHeaderRecord {
-  rootRunId: string;
-  threadId: string | null;
-  modelExecutionIdentityHash: string;
+interface JournalRoleIdentity {
   roleToolSurfaceHash: string;
   bundleManifestHash: string;
+}
+
+interface JournalHeaderRecord extends JournalRoleIdentity {
+  rootRunId: string;
+  threadId: string | null;
+  agentSlot: string;
+  modelExecutionIdentityHash: string;
 }
 
 interface JournalScanState {
@@ -35,6 +39,7 @@ interface JournalScanState {
   lineNumber: number;
   eventCount: number;
   header: JournalHeaderRecord | null;
+  roleIdentities: Map<string, JournalRoleIdentity>;
   problems: string[];
   hash: Hash;
 }
@@ -504,16 +509,34 @@ function headerRecord(value: Record<string, unknown>): JournalHeaderRecord {
   return {
     rootRunId: String(value.root_run_id),
     threadId: value.thread_id as string | null,
+    agentSlot: String(value.agent_slot),
     modelExecutionIdentityHash: String(value.model_execution_identity_hash),
     roleToolSurfaceHash: String(value.role_tool_surface_hash),
     bundleManifestHash: String(value.bundle_manifest_hash),
   };
 }
 
+function validRoleIdentity(
+  value: Record<string, unknown>,
+  identities: ReadonlyMap<string, JournalRoleIdentity>,
+): boolean {
+  const slot = String(value.agent_slot);
+  const role = String(value.role_tool_surface_hash);
+  const bundle = String(value.bundle_manifest_hash);
+  const expected = identities.get(slot);
+  if (expected) {
+    return role === expected.roleToolSurfaceHash && bundle === expected.bundleManifestHash;
+  }
+  return [...identities.values()].every(identity => (
+    role !== identity.roleToolSurfaceHash && bundle !== identity.bundleManifestHash
+  ));
+}
+
 function validEventRecord(
   value: unknown,
   expectedSeq: number,
   header: JournalHeaderRecord | null,
+  identities: ReadonlyMap<string, JournalRoleIdentity>,
 ): boolean {
   if (!isObject(value)) return false;
   if (!header) return false;
@@ -533,8 +556,7 @@ function validEventRecord(
     isNullableString(value.reported_model),
     EVENT_HASH_KEYS.every(key => isSha256(value[key])),
     value.model_execution_identity_hash === header.modelExecutionIdentityHash,
-    value.role_tool_surface_hash === header.roleToolSurfaceHash,
-    value.bundle_manifest_hash === header.bundleManifestHash,
+    validRoleIdentity(value, identities),
     validNormalizedEvent(value.event),
   ]);
 }
@@ -554,15 +576,30 @@ function parseJournalLine(line: string): LineParseResult {
 
 function validateHeaderLine(state: JournalScanState, filePath: string, value: unknown): void {
   if (validHeaderRecord(value)) {
-    state.header = headerRecord(value);
+    const header = headerRecord(value);
+    state.header = header;
+    state.roleIdentities.set(header.agentSlot, header);
     return;
   }
   state.problems.push(malformedRecord(filePath, state.lineNumber, 'invalid_envelope'));
 }
 
+function rememberRoleIdentity(
+  state: JournalScanState,
+  value: Record<string, unknown>,
+): void {
+  state.roleIdentities.set(String(value.agent_slot), {
+    roleToolSurfaceHash: String(value.role_tool_surface_hash),
+    bundleManifestHash: String(value.bundle_manifest_hash),
+  });
+}
+
 function validateEventLine(state: JournalScanState, filePath: string, value: unknown): void {
   state.eventCount += 1;
-  if (validEventRecord(value, state.lineNumber - 1, state.header)) return;
+  if (validEventRecord(value, state.lineNumber - 1, state.header, state.roleIdentities)) {
+    rememberRoleIdentity(state, value as Record<string, unknown>);
+    return;
+  }
   state.problems.push(malformedRecord(filePath, state.lineNumber, 'invalid_envelope'));
 }
 
@@ -591,7 +628,7 @@ function consumeDecoded(state: JournalScanState, filePath: string, text: string)
 function newScanState(): JournalScanState {
   return {
     pending: '', lineNumber: 0, eventCount: 0, header: null,
-    problems: [], hash: createHash('sha256'),
+    roleIdentities: new Map(), problems: [], hash: createHash('sha256'),
   };
 }
 
@@ -638,6 +675,54 @@ function scanJournal(filePath: string): JournalScanResult {
   return result;
 }
 
+export interface ActiveJournalModelIdentity {
+  rootRunId: string;
+  threadId: string | null;
+  agentSlot: string;
+  modelExecutionIdentityHash: string;
+  backend: string;
+  requestedModel: string;
+}
+
+export interface ActiveJournalModelInspection {
+  identity: ActiveJournalModelIdentity | null;
+  problems: string[];
+}
+
+function firstJournalEvent(filePath: string): Record<string, unknown> | null {
+  const lines = fs.readFileSync(filePath, 'utf8').split('\n').filter(Boolean).slice(1);
+  for (const line of lines) {
+    const parsed = parseJournalLine(line);
+    if (parsed.ok && isObject(parsed.value) && parsed.value.type === 'event') return parsed.value;
+  }
+  return null;
+}
+
+export function inspectActiveJournalModelIdentity(
+  filePath: string,
+): ActiveJournalModelInspection {
+  const scan = scanJournal(filePath);
+  if (scan.problems.length > 0 || !scan.header) {
+    return { identity: null, problems: scan.problems };
+  }
+  try {
+    const event = firstJournalEvent(filePath);
+    if (!event) return { identity: null, problems: ['missing_model_event'] };
+    return {
+      identity: {
+        rootRunId: scan.header.rootRunId,
+        threadId: scan.header.threadId,
+        agentSlot: scan.header.agentSlot,
+        modelExecutionIdentityHash: scan.header.modelExecutionIdentityHash,
+        backend: String(event.backend), requestedModel: String(event.requested_model),
+      },
+      problems: [],
+    };
+  } catch {
+    return { identity: null, problems: [`journal_unreadable:${filePath}:read`] };
+  }
+}
+
 function unreadableScan(filePath: string, operation: string): JournalScanResult {
   return {
     sha256: null, eventCount: 0, header: null,
@@ -653,7 +738,7 @@ function readJson(filePath: string): JsonReadResult {
   }
 }
 
-function startedMarkerProblem(value: unknown, filePath: string): string | null {
+export function startedMarkerProblem(value: unknown, filePath: string): string | null {
   const keys = ['root_run_id', 'thread_id', 'ts', 'journal_path'];
   if (!isObject(value) || !exactKeys(value, keys)) return 'envelope';
   const fieldChecks: Array<[boolean, string]> = [
@@ -689,7 +774,7 @@ function hasSymlinkBelowRoot(root: string, candidate: string): boolean {
   return false;
 }
 
-function confinedJournalPath(
+export function confinedJournalPath(
   root: string,
   candidate: string,
   canonicalRoot = false,

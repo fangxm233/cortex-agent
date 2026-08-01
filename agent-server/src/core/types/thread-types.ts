@@ -473,11 +473,15 @@ export interface BenchmarkThreadRunOptions {
   workspaceCwd: string;
   /** Frozen trial profile; benchmark templates cannot select a different identity. */
   resolvedProfileName: string;
+  expectedBackend: 'claude';
+  expectedModel: string;
   disableHooks: true;
   disableControlPlane: true;
   failFastOnRateLimit: true;
   /** Optional containment-aware process boundary forwarded to every step. */
   spawner?: AgentProcessSpawner;
+  /** Role configs resolved once at benchmark start and reused by every matching step. */
+  resolvedAgents?: ReadonlyMap<AgentSlotId, AgentSlotConfig>;
   limits?: {
     maxSteps: number;
     maxCostUsd?: number;

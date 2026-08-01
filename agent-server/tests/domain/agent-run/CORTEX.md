@@ -13,7 +13,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | agent-run-e2e.test.ts | e2e | proves containment, cleanup and completion |
 | agent-run-protocol-e2e.test.ts | e2e | proves stdin, accounting and trajectory failures |
 | benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
-| benchmark-local-thread-orchestrator.test.ts | test | proves C9 commitment, containment and isolation |
+| benchmark-local-thread-orchestrator.test.ts | test | proves C9 lifecycle, containment and C4 identity projection |
 | benchmark-local-thread-process.test.ts | e2e | proves full-run fresh-process C8 confinement |
 | fake-run-agent-loader.mjs | fixture | redirects thread-runtime agent imports to a fake |
 | fake-run-agent-module.mjs | fixture | returns one deterministic no-model result |
@@ -26,7 +26,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | manifest-contract.test.ts | test | verifies lifecycle and linkage contracts |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
-| role-surface.test.ts | test | verifies plugin hashing and argv alignment |
+| role-surface.test.ts | test | verifies directive/plugin hashing and argv alignment |
 | run-config.test.ts | test | verifies non-empty roles, argv closure, and MCP inputs |
 | supervisor.test.ts | test | verifies protocol, stdio, watchdog and taxonomy |
 | trajectory-merge-cli.test.ts | test | verifies reason codes and fail-closed cleanup |

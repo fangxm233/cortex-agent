@@ -65,6 +65,7 @@ import type {
   AgentSlotConfig,
   ThreadTemplate,
   RunThreadOptions,
+  BenchmarkThreadRunOptions,
 } from '@core/types/thread-types.js';
 import {
   getLocalThreadRuntimeDeps,
@@ -248,56 +249,61 @@ async function executeConfiguredLifecycleHooks(
   await executeLifecycleHooks(threadId, phase, configs, opts, previousAgent, logSuffix);
 }
 
-/** Resolve next step, post boundary notifications, update the status message.
- *  Returns null if the loop should break (cancelled, no next step). */
+function emitStepBoundary(
+  ctx: ThreadContext,
+  thread: ThreadRecord,
+  isFirstStep: boolean,
+  label: string,
+): void {
+  if (!ctx.stream || Object.keys(thread.agents).length <= 1 || isFirstStep) return;
+  const previous = thread.steps.at(-1);
+  const previousLabel = previous
+    ? formatAgentStageLabel(previous.agentSlotId, previous.stage) : '?';
+  ctx.stream.emitText(
+    `${Icons.arrowRight} Step ${thread.currentStepIndex + 1}: *${label}* starting (prev: ${previousLabel})`,
+  );
+}
+
+async function updateStepStatus(
+  ctx: ThreadContext,
+  opts: RunThreadOptions,
+  thread: ThreadRecord,
+  label: string,
+): Promise<void> {
+  if (!ctx.stream || Object.keys(thread.agents).length <= 1 || opts.onProgress || !opts.statusMsg) return;
+  const statusText = buildThreadStatusMessage({
+    threadId: thread.id, stepNumber: thread.currentStepIndex + 1, label,
+    elapsedS: (Date.now() - opts.startTime) / 1000,
+    taskProject: thread.metadata?.taskProject ?? null,
+    taskId: thread.metadata?.taskId ?? null,
+    taskText: thread.metadata?.taskText ?? null,
+  });
+  try { await opts.adapter.updateMessage(opts.statusMsg, { text: statusText }); }
+  catch {}
+}
+
 async function resolveAndNotifyStep(
   threadId: string,
   ctx: ThreadContext,
   opts: RunThreadOptions,
 ): Promise<StepInfo | null> {
-  // Check if thread was cancelled externally
   const current = threadStore.get(threadId);
   if (!current || current.status === 'cancelled') return null;
-
-  // Resolve the next step
   const nextStep = resolveNextStep(threadId);
   if (!nextStep) {
     await completeThread(threadId);
     return null;
   }
-
-  const { agentSlotId, agentConfig, isFirstStep, stage } = nextStep;
-  const threadRecord = threadStore.get(threadId)!;
-  const multiAgent = Object.keys(threadRecord.agents).length > 1;
+  const { agentSlotId, isFirstStep, stage } = nextStep;
+  const agentConfig = opts.benchmark?.resolvedAgents?.get(agentSlotId) ?? nextStep.agentConfig;
+  const thread = threadStore.get(threadId)!;
   const label = formatAgentStageLabel(agentSlotId, stage);
-
-  // Post step boundary notification for multi-agent threads via OutputStream
-  if (ctx.stream && multiAgent && !isFirstStep) {
-    const prevStep = threadRecord.steps[threadRecord.steps.length - 1];
-    const prevLabel = prevStep ? formatAgentStageLabel(prevStep.agentSlotId, prevStep.stage) : '?';
-    ctx.stream.emitText(`${Icons.arrowRight} Step ${threadRecord.currentStepIndex + 1}: *${label}* starting (prev: ${prevLabel})`);
-  }
-
-  // Update status message (multi-agent thread format; skip if caller provides onProgress)
-  if (ctx.stream && multiAgent && !opts.onProgress) {
-    const elapsed = (Date.now() - opts.startTime) / 1000;
-    const statusText = buildThreadStatusMessage({
-      threadId: threadRecord.id,
-      stepNumber: threadRecord.currentStepIndex + 1,
-      label,
-      elapsedS: elapsed,
-      taskProject: threadRecord.metadata?.taskProject ?? null,
-      taskId: threadRecord.metadata?.taskId ?? null,
-      taskText: threadRecord.metadata?.taskText ?? null,
-    });
-    try {
-      if (opts.statusMsg) {
-        await opts.adapter.updateMessage(opts.statusMsg, { text: statusText });
-      }
-    } catch {}
-  }
-
-  return { agentSlotId, agentConfig, isFirstStep, multiAgent, stage };
+  emitStepBoundary(ctx, thread, isFirstStep, label);
+  await updateStepStatus(ctx, opts, thread, label);
+  return {
+    agentSlotId, agentConfig, isFirstStep,
+    multiAgent: Object.keys(thread.agents).length > 1, stage,
+  };
 }
 
 function resolveEffectiveProfileName(
@@ -310,17 +316,32 @@ function resolveEffectiveProfileName(
     : configuredProfile;
 }
 
+class BenchmarkProfileIdentityError extends Error {
+  readonly reason = 'protocol_violation' as const;
+}
+
+function assertBenchmarkProfile(
+  profile: ReturnType<typeof resolveProfileConfig>,
+  benchmark: BenchmarkThreadRunOptions,
+): void {
+  const matches = profile.backend === benchmark.expectedBackend
+    && profile.model === benchmark.expectedModel;
+  if (matches) return;
+  throw new BenchmarkProfileIdentityError(
+    `Benchmark profile drifted from ${benchmark.expectedBackend}/${benchmark.expectedModel}`,
+  );
+}
+
 function resolveStepProfile(
   profileName: string,
-  requireResolved: boolean,
+  benchmark: BenchmarkThreadRunOptions | undefined,
 ): { backend: string; provider: string | null } {
   try {
     const profile = resolveProfileConfig(profileName);
+    if (benchmark) assertBenchmarkProfile(profile, benchmark);
     return { backend: profile.backend, provider: resolveRateLimitProvider(profile) };
   } catch (error) {
-    if (requireResolved) throw error;
-    // Preserve ordinary preflight ordering: the facade remains responsible for rejecting a
-    // missing profile after the execution record has been opened with the legacy active backend.
+    if (benchmark) throw error;
     return { backend: getActiveBackend(), provider: null };
   }
 }
@@ -372,7 +393,7 @@ async function buildStepConfig(
   // declaration; metadata.profileOverride applies only to ordinary __active__ agents.
   const profileName = opts.benchmark?.resolvedProfileName
     ?? resolveEffectiveProfileName(agentConfig.profile, ctx.meta, opts.channel);
-  const profile = resolveStepProfile(profileName, opts.benchmark !== undefined);
+  const profile = resolveStepProfile(profileName, opts.benchmark);
   const profileBackend = profile.backend;
   const rateLimitProvider = profile.provider;
 
@@ -517,7 +538,7 @@ function resolveStepSpawnPolicy(
   if (opts.benchmark) {
     return {
       cwd: opts.benchmark.workspaceCwd, processSpawner: opts.benchmark.spawner,
-      mcpComposition: 'none', disableHooks: true,
+      mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
     };
   }
   return {
