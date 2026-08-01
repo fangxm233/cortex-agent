@@ -14,6 +14,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, it, vi } from 'vitest';
 const harness = vi.hoisted(() => ({
   attachOptions: [] as any[],
   lifecycle: [] as string[],
+  journalCloseError: false,
   manifestMode: 'normal' as 'normal' | 'omit' | 'wrong_linkage',
   runAgent: vi.fn(),
   supervisors: [] as any[],
@@ -78,6 +79,7 @@ import {
   writeStartedMarker,
   writeTerminalManifest,
 } from '../../../src/domain/agent-run/manifest.js';
+import { SupervisorContainmentError } from '../../../src/domain/agent-run/supervisor.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
 
 interface Deferred<T> {
@@ -121,6 +123,7 @@ function wrapJournal(journal: any): any {
     close: async () => {
       await journal.close();
       harness.lifecycle.push('journal_closed');
+      if (harness.journalCloseError) throw new Error('forced journal close error');
     },
   };
 }
@@ -294,6 +297,7 @@ beforeAll(async () => {
 beforeEach(() => {
   harness.attachOptions.length = 0;
   harness.lifecycle.length = 0;
+  harness.journalCloseError = false;
   harness.manifestMode = 'normal';
   harness.runAgent.mockReset();
   harness.supervisors.length = 0;
@@ -322,11 +326,12 @@ it('exports exactly C9 and completes one bounded thread with C2/C3 artifacts', a
   const value = await api.runBenchmarkThread(req);
 
   assert.deepEqual(Object.keys(value).sort(), [
-    'artifactPath', 'costUsd', 'durationMs', 'journalPath', 'manifestPath',
-    'state', 'steps', 'summary', 'terminalReason', 'threadId',
+    'artifactPath', 'costUsd', 'durationMs', 'journalPath', 'manifestCommitted',
+    'manifestPath', 'state', 'steps', 'summary', 'terminalReason', 'threadId',
   ].sort());
   assert.equal(value.state, 'completed');
   assert.equal(value.terminalReason, null);
+  assert.equal(value.manifestCommitted, true);
   assert.equal(value.steps, 1);
   assert.equal(value.costUsd, 0.25);
   assert.equal(value.summary, `${'x'.repeat(1966)}😀… [truncated, 1967 of 2100 chars]`);
@@ -424,18 +429,48 @@ it('cancel closes admission, waits for delayed quiescence, then closes and commi
   assertCancelledResult(await pending);
 });
 
-it('does not close or publish when supervisor quiescence is rejected', async () => {
+it('closes a C2 journal but withholds the manifest when containment fails', async () => {
   const quiescence = deferred<void>();
   queueSuccess('unsafe');
   harness.supervisors[0] = fakeSupervisor(quiescence.promise);
-  setTimeout(() => quiescence.reject(new Error('containment failed')), 20);
+  setTimeout(() => quiescence.reject(new SupervisorContainmentError('containment_failed')), 20);
   const req = request(path.join(root, 'containment-failed'), new AbortController().signal);
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
-  assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(value.terminalReason, 'containment_failed');
+  assert.equal(value.manifestCommitted, false);
+  assert.ok(value.manifestPath);
   assert.equal(fs.existsSync(value.manifestPath), false);
-  assert.equal(harness.lifecycle.includes('journal_closed'), false);
+  assertC2(value);
+  assert.equal(harness.lifecycle.includes('journal_closed'), true);
   assert.equal(harness.lifecycle.includes('manifest_committed'), false);
+});
+
+it('preserves missing_quiescent when no quiescence signal arrives', async () => {
+  queueSuccess('missing signal');
+  harness.supervisors[0] = fakeSupervisor(Promise.reject(
+    new SupervisorContainmentError('missing_quiescent'),
+  ));
+  const req = request(path.join(root, 'missing-quiescent'), new AbortController().signal);
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'missing_quiescent');
+  assert.equal(value.manifestCommitted, false);
+  assert.equal(fs.existsSync(value.manifestPath), false);
+});
+
+it('resolves a structured containment result when journal close reports an error', async () => {
+  harness.journalCloseError = true;
+  queueSuccess('close error');
+  harness.supervisors[0] = fakeSupervisor(Promise.reject(
+    new SupervisorContainmentError('containment_failed'),
+  ));
+  const req = request(path.join(root, 'containment-close-error'), new AbortController().signal);
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'containment_failed');
+  assert.equal(value.manifestCommitted, false);
+  assert.equal(fs.existsSync(value.manifestPath), false);
 });
 
 it('does not treat ThreadRecord completed as success before external truth is durable', async () => {
@@ -467,6 +502,7 @@ it('surfaces started-without-terminal as failed even when the local runner compl
 
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(value.manifestCommitted, false);
   assert.equal(fs.existsSync(value.manifestPath), false);
   assert.match(validateTrajectoryRoot(req.trajectoryRoot).problems.join('\n'), /started_without_terminal/);
 });
@@ -478,6 +514,7 @@ it('fails a terminal manifest whose envelope is valid but journal linkage is wro
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(value.manifestCommitted, false);
   assert.match(validateTrajectoryLifecycle({
     trajectoryRoot: req.trajectoryRoot, rootRunId: req.rootRunId, threadId: value.threadId,
   }).problems.join('\n'), /journal_path/);
