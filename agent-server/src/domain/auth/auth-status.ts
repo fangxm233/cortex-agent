@@ -1,5 +1,5 @@
 // input:  Claude/PI credentials, profiles, and runtime
-// output: AuthStatusSnapshot types and reader
+// output: Login-capable AuthStatusSnapshot types and reader
 // pos:    Backend authentication status snapshot producer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -228,8 +228,8 @@ function buildClaudeAccount(
 
 function providerCapabilities(provider: PiProvider): AuthType[] {
   const capabilities: AuthType[] = [];
-  if (provider.auth.apiKey !== undefined) capabilities.push('api_key');
-  if (provider.auth.oauth !== undefined) capabilities.push('oauth');
+  if (typeof provider.auth.apiKey?.login === 'function') capabilities.push('api_key');
+  if (typeof provider.auth.oauth?.login === 'function') capabilities.push('oauth');
   return capabilities;
 }
 

@@ -1,5 +1,5 @@
 // input:  desktop Settings/LoginFlow providers and config fixtures
-// output: reachable, non-stacked desktop authentication regression
+// output: Reachable non-stacked OAuth/API-key entry regression
 // pos:    Verifies Settings exposes the shared LoginFlow modal
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -92,7 +92,9 @@ describe('desktop authentication settings entry', () => {
     const entry = renderer.root.findByProps({ 'data-auth-login-entry': 'desktop' });
 
     expect(entry.type).toBe('button');
-    expect(JSON.stringify(renderer.toJSON())).toContain('Backend login');
+    const html = JSON.stringify(renderer.toJSON());
+    expect(html).toContain('Backend login');
+    expect(html).toContain('API keys and OAuth');
   });
 
   it('closes Settings before opening the shared LoginFlow dialog', () => {

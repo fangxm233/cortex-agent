@@ -1,5 +1,5 @@
-// input:  config/cost queries, language/theme/login state, navigation
-// output: data-bound mobile settings with auth and hooks entries
+// input:  config/cost queries, language/theme/auth state, navigation
+// output: mobile settings with API-key/OAuth and hooks entries
 // pos:    Mobile settings query and mutation container
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -45,7 +45,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     templates: 'Thread templates',
     hooks: 'Hooks',
     backendLogin: 'Backend login',
-    backendLoginSub: 'Claude Code and PI API keys',
+    backendLoginSub: 'Claude Code and PI API keys and OAuth',
     footerBrand: 'cortex mobile',
   },
   zh: {
@@ -74,7 +74,7 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     templates: 'Thread templates',
     hooks: '钩子',
     backendLogin: 'Backend 登录',
-    backendLoginSub: 'Claude Code 与 PI API key',
+    backendLoginSub: 'Claude Code 与 PI API key 和 OAuth',
     footerBrand: 'cortex mobile',
   },
 };

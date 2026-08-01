@@ -1,5 +1,5 @@
 // input:  runtime shared Zod schema maps
-// output: operation coverage including authentication flows
+// output: operation coverage including API-key/OAuth flows
 // pos:    Runtime UI-contract schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -47,17 +47,19 @@ test('empty query schemas accept empty input', () => {
   assert.deepEqual(queryInputSchemas['system.rateLimitStatus'].parse({}), {});
 });
 
-test('auth flow schemas accept metadata and require the secret response value', () => {
+test('auth flow schemas accept both auth types and require the prompt response value', () => {
   assert.deepEqual(
     queryInputSchemas['auth.flowState'].parse({ flowId: 'flow-1' }),
     { flowId: 'flow-1' },
   );
-  assert.deepEqual(
-    mutateInputSchemas['auth.startLogin'].parse({
-      backend: 'pi', provider: 'deepseek', authType: 'api_key',
-    }),
-    { backend: 'pi', provider: 'deepseek', authType: 'api_key' },
-  );
+  for (const authType of ['api_key', 'oauth'] as const) {
+    assert.deepEqual(
+      mutateInputSchemas['auth.startLogin'].parse({
+        backend: 'pi', provider: 'deepseek', authType,
+      }),
+      { backend: 'pi', provider: 'deepseek', authType },
+    );
+  }
   assert.deepEqual(
     mutateInputSchemas['auth.respondPrompt'].parse({ flowId: 'flow-1', value: 'secret' }),
     { flowId: 'flow-1', value: 'secret' },
@@ -68,7 +70,7 @@ test('auth flow schemas accept metadata and require the secret response value', 
   );
   assert.throws(() => mutateInputSchemas['auth.respondPrompt'].parse({ flowId: 'flow-1' }));
   assert.throws(() => mutateInputSchemas['auth.startLogin'].parse({
-    backend: 'pi', provider: 'deepseek', authType: 'oauth',
+    backend: 'pi', provider: 'deepseek', authType: 'subscription',
   }));
 });
 
