@@ -5,6 +5,7 @@
 
 export * from './auth-events.js';
 export * from './cc-login.js';
+export * from './cc-subscription.js';
 export * from './auth-format.js';
 export * from './auth-status.js';
 export * from './auth-watch.js';
