@@ -1,5 +1,5 @@
 // input:  EventBus, MockAdapter, auth-watch registration, locale state
-// output: action routing, debounce, recovery, and privacy regressions
+// output: action, retry, debounce, recovery, and privacy regressions
 // pos:    Covers user-visible authentication-required notifications
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -245,7 +245,7 @@ test('a null channel uses the system-notice path once', async () => {
   assert.deepEqual(adapter.posted[0].destination, { type: 'system-notice' });
 });
 
-test('an adapter failure is contained and does not block other subscribers', async () => {
+test('a failed delivery remains retryable without blocking other subscribers', async () => {
   const { bus, adapter } = setup();
   adapter.failPostMessageCount = 1;
   let observed = 0;
@@ -253,7 +253,7 @@ test('an adapter failure is contained and does not block other subscribers', asy
 
   publishRequired(bus);
   await flush();
-  publishRequired(bus, { provider: 'openrouter' });
+  publishRequired(bus);
   await flush();
 
   assert.equal(observed, 2);

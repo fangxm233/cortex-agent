@@ -8,7 +8,7 @@ It routes required/recovered events into debounced user notices.
 | auth-events.ts | events | Classifies failures and publishes auth lifecycle |
 | auth-format.ts | format | Formats secret-free account status summaries |
 | auth-status.ts | core | Projects status and preferred login capability |
-| auth-watch.ts | notify | Routes actionable debounced auth notices |
+| auth-watch.ts | notify | Routes retryable actionable auth notices |
 | cc-login.ts | adapter | Persists Claude API keys and reloads auth |
 | cc-subscription.ts | adapter | Drives abortable Claude subscription login |
 | index.ts | entry | Exports the authentication domain API |
