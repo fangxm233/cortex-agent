@@ -4,7 +4,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 
 | filename | role | function |
 |---|---|---|
-| agent-run-cli.ts | cli | runs one supervised daemon-free Claude turn |
+| agent-run-cli.ts | cli | parses required flags and runs one Claude turn |
 | identity.ts | core | freezes deterministic run identity hashes |
 | journal.ts | core | appends durable run event journals |
 | manifest-contract.ts | types | validates terminal manifest values |

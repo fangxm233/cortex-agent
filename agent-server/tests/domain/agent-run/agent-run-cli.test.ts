@@ -1,5 +1,5 @@
-// input:  agent-run CLI parser, temporary paths, shared help utilities
-// output: explicit-flag, validation, stdin, and help contracts
+// input:  agent-run CLI entry, temporary paths, shared help utilities
+// output: explicit-flag, required-option, stdin, and help contracts
 // pos:    One-shot agent-run command surface regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
   getAgentRunHelp,
   parseAgentRunArgs,
+  runAgentRunCli,
 } from '../../../src/domain/agent-run/agent-run-cli.js';
 
 let root = '';
@@ -130,6 +131,21 @@ describe('parseAgentRunArgs', () => {
   it('does not expose an inapplicable dry-run flag', () => {
     assert.throws(() => parseAgentRunArgs([...validArgs(), '--dry-run']), /Unknown option: '--dry-run'/);
   });
+});
+
+it('keeps output-format required in both help and the real parser', async () => {
+  const help = getAgentRunHelp();
+  assert.match(help, /Usage: .* --output-format jsonl --events-file/);
+  assert.doesNotMatch(help, /--output-format[^\n]+\(default: jsonl\)/);
+  const args = validArgs();
+  args.splice(args.indexOf('--output-format'), 2);
+  let stderr = '';
+  const exitCode = await runAgentRunCli(args, {
+    stdout: { write: () => true },
+    stderr: { write: value => { stderr += String(value); return true; } },
+  });
+  assert.equal(exitCode, 1);
+  assert.match(stderr, /Missing required --output-format/);
 });
 
 it('renders copyable help with defaults and stdin support', () => {

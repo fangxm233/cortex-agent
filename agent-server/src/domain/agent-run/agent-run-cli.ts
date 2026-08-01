@@ -1,5 +1,5 @@
-// input:  explicit CLI flags, filesystem paths, shared CLI utilities
-// output: parsed one-shot options, help text, and run entry point
+// input:  required CLI flags, filesystem paths, shared CLI utilities
+// output: parsed one-shot options, truthful help, and run entry
 // pos:    Daemon-free agent-run command integration
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -164,7 +164,7 @@ const HELP_OPTIONS = [
   { flag: '--agent-slot <slot>', description: `Journal label: ${AGENT_SLOTS.join(', ')}` },
   { flag: '--profile <name>', description: 'Resolved profile name' },
   { flag: '--cwd <dir>', description: 'Actual Claude and child working directory' },
-  { flag: '--output-format <format>', description: 'Structured output format', default: 'jsonl' },
+  { flag: '--output-format <format>', description: 'Structured output format' },
   { flag: '--events-file <path>', description: 'Exclusive append-only event journal' },
   { flag: '--trajectory-root <dir>', description: 'Lifecycle artifact root', default: 'dirname(--events-file)' },
   { flag: '--run-config <path>', description: 'Optional frozen one-shot inputs', default: 'neutral one-shot values' },
