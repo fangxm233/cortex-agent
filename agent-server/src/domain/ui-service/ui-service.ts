@@ -1,5 +1,5 @@
 // input:  UiServiceDeps and query/mutation handlers
-// output: createUiService with notes routing and private audit redaction
+// output: createUiService with authentication status routing
 // pos:    Transport-neutral UI-service dispatcher
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -17,6 +17,7 @@ import { handleIssuesList } from './query/issues.js';
 import { handleNotesList } from './query/notes.js';
 import { handleCostSummary } from './query/cost.js';
 import { handleConfigGet } from './query/config.js';
+import { handleAuthStatus } from './query/auth.js';
 import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleSkillsList } from './query/skills.js';
@@ -82,6 +83,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'notes.list': (deps, params) => handleNotesList(deps, params),
   'cost.summary': (deps, params) => handleCostSummary(deps, params),
   'config.get': (deps, params) => handleConfigGet(deps, params),
+  'auth.status': (_deps, params) => handleAuthStatus(params),
   'hooks.list': (deps, params) => handleHooksList(deps, params),
   'machines.list': (deps, params) => handleMachinesList(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),

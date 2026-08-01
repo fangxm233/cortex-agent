@@ -1,6 +1,6 @@
 // input:  isolated test home, fake UiService, typed tRPC caller
-// output: AppRouter routing including session compact and errors
-// pos:    Transport-contract regression coverage including rate-limit status
+// output: AppRouter routing including auth status and errors
+// pos:    Transport-contract regression coverage for UI routes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import '../_test-home.js'; // MUST be first import: isolate CORTEX_HOME before paths.ts loads
@@ -94,6 +94,7 @@ const QUERY_CASES: Array<{ scope: QueryScope; call: (c: any) => Promise<unknown>
   { scope: 'executions.list', call: (c) => c.executions.list({}), input: {} },
   { scope: 'executions.get', call: (c) => c.executions.get({ executionId: 'e1' }), input: {} },
   { scope: 'cost.summary', call: (c) => c.cost.summary({}), input: {} },
+  { scope: 'auth.status', call: (c) => c.auth.status({}), input: {} },
   { scope: 'skills.list', call: (c) => c.skills.list({}), input: {} },
   { scope: 'system.rateLimitStatus', call: (c) => c.system.rateLimitStatus({}), input: {} },
 ];

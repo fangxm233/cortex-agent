@@ -1,4 +1,4 @@
-// input:  process argv, child processes, command modules
+// input:  process argv, child processes, command and auth modules
 // output: cortex CLI dispatch and process exit status
 // pos:    Top-level cortex command dispatcher
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -10,7 +10,8 @@ import * as os from 'os';
 import { fileURLToPath } from 'url';
 import { existsSync, readdirSync, mkdirSync, writeFileSync, utimesSync, readFileSync, unlinkSync } from 'fs';
 import { INSTALL_ROOT, DATA_DIR, STORE_DIR, PROJECTS_DIR, WORKSPACE_DIR, isMainModule } from '@core/utils.js';
-import { formatHelp } from '@core/cli-utils.js';
+import { formatError, formatHelp } from '@core/cli-utils.js';
+import { t } from '@core/i18n.js';
 import { createLogger } from '@core/log.js';
 import {
   getResolvedPaths,
@@ -23,6 +24,11 @@ import { cmdDoctor, getDoctorHelp } from './doctor-cli.js';
 import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGateway, dryRunGatewayYaml } from '@core/gateway-generator.js';
 import { generateProfiles, writeProfilesJson } from '@core/profile-generator.js';
 import { CORTEX_VERSION } from '@core/version.js';
+import {
+  formatAuthStatusSummary,
+  getAuthStatus,
+  type AuthStatusSnapshot,
+} from '@domain/auth/index.js';
 
 // ─── Paths ──────────────────────────────────────────────────────
 
@@ -159,49 +165,58 @@ export async function cmdTui(args: string[]): Promise<void> {
   await new Promise<never>(() => {}); // keep alive until child exits
 }
 
+function getCliCommands() {
+  return [
+    { name: 'init', description: 'Initialize CORTEX_HOME directory with configs and API keys' },
+    { name: 'start', description: 'Start the Cortex server (node dist/entry/app.js)' },
+    { name: 'daemon', description: 'Start daemon mode with file watching and auto-restart' },
+    { name: 'daemon stop', description: 'Stop the running daemon gracefully (SIGTERM)' },
+    { name: 'daemon status', description: 'Check daemon + child status (PID, uptime)' },
+    { name: 'daemon restart', description: 'Graceful restart — signal daemon to drain and respawn app.js' },
+    { name: 'daemon restart --hard', description: 'Hard restart — send SIGTERM directly to app.js (daemon auto-recovers)' },
+    { name: 'daemon restart --force', description: 'Force restart — send SIGKILL immediately to app.js' },
+    { name: 'daemon restart-self', description: 'Stop and restart the daemon process itself' },
+    { name: 'restart', description: 'Legacy alias for daemon restart (touches $STORE_DIR/.restart)' },
+    { name: 'task', description: 'Task system CLI (delegate to cortex-task)' },
+    { name: 'agent-run', description: 'Run one supervised daemon-free Claude print turn' },
+    { name: 'install latest', description: 'Install the latest version of Cortex from npm' },
+    { name: 'config', description: 'Show resolved paths and initialization status' },
+    { name: 'doctor', description: 'Health-check the install (runtime, login, platform, gateway); --fix to repair' },
+    { name: 'auth status', description: t('cmd.auth.cli.statusDescription') },
+    { name: 'feishu', description: 'Manage Feishu user-identity login (login / status / logout)' },
+    { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + profiles.json' },
+    { name: 'tui', description: 'Start the Terminal UI (TUI) client for local interaction' },
+  ];
+}
+
+function getCliExamples() {
+  return [
+    { description: 'Interactive init', command: 'cortex init' },
+    { description: 'Init to custom directory', command: 'cortex init --home /tmp/my-cortex' },
+    { description: 'Show resolved paths', command: 'cortex config' },
+    { description: 'Health-check the install', command: 'cortex doctor' },
+    { description: t('cmd.auth.cli.exampleSummary'), command: 'cortex auth status' },
+    { description: t('cmd.auth.cli.exampleJson'), command: 'cortex auth status --json' },
+    { description: 'Diagnose and auto-repair', command: 'cortex doctor --fix' },
+    { description: 'Re-generate gateway config', command: 'cortex setup-gateway' },
+    { description: 'Run a one-shot prompt', command: 'cortex agent-run --prompt-file prompt.txt --agent-slot parent --profile benchmark --cwd /workspace --output-format jsonl --events-file /logs/events.jsonl' },
+    { description: 'Start the server', command: 'cortex start' },
+    { description: 'Stop the daemon', command: 'cortex daemon stop' },
+    { description: 'Check daemon status', command: 'cortex daemon status' },
+    { description: 'Graceful restart', command: 'cortex daemon restart' },
+    { description: 'Hard restart app.js', command: 'cortex daemon restart --hard' },
+    { description: 'Restart daemon itself', command: 'cortex daemon restart-self' },
+  ];
+}
+
 export function getCliHelp(): string {
   return formatHelp({
     name: 'cortex',
     description: 'Cortex CLI — server management and initialization',
     usage: 'cortex <command> [options]',
-    commands: [
-      { name: 'init', description: 'Initialize CORTEX_HOME directory with configs and API keys' },
-      { name: 'start', description: 'Start the Cortex server (node dist/entry/app.js)' },
-      { name: 'daemon', description: 'Start daemon mode with file watching and auto-restart' },
-      { name: 'daemon stop', description: 'Stop the running daemon gracefully (SIGTERM)' },
-      { name: 'daemon status', description: 'Check daemon + child status (PID, uptime)' },
-      { name: 'daemon restart', description: 'Graceful restart — signal daemon to drain and respawn app.js' },
-      { name: 'daemon restart --hard', description: 'Hard restart — send SIGTERM directly to app.js (daemon auto-recovers)' },
-      { name: 'daemon restart --force', description: 'Force restart — send SIGKILL immediately to app.js' },
-      { name: 'daemon restart-self', description: 'Stop and restart the daemon process itself' },
-      { name: 'restart', description: 'Legacy alias for daemon restart (touches $STORE_DIR/.restart)' },
-      { name: 'task', description: 'Task system CLI (delegate to cortex-task)' },
-      { name: 'agent-run', description: 'Run one supervised daemon-free Claude print turn' },
-      { name: 'install latest', description: 'Install the latest version of Cortex from npm' },
-      { name: 'config', description: 'Show resolved paths and initialization status' },
-      { name: 'doctor', description: 'Health-check the install (runtime, login, platform, gateway); --fix to repair' },
-      { name: 'feishu', description: 'Manage Feishu user-identity login (login / status / logout)' },
-      { name: 'setup-gateway', description: 'Auto-detect Claude/PI configs and generate gateway.yaml + profiles.json' },
-      { name: 'tui', description: 'Start the Terminal UI (TUI) client for local interaction' },
-    ],
-    options: [
-      { flag: '--help, -h', description: 'Show this help' },
-    ],
-    examples: [
-      { description: 'Interactive init', command: 'cortex init' },
-      { description: 'Init to custom directory', command: 'cortex init --home /tmp/my-cortex' },
-      { description: 'Show resolved paths', command: 'cortex config' },
-      { description: 'Health-check the install', command: 'cortex doctor' },
-      { description: 'Diagnose and auto-repair', command: 'cortex doctor --fix' },
-      { description: 'Re-generate gateway config', command: 'cortex setup-gateway' },
-      { description: 'Run a one-shot prompt', command: 'cortex agent-run --prompt-file prompt.txt --agent-slot parent --profile benchmark --cwd /workspace --output-format jsonl --events-file /logs/events.jsonl' },
-      { description: 'Start the server', command: 'cortex start' },
-      { description: 'Stop the daemon', command: 'cortex daemon stop' },
-      { description: 'Check daemon status', command: 'cortex daemon status' },
-      { description: 'Graceful restart', command: 'cortex daemon restart' },
-      { description: 'Hard restart app.js', command: 'cortex daemon restart --hard' },
-      { description: 'Restart daemon itself', command: 'cortex daemon restart-self' },
-    ],
+    commands: getCliCommands(),
+    options: [{ flag: '--help, -h', description: 'Show this help' }],
+    examples: getCliExamples(),
   });
 }
 
@@ -519,150 +534,256 @@ export interface CliResult {
   stderr: string;
 }
 
+export interface RunCliDeps {
+  getAuthStatus?: () => Promise<AuthStatusSnapshot>;
+}
+
+export function getAuthHelp(): string {
+  return formatHelp({
+    name: 'cortex auth',
+    description: t('cmd.auth.cli.description'),
+    usage: 'cortex auth status [--json]',
+    commands: [{ name: 'status', description: t('cmd.auth.cli.statusDescription') }],
+    options: [
+      { flag: '--json', description: t('cmd.auth.cli.jsonDescription') },
+      { flag: '--help, -h', description: t('cmd.auth.cli.helpDescription') },
+    ],
+    examples: [
+      { description: t('cmd.auth.cli.exampleSummary'), command: 'cortex auth status' },
+      { description: t('cmd.auth.cli.exampleJson'), command: 'cortex auth status --json' },
+    ],
+    labels: {
+      usage: t('cmd.auth.cli.helpUsage'),
+      commands: t('cmd.auth.cli.helpCommands'),
+      options: t('cmd.auth.cli.helpOptions'),
+      examples: t('cmd.auth.cli.helpExamples'),
+    },
+  });
+}
+
+function authErrorLabels() {
+  return {
+    validValues: t('cmd.auth.cli.validValues'),
+    hint: t('cmd.auth.cli.hint'),
+  };
+}
+
+function parseAuthCommand(args: string[]): CliResult | string[] {
+  if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
+    return { exitCode: 0, stdout: getAuthHelp(), stderr: '' };
+  }
+  if (args[0] === 'status') return args.slice(1);
+  const message = t('cmd.auth.cli.unknownSubcommand', { command: args[0] });
+  const stderr = formatError(message, {
+    validValues: ['status'], hint: 'cortex auth --help', labels: authErrorLabels(),
+  });
+  return { exitCode: 1, stdout: '', stderr };
+}
+
+function validateAuthOptions(options: string[]): CliResult | null {
+  if (options.includes('--help') || options.includes('-h')) {
+    return { exitCode: 0, stdout: getAuthHelp(), stderr: '' };
+  }
+  const invalid = options.find(option => option !== '--json');
+  if (!invalid) return null;
+  const message = t('cmd.auth.cli.unknownFlag', { flag: invalid });
+  const stderr = formatError(message, {
+    validValues: ['--json'], hint: 'cortex auth status --help', labels: authErrorLabels(),
+  });
+  return { exitCode: 1, stdout: '', stderr };
+}
+
+async function runAuthCli(
+  args: string[],
+  readStatus: () => Promise<AuthStatusSnapshot>,
+): Promise<CliResult> {
+  const parsed = parseAuthCommand(args);
+  if (!Array.isArray(parsed)) return parsed;
+  const invalid = validateAuthOptions(parsed);
+  if (invalid) return invalid;
+  const snapshot = await readStatus();
+  const stdout = parsed.includes('--json')
+    ? `${JSON.stringify(snapshot, null, 2)}\n`
+    : `${formatAuthStatusSummary(snapshot)}\n`;
+  return { exitCode: 0, stdout, stderr: '' };
+}
+
 // ─── runCli (synchronous/async commands) ────────────────────────
 
-export async function runCli(argv: string[]): Promise<CliResult> {
+type CliHandler = (args: string[], deps: RunCliDeps) => Promise<CliResult> | CliResult;
+type GatewayMergeResult = ReturnType<typeof writeMergedGatewayYaml>['result'];
+type GatewayIssues = ReturnType<typeof validateProfilesAgainstGateway>;
+
+function optionValue(args: string[], flag: string): string | undefined {
+  const index = args.indexOf(flag);
+  return index !== -1 && args[index + 1] ? args[index + 1] : undefined;
+}
+
+async function runInitCli(args: string[]): Promise<CliResult> {
+  if (args.includes('--help') || args.includes('-h')) {
+    return { exitCode: 0, stdout: getInitHelp(), stderr: '' };
+  }
+  const homeDir = optionValue(args, '--home');
+  const gatewayConfigDir = optionValue(args, '--gateway-config-dir');
+  try {
+    await runInit({ homeDir, gatewayConfigDir, force: args.includes('--force') });
+    return { exitCode: 0, stdout: '', stderr: '' };
+  } catch (error: any) {
+    return { exitCode: 1, stdout: '', stderr: error.message || String(error) };
+  }
+}
+
+function runDoctorCli(args: string[]): Promise<CliResult> | CliResult {
+  if (args.includes('--help') || args.includes('-h')) {
+    return { exitCode: 0, stdout: getDoctorHelp(), stderr: '' };
+  }
+  return cmdDoctor(args);
+}
+
+function touchRestartTrigger(trigger: string): void {
+  mkdirSync(STORE_DIR, { recursive: true });
+  if (!existsSync(trigger)) {
+    writeFileSync(trigger, '');
+    return;
+  }
+  const now = new Date();
+  utimesSync(trigger, now, now);
+}
+
+function runRestartCli(): CliResult {
+  const trigger = path.join(STORE_DIR, '.restart');
+  try {
+    touchRestartTrigger(trigger);
+    const stdout = `Restart trigger touched: ${trigger}\nIf a daemon is running it will drain and respawn app.js.\n`;
+    return { exitCode: 0, stdout, stderr: '' };
+  } catch (error: any) {
+    return { exitCode: 1, stdout: '', stderr: `Could not write ${trigger}: ${error.message || String(error)}` };
+  }
+}
+
+function appendDroppedWarnings(lines: string[], result: GatewayMergeResult): void {
+  if (result.droppedFromDiscovery.length === 0) return;
+  const list = result.droppedFromDiscovery.map(item => `${item.mode}/${item.endpoint}`).join(', ');
+  lines.push(`WARNING: preserved ${result.droppedFromDiscovery.length} existing gateway mode(s) not reported by discovery: ${list}`);
+  lines.push('  (if these should auto-detect, check `pi /login` / `pi --list-models`)');
+}
+
+function appendProfileIssues(lines: string[], issues: GatewayIssues): void {
+  if (issues.length === 0) return;
+  lines.push(`WARNING: ${issues.length} profile(s) reference an unconfigured gateway mode (would fail with "Unknown mode"):`);
+  for (const issue of issues) lines.push(`  - ${issue.profile}: ${issue.reason}`);
+}
+
+function gatewayOutput(
+  endpoints: ReturnType<typeof discoverEndpoints>,
+  outputDir: string | undefined,
+  gatewayPath: string,
+  profilesPath: string,
+  mergeResult: GatewayMergeResult,
+): string {
+  const profiles = generateProfiles(endpoints);
+  const profileNames = Object.keys(profiles.profiles).join(', ');
+  const lines = [
+    outputDir ? `[TEST MODE] Output directory: ${outputDir}` : '',
+    `Gateway config: ${gatewayPath}`,
+    `Profiles: ${profilesPath}`,
+    `Discovered ${endpoints.length} endpoint modes`,
+    `Generated profiles: ${profileNames} (default: ${profiles.defaultProfile})`,
+  ];
+  appendDroppedWarnings(lines, mergeResult);
+  appendProfileIssues(lines, validateProfilesAgainstGateway(mergeResult.endpoints, outputDir));
+  return lines.filter(Boolean).join('\n');
+}
+
+function writeGatewayConfiguration(outputDir: string | undefined): CliResult {
+  const endpoints = discoverEndpoints();
+  if (endpoints.length === 0) {
+    return { exitCode: 0, stdout: 'No backends discovered. Log into Claude Code and/or PI first.\n', stderr: '' };
+  }
+  const { path: gatewayPath, result } = writeMergedGatewayYaml(endpoints, outputDir);
+  const profilesPath = writeProfilesJson(endpoints, outputDir);
+  return {
+    exitCode: 0,
+    stdout: gatewayOutput(endpoints, outputDir, gatewayPath, profilesPath, result),
+    stderr: '',
+  };
+}
+
+function runSetupGatewayCli(args: string[]): CliResult {
+  if (args.includes('--help') || args.includes('-h')) {
+    return { exitCode: 0, stdout: getSetupGatewayHelp(), stderr: '' };
+  }
+  try {
+    if (args.includes('--dry-run')) {
+      return { exitCode: 0, stdout: dryRunGatewayYaml(), stderr: '' };
+    }
+    return writeGatewayConfiguration(optionValue(args, '--output-dir'));
+  } catch (error: any) {
+    return { exitCode: 1, stdout: '', stderr: error.message || String(error) };
+  }
+}
+
+async function runTaskCli(args: string[]): Promise<CliResult> {
+  const { runCli: taskRunCli } = await import('@domain/tasks/system/task-cli.js');
+  return taskRunCli(args.length > 0 ? args : ['list']);
+}
+
+async function runInstallCli(args: string[]): Promise<CliResult> {
+  const { runCli: installRunCli, getInstallHelp } = await import('@domain/system/install-cli.js');
+  if (args.includes('--help') || args.includes('-h')) {
+    return { exitCode: 0, stdout: getInstallHelp(), stderr: '' };
+  }
+  return installRunCli(args);
+}
+
+function runDaemonRestart(args: string[]): CliResult {
+  if (args[1] === '--hard') return daemonRestartHardInternal(false);
+  if (args[1] === '--force') return daemonRestartHardInternal(true);
+  return daemonRestartInternal();
+}
+
+function runDaemonAction(args: string[]): Promise<CliResult> | CliResult | null {
+  if (args[0] === 'stop') return stopDaemonInternal();
+  if (args[0] === 'status') return getDaemonStatusInternal();
+  if (args[0] === 'restart') return runDaemonRestart(args);
+  return null;
+}
+
+async function runDaemonCli(args: string[]): Promise<CliResult> {
+  const action = runDaemonAction(args);
+  if (action) return action;
+  if (args.includes('--help') || args.includes('-h')) {
+    return { exitCode: 0, stdout: getCliHelp(), stderr: '' };
+  }
+  if (args.includes('--version') || args.includes('-V')) {
+    return { exitCode: 0, stdout: `${CORTEX_VERSION}\n`, stderr: '' };
+  }
+  return { exitCode: 0, stdout: '', stderr: `'daemon' must be run from the main entry point, not imported.\nUse: node dist/entry/cli.js daemon` };
+}
+
+const CLI_HANDLERS: Record<string, CliHandler> = {
+  init: (args) => runInitCli(args),
+  config: () => ({ exitCode: 0, stdout: getConfigOutput(), stderr: '' }),
+  auth: (args, deps) => runAuthCli(args, deps.getAuthStatus ?? getAuthStatus),
+  doctor: (args) => runDoctorCli(args),
+  feishu: (args) => cmdFeishu(args),
+  restart: () => runRestartCli(),
+  'setup-gateway': (args) => runSetupGatewayCli(args),
+  task: (args) => runTaskCli(args),
+  install: (args) => runInstallCli(args),
+  start: () => ({ exitCode: 0, stdout: '', stderr: `'start' must be run from the main entry point, not imported.\nUse: node dist/entry/cli.js start` }),
+  daemon: (args) => runDaemonCli(args),
+};
+
+export async function runCli(argv: string[], deps: RunCliDeps = {}): Promise<CliResult> {
   if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
     return { exitCode: 0, stdout: getCliHelp(), stderr: '' };
   }
-
-  const cmd = argv[0];
-  const rest = argv.slice(1);
-
-  switch (cmd) {
-    case 'init': {
-      if (rest.includes('--help') || rest.includes('-h')) {
-        return { exitCode: 0, stdout: getInitHelp(), stderr: '' };
-      }
-      const homeIndex = rest.indexOf('--home');
-      const homeDir = homeIndex !== -1 && rest[homeIndex + 1] ? rest[homeIndex + 1] : undefined;
-      const gatewayIndex = rest.indexOf('--gateway-config-dir');
-      const gatewayConfigDir = gatewayIndex !== -1 && rest[gatewayIndex + 1] ? rest[gatewayIndex + 1] : undefined;
-      const force = rest.includes('--force');
-      try {
-        await runInit({ homeDir, force, gatewayConfigDir });
-        return { exitCode: 0, stdout: '', stderr: '' };
-      } catch (err: any) {
-        return { exitCode: 1, stdout: '', stderr: err.message || String(err) };
-      }
-    }
-
-    case 'config':
-      return { exitCode: 0, stdout: getConfigOutput(), stderr: '' };
-
-    case 'doctor': {
-      if (rest.includes('--help') || rest.includes('-h')) {
-        return { exitCode: 0, stdout: getDoctorHelp(), stderr: '' };
-      }
-      return cmdDoctor(rest);
-    }
-
-    case 'feishu':
-      return cmdFeishu(rest);
-
-    case 'restart': {
-      const trigger = path.join(STORE_DIR, '.restart');
-      try {
-        mkdirSync(STORE_DIR, { recursive: true });
-        if (existsSync(trigger)) {
-          const now = new Date();
-          utimesSync(trigger, now, now);
-        } else {
-          writeFileSync(trigger, '');
-        }
-        return { exitCode: 0, stdout: `Restart trigger touched: ${trigger}\nIf a daemon is running it will drain and respawn app.js.\n`, stderr: '' };
-      } catch (err: any) {
-        return { exitCode: 1, stdout: '', stderr: `Could not write ${trigger}: ${err.message || String(err)}` };
-      }
-    }
-
-    case 'setup-gateway': {
-      if (rest.includes('--help') || rest.includes('-h')) {
-        return { exitCode: 0, stdout: getSetupGatewayHelp(), stderr: '' };
-      }
-      const dryRun = rest.includes('--dry-run');
-      const outDirIndex = rest.indexOf('--output-dir');
-      const outputDir = outDirIndex !== -1 && rest[outDirIndex + 1] ? rest[outDirIndex + 1] : undefined;
-      try {
-        if (dryRun) {
-          const yaml = dryRunGatewayYaml();
-          return { exitCode: 0, stdout: yaml, stderr: '' };
-        }
-        const endpoints = discoverEndpoints();
-        if (endpoints.length === 0) {
-          return { exitCode: 0, stdout: 'No backends discovered. Log into Claude Code and/or PI first.\n', stderr: '' };
-        }
-        const { path: gatewayPath, result: mergeResult } = writeMergedGatewayYaml(endpoints, outputDir);
-        const profilesPath = writeProfilesJson(endpoints, outputDir);
-        const profiles = generateProfiles(endpoints);
-        const profileNames = Object.keys(profiles.profiles).join(', ');
-        const issues = validateProfilesAgainstGateway(mergeResult.endpoints, outputDir);
-        const stdoutLines = [
-          outputDir ? `[TEST MODE] Output directory: ${outputDir}` : '',
-          `Gateway config: ${gatewayPath}`,
-          `Profiles: ${profilesPath}`,
-          `Discovered ${endpoints.length} endpoint modes`,
-          `Generated profiles: ${profileNames} (default: ${profiles.defaultProfile})`,
-        ];
-        if (mergeResult.droppedFromDiscovery.length > 0) {
-          const list = mergeResult.droppedFromDiscovery.map(p => `${p.mode}/${p.endpoint}`).join(', ');
-          stdoutLines.push(`WARNING: preserved ${mergeResult.droppedFromDiscovery.length} existing gateway mode(s) not reported by discovery: ${list}`);
-          stdoutLines.push('  (if these should auto-detect, check `pi /login` / `pi --list-models`)');
-        }
-        if (issues.length > 0) {
-          stdoutLines.push(`WARNING: ${issues.length} profile(s) reference an unconfigured gateway mode (would fail with "Unknown mode"):`);
-          for (const i of issues) stdoutLines.push(`  - ${i.profile}: ${i.reason}`);
-        }
-        return {
-          exitCode: 0,
-          stdout: stdoutLines.filter(Boolean).join('\n'),
-          stderr: '',
-        };
-      } catch (err: any) {
-        return { exitCode: 1, stdout: '', stderr: err.message || String(err) };
-      }
-    }
-
-    case 'task': {
-      const { runCli: taskRunCli } = await import('@domain/tasks/system/task-cli.js');
-      return taskRunCli(rest.length > 0 ? rest : ['list']);
-    }
-
-    case 'install': {
-      const { runCli: installRunCli, getInstallHelp } = await import('@domain/system/install-cli.js');
-      if (rest.includes('--help') || rest.includes('-h')) {
-        return { exitCode: 0, stdout: getInstallHelp(), stderr: '' };
-      }
-      return installRunCli(rest);
-    }
-
-    case 'start':
-      return { exitCode: 0, stdout: '', stderr: `'start' must be run from the main entry point, not imported.\nUse: node dist/entry/cli.js start` };
-
-    case 'daemon': {
-      if (rest[0] === 'stop') {
-        return stopDaemonInternal();
-      }
-      if (rest[0] === 'status') {
-        return getDaemonStatusInternal();
-      }
-      if (rest[0] === 'restart') {
-        if (rest[1] === '--hard') return daemonRestartHardInternal(false);
-        if (rest[1] === '--force') return daemonRestartHardInternal(true);
-        return daemonRestartInternal();
-      }
-      if (rest.includes('--help') || rest.includes('-h')) {
-        return { exitCode: 0, stdout: getCliHelp(), stderr: '' };
-      }
-      if (rest.includes('--version') || rest.includes('-V')) {
-        return { exitCode: 0, stdout: `${CORTEX_VERSION}\n`, stderr: '' };
-      }
-      return { exitCode: 0, stdout: '', stderr: `'daemon' must be run from the main entry point, not imported.\nUse: node dist/entry/cli.js daemon` };
-    }
-
-    default:
-      return { exitCode: 1, stdout: '', stderr: `Unknown command: '${cmd}'. Use --help to see available commands.` };
+  const handler = CLI_HANDLERS[argv[0]];
+  if (!handler) {
+    return { exitCode: 1, stdout: '', stderr: `Unknown command: '${argv[0]}'. Use --help to see available commands.` };
   }
+  return handler(argv.slice(1), deps);
 }
 
 // ─── Main entry point (bin invocation) ─────────────────────────

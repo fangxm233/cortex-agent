@@ -1,5 +1,5 @@
-// input:  domain types, runtime settings, stores, pending data
-// output: UI DTOs/maps including task readiness and settings
+// input:  domain types, auth status, runtime settings, stores
+// output: UI DTOs/maps including authentication snapshots
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -27,6 +27,14 @@ import type { LogLocation } from '@domain/executions/log-tailer.js';
 import type { SessionHistory } from '@store/conversation-history-repo.js';
 import type { Backend } from '../../agent-adapter/types.js';
 import type { ProjectNote } from '@store/project-notes-repo.js';
+import type { AuthStatusSnapshot } from '@domain/auth/index.js';
+export type {
+  AuthAccountState,
+  AuthAccountStatus,
+  AuthCredentialStatus,
+  AuthStatusSnapshot,
+  AuthType,
+} from '@domain/auth/index.js';
 
 // ── Result ────────────────────────────────────────────────────────
 
@@ -55,6 +63,7 @@ export type QueryScope =
   | 'notes.list'
   | 'cost.summary'
   | 'config.get'
+  | 'auth.status'
   | 'hooks.list'
   | 'machines.list'
   | 'skills.list'
@@ -222,6 +231,8 @@ export interface CostSummaryParams {
 }
 
 export type ConfigGetParams = Record<string, never>;
+
+export type AuthStatusParams = Record<string, never>;
 
 export type MachinesListParams = Record<string, never>;
 
@@ -1402,6 +1413,7 @@ export interface QueryParamMap {
   'notes.list': NotesListParams;
   'cost.summary': CostSummaryParams;
   'config.get': ConfigGetParams;
+  'auth.status': AuthStatusParams;
   'hooks.list': HooksListParams;
   'machines.list': MachinesListParams;
   'skills.list': SkillsListParams;
@@ -1429,6 +1441,7 @@ export interface QueryReturnMap {
   'notes.list': NoteInfo[];
   'cost.summary': CostSummary;
   'config.get': ConfigSnapshot;
+  'auth.status': AuthStatusSnapshot;
   'hooks.list': HooksOverview;
   'machines.list': MachineInfo[];
   'skills.list': SkillGroup[];

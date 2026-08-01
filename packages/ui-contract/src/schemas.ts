@@ -1,5 +1,5 @@
 // input:  built agent-server ui-service input schemas
-// output: runtime/type schemas including project notes
+// output: runtime/type schemas including auth status
 // pos:    Shared browser/server input validation boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -44,6 +44,7 @@ export {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  authStatusInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,

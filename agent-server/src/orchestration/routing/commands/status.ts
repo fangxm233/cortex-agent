@@ -1,5 +1,5 @@
 // input:  execution status, command router, localized help copy
-// output: status/help handlers including !compact help
+// output: status/help handlers including auth status help
 // pos:    Status and categorized help command presentation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -63,63 +63,63 @@ export function createStatusHandler(getExecutionStatusReport: (() => string) | n
 
 // Built per call so labels and command descriptions resolve in the ACTIVE locale (the !lang
 // command can switch it at runtime). A module-level const would freeze English at import time.
-function getHelpCategories(): Record<string, { label: string; commands: string[] }> {
+interface HelpCategory {
+  label: string;
+  commands: string[];
+}
+
+function sessionHelpCategory(): HelpCategory {
   return {
-    session: {
-      label: t('cmd.help.catSession'),
-      commands: [
-        t('cmd.help.session.new'),
-        t('cmd.help.session.cancel'),
-        t('cmd.help.session.compact'),
-        t('cmd.help.session.resume'),
-      ],
-    },
-    config: {
-      label: t('cmd.help.catConfig'),
-      commands: [
-        t('cmd.help.config.mode'),
-        t('cmd.help.config.backend'),
-        t('cmd.help.config.model'),
-        t('cmd.help.config.profile'),
-        t('cmd.help.config.skills'),
-      ],
-    },
-    monitoring: {
-      label: t('cmd.help.catMonitoring'),
-      commands: [
-        t('cmd.help.monitoring.cost'),
-        t('cmd.help.monitoring.status'),
-        t('cmd.help.monitoring.budget'),
-        t('cmd.help.monitoring.schedule'),
-      ],
-    },
-    tasks: {
-      label: t('cmd.help.catTasks'),
-      commands: [
-        t('cmd.help.tasks.tasks'),
-        t('cmd.help.tasks.projects'),
-        t('cmd.help.tasks.register'),
-        t('cmd.help.tasks.unregister'),
-        t('cmd.help.tasks.projectDir'),
-      ],
-    },
-    devices: {
-      label: t('cmd.help.catDevices'),
-      commands: [
-        t('cmd.help.devices.devices'),
-        t('cmd.help.devices.nvidiaSmi'),
-        t('cmd.help.devices.nvtop'),
-        t('cmd.help.devices.tail'),
-        t('cmd.help.devices.sendfile'),
-      ],
-    },
-    threads: {
-      label: t('cmd.help.catThreads'),
-      commands: [
-        t('cmd.help.threads.thread'),
-        t('cmd.help.threads.agent'),
-      ],
-    },
+    label: t('cmd.help.catSession'),
+    commands: [t('cmd.help.session.new'), t('cmd.help.session.cancel'),
+      t('cmd.help.session.compact'), t('cmd.help.session.resume')],
+  };
+}
+
+function configHelpCategory(): HelpCategory {
+  return {
+    label: t('cmd.help.catConfig'),
+    commands: [t('cmd.help.config.mode'), t('cmd.help.config.backend'),
+      t('cmd.help.config.model'), t('cmd.help.config.profile'), t('cmd.help.config.skills')],
+  };
+}
+
+function monitoringHelpCategory(): HelpCategory {
+  return {
+    label: t('cmd.help.catMonitoring'),
+    commands: [t('cmd.help.monitoring.cost'), t('cmd.help.monitoring.status'),
+      t('cmd.help.monitoring.login'), t('cmd.help.monitoring.budget'), t('cmd.help.monitoring.schedule')],
+  };
+}
+
+function taskHelpCategory(): HelpCategory {
+  return {
+    label: t('cmd.help.catTasks'),
+    commands: [t('cmd.help.tasks.tasks'), t('cmd.help.tasks.projects'),
+      t('cmd.help.tasks.register'), t('cmd.help.tasks.unregister'), t('cmd.help.tasks.projectDir')],
+  };
+}
+
+function deviceHelpCategory(): HelpCategory {
+  return {
+    label: t('cmd.help.catDevices'),
+    commands: [t('cmd.help.devices.devices'), t('cmd.help.devices.nvidiaSmi'),
+      t('cmd.help.devices.nvtop'), t('cmd.help.devices.tail'), t('cmd.help.devices.sendfile')],
+  };
+}
+
+function threadHelpCategory(): HelpCategory {
+  return {
+    label: t('cmd.help.catThreads'),
+    commands: [t('cmd.help.threads.thread'), t('cmd.help.threads.agent')],
+  };
+}
+
+function getHelpCategories(): Record<string, HelpCategory> {
+  return {
+    session: sessionHelpCategory(), config: configHelpCategory(),
+    monitoring: monitoringHelpCategory(), tasks: taskHelpCategory(),
+    devices: deviceHelpCategory(), threads: threadHelpCategory(),
   };
 }
 

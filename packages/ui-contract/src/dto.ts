@@ -1,5 +1,5 @@
 // input:  built UI-service declarations and cost types
-// output: browser DTO contract including writable settings
+// output: browser DTO contract including auth status
 // pos:    Shared server-to-client compile-time DTO boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -31,6 +31,7 @@ export type {
   NotesListParams,
   CostSummaryParams,
   ConfigGetParams,
+  AuthStatusParams,
   MachinesListParams,
   SkillsListParams,
   // Mutate args
@@ -97,6 +98,11 @@ export type {
   ConfigSnapshot,
   ConfigSettingEntry,
   ConfigHook,
+  AuthType,
+  AuthAccountState,
+  AuthCredentialStatus,
+  AuthAccountStatus,
+  AuthStatusSnapshot,
   // hooks.* registry contract
   HooksOverview,
   HookDetail,

@@ -1,5 +1,5 @@
 // input:  shared zod schemas and agent-server query/mutation maps
-// output: exact-parity guards including project notes
+// output: exact-parity guards including auth status
 // pos:    Anti-drift boundary for the shared UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -46,6 +46,7 @@ import type {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  authStatusInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,
@@ -89,6 +90,7 @@ const _issuesList: QueryParity<'issues.list', typeof issuesListInput> = true;
 const _notesList: QueryParity<'notes.list', typeof notesListInput> = true;
 const _costSummary: QueryParity<'cost.summary', typeof costSummaryInput> = true;
 const _configGet: QueryParity<'config.get', typeof configGetInput> = true;
+const _authStatus: QueryParity<'auth.status', typeof authStatusInput> = true;
 const _hooksList: QueryParity<'hooks.list', typeof hooksListInput> = true;
 const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = true;
 const _skillsList: QueryParity<'skills.list', typeof skillsListInput> = true;
