@@ -1,5 +1,5 @@
 // input:  Node test runner + agent-adapter/claude/tmux-control module
-// output: TmuxControl pure-function argv + tempfile spec lock-down (DR-0012 Phase 1)
+// output: TmuxControl argv, private tempfile, and cleanup tests
 // pos:    Claude TUI adapter foundational utility regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -157,24 +157,30 @@ test('sendKeys with empty key list is a no-op (does not invoke tmux)', () => {
 
 // --- pasteText (load-buffer + paste-buffer) ---
 
-test('pasteText writes a tempfile, loads it into buffer, pastes, and cleans up', async (tCtx) => {
-  // Real tempfile path captured via mock exec — we'll inspect it before tmux pretends to consume it
+test('pasteText writes a private tempfile, loads it, pastes, and cleans up', () => {
   let observedTempfile: string | null = null;
   let observedContent: string | null = null;
+  let observedMode: number | null = null;
   const exec = (args: string[]): TmuxExecResult => {
     if (args[0] === 'load-buffer') {
-      // args: ['load-buffer', '-b', '<bufname>', <path>]
       const p = args[args.length - 1];
       observedTempfile = p;
-      try { observedContent = fs.readFileSync(p, 'utf8'); } catch {}
+      observedContent = fs.readFileSync(p, 'utf8');
+      observedMode = fs.statSync(p).mode & 0o777;
     }
     return { stdout: '', stderr: '', status: 0 };
   };
   const t = new TmuxControl(exec);
   const text = 'hello\n你好\n`$\\"\'';
-  t.pasteText('cortex-claude-aaa', text);
+  const originalUmask = process.umask(0o022);
+  try {
+    t.pasteText('cortex-claude-aaa', text);
+  } finally {
+    process.umask(originalUmask);
+  }
 
   assert.equal(observedContent, text, 'tempfile content must match input exactly');
+  assert.equal(observedMode, 0o600, 'secret-bearing tempfile must be owner-only');
   assert.ok(observedTempfile !== null);
   assert.ok(!fs.existsSync(observedTempfile!), 'tempfile should be deleted after paste');
 });
