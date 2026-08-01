@@ -1,5 +1,5 @@
 // input:  filePath, data string, optional permission mode
-// output: atomic file write (tmp → rename), async and sync variants
+// output: secure atomic write (tmp → rename), async and sync
 // pos:    Write primitive that prevents partial file replacement
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -52,7 +52,7 @@ export async function atomicWrite(
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const rnd = Math.random().toString(36).slice(2, 8);
   const tmp = `${filePath}.tmp.${process.pid}.${Date.now()}.${rnd}`;
-  await fs.writeFile(tmp, data, 'utf8');
+  await fs.writeFile(tmp, data, { encoding: 'utf8', mode: options.mode });
   if (options.mode !== undefined) await fs.chmod(tmp, options.mode);
   await fs.rename(tmp, filePath);
 }

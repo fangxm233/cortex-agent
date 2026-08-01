@@ -1,5 +1,5 @@
-// input:  Claude options, composition, hooks, settings
-// output: Claude CLI arguments and child environment
+// input:  Claude options, task context, composition, hooks
+// output: Claude CLI arguments and isolated child environment
 // pos:    Resolves Claude process configuration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -201,6 +201,7 @@ export interface CortexAgentContext {
    *  current task as the parent of a child task without the agent re-declaring it. */
   taskId?: string | null;
   taskProject?: string | null;
+  taskGeneration?: string | null;
 }
 
 export function buildClaudeEnv(
@@ -238,6 +239,9 @@ export function buildClaudeEnv(
   if (callbackSource) env.CORTEX_CALLBACK_SOURCE = callbackSource;
   if (scheduleTaskId) env.CORTEX_SCHEDULE_TASK_ID = scheduleTaskId;
   if (anthropicBaseUrl) env.ANTHROPIC_BASE_URL = anthropicBaseUrl;
+  if (extraEnv) {
+    for (const [key, value] of Object.entries(extraEnv)) env[key] = value;
+  }
   delete env.CORTEX_THREAD_ID;
   delete env.CORTEX_PROFILE;
   delete env.CORTEX_PROJECT;
@@ -245,6 +249,7 @@ export function buildClaudeEnv(
   delete env.CORTEX_THREAD_DEPTH;
   delete env.CORTEX_TASK_ID;
   delete env.CORTEX_TASK_PROJECT;
+  delete env.CORTEX_TASK_GENERATION;
   if (context?.threadId) env.CORTEX_THREAD_ID = context.threadId;
   if (context?.threadDepth != null) env.CORTEX_THREAD_DEPTH = String(context.threadDepth);
   if (context?.profile) env.CORTEX_PROFILE = context.profile;
@@ -253,8 +258,6 @@ export function buildClaudeEnv(
   if (context?.executionId) env.CORTEX_EXECUTION_ID = context.executionId;
   if (context?.taskId) env.CORTEX_TASK_ID = context.taskId;
   if (context?.taskProject) env.CORTEX_TASK_PROJECT = context.taskProject;
-  if (extraEnv) {
-    for (const [k, v] of Object.entries(extraEnv)) env[k] = v;
-  }
+  if (context?.taskGeneration) env.CORTEX_TASK_GENERATION = context.taskGeneration;
   return env;
 }

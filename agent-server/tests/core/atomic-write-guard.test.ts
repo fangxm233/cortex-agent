@@ -1,13 +1,12 @@
-// input:  atomicWrite + NODE_TEST_CONTEXT env
-// output: unit tests — test-process write-to-production tripwire
-// pos:    regression for "running tests directly polluted the real ~/.cortex/threads.json".
-//         atomicWrite must refuse to write under the real ~/.cortex when NODE_TEST_CONTEXT is set,
-//         turning silent production corruption into a loud, immediate failure.
+// input:  atomicWrite, fs promises, test-process environment
+// output: production tripwire and secure creation-mode tests
+// pos:    Atomic-write safety regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import { existsSync, rmSync, mkdtempSync } from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { atomicWrite } from '../../src/core/atomic-write.js';
@@ -27,6 +26,22 @@ test('blocks a test-process write under the real ~/.cortex (and writes nothing)'
   );
   // Critical: the guard fires BEFORE any write, so the real store is untouched.
   assert.equal(existsSync(target), false, 'no file was created under the real home');
+});
+
+test('creates restricted atomic temp files with the requested mode', async (t) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'atomic-mode-'));
+  const target = path.join(dir, 'secret.env');
+  const originalWrite = fsPromises.writeFile.bind(fsPromises);
+  const creationModes: Array<number | string | undefined> = [];
+  const spy = vi.spyOn(fsPromises, 'writeFile').mockImplementation(async (file, data, options) => {
+    creationModes.push(typeof options === 'object' ? options.mode : undefined);
+    return originalWrite(file, data, options);
+  });
+  t.onTestFinished(() => { spy.mockRestore(); rmSync(dir, { recursive: true, force: true }); });
+
+  await atomicWrite(target, 'secret', { mode: 0o600 });
+
+  assert.deepEqual(creationModes, [0o600]);
 });
 
 test('allows writes outside the real ~/.cortex (explicit temp path)', async () => {

@@ -28,9 +28,9 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |
 | auth-watch.test.ts | test | auth notification routing, debounce and recovery |
 | auto-compound.test.ts | test | compound trigger gating and output merge |
-| claim-recovery.test.ts | test | orphaned task claim recovery policy |
+| claim-recovery.test.ts | test | generation-fenced orphan claim and durable tracking recovery |
 | cli-utils.test.ts | test | shared CLI help and error rendering |
-| cli.test.ts | test | cortex CLI routing, auth status and exit codes |
+| cli.test.ts | test | cortex CLI routing, output framing and size limit |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
 | client-manager.test.ts | test | client lifecycle hooks, auth and commands |
 | command-handlers.test.ts | test | bang command routing including authentication |
@@ -42,8 +42,8 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cortex-md-injector-hook.test.ts | test | CORTEX.md hook injection subprocess |
 | cortex-md-injector.test.ts | test | CORTEX.md injection cache and dedup |
 | cortex-md-scanner.test.ts | test | CORTEX.md ancestor chain scanning |
-| cortex-run-callback-handler.test.ts | test | task callback idempotency and ghost cases |
-| cortex-run-cli-dispatch.test.ts | test | cortex-run CLI flags and dispatch |
+| cortex-run-callback-handler.test.ts | test | Remote callback generation fencing and idempotency |
+| cortex-run-cli-dispatch.test.ts | test | cortex-run CLI ownership metadata and dispatch |
 | daemon.test.ts | test | daemon imports, rebuild order and abort notice |
 | disk-monitor.test.ts | test | disk path, toggle, alerts and byte formatting |
 | dispatch-utils.test.ts | test | device registry, task id and session names |
@@ -119,23 +119,23 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
 | spawn-seam-direct.golden.json | golden | pins ordinary direct argv and environment |
 | spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
-| spawn-seam.test.ts | test | proves cwd, process injection and MCP spawn policy |
+| spawn-seam.test.ts | test | Proves task context, cwd and process spawn policy |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
 | store/ | subdir | JSON repository and store concurrency tests |
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-archiver.test.ts | test | accepts precise task completion timestamps |
-| task-completion.test.ts | test | checks timestamps, repos, artifacts and Git types |
-| task-dispatch-hooks.test.ts | test | live/automatic limits, hooks and recovery |
+| task-completion.test.ts | test | Checks generation fencing, evidence and timestamps |
+| task-dispatch-hooks.test.ts | test | Dispatch generations, limits, hooks and recovery |
 | task-dispatcher.test.ts | test | dispatch pre-filter, guards and provider gating |
 | task-file-input.test.ts | test | task-file CLI matrix, unique paths and literals |
 | task-id-utils.test.ts | test | task hash generation, backfill and checks |
-| task-lifecycle.test.ts | test | task CLI argv parsing, guards and round-trips |
-| task-lint.test.ts | test | unknown template lint error gating |
+| task-lifecycle.test.ts | test | Task CLI ownership, guards and round-trips |
+| task-lint.test.ts | test | Unknown template lint with complete task fixtures |
 | task-mutations.test.ts | test | task add, batch edit and decompose |
 | task-node-ledger.test.ts | test | task artifact paths and acceptance ledger |
 | task-origin-wake.test.ts | test | origin wake precedence and notice framing |
 | task-parent-split.test.ts | test | task parent field and split outcome |
-| task-parser.test.ts | test | task CLI read path query, lint and health |
+| task-parser.test.ts | test | Task schema round trips, query, lint and health |
 | task-store.test.ts | test | task store exclusive mutex serialization |
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
@@ -147,11 +147,11 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | thread-ledger-dedupe.test.ts | test | child result delivery dedupe across runs |
 | thread-manager.test.ts | test | thread prompt variables and transitions |
 | thread-resume-statusmsg.test.ts | test | Covers persisted thread resume options |
-| thread-resume-task-loop.test.ts | test | resumed task events and live sweep cadence |
+| thread-resume-task-loop.test.ts | test | Resumed task provenance and live sweep cadence |
 | thread-runner.test.ts | test | thread runner lifecycle and wait control |
 | thread-stages.test.ts | test | stage parsing and step prompt building |
 | thread-statusmsg-seal.test.ts | test | stale suspended status message refresh |
-| thread-task-bridge.test.ts | test | safe task results wake waiting managers |
+| thread-task-bridge.test.ts | test | Generation-fenced results wake waiting managers |
 | thread-tree.test.ts | test | thread tree traversal and spawn guards |
 | thread-wait-checkpoint-gate.test.ts | test | wait rejected without an artifact edit |
 | thread-wait-children.test.ts | test | parent suspension on child threads |

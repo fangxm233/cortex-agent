@@ -1,10 +1,13 @@
-// input:  Node test runner + mode-manager + gateway mock
-// output: per-request /m/{mode}/ + fallback tests
-// pos:    Verify mode-manager URL prefix routing and fallback
+// input:  Node test runner, mode config, gateway mock
+// output: mode routing, saved-key, and fallback tests
+// pos:    Verify mode-manager routing and credential policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { CONFIG_DIR } from '../src/core/paths.js';
 import { importFresh } from './module-loader.js';
 
 // Standard import (no cache buster) — same singleton instance that mode-manager uses
@@ -129,6 +132,52 @@ test('placeholder key never leaks into saved env (gateway healthy → unhealthy)
   assert.equal(process.env.ANTHROPIC_API_KEY, undefined,
     'no real key was ever available, so direct fallback should have no key');
 });
+
+test('getSavedApiEnv ignores a gateway placeholder persisted in dotenv', async (t) => {
+  const originalApiKey = process.env.ANTHROPIC_API_KEY;
+  const envFile = path.join(CONFIG_DIR, '.env');
+  const originalFile = readOptionalFile(envFile);
+  delete process.env.ANTHROPIC_API_KEY;
+  fs.writeFileSync(envFile, 'ANTHROPIC_API_KEY=cortex-gateway-managed\n');
+  t.onTestFinished(() => { restoreApiKey(originalApiKey); restoreFile(envFile, originalFile); });
+
+  const modeManager = await importFresh('./../src/domain/agents/config.js');
+
+  assert.equal(modeManager.getSavedApiEnv().ANTHROPIC_API_KEY, undefined);
+});
+
+test('a live gateway placeholder cannot replace a real key saved in dotenv', async (t) => {
+  const originalApiKey = process.env.ANTHROPIC_API_KEY;
+  const envFile = path.join(CONFIG_DIR, '.env');
+  const originalFile = readOptionalFile(envFile);
+  fs.writeFileSync(envFile, 'ANTHROPIC_API_KEY="sk-ant-fixture-saved"\n');
+  process.env.ANTHROPIC_API_KEY = 'cortex-gateway-managed';
+  _testSetHealthy(true);
+  t.onTestFinished(() => {
+    restoreApiKey(originalApiKey); restoreFile(envFile, originalFile); _testSetHealthy(null);
+  });
+
+  const modeManager = await importFresh('./../src/domain/agents/config.js');
+  modeManager.configureEnvForMode('api');
+  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-ant-fixture-saved');
+  _testSetHealthy(false);
+  modeManager.configureEnvForMode('api');
+  assert.equal(process.env.ANTHROPIC_API_KEY, 'sk-ant-fixture-saved');
+});
+
+function readOptionalFile(file: string): string | undefined {
+  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
+}
+
+function restoreFile(file: string, contents: string | undefined): void {
+  if (contents === undefined) fs.rmSync(file, { force: true });
+  else fs.writeFileSync(file, contents);
+}
+
+function restoreApiKey(value: string | undefined): void {
+  if (value === undefined) delete process.env.ANTHROPIC_API_KEY;
+  else process.env.ANTHROPIC_API_KEY = value;
+}
 
 test('configureEnvForMode(plan) encodes mode in URL when gateway healthy', async (t) => {
   const originalApiKey = process.env.ANTHROPIC_API_KEY;

@@ -8,7 +8,7 @@ agent-server, and supervises long-running jobs on the local device.
 | auth-headers.ts | util | Resolves the client token and auth header |
 | client.ts | entry | Runs the daemon and remote command handlers |
 | cortex-md-scanner.ts | util | Collects CORTEX.md rules for a local file |
-| cortex-run-launch.ts | core | Launches runs and reports their callbacks |
+| cortex-run-launch.ts | core | Persists runs and reports owned task callbacks |
 | cortex-run-watcher.test.ts | test | Covers watcher parsing, stalls and results |
 | cortex-run-watcher.ts | entry | Supervises a spawned run and records state |
 | log.ts | util | Provides console and rotating file logging |

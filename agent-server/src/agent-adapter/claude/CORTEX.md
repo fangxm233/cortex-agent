@@ -7,7 +7,7 @@ Translates Claude stream and transcript events into the normalized event schema.
 |---|---|---|
 | adapter.ts | adapter | runs turns with accounting and continuation buffering |
 | adapter-tui.ts | adapter | runs declared Claude TUI sessions under tmux |
-| spawn-args.ts | core | resolves frozen composition and hook arguments |
+| spawn-args.ts | core | Builds arguments and isolated task-aware environment |
 | defaults.ts | config | Claude timeout, MCP composition and tool constants |
 | hooks-builder.ts | core | selects and compiles Claude hooks from settings |
 | event-parser.ts | parser | tracks Claude stream blocks and reported models |

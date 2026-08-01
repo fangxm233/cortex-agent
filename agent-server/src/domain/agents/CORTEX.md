@@ -4,8 +4,8 @@ Agent runtime domain — selects Claude/PI profiles and runs provider-attributed
 
 | filename | role | function |
 |---|---|---|
-| config.ts | config | Selects modes, saved API env, and failure policy |
-| facade.ts | core | Runs attributed turns with sinks and daemon accounting |
+| config.ts | config | Selects modes and persists saved API credentials |
+| facade.ts | core | Runs turns with task context and daemon accounting |
 | provider-run-lifecycle.ts | core | Attributes providers and publishes auth lifecycle |
 | index.ts | entry | Re-exports the agents domain API |
 | profile-manager.ts | core | Resolves profiles and provider identities |

@@ -1,5 +1,5 @@
-// input:  cortex-client WebSockets, machine registry, HookBus
-// output: client.connected/disconnected{device[,reason]}; commands
+// input:  cortex-client WebSockets, tasks, executions, machine registry
+// output: client lifecycle, commands, fenced task callbacks
 // pos:    Registers, routes and restarts remote clients
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -538,7 +538,7 @@ function normalizeGpuPayload(raw: unknown): ExecutionGpuInfo | null {
 }
 
 async function handleTaskCallback(ws: WebSocket, msg: any): Promise<void> {
-  const { taskProject, taskId, termination, exitCode, durationHuman,
+  const { taskProject, taskId, dispatchGeneration, termination, exitCode, durationHuman,
           remoteResultPath, remoteLogPath, device, callbackId, logTail, gpu } = msg;
 
   // Capture the per-execution GPU onto the dispatch execution record (DR-0018 §6.3 B2-followup).
@@ -586,15 +586,21 @@ async function handleTaskCallback(ws: WebSocket, msg: any): Promise<void> {
   // is woken by exactly these events, possibly days after dispatch.
   let result: any;
   if (isSuccess) {
-    result = await taskMutator.complete(taskId, note, { skipVerify: true, skipVerifyReason: 'remote-run' });
+    result = await taskMutator.complete(taskId, note, {
+      skipVerify: true,
+      skipVerifyReason: 'remote-run',
+      ownership: { generation: dispatchGeneration ?? null },
+    });
   } else {
-    result = await taskMutator.block(taskId, note);
+    result = await taskMutator.block(taskId, note, {
+      ownership: { generation: dispatchGeneration ?? null },
+    });
   }
 
   const ackMessage = result.verify_warning
     ? `${result.message} (${result.verify_warning})`
     : result.message;
-  sendAck(ws, callbackId, result.success, ackMessage);
+  sendAck(ws, callbackId, result.stale ? true : result.success, ackMessage);
 }
 
 export {

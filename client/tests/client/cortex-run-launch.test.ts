@@ -1,5 +1,8 @@
-// Unit tests for cortex-run-launch.ts — launch, cancel, utility, flush, orphan, ack.
-//
+// input:  node:test, temporary filesystem, cortex-run launch module
+// output: launch, cancel, callback generation, orphan, and ack tests
+// pos:    Verifies durable cortex-run client lifecycle behavior
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 // Merged into one file to avoid ESM module-cache isolation issues with CORTEX_HOME.
 import { describe, it, mock, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -418,6 +421,7 @@ describe('flushPendingCallbacks', () => {
       callbackId: `dev:${name}:none`,
       taskProject: null,
       taskId: null,
+      dispatchGeneration: null,
       logTailBytes: 4096,
       logContent: 'test output line 1\ntest output line 2\n',
       status: 'completed',
@@ -433,7 +437,8 @@ describe('flushPendingCallbacks', () => {
     if (opts.hasMeta) {
       writeFileSync(join(dir, 'meta.json'), JSON.stringify({
         name, callbackId: opts.callbackId, taskProject: opts.taskProject,
-        taskId: opts.taskId, logTailBytes: opts.logTailBytes, command: ['echo', 'hello'],
+        taskId: opts.taskId, dispatchGeneration: opts.dispatchGeneration,
+        logTailBytes: opts.logTailBytes, command: ['echo', 'hello'],
       }));
     }
 
@@ -487,6 +492,18 @@ describe('flushPendingCallbacks', () => {
     assert.strictEqual(msg.termination, 'completed');
     assert.strictEqual(msg.exitCode, 0);
     assert.ok(msg.logTail);
+  });
+
+  it('round-trips dispatch generation from durable metadata into the callback payload', async () => {
+    createRunDir('generation-run', {
+      taskProject: 'atlas', taskId: 'a223', dispatchGeneration: 'generation-b',
+    });
+    const ws = createMockWs();
+    await flushPendingCallbacks(ws, 'test-device');
+
+    assert.strictEqual(sentMessages.length, 1);
+    const msg = JSON.parse(sentMessages[0]);
+    assert.strictEqual(msg.dispatchGeneration, 'generation-b');
   });
 
   it('carries the resolved gpu from result.json into the callback payload', async () => {

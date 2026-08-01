@@ -1,5 +1,5 @@
 // input:  normalized events, capabilities, child-process types
-// output: adapter, supervision, accounting, continuation contracts
+// output: adapter, process, task context, supervision, accounting and continuation contracts
 // pos:    Shared adapter runtime contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -142,9 +142,10 @@ export interface AgentSpawnConfig {
     /** When true, load core + tasks + manager-answer + thread MCP layers. */
     useCoreMcp?: boolean;
     threadDepth?: number | null;
-    /** Owning dispatch task id/project, surfaced as CORTEX_TASK_ID / CORTEX_TASK_PROJECT. */
+    /** Owning dispatch task identity surfaced through CORTEX_TASK_* variables. */
     taskId?: string | null;
     taskProject?: string | null;
+    taskGeneration?: string | null;
   };
 }
 

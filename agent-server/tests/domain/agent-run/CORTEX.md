@@ -5,7 +5,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | filename | role | function |
 |---|---|---|
 | agent-run-cli.test.ts | test | verifies required flags, stdin ownership and help |
-| agent-run-e2e.test.ts | e2e | proves nullable accounting and completion lifecycle |
+| agent-run-e2e.test.ts | e2e | proves stdin, nullable accounting and completion |
 | fake-supervisor.ts | fixture | emits lifecycle edges from a real process group |
 | identity.test.ts | test | verifies deterministic run identity hashes |
 | journal.test.ts | test | verifies journal durability and validation |

@@ -6,7 +6,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | filename | role | function |
 |---|---|---|
 | async-mutex.ts | util | serializes concurrent async operations |
-| atomic-write.ts | util | writes atomically with optional permission mode |
+| atomic-write.ts | util | writes atomically with secure permission modes |
 | auth.ts | core | issues and checks shared-secret auth tokens |
 | bg-held-sessions.ts | state | tracks sessions held running in background |
 | calver.ts | util | compares CalVer YYYY.M.D[-N] versions |
@@ -31,7 +31,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | singleton-lock.ts | util | claims and releases a process pidfile |
 | status-format.ts | util | formats status and progress messages |
 | task-node.ts | util | locates and creates task node artifacts |
-| task-parser.ts | core | reads, filters, and writes TASKS.yaml |
+| task-parser.ts | core | Reads task schema, generations, filters and YAML |
 | utils.ts | util | re-exports paths plus time and text helpers |
 | version.ts | config | exposes the Cortex version and docs URL |
 | locales/ | subdir | English and Chinese message tables |

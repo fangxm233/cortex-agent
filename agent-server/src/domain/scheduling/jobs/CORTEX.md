@@ -11,4 +11,4 @@ Scheduling jobs: the concrete work performed when a schedule fires.
 | sync-public.ts | job | Pulls commits from the public repo |
 | target-dispatch.ts | core | Decides how a fired schedule is landed |
 | task-archive.ts | job | Archives completed tasks on schedule |
-| task-dispatch.ts | job | Starts tasks under the live concurrency limit |
+| task-dispatch.ts | job | Starts generation-owned tasks under concurrency limits |

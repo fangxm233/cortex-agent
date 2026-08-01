@@ -1,13 +1,18 @@
-// input:  cli module and authentication snapshot fixtures
-// output: CLI routing, auth output, and error contracts
-// pos:    Validate cortex CLI dispatcher pure logic
+// input:  CLI source, subprocess entry, and auth fixtures
+// output: routing, output framing, and size-limit assertions
+// pos:    Cortex CLI dispatcher and binary regression coverage
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { runCli } from '../src/entry/cli.js';
 import { getLocale, setLocale } from '../src/core/i18n.js';
 import type { AuthStatusSnapshot } from '../src/domain/auth/auth-status.js';
+
+const CLI_SOURCE = fileURLToPath(new URL('../src/entry/cli.ts', import.meta.url));
 
 const AUTH_SNAPSHOT: AuthStatusSnapshot = {
   generatedAt: '2030-01-01T00:00:00.000Z',
@@ -23,6 +28,11 @@ const AUTH_SNAPSHOT: AuthStatusSnapshot = {
 };
 
 // ─── runCli (async) ─────────────────────────────────────────────
+
+test('top-level CLI stays within the code-standard file limit', () => {
+  const lineCount = readFileSync(CLI_SOURCE, 'utf8').trimEnd().split('\n').length;
+  assert.ok(lineCount <= 800, `entry/cli.ts has ${lineCount} lines`);
+});
 
 test('runCli --help returns help text', async () => {
   const result = await runCli(['--help']);
@@ -64,8 +74,28 @@ test('runCli auth status --json serializes the exact snapshot without a wrapper'
   assert.equal(calls, 1);
   assert.equal(result.exitCode, 0);
   assert.deepEqual(JSON.parse(result.stdout), AUTH_SNAPSHOT);
-  assert.equal(result.stdout, `${JSON.stringify(AUTH_SNAPSHOT, null, 2)}\n`);
+  assert.equal(result.stdout, JSON.stringify(AUTH_SNAPSHOT, null, 2));
   assert.equal(result.stderr, '');
+});
+
+test('real auth status JSON CLI emits exactly one trailing newline', () => {
+  const isolatedHome = process.env.CORTEX_HOME!;
+  const child = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', CLI_SOURCE, 'auth', 'status', '--json'],
+    { encoding: 'utf8', env: {
+      CORTEX_HOME: isolatedHome,
+      CORTEX_LANG: 'en',
+      HOME: isolatedHome,
+      PATH: '',
+      TMPDIR: isolatedHome,
+    } },
+  );
+
+  assert.equal(child.status, 0, child.stderr);
+  assert.equal(child.stderr, '');
+  const snapshot = JSON.parse(child.stdout) as AuthStatusSnapshot;
+  assert.equal(child.stdout, `${JSON.stringify(snapshot, null, 2)}\n`);
 });
 
 test('runCli auth help and invalid arguments provide a localized correction path', async (t) => {

@@ -1,6 +1,6 @@
-// input:  Node test runner + cortex-run.ts CLI dispatch
-// output: CLI argument parsing + device offline + env-passthrough tests
-// pos:    Verify cortex-run CLI parses new flags and forwards via sendCommand
+// input:  Vitest, cortex-run CLI, built command entry
+// output: CLI parsing, task generation, device, env passthrough tests
+// pos:    Verifies cortex-run launch argument and ownership wiring
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import * as path from 'node:path';
 import { AGENT_SERVER_DIR } from './module-loader.js';
+import { resolveTaskGeneration } from '../src/domain/tasks/system/cortex-run.js';
 
 const CORTEX_RUN = path.join(AGENT_SERVER_DIR, 'dist', 'domain', 'tasks', 'system', 'cortex-run.js');
 
@@ -63,6 +64,17 @@ function parseArgsHelper(argv: string[], extraEnv: Record<string, string> = {}):
 }
 
 // ── Argument parsing tests ──
+
+test('resolveTaskGeneration only forwards the matching dispatch ownership', () => {
+  const env = {
+    CORTEX_TASK_ID: 'a3f2',
+    CORTEX_TASK_PROJECT: 'atlas',
+    CORTEX_TASK_GENERATION: 'generation-b',
+  };
+  assert.equal(resolveTaskGeneration('atlas', 'a3f2', env), 'generation-b');
+  assert.equal(resolveTaskGeneration('atlas', 'ffff', env), null);
+  assert.equal(resolveTaskGeneration('other', 'a3f2', env), null);
+});
 
 test('parseCliArgs reads --device', () => {
   const args = parseArgsHelper(['node', 'cortex-run', '--name', 'test', '--device', 'lab', '--', 'echo', 'hi']);

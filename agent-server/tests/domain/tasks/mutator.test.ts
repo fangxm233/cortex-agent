@@ -1,8 +1,7 @@
 // input:  Vitest, TaskMutator, task lifecycle helpers
-// output: Task mutation, state-transition, lock contention, and event tests
-// pos:    Owning layer for task state-machine coverage (claim/pause/approve/block/
-//         complete + pending/reopen recovery, folded from tests/task-state.test.ts)
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// output: generation, mutation, lock contention, and event tests
+// pos:    Owns task state-machine behavior coverage
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import '../../_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { beforeEach, test, vi } from 'vitest';
@@ -146,6 +145,40 @@ test('unclaim — unclaims a claimed task', async () => {
       fs.readFileSync(fx.tasksPathFor(proj), 'utf8'),
       /claimed-by:/,
     );
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('claim — rotates dispatch generation across unclaim and reclaim', async () => {
+  const fx = makeFixtureRepo();
+  const proj = fx.projects[0];
+  try {
+    const repo = createRepo();
+    const mutator = new TaskMutator(repo);
+    const first = await mutator.claim(fx.seedTaskId, 'task-dispatcher', { generation: 'generation-a' });
+    assert.equal(first.success, true);
+    let disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    assert.match(disk, /dispatch-generation:\s*generation-a/);
+
+    await mutator.unclaim(fx.seedTaskId);
+    disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    assert.doesNotMatch(disk, /dispatch-generation:/);
+
+    const second = await mutator.claim(fx.seedTaskId, 'task-dispatcher', { generation: 'generation-b' });
+    assert.equal(second.success, true);
+    const staleUnclaim = await mutator.unclaim(fx.seedTaskId, {
+      ownership: { generation: 'generation-a' },
+    });
+    assert.equal(staleUnclaim.success, false);
+    const staleBlock = await mutator.block(fx.seedTaskId, 'old failure', {
+      ownership: { generation: 'generation-a' },
+    });
+    assert.equal(staleBlock.success, false);
+    disk = fs.readFileSync(fx.tasksPathFor(proj), 'utf8');
+    assert.match(disk, /dispatch-generation:\s*generation-b/);
+    assert.match(disk, /claimed-by:\s*task-dispatcher/);
+    assert.doesNotMatch(disk, /old failure/);
   } finally {
     fx.cleanup();
   }
