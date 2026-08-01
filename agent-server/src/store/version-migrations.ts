@@ -12,7 +12,11 @@ import { atomicWrite } from '@core/atomic-write.js';
 import { createLogger } from '@core/log.js';
 import { validateHookEntry, type HookEntry, type HookRun } from './hook-registry.js';
 import { migrateProviderStateFromSchedules } from './provider-state-repo.js';
-import { CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS, MANAGER_TASK_FILE_REPLACEMENTS } from './prompt-migration-replacements.js';
+import {
+  CODER_COMMIT_POLICY_REPLACEMENTS,
+  CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
+  MANAGER_TASK_FILE_REPLACEMENTS,
+} from './prompt-migration-replacements.js';
 
 const log = createLogger('version-migrations');
 
@@ -366,6 +370,12 @@ const migrations: Migration[] = [
     filePath: 'prompts/directives/manager.md', version: '2026.7.31', format: 'text',
     migrate: (data) => typeof data === 'string'
       ? applyReplacements(data, MANAGER_TASK_FILE_REPLACEMENTS) : data,
+  },
+  // M9: Align coder commit instructions with repository privacy policy.
+  {
+    filePath: 'prompts/directives/coder.md', version: '2026.7.31', format: 'text',
+    migrate: (data) => typeof data === 'string'
+      ? applyReplacements(data, CODER_COMMIT_POLICY_REPLACEMENTS) : data,
   },
 ];
 

@@ -1,6 +1,6 @@
 // input:  Vitest, temporary prompt files, shipped defaults
-// output: Coder and manager directive migration regressions
-// pos:    Verifies versioned stock-text prompt migrations
+// output: Coder asset and manager directive migration regressions
+// pos:    Verifies stock prompt migrations and coder policy assets
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeAll, afterAll } from 'vitest';
@@ -114,6 +114,22 @@ const OLD_PUBLIC_REVIEWER_COMMIT_POLICY = OLD_REVIEWER_COMMIT_POLICY
   )
   .replace('6. Check commit messages', '7. Check commit messages');
 
+const CODER_COMMIT_POLICY = 'Task/spec identifiers belong in commit subjects only when repository policy permits. Repository-local privacy rules take precedence; omission required by such a rule is compliant, and attribution must instead use the implementation SHA in the summary/artifact.';
+const OLD_PUBLIC_CODER_COMMIT_POLICY = [
+  '# Identity',
+  '- **Code commits**: your implementation committed to git with a clear message. Configuration is in-repo, not hardcoded at runtime. Commit message references the task / issue / ticket ID when available.',
+  '',
+  '### Git discipline',
+  '- Use clear commit messages that reference the spec identifier (task ID, issue reference, plan section).',
+  '',
+  '# Output Style',
+  '- Git commit messages: concise, reference the spec identifier, describe what was implemented. No decorative language.',
+].join('\n') + '\n';
+const OLD_RESEARCH_CODER_COMMIT_POLICY = OLD_PUBLIC_CODER_COMMIT_POLICY.replace(
+  '- Use clear commit messages that reference the spec identifier (task ID, issue reference, plan section).',
+  '- Use clear commit messages that reference the spec identifier (EXP ID, task ID, issue reference).',
+);
+
 const PREVIOUS_MANAGER_TASK_FILE_DIRECTIVE = [
   "1. Read the actual deliverable (code, files, experiment records) and check it against the child's done_when. Run tests where code is involved. Never accept a completion note as evidence. When the deliverable is substantial (files / code / a report / an experiment), prefer spawning an independent **verifier** child: use the Write tool to stage its task JSON, run `cortex-task spawn --task-file <path>`, and consume only its verdict. An independent fresh-context check catches what your anchored read misses and keeps large deliverables out of your own context.",
   '',
@@ -162,7 +178,7 @@ test('runMigrations de-personalizes the coder directive', async () => {
   assert.ok(out.includes('`pytest`'));
   assert.ok(out.includes('Git discipline is preserved.'));
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(versions['prompts/directives/coder.md'], '2026.6.22-2');
+  assert.equal(versions['prompts/directives/coder.md'], '2026.7.31');
 });
 
 test('runMigrations de-personalizes the coder-reviewer directive', async () => {
@@ -255,6 +271,45 @@ test('runMigrations leaves customized directive policies untouched', async () =>
   assert.equal(await readText(target), customized);
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
   assert.equal(versions[relativePath], '2026.7.31');
+});
+
+test.each([
+  ['research-oriented', OLD_RESEARCH_CODER_COMMIT_POLICY],
+  ['generic public', OLD_PUBLIC_CODER_COMMIT_POLICY],
+])('runMigrations aligns %s coder commit instructions with repository policy', async (_name, legacyPolicy) => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const relativePath = 'prompts/directives/coder.md';
+  const target = path.join(dataDir, relativePath);
+  await writeText(target, legacyPolicy);
+  await writeJson(path.join(storeDir, 'versions.json'), { [relativePath]: '2026.6.24' });
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const first = await readText(target);
+
+  assert.equal(first.split(CODER_COMMIT_POLICY).length - 1, 3);
+  assert.ok(!first.includes('Commit message references the task / issue / ticket ID when available'));
+  assert.ok(!first.includes('Use clear commit messages that reference the spec identifier'));
+  assert.ok(!first.includes('concise, reference the spec identifier'));
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  assert.equal(await readText(target), first, 'second run must be byte-identical');
+  const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
+  assert.equal(versions[relativePath], '2026.7.31');
+});
+
+test('shipped coder assets apply repository privacy policy at every commit instruction', async () => {
+  const directive = await readText(path.join(DEFAULTS_DIR, 'prompts', 'directives', 'coder.md'));
+  const developSkill = await readText(path.join(
+    DEFAULTS_DIR,
+    'plugins',
+    'cortex-coder',
+    'skills',
+    'develop',
+    'SKILL.md',
+  ));
+
+  assert.equal(directive.split(CODER_COMMIT_POLICY).length - 1, 3);
+  assert.equal(developSkill.split(CODER_COMMIT_POLICY).length - 1, 1);
 });
 
 test('runMigrations keeps coder directive migration idempotent', async () => {

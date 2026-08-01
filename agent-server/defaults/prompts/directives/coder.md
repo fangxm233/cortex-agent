@@ -20,7 +20,7 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
 - Existing code you will touch (always read before modifying)
 
 ## Outputs (must produce before exiting)
-- **Code commits**: your implementation committed to git with a clear message. Configuration is in-repo, not hardcoded at runtime. Commit message references the task / issue / ticket ID when available.
+- **Code commits**: your implementation committed to git with a clear message. Configuration is in-repo, not hardcoded at runtime. Task/spec identifiers belong in commit subjects only when repository policy permits. Repository-local privacy rules take precedence; omission required by such a rule is compliant, and attribution must instead use the implementation SHA in the summary/artifact.
 - **Implementation summary**: list of files changed, commit SHAs, and any spec ambiguities you flagged. Where the summary is routed (artifact file, task comment, or inline response) is controlled by the calling thread template.
 
 ## Preconditions
@@ -42,7 +42,7 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
 
 ### Git discipline
 - Commit your implementation **before** handing off (before downstream consumers run it, before QA reviews, before the thread hands back). The SHA must anchor the delivered code.
-- Use clear commit messages that reference the spec identifier (task ID, issue reference, plan section).
+- Use clear commit messages. Task/spec identifiers belong in commit subjects only when repository policy permits. Repository-local privacy rules take precedence; omission required by such a rule is compliant, and attribution must instead use the implementation SHA in the summary/artifact.
 - Do not amend or force-push shared branches without explicit user authorization.
 
 ### Config in-repo
@@ -67,7 +67,7 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
 
 # Output Style
 
-- Git commit messages: concise, reference the spec identifier, describe what was implemented. No decorative language.
+- Git commit messages: concise and describe what was implemented. Task/spec identifiers belong in commit subjects only when repository policy permits. Repository-local privacy rules take precedence; omission required by such a rule is compliant, and attribution must instead use the implementation SHA in the summary/artifact. No decorative language.
 - Implementation summary: changed files with `file_path`, commit short-SHAs, flagged ambiguities, environment changes.
 - Do not fabricate output. Do not describe a commit as made unless it is in `git log`. Do not claim tests pass unless they pass.
 - Tone: operational, terse, factual.

@@ -1,4 +1,4 @@
-// input:  Legacy coder-reviewer and manager directive text
+// input:  Legacy coder, reviewer and manager directive text
 // output: Commit-policy and task-input replacement tables
 // pos:    Defines stock-text directive migrations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -9,6 +9,26 @@ const REVIEWER_COMMIT_RULES = [
   '- Commit subjects should reference the spec identifier when repository policy permits; omission is a **Nice-to-have** in that case. When repository policy forbids internal or context identifiers, their omission is compliant, must not be treated as a Blocker, and must not require a metadata-only follow-up commit.',
 ].join('\n');
 const REVIEWER_COMMIT_PROCEDURE = "Verify implementation attribution from the summary/artifact's explicit SHA evidence and Git history, then assess subject references under repository policy.";
+const CODER_COMMIT_POLICY = 'Task/spec identifiers belong in commit subjects only when repository policy permits. Repository-local privacy rules take precedence; omission required by such a rule is compliant, and attribution must instead use the implementation SHA in the summary/artifact.';
+
+export const CODER_COMMIT_POLICY_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
+  [
+    '- **Code commits**: your implementation committed to git with a clear message. Configuration is in-repo, not hardcoded at runtime. Commit message references the task / issue / ticket ID when available.',
+    `- **Code commits**: your implementation committed to git with a clear message. Configuration is in-repo, not hardcoded at runtime. ${CODER_COMMIT_POLICY}`,
+  ],
+  [
+    '- Use clear commit messages that reference the spec identifier (task ID, issue reference, plan section).',
+    `- Use clear commit messages. ${CODER_COMMIT_POLICY}`,
+  ],
+  [
+    '- Use clear commit messages that reference the spec identifier (EXP ID, task ID, issue reference).',
+    `- Use clear commit messages. ${CODER_COMMIT_POLICY}`,
+  ],
+  [
+    '- Git commit messages: concise, reference the spec identifier, describe what was implemented. No decorative language.',
+    `- Git commit messages: concise and describe what was implemented. ${CODER_COMMIT_POLICY} No decorative language.`,
+  ],
+];
 
 export const MANAGER_TASK_FILE_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
   [
