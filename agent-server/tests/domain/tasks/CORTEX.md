@@ -4,6 +4,6 @@ Task domain tests: task record mutation, project locking, and guarding of the ta
 
 | filename | role | function |
 |---|---|---|
-| mutator.test.ts | test | Task mutations, state transitions, lock contention and events |
+| mutator.test.ts | test | Task generations, mutations, locks and events |
 | task-lock.test.ts | test | project lock lifecycle and ownership |
 | tasks-yaml-guard.test.ts | test | edit permission decisions for the task file |

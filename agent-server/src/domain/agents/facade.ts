@@ -1,5 +1,5 @@
-// input:  run configuration, adapters, profiles, settings, sinks, wait policy, lifecycle helpers
-// output: attributed runs, observer streams, spawn and wait policy
+// input:  run config, adapters, profiles, settings, sinks, task context
+// output: attributed runs, spawn context, observers, and wait policy
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -228,6 +228,7 @@ export interface RunAgentOptions {
    *  `cortex-task spawn` can infer the current task as the parent of a child task. */
   taskId?: string | null;
   taskProject?: string | null;
+  taskGeneration?: string | null;
   onProgress?: ((progress: any) => void) | null;
   onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
   /** A complete assistant text block. `blockId` ties it to prior deltas; `noticeLevel` turns
@@ -308,8 +309,13 @@ export function buildAgentSpawnConfig(
     threadDepth: options.threadDepth ?? null,
     taskId: options.taskId ?? null,
     taskProject: options.taskProject ?? null,
+    taskGeneration: options.taskGeneration ?? null,
   };
-  const hasContext = !!(ctx.threadId || ctx.profile || ctx.project || ctx.sessionName || ctx.trackSessionId || ctx.executionId || ctx.useCoreMcp || ctx.threadDepth != null || ctx.taskId || ctx.taskProject);
+  const hasContext = !!(
+    ctx.threadId || ctx.profile || ctx.project || ctx.sessionName || ctx.trackSessionId ||
+    ctx.executionId || ctx.useCoreMcp || ctx.threadDepth != null || ctx.taskId ||
+    ctx.taskProject || ctx.taskGeneration
+  );
 
   // Load global rules (no paths frontmatter) and inject as appendSystemPrompt.
   // Scoped rules (with paths) are handled by the Read/Grep PostToolUse hook.

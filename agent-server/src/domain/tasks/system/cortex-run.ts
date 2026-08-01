@@ -1,5 +1,10 @@
 #!/usr/bin/env node
-// cortex-run — CLI dispatch via sendCommand (DR-0011 §4.8 + §4.9).
+// input:  task lifecycle, daemon webhook, process environment
+// output: remote launch/cancel CLI with dispatch generation metadata
+// pos:    Dispatches cortex-run work through the daemon
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
+// cortex-run CLI dispatch via sendCommand (DR-0011 §4.8 + §4.9).
 //
 // Launch:
 //     cortex-run [--device <name>] --name <name> [--stall 10m] [--gpu auto]
@@ -93,6 +98,15 @@ async function httpSendCommand(
 }
 
 // --- Types ---
+
+function resolveTaskGeneration(
+  project: string | null, taskId: string | null,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  const sameTask = !!taskId && env.CORTEX_TASK_ID === taskId;
+  const sameProject = !!project && env.CORTEX_TASK_PROJECT === project;
+  return sameTask && sameProject ? env.CORTEX_TASK_GENERATION ?? null : null;
+}
 
 interface CortexRunArgs {
   name?: string;
@@ -287,6 +301,11 @@ function parseCliArgs(): CortexRunArgs {
 
 async function cmdLaunch(args: CortexRunArgs): Promise<void> {
   const device = args.device;
+  const hasTaskContext = !!args.project && !!args.taskId
+    && process.env.CORTEX_TASK_PROJECT === args.project
+    && process.env.CORTEX_TASK_ID === args.taskId;
+  const dispatchGeneration = resolveTaskGeneration(args.project, args.taskId);
+  const ownership = hasTaskContext ? { generation: dispatchGeneration } : undefined;
 
   if (!(await httpIsDeviceOnline(device))) {
     console.error(`[cortex-run] Error: device "${device}" is not online (cortex-client not connected)`);
@@ -304,8 +323,11 @@ async function cmdLaunch(args: CortexRunArgs): Promise<void> {
   // Task linkage: mark pending (belt-and-suspenders, non-blocking)
   if (args.project && args.taskId) {
     try {
-      const result = pendingTask(null, args.project, args.taskId);
-      if (!result.success) {
+      const result = pendingTask(null, args.project, args.taskId, ownership);
+      if ('stale' in result && result.stale) {
+        console.error(`[cortex-run] Error: ${result.message}`);
+        process.exit(1);
+      } else if (!result.success) {
         console.error(`[cortex-run] Warning: pendingTask failed: ${result.message}`);
       } else {
         console.log(`[cortex-run] Task ${args.taskId} marked pending`);
@@ -331,6 +353,7 @@ async function cmdLaunch(args: CortexRunArgs): Promise<void> {
         logTailBytes: args.logTailBytes,
         taskProject: args.project,
         taskId: args.taskId,
+        dispatchGeneration,
       },
       timeout: 30_000,
     });
@@ -379,7 +402,7 @@ async function cmdCancel(args: CortexRunArgs): Promise<void> {
 
 // --- Main entry ---
 
-export { parseCliArgs, getCortexRunHelp, isHelpRequest };
+export { parseCliArgs, getCortexRunHelp, isHelpRequest, resolveTaskGeneration };
 
 // Use the shared isMainModule helper so symlink invocations (e.g. via the
 // global `cortex-run` bin) follow through to realpath comparison. The

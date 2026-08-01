@@ -6,14 +6,14 @@ Also tracks dispatched runs, records acceptance verdicts, and recovers claims or
 | filename | role | function |
 |---|---|---|
 | acceptance-ledger.ts | core | records child result deliveries and verdicts |
-| archiver.ts | core | Archives completed tasks after retention |
-| claim-recovery.ts | core | releases task claims orphaned by a crash |
-| dispatcher.ts | core | selects and claims the next task to run |
+| archiver.ts | core | Archives completed tasks under the task-file mutation lock |
+| claim-recovery.ts | core | Generation-fences recovery of task claims orphaned by a crash |
+| dispatcher.ts | core | Selects and claims tasks with fresh generations |
 | dispatch-utils.ts | util | device registry and task id generation |
 | lint.ts | util | checks task files for cycles and errors |
-| mutator.ts | core | serializes task mutations with locks and hooks |
+| mutator.ts | core | Serializes generation-aware mutations and events |
 | parser.ts | adapter | re-exports the task file parser |
-| pending-tracker.ts | core | tracks dispatched tasks and their status |
+| pending-tracker.ts | core | Durably tracks dispatched tasks, status, and generation |
 | store.ts | adapter | re-exports the task store and git lock |
 | recommendation/ | subdir | extracts implied tasks from project notes |
 | system/ | subdir | task CLI, state machine and file locking |

@@ -1,3 +1,8 @@
+// input:  fs/path/crypto, YAML task files, project paths
+// output: Task parsing, serialization, filtering, and generation types
+// pos:    Canonical TASKS.yaml schema and query helpers
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
@@ -26,6 +31,8 @@ export interface Task {
   blocked_by: string | null;
   claimed_by: string | null;
   claimed_at: string | null;
+  /** Opaque dispatch incarnation retained through valid automated completion for callback fencing. */
+  dispatch_generation: string | null;
   paused: boolean;
   approval_needed: boolean;
   approved_at: string | null;
@@ -43,6 +50,10 @@ export interface Task {
 
 // ── Lock state interface ──
 
+export interface TaskGenerationExpectation {
+  generation: string | null;
+}
+
 export interface LockState {
   owner: string;
   acquired_at: string;
@@ -59,6 +70,7 @@ const YAML_TO_TS: Record<string, string> = {
   'blocked-by': 'blocked_by',
   'claimed-by': 'claimed_by',
   'claimed-at': 'claimed_at',
+  'dispatch-generation': 'dispatch_generation',
   'approval-needed': 'approval_needed',
   'approved-at': 'approved_at',
   'not-before': 'not_before',
@@ -99,6 +111,7 @@ const TASK_DEFAULTS: Partial<Task> = {
   blocked_by: null,
   claimed_by: null,
   claimed_at: null,
+  dispatch_generation: null,
   paused: false,
   approval_needed: false,
   approved_at: null,
@@ -135,6 +148,7 @@ function rawToTask(raw: any, project: string): Task {
     blocked_by: mapped.blocked_by != null ? String(mapped.blocked_by) : null,
     claimed_by: mapped.claimed_by != null ? String(mapped.claimed_by) : null,
     claimed_at: mapped.claimed_at != null ? String(mapped.claimed_at) : null,
+    dispatch_generation: mapped.dispatch_generation != null ? String(mapped.dispatch_generation) : null,
     paused: Boolean(mapped.paused),
     approval_needed: Boolean(mapped.approval_needed),
     approved_at: mapped.approved_at != null ? String(mapped.approved_at) : null,
@@ -190,7 +204,8 @@ function parseTasksFileWithLock(content: string, project: string): { tasks: Task
 const REQUIRED_KEYS = ['id', 'text', 'why', 'done_when', 'priority', 'status', 'template', 'plan'];
 const OPTIONAL_KEY_ORDER = [
   'parent', 'depends_on', 'gpu', 'gpu_count', 'blocked_by', 'claimed_by', 'claimed_at',
-  'paused', 'approval_needed', 'approved_at', 'not_before', 'pending_at', 'completed_at', 'completed_note',
+  'dispatch_generation', 'paused', 'approval_needed', 'approved_at', 'not_before', 'pending_at',
+  'completed_at', 'completed_note',
   'origin_session_id', 'origin_channel', 'origin_thread_id',
 ];
 

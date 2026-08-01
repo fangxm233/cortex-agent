@@ -1,6 +1,6 @@
-// input:  task store, project paths, filesystem and git
-// output: archived completed tasks and archive commits
-// pos:    Scheduled completed-task retention job
+// input:  task store, project paths, filesystem, git, task mutation lock
+// output: atomically removed and archived completed tasks plus archive commits
+// pos:    Scheduled retention job serialized with lifecycle writers
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as fs from 'fs';
@@ -8,7 +8,10 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { PROJECTS_DIR, DATA_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
-import { parseTasksFile, serializeTasksFile, type Task } from '@core/task-parser.js';
+import { type Task } from '@core/task-parser.js';
+import {
+  readTasks, withTaskFileMutationLock, writeTasks,
+} from './system/task-lifecycle-edit.js';
 import { taskStore } from './store.js';
 
 const log = createLogger('task-archiver');
@@ -33,12 +36,11 @@ function formatTaskForArchive(task: Task): string {
   return lines.join('\n');
 }
 
-function processProject(projectName: string): { project: string; ids: string[] } | null {
+function processProjectUnlocked(projectName: string): { project: string; ids: string[] } | null {
   const tasksPath = path.join(PROJECTS_DIR, projectName, 'TASKS.yaml');
   if (!fs.existsSync(tasksPath)) return null;
 
-  const content = fs.readFileSync(tasksPath, 'utf8');
-  const tasks = parseTasksFile(content, projectName);
+  const tasks = readTasks(projectName);
 
   const toArchive: Task[] = [];
   const toKeep: Task[] = [];
@@ -68,10 +70,14 @@ function processProject(projectName: string): { project: string; ids: string[] }
     archiveContent += '\n' + formatTaskForArchive(task) + '\n';
   }
 
-  fs.writeFileSync(tasksPath, serializeTasksFile(toKeep));
+  writeTasks(projectName, toKeep);
   fs.writeFileSync(archivePath, archiveContent);
 
   return { project: projectName, ids: archivedIds };
+}
+
+function processProject(projectName: string): { project: string; ids: string[] } | null {
+  return withTaskFileMutationLock(projectName, () => processProjectUnlocked(projectName));
 }
 
 function gitCommit(results: Array<{ project: string; ids: string[] }>) {

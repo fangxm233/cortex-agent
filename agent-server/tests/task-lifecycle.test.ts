@@ -1,9 +1,7 @@
-// input:  Node test runner + unified task-cli
-// output: CLI-owned write-path tests: argv parsing, flag validation, lock guard wiring,
-//         exit codes, output formatting, plus one round-trip smoke per major subcommand
-// pos:    Verify the task-cli layer itself; state-machine semantics are owned by
-//         tests/domain/tasks/mutator.test.ts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  Vitest, unified task CLI, isolated TASKS.yaml fixtures
+// output: CLI parsing, lock guards, generation fencing, and round trips
+// pos:    Verifies task CLI wiring above lifecycle mutators
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
 import { test } from 'vitest';
@@ -11,7 +9,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parse as yamlParse } from 'yaml';
-import { PROJECTS_DIR } from '../src/core/paths.js';
+import { PROJECTS_DIR, STORE_DIR } from '../src/core/paths.js';
 import { runCli } from '../src/domain/tasks/system/task-cli.js';
 
 function readYaml(filePath: string): any {
@@ -276,6 +274,64 @@ test('complete returns task_id in result', () => {
   }
 });
 
+test('complete uses dispatch generation from env and rejects a stale execution', () => {
+  const proj = np();
+  const tid = uid();
+  const repos = makeRepo({
+    [proj]: `tasks:\n  - id: ${tid}\n    text: "Reworked task"\n    why: "finish it"\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n    claimed-by: task-dispatcher\n    claimed-at: "2026-03-13"\n    dispatch-generation: generation-b\n`,
+  });
+  const keys = ['CORTEX_THREAD_ID', 'CORTEX_TASK_ID', 'CORTEX_TASK_PROJECT', 'CORTEX_TASK_GENERATION'] as const;
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  try {
+    process.env.CORTEX_THREAD_ID = 'thr_stale';
+    process.env.CORTEX_TASK_ID = tid;
+    process.env.CORTEX_TASK_PROJECT = proj;
+    process.env.CORTEX_TASK_GENERATION = 'generation-a';
+    const stalePending = runCli(['pending', '--project', proj, '--task-id', tid]);
+    assert.equal(stalePending.exitCode, 1);
+    const stalePause = runCli(['pause', '--project', proj, '--task-id', tid]);
+    assert.equal(stalePause.exitCode, 1);
+    let task = findTask(readYaml(repos[proj].tasksPath).tasks, tid);
+    assert.equal(task.status, 'open');
+    assert.equal(task['claimed-by'], 'task-dispatcher');
+
+    const stale = runCli(['complete', '--project', proj, '--task-id', tid, '--note', 'old SHA aaaaaaa']);
+    assert.equal(stale.exitCode, 1);
+    task = findTask(readYaml(repos[proj].tasksPath).tasks, tid);
+    assert.equal(task.status, 'open');
+    assert.equal(task['dispatch-generation'], 'generation-b');
+
+    const staleByText = runCli([
+      'complete', '--project', proj, '--task', 'Reworked task', '--note', 'old text-selector SHA',
+    ]);
+    assert.equal(staleByText.exitCode, 1);
+    task = findTask(readYaml(repos[proj].tasksPath).tasks, tid);
+    assert.equal(task.status, 'open');
+    assert.equal(task['completed-note'] ?? null, null);
+
+    process.env.CORTEX_TASK_GENERATION = 'generation-b';
+    const current = runTask(['complete', '--project', proj, '--task-id', tid, '--note', 'current SHA bbbbbbb']);
+    assert.equal(current.success, true);
+    task = findTask(readYaml(repos[proj].tasksPath).tasks, tid);
+    assert.equal(task.status, 'done');
+    assert.equal(task['completed-note'], 'current SHA bbbbbbb');
+
+    process.env.CORTEX_TASK_GENERATION = 'generation-a';
+    const staleUncomplete = runCli(['uncomplete', '--project', proj, '--task-id', tid]);
+    assert.equal(staleUncomplete.exitCode, 1);
+    task = findTask(readYaml(repos[proj].tasksPath).tasks, tid);
+    assert.equal(task.status, 'done');
+    assert.equal(task['completed-note'], 'current SHA bbbbbbb');
+  } finally {
+    for (const key of keys) {
+      const value = previous[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    for (const r of Object.values(repos)) r.cleanup();
+  }
+});
+
 test('claim returns task_id, agent, and claimed_at', () => {
   const proj = np();
   const tid = uid();
@@ -289,6 +345,34 @@ test('claim returns task_id, agent, and claimed_at', () => {
     assert.equal(result.agent, 'test-agent');
     assert.ok(result['claimed-at']);
   } finally {
+    for (const r of Object.values(repos)) r.cleanup();
+  }
+});
+
+test('stale stop metadata cannot unclaim a newer dispatch generation', () => {
+  const proj = np();
+  const tid = uid();
+  const repos = makeRepo({
+    [proj]: `tasks:\n  - id: ${tid}\n    text: "Reclaimed task"\n    why: ""\n    done-when: done\n    priority: high\n    status: open\n    template: coder-review\n    plan: ""\n    claimed-by: task-dispatcher\n    claimed-at: "2026-03-13"\n    dispatch-generation: generation-b\n`,
+  });
+  const pendingPath = path.join(STORE_DIR, 'pending-tasks.json');
+  const backup = fs.existsSync(pendingPath) ? fs.readFileSync(pendingPath, 'utf8') : null;
+  try {
+    fs.mkdirSync(STORE_DIR, { recursive: true });
+    fs.writeFileSync(pendingPath, JSON.stringify({
+      'old-dispatch': {
+        taskHash: tid, project: proj, machine: 'test', dispatchGeneration: 'generation-a',
+      },
+    }));
+    const result = runCli(['stop', '--task-id', 'old-dispatch']);
+    assert.equal(result.exitCode, 0);
+    assert.match(result.stdout, /Stale task dispatch generation/);
+    const task = findTask(readYaml(repos[proj].tasksPath).tasks, tid);
+    assert.equal(task['claimed-by'], 'task-dispatcher');
+    assert.equal(task['dispatch-generation'], 'generation-b');
+  } finally {
+    if (backup === null) fs.rmSync(pendingPath, { force: true });
+    else fs.writeFileSync(pendingPath, backup);
     for (const r of Object.values(repos)) r.cleanup();
   }
 });

@@ -1,7 +1,12 @@
+// input:  pending dispatch metadata, process signals, generation-fenced task state
+// output: stopped dispatch process and ownership-safe task unclaim
+// pos:    Cancels tracked task executions without unclaiming newer incarnations
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/utils.js';
-import { findTask, readTasks, writeTasks } from './task-lifecycle-edit.js';
+import { unclaimTask } from './task-state.js';
 
 function stopTask(taskId: string) {
   const pendingTasksFile = path.join(STORE_DIR, 'pending-tasks.json');
@@ -46,15 +51,13 @@ function stopTask(taskId: string) {
   const tasksmdHash = taskInfo.taskHash;
   const project = taskInfo.project;
   if (project && tasksmdHash) {
-    const tasks = readTasks(project);
-    const found = findTask(tasks, null, tasksmdHash);
-    if (!('error' in found)) {
-      found.task.claimed_by = null;
-      found.task.claimed_at = null;
-      writeTasks(project, tasks);
+    const unclaimed = unclaimTask(null, project, tasksmdHash, {
+      generation: taskInfo.dispatchGeneration ?? null,
+    });
+    if (unclaimed.success) {
       steps.push(`Unclaimed task [${tasksmdHash}] in ${project}/TASKS.yaml`);
     } else {
-      steps.push(`Unclaim skipped: ${found.error}`);
+      steps.push(`Unclaim skipped: ${unclaimed.message}`);
     }
   }
 

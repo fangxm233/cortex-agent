@@ -1,7 +1,8 @@
-// input:  task-store, client-manager, execution-registry, threads (template profiles), agents facade (rate limits)
-// output: selectAndClaimTask + isTemplateRateLimited + schedule/interval helpers
-// pos:    programmatic dispatch for task selection and claiming; rate-limit eligibility is per-task, resolved from each task's template profiles
+// input:  task store, execution registry, templates, rate limits
+// output: generation-owned claims, dispatch filters, interval helpers
+// pos:    Selects and claims the next dispatchable task
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+import { randomUUID } from 'node:crypto';
 import { createLogger } from '@core/log.js';
 import { isProjectLocked } from './system/task-lock.js';
 
@@ -45,6 +46,7 @@ interface SelectAndClaimResult {
   task: any;
   prompt: string;
   template: string | null;
+  dispatchGeneration: string | null;
 }
 
 interface DispatchOutcome {
@@ -410,11 +412,15 @@ async function selectAndClaimTask({ scheduleTaskId, dryRun = false, profileName 
       task: selectedTask,
       prompt: buildDispatchPrompt(selectedTask),
       template: selectedTask.template || null,
+      dispatchGeneration: null,
     };
   }
 
-  // Claim task
-  const claimResult = await taskMutator.claim(selectedTask.id, 'task-dispatcher');
+  // Claim task under a fresh incarnation fence.
+  const dispatchGeneration = randomUUID();
+  const claimResult = await taskMutator.claim(
+    selectedTask.id, 'task-dispatcher', { generation: dispatchGeneration },
+  );
   if (!claimResult.success) {
     log.info(`Claim failed: ${claimResult.message}`);
     return null;
@@ -426,6 +432,7 @@ async function selectAndClaimTask({ scheduleTaskId, dryRun = false, profileName 
     task: selectedTask,
     prompt,
     template: selectedTask.template || null,
+    dispatchGeneration,
   };
 }
 

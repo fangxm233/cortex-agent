@@ -1,5 +1,8 @@
-// cortex-run-launch — Launch handler, callback scan, orphan detection, ack handling.
-//
+// input:  node fs/path/child_process, client paths and logger
+// output: durable run launch, cancel, orphan, and callback handlers
+// pos:    Supervises cortex-run metadata and callback delivery
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 // DR-0011 §4.5 + §4.7: Provides:
 //   (a) handleCortexRunLaunch — create ~/.cortex/tmp/cortex-run/<name>/, write meta.json,
 //       spawn detached watcher, write pid, return {pid, callbackId, resultDir}
@@ -37,6 +40,7 @@ export interface CortexRunLaunchParams {
   env?: Record<string, string>;
   taskProject?: string | null;
   taskId?: string | null;
+  dispatchGeneration?: string | null;
   logTailBytes?: number;
 }
 
@@ -337,6 +341,7 @@ export async function flushPendingCallbacks(
         name: meta.name,
         taskProject: meta.taskProject ?? null,
         taskId: meta.taskId ?? null,
+        dispatchGeneration: meta.dispatchGeneration ?? null,
         termination: result.termination,
         exitCode: result.exit_code,
         durationSeconds: result.duration_seconds ?? null,

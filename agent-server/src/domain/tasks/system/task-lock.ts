@@ -1,3 +1,8 @@
+// input:  TASKS.yaml lock metadata and cross-process mutation lock
+// output: atomic project lock acquire/release operations
+// pos:    Serializes logical lock metadata with all other task-file writers
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -5,6 +10,7 @@ import { PROJECTS_DIR } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { parseTasksFileWithLock, serializeTasksFileWithLock } from '@core/task-parser.js';
 import type { LockState } from '@core/task-parser.js';
+import { withTaskFileMutationLock } from './task-lifecycle-edit.js';
 
 const log = createLogger('task-lock');
 
@@ -53,7 +59,7 @@ export function readLock(project: string): LockState | null {
   }
 }
 
-export function writeLock(project: string, lock: LockState | null): void {
+function writeLockUnlocked(project: string, lock: LockState | null): void {
   const filePath = tasksYamlPath(project);
   let tasks;
   if (fs.existsSync(filePath)) {
@@ -67,7 +73,7 @@ export function writeLock(project: string, lock: LockState | null): void {
   atomicWriteSync(filePath, yaml);
 }
 
-export function acquireLock(
+function acquireLockUnlocked(
   project: string,
   opts: { owner: string; force?: boolean; note?: string },
 ): { acquired: boolean; lock?: LockState; message?: string } {
@@ -97,12 +103,12 @@ export function acquireLock(
     ...(note ? { note } : {}),
   };
 
-  writeLock(project, newLock);
+  writeLockUnlocked(project, newLock);
   log.info('Lock acquired for %s by %s (expires %s)', project, owner, expiresAt);
   return { acquired: true, lock: newLock };
 }
 
-export function releaseLock(
+function releaseLockUnlocked(
   project: string,
   owner: string,
   opts?: { force?: boolean },
@@ -117,9 +123,25 @@ export function releaseLock(
       message: `Lock held by different owner: ${current.owner}`,
     };
   }
-  writeLock(project, null);
+  writeLockUnlocked(project, null);
   log.info('Lock released for %s by %s', project, owner);
   return { released: true, message: 'Lock released' };
+}
+
+export function writeLock(project: string, lock: LockState | null): void {
+  withTaskFileMutationLock(project, () => writeLockUnlocked(project, lock));
+}
+
+export function acquireLock(
+  project: string, opts: { owner: string; force?: boolean; note?: string },
+): { acquired: boolean; lock?: LockState; message?: string } {
+  return withTaskFileMutationLock(project, () => acquireLockUnlocked(project, opts));
+}
+
+export function releaseLock(
+  project: string, owner: string, opts?: { force?: boolean },
+): { released: boolean; message?: string } {
+  return withTaskFileMutationLock(project, () => releaseLockUnlocked(project, owner, opts));
 }
 
 export function assertLockHeld(project: string, owner: string): string | null {

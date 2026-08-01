@@ -1,5 +1,5 @@
-// input:  Vitest, task-child callbacks, thread store
-// output: Safe task-child notices, wake-up, and recovery tests
+// input:  Vitest, generation-aware task callbacks, thread store
+// output: fenced task notices, wake-up, and recovery tests
 // pos:    Verifies task-backed resident-manager re-entry
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -52,6 +52,7 @@ function taskYaml(id: string, over: Record<string, string> = {}): string {
   if (over.parent) lines.push(`    parent: "${over.parent}"`);
   if (over.blocked) lines.push(`    blocked-by: ${over.blocked}`);
   if (over.note) lines.push(`    completed-note: ${over.note}`);
+  if (over.generation) lines.push(`    dispatch-generation: ${over.generation}`);
   return lines.join('\n') + '\n';
 }
 
@@ -138,6 +139,50 @@ test('notifyTaskParentThreads rejects a bogus completed event (task not actually
   assert.deepEqual(t.metadata!.waitingOnTasks, ['bb12'], 'still waiting — dispatch publishes task.completed loosely');
   assert.equal(t.metadata!.pendingMessages?.length ?? 0, 0);
   assert.equal(resumed.length, 0);
+});
+
+test('notifyTaskParentThreads rejects stale generation and delivers the current completion', async () => {
+  const proj = `_tb_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + taskYaml('aa13', { status: 'open' }) + taskYaml('bb13', {
+    parent: 'aa13', status: 'done', generation: 'generation-b', note: 'SHA-bbbbbbb',
+  }));
+  const mgr = makeManager(proj, 'aa13', ['bb13']);
+  const resumed: string[] = [];
+
+  await notifyTaskParentThreads(
+    'bb13', 'completed', { resume: (id) => resumed.push(id) },
+    { generation: 'generation-a' },
+  );
+  let current = threadStore.get(mgr.id)!;
+  assert.deepEqual(current.metadata!.waitingOnTasks, ['bb13']);
+  assert.equal(current.metadata!.pendingMessages?.length ?? 0, 0);
+  assert.deepEqual(resumed, []);
+
+  await notifyTaskParentThreads(
+    'bb13', 'completed', { resume: (id) => resumed.push(id) },
+    { generation: 'generation-b' },
+  );
+  current = threadStore.get(mgr.id)!;
+  assert.deepEqual(current.metadata!.waitingOnTasks, []);
+  assert.match(current.metadata!.pendingMessages![0], /bbbbbbb/);
+  assert.deepEqual(resumed, [mgr.id]);
+});
+
+test('manual completion still wakes through a later dispatch terminal hint', async () => {
+  const proj = `_tb_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + taskYaml('aa14', { status: 'open' }) + taskYaml('bb14', {
+    parent: 'aa14', status: 'done', note: 'manual-result',
+  }));
+  const mgr = makeManager(proj, 'aa14', ['bb14']);
+  const resumed: string[] = [];
+  await notifyTaskParentThreads(
+    'bb14', 'completed', { resume: (id) => resumed.push(id) },
+    { generation: 'generation-b' },
+  );
+  const current = threadStore.get(mgr.id)!;
+  assert.deepEqual(current.metadata!.waitingOnTasks, []);
+  assert.match(current.metadata!.pendingMessages![0], /manual-result/);
+  assert.deepEqual(resumed, [mgr.id]);
 });
 
 test('notifyTaskParentThreads is idempotent across in-memory state resets', async () => {

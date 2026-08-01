@@ -1,7 +1,15 @@
+// input:  task schema, lifecycle storage/locks, ids, template validation
+// output: atomically locked add, edit, decompose, and bulk task mutations
+// pos:    Constructs new task records and decomposition trees without lost updates
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import * as fs from 'node:fs';
 import { type Task } from '@core/task-parser.js';
 import { collectAllExistingHashes, generateHash } from './task-id-utils.js';
-import { editTask, findTask, getTasksPath, readTasks, VALID_PRIORITIES, validateTemplateName, writeTasks } from './task-lifecycle-edit.js';
+import {
+  editTask, findTask, getTasksPath, readTasks, VALID_PRIORITIES, validateTemplateName,
+  withTaskFileMutationLock, writeTasks,
+} from './task-lifecycle-edit.js';
 
 // ── Provenance for session→task wake (Problem 1) ──
 // Captured from CORTEX_* / channel env at task-creation time so task.completed can wake the
@@ -28,7 +36,7 @@ interface BulkTaskInput {
   'gpu-count'?: number;
 }
 
-function addTask(
+function addTaskUnlocked(
   project: string,
   text: string | null,
   why: string | null,
@@ -79,6 +87,7 @@ function addTask(
     blocked_by: null,
     claimed_by: null,
     claimed_at: null,
+    dispatch_generation: null,
     paused: false,
     approval_needed: false,
     approved_at: null,
@@ -128,7 +137,7 @@ interface DecomposeSubtaskInput {
 
 const HEX_ID_RE = /^[0-9a-fA-F]{4}$/;
 
-function decomposeTask(
+function decomposeTaskUnlocked(
   project: string,
   originalText: string | null,
   subtasks: DecomposeSubtaskInput[],
@@ -188,6 +197,7 @@ function decomposeTask(
       blocked_by: null,
       claimed_by: null,
       claimed_at: null,
+      dispatch_generation: null,
       paused: false,
       approval_needed: false,
       approved_at: null,
@@ -216,7 +226,7 @@ function decomposeTask(
   return { success: true, message: `Task decomposed into ${subtasks.length} subtasks`, child_ids: ids };
 }
 
-function bulkAddTasks(project: string, inputs: BulkTaskInput[]) {
+function bulkAddTasksUnlocked(project: string, inputs: BulkTaskInput[]) {
   // 1. Validate inputs array
   if (!Array.isArray(inputs) || inputs.length === 0) {
     return { success: false, message: 'Input must be a non-empty JSON array of tasks' };
@@ -334,6 +344,7 @@ function bulkAddTasks(project: string, inputs: BulkTaskInput[]) {
       blocked_by: null,
       claimed_by: null,
       claimed_at: null,
+      dispatch_generation: null,
       paused: false,
       approval_needed: false,
       approved_at: null,
@@ -356,5 +367,15 @@ function bulkAddTasks(project: string, inputs: BulkTaskInput[]) {
     created,
   };
 }
+
+function lockProjectMutation<T extends (project: string, ...args: any[]) => any>(mutation: T): T {
+  return ((project: string, ...args: any[]) => withTaskFileMutationLock(
+    project, () => mutation(project, ...args),
+  )) as T;
+}
+
+const addTask = lockProjectMutation(addTaskUnlocked);
+const bulkAddTasks = lockProjectMutation(bulkAddTasksUnlocked);
+const decomposeTask = lockProjectMutation(decomposeTaskUnlocked);
 
 export { addTask, batchEdit, bulkAddTasks, decomposeTask };

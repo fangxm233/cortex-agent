@@ -1,9 +1,14 @@
+// input:  fs/path, task schema, project paths, template config
+// output: locked atomic TASKS.yaml reads, writes, edits, dependency clears
+// pos:    Base persistence and cross-process mutation lock for tasks
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { PROJECTS_DIR, listProjectDirs } from '@core/utils.js';
+import { PROJECTS_DIR, STORE_DIR, listProjectDirs } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { loadConfig, listTemplateNames } from '../../threads/template-loader.js';
-import { type LockState, type Task, parseTasksFile, parseTasksFileWithLock, serializeTasksFile, serializeTasksFileWithLock } from '@core/task-parser.js';
+import { type LockState, type Task, parseTasksFile, parseTasksFileWithLock, serializeTasksFileWithLock } from '@core/task-parser.js';
 
 const log = createLogger('task-lifecycle');
 
@@ -21,6 +26,175 @@ function atomicWriteSync(filePath: string, data: string): void {
 }
 
 const sweptPaths = new Set<string>();
+const MUTATION_LOCK_WAIT_MS = 10;
+const MUTATION_LOCK_TIMEOUT_MS = 30_000;
+const OWNERLESS_LOCK_GRACE_MS = 1_000;
+
+interface MutationLockOwner {
+  pid: number;
+  token: string;
+  processStart: string | null;
+}
+const EMPTY_SLEEP = new Int32Array(new SharedArrayBuffer(4));
+
+function mutationLockPath(project: string): string {
+  const lockDir = path.join(STORE_DIR, 'task-mutation-locks');
+  fs.mkdirSync(lockDir, { recursive: true });
+  return path.join(lockDir, encodeURIComponent(project));
+}
+
+function processIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error: any) {
+    return error?.code !== 'ESRCH';
+  }
+}
+
+function processStartIdentity(pid: number): string | null {
+  try {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function mutationLockOwner(lockPath: string): MutationLockOwner | null {
+  try {
+    const owner = JSON.parse(fs.readFileSync(path.join(lockPath, 'owner.json'), 'utf8'));
+    if (typeof owner.pid !== 'number' || typeof owner.token !== 'string') return null;
+    return {
+      pid: owner.pid, token: owner.token,
+      processStart: typeof owner.processStart === 'string' ? owner.processStart : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function mutationLockIsStale(lockPath: string): boolean {
+  let ageMs: number;
+  try { ageMs = Date.now() - fs.statSync(lockPath).mtimeMs; } catch { return false; }
+  const owner = mutationLockOwner(lockPath);
+  if (!owner) return ageMs > OWNERLESS_LOCK_GRACE_MS;
+  if (!processIsAlive(owner.pid)) return true;
+  const currentStart = processStartIdentity(owner.pid);
+  return owner.processStart !== null && currentStart !== null && owner.processStart !== currentStart;
+}
+
+function lockOwnerRecord(token: string): MutationLockOwner {
+  return { pid: process.pid, token, processStart: processStartIdentity(process.pid) };
+}
+
+function releaseOwnedLock(lockPath: string, token: string): void {
+  if (mutationLockOwner(lockPath)?.token !== token) return;
+  const releasedPath = `${lockPath}.released.${encodeURIComponent(token)}`;
+  try {
+    fs.renameSync(lockPath, releasedPath);
+    if (mutationLockOwner(releasedPath)?.token === token) {
+      fs.rmSync(releasedPath, { recursive: true, force: true });
+    }
+  } catch {}
+}
+
+function removeStaleMutationLock(lockPath: string): void {
+  if (!mutationLockIsStale(lockPath)) return;
+  let staleIdentity: { dev: number; ino: number; ctimeMs: number };
+  try {
+    const initial = fs.statSync(lockPath);
+    fs.writeFileSync(path.join(lockPath, '.reclaimed'), '');
+    const current = fs.statSync(lockPath);
+    if (current.dev !== initial.dev || current.ino !== initial.ino) return;
+    staleIdentity = { dev: current.dev, ino: current.ino, ctimeMs: current.ctimeMs };
+    if (mutationLockOwner(lockPath) && !mutationLockIsStale(lockPath)) return;
+  } catch {
+    return;
+  }
+  const ctime = String(staleIdentity.ctimeMs).replace('.', '-');
+  const tombstone = `${lockPath}.reclaimed.${staleIdentity.dev}.${staleIdentity.ino}.${ctime}`;
+  try { fs.renameSync(lockPath, tombstone); } catch {}
+}
+
+function tryAcquireMutationLock(lockPath: string): (() => void) | null {
+  const token = `${process.pid}:${Date.now()}:${Math.random()}`;
+  const candidatePath = `${lockPath}.candidate.${encodeURIComponent(token)}`;
+  try {
+    fs.mkdirSync(candidatePath);
+    fs.writeFileSync(path.join(candidatePath, 'owner.json'), JSON.stringify(lockOwnerRecord(token)));
+    if (fs.existsSync(lockPath)) {
+      fs.rmSync(candidatePath, { recursive: true, force: true });
+      return null;
+    }
+    fs.renameSync(candidatePath, lockPath);
+    return () => releaseOwnedLock(lockPath, token);
+  } catch (error: any) {
+    fs.rmSync(candidatePath, { recursive: true, force: true });
+    if (error?.code === 'EEXIST' || error?.code === 'ENOTEMPTY' || fs.existsSync(lockPath)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function acquireTaskFileMutationLock(project: string): () => void {
+  const lockPath = mutationLockPath(project);
+  const deadline = Date.now() + MUTATION_LOCK_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const release = tryAcquireMutationLock(lockPath);
+    if (release) return release;
+    if (mutationLockOwner(lockPath)?.pid === process.pid) {
+      throw new Error(`Task mutation already in progress: ${project}`);
+    }
+    if (mutationLockIsStale(lockPath)) removeStaleMutationLock(lockPath);
+    else Atomics.wait(EMPTY_SLEEP, 0, 0, MUTATION_LOCK_WAIT_MS);
+  }
+  throw new Error(`Timed out waiting for task mutation lock: ${project}`);
+}
+
+async function acquireTaskFileMutationLockAsync(project: string): Promise<() => void> {
+  const lockPath = mutationLockPath(project);
+  const deadline = Date.now() + MUTATION_LOCK_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const release = tryAcquireMutationLock(lockPath);
+    if (release) return release;
+    if (mutationLockIsStale(lockPath)) removeStaleMutationLock(lockPath);
+    else await new Promise((resolve) => setTimeout(resolve, MUTATION_LOCK_WAIT_MS));
+  }
+  throw new Error(`Timed out waiting for task mutation lock: ${project}`);
+}
+
+function withTaskFileMutationLock<T>(project: string, mutate: () => T): T {
+  if (!fs.existsSync(getTasksPath(project))) return mutate();
+  const release = acquireTaskFileMutationLock(project);
+  try { return mutate(); } finally { release(); }
+}
+
+function withTaskFileMutationLocks<T>(projects: string[], mutate: () => T): T {
+  const existing = [...new Set(projects)]
+    .filter((project) => fs.existsSync(getTasksPath(project)))
+    .sort();
+  const releases: Array<() => void> = [];
+  try {
+    for (const project of existing) releases.push(acquireTaskFileMutationLock(project));
+    return mutate();
+  } finally {
+    for (const release of releases.reverse()) release();
+  }
+}
+
+function taskFileProjects(): string[] {
+  return listProjectDirs().filter((project) => fs.existsSync(getTasksPath(project)));
+}
+
+async function withTaskFileMutationLockAsync<T>(
+  project: string, mutate: () => Promise<T>,
+): Promise<T> {
+  if (!fs.existsSync(getTasksPath(project))) return mutate();
+  const release = await acquireTaskFileMutationLockAsync(project);
+  try { return await mutate(); } finally { release(); }
+}
 
 function sweepTaskOrphans(tasksPath: string): void {
   try {
@@ -133,7 +307,8 @@ function clearDependsOnAll(completedHash: string): { count: number; tasks: { tas
     const tasksPath = path.join(PROJECTS_DIR, projectName, 'TASKS.yaml');
     if (!fs.existsSync(tasksPath)) continue;
 
-    const tasks = parseTasksFile(fs.readFileSync(tasksPath, 'utf8'), projectName);
+    const parsed = parseTasksFileWithLock(fs.readFileSync(tasksPath, 'utf8'), projectName);
+    const { tasks, lock } = parsed;
     let modified = false;
     for (const task of tasks) {
       const idx = task.depends_on.indexOf(completedHash);
@@ -145,7 +320,7 @@ function clearDependsOnAll(completedHash: string): { count: number; tasks: { tas
     }
     if (modified) {
       ensureSwept(tasksPath);
-      atomicWriteSync(tasksPath, serializeTasksFile(tasks));
+      atomicWriteSync(tasksPath, serializeTasksFileWithLock({ tasks, lock }));
     }
   }
   return { count: unblockedTasks.length, tasks: unblockedTasks };
@@ -155,7 +330,7 @@ function clearDependsOnAll(completedHash: string): { count: number; tasks: { tas
 
 type TaskLineTransformResult = { success: true; message?: string; [k: string]: any } | { success: false; message: string };
 
-function editTask(project: string, options: any = {}): TaskLineTransformResult {
+function editTaskUnlocked(project: string, options: any = {}): TaskLineTransformResult {
   const {
     taskText = null,
     taskId = null,
@@ -219,6 +394,9 @@ function editTask(project: string, options: any = {}): TaskLineTransformResult {
   return { success: true, message: 'Task updated', task_id: taskId, updated_fields: updatedFields };
 }
 
+const editTask = (project: string, options: any = {}): TaskLineTransformResult =>
+  withTaskFileMutationLock(project, () => editTaskUnlocked(project, options));
+
 // Base of the TASKS.yaml write path: this module owns the file I/O and the line-level primitives;
 // task-state / task-completion / task-mutations / task-process build on top of it. There is no
 // barrel for this folder on purpose — task-store.ts and the CLI import each sub-module directly.
@@ -232,7 +410,11 @@ export {
   getTasksPath,
   readTasks,
   sweepTaskOrphans,
+  taskFileProjects,
   validateTemplateName,
+  withTaskFileMutationLock,
+  withTaskFileMutationLockAsync,
+  withTaskFileMutationLocks,
   writeTasks,
 };
 export type { TaskLineTransformResult };
