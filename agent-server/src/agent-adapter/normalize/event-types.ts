@@ -1,5 +1,5 @@
 // input:  core agent types
-// output: NormalizedEvent and QuestionSpec
+// output: NormalizedEvent with nullable accounting and QuestionSpec
 // pos:    Backend-neutral event schema
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -23,7 +23,7 @@ export type NormalizedEvent =
   | { type: 'context_compacted'; trigger: string; preTokens?: number }
   | ({ type: 'context_usage' } & ContextUsage)
   | { type: 'rate_limit'; raw: unknown }
-  | { type: 'cost_record'; provider: string; model: string; tokens_in: number; tokens_out: number; cost_usd: number | null }
+  | { type: 'cost_record'; provider: string; model: string; tokens_in: number | null; tokens_out: number | null; cost_usd: number | null }
   | { type: 'turn_progress'; numTurns: number }
   | { type: 'turn_complete'; numTurns: number; totalCostUsd: number | null; error?: string | null }
   | { type: 'error'; message: string; fatal: boolean };

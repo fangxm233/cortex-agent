@@ -1,5 +1,5 @@
-// input:  ClaudeSession line wiring, context events, continuation sink
-// output: background context, continuation, and compaction specs
+// input:  ClaudeSession lines, late sinks, context events
+// output: background continuation, buffering, and compaction specs
 // pos:    Claude print spontaneous-continuation wiring tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -45,6 +45,28 @@ test('handleLine: normal turn result carries pendingBackgroundTasks count', (t) 
 
   assert.ok(cap.value, 'turn resolved');
   assert.equal(cap.value.pendingBackgroundTasks, 1, 'result reports 1 pending background task');
+});
+
+test('handleLine: one-shot buffers a continuation until its sink is registered', (t) => {
+  const s: any = _test.makeSessionForTest();
+  s.createTurnStreams = () => ({ rawStream: FAKE_STREAM, txtStream: FAKE_STREAM });
+  s.preserveUnreportedAccounting = true;
+  t.onTestFinished(() => s.close());
+
+  s.handleLine(TASK_STARTED);
+  s.handleLine(TASK_NOTIFICATION);
+  s.handleLine(ASSISTANT_CONT);
+  s.handleLine(RESULT_CONT);
+
+  const texts: string[] = [];
+  const results: any[] = [];
+  s.setContinuationSink({
+    onAssistantText: (text: string) => texts.push(text),
+    onResult: (result: any) => results.push(result),
+  });
+  assert.deepEqual(texts, ['Background task done: DONE']);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].costReported, true);
 });
 
 test('handleLine: spontaneous continuation routes assistant text + final result to the sink', (t) => {

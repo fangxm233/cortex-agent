@@ -1,4 +1,4 @@
-// input:  trajectory roots, lifecycle metadata, journal files
+// input:  trajectory roots, lifecycle metadata, nullable journals
 // output: atomic markers/manifests and trajectory validation
 // pos:    Lifecycle truth and validator for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -153,8 +153,8 @@ const EVENT_SCHEMAS: Record<string, EventSchema> = {
   },
   cost_record: {
     required: {
-      provider: isString, model: isString, tokens_in: isNumber,
-      tokens_out: isNumber, cost_usd: isNullableNumber,
+      provider: isString, model: isString, tokens_in: isNullableNumber,
+      tokens_out: isNullableNumber, cost_usd: isNullableNumber,
     },
   },
   turn_progress: {

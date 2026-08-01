@@ -1,4 +1,4 @@
-// input:  parsed options, frozen config, Claude accounting adapter
+// input:  parsed options, frozen config, reported-cost metadata
 // output: supervised turn, journal, nullable accounting, manifest
 // pos:    Agent-run lifecycle coordinator
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -69,7 +69,8 @@ interface PreparedRun {
 interface RunStats {
   input: number;
   output: number;
-  sawTokens: boolean;
+  sawInput: boolean;
+  sawOutput: boolean;
 }
 
 interface ExecutionOutcome {
@@ -359,9 +360,14 @@ function reportedModel(event: NormalizedEvent): string | null {
 
 function collectStats(stats: RunStats, event: NormalizedEvent): void {
   if (event.type !== 'cost_record') return;
-  stats.sawTokens = true;
-  stats.input += event.tokens_in;
-  stats.output += event.tokens_out;
+  if (event.tokens_in !== null) {
+    stats.sawInput = true;
+    stats.input += event.tokens_in;
+  }
+  if (event.tokens_out !== null) {
+    stats.sawOutput = true;
+    stats.output += event.tokens_out;
+  }
 }
 
 function trajectorySink(
@@ -591,10 +597,12 @@ function terminalInput(
     eventCount: journal.eventCount,
     supervisor: { quiescent: true, descendants: 0 },
     steps: outcome.result?.num_turns ?? null,
-    costUsd: outcome.result?.total_cost_usd ?? null,
+    costUsd: outcome.result?.costReported === false
+      ? null
+      : outcome.result?.total_cost_usd ?? null,
     tokens: {
-      input: stats.sawTokens ? stats.input : null,
-      output: stats.sawTokens ? stats.output : null,
+      input: stats.sawInput ? stats.input : null,
+      output: stats.sawOutput ? stats.output : null,
     },
     modelExecutionIdentityHash: run.identity.modelExecutionIdentityHash,
     roleToolSurfaceHash: run.identity.roleToolSurfaceHash,
@@ -679,7 +687,7 @@ export async function runOneShotAgent(
     journal = openRunJournal(run);
     writeJsonLine(io, journal.header);
     writeStart(run);
-    const stats: RunStats = { input: 0, output: 0, sawTokens: false };
+    const stats: RunStats = { input: 0, output: 0, sawInput: false, sawOutput: false };
     const outcome = await executeTurn(run, journal, io, stats);
     const classified = classify(outcome);
     const manifest = terminalManifest(run, journal, stats, outcome, classified);

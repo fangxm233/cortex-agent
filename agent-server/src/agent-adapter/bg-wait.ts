@@ -1,5 +1,5 @@
-// input:  continuation sinks, results, timers, settings, process-stop boundary
-// output: bounded or completion-only continuation results
+// input:  continuation results, reported-cost markers, wait policy
+// output: bounded or completion-only merged continuation results
 // pos:    Background continuation wait policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
@@ -105,8 +105,12 @@ const realTimers = {
 function mergeContinuation(acc: AgentResult, cont: AgentResult): AgentResult {
   const bothCostNull = acc.total_cost_usd == null && cont.total_cost_usd == null;
   const bothTurnsNull = acc.num_turns == null && cont.num_turns == null;
+  const costReported = acc.costReported === undefined && cont.costReported === undefined
+    ? undefined
+    : acc.costReported === true || cont.costReported === true;
   return {
     ...acc,
+    costReported,
     total_cost_usd: bothCostNull ? null : (acc.total_cost_usd ?? 0) + (cont.total_cost_usd ?? 0),
     num_turns: bothTurnsNull ? null : (acc.num_turns ?? 0) + (cont.num_turns ?? 0),
     finalOutput: cont.finalOutput || acc.finalOutput,

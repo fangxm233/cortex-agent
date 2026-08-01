@@ -1,5 +1,5 @@
 // input:  nothing (leaf type-only module)
-// output: Agent results with provider identity, handles, and usage types
+// output: Agent results with reported-cost, handles, and usage types
 // pos:    Shared type definitions for agent execution and messages
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -27,6 +27,8 @@ export interface AskUserQuestionInfo {
 export interface AgentResult {
   sessionId: string | null;
   total_cost_usd: number | null;
+  /** Present only when a provenance-sensitive caller needs reported zero distinguished from absent cost. */
+  costReported?: boolean;
   num_turns: number | null;
   rateLimited: boolean;
   rateLimitMessage: string | null;

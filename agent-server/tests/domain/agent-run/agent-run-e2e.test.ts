@@ -1,5 +1,5 @@
-// input:  cortex CLI, stdin config, fake Claude accounting, procfs
-// output: isolation, journal, accounting, and completion proofs
+// input:  cortex CLI, fake Claude accounting/continuations, procfs
+// output: isolation, journal, nullable accounting, and completion proofs
 // pos:    Process-level one-shot agent-run regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -104,14 +104,16 @@ lines.once('line', (line) => {
     ? JSON.parse(process.env.FAKE_CLAUDE_FIRST_RESULT)
     : { type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: 'first result', total_cost_usd: 0.25, num_turns: 1 };
   console.log(JSON.stringify(firstResult));
-  child.once('close', () => {
+  const emitContinuation = () => {
     console.log(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'bg1', status: 'completed', summary: 'done' }));
     console.log(JSON.stringify({ type: 'assistant', message: { id: 'a2', model: 'claude-reported-fixture', content: [{ type: 'text', text: 'background done' }] } }));
     const continuationResult = process.env.FAKE_CLAUDE_CONTINUATION_RESULT
       ? JSON.parse(process.env.FAKE_CLAUDE_CONTINUATION_RESULT)
       : { type: 'result', subtype: 'success', origin: { kind: 'task-notification' }, is_error: false, session_id: request.session_id, result: 'background done', total_cost_usd: 0.1, num_turns: 1 };
     console.log(JSON.stringify(continuationResult));
-  });
+  };
+  if (process.env.FAKE_CLAUDE_EARLY_CONTINUATION === '1') emitContinuation();
+  else child.once('close', emitContinuation);
 });
 `);
 }
@@ -728,6 +730,25 @@ it('keeps unreported cost and usage null without fabricating cost records', asyn
   assert.deepEqual(terminal.tokens, { input: null, output: null });
 }, 45_000);
 
+it('exits when only the background continuation reports cost', async () => {
+  const fixture = createFixture('continuation-accounting');
+  fixture.args.push('--deadline-ms', '15000');
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const first = fakeClaudeResult('e2e-run', 'unknown');
+  const continuation = fakeClaudeResult('e2e-run', 'reported continuation', {
+    origin: { kind: 'task-notification' }, total_cost_usd: 0.125,
+  });
+  const child = spawnRun(fixture, {
+    FAKE_CLAUDE_FIRST_RESULT: first,
+    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
+    FAKE_CLAUDE_EARLY_CONTINUATION: '1',
+  });
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+  assert.equal(terminalRecord(fixture).cost_usd, 0.125);
+  assert.deepEqual(terminalRecord(fixture).tokens, { input: null, output: null });
+}, 45_000);
+
 it('preserves explicitly reported cost and usage exactly', async () => {
   const fixture = createFixture('reported-accounting');
   const reported = fakeClaudeResult('e2e-run', 'reported', {
@@ -756,6 +777,34 @@ it('preserves explicitly reported cost and usage exactly', async () => {
   const terminal = terminalRecord(fixture);
   assert.equal(terminal.cost_usd, 0.375);
   assert.deepEqual(terminal.tokens, { input: 321, output: 54 });
+}, 45_000);
+
+it('records reported cost when usage is absent', async () => {
+  const fixture = createFixture('cost-only-accounting');
+  const reported = fakeClaudeResult('e2e-run', 'reported cost', {
+    total_cost_usd: 0.625,
+  });
+  const continuation = fakeClaudeResult('e2e-run', 'reported continuation', {
+    origin: { kind: 'task-notification' }, total_cost_usd: 0.625,
+  });
+  const child = spawnRun(fixture, {
+    FAKE_CLAUDE_FIRST_RESULT: reported,
+    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
+  });
+  await waitForText(fixture.eventsFile, 'turn_complete');
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+  const costEvents = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'))
+    .filter(record => record.event?.type === 'cost_record')
+    .map(record => record.event);
+  assert.deepEqual(costEvents, [{
+    type: 'cost_record', provider: 'anthropic', model: 'claude-requested-fixture',
+    tokens_in: null, tokens_out: null, cost_usd: 0.625,
+  }]);
+  const terminal = terminalRecord(fixture);
+  assert.equal(terminal.cost_usd, 0.625);
+  assert.deepEqual(terminal.tokens, { input: null, output: null });
 }, 45_000);
 
 it('includes the probed Claude version in frozen model identity', async () => {

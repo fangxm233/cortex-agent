@@ -1,5 +1,5 @@
-// input:  session streams, spawn/containment config, reported usage
-// output: cwd-aware Claude turns, models, and accounting events
+// input:  session streams, spawn config, reported accounting
+// output: cwd-aware Claude turns, models, and nullable cost events
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -97,6 +97,8 @@ interface PendingTurn {
    *  (the spontaneous turn the CLI emits after a run_in_background task finishes). */
   spontaneous?: boolean;
 }
+
+type ContinuationDelivery = (sink: ContinuationSink) => void;
 
 interface ClaudeSessionOptions {
   needsResume: boolean;
@@ -225,6 +227,8 @@ class ClaudeSession {
   private bgTracker = new BgTaskTracker();
   /** Set by orchestration to receive spontaneous background-task continuation turns. */
   private continuationSink: ContinuationSink | null = null;
+  /** One-shot events that arrived before completion-only waiting installed its sink. */
+  private pendingContinuationDeliveries: ContinuationDelivery[] = [];
   /** Messages injected into an in-flight turn that the CLI has not echoed back yet, in write
    *  order. Each is popped by its `--replay-user-messages` echo (the delivery ack). */
   private pendingInjections: { prompt: string; text: string }[] = [];
@@ -441,14 +445,27 @@ class ClaudeSession {
     };
   }
 
+  private deliverContinuation(delivery: ContinuationDelivery): void {
+    const sink = this.continuationSink;
+    if (!sink) {
+      if (this.preserveUnreportedAccounting) this.pendingContinuationDeliveries.push(delivery);
+      return;
+    }
+    try { delivery(sink); }
+    catch (error) { log.warn('continuation sink threw:', (error as Error).message); }
+  }
+
   /** Register/replace the continuation sink. Persists across normal turns; lives as long
    *  as the pooled session, until close()/kill(). */
   setContinuationSink(sink: ContinuationSink): void {
     this.continuationSink = sink;
+    const pending = this.pendingContinuationDeliveries.splice(0);
+    for (const delivery of pending) this.deliverContinuation(delivery);
   }
 
   clearContinuationSink(): void {
     this.continuationSink = null;
+    this.pendingContinuationDeliveries.length = 0;
   }
 
   /** Register/replace the injection delivery-ack sink. Lifetime mirrors continuationSink. */
@@ -522,43 +539,34 @@ class ClaudeSession {
     catch (e) { log.warn('injection onDelivered threw:', (e as Error).message); }
   }
 
+  private continuationCallbacks() {
+    return {
+      resolve: (value: any) => this.deliverContinuation(sink => sink.onResult(value as AgentResult)),
+      reject: (error: Error) => log.warn('continuation turn rejected:', error?.message ?? String(error)),
+      onAssistantMessage: (text: string, _blockId?: string, model?: string | null) =>
+        this.deliverContinuation(sink => sink.onAssistantText(text, model)),
+      onToolUse: (name: string, input: any, id: string) =>
+        this.deliverContinuation(sink => sink.onToolUse?.(name, input, id)),
+      onToolResult: (id: string, content: string, isError: boolean) =>
+        this.deliverContinuation(sink => sink.onToolResult?.(id, content, isError)),
+      onContextUsage: (usage: ContextUsage) =>
+        this.deliverContinuation(sink => sink.onContextUsage?.(usage)),
+    };
+  }
+
   /** Open a synthetic turn to capture the spontaneous continuation the CLI emits after a
-   *  background task finishes. Its assistant text / result are routed to continuationSink
-   *  (not to a send() promise — there is no caller awaiting it). */
+   *  background task finishes. Its output is delivered or buffered for continuationSink. */
   private openContinuationTurn(label = '[background-task continuation]'): void {
     this.bgTracker.disarmContinuation();
     const streams = this.createTurnStreams(label);
-    const sink = this.continuationSink;
     this.currentTurn = {
-      resolve: (value: any) => { try { sink?.onResult(value as AgentResult); } catch (e) { log.warn('continuation onResult threw:', (e as Error).message); } },
-      reject: (err: Error) => { log.warn('continuation turn rejected:', err?.message ?? String(err)); },
-      resultData: null,
-      planFilePath: null,
-      enteredPlanMode: false,
-      exitedPlanMode: false,
-      askUserQuestions: [],
-      finalOutput: null,
-      longestOutput: null,
-      turnCount: 0,
-      onProgress: null,
-      onAssistantMessage: sink ? (text: string, _blockId?: string, model?: string | null) => {
-        try { sink.onAssistantText(text, model); }
-        catch (e) { log.warn('continuation onAssistantText threw:', (e as Error).message); }
-      } : null,
-      // A spontaneous background-task continuation has no caller awaiting it and reaches the UI
-      // through the sink's complete messages only — nothing streams a preview for it.
-      onAssistantDelta: null,
-      onToolUse: sink?.onToolUse ? (name: string, input: any, toolUseId: string) => { try { sink.onToolUse!(name, input, toolUseId); } catch {} } : null,
-      onToolResult: sink?.onToolResult ? (toolUseId: string, content: string, isError: boolean) => { try { sink.onToolResult!(toolUseId, content, isError); } catch {} } : null,
-      onCompact: null,
-      onContextUsage: sink?.onContextUsage ? (usage: ContextUsage) => {
-        try { sink.onContextUsage!(usage); }
-        catch (e) { log.warn('continuation onContextUsage threw:', (e as Error).message); }
-      } : null,
-      rawStream: streams.rawStream,
-      txtStream: streams.txtStream,
-      killed: false,
-      spontaneous: true,
+      ...this.continuationCallbacks(),
+      resultData: null, planFilePath: null,
+      enteredPlanMode: false, exitedPlanMode: false,
+      askUserQuestions: [], finalOutput: null, longestOutput: null, turnCount: 0,
+      onProgress: null, onAssistantDelta: null, onCompact: null,
+      rawStream: streams.rawStream, txtStream: streams.txtStream,
+      killed: false, spontaneous: true,
     };
   }
 
@@ -666,21 +674,16 @@ class ClaudeSession {
     this.startTurnIdleTimer();
   }
 
-  private turnCost(data: any): number | null {
-    if (this.preserveUnreportedAccounting && data.total_cost_usd == null) return null;
+  private turnCost(data: any): number {
     const cumulativeCost = data.total_cost_usd ?? 0;
     const turnCost = cumulativeCost - this.cumulativeCostUsd;
     this.cumulativeCostUsd = cumulativeCost;
     return turnCost > 0 ? turnCost : 0;
   }
 
-  private handleResultEvent(turn: PendingTurn, data: any): void {
-    // Reset per-turn capture fields so we never leak stale data from a previous turn
+  private captureTurnAccounting(data: any): number {
     this.lastTokenUsage = null;
     this.lastModelName = null;
-    turn.resultData = { ...data, total_cost_usd: this.turnCost(data) };
-
-    // Capture token data from the result event for cost_record (per-turn, non-cumulative)
     if (data.usage) {
       this.lastTokenUsage = {
         input: data.usage.input_tokens ?? 0,
@@ -689,36 +692,40 @@ class ClaudeSession {
         cacheRead: data.usage.cache_read_input_tokens ?? 0,
       };
     }
-    // modelUsage keys contain the actual model name(s) used
     if (data.modelUsage) {
       const keys = Object.keys(data.modelUsage);
       if (keys.length > 0) this.lastModelName = keys[0];
     }
+    return this.turnCost(data);
+  }
 
-    const result = extractResult(turn.resultData, this.sessionId, false, 0, '',
-      turn.planFilePath, turn.enteredPlanMode, turn.exitedPlanMode, turn.askUserQuestions,
-      turn.finalOutput, turn.longestOutput);
-    // Surface background-task state. pendingBackgroundTasks = still running (the CLI will
-    // spontaneously emit a continuation turn when they finish, routed via continuationSink).
-    // undeliveredBackgroundTasks = work done but task_notification not observed — may arrive
-    // seconds later or never (old-CLI same-turn completions / killed tasks); orchestration
-    // holds the status but arms a grace watchdog for these.
+  private settleResultTurn(
+    turn: PendingTurn, data: any, result: ReturnType<typeof extractResult>,
+  ): void {
     if (result.resolved) {
-      (result.value as AgentResult).pendingBackgroundTasks = this.bgTracker.pendingCount;
-      (result.value as AgentResult).undeliveredBackgroundTasks = this.bgTracker.undeliveredCount;
+      const value = result.value as AgentResult;
+      if (this.preserveUnreportedAccounting) value.costReported = data.total_cost_usd != null;
+      value.pendingBackgroundTasks = this.bgTracker.pendingCount;
+      value.undeliveredBackgroundTasks = this.bgTracker.undeliveredCount;
     }
     this.currentTurn = null;
     if (this.turnIdleTimer) clearTimeout(this.turnIdleTimer);
     this.turnIdleTimer = null;
-
     const formatted = formatEvent(data);
     if (formatted) turn.txtStream.write(formatted + '\n');
     turn.txtStream.write(`\n=== Turn finished at ${new Date().toISOString()} ===\n`);
     turn.rawStream.end();
     turn.txtStream.end();
-
     if (result.resolved) turn.resolve(result.value);
     else turn.reject(result.error);
+  }
+
+  private handleResultEvent(turn: PendingTurn, data: any): void {
+    turn.resultData = { ...data, total_cost_usd: this.captureTurnAccounting(data) };
+    const result = extractResult(turn.resultData, this.sessionId, false, 0, '',
+      turn.planFilePath, turn.enteredPlanMode, turn.exitedPlanMode, turn.askUserQuestions,
+      turn.finalOutput, turn.longestOutput);
+    this.settleResultTurn(turn, data, result);
   }
 
   /** Preserve the complete result carrier that print mode emits as a `user` content block. */
@@ -849,7 +856,8 @@ class ClaudeSession {
       // finished (bgTracker armed) or an injected message was consumed after this turn's result
       // Both make the CLI open a turn of its own — open a synthetic turn for it so its
       // output is routed (to continuationSink) instead of being dropped.
-      if (!this.currentTurn && this.continuationSink && data.type === 'assistant'
+      const canCaptureContinuation = this.continuationSink || this.preserveUnreportedAccounting;
+      if (!this.currentTurn && canCaptureContinuation && data.type === 'assistant'
           && (this.injectionContinuationArmed || routeLine(this.bgTracker, data, false) === 'open-continuation')) {
         const fromInjection = this.injectionContinuationArmed;
         this.injectionContinuationArmed = false;
@@ -1289,17 +1297,21 @@ export class ClaudeAdapter implements AgentAdapter {
             stream.push({ type: 'rate_limit', raw: { message: result.rateLimitMessage } });
           }
           // Emit cost_record from Claude CLI result data (tokens from usage, model from modelUsage)
-          const hasReportableAccounting = session.lastTokenUsage
-            || (!config.preserveUnreportedAccounting && result.total_cost_usd != null);
+          const preserveReportedness = config.preserveUnreportedAccounting === true;
+          const hasReportableAccounting = preserveReportedness
+            ? result.costReported === true || session.lastTokenUsage !== null
+            : result.total_cost_usd != null || session.lastTokenUsage !== null;
           if (hasReportableAccounting) {
             const tu = session.lastTokenUsage;
             stream.push({
               type: 'cost_record',
               provider: 'anthropic',
               model: session.lastModelName || session.modelName || 'unknown',
-              tokens_in: tu?.input ?? 0,
-              tokens_out: tu?.output ?? 0,
-              cost_usd: result.total_cost_usd ?? null,
+              tokens_in: tu?.input ?? (preserveReportedness ? null : 0),
+              tokens_out: tu?.output ?? (preserveReportedness ? null : 0),
+              cost_usd: preserveReportedness && result.costReported !== true
+                ? null
+                : result.total_cost_usd ?? null,
             });
           }
           stream.push({
@@ -1452,6 +1464,7 @@ function makeSessionForTest(
   s.streamDeltaState = createStreamDeltaState();
   s.contextUsageTracker = new ClaudeContextUsageTracker(modelName, autoCompactWindow);
   s.continuationSink = null;
+  s.pendingContinuationDeliveries = [];
   s.pendingInjections = [];
   s.injectionAck = null;
   s.injectionContinuationArmed = false;

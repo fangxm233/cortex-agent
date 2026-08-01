@@ -1,5 +1,5 @@
-// input:  run configuration, adapters, profiles, settings, sinks, wait policy, lifecycle helpers
-// output: attributed runs, observer streams, spawn and wait policy
+// input:  run config, adapters, profiles, sinks, accounting events
+// output: attributed runs, daemon cost defaults, spawn and wait policy
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -448,8 +448,8 @@ class LegacyEventDispatcher {
       backend: this.adapter.backend,
       mode: this.config.mode || 'api',
       source: 'estimate',
-      input_tokens: event.tokens_in,
-      output_tokens: event.tokens_out,
+      input_tokens: event.tokens_in ?? 0,
+      output_tokens: event.tokens_out ?? 0,
       provider: event.provider || undefined,
       model: event.model || undefined,
     }).catch(err => log.warn('recordCost failed:', (err as Error)?.message ?? err));
