@@ -1,6 +1,6 @@
 // input:  UiService, zod operation schemas, and tRPC init
-// output: createAppRouter with query/mutation/subscription routes
-// pos:    Typed tRPC mirror including project notes
+// output: createAppRouter including auth.status
+// pos:    Typed tRPC mirror of UI operations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { TRPCError } from '@trpc/server';
@@ -54,6 +54,7 @@ import {
   executionsLogInput,
   configGetInput,
   configSetInput,
+  authStatusInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,
@@ -143,136 +144,173 @@ function makeMutation<O extends MutateOp, Sch extends z.ZodType>(
 }
 
 // ── AppRouter ─────────────────────────────────────────────────────────────────────
-// Every QueryScope + MutateOp + 2 subscriptions (generic `subscribe` + `executions.log`;
-// `subscribeFilterInput` carries `sessionId` for the S4 `session.message` stream),
-// mirroring the ui-service contract.
-export function createAppRouter(uiService: UiService) {
+
+function projectsRouter(service: UiService) {
   return router({
-    projects: router({
-      list: makeQuery(uiService, 'projects.list', projectsListInput),
-      create: makeMutation(uiService, 'projects.create', projectsCreateInput),
-    }),
-    sessions: router({
-      list: makeQuery(uiService, 'sessions.list', sessionsListInput),
-      transcript: makeQuery(uiService, 'sessions.transcript', sessionsTranscriptInput),
-      pendingInteraction: makeQuery(uiService, 'sessions.pendingInteraction', sessionsPendingInteractionInput),
-      create: makeMutation(uiService, 'sessions.create', sessionsCreateInput),
-      send: makeMutation(uiService, 'sessions.send', sessionsSendInput),
-      cancel: makeMutation(uiService, 'sessions.cancel', sessionsCancelInput),
-      compact: makeMutation(uiService, 'sessions.compact', sessionsCompactInput),
-      setProfile: makeMutation(uiService, 'sessions.setProfile', sessionsSetProfileInput),
-      createAndSend: makeMutation(uiService, 'sessions.createAndSend', sessionsCreateAndSendInput),
-      markRead: makeMutation(uiService, 'sessions.markRead', sessionsMarkReadInput),
-      answerQuestion: makeMutation(uiService, 'sessions.answerQuestion', sessionsAnswerQuestionInput),
-      respondPlan: makeMutation(uiService, 'sessions.respondPlan', sessionsRespondPlanInput),
-      rewind: makeMutation(uiService, 'sessions.rewind', sessionsRewindInput),
-    }),
-    threads: router({
-      list: makeQuery(uiService, 'threads.list', threadsListInput),
-      get: makeQuery(uiService, 'threads.get', threadsGetInput),
-      cancel: makeMutation(uiService, 'threads.cancel', threadsCancelInput),
-    }),
-    tasks: router({
-      list: makeQuery(uiService, 'tasks.list', tasksListInput),
-      verification: makeQuery(uiService, 'tasks.verification', taskVerificationInput),
-      claim: makeMutation(uiService, 'tasks.claim', taskActionInput),
-      unclaim: makeMutation(uiService, 'tasks.unclaim', taskActionInput),
-      complete: makeMutation(uiService, 'tasks.complete', taskCompleteInput),
-      block: makeMutation(uiService, 'tasks.block', taskBlockInput),
-      unblock: makeMutation(uiService, 'tasks.unblock', taskActionInput),
-    }),
-    schedules: router({
-      list: makeQuery(uiService, 'schedules.list', schedulesListInput),
-      pause: makeMutation(uiService, 'schedules.pause', scheduleActionInput),
-      resume: makeMutation(uiService, 'schedules.resume', scheduleActionInput),
-      remove: makeMutation(uiService, 'schedules.remove', scheduleActionInput),
-      add: makeMutation(uiService, 'schedules.add', scheduleAddInput),
-    }),
-    executions: router({
-      list: makeQuery(uiService, 'executions.list', executionsListInput),
-      get: makeQuery(uiService, 'executions.get', executionsGetInput),
-      cancel: makeMutation(uiService, 'executions.cancel', executionsCancelInput),
-      // B2-C: live log stream for one running execution. Opening resolves the log location and
-      // ref-counts the tailer up; closing/aborting rolls it back down (subscribeExecutionLog).
-      log: publicProcedure
-        .input(executionsLogInput)
-        .subscription(async function* ({ input, signal }) {
-          const sub = uiService.subscribeExecutionLog(input.executionId);
-          signal?.addEventListener('abort', () => sub.close());
-          try {
-            for await (const event of sub) {
-              yield event;
-            }
-          } finally {
-            sub.close();
-          }
-        }),
-    }),
-    memory: router({
-      tree: makeQuery(uiService, 'memory.tree', memoryTreeInput),
-      file: makeQuery(uiService, 'memory.file', memoryFileInput),
-    }),
-    approvals: router({
-      list: makeQuery(uiService, 'approvals.list', approvalsListInput),
-      approve: makeMutation(uiService, 'approvals.approve', approvalsApproveInput),
-      reject: makeMutation(uiService, 'approvals.reject', approvalsRejectInput),
-      request: makeMutation(uiService, 'approvals.request', approvalsRequestInput),
-    }),
-    issues: router({
-      list: makeQuery(uiService, 'issues.list', issuesListInput),
-      handle: makeMutation(uiService, 'issues.handle', issueActionInput),
-      delete: makeMutation(uiService, 'issues.delete', issueActionInput),
-    }),
-    notes: router({
-      list: makeQuery(uiService, 'notes.list', notesListInput),
-      add: makeMutation(uiService, 'notes.add', noteAddInput),
-      update: makeMutation(uiService, 'notes.update', noteUpdateInput),
-      setCompleted: makeMutation(uiService, 'notes.setCompleted', noteSetCompletedInput),
-      delete: makeMutation(uiService, 'notes.delete', noteActionInput),
-      clearCompleted: makeMutation(uiService, 'notes.clearCompleted', notesClearCompletedInput),
-    }),
-    cost: router({
-      summary: makeQuery(uiService, 'cost.summary', costSummaryInput),
-    }),
+    list: makeQuery(service, 'projects.list', projectsListInput),
+    create: makeMutation(service, 'projects.create', projectsCreateInput),
+  });
+}
+
+function sessionsRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'sessions.list', sessionsListInput),
+    transcript: makeQuery(service, 'sessions.transcript', sessionsTranscriptInput),
+    pendingInteraction: makeQuery(service, 'sessions.pendingInteraction', sessionsPendingInteractionInput),
+    create: makeMutation(service, 'sessions.create', sessionsCreateInput),
+    send: makeMutation(service, 'sessions.send', sessionsSendInput),
+    cancel: makeMutation(service, 'sessions.cancel', sessionsCancelInput),
+    compact: makeMutation(service, 'sessions.compact', sessionsCompactInput),
+    setProfile: makeMutation(service, 'sessions.setProfile', sessionsSetProfileInput),
+    createAndSend: makeMutation(service, 'sessions.createAndSend', sessionsCreateAndSendInput),
+    markRead: makeMutation(service, 'sessions.markRead', sessionsMarkReadInput),
+    answerQuestion: makeMutation(service, 'sessions.answerQuestion', sessionsAnswerQuestionInput),
+    respondPlan: makeMutation(service, 'sessions.respondPlan', sessionsRespondPlanInput),
+    rewind: makeMutation(service, 'sessions.rewind', sessionsRewindInput),
+  });
+}
+
+function threadsRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'threads.list', threadsListInput),
+    get: makeQuery(service, 'threads.get', threadsGetInput),
+    cancel: makeMutation(service, 'threads.cancel', threadsCancelInput),
+  });
+}
+
+function tasksRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'tasks.list', tasksListInput),
+    verification: makeQuery(service, 'tasks.verification', taskVerificationInput),
+    claim: makeMutation(service, 'tasks.claim', taskActionInput),
+    unclaim: makeMutation(service, 'tasks.unclaim', taskActionInput),
+    complete: makeMutation(service, 'tasks.complete', taskCompleteInput),
+    block: makeMutation(service, 'tasks.block', taskBlockInput),
+    unblock: makeMutation(service, 'tasks.unblock', taskActionInput),
+  });
+}
+
+function schedulesRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'schedules.list', schedulesListInput),
+    pause: makeMutation(service, 'schedules.pause', scheduleActionInput),
+    resume: makeMutation(service, 'schedules.resume', scheduleActionInput),
+    remove: makeMutation(service, 'schedules.remove', scheduleActionInput),
+    add: makeMutation(service, 'schedules.add', scheduleAddInput),
+  });
+}
+
+function executionLogProcedure(service: UiService) {
+  return publicProcedure.input(executionsLogInput).subscription(async function* ({ input, signal }) {
+    const sub = service.subscribeExecutionLog(input.executionId);
+    signal?.addEventListener('abort', () => sub.close());
+    try {
+      for await (const event of sub) yield event;
+    } finally {
+      sub.close();
+    }
+  });
+}
+
+function executionsRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'executions.list', executionsListInput),
+    get: makeQuery(service, 'executions.get', executionsGetInput),
+    cancel: makeMutation(service, 'executions.cancel', executionsCancelInput),
+    log: executionLogProcedure(service),
+  });
+}
+
+function memoryRouter(service: UiService) {
+  return router({
+    tree: makeQuery(service, 'memory.tree', memoryTreeInput),
+    file: makeQuery(service, 'memory.file', memoryFileInput),
+  });
+}
+
+function approvalsRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'approvals.list', approvalsListInput),
+    approve: makeMutation(service, 'approvals.approve', approvalsApproveInput),
+    reject: makeMutation(service, 'approvals.reject', approvalsRejectInput),
+    request: makeMutation(service, 'approvals.request', approvalsRequestInput),
+  });
+}
+
+function issuesRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'issues.list', issuesListInput),
+    handle: makeMutation(service, 'issues.handle', issueActionInput),
+    delete: makeMutation(service, 'issues.delete', issueActionInput),
+  });
+}
+
+function notesRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'notes.list', notesListInput),
+    add: makeMutation(service, 'notes.add', noteAddInput),
+    update: makeMutation(service, 'notes.update', noteUpdateInput),
+    setCompleted: makeMutation(service, 'notes.setCompleted', noteSetCompletedInput),
+    delete: makeMutation(service, 'notes.delete', noteActionInput),
+    clearCompleted: makeMutation(service, 'notes.clearCompleted', notesClearCompletedInput),
+  });
+}
+
+function hooksRouter(service: UiService) {
+  return router({
+    list: makeQuery(service, 'hooks.list', hooksListInput),
+    create: makeMutation(service, 'hooks.create', hooksCreateInput),
+    update: makeMutation(service, 'hooks.update', hooksUpdateInput),
+    setEnabled: makeMutation(service, 'hooks.setEnabled', hooksSetEnabledInput),
+    remove: makeMutation(service, 'hooks.remove', hooksRemoveInput),
+    test: makeMutation(service, 'hooks.test', hooksTestInput),
+  });
+}
+
+function systemRouter(service: UiService) {
+  return router({
+    daemonStatus: makeQuery(service, 'system.daemonStatus', systemDaemonStatusInput),
+    rateLimitStatus: makeQuery(service, 'system.rateLimitStatus', systemRateLimitStatusInput),
+    restart: makeMutation(service, 'system.restart', systemRestartInput),
+  });
+}
+
+function subscribeProcedure(service: UiService) {
+  return publicProcedure.input(subscribeFilterInput).subscription(async function* ({ input, signal }) {
+    const sub = service.subscribe(input);
+    signal?.addEventListener('abort', () => sub.close());
+    try {
+      for await (const event of sub) yield event;
+    } finally {
+      sub.close();
+    }
+  });
+}
+
+export function createAppRouter(service: UiService) {
+  return router({
+    projects: projectsRouter(service),
+    sessions: sessionsRouter(service),
+    threads: threadsRouter(service),
+    tasks: tasksRouter(service),
+    schedules: schedulesRouter(service),
+    executions: executionsRouter(service),
+    memory: memoryRouter(service),
+    approvals: approvalsRouter(service),
+    issues: issuesRouter(service),
+    notes: notesRouter(service),
+    cost: router({ summary: makeQuery(service, 'cost.summary', costSummaryInput) }),
     config: router({
-      get: makeQuery(uiService, 'config.get', configGetInput),
-      set: makeMutation(uiService, 'config.set', configSetInput),
+      get: makeQuery(service, 'config.get', configGetInput),
+      set: makeMutation(service, 'config.set', configSetInput),
     }),
-    hooks: router({
-      list: makeQuery(uiService, 'hooks.list', hooksListInput),
-      create: makeMutation(uiService, 'hooks.create', hooksCreateInput),
-      update: makeMutation(uiService, 'hooks.update', hooksUpdateInput),
-      setEnabled: makeMutation(uiService, 'hooks.setEnabled', hooksSetEnabledInput),
-      remove: makeMutation(uiService, 'hooks.remove', hooksRemoveInput),
-      test: makeMutation(uiService, 'hooks.test', hooksTestInput),
-    }),
-    machines: router({
-      list: makeQuery(uiService, 'machines.list', machinesListInput),
-    }),
-    skills: router({
-      list: makeQuery(uiService, 'skills.list', skillsListInput),
-    }),
-    threadTemplates: router({
-      get: makeQuery(uiService, 'threadTemplates.get', threadTemplatesGetInput),
-    }),
-    system: router({
-      daemonStatus: makeQuery(uiService, 'system.daemonStatus', systemDaemonStatusInput),
-      rateLimitStatus: makeQuery(uiService, 'system.rateLimitStatus', systemRateLimitStatusInput),
-      restart: makeMutation(uiService, 'system.restart', systemRestartInput),
-    }),
-    subscribe: publicProcedure
-      .input(subscribeFilterInput)
-      .subscription(async function* ({ input, signal }) {
-        const sub = uiService.subscribe(input);
-        signal?.addEventListener('abort', () => sub.close());
-        try {
-          for await (const event of sub) {
-            yield event;
-          }
-        } finally {
-          sub.close();
-        }
-      }),
+    auth: router({ status: makeQuery(service, 'auth.status', authStatusInput) }),
+    hooks: hooksRouter(service),
+    machines: router({ list: makeQuery(service, 'machines.list', machinesListInput) }),
+    skills: router({ list: makeQuery(service, 'skills.list', skillsListInput) }),
+    threadTemplates: router({ get: makeQuery(service, 'threadTemplates.get', threadTemplatesGetInput) }),
+    system: systemRouter(service),
+    subscribe: subscribeProcedure(service),
   });
 }
 

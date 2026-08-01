@@ -1,5 +1,5 @@
 // input:  runtime shared Zod schema maps
-// output: operation coverage and config-settings validation tests
+// output: operation coverage including auth.status
 // pos:    Runtime UI-contract schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -11,7 +11,8 @@ const QUERY_SCOPES = [
   'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
   'threads.get', 'tasks.list', 'tasks.verification', 'schedules.list', 'executions.list', 'executions.get',
   'memory.tree', 'memory.file', 'approvals.list', 'issues.list', 'notes.list', 'cost.summary', 'config.get',
-  'hooks.list', 'machines.list', 'skills.list', 'threadTemplates.get', 'system.daemonStatus', 'system.rateLimitStatus',
+  'auth.status', 'hooks.list', 'machines.list', 'skills.list', 'threadTemplates.get', 'system.daemonStatus',
+  'system.rateLimitStatus',
 ] as const;
 
 const MUTATE_OPS = [
@@ -40,13 +41,15 @@ test('every MutateOp has an input schema', () => {
   assert.equal(Object.keys(mutateInputSchemas).length, MUTATE_OPS.length);
 });
 
-test('query schemas accept valid input', () => {
+test('empty query schemas accept empty input', () => {
   assert.deepEqual(queryInputSchemas['projects.list'].parse({}), {});
+  assert.deepEqual(queryInputSchemas['auth.status'].parse({}), {});
   assert.deepEqual(queryInputSchemas['system.rateLimitStatus'].parse({}), {});
-  assert.equal(
-    queryInputSchemas['tasks.list'].parse({ projectId: 'p', status: 'open', actionable: true }).status,
-    'open',
-  );
+});
+
+test('list and detail query schemas accept valid input', () => {
+  const taskInput = { projectId: 'p', status: 'open' as const, actionable: true };
+  assert.equal(queryInputSchemas['tasks.list'].parse(taskInput).status, 'open');
   assert.deepEqual(
     queryInputSchemas['executions.list'].parse({ status: ['running'], limit: 5 }),
     { status: ['running'], limit: 5 },
@@ -55,35 +58,23 @@ test('query schemas accept valid input', () => {
     queryInputSchemas['executions.get'].parse({ executionId: 'exec_1' }),
     { executionId: 'exec_1' },
   );
-  // cost.summary projectId is nullable
   assert.deepEqual(queryInputSchemas['cost.summary'].parse({ projectId: null }), { projectId: null });
-  // threads.get requires a threadId
   assert.deepEqual(queryInputSchemas['threads.get'].parse({ threadId: 'thr_a' }), { threadId: 'thr_a' });
-  assert.deepEqual(
-    queryInputSchemas['threads.get'].parse({ threadId: 'thr_a', includeArtifactContent: true }),
-    { threadId: 'thr_a', includeArtifactContent: true },
-  );
-  // memory.tree requires a projectId
+  const detail = { threadId: 'thr_a', includeArtifactContent: true };
+  assert.deepEqual(queryInputSchemas['threads.get'].parse(detail), detail);
+});
+
+test('project-scoped query schemas accept valid input', () => {
   assert.deepEqual(queryInputSchemas['memory.tree'].parse({ projectId: 'p' }), { projectId: 'p' });
-  // memory.file requires projectId + path
-  assert.deepEqual(
-    queryInputSchemas['memory.file'].parse({ projectId: 'p', path: 'STATUS.md' }),
-    { projectId: 'p', path: 'STATUS.md' },
-  );
-  // sessions.transcript requires a sessionId
-  assert.deepEqual(
-    queryInputSchemas['sessions.transcript'].parse({ sessionId: 'sess-1' }),
-    { sessionId: 'sess-1' },
-  );
-  // issues.list / notes.list require a projectId
+  const memoryFile = { projectId: 'p', path: 'STATUS.md' };
+  assert.deepEqual(queryInputSchemas['memory.file'].parse(memoryFile), memoryFile);
+  const transcript = { sessionId: 'sess-1' };
+  assert.deepEqual(queryInputSchemas['sessions.transcript'].parse(transcript), transcript);
   assert.deepEqual(queryInputSchemas['issues.list'].parse({ projectId: 'p' }), { projectId: 'p' });
   assert.deepEqual(queryInputSchemas['notes.list'].parse({ projectId: 'p' }), { projectId: 'p' });
-  // approvals.list: status optional + enum
   assert.deepEqual(queryInputSchemas['approvals.list'].parse({}), {});
-  assert.deepEqual(
-    queryInputSchemas['approvals.list'].parse({ status: 'pending' }),
-    { status: 'pending' },
-  );
+  const approval = { status: 'pending' as const };
+  assert.deepEqual(queryInputSchemas['approvals.list'].parse(approval), approval);
 });
 
 test('query schemas reject invalid input', () => {

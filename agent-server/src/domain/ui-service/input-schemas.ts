@@ -1,5 +1,5 @@
 // input:  Zod, settings spec, UI-service operation unions
-// output: input schemas/maps including writable settings
+// output: input schemas/maps including authentication status
 // pos:    Runtime validation source for the UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -83,6 +83,8 @@ export const costSummaryInput = z.object({
 });
 
 export const configGetInput = z.object({});
+
+export const authStatusInput = z.object({});
 
 export const machinesListInput = z.object({});
 
@@ -445,6 +447,7 @@ export const queryInputSchemas = {
   'notes.list': notesListInput,
   'cost.summary': costSummaryInput,
   'config.get': configGetInput,
+  'auth.status': authStatusInput,
   'hooks.list': hooksListInput,
   'machines.list': machinesListInput,
   'skills.list': skillsListInput,

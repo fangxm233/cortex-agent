@@ -1,5 +1,5 @@
 // input:  command dependencies, platform adapter, command handlers
-// output: registerCommands dispatcher including exact !compact
+// output: registerCommands dispatcher including auth status
 // pos:    Orchestration command registry and dispatcher
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -28,6 +28,8 @@ import { handleSendFileCmd } from './sendfile.js';
 import { handleDispatchCmd } from './dispatch.js';
 import { handleLangCmd } from './lang.js';
 import { handleRestartCmd } from './restart.js';
+import { createLoginHandler } from './login.js';
+import type { AuthStatusSnapshot } from '@domain/auth/index.js';
 
 const log = createLogger('command-handler');
 
@@ -37,6 +39,7 @@ export interface CommandDeps {
   getExecutionStatusReport?: (() => string) | null;
   commandRouter?: CommandActionRouter;
   compactSessionByChannel?: CompactSessionByChannel | null;
+  getAuthStatus?: (() => Promise<AuthStatusSnapshot>) | null;
 }
 
 type Handler = (channel: string, adapter: PlatformAdapter, trimmedMessage: string, threadAnchorId?: string | null) => Promise<CommandResult | void>;
@@ -88,91 +91,118 @@ const catchHandlerError = (promise: Promise<unknown>, cmd: string, channel: stri
   });
 };
 
-export function registerCommands(deps: CommandDeps) {
+function createHandlerSet(deps: CommandDeps) {
   const router = deps.commandRouter;
-  const handleCancelCmd = createCancelHandler(deps.cancelDispatchedTask ?? null, router);
-  const handleStatusCmd = createStatusHandler(deps.getExecutionStatusReport ?? null, router);
-  const handleCompactCmd = createCompactHandler(deps.compactSessionByChannel ?? null);
-  const handleHelpCmd = createHelpHandler(router);
-  const handleDevicesCmdInteractive = createDevicesHandler(router);
-  const handleTasksCmdInteractive = createTasksHandler(router);
-  const handleResumeCmdInteractive = createResumeHandler(router);
-  const handleProfileCmdInteractive = createProfileHandler(router);
-  const handleAgentCmdInteractive = createAgentHandler(router);
-  const handleRegisterCmdInteractive = createRegisterHandler(router);
-  const handleProjectDirCmdInteractive = createProjectDirHandler(router);
-  const handleScheduleCmd = createScheduleHandler(deps.scheduler, router);
-
-  const EXACT_COMMANDS: Record<string, Handler> = {
-    '!help':     (ch, ad, _msg) => handleHelpCmd(ch, ad),
-    '!new':      (ch, ad, _msg, threadAnchorId) => handleNewCmd(ch, ad, {}, threadAnchorId),
-    '!newq':     (ch, ad, _msg, threadAnchorId) => handleNewCmd(ch, ad, { skipHook: true }, threadAnchorId),
-    '!cancel':   (ch, ad, msg) => handleCancelCmd(ch, ad, msg),
-    '!compact':  (ch) => handleCompactCmd(ch),
-    '!mode':     (ch, ad, _msg) => handleModeCmd(ch, ad),
-    '!skills':   (ch, ad, _msg) => handleSkillsCmd(ch, ad),
-    '!status':   (ch, ad, _msg) => handleStatusCmd(ch, ad),
-    '!projects': (ch, ad, _msg) => handleProjectsCmd(ch, ad),
-    '!resume':   (ch, ad, msg) => handleResumeCmdInteractive(ch, ad, msg),
-    '!tail':     (ch, ad, msg) => handleTailCmd(ch, ad, msg),
-    '!devices':  (ch, ad, _msg) => handleDevicesCmdInteractive(ch, ad),
-    '!clients':  (ch, ad, _msg) => handleDevicesCmdInteractive(ch, ad),
-    '!thread':   (ch, ad, msg) => handleThreadCmd(ch, ad, msg),
-    '!agent':    (ch, ad, msg) => handleAgentCmdInteractive(ch, ad, msg),
-    '!orient':   (ch, ad, _msg) => handleOrientCmd(ch, ad),
-    '!lang':     (ch, ad, msg) => handleLangCmd(ch, ad, msg),
-    '!restart':  (ch, ad, msg) => handleRestartCmd(ch, ad, msg),
+  return {
+    router,
+    cancel: createCancelHandler(deps.cancelDispatchedTask ?? null, router),
+    status: createStatusHandler(deps.getExecutionStatusReport ?? null, router),
+    compact: createCompactHandler(deps.compactSessionByChannel ?? null),
+    help: createHelpHandler(router),
+    devices: createDevicesHandler(router),
+    tasks: createTasksHandler(router),
+    resume: createResumeHandler(router),
+    profile: createProfileHandler(router),
+    agent: createAgentHandler(router),
+    register: createRegisterHandler(router),
+    projectDir: createProjectDirHandler(router),
+    schedule: createScheduleHandler(deps.scheduler, router),
+    login: createLoginHandler(deps.getAuthStatus ?? undefined),
   };
+}
 
-  const PREFIX_COMMANDS: { prefix: string; handler: Handler }[] = [
-    { prefix: '!cancel',     handler: handleCancelCmd },
-    { prefix: '!backend',    handler: handleBackendCmd },
-    { prefix: '!model',      handler: handleModelCmd },
-    { prefix: '!profile',    handler: handleProfileCmdInteractive },
-    { prefix: '!cost',       handler: handleCostCmd },
-    { prefix: '!budget',     handler: handleBudgetCmd },
-    { prefix: '!schedule',   handler: handleScheduleCmd },
-    { prefix: '!resume',     handler: handleResumeCmdInteractive },
-    { prefix: '!tail',       handler: handleTailCmd },
-    { prefix: '!tasks',      handler: handleTasksCmdInteractive },
+type HandlerSet = ReturnType<typeof createHandlerSet>;
+type PrefixHandler = { prefix: string; handler: Handler };
+
+function createExactCommands(h: HandlerSet): Record<string, Handler> {
+  return {
+    '!help': (ch, ad) => h.help(ch, ad),
+    '!new': (ch, ad, _msg, anchor) => handleNewCmd(ch, ad, {}, anchor),
+    '!newq': (ch, ad, _msg, anchor) => handleNewCmd(ch, ad, { skipHook: true }, anchor),
+    '!cancel': (ch, ad, msg) => h.cancel(ch, ad, msg),
+    '!compact': (ch) => h.compact(ch),
+    '!mode': (ch, ad) => handleModeCmd(ch, ad),
+    '!skills': (ch, ad) => handleSkillsCmd(ch, ad),
+    '!status': (ch, ad) => h.status(ch, ad),
+    '!projects': (ch, ad) => handleProjectsCmd(ch, ad),
+    '!resume': (ch, ad, msg) => h.resume(ch, ad, msg),
+    '!tail': (ch, ad, msg) => handleTailCmd(ch, ad, msg),
+    '!devices': (ch, ad) => h.devices(ch, ad),
+    '!clients': (ch, ad) => h.devices(ch, ad),
+    '!thread': (ch, ad, msg) => handleThreadCmd(ch, ad, msg),
+    '!agent': (ch, ad, msg) => h.agent(ch, ad, msg),
+    '!orient': (ch, ad) => handleOrientCmd(ch, ad),
+    '!lang': (ch, ad, msg) => handleLangCmd(ch, ad, msg),
+    '!login': (_ch, _ad, msg) => h.login(msg),
+    '!restart': (ch, ad, msg) => handleRestartCmd(ch, ad, msg),
+  };
+}
+
+function createPrefixCommands(h: HandlerSet): PrefixHandler[] {
+  return [
+    { prefix: '!cancel', handler: h.cancel },
+    { prefix: '!backend', handler: handleBackendCmd },
+    { prefix: '!model', handler: handleModelCmd },
+    { prefix: '!profile', handler: h.profile },
+    { prefix: '!cost', handler: handleCostCmd },
+    { prefix: '!budget', handler: handleBudgetCmd },
+    { prefix: '!schedule', handler: h.schedule },
+    { prefix: '!resume', handler: h.resume },
+    { prefix: '!tail', handler: handleTailCmd },
+    { prefix: '!tasks', handler: h.tasks },
     { prefix: '!nvidia-smi', handler: handleNvidiaSmiCmd },
-    { prefix: '!nvtop',      handler: handleNvtopCmd },
-    { prefix: '!project-dir', handler: handleProjectDirCmdInteractive },
-    { prefix: '!register',   handler: handleRegisterCmdInteractive },
+    { prefix: '!nvtop', handler: handleNvtopCmd },
+    { prefix: '!project-dir', handler: h.projectDir },
+    { prefix: '!register', handler: h.register },
     { prefix: '!unregister', handler: handleUnregisterCmd },
-    { prefix: '!thread',     handler: handleThreadCmd },
-    { prefix: '!agent',      handler: handleAgentCmdInteractive },
-    { prefix: '!sendFile',   handler: handleSendFileCmd },
-    { prefix: '!dispatch',  handler: handleDispatchCmd as Handler },
-    { prefix: '!lang',       handler: handleLangCmd },
+    { prefix: '!thread', handler: handleThreadCmd },
+    { prefix: '!agent', handler: h.agent },
+    { prefix: '!sendFile', handler: handleSendFileCmd },
+    { prefix: '!dispatch', handler: handleDispatchCmd as Handler },
+    { prefix: '!lang', handler: handleLangCmd },
+    { prefix: '!login ', handler: (_ch, _ad, msg) => h.login(msg) },
   ];
+}
 
-  const dispatchFn = function dispatchCommand(trimmedMessage: string | undefined, channel: string, adapter: PlatformAdapter, threadAnchorId?: string | null): boolean {
-    if (!trimmedMessage) return false;
+function executeMatch(
+  match: PrefixHandler,
+  message: string,
+  channel: string,
+  adapter: PlatformAdapter,
+  anchor?: string | null,
+): true {
+  const promise = executeCommand(match.handler, channel, adapter, message, match.prefix, anchor);
+  catchHandlerError(promise, match.prefix, channel, adapter, anchor);
+  return true;
+}
 
-    const exact = EXACT_COMMANDS[trimmedMessage];
-    if (exact) {
-      catchHandlerError(executeCommand(exact, channel, adapter, trimmedMessage, trimmedMessage, threadAnchorId), trimmedMessage, channel, adapter, threadAnchorId);
-      return true;
-    }
+function dispatchUnknown(message: string, channel: string, adapter: PlatformAdapter): boolean {
+  if (!message.startsWith('!')) return false;
+  const cmd = message.split(/\s+/)[0];
+  const destination: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
+  adapter.postMessage(destination, { text: `${Icons.error} ${t('cmd.unknown', { cmd })}` });
+  return true;
+}
 
-    for (const { prefix, handler } of PREFIX_COMMANDS) {
-      if (trimmedMessage.startsWith(prefix)) {
-        catchHandlerError(executeCommand(handler, channel, adapter, trimmedMessage, prefix, threadAnchorId), prefix, channel, adapter, threadAnchorId);
-        return true;
-      }
-    }
-
-    if (trimmedMessage.startsWith('!')) {
-      const cmd = trimmedMessage.split(/\s+/)[0];
-      const cmdDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-      adapter.postMessage(cmdDest, { text: `${Icons.error} ${t('cmd.unknown', { cmd })}` });
-      return true;
-    }
-    return false;
+function createDispatcher(exact: Record<string, Handler>, prefixes: PrefixHandler[]) {
+  return function dispatchCommand(
+    message: string | undefined,
+    channel: string,
+    adapter: PlatformAdapter,
+    anchor?: string | null,
+  ): boolean {
+    if (!message) return false;
+    const exactHandler = exact[message];
+    if (exactHandler) return executeMatch({ prefix: message, handler: exactHandler }, message, channel, adapter, anchor);
+    const prefix = prefixes.find(item => message.startsWith(item.prefix));
+    if (prefix) return executeMatch(prefix, message, channel, adapter, anchor);
+    return dispatchUnknown(message, channel, adapter);
   };
+}
 
-  // Attach router as a property for callers that need it (app.ts)
-  (dispatchFn as any).router = router;
-  return dispatchFn;
+export function registerCommands(deps: CommandDeps) {
+  const handlers = createHandlerSet(deps);
+  const dispatch = createDispatcher(createExactCommands(handlers), createPrefixCommands(handlers));
+  (dispatch as any).router = handlers.router;
+  return dispatch;
 }

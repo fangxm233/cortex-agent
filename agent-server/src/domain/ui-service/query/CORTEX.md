@@ -14,6 +14,7 @@ Handlers return DTOs only and never change state.
 | projects.ts | query | lists projects and their conduits |
 | memory.ts | query | browses and reads project memory files |
 | approvals.ts | query | lists pending approval entries |
+| auth.ts | query | returns backend authentication status |
 | issues.ts | query | lists a project's issue entries |
 | notes.ts | query | lists a project's private notes |
 | cost.ts | query | reports the cost summary |

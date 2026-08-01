@@ -1,5 +1,5 @@
-// input:  Node test runner + command-handlers + deps
-// output: !cost/!cancel/!compact/!status/!schedule/!nvtop tests
+// input:  Node test runner + command handlers + auth fixture
+// output: Bang-command routing including !login status
 // pos:    Command handler regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -22,6 +22,8 @@ import { runningExecutions } from '../src/core/running-executions.js';
 import * as executionRegistry from '../src/domain/executions/registry.js';
 import { conduitQueues } from '../src/orchestration/conduit-queue.js';
 import { threadStore } from '../src/store/thread-repo.js';
+import { getLocale, setLocale } from '../src/core/i18n.js';
+import type { AuthStatusSnapshot } from '../src/domain/auth/auth-status.js';
 
 beforeAll(() => {
   _testSetRegistry({ testbox: { cortexPath: '/tmp/test', gpuCount: 2 } });
@@ -130,6 +132,55 @@ test('!status reports running executions from injected registry summary', async 
 
   assert.equal((adapter.posted[0].destination as { conduit: string }).conduit, 'C123');
   assert.equal(adapter.posted[0].content.text, 'Running executions: 2\n• local C1 proj-a running\n• dispatch lab:t123 proj-b running');
+});
+
+const COMMAND_AUTH_SNAPSHOT: AuthStatusSnapshot = {
+  generatedAt: '2030-01-01T00:00:00.000Z',
+  accounts: [{
+    backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['oauth'],
+    authType: 'oauth', state: 'logged-in', source: 'credentials.json', expiresAt: null,
+    refreshExpiresAt: null, inUse: true, credentials: [{
+      authType: 'oauth', state: 'logged-in', source: 'credentials.json', expiresAt: null,
+      refreshExpiresAt: null, manageable: false,
+    }],
+  }],
+  piRuntime: { available: false, version: null, entry: null, error: 'pi executable not found' },
+};
+
+test('!login and !login status share the localized authentication summary and appear in help', async (t) => {
+  const previousLocale = getLocale();
+  t.onTestFinished(() => setLocale(previousLocale));
+  setLocale('zh');
+  let calls = 0;
+  const adapter = new MockAdapter();
+  const dispatchCommand = createCommandDispatcher({
+    scheduler: null,
+    getAuthStatus: async () => { calls += 1; return COMMAND_AUTH_SNAPSHOT; },
+  });
+
+  assert.equal(dispatchCommand('!login', 'C-auth', adapter), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(dispatchCommand('!login status', 'C-auth', adapter), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(dispatchCommand('!help', 'C-auth', adapter), true);
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(calls, 2);
+  assert.match(adapter.posted[0].content.text, /认证状态/);
+  assert.equal(adapter.posted[1].content.text, adapter.posted[0].content.text);
+  assert.match(adapter.posted[2].content.text, /!login/);
+});
+
+test('!login rejects unsupported arguments with localized usage', async () => {
+  const adapter = new MockAdapter();
+  const dispatchCommand = createCommandDispatcher({
+    scheduler: null,
+    getAuthStatus: async () => COMMAND_AUTH_SNAPSHOT,
+  });
+
+  assert.equal(dispatchCommand('!login now', 'C-auth', adapter), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.match(adapter.posted[0].content.text, /!login \[status\]/);
 });
 
 test('!schedule add without --profile fixes task profile to defaultProfile', async () => {

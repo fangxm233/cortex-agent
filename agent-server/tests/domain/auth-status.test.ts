@@ -1,5 +1,5 @@
-// input:  temporary auth files and installed PI fixtures
-// output: authentication snapshot behavior contracts
+// input:  temporary auth files, PI fixtures, and locale state
+// output: authentication snapshot and summary contracts
 // pos:    Backend authentication status regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,9 +10,11 @@ import * as path from 'node:path';
 import { test } from 'vitest';
 import { getSavedApiEnv } from '../../src/domain/agents/config.js';
 import {
+  formatAuthStatusSummary,
   getAuthStatus,
   type AuthStatusSnapshot,
 } from '../../src/domain/auth/auth-status.js';
+import { getLocale, setLocale } from '../../src/core/i18n.js';
 import { loadPiRuntime, type PiRuntimeLoadResult } from '../../src/domain/auth/pi-runtime.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -300,4 +302,54 @@ test('PI absence and import failure degrade without suppressing Claude status', 
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }
+});
+
+const SUMMARY_FIXTURE: AuthStatusSnapshot = {
+  generatedAt: '2030-01-01T00:00:00.000Z',
+  accounts: [
+    {
+      backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['api_key', 'oauth'],
+      authType: 'oauth', state: 'expiring', source: 'credentials.json',
+      expiresAt: '2030-01-02T00:00:00.000Z', refreshExpiresAt: null, inUse: true,
+      credentials: [{
+        authType: 'oauth', state: 'expiring', source: 'credentials.json',
+        expiresAt: '2030-01-02T00:00:00.000Z', refreshExpiresAt: null, manageable: false,
+      }],
+    },
+    {
+      backend: 'pi', provider: 'deepseek', label: 'DeepSeek', capabilities: ['api_key'],
+      authType: 'api_key', state: 'logged-in', source: 'stored', expiresAt: null,
+      refreshExpiresAt: null, inUse: false, credentials: [{
+        authType: 'api_key', state: 'logged-in', source: 'stored', expiresAt: null,
+        refreshExpiresAt: null, manageable: true,
+      }],
+    },
+    {
+      backend: 'pi', provider: 'unused', label: 'Unused Provider', capabilities: ['api_key'],
+      authType: null, state: 'logged-out', source: null, expiresAt: null,
+      refreshExpiresAt: null, inUse: false, credentials: [],
+    },
+  ],
+  piRuntime: { available: true, version: '9.8.7', entry: '/fixture/pi.js', error: null },
+};
+
+test('formatAuthStatusSummary shares a concise secret-free bilingual account view', (t) => {
+  const previousLocale = getLocale();
+  t.onTestFinished(() => setLocale(previousLocale));
+
+  setLocale('en');
+  const english = formatAuthStatusSummary(SUMMARY_FIXTURE);
+  assert.match(english, /Authentication status/);
+  assert.match(english, /Anthropic.*Expiring/s);
+  assert.match(english, /DeepSeek.*Logged in/s);
+  assert.match(english, /1 logged-out provider hidden/);
+  assert.doesNotMatch(english, /Unused Provider|fixture-secret/);
+
+  setLocale('zh');
+  const chinese = formatAuthStatusSummary(SUMMARY_FIXTURE);
+  assert.match(chinese, /认证状态/);
+  assert.match(chinese, /Anthropic.*即将过期/s);
+  assert.match(chinese, /DeepSeek.*已登录/s);
+  assert.match(chinese, /已隐藏 1 个未登录 provider/);
+  assert.doesNotMatch(chinese, /Unused Provider|fixture-secret/);
 });
