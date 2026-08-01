@@ -1,6 +1,6 @@
-// input:  tmux command argv (string[])
-// output: TmuxControl class with hasSession / newSession / killSession / sendKeys / pasteText / capturePane / listSessions
-// pos:    Foundational utility for Claude TUI adapter (DR-0012 Phase 1) — wraps tmux CLI behind an injectable exec
+// input:  tmux command argv, filesystem, temp directory
+// output: TmuxControl and private launcher/paste staging
+// pos:    Shared tmux command wrapper for Claude TUI sessions
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { spawnSync } from 'child_process';
@@ -124,7 +124,7 @@ export class TmuxControl {
   pasteText(name: string, text: string): void {
     const bufName = `cortex-${crypto.randomBytes(6).toString('hex')}`;
     const tmpfile = path.join(os.tmpdir(), `cortex-tmux-paste-${bufName}.txt`);
-    fs.writeFileSync(tmpfile, text, 'utf8');
+    fs.writeFileSync(tmpfile, text, { encoding: 'utf8', mode: 0o600 });
     try {
       const r1 = this.exec(['load-buffer', '-b', bufName, tmpfile]);
       if (r1.status !== 0) {

@@ -8,6 +8,8 @@ import assert from 'node:assert/strict';
 import { EventBus } from '../src/events/event-bus.js';
 import type { CortexEvent } from '../src/events/event-types.js';
 import { MockAdapter } from '../src/platform/testing.js';
+import * as interactionHandlers from '../src/orchestration/interactions/interaction-handlers.js';
+import * as askUserQuestion from '../src/orchestration/interactions/ask-user-question.js';
 
 // ── (1) handleModalSubmit publishes ask-user.answered when all answers collected ──
 
@@ -15,21 +17,18 @@ test('handleModalSubmit publishes ask-user.answered with correct payload (hook m
   const bus = new EventBus();
   const mockAdapter = new MockAdapter();
 
-  // Import modules — module-level singletons are shared within a test run;
-  // re-calling init functions resets _bus / _adapter as needed.
-  const mod = await import('../src/orchestration/interactions/interaction-handlers.js');
-  const askUser = await import('../src/orchestration/interactions/ask-user-question.js');
-
-  mod.initInteractionHandlers(bus);
-  mod.registerInteractionHandlers(mockAdapter);
+  // Module-level singletons are shared within a test run; re-calling the
+  // initializers resets the bus and adapter for this isolated test file.
+  interactionHandlers.initInteractionHandlers(bus);
+  interactionHandlers.registerInteractionHandlers(mockAdapter);
 
   // Hook-mode group: tryResolveHook returns true (resolver registered) so
   // dispatchAskUserQuestionResume is NOT reached — avoids agent-lifecycle.ts deps.
-  const group = askUser.createHookGroup('req-smoke', 'C_SMOKE', 'sess-smoke', [
+  const group = askUserQuestion.createHookGroup('req-smoke', 'C_SMOKE', 'sess-smoke', [
     { header: 'Approach', question: 'Which approach?', options: [{ label: 'Option A', description: 'First choice' }] },
   ]);
   // Register resolver so tryResolveHook can succeed
-  askUser.registerHookResolver('req-smoke', () => {});
+  askUserQuestion.registerHookResolver('req-smoke', () => {});
 
   const received: CortexEvent[] = [];
   bus.subscribe('ask-user.answered', (e) => { received.push(e); });

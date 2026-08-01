@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from cortex_bench_harness.proxy import ProxyBudget, fill_proxy_manifest, start_trial_proxy
 from synthetic import SyntheticUpstream
 
@@ -31,10 +33,49 @@ def test_fills_h3_proxy_block_without_credentials(tmp_path: Path) -> None:
     assert handle.dummy_token.encode() not in persisted
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("schema_version", "wrong/1", "manifest must use"),
+        ("trial_id", "other-trial", "trial_id does not match"),
+        ("proxy", {"existing": True}, "already populated"),
+    ],
+)
+def test_rejects_conflicting_h3_manifest(
+    tmp_path: Path, field: str, value: object, message: str,
+) -> None:
+    manifest_path = tmp_path / "cortex-bench-harness-manifest.json"
+    document = _base_manifest()
+    document[field] = value
+    manifest_path.write_text(json.dumps(document))
+    with SyntheticUpstream() as upstream:
+        handle = _start_proxy(tmp_path, upstream.base_url, datetime(2099, 1, 1, tzinfo=UTC))
+        try:
+            with pytest.raises(ValueError, match=message):
+                fill_proxy_manifest(manifest_path, handle)
+        finally:
+            handle.stop()
+    assert json.loads(manifest_path.read_text()) == document
+
+
 def _base_manifest() -> dict[str, object]:
     return {
         "schema_version": "cortex-bench-harness-manifest/1",
+        "created_at": "2099-01-01T00:00:00Z",
+        "root_run_id": "root-manifest",
         "trial_id": "trial-manifest",
+        "arm": "cortex-direct",
+        "wheel": {"filename": "harness.whl", "sha256": "a" * 64},
+        "lockfile": {"path": "benchmark/harness/uv.lock", "sha256": "b" * 64},
+        "python": {"version": "3.12.13"},
+        "harbor": {"distribution": "harbor", "version": "0.20.0"},
+        "container": {"image_ref": "debian@sha256:test", "image_digest": None,
+                      "image_size_bytes": 28242677},
+        "resolved_cwd": {"pwd_raw": "/app", "realpath": "/app", "exists": True},
+        "cortex_cli": {"version": None},
+        "model_execution_identity_hash": None,
+        "role_tool_surface_hash": None,
+        "bundle_manifest_hash": None,
         "proxy": None,
     }
 

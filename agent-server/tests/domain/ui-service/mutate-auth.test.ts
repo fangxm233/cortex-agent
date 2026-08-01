@@ -1,5 +1,5 @@
 // input:  auth UI-service handlers, stub login service, and EventBus audit sink
-// output: login mutation lifecycle and secret-redaction regressions
+// output: auth lifecycle, conflict, and secret-redaction regressions
 // pos:    Tests the transport-neutral Web authentication write surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -97,6 +97,24 @@ test('auth mutations map missing and inactive flows without exposing response va
     ok: false, code: 'already-terminal', message: 'Login flow is not active.',
   });
   assert.ok(!JSON.stringify([missing, inactive]).includes('never-log-me'));
+});
+
+test('duplicate auth response is a client error instead of an internal failure', async () => {
+  const fixture = makeAuthService();
+  fixture.service.respond = async () => {
+    throw new Error('Login flow is not waiting for a prompt response.');
+  };
+  const result = await handleAuthRespondPrompt(
+    { authLogin: fixture.service } as UiServiceDeps,
+    { flowId: 'flow-web', value: 'duplicate-secret' },
+  );
+
+  assert.deepEqual(result, {
+    ok: false,
+    code: 'invalid-args',
+    message: 'Login flow is not waiting for a prompt response.',
+  });
+  assert.ok(!JSON.stringify(result).includes('duplicate-secret'));
 });
 
 test('Web auth mutations cannot answer or cancel a chat-owned flow', async () => {

@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 import secrets
+import socket
 import threading
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -16,7 +17,7 @@ from typing import Mapping, cast
 from urllib.parse import urlsplit
 
 from .models import ProxyBudget, ProxyMetadata, ProxyUsage, decimal_text, utc_text
-from .upstream import HOP_HEADERS, FixedUpstream, UpstreamResult
+from .upstream import HOP_HEADERS, FixedUpstream, UpstreamAttemptError, UpstreamResult
 
 
 class ProxyState:
@@ -31,6 +32,7 @@ class ProxyState:
         self.log_path = log_path
         self.request_lock = threading.Lock()
         self.active = True
+        self.expired = False
         self.request_count = 0
         self.input_tokens = 0
         self.output_tokens = 0
@@ -57,7 +59,7 @@ class ProxyState:
         return None
 
     def deadline_expired(self) -> bool:
-        return datetime.now(UTC) >= self.deadline.astimezone(UTC)
+        return self.expired or datetime.now(UTC) >= self.deadline.astimezone(UTC)
 
     def remaining_seconds(self) -> float:
         remaining = self.deadline.astimezone(UTC) - datetime.now(UTC)
@@ -65,6 +67,9 @@ class ProxyState:
 
     def reserve(self) -> None:
         self.budget_consumed_usd += self.budget.max_request_cost_usd
+
+    def expire(self) -> None:
+        self.expired = True
 
     def deactivate(self) -> None:
         self.active = False
@@ -79,28 +84,84 @@ class ProxyState:
 
     def record(self, usage: ProxyUsage) -> str | None:
         if not usage.accounted:
+            error = self.record_attempt(
+                "budget_accounting_unavailable", True, usage.upstream_model)
             self.active = False
-            return "budget_accounting_unavailable"
+            return error or "budget_accounting_unavailable"
         request_cost = self.budget.cost(usage.input_tokens, usage.output_tokens)
-        self._add_usage(usage, request_cost)
-        if request_cost > self.budget.max_request_cost_usd:
+        outcome = self._usage_outcome(request_cost)
+        record = self._usage_record(usage, request_cost, outcome)
+        if not self._persist(record):
+            return "audit_log_unavailable"
+        self._commit_usage(usage, request_cost)
+        if outcome is not None:
             self.active = False
+        return outcome
+
+    def record_attempt(
+        self, outcome: str, retain_reservation: bool,
+        upstream_model: str | None = None,
+    ) -> str | None:
+        record = self._attempt_record(outcome, upstream_model)
+        if not self._persist(record):
+            return "audit_log_unavailable"
+        self.request_count += 1
+        if not retain_reservation:
+            self.budget_consumed_usd -= self.budget.max_request_cost_usd
+        return None
+
+    def _usage_outcome(self, request_cost: Decimal) -> str | None:
+        if request_cost > self.budget.max_request_cost_usd:
             return "budget_accounting_exceeded"
         return None
 
-    def _add_usage(self, usage: ProxyUsage, request_cost: Decimal) -> None:
+    def _usage_record(
+        self, usage: ProxyUsage, request_cost: Decimal, outcome: str | None,
+    ) -> dict[str, object]:
+        record = self._record(
+            self.request_count + 1, self.input_tokens + usage.input_tokens,
+            self.output_tokens + usage.output_tokens, self.cost_usd + request_cost,
+            usage.upstream_model,
+        )
+        if outcome is not None:
+            record["outcome"] = outcome
+        return record
+
+    def _attempt_record(
+        self, outcome: str, upstream_model: str | None,
+    ) -> dict[str, object]:
+        record = self._record(
+            self.request_count + 1, self.input_tokens, self.output_tokens,
+            self.cost_usd, upstream_model,
+        )
+        record["outcome"] = outcome
+        return record
+
+    def _record(
+        self, count: int, input_tokens: int, output_tokens: int,
+        cost_usd: Decimal, upstream_model: str | None,
+    ) -> dict[str, object]:
+        return {
+            "request_count": count,
+            "tokens": {"input": input_tokens, "output": output_tokens,
+                       "total": input_tokens + output_tokens},
+            "cost_usd": decimal_text(cost_usd),
+            "upstream_model": upstream_model,
+        }
+
+    def _persist(self, record: Mapping[str, object]) -> bool:
+        try:
+            _append_log(self.log_path, record)
+            return True
+        except OSError:
+            self.active = False
+            return False
+
+    def _commit_usage(self, usage: ProxyUsage, request_cost: Decimal) -> None:
         self.request_count += 1
         self.input_tokens += usage.input_tokens
         self.output_tokens += usage.output_tokens
         self.cost_usd += request_cost
-        record = {
-            "request_count": self.request_count,
-            "tokens": {"input": self.input_tokens, "output": self.output_tokens,
-                       "total": self.input_tokens + self.output_tokens},
-            "cost_usd": decimal_text(self.cost_usd),
-            "upstream_model": usage.upstream_model,
-        }
-        _append_log(self.log_path, record)
 
 
 class TrialHttpServer(ThreadingHTTPServer):
@@ -111,51 +172,136 @@ class TrialHttpServer(ThreadingHTTPServer):
     ) -> None:
         self.state = state
         self.upstream = upstream
+        self._client_condition = threading.Condition()
+        self._clients: set[socket.socket] = set()
+        self._body_clients: set[socket.socket] = set()
         super().__init__(address, TrialProxyHandler)
+
+    @property
+    def active_client_count(self) -> int:
+        with self._client_condition:
+            return len(self._clients)
+
+    @property
+    def body_client_count(self) -> int:
+        with self._client_condition:
+            return len(self._body_clients)
+
+    def register_client(self, client: socket.socket) -> None:
+        with self._client_condition:
+            self._clients.add(client)
+
+    def unregister_client(self, client: socket.socket) -> None:
+        with self._client_condition:
+            self._clients.discard(client)
+            self._body_clients.discard(client)
+            self._client_condition.notify_all()
+
+    def mark_body_read(self, client: socket.socket, active: bool) -> None:
+        with self._client_condition:
+            target = self._body_clients.add if active else self._body_clients.discard
+            target(client)
+
+    def expire_route(self) -> None:
+        self.state.expire()
+        self.upstream.deactivate()
+        self._shutdown_clients(self._body_clients, socket.SHUT_RD, close=False)
+
+    def close_active_clients(self) -> None:
+        self.upstream.deactivate()
+        self._shutdown_clients(self._clients, socket.SHUT_RDWR, close=True)
+
+    def wait_for_no_clients(self, timeout: float) -> bool:
+        with self._client_condition:
+            return self._client_condition.wait_for(lambda: not self._clients, timeout)
+
+    def _shutdown_clients(
+        self, selected: set[socket.socket], how: int, *, close: bool,
+    ) -> None:
+        with self._client_condition:
+            clients = tuple(selected)
+        for client in clients:
+            try:
+                client.shutdown(how)
+                if close:
+                    client.close()
+            except OSError:
+                continue
+
+    def handle_error(self, _request: object, _client_address: object) -> None:
+        return
 
 
 class TrialProxyHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
+    def handle(self) -> None:
+        server = cast(TrialHttpServer, self.server)
+        server.register_client(self.request)
+        try:
+            super().handle()
+        finally:
+            server.unregister_client(self.request)
+
     def do_POST(self) -> None:
         server = cast(TrialHttpServer, self.server)
+        error = self._admission_error(server.state)
+        if error is not None:
+            self._send_error(*error)
+            return
+        if not _valid_request_target(self.path):
+            self._send_error(400, "invalid_request_target")
+            return
+        body = self._read_body(server)
+        if body is not None:
+            self._forward_reserved(server, body)
+
+    def _forward_reserved(self, server: TrialHttpServer, body: bytes) -> None:
         with server.state.request_lock:
             error = server.state.admission_error(
                 self.client_address[0], self.headers.get("authorization"))
             if error is not None:
                 self._send_error(*error)
                 return
-            if not _valid_request_target(self.path):
-                self._send_error(400, "invalid_request_target")
-                return
-            self._forward(server)
+            server.state.reserve()
+            self._forward(server, body)
 
-    def _forward(self, server: TrialHttpServer) -> None:
-        body = self._read_body()
-        if body is None or not self._reserve_if_live(server.state):
-            return
+    def _admission_error(self, state: ProxyState):
+        with state.request_lock:
+            return state.admission_error(
+                self.client_address[0], self.headers.get("authorization"))
+
+    def _forward(self, server: TrialHttpServer, body: bytes) -> None:
         try:
             response = server.upstream.request(
                 self.path, dict(self.headers.items()), body,
                 server.state.remaining_seconds(),
             )
-        except (OSError, ValueError):
-            self._send_lifecycle_or_upstream_error(server.state)
+        except UpstreamAttemptError as error:
+            self._handle_upstream_failure(server.state, error)
+            return
+        except ValueError:
+            self._handle_upstream_failure(server.state, UpstreamAttemptError(False))
             return
         self._finish_response(server.state, response)
 
-    def _reserve_if_live(self, state: ProxyState) -> bool:
-        error = state.lifecycle_error()
-        if error is not None:
-            self._send_error(*error)
-            return False
-        state.reserve()
-        return True
+    def _handle_upstream_failure(
+        self, state: ProxyState, failure: UpstreamAttemptError,
+    ) -> None:
+        lifecycle_error = state.lifecycle_error()
+        outcome = lifecycle_error[1] if lifecycle_error else "upstream_unavailable"
+        audit_error = state.record_attempt(
+            outcome, failure.may_have_reached_upstream)
+        if audit_error is not None:
+            self._send_error(500, audit_error)
+            return
+        self._send_error(*(lifecycle_error or (502, "upstream_unavailable")))
 
     def _finish_response(self, state: ProxyState, response: UpstreamResult) -> None:
         accounting_error = state.record(response.usage)
         if accounting_error is not None:
-            self._send_error(502, accounting_error)
+            status = 500 if accounting_error == "audit_log_unavailable" else 502
+            self._send_error(status, accounting_error)
             return
         lifecycle_error = state.lifecycle_error()
         if lifecycle_error is not None:
@@ -163,11 +309,25 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
             return
         self._send_upstream(response)
 
-    def _send_lifecycle_or_upstream_error(self, state: ProxyState) -> None:
-        error = state.lifecycle_error()
-        self._send_error(*(error or (502, "upstream_unavailable")))
+    def _read_body(self, server: TrialHttpServer) -> bytes | None:
+        length = self._content_length()
+        if length is None:
+            return None
+        server.mark_body_read(self.connection, True)
+        self.connection.settimeout(server.state.remaining_seconds())
+        try:
+            body = self.rfile.read(length)
+        except OSError:
+            self._send_error(*(server.state.lifecycle_error() or (408, "request_body_timeout")))
+            return None
+        finally:
+            server.mark_body_read(self.connection, False)
+        if len(body) != length:
+            self._send_error(*(server.state.lifecycle_error() or (400, "request_body_incomplete")))
+            return None
+        return body
 
-    def _read_body(self) -> bytes | None:
+    def _content_length(self) -> int | None:
         try:
             length = int(self.headers.get("content-length", ""))
         except ValueError:
@@ -176,7 +336,7 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         if length < 0:
             self._send_error(400, "content_length_required")
             return None
-        return self.rfile.read(length)
+        return length
 
     def _send_upstream(self, response: UpstreamResult) -> None:
         self.send_response(response.status, response.reason)
@@ -191,12 +351,15 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
 
     def _send_error(self, status: int, reason: str) -> None:
         payload = json.dumps({"error": reason}, separators=(",", ":")).encode()
-        self.send_response(status)
-        self.send_header("content-type", "application/json")
-        self.send_header("content-length", str(len(payload)))
-        self.send_header("connection", "close")
-        self.end_headers()
-        self.wfile.write(payload)
+        try:
+            self.send_response(status)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(payload)))
+            self.send_header("connection", "close")
+            self.end_headers()
+            self.wfile.write(payload)
+        except OSError:
+            pass
         self.close_connection = True
 
     def do_GET(self) -> None:
@@ -235,10 +398,12 @@ class TrialProxyHandle:
                 return
             self._deadline_timer.cancel()
             self._server.state.deactivate()
-            self._server.upstream.deactivate()
+            self._server.close_active_clients()
             self._server.shutdown()
             self._server.server_close()
             self._thread.join(timeout=2)
+            if not self._server.wait_for_no_clients(2):
+                raise RuntimeError("proxy client handlers did not stop")
             self._stopped = True
 
 
@@ -261,7 +426,7 @@ def start_trial_proxy(
         budget, log_path.name,
     )
     deadline_timer = threading.Timer(
-        _deadline_delay(absolute_deadline), upstream.deactivate,
+        _deadline_delay(absolute_deadline), server.expire_route,
     )
     deadline_timer.daemon = True
     deadline_timer.start()

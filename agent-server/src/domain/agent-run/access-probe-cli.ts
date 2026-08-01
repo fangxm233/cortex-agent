@@ -1,5 +1,5 @@
-// input:  explicit probe flags, process env, stdout, and stderr
-// output: JSON verdict, human summary, help, and process exit code
+// input:  flags, env, stdout, and stderr
+// output: JSON verdict, summary, help, and exit code
 // pos:    Standalone CLI for pinned Node syscall probes
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -15,6 +15,31 @@ const SINGLE_FLAGS = new Set([
 ]);
 const REPEATED_FLAGS = new Set(['--entry-arg', '--node-import']);
 const ALL_FLAGS = [...SINGLE_FLAGS, ...REPEATED_FLAGS];
+const HELP_OPTIONS = [
+  { flag: '--trial-root <dir>', description: 'Scratch root for every pinned child path' },
+  { flag: '--workspace <dir>', description: 'Allowed task workspace and child cwd' },
+  { flag: '--entry <file>', description: 'Arbitrary Node entry to trace' },
+  { flag: '--install-root <dir>', description: 'Read-only Cortex install root' },
+  { flag: '--host-home <dir>', description: 'Host home whose dotfiles are denied' },
+  { flag: '--host-cortex-home <dir>', description: 'Host Cortex tree denied in full' },
+  { flag: '--entry-arg <value>', description: 'Entry argument; repeat as needed' },
+  { flag: '--node-import <module>', description: 'Node --import value; repeat as needed' },
+  { flag: '--strace-path <path>', description: 'strace executable', default: 'strace from PATH' },
+  { flag: '--timeout-ms <n>', description: 'Hard trace timeout', default: '30000' },
+  { flag: '--help, -h', description: 'Show this help' },
+];
+const HELP_EXAMPLE = {
+  description: 'Create a no-op entry and probe it from the package root',
+  command: [
+    'mkdir -p /tmp/cortex-access-probe/workspace &&',
+    "printf '' > /tmp/cortex-access-probe/entry.mjs &&",
+    'node dist/domain/agent-run/access-probe-cli.js',
+    '--trial-root /tmp/cortex-access-probe/trial',
+    '--workspace /tmp/cortex-access-probe/workspace',
+    '--entry /tmp/cortex-access-probe/entry.mjs --install-root .',
+    '--host-home "$HOME" --host-cortex-home "${CORTEX_HOME:-$HOME/.cortex}"',
+  ].join(' '),
+};
 
 interface ParsedValues {
   single: Map<string, string>;
@@ -116,23 +141,8 @@ export function getAccessProbeHelp(): string {
     name: 'node dist/domain/agent-run/access-probe-cli.js',
     description: 'Trace and classify a Node entry against the Cortex benchmark isolation policy.',
     usage: 'node dist/domain/agent-run/access-probe-cli.js --trial-root <dir> --workspace <dir> --entry <file> --install-root <dir> --host-home <dir> --host-cortex-home <dir> [options]',
-    options: [
-      { flag: '--trial-root <dir>', description: 'Scratch root for every pinned child path' },
-      { flag: '--workspace <dir>', description: 'Allowed task workspace and child cwd' },
-      { flag: '--entry <file>', description: 'Arbitrary Node entry to trace' },
-      { flag: '--install-root <dir>', description: 'Read-only Cortex install root' },
-      { flag: '--host-home <dir>', description: 'Host home whose dotfiles are denied' },
-      { flag: '--host-cortex-home <dir>', description: 'Host Cortex tree denied in full' },
-      { flag: '--entry-arg <value>', description: 'Entry argument; repeat as needed' },
-      { flag: '--node-import <module>', description: 'Node --import value; repeat as needed' },
-      { flag: '--strace-path <path>', description: 'strace executable', default: 'strace from PATH' },
-      { flag: '--timeout-ms <n>', description: 'Hard trace timeout', default: '30000' },
-      { flag: '--help, -h', description: 'Show this help' },
-    ],
-    examples: [{
-      description: 'Probe a compiled Node entry',
-      command: 'node dist/domain/agent-run/access-probe-cli.js --trial-root /trial --workspace /workspace --entry /app/run.js --install-root /app --host-home /host-home --host-cortex-home /host-home/.cortex',
-    }],
+    options: HELP_OPTIONS,
+    examples: [HELP_EXAMPLE],
   });
 }
 

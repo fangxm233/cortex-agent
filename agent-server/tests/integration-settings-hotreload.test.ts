@@ -14,6 +14,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  watch,
   writeFileSync,
 } from 'node:fs';
 import * as os from 'node:os';
@@ -95,6 +96,12 @@ interface ObserverRecord {
   ref: { conduit: string; messageId: string };
 }
 
+interface StartedServer {
+  child: ChildProcess;
+  logs: ChildLogs;
+  records: ObserverRecord[];
+}
+
 interface ScenarioPaths {
   home: string;
   envFile: string;
@@ -152,27 +159,62 @@ function killTree(child: ChildProcess): void {
   }
 }
 
-function waitForExit(child: ChildProcess, timeoutMs = 15_000): Promise<number | null> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      killTree(child);
-      resolve(null);
-    }, timeoutMs);
-    child.once('close', (code) => {
-      clearTimeout(timer);
-      resolve(code);
-    });
+function waitForExit(child: ChildProcess): Promise<number | null> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(child.exitCode);
+  return new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', resolve);
   });
 }
 
-function waitFor(condition: () => boolean, message: string, timeoutMs = 20_000): Promise<void> {
+function waitForOutput(
+  child: ChildProcess,
+  logs: ChildLogs,
+  expected: string | RegExp,
+  message: string,
+): Promise<void> {
+  const matches = () => typeof expected === 'string'
+    ? logs.stdout.includes(expected)
+    : expected.test(logs.stdout);
+  if (matches()) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    const deadline = Date.now() + timeoutMs;
-    const check = () => {
-      if (condition()) return resolve();
-      if (Date.now() >= deadline) return reject(new Error(message));
-      setTimeout(check, 25);
+    const finish = (error?: Error) => {
+      child.stdout?.off('data', onData);
+      child.off('error', onError);
+      child.off('close', onClose);
+      if (error) reject(error); else resolve();
     };
+    const onData = () => { if (matches()) finish(); };
+    const onError = (error: Error) => finish(error);
+    const onClose = () => finish(new Error(`${message}\nstdout=${logs.stdout.slice(-5000)}\nstderr=${logs.stderr.slice(-5000)}`));
+    child.stdout?.on('data', onData);
+    child.once('error', onError);
+    child.once('close', onClose);
+    onData();
+  });
+}
+
+function waitForFileState(
+  child: ChildProcess,
+  root: string,
+  condition: () => boolean,
+  message: string,
+): Promise<void> {
+  if (condition()) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const watcher = watch(root, { recursive: true }, check);
+    const finish = (error?: Error) => {
+      watcher.close();
+      child.off('error', onError);
+      child.off('close', onClose);
+      if (error) reject(error); else resolve();
+    };
+    const onError = (error: Error) => finish(error);
+    const onClose = () => finish(new Error(message));
+    function check(): void { if (condition()) finish(); }
+    watcher.once('error', onError);
+    child.once('error', onError);
+    child.once('close', onClose);
     check();
   });
 }
@@ -243,28 +285,34 @@ input.on('line', (line) => {
 `;
 }
 
-function observerSource(evidenceFile: string): string {
-  const mockUrl = pathToFileURL(MOCK_ADAPTER_TS).href;
-  const registryUrl = pathToFileURL(EXECUTION_REGISTRY_TS).href;
-  const dispatchUrl = pathToFileURL(TASK_DISPATCH_TS).href;
+function observerPostHook(evidenceFile: string, mockUrl: string): string {
   return `import { appendFileSync } from 'node:fs';
 const { MockAdapter } = await import(${JSON.stringify(mockUrl)});
-const append = (value) => appendFileSync(${JSON.stringify(evidenceFile)}, JSON.stringify(value) + '\\n');
+const append = (value) => {
+  appendFileSync(${JSON.stringify(evidenceFile)}, JSON.stringify(value) + '\\n');
+  process.send?.({ type: 'integration-observer-record', record: value });
+};
 const originalPost = MockAdapter.prototype.postMessage;
 MockAdapter.prototype.postMessage = async function(destination, content, opts) {
   const ref = await originalPost.call(this, destination, content, opts);
   append({ type: 'post', destination, content, ref });
   return ref;
-};
-const handlers = {
+};`;
+}
+
+function observerHandlers(registryUrl: string, dispatchUrl: string): string {
+  return `const handlers = {
   'integration-simulate-message': (adapter, message) => adapter.simulateMessage(message.channel, message.text),
   'integration-register-dispatch': async () => (await import(${JSON.stringify(registryUrl)}))
     .registerDispatchExecution({ taskId: 'integration-remote', machine: 'remote-fixture',
       channel: 'integration', project: 'general', taskText: 'integration fixture' }),
   'integration-run-dispatch': async () => (await import(${JSON.stringify(dispatchUrl)}))
     .taskDispatchRunner({ channel: 'general', scheduleTaskId: 'seed0001', profileName: 'plan' }),
-};
-const originalStart = MockAdapter.prototype.start;
+};`;
+}
+
+function observerStartHook(): string {
+  return `const originalStart = MockAdapter.prototype.start;
 MockAdapter.prototype.start = async function(...args) {
   await originalStart.apply(this, args);
   process.on('message', async (message) => {
@@ -274,8 +322,18 @@ MockAdapter.prototype.start = async function(...args) {
     try { await handler(this, message); } catch (caught) { error = caught instanceof Error ? caught.message : String(caught); }
     process.send?.({ type: 'integration-ack', integrationRequestId: message.integrationRequestId, error });
   });
-};
-`;
+};`;
+}
+
+function observerSource(evidenceFile: string): string {
+  return [
+    observerPostHook(evidenceFile, pathToFileURL(MOCK_ADAPTER_TS).href),
+    observerHandlers(
+      pathToFileURL(EXECUTION_REGISTRY_TS).href,
+      pathToFileURL(TASK_DISPATCH_TS).href,
+    ),
+    observerStartHook(),
+  ].join('\n');
 }
 
 function pauseDispatchSchedule(schedulesFile: string): void {
@@ -283,20 +341,6 @@ function pauseDispatchSchedule(schedulesFile: string): void {
   const dispatch = data.tasks.find((task: any) => task.dispatchType === 'task-dispatch');
   assert.ok(dispatch, 'initialized schedules must contain task-dispatch');
   data.tasks = [{ ...dispatch, isPaused: true, pausedAt: Date.now(), pausedBy: 'user', nextRun: null }];
-  writeFileSync(schedulesFile, `${JSON.stringify(data, null, 2)}\n`);
-}
-
-function armDispatchSchedule(schedulesFile: string): void {
-  const data = JSON.parse(readFileSync(schedulesFile, 'utf8'));
-  const dispatch = data.tasks[0];
-  data.tasks = [{
-    ...dispatch,
-    isPaused: false,
-    pausedAt: null,
-    pausedBy: null,
-    intervalMs: 500,
-    nextRun: Date.now() + 100,
-  }];
   writeFileSync(schedulesFile, `${JSON.stringify(data, null, 2)}\n`);
 }
 
@@ -336,35 +380,42 @@ async function prepareScenario(init = cortexInit): Promise<ScenarioPaths> {
   }
 }
 
-function startServer(paths: ScenarioPaths): { child: ChildProcess; logs: ChildLogs } {
+function serverEnv(paths: ScenarioPaths): NodeJS.ProcessEnv {
+  return {
+    ...isolatedBaseEnv(paths.home),
+    PATH: `${paths.binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    CORTEX_HOME: paths.home,
+    CORTEX_PLATFORM: 'test',
+    CORTEX_TUI: '0',
+    CORTEX_UI_HTTP: '1',
+    CORTEX_UI_PORT: '0',
+    WEBHOOK_PORT: String(randomPort()),
+    CORTEX_CLIENT_PORT: String(randomPort()),
+    CORTEX_CLIENT_TOKEN: CLIENT_TOKEN,
+    CORTEX_WEBHOOK_TOKEN: WEBHOOK_TOKEN,
+    CORTEX_GPU_MONITOR_MOCK: '1',
+  };
+}
+
+function captureServer(child: ChildProcess, logs: ChildLogs, records: ObserverRecord[]): void {
+  child.stdout?.on('data', (chunk: Buffer) => { logs.stdout += chunk.toString(); });
+  child.stderr?.on('data', (chunk: Buffer) => { logs.stderr += chunk.toString(); });
+  child.on('message', (message: any) => {
+    if (message?.type === 'integration-observer-record') records.push(message.record);
+  });
+}
+
+function startServer(paths: ScenarioPaths): StartedServer {
   const logs: ChildLogs = { stdout: '', stderr: '' };
+  const records: ObserverRecord[] = [];
   const child = trackedFork(APP_TS, {
     cwd: TEST_ROOT,
     execArgv: [...TSX_FLAGS, '--import', paths.observerFile],
-    env: {
-      ...isolatedBaseEnv(paths.home),
-      PATH: `${paths.binDir}${path.delimiter}${process.env.PATH ?? ''}`,
-      CORTEX_HOME: paths.home,
-      CORTEX_PLATFORM: 'test',
-      CORTEX_TUI: '0',
-      CORTEX_UI_HTTP: '1',
-      CORTEX_UI_PORT: '0',
-      WEBHOOK_PORT: String(randomPort()),
-      CORTEX_CLIENT_PORT: String(randomPort()),
-      CORTEX_CLIENT_TOKEN: CLIENT_TOKEN,
-      CORTEX_WEBHOOK_TOKEN: WEBHOOK_TOKEN,
-      CORTEX_GPU_MONITOR_MOCK: '1',
-    },
+    env: serverEnv(paths),
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
-  child.stdout?.on('data', (chunk: Buffer) => { logs.stdout += chunk.toString(); });
-  child.stderr?.on('data', (chunk: Buffer) => { logs.stderr += chunk.toString(); });
-  return { child, logs };
-}
-
-function observerRecords(file: string): ObserverRecord[] {
-  if (!existsSync(file)) return [];
-  return readFileSync(file, 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  captureServer(child, logs, records);
+  return { child, logs, records };
 }
 
 function eventLogText(home: string): string {
@@ -376,32 +427,67 @@ function eventLogText(home: string): string {
     .join('\n');
 }
 
-function sendIntegrationRequest(child: ChildProcess, type: string, payload: Record<string, unknown> = {}): Promise<void> {
-  const integrationRequestId = `${type}-${Date.now()}-${Math.random()}`;
+function waitForObserverRecord(
+  child: ChildProcess,
+  records: ObserverRecord[],
+  start: number,
+  predicate: (record: ObserverRecord) => boolean,
+  message: string,
+): Promise<ObserverRecord> {
+  const existing = records.slice(start).find(predicate);
+  if (existing) return Promise.resolve(existing);
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => finish(new Error(`IPC request timed out: ${type}`)), 20_000);
-    const onMessage = (message: any) => {
-      if (message?.type !== 'integration-ack' || message.integrationRequestId !== integrationRequestId) return;
-      finish(message.error ? new Error(message.error) : null);
-    };
-    const finish = (error: Error | null) => {
-      clearTimeout(timer);
+    const finish = (record?: ObserverRecord, error?: Error) => {
       child.off('message', onMessage);
-      if (error) reject(error); else resolve();
+      child.off('error', onError);
+      child.off('close', onClose);
+      if (error) reject(error); else resolve(record!);
     };
+    const onMessage = (value: any) => {
+      if (value?.type === 'integration-observer-record' && predicate(value.record)) finish(value.record);
+    };
+    const onError = (error: Error) => finish(undefined, error);
+    const onClose = () => finish(undefined, new Error(message));
     child.on('message', onMessage);
-    child.send({ type, integrationRequestId, ...payload });
+    child.once('error', onError);
+    child.once('close', onClose);
   });
 }
 
-async function sendDaemonNotice(child: ChildProcess, evidenceFile: string, text: string): Promise<ObserverRecord> {
-  const before = observerRecords(evidenceFile).length;
-  child.send({ type: 'rebuild-aborted', text });
-  await waitFor(
-    () => observerRecords(evidenceFile).slice(before).some((record) => record.content.text === text),
+function sendIntegrationRequest(child: ChildProcess, type: string, payload: Record<string, unknown> = {}): Promise<void> {
+  const integrationRequestId = `${type}-${Date.now()}-${Math.random()}`;
+  return new Promise((resolve, reject) => {
+    const finish = (error?: Error) => {
+      child.off('message', onMessage);
+      child.off('error', onError);
+      child.off('close', onClose);
+      if (error) reject(error); else resolve();
+    };
+    const onMessage = (message: any) => {
+      if (message?.type !== 'integration-ack' || message.integrationRequestId !== integrationRequestId) return;
+      finish(message.error ? new Error(message.error) : undefined);
+    };
+    const onError = (error: Error) => finish(error);
+    const onClose = () => finish(new Error(`server closed before IPC acknowledgement: ${type}`));
+    child.on('message', onMessage);
+    child.once('error', onError);
+    child.once('close', onClose);
+    child.send({ type, integrationRequestId, ...payload }, (error) => { if (error) finish(error); });
+  });
+}
+
+async function sendDaemonNotice(
+  child: ChildProcess,
+  records: ObserverRecord[],
+  text: string,
+): Promise<ObserverRecord> {
+  const observed = waitForObserverRecord(
+    child, records, records.length,
+    (record) => record.content.text === text,
     `daemon notice was not observed: ${text}`,
   );
-  return observerRecords(evidenceFile).slice(before).find((record) => record.content.text === text)!;
+  child.send({ type: 'rebuild-aborted', text });
+  return observed;
 }
 
 function uiPort(logs: ChildLogs): number {
@@ -436,26 +522,31 @@ function assertMigration(paths: ScenarioPaths): void {
   assert.equal(readFileSync(path.join(path.dirname(paths.envFile), backups[0]), 'utf8'), paths.originalEnv);
 }
 
-async function proveInitialBehavior(child: ChildProcess, logs: ChildLogs, paths: ScenarioPaths): Promise<number> {
-  const beforeMessage = observerRecords(paths.evidenceFile).length;
-  await sendIntegrationRequest(child, 'integration-simulate-message', { channel: 'integration', text: 'before reload' });
-  await waitFor(
-    () => observerRecords(paths.evidenceFile).slice(beforeMessage)
-      .some((record) => record.content.text?.includes('integration-reply-1')),
-    `assistant reply was not observed: ${JSON.stringify(observerRecords(paths.evidenceFile).slice(beforeMessage))}`,
+async function proveInitialBehavior(
+  started: StartedServer,
+  paths: ScenarioPaths,
+): Promise<number> {
+  const beforeMessage = started.records.length;
+  const reply = waitForObserverRecord(
+    started.child, started.records, beforeMessage,
+    (record) => record.content.text?.includes('integration-reply-1') ?? false,
+    'assistant reply was not observed before server exit',
   );
-  const messageRecords = observerRecords(paths.evidenceFile).slice(beforeMessage);
+  await sendIntegrationRequest(started.child, 'integration-simulate-message', {
+    channel: 'integration', text: 'before reload',
+  });
+  await reply;
+  const messageRecords = started.records.slice(beforeMessage);
   assert.ok(!messageRecords.some((record) => /Bash ×1/.test(record.content.text ?? '')));
-
-  const notice = await sendDaemonNotice(child, paths.evidenceFile, 'event-log-off-marker');
+  const notice = await sendDaemonNotice(started.child, started.records, 'event-log-off-marker');
   assert.equal(notice.ref.conduit, OLD_ADMIN);
   assert.doesNotMatch(eventLogText(paths.home), /event-log-off-marker/);
-
-  await sendIntegrationRequest(child, 'integration-register-dispatch');
-  armDispatchSchedule(paths.schedulesFile);
-  await waitFor(() => logs.stdout.includes('Skipping — at concurrency limit (1/1)'),
-    `dispatch limit was not observed:\n${logs.stdout.slice(-4000)}`);
-  const port = uiPort(logs);
+  await sendIntegrationRequest(started.child, 'integration-register-dispatch');
+  const limited = waitForOutput(started.child, started.logs, 'Skipping — at concurrency limit (1/1)',
+    'server exited before reporting the dispatch concurrency limit');
+  await sendIntegrationRequest(started.child, 'integration-run-dispatch');
+  await limited;
+  const port = uiPort(started.logs);
   assert.equal(await corsHeader(port, OLD_ORIGIN), OLD_ORIGIN);
   return port;
 }
@@ -472,30 +563,37 @@ function writeHotSettings(settingsFile: string): void {
   writeFileSync(settingsFile, `${JSON.stringify(next, null, 2)}\n`);
 }
 
-async function proveToolTrace(child: ChildProcess, evidenceFile: string): Promise<void> {
-  const before = observerRecords(evidenceFile).length;
-  await sendIntegrationRequest(child, 'integration-simulate-message', { channel: 'integration', text: 'after reload' });
-  await waitFor(
-    () => observerRecords(evidenceFile).slice(before)
-      .some((record) => /Bash ×1/.test(record.content.text ?? '')),
-    `tool trace was not observed: ${JSON.stringify(observerRecords(evidenceFile).slice(before))}`,
+async function proveToolTrace(started: StartedServer): Promise<void> {
+  const before = started.records.length;
+  const trace = waitForObserverRecord(
+    started.child, started.records, before,
+    (record) => /Bash ×1/.test(record.content.text ?? ''),
+    'tool trace was not observed before server exit',
   );
+  await sendIntegrationRequest(started.child, 'integration-simulate-message', {
+    channel: 'integration', text: 'after reload',
+  });
+  await trace;
 }
 
-async function proveEventAdminAndDispatch(
-  child: ChildProcess,
-  logs: ChildLogs,
-  paths: ScenarioPaths,
-): Promise<void> {
-  const notice = await sendDaemonNotice(child, paths.evidenceFile, 'event-log-on-marker');
+async function proveEventAdminAndDispatch(started: StartedServer, paths: ScenarioPaths): Promise<void> {
+  const persisted = waitForFileState(
+    started.child, paths.home,
+    () => /event-log-on-marker/.test(eventLogText(paths.home)),
+    'server exited before the enabled event log persisted the notice',
+  );
+  const notice = await sendDaemonNotice(started.child, started.records, 'event-log-on-marker');
   assert.equal(notice.ref.conduit, NEW_ADMIN);
-  await waitFor(() => /event-log-on-marker/.test(eventLogText(paths.home)), 'enabled event log did not persist notice');
+  await persisted;
   const flushedEvents = eventLogText(paths.home);
   assert.match(flushedEvents, /event-log-on-marker/);
   assert.doesNotMatch(flushedEvents, /event-log-off-marker/);
-  await sendIntegrationRequest(child, 'integration-run-dispatch');
-  await waitFor(() => logs.stdout.includes('Cycle complete: No dispatchable tasks available'),
-    `dispatch did not pass the raised limit:\n${logs.stdout.slice(-4000)}`);
+  const dispatched = waitForOutput(
+    started.child, started.logs, 'Cycle complete: No dispatchable tasks available',
+    'server exited before dispatch passed the raised concurrency limit',
+  );
+  await sendIntegrationRequest(started.child, 'integration-run-dispatch');
+  await dispatched;
 }
 
 function printEvidence(pid: number | undefined): void {
@@ -513,18 +611,20 @@ function printEvidence(pid: number | undefined): void {
 }
 
 async function proveReloadedBehavior(
-  child: ChildProcess,
-  logs: ChildLogs,
+  started: StartedServer,
   paths: ScenarioPaths,
   port: number,
 ): Promise<void> {
-  const pid = child.pid;
+  const pid = started.child.pid;
+  const reloaded = waitForOutput(
+    started.child, started.logs, 'Hot-reload: settings.json reloaded',
+    'server exited before reporting the settings reload',
+  );
   writeHotSettings(paths.settingsFile);
-  await waitFor(() => logs.stdout.includes('Hot-reload: settings.json reloaded'),
-    `settings hot-reload log missing:\n${logs.stdout.slice(-4000)}`);
-  assert.equal(child.pid, pid);
-  await proveToolTrace(child, paths.evidenceFile);
-  await proveEventAdminAndDispatch(child, logs, paths);
+  await reloaded;
+  assert.equal(started.child.pid, pid);
+  await proveToolTrace(started);
+  await proveEventAdminAndDispatch(started, paths);
   assert.equal(await corsHeader(port, OLD_ORIGIN), null);
   assert.equal(await corsHeader(port, NEW_ORIGIN), NEW_ORIGIN);
   printEvidence(pid);
@@ -536,14 +636,16 @@ async function runScenario(): Promise<void> {
   try {
     const started = startServer(paths);
     child = started.child;
-    await waitFor(
-      () => started.logs.stdout.includes('Cortex agent is running') && /Listening on 127\.0\.0\.1:\d+\/trpc\//.test(started.logs.stdout),
-      `server readiness timed out:\nstdout=${started.logs.stdout.slice(-5000)}\nstderr=${started.logs.stderr.slice(-5000)}`,
-      60_000,
-    );
+    await Promise.all([
+      waitForOutput(child, started.logs, 'Cortex agent is running', 'server exited before startup completed'),
+      waitForOutput(
+        child, started.logs, /Listening on 127\.0\.0\.1:\d+\/trpc\//,
+        'server exited before the UI listener became ready',
+      ),
+    ]);
     assertMigration(paths);
-    const port = await proveInitialBehavior(child, started.logs, paths);
-    await proveReloadedBehavior(child, started.logs, paths, port);
+    const port = await proveInitialBehavior(started, paths);
+    await proveReloadedBehavior(started, paths, port);
     child.kill('SIGTERM');
     assert.equal(await waitForExit(child), 0, `server did not stop cleanly:\n${started.logs.stderr.slice(-4000)}`);
   } finally {

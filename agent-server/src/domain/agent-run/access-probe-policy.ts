@@ -1,10 +1,11 @@
-// input:  strace lines, initial cwd, and C8 policy roots
-// output: complete allowed counts and fail-closed access violations
-// pos:    Pure parser and classifier for benchmark access traces
+// input:  strace stream, initial cwd, and C8 policy roots
+// output: bounded counts and fail-closed access violations
+// pos:    Stateful classifier for benchmark access traces
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createInterface } from 'node:readline';
 
 export type AccessMode = 'read' | 'write' | 'network' | 'unknown';
 
@@ -54,7 +55,24 @@ interface PathArgument {
   dirIndex?: number;
 }
 
-interface TraceOptions {
+interface ProcessState {
+  cwd: string | null;
+  fds: Map<number, string>;
+}
+
+interface ParsedPrefix {
+  body: string;
+  pid: number;
+}
+
+interface PendingCall {
+  body: string;
+  line: number;
+  raw: string;
+  syscall: string;
+}
+
+export interface AccessTraceOptions {
   policy: AccessProbePolicy;
   initialCwd: string;
   pid: number;
@@ -165,30 +183,35 @@ function splitArguments(value: string): string[] {
   return result;
 }
 
-function parseTraceCall(raw: string): ParsedCall | null {
-  const withoutPid = raw.replace(/^\[pid\s+\d+\]\s+/, '');
-  const body = withoutPid.replace(/^\d+(?:\.\d+)?\s+/, '');
-  const match = /^([A-Za-z0-9_]+)\((.*)\)\s+=\s+(.+)$/.exec(body);
+function parsePrefix(raw: string, fallbackPid: number): ParsedPrefix {
+  const bracketed = /^\[pid\s+(\d+)\]\s+(.+)$/.exec(raw);
+  if (bracketed) return { pid: Number(bracketed[1]), body: bracketed[2] };
+  const combined = /^(\d+)\s+(\d+(?:\.\d+)?\s+.+)$/.exec(raw);
+  if (combined) return { pid: Number(combined[1]), body: combined[2] };
+  return { pid: fallbackPid, body: raw };
+}
+
+function parseTraceCall(body: string): ParsedCall | null {
+  const callBody = body.replace(/^\d+(?:\.\d+)?\s+/, '');
+  const match = /^([A-Za-z0-9_]+)\((.*)\)\s+=\s+(.+)$/.exec(callBody);
   if (!match) return null;
   return { syscall: match[1], args: splitArguments(match[2]), result: match[3] };
 }
 
-function decodeQuoted(value: string): string | null {
+function decodeQuoted(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
   const match = /^"((?:[^"\\]|\\.)*)"/.exec(value.trim());
   if (!match) return null;
   const jsonEscaped = match[1].replace(/\\([0-7]{1,3})/g, (_whole, octal) => (
     `\\u${Number.parseInt(octal, 8).toString(16).padStart(4, '0')}`
   ));
-  try {
-    return JSON.parse(`"${jsonEscaped}"`);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(`"${jsonEscaped}"`); }
+  catch { return null; }
 }
 
-function annotatedPath(value: string): string | null {
-  const match = /<(\/[^>]*)>/.exec(value);
-  return match?.[1] ?? null;
+function annotatedPath(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return /<(\/[^>]*)>/.exec(value)?.[1] ?? null;
 }
 
 function appendRaw(base: string, segments: string[]): string {
@@ -197,20 +220,30 @@ function appendRaw(base: string, segments: string[]): string {
   return `${base}${separator}${segments.join(path.sep)}`;
 }
 
+function dirBase(argument: unknown, state: ProcessState): string | null {
+  if (argument === undefined || String(argument).startsWith('AT_FDCWD')) {
+    return annotatedPath(argument) ?? state.cwd;
+  }
+  const annotated = annotatedPath(argument);
+  if (annotated) return annotated;
+  const fd = Number.parseInt(String(argument), 10);
+  return Number.isSafeInteger(fd) ? state.fds.get(fd) ?? null : null;
+}
+
 function resolveTracedPath(
-  argument: string, dirArgument: string | undefined, cwd: string,
+  argument: unknown, dirArgument: unknown, state: ProcessState,
 ): string | null {
   const value = decodeQuoted(argument);
   if (value === null) return null;
   if (path.isAbsolute(value)) return value;
-  const base = dirArgument === undefined || dirArgument.startsWith('AT_FDCWD')
-    ? annotatedPath(dirArgument ?? '') ?? cwd
-    : annotatedPath(dirArgument);
+  const base = dirBase(dirArgument, state);
   if (!base) return null;
   return value.length === 0 ? base : appendRaw(base, [value]);
 }
 
-function canonicalPath(value: string, depth = 0): string {
+function resolveKnownSymlinks(
+  value: string, symlinks: ReadonlyMap<string, string>, followFinal: boolean, depth = 0,
+): string {
   const absolute = path.isAbsolute(value) ? value : appendRaw(process.cwd(), [value]);
   if (depth >= 40) return absolute;
   const parsed = path.parse(absolute);
@@ -220,20 +253,48 @@ function canonicalPath(value: string, depth = 0): string {
     if (segments[index] === '..') { cursor = path.dirname(cursor); continue; }
     if (segments[index] === '.') continue;
     const next = path.join(cursor, segments[index]);
+    let target = symlinks.get(next);
+    if (target === undefined) {
+      try { if (fs.lstatSync(next).isSymbolicLink()) target = fs.readlinkSync(next); }
+      catch {}
+    }
+    if (target !== undefined && (followFinal || index < segments.length - 1)) {
+      const resolved = path.isAbsolute(target) ? target : appendRaw(path.dirname(next), [target]);
+      return resolveKnownSymlinks(appendRaw(resolved, segments.slice(index + 1)),
+        symlinks, followFinal, depth + 1);
+    }
+    cursor = next;
+  }
+  return cursor;
+}
+
+function canonicalFsPath(value: string, followFinal: boolean, depth = 0): string {
+  if (depth >= 40) return value;
+  const parsed = path.parse(value);
+  const segments = value.slice(parsed.root.length).split(path.sep).filter(Boolean);
+  let cursor = parsed.root;
+  for (let index = 0; index < segments.length; index += 1) {
+    const next = path.join(cursor, segments[index]);
     let stat: fs.Stats;
     try { stat = fs.lstatSync(next); }
     catch { return appendRaw(next, segments.slice(index + 1)); }
-    if (stat.isSymbolicLink()) {
+    if (stat.isSymbolicLink() && (followFinal || index < segments.length - 1)) {
       let target: string;
       try { target = fs.readlinkSync(next); }
       catch { return appendRaw(next, segments.slice(index + 1)); }
       const resolved = path.isAbsolute(target) ? target : appendRaw(path.dirname(next), [target]);
-      return canonicalPath(appendRaw(resolved, segments.slice(index + 1)), depth + 1);
+      return canonicalFsPath(appendRaw(resolved, segments.slice(index + 1)), followFinal, depth + 1);
     }
     cursor = next;
   }
-  try { return fs.realpathSync(cursor); }
-  catch { return absolute; }
+  try { return followFinal ? fs.realpathSync(cursor) : cursor; }
+  catch { return value; }
+}
+
+function canonicalPath(
+  value: string, symlinks: ReadonlyMap<string, string> = new Map(), followFinal = true,
+): string {
+  return canonicalFsPath(resolveKnownSymlinks(value, symlinks, followFinal), followFinal);
 }
 
 function isWithin(candidate: string, root: string): boolean {
@@ -278,27 +339,40 @@ function isAllowedRootAncestor(candidate: string, policy: AccessProbePolicy): bo
   return roots.some(root => isWithin(root, candidate));
 }
 
+interface PathDecision {
+  offender: string;
+  reason: string | null;
+}
+
+function pathDecision(reason: string | null, offender: string): PathDecision {
+  return { reason, offender };
+}
+
 function classifyPath(
   candidate: string, access: AccessMode, policy: AccessProbePolicy, pid: number,
-): string | null {
-  const canonical = canonicalPath(candidate);
-  if (isWithin(candidate, policy.hostCortexHome)
-    || isWithin(canonical, policy.hostCortexHome)) return 'host_cortex_path';
-  if (isNodeExecutable(canonical, policy) && access === 'read') return null;
-  if (isHostDotfile(candidate, policy) || isHostDotfile(canonical, policy)) {
-    return 'host_home_dotfile';
-  }
+  symlinks: ReadonlyMap<string, string>, followFinal: boolean,
+): PathDecision {
+  const traced = resolveKnownSymlinks(candidate, symlinks, followFinal);
+  const canonical = canonicalFsPath(traced, followFinal);
+  if (isWithin(candidate, policy.hostCortexHome)) return pathDecision('host_cortex_path', candidate);
+  if (isWithin(canonical, policy.hostCortexHome)) return pathDecision('host_cortex_path',
+    traced === candidate ? candidate : canonical);
+  if (isNodeExecutable(canonical, policy) && access === 'read') return pathDecision(null, candidate);
+  if (isHostDotfile(candidate, policy)) return pathDecision('host_home_dotfile', candidate);
+  if (isHostDotfile(canonical, policy)) return pathDecision('host_home_dotfile',
+    traced === candidate ? candidate : canonical);
   const writable = [policy.workspace, policy.cortexHome, policy.logsDir];
-  if (writable.some(root => isWithin(canonical, root))) return null;
-  if (isAllowedRootAncestor(canonical, policy) && access === 'read') return null;
+  if (writable.some(root => isWithin(canonical, root))) return pathDecision(null, candidate);
+  if (isAllowedRootAncestor(canonical, policy) && access === 'read') {
+    return pathDecision(null, candidate);
+  }
   if ((SYSTEM_FILES.has(candidate)
     || isProcessRuntimePath(candidate, pid, policy.tracedPids)) && access === 'read') {
-    return null;
+    return pathDecision(null, candidate);
   }
   const readOnly = readOnlyRoots(policy).some(root => isWithin(canonical, root));
-  if (readOnly && access === 'read') return null;
-  if (readOnly) return 'read_only_root_write';
-  return 'unclassified_path';
+  if (readOnly && access === 'read') return pathDecision(null, candidate);
+  return pathDecision(readOnly ? 'read_only_root_write' : 'unclassified_path', candidate);
 }
 
 function accessMode(call: ParsedCall): AccessMode {
@@ -329,7 +403,7 @@ function endpointFromFd(argument: string): string | null {
 
 function violation(
   syscall: string, offender: string, reason: string, access: AccessMode,
-  options: TraceOptions, line: number, raw: string,
+  options: AccessTraceOptions, line: number, raw: string,
 ): AccessViolation {
   return {
     syscall,
@@ -344,7 +418,7 @@ function violation(
 }
 
 function classifyNetwork(
-  call: ParsedCall, options: TraceOptions, line: number, raw: string,
+  call: ParsedCall, options: AccessTraceOptions, line: number, raw: string,
 ): AccessViolation | null {
   if (call.syscall === 'socket' || call.syscall === 'socketpair') {
     const family = /^AF_[A-Z0-9_]+/.exec(call.args[0] ?? '')?.[0] ?? 'unknown';
@@ -366,7 +440,7 @@ function classifyNetwork(
 }
 
 function unknownViolation(
-  call: ParsedCall | null, options: TraceOptions, line: number, raw: string,
+  call: ParsedCall | null, options: AccessTraceOptions, line: number, raw: string,
 ): AccessViolation {
   const syscall = call?.syscall ?? 'trace';
   const offender = call?.args.map(decodeQuoted).find(value => value !== null) ?? raw;
@@ -383,74 +457,269 @@ function returnedFdPath(call: ParsedCall): string | null {
   return match[1].replace(/<(?:char|block) [^>]+>$/, '');
 }
 
+const NOFOLLOW_FINAL = new Set([
+  'lchown', 'link', 'linkat', 'lstat', 'readlink', 'readlinkat', 'rename', 'renameat',
+  'renameat2', 'rmdir', 'symlink', 'symlinkat', 'unlink', 'unlinkat',
+]);
+
+function followsFinalSymlink(call: ParsedCall): boolean {
+  if (NOFOLLOW_FINAL.has(call.syscall)) return false;
+  if (call.syscall === 'newfstatat' && call.args.some(arg => arg.includes('AT_SYMLINK_NOFOLLOW'))) {
+    return false;
+  }
+  if (call.syscall.startsWith('open') && call.args.some(arg => arg.includes('O_NOFOLLOW'))) {
+    return false;
+  }
+  return true;
+}
+
 function pathViolation(
   call: ParsedCall, candidate: string | null, observed: string | null, access: AccessMode,
-  options: TraceOptions, line: number, raw: string,
+  options: AccessTraceOptions, line: number, raw: string, symlinks: ReadonlyMap<string, string>,
 ): AccessViolation[] {
   if (!candidate) return [violation(call.syscall, raw, 'unclassifiable_path', 'unknown',
     options, line, raw)];
-  const attemptedReason = classifyPath(candidate, access, options.policy, options.pid);
-  if (attemptedReason) return [violation(call.syscall, candidate, attemptedReason, access,
-    options, line, raw)];
-  if (!observed || canonicalPath(observed) === canonicalPath(candidate)) return [];
-  const observedReason = classifyPath(observed, access, options.policy, options.pid);
-  return observedReason ? [violation(call.syscall, observed, observedReason, access,
+  const followFinal = followsFinalSymlink(call);
+  const attempted = classifyPath(candidate, access, options.policy, options.pid, symlinks, followFinal);
+  if (attempted.reason) return [violation(call.syscall, attempted.offender, attempted.reason,
+    access, options, line, raw)];
+  if (!observed || canonicalPath(observed) === canonicalPath(candidate, symlinks, followFinal)) return [];
+  const actual = classifyPath(observed, access, options.policy, options.pid, symlinks, true);
+  return actual.reason ? [violation(call.syscall, actual.offender, actual.reason, access,
     options, line, raw)] : [];
 }
 
+interface FileClassification {
+  operands: Array<string | null>;
+  violations: AccessViolation[];
+}
+
 function classifyFile(
-  call: ParsedCall, cwd: string, options: TraceOptions, line: number, raw: string,
-): { violations: AccessViolation[]; paths: string[] } {
+  call: ParsedCall, state: ProcessState, options: AccessTraceOptions, line: number, raw: string,
+  symlinks: ReadonlyMap<string, string>,
+): FileClassification {
   const specs = FILE_ARGUMENTS[call.syscall];
-  if (!specs) return { violations: [unknownViolation(call, options, line, raw)], paths: [] };
+  if (!specs) return { violations: [unknownViolation(call, options, line, raw)], operands: [null] };
   const access = accessMode(call);
-  const paths = specs.map(spec => resolveTracedPath(
+  const operands = specs.map(spec => resolveTracedPath(
     call.args[spec.pathIndex],
     spec.dirIndex === undefined ? undefined : call.args[spec.dirIndex],
-    cwd,
+    state,
   ));
   const observed = returnedFdPath(call);
-  const violations = paths.flatMap((candidate, index) => pathViolation(
-    call, candidate, index === 0 ? observed : null, access, options, line, raw,
+  const violations = operands.flatMap((candidate, index) => pathViolation(
+    call, candidate, index === 0 ? observed : null, access, options, line, raw, symlinks,
   ));
-  return { violations, paths: paths.filter((value): value is string => value !== null) };
+  return { violations, operands };
 }
 
 function isNetworkCall(call: ParsedCall): boolean {
   return NETWORK_SYSCALLS.has(call.syscall);
 }
 
-function isSignalMetadata(raw: string): boolean {
-  return /^(?:\[pid\s+\d+\]\s+)?\d+(?:\.\d+)?\s+--- SIG[A-Z0-9]+ /.test(raw);
+function isSignalMetadata(body: string): boolean {
+  return /^\d+(?:\.\d+)?\s+--- SIG[A-Z0-9]+ /.test(body);
 }
 
 function emptyCounts(): AccessProbeCounts {
   return { traceLines: 0, fileCalls: 0, networkCalls: 0, allowed: 0 };
 }
 
-export function classifyTraceLines(lines: string[], options: TraceOptions): TraceClassification {
-  const counts = emptyCounts();
-  const violations: AccessViolation[] = [];
-  let cwd = path.resolve(options.initialCwd);
-  lines.forEach((raw, index) => {
-    if (raw.length === 0) return;
-    counts.traceLines += 1;
-    if (isSignalMetadata(raw)) return;
-    const call = parseTraceCall(raw);
-    if (!call) return void violations.push(unknownViolation(null, options, index + 1, raw));
-    if (isNetworkCall(call)) {
-      counts.networkCalls += 1;
-      const denied = classifyNetwork(call, options, index + 1, raw);
-      if (denied) violations.push(denied);
-      else counts.allowed += 1;
+function succeeded(call: ParsedCall): boolean {
+  return !call.result.startsWith('-1') && call.result !== '?';
+}
+
+function returnedNumber(call: ParsedCall): number | null {
+  const value = Number.parseInt(call.result, 10);
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function cloneState(state: ProcessState): ProcessState {
+  return { cwd: state.cwd, fds: new Map(state.fds) };
+}
+
+function moveSymlinks(
+  symlinks: Map<string, string>, source: string, destination: string,
+): void {
+  for (const [entry, target] of [...symlinks]) {
+    if (!isWithin(entry, source)) continue;
+    symlinks.delete(entry);
+    const suffix = path.relative(source, entry);
+    symlinks.set(suffix ? path.join(destination, suffix) : destination, target);
+  }
+}
+
+function unfinishedSyscall(body: string): string | null {
+  if (!body.endsWith('<unfinished ...>')) return null;
+  const callBody = body.replace(/^\d+(?:\.\d+)?\s+/, '');
+  return /^([A-Za-z0-9_]+)\(/.exec(callBody)?.[1] ?? null;
+}
+
+function resumedCall(body: string): { syscall: string; suffix: string } | null {
+  const callBody = body.replace(/^\d+(?:\.\d+)?\s+/, '');
+  const match = /^<\.\.\. ([A-Za-z0-9_]+) resumed>(.*)$/.exec(callBody);
+  return match ? { syscall: match[1], suffix: match[2] } : null;
+}
+
+export class AccessTraceClassifier {
+  private readonly counts = emptyCounts();
+  private readonly pending = new Map<number, PendingCall>();
+  private readonly processes = new Map<number, ProcessState>();
+  private readonly symlinks = new Map<string, string>();
+  private readonly violations: AccessViolation[] = [];
+  private rootPid: number | null;
+
+  constructor(private readonly options: AccessTraceOptions) {
+    this.rootPid = options.pid > 0 ? options.pid : null;
+    if (this.rootPid !== null) {
+      this.processes.set(this.rootPid, { cwd: path.resolve(options.initialCwd), fds: new Map() });
+    }
+  }
+
+  private eventOptions(pid: number): AccessTraceOptions {
+    return { ...this.options, pid };
+  }
+
+  private processState(pid: number): ProcessState {
+    const existing = this.processes.get(pid);
+    if (existing) return existing;
+    const isRoot = this.rootPid === null;
+    if (isRoot) this.rootPid = pid;
+    const state = {
+      cwd: isRoot ? path.resolve(this.options.initialCwd) : null,
+      fds: new Map<number, string>(),
+    };
+    this.processes.set(pid, state);
+    const traced = this.options.policy.tracedPids as Set<number> | undefined;
+    traced?.add?.(pid);
+    return state;
+  }
+
+  private inheritProcess(call: ParsedCall, pid: number): boolean {
+    if (!PROCESS_METADATA.has(call.syscall)) return false;
+    const childPid = returnedNumber(call);
+    if (succeeded(call) && childPid !== null
+      && ['clone', 'clone3', 'fork', 'vfork'].includes(call.syscall)) {
+      this.processes.set(childPid, cloneState(this.processState(pid)));
+      const traced = this.options.policy.tracedPids as Set<number> | undefined;
+      traced?.add?.(childPid);
+    }
+    return true;
+  }
+
+  private updateSymlinks(call: ParsedCall, operands: Array<string | null>): void {
+    if (!succeeded(call)) return;
+    const entry = operands[0];
+    if ((call.syscall === 'symlink' || call.syscall === 'symlinkat') && entry) {
+      const target = decodeQuoted(call.args[0]);
+      if (target !== null) this.symlinks.set(canonicalPath(entry, this.symlinks, false), target);
       return;
     }
-    if (PROCESS_METADATA.has(call.syscall)) return;
-    const result = classifyFile(call, cwd, options, index + 1, raw);
-    counts.fileCalls += Math.max(result.paths.length, 1);
-    violations.push(...result.violations);
-    counts.allowed += Math.max(result.paths.length, 1) - result.violations.length;
-    if (call.syscall === 'chdir' && !call.result.startsWith('-1') && result.paths[0]) cwd = result.paths[0];
-  });
-  return { violations, counts };
+    if (['unlink', 'unlinkat'].includes(call.syscall) && entry) {
+      this.symlinks.delete(canonicalPath(entry, this.symlinks, false));
+      return;
+    }
+    if (call.syscall.startsWith('rename') && entry && operands[1]) {
+      moveSymlinks(this.symlinks, canonicalPath(entry, this.symlinks, false),
+        canonicalPath(operands[1], this.symlinks, false));
+    }
+  }
+
+  private updateProcessState(
+    call: ParsedCall, state: ProcessState, operands: Array<string | null>,
+  ): void {
+    if (!succeeded(call)) return;
+    if (call.syscall === 'chdir' && operands[0]) {
+      state.cwd = canonicalPath(operands[0], this.symlinks);
+    }
+    const fd = FD_RETURNING_FILE_CALLS.has(call.syscall) ? returnedNumber(call) : null;
+    const fdPath = returnedFdPath(call) ?? operands[0];
+    if (fd !== null && fdPath) state.fds.set(fd, canonicalPath(fdPath, this.symlinks));
+    this.updateSymlinks(call, operands);
+  }
+
+  private classifyCall(call: ParsedCall, pid: number, line: number, raw: string): void {
+    const options = this.eventOptions(pid);
+    if (isNetworkCall(call)) {
+      this.counts.networkCalls += 1;
+      const denied = classifyNetwork(call, options, line, raw);
+      if (denied) this.violations.push(denied);
+      else this.counts.allowed += 1;
+      return;
+    }
+    if (this.inheritProcess(call, pid)) return;
+    const state = this.processState(pid);
+    const result = classifyFile(call, state, options, line, raw, this.symlinks);
+    this.counts.fileCalls += result.operands.length;
+    this.violations.push(...result.violations);
+    this.counts.allowed += Math.max(0, result.operands.length - result.violations.length);
+    this.updateProcessState(call, state, result.operands);
+  }
+
+  private classifyBody(body: string, pid: number, line: number, raw: string): void {
+    const call = parseTraceCall(body);
+    if (!call) this.violations.push(unknownViolation(null, this.eventOptions(pid), line, raw));
+    else this.classifyCall(call, pid, line, raw);
+  }
+
+  private startPending(pid: number, body: string, line: number, raw: string, syscall: string): void {
+    const previous = this.pending.get(pid);
+    if (previous) this.violations.push(unknownViolation(null, this.eventOptions(pid),
+      previous.line, previous.raw));
+    this.pending.set(pid, {
+      body: body.slice(0, -'<unfinished ...>'.length), line, raw, syscall,
+    });
+  }
+
+  private finishPending(
+    pid: number, resumed: { syscall: string; suffix: string }, line: number, raw: string,
+  ): void {
+    const pending = this.pending.get(pid);
+    this.pending.delete(pid);
+    if (!pending || pending.syscall !== resumed.syscall) {
+      this.violations.push(unknownViolation(null, this.eventOptions(pid), line, raw));
+      return;
+    }
+    this.classifyBody(`${pending.body}${resumed.suffix}`, pid, pending.line,
+      `${pending.raw} ${raw}`);
+  }
+
+  consume(raw: string): void {
+    if (raw.length === 0) return;
+    this.counts.traceLines += 1;
+    const line = this.counts.traceLines;
+    const { body, pid } = parsePrefix(raw, this.options.pid);
+    if (isSignalMetadata(body)) return;
+    const unfinished = unfinishedSyscall(body);
+    if (unfinished) return this.startPending(pid, body, line, raw, unfinished);
+    const resumed = resumedCall(body);
+    if (resumed) return this.finishPending(pid, resumed, line, raw);
+    this.classifyBody(body, pid, line, raw);
+  }
+
+  finish(): TraceClassification {
+    for (const [pid, pending] of this.pending) {
+      this.violations.push(unknownViolation(null, this.eventOptions(pid),
+        pending.line, pending.raw));
+    }
+    this.pending.clear();
+    return { counts: { ...this.counts }, violations: [...this.violations] };
+  }
+}
+
+export function classifyTraceLines(
+  lines: string[], options: AccessTraceOptions,
+): TraceClassification {
+  const classifier = new AccessTraceClassifier(options);
+  lines.forEach(line => classifier.consume(line));
+  return classifier.finish();
+}
+
+export async function classifyTraceStream(
+  input: NodeJS.ReadableStream, options: AccessTraceOptions,
+): Promise<TraceClassification> {
+  const classifier = new AccessTraceClassifier(options);
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  for await (const line of lines) classifier.consume(line);
+  return classifier.finish();
 }

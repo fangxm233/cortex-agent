@@ -1,5 +1,5 @@
 // input:  supervisor arguments, deadline, signals, control fd
-// output: deterministic lifecycle edge cases from a real process group
+// output: lifecycle edge cases and fixture process ownership
 // pos:    Fake supervisor fixture for agent-run client tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -31,6 +31,7 @@ type FixtureMode =
 interface CancellationState {
   cancelled(): boolean;
   deadline(): boolean;
+  triggerDeadline(): void;
   stop(): void;
 }
 
@@ -67,6 +68,11 @@ function timestamp(): string {
 function recordArguments(): void {
   const file = process.env.FAKE_SUPERVISOR_ARGV_FILE;
   if (file) fs.writeFileSync(file, JSON.stringify(process.argv.slice(2)));
+}
+
+function recordProcess(): void {
+  const file = process.env.FAKE_SUPERVISOR_PID_FILE;
+  if (file) fs.writeFileSync(file, JSON.stringify({ pid: process.pid }));
 }
 
 function recordSignal(): void {
@@ -134,6 +140,7 @@ function installCancellation(child: ChildProcess, deadlineMs: number | null): Ca
   return {
     cancelled: () => cancelled,
     deadline: () => deadline,
+    triggerDeadline: () => cancel(true),
     stop: () => { if (timer) clearTimeout(timer); },
   };
 }
@@ -176,6 +183,7 @@ function terminalExitCode(
 
 async function runFixture(): Promise<void> {
   recordArguments();
+  recordProcess();
   const invocation = parseInvocation(process.argv.slice(2));
   const mode = (process.env.FAKE_SUPERVISOR_MODE ?? 'clean') as FixtureMode;
   if (mode === 'error') return emitError(invocation.controlFd);
@@ -184,6 +192,7 @@ async function runFixture(): Promise<void> {
   const cancellation = installCancellation(child, invocation.deadlineMs);
   const continueProtocol = emitOpening(invocation.controlFd, child.pid, mode);
   if (!continueProtocol) signalGroup(child);
+  if (process.env.FAKE_SUPERVISOR_TRIGGER_DEADLINE === '1') cancellation.triggerDeadline();
   if (mode === 'hang') await hangForever();
   const result = await waitForChild(child);
   cancellation.stop();

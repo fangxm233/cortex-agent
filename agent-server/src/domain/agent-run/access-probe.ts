@@ -1,13 +1,16 @@
-// input:  pinned Node launch options, strace, and C8 policy roots
-// output: machine verdict, named probe failures, and human summary
-// pos:    Executes and classifies file/network syscall probes
+// input:  pinned launch, strace, supervisor, and C8 roots
+// output: verdict, named failures, and human summary
+// pos:    Contains and classifies syscall probe executions
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { fileURLToPath } from 'node:url';
 import {
-  classifyTraceLines,
+  classifyTraceStream,
   type AccessProbeCounts,
   type AccessProbePolicy,
   type AccessViolation,
@@ -16,13 +19,15 @@ import {
   preparePinnedNodeLaunch,
   type PinnedNodeLaunchOptions,
 } from './pinned-node-process.js';
+import { attachSupervisor } from './supervisor.js';
 
 export type ProbeFailureReason =
   | 'strace_unavailable'
   | 'ptrace_unavailable'
   | 'trace_missing'
   | 'target_failed'
-  | 'probe_timeout';
+  | 'probe_timeout'
+  | 'containment_failed';
 
 export interface NodeAccessProbeOptions extends Omit<PinnedNodeLaunchOptions, 'stdio'> {
   installRoot: string;
@@ -30,6 +35,7 @@ export interface NodeAccessProbeOptions extends Omit<PinnedNodeLaunchOptions, 's
   hostCortexHome: string;
   stracePath?: string;
   timeoutMs?: number;
+  supervisorBinary?: string;
 }
 
 export interface AccessProbeVerdict {
@@ -45,79 +51,119 @@ interface TraceExecution {
   code: number | null;
   signal: NodeJS.Signals | null;
   stderr: string;
-  spawnError?: NodeJS.ErrnoException;
   timedOut: boolean;
+  containmentFailed: boolean;
+}
+
+interface TraceEvidence {
+  directory: string;
+  fd: number;
+  outputArg: string;
+  retainedPath: string;
 }
 
 function emptyCounts(): AccessProbeCounts {
   return { traceLines: 0, fileCalls: 0, networkCalls: 0, allowed: 0 };
 }
 
+const MAX_STDERR_BYTES = 64 * 1024;
+
 function appendText(stream: NodeJS.ReadableStream | null): Promise<string> {
   if (!stream) return Promise.resolve('');
   return new Promise((resolve, reject) => {
     let text = '';
-    stream.on('data', chunk => { text += chunk.toString(); });
+    stream.on('data', (chunk: Buffer) => {
+      if (text.length >= MAX_STDERR_BYTES) return;
+      text += chunk.subarray(0, MAX_STDERR_BYTES - text.length).toString();
+    });
     stream.on('end', () => resolve(text));
     stream.on('error', reject);
   });
 }
 
-function stopProcessGroup(child: ChildProcess): void {
-  try {
-    if (child.pid) process.kill(-child.pid, 'SIGKILL');
-  } catch {
-    child.kill('SIGKILL');
-  }
-}
-
-async function waitForTraceProcess(child: ChildProcess, timeoutMs: number): Promise<TraceExecution> {
-  const stderr = appendText(child.stderr);
-  let spawnError: NodeJS.ErrnoException | undefined;
-  child.once('error', error => { spawnError = error; });
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    stopProcessGroup(child);
-  }, timeoutMs);
-  const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => {
-    child.once('close', (code, signal) => resolve({ code, signal }));
-  });
-  clearTimeout(timer);
-  return { ...result, stderr: await stderr, spawnError, timedOut };
-}
-
-function straceArguments(tracePrefix: string, launch: ReturnType<typeof preparePinnedNodeLaunch>) {
+function straceArguments(traceOutput: string, launch: ReturnType<typeof preparePinnedNodeLaunch>) {
   return [
-    '-f', '-ff', '-qq', '-ttt', '-yy', '-s', '4096',
+    '-f', '-qq', '-ttt', '-yy', '-s', '4096',
     '-e', 'trace=%file,%network,%process',
-    '-o', tracePrefix,
+    '-o', traceOutput,
     '--', launch.command, ...launch.args,
   ];
 }
 
 async function executeTrace(
-  binary: string, tracePrefix: string, launch: ReturnType<typeof preparePinnedNodeLaunch>,
-  timeoutMs: number,
+  supervisorBinary: string, binary: string, traceOutput: string,
+  launch: ReturnType<typeof preparePinnedNodeLaunch>, timeoutMs: number,
 ): Promise<TraceExecution> {
-  const child = spawn(binary, straceArguments(tracePrefix, launch), {
+  const session = attachSupervisor({
+    binary: supervisorBinary,
+    args: [binary, ...straceArguments(traceOutput, launch)],
     cwd: launch.cwd,
     env: launch.env,
     stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
-    shell: false,
+    deadlineMs: timeoutMs,
+    graceMs: 0,
   });
-  child.stdout?.resume();
-  return waitForTraceProcess(child, timeoutMs);
+  session.process.stdout?.resume();
+  const stderr = appendText(session.process.stderr);
+  let deadlineElapsed = false;
+  const timer = setTimeout(() => { deadlineElapsed = true; }, timeoutMs);
+  const results = await Promise.allSettled([session.exited, session.quiescent, session.closed]);
+  clearTimeout(timer);
+  await session.dispose();
+  const exited = results[0].status === 'fulfilled' ? results[0].value : null;
+  const closed = results[2].status === 'fulfilled' ? results[2].value : null;
+  return {
+    code: exited?.code ?? null,
+    signal: (exited?.signal ?? null) as NodeJS.Signals | null,
+    stderr: await stderr,
+    timedOut: deadlineElapsed && closed?.code === 124,
+    containmentFailed: results.some(result => result.status === 'rejected'),
+  };
 }
 
-function traceFiles(tracePrefix: string): string[] {
-  const directory = path.dirname(tracePrefix);
-  const prefix = `${path.basename(tracePrefix)}.`;
-  return fs.readdirSync(directory)
-    .filter(name => name.startsWith(prefix))
-    .map(name => path.join(directory, name))
-    .sort();
+function packageSupervisorBinary(): string {
+  return fileURLToPath(
+    new URL('../../../native/cortex-supervisor/dist/cortex-supervisor', import.meta.url),
+  );
+}
+
+function resolveExecutable(command: string, env: NodeJS.ProcessEnv): string | null {
+  const candidates = command.includes(path.sep)
+    ? [command]
+    : (env.PATH ?? '').split(path.delimiter).map(directory => path.join(directory, command));
+  for (const candidate of candidates) {
+    try { fs.accessSync(candidate, fs.constants.X_OK); return fs.realpathSync(candidate); }
+    catch {}
+  }
+  return null;
+}
+
+function createTraceEvidence(logsDir: string): TraceEvidence {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-access-trace-'));
+  const source = path.join(directory, 'evidence');
+  const fd = fs.openSync(source, 'w+', 0o600);
+  fs.unlinkSync(source);
+  return {
+    directory,
+    fd,
+    outputArg: `/proc/${process.pid}/fd/${fd}`,
+    retainedPath: path.join(logsDir, `access.trace.${randomUUID()}`),
+  };
+}
+
+function closeTraceEvidence(evidence: TraceEvidence): void {
+  try { fs.closeSync(evidence.fd); }
+  finally { fs.rmdirSync(evidence.directory); }
+}
+
+function evidenceStream(evidence: TraceEvidence): fs.ReadStream {
+  return fs.createReadStream(`/proc/${process.pid}/fd/${evidence.fd}`, { start: 0 });
+}
+
+async function retainEvidence(evidence: TraceEvidence): Promise<void> {
+  await pipeline(evidenceStream(evidence), fs.createWriteStream(evidence.retainedPath, {
+    flags: 'wx', mode: 0o600,
+  }));
 }
 
 function existingRealpaths(values: string[]): string[] {
@@ -143,6 +189,7 @@ function buildPolicy(
     hostHome: path.resolve(options.hostHome),
     hostCortexHome: path.resolve(options.hostCortexHome),
     nodeExecutable: launch.command,
+    tracedPids: new Set<number>(),
     nodeModuleRoots: existingRealpaths([
       path.join(installRoot, 'node_modules'),
       path.join(path.dirname(installRoot), 'node_modules'),
@@ -150,36 +197,20 @@ function buildPolicy(
   };
 }
 
-function mergeCounts(target: AccessProbeCounts, addition: AccessProbeCounts): void {
-  target.traceLines += addition.traceLines;
-  target.fileCalls += addition.fileCalls;
-  target.networkCalls += addition.networkCalls;
-  target.allowed += addition.allowed;
-}
-
-function classifyFiles(
-  files: string[], policy: AccessProbePolicy, initialCwd: string,
-): { counts: AccessProbeCounts; violations: AccessViolation[] } {
-  const counts = emptyCounts();
-  const violations: AccessViolation[] = [];
-  const tracedPids = new Set(files.map(file => Number(path.extname(file).slice(1))));
-  const tracedPolicy = { ...policy, tracedPids };
-  for (const file of files) {
-    const pid = Number(path.extname(file).slice(1));
-    const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
-    const result = classifyTraceLines(lines, { policy: tracedPolicy, initialCwd, pid, traceFile: file });
-    mergeCounts(counts, result.counts);
-    violations.push(...result.violations);
-  }
-  return { counts, violations };
+async function classifyEvidence(
+  evidence: TraceEvidence, policy: AccessProbePolicy, initialCwd: string,
+): Promise<{ counts: AccessProbeCounts; violations: AccessViolation[] }> {
+  return classifyTraceStream(evidenceStream(evidence), {
+    policy, initialCwd, pid: 0, traceFile: evidence.retainedPath,
+  });
 }
 
 function failureReason(execution: TraceExecution, hasTrace: boolean): ProbeFailureReason | undefined {
-  if (execution.spawnError?.code === 'ENOENT') return 'strace_unavailable';
   if (/ptrace.*(?:not permitted|operation not permitted|permission denied)/i.test(execution.stderr)) {
     return 'ptrace_unavailable';
   }
   if (execution.timedOut) return 'probe_timeout';
+  if (execution.containmentFailed) return 'containment_failed';
   if (!hasTrace) return 'trace_missing';
   if (execution.code !== 0 || execution.signal !== null) return 'target_failed';
   return undefined;
@@ -193,22 +224,33 @@ export async function runNodeAccessProbe(
   options: NodeAccessProbeOptions,
 ): Promise<AccessProbeVerdict> {
   const launch = preparePinnedNodeLaunch(options);
-  const tracePrefix = path.join(launch.paths.logsDir, 'access.trace');
-  const execution = await executeTrace(
-    options.stracePath ?? 'strace', tracePrefix, launch, options.timeoutMs ?? 30_000,
+  const binary = resolveExecutable(options.stracePath ?? 'strace', launch.env);
+  if (!binary) return unavailableVerdict('strace_unavailable');
+  const supervisor = resolveExecutable(
+    options.supervisorBinary ?? packageSupervisorBinary(), launch.env,
   );
-  const files = traceFiles(tracePrefix);
-  const reason = failureReason(execution, files.length > 0);
-  if (files.length === 0) return unavailableVerdict(reason ?? 'trace_missing');
-  const classified = classifyFiles(files, buildPolicy(options, launch), launch.cwd);
-  return {
-    ok: reason === undefined && classified.violations.length === 0,
-    violations: classified.violations,
-    counts: classified.counts,
-    failureReason: reason,
-    targetExitCode: execution.code,
-    traceFiles: files,
-  };
+  if (!supervisor) return unavailableVerdict('containment_failed');
+  const evidence = createTraceEvidence(launch.paths.logsDir);
+  try {
+    const execution = await executeTrace(
+      supervisor, binary, evidence.outputArg, launch, options.timeoutMs ?? 30_000,
+    );
+    const hasTrace = fs.fstatSync(evidence.fd).size > 0;
+    const reason = failureReason(execution, hasTrace);
+    if (!hasTrace) return unavailableVerdict(reason ?? 'trace_missing');
+    const classified = await classifyEvidence(evidence, buildPolicy(options, launch), launch.cwd);
+    await retainEvidence(evidence);
+    return {
+      ok: reason === undefined && classified.violations.length === 0,
+      violations: classified.violations,
+      counts: classified.counts,
+      failureReason: reason,
+      targetExitCode: execution.code,
+      traceFiles: [evidence.retainedPath],
+    };
+  } finally {
+    closeTraceEvidence(evidence);
+  }
 }
 
 function countSummary(verdict: AccessProbeVerdict): string {

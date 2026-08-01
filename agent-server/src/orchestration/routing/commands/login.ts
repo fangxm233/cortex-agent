@@ -1,5 +1,5 @@
 // input:  auth status/LoginFlow services, command router, platform forms
-// output: !login status and staged Slack/Feishu API-key login handlers
+// output: staged chat login with validation and expiry results
 // pos:    Chat authentication entry and secret-form coordinator
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -51,6 +51,7 @@ interface LoginOpenMetadata {
   flowId?: string;
   channel: string;
   stage: 'provider' | 'secret';
+  allowedProviders?: string[];
 }
 
 type LoginRequest =
@@ -117,6 +118,17 @@ function stateIsActionable(state: LoginFlowState): boolean {
   return state.step === 'prompt' || TERMINAL_STEPS.has(state.step);
 }
 
+function expiredFlowState(state: LoginFlowState): LoginFlowState {
+  return {
+    ...state,
+    step: 'failed',
+    pendingPrompt: null,
+    outcome: null,
+    error: t('cmd.auth.loginExpired'),
+    errorCode: 'flow_expired',
+  };
+}
+
 async function waitForActionable(
   service: AuthLoginService,
   initial: LoginFlowState,
@@ -126,10 +138,12 @@ async function waitForActionable(
   let state = initial;
   while (Date.now() < deadline) {
     await delay(FLOW_POLL_MS);
-    state = service.getState(initial.flowId) ?? state;
+    const current = service.getState(initial.flowId);
+    if (!current) return expiredFlowState(state);
+    state = current;
     if (stateIsActionable(state)) return state;
   }
-  return state;
+  return expiredFlowState(state);
 }
 
 function flowResultText(state: LoginFlowState): string {
@@ -177,7 +191,11 @@ async function openLoginModal(
     }
   }
   const snapshot = metadata.stage === 'provider' ? await dependencies.readStatus() : undefined;
-  await adapter.openModal(context.triggerId, buildLoginModal(metadata, snapshot));
+  const modalMetadata = snapshot ? {
+    ...metadata,
+    allowedProviders: apiKeyProviders(snapshot).map(account => account.provider),
+  } : metadata;
+  await adapter.openModal(context.triggerId, buildLoginModal(modalMetadata, snapshot));
 }
 
 function submittedValue(context: ModalSubmitContext, blockId: string, actionId: string): string {
@@ -274,21 +292,28 @@ function startProviderFlow(
     .catch(() => postBackgroundFailure(metadata, dependencies));
 }
 
-async function submitLoginModal(
+async function submitProvider(
   context: ModalSubmitContext,
+  metadata: LoginOpenMetadata,
   dependencies: InteractiveLoginDependencies,
 ): Promise<void> {
-  const metadata = JSON.parse(context.privateMetadata) as LoginOpenMetadata;
-  if (metadata.stage === 'provider') {
-    const provider = selectedProvider(context);
-    if (!provider) {
-      await context.ack({ errors: { login_provider: t('cmd.auth.loginRequired') } });
-      return;
-    }
-    await context.ack();
-    startProviderFlow(metadata, provider, dependencies);
+  const provider = selectedProvider(context);
+  if (!provider || !metadata.allowedProviders?.includes(provider)) {
+    const error = provider
+      ? t('cmd.auth.loginUnknownProvider', { provider })
+      : t('cmd.auth.loginRequired');
+    await context.ack({ errors: { login_provider: error } });
     return;
   }
+  await context.ack();
+  startProviderFlow(metadata, provider, dependencies);
+}
+
+async function submitSecret(
+  context: ModalSubmitContext,
+  metadata: LoginOpenMetadata,
+  dependencies: InteractiveLoginDependencies,
+): Promise<void> {
   const secret = submittedValue(context, 'login_secret', 'value');
   if (!secret) {
     await context.ack({ errors: { login_secret: t('cmd.auth.loginRequired') } });
@@ -298,11 +323,31 @@ async function submitLoginModal(
   completeLoginInBackground(metadata, secret, dependencies);
 }
 
+async function submitLoginModal(
+  context: ModalSubmitContext,
+  dependencies: InteractiveLoginDependencies,
+): Promise<void> {
+  const metadata = JSON.parse(context.privateMetadata) as LoginOpenMetadata;
+  if (metadata.stage === 'provider') return submitProvider(context, metadata, dependencies);
+  return submitSecret(context, metadata, dependencies);
+}
+
+function handleLoginAction(
+  context: ActionContext,
+  dependencies: InteractiveLoginDependencies,
+): Promise<void> {
+  if (!context.channelId.startsWith('feishu:')) return openLoginModal(context, dependencies);
+  const metadata = JSON.parse(context.value) as LoginOpenMetadata;
+  void openLoginModal(context, dependencies)
+    .catch(() => postBackgroundFailure(metadata, dependencies));
+  return Promise.resolve();
+}
+
 function registerLoginInteractions(dependencies: InteractiveLoginDependencies): void {
   dependencies.router.registerCommand('login', {
     actions: [{
       actionId: 'open',
-      handler: context => openLoginModal(context, dependencies),
+      handler: context => handleLoginAction(context, dependencies),
     }],
     modals: [{
       callbackId: LOGIN_MODAL_CALLBACK,

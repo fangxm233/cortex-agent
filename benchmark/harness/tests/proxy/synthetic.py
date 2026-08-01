@@ -21,8 +21,8 @@ class CapturedRequest:
 class SyntheticServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, bind_host: str) -> None:
-        super().__init__((bind_host, 0), SyntheticHandler)
+    def __init__(self, bind_host: str, bind_port: int) -> None:
+        super().__init__((bind_host, bind_port), SyntheticHandler)
         self.requests: list[CapturedRequest] = []
         self.response_delay_seconds = 0.0
         self.response_chunk_delay_seconds = 0.0
@@ -66,8 +66,8 @@ class SyntheticHandler(BaseHTTPRequestHandler):
 
 
 class SyntheticUpstream:
-    def __init__(self, bind_host: str = "127.0.0.1") -> None:
-        self.server = SyntheticServer(bind_host)
+    def __init__(self, bind_host: str = "127.0.0.1", bind_port: int = 0) -> None:
+        self.server = SyntheticServer(bind_host, bind_port)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 

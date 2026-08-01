@@ -1,6 +1,7 @@
 // input:  Node test runner + thread-callback session→task wake bridge
 // output: notifyTaskOriginSession tests for origin-session terminal-task notices
-// pos:    Verifies wake precedence and system-reminder framing
+// pos:    Verifies wake precedence, system-reminder framing, and thread-origin
+//         degradation to project notices (fire-and-forget tasks never wake a session)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import './_test-home.js'; // MUST be first: isolate CORTEX_HOME before paths.ts loads
@@ -37,6 +38,7 @@ function originTaskYaml(id: string, over: Record<string, string> = {}): string {
   ];
   if (over.channel) lines.push(`    origin-channel: ${over.channel}`);
   if (over.session) lines.push(`    origin-session-id: ${over.session}`);
+  if (over.thread) lines.push(`    origin-thread-id: ${over.thread}`);
   if (over.blocked) lines.push(`    blocked-by: ${over.blocked}`);
   if (over.note) lines.push(`    completed-note: ${over.note}`);
   return lines.join('\n') + '\n';
@@ -116,4 +118,76 @@ test('notifyTaskOriginSession wakes on blocked with the block reason', async () 
   await notifyTaskOriginSession('f1', 'blocked', { wake: (channel, notice) => { calls.push({ channel, notice }); } });
   assert.equal(calls.length, 1);
   assert.match(calls[0].notice, /stuck|受阻|阻塞/);
+});
+
+// ── Thread-origin tasks: fire-and-forget → durable project notice, never a session wake ──
+
+test('a thread-origin task degrades to a project notice instead of waking a session', async () => {
+  _testResetCallbackState();
+  const proj = `_ow_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + originTaskYaml('g1', { thread: 'thr_gone', status: 'done', note: 'queued result' }));
+  const wakes: unknown[] = [];
+  const notices: { project: string; text: string }[] = [];
+  await notifyTaskOriginSession('g1', 'completed', {
+    wake: (c, n) => { wakes.push({ c, n }); },
+    postNotice: (project, text) => { notices.push({ project, text }); },
+  });
+  assert.equal(wakes.length, 0);
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].project, proj);
+  assert.match(notices[0].text, /#g1/);
+  assert.match(notices[0].text, /thr_gone/);
+  assert.match(notices[0].text, /queued result/);
+});
+
+test('thread origin wins over a legacy-polluted origin channel (retroactive fix)', async () => {
+  _testResetCallbackState();
+  const proj = `_ow_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + originTaskYaml('h1', { channel: 'C-general', thread: 'thr_old', status: 'done' }));
+  const wakes: unknown[] = [];
+  const notices: { project: string; text: string }[] = [];
+  await notifyTaskOriginSession('h1', 'completed', {
+    wake: (c, n) => { wakes.push({ c, n }); },
+    postNotice: (project, text) => { notices.push({ project, text }); },
+  });
+  assert.equal(wakes.length, 0, 'must not wake a session on the polluted origin channel');
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].project, proj);
+});
+
+test('a blocked thread-origin task posts the block reason to the project channel', async () => {
+  _testResetCallbackState();
+  const proj = `_ow_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + originTaskYaml('i1', { thread: 'thr_x', status: 'open', blocked: 'missing dataset' }));
+  const notices: { project: string; text: string }[] = [];
+  await notifyTaskOriginSession('i1', 'blocked', {
+    wake: () => { throw new Error('must not wake'); },
+    postNotice: (project, text) => { notices.push({ project, text }); },
+  });
+  assert.equal(notices.length, 1);
+  assert.match(notices[0].text, /missing dataset/);
+  assert.match(notices[0].text, /unblock/);
+});
+
+test('thread-origin project notice is single-fire per task+kind', async () => {
+  _testResetCallbackState();
+  const proj = `_ow_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + originTaskYaml('j1', { thread: 'thr_y', status: 'done' }));
+  const notices: unknown[] = [];
+  await notifyTaskOriginSession('j1', 'completed', { postNotice: (p, t) => { notices.push({ p, t }); } });
+  await notifyTaskOriginSession('j1', 'completed', { postNotice: (p, t) => { notices.push({ p, t }); } });
+  assert.equal(notices.length, 1);
+});
+
+test('a thread waiting on the task still owns delivery over the thread-origin notice', async () => {
+  _testResetCallbackState();
+  const proj = `_ow_p${seq++}`;
+  makeProject(proj, 'tasks:\n' + originTaskYaml('k1', { thread: 'thr_z', status: 'done' }));
+  makeWaitingThread(proj, ['k1']);
+  const notices: unknown[] = [];
+  await notifyTaskOriginSession('k1', 'completed', {
+    wake: () => { throw new Error('must not wake'); },
+    postNotice: (p, t) => { notices.push({ p, t }); },
+  });
+  assert.equal(notices.length, 0);
 });

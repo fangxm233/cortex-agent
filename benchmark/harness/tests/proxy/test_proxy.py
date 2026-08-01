@@ -4,6 +4,7 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import json
+import socket
 import time
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -13,7 +14,9 @@ from urllib.parse import urlsplit
 
 import pytest
 
+import cortex_bench_harness.proxy.server as proxy_server
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from cortex_bench_harness.proxy.upstream import parse_usage
 from synthetic import SyntheticUpstream, proxy_request
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-PROXY-UNIQUE"
@@ -89,6 +92,37 @@ def test_rejects_requests_after_budget_is_consumed(tmp_path: Path) -> None:
     assert len(upstream.requests) == 1
 
 
+def test_connect_failure_releases_reservation_and_writes_audit(tmp_path: Path) -> None:
+    port = _unused_port()
+    log_path = tmp_path / "attempts.jsonl"
+    handle = start_trial_proxy(
+        trial_id="trial-attempt", upstream_base_url=f"http://127.0.0.1:{port}",
+        real_credential=REAL_CREDENTIAL, bound_source_ip="127.0.0.1",
+        absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
+        budget=budget(), log_path=log_path,
+    )
+    try:
+        first, _ = proxy_request(handle.base_url, handle.dummy_token, "connect-fail")
+        with SyntheticUpstream(bind_port=port):
+            second, _ = proxy_request(handle.base_url, handle.dummy_token, "retry")
+    finally:
+        handle.stop()
+    records = [json.loads(line) for line in log_path.read_text().splitlines()]
+    assert (first, second) == (502, 200)
+    assert records[0] == {
+        "cost_usd": "0", "outcome": "upstream_unavailable",
+        "request_count": 1, "tokens": {"input": 0, "output": 0, "total": 0},
+        "upstream_model": None,
+    }
+    assert records[1]["request_count"] == 2
+
+
+def _unused_port() -> int:
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return listener.getsockname()[1]
+
+
 def test_missing_upstream_usage_revokes_budget_route(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         upstream.server.response = {
@@ -104,6 +138,31 @@ def test_missing_upstream_usage_revokes_budget_route(tmp_path: Path) -> None:
     assert json.loads(payload) == {"error": "budget_accounting_unavailable"}
     assert second == 410
     assert len(upstream.requests) == 1
+
+
+def test_sse_usage_allows_fields_split_across_events() -> None:
+    body = _sse_body([
+        {"message": {"model": "claude-synthetic-1",
+                     "usage": {"input_tokens": 2}}},
+        {"usage": {"output_tokens": 3}},
+    ])
+    usage = parse_usage(body, "text/event-stream")
+    assert usage.accounted is True
+    assert (usage.input_tokens, usage.output_tokens) == (2, 3)
+
+
+def test_sse_usage_rejects_later_malformed_token_field() -> None:
+    body = _sse_body([
+        {"message": {"model": "claude-synthetic-1",
+                     "usage": {"input_tokens": 2, "output_tokens": 3}}},
+        {"usage": {"output_tokens": -1}},
+    ])
+    assert parse_usage(body, "text/event-stream").accounted is False
+
+
+def _sse_body(documents: list[dict[str, object]]) -> bytes:
+    lines = [f"data: {json.dumps(document)}" for document in documents]
+    return ("\n\n".join(lines) + "\n\n").encode()
 
 
 def test_empty_upstream_model_identity_revokes_budget_route(tmp_path: Path) -> None:
@@ -202,6 +261,84 @@ def test_rejects_requests_after_absolute_deadline(tmp_path: Path) -> None:
     assert len(upstream.requests) == 1
 
 
+def test_permanently_stalled_body_does_not_block_another_request(tmp_path: Path) -> None:
+    with SyntheticUpstream() as upstream:
+        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        stalled = _stalled_body_socket(handle.base_url, handle.dummy_token)
+        try:
+            _wait_for_body_client(handle)
+            status, _ = proxy_request(handle.base_url, handle.dummy_token, "independent")
+        finally:
+            stalled.close()
+            handle.stop()
+    assert status == 200
+    assert len(upstream.requests) == 1
+
+
+def test_deadline_rejects_permanently_stalled_body(tmp_path: Path) -> None:
+    deadline = datetime.now(UTC) + timedelta(milliseconds=250)
+    with SyntheticUpstream() as upstream:
+        handle = start_proxy(tmp_path, upstream, deadline=deadline, max_cost="20")
+        stalled = _stalled_body_socket(handle.base_url, handle.dummy_token)
+        try:
+            stalled.settimeout(2)
+            response = stalled.recv(4096)
+            _wait_for_no_clients(handle)
+        finally:
+            stalled.close()
+            handle.stop()
+    assert b" 410 " in response
+    assert upstream.requests == []
+
+
+def test_stop_closes_permanently_stalled_body_handler(tmp_path: Path) -> None:
+    with SyntheticUpstream() as upstream:
+        handle = start_proxy(tmp_path, upstream, max_cost="20")
+        stalled = _stalled_body_socket(handle.base_url, handle.dummy_token)
+        try:
+            _wait_for_body_client(handle)
+            handle.stop()
+            stalled.settimeout(2)
+            assert stalled.recv(1024) == b""
+            assert handle._server.active_client_count == 0
+        finally:
+            stalled.close()
+            handle.stop()
+
+
+def _stalled_body_socket(base_url: str, token: str) -> socket.socket:
+    target = urlsplit(base_url)
+    client = socket.create_connection((target.hostname or "", target.port or 80), timeout=3)
+    headers = (
+        "POST /v1/messages HTTP/1.1\r\nHost: proxy\r\n"
+        f"Authorization: Bearer {token}\r\nContent-Length: 100\r\n\r\nX"
+    )
+    client.sendall(headers.encode())
+    return client
+
+
+def _wait_for_body_client(handle) -> None:
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        if handle._server.body_client_count == 1:
+            return
+        time.sleep(0.01)
+    raise AssertionError("proxy did not enter the body-read state")
+
+
+def _wait_for_no_clients(handle) -> None:
+    _wait_for_client_count(handle, 0)
+
+
+def _wait_for_client_count(handle, expected: int) -> None:
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        if handle._server.active_client_count == expected:
+            return
+        time.sleep(0.01)
+    raise AssertionError(f"proxy client count did not reach {expected}")
+
+
 def test_route_is_dead_after_trial_stop(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         handle = start_proxy(tmp_path, upstream)
@@ -210,6 +347,50 @@ def test_route_is_dead_after_trial_stop(tmp_path: Path) -> None:
         with pytest.raises(OSError):
             proxy_request(handle.base_url, handle.dummy_token, "dead")
     assert len(upstream.requests) == 1
+
+
+@pytest.mark.parametrize("phase", ["open", "write", "fsync"])
+def test_log_persistence_failure_revokes_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str,
+) -> None:
+    log_path = _failing_log_path(tmp_path, monkeypatch, phase)
+    with SyntheticUpstream() as upstream:
+        handle = start_trial_proxy(
+            trial_id="trial-log-failure", upstream_base_url=upstream.base_url,
+            real_credential=REAL_CREDENTIAL, bound_source_ip="127.0.0.1",
+            absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
+            budget=budget("20", "5"), log_path=log_path,
+        )
+        try:
+            first, payload = proxy_request(handle.base_url, handle.dummy_token, "logged")
+            second, _ = proxy_request(handle.base_url, handle.dummy_token, "blocked")
+        finally:
+            handle.stop()
+    assert first == 500
+    assert json.loads(payload) == {"error": "audit_log_unavailable"}
+    assert second == 410
+    assert len(upstream.requests) == 1
+    assert handle._server.state.request_count == 0
+    assert handle._server.state.cost_usd == Decimal("0")
+    assert handle._server.state.input_tokens == 0
+    assert handle._server.state.output_tokens == 0
+
+
+def _failing_log_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, phase: str,
+) -> Path:
+    if phase == "open":
+        path = tmp_path / "log-directory"
+        path.mkdir()
+        return path
+    if phase == "write":
+        return Path("/dev/full")
+    monkeypatch.setattr(proxy_server.os, "fsync", _raise_fsync)
+    return tmp_path / "fsync.jsonl"
+
+
+def _raise_fsync(_file_descriptor: int) -> None:
+    raise OSError("synthetic fsync failure")
 
 
 def test_logs_only_aggregate_usage_and_model_identity(tmp_path: Path) -> None:

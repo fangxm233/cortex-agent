@@ -16,6 +16,16 @@ from typing import Sequence
 from .models import ProxyBudget
 from .server import TrialProxyHandle, start_trial_proxy
 
+
+class CliInputError(ValueError):
+    pass
+
+
+class StructuredArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise CliInputError(message)
+
+
 class HelpFormatter(
     argparse.ArgumentDefaultsHelpFormatter,
     argparse.RawDescriptionHelpFormatter,
@@ -35,7 +45,7 @@ EPILOG = """Examples:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+    parser = StructuredArgumentParser(
         prog="python -m cortex_bench_harness.proxy",
         description="Start one host-side credential proxy for a benchmark trial.",
         epilog=EPILOG, formatter_class=HelpFormatter,
@@ -77,9 +87,12 @@ def _datetime(value: str) -> datetime:
 
 def _decimal(value: str) -> Decimal:
     try:
-        return Decimal(value)
+        parsed = Decimal(value)
     except InvalidOperation as error:
         raise argparse.ArgumentTypeError(f"invalid decimal value {value!r}") from error
+    if not parsed.is_finite():
+        raise argparse.ArgumentTypeError(f"invalid finite decimal value {value!r}")
+    return parsed
 
 
 def _read_credential(source: str) -> str:
@@ -131,8 +144,8 @@ def _startup_document(handle: TrialProxyHandle) -> dict[str, object]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    arguments = build_parser().parse_args(argv)
     try:
+        arguments = build_parser().parse_args(argv)
         return run(arguments)
     except (OSError, ValueError) as error:
         print(json.dumps({"ok": False, "error": str(error)}), file=sys.stderr)

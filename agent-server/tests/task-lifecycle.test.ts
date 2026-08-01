@@ -694,12 +694,12 @@ function withEnv(vars: Record<string, string | undefined>, fn: () => void): void
   }
 }
 
-test('add captures origin session/channel/thread from env', () => {
+test('add captures origin session/channel from env (interactive session)', () => {
   const proj = np();
   const repos = makeRepo({ [proj]: 'tasks:\n' });
   try {
     lockProject(proj);
-    withEnv({ CORTEX_SESSION_ID: 'sess-1', SLACK_CHANNEL: 'C999', CORTEX_THREAD_ID: 'thr_p' }, () => {
+    withEnv({ CORTEX_SESSION_ID: 'sess-1', SLACK_CHANNEL: 'C999', CORTEX_THREAD_ID: undefined }, () => {
       const result = runTask(['add', '--project', proj, '--template', 'coder-review', '--text', 'origin task', '--done-when', 'd']);
       assert.equal(result.success, true);
     });
@@ -707,7 +707,29 @@ test('add captures origin session/channel/thread from env', () => {
     const t = yaml.tasks[0];
     assert.equal(t['origin-session-id'], 'sess-1');
     assert.equal(t['origin-channel'], 'C999');
+    assert.equal(t['origin-thread-id'], undefined);
+  } finally {
+    for (const r of Object.values(repos)) r.cleanup();
+  }
+});
+
+test('add inside a thread captures only the thread id as origin (fire-and-forget handoff)', () => {
+  // A thread's SLACK_CHANNEL is the dispatch conduit, not a human session — capturing it
+  // would wake a context-less session there at completion and pollute the manager-qa
+  // escalation-channel walk. The thread id alone routes completion to a project notice.
+  const proj = np();
+  const repos = makeRepo({ [proj]: 'tasks:\n' });
+  try {
+    lockProject(proj);
+    withEnv({ CORTEX_SESSION_ID: 'sess-1', SLACK_CHANNEL: 'C999', CORTEX_THREAD_ID: 'thr_p' }, () => {
+      const result = runTask(['add', '--project', proj, '--template', 'coder-review', '--text', 'thread task', '--done-when', 'd']);
+      assert.equal(result.success, true);
+    });
+    const yaml = readYaml(repos[proj].tasksPath);
+    const t = yaml.tasks[0];
     assert.equal(t['origin-thread-id'], 'thr_p');
+    assert.equal(t['origin-session-id'], undefined);
+    assert.equal(t['origin-channel'], undefined);
   } finally {
     for (const r of Object.values(repos)) r.cleanup();
   }
