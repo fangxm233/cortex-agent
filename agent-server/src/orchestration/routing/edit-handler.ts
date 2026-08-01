@@ -137,99 +137,148 @@ async function restorePIEdit(
   return { restored, sessionFile };
 }
 
-async function processEditLocked({ channel, adapter, originalTs, newText, turnIndex, conversation, deps }: ProcessEditArgs): Promise<void> {
-  const { activeAgents, reprocessMessage, closePooledSession } = deps;
-  const backend = (deps.resolveBackend ?? resolveBackendForChannel)(channel) || conversation.backend;
+interface EditRestoreState {
+  backendSessionId: string | null;
+  useSessionId: string | null;
+  sessionName: string | null;
+  restored: boolean;
+  piSessionFile: string | null;
+}
 
-  if (activeAgents.hasChannel(channel)) {
-    supersededEdits.mark(channel);
-    activeAgents.supersedeByChannel(channel, 'edit');
-    conduitQueues.delete(channel);
-    log.info('Killed active process for edit retry');
+interface EditRestoreInput {
+  channel: string;
+  backend: string;
+  turnIndex: number;
+  targetBackupPath: string | null;
+}
+
+async function restoreFirstEditedTurn(
+  input: EditRestoreInput,
+  state: EditRestoreState,
+): Promise<EditRestoreState> {
+  let piSessionFile: string | null = null;
+  if (input.backend === 'pi') {
+    piSessionFile = input.targetBackupPath
+      ? sessionBackup.sessionFileFromBackupPath(input.targetBackupPath, input.turnIndex)
+      : state.backendSessionId ? await sessionBackup.findPISessionFile(state.backendSessionId) : null;
   }
+  await deleteSessionAsync(input.channel, input.backend);
+  return { ...state, useSessionId: null, sessionName: null, piSessionFile };
+}
 
-  // Step 2: Rollback — mark all turns from editedTurnIndex onward as superseded
-  const rollbackResult = await conversationLedger.rollbackTo(channel, turnIndex);
-  if (!rollbackResult) {
-    log.error('Rollback failed — no conversation found');
-    return;
-  }
+async function restoreEditedPISession(
+  input: EditRestoreInput,
+  state: EditRestoreState,
+): Promise<EditRestoreState> {
+  const restored = await restorePIEdit(
+    state.backendSessionId, input.targetBackupPath, input.turnIndex,
+  );
+  const next = { ...state, restored: restored.restored, piSessionFile: restored.sessionFile };
+  if (restored.restored) return next;
+  log.warn('No backup found for PI session, falling back to new session');
+  await deleteSessionAsync(input.channel, input.backend);
+  return { ...next, useSessionId: null, sessionName: null };
+}
 
-  const { supersededTurns } = rollbackResult;
-  const targetBackupPath = supersededTurns.find((turn) => turn.turnIndex === turnIndex)?.backupPath
-    ?? conversation.turns[turnIndex]?.backupPath
-    ?? null;
+async function restoreEditedClaudeSession(
+  input: EditRestoreInput,
+  state: EditRestoreState,
+): Promise<EditRestoreState> {
+  const restored = state.backendSessionId
+    ? await sessionBackup.restoreBackup(state.backendSessionId, input.turnIndex)
+    : false;
+  if (restored) return { ...state, restored };
+  log.warn('No backup found, falling back to new session');
+  await deleteSessionAsync(input.channel, input.backend);
+  return { ...state, restored, useSessionId: null, sessionName: null };
+}
 
-  // Step 3: Delete old response messages + collect superseded status ts for permalink backfill
-  const supersededStatusTimestamps = await cleanupSupersededMessages(supersededTurns, channel, adapter);
-
-  // Step 4: Restore session backup
+async function initialEditRestoreState(conversation: ChannelConversation): Promise<EditRestoreState> {
   const sessionId = conversation.sessionId;
   const sessionRecord = sessionId ? await sessionStore.getById(sessionId) : null;
   const backendSessionId = sessionRecord ? effectiveBackendSessionId(sessionRecord) : sessionId;
-  let useSessionId = sessionId;
-  let sessionName = conversation.sessionName;
-  let restored = false;
-  let piSessionFile: string | null = null;
+  return {
+    backendSessionId, useSessionId: sessionId, sessionName: conversation.sessionName,
+    restored: false, piSessionFile: null,
+  };
+}
 
-  if (turnIndex === 0) {
-    if (backend === 'pi') {
-      piSessionFile = targetBackupPath
-        ? sessionBackup.sessionFileFromBackupPath(targetBackupPath, turnIndex)
-        : backendSessionId ? await sessionBackup.findPISessionFile(backendSessionId) : null;
-    }
-    await deleteSessionAsync(channel, backend);
-    useSessionId = null;
-    sessionName = null;
-  } else if (backend === 'pi') {
-    const piRestore = await restorePIEdit(backendSessionId, targetBackupPath, turnIndex);
-    restored = piRestore.restored;
-    piSessionFile = piRestore.sessionFile;
-    if (!restored) {
-      log.warn('No backup found for PI session, falling back to new session');
-      await deleteSessionAsync(channel, backend);
-      useSessionId = null;
-      sessionName = null;
-    }
-  } else {
-    restored = backendSessionId ? await sessionBackup.restoreBackup(backendSessionId, turnIndex) : false;
-    if (!restored) {
-      log.warn('No backup found, falling back to new session');
-      await deleteSessionAsync(channel, backend);
-      useSessionId = null;
-      sessionName = null;
-    }
+async function restoreEditedSession(
+  args: ProcessEditArgs,
+  backend: string,
+  targetBackupPath: string | null,
+): Promise<EditRestoreState> {
+  const state = await initialEditRestoreState(args.conversation);
+  const input = { channel: args.channel, backend, turnIndex: args.turnIndex, targetBackupPath };
+  if (args.turnIndex === 0) return restoreFirstEditedTurn(input, state);
+  if (backend === 'pi') return restoreEditedPISession(input, state);
+  return restoreEditedClaudeSession(input, state);
+}
+
+function stopActiveEdit(channel: string, activeAgents: RunningExecutions): void {
+  if (!activeAgents.hasChannel(channel)) return;
+  supersededEdits.mark(channel);
+  activeAgents.supersedeByChannel(channel, 'edit');
+  conduitQueues.delete(channel);
+  log.info('Killed active process for edit retry');
+}
+
+interface EditRollback {
+  targetBackupPath: string | null;
+  supersededStatusTimestamps: string[];
+}
+
+async function rollbackEditedTurn(args: ProcessEditArgs): Promise<EditRollback | null> {
+  const result = await conversationLedger.rollbackTo(args.channel, args.turnIndex);
+  if (!result) {
+    log.error('Rollback failed — no conversation found');
+    return null;
   }
+  const targetBackupPath = result.supersededTurns.find((turn) => turn.turnIndex === args.turnIndex)?.backupPath
+    ?? args.conversation.turns[args.turnIndex]?.backupPath
+    ?? null;
+  const supersededStatusTimestamps = await cleanupSupersededMessages(
+    result.supersededTurns, args.channel, args.adapter,
+  );
+  return { targetBackupPath, supersededStatusTimestamps };
+}
 
-  if (backend === 'pi' && restored && backendSessionId && piSessionFile) {
-    (deps.registerPISessionPath ?? registerPISessionPath)(backendSessionId, piSessionFile);
+function registerRestoredEditPath(
+  backend: string,
+  state: EditRestoreState,
+  register: (sessionId: string, sessionPath: string) => void,
+): void {
+  if (backend !== 'pi' || !state.restored || !state.backendSessionId || !state.piSessionFile) return;
+  register(state.backendSessionId, state.piSessionFile);
+}
+
+function cleanupEditedSession(backend: string, turnIndex: number, state: EditRestoreState): void {
+  if (backend !== 'pi') {
+    sessionBackup.cleanupBackupsAfter(state.backendSessionId ?? '', turnIndex);
+    return;
   }
+  if (state.piSessionFile && state.restored) {
+    sessionBackup.cleanupBackupsForFile(state.piSessionFile, turnIndex);
+  } else if (state.piSessionFile) {
+    sessionBackup.cleanupAllBackupsForFile(state.piSessionFile);
+  }
+}
 
-  // Step 4.5: Tear down any pooled agent process for this channel BEFORE reprocessing.
-  // Claude CLI runs in stream-json mode as a long-lived process and keeps the conversation
-  // in memory; restoring the JSONL on disk is a no-op unless we kill that process so the
-  // next runAgent spawns a fresh one with `--resume <sessionId>`. Without this, the
-  // edited message is appended as turn N+1 instead of replacing turn N — the symptom the
-  // user reported. PI spawns a new subprocess per turn, so close is a no-op for it
-  // (the wiring still calls through but the function-level no-ops handle that branch).
-  closePooledSession?.(channel, backend);
-
-  // Step 5: Cleanup — remove superseded turns from ledger and invalidated backups
+async function processEditLocked(args: ProcessEditArgs): Promise<void> {
+  const { channel, originalTs, newText, turnIndex, deps } = args;
+  const backend = (deps.resolveBackend ?? resolveBackendForChannel)(channel) || args.conversation.backend;
+  stopActiveEdit(channel, deps.activeAgents);
+  const rollback = await rollbackEditedTurn(args);
+  if (!rollback) return;
+  const state = await restoreEditedSession(args, backend, rollback.targetBackupPath);
+  registerRestoredEditPath(backend, state, deps.registerPISessionPath ?? registerPISessionPath);
+  deps.closePooledSession?.(channel, backend);
   await conversationLedger.truncateTurns(channel, turnIndex);
-  if (backend === 'pi') {
-    if (piSessionFile && restored) sessionBackup.cleanupBackupsForFile(piSessionFile, turnIndex);
-    else if (piSessionFile) sessionBackup.cleanupAllBackupsForFile(piSessionFile);
-  } else {
-    sessionBackup.cleanupBackupsAfter(backendSessionId ?? '', turnIndex);
-  }
-
-  // Step 6: Re-enqueue the edited message for processing
-  reprocessMessage(channel, newText, adapter, {
-    originalTs,
-    isRetry: true,
-    sessionId: useSessionId,
-    sessionName,
-    supersededStatusTimestamps,
+  cleanupEditedSession(backend, turnIndex, state);
+  deps.reprocessMessage(channel, newText, args.adapter, {
+    originalTs, isRetry: true, sessionId: state.useSessionId,
+    sessionName: state.sessionName,
+    supersededStatusTimestamps: rollback.supersededStatusTimestamps,
   });
 }
 

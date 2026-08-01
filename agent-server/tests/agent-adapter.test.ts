@@ -1,12 +1,16 @@
-// input:  Node test runner + agent-adapter/index exports
-// output: dispatcher/capability, tool-name, context-event exhaustive tests
+// input:  adapter exports, PI transcript fixtures, Node test runner
+// output: dispatch, session-path, capability and event contracts
 // pos:    agent-adapter abstraction layer contract lock-down test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join as pathJoin } from 'node:path';
+import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import {
   getAdapter,
+  registerPISessionPath,
   Capability,
   CAPABILITIES_BY_BACKEND,
   toCanonical,
@@ -21,6 +25,24 @@ test('getAdapter dispatches to the claude and pi adapters only', () => {
   assert.equal(claude.backend, 'claude');
   assert.equal(pi.backend, 'pi');
   assert.deepEqual(Object.keys(CAPABILITIES_BY_BACKEND).sort(), ['claude', 'pi']);
+});
+
+test('registerPISessionPath updates the same PI singleton returned by getAdapter', () => {
+  const adapter = getAdapter('pi') as PIAdapter;
+  const sessionId = `singleton-path-${process.pid}-${Date.now()}`;
+  const restoredPath = pathJoin(adapter.sessionDir, `2026-08-01T00-00-00Z_${sessionId}.jsonl`);
+  const canonicalPath = pathJoin(adapter.sessionDir, `${sessionId}.jsonl`);
+  mkdirSync(adapter.sessionDir, { recursive: true });
+  writeFileSync(restoredPath, 'restored-context');
+  writeFileSync(canonicalPath, 'canonical-context');
+
+  try {
+    registerPISessionPath(sessionId, restoredPath);
+    assert.equal((getAdapter('pi') as PIAdapter).resolveSessionPath(sessionId), restoredPath);
+  } finally {
+    rmSync(restoredPath, { force: true });
+    rmSync(canonicalPath, { force: true });
+  }
 });
 
 test('getAdapter rejects removed and unknown backends', () => {
