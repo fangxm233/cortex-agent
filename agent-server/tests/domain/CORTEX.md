@@ -11,6 +11,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 | cc-login.test.ts | test | Claude API-key persistence, concurrency and recovery |
 | login-flow.test.ts | test | Covers login outcomes, safe errors, and abort scopes |
 | pi-login.test.ts | test | PI login receipts and safe failure payloads |
+| pi-oauth.test.ts | test | PI OAuth expiry, notices, aborts and failures |
 | costs/ | subdir | cost attribution and summary reporting |
 | hook-view.test.ts | test | mount targets, result modes and apply time |
 | mcp/ | subdir | MCP tool registration and handlers |
