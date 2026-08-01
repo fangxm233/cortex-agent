@@ -48,6 +48,34 @@ fs.mkdirSync(path.join(templateRoot, 'shells'), { recursive: true });
 const { runBenchmarkThread } = await import(
   path.join(agentRoot, 'dist/domain/agent-run/benchmark-local-thread-orchestrator.js')
 );
+const { openJournal } = await import(
+  path.join(agentRoot, 'dist/domain/agent-run/journal.js')
+);
+const { writeStartedMarker } = await import(
+  path.join(agentRoot, 'dist/domain/agent-run/manifest.js')
+);
+const trajectoryRoot = path.join(cortexHome, 'tmp/trajectory');
+fs.mkdirSync(trajectoryRoot, { recursive: true });
+const parentJournal = openJournal({
+  path: path.join(trajectoryRoot, 'parent.journal.ndjson'),
+  header: {
+    rootRunId: 'full-benchmark-thread-probe', threadId: null, agentSlot: 'parent',
+    resolvedCwd: process.cwd(), canonicalInstructionSha256: 'a'.repeat(64),
+    modelVisiblePromptSha256: 'b'.repeat(64), systemPromptSha256: 'c'.repeat(64),
+    toolManifestSha256: 'd'.repeat(64), pluginManifestSha256: 'e'.repeat(64),
+    modelExecutionIdentityHash: '1'.repeat(64), roleToolSurfaceHash: '2'.repeat(64),
+    bundleManifestHash: '3'.repeat(64),
+  },
+});
+parentJournal.writeEvent({
+  threadId: null, step: null, agentSlot: 'parent', backend: 'claude', provider: 'anthropic',
+  requestedModel: 'fixture-model', reportedModel: null,
+  event: { type: 'tool_use', toolUseId: 'thread-call', name: 'thread_run', input: {} },
+});
+writeStartedMarker({
+  trajectoryRoot, rootRunId: 'full-benchmark-thread-probe', threadId: null,
+  journalPath: parentJournal.path,
+});
 function fakeRunAgent(prompt, options) {
   const marker = path.join(cortexHome, 'data/fake-run-agent.jsonl');
   fs.mkdirSync(path.dirname(marker), { recursive: true });
@@ -64,7 +92,6 @@ function fakeRunAgent(prompt, options) {
   };
 }
 
-const trajectoryRoot = path.join(cortexHome, 'tmp/trajectory');
 const controller = new AbortController();
 const result = await runBenchmarkThread({
   workspaceCwd: process.cwd(),
@@ -76,6 +103,7 @@ const result = await runBenchmarkThread({
   limits: { maxSteps: 4, maxCostUsd: 0, deadlineEpochMs: Date.now() + 45_000 },
   signal: controller.signal,
 }, { runAgent: fakeRunAgent });
+await parentJournal.close();
 const invocationFile = path.join(cortexHome, 'data/fake-run-agent.jsonl');
 const invocations = fs.readFileSync(invocationFile, 'utf8').trim().split('\n').filter(Boolean);
 const manifest = JSON.parse(fs.readFileSync(result.manifestPath, 'utf8'));

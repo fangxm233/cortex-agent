@@ -16,6 +16,7 @@ import {
   type JournalHeaderInput,
 } from '../../../src/domain/agent-run/journal.js';
 import {
+  readStartedJournalIdentity,
   validateTrajectoryRoot,
   writeStartedMarker,
   writeTerminalManifest,
@@ -322,23 +323,120 @@ it('reports the exact code for a non-claude event backend', async () => {
   }
 });
 
-for (const field of [
-  'model_execution_identity_hash', 'role_tool_surface_hash', 'bundle_manifest_hash',
-]) {
-  it(`reports an event ${field} mismatch against the header`, async () => {
-    const root = makeRoot();
-    try {
-      const trajectory = await createTrajectory(root);
-      rewriteJournal(trajectory.journalPath, records => { records[1][field] = '9'.repeat(64); });
-      syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
-      assert.deepEqual(validateTrajectoryRoot(root).problems, [
-        `malformed_record:${trajectory.journalPath}:2:invalid_envelope`,
-      ]);
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-}
+it('reports an event model identity mismatch against the header', async () => {
+  const root = makeRoot();
+  try {
+    const trajectory = await createTrajectory(root);
+    rewriteJournal(trajectory.journalPath, records => {
+      records[1].model_execution_identity_hash = '9'.repeat(64);
+    });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.deepEqual(validateTrajectoryRoot(root).problems, [
+      `malformed_record:${trajectory.journalPath}:2:invalid_envelope`,
+    ]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('accepts per-role event identities while keeping the header model identity', async () => {
+  const root = makeRoot();
+  try {
+    const trajectory = await createTrajectory(root);
+    rewriteJournal(trajectory.journalPath, records => {
+      records[1].agent_slot = 'benchmark-coder';
+      records[1].role_tool_surface_hash = '8'.repeat(64);
+      records[1].bundle_manifest_hash = '9'.repeat(64);
+    });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.deepEqual(validateTrajectoryRoot(root), { ok: true, problems: [] });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('rejects a second role that reuses the header role identity', async () => {
+  const root = makeRoot();
+  try {
+    const trajectory = await createTrajectory(root);
+    rewriteJournal(trajectory.journalPath, records => {
+      records[1].agent_slot = 'benchmark-reviewer';
+    });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.match(validateTrajectoryRoot(root).problems.join('\n'), /invalid_envelope/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('rejects a header-role event whose role identity differs from its header', async () => {
+  const root = makeRoot();
+  try {
+    const trajectory = await createTrajectory(root);
+    rewriteJournal(trajectory.journalPath, records => {
+      records[1].role_tool_surface_hash = '8'.repeat(64);
+    });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.match(validateTrajectoryRoot(root).problems.join('\n'), /invalid_envelope/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('rejects conflicting identities for repeated events from one child role', async () => {
+  const root = makeRoot();
+  try {
+    const trajectory = await createTrajectory(root);
+    rewriteJournal(trajectory.journalPath, records => {
+      records[1].agent_slot = 'benchmark-coder';
+      const conflicting = { ...records[1], seq: 2, role_tool_surface_hash: '8'.repeat(64) };
+      records.push(conflicting);
+    });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.match(validateTrajectoryRoot(root).problems.join('\n'), /invalid_envelope/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('rejects a child slot identity that disagrees with a supplied C4 lookup', async () => {
+  const root = makeRoot();
+  try {
+    const journal = await createJournal(root);
+    rewriteJournal(journal.journalPath, records => { records[1].agent_slot = 'benchmark-reviewer'; });
+    writeStartedMarker({
+      trajectoryRoot: root, rootRunId: 'run-001', threadId: null, journalPath: journal.journalPath,
+    });
+    const roleIdentities = new Map([
+      ['parent', { roleToolSurfaceHash: '2'.repeat(64), bundleManifestHash: '3'.repeat(64) }],
+      ['benchmark-reviewer', {
+        roleToolSurfaceHash: '8'.repeat(64), bundleManifestHash: '9'.repeat(64),
+      }],
+    ]);
+    assert.throws(() => writeTerminalManifest(
+      manifestInput(root, journal.journalPath, digest(journal.journalPath)),
+      { roleIdentities },
+    ), expectTrajectoryError);
+    assert.equal(fs.existsSync(terminalPath(root)), false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('rejects a parent started marker linked to a foreign journal identity', async () => {
+  const root = makeRoot();
+  try {
+    const journal = await createJournal(root, { rootRunId: 'run-foreign' });
+    writeStartedMarker({
+      trajectoryRoot: root, rootRunId: 'run-001', threadId: null, journalPath: journal.journalPath,
+    });
+    assert.throws(() => readStartedJournalIdentity({
+      trajectoryRoot: root, rootRunId: 'run-001', threadId: null,
+    }), expectTrajectoryError);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 for (const field of [
   'model_execution_identity_hash', 'role_tool_surface_hash', 'bundle_manifest_hash',

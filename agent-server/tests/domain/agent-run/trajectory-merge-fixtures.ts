@@ -78,7 +78,19 @@ function header(spec: JournalSpec, root: string): Record<string, unknown> {
   };
 }
 
+function eventIdentity(spec: JournalSpec, event: EventSpec): {
+  roleHash: string;
+  bundleHash: string;
+} {
+  if (event.agentSlot !== 'benchmark-reviewer') {
+    return { roleHash: spec.roleHash, bundleHash: BUNDLE_HASH };
+  }
+  const prefix = `${spec.threadId}:benchmark-reviewer`;
+  return { roleHash: sha256(`${prefix}:role`), bundleHash: sha256(`${prefix}:bundle`) };
+}
+
 function eventRecord(spec: JournalSpec, event: EventSpec, seq: number): Record<string, unknown> {
+  const identity = eventIdentity(spec, event);
   return {
     schema_version: 'cortex-bench-journal/1',
     type: 'event',
@@ -94,8 +106,8 @@ function eventRecord(spec: JournalSpec, event: EventSpec, seq: number): Record<s
     reported_model: event.reportedModel === undefined
       ? 'claude-sonnet-4-5-20250929' : event.reportedModel,
     model_execution_identity_hash: MODEL_HASH,
-    role_tool_surface_hash: spec.roleHash,
-    bundle_manifest_hash: BUNDLE_HASH,
+    role_tool_surface_hash: identity.roleHash,
+    bundle_manifest_hash: identity.bundleHash,
     event: event.event,
   };
 }

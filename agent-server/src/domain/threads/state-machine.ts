@@ -1,4 +1,4 @@
-// input:  thread store, templates, tasks, runtime settings
+// input:  thread store, templates, tasks, scoped event bus
 // output: lifecycle, provider pauses, control transitions
 // pos:    Thread lifecycle and suspension state machine
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -18,6 +18,7 @@ import { getTemplate, getAgent } from './template-loader.js';
 import { resolveAgentSlotConfigByName, resolveTemplateAgents, resolveActiveAgentName } from './prompt-builder.js';
 import { resolveStageName, parseTarget } from './utils.js';
 import { checkContractBudget } from './contract.js';
+import { getLocalThreadRuntimeScope } from './local-runtime-scope.js';
 import { scanAllTasks } from '@core/task-parser.js';
 import type {
   ThreadRecord, ThreadTemplate, AgentDefinition,
@@ -30,7 +31,8 @@ import type {
 // publish uses) so the web UI / TUI thread views refetch on lifecycle edges. No-op without a bus.
 
 function publishThreadEvent(e: Record<string, unknown>): void {
-  jobCtx.bus?.publish(e as any);
+  const scope = getLocalThreadRuntimeScope();
+  (scope ? scope.eventBus : jobCtx.bus)?.publish(e as any);
 }
 
 /** `agent` or `agent:stage` — matches the transition endpoint syntax (runner's status label). */
