@@ -1,5 +1,5 @@
 // input:  cli module and authentication snapshot fixtures
-// output: verify CLI routing, auth status output, and errors
+// output: CLI routing, auth output, and error contracts
 // pos:    Validate cortex CLI dispatcher pure logic
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 

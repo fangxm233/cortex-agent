@@ -1,5 +1,5 @@
-// input:  temporary auth files, PI fixtures, and locale state
-// output: auth snapshot, manageability, and summary contracts
+// input:  temporary auth files, PI fixtures, locale
+// output: auth state, manageability, and summary contracts
 // pos:    Backend authentication status regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -9,8 +9,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { test } from 'vitest';
 import { getSavedApiEnv } from '../../src/domain/agents/config.js';
+import { formatAuthStatusSummary } from '../../src/domain/auth/auth-format.js';
 import {
-  formatAuthStatusSummary,
   getAuthStatus,
   type AuthStatusSnapshot,
 } from '../../src/domain/auth/auth-status.js';

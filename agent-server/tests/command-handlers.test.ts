@@ -1,4 +1,4 @@
-// input:  Node test runner, command handlers, and auth fixture
+// input:  Node runner, command handlers, and auth fixture
 // output: Bang-command routing including !login status
 // pos:    Command handler regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<

@@ -1,14 +1,11 @@
-// input:  authentication snapshot reader and localized formatter
+// input:  auth snapshot reader, formatter, and i18n
 // output: !login / !login status command handler
 // pos:    Chat authentication status adapter
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { t } from '@core/i18n.js';
-import {
-  formatAuthStatusSummary,
-  getAuthStatus,
-  type AuthStatusSnapshot,
-} from '@domain/auth/index.js';
+import { formatAuthStatusSummary } from '@domain/auth/auth-format.js';
+import { getAuthStatus, type AuthStatusSnapshot } from '@domain/auth/auth-status.js';
 import type { CommandResult } from './command-context.js';
 
 type AuthStatusReader = () => Promise<AuthStatusSnapshot>;
