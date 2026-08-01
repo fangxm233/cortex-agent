@@ -285,10 +285,7 @@ input.on('line', (line) => {
 `;
 }
 
-function observerSource(evidenceFile: string): string {
-  const mockUrl = pathToFileURL(MOCK_ADAPTER_TS).href;
-  const registryUrl = pathToFileURL(EXECUTION_REGISTRY_TS).href;
-  const dispatchUrl = pathToFileURL(TASK_DISPATCH_TS).href;
+function observerPostHook(evidenceFile: string, mockUrl: string): string {
   return `import { appendFileSync } from 'node:fs';
 const { MockAdapter } = await import(${JSON.stringify(mockUrl)});
 const append = (value) => {
@@ -300,16 +297,22 @@ MockAdapter.prototype.postMessage = async function(destination, content, opts) {
   const ref = await originalPost.call(this, destination, content, opts);
   append({ type: 'post', destination, content, ref });
   return ref;
-};
-const handlers = {
+};`;
+}
+
+function observerHandlers(registryUrl: string, dispatchUrl: string): string {
+  return `const handlers = {
   'integration-simulate-message': (adapter, message) => adapter.simulateMessage(message.channel, message.text),
   'integration-register-dispatch': async () => (await import(${JSON.stringify(registryUrl)}))
     .registerDispatchExecution({ taskId: 'integration-remote', machine: 'remote-fixture',
       channel: 'integration', project: 'general', taskText: 'integration fixture' }),
   'integration-run-dispatch': async () => (await import(${JSON.stringify(dispatchUrl)}))
     .taskDispatchRunner({ channel: 'general', scheduleTaskId: 'seed0001', profileName: 'plan' }),
-};
-const originalStart = MockAdapter.prototype.start;
+};`;
+}
+
+function observerStartHook(): string {
+  return `const originalStart = MockAdapter.prototype.start;
 MockAdapter.prototype.start = async function(...args) {
   await originalStart.apply(this, args);
   process.on('message', async (message) => {
@@ -319,8 +322,18 @@ MockAdapter.prototype.start = async function(...args) {
     try { await handler(this, message); } catch (caught) { error = caught instanceof Error ? caught.message : String(caught); }
     process.send?.({ type: 'integration-ack', integrationRequestId: message.integrationRequestId, error });
   });
-};
-`;
+};`;
+}
+
+function observerSource(evidenceFile: string): string {
+  return [
+    observerPostHook(evidenceFile, pathToFileURL(MOCK_ADAPTER_TS).href),
+    observerHandlers(
+      pathToFileURL(EXECUTION_REGISTRY_TS).href,
+      pathToFileURL(TASK_DISPATCH_TS).href,
+    ),
+    observerStartHook(),
+  ].join('\n');
 }
 
 function pauseDispatchSchedule(schedulesFile: string): void {
@@ -367,33 +380,41 @@ async function prepareScenario(init = cortexInit): Promise<ScenarioPaths> {
   }
 }
 
+function serverEnv(paths: ScenarioPaths): NodeJS.ProcessEnv {
+  return {
+    ...isolatedBaseEnv(paths.home),
+    PATH: `${paths.binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    CORTEX_HOME: paths.home,
+    CORTEX_PLATFORM: 'test',
+    CORTEX_TUI: '0',
+    CORTEX_UI_HTTP: '1',
+    CORTEX_UI_PORT: '0',
+    WEBHOOK_PORT: String(randomPort()),
+    CORTEX_CLIENT_PORT: String(randomPort()),
+    CORTEX_CLIENT_TOKEN: CLIENT_TOKEN,
+    CORTEX_WEBHOOK_TOKEN: WEBHOOK_TOKEN,
+    CORTEX_GPU_MONITOR_MOCK: '1',
+  };
+}
+
+function captureServer(child: ChildProcess, logs: ChildLogs, records: ObserverRecord[]): void {
+  child.stdout?.on('data', (chunk: Buffer) => { logs.stdout += chunk.toString(); });
+  child.stderr?.on('data', (chunk: Buffer) => { logs.stderr += chunk.toString(); });
+  child.on('message', (message: any) => {
+    if (message?.type === 'integration-observer-record') records.push(message.record);
+  });
+}
+
 function startServer(paths: ScenarioPaths): StartedServer {
   const logs: ChildLogs = { stdout: '', stderr: '' };
   const records: ObserverRecord[] = [];
   const child = trackedFork(APP_TS, {
     cwd: TEST_ROOT,
     execArgv: [...TSX_FLAGS, '--import', paths.observerFile],
-    env: {
-      ...isolatedBaseEnv(paths.home),
-      PATH: `${paths.binDir}${path.delimiter}${process.env.PATH ?? ''}`,
-      CORTEX_HOME: paths.home,
-      CORTEX_PLATFORM: 'test',
-      CORTEX_TUI: '0',
-      CORTEX_UI_HTTP: '1',
-      CORTEX_UI_PORT: '0',
-      WEBHOOK_PORT: String(randomPort()),
-      CORTEX_CLIENT_PORT: String(randomPort()),
-      CORTEX_CLIENT_TOKEN: CLIENT_TOKEN,
-      CORTEX_WEBHOOK_TOKEN: WEBHOOK_TOKEN,
-      CORTEX_GPU_MONITOR_MOCK: '1',
-    },
+    env: serverEnv(paths),
     stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
-  child.stdout?.on('data', (chunk: Buffer) => { logs.stdout += chunk.toString(); });
-  child.stderr?.on('data', (chunk: Buffer) => { logs.stderr += chunk.toString(); });
-  child.on('message', (message: any) => {
-    if (message?.type === 'integration-observer-record') records.push(message.record);
-  });
+  captureServer(child, logs, records);
   return { child, logs, records };
 }
 
