@@ -98,6 +98,28 @@ describe('C8 file policy', () => {
     assert.equal(result.violations.length, 0);
     assert.equal(result.counts.allowed, 2);
   });
+
+  it('allows the pinned Node installation and system path ancestors as runtime reads', () => {
+    const nodeRoot = path.join(policy.hostHome, '.local/node-runtime');
+    const nodeExecutable = path.join(nodeRoot, 'bin/node');
+    fs.mkdirSync(path.dirname(nodeExecutable), { recursive: true });
+    fs.writeFileSync(nodeExecutable, 'node');
+    const runtimePolicy = { ...policy, nodeExecutable };
+    const result = classifyTraceLines([
+      `4.2 execve("${nodeExecutable}", ["node"], 0x0) = 0`,
+      `4.3 openat(AT_FDCWD<${policy.workspace}>, "${nodeRoot}/lib/node", O_RDONLY) = -1 ENOENT (No such file or directory)`,
+      `4.4 readlink("/etc", 0x0, 1024) = -1 EINVAL (Invalid argument)`,
+      `4.5 readlink("/usr/share", 0x0, 1024) = -1 EINVAL (Invalid argument)`,
+      `4.6 inotify_add_watch(20, "${policy.cortexHome}/config", IN_MODIFY) = 1`,
+    ], {
+      policy: runtimePolicy,
+      initialCwd: policy.workspace,
+      pid: 321,
+      traceFile: 'trace.321',
+    });
+
+    assert.deepEqual(result.violations, []);
+  });
 });
 
 describe('C8 network and parser policy', () => {

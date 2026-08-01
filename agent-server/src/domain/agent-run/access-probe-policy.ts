@@ -92,6 +92,7 @@ const FILE_ARGUMENTS: Record<string, PathArgument[]> = {
   faccessat: AT_PATH,
   faccessat2: AT_PATH,
   getcwd: DIRECT_PATH,
+  inotify_add_watch: [{ pathIndex: 1 }],
   fchmodat: AT_PATH,
   fchownat: AT_PATH,
   mkdirat: AT_PATH,
@@ -240,11 +241,17 @@ function readOnlyRoots(policy: AccessProbePolicy): string[] {
   return [policy.installRoot, ...(policy.nodeModuleRoots ?? []), ...SYSTEM_ROOTS];
 }
 
+function nodeRuntimeRoot(policy: AccessProbePolicy): string {
+  return path.dirname(path.dirname(canonicalPath(policy.nodeExecutable)));
+}
+
 function isAllowedRootAncestor(candidate: string, policy: AccessProbePolicy): boolean {
   const roots = [
     policy.installRoot,
     ...(policy.nodeModuleRoots ?? []),
-    canonicalPath(policy.nodeExecutable),
+    nodeRuntimeRoot(policy),
+    ...SYSTEM_ROOTS,
+    ...SYSTEM_FILES,
   ];
   return roots.some(root => isWithin(root, candidate));
 }
@@ -252,9 +259,10 @@ function isAllowedRootAncestor(candidate: string, policy: AccessProbePolicy): bo
 function classifyPath(
   candidate: string, access: AccessMode, policy: AccessProbePolicy, pid: number,
 ): string | null {
+  const canonical = canonicalPath(candidate);
+  if (isWithin(canonical, nodeRuntimeRoot(policy)) && access === 'read') return null;
   if (isWithin(candidate, policy.hostCortexHome)) return 'host_cortex_path';
   if (isHostDotfile(candidate, policy)) return 'host_home_dotfile';
-  const canonical = canonicalPath(candidate);
   const writable = [policy.workspace, policy.cortexHome, policy.logsDir];
   if (writable.some(root => isWithin(canonical, root))) return null;
   if (canonical === canonicalPath(policy.nodeExecutable) && access === 'read') return null;

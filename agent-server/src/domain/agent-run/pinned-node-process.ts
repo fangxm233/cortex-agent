@@ -118,7 +118,12 @@ export function preparePinnedNodeLaunch(options: PinnedNodeLaunchOptions): Pinne
   const parentEnv = options.parentEnv ?? process.env;
   return {
     command: process.execPath,
-    args: [...(options.nodeArgs ?? []), path.resolve(options.entry), ...(options.args ?? [])],
+    args: [
+      '--no-global-search-paths',
+      ...(options.nodeArgs ?? []),
+      path.resolve(options.entry),
+      ...(options.args ?? []),
+    ],
     cwd: resolveDirectory(options.workspaceCwd, 'workspaceCwd'),
     env: { ...inheritedEnvironment(parentEnv), ...pinnedEnvironment(paths) },
     stdio: options.stdio ?? 'inherit',

@@ -92,6 +92,19 @@ it('drops a forbidden host variable while preserving allowlisted Node runtime va
   assert.deepEqual(result.envKeys, [...PINNED_ENV_KEYS, 'NODE_PIN_TEST', 'PATH'].sort());
 });
 
+it('disables Node global search paths before loading the entry', () => {
+  const workspace = path.join(root, 'workspace');
+  fs.mkdirSync(workspace);
+  const launch = preparePinnedNodeLaunch({
+    trialRoot: root,
+    workspaceCwd: workspace,
+    entry: CHILD,
+    parentEnv: { PATH: process.env.PATH },
+  });
+
+  assert.equal(launch.args[0], '--no-global-search-paths');
+});
+
 it('refuses a non-empty projects scratch directory', () => {
   const projects = path.join(root, 'projects');
   const workspace = path.join(root, 'workspace');
