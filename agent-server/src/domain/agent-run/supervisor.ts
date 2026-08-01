@@ -62,9 +62,11 @@ export class SupervisorContainmentError extends Error {
 }
 
 export interface SupervisorSession {
+  readonly process: ChildProcess;
   started: Promise<{ pid: number; pgid: number }>;
   exited: Promise<{ code: number | null; signal: string | null }>;
   quiescent: Promise<void>;
+  closed: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
   cancel(reason: 'cancel' | 'deadline'): void;
   dispose(): Promise<void>;
 }
@@ -196,7 +198,9 @@ export function parseSupervisorLine(line: string): SupervisorLine {
 }
 
 export function exitCodeFor(reason: ExitReason, childCode?: number): number {
-  if (reason === 'child_failure') return Number.isInteger(childCode) && childCode !== 0 ? childCode : 1;
+  if (reason === 'child_failure') {
+    return Number.isInteger(childCode) && childCode! > 0 && childCode! <= 255 ? childCode! : 1;
+  }
   return EXIT_CODES[reason];
 }
 
@@ -286,8 +290,8 @@ function buildSupervisorArgs(options: {
   return [...result, '--', ...options.args];
 }
 
-function buildStdio(controlFd: number): StdioMode[] {
-  const stdio: StdioMode[] = ['inherit', 'inherit', 'inherit'];
+function buildStdio(controlFd: number, standard: StdioMode): StdioMode[] {
+  const stdio: StdioMode[] = [standard, standard, standard];
   while (stdio.length <= controlFd) stdio.push('ignore');
   stdio[controlFd] = 'pipe';
   return stdio;
@@ -346,7 +350,10 @@ function removeSessionListeners(child: ChildProcess, control: Readable, lines: I
 
 class AttachedSupervisorSession implements SupervisorSession {
   private readonly deferreds = createDeferreds();
-  private readonly processClosed = createDeferred<void>();
+  private readonly processClosed = createDeferred<{
+    code: number | null;
+    signal: NodeJS.Signals | null;
+  }>();
   private readonly controlClosed = createDeferred<void>();
   private readonly state: ProtocolState;
   private shutdownReason: 'cancel' | 'deadline' | null = null;
@@ -356,9 +363,10 @@ class AttachedSupervisorSession implements SupervisorSession {
   readonly started = this.deferreds.started.promise;
   readonly exited = this.deferreds.exited.promise;
   readonly quiescent = this.deferreds.quiescent.promise;
+  readonly closed = this.processClosed.promise;
 
   constructor(
-    private readonly child: ChildProcess,
+    readonly process: ChildProcess,
     private readonly control: Readable,
     private readonly lines: Interface,
     deadlineMs: number | undefined,
@@ -366,7 +374,7 @@ class AttachedSupervisorSession implements SupervisorSession {
   ) {
     this.state = new ProtocolState(
       this.deferreds,
-      () => { stopProcess(this.child); },
+      () => { stopProcess(this.process); },
       () => this.clearBackstop(),
       pgid => { this.rootPgid = pgid; },
     );
@@ -377,7 +385,7 @@ class AttachedSupervisorSession implements SupervisorSession {
   cancel(reason: 'cancel' | 'deadline'): void {
     if (this.shutdownReason !== null || this.state.terminal) return;
     this.shutdownReason = reason;
-    if (!stopProcess(this.child)) {
+    if (!stopProcess(this.process)) {
       this.state.fail(new SupervisorContainmentError('signal_failed'), false);
     }
   }
@@ -393,8 +401,8 @@ class AttachedSupervisorSession implements SupervisorSession {
     this.control.once('error', error => {
       this.state.fail(protocolError('Supervisor control fd failed', error));
     });
-    this.child.once('error', error => this.onChildError(error));
-    this.child.once('close', () => this.processClosed.resolve());
+    this.process.once('error', error => this.onChildError(error));
+    this.process.once('close', (code, signal) => this.processClosed.resolve({ code, signal }));
   }
 
   private onControlClose(): void {
@@ -403,8 +411,9 @@ class AttachedSupervisorSession implements SupervisorSession {
   }
 
   private onChildError(error: Error): void {
-    this.state.fail(new SupervisorContainmentError('spawn_failed', { cause: error }), false);
-    this.processClosed.resolve();
+    const failure = new SupervisorContainmentError('spawn_failed', { cause: error });
+    this.state.fail(failure, false);
+    this.processClosed.reject(failure);
   }
 
   private armBackstop(deadlineMs: number | undefined, graceMs: number | undefined): void {
@@ -424,7 +433,7 @@ class AttachedSupervisorSession implements SupervisorSession {
     const detail = 'deadline_backstop_descendants_may_survive';
     this.state.fail(new SupervisorContainmentError(detail), false);
     forceStopGroup(this.rootPgid);
-    forceStopProcess(this.child);
+    forceStopProcess(this.process);
     this.lines.close();
     this.control.destroy();
   }
@@ -438,7 +447,7 @@ class AttachedSupervisorSession implements SupervisorSession {
     ]);
     this.clearBackstop();
     this.lines.close();
-    removeSessionListeners(this.child, this.control, this.lines);
+    removeSessionListeners(this.process, this.control, this.lines);
   }
 }
 
@@ -460,10 +469,15 @@ export function attachSupervisor(options: {
   graceMs?: number;
   deadlineMs?: number;
   controlFd?: number;
+  cwd?: string;
+  env?: NodeJS.ProcessEnv;
+  stdio?: 'inherit' | 'pipe';
 }): SupervisorSession {
   const controlFd = validateAttachOptions(options);
   const child = spawn(options.binary, buildSupervisorArgs({ ...options, controlFd }), {
-    stdio: buildStdio(controlFd),
+    cwd: options.cwd,
+    env: options.env,
+    stdio: buildStdio(controlFd, options.stdio ?? 'inherit'),
   });
   const control = child.stdio[controlFd] as Readable;
   const lines = createInterface({ input: control, crlfDelay: Infinity });

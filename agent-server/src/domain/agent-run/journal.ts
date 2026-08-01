@@ -1,5 +1,5 @@
 // input:  normalized events, journal paths, run identity metadata
-// output: synchronous append-only journal and typed write failures
+// output: durable journal records and typed write failures
 // pos:    Durable NDJSON writer for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -56,8 +56,9 @@ export interface JournalEventInput {
 
 export interface Journal {
   readonly path: string;
+  readonly header: Readonly<Record<string, unknown>>;
   readonly eventCount: number;
-  writeEvent(input: JournalEventInput): void;
+  writeEvent(input: JournalEventInput): Readonly<Record<string, unknown>>;
   sha256(): string;
   close(): Promise<void>;
 }
@@ -192,6 +193,7 @@ class FileJournal implements Journal {
 
   constructor(
     readonly path: string,
+    readonly header: Readonly<Record<string, unknown>>,
     fd: number,
     private readonly identity: IdentityFields,
     private readonly now: () => Date,
@@ -203,16 +205,18 @@ class FileJournal implements Journal {
     return this.count;
   }
 
-  writeEvent(input: JournalEventInput): void {
+  writeEvent(input: JournalEventInput): Readonly<Record<string, unknown>> {
+    let record: Readonly<Record<string, unknown>>;
     try {
       const fd = this.requireOpenFd();
-      const record = buildEvent(input, this.identity, this.nextSeq, isoTimestamp(this.now));
+      record = buildEvent(input, this.identity, this.nextSeq, isoTimestamp(this.now));
       writeFull(fd, serializeLine(record));
     } catch (error) {
       throwTrajectoryFailure('event write', error);
     }
     this.nextSeq += 1;
     this.count += 1;
+    return record;
   }
 
   sha256(): string {
@@ -275,12 +279,13 @@ export function openJournal(options: {
     throwTrajectoryFailure('journal open', error);
   }
   const now = options.now ?? (() => new Date());
+  const header = buildHeader(options.header, isoTimestamp(now));
   try {
-    writeFull(fd, serializeLine(buildHeader(options.header, isoTimestamp(now))));
+    writeFull(fd, serializeLine(header));
   } catch (error) {
     closeAfterOpenFailure(fd, error);
   }
-  return new FileJournal(options.path, fd, identityFromHeader(options.header), now);
+  return new FileJournal(options.path, header, fd, identityFromHeader(options.header), now);
 }
 
 function hashOpenFile(fd: number): string {

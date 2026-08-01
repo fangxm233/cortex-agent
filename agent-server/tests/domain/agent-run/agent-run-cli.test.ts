@@ -1,0 +1,144 @@
+// input:  agent-run CLI parser, temporary paths, shared help utilities
+// output: explicit-flag, validation, stdin, and help contracts
+// pos:    One-shot agent-run command surface regression suite
+// >>> If I am updated, update my header and folder CORTEX.md <<<
+
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'vitest';
+import {
+  getAgentRunHelp,
+  parseAgentRunArgs,
+} from '../../../src/domain/agent-run/agent-run-cli.js';
+
+let root = '';
+
+beforeEach(() => {
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-run-cli-'));
+});
+
+afterEach(() => {
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+function validArgs(): string[] {
+  const prompt = path.join(root, 'prompt.txt');
+  const cwd = path.join(root, 'task');
+  fs.writeFileSync(prompt, 'solve this\n');
+  fs.mkdirSync(cwd, { recursive: true });
+  return [
+    '--prompt-file', prompt,
+    '--agent-slot', 'parent',
+    '--profile', 'fixture',
+    '--cwd', cwd,
+    '--output-format', 'jsonl',
+    '--events-file', path.join(root, 'events.jsonl'),
+  ];
+}
+
+describe('parseAgentRunArgs', () => {
+  it('parses required explicit flags and stable defaults', () => {
+    const parsed = parseAgentRunArgs(validArgs());
+    assert.equal(parsed.agentSlot, 'parent');
+    assert.equal(parsed.profile, 'fixture');
+    assert.equal(parsed.outputFormat, 'jsonl');
+    assert.equal(parsed.cwd, fs.realpathSync(path.join(root, 'task')));
+    assert.equal(parsed.eventsFile, path.join(root, 'events.jsonl'));
+    assert.match(parsed.supervisorBinary, /native\/cortex-supervisor\/dist\/cortex-supervisor$/);
+    assert.equal(parsed.trajectoryRoot, root);
+    assert.equal(parsed.runConfigFile, undefined);
+    assert.equal(parsed.graceMs, 1_000);
+    assert.equal(parsed.deadlineMs, undefined);
+  });
+
+  it('accepts stdin and every supported agent slot as labels', () => {
+    for (const slot of ['parent', 'benchmark-coder', 'benchmark-reviewer'] as const) {
+      const args = validArgs();
+      args[1] = '-';
+      args[3] = slot;
+      assert.equal(parseAgentRunArgs(args).agentSlot, slot);
+    }
+  });
+
+  it('accepts approved optional configuration and lifecycle flags', () => {
+    const runConfigFile = path.join(root, 'run-config.json');
+    const parsed = parseAgentRunArgs([
+      ...validArgs(),
+      '--run-config', runConfigFile,
+      '--trajectory-root', root,
+      '--supervisor-binary', '/fixture/cortex-supervisor',
+      '--deadline-ms', '1234',
+      '--grace-ms', '55',
+      '--root-run-id', 'run.fixture-1',
+    ]);
+    assert.equal(parsed.runConfigFile, runConfigFile);
+    assert.equal(parsed.trajectoryRoot, root);
+    assert.equal(parsed.supervisorBinary, '/fixture/cortex-supervisor');
+    assert.equal(parsed.deadlineMs, 1234);
+    assert.equal(parsed.graceMs, 55);
+    assert.equal(parsed.rootRunId, 'run.fixture-1');
+  });
+
+  it('uses explicit supervisor over environment over the package default', () => {
+    const fromEnvironment = parseAgentRunArgs(
+      validArgs(), { CORTEX_SUPERVISOR_BINARY: '/env/supervisor' },
+    );
+    assert.equal(fromEnvironment.supervisorBinary, '/env/supervisor');
+    const explicit = parseAgentRunArgs([
+      ...validArgs(), '--supervisor-binary', '/explicit/supervisor',
+    ], { CORTEX_SUPERVISOR_BINARY: '/env/supervisor' });
+    assert.equal(explicit.supervisorBinary, '/explicit/supervisor');
+  });
+
+  it('reports missing required flags with a fix path', () => {
+    assert.throws(() => parseAgentRunArgs([]), /Missing required --prompt-file/);
+  });
+
+  it('reports invalid values and valid alternatives', () => {
+    const invalidSlot = validArgs();
+    invalidSlot[3] = 'reviewer';
+    assert.throws(
+      () => parseAgentRunArgs(invalidSlot),
+      /Valid values: parent, benchmark-coder, benchmark-reviewer/,
+    );
+    const invalidFormat = validArgs();
+    invalidFormat[9] = 'json';
+    assert.throws(() => parseAgentRunArgs(invalidFormat), /Valid values: jsonl/);
+  });
+
+  it('rejects unknown flags, unsafe ids, invalid durations and non-directory cwd', () => {
+    assert.throws(() => parseAgentRunArgs([...validArgs(), '--wat']), /Unknown option: '--wat'/);
+    assert.throws(
+      () => parseAgentRunArgs([...validArgs(), '--root-run-id', '../escape']),
+      /Invalid --root-run-id/,
+    );
+    assert.throws(
+      () => parseAgentRunArgs([...validArgs(), '--deadline-ms', '-1']),
+      /Invalid --deadline-ms/,
+    );
+    assert.throws(
+      () => parseAgentRunArgs([...validArgs(), '--trajectory-root', path.join(root, 'other')]),
+      /--events-file must be within --trajectory-root/,
+    );
+    const args = validArgs();
+    args[7] = args[1];
+    assert.throws(() => parseAgentRunArgs(args), /Invalid --cwd/);
+  });
+
+  it('does not expose an inapplicable dry-run flag', () => {
+    assert.throws(() => parseAgentRunArgs([...validArgs(), '--dry-run']), /Unknown option: '--dry-run'/);
+  });
+});
+
+it('renders copyable help with defaults and stdin support', () => {
+  const help = getAgentRunHelp();
+  assert.match(help, /Usage: cortex agent-run --prompt-file <path\|->/);
+  assert.match(help, /--agent-slot <slot>/);
+  assert.match(help, /--trajectory-root <dir>/);
+  assert.match(help, /--run-config <path>/);
+  assert.match(help, /CORTEX_SUPERVISOR_BINARY/);
+  assert.doesNotMatch(help, /--dry-run/);
+  assert.match(help, /cat prompt\.txt \| cortex agent-run --prompt-file -/);
+});

@@ -4,8 +4,12 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 
 | filename | role | function |
 |---|---|---|
+| agent-run-cli.ts | cli | runs one supervised daemon-free Claude turn |
 | identity.ts | core | freezes deterministic run identity hashes |
 | journal.ts | core | appends durable run event journals |
 | manifest-contract.ts | types | validates terminal manifest values |
-| manifest.ts | core | publishes and validates lifecycle truth |
-| supervisor.ts | core | gates lifecycle, watchdog and exit taxonomy |
+| manifest.ts | core | publishes and locates lifecycle truth |
+| role-surface.ts | identity | hashes the exact resolved spawn role surface |
+| run-config.ts | config | validates optional frozen one-shot inputs |
+| runner.ts | core | coordinates one supervised one-shot lifecycle |
+| supervisor.ts | core | gates lifecycle, stdio, watchdog and exit taxonomy |

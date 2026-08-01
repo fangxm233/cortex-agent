@@ -1,7 +1,7 @@
-// input:  shared process-wide DEBUG gate
-// output: createLogger() factory
-// pos:    centralized logging — console + daily-rotating file sink, DEBUG-gated debug level
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  process DEBUG state and log policy
+// output: logger factory and process-scoped sink policy
+// pos:    Central console and rotating-file logger
+// >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,6 +22,19 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB — rotate when exceeded
 const MAX_ROTATED_FILES = 2;            // keep up to .1.log, .2.log
 
 type Level = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
+
+export interface ProcessLogPolicy {
+  consoleToStderr: boolean;
+  files: boolean;
+}
+
+let processLogPolicy: ProcessLogPolicy = { consoleToStderr: false, files: true };
+
+export function setProcessLogPolicy(policy: ProcessLogPolicy): () => void {
+  const previous = processLogPolicy;
+  processLogPolicy = policy;
+  return () => { processLogPolicy = previous; };
+}
 
 export interface Logger {
   info(...args: unknown[]): void;
@@ -118,25 +131,20 @@ function formatArg(a: unknown): string {
 }
 
 // ── Core write ──────────────────────────────────────────
+function writeConsole(level: Level, prefix: string, args: unknown[]): void {
+  if (processLogPolicy.consoleToStderr) return console.error(prefix, ...args);
+  if (level === 'ERROR') return console.error(prefix, ...args);
+  if (level === 'WARN') return console.warn(prefix, ...args);
+  if (level === 'DEBUG') return console.debug(prefix, ...args);
+  console.log(prefix, ...args);
+}
+
 function write(level: Level, mod: string, args: unknown[]): void {
   const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
   const prefix = `[${mod} ${ts}]`;
-
-  // Console output — wrapped so a broken pipe (EPIPE) on stderr/stdout doesn't
-  // crash the process. See also the stderr/stdout error listeners at the top of
-  // this file.
-  try {
-    switch (level) {
-      case 'ERROR': console.error(prefix, ...args); break;
-      case 'WARN':  console.warn(prefix, ...args);  break;
-      case 'DEBUG': console.debug(prefix, ...args);  break;
-      default:      console.log(prefix, ...args);
-    }
-  } catch {
-    // stderr/stdout may be a broken pipe — ignore; file sink below still works
-  }
-
-  // File output
+  try { writeConsole(level, prefix, args); }
+  catch { /* stderr/stdout may be a broken pipe */ }
+  if (!processLogPolicy.files) return;
   const line = `${prefix} ${level} ${args.map(formatArg).join(' ')}\n`;
   try { getStream().write(line); } catch { /* don't crash on write failure */ }
 }

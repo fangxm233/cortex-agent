@@ -1,8 +1,9 @@
-// input:  normalized events, capabilities, spawn context
-// output: adapter, process, composition, continuation contracts
+// input:  normalized events, capabilities, child-process types
+// output: adapter, process, supervision, continuation contracts
 // pos:    Shared adapter runtime contracts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
+import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
 import type { Capability } from './capabilities.js';
 import type { NormalizedEvent } from './normalize/event-types.js';
 import type { NormalizedHookSpec } from './normalize/hooks.js';
@@ -36,6 +37,26 @@ export interface McpServerConfig {
   url?: string;
 }
 
+export interface AgentProcessSupervision {
+  started: Promise<{ pid: number; pgid: number }>;
+  exited: Promise<{ code: number | null; signal: string | null }>;
+  quiescent: Promise<void>;
+  closed: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+  cancel(reason: 'cancel' | 'deadline'): void;
+  dispose(): Promise<void>;
+}
+
+export interface SpawnedAgentProcess {
+  process: ChildProcessWithoutNullStreams;
+  supervision?: AgentProcessSupervision;
+}
+
+export type AgentProcessSpawner = (
+  command: string,
+  args: string[],
+  options: SpawnOptionsWithoutStdio,
+) => SpawnedAgentProcess;
+
 export interface AgentSpawnConfig {
   sessionId: string | null;
   /** Used to deduplicate sessions within a channel — multiple thread agents share a channel but need separate sessions. */
@@ -54,6 +75,16 @@ export interface AgentSpawnConfig {
   outputStyle?: string;
   cwd?: string;
   mcpComposition?: McpComposition;
+  /** Concrete MCP files for a frozen one-shot role. */
+  mcpConfigPaths?: string[];
+  /** Suppress ambient lifecycle hooks for an isolated one-shot role. */
+  disableHooks?: boolean;
+  /** Explicit delta policy avoids loading watched daemon settings in one-shot mode. */
+  streamDeltas?: boolean;
+  /** Disable legacy raw/text transcript files when the required journal is authoritative. */
+  captureTranscriptLogs?: boolean;
+  /** Optional process boundary used by daemon-free runs. Ordinary callers spawn directly. */
+  processSpawner?: AgentProcessSpawner;
 
   // --- Claude-specific passthroughs (task f7cf); other backends ignore these ---
   /** Channel identifier used for Claude session-pool key fallback. */
@@ -169,6 +200,8 @@ export interface AgentCompactResult {
 
 export interface AgentProcess {
   sessionKey: string;
+  /** Present when the process was launched through a containment supervisor. */
+  readonly supervision?: AgentProcessSupervision;
   /** May be null at spawn time; adapter fills in asynchronously when the backend assigns a session id. */
   sessionId: string | null;
   /** Run one turn. Resolves with the AgentResult for that turn (carries rateLimited / planFilePath / askUserQuestions / cost accounting the outer fallback depends on). Events for the same turn are also emitted via the `events` iterable. */

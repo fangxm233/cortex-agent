@@ -6,7 +6,7 @@ Defines the shared adapter contract, the capability matrix, and the normalized e
 | filename | role | function |
 |---|---|---|
 | index.ts | entry | selects the adapter for a backend |
-| types.ts | types | adapter, process and continuation contracts |
+| types.ts | types | adapter, process, supervision and continuation contracts |
 | capabilities.ts | core | declares ten capabilities for each backend |
 | bg-wait.ts | core | resolves and awaits background continuations |
 | event-tee.ts | core | fans out run events and enforces required sinks |

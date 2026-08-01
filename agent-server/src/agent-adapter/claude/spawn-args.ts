@@ -42,6 +42,12 @@ export interface ClaudeSpawnOptions {
   sessionId: string;
   /** Declared MCP privilege surface. Defaults to the ordinary direct surface. */
   mcpComposition?: McpComposition;
+  /** Concrete MCP files supplied by a frozen one-shot run configuration. */
+  mcpConfigPaths?: string[] | null;
+  /** Omit all configured hooks for isolated one-shot execution. */
+  disableHooks?: boolean;
+  /** Explicit partial-message policy; absent reads the daemon setting. */
+  streamDeltas?: boolean;
   /** Layer the cortex-slack MCP server on top of the base config. Set by the adapter for sessions
    *  that originate from Slack (channel carries the `slack:` prefix). Direct composition only. */
   loadSlackMcp?: boolean;
@@ -84,7 +90,9 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   const isDirect = composition === 'direct';
   const wantsInteractionBridge = isDirect
     && (mode === 'tui' || (mode === 'print' && !!options.isUserInitiated));
-  const mcpConfigs = [...MCP_CONFIGS[composition]];
+  const mcpConfigs = options.mcpConfigPaths
+    ? [...options.mcpConfigPaths]
+    : [...MCP_CONFIGS[composition]];
   if (wantsInteractionBridge) mcpConfigs.push(TUI_MCP_CONFIG);
   // Slack-originated sessions additionally layer the cortex-slack server (slack_send_file tool).
   // Suppressed for non-direct compositions.
@@ -122,7 +130,7 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
     // It is what lets the Web UI show text as it is generated instead of waiting for the whole
     // block (measured gap on a long reply: first delta at ~3.5s vs the complete event at ~25s).
     // TUI mode reads the session jsonl, not stdout, so the flag would be pure overhead there.
-    if (isStreamDeltasEnabled()) args.push('--include-partial-messages');
+    if (options.streamDeltas ?? isStreamDeltasEnabled()) args.push('--include-partial-messages');
   }
   // TUI mode: strip native interaction tools (AskUserQuestion / EnterPlanMode / ExitPlanMode)
   // from ALL sessions (user messages and threads alike). These tools require stdin/stdout
@@ -160,7 +168,9 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   if (options.extraOption) {
     for (const [k, v] of Object.entries(options.extraOption)) args.push(k, v);
   }
-  const settings: Record<string, any> = { hooks: buildHooksSettings(options.tools) };
+  const settings: Record<string, any> = {
+    hooks: options.disableHooks ? {} : buildHooksSettings(options.tools),
+  };
   if (options.outputStyle) settings.outputStyle = options.outputStyle;
   args.push('--settings', JSON.stringify(settings));
   if (options.needsResume) args.push('--resume', options.sessionId);

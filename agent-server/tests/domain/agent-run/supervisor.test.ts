@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, it } from 'vitest';
 import {
@@ -19,6 +20,7 @@ import {
 } from '../../../src/domain/agent-run/supervisor.js';
 
 const FIXTURE = fileURLToPath(new URL('./fake-supervisor.ts', import.meta.url));
+const TSX_IMPORT = createRequire(import.meta.url).resolve('tsx');
 const CHILD = [process.execPath, '-e', 'setInterval(() => {}, 1000)'];
 const sessions: SupervisorSession[] = [];
 const releaseFiles = new Set<string>();
@@ -31,7 +33,7 @@ function shellQuote(value: string): string {
 
 function createLauncher(): string {
   const file = path.join(root, 'fake-supervisor');
-  const script = `#!/bin/sh\nexec ${shellQuote(process.execPath)} --import tsx ${shellQuote(FIXTURE)} "$@"\n`;
+  const script = `#!/bin/sh\nexec ${shellQuote(process.execPath)} --import ${shellQuote(TSX_IMPORT)} ${shellQuote(FIXTURE)} "$@"\n`;
   fs.writeFileSync(file, script, { mode: 0o755 });
   return file;
 }
@@ -209,6 +211,30 @@ it('reads a clean protocol from a real control fd and child process', async () =
   await session.quiescent;
 });
 
+it('pipes supervised stdio in the requested cwd and exposes supervisor process exit', async () => {
+  const cwd = path.join(root, 'supervised-cwd');
+  fs.mkdirSync(cwd);
+  const session = withEnvironment({ FAKE_SUPERVISOR_MODE: 'clean' }, () => attachSupervisor({
+    binary: launcher,
+    args: [process.execPath, '-e', [
+      "process.stdin.once('data', data => {",
+      "console.log(JSON.stringify({ input: data.toString().trim(), cwd: process.cwd() }));",
+      '});',
+    ].join('')],
+    cwd,
+    stdio: 'pipe',
+  }));
+  sessions.push(session);
+  const output = new Promise<string>((resolve) => {
+    session.process.stdout!.once('data', data => resolve(data.toString().trim()));
+  });
+  await session.started;
+  session.process.stdin!.end('supervised-stdio\n');
+  assert.deepEqual(JSON.parse(await output), { input: 'supervised-stdio', cwd });
+  await session.quiescent;
+  assert.deepEqual(await session.closed, { code: 0, signal: null });
+});
+
 it('forwards control, grace, and deadline arguments to the supervisor', async () => {
   const argvFile = path.join(root, 'argv.json');
   const childArgs = [process.execPath, '-e', 'process.exit(0)'];
@@ -343,6 +369,8 @@ it('maps terminal reasons to the pinned process exit taxonomy', () => {
   assert.equal(exitCodeFor('child_failure', 42), 42);
   assert.equal(exitCodeFor('child_failure'), 1);
   assert.equal(exitCodeFor('child_failure', 0), 1);
+  assert.equal(exitCodeFor('child_failure', -1), 1);
+  assert.equal(exitCodeFor('child_failure', 256), 1);
   assert.equal(exitCodeFor('deadline'), 124);
   assert.equal(exitCodeFor('cancelled'), 130);
   assert.equal(exitCodeFor('containment_failure'), 125);

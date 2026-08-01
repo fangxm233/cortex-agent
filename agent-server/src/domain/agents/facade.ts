@@ -1,12 +1,12 @@
-// input:  configuration, adapters, profiles, settings
+// input:  run configuration, adapters, profiles, sinks
 // output: attributed runs, observer streams, spawn policy
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { getAdapter, resolveMcpComposition } from '../../agent-adapter/index.js';
 import type {
-  AgentAdapter, AgentCompactResult, AgentProcess, AgentSpawnConfig, Backend, McpComposition,
-  NormalizedEvent,
+  AgentAdapter, AgentCompactResult, AgentProcess, AgentProcessSpawner, AgentSpawnConfig, Backend,
+  McpComposition, NormalizedEvent,
 } from '../../agent-adapter/index.js';
 import {
   canAwaitBgContinuation, shouldAwaitBgInline, waitForBgContinuation,
@@ -217,6 +217,22 @@ export interface RunAgentOptions {
   awaitBackground?: boolean;
   /** Absolute working directory resolved by the caller for the backend process. */
   cwd?: string;
+  /** Optional containment-aware process boundary for daemon-free runs. */
+  processSpawner?: AgentProcessSpawner;
+  /** Pre-resolved spawn input used when identity must hash the exact object before launch. */
+  preparedSpawnConfig?: AgentSpawnConfig;
+  /** Concrete MCP config paths frozen by a one-shot run config. */
+  mcpConfigPaths?: string[];
+  /** Suppress hooks for an isolated one-shot role. */
+  disableHooks?: boolean;
+  /** Explicit streaming policy for runs that must not load watched daemon settings. */
+  streamDeltas?: boolean;
+  /** Suppress legacy transcript logs when a required journal is configured. */
+  captureTranscriptLogs?: boolean;
+  /** Disable ambient global rules for a frozen role prompt. */
+  loadCortexRules?: boolean;
+  /** Disable daemon cost-store writes while preserving streamed cost records. */
+  recordCost?: boolean;
   callbackSource?: string | null;
   scheduleTaskId?: string | null;
   isUserInitiated?: boolean;
@@ -302,7 +318,7 @@ export function filterChannelScopedPlugins(
 
 // --- Adapter execution ---
 
-function buildSpawnConfig(
+export function buildAgentSpawnConfig(
   options: RunAgentOptions,
   config: AgentConfig,
   anthropicBaseUrl: string | undefined,
@@ -326,9 +342,9 @@ function buildSpawnConfig(
 
   // Load global rules (no paths frontmatter) and inject as appendSystemPrompt.
   // Scoped rules (with paths) are handled by the Read/Grep PostToolUse hook.
-  const rules = loadCortexRules();
-  const appendSystemPrompt = rules.global.length > 0
-    ? rules.global.map(r => r.body).join('\n\n---\n\n')
+  const rules = options.loadCortexRules === false ? [] : loadCortexRules().global;
+  const appendSystemPrompt = rules.length > 0
+    ? rules.map(rule => rule.body).join('\n\n---\n\n')
     : undefined;
 
   return {
@@ -340,6 +356,11 @@ function buildSpawnConfig(
     outputStyle: typeof options.outputStyle === 'string' ? options.outputStyle : undefined,
     cwd: options.cwd,
     mcpComposition: resolveMcpComposition(options.mcpComposition, options.useCoreMcp),
+    mcpConfigPaths: options.mcpConfigPaths,
+    disableHooks: options.disableHooks,
+    streamDeltas: options.streamDeltas,
+    captureTranscriptLogs: options.captureTranscriptLogs,
+    processSpawner: options.processSpawner,
     pluginDirs: filterChannelScopedPlugins(
       Array.isArray(options.pluginDirs) ? options.pluginDirs : undefined,
       options.channel,
@@ -448,6 +469,7 @@ class LegacyEventDispatcher {
   }
 
   private costRecord(event: Extract<NormalizedEvent, { type: 'cost_record' }>): void {
+    if (this.options.recordCost === false) return;
     void recordCost({
       project: this.options.project || 'general',
       trigger: this.options.trigger || 'unknown',
@@ -517,7 +539,8 @@ export function runWithAdapter(
   config: AgentConfig,
   anthropicBaseUrl: string | undefined,
 ): AgentHandle {
-  const spawnConfig = buildSpawnConfig(options, config, anthropicBaseUrl);
+  const spawnConfig = options.preparedSpawnConfig
+    ?? buildAgentSpawnConfig(options, config, anthropicBaseUrl);
   const proc = adapter.spawn(spawnConfig);
   const attachments = (options.files || []).map((file: any) => ({
     mimeType: file.mimetype ?? file.mimeType,
@@ -642,7 +665,7 @@ export async function compactAgentContext(
     project: request.projectId,
     trigger: 'manual-compact',
   });
-  const proc = deps.getAdapter(request.backend).spawn(buildSpawnConfig({
+  const proc = deps.getAdapter(request.backend).spawn(buildAgentSpawnConfig({
     sessionId: request.backendSessionId,
     trackSessionId: request.sessionId,
     sessionKey: request.channel,
@@ -784,7 +807,7 @@ export const _test = {
   runWithAdapter,
   resolveRateLimitProvider,
   withRateLimitProvider,
-  buildSpawnConfig,
+  buildSpawnConfig: buildAgentSpawnConfig,
   filterChannelScopedPlugins,
 };
 

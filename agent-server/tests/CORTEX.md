@@ -116,7 +116,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | slack-output-stream.test.ts | test | Slack output stream emit, flush and tail |
 | spawn-seam-direct.golden.json | golden | pins ordinary direct argv and environment |
 | spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
-| spawn-seam.test.ts | test | proves cwd usage, pool and MCP composition at spawn |
+| spawn-seam.test.ts | test | proves cwd, process injection and MCP spawn policy |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
 | store/ | subdir | JSON repository and store concurrency tests |
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |

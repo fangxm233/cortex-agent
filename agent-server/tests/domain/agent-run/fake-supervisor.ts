@@ -1,5 +1,5 @@
-// input:  supervisor CLI arguments, process signals, control fd
-// output: deterministic lifecycle edge cases from a real child
+// input:  supervisor arguments, deadline, signals, control fd
+// output: deterministic lifecycle edge cases from a real process group
 // pos:    Fake supervisor fixture for agent-run client tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -9,6 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 interface Invocation {
   controlFd: number;
+  deadlineMs: number | null;
   command: string;
   commandArgs: string[];
 }
@@ -27,10 +28,21 @@ type FixtureMode =
   | 'trailing-error'
   | 'trailing-malformed';
 
+interface CancellationState {
+  cancelled(): boolean;
+  deadline(): boolean;
+  stop(): void;
+}
+
 function optionValue(args: string[], name: string): string {
   const index = args.indexOf(name);
   if (index < 0 || index + 1 >= args.length) throw new Error(`missing ${name}`);
   return args[index + 1];
+}
+
+function optionalNumber(args: string[], name: string): number | null {
+  const index = args.indexOf(name);
+  return index < 0 ? null : Number(optionValue(args, name));
 }
 
 function parseInvocation(args: string[]): Invocation {
@@ -38,6 +50,7 @@ function parseInvocation(args: string[]): Invocation {
   if (separator < 0 || separator + 1 >= args.length) throw new Error('missing supervised command');
   return {
     controlFd: Number(optionValue(args, '--control-fd')),
+    deadlineMs: optionalNumber(args, '--deadline-ms'),
     command: args[separator + 1],
     commandArgs: args.slice(separator + 2),
   };
@@ -82,10 +95,7 @@ function startedRecord(pid: number): Record<string, unknown> {
   return { v: 1, type: 'started', pid, pgid: pid, ts: timestamp() };
 }
 
-function exitedRecord(
-  code: number | null,
-  signal: NodeJS.Signals | null,
-): Record<string, unknown> {
+function exitedRecord(code: number | null, signal: NodeJS.Signals | null): Record<string, unknown> {
   return { v: 1, type: 'exited', code, signal, ts: timestamp() };
 }
 
@@ -99,20 +109,38 @@ function emitTrailingRecord(controlFd: number, mode: FixtureMode): void {
   }
 }
 
-function installCancellation(child: ChildProcess): () => boolean {
+function signalGroup(child: ChildProcess): void {
+  if (!child.pid) return;
+  try {
+    process.kill(-child.pid, 'SIGTERM');
+  } catch {
+    child.kill('SIGTERM');
+  }
+}
+
+function installCancellation(child: ChildProcess, deadlineMs: number | null): CancellationState {
   let cancelled = false;
-  const cancel = () => {
+  let deadline = false;
+  const cancel = (timedOut: boolean) => {
     recordSignal();
     if (cancelled) return;
     cancelled = true;
-    child.kill('SIGTERM');
+    deadline = timedOut;
+    signalGroup(child);
   };
-  process.on('SIGTERM', cancel);
-  process.on('SIGINT', cancel);
-  return () => cancelled;
+  process.on('SIGTERM', () => cancel(false));
+  process.on('SIGINT', () => cancel(false));
+  const timer = deadlineMs === null ? null : setTimeout(() => cancel(true), deadlineMs);
+  return {
+    cancelled: () => cancelled,
+    deadline: () => deadline,
+    stop: () => { if (timer) clearTimeout(timer); },
+  };
 }
 
-function waitForChild(child: ChildProcess): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+function waitForChild(
+  child: ChildProcess,
+): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
   return new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('close', (code, signal) => resolve({ code, signal }));
@@ -137,28 +165,41 @@ async function hangForever(): Promise<never> {
   while (true) await delay(1000);
 }
 
+function terminalExitCode(
+  cancellation: CancellationState,
+  result: { code: number | null; signal: NodeJS.Signals | null },
+): number {
+  if (cancellation.deadline()) return 124;
+  if (cancellation.cancelled()) return 130;
+  return result.code ?? 1;
+}
+
 async function runFixture(): Promise<void> {
   recordArguments();
   const invocation = parseInvocation(process.argv.slice(2));
   const mode = (process.env.FAKE_SUPERVISOR_MODE ?? 'clean') as FixtureMode;
   if (mode === 'error') return emitError(invocation.controlFd);
-  const child = spawn(invocation.command, invocation.commandArgs, {
-    detached: mode === 'hang',
-    stdio: 'inherit',
-  });
+  const child = spawn(invocation.command, invocation.commandArgs, { detached: true, stdio: 'inherit' });
   if (child.pid === undefined) throw new Error('child did not start');
-  const wasCancelled = installCancellation(child);
+  const cancellation = installCancellation(child, invocation.deadlineMs);
   const continueProtocol = emitOpening(invocation.controlFd, child.pid, mode);
-  if (!continueProtocol) child.kill('SIGTERM');
+  if (!continueProtocol) signalGroup(child);
   if (mode === 'hang') await hangForever();
   const result = await waitForChild(child);
+  cancellation.stop();
   if (!continueProtocol) return void (process.exitCode = 125);
   writeControl(invocation.controlFd, exitedRecord(result.code, result.signal));
   if (mode === 'no-quiescent') return void (process.exitCode = result.code ?? 125);
   if (mode === 'hold-quiescent') await waitForRelease();
   writeControl(invocation.controlFd, { v: 1, type: 'quiescent', descendants: 0, ts: timestamp() });
   emitTrailingRecord(invocation.controlFd, mode);
-  process.exitCode = wasCancelled() ? 130 : (result.code ?? 125);
+  process.exitCode = terminalExitCode(cancellation, result);
 }
 
-await runFixture();
+try {
+  await runFixture();
+} catch (error) {
+  const file = process.env.FAKE_SUPERVISOR_FAILURE_FILE;
+  if (file) fs.writeFileSync(file, (error as Error).stack ?? String(error));
+  throw error;
+}

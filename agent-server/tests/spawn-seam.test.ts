@@ -5,6 +5,7 @@
 
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
@@ -31,6 +32,9 @@ import { _test as facadeTest } from '../src/domain/agents/facade.js';
 import { generateConfigs, getResolvedPaths, type InitAnswers } from '../src/entry/init.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
+// GOLDEN PROVENANCE: captured from base 63fe0dad's production spawn path. That path mapped the
+// legacy thread boolean to the thread MCP configs; its old _test.computeSpawnArgs hook did not.
+// The current seam and production path agree, so re-deriving via the old hook gives a false mismatch.
 const DIRECT_GOLDEN = path.join(TEST_DIR, 'spawn-seam-direct.golden.json');
 const THREAD_GOLDEN = path.join(TEST_DIR, 'spawn-seam-thread.golden.json');
 const FIXTURE_CONFIG = { model: 'claude-fixture', backend: 'claude' as const, mode: null };
@@ -175,18 +179,39 @@ test('resolveMcpComposition gives explicit values precedence over the legacy boo
   assert.equal(resolveMcpComposition(undefined, undefined), 'direct');
 });
 
-test('buildSpawnConfig carries cwd and resolves both explicit and legacy compositions', () => {
+test('buildSpawnConfig carries isolated one-shot values and resolves legacy composition', () => {
   const explicit = facadeTest.buildSpawnConfig({
     cwd: '/fixture/task',
     mcpComposition: 'none',
     useCoreMcp: true,
+    mcpConfigPaths: ['/fixture/mcp-empty.json'],
+    disableHooks: true,
+    streamDeltas: false,
+    captureTranscriptLogs: false,
+    loadCortexRules: false,
+    recordCost: false,
   }, FIXTURE_CONFIG, undefined);
   const legacy = facadeTest.buildSpawnConfig({ useCoreMcp: true }, FIXTURE_CONFIG, undefined);
 
   assert.equal(explicit.cwd, '/fixture/task');
   assert.equal(explicit.mcpComposition, 'none');
+  assert.deepEqual(explicit.mcpConfigPaths, ['/fixture/mcp-empty.json']);
+  assert.equal(explicit.disableHooks, true);
+  assert.equal(explicit.streamDeltas, false);
+  assert.equal(explicit.captureTranscriptLogs, false);
+  assert.equal(explicit.appendSystemPrompt, undefined);
   assert.equal(explicit.cortexContext?.useCoreMcp, true);
   assert.equal(legacy.mcpComposition, 'thread-control');
+});
+
+test('restricted one-shot options override MCP paths and disable hooks', () => {
+  const argv = buildSpawnArgs({
+    tools: 'Bash,Read', needsResume: false, sessionId: 'one-shot',
+    mcpComposition: 'none', mcpConfigPaths: ['/fixture/mcp-empty.json'],
+    disableHooks: true, streamDeltas: false,
+  });
+  assert.deepEqual(mcpConfigPaths(argv), ['/fixture/mcp-empty.json']);
+  assert.deepEqual(JSON.parse(argv[argv.indexOf('--settings') + 1]), { hooks: {} });
 });
 
 test('ordinary direct and thread spawn argv and environment match base goldens byte-for-byte', () => {
@@ -350,6 +375,39 @@ async function runCwdProbe(marker: string, sessionKey: string, cwd?: string): Pr
     await adapter.close(sessionKey);
   }
 }
+
+test('Claude print uses an injected process spawner without changing argv or cwd', async (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), 'cortex-spawn-injected-'));
+  const binDir = path.join(root, 'bin');
+  const cwd = path.join(root, 'task');
+  const marker = path.join(root, 'cwd.txt');
+  mkdirSync(cwd, { recursive: true });
+  installFakeClaude(binDir);
+  const restore = overrideEnvironment({
+    PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    CWD_MARKER: marker,
+  });
+  const calls: Array<{ command: string; args: string[]; cwd?: string }> = [];
+  const adapter = new ClaudeAdapter();
+  t.onTestFinished(async () => {
+    await adapter.close('injected-spawner');
+    restore();
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  const processSpawner = ((command: string, args: string[], options: any) => {
+    calls.push({ command, args, cwd: options.cwd });
+    return { process: spawn(command, args, options) };
+  }) as any;
+  await facadeTest.runWithAdapter(adapter, 'probe', {
+    channel: 'injected-spawner', sessionKey: 'injected-spawner', cwd, processSpawner,
+  }, FIXTURE_CONFIG, undefined).promise;
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, 'claude');
+  assert.equal(calls[0].cwd, cwd);
+  assert.equal(readFileSync(marker, 'utf8'), cwd);
+});
 
 test('Claude print subprocess uses the requested cwd and preserves the default cwd', async (t) => {
   const root = mkdtempSync(path.join(tmpdir(), 'cortex-spawn-cwd-'));

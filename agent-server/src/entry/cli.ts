@@ -1,21 +1,7 @@
-// input:  process argv, child_process, net, @core/paths, @core/cli-utils, ./init, @domain/tasks/system/task-cli, @domain/system/install-cli
-// output: CLI dispatcher: cortex {init,start,daemon,task,config,install,setup-gateway,tui}
-// pos:    Bin entry point (`cortex`). Dispatches to:
-//           init [--home <path>]  — interactive init (async, runInit)
-//           start                 — fork app.js
-//           daemon                — fork daemon.js
-//           daemon stop           — stop running daemon gracefully (SIGTERM)
-//           daemon status         — check daemon + child status (PID, uptime)
-//           daemon restart        — graceful: signal daemon to drain and respawn app.js
-//           daemon restart --hard — hard: send SIGTERM directly to app.js (daemon recovers)
-//           daemon restart --force— force: send SIGKILL immediately to app.js
-//           daemon restart-self   — stop daemon, then re-fork daemon.js
-//           task <subcommand>     — delegate to task-cli
-//           install latest        — install latest Cortex from npm
-//           config                — show resolved paths
-//           tui [options]         — start Terminal UI client (forks dist/tui/index.js)
-//         Packaged as dist/entry/cli.js, registered in package.json bin.
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// input:  process argv, child processes, command modules
+// output: cortex CLI dispatch and process exit status
+// pos:    Top-level cortex command dispatcher
+// >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { fork } from 'child_process';
 import * as path from 'path';
@@ -26,8 +12,6 @@ import { existsSync, readdirSync, mkdirSync, writeFileSync, utimesSync, readFile
 import { INSTALL_ROOT, DATA_DIR, STORE_DIR, PROJECTS_DIR, WORKSPACE_DIR, isMainModule } from '@core/utils.js';
 import { formatHelp } from '@core/cli-utils.js';
 import { createLogger } from '@core/log.js';
-import { runCli as taskRunCli } from '@domain/tasks/system/task-cli.js';
-import { runCli as installRunCli, getInstallHelp } from '@domain/system/install-cli.js';
 import {
   getResolvedPaths,
   formatConfigOutput,
@@ -192,6 +176,7 @@ export function getCliHelp(): string {
       { name: 'daemon restart-self', description: 'Stop and restart the daemon process itself' },
       { name: 'restart', description: 'Legacy alias for daemon restart (touches $STORE_DIR/.restart)' },
       { name: 'task', description: 'Task system CLI (delegate to cortex-task)' },
+      { name: 'agent-run', description: 'Run one supervised daemon-free Claude print turn' },
       { name: 'install latest', description: 'Install the latest version of Cortex from npm' },
       { name: 'config', description: 'Show resolved paths and initialization status' },
       { name: 'doctor', description: 'Health-check the install (runtime, login, platform, gateway); --fix to repair' },
@@ -209,6 +194,7 @@ export function getCliHelp(): string {
       { description: 'Health-check the install', command: 'cortex doctor' },
       { description: 'Diagnose and auto-repair', command: 'cortex doctor --fix' },
       { description: 'Re-generate gateway config', command: 'cortex setup-gateway' },
+      { description: 'Run a one-shot prompt', command: 'cortex agent-run --prompt-file prompt.txt --agent-slot parent --profile benchmark --cwd /workspace --output-format jsonl --events-file /logs/events.jsonl' },
       { description: 'Start the server', command: 'cortex start' },
       { description: 'Stop the daemon', command: 'cortex daemon stop' },
       { description: 'Check daemon status', command: 'cortex daemon status' },
@@ -638,11 +624,12 @@ export async function runCli(argv: string[]): Promise<CliResult> {
     }
 
     case 'task': {
-      const result = taskRunCli(rest.length > 0 ? rest : ['list']);
-      return result;
+      const { runCli: taskRunCli } = await import('@domain/tasks/system/task-cli.js');
+      return taskRunCli(rest.length > 0 ? rest : ['list']);
     }
 
     case 'install': {
+      const { runCli: installRunCli, getInstallHelp } = await import('@domain/system/install-cli.js');
       if (rest.includes('--help') || rest.includes('-h')) {
         return { exitCode: 0, stdout: getInstallHelp(), stderr: '' };
       }
@@ -690,6 +677,17 @@ function main(): void {
 
   const cmd = args[0];
   const rest = args.slice(1);
+
+  if (cmd === 'agent-run') {
+    void import('@domain/agent-run/agent-run-cli.js')
+      .then(({ runAgentRunCli }) => runAgentRunCli(rest))
+      .then(code => { process.exitCode = code; })
+      .catch((error) => {
+        process.stderr.write(`${(error as Error)?.message ?? String(error)}\n`);
+        process.exitCode = 1;
+      });
+    return;
+  }
 
   // Handle --help / -h for subcommands
   if (rest.includes('--help') || rest.includes('-h')) {
