@@ -1,6 +1,6 @@
 // input:  auth login service factory and stub LoginFlow consumers
-// output: backend selection, normalization, and operation delegation regressions
-// pos:    Tests the shared API-key login entry used by chat and Web
+// output: API-key/OAuth selection and operation delegation regressions
+// pos:    Tests the shared backend login entry used by chat and Web
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
@@ -33,30 +33,42 @@ const STATE: LoginFlowState = {
   errorCode: null,
 };
 
-function consumer(provider: string): LoginFlowConsumer {
-  return async (_interaction: AuthInteraction) => ({
-    provider,
-    authType: 'api_key',
-    expiresAt: null,
-  });
+function consumer(
+  provider: string,
+  authType: StartLoginFlowInput['authType'],
+): LoginFlowConsumer {
+  return async (_interaction: AuthInteraction) => ({ provider, authType, expiresAt: null });
 }
 
 function makeDependencies() {
   const calls: Array<{ input: StartLoginFlowInput; consumer: LoginFlowConsumer }> = [];
-  const claude = consumer('anthropic');
-  const pi = consumer('deepseek');
+  const claude = consumer('anthropic', 'api_key');
+  const claudeOAuth = consumer('anthropic', 'oauth');
+  const pi = consumer('deepseek', 'api_key');
+  const piOAuth = consumer('openai-codex', 'oauth');
   const dependencies: AuthLoginServiceDependencies = {
     startFlow: async (input, selectedConsumer) => {
       calls.push({ input, consumer: selectedConsumer });
-      return { ...STATE, backend: input.backend, provider: input.provider, channel: input.channel };
+      return {
+        ...STATE,
+        backend: input.backend,
+        provider: input.provider,
+        authType: input.authType,
+        channel: input.channel,
+        sessionId: input.sessionId,
+      };
     },
     getFlowState: flowId => flowId === 'flow-1' ? STATE : null,
     respondPrompt: async (flowId, value) => ({ ...STATE, flowId, step: value ? 'running' : 'prompt' }),
     cancelFlow: async flowId => ({ ...STATE, flowId, step: 'cancelled' }),
     claudeConsumer: claude,
-    piConsumerFactory: provider => provider === 'deepseek' ? pi : consumer(provider),
+    claudeOAuthConsumer: claudeOAuth,
+    piConsumerFactory: provider => provider === 'deepseek' ? pi : consumer(provider, 'api_key'),
+    piOAuthConsumerFactory: provider => (
+      provider === 'openai-codex' ? piOAuth : consumer(provider, 'oauth')
+    ),
   };
-  return { calls, claude, pi, dependencies };
+  return { calls, claude, claudeOAuth, pi, piOAuth, dependencies };
 }
 
 test('shared login service normalizes Claude and selects the Claude consumer', async () => {
@@ -88,7 +100,24 @@ test('shared login service selects a provider-specific PI consumer', async () =>
   assert.equal(fixture.calls[0].consumer, fixture.pi);
 });
 
-test('shared login service rejects unsupported API-key targets before starting a flow', async () => {
+test('shared login service selects both OAuth consumers without replacing API-key DI', async () => {
+  const fixture = makeDependencies();
+  const service = createAuthLoginService(fixture.dependencies);
+
+  await service.start({
+    backend: 'claude', provider: 'anthropic', authType: 'oauth',
+    channel: 'slack:C1', sessionId: null,
+  });
+  await service.start({
+    backend: 'pi', provider: 'openai-codex', authType: 'oauth',
+    channel: null, sessionId: null,
+  });
+
+  assert.equal(fixture.calls[0].consumer, fixture.claudeOAuth);
+  assert.equal(fixture.calls[1].consumer, fixture.piOAuth);
+});
+
+test('shared login service rejects unsupported targets before starting a flow', async () => {
   const fixture = makeDependencies();
   const service = createAuthLoginService(fixture.dependencies);
 
@@ -107,9 +136,10 @@ test('shared login service rejects unsupported API-key targets before starting a
   );
   await assert.rejects(
     () => service.start({
-      backend: 'pi', provider: 'deepseek', authType: 'oauth', channel: null, sessionId: null,
+      backend: 'claude', provider: 'deepseek', authType: 'oauth',
+      channel: null, sessionId: null,
     }),
-    (error: any) => error?.code === 'unsupported_auth_type',
+    (error: any) => error?.code === 'provider_not_found',
   );
   assert.equal(fixture.calls.length, 0);
 });

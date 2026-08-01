@@ -1,5 +1,5 @@
 // input:  desktop PlatformPanel, vocabulary, and login callback
-// output: reachable desktop authentication entry regression
+// output: reachable desktop API-key/OAuth entry regression
 // pos:    Verifies Settings exposes the shared LoginFlow modal
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -27,5 +27,6 @@ describe('desktop authentication settings entry', () => {
 
     expect(html).toContain('<button type="button" data-auth-login-entry="desktop"');
     expect(html).toContain('Backend login');
+    expect(html).toContain('API keys and OAuth');
   });
 });

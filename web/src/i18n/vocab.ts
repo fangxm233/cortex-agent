@@ -1,5 +1,5 @@
 // input:  Selected language and shared product copy keys
-// output: Shape-checked English/Chinese copy including auth login
+// output: Shape-checked English/Chinese copy including OAuth notices
 // pos:    Shared source of localized UI copy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -638,14 +638,22 @@ export const en = {
   exFooterHeartbeat: 'heartbeat 30s · missed 0 · → costs.jsonl',
   exKillRun: 'Kill run',
   authLoginTitle: 'Backend login',
-  authLoginIntro: 'Choose a backend and API-key provider.',
+  authLoginIntro: 'Choose a backend, authentication type, and provider.',
   authLoginBackend: 'Backend',
+  authLoginType: 'Authentication type',
+  authLoginApiKey: 'API key',
+  authLoginOAuth: 'OAuth',
+  authLoginSubscription: 'Subscription (OAuth)',
   authLoginProvider: 'Provider',
   authLoginStart: 'Start login',
   authLoginSubmit: 'Submit',
   authLoginClose: 'Close',
   authLoginRunning: 'Starting login…',
   authLoginSecretPrompt: 'Enter the API key. It will not be stored in chat or transcripts.',
+  authLoginOpenLink: 'Open link',
+  authLoginOpenAuthorization: 'Open authorization page',
+  authLoginOpenVerification: 'Open verification page',
+  authLoginExpiresIn: 'Expires in {seconds} seconds.',
   authLoginDone: 'Login complete',
   authLoginDoneSummary: 'Logged in to {provider}.',
   authLoginFailed: 'Login failed',
@@ -654,7 +662,7 @@ export const en = {
   authLoginCancelled: 'Login cancelled',
   authLoginCancelledSummary: 'No credential was submitted.',
   authLoginEntry: 'Backend login',
-  authLoginEntrySub: 'Claude Code and PI API keys',
+  authLoginEntrySub: 'Claude Code and PI API keys and OAuth',
 };
 
 export type Vocab = typeof en;
@@ -1294,14 +1302,22 @@ export const zh: Record<keyof Vocab, string> = {
   exFooterHeartbeat: '心跳 30s · 丢失 0 · → costs.jsonl',
   exKillRun: '终止运行',
   authLoginTitle: 'Backend 登录',
-  authLoginIntro: '选择 backend 与 API key provider。',
+  authLoginIntro: '选择 backend、认证类型与 provider。',
   authLoginBackend: 'Backend',
+  authLoginType: '认证类型',
+  authLoginApiKey: 'API key',
+  authLoginOAuth: 'OAuth',
+  authLoginSubscription: '订阅（OAuth）',
   authLoginProvider: 'Provider',
   authLoginStart: '开始登录',
   authLoginSubmit: '提交',
   authLoginClose: '关闭',
   authLoginRunning: '正在启动登录…',
   authLoginSecretPrompt: '输入 API key。它不会进入聊天消息或 transcript。',
+  authLoginOpenLink: '打开链接',
+  authLoginOpenAuthorization: '打开授权页面',
+  authLoginOpenVerification: '打开验证页面',
+  authLoginExpiresIn: '{seconds} 秒后过期。',
   authLoginDone: '登录完成',
   authLoginDoneSummary: '已登录 {provider}。',
   authLoginFailed: '登录失败',
@@ -1310,5 +1326,5 @@ export const zh: Record<keyof Vocab, string> = {
   authLoginCancelled: '登录已取消',
   authLoginCancelledSummary: '未提交凭据。',
   authLoginEntry: 'Backend 登录',
-  authLoginEntrySub: 'Claude Code 与 PI API key',
+  authLoginEntrySub: 'Claude Code 与 PI API key 和 OAuth',
 };

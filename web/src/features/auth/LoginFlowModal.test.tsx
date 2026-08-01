@@ -1,11 +1,11 @@
 // input:  mounted LoginFlowModal, fake auth tRPC operations, and status fixtures
-// output: password, mutation, polling, cancellation, and non-echo regressions
-// pos:    Mounted Web API-key login flow specification
+// output: OAuth notices, mutations, polling, and non-echo regressions
+// pos:    Mounted Web backend login flow specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LoginFlowState } from '@cortex-agent/ui-contract';
+import type { LoginFlowNotice, LoginFlowState } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 
 const harness = vi.hoisted(() => ({
@@ -116,7 +116,10 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 
 import { LoginFlowModal } from './LoginFlowModal';
 
-function state(step: LoginFlowState['step']): LoginFlowState {
+function state(
+  step: LoginFlowState['step'],
+  overrides: Partial<LoginFlowState> = {},
+): LoginFlowState {
   return {
     flowId: 'flow-web', backend: 'claude', provider: 'anthropic', authType: 'api_key',
     step,
@@ -127,6 +130,7 @@ function state(step: LoginFlowState['step']): LoginFlowState {
       ? { provider: 'anthropic', authType: 'api_key', expiresAt: null }
       : null,
     error: null, errorCode: null,
+    ...overrides,
   };
 }
 
@@ -134,9 +138,10 @@ function authStatus() {
   return {
     generatedAt: '2030-01-01T00:00:00.000Z',
     accounts: [
-      { backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['api_key'] },
+      { backend: 'claude', provider: 'anthropic', label: 'Anthropic', capabilities: ['api_key', 'oauth'] },
       { backend: 'pi', provider: 'deepseek', label: 'DeepSeek', capabilities: ['api_key'] },
       { backend: 'pi', provider: 'oauth-only', label: 'OAuth only', capabilities: ['oauth'] },
+      { backend: 'pi', provider: 'dual-auth', label: 'Dual auth', capabilities: ['api_key', 'oauth'] },
     ],
     piRuntime: { available: true, version: 'test', entry: null, error: null },
   };
@@ -179,6 +184,13 @@ beforeEach(() => {
   harness.startPromise = null;
 });
 
+const NOTICE_CASES: Array<[LoginFlowNotice, LoginFlowNotice['kind']]> = [
+  [{ kind: 'info', message: 'Provider information', links: [{ label: 'Help', url: 'https://help.example.test' }] }, 'info'],
+  [{ kind: 'auth_url', url: 'https://login.example.test/authorize?state=fixture', instructions: 'Authorize' }, 'auth_url'],
+  [{ kind: 'device_code', userCode: 'ABCD-EFGH', verificationUri: 'https://verify.example.test', expiresInSeconds: 600 }, 'device_code'],
+  [{ kind: 'progress', message: 'Waiting for authorization' }, 'progress'],
+];
+
 describe('LoginFlowModal', () => {
   it('starts a selected PI provider through auth.startLogin', async () => {
     const renderer = mount();
@@ -194,6 +206,24 @@ describe('LoginFlowModal', () => {
     expect(harness.flowQueries.at(-1)).toMatchObject({ enabled: true, input: { flowId: 'flow-web' } });
   });
 
+  it('filters PI providers by OAuth capability and starts the selected OAuth flow', async () => {
+    const renderer = mount();
+    act(() => {
+      renderer.root.findByProps({ 'data-auth-type': true }).props.onChange({ target: { value: 'oauth' } });
+      renderer.root.findByProps({ 'data-auth-backend': true }).props.onChange({ target: { value: 'pi' } });
+    });
+    const provider = renderer.root.findByProps({ 'data-auth-provider': true });
+    expect(provider.findAllByType('option').map(option => option.props.value)).toEqual([
+      'oauth-only', 'dual-auth',
+    ]);
+    act(() => { provider.props.onChange({ target: { value: 'oauth-only' } }); });
+    await clickAsync(renderer, 'auth-start');
+
+    expect(harness.startCalls).toEqual([{
+      backend: 'pi', provider: 'oauth-only', authType: 'oauth',
+    }]);
+  });
+
   it('polls from the initial running state into the first secret prompt', async () => {
     harness.startState = state('running');
     harness.queryState = state('prompt');
@@ -201,6 +231,36 @@ describe('LoginFlowModal', () => {
     await clickAsync(renderer, 'auth-start');
 
     expect(renderer.root.findByProps({ 'data-auth-secret': true }).props.type).toBe('password');
+  });
+
+  it('renders manual-code prompts as password inputs', async () => {
+    harness.startState = state('prompt', {
+      authType: 'oauth',
+      pendingPrompt: { kind: 'manual_code', message: 'Paste authorization code' },
+    });
+    harness.queryState = harness.startState;
+    const renderer = mount();
+    await clickAsync(renderer, 'auth-start');
+
+    expect(renderer.root.findByProps({ 'data-auth-secret': true }).props.type).toBe('password');
+  });
+
+  it('does not echo a submitted OAuth redirect URL', async () => {
+    harness.startState = state('prompt', {
+      authType: 'oauth',
+      pendingPrompt: { kind: 'manual_code', message: 'Paste redirect URL' },
+    });
+    harness.queryState = harness.startState;
+    const renderer = mount();
+    await clickAsync(renderer, 'auth-start');
+    const redirect = 'https://localhost/callback?code=sentinel-web-code&state=private';
+    act(() => {
+      renderer.root.findByProps({ 'data-auth-secret': true }).props.onChange({ target: { value: redirect } });
+    });
+    await clickAsync(renderer, 'auth-submit');
+
+    expect(harness.respondCalls).toEqual([{ flowId: 'flow-web', value: redirect }]);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain(redirect);
   });
 
   it('uses an uncached direct mutation and never re-renders a submitted secret', async () => {
@@ -219,6 +279,28 @@ describe('LoginFlowModal', () => {
     expect(JSON.stringify(renderer.toJSON())).not.toContain(secret);
     expect(renderer.root.findByProps({ 'data-auth-flow-step': 'done' })).toBeTruthy();
     expect(harness.invalidations.some((entry: any) => entry.__kind === 'auth.status')).toBe(true);
+  });
+
+  it.each(NOTICE_CASES)('renders %s notice metadata without a pending input', async (notice, kind) => {
+    harness.startState = state('running', { authType: 'oauth', notice });
+    harness.queryState = harness.startState;
+    const renderer = mount();
+    await clickAsync(renderer, 'auth-start');
+
+    expect(renderer.root.findByProps({ 'data-auth-notice': kind })).toBeTruthy();
+    expect(renderer.root.findAllByProps({ 'data-auth-secret': true })).toHaveLength(0);
+    const html = JSON.stringify(renderer.toJSON());
+    if (kind === 'info') {
+      expect(renderer.root.findByType('a').props.href).toBe('https://help.example.test');
+    }
+    if (kind === 'auth_url') {
+      expect(renderer.root.findByType('a').props.href).toContain('https://login.example.test/authorize');
+    }
+    if (kind === 'device_code') {
+      expect(html).toContain('ABCD-EFGH');
+      expect(html).toContain('600');
+    }
+    if (kind === 'progress') expect(renderer.root.findAllByProps({ 'data-auth-progress': true })).toHaveLength(1);
   });
 
   it('cancels the active flow and stops polling terminal state', async () => {
