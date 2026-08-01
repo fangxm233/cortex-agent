@@ -582,8 +582,21 @@ function failStepExecution(stepCtx: StepContext, error: any): void {
   });
 }
 
-function launchThreadAgent(stepCtx: StepContext, options: ThreadAgentOptions): ThreadAgentHandle {
+function verifyBenchmarkProfileBeforeLaunch(
+  stepCtx: StepContext,
+  benchmark: BenchmarkThreadRunOptions | undefined,
+): void {
+  if (!benchmark) return;
+  assertBenchmarkProfile(resolveProfileConfig(stepCtx.profileName), benchmark);
+}
+
+function launchThreadAgent(
+  stepCtx: StepContext,
+  options: ThreadAgentOptions,
+  benchmark: BenchmarkThreadRunOptions | undefined,
+): ThreadAgentHandle {
   try {
+    verifyBenchmarkProfileBeforeLaunch(stepCtx, benchmark);
     return runAgent(stepCtx.prompt, options);
   } catch (error) {
     failStepExecution(stepCtx, error);
@@ -624,7 +637,7 @@ async function executeAndAwaitAgent(
   ctx: ThreadContext, opts: RunThreadOptions,
 ): Promise<any> {
   const options = buildThreadAgentOptions(threadId, stepCtx, callbacks, ctx, opts);
-  const handle = launchThreadAgent(stepCtx, options);
+  const handle = launchThreadAgent(stepCtx, options, opts.benchmark);
   registerStepHandle(threadId, stepCtx, handle, opts);
   return awaitStepHandle(stepCtx, handle);
 }

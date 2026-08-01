@@ -545,6 +545,24 @@ it('fails with protocol_violation when the spawned profile drifts from the heade
   assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason, 'protocol_violation');
 });
 
+it('rejects model drift immediately before launch rather than after an agent ran', async () => {
+  queueSuccess('must not run');
+  let resolutions = 0;
+  const resolveProfile = () => ({
+    name: 'benchmark-fixture', backend: 'claude' as const,
+    model: resolutions++ < 2 ? 'fixture-model' : 'drifted-model',
+    mode: null, provider: 'anthropic', extraEnv: {}, extraOption: {},
+    claudeBackend: 'print' as const, thinking: null, fallback: [],
+  });
+  const req = request(path.join(root, 'launch-model-drift'), new AbortController().signal);
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { resolveProfile });
+
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(harness.runAgent.mock.calls.length, 0);
+});
+
 it('uses the landed lifecycle modules rather than a forked writer surface', async () => {
   assert.equal(typeof openJournal, 'function');
   assert.equal(typeof resolveLifecyclePaths, 'function');
