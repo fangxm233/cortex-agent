@@ -1,4 +1,4 @@
-// input:  optional run-config JSON, resolved profile, package defaults
+// input:  file/stdin run-config JSON, resolved profile, defaults
 // output: argv-closed frozen inputs and one non-empty spawn role
 // pos:    Configuration boundary for daemon-free one-shot runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -8,6 +8,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { DEFAULT_TOOLS } from '../../agent-adapter/claude/defaults.js';
 import type { McpComposition } from '../../agent-adapter/types.js';
+import { readStdinSync } from '../../core/cli-utils.js';
 import { DEFAULTS_DIR } from '../../core/paths.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import type { FrozenIdentityInput, IdentityJsonValue } from './identity.js';
@@ -153,7 +154,9 @@ function resolvedRunConfig(value: unknown, base: string): ResolvedAgentRunConfig
 }
 
 export function loadAgentRunConfig(file?: string): ResolvedAgentRunConfig {
-  return file === undefined ? defaultConfig() : resolvedRunConfig(readJson(file), path.dirname(file));
+  if (file === undefined) return defaultConfig();
+  if (file === '-') return resolvedRunConfig(parseJson(readStdinSync(), 'stdin'), process.cwd());
+  return resolvedRunConfig(readJson(file), path.dirname(file));
 }
 
 export function resolvedRouteHost(profile: ResolvedProfileConfig): string | null {

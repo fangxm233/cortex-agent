@@ -1,5 +1,5 @@
-// input:  cortex CLI, fake Claude/supervisor executables, procfs, ambient settings
-// output: argv closure, daemon-free isolation, journal, and completion-only proofs
+// input:  cortex CLI, stdin configs, fake Claude/supervisor, procfs
+// output: argv closure, isolation, journal, and completion-only proofs
 // pos:    Process-level one-shot agent-run regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -643,6 +643,34 @@ it('journals compaction without reading or watching daemon settings', async () =
   assert.deepEqual(snapshotTree(fixture.home), homeBefore);
   const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
   assert.ok(records.some(record => record.event?.type === 'context_compacted'));
+}, 45_000);
+
+it('reads a stdin run config with relative paths based at the invoking cwd', async () => {
+  const fixture = createFixture('stdin-run-config');
+  const configIndex = fixture.args.indexOf('--run-config');
+  const configPath = fixture.args[configIndex + 1];
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const mcpPath = path.join(path.dirname(configPath), 'mcp-config-empty.json');
+  config.role.mcp_config_paths = [path.relative(process.cwd(), mcpPath)];
+  fixture.args[configIndex + 1] = '-';
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const child = spawnRun(fixture, {}, JSON.stringify(config));
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+  assert.equal(terminalRecord(fixture).terminal_reason, 'ok');
+}, 45_000);
+
+it('rejects two stdin file inputs before launching Claude', async () => {
+  const fixture = createFixture('stdin-conflict');
+  fixture.args[1] = '-';
+  fixture.args[fixture.args.indexOf('--run-config') + 1] = '-';
+  const child = spawnRun(fixture, {}, 'single stdin stream');
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 1);
+  assert.match(output.stderr, /Cannot use '-' for both --prompt-file and --run-config/);
+  assert.match(output.stderr, /--prompt-file <path> with --run-config -/);
+  assert.match(output.stderr, /--prompt-file - with --run-config <path>/);
+  assert.equal(fs.existsSync(fixture.claudeMarker), false);
 }, 45_000);
 
 it('preserves raw stdin bytes while hashing the model-visible string', async () => {

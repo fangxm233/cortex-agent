@@ -82,6 +82,22 @@ describe('parseAgentRunArgs', () => {
     assert.equal(parsed.rootRunId, 'run.fixture-1');
   });
 
+  it('preserves the run-config stdin marker', () => {
+    const parsed = parseAgentRunArgs([...validArgs(), '--run-config', '-']);
+    assert.equal(parsed.runConfigFile, '-');
+  });
+
+  it('rejects assigning the single stdin stream to both file inputs', () => {
+    const args = [...validArgs(), '--run-config', '-'];
+    args[1] = '-';
+    assert.throws(
+      () => parseAgentRunArgs(args),
+      (error: Error) => error.message.includes("Cannot use '-' for both --prompt-file and --run-config")
+        && error.message.includes('Use --prompt-file <path> with --run-config -')
+        && error.message.includes('--prompt-file - with --run-config <path>'),
+    );
+  });
+
   it('uses explicit supervisor over environment over the package default', () => {
     const fromEnvironment = parseAgentRunArgs(
       validArgs(), { CORTEX_SUPERVISOR_BINARY: '/env/supervisor' },
@@ -153,7 +169,8 @@ it('renders copyable help with defaults and stdin support', () => {
   assert.match(help, /Usage: cortex agent-run --prompt-file <path\|->/);
   assert.match(help, /--agent-slot <slot>/);
   assert.match(help, /--trajectory-root <dir>/);
-  assert.match(help, /--run-config <path>/);
+  assert.match(help, /--run-config <path\|->/);
+  assert.match(help, /stdin paths use process cwd/);
   assert.match(help, /CORTEX_SUPERVISOR_BINARY/);
   assert.doesNotMatch(help, /--dry-run/);
   assert.match(help, /cat prompt\.txt \| cortex agent-run --prompt-file -/);

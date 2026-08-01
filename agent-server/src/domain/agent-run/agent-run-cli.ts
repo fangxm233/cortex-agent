@@ -1,4 +1,4 @@
-// input:  required CLI flags, filesystem paths, shared CLI utilities
+// input:  required file/stdin flags, paths, shared CLI utilities
 // output: parsed one-shot options, truthful help, and run entry
 // pos:    Daemon-free agent-run command integration
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -109,6 +109,17 @@ function parseRootRunId(values: Map<string, string>): string | undefined {
   );
 }
 
+function resolveRunConfigFile(promptFile: string, value: string | undefined): string | undefined {
+  if (promptFile === '-' && value === '-') {
+    fail(
+      "Cannot use '-' for both --prompt-file and --run-config.", undefined,
+      'Use --prompt-file <path> with --run-config -, or --prompt-file - with --run-config <path>.',
+    );
+  }
+  if (value === undefined || value === '-') return value;
+  return path.resolve(value);
+}
+
 export function parseAgentRunArgs(
   args: string[], env: NodeJS.ProcessEnv = process.env,
 ): AgentRunCliOptions {
@@ -117,7 +128,7 @@ export function parseAgentRunArgs(
   const eventsFile = path.resolve(required(values, '--events-file'));
   const trajectoryRoot = path.resolve(values.get('--trajectory-root') ?? path.dirname(eventsFile));
   assertJournalWithinRoot(eventsFile, trajectoryRoot);
-  const runConfig = values.get('--run-config');
+  const runConfigFile = resolveRunConfigFile(promptFile, values.get('--run-config'));
   return {
     promptFile,
     agentSlot: parseChoice(values, '--agent-slot', AGENT_SLOTS),
@@ -126,7 +137,7 @@ export function parseAgentRunArgs(
     outputFormat: parseChoice(values, '--output-format', OUTPUT_FORMATS),
     eventsFile,
     trajectoryRoot,
-    runConfigFile: runConfig === undefined ? undefined : path.resolve(runConfig),
+    runConfigFile,
     supervisorBinary: values.get('--supervisor-binary')
       ?? env.CORTEX_SUPERVISOR_BINARY ?? packageSupervisorBinary(),
     deadlineMs: parseMilliseconds(values, '--deadline-ms'),
@@ -167,7 +178,7 @@ const HELP_OPTIONS = [
   { flag: '--output-format <format>', description: 'Structured output format' },
   { flag: '--events-file <path>', description: 'Exclusive append-only event journal' },
   { flag: '--trajectory-root <dir>', description: 'Lifecycle artifact root', default: 'dirname(--events-file)' },
-  { flag: '--run-config <path>', description: 'Optional frozen one-shot inputs', default: 'neutral one-shot values' },
+  { flag: '--run-config <path|->', description: 'Optional config; stdin paths use process cwd', default: 'neutral one-shot values' },
   { flag: '--supervisor-binary <path>', description: 'Supervisor executable; overrides CORTEX_SUPERVISOR_BINARY', default: 'package native binary' },
   { flag: '--deadline-ms <n>', description: 'Supervisor-owned deadline in milliseconds', default: 'none' },
   { flag: '--grace-ms <n>', description: 'Shutdown grace in milliseconds', default: '1000' },
@@ -183,6 +194,10 @@ const HELP_EXAMPLES = [
   {
     description: 'Read the prompt from stdin',
     command: 'cat prompt.txt | cortex agent-run --prompt-file - --agent-slot parent --profile benchmark --cwd /workspace --output-format jsonl --events-file /logs/events.jsonl',
+  },
+  {
+    description: 'Read the run config from stdin; relative paths use the invoking directory',
+    command: 'cat agent-run.json | cortex agent-run --prompt-file prompt.txt --agent-slot parent --profile benchmark --cwd /workspace --output-format jsonl --events-file /logs/events.jsonl --run-config -',
   },
 ];
 
