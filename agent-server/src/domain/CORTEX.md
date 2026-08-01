@@ -7,7 +7,7 @@ and consumed by orchestration and the platform surfaces.
 |---|---|---|
 | agent-run/ | subdir | One-shot identity, trajectories and containment |
 | agents/ | subdir | Backend, model and profile selection per channel |
-| auth/ | subdir | Provider authentication status and lifecycle events |
+| auth/ | subdir | Provider auth status, lifecycle events, and notices |
 | costs/ | subdir | Spend tracking, budgets and rate-limit throttle |
 | executions/ | subdir | Lifecycle and live output of dispatched runs |
 | hooks/ | subdir | Derived view of hook declarations for the UI |

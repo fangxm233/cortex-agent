@@ -1,5 +1,5 @@
 // input:  mode/profile stores, gateway health, auth classifier
-// output: agent mode selection and retry error classifiers
+// output: mode selection, saved API env, retry classifiers
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -87,11 +87,11 @@ function captureApiEnvSnapshot(): ApiEnv {
 
 let savedApiEnv: ApiEnv = captureApiEnvSnapshot();
 
-function getSavedApiEnv(): ApiEnv {
+export function getSavedApiEnv(): ApiEnv {
   const liveEnv = captureApiEnvSnapshot();
   if (liveEnv.ANTHROPIC_API_KEY) savedApiEnv.ANTHROPIC_API_KEY = liveEnv.ANTHROPIC_API_KEY;
   if (liveEnv.ANTHROPIC_BASE_URL) savedApiEnv.ANTHROPIC_BASE_URL = liveEnv.ANTHROPIC_BASE_URL;
-  return savedApiEnv;
+  return { ...savedApiEnv };
 }
 
 function applySavedApiEnv(): void {
