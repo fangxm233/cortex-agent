@@ -212,6 +212,8 @@ function upsertAgentSlot(thread: ThreadRecord, config: AgentSlotConfig): void {
     profile: config.profile,
     sessionId: existing?.sessionId || null,
     ...(existing?.backendSessionId !== undefined ? { backendSessionId: existing.backendSessionId } : {}),
+    ...(existing?.interruptedBackendSessionId !== undefined
+      ? { interruptedBackendSessionId: existing.interruptedBackendSessionId } : {}),
     sessionName: existing?.sessionName || null,
     status: 'idle',
     lastOutput: null,
@@ -299,9 +301,13 @@ export async function beginStepSession(
     const slot = t.agents[agentSlotId];
     if (!slot) throw new Error(`Agent slot not found: ${agentSlotId} in ${threadId}`);
     if (slot.backendSessionId === undefined) slot.backendSessionId = slot.sessionId ?? null;
-    if (!slot.sessionId || !slot.persistSession) slot.sessionId = randomUUID();
+    // Interrupted-step rerun (one-shot): resume the interrupted attempt's backend session —
+    // even for non-persist slots — and keep the track id so the UI transcript continues.
+    const interrupted = slot.interruptedBackendSessionId ?? null;
+    if (interrupted) slot.interruptedBackendSessionId = null;
+    if (!slot.sessionId || (!slot.persistSession && !interrupted)) slot.sessionId = randomUUID();
     track = slot.sessionId;
-    resume = slot.persistSession ? (slot.backendSessionId ?? null) : null;
+    resume = interrupted ?? (slot.persistSession ? (slot.backendSessionId ?? null) : null);
   });
   publishThreadEvent({ type: 'thread.step.started', threadId, step: stepLabel(agentSlotId, stage) });
   return { trackSessionId: track, resumeSessionId: resume };

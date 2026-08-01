@@ -164,8 +164,11 @@ Interrupted direct conversations and threads are stored with the provider
 that limited them. When one provider fully recovers, Cortex resumes only that
 provider's work; entries belonging to other active providers remain queued.
 A direct conversation resumes in its own channel with the prior context
-intact, while a thread reruns its interrupted step. Resume starts are
-staggered so a freshly opened window is not immediately exhausted.
+intact. A thread whose interrupted step had already streamed real work
+resumes that step's backend session with a short continuation reminder, so
+partial progress is kept; a step that never produced any activity is rerun
+from its original prompt. Resume starts are staggered so a freshly opened
+window is not immediately exhausted.
 
 The active rate-limit details show the waiting direct-session and thread
 counts for each provider. The provider key is the isolation boundary:

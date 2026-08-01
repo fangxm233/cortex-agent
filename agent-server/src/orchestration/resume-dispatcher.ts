@@ -28,18 +28,10 @@ export function isAutoResumeEnabled(): boolean {
   return getSettings().autoResume;
 }
 
-/** The continuation prompt injected into a resumed session/thread. Self-contained — the
- *  prior turn's content is already in the resumed session/thread history. */
-export function buildResumeReminder(): string {
-  return [
-    '<system-reminder>',
-    'The previous turn was interrupted by an API error. The provider has recovered; you may continue.',
-    'Resume from where you left off: review the recent conversation context above, work out what is still unfinished, and finish it.',
-    'Do not restart the task from scratch, and do not re-ask for information the user already provided. If the previous turn was in fact already complete, briefly confirm and stop.',
-    'This message is only a resume signal; it should not change your original task.',
-    '</system-reminder>',
-  ].join('\n');
-}
+// Shared with the interrupted-thread-step rerun (domain/threads/prompt-builder); re-exported
+// so existing callers/tests keep importing it from here.
+import { buildResumeReminder } from '@core/resume-reminder.js';
+export { buildResumeReminder };
 
 export interface ResumeDeps {
   takeReady: (activeProviders: string[]) => ResumeEntry[];

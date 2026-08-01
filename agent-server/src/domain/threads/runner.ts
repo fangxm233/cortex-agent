@@ -107,6 +107,12 @@ interface StepContext {
   /** Stage this step runs. Null for single-stage agents (no `stages` map declared). */
   stage: string | null;
   prompt: string;
+  /** True when this step re-enters an interrupted attempt's backend session: the prompt is the
+   *  continuation reminder, and first-step files are not re-attached. */
+  interruptedResume: boolean;
+  /** Flipped by the step callbacks on the first streamed assistant/tool event. Gates capturing
+   *  the interrupted backend session — an attempt with no activity has nothing worth resuming. */
+  sawActivity: boolean;
   /** Backend `--resume` target (slot.backendSessionId via beginStepSession); null → fresh. */
   resumeSessionId: string | null;
   /** Stable Cortex track id (slot.sessionId, minted at step start) — the conversation-history /
@@ -237,12 +243,16 @@ async function buildStepConfig(
 ): Promise<StepContext> {
   const { agentSlotId, agentConfig, isFirstStep, multiAgent, stage } = stepInfo;
 
+  // Interrupted-step rerun: a pending interruptedBackendSessionId (set at interruption, consumed
+  // by beginStepSession below) switches the prompt to the continuation reminder.
+  const interruptedResume = !!threadStore.get(threadId)?.agents[agentSlotId]?.interruptedBackendSessionId;
+
   // Build prompt for this step — pass the stage so stage-aware agents send their stage-specific
   // prompt (and, in incremental mode on session resume, skip directive + preamble + auto previousOutput).
   // ORDER MATTERS: buildStepPrompt reads slot.sessionId truthiness as "resuming a persistent
   // session" — it must run BEFORE beginStepSession mints the track id, or a fresh slot's first
   // step would be misdetected as a resume and skip its directive.
-  const prompt = buildStepPrompt(threadId, agentConfig, stage);
+  const prompt = buildStepPrompt(threadId, agentConfig, stage, { interruptedResume });
 
   // Session identity (track/backend decoupling): mint + persist the stable track id on the slot
   // (the UI transcript key, visible to threads.get while the step RUNS) and resolve the backend
@@ -298,7 +308,7 @@ async function buildStepConfig(
 
   return {
     agentSlotId, agentConfig, isFirstStep, multiAgent, stage,
-    prompt, resumeSessionId, trackSessionId, sessionKey,
+    prompt, interruptedResume, sawActivity: false, resumeSessionId, trackSessionId, sessionKey,
     sessionName: await sessionStore.generateSessionName(),
     profileName, execution,
     stepStartTime: new Date().toISOString(),
@@ -347,10 +357,12 @@ function setupStepCallbacks(
   // streaming/tool-trace behaviour is unchanged.
   const recorder = stepCtx.recorder;
   const onAssistantMessage = (text: string) => {
+    if (text) stepCtx.sawActivity = true;
     streamAssistantMessage(text);
     if (text) recorder.recordAssistant(text);
   };
   const onToolUse = (name: string, input: any, toolUseId: string) => {
+    stepCtx.sawActivity = true;
     composedToolUse?.(name, input, toolUseId);
     recorder.recordTool(name, input, toolUseId);
   };
@@ -406,7 +418,8 @@ async function executeAndAwaitAgent(
     sessionId: resumeSessionId,
     trackSessionId,
     sessionKey,
-    files: isFirstStep ? (opts.files || []) : [],
+    // Interrupted rerun: the resumed session already received the first-step files.
+    files: isFirstStep && !stepCtx.interruptedResume ? (opts.files || []) : [],
     profileName,
     project: threadStore.get(threadId)?.projectId,
     trigger: meta?.trigger || undefined,
@@ -458,6 +471,15 @@ async function executeAndAwaitAgent(
       durationS: failDurationS,
       error: { message: agentError?.message || 'Agent process error' },
     });
+    // Carry the interrupted attempt's identity to the thrown-path pause handler
+    // (pauseRetryableProviderError) so a retryable outage can resume this session.
+    if (agentError && typeof agentError === 'object') {
+      agentError.interruptedStep = {
+        agentSlotId: stepCtx.agentSlotId,
+        backendSessionId: handle.sessionId ?? null,
+        sawActivity: stepCtx.sawActivity,
+      };
+    }
     throw agentError;
   }
 }
@@ -489,7 +511,9 @@ async function recordStepOutcome(
       executionId: execution.id, status: 'failed', durationS: stepDurationS,
       error: { message: 'Rate limited' },
     });
-    await handleRateLimitInterruption(threadId, ctx, opts, result.rateLimitProvider ?? null);
+    await handleRateLimitInterruption(threadId, ctx, opts, result.rateLimitProvider ?? null, {
+      agentSlotId, backendSessionId: result?.sessionId ?? null, sawActivity: stepCtx.sawActivity,
+    });
     return;
   }
 
@@ -542,19 +566,35 @@ async function recordStepOutcome(
   }
 }
 
+/** Identity of the attempt a provider interruption cut short, captured at the interruption
+ *  point so the rerun can resume its backend session. */
+interface InterruptedStepInfo {
+  agentSlotId: AgentSlotId;
+  backendSessionId: string | null;
+  sawActivity: boolean;
+}
+
 /** Pause the thread for auto-resume after a provider throttle interrupted a step. Records the
  *  thread in the resume registry (drained when its provider window resets) and
  *  flips it to the non-terminal 'rate_limited' status. Sets ctx.rateLimited so the loop breaks
  *  and skips completeThread / onEnd. Shared by the graceful (recordStepOutcome) and thrown
- *  (runThread catch) paths. */
+ *  (runThread catch) paths. When the interrupted attempt streamed real activity, its backend
+ *  session id is persisted on the slot so the rerun resumes it instead of restarting the step. */
 async function handleRateLimitInterruption(
   threadId: string,
   ctx: ThreadContext,
   opts: RunThreadOptions,
   provider: string | null,
+  interrupted?: InterruptedStepInfo | null,
 ): Promise<boolean> {
   if (!await markThreadRateLimited(threadId, provider)) return false;
   ctx.rateLimited = true;
+  if (interrupted?.backendSessionId && interrupted.sawActivity) {
+    await threadStore.mutate(threadId, (record) => {
+      const slot = record.agents[interrupted.agentSlotId];
+      if (slot) slot.interruptedBackendSessionId = interrupted.backendSessionId;
+    });
+  }
   recordResume({
     kind: 'thread', provider, threadId, channel: opts.channel,
     userMessage: threadStore.get(threadId)?.userMessage ?? '', recordedAt: Date.now(),
@@ -679,14 +719,15 @@ async function pauseRetryableProviderError(
   threadId: string,
   ctx: ThreadContext,
   opts: RunThreadOptions,
-  error: Error & { rateLimitProvider?: string; cause?: unknown },
+  error: Error & { rateLimitProvider?: string; cause?: unknown; interruptedStep?: InterruptedStepInfo },
 ): Promise<boolean> {
   const thread = threadStore.get(threadId);
   const resumableStatus = thread?.status === 'running' || thread?.status === 'rate_limited';
   if (!thread || !resumableStatus || !isRetryableError(error)) return false;
   const provider = error.rateLimitProvider ?? resolveActiveStepProvider(thread, opts.channel);
+  const interrupted = error.interruptedStep ?? null;
   if (isApiRateLimitError(error.message) && isProviderUsageRateLimited(provider)) {
-    return handleRateLimitInterruption(threadId, ctx, opts, provider);
+    return handleRateLimitInterruption(threadId, ctx, opts, provider, interrupted);
   }
   const resumeCount = await claimOutageResume(threadId, error.message);
   if (resumeCount === null) return false;
@@ -695,7 +736,7 @@ async function pauseRetryableProviderError(
   } catch (activationError) {
     await failOutageActivation(threadId, error, activationError);
   }
-  return handleRateLimitInterruption(threadId, ctx, opts, provider);
+  return handleRateLimitInterruption(threadId, ctx, opts, provider, interrupted);
 }
 
 async function runThread(threadId: string, opts: RunThreadOptions): Promise<ThreadRunResult> {
@@ -853,6 +894,11 @@ async function continueThread(threadId: string, userMessage: string, opts: RunTh
   await threadStore.mutate(threadId, (t) => {
     t.userMessage = userMessage;
     t.status = 'running';
+    // Interrupted-step rerun sends the continuation reminder instead of {{input}} — deliver the
+    // new user input through the buffered-replies block so it is not silently dropped.
+    if (Object.values(t.agents).some((slot) => slot.interruptedBackendSessionId)) {
+      ((t.metadata ??= {}).pendingMessages ??= []).push(userMessage);
+    }
     if (t.metadata) {
       t.metadata.interruptedByRateLimit = false;
       t.metadata.rateLimitProvider = null;

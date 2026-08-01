@@ -1,5 +1,6 @@
 // input:  node:test, domain/threads state-machine + utils, fake job-registry bus
-// output: coverage for beginStepSession (track-id minting / legacy migration / resume target),
+// output: coverage for beginStepSession (track-id minting / legacy migration / resume target /
+//         interrupted-session consumption),
 //         recordStepResult backendSessionId decoupling, resolveTargetResumeId, and the
 //         thread lifecycle EventBus publishes (created / step.started / step.finished /
 //         completed / failed / cancelled→failed)
@@ -17,7 +18,9 @@ import {
   createThread,
   loadConfig,
   mergeThreadTemplates,
+  addAgentToThread,
   beginStepSession,
+  listAgents,
   recordStepResult,
   completeThread,
   failThread,
@@ -113,6 +116,37 @@ test('beginStepSession mints a NEW track id per step for a non-persist slot, nev
   assert.notEqual(first.trackSessionId, second.trackSessionId, 'fresh conversation per step');
   assert.equal(first.resumeSessionId, null);
   assert.equal(second.resumeSessionId, null);
+});
+
+test('beginStepSession consumes interruptedBackendSessionId once, keeping the track id (non-persist too)', async () => {
+  const t = freshThread();
+  await threadStore.mutate(t.id, (th) => {
+    const s = th.agents['coder']!;
+    s.persistSession = false;
+    s.sessionId = 'track-interrupted';
+    s.interruptedBackendSessionId = 'backend-int';
+  });
+
+  const first = await beginStepSession(t.id, 'coder', 'plan');
+  assert.equal(first.trackSessionId, 'track-interrupted', 'rerun continues the same UI transcript');
+  assert.equal(first.resumeSessionId, 'backend-int', 'rerun resumes the interrupted backend session');
+  assert.equal(slotOf(t.id, 'coder').interruptedBackendSessionId, null, 'one-shot: consumed');
+
+  const second = await beginStepSession(t.id, 'coder', 'plan');
+  assert.notEqual(second.trackSessionId, 'track-interrupted', 'non-persist slot back to fresh per-step ids');
+  assert.equal(second.resumeSessionId, null);
+});
+
+test('addAgentToThread re-upsert preserves a pending interruptedBackendSessionId', async () => {
+  const agentName = listAgents()[0].name;
+  const t = createThread('test-channel', { agentName, userMessage: 'x', userMessageTs: 'ts' });
+  await threadStore.mutate(t.id, (th) => {
+    th.agents[agentName]!.interruptedBackendSessionId = 'backend-pending';
+  });
+
+  await addAgentToThread(t.id, agentName);
+
+  assert.equal(slotOf(t.id, agentName).interruptedBackendSessionId, 'backend-pending');
 });
 
 test('beginStepSession publishes thread.step.started with the slot:stage step label', async () => {

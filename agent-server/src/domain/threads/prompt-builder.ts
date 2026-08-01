@@ -4,12 +4,13 @@
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
 import { threadStore } from '@store/thread-repo.js';
+import { buildResumeReminder } from '@core/resume-reminder.js';
 import { getAgent, getTemplate, resolveFileRef } from './template-loader.js';
 import { getModifiedFilesFromSession } from './artifact-io.js';
 import { getDefaultAgent } from '../agents/index.js';
 import { loadUserContext } from '../memory/user-context.js';
 import type {
-  AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep, TemplateAgentRef, ThreadTemplate,
+  AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep, TemplateAgentRef, ThreadRecord, ThreadTemplate,
 } from '@core/types/thread-types.js';
 
 /** Resolve the `__active__` agent ref placeholder to the currently active default agent
@@ -181,9 +182,24 @@ function hasBackendResumeTarget(slot: AgentSlot | undefined): boolean {
   return !!slot.backendSessionId;
 }
 
-export function buildStepPrompt(threadId: string, agentConfig: AgentSlotConfig, stage: string | null = null): string {
+export function buildStepPrompt(
+  threadId: string,
+  agentConfig: AgentSlotConfig,
+  stage: string | null = null,
+  opts: { interruptedResume?: boolean } = {},
+): string {
   const thread = threadStore.get(threadId);
   if (!thread) return '';
+  // Interrupted-step rerun: the original step prompt and the partial work are already in the
+  // resumed backend session's history — send only the continuation reminder (plus any buffered
+  // user replies), mirroring the direct-session resume (orchestration/resume-dispatcher).
+  const prompt = opts.interruptedResume
+    ? buildResumeReminder()
+    : buildRegularStepPrompt(thread, agentConfig, stage);
+  return appendPendingMessages(thread, prompt).trim();
+}
+
+function buildRegularStepPrompt(thread: ThreadRecord, agentConfig: AgentSlotConfig, stage: string | null): string {
   const { template: templateStr, continuesSession } = pickStepTemplate(agentConfig, stage);
   const lastStep = [...thread.steps].reverse().find(s => s.output != null);
   const vars = buildPromptVars(thread, lastStep);
@@ -207,26 +223,25 @@ export function buildStepPrompt(threadId: string, agentConfig: AgentSlotConfig, 
     if (prefixes.length > 0) prompt = prefixes.join('\n\n') + '\n\n' + prompt;
   }
 
-  // Phase 6: include buffered user messages in the next step's prompt.
-  // Messages accumulated while the previous step was executing are appended
-  // so the agent sees the user's reply.
-  if (thread.metadata?.pendingMessages?.length) {
-    // Take the last 10 messages to cap prompt growth
-    const messages = thread.metadata.pendingMessages.slice(-10);
-    const count = thread.metadata.pendingMessages.length;
-    const dropped = count > 10 ? count - 10 : 0;
-    const header = dropped > 0
-      ? `User replies (last ${messages.length}, ${dropped} earlier dropped):`
-      : `User replies (${count} buffered):`;
-    prompt += `\n\n---\n\n${header}\n\n${messages.join('\n\n')}`;
-    // Clear buffer synchronously on in-memory object
-    thread.metadata.pendingMessages = [];
-    // Fire-and-forget persist — see thread-executor.ts bufferUserMessage for
-    // rationale on why set() is used instead of mutate() here.
-    threadStore.set(thread).catch(() => {});
-  }
+  return prompt;
+}
 
-  return prompt.trim();
+/** Phase 6: append user messages buffered while the previous step was executing (capped at the
+ *  last 10) so the agent sees the user's replies; clears the buffer. */
+function appendPendingMessages(thread: ThreadRecord, prompt: string): string {
+  if (!thread.metadata?.pendingMessages?.length) return prompt;
+  const messages = thread.metadata.pendingMessages.slice(-10);
+  const count = thread.metadata.pendingMessages.length;
+  const dropped = count > 10 ? count - 10 : 0;
+  const header = dropped > 0
+    ? `User replies (last ${messages.length}, ${dropped} earlier dropped):`
+    : `User replies (${count} buffered):`;
+  const appended = prompt + `\n\n---\n\n${header}\n\n${messages.join('\n\n')}`;
+  // Clear buffer synchronously on in-memory object; fire-and-forget persist — see
+  // thread-executor.ts bufferUserMessage for why set() is used instead of mutate() here.
+  thread.metadata.pendingMessages = [];
+  threadStore.set(thread).catch(() => {});
+  return appended;
 }
 
 /**

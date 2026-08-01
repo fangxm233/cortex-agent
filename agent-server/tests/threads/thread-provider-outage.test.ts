@@ -1,5 +1,5 @@
 // input:  thread runner, throttle, resume dispatcher
-// output: outage pause, backoff, cap, and rerun tests
+// output: outage pause, backoff, cap, rerun, and session-reuse tests
 // pos:    Tests thrown outages rerun the interrupted step
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import '../_test-home.js'; // MUST be first — isolates store singletons to a temp CORTEX_HOME
@@ -25,8 +25,8 @@ import { CONFIG_DIR, STORE_DIR } from '../../src/core/paths.js';
 import { profileRepo, PROFILES_FILE } from '../../src/store/profile-repo.js';
 import { threadStore } from '../../src/store/thread-repo.js';
 import { initHookBus } from '../../src/core/hook-bus.js';
-import { cleanupWorkspace, createThread, loadConfig } from '../../src/domain/threads/index.js';
-import { resumeRateLimitedThread, runThread } from '../../src/domain/threads/runner.js';
+import { buildStepPrompt, cleanupWorkspace, createThread, loadConfig, resolveAgentSlotConfig } from '../../src/domain/threads/index.js';
+import { continueThread, resumeRateLimitedThread, runThread } from '../../src/domain/threads/runner.js';
 import * as throttle from '../../src/domain/costs/rate-limit-throttle.js';
 import * as resumeRegistry from '../../src/domain/costs/resume-registry.js';
 import { dispatchPendingResumes } from '../../src/orchestration/resume-dispatcher.js';
@@ -49,6 +49,14 @@ function writeThreadFixture(): void {
   fs.writeFileSync(path.join(templatesDir, 'provider-outage.json'), JSON.stringify({
     name: 'provider-outage', description: 'provider outage regression fixture',
     agents: ['outage-worker'], transitions: [], entryAgent: 'outage-worker', maxTotalSteps: 3,
+  }));
+  fs.writeFileSync(path.join(agentsDir, 'outage-fresh-worker.json'), JSON.stringify({
+    name: 'outage-fresh-worker', profile: 'outage-profile',
+    persistSession: false, promptTemplate: '{{input}}',
+  }));
+  fs.writeFileSync(path.join(templatesDir, 'provider-outage-fresh.json'), JSON.stringify({
+    name: 'provider-outage-fresh', description: 'non-persist provider outage fixture',
+    agents: ['outage-fresh-worker'], transitions: [], entryAgent: 'outage-fresh-worker', maxTotalSteps: 3,
   }));
 }
 
@@ -97,6 +105,18 @@ function createOutageThread(outageResumeCount = 0): ThreadRecord {
     userMessageTs: String(Date.now()),
     projectId: 'atlas',
     metadata: { outageResumeCount },
+  });
+  createdThreadIds.add(thread.id);
+  return thread;
+}
+
+function createFreshOutageThread(): ThreadRecord {
+  const thread = createThread('C-provider-outage-fresh', {
+    templateName: 'provider-outage-fresh',
+    userMessage: 'continue durable work',
+    userMessageTs: String(Date.now()),
+    projectId: 'atlas',
+    metadata: { outageResumeCount: 0 },
   });
   createdThreadIds.add(thread.id);
   return thread;
@@ -160,6 +180,15 @@ function queueControlledErrors(count: number): {
     sessionId: null,
   }));
   return { started, reject: (index, error) => rejects[index](error) };
+}
+
+/** Interrupted attempt that streamed real activity before failing: the backend session id is
+ *  known (pre-minted) and the step produced partial work worth resuming. */
+function queueActivityError(message: string, sessionId: string): void {
+  agent.runAgent.mockImplementationOnce((_prompt: string, opts: any) => {
+    opts.onAssistantMessage?.('partial work before the outage');
+    return { promise: Promise.reject(new Error(message)), kill: () => true, sessionId };
+  });
 }
 
 function queueSuccess(output = 'done'): void {
@@ -264,6 +293,95 @@ test('outage expiry drains the resume queue and reruns the interrupted step', as
   assert.equal(resumeRegistry.getResumeCount(), 0);
   assert.equal(agent.runAgent.mock.calls.length, 2);
   assert.equal(agent.runAgent.mock.calls[0][0], agent.runAgent.mock.calls[1][0]);
+});
+
+test('outage rerun resumes the interrupted backend session with a continuation reminder', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-30T09:00:00.000Z'));
+  const thread = createFreshOutageThread();
+  const opts = makeOptions(thread);
+  const { finished: rerunFinished } = await initResumeDrain(opts);
+  queueActivityError('HTTP 503 Service Unavailable', 'sess-interrupted');
+  queueSuccess('finished after resume');
+
+  const paused = await runThread(thread.id, opts);
+  assert.equal(paused.thread.status, 'rate_limited');
+  const pausedSlot = threadStore.get(thread.id)!.agents['outage-fresh-worker'];
+  assert.equal(pausedSlot.interruptedBackendSessionId, 'sess-interrupted', 'interrupted backend session captured for reuse');
+  const persisted = JSON.parse(fs.readFileSync(path.join(STORE_DIR, 'threads.json'), 'utf8'));
+  assert.equal(persisted[thread.id].agents['outage-fresh-worker'].interruptedBackendSessionId, 'sess-interrupted', 'survives a restart');
+
+  await vi.advanceTimersByTimeAsync(5 * 60_000 + 1);
+  await rerunFinished;
+
+  const completed = threadStore.get(thread.id)!;
+  assert.equal(completed.status, 'completed');
+  const [firstCall, secondCall] = agent.runAgent.mock.calls;
+  assert.equal(secondCall[1].sessionId, 'sess-interrupted', 'rerun resumes the interrupted backend session');
+  assert.notEqual(secondCall[0], firstCall[0], 'rerun does not restart from the original step prompt');
+  assert.match(secondCall[0], /interrupted by an API error/, 'rerun sends the continuation reminder');
+  assert.equal(secondCall[1].trackSessionId, firstCall[1].trackSessionId, 'UI transcript continues under the same track id');
+  assert.equal(completed.agents['outage-fresh-worker'].interruptedBackendSessionId ?? null, null, 'one-shot: consumed by the rerun');
+});
+
+test('outage rerun without streamed activity restarts the full step prompt fresh', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-30T10:00:00.000Z'));
+  const thread = createFreshOutageThread();
+  const opts = makeOptions(thread);
+  const { finished: rerunFinished } = await initResumeDrain(opts);
+  // Backend session id known but the attempt died before ANY streamed activity: nothing worth
+  // resuming (and the backend session file may not even exist) — keep the full-rerun path.
+  agent.runAgent.mockImplementationOnce(() => ({
+    promise: Promise.reject(new Error('HTTP 503 Service Unavailable')),
+    kill: () => true,
+    sessionId: 'sess-dead-on-arrival',
+  }));
+  queueSuccess('finished after fresh rerun');
+
+  const paused = await runThread(thread.id, opts);
+  assert.equal(paused.thread.status, 'rate_limited');
+  assert.equal(threadStore.get(thread.id)!.agents['outage-fresh-worker'].interruptedBackendSessionId ?? null, null);
+
+  await vi.advanceTimersByTimeAsync(5 * 60_000 + 1);
+  await rerunFinished;
+
+  assert.equal(threadStore.get(thread.id)!.status, 'completed');
+  const [firstCall, secondCall] = agent.runAgent.mock.calls;
+  assert.equal(secondCall[0], firstCall[0], 'rerun repeats the original step prompt');
+  assert.equal(secondCall[1].sessionId, null, 'non-persist slot starts a fresh backend session');
+});
+
+test('continueThread on an interrupted pause delivers the new user message with the reminder', async () => {
+  await initThrottle();
+  const thread = createFreshOutageThread();
+  const opts = makeOptions(thread);
+  queueActivityError('HTTP 503 Service Unavailable', 'sess-interrupted-2');
+  queueSuccess('done after user nudge');
+
+  const paused = await runThread(thread.id, opts);
+  assert.equal(paused.thread.status, 'rate_limited');
+
+  await continueThread(thread.id, 'also handle the edge case', opts);
+
+  const secondCall = agent.runAgent.mock.calls[1];
+  assert.equal(secondCall[1].sessionId, 'sess-interrupted-2', 'manual continue also resumes the interrupted session');
+  assert.match(secondCall[0], /interrupted by an API error/, 'continuation reminder kept');
+  assert.match(secondCall[0], /also handle the edge case/, 'new user input delivered alongside the reminder');
+});
+
+test('buildStepPrompt interrupted resume sends the reminder plus buffered replies, not the step prompt', async () => {
+  const thread = createOutageThread();
+  await threadStore.mutate(thread.id, (record) => {
+    record.metadata!.pendingMessages = ['buffered reply while paused'];
+  });
+  const agentConfig = resolveAgentSlotConfig('outage-worker')!;
+
+  const prompt = buildStepPrompt(thread.id, agentConfig, null, { interruptedResume: true });
+
+  assert.match(prompt, /interrupted by an API error/, 'reminder body');
+  assert.match(prompt, /buffered reply while paused/, 'pending user replies still appended');
+  assert.doesNotMatch(prompt, /continue durable work/, 'original step input not re-sent');
 });
 
 test('unresolvable active-step profile falls back to a null provider', async () => {

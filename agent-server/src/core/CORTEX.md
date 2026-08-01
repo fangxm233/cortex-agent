@@ -23,6 +23,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | paths.ts | config | defines install, data, and config paths |
 | pi-session-filename.ts | util | selects deterministic PI transcript filenames |
 | profile-generator.ts | config | generates the agent profiles file |
+| resume-reminder.ts | data | continuation prompt for interrupted work |
 | running-executions.ts | state | registers and kills live agent executions |
 | settings-migration.ts | config | safely migrates legacy env settings at startup |
 | settings-spec.ts | config | defines runtime settings metadata and parsers |

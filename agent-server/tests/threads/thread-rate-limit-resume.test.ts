@@ -99,6 +99,40 @@ test('recordStepOutcome: rate-limited while throttled pauses + records resume + 
   await threadStore.delete('thr_grace');
 });
 
+test('recordStepOutcome: interruption with streamed activity records the interrupted backend session', async (t) => {
+  cleanup(t);
+  await activateThrottle();
+
+  const thr = makeThread('thr_reuse');
+  await threadStore.set(thr);
+  const sc = stepCtx();
+  sc.sawActivity = true;
+
+  await recordStepOutcome('thr_reuse', sc,
+    { rateLimited: true, rateLimitProvider: 'provider-a', sessionId: 'sess-live' },
+    makeCtx(thr), makeOpts(thr));
+
+  const slot = threadStore.get('thr_reuse')!.agents['main'];
+  assert.equal(slot.interruptedBackendSessionId, 'sess-live', 'interrupted backend session captured for the rerun');
+  await threadStore.delete('thr_reuse');
+});
+
+test('recordStepOutcome: interruption without activity records nothing for session reuse', async (t) => {
+  cleanup(t);
+  await activateThrottle();
+
+  const thr = makeThread('thr_noact');
+  await threadStore.set(thr);
+
+  await recordStepOutcome('thr_noact', stepCtx(),
+    { rateLimited: true, rateLimitProvider: 'provider-a', sessionId: 'sess-live' },
+    makeCtx(thr), makeOpts(thr));
+
+  const slot = threadStore.get('thr_noact')!.agents['main'];
+  assert.equal(slot.interruptedBackendSessionId ?? null, null, 'no partial work → full rerun stays the recovery path');
+  await threadStore.delete('thr_noact');
+});
+
 test('recordStepOutcome: another provider throttle does not pause this provider result', async (t) => {
   cleanup(t);
   await activateThrottle();

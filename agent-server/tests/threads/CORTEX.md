@@ -11,6 +11,6 @@ expansion, step lifecycle, provider-outage recovery, and transcripts.
 | template-merge.test.ts | test | Covers merging defaults into user config |
 | thread-config-dir.test.ts | test | Covers config directory load and migration |
 | thread-live-step-ids.test.ts | test | Covers step session ids and thread events |
-| thread-provider-outage.test.ts | test | Covers outage backoff, atomicity and concurrent cap |
+| thread-provider-outage.test.ts | test | Covers outage backoff, cap and session reuse |
 | thread-rate-limit-resume.test.ts | test | Covers provider-attributed pause and resume |
 | thread-transcript.test.ts | test | Covers step transcript ordering and content |

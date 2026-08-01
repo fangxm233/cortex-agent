@@ -108,7 +108,7 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 
 回退链处理单次调用失败，滚动用量窗口由独立的限流机制处理。Provider 标识是任意字符串，不受固定枚举限制，因此 Cortex 可以同时维护任意数量的 provider、窗口类型和重置时间。限流门禁同时匹配 provider 与 route mode；两个 provider 即使使用相同 mode 名称，也不会互相阻塞。
 
-被中断的直接会话和线程会连同其 provider 一起持久化。某个 provider 完全恢复后，Cortex 只恢复属于该 provider 的工作，其他仍处于限流状态的 provider 继续等待。直接会话在原频道恢复并保留上下文；线程重新执行被中断的 step。多项恢复会错开启动，避免刚开放的窗口立即再次耗尽。
+被中断的直接会话和线程会连同其 provider 一起持久化。某个 provider 完全恢复后，Cortex 只恢复属于该 provider 的工作，其他仍处于限流状态的 provider 继续等待。直接会话在原频道恢复并保留上下文；线程若被中断的 step 已经产生过实际工作，则复用该 step 的后端会话并发送一段简短的续跑提醒，保留已完成的部分进度；未产生任何活动的 step 仍从原始 prompt 重新执行。多项恢复会错开启动，避免刚开放的窗口立即再次耗尽。
 
 限流详情会显示每个 provider 正在等待的直接会话数和线程数。Provider key 是当前隔离边界：如果多个账户或额度池使用同一个 provider key，它们共享同一条 provider 记录；同类型窗口保留较晚的重置时间。自动恢复还要求 adapter 提供带重置时间的 provider 事件。Claude print adapter 会提供该事件；只报告单次调用失败或低剩余额度的 adapter 不会自行建立定时限流。
 

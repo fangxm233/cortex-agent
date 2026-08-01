@@ -281,6 +281,11 @@ export interface AgentSlot {
   status: 'idle' | 'running' | 'completed';
   lastOutput: string | null;
   persistSession: boolean;
+  /** Backend session of a step interrupted mid-flight by a provider error/rate limit, set only
+   *  when the attempt streamed real activity. One-shot: the rerun consumes it (beginStepSession)
+   *  to resume the interrupted session with a continuation reminder instead of restarting the
+   *  step from the original prompt. */
+  interruptedBackendSessionId?: string | null;
 }
 
 // --- Thread Record (runtime state) ---
