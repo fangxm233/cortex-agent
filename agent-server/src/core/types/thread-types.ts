@@ -1,9 +1,9 @@
-// input:  thread config, MCP composition, durable runtime state
-// output: thread state, agent runtime policy, lifecycle types
+// input:  thread config, benchmark policy, process spawning
+// output: thread state, runtime policy, lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { McpComposition } from '../../agent-adapter/types.js';
+import type { AgentProcessSpawner, McpComposition } from '../../agent-adapter/types.js';
 
 // --- Thread Identity ---
 
@@ -468,6 +468,23 @@ export interface TransitionResult {
 
 import type { PlatformAdapter, MessageRef, Destination } from '@platform/index.js';
 
+export interface BenchmarkThreadRunOptions {
+  /** Absolute grader workspace used by every benchmark step's backend process. */
+  workspaceCwd: string;
+  /** Frozen trial profile; benchmark templates cannot select a different identity. */
+  resolvedProfileName: string;
+  disableHooks: true;
+  disableControlPlane: true;
+  failFastOnRateLimit: true;
+  /** Optional containment-aware process boundary forwarded to every step. */
+  spawner?: AgentProcessSpawner;
+  limits?: {
+    maxSteps: number;
+    maxCostUsd?: number;
+    deadlineMs?: number;
+  };
+}
+
 export interface RunThreadOptions {
   adapter: PlatformAdapter;
   channel: string;
@@ -494,4 +511,6 @@ export interface RunThreadOptions {
     onTransition?: ThreadHookConfig;
     onEnd?: ThreadHookConfig;
   };
+  /** Presence selects the isolated benchmark runtime; absence preserves daemon behavior. */
+  benchmark?: BenchmarkThreadRunOptions;
 }

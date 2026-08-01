@@ -11,9 +11,9 @@ Consumed by the orchestration and UI layers through the index barrel.
 | template-loader.ts | config | loads and hot-reloads thread template config |
 | template-resolver.ts | config | expands vars and blocks in prompt templates |
 | shell-templates.ts | config | turns a shell binding into a full template |
-| prompt-builder.ts | build | assembles prompts and resolved agent runtime policy |
+| prompt-builder.ts | build | assembles prompts and agent control policy |
 | state-machine.ts | state | Drives lifecycle and task artifact placement |
-| runner.ts | runtime | Runs isolated task-aware steps and resumes outages |
+| runner.ts | runtime | Runs daemon and isolated benchmark thread steps |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus and hook agents |
 | thread-transcript.ts | record | records each step's conversation to history |
 | tree.ts | tree | tracks thread trees and spawn resource guards |
