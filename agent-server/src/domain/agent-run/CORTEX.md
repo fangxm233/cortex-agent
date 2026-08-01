@@ -9,11 +9,12 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | access-probe.ts | process | supervises strace and emits isolation verdicts |
 | agent-run-cli.ts | cli | parses required file/stdin flags and runs a turn |
 | atif.ts | format | converts journal fragments into ATIF trees |
-| benchmark-local-thread-orchestrator.ts | runtime | finalizes one contained benchmark thread |
+| benchmark-local-thread-orchestrator.ts | runtime | finalizes one bounded, contained benchmark thread |
+| benchmark-thread-identity.ts | identity | projects parent model and per-role C4 child hashes |
 | identity.ts | core | freezes deterministic run identity hashes |
-| journal.ts | core | appends durable run event journals |
+| journal.ts | core | appends durable run event journals with role identity |
 | manifest-contract.ts | types | validates terminal manifest values |
-| manifest.ts | core | validates journals and publishes lifecycle truth |
+| manifest.ts | core | validates linked multi-role journals and lifecycle truth |
 | pinned-node-process.ts | process | launches Node with trial-pinned paths and env |
 | role-surface.ts | identity | hashes the exact resolved spawn role surface |
 | run-config.ts | config | loads file/stdin config and validates inputs |

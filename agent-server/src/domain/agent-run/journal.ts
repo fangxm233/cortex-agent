@@ -43,6 +43,12 @@ export interface JournalHeaderInput {
   bundleManifestHash: string;
 }
 
+export interface JournalEventIdentity {
+  modelExecutionIdentityHash: string;
+  roleToolSurfaceHash: string;
+  bundleManifestHash: string;
+}
+
 export interface JournalEventInput {
   threadId: string | null;
   step: number | null;
@@ -52,6 +58,7 @@ export interface JournalEventInput {
   requestedModel: string;
   reportedModel: string | null;
   event: NormalizedEvent;
+  identity?: JournalEventIdentity;
 }
 
 export interface Journal {
@@ -162,14 +169,15 @@ function buildHeader(input: JournalHeaderInput, ts: string): Record<string, unkn
 
 function buildEvent(
   input: JournalEventInput,
-  identity: IdentityFields,
+  headerIdentity: IdentityFields,
   seq: number,
   ts: string,
 ): Record<string, unknown> {
+  const identity = input.identity ?? headerIdentity;
   return {
     schema_version: JOURNAL_SCHEMA,
     type: 'event',
-    root_run_id: identity.rootRunId,
+    root_run_id: headerIdentity.rootRunId,
     thread_id: input.threadId,
     step: input.step,
     agent_slot: input.agentSlot,

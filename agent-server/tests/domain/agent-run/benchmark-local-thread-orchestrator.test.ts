@@ -5,6 +5,7 @@
 
 import '../../_test-home.js';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -15,6 +16,7 @@ const harness = vi.hoisted(() => ({
   attachOptions: [] as any[],
   lifecycle: [] as string[],
   manifestMode: 'normal' as 'normal' | 'omit' | 'wrong_linkage',
+  parentJournals: [] as any[],
   runAgent: vi.fn(),
   supervisors: [] as any[],
 }));
@@ -48,11 +50,11 @@ vi.mock('../../../src/domain/agent-run/manifest.js', async (importOriginal) => {
   const actual = await importOriginal<any>();
   return {
     ...actual,
-    writeTerminalManifest: (input: any) => {
+    writeTerminalManifest: (input: any, options?: any) => {
       if (harness.manifestMode === 'omit') {
         return actual.resolveLifecyclePaths(input).terminal;
       }
-      const result = actual.writeTerminalManifest(input);
+      const result = actual.writeTerminalManifest(input, options);
       if (harness.manifestMode === 'wrong_linkage') {
         const record = JSON.parse(fs.readFileSync(result, 'utf8'));
         fs.writeFileSync(result, JSON.stringify({ ...record, journal_path: `${record.journal_path}.wrong` }));
@@ -64,12 +66,14 @@ vi.mock('../../../src/domain/agent-run/manifest.js', async (importOriginal) => {
 });
 
 import { CONFIG_DIR, STORE_DIR } from '../../../src/core/paths.js';
+import type { NormalizedEvent } from '../../../src/agent-adapter/normalize/event-types.js';
 import type { AgentResult } from '../../../src/core/types/agent-types.js';
 import type { RunAgentOptions } from '../../../src/domain/agents/facade.js';
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
 import {
-  openJournal,
-} from '../../../src/domain/agent-run/journal.js';
+  computeModelExecutionIdentityHash, computeRoleToolSurfaceHash,
+} from '../../../src/domain/agent-run/identity.js';
+import { openJournal } from '../../../src/domain/agent-run/journal.js';
 import {
   resolveLifecyclePaths,
   validateTrajectoryLifecycle,
@@ -77,6 +81,8 @@ import {
   writeStartedMarker,
   writeTerminalManifest,
 } from '../../../src/domain/agent-run/manifest.js';
+import { SupervisorContainmentError } from '../../../src/domain/agent-run/supervisor.js';
+import { resolveSystemVars } from '../../../src/domain/threads/index.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
 
 interface Deferred<T> {
@@ -96,6 +102,11 @@ interface FakeSupervisor {
 }
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-local-thread-'));
+const PARENT_MODEL_HASH = computeModelExecutionIdentityHash({
+  backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: { fixture: true },
+  providerProtocol: 'anthropic', configuredRouteBaseHost: 'proxy.fixture',
+  claudeCliVersion: 'fixture-cli/1', reasoningEffort: null, fallbackEmpty: true,
+});
 const FORBIDDEN_SUBSYSTEMS = [
   'profile watcher', 'template watcher', 'settings runtime', 'memory watcher',
   'gateway', 'client manager', 'scheduler', 'webhook', 'claim startup recovery',
@@ -144,12 +155,41 @@ function writeJson(file: string, value: unknown): void {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function sha256Text(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
+}
+
+function seedParentLifecycle(trajectoryRoot: string, rootRunId: string): void {
+  const journal = openJournal({
+    path: path.join(trajectoryRoot, `parent-${rootRunId}.journal.ndjson`),
+    header: {
+      rootRunId, threadId: null, agentSlot: 'parent', resolvedCwd: path.join(root, 'workspace'),
+      canonicalInstructionSha256: sha256Text('fix the fixture'),
+      modelVisiblePromptSha256: sha256Text('fix the fixture'),
+      systemPromptSha256: '1'.repeat(64), toolManifestSha256: '2'.repeat(64),
+      pluginManifestSha256: '3'.repeat(64), modelExecutionIdentityHash: PARENT_MODEL_HASH,
+      roleToolSurfaceHash: '4'.repeat(64), bundleManifestHash: '5'.repeat(64),
+    },
+  });
+  journal.writeEvent({
+    threadId: null, step: null, agentSlot: 'parent', backend: 'claude', provider: 'anthropic',
+    requestedModel: 'fixture-model', reportedModel: 'fixture-reported',
+    event: { type: 'tool_use', toolUseId: 'thread-call', name: 'thread_run', input: {} },
+  });
+  harness.parentJournals.push(journal);
+  writeStartedMarker({ trajectoryRoot, rootRunId, threadId: null, journalPath: journal.path });
+}
+
 function seedProfiles(): void {
   writeJson(path.join(CONFIG_DIR, 'profiles.json'), {
     defaultProfile: 'benchmark-fixture',
     profiles: {
       'benchmark-fixture': {
         model: 'fixture-model', backend: 'claude', claudeBackend: 'print',
+        provider: 'anthropic', fallback: [],
+      },
+      'mismatched-fixture': {
+        model: 'other-model', backend: 'claude', claudeBackend: 'print',
         provider: 'anthropic', fallback: [],
       },
     },
@@ -160,7 +200,7 @@ function seedProfiles(): void {
 function benchmarkAgent(name: string): Record<string, unknown> {
   return {
     name, profile: '__active__', persistSession: false,
-    directive: `${name} directive`, systemPrompt: `${name} system`,
+    directive: `${name} directive {{CORTEX_HOME}}`, systemPrompt: `${name} system`,
     promptTemplate: 'Complete {{input}}', tools: 'Read,Write', pluginDirs: [],
   };
 }
@@ -198,17 +238,30 @@ function spawnThrough(options: RunAgentOptions): void {
   });
 }
 
-function queueSuccess(output: string, cost = 0.25): void {
+function emitRequiredEvents(options: RunAgentOptions, events: NormalizedEvent[]): void {
+  for (const event of events) {
+    for (const sink of options.requiredSinks ?? []) sink.onEvent(event);
+  }
+}
+
+function queueAgentEvents(output: string, cost: number, events: NormalizedEvent[]): void {
   harness.supervisors.push(fakeSupervisor());
   harness.runAgent.mockImplementationOnce((_prompt: string, options: RunAgentOptions) => {
     spawnThrough(options);
+    emitRequiredEvents(options, events);
     options.onAssistantMessage?.(output);
     return {
-      promise: Promise.resolve(result(output, cost)),
-      kill: () => true,
+      promise: Promise.resolve(result(output, cost)), kill: () => true,
       sessionId: 'fixture-session',
     };
   });
+}
+
+function queueSuccess(output: string, cost = 0.25): void {
+  queueAgentEvents(output, cost, [
+    { type: 'assistant_text', text: output, model: 'fixture-reported' },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: cost },
+  ]);
 }
 
 function request(
@@ -219,13 +272,15 @@ function request(
   const workspaceCwd = path.join(root, 'workspace');
   fs.mkdirSync(workspaceCwd, { recursive: true });
   fs.mkdirSync(trajectoryRoot, { recursive: true });
-  return {
+  const value = {
     workspaceCwd, template: 'fixture-one-step', instruction: 'fix the fixture',
     profileName: 'benchmark-fixture', rootRunId: `run-${path.basename(trajectoryRoot)}`,
     trajectoryRoot,
     limits: { maxSteps: 2, maxCostUsd: 1, deadlineEpochMs: Date.now() + 30_000 },
     signal, ...overrides,
   };
+  seedParentLifecycle(value.trajectoryRoot, value.rootRunId);
+  return value;
 }
 
 function records(file: string): any[] {
@@ -244,6 +299,25 @@ function assertC2(resultValue: any): void {
     assert.ok(Object.hasOwn(row, 'reported_model'));
     assert.ok(Object.hasOwn(row, 'provider'));
   }
+}
+
+function assertCompletedResult(result: any): void {
+  assert.deepEqual(Object.keys(result).sort(), [
+    'artifactPath', 'costUsd', 'durationMs', 'journalPath', 'manifestCommitted',
+    'manifestPath', 'state', 'steps', 'summary', 'terminalReason', 'threadId',
+  ].sort());
+  assert.equal(result.state, 'completed');
+  assert.equal(result.terminalReason, null);
+  assert.equal(result.manifestCommitted, true);
+}
+
+function expectedRoleHash(slot: 'benchmark-coder' | 'benchmark-reviewer'): string {
+  return computeRoleToolSurfaceHash({
+    systemPromptSha256: sha256Text(`${slot} system`),
+    directiveSha256: sha256Text(resolveSystemVars(`${slot} directive {{CORTEX_HOME}}`)),
+    tools: ['Read', 'Write'], pluginDirs: [], skills: [],
+    mcpComposition: 'none', hookPolicy: {},
+  });
 }
 
 async function moduleUnderTest(): Promise<any> {
@@ -299,10 +373,12 @@ beforeEach(() => {
   jobCtx.bus = null;
 });
 
-afterEach(() => {
+afterEach(async () => {
   for (const [index, spy] of forbiddenSpies.entries()) {
     assert.equal(spy.mock.calls.length, 0, `${FORBIDDEN_SUBSYSTEMS[index]} must stay stopped`);
   }
+  await Promise.all(harness.parentJournals.map(journal => journal.close()));
+  harness.parentJournals.length = 0;
 });
 
 afterAll(() => {
@@ -320,19 +396,16 @@ it('exports exactly C9 and completes one bounded thread with C2/C3 artifacts', a
 
   const value = await api.runBenchmarkThread(req);
 
-  assert.deepEqual(Object.keys(value).sort(), [
-    'artifactPath', 'costUsd', 'durationMs', 'journalPath', 'manifestPath',
-    'state', 'steps', 'summary', 'terminalReason', 'threadId',
-  ].sort());
-  assert.equal(value.state, 'completed');
-  assert.equal(value.terminalReason, null);
+  assertCompletedResult(value);
   assert.equal(value.steps, 1);
   assert.equal(value.costUsd, 0.25);
   assert.equal(value.summary, `${'x'.repeat(1966)}😀… [truncated, 1967 of 2100 chars]`);
   assert.equal(Array.from(value.summary).length, 2000);
   assert.equal(jobCtx.bus, null);
   assertC2(value);
-  assert.deepEqual(validateTrajectoryRoot(req.trajectoryRoot), { ok: true, problems: [] });
+  assert.deepEqual(validateTrajectoryLifecycle({
+    trajectoryRoot: req.trajectoryRoot, rootRunId: req.rootRunId, threadId: value.threadId,
+  }), { ok: true, problems: [] });
   assert.deepEqual(harness.lifecycle.slice(-3), [
     'supervisor_quiescent', 'journal_closed', 'manifest_committed',
   ]);
@@ -347,6 +420,81 @@ it('uses the landed lifecycle modules rather than a forked writer surface', asyn
   assert.equal(typeof writeTerminalManifest, 'function');
   assert.equal(typeof validateTrajectoryLifecycle, 'function');
   assert.equal(typeof validateTrajectoryRoot, 'function');
+});
+
+it('inherits the parent model identity and records each agent role identity', async () => {
+  queueSuccess('coder');
+  queueSuccess('reviewer');
+  const req = request(path.join(root, 'role-identities'), new AbortController().signal, {
+    template: 'fixture-two-step',
+  });
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  const journal = records(value.journalPath);
+  assert.equal(journal[0].model_execution_identity_hash, PARENT_MODEL_HASH);
+  assert.equal(journal[0].role_tool_surface_hash, expectedRoleHash('benchmark-coder'));
+  const events = journal.slice(1);
+  assert.ok(events.every(row => row.model_execution_identity_hash === PARENT_MODEL_HASH));
+  for (const slot of ['benchmark-coder', 'benchmark-reviewer'] as const) {
+    const roleEvents = events.filter(row => row.agent_slot === slot);
+    assert.ok(roleEvents.length > 0);
+    assert.ok(roleEvents.every(row => row.role_tool_surface_hash === expectedRoleHash(slot)));
+  }
+  assert.notEqual(
+    events.find(row => row.agent_slot === 'benchmark-coder').bundle_manifest_hash,
+    events.find(row => row.agent_slot === 'benchmark-reviewer').bundle_manifest_hash,
+  );
+});
+
+it('rejects a child profile whose observed model differs from its parent', async () => {
+  queueSuccess('must not run');
+  const req = request(path.join(root, 'model-mismatch'), new AbortController().signal, {
+    profileName: 'mismatched-fixture',
+  });
+  await assert.rejects(
+    (await moduleUnderTest()).runBenchmarkThread(req),
+    /resolved profile does not match parent model observation/,
+  );
+  assert.equal(harness.runAgent.mock.calls.length, 0);
+});
+
+it('rejects ambiguous parent identity when a same-model profile changes thinking', async () => {
+  const file = path.join(CONFIG_DIR, 'profiles.json');
+  const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+  config.profiles['same-model-thinking'] = {
+    model: 'fixture-model', backend: 'claude', claudeBackend: 'print',
+    provider: 'anthropic', thinking: 'high', fallback: [],
+  };
+  writeJson(file, config);
+  profileRepo.invalidate();
+  try {
+    queueSuccess('must not run');
+    const req = request(path.join(root, 'thinking-mismatch'), new AbortController().signal, {
+      profileName: 'same-model-thinking',
+    });
+    await assert.rejects(
+      (await moduleUnderTest()).runBenchmarkThread(req),
+      /cannot prove parent model identity/,
+    );
+    assert.equal(harness.runAgent.mock.calls.length, 0);
+  } finally {
+    seedProfiles();
+  }
+});
+
+it('journals every normalized event verbatim exactly once in observed order', async () => {
+  const events: NormalizedEvent[] = [
+    { type: 'assistant_text', text: 'inspect', model: 'fixture-reported' },
+    { type: 'tool_use', toolUseId: 'tool-1', name: 'Read', input: { file_path: 'a.ts' } },
+    { type: 'tool_result', toolUseId: 'tool-1', ok: true, content: 'source' },
+    { type: 'error', message: 'recoverable diagnostic', fatal: false },
+    { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.25 },
+  ];
+  queueAgentEvents('inspect', 0.25, events);
+  const req = request(path.join(root, 'verbatim-events'), new AbortController().signal);
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  const journalEvents = records(value.journalPath).slice(1);
+  assert.deepEqual(journalEvents.map(row => row.event), events);
+  assert.deepEqual(journalEvents.map(row => row.seq), [1, 2, 3, 4, 5]);
 });
 
 function queueCancelableAgent(quiescence: Deferred<void>): FakeSupervisor {
@@ -378,6 +526,7 @@ function monitorTerminal(trajectoryRoot: string) {
 function assertCancelledResult(value: any): void {
   assert.equal(value.state, 'cancelled');
   assert.equal(value.terminalReason, 'cancelled');
+  assert.equal(value.manifestCommitted, true);
   assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).state, 'cancelled');
   assert.deepEqual(harness.lifecycle.slice(-3), [
     'supervisor_quiescent', 'journal_closed', 'manifest_committed',
@@ -407,18 +556,44 @@ it('cancel closes admission, waits for delayed quiescence, then closes and commi
   assertCancelledResult(await pending);
 });
 
-it('does not close or publish when supervisor quiescence is rejected', async () => {
+it('closes the journal and reports containment_failed without a manifest', async () => {
   const quiescence = deferred<void>();
   queueSuccess('unsafe');
   harness.supervisors[0] = fakeSupervisor(quiescence.promise);
-  setTimeout(() => quiescence.reject(new Error('containment failed')), 20);
+  const api = await moduleUnderTest();
   const req = request(path.join(root, 'containment-failed'), new AbortController().signal);
-  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+  setTimeout(() => quiescence.reject(new SupervisorContainmentError('containment_failed')), 20);
+  const value = await api.runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
-  assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(value.terminalReason, 'containment_failed');
+  assert.equal(value.manifestCommitted, false);
   assert.equal(fs.existsSync(value.manifestPath), false);
-  assert.equal(harness.lifecycle.includes('journal_closed'), false);
+  assert.equal(harness.lifecycle.includes('journal_closed'), true);
   assert.equal(harness.lifecycle.includes('manifest_committed'), false);
+});
+
+async function within<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('orchestrator did not settle within its bound')), milliseconds);
+  });
+  try { return await Promise.race([promise, timeout]); }
+  finally { clearTimeout(timer!); }
+}
+
+it('bounds a never-settling supervisor and reports missing_quiescent', async () => {
+  queueSuccess('never settles');
+  harness.supervisors[0] = fakeSupervisor(new Promise<void>(() => {}));
+  const api = await moduleUnderTest();
+  const req = request(path.join(root, 'missing-quiescent'), new AbortController().signal, {
+    limits: { maxSteps: 2, maxCostUsd: 1, deadlineEpochMs: Date.now() + 500 },
+  });
+  const value = await within<any>(api.runBenchmarkThread(req), 1_500);
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'missing_quiescent');
+  assert.equal(value.manifestCommitted, false);
+  assert.equal(fs.existsSync(value.manifestPath), false);
+  assert.equal(harness.lifecycle.includes('journal_closed'), true);
 });
 
 it('does not treat ThreadRecord completed as success before external truth is durable', async () => {
@@ -450,6 +625,7 @@ it('surfaces started-without-terminal as failed even when the local runner compl
 
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(value.manifestCommitted, false);
   assert.equal(fs.existsSync(value.manifestPath), false);
   assert.match(validateTrajectoryRoot(req.trajectoryRoot).problems.join('\n'), /started_without_terminal/);
 });
@@ -461,6 +637,7 @@ it('fails a terminal manifest whose envelope is valid but journal linkage is wro
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(value.manifestCommitted, false);
   assert.match(validateTrajectoryLifecycle({
     trajectoryRoot: req.trajectoryRoot, rootRunId: req.rootRunId, threadId: value.threadId,
   }).problems.join('\n'), /journal_path/);
@@ -480,6 +657,7 @@ it('refuses step N+1 through the orchestrator terminal path', async () => {
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'step_limit_exceeded');
+  assert.equal(value.manifestCommitted, true);
   assert.equal(value.steps, 1);
   assert.equal(harness.attachOptions.length, 1);
   assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason, 'step_limit_exceeded');
@@ -493,6 +671,7 @@ it('fails when a completed step crosses the frozen cost limit', async () => {
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'failed');
   assert.equal(value.terminalReason, 'cost_limit_exceeded');
+  assert.equal(value.manifestCommitted, true);
   assert.equal(value.costUsd, 0.25);
   assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason, 'cost_limit_exceeded');
 });
@@ -533,6 +712,7 @@ it('converts the absolute deadline once and returns deadline_exceeded', async ()
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
   assert.equal(value.state, 'timeout');
   assert.equal(value.terminalReason, 'deadline_exceeded');
+  assert.equal(value.manifestCommitted, true);
   assert.deepEqual(supervisor.cancel.mock.calls[0], ['deadline']);
   assert.equal(JSON.parse(fs.readFileSync(value.manifestPath, 'utf8')).terminal_reason, 'deadline_exceeded');
 });

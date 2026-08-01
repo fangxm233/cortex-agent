@@ -9,7 +9,8 @@ const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
 export type TerminalState = 'completed' | 'failed' | 'cancelled' | 'timeout';
 export type TerminalReason = 'ok' | 'child_failure' | 'deadline' | 'deadline_exceeded' | 'cancelled'
-  | 'containment_failure' | 'trajectory_write_failed' | 'rate_limited' | 'protocol_violation'
+  | 'containment_failure' | 'containment_failed' | 'missing_quiescent'
+  | 'trajectory_write_failed' | 'rate_limited' | 'protocol_violation'
   | 'step_limit_exceeded' | 'cost_limit_exceeded';
 
 export interface SupervisorEvidence {

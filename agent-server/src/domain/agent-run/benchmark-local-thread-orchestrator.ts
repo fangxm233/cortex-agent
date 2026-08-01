@@ -3,7 +3,6 @@
 // pos:    Daemon-free benchmark thread lifecycle coordinator
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import { createHash } from 'node:crypto';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,7 +10,9 @@ import type {
   AgentProcessSpawner, AgentProcessSupervision,
 } from '../../agent-adapter/types.js';
 import { runningExecutions } from '../../core/running-executions.js';
-import type { AgentSlotId, ThreadRecord } from '../../core/types/thread-types.js';
+import type {
+  AgentSlotId, BenchmarkThreadEvent, ThreadRecord,
+} from '../../core/types/thread-types.js';
 import { resolveProfileConfig } from '../agents/profile-manager.js';
 import { ctx as jobCtx } from '../scheduling/job-registry.js';
 import {
@@ -26,7 +27,10 @@ import type { PlatformCapabilities } from '../../platform/types.js';
 import { executionRepo } from '../../store/execution-repo.js';
 import { sessionStore } from '../../store/session-registry-repo.js';
 import { threadStore } from '../../store/thread-repo.js';
-import { canonicalJsonSha256 } from './identity.js';
+import {
+  benchmarkInstructionHashes, freezeBenchmarkThreadIdentities,
+  type BenchmarkRoleIdentity,
+} from './benchmark-thread-identity.js';
 import {
   openJournal, TrajectoryWriteFailedError, type AgentSlot, type Journal,
 } from './journal.js';
@@ -35,7 +39,9 @@ import {
   type TerminalManifestInput, type TerminalReason, type TerminalState,
 } from './manifest.js';
 import { terminalManifestProblem } from './manifest-contract.js';
-import { attachSupervisor, type SupervisorSession } from './supervisor.js';
+import {
+  attachSupervisor, SupervisorContainmentError, type SupervisorSession,
+} from './supervisor.js';
 
 interface BenchmarkThreadRequest {
   workspaceCwd: string;
@@ -59,22 +65,12 @@ interface BenchmarkThreadResult {
   costUsd: number;
   durationMs: number;
   summary: string;
+  manifestCommitted: boolean;
 }
 
 type ResolvedProfile = ReturnType<typeof resolveProfileConfig>;
 type ResolvedTemplate = NonNullable<ReturnType<typeof getTemplate>>;
 type StopReason = 'cancel' | 'deadline' | 'step_limit' | 'cost_limit';
-
-interface RunIdentity {
-  canonicalInstructionSha256: string;
-  modelVisiblePromptSha256: string;
-  systemPromptSha256: string;
-  toolManifestSha256: string;
-  pluginManifestSha256: string;
-  modelExecutionIdentityHash: string;
-  roleToolSurfaceHash: string;
-  bundleManifestHash: string;
-}
 
 interface PreparedThreadRun {
   request: BenchmarkThreadRequest;
@@ -83,7 +79,8 @@ interface PreparedThreadRun {
   thread: ThreadRecord;
   journal: Journal;
   lifecycle: { started: string; terminal: string };
-  identity: RunIdentity;
+  identity: BenchmarkRoleIdentity;
+  roleIdentities: Map<string, BenchmarkRoleIdentity>;
   startedAt: string;
 }
 
@@ -102,6 +99,7 @@ interface RunOutcome {
   result: ThreadRunResult | null;
   error: unknown;
   quiescent: boolean;
+  containmentReason: 'containment_failed' | 'missing_quiescent' | null;
   durabilityError: unknown;
 }
 
@@ -113,6 +111,8 @@ interface ClassifiedRun {
 const BENCHMARK_SLOTS = new Set<AgentSlotId>(['benchmark-coder', 'benchmark-reviewer']);
 const SUMMARY_LIMIT = 2000;
 const MAX_TIMER_MS = 2_147_483_647;
+const SUPERVISOR_GRACE_MS = 1_000;
+const QUIESCENCE_MARGIN_MS = 5_000;
 
 class BenchmarkAdmissionError extends Error {
   constructor(readonly detail: 'max_steps' | 'max_cost' | 'deadline') {
@@ -161,10 +161,6 @@ function createNoopAdapter(): PlatformAdapter {
     getProjectConduits: async () => ({}), resolveInboundProject: async () => null,
     ownsConduit: () => false,
   };
-}
-
-function sha256(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
 function isDirectory(directory: string): boolean {
@@ -229,51 +225,6 @@ function resolveTemplate(name: string): ResolvedTemplate {
   return template;
 }
 
-function roleAgent(template: ResolvedTemplate) {
-  return resolveTemplateAgents(template).find(agent => agent.slotId === template.entryAgent)!;
-}
-
-function identityInput(
-  request: BenchmarkThreadRequest,
-  profile: ResolvedProfile,
-  template: ResolvedTemplate,
-) {
-  const agent = roleAgent(template);
-  return {
-    agent,
-    instruction: request.instruction,
-    limits: request.limits,
-    paths: { workspaceCwd: request.workspaceCwd, trajectoryRoot: request.trajectoryRoot },
-    profile,
-    template,
-  };
-}
-
-function freezeRunIdentity(
-  request: BenchmarkThreadRequest,
-  profile: ResolvedProfile,
-  template: ResolvedTemplate,
-): RunIdentity {
-  const frozen = identityInput(request, profile, template);
-  const agent = frozen.agent;
-  const modelExecutionIdentityHash = canonicalJsonSha256(profile);
-  const roleToolSurfaceHash = canonicalJsonSha256({
-    agent, template, mcpComposition: 'none', hookPolicy: {},
-  });
-  return {
-    canonicalInstructionSha256: sha256(request.instruction),
-    modelVisiblePromptSha256: sha256(request.instruction),
-    systemPromptSha256: sha256(agent.systemPrompt ?? ''),
-    toolManifestSha256: canonicalJsonSha256((agent.tools ?? '').split(',').filter(Boolean)),
-    pluginManifestSha256: canonicalJsonSha256(agent.pluginDirs ?? []),
-    modelExecutionIdentityHash,
-    roleToolSurfaceHash,
-    bundleManifestHash: canonicalJsonSha256({
-      ...frozen, modelExecutionIdentityHash, roleToolSurfaceHash,
-    }),
-  };
-}
-
 function createBenchmarkRecord(request: BenchmarkThreadRequest): ThreadRecord {
   return createThread(`benchmark:${request.rootRunId}`, {
     templateName: request.template,
@@ -288,7 +239,7 @@ function openThreadJournal(
   request: BenchmarkThreadRequest,
   template: ResolvedTemplate,
   thread: ThreadRecord,
-  identity: RunIdentity,
+  identity: BenchmarkRoleIdentity,
 ): Journal {
   const journalPath = path.join(request.trajectoryRoot, `thread-${thread.id}.journal.ndjson`);
   return openJournal({
@@ -296,7 +247,9 @@ function openThreadJournal(
     header: {
       rootRunId: request.rootRunId, threadId: thread.id,
       agentSlot: template.entryAgent as AgentSlot,
-      resolvedCwd: request.workspaceCwd, ...identity,
+      resolvedCwd: request.workspaceCwd,
+      ...benchmarkInstructionHashes(request.instruction),
+      ...identity,
     },
   });
 }
@@ -317,13 +270,14 @@ async function createRunArtifacts(
   request: BenchmarkThreadRequest,
   profile: ResolvedProfile,
   template: ResolvedTemplate,
-  thread: ThreadRecord,
 ): Promise<PreparedThreadRun> {
   fs.mkdirSync(request.trajectoryRoot, { recursive: true });
+  const identities = freezeBenchmarkThreadIdentities(request, profile, template);
+  const identity = identities.entry;
+  const thread = createBenchmarkRecord(request);
   const lifecycle = resolveLifecyclePaths({
     trajectoryRoot: request.trajectoryRoot, rootRunId: request.rootRunId, threadId: thread.id,
   });
-  const identity = freezeRunIdentity(request, profile, template);
   const journal = openThreadJournal(request, template, thread, identity);
   const startedAt = new Date().toISOString();
   try { writeRunStarted(request, thread, journal, startedAt); }
@@ -331,7 +285,10 @@ async function createRunArtifacts(
     await journal.close().catch(() => {});
     throw error;
   }
-  return { request, profile, template, thread, journal, lifecycle, identity, startedAt };
+  return {
+    request, profile, template, thread, journal, lifecycle, identity,
+    roleIdentities: identities.roles, startedAt,
+  };
 }
 
 async function prepareRun(request: BenchmarkThreadRequest): Promise<PreparedThreadRun> {
@@ -339,8 +296,7 @@ async function prepareRun(request: BenchmarkThreadRequest): Promise<PreparedThre
   initializeRuntime();
   const profile = resolveProfile(request.profileName);
   const template = resolveTemplate(request.template);
-  const thread = createBenchmarkRecord(request);
-  return createRunArtifacts(request, profile, template, thread);
+  return createRunArtifacts(request, profile, template);
 }
 
 function supervisorCancelReason(reason: StopReason | null): 'cancel' | 'deadline' {
@@ -421,7 +377,7 @@ function createSpawner(control: RunControl): AgentProcessSpawner {
     const session = attachSupervisor({
       binary: process.env.CORTEX_SUPERVISOR_BINARY ?? 'cortex-supervisor',
       args: [command, ...args],
-      deadlineMs: remainingDeadline(control),
+      graceMs: SUPERVISOR_GRACE_MS, deadlineMs: remainingDeadline(control),
       cwd: options.cwd?.toString(), env: options.env, stdio: 'pipe',
     });
     control.admitted += 1;
@@ -446,6 +402,7 @@ function threadRunOptions(prepared: PreparedThreadRun, spawner: AgentProcessSpaw
       disableControlPlane: true as const,
       failFastOnRateLimit: true as const,
       spawner,
+      requiredEventSink: (input: BenchmarkThreadEvent) => writeNormalizedEvent(prepared, input),
       limits: {
         maxSteps: prepared.request.limits.maxSteps,
         maxCostUsd: prepared.request.limits.maxCostUsd,
@@ -475,37 +432,68 @@ function asAgentSlot(value: string): AgentSlot {
   return value as AgentSlot;
 }
 
-function writeStepEvents(prepared: PreparedThreadRun, thread: ThreadRecord): unknown {
+function reportedModel(event: BenchmarkThreadEvent['event']): string | null {
+  return event.type === 'assistant_text' ? event.model ?? null : null;
+}
+
+function writeNormalizedEvent(prepared: PreparedThreadRun, input: BenchmarkThreadEvent): void {
+  const identity = prepared.roleIdentities.get(input.agentSlotId);
+  if (!identity) throw new Error(`Missing benchmark role identity: ${input.agentSlotId}`);
+  prepared.journal.writeEvent({
+    threadId: prepared.thread.id, step: input.step,
+    agentSlot: asAgentSlot(input.agentSlotId), backend: 'claude',
+    provider: prepared.profile.provider, requestedModel: prepared.profile.model,
+    reportedModel: reportedModel(input.event), event: input.event, identity,
+  });
+}
+
+type ContainmentReason = RunOutcome['containmentReason'];
+
+function containmentFailure(error: unknown): Exclude<ContainmentReason, null> {
+  if (!(error instanceof SupervisorContainmentError)) return 'missing_quiescent';
+  const missing = error.detail === 'missing_quiescent'
+    || error.detail === 'deadline_backstop_descendants_may_survive';
+  return missing ? 'missing_quiescent' : 'containment_failed';
+}
+
+function quiescenceBudget(control: RunControl): number {
+  const configured = SUPERVISOR_GRACE_MS + QUIESCENCE_MARGIN_MS;
+  return Math.min(configured, remainingDeadline(control));
+}
+
+async function settleOneSupervisor(
+  session: SupervisorSession,
+  waitMs: number,
+  control: RunControl,
+): Promise<ContainmentReason> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<'missing_quiescent'>(resolve => {
+    timer = setTimeout(() => resolve('missing_quiescent'), waitMs);
+  });
   try {
-    for (const step of thread.steps) {
-      prepared.journal.writeEvent({
-        threadId: thread.id, step: step.stepIndex,
-        agentSlot: asAgentSlot(step.agentSlotId), backend: 'claude',
-        provider: prepared.profile.provider, requestedModel: prepared.profile.model,
-        reportedModel: null,
-        event: { type: 'assistant_text', text: step.output ?? '', model: null },
-      });
-    }
-    return null;
+    const result = await Promise.race([session.quiescent.then(() => null), timeout]);
+    if (result) closeAdmission(control, 'cancel');
+    return result;
   } catch (error) {
-    return error;
+    closeAdmission(control, 'cancel');
+    return containmentFailure(error);
+  } finally {
+    clearTimeout(timer!);
   }
 }
 
-async function settleOneSupervisor(session: SupervisorSession): Promise<boolean> {
-  try {
-    await session.quiescent;
-    await session.closed;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function settleSupervisors(control: RunControl): Promise<boolean> {
-  if (control.sessions.length === 0) return true;
-  const settled = await Promise.all(control.sessions.map(settleOneSupervisor));
-  return settled.every(Boolean);
+async function settleSupervisors(control: RunControl): Promise<{
+  quiescent: boolean;
+  containmentReason: ContainmentReason;
+}> {
+  if (control.sessions.length === 0) return { quiescent: true, containmentReason: null };
+  const waitMs = quiescenceBudget(control);
+  const reasons = await Promise.all(
+    control.sessions.map(session => settleOneSupervisor(session, waitMs, control)),
+  );
+  const containmentReason = reasons.includes('containment_failed')
+    ? 'containment_failed' : reasons.find(Boolean) ?? null;
+  return { quiescent: containmentReason === null, containmentReason };
 }
 
 async function flushRepositories(): Promise<unknown> {
@@ -539,14 +527,12 @@ async function executeRun(prepared: PreparedThreadRun, control: RunControl): Pro
   const execution = await runLocalThread(prepared, control);
   const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
   enforceFinalCost(control, thread);
-  const eventError = writeStepEvents(prepared, thread);
-  if (eventError) cancelSessions(control);
-  const quiescent = await settleSupervisors(control);
+  const containment = await settleSupervisors(control);
   const repositoryError = await flushRepositories();
-  const journalError = quiescent ? await closeJournal(prepared.journal) : null;
+  const journalError = await closeJournal(prepared.journal);
   return {
-    ...execution, quiescent,
-    durabilityError: firstFailure(eventError, repositoryError, journalError),
+    ...execution, ...containment,
+    durabilityError: firstFailure(repositoryError, journalError),
   };
 }
 
@@ -565,7 +551,7 @@ function classifyFailure(error: unknown): ClassifiedRun {
 }
 
 function safetyClassification(outcome: RunOutcome): ClassifiedRun | null {
-  if (!outcome.quiescent) return { state: 'failed', reason: 'containment_failure' };
+  if (outcome.containmentReason) return { state: 'failed', reason: outcome.containmentReason };
   if (outcome.durabilityError) return { state: 'failed', reason: 'trajectory_write_failed' };
   return null;
 }
@@ -635,6 +621,7 @@ function validCommittedManifest(
       trajectoryRoot: prepared.request.trajectoryRoot,
       rootRunId: prepared.request.rootRunId,
       threadId: prepared.thread.id,
+      roleIdentities: prepared.roleIdentities,
     });
     return lifecycle.ok && terminalManifestProblem(record) === null
       && record.state === classified.state
@@ -650,28 +637,38 @@ function commitFailure(error: unknown): ClassifiedRun {
   return { state: 'failed', reason };
 }
 
+interface TerminalCommit {
+  classified: ClassifiedRun;
+  manifestPath: string;
+  manifestCommitted: boolean;
+}
+
+function uncommittedTerminal(
+  prepared: PreparedThreadRun,
+  classified: ClassifiedRun,
+): TerminalCommit {
+  return { classified, manifestPath: prepared.lifecycle.terminal, manifestCommitted: false };
+}
+
 function commitTerminal(
   prepared: PreparedThreadRun,
   classified: ClassifiedRun,
   thread: ThreadRecord,
-): { classified: ClassifiedRun; manifestPath: string } {
-  if (classified.reason === 'containment_failure') {
-    return {
-      classified: { state: 'failed', reason: 'protocol_violation' },
-      manifestPath: prepared.lifecycle.terminal,
-    };
-  }
+): TerminalCommit {
+  const noManifest = classified.reason === 'containment_failed'
+    || classified.reason === 'missing_quiescent';
+  if (noManifest) return uncommittedTerminal(prepared, classified);
   try {
-    const manifestPath = writeTerminalManifest(terminalInput(prepared, classified, thread));
+    const manifestPath = writeTerminalManifest(
+      terminalInput(prepared, classified, thread),
+      { roleIdentities: prepared.roleIdentities },
+    );
     if (validCommittedManifest(prepared, manifestPath, classified)) {
-      return { classified, manifestPath };
+      return { classified, manifestPath, manifestCommitted: true };
     }
-    return {
-      classified: { state: 'failed', reason: 'protocol_violation' },
-      manifestPath: prepared.lifecycle.terminal,
-    };
+    return uncommittedTerminal(prepared, { state: 'failed', reason: 'protocol_violation' });
   } catch (error) {
-    return { classified: commitFailure(error), manifestPath: prepared.lifecycle.terminal };
+    return uncommittedTerminal(prepared, commitFailure(error));
   }
 }
 
@@ -704,6 +701,7 @@ function buildResult(
     artifactPath: thread.artifactPath || null,
     journalPath: prepared.journal.path,
     manifestPath: committed.manifestPath,
+    manifestCommitted: committed.manifestCommitted,
     steps: thread.steps.length,
     costUsd: thread.totalCostUsd,
     durationMs: Math.max(0, Date.now() - new Date(prepared.startedAt).getTime()),
@@ -711,8 +709,17 @@ function buildResult(
   };
 }
 
+async function disposeSupervisor(session: SupervisorSession, waitMs: number): Promise<void> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<void>(resolve => { timer = setTimeout(resolve, waitMs); });
+  const disposal = session.dispose().catch(() => {});
+  try { await Promise.race([disposal, timeout]); }
+  finally { clearTimeout(timer!); }
+}
+
 async function disposeSupervisors(control: RunControl): Promise<void> {
-  await Promise.allSettled(control.sessions.map(session => session.dispose()));
+  const waitMs = quiescenceBudget(control);
+  await Promise.all(control.sessions.map(session => disposeSupervisor(session, waitMs)));
 }
 
 export async function runBenchmarkThread(

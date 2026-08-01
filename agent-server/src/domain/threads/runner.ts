@@ -478,7 +478,8 @@ function resolveStepSpawnPolicy(
   if (opts.benchmark) {
     return {
       cwd: opts.benchmark.workspaceCwd, processSpawner: opts.benchmark.spawner,
-      mcpComposition: 'none', disableHooks: true,
+      mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
+      streamDeltas: false, captureTranscriptLogs: false, recordCost: false,
     };
   }
   return {
@@ -486,6 +487,17 @@ function resolveStepSpawnPolicy(
     mcpComposition: stepCtx.agentConfig.mcpComposition,
     disableHooks: ctx.template?.disableHooks === true,
   };
+}
+
+function benchmarkRequiredSinks(
+  threadId: string,
+  stepCtx: StepContext,
+  opts: RunThreadOptions,
+): ThreadAgentOptions['requiredSinks'] {
+  const sink = opts.benchmark?.requiredEventSink;
+  if (!sink) return undefined;
+  const step = threadStore.get(threadId)?.currentStepIndex ?? 0;
+  return [{ onEvent: event => sink({ step, agentSlotId: stepCtx.agentSlotId, event }) }];
 }
 
 function buildThreadAgentOptions(
@@ -510,6 +522,7 @@ function buildThreadAgentOptions(
     pluginDirs: agentConfig.pluginDirs || null, onFallback: null, isUserInitiated: false,
     onAssistantMessage: callbacks.onAssistantMessage, onProgress: callbacks.onProgress,
     onToolUse: callbacks.onToolUse, onToolResult: callbacks.onToolResult,
+    requiredSinks: benchmarkRequiredSinks(threadId, stepCtx, opts),
     onPlanWritten: opts.onPlanWritten ?? null, onAskUserQuestion: opts.onAskUserQuestion ?? null,
   };
 }

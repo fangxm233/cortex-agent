@@ -22,12 +22,23 @@ const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const READ_BUFFER_BYTES = 64 * 1024;
 
-interface JournalHeaderRecord {
+export interface JournalHeaderRecord {
   rootRunId: string;
   threadId: string | null;
+  agentSlot: string;
   modelExecutionIdentityHash: string;
   roleToolSurfaceHash: string;
   bundleManifestHash: string;
+}
+
+export interface JournalRoleIdentity {
+  roleToolSurfaceHash: string;
+  bundleManifestHash: string;
+}
+
+interface JournalModelObservation {
+  requestedModel: string;
+  provider: string | null;
 }
 
 interface JournalScanState {
@@ -35,6 +46,9 @@ interface JournalScanState {
   lineNumber: number;
   eventCount: number;
   header: JournalHeaderRecord | null;
+  modelObservation: JournalModelObservation | null;
+  roleIdentities: Map<string, JournalRoleIdentity>;
+  expectedRoleIdentities?: ReadonlyMap<string, JournalRoleIdentity>;
   problems: string[];
   hash: Hash;
 }
@@ -43,6 +57,7 @@ interface JournalScanResult {
   sha256: string | null;
   eventCount: number;
   header: JournalHeaderRecord | null;
+  modelObservation: JournalModelObservation | null;
   problems: string[];
 }
 
@@ -398,21 +413,32 @@ function journalLinkageProblem(
   return checks.find(([passes]) => !passes)?.[1] ?? null;
 }
 
-function assertManifestLinkage(input: TerminalManifestInput): void {
+export interface TerminalManifestValidationOptions {
+  roleIdentities?: ReadonlyMap<string, JournalRoleIdentity>;
+}
+
+function assertManifestLinkage(
+  input: TerminalManifestInput,
+  options: TerminalManifestValidationOptions,
+): void {
   const journalPath = confinedJournalPath(input.trajectoryRoot, input.journalPath);
   if (!journalPath) throw trajectoryFailure('terminal linkage', [new Error('journal_outside_root')]);
   flushJournal(journalPath);
-  const problem = journalLinkageProblem(input, scanJournal(journalPath));
+  const scan = scanJournal(journalPath, options.roleIdentities);
+  const problem = journalLinkageProblem(input, scan);
   if (problem) throw trajectoryFailure('terminal linkage', [new Error(problem)]);
 }
 
-export function writeTerminalManifest(input: TerminalManifestInput): string {
+export function writeTerminalManifest(
+  input: TerminalManifestInput,
+  options: TerminalManifestValidationOptions = {},
+): string {
   return withTrajectoryFailure('terminal manifest', () => {
     const finalPath = lifecyclePath(input.trajectoryRoot, input.rootRunId, input.threadId, 'terminal');
     const record = buildTerminalManifest(input);
     const problem = terminalManifestProblem(record);
     if (problem) throw trajectoryFailure('terminal manifest', [new Error(problem)]);
-    assertManifestLinkage(input);
+    assertManifestLinkage(input, options);
     writeAndPublish(finalPath, record, renameTemporary);
     return finalPath;
   });
@@ -500,6 +526,7 @@ function headerRecord(value: Record<string, unknown>): JournalHeaderRecord {
   return {
     rootRunId: String(value.root_run_id),
     threadId: value.thread_id as string | null,
+    agentSlot: String(value.agent_slot),
     modelExecutionIdentityHash: String(value.model_execution_identity_hash),
     roleToolSurfaceHash: String(value.role_tool_surface_hash),
     bundleManifestHash: String(value.bundle_manifest_hash),
@@ -529,8 +556,6 @@ function validEventRecord(
     isNullableString(value.reported_model),
     EVENT_HASH_KEYS.every(key => isSha256(value[key])),
     value.model_execution_identity_hash === header.modelExecutionIdentityHash,
-    value.role_tool_surface_hash === header.roleToolSurfaceHash,
-    value.bundle_manifest_hash === header.bundleManifestHash,
     validNormalizedEvent(value.event),
   ]);
 }
@@ -548,17 +573,68 @@ function parseJournalLine(line: string): LineParseResult {
   }
 }
 
+function matchesExpectedRole(
+  state: JournalScanState,
+  slot: string,
+  observed: JournalRoleIdentity,
+): boolean {
+  if (!state.expectedRoleIdentities) return true;
+  const expected = state.expectedRoleIdentities.get(slot);
+  return !!expected && expected.roleToolSurfaceHash === observed.roleToolSurfaceHash
+    && expected.bundleManifestHash === observed.bundleManifestHash;
+}
+
 function validateHeaderLine(state: JournalScanState, filePath: string, value: unknown): void {
   if (validHeaderRecord(value)) {
     state.header = headerRecord(value);
-    return;
+    const observed = {
+      roleToolSurfaceHash: state.header.roleToolSurfaceHash,
+      bundleManifestHash: state.header.bundleManifestHash,
+    };
+    state.roleIdentities.set(state.header.agentSlot, observed);
+    if (matchesExpectedRole(state, state.header.agentSlot, observed)) return;
   }
   state.problems.push(malformedRecord(filePath, state.lineNumber, 'invalid_envelope'));
 }
 
+function trackModelObservation(state: JournalScanState, value: Record<string, unknown>): boolean {
+  const observed = {
+    requestedModel: String(value.requested_model), provider: value.provider as string | null,
+  };
+  if (!state.modelObservation) {
+    state.modelObservation = observed;
+    return true;
+  }
+  return state.modelObservation.requestedModel === observed.requestedModel
+    && state.modelObservation.provider === observed.provider;
+}
+
+function trackRoleIdentity(state: JournalScanState, value: Record<string, unknown>): boolean {
+  const slot = String(value.agent_slot);
+  const observed = {
+    roleToolSurfaceHash: String(value.role_tool_surface_hash),
+    bundleManifestHash: String(value.bundle_manifest_hash),
+  };
+  if (!matchesExpectedRole(state, slot, observed)) return false;
+  const expected = state.roleIdentities.get(slot);
+  if (!expected) {
+    const reused = [...state.roleIdentities.values()].some(identity => (
+      identity.roleToolSurfaceHash === observed.roleToolSurfaceHash
+      || identity.bundleManifestHash === observed.bundleManifestHash
+    ));
+    if (reused) return false;
+    state.roleIdentities.set(slot, observed);
+    return true;
+  }
+  return expected.roleToolSurfaceHash === observed.roleToolSurfaceHash
+    && expected.bundleManifestHash === observed.bundleManifestHash;
+}
+
 function validateEventLine(state: JournalScanState, filePath: string, value: unknown): void {
   state.eventCount += 1;
-  if (validEventRecord(value, state.lineNumber - 1, state.header)) return;
+  const valid = validEventRecord(value, state.lineNumber - 1, state.header);
+  if (valid && trackModelObservation(state, value as Record<string, unknown>)
+    && trackRoleIdentity(state, value as Record<string, unknown>)) return;
   state.problems.push(malformedRecord(filePath, state.lineNumber, 'invalid_envelope'));
 }
 
@@ -584,10 +660,12 @@ function consumeDecoded(state: JournalScanState, filePath: string, text: string)
   }
 }
 
-function newScanState(): JournalScanState {
+function newScanState(
+  expectedRoleIdentities?: ReadonlyMap<string, JournalRoleIdentity>,
+): JournalScanState {
   return {
-    pending: '', lineNumber: 0, eventCount: 0, header: null,
-    problems: [], hash: createHash('sha256'),
+    pending: '', lineNumber: 0, eventCount: 0, header: null, modelObservation: null,
+    roleIdentities: new Map(), expectedRoleIdentities, problems: [], hash: createHash('sha256'),
   };
 }
 
@@ -598,12 +676,16 @@ function finishScan(state: JournalScanState, filePath: string): JournalScanResul
   if (state.lineNumber === 0) state.problems.push(malformedRecord(filePath, 1, 'missing_header'));
   return {
     sha256: state.hash.digest('hex'), eventCount: state.eventCount,
-    header: state.header, problems: state.problems,
+    header: state.header, modelObservation: state.modelObservation, problems: state.problems,
   };
 }
 
-function scanFileDescriptor(fd: number, filePath: string): JournalScanResult {
-  const state = newScanState();
+function scanFileDescriptor(
+  fd: number,
+  filePath: string,
+  expectedRoleIdentities?: ReadonlyMap<string, JournalRoleIdentity>,
+): JournalScanResult {
+  const state = newScanState(expectedRoleIdentities);
   const buffer = Buffer.allocUnsafe(READ_BUFFER_BYTES);
   const decoder = new StringDecoder('utf8');
   while (true) {
@@ -617,7 +699,10 @@ function scanFileDescriptor(fd: number, filePath: string): JournalScanResult {
   return finishScan(state, filePath);
 }
 
-function scanJournal(filePath: string): JournalScanResult {
+function scanJournal(
+  filePath: string,
+  expectedRoleIdentities?: ReadonlyMap<string, JournalRoleIdentity>,
+): JournalScanResult {
   let fd: number;
   try {
     fd = fs.openSync(filePath, 'r');
@@ -626,7 +711,7 @@ function scanJournal(filePath: string): JournalScanResult {
   }
   let result: JournalScanResult;
   try {
-    result = scanFileDescriptor(fd, filePath);
+    result = scanFileDescriptor(fd, filePath, expectedRoleIdentities);
   } catch {
     result = unreadableScan(filePath, 'read');
   }
@@ -636,7 +721,7 @@ function scanJournal(filePath: string): JournalScanResult {
 
 function unreadableScan(filePath: string, operation: string): JournalScanResult {
   return {
-    sha256: null, eventCount: 0, header: null,
+    sha256: null, eventCount: 0, header: null, modelObservation: null,
     problems: [`journal_unreadable:${filePath}:${operation}`],
   };
 }
@@ -772,7 +857,12 @@ function readStartedMarker(
   return { record: result.value, problem: null };
 }
 
-function validateStarted(root: string, startedPath: string, problems: string[]): void {
+function validateStarted(
+  root: string,
+  startedPath: string,
+  problems: string[],
+  expectedRoleIdentities?: ReadonlyMap<string, JournalRoleIdentity>,
+): void {
   const startedResult = readStartedMarker(startedPath);
   if (!startedResult.record) {
     problems.push(`malformed_started_marker:${startedPath}:${startedResult.problem}`);
@@ -787,21 +877,61 @@ function validateStarted(root: string, startedPath: string, problems: string[]):
     problems.push(`journal_outside_root:${started.journal_path}`);
     return;
   }
-  const scan = scanJournal(journalPath);
+  const scan = scanJournal(journalPath, expectedRoleIdentities);
   validateScan(scan, terminal, journalPath, problems);
   validateMarkerIdentity(started, scan.header, journalPath, problems);
   validateTerminalIdentities(terminal, scan.header, journalPath, problems);
+}
+
+function startedJournalScan(input: {
+  trajectoryRoot: string;
+  rootRunId: string;
+  threadId: string | null;
+}): JournalScanResult {
+  const startedPath = resolveLifecyclePaths(input).started;
+  const started = readStartedMarker(startedPath);
+  if (!started.record || started.record.root_run_id !== input.rootRunId
+    || started.record.thread_id !== input.threadId) {
+    throw new TrajectoryWriteFailedError(`Cannot read parent lifecycle identity: ${startedPath}`);
+  }
+  const journalPath = confinedJournalPath(input.trajectoryRoot, String(started.record.journal_path));
+  if (!journalPath) throw new TrajectoryWriteFailedError('Parent journal is outside trajectory root');
+  const scan = scanJournal(journalPath);
+  const linked = scan.header?.rootRunId === input.rootRunId
+    && scan.header.threadId === input.threadId;
+  if (!scan.header || scan.problems.length > 0 || !linked) {
+    throw new TrajectoryWriteFailedError(`Cannot validate parent journal: ${scan.problems.join(',')}`);
+  }
+  return scan;
+}
+
+export interface StartedJournalIdentity extends JournalHeaderRecord {
+  requestedModel: string;
+  provider: string | null;
+}
+
+export function readStartedJournalIdentity(input: {
+  trajectoryRoot: string;
+  rootRunId: string;
+  threadId: string | null;
+}): StartedJournalIdentity {
+  const scan = startedJournalScan(input);
+  if (!scan.modelObservation) {
+    throw new TrajectoryWriteFailedError('Parent journal has no model observation');
+  }
+  return { ...scan.header!, ...scan.modelObservation };
 }
 
 export function validateTrajectoryLifecycle(input: {
   trajectoryRoot: string;
   rootRunId: string;
   threadId: string | null;
+  roleIdentities?: ReadonlyMap<string, JournalRoleIdentity>;
 }): { ok: boolean; problems: string[] } {
   const started = resolveLifecyclePaths(input).started;
   if (!fs.existsSync(started)) return { ok: false, problems: [`missing_started_marker:${started}`] };
   const problems: string[] = [];
-  validateStarted(input.trajectoryRoot, started, problems);
+  validateStarted(input.trajectoryRoot, started, problems, input.roleIdentities);
   return { ok: problems.length === 0, problems };
 }
 
