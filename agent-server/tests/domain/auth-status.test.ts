@@ -166,10 +166,12 @@ function assertRuntimeOverride(snapshot: AuthStatusSnapshot): void {
   const override = account(snapshot, 'runtime-plus-stored');
   assert.equal(override.authType, 'api_key');
   assert.equal(override.source, 'runtime');
-  assert.deepEqual(override.credentials.map(item => item.authType), ['api_key', 'oauth']);
-  assert.equal(override.credentials[0]?.manageable, false);
-  assert.equal(override.credentials[1]?.source, 'stored');
-  assert.equal(override.credentials[1]?.manageable, true);
+  assert.deepEqual(override.credentials.map(item => ({
+    authType: item.authType, source: item.source, manageable: item.manageable,
+  })), [
+    { authType: 'api_key', source: 'runtime', manageable: false },
+    { authType: 'api_key', source: 'stored', manageable: true },
+  ]);
 }
 
 function writeStateCredentials(fixture: PiFixture, secrets: string[]): void {
@@ -177,9 +179,7 @@ function writeStateCredentials(fixture: PiFixture, secrets: string[]): void {
     fresh: { type: 'oauth', access: secrets[3], refresh: secrets[4], expires: NOW_MS + 7 * DAY_MS },
     soon: { type: 'oauth', access: secrets[4], refresh: secrets[5], expires: NOW_MS + 7 * DAY_MS - 1 },
     expired: { type: 'oauth', access: secrets[5], refresh: secrets[3], expires: NOW_MS - 1 },
-    'runtime-plus-stored': {
-      type: 'oauth', access: secrets[6], refresh: secrets[7], expires: NOW_MS + 30 * DAY_MS,
-    },
+    'runtime-plus-stored': { type: 'api_key', key: secrets[6] },
   });
 }
 
@@ -206,7 +206,7 @@ test('getAuthStatus normalizes all states and models_json_key without secret fra
   const claudePath = path.join(fixture.root, 'claude', '.credentials.json');
   const secrets = [
     '\uE100\uE101', '\uE102\uE103', '\uE104\uE105', '\uE110\uE111',
-    '\uE112\uE113', '\uE114\uE115', '\uE116\uE117', '\uE118\uE119',
+    '\uE112\uE113', '\uE114\uE115', '\uE116\uE117',
   ];
   writeJson(claudePath, {
     claudeAiOauth: { accessToken: secrets[0], refreshToken: secrets[1], expiresAt: NOW_MS + 10 * DAY_MS },

@@ -294,7 +294,9 @@ function mergePiCredentials(
   stored: AuthCredentialStatus | null,
 ): AuthCredentialStatus[] {
   const credentials = [active];
-  if (stored && stored.authType !== active.authType) credentials.push(stored);
+  const distinctSlot = stored
+    && (stored.authType !== active.authType || stored.source !== active.source);
+  if (distinctSlot) credentials.push(stored);
   return credentials;
 }
 
@@ -305,7 +307,7 @@ function normalizePiAccount(
   inUse: boolean,
 ): AuthAccountStatus {
   // PI reports runtime keys before stored credentials; keep that active precedence while retaining
-  // a differently typed stored credential in the deduplicated credential list.
+  // each distinct (authType, source) credential slot.
   if (status.configured && PI_API_KEY_SOURCES.has(status.source)) {
     const active = ambientPiCredential(status);
     return piAccountFromCredential(provider, active, mergePiCredentials(active, stored), inUse);
