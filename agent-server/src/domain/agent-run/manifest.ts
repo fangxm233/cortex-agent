@@ -1,5 +1,5 @@
-// input:  canonical trajectory roots, lifecycle metadata, journals
-// output: atomic lifecycle files and additive journal validation
+// input:  canonical roots, lifecycle metadata, journal contracts
+// output: relocatable lifecycle files and journal validation
 // pos:    Lifecycle truth and validator for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -9,7 +9,7 @@ import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 import { TrajectoryWriteFailedError } from './journal.js';
 import {
-  buildTerminalManifest, terminalManifestProblem, TERMINAL_IDENTITY_KEYS,
+  buildTerminalManifest, recordedJournalPath, terminalManifestProblem, TERMINAL_IDENTITY_KEYS,
   type StartedMarkerInput, type TerminalManifestInput,
 } from './manifest-contract.js';
 export type {
@@ -363,7 +363,7 @@ function startedMarker(input: StartedMarkerInput): Record<string, unknown> {
     root_run_id: input.rootRunId,
     thread_id: input.threadId,
     ts: isoTimestamp(input.now ?? (() => new Date())),
-    journal_path: input.journalPath,
+    journal_path: recordedJournalPath(input.trajectoryRoot, input.journalPath),
   };
 }
 

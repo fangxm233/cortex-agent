@@ -1,5 +1,5 @@
 // input:  temporary roots and accounted C2/C3 records
-// output: journal trees and additive accounting mutations
+// output: journal trees and nullable accounting mutations
 // pos:    Portable fixtures for trajectory merge tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -362,6 +362,16 @@ export function removeFirstEventField(
   const record = records.find((item, index) => index > 0 && item.event?.type === type);
   if (!record) throw new Error(`Fixture event not found: ${type}`);
   delete record.event[field];
+  writeRecords(journal, records);
+}
+
+export function setFirstEventField(
+  journal: FixtureJournal, type: string, field: string, value: unknown,
+): void {
+  const records = readRecords(journal);
+  const record = records.find((item, index) => index > 0 && item.event?.type === type);
+  if (!record) throw new Error(`Fixture event not found: ${type}`);
+  record.event[field] = value;
   writeRecords(journal, records);
 }
 

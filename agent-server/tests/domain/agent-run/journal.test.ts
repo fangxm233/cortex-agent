@@ -1,5 +1,5 @@
-// input:  journal module, node filesystem, child process
-// output: journal durability and trajectory validation tests
+// input:  journal module, lifecycle paths, child process
+// output: durability and relocatable lifecycle tests
 // pos:    Agent-run journal contract regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -160,13 +160,13 @@ function terminalInput(
   };
 }
 
-function expectedTerminal(journalPath: string, journalSha256: string): Record<string, unknown> {
+function expectedTerminal(recordedJournalPath: string, journalSha256: string): Record<string, unknown> {
   return {
     schema_version: 'cortex-bench-manifest/1',
     state: 'completed',
     started_at: '2026-07-31T10:00:00.000Z',
     ended_at: '2026-07-31T10:00:01.000Z',
-    journal_path: journalPath,
+    journal_path: recordedJournalPath,
     journal_sha256: journalSha256,
     event_count: 1,
     supervisor: { quiescent: true, descendants: 0 },
@@ -399,7 +399,7 @@ it('writes a per-event role and bundle identity while keeping the model identity
         root_run_id: 'run-001',
         thread_id: null,
         ts: '2026-07-31T10:00:00.123Z',
-        journal_path: path.join(root, 'run.ndjson'),
+        journal_path: 'run.ndjson',
       });
       assertDuplicateMarkerFails(root, markerPath, original);
     } finally {
@@ -416,7 +416,7 @@ it('writes a per-event role and bundle identity while keeping the model identity
       assert.equal(path.basename(manifestPath), 'run-run-001.terminal.json');
       assert.deepEqual(
         JSON.parse(fs.readFileSync(manifestPath, 'utf8')),
-        expectedTerminal(journalPath, sha256(journalPath)),
+        expectedTerminal('run.ndjson', sha256(journalPath)),
       );
       assert.equal(fs.readdirSync(root).filter(name => name.includes('.tmp.')).length, 0);
     } finally {
