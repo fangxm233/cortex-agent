@@ -6,6 +6,6 @@ Package tests cover cwd resolution, manifests, and Harbor adapter behavior.
 |---|---|---|
 | test_build_wheel.py | test | Verifies the fixed build epoch ignores ambient input |
 | test_cwd.py | test | Verifies dynamic container cwd resolution |
-| test_manifest.py | test | Verifies harness manifest serialization |
-| test_harbor_agent.py | test | Verifies Harbor lifecycle and run argv |
-| install_only_run.py | integration | Proves setup in a real Harbor container |
+| test_manifest.py | test | Verifies H3 artifact digest serialization |
+| test_harbor_agent.py | test | Verifies fail-closed install and run argv |
+| test_install.py | integration | Proves real bundle install and corrupt abort |

@@ -4,6 +4,7 @@
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import shlex
+import shutil
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping, override
 
@@ -22,6 +23,8 @@ from .manifest import (
 
 PACKAGE_VERSION = "0.1.0"
 PROFILE_NAME = "benchmark"
+NPM_INSTALL_PREFIX = PurePosixPath("/installed-agent/npm")
+SUPERVISOR_PATH = PurePosixPath("native/cortex-supervisor/dist/cortex-supervisor")
 
 
 class CortexBenchAgent(BaseInstalledAgent):
@@ -36,6 +39,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._artifact_dir = Path(artifact_dir)
         self._manifest_seed: HarnessManifestSeed = parse_manifest_seed(manifest)
         self._resolved_cwd: ResolvedCwd | None = None
+        self._staged_npm_artifact: Path | None = None
         super().__init__(logs_dir, *args, version=PACKAGE_VERSION, **kwargs)
 
     @staticmethod
@@ -43,24 +47,50 @@ class CortexBenchAgent(BaseInstalledAgent):
     def name() -> str:
         return "cortex-bench"
 
+    def _stage_npm_artifact(self) -> tuple[Path, PurePosixPath]:
+        source = self._manifest_seed.npm_artifact_path
+        setup_dir = self.logs_dir / "setup"
+        setup_dir.mkdir(parents=True, exist_ok=True)
+        staged = setup_dir / source.name
+        shutil.copy2(source, staged)
+        self._staged_npm_artifact = staged
+        return staged, PurePosixPath("/installed-agent") / source.name
+
+    def _install_command(self, artifact: PurePosixPath) -> str:
+        prefix = shlex.quote(str(NPM_INSTALL_PREFIX))
+        package = shlex.quote(str(artifact))
+        binary = shlex.quote(str(NPM_INSTALL_PREFIX / "bin" / "cortex"))
+        return (
+            f"npm install --global --prefix {prefix} --no-audit --no-fund {package}"
+            f" && ln -sfn {binary} /usr/local/bin/cortex"
+        )
+
+    def _verification_commands(self) -> tuple[str, str, str]:
+        prefix = shlex.quote(str(NPM_INSTALL_PREFIX))
+        supervisor = shlex.quote(str(SUPERVISOR_PATH))
+        return (
+            "command -v cortex >/dev/null 2>&1",
+            "cortex agent-run --help >/dev/null",
+            "package_root=\"$(npm ls --global --parseable --depth=0 "
+            f"--prefix {prefix} @cortex-agent/server)\""
+            f" && test -x \"$package_root/{supervisor}\"",
+        )
+
     @override
     async def install(self, environment: BaseEnvironment) -> None:
-        command = "command -v cortex >/dev/null 2>&1"
-        result = await self.exec_as_agent(environment, command=command)
-        self.logger.info(
-            "container exec command=%r return_code=%s stdout=%r stderr=%r",
-            command,
-            result.return_code,
-            result.stdout,
-            result.stderr,
-        )
+        staged, artifact = self._stage_npm_artifact()
+        await environment.upload_file(staged, str(artifact))
+        await self.exec_as_root(environment, command=self._install_command(artifact))
+        for command in self._verification_commands():
+            await self.exec_as_agent(environment, command=command)
 
     @override
     async def setup(self, environment: BaseEnvironment) -> None:
         resolved_cwd = await resolve_task_workdir(environment)
         await super().setup(environment)
-        document = build_harness_manifest(self._manifest_seed.with_cwd(resolved_cwd))
-        write_harness_manifest(self._artifact_dir, document)
+        assert self._staged_npm_artifact is not None
+        inputs = self._manifest_seed.with_cwd(resolved_cwd, self._staged_npm_artifact)
+        write_harness_manifest(self._artifact_dir, build_harness_manifest(inputs))
         self._resolved_cwd = resolved_cwd
 
     def _agent_paths(self) -> tuple[PurePosixPath, PurePosixPath, PurePosixPath]:

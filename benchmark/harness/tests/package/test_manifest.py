@@ -45,6 +45,10 @@ EXPECTED_MANIFEST = {
     },
     "resolved_cwd": {"pwd_raw": "/app", "realpath": "/app", "exists": True},
     "cortex_cli": {"version": None},
+    "cortex_npm_artifact": {
+        "filename": "cortex-agent-server-test.tgz",
+        "sha256": sha256(b"fixed-npm-artifact"),
+    },
     "model_execution_identity_hash": None,
     "role_tool_surface_hash": None,
     "bundle_manifest_hash": None,
@@ -55,8 +59,10 @@ EXPECTED_MANIFEST = {
 def manifest_input(tmp_path: Path) -> HarnessManifestInput:
     wheel_path = tmp_path / "cortex_bench_harness-0.1.0-py3-none-any.whl"
     lockfile_path = tmp_path / "uv.lock"
+    npm_artifact_path = tmp_path / "cortex-agent-server-test.tgz"
     wheel_path.write_bytes(b"fixed-wheel")
     lockfile_path.write_bytes(b"locked-dependencies")
+    npm_artifact_path.write_bytes(b"fixed-npm-artifact")
     return HarnessManifestInput(
         root_run_id="root-install-only",
         trial_id="trial-install-only",
@@ -64,6 +70,7 @@ def manifest_input(tmp_path: Path) -> HarnessManifestInput:
         wheel_path=wheel_path,
         lockfile_path=lockfile_path,
         lockfile_manifest_path="benchmark/harness/uv.lock",
+        npm_artifact_path=npm_artifact_path,
         container=ContainerImage("debian@sha256:abc", None, None),
         resolved_cwd=ResolvedCwd("/app", "/app", True),
     )
