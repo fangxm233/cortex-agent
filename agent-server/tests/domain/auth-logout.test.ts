@@ -403,7 +403,10 @@ test('Claude OAuth logout removes only saved env and leaves credentials.json unt
   const credentialsStamp = fileStamp(credentialsPath);
   const config = await resetSavedEnv();
   writeFile(ENV_FILE, 'OTHER_SETTING=keep\n');
-  await config.saveClaudeCodeOAuthToken(OAUTH_TOKEN);
+  await config.saveClaudeCodeOAuthToken(OAUTH_TOKEN, {
+    expiresAt: '2031-01-01T00:00:00.000Z',
+  });
+  assert.match(fs.readFileSync(ENV_FILE, 'utf8'), /CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT/);
   const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
   try {
     const before = await accountStatus(options);

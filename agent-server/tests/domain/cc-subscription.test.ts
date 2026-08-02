@@ -250,10 +250,9 @@ test('ANSI success pane persists to isolated env, derives expiry, recovers, and 
   const evidence = successDependencies(new FakeTmux(INITIAL_PANE, ANSI_SUCCESS_PANE));
   let now = LOGIN_STARTED_AT;
   evidence.dependencies.now = () => now;
-  evidence.dependencies.saveToken = async (token, signal) => {
-    await saveClaudeCodeOAuthToken(token, signal);
+  evidence.dependencies.saveToken = async (token, expiresAt, signal) => {
+    await saveClaudeCodeOAuthToken(token, { expiresAt, signal });
     evidence.saved.push(token);
-    now = TOKEN_WRITTEN_AT;
   };
   evidence.tmux.exitCliOnSubmit = true;
   const consoleCalls = captureConsole(t);
@@ -268,14 +267,22 @@ test('ANSI success pane persists to isolated env, derives expiry, recovers, and 
   assert.deepEqual(waiting.notice, {
     kind: 'auth_url', url: AUTH_URL, instructions: undefined,
   });
+  now = TOKEN_WRITTEN_AT;
   await respondPrompt(flow.flowId, CODE);
   await waitForStep(flow.flowId, 'done');
   const completed = getFlowState(flow.flowId)!;
   assertSuccessfulFlow(evidence, waiting, completed, consoleCalls);
 
   const envFile = path.join(CONFIG_DIR, '.env');
-  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN, TOKEN);
+  const saved = getSavedApiEnv() as ReturnType<typeof getSavedApiEnv> & {
+    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT?: string;
+  };
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN, TOKEN);
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, EXPECTED_EXPIRY);
   assert.match(fs.readFileSync(envFile, 'utf8'), /^CLAUDE_CODE_OAUTH_TOKEN=/m);
+  assert.match(fs.readFileSync(envFile, 'utf8'), new RegExp(
+    `^CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT=${JSON.stringify(EXPECTED_EXPIRY)}$`, 'm',
+  ));
   assert.equal(fs.statSync(envFile).mode & 0o777, 0o600);
   const paneArtifacts = fs.readdirSync(process.env.CORTEX_HOME!, { recursive: true })
     .map(String).filter(name => /(?:pane|scrollback|tmux)/i.test(name));
@@ -336,9 +343,9 @@ test('cancellation during the real env commit prevents credential and recovery w
   const evidence = successDependencies();
   const commit = delayEnvCommit(t);
   const saveFinished = deferred();
-  evidence.dependencies.saveToken = async (token, signal) => {
+  evidence.dependencies.saveToken = async (token, expiresAt, signal) => {
     try {
-      await saveClaudeCodeOAuthToken(token, signal);
+      await saveClaudeCodeOAuthToken(token, { expiresAt, signal });
       evidence.saved.push(token);
     } finally {
       saveFinished.resolve();
@@ -386,7 +393,7 @@ test('LoginFlow TTL during deferred persistence prevents credential and recovery
   const saveStarted = deferred();
   const releaseSave = deferred();
   evidence.dependencies.timeoutMs = LOGIN_FLOW_TTL_MS * 2;
-  evidence.dependencies.saveToken = async (token, signal) => {
+  evidence.dependencies.saveToken = async (token, _expiresAt, signal) => {
     saveStarted.resolve();
     await releaseSave.promise;
     if (signal?.aborted) return;
