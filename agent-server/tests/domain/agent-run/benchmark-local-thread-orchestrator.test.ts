@@ -227,6 +227,18 @@ function seedTemplates(): void {
     transitions: [{ from: 'benchmark-coder', to: 'benchmark-reviewer', condition: { type: 'always' } }],
     entryAgent: 'benchmark-coder', maxTotalSteps: 2, disableHooks: true,
   });
+  writeJson(path.join(base, 'templates', 'fixture-four-step.json'), {
+    name: 'fixture-four-step', description: 'fixture',
+    agents: ['benchmark-coder', 'benchmark-reviewer'],
+    transitions: [
+      { from: 'benchmark-coder', to: 'benchmark-reviewer', condition: { type: 'always' } },
+      {
+        from: 'benchmark-reviewer', to: 'benchmark-coder',
+        condition: { type: 'convergence', marker: '[APPROVED]', maxIterations: 2 },
+      },
+    ],
+    entryAgent: 'benchmark-coder', maxTotalSteps: 4, disableHooks: true,
+  });
   fs.mkdirSync(path.join(base, 'shells'), { recursive: true });
 }
 
@@ -295,18 +307,36 @@ function records(file: string): any[] {
   return fs.readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
 }
 
-function assertC2(resultValue: any): void {
+const IDENTITY_HASH_FIELDS = [
+  'model_execution_identity_hash', 'role_tool_surface_hash', 'bundle_manifest_hash',
+] as const;
+
+function identityHashes(journal: any[], slot: string, field: string): Set<string> {
+  return new Set(journal.filter(row => row.agent_slot === slot).map(row => row[field]));
+}
+
+function assertC2(resultValue: any): any[] {
   const journal = records(resultValue.journalPath);
   assert.equal(journal[0].type, 'run_header');
   assert.equal(journal[0].seq, 0);
   assert.equal(journal[0].thread_id, resultValue.threadId);
   assert.equal(journal[0].agent_slot, 'benchmark-coder');
   assert.deepEqual(journal.map(row => row.seq), journal.map((_, index) => index));
+  for (const row of journal) {
+    for (const field of IDENTITY_HASH_FIELDS) assert.ok(row[field], `${field} must be non-empty`);
+  }
+  assert.ok(identityHashes(journal, 'benchmark-coder', 'role_tool_surface_hash').size <= 1);
+  assert.ok(identityHashes(journal, 'benchmark-reviewer', 'role_tool_surface_hash').size <= 1);
+  assert.equal(new Set(journal.map(row => row.model_execution_identity_hash)).size, 1);
+  const coderRole = journal.find(row => row.agent_slot === 'benchmark-coder')?.role_tool_surface_hash;
+  const reviewerRole = journal.find(row => row.agent_slot === 'benchmark-reviewer')?.role_tool_surface_hash;
+  if (reviewerRole) assert.notEqual(coderRole, reviewerRole);
   for (const row of journal.slice(1)) {
     assert.ok(['benchmark-coder', 'benchmark-reviewer'].includes(row.agent_slot));
     assert.ok(Object.hasOwn(row, 'reported_model'));
     assert.ok(Object.hasOwn(row, 'provider'));
   }
+  return journal;
 }
 
 function assertCompletedResult(result: any): void {
@@ -333,20 +363,20 @@ async function moduleUnderTest(): Promise<any> {
 }
 
 async function loadForbiddenModules(): Promise<any[]> {
-  return Promise.all([
-    import('../../../src/store/profile-repo.js'),
-    import('../../../src/domain/threads/template-loader.js'),
-    import('../../../src/core/settings.js'),
-    import('../../../src/domain/memory/watcher.js'),
-    import('../../../src/domain/costs/gateway-manager.js'),
-    import('../../../src/domain/remote/client-manager.js'),
-    import('../../../src/domain/scheduling/scheduler.js'),
-    import('../../../src/orchestration/routing/webhook.js'),
-    import('../../../src/domain/tasks/claim-recovery.js'),
-    import('../../../src/orchestration/thread-callback.js'),
-    import('../../../src/orchestration/pending-injection-recovery.js'),
-    import('../../../src/orchestration/resume-dispatcher.js'),
-  ]);
+  return [
+    await import('../../../src/store/profile-repo.js'),
+    await import('../../../src/domain/threads/template-loader.js'),
+    await import('../../../src/core/settings.js'),
+    await import('../../../src/domain/memory/watcher.js'),
+    await import('../../../src/domain/costs/gateway-manager.js'),
+    await import('../../../src/domain/remote/client-manager.js'),
+    await import('../../../src/domain/scheduling/scheduler.js'),
+    await import('../../../src/orchestration/routing/webhook.js'),
+    await import('../../../src/domain/tasks/claim-recovery.js'),
+    await import('../../../src/orchestration/thread-callback.js'),
+    await import('../../../src/orchestration/pending-injection-recovery.js'),
+    await import('../../../src/orchestration/resume-dispatcher.js'),
+  ];
 }
 
 function registerForbiddenSpies(modules: any[]): void {
@@ -442,7 +472,7 @@ it('inherits the parent model identity and records each agent role identity', as
     template: 'fixture-two-step',
   });
   const value = await (await moduleUnderTest()).runBenchmarkThread(req);
-  const journal = records(value.journalPath);
+  const journal = assertC2(value);
   assert.equal(journal[0].model_execution_identity_hash, PARENT_MODEL_HASH);
   assert.equal(journal[0].role_tool_surface_hash, expectedRoleHash('benchmark-coder'));
   const events = journal.slice(1);
@@ -458,15 +488,32 @@ it('inherits the parent model identity and records each agent role identity', as
   );
 });
 
-it('rejects a child profile whose observed model differs from its parent', async () => {
+it('keeps each role identity stable across a complete four-step run', async () => {
+  for (let step = 0; step < 4; step += 1) queueSuccess(`step-${step}`, 0);
+  const req = request(path.join(root, 'role-stability'), new AbortController().signal, {
+    template: 'fixture-four-step',
+    limits: { maxSteps: 4, maxCostUsd: 0, deadlineEpochMs: Date.now() + 30_000 },
+  });
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+
+  assert.equal(value.state, 'completed');
+  assert.equal(value.steps, 4);
+  const journal = assertC2(value);
+  assert.equal(identityHashes(journal, 'benchmark-coder', 'role_tool_surface_hash').size, 1);
+  assert.equal(identityHashes(journal, 'benchmark-reviewer', 'role_tool_surface_hash').size, 1);
+});
+
+it('fails with protocol_violation when the child model differs from its parent', async () => {
   queueSuccess('must not run');
   const req = request(path.join(root, 'model-mismatch'), new AbortController().signal, {
     profileName: 'mismatched-fixture',
   });
-  await assert.rejects(
-    (await moduleUnderTest()).runBenchmarkThread(req),
-    /resolved profile does not match parent model observation/,
-  );
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'protocol_violation');
   assert.equal(harness.runAgent.mock.calls.length, 0);
 });
 
@@ -484,14 +531,31 @@ it('rejects ambiguous parent identity when a same-model profile changes thinking
     const req = request(path.join(root, 'thinking-mismatch'), new AbortController().signal, {
       profileName: 'same-model-thinking',
     });
-    await assert.rejects(
-      (await moduleUnderTest()).runBenchmarkThread(req),
-      /cannot prove parent model identity/,
-    );
+    const value = await (await moduleUnderTest()).runBenchmarkThread(req);
+    assert.equal(value.state, 'failed');
+    assert.equal(value.terminalReason, 'protocol_violation');
     assert.equal(harness.runAgent.mock.calls.length, 0);
   } finally {
     seedProfiles();
   }
+});
+
+it('rejects model drift immediately before launch rather than after an agent ran', async () => {
+  queueSuccess('must not run');
+  let resolutions = 0;
+  const resolveProfile = () => ({
+    name: 'benchmark-fixture', backend: 'claude' as const,
+    model: resolutions++ < 2 ? 'fixture-model' : 'drifted-model',
+    mode: null, provider: 'anthropic', extraEnv: {}, extraOption: {},
+    claudeBackend: 'print' as const, thinking: null, fallback: [],
+  });
+  const req = request(path.join(root, 'launch-model-drift'), new AbortController().signal);
+
+  const value = await (await moduleUnderTest()).runBenchmarkThread(req, { resolveProfile });
+
+  assert.equal(value.state, 'failed');
+  assert.equal(value.terminalReason, 'protocol_violation');
+  assert.equal(harness.runAgent.mock.calls.length, 0);
 });
 
 it('journals every normalized event verbatim exactly once in observed order', async () => {

@@ -224,6 +224,7 @@ function assertFullProbeReceipt(trialRoot: string): void {
   assert.equal(receipt.result.state, 'completed');
   assert.equal(receipt.result.steps, 4);
   assert.equal(receipt.invocations, 4);
+  assert.equal(receipt.eventRecords, 8);
   assert.deepEqual(validateTrajectoryLifecycle({
     trajectoryRoot: path.join(trialRoot, 'cortex-home/tmp/trajectory'),
     rootRunId: 'full-benchmark-thread-probe',

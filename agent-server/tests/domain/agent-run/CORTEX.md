@@ -13,22 +13,22 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | agent-run-e2e.test.ts | e2e | proves containment, cleanup and completion |
 | agent-run-protocol-e2e.test.ts | e2e | proves stdin, accounting and trajectory failures |
 | benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
-| benchmark-local-thread-orchestrator.test.ts | test | proves scoped C9.2 bounds, events, identity and containment |
+| benchmark-local-thread-orchestrator.test.ts | test | proves C9.2 bounds and C4 prelaunch identity checks |
 | benchmark-local-thread-process.test.ts | e2e | proves full-run journal and C8 confinement |
 | fake-run-agent-loader.mjs | fixture | redirects thread-runtime agent imports to a fake |
 | fake-run-agent-module.mjs | fixture | returns one deterministic no-model result |
 | fake-run-agent-register.mjs | fixture | installs the fake agent loader before import |
 | fake-supervisor.ts | fixture | emits lifecycle and ownership process edges |
 | fake-thread-probe-entry.mjs | fixture | runs one current-runner step and flushes stores |
-| full-benchmark-thread-probe-entry.mjs | fixture | runs a complete fake thread for C8 tracing |
+| full-benchmark-thread-probe-entry.mjs | fixture | emits complete fake C4 events for C8 tracing |
 | identity.test.ts | test | verifies deterministic run identity hashes |
 | journal.test.ts | test | verifies durable events and per-role identities |
 | manifest-contract.test.ts | test | verifies lifecycle, linkage and child identity contracts |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
-| role-surface.test.ts | test | verifies plugin hashing and argv alignment |
+| role-surface.test.ts | test | verifies directives, default tools and argv alignment |
 | run-config.test.ts | test | verifies non-empty roles, argv closure, and MCP inputs |
 | supervisor.test.ts | test | verifies protocol, stdio, watchdog and taxonomy |
 | trajectory-merge-cli.test.ts | test | verifies reason codes and fail-closed cleanup |
-| trajectory-merge-fixtures.ts | fixture | writes literal parent and child lifecycle records |
+| trajectory-merge-fixtures.ts | fixture | writes per-role parent and child lifecycle records |
 | trajectory-merge.test.ts | test | verifies exact-once ATIF tree conversion |

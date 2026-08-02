@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_TOOLS } from '../../agent-adapter/claude/defaults.js';
 import { buildHooksSettings } from '../../agent-adapter/claude/hooks-builder.js';
 import type { AgentSpawnConfig } from '../../agent-adapter/types.js';
 import {
@@ -87,8 +88,10 @@ function discoveredSkills(pluginDirs: string[]): SkillIdentityInput[] {
 }
 
 function spawnedTools(config: AgentSpawnConfig): string[] {
-  if (config.rawTools === undefined) return config.tools ?? [];
-  return config.rawTools.length === 0 ? [] : config.rawTools.split(',');
+  if (config.rawTools !== undefined) {
+    return (config.rawTools || DEFAULT_TOOLS).split(',');
+  }
+  return config.tools?.length ? config.tools : DEFAULT_TOOLS.split(',');
 }
 
 function hookPolicy(config: AgentSpawnConfig): IdentityJsonValue {
