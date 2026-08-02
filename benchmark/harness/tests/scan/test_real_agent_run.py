@@ -1,11 +1,19 @@
-# input:  pinned Debian image, installed Cortex bundle, fake Claude fixture
-# output: collected real agent-run lifecycle and artifact assertions
+# input:  trial helpers, pinned image, bundle, and fake Claude
+# output: real-run, scan, protocol, and cleanup assertions
 # pos:    Container integration proof for the genuine Cortex run path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import asyncio
+import json
+import os
+import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
-from stub_trial import run_real_agent_trial
+import pytest
+
+import stub_trial
+from stub_trial import result_surface_files, run_real_agent_trial, write_workspace_diff
 
 EXPECTED_USAGE = {
     "input_tokens": 11,
@@ -13,6 +21,76 @@ EXPECTED_USAGE = {
     "cache_creation_input_tokens": 3,
     "cache_read_input_tokens": 5,
 }
+
+
+def test_workspace_diff_captures_added_workspace_bytes(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    artifacts = tmp_path / "trial" / "artifacts"
+    workspace.mkdir()
+    artifacts.mkdir(parents=True)
+    (workspace / "result.txt").write_bytes(b"planted-workspace-value")
+    layout = SimpleNamespace(
+        workspace=workspace, trial_paths=SimpleNamespace(artifacts_dir=artifacts),
+    )
+
+    output = write_workspace_diff(layout)
+
+    assert b"b/result.txt" in output.read_bytes()
+    assert b"planted-workspace-value" in output.read_bytes()
+
+
+def test_whole_tree_file_list_includes_staged_setup_artifact(tmp_path: Path) -> None:
+    agent = tmp_path / "trial" / "agent"
+    verifier = tmp_path / "trial" / "verifier"
+    artifacts = tmp_path / "trial" / "artifacts"
+    staged = agent / "setup" / "cortex.tgz"
+    staged.parent.mkdir(parents=True)
+    verifier.mkdir(parents=True)
+    artifacts.mkdir(parents=True)
+    staged.write_bytes(b"package")
+    layout = SimpleNamespace(
+        trial_paths=SimpleNamespace(
+            agent_dir=agent, verifier_dir=verifier, artifacts_dir=artifacts,
+        ),
+    )
+
+    assert staged in result_surface_files(layout)
+
+
+def test_partial_environment_start_is_cleaned_up(monkeypatch) -> None:
+    class FailingEnvironment:
+        stopped = False
+
+        async def start(self, force_build: bool) -> None:
+            raise RuntimeError("partial start")
+
+        async def stop(self, delete: bool) -> None:
+            self.stopped = True
+
+    environment = FailingEnvironment()
+    monkeypatch.setattr(stub_trial, "create_environment", lambda _layout: environment)
+    monkeypatch.setattr(stub_trial, "create_agent", lambda _layout, _image: object())
+
+    with pytest.raises(RuntimeError, match="partial start"):
+        asyncio.run(stub_trial.execute_trial(object(), {}))
+
+    assert environment.stopped is True
+
+
+def test_fake_claude_emits_canonical_assistant_role(tmp_path: Path) -> None:
+    request = {"type": "user", "message": {"role": "user"}, "session_id": "fixture-session"}
+    environment = {
+        "PATH": os.environ["PATH"], "FAKE_CLAUDE_ARTIFACT_DIR": str(tmp_path),
+    }
+    result = subprocess.run(
+        [str(Path(__file__).with_name("fake_claude.sh")), "-p"],
+        input=json.dumps(request, separators=(",", ":")) + "\n",
+        text=True, capture_output=True, check=True, env=environment,
+    )
+    assistant = json.loads(result.stdout.splitlines()[0])
+
+    assert assistant["type"] == "assistant"
+    assert assistant["message"]["role"] == "assistant"
 
 
 def test_real_agent_run_uses_fake_claude_and_commits_trajectory(tmp_path: Path) -> None:
