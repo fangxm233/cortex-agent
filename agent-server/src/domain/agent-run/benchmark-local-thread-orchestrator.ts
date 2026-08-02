@@ -588,13 +588,20 @@ async function executeRun(prepared: PreparedThreadRun, control: RunControl): Pro
   const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
   enforceFinalCost(control, thread);
   const containment = await settleSupervisors(control);
-  cleanupControl(control);
-  const cancellationError = control.cancellation ? await control.cancellation : null;
+  const cancellationBeforeFlush = control.cancellation;
+  const cancellationError = cancellationBeforeFlush ? await cancellationBeforeFlush : null;
   const repositoryError = await flushRepositories();
   const journalError = await closeJournal(prepared.journal);
+  const cancellationAfterFlush = control.cancellation;
+  const lateCancellation = cancellationAfterFlush !== cancellationBeforeFlush;
+  const lateCancellationError = lateCancellation ? await cancellationAfterFlush : null;
+  const lateRepositoryError = lateCancellation ? await flushRepositories() : null;
   return {
     ...execution, ...containment,
-    durabilityError: firstFailure(cancellationError, repositoryError, journalError),
+    durabilityError: firstFailure(
+      cancellationError, repositoryError, journalError,
+      lateCancellationError, lateRepositoryError,
+    ),
   };
 }
 

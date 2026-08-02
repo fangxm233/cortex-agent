@@ -91,6 +91,7 @@ import {
 import { SupervisorContainmentError } from '../../../src/domain/agent-run/supervisor.js';
 import { resolveSystemVars } from '../../../src/domain/threads/index.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
+import { threadStore } from '../../../src/store/thread-repo.js';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -672,6 +673,34 @@ it('cancel closes admission, waits for delayed quiescence, then closes and commi
   assert.equal(monitor.seen(), false);
   quiescence.resolve();
   assertCancelledResult(await pending);
+});
+
+it('honors cancellation that arrives while durable stores are flushing', async () => {
+  const flushEntered = deferred<void>();
+  const releaseFlush = deferred<void>();
+  const originalFlush = threadStore.flush.bind(threadStore);
+  let held = false;
+  const flush = vi.spyOn(threadStore, 'flush').mockImplementation(async () => {
+    if (!held && harness.lifecycle.includes('supervisor_quiescent')) {
+      held = true;
+      flushEntered.resolve();
+      await releaseFlush.promise;
+    }
+    return originalFlush();
+  });
+  queueSuccess('completed before late cancellation');
+  const controller = new AbortController();
+  const req = request(path.join(root, 'cancel-during-flush'), controller.signal);
+  try {
+    const pending = (await moduleUnderTest()).runBenchmarkThread(req);
+    await flushEntered.promise;
+    controller.abort();
+    releaseFlush.resolve();
+    assertCancelledResult(await pending);
+  } finally {
+    releaseFlush.resolve();
+    flush.mockRestore();
+  }
 });
 
 it('keeps external abort on injected cancellation and waits for it before commit', async () => {

@@ -13,6 +13,7 @@ import {
 
 export const BENCHMARK_THREAD_POLICY_ENV = 'CORTEX_BENCHMARK_THREAD_POLICY_PATH';
 export const MAX_BENCHMARK_HANDOFF_LENGTH = 2_000;
+const MAX_BENCHMARK_SUMMARY_CODE_POINTS = 2_000;
 
 const policySchema = z.object({
   schema_version: z.literal('cortex-benchmark-thread-policy/1'),
@@ -34,6 +35,13 @@ const inputSchema = z.object({
   handoff: z.string().max(MAX_BENCHMARK_HANDOFF_LENGTH).optional(),
 }).strict();
 
+const summarySchema = z.string()
+  .max(MAX_BENCHMARK_SUMMARY_CODE_POINTS * 2)
+  .refine(
+    value => Array.from(value).length <= MAX_BENCHMARK_SUMMARY_CODE_POINTS,
+    `Summary must not exceed ${MAX_BENCHMARK_SUMMARY_CODE_POINTS} Unicode code points`,
+  );
+
 const outputSchema = z.object({
   thread_id: z.string().min(1),
   status: z.literal('completed'),
@@ -42,7 +50,7 @@ const outputSchema = z.object({
   steps: z.number().int().nonnegative(),
   cost_usd: z.number().nonnegative(),
   duration_ms: z.number().nonnegative(),
-  summary: z.string().max(2_000),
+  summary: summarySchema,
 }).strict();
 
 type BenchmarkThreadPolicy = Readonly<z.infer<typeof policySchema>>;
