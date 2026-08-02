@@ -1,5 +1,5 @@
 // input:  orchestrator, injected runtime, fake agents/supervisors
-// output: C9 shape, scoped cancellation and durable ordering
+// output: C9 shape, supervisor gating and durable ordering
 // pos:    Benchmark local-thread lifecycle contract tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -121,6 +121,7 @@ const FORBIDDEN_SUBSYSTEMS = [
   'thread startup recovery', 'injection startup recovery', 'rate-limit resume dispatcher',
 ];
 const forbiddenSpies: Array<{ mock: { calls: unknown[][] }; mockRestore(): void }> = [];
+let previousSupervisorBinary: string | undefined;
 
 function deferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
@@ -404,6 +405,8 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(() => {
+  previousSupervisorBinary = process.env.CORTEX_SUPERVISOR_BINARY;
+  process.env.CORTEX_SUPERVISOR_BINARY = process.execPath;
   harness.attachOptions.length = 0;
   harness.lifecycle.length = 0;
   harness.journalCloseError = false;
@@ -414,6 +417,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  if (previousSupervisorBinary === undefined) delete process.env.CORTEX_SUPERVISOR_BINARY;
+  else process.env.CORTEX_SUPERVISOR_BINARY = previousSupervisorBinary;
   for (const [index, spy] of forbiddenSpies.entries()) {
     assert.equal(spy.mock.calls.length, 0, `${FORBIDDEN_SUBSYSTEMS[index]} must stay stopped`);
   }
@@ -464,6 +469,23 @@ it('uses the landed lifecycle modules rather than a forked writer surface', asyn
   assert.equal(typeof writeTerminalManifest, 'function');
   assert.equal(typeof validateTrajectoryLifecycle, 'function');
   assert.equal(typeof validateTrajectoryRoot, 'function');
+});
+
+it('propagates supervisor_unavailable before starting a child thread', async () => {
+  const candidate = path.join(root, 'missing-supervisor');
+  process.env.CORTEX_SUPERVISOR_BINARY = candidate;
+  const req = request(path.join(root, 'supervisor-unavailable'), new AbortController().signal);
+
+  await assert.rejects(
+    (await moduleUnderTest()).runBenchmarkThread(req),
+    (error: Error & { reason?: string }) => {
+      assert.equal(error.reason, 'supervisor_unavailable');
+      assert.ok(error.message.includes(candidate));
+      return true;
+    },
+  );
+  assert.equal(harness.runAgent.mock.calls.length, 0);
+  assert.equal(harness.attachOptions.length, 0);
 });
 
 it('inherits the parent model identity and records each agent role identity', async () => {

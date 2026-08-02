@@ -1,5 +1,5 @@
 // input:  frozen request, injected thread runtime, lifecycle primitives
-// output: externally durable C9 terminal thread result
+// output: durable C9 result or supervisor_unavailable failure
 // pos:    Daemon-free benchmark thread lifecycle coordinator
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -420,8 +420,7 @@ function stopForAdmissionProblem(control: RunControl, problem: BenchmarkAdmissio
   closeAdmission(control, reasons[problem.detail]);
 }
 
-function createSpawner(control: RunControl): AgentProcessSpawner {
-  const supervisorBinary = resolveSupervisorBinary();
+function createSpawner(control: RunControl, supervisorBinary: string): AgentProcessSpawner {
   return (command, args, options) => {
     const problem = admissionProblem(control);
     if (problem) {
@@ -471,6 +470,7 @@ function threadRunOptions(prepared: PreparedThreadRun, spawner: AgentProcessSpaw
 async function runLocalThread(
   prepared: PreparedThreadRun,
   control: RunControl,
+  supervisorBinary: string,
 ): Promise<{ result: ThreadRunResult | null; error: unknown }> {
   if (prepared.modelProtocolProblem) {
     return {
@@ -481,7 +481,7 @@ async function runLocalThread(
   try {
     const result = await control.deps.runThread(
       prepared.thread.id,
-      threadRunOptions(prepared, createSpawner(control)),
+      threadRunOptions(prepared, createSpawner(control, supervisorBinary)),
     );
     return { result, error: null };
   } catch (error) {
@@ -585,8 +585,12 @@ function enforceFinalCost(control: RunControl, thread: ThreadRecord): void {
   if (control.reason === null && exceeds) closeAdmission(control, 'cost_limit');
 }
 
-async function executeRun(prepared: PreparedThreadRun, control: RunControl): Promise<RunOutcome> {
-  const execution = await runLocalThread(prepared, control);
+async function executeRun(
+  prepared: PreparedThreadRun,
+  control: RunControl,
+  supervisorBinary: string,
+): Promise<RunOutcome> {
+  const execution = await runLocalThread(prepared, control, supervisorBinary);
   const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
   enforceFinalCost(control, thread);
   const containment = await settleSupervisors(control);
@@ -802,10 +806,11 @@ async function disposeSupervisors(control: RunControl): Promise<void> {
 async function runBenchmarkThreadScoped(
   request: BenchmarkThreadRequest,
 ): Promise<BenchmarkThreadResult> {
+  const supervisorBinary = resolveSupervisorBinary();
   const prepared = await prepareRun(request);
   const control = installControl(prepared);
   try {
-    const outcome = await executeRun(prepared, control);
+    const outcome = await executeRun(prepared, control, supervisorBinary);
     const thread = threadStore.get(prepared.thread.id) ?? prepared.thread;
     const classified = classifyRun(prepared, control, outcome);
     const committed = commitTerminal(prepared, classified, thread);

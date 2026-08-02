@@ -9,7 +9,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | access-probe.ts | process | probes through the fail-closed supervisor path |
 | agent-run-cli.ts | cli | parses flags and resolves the supervisor path |
 | atif.ts | format | converts fragments and aggregates into ATIF trees |
-| benchmark-local-thread-orchestrator.ts | runtime | runs one bounded thread through the resolved supervisor |
+| benchmark-local-thread-orchestrator.ts | runtime | fails closed or runs one bounded supervised thread |
 | benchmark-thread-identity.ts | identity | projects parent, role and prompt hashes |
 | identity.ts | core | hashes routed model, role and bundle identities |
 | journal.ts | core | appends durable run event journals with role identity |
