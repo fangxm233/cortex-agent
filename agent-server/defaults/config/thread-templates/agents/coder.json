@@ -9,7 +9,7 @@
   "stages": {
     "implement": {
       "description": "Implement the task and append `## Implementation Summary`.",
-      "promptTemplate": "Task:\n{{input}}\n\nImplement this task. When done, append `## Implementation Summary` to {{artifactPath}}, listing changed files, commit short-SHAs, flagged ambiguities, and env changes. After committing, run the full test suite (`npm test` or equivalent) and confirm every stage passes before writing your summary."
+      "promptTemplate": "Task:\n{{input}}\n\nImplement this task. When done, append `## Implementation Summary` to {{artifactPath}}, listing changed files, commit short-SHAs, flagged ambiguities, and env changes. After committing, run the full test suite (`npm test` or equivalent) and confirm every stage passes before writing your summary. Task lifecycle ownership in `coder-review`: when `CORTEX_TASK_ID` is set, do not run `cortex-task complete` or otherwise mark the owning task done. The final reviewer owns the task's completion after independent verification; leave it claimed and hand off through the artifact."
     }
   },
   "tools": "Agent,Bash,Edit,Glob,Grep,Read,Skill,TaskStop,TodoWrite,WebFetch,WebSearch,Write",

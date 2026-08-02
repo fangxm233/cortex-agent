@@ -1,5 +1,5 @@
 // input:  Vitest, thread manager, shipped reviewer directive
-// output: Coder-review stage and commit-evidence policy regressions
+// output: Coder-review stage, task ownership and commit-policy tests
 // pos:    Verifies coder/coder-reviewer workflow and review policy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -139,6 +139,8 @@ test('coder-review entry: first step is coder:implement with a stage-specific pr
   assert.equal(next.stage, 'implement');
   const prompt = buildStepPrompt(thread.id, next.agentConfig, next.stage);
   assert.match(prompt, /## Implementation Summary/);
+  assert.match(prompt, /do not run `cortex-task complete`/);
+  assert.match(prompt, /final reviewer owns the task's completion/);
   assert.match(prompt, /Cortex Thread Protocol/); // fresh session → full bootstrap
 });
 
@@ -178,6 +180,9 @@ test('coder-review reviewer step: no artifact marker gates the handoff to the re
   const next = resolveNextStep(thread.id)!;
   assert.equal(next.agentSlotId, 'coder-reviewer');
   const prompt = buildStepPrompt(thread.id, next.agentConfig, next.stage);
+  assert.match(prompt, /you alone own the task's final lifecycle transition/);
+  assert.match(prompt, /verify every `done_when` condition/);
+  assert.match(prompt, /run the exact `cortex-task complete` command/);
   assert.doesNotMatch(prompt, /\[IMPL-APPROVED\]/);
   assert.doesNotMatch(prompt, /\[REVISED\]/);
 });
