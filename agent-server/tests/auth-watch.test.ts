@@ -1,5 +1,5 @@
 // input:  EventBus, MockAdapter, auth-watch registration, locale state
-// output: action, retry, debounce, recovery, and privacy regressions
+// output: capability, retry, debounce, recovery, privacy regressions
 // pos:    Covers user-visible authentication-required notifications
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -34,6 +34,7 @@ function authSnapshot() {
       { backend: 'pi', provider: 'deepseek', capabilities: ['api_key'] },
       { backend: 'pi', provider: 'openai-codex', capabilities: ['oauth'] },
       { backend: 'pi', provider: 'openrouter', capabilities: ['api_key'] },
+      { backend: 'pi', provider: 'dual-auth', capabilities: ['api_key', 'oauth'] },
     ],
     piRuntime: { available: true, version: 'test', entry: null, error: null },
   } as any;
@@ -134,6 +135,19 @@ test('a single auth.required routes once through Web, Feishu, and Slack with loc
 
   assertWebDelivery(webMessages);
   assertPlatformDeliveries(adapter.posted);
+});
+
+test('a dual-capability account receives an OAuth-prefilled action', async () => {
+  const { bus, adapter } = setup();
+
+  publishRequired(bus, { provider: 'dual-auth', channel: 'slack:C-dual' });
+  await flush();
+
+  const actions = adapter.posted[0].content.richBlocks?.find(block => block.type === 'actions');
+  assert.ok(actions?.type === 'actions');
+  const metadata = JSON.parse(actions.elements[0].value);
+  assert.equal(metadata.provider, 'dual-auth');
+  assert.equal(metadata.authType, 'oauth');
 });
 
 test('a repeated unresolved pair within 24 hours is suppressed', async () => {
