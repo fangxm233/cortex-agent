@@ -1,5 +1,5 @@
 // input:  accounted C2/C3 files, output path, filesystem
-// output: documented ATIF metrics or typed fail-closed errors
+// output: exclusive ATIF metrics or typed fail-closed errors
 // pos:    Parent-plus-child journal merge boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -40,7 +40,7 @@ export interface TrajectoryMergeFileSystem {
   write(fd: number, data: Buffer, offset: number, length?: number): number;
   fsync(fd: number): void;
   close(fd: number): void;
-  rename(source: string, destination: string): void;
+  link(source: string, destination: string): void;
   unlink(filePath: string): void;
 }
 
@@ -54,7 +54,7 @@ export const NODE_TRAJECTORY_MERGE_FS: TrajectoryMergeFileSystem = {
   write: (fd, data, offset, length = data.length - offset) => fs.writeSync(fd, data, offset, length),
   fsync: fd => fs.fsyncSync(fd),
   close: fd => fs.closeSync(fd),
-  rename: (source, destination) => fs.renameSync(source, destination),
+  link: (source, destination) => fs.linkSync(source, destination),
   unlink: filePath => fs.unlinkSync(filePath),
 };
 
@@ -411,6 +411,19 @@ function temporaryPath(outputPath: string): string {
   return `${outputPath}.tmp.${nonce}`;
 }
 
+function linkOutput(
+  temporary: string, outputPath: string, fileSystem: TrajectoryMergeFileSystem,
+): void {
+  try {
+    fileSystem.link(temporary, outputPath);
+  } catch (error) {
+    if (isErrno(error, 'EEXIST')) {
+      mergeError('output_path_exists', 'Output path was created during publication', error);
+    }
+    throw error;
+  }
+}
+
 function publish(outputPath: string, bytes: Buffer, fileSystem: TrajectoryMergeFileSystem): void {
   const temporary = temporaryPath(outputPath);
   let fd: number | null = null;
@@ -420,7 +433,8 @@ function publish(outputPath: string, bytes: Buffer, fileSystem: TrajectoryMergeF
     fileSystem.fsync(fd);
     fileSystem.close(fd);
     fd = null;
-    fileSystem.rename(temporary, outputPath);
+    linkOutput(temporary, outputPath, fileSystem);
+    safeCleanup(temporary, fileSystem);
   } catch (error) {
     if (fd !== null) {
       try { fileSystem.close(fd); } catch {}
