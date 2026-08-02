@@ -1,18 +1,21 @@
-// input:  auth mutation args and shared backend login service
-// output: Notice-bound Web login results and conflict classification
-// pos:    Write handlers for Web-managed LoginFlow sessions
+// input:  auth mutation args and backend login/logout services
+// output: Web login flow and account logout results
+// pos:    Write handlers for Web authentication mutations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import {
   authLoginService,
   bindAuthNoticeFlow,
   isLoginFlowError,
+  logoutAccount,
   resolveAuthNoticeFlow,
   type AuthLoginService,
   type LoginFlowState,
 } from '@domain/auth/index.js';
 import type {
   AuthCancelFlowArgs,
+  AuthLogoutArgs,
+  AuthLogoutReturn,
   AuthRespondPromptArgs,
   AuthStartLoginArgs,
   Result,
@@ -105,4 +108,13 @@ export async function handleAuthCancelFlow(
   const service = serviceFor(deps);
   if (!isWebOwned(service, args.flowId)) return missingWebFlow();
   return asResult(() => service.cancel(args.flowId));
+}
+
+export async function handleAuthLogout(
+  deps: UiServiceDeps,
+  args: AuthLogoutArgs,
+): Promise<Result<AuthLogoutReturn>> {
+  const result = await (deps.logoutAccount ?? logoutAccount)(args);
+  if (result.ok === true) return { ok: true, data: result };
+  return { ok: false, code: result.error.code, message: result.error.message };
 }

@@ -1,8 +1,7 @@
-// input:  node:test, src/entry/doctor-cli
-// output: Test results for cmdDoctor (help / text / json / exit codes / --fix)
-// pos:    Verifies the `cortex doctor` CLI wrapper: flag parsing, output formatting,
-//         exit-code mapping, and --fix re-run behavior. Uses injected diag/fix deps.
-// >>> If I am updated, update the parent folder's CORTEX.md <<<
+// input:  Vitest and injected doctor runtime/auth probes
+// output: cmdDoctor help, text, JSON, exit, and fix assertions
+// pos:    Doctor CLI wrapper regression tests
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
@@ -19,31 +18,47 @@ function parseEnv(text: string): Record<string, string> {
   return out;
 }
 
-function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
-  const present = new Set(['/d', '/c', '/s', '/c/.env', '/s/mode.json', '/c/profiles.json', '/c/mcp-config.json', '/h/.aistatus/gateway.yaml']);
-  const texts: Record<string, string> = {
-    '/c/.env': '',
-    '/s/mode.json': '{"backend":"claude"}',
-    '/c/profiles.json': '{"profiles":{"default":{"model":"x"}},"defaultProfile":"default"}',
-    '/c/mcp-config.json': '{}',
-    '/h/.aistatus/gateway.yaml': 'x: 1',
+function greenPiRuntime() {
+  return {
+    available: true as const, version: '0.82.1', entry: '/pi/index.js', error: null,
+    runtime: {
+      getProviders: () => [],
+      getProviderAuthStatus: () => ({ configured: false }),
+      login: async () => ({ type: 'api_key' as const }),
+      logout: async () => {},
+    },
+    readStoredCredential: () => undefined,
   };
+}
+
+const GREEN_PRESENT = new Set([
+  '/d', '/c', '/s', '/c/.env', '/s/mode.json', '/c/profiles.json',
+  '/c/mcp-config.json', '/h/.aistatus/gateway.yaml',
+]);
+const GREEN_TEXTS: Record<string, string> = {
+  '/c/.env': '', '/s/mode.json': '{"backend":"claude"}',
+  '/c/profiles.json': '{"profiles":{"default":{"model":"x"}},"defaultProfile":"default"}',
+  '/c/mcp-config.json': '{}', '/h/.aistatus/gateway.yaml': 'x: 1',
+};
+
+function greenDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
   return {
     env: {
       CORTEX_CLIENT_TOKEN: 'a', CORTEX_WEBHOOK_TOKEN: 'b', ANTHROPIC_API_KEY: 'sk',
-      CORTEX_PLATFORM: 'slack', SLACK_BOT_TOKEN: 'xoxb-1', SLACK_SIGNING_SECRET: 's', SLACK_APP_TOKEN: 'xapp-1',
+      CORTEX_PLATFORM: 'slack', SLACK_BOT_TOKEN: 'xoxb-1',
+      SLACK_SIGNING_SECRET: 's', SLACK_APP_TOKEN: 'xapp-1',
     },
     paths: { DATA_DIR: '/d', CONFIG_DIR: '/c', STORE_DIR: '/s' },
-    homeDir: '/h',
-    nodeVersion: 'v20.0.0',
-    requiredNodeMajor: 20,
-    fileExists: (p: string) => present.has(p),
-    isWritable: () => true,
-    readText: (p: string) => (p in texts ? texts[p] : null),
-    parseDotenv: parseEnv,
-    commandExists: () => true,
-    pidAlive: () => true,
+    homeDir: '/h', nodeVersion: 'v20.0.0', requiredNodeMajor: 20,
+    fileExists: p => GREEN_PRESENT.has(p), isWritable: () => true,
+    readText: p => (p in GREEN_TEXTS ? GREEN_TEXTS[p] : null),
+    parseDotenv: parseEnv, commandExists: () => true, pidAlive: () => true,
     probeGateway: async () => true,
+    loadPiRuntime: async () => greenPiRuntime(),
+    getAuthStatus: async () => ({
+      generatedAt: '2026-08-02T00:00:00.000Z', accounts: [],
+      piRuntime: { available: true, version: '0.82.1', entry: '/pi/index.js', error: null },
+    }),
     ...over,
   };
 }

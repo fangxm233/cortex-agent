@@ -26,6 +26,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-retry-classification.test.ts | test | Retry, auth lifecycle and outage classification |
 | app.test.ts | test | startup DM notification behaviour |
 | auth-events.test.ts | test | auth case, boundary, privacy and recovery events |
+| auth-expiry-scan.test.ts | test | daily in-use auth warning filtering and privacy |
 | auth-watch.test.ts | test | auth capability actions, retry and recovery |
 | auto-compound.test.ts | test | compound trigger gating and output merge |
 | claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |
@@ -141,7 +142,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
-| thread-benchmark-run.test.ts | test | benchmark isolation, cleanup and resolved identity |
+| thread-benchmark-run.test.ts | test | benchmark isolation and frozen identity checks |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
 | thread-benchmark-coder-review.e2e.test.ts | e2e | benchmark graph, tools, MCP and identity isolation |
 | thread-coder-review.e2e.test.ts | e2e | coder-review stages and commit evidence policy |

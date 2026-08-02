@@ -1,7 +1,9 @@
 // input:  nothing (leaf data slice)
-// output: statusEn / statusZh — message slice (filled by i18n extraction)
+// output: statusEn/statusZh lifecycle and auth warning messages
 // pos:    one locale slice; aggregated by core/locales/en.ts & zh.ts barrels
-// >>> Keep en and zh keys in lockstep (zh typed against keyof typeof statusEn) <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
+// Keep en and zh keys in lockstep (zh is typed against keyof typeof statusEn).
 
 export const statusEn = {
   // --- Status / lifecycle phrases ---
@@ -39,6 +41,15 @@ export const statusEn = {
   'notify.authRequired.guide.action': 'Use the one-click login action below to sign in again.',
   'notify.authRequired.guide.claude': 'SSH to the Cortex host and run `claude /login` to sign in again.',
   'notify.authRequired.guide.pi': 'SSH to the Cortex host, run `pi`, then enter `/login` and select provider `${provider}`.',
+  // --- Scheduled authentication status warning ---
+  'notify.authExpiry.title': 'Authentication status warning',
+  'notify.authExpiry.body': 'Backend `${backend}` / provider `${provider}` is ${state}.${expiry} ${guidance}',
+  'notify.authExpiry.state.expiring': 'expiring',
+  'notify.authExpiry.state.expired': 'expired',
+  'notify.authExpiry.state.loggedOut': 'logged out',
+  'notify.authExpiry.expiresAt': 'Expires at `${expiresAt}`.',
+  'notify.authExpiry.refreshExpiresAt': 'Refresh credential expires at `${expiresAt}`.',
+  'notify.authExpiry.guide.action': 'Use the one-click login action below to sign in again.',
   // --- Execution report ---
   'status.noRunningExecutions': 'No running executions.',
   'status.runningExecutions': 'Running executions: ${count}',
@@ -85,6 +96,15 @@ export const statusZh: Record<keyof typeof statusEn, string> = {
   'notify.authRequired.guide.action': '请使用下方的一键登录操作重新认证。',
   'notify.authRequired.guide.claude': '请 SSH 到 Cortex 主机并运行 `claude /login` 重新登录。',
   'notify.authRequired.guide.pi': '请 SSH 到 Cortex 主机，运行 `pi`，然后输入 `/login` 并选择 Provider `${provider}`。',
+  // --- Scheduled authentication status warning ---
+  'notify.authExpiry.title': '认证状态预警',
+  'notify.authExpiry.body': '后端 `${backend}` / Provider `${provider}` 的认证状态为${state}。${expiry} ${guidance}',
+  'notify.authExpiry.state.expiring': '即将过期',
+  'notify.authExpiry.state.expired': '已过期',
+  'notify.authExpiry.state.loggedOut': '未登录',
+  'notify.authExpiry.expiresAt': '过期时间：`${expiresAt}`。',
+  'notify.authExpiry.refreshExpiresAt': '刷新凭据过期时间：`${expiresAt}`。',
+  'notify.authExpiry.guide.action': '请使用下方的一键登录操作重新认证。',
   // --- Execution report ---
   'status.noRunningExecutions': '没有正在运行的执行。',
   'status.runningExecutions': '正在运行的执行：${count}',

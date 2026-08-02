@@ -1,5 +1,5 @@
 // input:  built UI-service declarations and cost types
-// output: browser DTO contract including auth notice actions
+// output: browser DTO contract including auth account actions
 // pos:    Shared server-to-client compile-time DTO boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -55,6 +55,8 @@ export type {
   AuthStartLoginArgs,
   AuthRespondPromptArgs,
   AuthCancelFlowArgs,
+  AuthLogoutArgs,
+  AuthLogoutReturn,
   ApprovalsApproveArgs,
   ApprovalsRejectArgs,
   ApprovalsRequestArgs,

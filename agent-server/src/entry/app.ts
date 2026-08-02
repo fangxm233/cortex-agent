@@ -1,5 +1,5 @@
-// input:  settings, stores, services, auth publishers
-// output: server runtime, actionable auth notices, settings pushes
+// input:  settings, stores, scheduler jobs, auth publishers
+// output: server runtime, actionable auth scans, settings pushes
 // pos:    Agent-server composition root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import * as dotenv from 'dotenv';
@@ -63,7 +63,7 @@ import { planApprovals } from '@orch/interactions/plan-approvals.js';
 import { busyTracker } from '@orch/busy-tracker.js';
 import { buildExecutionStatusReport } from '@orch/status-helpers.js';
 import { reprocessMessage } from '@orch/lifecycle.js';
-import { initScheduledRunner, createScheduler, setSchedulerRef, setBus, setInteractiveCallbacksFactory, cancelDispatchedTask } from '@domain/scheduling/runner.js';
+import { initScheduledRunner, initAuthExpiryScan, createScheduler, setSchedulerRef, setBus, setInteractiveCallbacksFactory, cancelDispatchedTask } from '@domain/scheduling/runner.js';
 import { recoverWaitingThreads, registerTaskTreeSubscribers, reconcileWaitingTasks, startWaitingManagerSweep } from '../orchestration/thread-callback.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import { buildInteractiveCallbacks } from '@orch/agent-runner.js';
@@ -262,6 +262,7 @@ setBus(bus);
 registerAuthWatch(bus, adapter, {
   buildPlatformAction: buildAuthRequiredLoginAction,
 });
+initAuthExpiryScan(buildAuthRequiredLoginAction);
 setInteractiveCallbacksFactory(buildInteractiveCallbacks);
 const scheduler = createScheduler();
 scheduler.setAdminNotifier(notifyAdmin);

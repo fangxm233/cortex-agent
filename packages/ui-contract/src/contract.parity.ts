@@ -1,5 +1,5 @@
 // input:  shared zod schemas and agent-server query/mutation maps
-// output: exact-parity guards including authentication flows
+// output: exact-parity guards including auth logout
 // pos:    Anti-drift boundary for the shared UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -51,6 +51,7 @@ import type {
   authStartLoginInput,
   authRespondPromptInput,
   authCancelFlowInput,
+  authLogoutInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,
@@ -139,6 +140,7 @@ const _notesClearCompleted: MutateParity<'notes.clearCompleted', typeof notesCle
 const _authStartLogin: MutateParity<'auth.startLogin', typeof authStartLoginInput> = true;
 const _authRespondPrompt: MutateParity<'auth.respondPrompt', typeof authRespondPromptInput> = true;
 const _authCancelFlow: MutateParity<'auth.cancelFlow', typeof authCancelFlowInput> = true;
+const _authLogout: MutateParity<'auth.logout', typeof authLogoutInput> = true;
 const _systemRestart: MutateParity<'system.restart', typeof systemRestartInput> = true;
 
 // ── Subscriptions ─────────────────────────────────────────────────
@@ -157,7 +159,7 @@ export const _contractParityChecked = [
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
   _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,
-  _configSet, _authStartLogin, _authRespondPrompt, _authCancelFlow, _executionsLog,
+  _configSet, _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _executionsLog,
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
   _systemDaemonStatus, _systemRateLimitStatus, _systemRestart,
 ] as const;

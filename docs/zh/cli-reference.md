@@ -52,6 +52,34 @@ Fork `dist/entry/daemon.js` 作为子进程，继承 stdio。守护进程包装 
 
 打印解析后的路径和初始化状态。显示 `INSTALL_ROOT`、所有数据目录，以及 `.env`、`mcp-config.json` 和 `mode.json` 是否存在。
 
+**`cortex doctor [--fix] [--json]`**
+
+以只读方式检查整个安装，包括运行时与进程、backend 安装与登录、消息平台和 gateway。
+Backend 检查还会对已安装 PI 运行时及其 `login` 导出做烟测，并从不含凭据的认证快照中汇总
+使用中但已过期或未登录的 provider。这两项失败只产生 warning，不会让 doctor 整体失败。
+API 模式下，如果 gateway 健康但本地没有 key，会显示 gateway 托管的说明信息，不会误报未登录。
+
+每项检查显示 `[OK]`、`[WARN]`、`[FAIL]` 或 `[--]`（跳过）。存在失败项时命令退出码为 1；
+只有 warning 或跳过项时退出码仍为 0。
+
+选项：
+- `--fix` — 只执行安全且幂等的修复：创建缺失的数据目录、生成缺失的 Cortex 认证 token、重建 `mcp-config.json`
+- `--json` — 以 JSON 输出完整报告
+
+**`cortex auth status [--json]`**
+
+读取归一化的 Claude Code 与 PI 认证快照。默认文本输出是简洁状态总览；`--json` 返回完整
+`AuthStatusSnapshot`，便于脚本处理。两种输出都不会包含凭据值或其片段。
+
+该子命令只读。远程登录从 Slack/飞书的 `!login` 或 Web UI 的 **设置 → 账号** 发起；
+`cortex auth` 没有 OAuth 或 API-key 登录参数。
+
+选项：
+- `--json` — 以 JSON 输出完整且不含凭据的状态快照
+- `--help`、`-h` — 显示 auth 命令帮助
+
+登录命令、provider 能力判据和过期处理参见[后端：远程登录](./backends.md#remote-login)。
+
 **`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
 
 从本地配置文件自动检测 Claude Code 和 PI 配置，生成 `~/.aistatus/gateway.yaml`（备份已有文件），并写入 `$CORTEX_HOME/config/profiles.json`。在添加新的 API 密钥或更改模型时运行此命令。
