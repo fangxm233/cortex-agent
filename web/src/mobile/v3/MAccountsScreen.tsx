@@ -1,5 +1,5 @@
 // input:  auth status/logout tRPC, LoginFlow, mobile navigation
-// output: data-bound mobile accounts drill-in screen
+// output: data-bound accounts screen with serialized logout
 // pos:    Mobile accounts query and mutation container
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -44,7 +44,10 @@ export function MAccountsScreen() {
         ? <div style={{ padding: 16, color: MC.muted }}>{L.accountsLoading}</div>
         : status.isError
           ? <div style={{ padding: 16, color: MC.fail }}>{L.accountsLoadFailed}</div>
-          : <MAccountsView vm={vm} onBack={() => navigate('/m/settings')} onLogin={openLogin} onLogout={onLogout} />}
+          : <MAccountsView
+              vm={vm} onBack={() => navigate('/m/settings')}
+              onLogin={openLogin} onLogout={onLogout} actionsDisabled={logout.isPending}
+            />}
     </MScreen>
   );
 }
