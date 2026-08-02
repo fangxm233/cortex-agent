@@ -1,4 +1,4 @@
-// input:  PI login adapter, LoginFlow, EventBus, fake runtime
+// input:  PI login adapter, LoginFlow, EventBus, fake login runtime
 // output: PI api-key login, failures, recovery, and privacy tests
 // pos:    PI api-key login adapter regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -53,6 +53,7 @@ function runtime(
     getProviders: () => providers,
     getProviderAuthStatus: () => ({ configured: false }),
     login,
+    logout: async () => {},
   };
 }
 

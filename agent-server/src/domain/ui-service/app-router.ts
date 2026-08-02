@@ -1,5 +1,5 @@
 // input:  UiService, zod operation schemas, and tRPC init
-// output: createAppRouter including authentication flows
+// output: createAppRouter including authentication mutations
 // pos:    Typed tRPC mirror of UI operations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -59,6 +59,7 @@ import {
   authStartLoginInput,
   authRespondPromptInput,
   authCancelFlowInput,
+  authLogoutInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,
@@ -103,6 +104,10 @@ const ERR_CODE_MAP: Record<string, TRPCError['code']> = {
   'backend-locked': 'CONFLICT',
   'session-running': 'CONFLICT',
   'not-available': 'BAD_REQUEST',
+  'not_manageable': 'BAD_REQUEST',
+  'external_credential': 'BAD_REQUEST',
+  'runtime_unavailable': 'BAD_REQUEST',
+  'logout_failed': 'INTERNAL_SERVER_ERROR',
   'task-lock-busy': 'CONFLICT',
   'internal': 'INTERNAL_SERVER_ERROR',
 };
@@ -278,6 +283,7 @@ function authRouter(service: UiService) {
     startLogin: makeMutation(service, 'auth.startLogin', authStartLoginInput),
     respondPrompt: makeMutation(service, 'auth.respondPrompt', authRespondPromptInput),
     cancelFlow: makeMutation(service, 'auth.cancelFlow', authCancelFlowInput),
+    logout: makeMutation(service, 'auth.logout', authLogoutInput),
   });
 }
 

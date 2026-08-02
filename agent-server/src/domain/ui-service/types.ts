@@ -1,5 +1,5 @@
-// input:  domain types, auth flows, runtime settings, stores
-// output: UI DTOs/maps including auth notice actions
+// input:  domain types, auth flows/logout, runtime settings, stores
+// output: UI DTOs/maps including auth account mutations
 // pos:    Canonical transport-neutral UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -37,9 +37,12 @@ import type { Backend } from '../../agent-adapter/types.js';
 import type { ProjectNote } from '@store/project-notes-repo.js';
 import type {
   AuthLoginService,
+  AuthLogoutResult,
+  AuthLogoutSuccess,
   AuthStatusSnapshot,
   AuthType,
   LoginFlowState,
+  LogoutAccountInput,
 } from '@domain/auth/index.js';
 export type {
   AuthAccountState,
@@ -130,6 +133,7 @@ export type MutateOp =
   | 'auth.startLogin'
   | 'auth.respondPrompt'
   | 'auth.cancelFlow'
+  | 'auth.logout'
   | 'hooks.create'
   | 'hooks.update'
   | 'hooks.setEnabled'
@@ -292,6 +296,9 @@ export interface AuthRespondPromptArgs {
 export interface AuthCancelFlowArgs {
   flowId: string;
 }
+
+export type AuthLogoutArgs = LogoutAccountInput;
+export type AuthLogoutReturn = AuthLogoutSuccess;
 
 export interface SessionsCreateArgs {
   /** Project the new session belongs to. Omitted → the default project (handler fallback). */
@@ -1534,6 +1541,7 @@ export interface MutateArgsMap {
   'auth.startLogin': AuthStartLoginArgs;
   'auth.respondPrompt': AuthRespondPromptArgs;
   'auth.cancelFlow': AuthCancelFlowArgs;
+  'auth.logout': AuthLogoutArgs;
   'hooks.create': HooksCreateArgs;
   'hooks.update': HooksUpdateArgs;
   'hooks.setEnabled': HooksSetEnabledArgs;
@@ -1579,6 +1587,7 @@ export interface MutateReturnMap {
   'auth.startLogin': LoginFlowState;
   'auth.respondPrompt': LoginFlowState;
   'auth.cancelFlow': LoginFlowState;
+  'auth.logout': AuthLogoutReturn;
   'hooks.create': HooksCreateReturn;
   'hooks.update': HooksUpdateReturn;
   'hooks.setEnabled': HooksSetEnabledReturn;
@@ -1609,9 +1618,10 @@ export interface UiService {
 // ── Deps ──────────────────────────────────────────────────────────
 
 export interface UiServiceDeps {
-  /** Optional seam for deterministic authentication dispatch tests. */
+  /** Optional seams for deterministic authentication dispatch tests. */
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   authLogin?: AuthLoginService;
+  logoutAccount?: (input: LogoutAccountInput) => Promise<AuthLogoutResult>;
   projectStore: {
     list(): Project[];
     get(id: string): Project | undefined;

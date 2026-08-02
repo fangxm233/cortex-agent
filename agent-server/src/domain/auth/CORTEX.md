@@ -1,6 +1,6 @@
 Please update me when files in this folder change
 
-Authentication domain normalizes provider state, formats summaries, and coordinates login flows and lifecycle events.
+Authentication domain normalizes provider state, manages login/logout flows, and formats summaries.
 It routes required/recovered events into debounced user notices.
 
 | filename | role | function |
@@ -8,6 +8,7 @@ It routes required/recovered events into debounced user notices.
 | auth-events.ts | events | Classifies failures and publishes auth lifecycle |
 | auth-format.ts | format | Formats secret-free account status summaries |
 | auth-status.ts | core | Projects status and preferred login capability |
+| logout.ts | service | Removes Cortex-managed account credentials |
 | auth-watch.ts | notify | Routes actionable debounced auth notices |
 | cc-login.ts | adapter | Persists Claude API keys and reloads auth |
 | cc-subscription.ts | adapter | Drives abortable Claude subscription login |

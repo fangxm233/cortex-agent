@@ -1,5 +1,5 @@
 // input:  mode/profile stores, atomic mutation, auth classifier
-// output: modes, abortable Claude credentials, retry policy
+// output: modes, mutable Claude credentials, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -116,12 +116,21 @@ function requireClaudeOAuthToken(value: string): string {
   return token;
 }
 
+function savedEnvMatcher(name: string, flags: string): RegExp {
+  return new RegExp(`^[ \\t]*(?:export[ \\t]+)?${name}[ \\t]*=.*$`, flags);
+}
+
 function upsertSavedEnv(contents: string, name: string, value: string): string {
   const assignment = `${name}=${JSON.stringify(value)}`;
-  const matcher = new RegExp(`^[ \\t]*(?:export[ \\t]+)?${name}[ \\t]*=.*$`, 'm');
-  if (matcher.test(contents)) return contents.replace(new RegExp(matcher.source, 'gm'), assignment);
+  const matcher = savedEnvMatcher(name, 'm');
+  if (matcher.test(contents)) return contents.replace(savedEnvMatcher(name, 'gm'), assignment);
   const separator = contents.length === 0 || contents.endsWith('\n') ? '' : '\n';
   return `${contents}${separator}${assignment}\n`;
+}
+
+function removeSavedEnv(contents: string, name: string): string {
+  const line = savedEnvMatcher(name, 'gm');
+  return contents.replace(new RegExp(`${line.source}(?:\\r?\\n|$)`, 'gm'), '');
 }
 
 function throwIfSaveAborted(signal?: AbortSignal): void {
@@ -142,6 +151,14 @@ async function saveCredential(name: string, value: string, signal?: AbortSignal)
   );
 }
 
+async function removeCredential(name: string): Promise<void> {
+  await mutateFileAtomically(
+    ENV_FILE,
+    contents => removeSavedEnv(contents, name),
+    { mode: 0o600 },
+  );
+}
+
 export async function saveAnthropicApiKey(value: string): Promise<void> {
   const key = requireAnthropicApiKey(value);
   await saveCredential('ANTHROPIC_API_KEY', key);
@@ -157,6 +174,18 @@ export async function saveClaudeCodeOAuthToken(
   await saveCredential('CLAUDE_CODE_OAUTH_TOKEN', token, signal);
   savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = token;
   process.env.CLAUDE_CODE_OAUTH_TOKEN = token;
+}
+
+export async function removeAnthropicApiKey(): Promise<void> {
+  await removeCredential('ANTHROPIC_API_KEY');
+  savedApiEnv.ANTHROPIC_API_KEY = undefined;
+  delete process.env.ANTHROPIC_API_KEY;
+}
+
+export async function removeClaudeCodeOAuthToken(): Promise<void> {
+  await removeCredential('CLAUDE_CODE_OAUTH_TOKEN');
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = undefined;
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
 }
 
 function applySavedApiEnv(): void {
