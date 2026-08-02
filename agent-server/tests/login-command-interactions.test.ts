@@ -1,5 +1,5 @@
 // input:  !login command registry, CommandActionRouter, and stub auth service
-// output: Chat auth action, reuse, expiry, and privacy regressions
+// output: Chat auth notice, reuse, expiry, and privacy regressions
 // pos:    Tests chat backend login entry and callback delivery
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -310,6 +310,23 @@ test('Feishu expired-card action opens the existing inline login form', async ()
   assert.deepEqual(fixture.adapter.modals.at(-1)?.modal.fields.map(field => field.type), [
     'section', 'text_input',
   ]);
+});
+
+test.each([
+  ['Slack', 'slack:C-device-notice'],
+  ['Feishu', 'feishu:oc_device_notice'],
+])('%s expired-card action surfaces a device code without waiting for a prompt', async (_name, channel) => {
+  const fixture = setup('running', {
+    kind: 'device_code', userCode: 'NOTICE-1234',
+    verificationUri: 'https://verify.example.test/notice', expiresInSeconds: 300,
+  }, new Date(Date.now() + 100).toISOString());
+
+  await clickRequiredAction(fixture, channel);
+  await delay(25);
+
+  assert.equal(fixture.auth.starts.length, 1);
+  assert.ok(serializedMessages(fixture.adapter).includes('NOTICE-1234'));
+  assert.ok(serializedMessages(fixture.adapter).includes('https://verify.example.test/notice'));
 });
 
 test('a running explicit flow does not expose the secret form before its prompt is ready', async () => {

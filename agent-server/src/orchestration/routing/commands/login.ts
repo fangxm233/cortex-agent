@@ -1,5 +1,5 @@
 // input:  auth status/LoginFlow services, command router, platform forms
-// output: Channel-bound chat and system-notice auth actions
+// output: Channel-bound auth prompts, notices, and expiry results
 // pos:    Chat authentication entry, notice, and prompt coordinator
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -207,7 +207,7 @@ function buildLoginModal(
 }
 
 function stateIsActionable(state: LoginFlowState): boolean {
-  return state.step === 'prompt' || TERMINAL_STEPS.has(state.step);
+  return state.step === 'prompt' || state.notice !== null || TERMINAL_STEPS.has(state.step);
 }
 
 function expiredFlowState(state: LoginFlowState): LoginFlowState {
@@ -445,6 +445,10 @@ async function presentNotificationFlow(
   if (!adapter) return;
   if (TERMINAL_STEPS.has(state.step)) {
     await postFlowResult(adapter, metadata.channel, state);
+    return;
+  }
+  if (state.step !== 'prompt') {
+    monitorInBackground(state, metadata, dependencies);
     return;
   }
   await adapter.openModal(context.triggerId, buildLoginModal(
