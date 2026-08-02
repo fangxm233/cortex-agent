@@ -1,5 +1,5 @@
 // input:  merge CLI, accounted fragments, filesystem faults
-// output: additive metrics and typed fail-closed tests
+// output: atomic metrics and typed fail-closed tests
 // pos:    Trajectory merge failure-boundary regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -128,6 +128,29 @@ it('refuses an existing output before reading fragments and preserves its bytes'
   assert.equal(result.failure.reason, 'output_path_exists');
   assert.equal(fs.readFileSync(outputPath, 'utf8'), sentinel);
   assert.equal(fragmentReads, 0);
+});
+
+it('preserves an output created concurrently during publication', () => {
+  const fixture = makeFixture();
+  const outputPath = path.join(fixture.root, 'trajectory.json');
+  const sentinel = 'concurrent trajectory\n';
+  const fileSystem = new Proxy(NODE_TRAJECTORY_MERGE_FS, {
+    get(target, property, receiver) {
+      if (property !== 'rename' && property !== 'link') {
+        return Reflect.get(target, property, receiver);
+      }
+      return (source: string, destination: string) => {
+        fs.writeFileSync(destination, sentinel);
+        return (target as any)[property](source, destination);
+      };
+    },
+  });
+  const result = invokeArgs(fixtureArgs(fixture, outputPath), outputPath, fileSystem);
+  assert.notEqual(result.code, 0);
+  assert.equal(result.failure.reason, 'output_path_exists');
+  assert.equal(fs.readFileSync(outputPath, 'utf8'), sentinel);
+  const temporary = `${path.basename(outputPath)}.tmp.`;
+  assert.equal(fs.readdirSync(fixture.root).some(name => name.startsWith(temporary)), false);
 });
 
 it('refuses a non-writable output directory before reading fragments', () => {

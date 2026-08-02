@@ -21,4 +21,4 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | runner.ts | core | coordinates lifecycle and reported accounting |
 | supervisor.ts | core | resolves the binary and gates process containment |
 | trajectory-merge-cli.ts | cli | publishes one merged trajectory with typed failures |
-| trajectory-merge.ts | core | validates and merges documented journal metrics |
+| trajectory-merge.ts | core | validates and exclusively publishes journal metrics |
