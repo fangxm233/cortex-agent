@@ -18,8 +18,12 @@ import {
 import { createPiApiKeyLoginConsumer } from './pi-login.js';
 import { createPiOAuthLoginConsumer } from './pi-oauth.js';
 
+export interface AuthLoginStartOptions {
+  reuseExistingPair?: boolean;
+}
+
 export interface AuthLoginService {
-  start(input: StartLoginFlowInput): Promise<LoginFlowState>;
+  start(input: StartLoginFlowInput, options?: AuthLoginStartOptions): Promise<LoginFlowState>;
   getState(flowId: string): LoginFlowState | null;
   respond(flowId: string, value: string): Promise<LoginFlowState>;
   cancel(flowId: string): Promise<LoginFlowState>;
@@ -139,10 +143,10 @@ export function createAuthLoginService(
   dependencies: AuthLoginServiceDependencies = {},
 ): AuthLoginService {
   return {
-    async start(input) {
+    async start(input, options) {
       const consumer = selectConsumer(input, dependencies);
       const state = await (dependencies.startFlow ?? startFlow)(input, consumer);
-      if (state.authType !== input.authType) {
+      if (state.authType !== input.authType && !options?.reuseExistingPair) {
         throw new LoginFlowError('flow_conflict', 'Login is already active with another auth type.');
       }
       if (state.channel !== input.channel || state.sessionId !== input.sessionId) {

@@ -59,7 +59,7 @@ export interface ClaudeSubscriptionLoginDependencies {
   claudeExecutable?: string;
   cwd?: string;
   sessionName?: () => string;
-  saveToken?: (token: string, signal?: AbortSignal) => Promise<void>;
+  saveToken?: (token: string, expiresAt: string, signal?: AbortSignal) => Promise<void>;
   reloadAuth?: () => void;
   publishRecovered?: (input: { backend: 'claude'; provider: string }) => void;
   now?: () => number;
@@ -266,15 +266,17 @@ async function persistToken(
   token: string,
   dependencies: ClaudeSubscriptionLoginDependencies,
   context: DriveContext,
-): Promise<number> {
+): Promise<string> {
   try {
     throwIfInterrupted(context);
-    const save = dependencies.saveToken ?? saveClaudeCodeOAuthToken;
-    await waitWithDeadline(save(token, context.signal), context);
+    const expiresAt = oneYearAfter(context.now());
+    const save = dependencies.saveToken ?? ((value, expiry, signal) => (
+      saveClaudeCodeOAuthToken(value, { expiresAt: expiry, signal })
+    ));
+    await waitWithDeadline(save(token, expiresAt, context.signal), context);
     throwIfInterrupted(context);
-    const persistedAt = context.now();
     (dependencies.reloadAuth ?? (() => configureEnvForMode(getClaudeMode())))();
-    return persistedAt;
+    return expiresAt;
   } catch (error) {
     if (isLoginFlowError(error)) throw error;
     throw loginError('claude_subscription_persist_failed', 'Claude subscription login could not be saved.');
@@ -292,13 +294,12 @@ export async function loginClaudeSubscription(
   dependencies: ClaudeSubscriptionLoginDependencies = {},
 ): Promise<ClaudeSubscriptionLoginOutcome> {
   const { token, context } = await acquireToken(interaction, dependencies);
-  const persistedAt = await persistToken(token, dependencies, context);
+  const expiresAt = await persistToken(token, dependencies, context);
   throwIfInterrupted(context);
   (dependencies.publishRecovered ?? publishAuthRecovered)({
     backend: 'claude', provider: 'anthropic',
   });
   return {
-    provider: 'anthropic', authType: 'oauth',
-    expiresAt: oneYearAfter(persistedAt), detail: EXPIRY_DETAIL,
+    provider: 'anthropic', authType: 'oauth', expiresAt, detail: EXPIRY_DETAIL,
   };
 }

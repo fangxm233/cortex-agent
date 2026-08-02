@@ -1,5 +1,5 @@
 // input:  auth events, capability snapshot, PlatformAdapter, i18n
-// output: actionable auth notices and recent-reminder query
+// output: retryable auth notices and recent-reminder query
 // pos:    Authentication-required notification subscriber
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -169,10 +169,10 @@ export function registerAuthWatch(
   dependencies: AuthWatchDependencies = {},
 ): void {
   // A restart may repeat one reminder; keeping this local avoids shared mutable publisher state.
-  const lastNotificationAt = new Map<string, number>();
+  const reminders = new Map<string, { notifiedAt: number; attempt: symbol }>();
   const now = dependencies.now ?? Date.now;
   const wasRecentlyNotified: WasAuthRecentlyNotified = (backend, provider) => {
-    const previous = lastNotificationAt.get(pairKey({ backend, provider }));
+    const previous = reminders.get(pairKey({ backend, provider }))?.notifiedAt;
     return previous !== undefined && now() - previous < REMINDER_INTERVAL_MS;
   };
   recentNotificationQuery = wasRecentlyNotified;
@@ -180,13 +180,15 @@ export function registerAuthWatch(
     const key = pairKey(event);
     const current = now();
     if (wasRecentlyNotified(event.backend, event.provider)) return;
-    // Record before async delivery so concurrent failures cannot create a retry storm.
-    lastNotificationAt.set(key, current);
+    // Reserve before async delivery so concurrent events cannot create a retry storm.
+    const attempt = Symbol(key);
+    reminders.set(key, { notifiedAt: current, attempt });
     void deliverNotice(bus, adapter, event, dependencies).catch(() => {
+      if (reminders.get(key)?.attempt === attempt) reminders.delete(key);
       log.error(`Failed to deliver authentication notice for ${key}`);
     });
   });
   bus.subscribe('auth.recovered', (event) => {
-    lastNotificationAt.delete(pairKey(event));
+    reminders.delete(pairKey(event));
   });
 }

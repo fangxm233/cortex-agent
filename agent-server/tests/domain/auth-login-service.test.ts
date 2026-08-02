@@ -1,5 +1,5 @@
 // input:  auth login service factory and stub LoginFlow consumers
-// output: Auth selection, delegation, and cancellation regressions
+// output: Auth selection, notice reuse, and cancellation regressions
 // pos:    Tests the shared backend login entry used by chat and Web
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -206,6 +206,12 @@ test('shared login service rejects pair reuse with a different auth type', async
       }),
       (error: any) => error?.code === 'flow_conflict',
     );
+    const reused = await service.start({
+      backend: 'claude', provider: 'anthropic', authType: 'oauth',
+      channel: 'slack:C1', sessionId: null,
+    }, { reuseExistingPair: true });
+    assert.equal(reused.flowId, first.flowId);
+    assert.equal(reused.authType, 'api_key');
   } finally {
     await service.cancel(first.flowId);
   }

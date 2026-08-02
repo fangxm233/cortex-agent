@@ -124,6 +124,18 @@ function reloadClaude(dependencies: LogoutAccountDependencies): void {
   reload();
 }
 
+function hasExternalClaudeOAuth(
+  snapshot: AuthStatusSnapshot,
+  input: LogoutAccountInput,
+): boolean {
+  const account = snapshot.accounts.find(item => (
+    item.backend === input.backend && item.provider === input.provider
+  ));
+  return account?.credentials.some(item => (
+    item.authType === 'oauth' && item.source === 'credentials.json'
+  )) ?? false;
+}
+
 async function removeClaudeSavedCredential(
   input: LogoutAccountInput,
   remove: () => Promise<void>,
@@ -140,6 +152,7 @@ async function removeClaudeSavedCredential(
 
 async function logoutClaude(
   input: LogoutAccountInput,
+  snapshot: AuthStatusSnapshot,
   dependencies: LogoutAccountDependencies,
 ): Promise<AuthLogoutResult> {
   if (input.authType === 'api_key') {
@@ -149,7 +162,10 @@ async function logoutClaude(
   const saved = (dependencies.getSavedApiEnv ?? getSavedApiEnv)();
   if (!saved.CLAUDE_CODE_OAUTH_TOKEN) return failed(input, 'external_credential');
   const remove = dependencies.removeClaudeCodeOAuthToken ?? removeClaudeCodeOAuthToken;
-  return removeClaudeSavedCredential(input, remove, dependencies);
+  const result = await removeClaudeSavedCredential(input, remove, dependencies);
+  return result.ok && hasExternalClaudeOAuth(snapshot, input)
+    ? failed(input, 'external_credential')
+    : result;
 }
 
 async function loadRuntime(
@@ -177,10 +193,8 @@ function finishPiLogout(
 
 async function logoutPi(
   input: LogoutAccountInput,
-  credential: AuthCredentialStatus,
   dependencies: LogoutAccountDependencies,
 ): Promise<AuthLogoutResult> {
-  if (credential.source !== 'stored') return failed(input, 'not_manageable');
   const loaded = await loadRuntime(dependencies);
   if (!loaded?.available) return failed(input, 'runtime_unavailable');
   try {
@@ -200,6 +214,6 @@ export async function logoutAccount(
   const credential = selectedCredential(snapshot, input);
   if (!credential?.manageable) return failed(input, 'not_manageable');
   return input.backend === 'pi'
-    ? logoutPi(input, credential, dependencies)
-    : logoutClaude(input, dependencies);
+    ? logoutPi(input, dependencies)
+    : logoutClaude(input, snapshot, dependencies);
 }

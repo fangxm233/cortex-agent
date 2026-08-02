@@ -172,10 +172,15 @@ export function freezeBenchmarkThreadIdentities(
   return { entry, roles, modelProtocolProblem };
 }
 
-export function benchmarkInstructionHashes(instruction: string): {
+export function benchmarkInstructionHashes(
+  instruction: string,
+  modelVisiblePrompt = instruction,
+): {
   canonicalInstructionSha256: string;
   modelVisiblePromptSha256: string;
 } {
-  const hash = sha256(instruction);
-  return { canonicalInstructionSha256: hash, modelVisiblePromptSha256: hash };
+  return {
+    canonicalInstructionSha256: sha256(instruction),
+    modelVisiblePromptSha256: sha256(modelVisiblePrompt),
+  };
 }

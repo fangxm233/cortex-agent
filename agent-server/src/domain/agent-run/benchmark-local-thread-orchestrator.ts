@@ -55,6 +55,7 @@ interface BenchmarkThreadRequest {
   workspaceCwd: string;
   template: string;
   instruction: string;
+  handoff?: string;
   profileName: string;
   rootRunId: string;
   trajectoryRoot: string;
@@ -257,10 +258,15 @@ function resolveTemplate(name: string): ResolvedTemplate {
   return template;
 }
 
+function benchmarkUserMessage(request: BenchmarkThreadRequest): string {
+  if (request.handoff === undefined) return request.instruction;
+  return `${request.instruction}\n\nParent handoff (supplementary):\n${request.handoff}`;
+}
+
 function createBenchmarkRecord(request: BenchmarkThreadRequest): ThreadRecord {
   return createThread(`benchmark:${request.rootRunId}`, {
     templateName: request.template,
-    userMessage: request.instruction,
+    userMessage: benchmarkUserMessage(request),
     userMessageTs: String(Date.now()),
     projectId: 'benchmark',
     metadata: { trigger: 'benchmark-local' },
@@ -280,7 +286,7 @@ function openThreadJournal(
       rootRunId: request.rootRunId, threadId: thread.id,
       agentSlot: template.entryAgent as AgentSlot,
       resolvedCwd: request.workspaceCwd,
-      ...benchmarkInstructionHashes(request.instruction),
+      ...benchmarkInstructionHashes(request.instruction, benchmarkUserMessage(request)),
       ...identity,
     },
   });

@@ -72,7 +72,7 @@ API 模式下，如果 gateway 健康但本地没有 key，会显示 gateway 托
 `AuthStatusSnapshot`，便于脚本处理。两种输出都不会包含凭据值或其片段。
 
 该子命令只读。远程登录从 Slack/飞书的 `!login` 或 Web UI 的 **设置 → 账号** 发起；
-`cortex auth` 没有 OAuth 或 API-key 登录参数。
+移动端 drill-in 路径是 `/m/settings/accounts`。`cortex auth` 没有 OAuth 或 API-key 登录参数。
 
 选项：
 - `--json` — 以 JSON 输出完整且不含凭据的状态快照

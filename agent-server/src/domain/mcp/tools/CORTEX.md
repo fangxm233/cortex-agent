@@ -4,6 +4,7 @@ MCP tool implementations — each module registers one group of Cortex tools ont
 
 | filename | role | function |
 |---|---|---|
+| benchmark-thread-run.ts | tool | Admits one policy-bound benchmark thread |
 | context.ts | tool | Reports the caller's current Cortex context |
 | cortex-md.ts | util | Builds CORTEX.md blocks for tool replies |
 | cost.ts | tool | Reports current cost and budget status |

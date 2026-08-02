@@ -216,3 +216,23 @@ test('auth.logout preserves structured external credential guidance', async () =
     ok: false, code: 'external_credential', message: failure.error.message,
   });
 });
+
+test('auth.logout tRPC maps external credentials to a client error with guidance', async () => {
+  const failure = {
+    ok: false as const, ...LOGOUT_INPUT,
+    error: {
+      code: 'external_credential' as const,
+      message: 'Run `claude /logout` in a terminal.',
+    },
+  };
+  const caller = createAppRouter(createUiService(logoutDeps(failure, []))).createCaller({});
+
+  await assert.rejects(
+    () => caller.auth.logout(LOGOUT_INPUT),
+    (error: unknown) => {
+      assert.equal((error as { code?: unknown }).code, 'BAD_REQUEST');
+      assert.equal((error as Error).message, failure.error.message);
+      return true;
+    },
+  );
+});

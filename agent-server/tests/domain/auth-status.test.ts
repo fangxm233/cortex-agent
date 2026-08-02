@@ -1,5 +1,5 @@
 // input:  temporary auth files, PI fixtures, locale
-// output: auth state, preferred capability, and summary contracts
+// output: auth state, saved expiry, capability, and summaries
 // pos:    Backend authentication status regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -305,6 +305,38 @@ test('getAuthStatus exposes both Claude credentials and mirrors the mode-selecte
     assert.equal(oauthAccount.authType, 'oauth');
     assert.equal(oauthAccount.state, 'expiring');
     assert.equal(oauthAccount.refreshExpiresAt, new Date(NOW_MS + DAY_MS).toISOString());
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('getAuthStatus projects saved Claude subscription expiry into the F2 state', async () => {
+  const fixture = createPiFixture();
+  const expiry = new Date(NOW_MS + DAY_MS).toISOString();
+  const savedEnv = {
+    ANTHROPIC_API_KEY: undefined,
+    ANTHROPIC_BASE_URL: undefined,
+    CLAUDE_CODE_OAUTH_TOKEN: '\uE140\uE141-managed-token',
+    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: expiry,
+  };
+  writeJson(fixture.authPath, {});
+  try {
+    const options = baseStatusOptions(
+      fixture,
+      await loadFixture(fixture),
+      path.join(fixture.root, 'missing-claude.json'),
+    );
+    const claude = account(await getAuthStatus({
+      ...options,
+      getSavedApiEnv: () => savedEnv,
+      getClaudeMode: () => 'plan',
+      getActiveBackend: () => 'claude',
+      listProfiles: () => [],
+    }), 'anthropic');
+
+    assert.equal(claude.state, 'expiring');
+    assert.equal(claude.expiresAt, expiry);
+    assert.equal(JSON.stringify(claude).includes(savedEnv.CLAUDE_CODE_OAUTH_TOKEN), false);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }

@@ -1,5 +1,5 @@
 // input:  mode/profile stores, atomic mutation, auth classifier
-// output: modes, mutable Claude credentials, retry policy
+// output: modes, expiring Claude credentials, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -36,6 +36,7 @@ export interface ApiEnv {
   ANTHROPIC_API_KEY: string | undefined;
   ANTHROPIC_BASE_URL: string | undefined;
   CLAUDE_CODE_OAUTH_TOKEN: string | undefined;
+  CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: string | undefined;
 }
 
 // Gateway proxy URL for Claude Code's ANTHROPIC_BASE_URL (DR-0001)
@@ -72,12 +73,16 @@ function readApiEnvFromDotenvFile(): ApiEnv {
       ANTHROPIC_API_KEY: normalizeApiKey(parsed.ANTHROPIC_API_KEY),
       ANTHROPIC_BASE_URL: normalizeEnvValue(parsed.ANTHROPIC_BASE_URL),
       CLAUDE_CODE_OAUTH_TOKEN: normalizeEnvValue(parsed.CLAUDE_CODE_OAUTH_TOKEN),
+      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: normalizeEnvValue(
+        parsed.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT,
+      ),
     };
   } catch {
     return {
       ANTHROPIC_API_KEY: undefined,
       ANTHROPIC_BASE_URL: undefined,
       CLAUDE_CODE_OAUTH_TOKEN: undefined,
+      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: undefined,
     };
   }
 }
@@ -89,6 +94,7 @@ function captureApiEnvSnapshot(): ApiEnv {
     ANTHROPIC_BASE_URL: normalizeEnvValue(process.env.ANTHROPIC_BASE_URL) || fileEnv.ANTHROPIC_BASE_URL,
     CLAUDE_CODE_OAUTH_TOKEN: normalizeEnvValue(process.env.CLAUDE_CODE_OAUTH_TOKEN)
       || fileEnv.CLAUDE_CODE_OAUTH_TOKEN,
+    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: fileEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT,
   };
 }
 
@@ -100,6 +106,9 @@ export function getSavedApiEnv(): ApiEnv {
   if (liveEnv.ANTHROPIC_BASE_URL) savedApiEnv.ANTHROPIC_BASE_URL = liveEnv.ANTHROPIC_BASE_URL;
   if (liveEnv.CLAUDE_CODE_OAUTH_TOKEN) {
     savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = liveEnv.CLAUDE_CODE_OAUTH_TOKEN;
+  }
+  if (liveEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT) {
+    savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = liveEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
   }
   return { ...savedApiEnv };
 }
@@ -151,10 +160,10 @@ async function saveCredential(name: string, value: string, signal?: AbortSignal)
   );
 }
 
-async function removeCredential(name: string): Promise<void> {
+async function removeCredentials(names: string[]): Promise<void> {
   await mutateFileAtomically(
     ENV_FILE,
-    contents => removeSavedEnv(contents, name),
+    contents => names.reduce(removeSavedEnv, contents),
     { mode: 0o600 },
   );
 }
@@ -168,23 +177,40 @@ export async function saveAnthropicApiKey(value: string): Promise<void> {
 
 export async function saveClaudeCodeOAuthToken(
   value: string,
-  signal?: AbortSignal,
+  options: { expiresAt?: string; signal?: AbortSignal } = {},
 ): Promise<void> {
   const token = requireClaudeOAuthToken(value);
-  await saveCredential('CLAUDE_CODE_OAUTH_TOKEN', token, signal);
+  const expiresAt = normalizeEnvValue(options.expiresAt);
+  throwIfSaveAborted(options.signal);
+  await mutateFileAtomically(
+    ENV_FILE,
+    contents => {
+      throwIfSaveAborted(options.signal);
+      const withToken = upsertSavedEnv(contents, 'CLAUDE_CODE_OAUTH_TOKEN', token);
+      return expiresAt
+        ? upsertSavedEnv(withToken, 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT', expiresAt)
+        : removeSavedEnv(withToken, 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT');
+    },
+    { mode: 0o600, signal: options.signal },
+  );
   savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = token;
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = expiresAt;
   process.env.CLAUDE_CODE_OAUTH_TOKEN = token;
 }
 
 export async function removeAnthropicApiKey(): Promise<void> {
-  await removeCredential('ANTHROPIC_API_KEY');
+  await removeCredentials(['ANTHROPIC_API_KEY']);
   savedApiEnv.ANTHROPIC_API_KEY = undefined;
   delete process.env.ANTHROPIC_API_KEY;
 }
 
 export async function removeClaudeCodeOAuthToken(): Promise<void> {
-  await removeCredential('CLAUDE_CODE_OAUTH_TOKEN');
+  await removeCredentials([
+    'CLAUDE_CODE_OAUTH_TOKEN',
+    'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT',
+  ]);
   savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = undefined;
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = undefined;
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
 }
 

@@ -92,6 +92,7 @@ export interface GetAuthStatusOptions {
     ANTHROPIC_API_KEY: string | undefined;
     ANTHROPIC_BASE_URL: string | undefined;
     CLAUDE_CODE_OAUTH_TOKEN?: string | undefined;
+    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT?: string | undefined;
   };
   getClaudeMode?: () => string;
   getActiveBackend?: () => Backend;
@@ -161,6 +162,12 @@ function toIso(value: number | null): string | null {
   return value === null ? null : new Date(value).toISOString();
 }
 
+function isoEpoch(value: string | undefined): number | null {
+  if (!value) return null;
+  const epoch = Date.parse(value);
+  return Number.isNaN(epoch) ? null : epoch;
+}
+
 function claudeOAuthCredential(
   oauth: ClaudeOAuthMetadata,
   nowMs: number,
@@ -175,12 +182,16 @@ function claudeOAuthCredential(
   };
 }
 
-function claudeSavedOAuthCredential(): AuthCredentialStatus {
+function claudeSavedOAuthCredential(
+  expiresAt: string | undefined,
+  nowMs: number,
+): AuthCredentialStatus {
+  const expiry = isoEpoch(expiresAt);
   return {
     authType: 'oauth',
-    state: 'logged-in',
+    state: stateFromExpiry(nowMs, [expiry]),
     source: 'env',
-    expiresAt: null,
+    expiresAt: toIso(expiry),
     refreshExpiresAt: null,
     manageable: true,
   };
@@ -201,11 +212,14 @@ function claudeCredentials(
   oauth: ClaudeOAuthMetadata | null,
   apiKey: string | undefined,
   oauthToken: string | undefined,
+  oauthTokenExpiresAt: string | undefined,
   nowMs: number,
 ): AuthCredentialStatus[] {
   const credentials: AuthCredentialStatus[] = [];
   if (apiKey) credentials.push(claudeApiKeyCredential());
-  if (oauthToken) credentials.push(claudeSavedOAuthCredential());
+  if (oauthToken) {
+    credentials.push(claudeSavedOAuthCredential(oauthTokenExpiresAt, nowMs));
+  }
   if (oauth) credentials.push(claudeOAuthCredential(oauth, nowMs));
   return credentials;
 }
@@ -240,11 +254,14 @@ function buildClaudeAccount(
   credentialRead: ClaudeCredentialRead,
   apiKey: string | undefined,
   oauthToken: string | undefined,
+  oauthTokenExpiresAt: string | undefined,
   mode: string,
   nowMs: number,
   inUse: boolean,
 ): AuthAccountStatus {
-  const credentials = claudeCredentials(credentialRead.oauth, apiKey, oauthToken, nowMs);
+  const credentials = claudeCredentials(
+    credentialRead.oauth, apiKey, oauthToken, oauthTokenExpiresAt, nowMs,
+  );
   if (mode === 'api') {
     const current = credentials.find(item => item.authType === 'api_key');
     return current ? claudeAccountFromCredential(current, credentials, inUse)
@@ -443,7 +460,7 @@ export async function getAuthStatus(options: GetAuthStatusOptions = {}): Promise
   const apiEnv = { ...(options.getSavedApiEnv ?? readSavedApiEnv)() };
   const claude = buildClaudeAccount(
     readClaudeOAuth(claudePath), apiEnv.ANTHROPIC_API_KEY,
-    apiEnv.CLAUDE_CODE_OAUTH_TOKEN,
+    apiEnv.CLAUDE_CODE_OAUTH_TOKEN, apiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT,
     (options.getClaudeMode ?? readClaudeMode)(), now.getTime(), usage.claude,
   );
   const loader = options.loadPiRuntime ?? loadInstalledPiRuntime;
