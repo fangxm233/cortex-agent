@@ -1,5 +1,5 @@
-// input:  subscription consumer, LoginFlow, fake tmux, saved env
-// output: secure tmux, cancellation, expiry, and privacy tests
+// input:  subscription login, fake tmux, saved env
+// output: tmux, cancellation, expiry, privacy regressions
 // pos:    Claude subscription login regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -28,6 +28,7 @@ import {
 import {
   configureEnvForMode,
   getSavedApiEnv,
+  removeClaudeCodeOAuthToken,
   saveClaudeCodeOAuthToken,
 } from '../../src/domain/agents/config.js';
 
@@ -243,6 +244,7 @@ afterEach(() => {
   vi.useRealTimers();
   _testSetHealthy(null);
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
   process.env.HOME = process.env.CORTEX_HOME!;
 });
 
@@ -434,6 +436,63 @@ test('LoginFlow TTL abort kills a subscription tmux session with no pending proc
   assert.equal(tmux.sessions.size, 0);
   assert.equal(tmux.kills.length, 1);
   assert.deepEqual(evidence.saved, []);
+});
+
+test('orphaned saved expiry stays hidden when no saved OAuth token exists', async () => {
+  const envFile = path.join(CONFIG_DIR, '.env');
+  await removeClaudeCodeOAuthToken();
+  fs.writeFileSync(envFile, [
+    'OTHER_SETTING=keep',
+    `CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT=${JSON.stringify(EXPECTED_EXPIRY)}`,
+    '',
+  ].join('\n'), { mode: 0o600 });
+  process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = EXPECTED_EXPIRY;
+
+  const saved = getSavedApiEnv();
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
+  assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, EXPECTED_EXPIRY);
+});
+
+test('saved OAuth expiry is never sourced from the process environment', async () => {
+  const envFile = path.join(CONFIG_DIR, '.env');
+  await removeClaudeCodeOAuthToken();
+  fs.writeFileSync(
+    envFile,
+    `CLAUDE_CODE_OAUTH_TOKEN=${JSON.stringify(TOKEN)}\n`,
+    { mode: 0o600 },
+  );
+  process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = EXPECTED_EXPIRY;
+
+  const saved = getSavedApiEnv();
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN, TOKEN);
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
+});
+
+test('saved OAuth expiry never attaches to a process-only token', async () => {
+  const envFile = path.join(CONFIG_DIR, '.env');
+  await removeClaudeCodeOAuthToken();
+  fs.writeFileSync(envFile, [
+    `CLAUDE_CODE_OAUTH_TOKEN=${JSON.stringify(TOKEN)}`,
+    `CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT=${JSON.stringify(EXPECTED_EXPIRY)}`,
+    '',
+  ].join('\n'), { mode: 0o600 });
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'process-only-token';
+
+  const saved = getSavedApiEnv();
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN, 'process-only-token');
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
+});
+
+test('saved OAuth cache clears when the live token disappears', async () => {
+  const envFile = path.join(CONFIG_DIR, '.env');
+  await saveClaudeCodeOAuthToken(TOKEN, { expiresAt: EXPECTED_EXPIRY });
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  fs.writeFileSync(envFile, 'OTHER_SETTING=keep\n', { mode: 0o600 });
+
+  const saved = getSavedApiEnv();
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
 });
 
 test('saved OAuth token preserves a disposable Claude credential sentinel', async () => {

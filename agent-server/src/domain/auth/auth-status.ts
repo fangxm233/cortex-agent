@@ -1,5 +1,5 @@
-// input:  Claude/PI credentials, saved env, profiles, runtime
-// output: AuthStatusSnapshot reader and preferred login type
+// input:  Claude/PI auth, saved expiry, profiles, runtime
+// output: auth status snapshot and preferred login type
 // pos:    Backend authentication status snapshot producer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -116,6 +116,7 @@ interface InUseAccounts {
 }
 
 const EXPIRING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const ISO_8601_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const PI_API_KEY_SOURCES = new Set<PiProviderAuthStatus['source']>([
   'runtime',
   'environment',
@@ -163,9 +164,9 @@ function toIso(value: number | null): string | null {
 }
 
 function isoEpoch(value: string | undefined): number | null {
-  if (!value) return null;
+  if (!value || !ISO_8601_INSTANT_PATTERN.test(value)) return null;
   const epoch = Date.parse(value);
-  return Number.isNaN(epoch) ? null : epoch;
+  return Number.isFinite(epoch) ? epoch : null;
 }
 
 function claudeOAuthCredential(
@@ -191,7 +192,7 @@ function claudeSavedOAuthCredential(
     authType: 'oauth',
     state: stateFromExpiry(nowMs, [expiry]),
     source: 'env',
-    expiresAt: toIso(expiry),
+    expiresAt: expiry === null ? null : expiresAt ?? null,
     refreshExpiresAt: null,
     manageable: true,
   };
