@@ -1,5 +1,5 @@
 // input:  fake adapters, observers, continuations, settings
-// output: ordered event tee, sink, callback, and wait regressions
+// output: ordered events, exact accounting, and wait regressions
 // pos:    Covers backend-neutral run event semantics
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -658,7 +658,7 @@ test('runWithAdapter: synchronous continuation replay follows the foreground ter
   const observed: NormalizedEvent[] = [];
   const spec: SinkCapableSpec = {
     events: [
-      { type: 'cost_record', provider: 'anthropic', model: 'foreground', tokens_in: 8, tokens_out: 3, cost_usd: 0.2 },
+      { type: 'cost_record', provider: 'anthropic', model: 'foreground', tokens_in: 8, tokens_out: 3, prompt_tokens: 8, cached_tokens: 0, cost_usd: 0.2 },
       { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.2 },
     ],
     resultOnResolve: {
@@ -669,7 +669,11 @@ test('runWithAdapter: synchronous continuation replay follows the foreground ter
     replayOnRegister: (sink) => {
       sink.onAssistantText('buffered continuation', 'continuation');
       sink.onResult({
-        ...defaultAgentResult('s-ordered-bg'), total_cost_usd: 0.1,
+        ...defaultAgentResult('s-ordered-bg'), total_cost_usd: 0.1, costReported: true,
+        reportedAccounting: {
+          usageReported: true, inputTokens: 4, outputTokens: 2,
+          promptTokens: 7, cachedTokens: 3, model: 'continuation',
+        },
         pendingBackgroundTasks: 0,
       });
     },
@@ -681,8 +685,12 @@ test('runWithAdapter: synchronous continuation replay follows the foreground ter
   }, { model: 'm', backend: 'claude', mode: null }, undefined).promise;
 
   assert.deepEqual(observed.map(event => event.type), [
-    'cost_record', 'turn_complete', 'assistant_text', 'turn_complete',
+    'cost_record', 'turn_complete', 'assistant_text', 'cost_record', 'turn_complete',
   ]);
+  assert.deepEqual(observed.at(-2), {
+    type: 'cost_record', provider: 'anthropic', model: 'continuation',
+    tokens_in: 4, tokens_out: 2, prompt_tokens: 7, cached_tokens: 3, cost_usd: 0.1,
+  });
 });
 
 test('runWithAdapter: awaitBackground false never waits for a thread turn', async () => {

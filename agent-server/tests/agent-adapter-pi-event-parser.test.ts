@@ -1,5 +1,5 @@
 // input:  PI RPC events and parser state
-// output: PI normalized-event regressions
+// output: PI events with explicit unavailable cache accounting
 // pos:    Covers PI event translation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -590,7 +590,7 @@ test('cost_record: provider/model/usage precedes settled turn_complete', () => {
     usage: { input: 100, output: 50, cost: { total: 0.001 } },
   }] });
   assert.deepEqual(events, [
-    { type: 'cost_record', provider: 'anthropic', model: 'claude-opus-4', tokens_in: 100, tokens_out: 50, cost_usd: 0.001 },
+    { type: 'cost_record', provider: 'anthropic', model: 'claude-opus-4', tokens_in: 100, tokens_out: 50, prompt_tokens: null, cached_tokens: null, cost_usd: 0.001 },
     { type: 'turn_complete', numTurns: 1, totalCostUsd: 0.001 },
   ]);
 });
@@ -603,7 +603,8 @@ test('cost_record: multiple messages sum tokens and use the first identity', () 
   ] });
   assert.deepEqual(events[0], {
     type: 'cost_record', provider: 'anthropic', model: 'claude-opus-4',
-    tokens_in: 350, tokens_out: 140, cost_usd: 0.005,
+    tokens_in: 350, tokens_out: 140,
+    prompt_tokens: null, cached_tokens: null, cost_usd: 0.005,
   });
   assert.deepEqual(events[1], { type: 'turn_complete', numTurns: 2, totalCostUsd: 0.005 });
 });
@@ -631,7 +632,8 @@ test('cost_record: absent token counts default to zero', () => {
   }] }), state);
   assert.deepEqual(events, [{
     type: 'cost_record', provider: 'openai', model: 'gpt-4o',
-    tokens_in: 0, tokens_out: 0, cost_usd: 0.002,
+    tokens_in: 0, tokens_out: 0,
+    prompt_tokens: null, cached_tokens: null, cost_usd: 0.002,
   }]);
 });
 

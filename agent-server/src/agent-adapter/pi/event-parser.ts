@@ -1,6 +1,6 @@
 // input:  PI --mode rpc stdout JSONL lines
-// output: NormalizedEvents with PI context usage and settled completion
-// pos:    Pure function translator from PI rpc events to NormalizedEvent
+// output: normalized events with nullable exact accounting
+// pos:    Pure PI RPC event translator
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { ContextUsage } from '@core/types/agent-types.js';
@@ -335,6 +335,8 @@ function handleAgentEnd(
     model: summary.model,
     tokens_in: summary.tokensIn,
     tokens_out: summary.tokensOut,
+    prompt_tokens: null,
+    cached_tokens: null,
     cost_usd: summary.totalCostUsd,
   }];
 }

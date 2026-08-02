@@ -1,5 +1,5 @@
 // input:  thread runner, fake agents, hook/throttle/profile stores
-// output: benchmark isolation, cleanup, and ordinary regressions
+// output: benchmark isolation, exact accounting and regressions
 // pos:    Verifies the benchmark-only thread execution boundary
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -253,6 +253,7 @@ test('benchmark forwards workspace cwd and spawner through every step to a real 
     const config = buildAgentSpawnConfig(options, resolveProfileConfig(options.profileName), undefined);
     assert.equal(config.cwd, workspace);
     assert.equal(config.processSpawner, spawner);
+    assert.equal(config.preserveUnreportedAccounting, true);
     const script = `require('node:fs').appendFileSync(${JSON.stringify(marker)}, process.cwd() + '\\n')`;
     const spawned = config.processSpawner!(process.execPath, ['-e', script], { cwd: config.cwd });
     const index = call++;
@@ -275,6 +276,7 @@ test('benchmark forwards every normalized event through its required per-step si
     assert.equal(options.loadCortexRules, false);
     assert.equal(options.streamDeltas, false);
     assert.equal(options.captureTranscriptLogs, false);
+    assert.equal(options.preserveUnreportedAccounting, true);
     assert.equal(options.recordCost, false);
     assert.equal(options.requiredSinks?.length, 1);
     options.requiredSinks![0].onEvent(event);

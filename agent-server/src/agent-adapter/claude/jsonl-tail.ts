@@ -1,5 +1,5 @@
 // input:  Claude transcript paths and JSONL records
-// output: transcript tailer and normalized events
+// output: transcript events with cache-explicit accounting
 // pos:    Claude transcript event normalizer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -13,9 +13,40 @@ import { usageToCost, type ClaudeUsage } from './cost-from-usage.js';
 //  JsonlEventNormalizer — pure: jsonl raw event → NormalizedEvent[]
 // =====================================================================================
 
+function exactToken(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= 0;
+}
+
 interface PerMessageUsage {
   usage: ClaudeUsage;
   model: string;
+}
+
+function summarizeUsage(entries: PerMessageUsage[]) {
+  let totalCost = 0;
+  let costKnown = true;
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let cachedTokens = 0;
+  let promptKnown = true;
+  let cachedKnown = true;
+  let model = '';
+  for (const entry of entries) {
+    const result = usageToCost(entry.usage, entry.model);
+    if (result === null) costKnown = false;
+    else totalCost += result.totalUsd;
+    const input = entry.usage.input_tokens;
+    const created = entry.usage.cache_creation_input_tokens;
+    const read = entry.usage.cache_read_input_tokens;
+    const cacheIsKnown = exactToken(created) && exactToken(read);
+    promptKnown &&= exactToken(input) && cacheIsKnown;
+    cachedKnown &&= cacheIsKnown;
+    tokensIn += (input ?? 0) + (created ?? 0) + (read ?? 0);
+    tokensOut += entry.usage.output_tokens ?? 0;
+    cachedTokens += (created ?? 0) + (read ?? 0);
+    if (entry.model) model = entry.model;
+  }
+  return { totalCost, costKnown, tokensIn, tokensOut, cachedTokens, promptKnown, cachedKnown, model };
 }
 
 /**
@@ -164,48 +195,23 @@ export class JsonlEventNormalizer {
 
   private handleTurnDuration(_raw: any): NormalizedEvent[] {
     const events: NormalizedEvent[] = [];
-
-    let totalCost = 0;
-    let costKnown = true;
-    let tokensIn = 0;
-    let tokensOut = 0;
-    let lastModel = '';
-
-    for (const entry of this.currentTurnUsages) {
-      const result = usageToCost(entry.usage, entry.model);
-      if (result === null) costKnown = false;
-      else totalCost += result.totalUsd;
-      tokensIn +=
-        (entry.usage.input_tokens ?? 0)
-        + (entry.usage.cache_creation_input_tokens ?? 0)
-        + (entry.usage.cache_read_input_tokens ?? 0);
-      tokensOut += (entry.usage.output_tokens ?? 0);
-      if (entry.model) lastModel = entry.model;
-    }
-
-    const numTurns = this.turnCount;
-
+    const usage = summarizeUsage(this.currentTurnUsages);
     if (this.currentTurnUsages.length > 0) {
       events.push({
-        type: 'cost_record',
-        provider: 'claude',
-        model: lastModel,
-        tokens_in: tokensIn,
-        tokens_out: tokensOut,
-        cost_usd: costKnown ? totalCost : null,
+        type: 'cost_record', provider: 'claude', model: usage.model,
+        tokens_in: usage.tokensIn, tokens_out: usage.tokensOut,
+        prompt_tokens: usage.promptKnown ? usage.tokensIn : null,
+        cached_tokens: usage.cachedKnown ? usage.cachedTokens : null,
+        cost_usd: usage.costKnown ? usage.totalCost : null,
       });
     }
-
     events.push({
-      type: 'turn_complete',
-      numTurns,
-      totalCostUsd: costKnown && this.currentTurnUsages.length > 0 ? totalCost : null,
+      type: 'turn_complete', numTurns: this.turnCount,
+      totalCostUsd: usage.costKnown && this.currentTurnUsages.length > 0
+        ? usage.totalCost : null,
     });
-
-    // Reset per-turn state (msg.id set kept — it's session-scoped, not turn-scoped).
     this.currentTurnUsages = [];
     this.turnCount = 0;
-
     return events;
   }
 

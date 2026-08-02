@@ -1,5 +1,5 @@
-// input:  merge CLI, fragments, filesystem faults
-// output: fail-closed reason and cleanup tests
+// input:  merge CLI, accounted fragments, filesystem faults
+// output: typed fail-closed reason and cleanup tests
 // pos:    Trajectory merge failure-boundary regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -15,6 +15,7 @@ import {
 import { runTrajectoryMergeCli } from '../../../src/domain/agent-run/trajectory-merge-cli.js';
 import {
   driftModelIdentity,
+  removeFirstEvent,
   removeFragment,
   removeToolResult,
   setMalformedSupervisor,
@@ -185,6 +186,12 @@ it('fails closed with identity_hash_drift', () => {
   const fixture = makeFixture();
   driftModelIdentity(fixture.children[0]);
   assertFailedClosed(invoke(fixture), 'identity_hash_drift');
+});
+
+it('fails closed when a child context usage event is missing', () => {
+  const fixture = makeFixture();
+  removeFirstEvent(fixture.children[0], 'context_usage');
+  assertFailedClosed(invoke(fixture), 'aggregate_metrics_underivable');
 });
 
 it('reports truthful non-quiescent evidence as containment_failure', () => {

@@ -1,5 +1,5 @@
 // input:  nothing (leaf type-only module)
-// output: Agent results, auth notice actions, and usage types
+// output: Agent results, auth actions, and exact usage types
 // pos:    Shared type definitions for agent execution and messages
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -36,6 +36,8 @@ export interface ReportedAccountingSnapshot {
   readonly usageReported: boolean;
   readonly inputTokens: number | null;
   readonly outputTokens: number | null;
+  readonly promptTokens: number | null;
+  readonly cachedTokens: number | null;
   readonly model: string | null;
 }
 
