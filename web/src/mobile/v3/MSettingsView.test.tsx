@@ -1,6 +1,6 @@
 // input:  mobile settings view, account/hooks snapshots, UI copy
-// output: accounts and mounted-hook drill-in regressions
-// pos:    Verifies mobile settings account and hook entries
+// output: fixed-header and account/hook drill-in regressions
+// pos:    Verifies mobile settings layout and entries
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -36,8 +36,8 @@ const snapshot: ConfigSnapshot = {
   env: [],
 };
 
-function renderHooks(value: ConfigSnapshot, onlineMachines = 0): string {
-  return renderToStaticMarkup(
+function settingsView(value: ConfigSnapshot, onlineMachines = 0) {
+  return (
     <LangProvider>
       <MSettingsView
         vm={buildMSettingsVm(value, undefined)}
@@ -58,9 +58,25 @@ function renderHooks(value: ConfigSnapshot, onlineMachines = 0): string {
         onCloseProfile={() => {}}
         onPickProfile={() => {}}
       />
-    </LangProvider>,
+    </LangProvider>
   );
 }
+
+function renderHooks(value: ConfigSnapshot, onlineMachines = 0): string {
+  return renderToStaticMarkup(settingsView(value, onlineMachines));
+}
+
+describe('MSettingsView layout', () => {
+  it('keeps the title header outside the scrolling content region', () => {
+    const html = renderHooks(snapshot);
+    const titleIndex = html.indexOf(`>${copy.title}<`);
+    const scrollRegionIndex = html.indexOf('overflow:auto');
+
+    expect(html).toContain('data-screen-label="1l 设置"');
+    expect(titleIndex).toBeGreaterThan(-1);
+    expect(scrollRegionIndex).toBeGreaterThan(titleIndex);
+  });
+});
 
 describe('MSettingsView accounts', () => {
   it('renders the account summary drill-in row', () => {

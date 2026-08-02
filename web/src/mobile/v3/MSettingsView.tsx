@@ -1,11 +1,11 @@
 // input:  mobile settings/accounts models and UI primitives
-// output: mobile settings with account and config drill-ins
+// output: fixed-header mobile settings with config drill-ins
 // pos:    Presentational mobile settings view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 // @ds-adherence-ignore -- mobile v3 raw px/hex/font by design §8.3 (scheme-mobile.dc.html 1l L601-663)
 import { type ReactNode } from 'react';
-import { MDrillHeader, MScrollBody, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
+import { MScreen, MDrillHeader, MScrollBody, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { BUILD_STAMP } from '@/lib/build-info';
 import { useVocab, type Lang } from '@/i18n';
 import type { Theme } from '@/theme';
@@ -299,12 +299,16 @@ export function MSettingsView({
   const platformLabel =
     copy.platform + (vm.platforms.length ? `（${vm.platforms.join(', ')}）` : '');
   return (
-    <>
-      <MDrillHeader onBack={onBack} trailing={<DaemonStatus copy={copy} />}>
-        <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
-          {copy.title}
-        </div>
-      </MDrillHeader>
+    <MScreen
+      label="1l 设置"
+      header={
+        <MDrillHeader onBack={onBack} trailing={<DaemonStatus copy={copy} />}>
+          <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink, letterSpacing: '-.01em' }}>
+            {copy.title}
+          </div>
+        </MDrillHeader>
+      }
+    >
       <MScrollBody gap={10}>
         {/* card1 — Daemon · Profile */}
         <Card>
@@ -511,6 +515,6 @@ export function MSettingsView({
           <div style={{ font: `400 9.5px ${MONO}`, color: MC.faint, padding: '9px 4px 0' }}>{copy.profileSheetFooter}</div>
         </MBottomSheet>
       )}
-    </>
+    </MScreen>
   );
 }

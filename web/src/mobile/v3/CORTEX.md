@@ -78,8 +78,8 @@ The view models are framework-free record to slot mappings and each one has a co
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
 | MSettingsScreen.tsx | screen | Loads settings and account summary data |
-| MSettingsView.tsx | view | Settings rows with account and config drill-ins |
-| MSettingsView.test.tsx | test | Tests account, hooks and machines settings rows |
+| MSettingsView.tsx | view | Fixed-header settings with account and config drill-ins |
+| MSettingsView.test.tsx | test | Tests fixed header and settings drill-in rows |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
 | MAccountsScreen.tsx | screen | Loads account status and serializes logout actions |

@@ -127,31 +127,33 @@ export function MSettingsScreen() {
     setProfileMut.mutate({ section: 'profiles', value: { defaultProfile: name } });
   };
 
-  return (
-    <MScreen label="1l 设置">
-      {configQuery.isLoading ? (
+  if (configQuery.isLoading) {
+    return (
+      <MScreen label="1l 设置">
         <div style={{ padding: 16, color: MC.muted, fontSize: 13 }}>{copy.title}</div>
-      ) : (
-        <MSettingsView
-          vm={vm}
-          copy={copy}
-          lang={lang}
-          onSetLang={setLang}
-          theme={theme}
-          onSetTheme={setTheme}
-          onBack={() => navigate('/m/project')}
-          onOpenDaemon={() => navigate('/m/daemon')}
-          onlineMachines={onlineMachines}
-          onOpenMachines={() => navigate('/m/machines')}
-          onOpenHooks={() => navigate('/m/settings/hooks')}
-          accountsSummary={accountsSummary}
-          onOpenAccounts={() => navigate('/m/settings/accounts')}
-          profileSheet={profileSheet}
-          onOpenProfile={() => setProfileOpen(true)}
-          onCloseProfile={() => setProfileOpen(false)}
-          onPickProfile={onPickProfile}
-        />
-      )}
-    </MScreen>
+      </MScreen>
+    );
+  }
+
+  return (
+    <MSettingsView
+      vm={vm}
+      copy={copy}
+      lang={lang}
+      onSetLang={setLang}
+      theme={theme}
+      onSetTheme={setTheme}
+      onBack={() => navigate('/m/project')}
+      onOpenDaemon={() => navigate('/m/daemon')}
+      onlineMachines={onlineMachines}
+      onOpenMachines={() => navigate('/m/machines')}
+      onOpenHooks={() => navigate('/m/settings/hooks')}
+      accountsSummary={accountsSummary}
+      onOpenAccounts={() => navigate('/m/settings/accounts')}
+      profileSheet={profileSheet}
+      onOpenProfile={() => setProfileOpen(true)}
+      onCloseProfile={() => setProfileOpen(false)}
+      onPickProfile={onPickProfile}
+    />
   );
 }
