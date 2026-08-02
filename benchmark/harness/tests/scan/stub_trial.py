@@ -1,10 +1,11 @@
-# input:  real npm bundle, pinned Debian image, and fake Claude fixture
-# output: collected real agent-run, lifecycle, network, and scan evidence
+# input:  real npm bundle, pinned Debian image, fake Claude fixture
+# output: lifecycle, merged ATIF, network, and scan evidence
 # pos:    Reusable Harbor container integration for the genuine run path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
 import hashlib
+import importlib.metadata
 import json
 import os
 import re
@@ -22,6 +23,7 @@ from harbor.models.agent.context import AgentContext
 from harbor.models.task.config import EnvironmentConfig
 from harbor.models.trial.config import ServiceVolumeConfig
 from harbor.models.trial.paths import TrialPaths
+from harbor.utils.trajectory_validator import TrajectoryValidator
 
 from cortex_bench_harness import CortexBenchAgent
 from cortex_bench_harness.scan import ArtifactSet, ScanPolicy, scan_trial_artifacts
@@ -39,6 +41,10 @@ FORBIDDEN_CREDENTIAL = "sk-ant-REAL-CREDENTIAL-MUST-NOT-ENTER"
 URI_HOST = re.compile(rb"https?://[^/\s\"']+")
 IPV4 = re.compile(rb"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b")
 HOME_PATH = re.compile(rb"/home/[^/\x00\s]+")
+FINAL_METRIC_KEYS = (
+    "total_prompt_tokens", "total_completion_tokens", "total_cached_tokens",
+    "total_cost_usd", "total_steps",
+)
 
 
 @dataclass(frozen=True)
@@ -65,8 +71,13 @@ class TrialEvidence:
     raw_usage: dict[str, int]
     event_types: frozenset[str]
     cost_record: dict[str, int | float | None]
+    journal_events: tuple[dict[str, object], ...]
     terminal_state: str
+    recorded_journal_path: str
     trajectory_validation: dict[str, object]
+    merged_trajectory_path: Path
+    final_metrics: dict[str, int | float]
+    atif_validation: dict[str, object]
     scope: dict[str, object]
     required_scan_clean: bool
     whole_tree_scan_clean: bool
@@ -292,6 +303,7 @@ def trial_record() -> dict[str, object]:
             "harbor_agent_run": "real", "installed_cortex_cli": "real",
             "process_supervisor": "real", "claude_adapter": "real",
             "model_backend": "fake-network-free",
+            "trajectory_merge": "real-host-cli",
             "container_network": "detached-before-agent-run",
         },
     }
@@ -345,6 +357,30 @@ def parse_journal(layout: Layout) -> tuple[dict[str, object], list[dict[str, obj
     events = [record["event"] for record in records[1:]]
     assert header["type"] == "run_header" and header["resolved_cwd"] == "/app"
     return header, events
+
+
+def merge_trajectory(layout: Layout) -> Path:
+    trajectory_root = layout.trial_paths.agent_dir / "trajectory"
+    output = layout.trial_paths.artifacts_dir / "trajectory.json"
+    cli = layout.repo_root / "agent-server/dist/domain/agent-run/trajectory-merge-cli.js"
+    result = run_command([
+        "node", str(cli), "--trajectory-root", str(trajectory_root),
+        "--output", str(output),
+    ], layout.repo_root)
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True and Path(payload["output_path"]) == output
+    return output
+
+
+def validate_atif(trajectory_path: Path) -> dict[str, object]:
+    validator = TrajectoryValidator()
+    ok = validator.validate(trajectory_path)
+    return {
+        "ok": ok,
+        "errors": validator.get_errors(),
+        "validator": "harbor.utils.trajectory_validator.TrajectoryValidator",
+        "harbor_version": importlib.metadata.version("harbor"),
+    }
 
 
 def parse_fake_usage(layout: Layout) -> dict[str, int]:
@@ -430,6 +466,7 @@ def whole_tree_scan(layout: Layout, secrets: dict[str, str]) -> bool:
 
 def collect_evidence(
     layout: Layout, image: dict[str, object], agent: RecordingCortexBenchAgent,
+    merged_path: Path,
 ) -> TrialEvidence:
     header, events = parse_journal(layout)
     terminal = validate_terminal(layout, header)
@@ -438,6 +475,8 @@ def collect_evidence(
     validation = json.loads(
         (layout.trial_paths.artifacts_dir / "trajectory-validation.json").read_text()
     )
+    trajectory = json.loads(merged_path.read_text())
+    metrics = {key: trajectory["final_metrics"][key] for key in FINAL_METRIC_KEYS}
     secrets = host_secret_literals()
     required_clean = required_scan(layout, secrets)
     whole_clean = whole_tree_scan(layout, secrets)
@@ -450,7 +489,9 @@ def collect_evidence(
         str(header["resolved_cwd"]), parse_fake_usage(layout), event_types,
         {key: cost[key] for key in ("tokens_in", "tokens_out", "prompt_tokens",
                                     "cached_tokens", "cost_usd")},
-        str(terminal["state"]), validation, scope, required_clean, whole_clean, routes,
+        tuple(events), str(terminal["state"]), str(terminal["journal_path"]), validation,
+        merged_path, metrics, validate_atif(merged_path), scope,
+        required_clean, whole_clean, routes,
     )
 
 
@@ -459,9 +500,10 @@ def run_real_agent_trial(root: Path) -> TrialEvidence:
     before_images = image_inventory()
     layout = create_layout(root)
     agent = asyncio.run(execute_trial(layout, image))
+    merged_path = merge_trajectory(layout)
     after_images = image_inventory()
     assert after_images == before_images, "real trial changed the Docker image inventory"
-    return collect_evidence(layout, image, agent)
+    return collect_evidence(layout, image, agent, merged_path)
 
 
 def main() -> None:

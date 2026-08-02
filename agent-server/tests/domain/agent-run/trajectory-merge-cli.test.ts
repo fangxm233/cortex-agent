@@ -1,5 +1,5 @@
-// input:  merge CLI, accounted fragments, filesystem faults
-// output: atomic metrics and typed fail-closed tests
+// input:  merge CLI, context-free fragments, filesystem faults
+// output: atomic accounting and typed fail-closed tests
 // pos:    Trajectory merge failure-boundary regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -20,6 +20,7 @@ import {
   removeFirstEventField,
   removeFragment,
   removeToolResult,
+  setFirstEventField,
   setMalformedSupervisor,
   setSupervisor,
   setTerminalState,
@@ -213,23 +214,59 @@ it('fails closed with identity_hash_drift', () => {
   assertFailedClosed(invoke(fixture), 'identity_hash_drift');
 });
 
-it('fails closed when a child context usage event is missing', () => {
+it('aggregates accounted fragments without context usage provenance', () => {
   const fixture = makeFixture();
   removeFirstEvent(fixture.children[0], 'context_usage');
+  removeFirstEvent(fixture.children[0], 'context_usage');
+  moveLastEventBeforeFirst(fixture.children[1], 'context_usage', 'cost_record');
+  const result = invoke(fixture);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(result.outputPath, 'utf8')).final_metrics, {
+    total_prompt_tokens: 1_200 + 340 + 460,
+    total_completion_tokens: 120 + 34 + 46,
+    total_cached_tokens: 400 + 40 + 60,
+    total_cost_usd: 0.12 + 0.04 + 0.04,
+    total_steps: 2 + 2 + 2,
+    extra: {
+      prompt_tokens_definition:
+        'input_tokens + cache_creation_input_tokens + cache_read_input_tokens',
+      cached_tokens_definition: 'cache_read_input_tokens',
+    },
+  });
+});
+
+it.each([
+  ['cost_record', 'prompt_tokens'],
+  ['cost_record', 'cached_tokens'],
+  ['cost_record', 'tokens_out'],
+  ['cost_record', 'cost_usd'],
+  ['turn_complete', 'numTurns'],
+] as const)('fails closed when %s.%s is deleted', (eventType, field) => {
+  const fixture = makeFixture();
+  removeFirstEventField(fixture.parent, eventType, field);
   assertFailedClosed(invoke(fixture), 'aggregate_metrics_underivable');
 });
 
-it('accepts additive legacy cost records but refuses to aggregate missing fields', () => {
+it.each([
+  ['cost_record', 'prompt_tokens'],
+  ['cost_record', 'cached_tokens'],
+  ['cost_record', 'tokens_out'],
+  ['cost_record', 'cost_usd'],
+  ['turn_complete', 'numTurns'],
+] as const)('fails closed when %s.%s is null', (eventType, field) => {
   const fixture = makeFixture();
-  removeFirstEventField(fixture.children[0], 'cost_record', 'cached_tokens');
+  setFirstEventField(fixture.parent, eventType, field, null);
   assertFailedClosed(invoke(fixture), 'aggregate_metrics_underivable');
 });
 
-it('requires context provenance before each cost record', () => {
-  const fixture = makeFixture();
-  moveLastEventBeforeFirst(fixture.children[0], 'context_usage', 'cost_record');
-  assertFailedClosed(invoke(fixture), 'aggregate_metrics_underivable');
-});
+it.each(['cost_record', 'turn_complete'] as const)(
+  'fails closed when a fragment has no %s event',
+  eventType => {
+    const fixture = makeFixture();
+    removeFirstEvent(fixture.parent, eventType);
+    assertFailedClosed(invoke(fixture), 'aggregate_metrics_underivable');
+  },
+);
 
 it('reports truthful non-quiescent evidence as containment_failure', () => {
   const fixture = makeFixture();

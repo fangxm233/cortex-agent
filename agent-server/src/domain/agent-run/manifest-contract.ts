@@ -1,7 +1,9 @@
-// input:  lifecycle values, canonical roots, manifest schemas
-// output: terminal manifest types, builder, and validator
+// input:  lifecycle values, canonical roots, node:path
+// output: relocatable manifest types, builder, and validator
 // pos:    Value contract for terminal run truth
 // >>> If I am updated, update my header and folder CORTEX.md <<<
+
+import path from 'node:path';
 
 const MANIFEST_SCHEMA = 'cortex-bench-manifest/1';
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
@@ -168,13 +170,18 @@ export function terminalManifestProblem(value: unknown): string | null {
   return MANIFEST_RULES.find(([, check]) => !check(value))?.[0] ?? null;
 }
 
+export function recordedJournalPath(trajectoryRoot: string, journalPath: string): string {
+  const root = path.resolve(trajectoryRoot);
+  return path.relative(root, path.resolve(root, journalPath));
+}
+
 export function buildTerminalManifest(input: TerminalManifestInput): Record<string, unknown> {
   return {
     schema_version: MANIFEST_SCHEMA,
     state: input.state,
     started_at: input.startedAt,
     ended_at: input.endedAt,
-    journal_path: input.journalPath,
+    journal_path: recordedJournalPath(input.trajectoryRoot, input.journalPath),
     journal_sha256: input.journalSha256,
     event_count: input.eventCount,
     supervisor: input.supervisor,

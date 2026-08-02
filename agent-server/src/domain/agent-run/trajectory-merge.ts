@@ -1,4 +1,4 @@
-// input:  accounted C2/C3 files, output path, filesystem
+// input:  relocatable C2/C3 files, output path, filesystem
 // output: exclusive ATIF metrics or typed fail-closed errors
 // pos:    Parent-plus-child journal merge boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -199,7 +199,6 @@ function writeValidationInput(root: string, input: LifecycleInput, index: number
 }
 
 function validateSnapshot(inputs: LifecycleInput[]): void {
-  assertContainment(inputs);
   const validationRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'trajectory-merge-validate-'));
   try {
     inputs.forEach((input, index) => writeValidationInput(validationRoot, input, index));
@@ -500,22 +499,7 @@ function fragmentSteps(fragment: SourceFragment): number {
   }, 0);
 }
 
-function assertContextUsage(fragment: SourceFragment): void {
-  let hasContext = false;
-  for (const record of fragment.events) {
-    const event = record.event;
-    if (event.type === 'context_usage'
-        && Number.isSafeInteger(event.usedTokens) && Number(event.usedTokens) >= 0) {
-      hasContext = true;
-    }
-    if (event.type !== 'cost_record') continue;
-    if (!hasContext) underivable('Cost record has no preceding derivable context_usage event');
-    hasContext = false;
-  }
-}
-
 function fragmentMetrics(fragment: SourceFragment): MetricAccumulator {
-  assertContextUsage(fragment);
   const metrics = fragmentCostMetrics(fragment);
   return { ...metrics, steps: fragmentSteps(fragment) };
 }
@@ -529,6 +513,10 @@ function addFragmentMetrics(total: MetricAccumulator, fragment: SourceFragment):
     cost: total.cost + metrics.cost,
     steps: sumToken(total.steps, metrics.steps, 'total_steps'),
   };
+}
+
+function assertMetricsDerivable(fragments: SourceFragment[]): void {
+  for (const fragment of fragments) fragmentMetrics(fragment);
 }
 
 function aggregateFinalMetrics(fragments: SourceFragment[]): AtifFinalMetrics {
@@ -570,8 +558,10 @@ function mergeBytes(
   root: string, fileSystem: TrajectoryMergeFileSystem, explicit: ThreadLink[] | undefined,
 ): { bytes: Buffer; trajectoryId: string; fragments: FragmentOutcome[] } {
   const inputs = loadInputs(root, fileSystem);
-  validateSnapshot(inputs);
+  assertContainment(inputs);
   const fragments = inputs.map(parseJournal);
+  assertMetricsDerivable(fragments);
+  validateSnapshot(inputs);
   const { parent, children } = partitionFragments(fragments);
   assertRootIdentity(parent, children);
   const resolved = resolveLinks(parent, explicit);
