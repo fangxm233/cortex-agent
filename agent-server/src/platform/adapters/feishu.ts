@@ -1,5 +1,5 @@
 // input:  Lark SDK, core/settings, platform types
-// output: FeishuAdapter messaging, forms, and admin routing
+// output: FeishuAdapter messaging, rich-text links, forms, routing
 // pos:    Feishu PlatformAdapter implementation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -703,8 +703,12 @@ export class FeishuAdapter implements PlatformAdapter {
         if (!node || typeof node !== 'object') continue;
         switch (node.tag) {
           case 'text':
-          case 'a':
             if (typeof node.text === 'string') line += node.text;
+            break;
+          case 'a':
+            if (typeof node.text === 'string') {
+              line += typeof node.href === 'string' ? `[${node.text}](${node.href})` : node.text;
+            }
             break;
           case 'at':
             if (typeof node.user_name === 'string') line += `@${node.user_name}`;

@@ -13,7 +13,7 @@ Consumed by the orchestration and UI layers through the index barrel.
 | shell-templates.ts | config | turns a shell binding into a full template |
 | prompt-builder.ts | build | assembles prompts and agent control policy |
 | state-machine.ts | state | Drives lifecycle with scoped events and task artifacts |
-| runner.ts | runtime | Runs scoped steps with frozen benchmark identity |
+| runner.ts | runtime | Runs scoped steps with frozen identity and accounting |
 | local-runtime-deps.ts | runtime | Injects daemon-free stores, operations and ledgers |
 | local-runtime-scope.ts | runtime | Propagates local event policy across async callbacks |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus and hook agents |

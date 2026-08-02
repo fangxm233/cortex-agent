@@ -13,7 +13,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
 | agent-adapter-claude.test.ts | test | Claude CLI, hooks, compact and settings |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
-| agent-adapter-pi-event-parser.test.ts | test | PI RPC events without invented model metadata |
+| agent-adapter-pi-event-parser.test.ts | test | PI events with nullable exact accounting |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
@@ -35,7 +35,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cli.test.ts | test | cortex CLI routing, output framing and size limit |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
 | client-manager.test.ts | test | client lifecycle hooks, auth and commands |
-| command-handlers.test.ts | test | bang command routing including authentication |
+| command-handlers.test.ts | test | bang command routing, profiles and authentication |
 | command-interactive.test.ts | test | interactive command router and handlers |
 | composite-adapter-noop-fallback.test.ts | test | unknown conduit operations stay no-op |
 | conversation-runner.test.ts | test | thread-free conversation prompt assembly |
@@ -57,7 +57,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | facade-compact.test.ts | test | manual context compact via agent facade |
 | facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
 | facade.test.ts | test | provider identity and isolated pre-flight gates |
-| feishu-adapter.test.ts | test | Feishu messages, form validation and routing |
+| feishu-adapter.test.ts | test | Feishu messages, rich-text links, forms and routing |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
 | feishu-login-cli.test.ts | test | Feishu login CLI, env locking and gating |
@@ -101,7 +101,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
-| run-with-adapter.test.ts | test | tests event order, sinks and background policy |
+| run-with-adapter.test.ts | test | tests event order, accounting and background waits |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |
@@ -143,7 +143,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
-| thread-benchmark-run.test.ts | test | benchmark isolation and frozen identity checks |
+| thread-benchmark-run.test.ts | test | benchmark isolation, identity and accounting |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
 | thread-benchmark-coder-review.e2e.test.ts | e2e | benchmark graph, tools, MCP and identity isolation |
 | thread-coder-review.e2e.test.ts | e2e | coder-review stages and commit evidence policy |

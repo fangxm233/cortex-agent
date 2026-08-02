@@ -1,5 +1,5 @@
-// input:  C2/C3 fixtures and trajectory merge module
-// output: exact-once tree and stable-byte tests
+// input:  accounted C2/C3 fixtures and trajectory merge module
+// output: exact-once tree, aggregate and stable-byte tests
 // pos:    Happy-path trajectory merge contract suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -48,6 +48,12 @@ function assertSequentialSteps(trajectory: any): void {
   assert.deepEqual(trajectory.steps.map((step: any) => step.step_id),
     trajectory.steps.map((_: any, index: number) => index + 1));
   for (const child of trajectory.subagent_trajectories ?? []) assertSequentialSteps(child);
+}
+
+function treeStepCount(trajectory: any): number {
+  const childSteps = (trajectory.subagent_trajectories ?? [])
+    .reduce((total: number, child: any) => total + treeStepCount(child), 0);
+  return trajectory.steps.length + childSteps;
 }
 
 function findCallStep(trajectory: any, callId: string): any {
@@ -114,6 +120,25 @@ it('merges interleaved parent and child events exactly once into one ATIF tree',
   }
 
   assertChildLinks(trajectory);
+});
+
+it('sums non-null final metrics across parent and every child fragment', () => {
+  const root = makeRoot();
+  writeTreeFixture(root);
+  const outputPath = path.join(root, 'trajectory.json');
+  mergeTrajectory({ trajectoryRoot: root, outputPath });
+  const trajectory = readJson(outputPath);
+
+  assert.deepEqual(trajectory.final_metrics, {
+    total_prompt_tokens: 1_200 + 340 + 460,
+    total_completion_tokens: 120 + 34 + 46,
+    total_cached_tokens: 400 + 40 + 60,
+    total_cost_usd: 0.12 + 0.04 + 0.04,
+    total_steps: 2 + 2 + 2,
+  });
+  assert.equal(treeStepCount(trajectory), 7 + 8 + 8);
+  assert.match(trajectory.notes, /turn_complete\.numTurns/);
+  assert.match(trajectory.notes, /6.*23|23.*6/);
 });
 
 it('writes byte-identical output for identical input', () => {
@@ -186,22 +211,19 @@ it('keeps a truncated but terminal child trajectory', () => {
   const child = readJson(outputPath).subagent_trajectories
     .find((item: any) => item.trajectory_id === fixture.children[0].threadId);
   assert.deepEqual(child.extra.terminal, { state: 'timeout', terminal_reason: 'deadline' });
-  assert.equal(child.steps.length, 1);
+  assert.equal(child.steps.length, 8 - 1);
 });
 
-it('synthesizes one marked system step for a valid zero-event terminal fragment', () => {
+it('rejects a zero-event terminal fragment whose metrics are underivable', () => {
   const root = makeRoot();
   const fixture = writeParentOnlyFixture(root);
   makeZeroEventTerminal(fixture.parent);
   const outputPath = path.join(root, 'trajectory.json');
-  mergeTrajectory({ trajectoryRoot: root, outputPath });
-  const trajectory = readJson(outputPath);
-  assert.equal(trajectory.steps.length, 1);
-  assert.equal(trajectory.steps[0].source, 'system');
-  assert.match(trajectory.steps[0].message, /timeout.*deadline/);
-  assert.deepEqual(trajectory.steps[0].extra, { synthesized_from: 'terminal_manifest' });
-  assert.equal(Object.hasOwn(trajectory.steps[0], 'reasoning_content'), false);
-  assert.equal(trajectory.agent.model_name, null);
+  assert.throws(
+    () => mergeTrajectory({ trajectoryRoot: root, outputPath }),
+    (error: any) => error.reason === 'aggregate_metrics_underivable',
+  );
+  assert.equal(fs.existsSync(outputPath), false);
 });
 
 it('passes Harbor 0.20.0 authoritative validation with zero errors', () => {

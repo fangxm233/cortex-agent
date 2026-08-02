@@ -1,5 +1,5 @@
-// input:  continuation results, reported-cost markers, wait policy
-// output: bounded or completion-only merged continuation results
+// input:  continuation results, exact accounting, wait policy
+// output: merged continuation events and bounded results
 // pos:    Background continuation wait policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
@@ -118,6 +118,19 @@ function mergeContinuation(acc: AgentResult, cont: AgentResult): AgentResult {
     rateLimitMessage: cont.rateLimitMessage ?? acc.rateLimitMessage,
     pendingBackgroundTasks: cont.pendingBackgroundTasks ?? 0,
     undeliveredBackgroundTasks: cont.undeliveredBackgroundTasks ?? 0,
+  };
+}
+
+function continuationCostRecord(result: AgentResult): NormalizedEvent | null {
+  const accounting = result.reportedAccounting;
+  if (result.costReported !== true && accounting?.usageReported !== true) return null;
+  return {
+    type: 'cost_record', provider: 'anthropic', model: accounting?.model ?? 'unknown',
+    tokens_in: accounting?.inputTokens ?? null,
+    tokens_out: accounting?.outputTokens ?? null,
+    prompt_tokens: accounting?.promptTokens ?? null,
+    cached_tokens: accounting?.cachedTokens ?? null,
+    cost_usd: result.costReported === true ? result.total_cost_usd : null,
   };
 }
 
@@ -255,6 +268,8 @@ class BackgroundContinuationWait {
       else this.finish({ ...this.acc, backgroundInterrupted: true });
       return;
     }
+    const costRecord = continuationCostRecord(continuation);
+    if (costRecord && !this.emit(costRecord)) return;
     if (!this.emit({
       type: 'turn_complete', numTurns: continuation.num_turns ?? 0,
       totalCostUsd: continuation.total_cost_usd ?? null,

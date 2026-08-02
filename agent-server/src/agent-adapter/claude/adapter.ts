@@ -1,5 +1,5 @@
 // input:  session streams, spawn config, reported accounting
-// output: Claude turns with immutable accounting and continuations
+// output: Claude turns with exact cache-explicit accounting
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -106,6 +106,17 @@ type TurnTokenUsage = {
   cacheCreation: number | null;
   cacheRead: number | null;
 };
+
+function tokenValue(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function sumKnownTokens(values: unknown[]): number | null {
+  const tokens = values.map(tokenValue);
+  if (tokens.some(value => value === null)) return null;
+  const total = tokens.reduce((sum, value) => sum + value!, 0);
+  return Number.isSafeInteger(total) ? total : null;
+}
 
 interface ClaudeSessionOptions {
   needsResume: boolean;
@@ -703,10 +714,14 @@ class ClaudeSession {
   }
 
   private reportedAccounting(data: any): ReportedAccountingSnapshot {
+    const usage = data.usage;
+    const cached = [usage?.cache_creation_input_tokens, usage?.cache_read_input_tokens];
     return {
-      usageReported: data.usage != null,
-      inputTokens: data.usage?.input_tokens ?? null,
-      outputTokens: data.usage?.output_tokens ?? null,
+      usageReported: usage != null,
+      inputTokens: tokenValue(usage?.input_tokens),
+      outputTokens: tokenValue(usage?.output_tokens),
+      promptTokens: sumKnownTokens([usage?.input_tokens, ...cached]),
+      cachedTokens: sumKnownTokens(cached),
       model: data.modelUsage ? Object.keys(data.modelUsage)[0] ?? null : null,
     };
   }
@@ -1319,6 +1334,7 @@ export class ClaudeAdapter implements AgentAdapter {
             : result.total_cost_usd != null || session.lastTokenUsage !== null;
           if (hasReportableAccounting) {
             const legacyUsage = session.lastTokenUsage;
+            const cached = [legacyUsage?.cacheCreation, legacyUsage?.cacheRead];
             stream.push({
               type: 'cost_record',
               provider: 'anthropic',
@@ -1326,6 +1342,11 @@ export class ClaudeAdapter implements AgentAdapter {
                 || session.modelName || 'unknown',
               tokens_in: preserveReportedness ? accounting?.inputTokens ?? null : legacyUsage?.input ?? 0,
               tokens_out: preserveReportedness ? accounting?.outputTokens ?? null : legacyUsage?.output ?? 0,
+              prompt_tokens: preserveReportedness
+                ? accounting?.promptTokens ?? null
+                : sumKnownTokens([legacyUsage?.input, ...cached]),
+              cached_tokens: preserveReportedness
+                ? accounting?.cachedTokens ?? null : sumKnownTokens(cached),
               cost_usd: preserveReportedness && result.costReported !== true
                 ? null
                 : result.total_cost_usd ?? null,

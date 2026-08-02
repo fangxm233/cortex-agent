@@ -1,5 +1,5 @@
 // input:  run config, adapters, profiles, task/cost events
-// output: attributed runs and ordered continuation event delivery
+// output: attributed runs with exact continuation accounting
 // pos:    Backend-neutral agent run facade
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -200,6 +200,8 @@ export interface RunAgentOptions {
   streamDeltas?: boolean;
   /** Suppress legacy transcript logs when a required journal is configured. */
   captureTranscriptLogs?: boolean;
+  /** Keep unavailable backend accounting null for provenance-sensitive runs. */
+  preserveUnreportedAccounting?: boolean;
   /** Disable ambient global rules for a frozen role prompt. */
   loadCortexRules?: boolean;
   /** Disable daemon cost-store writes while preserving streamed cost records. */
@@ -337,6 +339,7 @@ export function buildAgentSpawnConfig(
     disableHooks: options.disableHooks,
     streamDeltas: options.streamDeltas,
     captureTranscriptLogs: options.captureTranscriptLogs,
+    preserveUnreportedAccounting: options.preserveUnreportedAccounting,
     processSpawner: options.processSpawner,
     pluginDirs: filterChannelScopedPlugins(
       Array.isArray(options.pluginDirs) ? options.pluginDirs : undefined,
