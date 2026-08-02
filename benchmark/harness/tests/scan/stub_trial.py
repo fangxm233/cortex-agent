@@ -307,7 +307,6 @@ async def write_container_evidence(environment: DockerEnvironment) -> None:
         f"env | cut -d= -f1 | grep -E {shlex.quote(sensitive)} "
         "> /logs/artifacts/sensitive-env-names.txt || true",
         "test ! -s /logs/artifacts/sensitive-env-names.txt",
-        ": > /logs/artifacts/workspace.diff",
         f"printf '%s\\n' {record} > /logs/artifacts/trial-record.json",
     ]
     for command in commands:
@@ -320,8 +319,8 @@ async def execute_trial(
 ) -> RecordingCortexBenchAgent:
     environment = create_environment(layout)
     agent = create_agent(layout, image)
-    await environment.start(force_build=False)
     try:
+        await environment.start(force_build=False)
         await provision_runtime(environment)
         with environment.with_default_user(AGENT_USER):
             with environment.scoped_exec_env(agent.extra_env):
@@ -385,6 +384,25 @@ def host_secret_literals() -> dict[str, str]:
     return values
 
 
+def write_workspace_diff(layout: Layout) -> Path:
+    output = layout.trial_paths.artifacts_dir / "workspace.diff"
+    with output.open("wb") as stream:
+        for path in sorted(layout.workspace.rglob("*")):
+            if path.is_symlink():
+                payload = os.fsencode(os.readlink(path))
+            elif path.is_file():
+                payload = path.read_bytes()
+            else:
+                continue
+            relative = os.fsencode(path.relative_to(layout.workspace))
+            stream.write(b"--- /dev/null\n+++ b/" + relative + b"\n")
+            for line in payload.splitlines(keepends=True):
+                stream.write(b"+" + line)
+            if payload and not payload.endswith(b"\n"):
+                stream.write(b"\n")
+    return output
+
+
 def required_scan(layout: Layout, secrets: dict[str, str]) -> bool:
     agent = layout.trial_paths.agent_dir
     artifacts = layout.trial_paths.artifacts_dir
@@ -405,8 +423,7 @@ def result_surface_files(layout: Layout) -> list[Path]:
     for root in (layout.trial_paths.agent_dir, layout.trial_paths.verifier_dir,
                  layout.trial_paths.artifacts_dir):
         files.extend(path for path in root.rglob("*") if path.is_file())
-    setup = layout.trial_paths.agent_dir / "setup"
-    return sorted(path for path in files if setup not in path.parents)
+    return sorted(files)
 
 
 def whole_tree_scan(layout: Layout, secrets: dict[str, str]) -> bool:
@@ -439,6 +456,7 @@ def collect_evidence(
         (layout.trial_paths.artifacts_dir / "trajectory-validation.json").read_text()
     )
     secrets = host_secret_literals()
+    write_workspace_diff(layout)
     required_clean = required_scan(layout, secrets)
     whole_clean = whole_tree_scan(layout, secrets)
     scope = json.loads(
