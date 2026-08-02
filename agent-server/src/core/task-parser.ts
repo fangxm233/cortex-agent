@@ -251,6 +251,32 @@ function getTasksYamlPath(project: string): string {
   return path.join(PROJECTS_DIR, project, 'TASKS.yaml');
 }
 
+/** Content-keyed parse cache. YAML parsing dominates scan cost (seconds across projects on the
+ *  dispatch hot path); the raw read is cheap. Keyed by exact file content, so edits from ANY
+ *  process (CLI, git pull, other threads) invalidate naturally — no mtime-granularity races.
+ *  Results are structuredClone'd on the way out so callers can never mutate the cached copy. */
+const tasksFileCache = new Map<string, { content: string; tasks: Task[] }>();
+let tasksCacheHits = 0;
+let tasksCacheMisses = 0;
+
+function parseTasksFileCached(tasksPath: string, project: string): Task[] {
+  const content = fs.readFileSync(tasksPath, 'utf8');
+  const hit = tasksFileCache.get(tasksPath);
+  if (hit && hit.content === content) {
+    tasksCacheHits++;
+    return structuredClone(hit.tasks);
+  }
+  tasksCacheMisses++;
+  const tasks = parseTasksFile(content, project);
+  tasksFileCache.set(tasksPath, { content, tasks });
+  return structuredClone(tasks);
+}
+
+/** Test seam: cumulative cache hit/miss counters for the scanAllTasks content cache. */
+function _tasksFileCacheStats(): { hits: number; misses: number } {
+  return { hits: tasksCacheHits, misses: tasksCacheMisses };
+}
+
 function scanAllTasks(project: string | null = null): Task[] {
   if (!fs.existsSync(PROJECTS_DIR)) return [];
   const tasks: Task[] = [];
@@ -258,7 +284,7 @@ function scanAllTasks(project: string | null = null): Task[] {
     if (project && projectName !== project) continue;
     const tasksPath = getTasksYamlPath(projectName);
     if (!fs.existsSync(tasksPath)) continue;
-    tasks.push(...parseTasksFile(fs.readFileSync(tasksPath, 'utf8'), projectName));
+    tasks.push(...parseTasksFileCached(tasksPath, projectName));
   }
   return tasks;
 }
@@ -515,6 +541,7 @@ export {
   rawToTask,
   scanAllTasks,
   scanAvailableTasks,
+  _tasksFileCacheStats,
   serializeTasksFile,
   serializeTasksFileWithLock,
   showPayload,

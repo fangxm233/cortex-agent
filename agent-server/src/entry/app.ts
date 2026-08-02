@@ -584,6 +584,7 @@ process.on('SIGTERM', async () => {
   threadStore.load();
   await threadStore.markRunningAsFailedOnStartup();
   await threadStore.cleanup();
+  await executionRepo.archiveTerminal().catch((e) => log.error(`Execution archive failed: ${(e as Error).message}`));
 
   // Crash-orphan claim recovery: a dispatch claim whose owner died with the server keeps the
   // task invisible to the dispatcher forever (claimed → not actionable → never re-dispatched),
@@ -694,6 +695,19 @@ process.on('SIGTERM', async () => {
       log.error(`Periodic GC: pruneStale failed: ${(e as Error).message}`);
     }
   }, PRUNE_STALE_INTERVAL);
+
+  // Daily store archival: move week-old terminal execution/thread records to data/archive/*.jsonl.
+  // Keeps the hot stores small — their full-map sync stringify on every persist is the main
+  // event-loop stall source when they grow to multi-MB.
+  const STORE_ARCHIVE_INTERVAL = 24 * 60 * 60 * 1000;
+  setInterval(async () => {
+    try {
+      await executionRepo.archiveTerminal();
+      await threadStore.cleanup();
+    } catch (e) {
+      log.error(`Daily store archive failed: ${(e as Error).message}`);
+    }
+  }, STORE_ARCHIVE_INTERVAL);
 
   startWebhookServer();
 

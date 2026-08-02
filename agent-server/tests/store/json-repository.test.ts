@@ -280,3 +280,38 @@ test('migrate - migrate() is applied on disk read and result is cached', async (
   const val2 = await repo.read();
   assert.equal(val2.value, 'hello');
 });
+
+// ── Group 5: compact serialization ─────────────────────────────
+
+test('compact - write() serializes without pretty-print; default remains pretty', async () => {
+  const value = { a: 1, list: [1, 2] };
+
+  const compactPath = path.join(tmpDir, 'compact.json');
+  const compactRepo = new JsonRepository<typeof value>({
+    filePath: compactPath,
+    defaultValue: () => ({ a: 0, list: [] }),
+    compact: true,
+  });
+  await compactRepo.write(value);
+  assert.equal(await fs.readFile(compactPath, 'utf8'), JSON.stringify(value));
+
+  const prettyPath = path.join(tmpDir, 'pretty.json');
+  const prettyRepo = new JsonRepository<typeof value>({
+    filePath: prettyPath,
+    defaultValue: () => ({ a: 0, list: [] }),
+  });
+  await prettyRepo.write(value);
+  assert.equal(await fs.readFile(prettyPath, 'utf8'), JSON.stringify(value, null, 2));
+});
+
+test('compact - round-trip: compact-written file reads back identically', async () => {
+  const filePath = path.join(tmpDir, 'compact-rt.json');
+  const repo = new JsonRepository<{ v: number[] }>({
+    filePath,
+    defaultValue: () => ({ v: [] }),
+    compact: true,
+  });
+  await repo.write({ v: [1, 2, 3] });
+  repo.invalidate();
+  assert.deepEqual(await repo.read(), { v: [1, 2, 3] });
+});

@@ -7,7 +7,7 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 |---|---|---|
 | conversation-history-repo.test.ts | test | Covers history append, rewind and idempotency |
 | cost-repo.test.ts | test | Covers cost entry writes, pruning and budget |
-| execution-repo.test.ts | test | Covers execution records, index and staleness |
+| execution-repo.test.ts | test | Covers execution records, staleness and archival |
 | hook-registry.test.ts | test | Covers capabilities, sources, defaults and TTL |
 | hook-sync.test.ts | test | Covers managed asset sync and I/O diagnostics |
 | hook-writer.test.ts | test | Covers create, edit, remove and toggle guards |
@@ -25,4 +25,5 @@ and the persisted registries for sessions, tasks, schedules, providers and costs
 | session-registry-repo.test.ts | test | Covers session lookup, prune and migration |
 | session-store.test.ts | test | Covers session migration and prune references |
 | task-repo.test.ts | test | Covers task store locking, flush and round-trip |
+| thread-repo.test.ts | test | Covers thread cleanup archival to JSONL |
 | version-migrations.test.ts | test | Covers config and text migration primitives |

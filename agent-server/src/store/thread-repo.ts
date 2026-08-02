@@ -1,11 +1,12 @@
 // input:  threads.json persistence file
-// output: { threadStore } — Thread state in-memory cache + atomic persistence
-// pos:    Thread system persistence layer. Based on JsonRepository abstraction, reads/writes threads.json, provides CRUD + query interfaces
+// output: { threadStore } — Thread state in-memory cache + coalesced atomic persistence
+// pos:    Thread persistence layer: CRUD + queries; cleanup archives old terminal threads to JSONL
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { readFileSync, rmSync } from 'fs';
+import { appendFile, mkdir } from 'fs/promises';
 import { JsonRepository } from '@core/json-repository.js';
 import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
@@ -16,6 +17,7 @@ const log = createLogger('thread-store');
 import type { ThreadRecord, ThreadId, ThreadStatus } from '@core/types/thread-types.js';
 
 const THREADS_FILE = path.join(STORE_DIR, 'threads.json');
+const THREADS_ARCHIVE_FILE = path.join(STORE_DIR, 'archive', 'threads-archive.jsonl');
 
 class ThreadRepo {
   /** In-memory source of truth for all thread records. All sync reads come from here. */
@@ -23,11 +25,14 @@ class ThreadRepo {
   private repo = new JsonRepository<Record<string, ThreadRecord>>({
     filePath: THREADS_FILE,
     defaultValue: () => ({}),
+    compact: true, // multi-MB store: pretty-printing costs ~40% extra sync stringify per write
   });
   /** Serializes all persist operations (set, delete, mutate, lifecycle). */
   private mutex = new AsyncMutex();
   /** Promise chain for `set()`/`delete()`-initiated persists, guarded by this.mutex. */
   private _pendingPersist: Promise<void> = Promise.resolve();
+  /** True while a persist is queued but not yet snapshotting — lets queuePersist coalesce. */
+  private _persistQueued = false;
 
   // --- Lifecycle ---
 
@@ -191,9 +196,9 @@ class ThreadRepo {
     });
   }
 
-  /** Remove threads older than maxAge (default 7 days), including workspace directories.
-   *  Auto-records (no workspace) use a shorter 24h TTL since they only need to
-   *  survive long enough for !thread add chaining. */
+  /** Archive terminal threads older than maxAge (default 7 days) to the JSONL archive and
+   *  remove their workspace directories. Records are moved, never discarded. Auto-records
+   *  (no workspace) use a shorter 24h TTL since they only need to survive !thread add chaining. */
   async cleanup(maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): Promise<number> {
     await this._pendingPersist;
     return this.mutex.run(async () => {
@@ -228,36 +233,64 @@ class ThreadRepo {
         }
       }
       if (staleWaiting > 0) log.info(`Failed ${staleWaiting} stale waiting threads (leak safety net)`);
-      for (const [id, record] of this.map) {
-        const isTerminal = record.status === 'completed' || record.status === 'failed'
-          || record.status === 'cancelled' || record.status === 'aborted';
-        const isAutoRecord = !record.workspacePath;
-        const effectiveCutoff = isAutoRecord ? autoRecordCutoff : cutoff;
-        if (isTerminal && record.updatedAt < effectiveCutoff) {
-          if (record.workspacePath) {
-            try {
-              rmSync(record.workspacePath, { recursive: true, force: true });
-            } catch {}
-          }
-          this.map.delete(id);
-          count++;
-        }
-      }
+      count = await this.archiveExpiredTerminal(cutoff, autoRecordCutoff);
       if (count > 0 || staleWaiting > 0) {
         await this.persist();
-        if (count > 0) log.info(`Cleaned up ${count} old threads (including workspaces)`);
+        if (count > 0) log.info(`Archived ${count} old threads to ${THREADS_ARCHIVE_FILE} (workspaces removed)`);
       }
       return count;
     });
   }
 
+  /** Terminal records past their cutoff. Auto-records (no workspace) use the shorter TTL. */
+  private selectExpiredTerminal(cutoff: string, autoRecordCutoff: string): ThreadRecord[] {
+    const expired: ThreadRecord[] = [];
+    for (const record of this.map.values()) {
+      const isTerminal = record.status === 'completed' || record.status === 'failed'
+        || record.status === 'cancelled' || record.status === 'aborted';
+      const effectiveCutoff = record.workspacePath ? cutoff : autoRecordCutoff;
+      if (isTerminal && record.updatedAt < effectiveCutoff) expired.push(record);
+    }
+    return expired;
+  }
+
+  /** Archive expired terminal records to append-only JSONL, then drop them from the store and
+   *  delete their workspace dirs. Append-then-delete: a crash can duplicate archive lines but
+   *  never loses a record. If the append fails, records stay in the store (no data loss). */
+  private async archiveExpiredTerminal(cutoff: string, autoRecordCutoff: string): Promise<number> {
+    const expired = this.selectExpiredTerminal(cutoff, autoRecordCutoff);
+    if (expired.length === 0) return 0;
+    try {
+      await mkdir(path.dirname(THREADS_ARCHIVE_FILE), { recursive: true });
+      await appendFile(THREADS_ARCHIVE_FILE, expired.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
+    } catch (err) {
+      log.error(`Thread archive append failed — keeping ${expired.length} record(s): ${(err as Error).message}`);
+      return 0;
+    }
+    for (const record of expired) {
+      if (record.workspacePath) {
+        try { rmSync(record.workspacePath, { recursive: true, force: true }); } catch {}
+      }
+      this.map.delete(record.id);
+    }
+    return expired.length;
+  }
+
   /** Queue a persist through the mutex, chaining off any prior persist. Returns the promise.
    *  Errors are caught at the chain level so a single I/O failure does not poison all subsequent
-   *  writes (returning a rejected chain would short-circuit every follow-up `.then`). */
+   *  writes (returning a rejected chain would short-circuit every follow-up `.then`).
+   *  Coalescing: map mutations are synchronous and persist() snapshots the whole map, so any
+   *  mutation made before a queued persist STARTS is covered by it. The flag resets right before
+   *  the snapshot; later mutations queue a fresh persist. Collapses sync bursts to one write. */
   queuePersist(): Promise<void> {
+    if (this._persistQueued) return this._pendingPersist;
+    this._persistQueued = true;
     this._pendingPersist = this._pendingPersist
       .catch(() => {})
-      .then(() => this.mutex.run(() => this.persist()))
+      .then(() => this.mutex.run(() => {
+        this._persistQueued = false;
+        return this.persist();
+      }))
       .catch((err) => { log.error('persist failed:', err); });
     return this._pendingPersist;
   }

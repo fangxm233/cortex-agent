@@ -1,9 +1,9 @@
 // input:  Node test runner, assert, tmp filesystem
-// output: regression tests for ExecutionRepo (concurrency, index consistency, flush)
+// output: regression tests for ExecutionRepo (concurrency, index, flush, archive, coalescing)
 // pos:    verifies Pattern B invariants for execution-repo (S3 migration)
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, beforeAll, afterAll } from 'vitest';
+import { test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -655,4 +655,106 @@ test('re-export layer delegates execution state through one singleton', async ()
 
   // Clean up: mark it completed so it does not appear as running in the real daemon.
   reg.completeExecution(exec.id, { costUsd: 0, durationS: 0 });
+});
+
+// ── Group 15: terminal-record archival ──
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Backdate a record's runtime timestamps via repo.set (the designated backdating seam). */
+function backdate(repo: ExecutionRepo, id: string, daysAgo: number, { keepRunning = false } = {}): void {
+  const rec = repo.getExecution(id);
+  assert.ok(rec, `backdate: missing record ${id}`);
+  const ts = new Date(Date.now() - daysAgo * DAY_MS).toISOString();
+  repo.set(id, {
+    ...rec!,
+    runtime: { startedAt: ts, updatedAt: ts, endedAt: keepRunning ? null : ts },
+  });
+}
+
+test('archiveTerminal - old terminal records move to append-only JSONL; recent and running stay', async () => {
+  const repo = createRepo();
+  const archivePath = path.join(tmpDir, `arch-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`);
+
+  const old = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'old' });
+  repo.completeExecution(old.id);
+  backdate(repo, old.id, 8);
+
+  const recent = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'recent' });
+  repo.completeExecution(recent.id);
+
+  const running = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'running' });
+  backdate(repo, running.id, 8, { keepRunning: true });
+
+  const count = await repo.archiveTerminal({ olderThanMs: 7 * DAY_MS, archivePath });
+  assert.equal(count, 1);
+
+  // In-memory: archived record gone, others intact
+  assert.equal(repo.getExecution(old.id), null);
+  assert.ok(repo.getExecution(recent.id));
+  assert.equal(repo.getExecution(running.id)?.status, 'running');
+
+  // Archive file: exactly one parseable JSONL line holding the full record
+  const lines = (await fs.readFile(archivePath, 'utf8')).trim().split('\n');
+  assert.equal(lines.length, 1);
+  const archived = JSON.parse(lines[0]);
+  assert.equal(archived.id, old.id);
+  assert.equal(archived.text.label, 'old');
+  assert.equal(archived.status, 'completed');
+
+  // Persisted store: archived id removed, survivors present
+  const onDisk = JSON.parse(await fs.readFile(repo.filePath, 'utf8'));
+  assert.ok(!(old.id in onDisk), 'archived record must leave the persisted store');
+  assert.ok(recent.id in onDisk);
+  assert.ok(running.id in onDisk);
+});
+
+test('archiveTerminal - successive runs append to the archive, never overwrite', async () => {
+  const repo = createRepo();
+  const archivePath = path.join(tmpDir, `arch-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`);
+
+  const first = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'first' });
+  repo.completeExecution(first.id);
+  backdate(repo, first.id, 9);
+  assert.equal(await repo.archiveTerminal({ olderThanMs: 7 * DAY_MS, archivePath }), 1);
+
+  const second = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'second' });
+  repo.failExecution(second.id, { error: 'boom' });
+  backdate(repo, second.id, 8);
+  assert.equal(await repo.archiveTerminal({ olderThanMs: 7 * DAY_MS, archivePath }), 1);
+
+  const ids = (await fs.readFile(archivePath, 'utf8')).trim().split('\n').map((l) => JSON.parse(l).id);
+  assert.deepEqual(ids, [first.id, second.id]);
+});
+
+test('archiveTerminal - nothing eligible is a no-op (no archive file created)', async () => {
+  const repo = createRepo();
+  const archivePath = path.join(tmpDir, `arch-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`);
+  const rec = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'fresh' });
+  repo.completeExecution(rec.id);
+
+  assert.equal(await repo.archiveTerminal({ olderThanMs: 7 * DAY_MS, archivePath }), 0);
+  assert.ok(repo.getExecution(rec.id));
+  await assert.rejects(fs.access(archivePath), 'no-op run must not create an archive file');
+});
+
+// ── Group 16: persist coalescing ──
+
+test('synchronous mutation burst coalesces disk writes instead of one write per mutation', async () => {
+  const repo = createRepo();
+  const writeSpy = vi.spyOn((repo as any).repo as { write: (v: unknown) => Promise<void> }, 'write');
+
+  const exec = repo.startLocalExecution({ kind: 'local', channel: 'C1', project: 'proj', label: 'burst' });
+  for (let i = 0; i < 20; i++) {
+    repo.touchExecution(exec.id, { metrics: { costUsd: i + 1 } });
+  }
+  await repo.flush();
+
+  assert.ok(
+    writeSpy.mock.calls.length <= 3,
+    `expected coalesced writes for a 21-mutation sync burst, got ${writeSpy.mock.calls.length}`,
+  );
+  // Durability contract unchanged: final state on disk reflects the last mutation.
+  const onDisk = JSON.parse(await fs.readFile(repo.filePath, 'utf8'));
+  assert.equal(onDisk[exec.id].metrics.costUsd, 20);
 });
