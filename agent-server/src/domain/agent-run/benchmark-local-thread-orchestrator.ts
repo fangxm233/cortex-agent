@@ -48,7 +48,8 @@ import {
 } from './manifest.js';
 import { terminalManifestProblem } from './manifest-contract.js';
 import {
-  attachSupervisor, SupervisorContainmentError, type SupervisorSession,
+  attachSupervisor, resolveSupervisorBinary, SupervisorContainmentError,
+  type SupervisorSession,
 } from './supervisor.js';
 
 interface BenchmarkThreadRequest {
@@ -420,6 +421,7 @@ function stopForAdmissionProblem(control: RunControl, problem: BenchmarkAdmissio
 }
 
 function createSpawner(control: RunControl): AgentProcessSpawner {
+  const supervisorBinary = resolveSupervisorBinary();
   return (command, args, options) => {
     const problem = admissionProblem(control);
     if (problem) {
@@ -427,7 +429,7 @@ function createSpawner(control: RunControl): AgentProcessSpawner {
       throw problem;
     }
     const session = attachSupervisor({
-      binary: process.env.CORTEX_SUPERVISOR_BINARY ?? 'cortex-supervisor',
+      binary: supervisorBinary,
       args: [command, ...args],
       graceMs: SUPERVISOR_GRACE_MS, deadlineMs: remainingDeadline(control),
       cwd: options.cwd?.toString(), env: options.env, stdio: 'pipe',

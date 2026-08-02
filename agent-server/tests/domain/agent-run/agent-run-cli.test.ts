@@ -15,14 +15,25 @@ import {
 } from '../../../src/domain/agent-run/agent-run-cli.js';
 
 let root = '';
+let previousSupervisor: string | undefined;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-run-cli-'));
+  previousSupervisor = process.env.CORTEX_SUPERVISOR_BINARY;
+  process.env.CORTEX_SUPERVISOR_BINARY = process.execPath;
 });
 
 afterEach(() => {
+  if (previousSupervisor === undefined) delete process.env.CORTEX_SUPERVISOR_BINARY;
+  else process.env.CORTEX_SUPERVISOR_BINARY = previousSupervisor;
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+function writeExecutable(name: string): string {
+  const file = path.join(root, name);
+  fs.writeFileSync(file, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  return file;
+}
 
 function validArgs(): string[] {
   const prompt = path.join(root, 'prompt.txt');
@@ -47,7 +58,7 @@ describe('parseAgentRunArgs', () => {
     assert.equal(parsed.outputFormat, 'jsonl');
     assert.equal(parsed.cwd, fs.realpathSync(path.join(root, 'task')));
     assert.equal(parsed.eventsFile, path.join(root, 'events.jsonl'));
-    assert.match(parsed.supervisorBinary, /native\/cortex-supervisor\/dist\/cortex-supervisor$/);
+    assert.equal(parsed.supervisorBinary, fs.realpathSync(process.execPath));
     assert.equal(parsed.trajectoryRoot, root);
     assert.equal(parsed.runConfigFile, undefined);
     assert.equal(parsed.graceMs, 1_000);
@@ -65,18 +76,19 @@ describe('parseAgentRunArgs', () => {
 
   it('accepts approved optional configuration and lifecycle flags', () => {
     const runConfigFile = path.join(root, 'run-config.json');
+    const supervisor = writeExecutable('optional-supervisor');
     const parsed = parseAgentRunArgs([
       ...validArgs(),
       '--run-config', runConfigFile,
       '--trajectory-root', root,
-      '--supervisor-binary', '/fixture/cortex-supervisor',
+      '--supervisor-binary', supervisor,
       '--deadline-ms', '1234',
       '--grace-ms', '55',
       '--root-run-id', 'run.fixture-1',
     ]);
     assert.equal(parsed.runConfigFile, runConfigFile);
     assert.equal(parsed.trajectoryRoot, root);
-    assert.equal(parsed.supervisorBinary, '/fixture/cortex-supervisor');
+    assert.equal(parsed.supervisorBinary, fs.realpathSync(supervisor));
     assert.equal(parsed.deadlineMs, 1234);
     assert.equal(parsed.graceMs, 55);
     assert.equal(parsed.rootRunId, 'run.fixture-1');
@@ -99,14 +111,16 @@ describe('parseAgentRunArgs', () => {
   });
 
   it('uses explicit supervisor over environment over the package default', () => {
+    const environment = writeExecutable('environment-supervisor');
+    const explicitPath = writeExecutable('explicit-supervisor');
     const fromEnvironment = parseAgentRunArgs(
-      validArgs(), { CORTEX_SUPERVISOR_BINARY: '/env/supervisor' },
+      validArgs(), { CORTEX_SUPERVISOR_BINARY: environment },
     );
-    assert.equal(fromEnvironment.supervisorBinary, '/env/supervisor');
+    assert.equal(fromEnvironment.supervisorBinary, fs.realpathSync(environment));
     const explicit = parseAgentRunArgs([
-      ...validArgs(), '--supervisor-binary', '/explicit/supervisor',
-    ], { CORTEX_SUPERVISOR_BINARY: '/env/supervisor' });
-    assert.equal(explicit.supervisorBinary, '/explicit/supervisor');
+      ...validArgs(), '--supervisor-binary', explicitPath,
+    ], { CORTEX_SUPERVISOR_BINARY: environment });
+    assert.equal(explicit.supervisorBinary, fs.realpathSync(explicitPath));
   });
 
   it('reports missing required flags with a fix path', () => {

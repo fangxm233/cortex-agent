@@ -27,7 +27,7 @@
   },
   "scripts": {
     "prepare": "cp ../README.md . && npm run build",
-    "prepack": "node scripts/copy-web-dist.js",
+    "prepack": "npm run build:supervisor && node scripts/copy-web-dist.js",
     "postinstall": "node scripts/postinstall-restart-trigger.mjs",
     "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json && node scripts/copy-assets.js",
     "build:supervisor": "bash native/cortex-supervisor/build.sh",
