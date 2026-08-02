@@ -85,8 +85,8 @@ The view models are framework-free record to slot mappings and each one has a co
 | MAccountsScreen.tsx | screen | Loads account status and binds login/logout |
 | MAccountsView.tsx | view | Groups mobile provider account cards |
 | MAccountsView.test.tsx | test | Tests mobile account groups and actions |
-| m-accounts-vm.ts | vm | Derives shared desktop/mobile account state |
-| m-accounts-vm.test.ts | test | Tests shared account filtering and actions |
+| m-accounts-vm.ts | vm | Derives shared account state and actionable credentials |
+| m-accounts-vm.test.ts | test | Tests shared account filtering and action gates |
 | MHooksScreen.tsx | screen | Loads the hook registry and sheet selection |
 | MHooksView.tsx | view | Grouped read-only hooks with declaration sheet |
 | MHooksView.test.tsx | test | Tests hook grouping, flags and the sheet |

@@ -136,10 +136,18 @@ function claudeVm(account: AuthAccountStatus | undefined): ClaudeAccountVm | nul
   };
 }
 
+function logoutCredential(
+  account: AuthAccountStatus,
+  authType: AuthType,
+): AuthCredentialStatus | undefined {
+  const matching = account.credentials.filter(item => item.authType === authType);
+  if (account.authType !== authType) return matching[0];
+  return matching.find(item => item.source === account.source) ?? matching[0];
+}
+
 function manageableTypes(account: AuthAccountStatus): AuthType[] {
-  return account.capabilities.filter(authType => (
-    account.credentials.some(item => item.authType === authType && item.manageable)
-  ));
+  const credentialTypes = [...new Set(account.credentials.map(item => item.authType))];
+  return credentialTypes.filter(authType => logoutCredential(account, authType)?.manageable);
 }
 
 function piProviderVm(account: AuthAccountStatus): PiProviderVm {
