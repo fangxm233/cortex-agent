@@ -135,8 +135,11 @@ When a running backend reports expired authentication, Cortex posts a card that
 names the backend/provider and offers one-click re-login with the selection
 pre-filled. A daily expiration scan checks in-use accounts and sends the same
 actionable warning for credentials that are expiring, expired, or missing. The
-runtime notification and daily scan share de-duplication, so the same provider
-is not reported twice in one reminder window.
+daily scan skips any provider the runtime notification already reported within
+the reminder window, so a scheduled warning never repeats a notice you just
+received. The reverse is deliberate: a runtime failure always notifies, even if
+the daily scan warned about that provider earlier, because an in-session failure
+is the message you most need at that moment.
 
 For a read-only status check from the host, use:
 

@@ -1,11 +1,12 @@
 // input:  executions.json (Record<string, ExecutionRecord>)
-// output: { executionRepo } — ExecutionRepo singleton with sync read + async persist (Pattern B)
-//         stale methods (markMissingRunningExecutionsStale / reconcileStaleDispatches) return affected IDs for lock-release side effect
+// output: { executionRepo } — ExecutionRepo singleton with sync read + coalesced async persist (Pattern B)
+//         archiveTerminal moves week-old terminal records to data/archive/executions-archive.jsonl
 // pos:    Execution truth layer persistence layer. Based on JsonRepository abstraction, reads/writes executions.json
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import * as path from 'path';
 import { readFileSync } from 'fs';
+import { appendFile, mkdir } from 'fs/promises';
 import { JsonRepository } from '@core/json-repository.js';
 import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
@@ -151,12 +152,15 @@ class ExecutionRepo {
   private mutex = new AsyncMutex();
   /** Promise chain for fire-and-forget persists, guarded by this.mutex. */
   private _pendingPersist: Promise<void> = Promise.resolve();
+  /** True while a persist is queued but not yet snapshotting — lets queuePersist coalesce. */
+  private _persistQueued = false;
 
   constructor(opts?: ExecutionRepoOptions) {
     this.filePath = getExecutionsFile(opts?.filePath);
     this.repo = new JsonRepository<ExecutionsData>({
       filePath: this.filePath,
       defaultValue: () => ({}),
+      compact: true, // multi-MB store: pretty-printing costs ~40% extra sync stringify per write
     });
   }
 
@@ -446,6 +450,45 @@ class ExecutionRepo {
     });
   }
 
+  // --- Terminal-record archival ---
+
+  /** Default archive sibling: <dir>/archive/<basename>-archive.jsonl */
+  private defaultArchivePath(): string {
+    const base = path.basename(this.filePath).replace(/\.json$/, '');
+    return path.join(path.dirname(this.filePath), 'archive', `${base}-archive.jsonl`);
+  }
+
+  private selectArchivable(cutoffIso: string): ExecutionRecord[] {
+    const eligible: ExecutionRecord[] = [];
+    for (const record of this.map.values()) {
+      if (!TERMINAL_STATUSES.has(record.status)) continue;
+      const endedAt = record.runtime?.endedAt || record.runtime?.updatedAt || record.runtime?.startedAt;
+      if (endedAt && endedAt < cutoffIso) eligible.push(record);
+    }
+    return eligible;
+  }
+
+  /** Move terminal records older than `olderThanMs` into an append-only JSONL archive.
+   *  Append-then-delete ordering: a crash between the two steps can duplicate archive lines
+   *  but never loses a record. Returns the number of archived records. */
+  async archiveTerminal({ olderThanMs = 7 * 24 * 60 * 60 * 1000, archivePath }: {
+    olderThanMs?: number; archivePath?: string;
+  } = {}): Promise<number> {
+    await this._pendingPersist;
+    return this.mutex.run(async () => {
+      const cutoffIso = new Date(Date.now() - olderThanMs).toISOString();
+      const eligible = this.selectArchivable(cutoffIso);
+      if (eligible.length === 0) return 0;
+      const target = archivePath || this.defaultArchivePath();
+      await mkdir(path.dirname(target), { recursive: true });
+      await appendFile(target, eligible.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
+      for (const r of eligible) this.map.delete(r.id);
+      await this.persist();
+      log.info(`Archived ${eligible.length} terminal execution(s) to ${target}`);
+      return eligible.length;
+    });
+  }
+
   // --- Flush & persist ---
 
   /** Await all pending fire-and-forget disk writes AND any in-flight async operations. */
@@ -454,11 +497,20 @@ class ExecutionRepo {
     await this.mutex.run(async () => { /* acquire-release: waits for any in-flight mutex operation */ });
   }
 
-  /** Return the current _pendingPersist promise (for tests that want to await a specific persist batch). */
+  /** Return the current _pendingPersist promise (for tests that want to await a specific persist batch).
+   *  Coalescing: map mutations are synchronous and persist() snapshots the whole map, so any
+   *  mutation made before a queued persist STARTS is covered by it — a second queue entry would
+   *  only re-write identical state. The flag resets right before the snapshot; mutations landing
+   *  after that queue a fresh persist. Collapses sync bursts from N stringifies to 1. */
   queuePersist(): Promise<void> {
+    if (this._persistQueued) return this._pendingPersist;
+    this._persistQueued = true;
     this._pendingPersist = this._pendingPersist
       .catch(() => {})
-      .then(() => this.mutex.run(() => this.persist()))
+      .then(() => this.mutex.run(() => {
+        this._persistQueued = false;
+        return this.persist();
+      }))
       .catch((err) => { log.error('persist failed:', err); });
     return this._pendingPersist;
   }

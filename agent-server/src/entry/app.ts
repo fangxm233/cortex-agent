@@ -1,8 +1,7 @@
-// input:  settings, stores, scheduler jobs, auth publishers
-// output: server runtime, actionable auth scans, settings pushes
+// input:  runtime env, stores, scheduler, auth publishers
+// output: server runtime, auth scans, settings pushes
 // pos:    Agent-server composition root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import * as dotenv from 'dotenv';
 import { mkdirSync, promises as fsPromises } from 'fs';
 import * as path from 'path';
 import { extractTuiAdapter } from '@platform/index.js';
@@ -13,6 +12,7 @@ import type { PlatformAdapter } from '@platform/index.js';
 import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
 import { createHotReloadingAdapter } from '@entry/admin-channel-hot-reload.js';
 import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_DIR } from '@core/utils.js';
+import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
 import { tryAcquireSingletonLock, releaseSingletonLock } from '@core/singleton-lock.js';
 import { closeAllSessions, closeSession as closeClaudePooledSession } from '@domain/agents/index.js';
@@ -111,12 +111,12 @@ import { getCostSummary } from '@domain/costs/cost-tracker.js';
 import { initAuthEvents } from '@domain/auth/auth-events.js';
 import { registerAuthWatch } from '@domain/auth/auth-watch.js';
 
-dotenv.config({ path: path.join(CONFIG_DIR, '.env') });
+loadRuntimeDotenv(path.join(CONFIG_DIR, '.env'));
 await migrateEnvToSettings();
 
 // Ensure the WebSocket + webhook bearer tokens exist before either server starts. Generates
 // and persists them to .env on first run (fail-closed auth — see core/auth.ts). Must run after
-// dotenv.config() so pre-existing tokens are honored, and before startClientManager/startWebhookServer.
+// runtime dotenv loading so pre-existing tokens are honored, before either server starts.
 ensureAuthTokens();
 
 // Apply the persisted mode to env now that .env is loaded. This used to be an import-time
@@ -584,6 +584,7 @@ process.on('SIGTERM', async () => {
   threadStore.load();
   await threadStore.markRunningAsFailedOnStartup();
   await threadStore.cleanup();
+  await executionRepo.archiveTerminal().catch((e) => log.error(`Execution archive failed: ${(e as Error).message}`));
 
   // Crash-orphan claim recovery: a dispatch claim whose owner died with the server keeps the
   // task invisible to the dispatcher forever (claimed → not actionable → never re-dispatched),
@@ -694,6 +695,19 @@ process.on('SIGTERM', async () => {
       log.error(`Periodic GC: pruneStale failed: ${(e as Error).message}`);
     }
   }, PRUNE_STALE_INTERVAL);
+
+  // Daily store archival: move week-old terminal execution/thread records to data/archive/*.jsonl.
+  // Keeps the hot stores small — their full-map sync stringify on every persist is the main
+  // event-loop stall source when they grow to multi-MB.
+  const STORE_ARCHIVE_INTERVAL = 24 * 60 * 60 * 1000;
+  setInterval(async () => {
+    try {
+      await executionRepo.archiveTerminal();
+      await threadStore.cleanup();
+    } catch (e) {
+      log.error(`Daily store archive failed: ${(e as Error).message}`);
+    }
+  }, STORE_ARCHIVE_INTERVAL);
 
   startWebhookServer();
 

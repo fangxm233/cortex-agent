@@ -554,3 +554,65 @@ test('serializeTasksFileWithLock: round-trip non-empty tasks', () => {
   assert.equal(parsed.tasks[0].id, 'a1');
   assert.equal(parsed.lock!.owner, 'x');
 });
+
+// ── scanAllTasks content cache ─────────────────────────────────
+
+import { scanAllTasks, _tasksFileCacheStats } from '../src/core/task-parser.js';
+
+function minimalTaskYaml(id: string, text: string): string {
+  return `tasks:
+  - id: ${id}
+    text: "${text}"
+    why: "w"
+    done-when: "d"
+    priority: medium
+    status: open
+    template: default
+    plan: ""
+`;
+}
+
+test('scanAllTasks: reflects on-disk edits across scans (no stale cache)', () => {
+  const p = np();
+  const idA = uid();
+  const idB = uid();
+  const repos = makeRepo({ [p]: minimalTaskYaml(idA, 'version A') });
+  try {
+    assert.deepEqual(scanAllTasks(p).map((t) => t.id), [idA]);
+    fs.writeFileSync(repos[p].tasksPath, minimalTaskYaml(idB, 'version B'));
+    assert.deepEqual(scanAllTasks(p).map((t) => t.id), [idB], 'rewritten file must be re-parsed');
+  } finally {
+    Object.values(repos).forEach((r) => r.cleanup());
+  }
+});
+
+test('scanAllTasks: unchanged file is served from cache, not re-parsed', () => {
+  const p = np();
+  const id = uid();
+  const repos = makeRepo({ [p]: minimalTaskYaml(id, 'cached') });
+  try {
+    scanAllTasks(p); // may miss (first sight of this content)
+    const before = _tasksFileCacheStats();
+    scanAllTasks(p);
+    scanAllTasks(p);
+    const after = _tasksFileCacheStats();
+    assert.equal(after.misses, before.misses, 'no re-parse for unchanged content');
+    assert.equal(after.hits, before.hits + 2, 'both scans must be cache hits');
+  } finally {
+    Object.values(repos).forEach((r) => r.cleanup());
+  }
+});
+
+test('scanAllTasks: returned tasks are independent copies (mutation does not poison later scans)', () => {
+  const p = np();
+  const id = uid();
+  const repos = makeRepo({ [p]: minimalTaskYaml(id, 'immutable') });
+  try {
+    const first = scanAllTasks(p);
+    first[0].text = 'MUTATED';
+    const second = scanAllTasks(p);
+    assert.equal(second[0].text, 'immutable', 'cache must hand out fresh copies');
+  } finally {
+    Object.values(repos).forEach((r) => r.cleanup());
+  }
+});

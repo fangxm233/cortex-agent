@@ -1,4 +1,4 @@
-// input:  mode/profile stores, atomic mutation, auth classifier
+// input:  mode/profile, atomic env writes, auth errors
 // output: modes, expiring Claude credentials, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -69,13 +69,14 @@ function normalizeApiKey(value: unknown): string | undefined {
 function readApiEnvFromDotenvFile(): ApiEnv {
   try {
     const parsed = parseDotenv(readFileSync(ENV_FILE, 'utf8'));
+    const oauthToken = normalizeEnvValue(parsed.CLAUDE_CODE_OAUTH_TOKEN);
     return {
       ANTHROPIC_API_KEY: normalizeApiKey(parsed.ANTHROPIC_API_KEY),
       ANTHROPIC_BASE_URL: normalizeEnvValue(parsed.ANTHROPIC_BASE_URL),
-      CLAUDE_CODE_OAUTH_TOKEN: normalizeEnvValue(parsed.CLAUDE_CODE_OAUTH_TOKEN),
-      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: normalizeEnvValue(
-        parsed.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT,
-      ),
+      CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
+      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: oauthToken
+        ? normalizeEnvValue(parsed.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT)
+        : undefined,
     };
   } catch {
     return {
@@ -89,12 +90,17 @@ function readApiEnvFromDotenvFile(): ApiEnv {
 
 function captureApiEnvSnapshot(): ApiEnv {
   const fileEnv = readApiEnvFromDotenvFile();
+  const processOauthToken = normalizeEnvValue(process.env.CLAUDE_CODE_OAUTH_TOKEN);
+  const oauthToken = processOauthToken || fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
+  const expiryMatchesToken = oauthToken !== undefined
+    && oauthToken === fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
   return {
     ANTHROPIC_API_KEY: normalizeApiKey(process.env.ANTHROPIC_API_KEY) || fileEnv.ANTHROPIC_API_KEY,
     ANTHROPIC_BASE_URL: normalizeEnvValue(process.env.ANTHROPIC_BASE_URL) || fileEnv.ANTHROPIC_BASE_URL,
-    CLAUDE_CODE_OAUTH_TOKEN: normalizeEnvValue(process.env.CLAUDE_CODE_OAUTH_TOKEN)
-      || fileEnv.CLAUDE_CODE_OAUTH_TOKEN,
-    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: fileEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT,
+    CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
+    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: expiryMatchesToken
+      ? fileEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT
+      : undefined,
   };
 }
 
@@ -104,12 +110,10 @@ export function getSavedApiEnv(): ApiEnv {
   const liveEnv = captureApiEnvSnapshot();
   if (liveEnv.ANTHROPIC_API_KEY) savedApiEnv.ANTHROPIC_API_KEY = liveEnv.ANTHROPIC_API_KEY;
   if (liveEnv.ANTHROPIC_BASE_URL) savedApiEnv.ANTHROPIC_BASE_URL = liveEnv.ANTHROPIC_BASE_URL;
-  if (liveEnv.CLAUDE_CODE_OAUTH_TOKEN) {
-    savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = liveEnv.CLAUDE_CODE_OAUTH_TOKEN;
-  }
-  if (liveEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT) {
-    savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = liveEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
-  }
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = liveEnv.CLAUDE_CODE_OAUTH_TOKEN;
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = liveEnv.CLAUDE_CODE_OAUTH_TOKEN
+    ? liveEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT
+    : undefined;
   return { ...savedApiEnv };
 }
 

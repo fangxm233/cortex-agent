@@ -1,4 +1,4 @@
-// input:  JsonRepoOptions<T> (filePath, defaultValue, optional migrate)
+// input:  JsonRepoOptions<T> (filePath, defaultValue, migrate?, compact?)
 // output: JsonRepository<T> — read / write / mutate / invalidate
 // pos:    unified file-backed JSON store with in-memory cache and AsyncMutex serialization
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -16,6 +16,9 @@ export interface JsonRepoOptions<T> {
   defaultValue: () => T;
   /** Optional migration function. Called on every disk read; use to normalise legacy shapes without zod. */
   migrate?: (raw: unknown) => T;
+  /** Serialize without pretty-printing. For multi-MB stores the indentation costs ~40% extra
+   *  stringify CPU on every write (synchronous, blocks the event loop) — opt in for those. */
+  compact?: boolean;
 }
 
 export class JsonRepository<T> {
@@ -68,7 +71,7 @@ export class JsonRepository<T> {
         // Persist migrated data back to disk so the new shape survives
         // across restarts even when no mutate() follows.
         if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
-          await atomicWrite(this.opts.filePath, JSON.stringify(migrated, null, 2));
+          await atomicWrite(this.opts.filePath, this.serialize(migrated));
         }
         this.cache = migrated;
       } else {
@@ -102,8 +105,12 @@ export class JsonRepository<T> {
    */
   async write(next: T): Promise<void> {
     await this.ensureSwept();
-    await atomicWrite(this.opts.filePath, JSON.stringify(next, null, 2));
+    await atomicWrite(this.opts.filePath, this.serialize(next));
     this.cache = next;
+  }
+
+  private serialize(value: T): string {
+    return this.opts.compact ? JSON.stringify(value) : JSON.stringify(value, null, 2);
   }
 
   /**
