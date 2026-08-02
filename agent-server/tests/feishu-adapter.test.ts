@@ -1,5 +1,5 @@
 // input:  FeishuAdapter, isolated config, mocked Lark calls
-// output: messaging, validated form callbacks, and routing tests
+// output: messaging, rich-text parsing, forms, and routing tests
 // pos:    Verifies Feishu adapter platform mappings
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -92,7 +92,7 @@ const POST_TEXT_AND_IMAGE = {
 test('Feishu parsePostContent: extracts text + image_keys from mixed post', () => {
   const a = makeAdapter();
   const { text, imageKeys } = a.parsePostContent(POST_TEXT_AND_IMAGE);
-  assert.equal(text, 'look at this link');
+  assert.equal(text, 'look at this [link](https://x)');
   assert.deepEqual(imageKeys, ['img_post_1']);
 });
 
@@ -138,7 +138,7 @@ test('Feishu handleIncomingMessage: mixed text+image post delivers text AND file
   });
 
   assert.ok(received, 'message handler should have been invoked');
-  assert.equal(received.text, 'look at this link', 'text must not be empty for mixed post');
+  assert.equal(received.text, 'look at this [link](https://x)', 'text and link destination must survive');
   assert.equal(received.kind, 'file_share');
   assert.equal(received.files.length, 1);
   assert.equal(received.files[0].id, 'img_post_1');
@@ -229,6 +229,24 @@ test('Feishu handleIncomingMessage: quoted parent that is a bot message is still
 
   assert.equal(getCalled, true, 'parent fetched even though it is a bot message');
   assert.ok(received.text.includes('机器人之前的回答'));
+});
+
+test('Feishu handleIncomingMessage: quoted post preserves anchor label and destination', async () => {
+  const a = makeAdapter();
+  a.config.adminChannel = 'oc_known';
+  a.client = { im: { v1: { message: { get: async () => ({ data: { items: [{
+    message_id: 'om_post_parent',
+    msg_type: 'post',
+    body: { content: JSON.stringify({
+      content: [[{ tag: 'a', text: 'Project plan', href: 'https://example.com/plan' }]],
+    }) },
+  }] } }) } } } };
+  let received: any = null;
+  a.onMessage(async (ctx: any) => { received = ctx.message; });
+
+  await a.handleIncomingMessage(makeReplyInbound('om_post_parent', '请查看'));
+
+  assert.equal(received.text, '请查看\n\n[引用消息]\n[Project plan](https://example.com/plan)');
 });
 
 test('Feishu handleIncomingMessage: quoted-parent fetch failure is non-fatal', async () => {

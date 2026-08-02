@@ -57,7 +57,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | facade-compact.test.ts | test | manual context compact via agent facade |
 | facade-plugin-gating.test.ts | test | channel-scoped plugin directory filtering |
 | facade.test.ts | test | provider identity and isolated pre-flight gates |
-| feishu-adapter.test.ts | test | Feishu messages, form validation and routing |
+| feishu-adapter.test.ts | test | Feishu messages, rich-text links, forms and routing |
 | feishu-client.test.ts | test | Feishu SDK logs stay off protocol stdout |
 | feishu-device-login.test.ts | test | Feishu device authorization login flow |
 | feishu-login-cli.test.ts | test | Feishu login CLI, env locking and gating |
