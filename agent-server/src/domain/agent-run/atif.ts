@@ -1,4 +1,4 @@
-// input:  validated fragments, links, aggregate metrics
+// input:  fragments, links, metrics, print-mode tool progress
 // output: deterministic ATIF-v1.7 tree with documented metrics
 // pos:    Journal-to-ATIF conversion boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -95,10 +95,16 @@ function collectToolResults(
 ): { records: SourceJournalEvent[]; next: number } {
   const records: SourceJournalEvent[] = [];
   let index = start;
-  while (index < events.length && eventType(events[index]) === 'tool_result') {
-    const result = events[index].event;
+  while (index < events.length) {
+    const record = events[index];
+    if (eventType(record) === 'turn_progress') {
+      records.push(record);
+      index += 1;
+      continue;
+    }
+    const result = record.event;
     if (result.type !== 'tool_result' || !callIds.has(result.toolUseId)) break;
-    records.push(events[index]);
+    records.push(record);
     index += 1;
   }
   return { records, next: index };
@@ -112,7 +118,9 @@ function toolBatch(events: SourceJournalEvent[], start: number): { group: EventG
   }));
   if (callIds.size !== uses.records.length) malformed('duplicate_tool_call_id');
   const results = collectToolResults(events, uses.next, callIds);
-  const resultIds = results.records.map(record => (record.event as { toolUseId: string }).toolUseId);
+  const resultIds = results.records.flatMap(record => (
+    record.event.type === 'tool_result' ? [record.event.toolUseId] : []
+  ));
   if (new Set(resultIds).size !== resultIds.length) malformed('duplicate_tool_result');
   return { group: { records: [...uses.records, ...results.records] }, next: results.next };
 }

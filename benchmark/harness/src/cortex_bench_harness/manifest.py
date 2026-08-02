@@ -1,5 +1,5 @@
-# input:  build artifacts, Harbor metadata, and resolved cwd
-# output: cortex-bench-harness-manifest.json document
+# input:  build artifacts, CLI version, Harbor metadata, resolved cwd
+# output: versioned cortex-bench-harness-manifest.json document
 # pos:    Reproducibility manifest serializer
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -36,6 +36,7 @@ class HarnessManifestInput:
     npm_artifact_path: Path
     container: ContainerImage
     resolved_cwd: ResolvedCwd
+    cortex_cli_version: str
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,7 @@ class HarnessManifestSeed:
 
     def with_cwd(
         self, resolved_cwd: ResolvedCwd, npm_artifact_path: Path,
+        cortex_cli_version: str,
     ) -> HarnessManifestInput:
         return HarnessManifestInput(
             root_run_id=self.root_run_id,
@@ -62,6 +64,7 @@ class HarnessManifestSeed:
             npm_artifact_path=npm_artifact_path,
             container=self.container,
             resolved_cwd=resolved_cwd,
+            cortex_cli_version=cortex_cli_version,
         )
 
 
@@ -142,7 +145,7 @@ def build_harness_manifest(
         "harbor": {"distribution": "harbor", "version": version("harbor")},
         "container": asdict(inputs.container),
         "resolved_cwd": asdict(inputs.resolved_cwd),
-        "cortex_cli": {"version": None},
+        "cortex_cli": {"version": inputs.cortex_cli_version},
         "model_execution_identity_hash": None,
         "role_tool_surface_hash": None,
         "bundle_manifest_hash": None,

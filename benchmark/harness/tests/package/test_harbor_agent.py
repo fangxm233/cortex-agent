@@ -1,5 +1,5 @@
-# input:  Harbor base class, fake exec results, npm artifact metadata
-# output: fail-closed install lifecycle, manifest, and argv assertions
+# input:  Harbor base class, fake exec results, npm artifact
+# output: install, CLI version, manifest, and argv assertions
 # pos:    Contract tests for the Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -26,6 +26,7 @@ VERIFY_COMMANDS = [
     "--prefix /installed-agent/npm @cortex-agent/server)\""
     " && test -x \"$package_root/native/cortex-supervisor/dist/cortex-supervisor\"",
 ]
+VERSION_COMMAND = "set -o pipefail; cortex daemon --version"
 
 
 class FakeEnvironment:
@@ -49,7 +50,10 @@ def ok(stdout: str | None = None) -> ExecResult:
 
 
 def setup_results() -> list[ExecResult]:
-    return [ok("/app\n"), ok("/app\n"), ok(), ok(), ok(), ok(), ok(), ok()]
+    return [
+        ok("/app\n"), ok("/app\n"), ok(), ok(), ok(), ok(), ok(), ok(),
+        ok("2026.7.31\n"),
+    ]
 
 
 def make_agent(tmp_path: Path) -> CortexBenchAgent:
@@ -95,11 +99,14 @@ def test_setup_installs_bundle_as_root_and_verifies_as_agent(tmp_path: Path) -> 
         ("[ -d /installed-agent ] || mkdir -p /installed-agent", "root"),
         (INSTALL_COMMAND, "root"),
         *((command, None) for command in VERIFY_COMMANDS),
+        (VERSION_COMMAND, None),
     ]
     staged = tmp_path / "agent/setup" / ARTIFACT_NAME
     assert staged.read_bytes() == b"npm artifact"
     assert environment.uploads == [(staged, f"/installed-agent/{ARTIFACT_NAME}")]
-    assert (tmp_path / "artifacts/cortex-bench-harness-manifest.json").is_file()
+    manifest = tmp_path / "artifacts/cortex-bench-harness-manifest.json"
+    assert manifest.is_file()
+    assert '"version": "2026.7.31"' in manifest.read_text()
 
 
 def test_failed_install_does_not_publish_manifest(tmp_path: Path) -> None:
@@ -125,6 +132,25 @@ def test_failed_verification_does_not_publish_manifest(
 
     with pytest.raises(NonZeroAgentExitCodeError):
         asyncio.run(make_agent(tmp_path).setup(environment))
+
+    assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
+
+
+def test_failed_version_probe_does_not_publish_manifest(tmp_path: Path) -> None:
+    failure = ExecResult(stderr="version probe failed", return_code=1)
+    results = [ok("/app\n"), ok("/app\n"), ok(), ok(), ok(), ok(), ok(), ok(), failure]
+
+    with pytest.raises(NonZeroAgentExitCodeError):
+        asyncio.run(make_agent(tmp_path).setup(FakeEnvironment(results)))
+
+    assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
+
+
+def test_empty_version_probe_does_not_publish_manifest(tmp_path: Path) -> None:
+    results = [ok("/app\n"), ok("/app\n"), ok(), ok(), ok(), ok(), ok(), ok(), ok("\n")]
+
+    with pytest.raises(RuntimeError, match="version"):
+        asyncio.run(make_agent(tmp_path).setup(FakeEnvironment(results)))
 
     assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
 
