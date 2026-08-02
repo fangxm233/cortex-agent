@@ -47,6 +47,18 @@
       "target": { "kind": "fresh" },
       "isPaused": false,
       "createdAt": 0
+    },
+    {
+      "id": "seed0005",
+      "type": "daily",
+      "time": "08:30",
+      "dispatchType": "auth-expiry-scan",
+      "message": "Daily auth expiry scan at 08:30 local time: warn before daytime use while avoiding midnight maintenance activity.",
+      "channel": "__ADMIN_CHANNEL__",
+      "profile": null,
+      "target": { "kind": "fresh" },
+      "isPaused": false,
+      "createdAt": 0
     }
   ]
 }

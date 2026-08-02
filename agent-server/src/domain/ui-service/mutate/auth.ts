@@ -62,8 +62,9 @@ function missingWebFlow(): Result<never> {
 }
 
 function startWebFlow(service: AuthLoginService, args: AuthStartLoginArgs) {
-  const { noticeId: _noticeId, ...input } = args;
-  return service.start({ ...input, channel: null, sessionId: null });
+  const { noticeId, ...input } = args;
+  const options = noticeId ? { reuseExistingPair: true } : undefined;
+  return service.start({ ...input, channel: null, sessionId: null }, options);
 }
 
 async function startWebNoticeFlow(

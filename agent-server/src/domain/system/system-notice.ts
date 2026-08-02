@@ -1,9 +1,9 @@
 // input:  PlatformAdapter, notice payload, shared job context
-// output: Web event publication and best-effort platform delivery
+// output: Web publication and rich best-effort admin delivery
 // pos:    Domain seam for admin and system broadcasts
-// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { PlatformAdapter } from '@platform/index.js';
+import type { PlatformAdapter, RichBlock } from '@platform/index.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 
 export type SystemNoticeLevel = 'info' | 'warning' | 'error';
@@ -15,6 +15,8 @@ export interface SystemNoticeInput {
   level?: SystemNoticeLevel;
   /** Optional short title (e.g. "Disk", "Rate limit"); the Web UI falls back to a level label. */
   title?: string;
+  /** Optional platform-native content; Web notices continue to use the secret-free text fields. */
+  richBlocks?: RichBlock[];
 }
 
 /** Publish a `system.notice` event on the shared EventBus (the Web notification-toast source).
@@ -38,7 +40,10 @@ export async function emitSystemNotice(
 ): Promise<boolean> {
   publishSystemNotice(p);
   try {
-    const ref = await adapter.postMessage({ type: 'system-notice' }, { text: p.text });
+    const ref = await adapter.postMessage(
+      { type: 'system-notice' },
+      { text: p.text, ...(p.richBlocks ? { richBlocks: p.richBlocks } : {}) },
+    );
     return ref.conduit.length > 0;
   } catch {
     return false;

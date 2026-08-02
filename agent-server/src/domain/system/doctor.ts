@@ -1,4 +1,4 @@
-// input:  Environment, filesystem, process, and gateway probes
+// input:  Environment, filesystem, gateway, auth, and PI probes
 // output: Doctor reports, default probes, and safe-fix actuators
 // pos:    Runs install-wide health diagnostics for cortex doctor
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -12,6 +12,15 @@ import { parse as parseDotenvLib } from 'dotenv';
 import { DATA_DIR, CONFIG_DIR, STORE_DIR, GATEWAY_MANAGED_KEY_PLACEHOLDER } from '@core/utils.js';
 import { ensureAuthTokens, CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV } from '@core/auth.js';
 import { generateMcpConfig } from '@core/config-generator.js';
+import {
+  getAuthStatus as readAuthStatus,
+  type AuthAccountStatus,
+  type AuthStatusSnapshot,
+} from '../auth/auth-status.js';
+import {
+  loadPiRuntime as loadInstalledPiRuntime,
+  type PiRuntimeLoadResult,
+} from '../auth/pi-runtime.js';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -59,6 +68,8 @@ export interface DoctorDeps {
   commandExists(bin: string): boolean;
   pidAlive(pid: number): boolean;
   probeGateway(): Promise<boolean>;
+  loadPiRuntime(): Promise<PiRuntimeLoadResult>;
+  getAuthStatus(): Promise<AuthStatusSnapshot>;
 }
 
 /** Write actuators used only by `applySafeFixes` (idempotent, non-destructive). */
@@ -143,47 +154,72 @@ function sectionRuntime(deps: DoctorDeps): DoctorSection {
 
 // ─── Section: Backend Install / Login ─────────────────────────────
 
-function sectionBackend(deps: DoctorDeps, getEnv: (n: string) => string | undefined): DoctorSection {
-  const checks: CheckResult[] = [];
-  const { DATA_DIR: data, CONFIG_DIR: config, STORE_DIR: store } = deps.paths;
-
-  // Directories exist + writable.
-  const dirProblems: string[] = [];
-  for (const [name, p] of [['DATA_DIR', data], ['CONFIG_DIR', config], ['STORE_DIR', store]] as const) {
-    if (!deps.fileExists(p)) dirProblems.push(`${name} missing (${p})`);
-    else if (!deps.isWritable(p)) dirProblems.push(`${name} not writable (${p})`);
+function pushDirectoryCheck(checks: CheckResult[], deps: DoctorDeps): void {
+  const problems: string[] = [];
+  for (const [name, p] of Object.entries(deps.paths)) {
+    if (!deps.fileExists(p)) problems.push(`${name} missing (${p})`);
+    else if (!deps.isWritable(p)) problems.push(`${name} not writable (${p})`);
   }
-  checks.push(dirProblems.length === 0
+  checks.push(problems.length === 0
     ? { id: 'dirs', label: 'Data directories', status: 'pass', detail: 'present and writable' }
-    : { id: 'dirs', label: 'Data directories', status: 'fail', detail: dirProblems.join('; '), hint: 'run `cortex doctor --fix` or `cortex init`', fixable: true });
+    : { id: 'dirs', label: 'Data directories', status: 'fail', detail: problems.join('; '), hint: 'run `cortex doctor --fix` or `cortex init`', fixable: true });
+}
 
-  // .env file.
-  const envPath = path.join(config, '.env');
+function pushEnvAndTokenChecks(
+  checks: CheckResult[],
+  deps: DoctorDeps,
+  getEnv: (name: string) => string | undefined,
+): void {
+  const envPath = path.join(deps.paths.CONFIG_DIR, '.env');
   checks.push(deps.fileExists(envPath)
     ? { id: 'env-file', label: '.env file', status: 'pass', detail: envPath }
     : { id: 'env-file', label: '.env file', status: 'fail', detail: `missing (${envPath})`, hint: 'run `cortex init`' });
-
-  // Auth tokens.
-  const missingTokens = [CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV].filter(n => !getEnv(n));
-  checks.push(missingTokens.length === 0
+  const missing = [CLIENT_TOKEN_ENV, WEBHOOK_TOKEN_ENV].filter(name => !getEnv(name));
+  checks.push(missing.length === 0
     ? { id: 'auth-tokens', label: 'Auth tokens', status: 'pass', detail: 'client + webhook tokens set' }
-    : { id: 'auth-tokens', label: 'Auth tokens', status: 'fail', detail: `missing: ${missingTokens.join(', ')}`, hint: 'run `cortex doctor --fix` to generate', fixable: true });
+    : { id: 'auth-tokens', label: 'Auth tokens', status: 'fail', detail: `missing: ${missing.join(', ')}`, hint: 'run `cortex doctor --fix` to generate', fixable: true });
+}
 
-  // Anthropic API key — warn (plan/subscription mode does not need it).
+function usesClaudeApiMode(deps: DoctorDeps): boolean {
+  try {
+    const parsed = JSON.parse(deps.readText(path.join(deps.paths.STORE_DIR, 'mode.json')) ?? '');
+    return parsed.claudeMode === 'api'
+      || (parsed.backend === 'claude' && parsed.mode === 'api');
+  } catch {
+    return false;
+  }
+}
+
+function gatewayBacksClaudeApi(
+  deps: DoctorDeps,
+  getEnv: (name: string) => string | undefined,
+  gatewayHealthy: boolean,
+): boolean {
   const apiKey = getEnv('ANTHROPIC_API_KEY');
-  if (apiKey === GATEWAY_MANAGED_KEY_PLACEHOLDER) {
-    checks.push({ id: 'anthropic-key', label: 'Anthropic API key', status: 'pass', detail: 'managed by gateway' });
+  const localKeyMissing = !apiKey || apiKey === GATEWAY_MANAGED_KEY_PLACEHOLDER;
+  return gatewayHealthy && localKeyMissing && usesClaudeApiMode(deps);
+}
+
+function pushAnthropicKeyCheck(
+  checks: CheckResult[],
+  getEnv: (name: string) => string | undefined,
+  gatewayBacked: boolean,
+): void {
+  const apiKey = getEnv('ANTHROPIC_API_KEY');
+  if (gatewayBacked) {
+    checks.push({ id: 'anthropic-key', label: 'Anthropic API key', status: 'pass', detail: 'managed by healthy gateway' });
   } else if (apiKey) {
-    checks.push({ id: 'anthropic-key', label: 'Anthropic API key', status: 'pass', detail: 'set' });
+    const detail = apiKey === GATEWAY_MANAGED_KEY_PLACEHOLDER ? 'managed by gateway' : 'set';
+    checks.push({ id: 'anthropic-key', label: 'Anthropic API key', status: 'pass', detail });
   } else {
     checks.push({ id: 'anthropic-key', label: 'Anthropic API key', status: 'warn', detail: 'not set — required for API mode (plan/subscription mode can ignore)', hint: 'set ANTHROPIC_API_KEY in .env or run `cortex init`' });
   }
+}
 
-  // mode.json
+function pushConfigChecks(checks: CheckResult[], deps: DoctorDeps): void {
+  const { CONFIG_DIR: config, STORE_DIR: store } = deps.paths;
   pushJsonCheck(checks, deps, path.join(store, 'mode.json'), 'mode-json', 'mode.json', 'warn');
-  // profiles.json (schema-lite)
   checks.push(checkProfiles(deps, path.join(config, 'profiles.json')));
-  // mcp-config.json
   const mcpPath = path.join(config, 'mcp-config.json');
   if (!deps.fileExists(mcpPath)) {
     checks.push({ id: 'mcp-config', label: 'mcp-config.json', status: 'warn', detail: `missing (${mcpPath})`, hint: 'run `cortex doctor --fix` to regenerate', fixable: true });
@@ -192,7 +228,89 @@ function sectionBackend(deps: DoctorDeps, getEnv: (n: string) => string | undefi
   } else {
     checks.push({ id: 'mcp-config', label: 'mcp-config.json', status: 'pass', detail: 'valid' });
   }
+}
 
+const BACKEND_DOC_HINT = 'See docs/backends.md#remote-login';
+const UNHEALTHY_AUTH_STATES = new Set(['expired', 'logged-out']);
+
+async function checkPiRuntime(deps: DoctorDeps): Promise<CheckResult> {
+  if (!deps.commandExists('pi')) {
+    return { id: 'pi-runtime', label: 'PI runtime', status: 'skip', detail: 'pi not installed' };
+  }
+  try {
+    const result = await deps.loadPiRuntime();
+    if (result.available && typeof result.runtime.login === 'function') {
+      const version = result.version ? ` (${result.version})` : '';
+      return { id: 'pi-runtime', label: 'PI runtime', status: 'pass', detail: `available${version}; login export found` };
+    }
+  } catch {
+    // Report the stable diagnostic only; dependency errors may contain sensitive paths or values.
+  }
+  return {
+    id: 'pi-runtime', label: 'PI runtime', status: 'warn',
+    detail: 'installed PI runtime or login export unavailable', hint: BACKEND_DOC_HINT,
+  };
+}
+
+function gatewayCovered(account: AuthAccountStatus, gatewayBacked: boolean): boolean {
+  return gatewayBacked
+    && account.backend === 'claude'
+    && account.provider === 'anthropic'
+    && account.state === 'logged-out';
+}
+
+function backendAuthSummary(
+  snapshot: AuthStatusSnapshot,
+  gatewayBacked: boolean,
+): CheckResult {
+  const inUse = snapshot.accounts.filter(account => account.inUse);
+  const covered = inUse.filter(account => gatewayCovered(account, gatewayBacked));
+  const unhealthy = inUse.filter(account => (
+    UNHEALTHY_AUTH_STATES.has(account.state) && !gatewayCovered(account, gatewayBacked)
+  ));
+  const providers = [...new Set(unhealthy.map(account => account.provider))].sort();
+  if (unhealthy.length > 0) {
+    return {
+      id: 'backend-auth', label: 'Backend authentication', status: 'warn',
+      detail: `${inUse.length} in use; ${unhealthy.length} expired or logged out: ${providers.join(', ')}`,
+      hint: BACKEND_DOC_HINT,
+    };
+  }
+  const gateway = covered.length > 0 ? '; gateway-backed: anthropic' : '';
+  return {
+    id: 'backend-auth', label: 'Backend authentication', status: 'pass',
+    detail: `${inUse.length} in use; 0 expired or logged out${gateway}`,
+  };
+}
+
+async function checkBackendAuth(
+  deps: DoctorDeps,
+  gatewayBacked: boolean,
+): Promise<CheckResult> {
+  try {
+    return backendAuthSummary(await deps.getAuthStatus(), gatewayBacked);
+  } catch {
+    return {
+      id: 'backend-auth', label: 'Backend authentication', status: 'warn',
+      detail: 'authentication summary unavailable', hint: BACKEND_DOC_HINT,
+    };
+  }
+}
+
+async function sectionBackend(
+  deps: DoctorDeps,
+  getEnv: (name: string) => string | undefined,
+  gatewayHealthy: boolean,
+): Promise<DoctorSection> {
+  const checks: CheckResult[] = [];
+  const gatewayBacked = gatewayBacksClaudeApi(deps, getEnv, gatewayHealthy);
+  pushDirectoryCheck(checks, deps);
+  pushEnvAndTokenChecks(checks, deps, getEnv);
+  pushAnthropicKeyCheck(checks, getEnv, gatewayBacked);
+  pushConfigChecks(checks, deps);
+  checks.push(...await Promise.all([
+    checkPiRuntime(deps), checkBackendAuth(deps, gatewayBacked),
+  ]));
   return { title: 'Backend Install / Login', checks };
 }
 
@@ -271,16 +389,18 @@ function sectionPlatform(deps: DoctorDeps, getEnv: (n: string) => string | undef
 
 // ─── Section: Gateway ─────────────────────────────────────────────
 
-async function sectionGateway(deps: DoctorDeps, getEnv: (n: string) => string | undefined): Promise<DoctorSection> {
+function sectionGateway(
+  deps: DoctorDeps,
+  getEnv: (name: string) => string | undefined,
+  healthy: boolean,
+): DoctorSection {
   const checks: CheckResult[] = [];
-
   const gwYaml = path.join(deps.homeDir, '.aistatus', 'gateway.yaml');
   const gwConfigured = deps.fileExists(gwYaml);
   checks.push(gwConfigured
     ? { id: 'gateway-config', label: 'Gateway config', status: 'pass', detail: gwYaml }
     : { id: 'gateway-config', label: 'Gateway config', status: 'skip', detail: 'not configured (no ~/.aistatus/gateway.yaml)', hint: 'run `cortex setup-gateway` if you use the gateway' });
 
-  const healthy = await deps.probeGateway();
   const gatewayInUse = getEnv('ANTHROPIC_API_KEY') === GATEWAY_MANAGED_KEY_PLACEHOLDER || gwConfigured;
   if (healthy) {
     checks.push({ id: 'gateway-health', label: 'Gateway health', status: 'pass', detail: `responding at ${GW_HOST}:${GW_PORT}` });
@@ -297,11 +417,12 @@ async function sectionGateway(deps: DoctorDeps, getEnv: (n: string) => string | 
 
 export async function runDiagnostics(deps: DoctorDeps): Promise<DoctorReport> {
   const getEnv = buildEnvReader(deps);
+  const gatewayHealthy = await deps.probeGateway();
   const sections: DoctorSection[] = [
     sectionRuntime(deps),
-    sectionBackend(deps, getEnv),
+    await sectionBackend(deps, getEnv, gatewayHealthy),
     sectionPlatform(deps, getEnv),
-    await sectionGateway(deps, getEnv),
+    sectionGateway(deps, getEnv, gatewayHealthy),
   ];
 
   const counts = { pass: 0, warn: 0, fail: 0, skip: 0 };
@@ -380,6 +501,8 @@ export function createDefaultDoctorDeps(): DoctorDeps {
     commandExists: commandExistsOnPath,
     pidAlive: (pid) => { try { process.kill(pid, 0); return true; } catch { return false; } },
     probeGateway: probeGatewayHttp,
+    loadPiRuntime: () => loadInstalledPiRuntime(),
+    getAuthStatus: () => readAuthStatus(),
   };
 }
 

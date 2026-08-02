@@ -6,7 +6,7 @@ Covers schedule storage and firing, the job dispatch table, and user-facing sche
 | filename | role | function |
 |---|---|---|
 | job-registry.ts | core | Registers job runners and dispatches by key |
-| runner.ts | entry | Wires job modules and creates the scheduler |
+| runner.ts | entry | Wires scheduled jobs and creates the scheduler |
 | schedule-cli.ts | cli | Manages schedules from the terminal |
 | schedule-command.ts | command | Handles the !schedule chat command |
 | scheduler.ts | core | Fires schedules and emits lifecycle hooks |
