@@ -11,7 +11,7 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 | defaults.ts | config | PI session and extension path defaults |
 | agent-dir.ts | config | manages the private PI agent directory |
 | discovery.ts | core | refreshes provider cache and finds filename sessions |
-| event-parser.ts | parser | translates PI events to normalized events |
+| event-parser.ts | parser | translates PI events with nullable accounting |
 | framing.ts | codec | encodes and splits PI newline JSON records |
 | mcp-bridge.ts | bridge | composes shared and privilege-scoped MCP tools |
 | mcp-bridge-logic.ts | core | decides server loading and maps tool content |

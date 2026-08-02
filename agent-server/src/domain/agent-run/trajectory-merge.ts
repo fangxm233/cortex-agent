@@ -1,5 +1,5 @@
-// input:  C2/C3 files, output path, filesystem adapter
-// output: atomic ATIF tree or typed merge error
+// input:  accounted C2/C3 files, output path, filesystem
+// output: atomic ATIF tree with typed fail-closed errors
 // pos:    Parent-plus-child journal merge boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -10,6 +10,7 @@ import path from 'node:path';
 import { validateTrajectoryRoot } from './manifest.js';
 import {
   buildAtifTree,
+  type AtifFinalMetrics,
   type SourceFragment,
   type SourceJournalEvent,
   type SourceJournalHeader,
@@ -19,7 +20,8 @@ import {
 export type TrajectoryMergeReason = 'started_without_terminal' | 'EACCES' | 'ENOSPC'
   | 'malformed_fragment' | 'identity_hash_drift' | 'unresolvable_subagent_link'
   | 'unbound_child_fragment' | 'missing_child_fragment' | 'ambiguous_subagent_link'
-  | 'output_path_exists' | 'output_path_not_writable' | 'containment_failure';
+  | 'output_path_exists' | 'output_path_not_writable' | 'containment_failure'
+  | 'aggregate_metrics_underivable';
 
 export class TrajectoryMergeError extends Error {
   constructor(readonly reason: TrajectoryMergeReason, message: string, options?: { cause?: unknown }) {
@@ -428,6 +430,104 @@ function publish(outputPath: string, bytes: Buffer, fileSystem: TrajectoryMergeF
   }
 }
 
+interface MetricAccumulator {
+  prompt: number;
+  completion: number;
+  cached: number;
+  cost: number;
+  steps: number;
+}
+
+function underivable(detail: string): never {
+  return mergeError('aggregate_metrics_underivable', detail);
+}
+
+function tokenMetric(value: unknown, field: string): number {
+  if (Number.isSafeInteger(value) && Number(value) >= 0) return Number(value);
+  return underivable(`Missing or invalid ${field}`);
+}
+
+function costMetric(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
+  return underivable('Missing or invalid cost_usd');
+}
+
+function sumToken(left: number, right: number, field: string): number {
+  const total = left + right;
+  if (Number.isSafeInteger(total)) return total;
+  return underivable(`${field} aggregate exceeds safe integer range`);
+}
+
+function addCostRecord(total: MetricAccumulator, record: SourceJournalEvent): MetricAccumulator {
+  const event = record.event;
+  if (event.type !== 'cost_record') return total;
+  return {
+    ...total,
+    prompt: sumToken(total.prompt, tokenMetric(event.prompt_tokens, 'prompt_tokens'), 'prompt_tokens'),
+    completion: sumToken(total.completion, tokenMetric(event.tokens_out, 'tokens_out'), 'tokens_out'),
+    cached: sumToken(total.cached, tokenMetric(event.cached_tokens, 'cached_tokens'), 'cached_tokens'),
+    cost: total.cost + costMetric(event.cost_usd),
+  };
+}
+
+function fragmentCostMetrics(fragment: SourceFragment): MetricAccumulator {
+  const records = fragment.events.filter(record => record.event.type === 'cost_record');
+  if (records.length === 0) return underivable('Fragment has no cost_record event');
+  return records.reduce(addCostRecord, { prompt: 0, completion: 0, cached: 0, cost: 0, steps: 0 });
+}
+
+function fragmentSteps(fragment: SourceFragment): number {
+  const records = fragment.events.filter(record => record.event.type === 'turn_complete');
+  if (records.length === 0) return underivable('Fragment has no turn_complete event');
+  return records.reduce((total, record) => {
+    const event = record.event;
+    if (event.type !== 'turn_complete') return total;
+    return sumToken(total, tokenMetric(event.numTurns, 'numTurns'), 'numTurns');
+  }, 0);
+}
+
+function assertContextUsage(fragment: SourceFragment): void {
+  const costCount = fragment.events.filter(record => record.event.type === 'cost_record').length;
+  const available = fragment.events.filter(record => {
+    const event = record.event;
+    return event.type === 'context_usage'
+      && Number.isSafeInteger(event.usedTokens) && Number(event.usedTokens) >= 0;
+  }).length;
+  if (available < costCount) {
+    underivable('Fragment has fewer derivable context_usage events than cost records');
+  }
+}
+
+function fragmentMetrics(fragment: SourceFragment): MetricAccumulator {
+  assertContextUsage(fragment);
+  const metrics = fragmentCostMetrics(fragment);
+  return { ...metrics, steps: fragmentSteps(fragment) };
+}
+
+function addFragmentMetrics(total: MetricAccumulator, fragment: SourceFragment): MetricAccumulator {
+  const metrics = fragmentMetrics(fragment);
+  return {
+    prompt: sumToken(total.prompt, metrics.prompt, 'total_prompt_tokens'),
+    completion: sumToken(total.completion, metrics.completion, 'total_completion_tokens'),
+    cached: sumToken(total.cached, metrics.cached, 'total_cached_tokens'),
+    cost: total.cost + metrics.cost,
+    steps: sumToken(total.steps, metrics.steps, 'total_steps'),
+  };
+}
+
+function aggregateFinalMetrics(fragments: SourceFragment[]): AtifFinalMetrics {
+  const zero = { prompt: 0, completion: 0, cached: 0, cost: 0, steps: 0 };
+  const total = fragments.reduce(addFragmentMetrics, zero);
+  if (!Number.isFinite(total.cost)) return underivable('total_cost_usd is not finite');
+  return {
+    total_prompt_tokens: total.prompt,
+    total_completion_tokens: total.completion,
+    total_cached_tokens: total.cached,
+    total_cost_usd: total.cost,
+    total_steps: total.steps,
+  };
+}
+
 function fragmentOutcome(fragment: SourceFragment): FragmentOutcome {
   return {
     thread_id: fragment.header.thread_id,
@@ -455,8 +555,12 @@ function mergeBytes(
   assertRootIdentity(parent, children);
   const resolved = resolveLinks(parent, explicit);
   const orderedChildren = orderChildren(children, resolved.links);
-  const trajectory = buildAtifTree(parent, orderedChildren, resolved.links, resolved.source);
-  const outcomes = [parent, ...orderedChildren].map(fragmentOutcome);
+  const orderedFragments = [parent, ...orderedChildren];
+  const finalMetrics = aggregateFinalMetrics(orderedFragments);
+  const trajectory = buildAtifTree(
+    parent, orderedChildren, resolved.links, resolved.source, finalMetrics,
+  );
+  const outcomes = orderedFragments.map(fragmentOutcome);
   return {
     bytes: Buffer.from(`${JSON.stringify(trajectory, null, 2)}\n`),
     trajectoryId: trajectory.trajectory_id,

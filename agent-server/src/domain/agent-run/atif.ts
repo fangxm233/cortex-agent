@@ -1,5 +1,5 @@
-// input:  validated journal fragments and thread links
-// output: deterministic ATIF-v1.7 trajectory tree
+// input:  validated fragments, links, aggregate metrics
+// output: deterministic accounted ATIF-v1.7 trajectory tree
 // pos:    Journal-to-ATIF conversion boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -38,12 +38,22 @@ export interface ThreadLink {
   threadId: string;
 }
 
+export interface AtifFinalMetrics {
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  total_cached_tokens: number;
+  total_cost_usd: number;
+  total_steps: number;
+}
+
 export interface AtifTrajectory {
   schema_version: 'ATIF-v1.7';
   session_id?: string;
   trajectory_id: string;
   agent: Record<string, unknown>;
   steps: Array<Record<string, unknown>>;
+  notes?: string;
+  final_metrics?: AtifFinalMetrics;
   extra: Record<string, unknown>;
   subagent_trajectories?: AtifTrajectory[];
 }
@@ -247,18 +257,39 @@ function buildTrajectory(
   return trajectory;
 }
 
+function treeStepCount(trajectory: AtifTrajectory): number {
+  const childSteps = (trajectory.subagent_trajectories ?? [])
+    .reduce((total, child) => total + treeStepCount(child), 0);
+  return trajectory.steps.length + childSteps;
+}
+
+function attachFinalMetrics(root: AtifTrajectory, metrics: AtifFinalMetrics): AtifTrajectory {
+  root.final_metrics = metrics;
+  const atifSteps = treeStepCount(root);
+  if (metrics.total_steps !== atifSteps) {
+    root.notes = `final_metrics.total_steps=${metrics.total_steps} sums journal `
+      + `turn_complete.numTurns across parent and subagent fragments; the ATIF tree has `
+      + `${atifSteps} steps because it preserves normalized accounting and tool events.`;
+  }
+  return root;
+}
+
 /** Children are supplied in parent thread_run call order; timestamps never order trajectories. */
 export function buildAtifTree(
   parent: SourceFragment,
   children: SourceFragment[],
   threadLinks: ThreadLink[],
   linkSource: 'tool_result' | 'explicit',
+  finalMetrics: AtifFinalMetrics,
 ): AtifTrajectory {
   const links = new Map(threadLinks.map(link => [link.callId, link.threadId]));
   const childById = new Map(children.map(child => [child.header.thread_id, child]));
   const root = buildTrajectory(parent, links);
   root.extra.subagent_link_source = linkSource;
-  if (threadLinks.length === 0) return root;
-  root.subagent_trajectories = threadLinks.map(link => buildTrajectory(childById.get(link.threadId)!, new Map()));
-  return root;
+  if (threadLinks.length > 0) {
+    root.subagent_trajectories = threadLinks.map(link => (
+      buildTrajectory(childById.get(link.threadId)!, new Map())
+    ));
+  }
+  return attachFinalMetrics(root, finalMetrics);
 }

@@ -11,7 +11,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | agent-run-cli.test.ts | test | verifies required flags, stdin ownership and help |
 | agent-run-e2e-fixture.ts | fixture | builds and cleans process-level run fixtures |
 | agent-run-e2e.test.ts | e2e | proves containment, cleanup and completion |
-| agent-run-protocol-e2e.test.ts | e2e | proves stdin, accounting and trajectory failures |
+| agent-run-protocol-e2e.test.ts | e2e | proves stdin, exact accounting and failures |
 | benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
 | benchmark-local-thread-orchestrator.test.ts | test | proves C9.2 bounds and C4 prelaunch identity checks |
 | benchmark-local-thread-process.test.ts | e2e | proves full-run journal and C8 confinement |
@@ -29,6 +29,6 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | role-surface.test.ts | test | verifies directives, default tools and argv alignment |
 | run-config.test.ts | test | verifies non-empty roles, argv closure, and MCP inputs |
 | supervisor.test.ts | test | verifies protocol, stdio, watchdog and taxonomy |
-| trajectory-merge-cli.test.ts | test | verifies reason codes and fail-closed cleanup |
-| trajectory-merge-fixtures.ts | fixture | writes per-role parent and child lifecycle records |
-| trajectory-merge.test.ts | test | verifies exact-once ATIF tree conversion |
+| trajectory-merge-cli.test.ts | test | verifies metric reasons and fail-closed cleanup |
+| trajectory-merge-fixtures.ts | fixture | writes accounted parent and child fragments |
+| trajectory-merge.test.ts | test | verifies exact-once aggregate ATIF conversion |

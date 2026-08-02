@@ -13,7 +13,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
 | agent-adapter-claude.test.ts | test | Claude CLI, hooks, compact and settings |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
-| agent-adapter-pi-event-parser.test.ts | test | PI RPC events without invented model metadata |
+| agent-adapter-pi-event-parser.test.ts | test | PI events with nullable exact accounting |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
@@ -101,7 +101,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | recommendation-extractor.test.ts | test | recommendation extraction and dedup |
 | restart-command.test.ts | test | server restart trigger and command route |
 | resume-registry.test.ts | test | provider-ready drains and waiting counts |
-| run-with-adapter.test.ts | test | tests event order, sinks and background policy |
+| run-with-adapter.test.ts | test | tests event order, accounting and background waits |
 | schedule-cli.test.ts | test | schedule API, CLI and fired lifecycle hooks |
 | scheduled-runner-jobs.test.ts | test | scheduled job dispatch and isolation |
 | scheduled-target-dispatch.test.ts | test | scheduled target and fallback decisions |
@@ -143,7 +143,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | task-verdict-cli.test.ts | test | task verdict subcommand recording |
 | template-resolver.test.ts | test | prompt template vars, blocks, conditionals |
 | thread-abort.test.ts | test | thread abort control plane state |
-| thread-benchmark-run.test.ts | test | benchmark isolation and frozen identity checks |
+| thread-benchmark-run.test.ts | test | benchmark isolation, identity and accounting |
 | thread-callback-tree.test.ts | test | safe child results and parent re-entry |
 | thread-benchmark-coder-review.e2e.test.ts | e2e | benchmark graph, tools, MCP and identity isolation |
 | thread-coder-review.e2e.test.ts | e2e | coder-review stages and commit evidence policy |

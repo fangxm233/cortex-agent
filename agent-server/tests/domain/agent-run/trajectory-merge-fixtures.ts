@@ -1,5 +1,5 @@
-// input:  temporary roots and literal C2/C3 records
-// output: hand-built journal fixture trees
+// input:  temporary roots and accounted C2/C3 records
+// output: hand-built journal fixture trees and mutations
 // pos:    Portable fixtures for trajectory merge tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -161,6 +161,34 @@ function mcpResult(threadId: string): string {
   });
 }
 
+function accountingEvents(input: {
+  ts: string;
+  step: number | null;
+  agentSlot: EventSpec['agentSlot'];
+  prompt: number;
+  completion: number;
+  cached: number;
+  cost: number;
+  turns: number;
+}): EventSpec[] {
+  const shared = { ts: input.ts, step: input.step, agentSlot: input.agentSlot };
+  return [
+    { ...shared, event: {
+      type: 'context_usage', usedTokens: input.prompt + input.completion,
+      contextWindow: 200_000, percent: (input.prompt + input.completion) / 2_000,
+      accuracy: 'exact',
+    } },
+    { ...shared, event: {
+      type: 'cost_record', provider: 'anthropic', model: 'claude-sonnet-4-5',
+      tokens_in: input.prompt - input.cached, tokens_out: input.completion,
+      prompt_tokens: input.prompt, cached_tokens: input.cached, cost_usd: input.cost,
+    } },
+    { ...shared, event: {
+      type: 'turn_complete', numTurns: input.turns, totalCostUsd: input.cost,
+    } },
+  ];
+}
+
 function parentEvents(): EventSpec[] {
   return [
     { ts: '2026-08-01T00:00:01.000Z', step: null, agentSlot: 'parent', event: { type: 'assistant_text', text: 'parent starts' } },
@@ -169,13 +197,25 @@ function parentEvents(): EventSpec[] {
     { ts: '2026-08-01T00:00:05.000Z', step: null, agentSlot: 'parent', event: { type: 'tool_use', toolUseId: 'call-a', name: 'mcp__cortex-benchmark-thread__thread_run', input: { handoff: 'child a' } } },
     { ts: '2026-08-01T00:00:09.000Z', step: null, agentSlot: 'parent', event: { type: 'tool_result', toolUseId: 'call-a', ok: true, content: mcpResult('thread-a') } },
     { ts: '2026-08-01T00:00:10.000Z', step: null, agentSlot: 'parent', event: { type: 'assistant_text', text: 'parent ends' } },
+    ...accountingEvents({
+      ts: '2026-08-01T00:00:10.000Z', step: null, agentSlot: 'parent',
+      prompt: 1_200, completion: 120, cached: 400, cost: 0.12, turns: 2,
+    }),
   ];
 }
 
-function childEvents(label: string, offset: number): EventSpec[] {
+function childEvents(label: string, offset: number, prompt: number, completion: number, cached: number, cost: number): EventSpec[] {
   return [
     { ts: `2026-08-01T00:00:0${offset}.000Z`, step: 1, agentSlot: 'benchmark-coder', event: { type: 'assistant_text', text: `${label} codes` } },
+    ...accountingEvents({
+      ts: `2026-08-01T00:00:0${offset}.000Z`, step: 1, agentSlot: 'benchmark-coder',
+      prompt: prompt / 2, completion: completion / 2, cached: cached / 2, cost: cost / 2, turns: 1,
+    }),
     { ts: `2026-08-01T00:00:0${offset + 1}.000Z`, step: 2, agentSlot: 'benchmark-reviewer', event: { type: 'assistant_text', text: `${label} reviews` } },
+    ...accountingEvents({
+      ts: `2026-08-01T00:00:0${offset + 1}.000Z`, step: 2, agentSlot: 'benchmark-reviewer',
+      prompt: prompt / 2, completion: completion / 2, cached: cached / 2, cost: cost / 2, turns: 1,
+    }),
   ];
 }
 
@@ -184,6 +224,10 @@ function ordinaryParentEvents(): EventSpec[] {
     { ts: '2026-08-01T00:00:01.000Z', step: null, agentSlot: 'parent', reportedModel: null, event: { type: 'assistant_text', text: 'working alone' } },
     { ts: '2026-08-01T00:00:02.000Z', step: null, agentSlot: 'parent', event: { type: 'tool_use', toolUseId: 'bash-1', name: 'Bash', input: { command: 'true' } } },
     { ts: '2026-08-01T00:00:03.000Z', step: null, agentSlot: 'parent', event: { type: 'tool_result', toolUseId: 'bash-1', ok: true, content: 'ok' } },
+    ...accountingEvents({
+      ts: '2026-08-01T00:00:04.000Z', step: null, agentSlot: 'parent',
+      prompt: 800, completion: 80, cached: 200, cost: 0.08, turns: 1,
+    }),
   ];
 }
 
@@ -199,11 +243,11 @@ export function writeTreeFixture(root: string): MergeFixture {
   const children = [
     writeJournal(root, {
       threadId: 'thread-a', agentSlot: 'benchmark-coder', roleHash: '4'.repeat(64),
-      events: childEvents('child a', 3),
+      events: childEvents('child a', 3, 340, 34, 40, 0.04),
     }),
     writeJournal(root, {
       threadId: 'thread-b', agentSlot: 'benchmark-coder', roleHash: '5'.repeat(64),
-      events: childEvents('child b', 2),
+      events: childEvents('child b', 2, 460, 46, 60, 0.04),
     }),
   ];
   return { root, parent, children, sourceEvents: sourceEvents(parent, children) };
@@ -300,9 +344,23 @@ export function removeToolResult(journal: FixtureJournal, callId: string): void 
   writeRecords(journal, records);
 }
 
+export function removeFirstEvent(journal: FixtureJournal, type: string): void {
+  const records = readRecords(journal);
+  const index = records.findIndex((record, recordIndex) => (
+    recordIndex > 0 && record.event?.type === type
+  ));
+  if (index < 0) throw new Error(`Fixture event not found: ${type}`);
+  records.splice(index, 1);
+  records.slice(1).forEach((record, recordIndex) => { record.seq = recordIndex + 1; });
+  writeRecords(journal, records);
+}
+
 export function truncateTerminalJournal(journal: FixtureJournal): void {
   const records = readRecords(journal);
-  records.pop();
+  const index = records.map(record => record.event?.type).lastIndexOf('assistant_text');
+  if (index < 0) throw new Error('Fixture assistant event not found');
+  records.splice(index, 1);
+  records.slice(1).forEach((record, recordIndex) => { record.seq = recordIndex + 1; });
   writeRecords(journal, records);
   setTerminalState(journal, 'timeout');
 }

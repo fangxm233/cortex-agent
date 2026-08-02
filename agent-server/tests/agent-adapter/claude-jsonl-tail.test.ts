@@ -1,5 +1,5 @@
 // input:  transcript normalizer and temporary files
-// output: transcript event and reported-model regressions
+// output: transcript events and cache-explicit accounting tests
 // pos:    Covers Claude transcript normalization
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -227,6 +227,8 @@ test('Normalizer dedups usage by msg.id across multiple assistant entries', () =
   const expected = 100 * 3e-6 + 200 * 15e-6;
   assert.ok(Math.abs((cost as any).cost_usd - expected) < 1e-9,
     `expected ${expected}, got ${(cost as any).cost_usd}`);
+  assert.equal((cost as any).prompt_tokens, null);
+  assert.equal((cost as any).cached_tokens, null);
 });
 
 // --- Normalizer: turn boundary on system/turn_duration ---
@@ -238,7 +240,10 @@ test('Normalizer emits cost_record + turn_complete on system/turn_duration', () 
     message: {
       id: 'msg_aaa', model: 'claude-sonnet-4-5-20250929',
       content: [{ type: 'text', text: 'hi' }],
-      usage: { input_tokens: 10, output_tokens: 5 },
+      usage: {
+        input_tokens: 10, output_tokens: 5,
+        cache_creation_input_tokens: 3, cache_read_input_tokens: 7,
+      },
     },
   });
   const out = n.consume({ type: 'system', subtype: 'turn_duration', durationMs: 2000, messageCount: 4 });
@@ -249,8 +254,10 @@ test('Normalizer emits cost_record + turn_complete on system/turn_duration', () 
   assert.ok(turnComplete);
   assert.equal((costRec as any).provider, 'claude');
   assert.equal((costRec as any).model, 'claude-sonnet-4-5-20250929');
-  assert.equal((costRec as any).tokens_in, 10);
+  assert.equal((costRec as any).tokens_in, 10 + 3 + 7);
   assert.equal((costRec as any).tokens_out, 5);
+  assert.equal((costRec as any).prompt_tokens, 10 + 3 + 7);
+  assert.equal((costRec as any).cached_tokens, 3 + 7);
 });
 
 test('Normalizer turn_complete carries null cost when model unknown', () => {

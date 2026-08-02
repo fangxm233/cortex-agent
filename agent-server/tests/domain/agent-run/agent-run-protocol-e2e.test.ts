@@ -1,5 +1,5 @@
 // input:  agent-run process fixture, stdin config, fake accounting
-// output: stdin, accounting, identity, and trajectory failure proofs
+// output: exact nullable accounting and protocol failure proofs
 // pos:    Process-level agent-run protocol regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -110,16 +110,25 @@ it('exits when only the background continuation reports cost', async () => {
 });
 
 function assertEarlyAccountingOrder(events: any[]): void {
-  assert.deepEqual(events.filter(event => event.type === 'cost_record'), [{
+  const costs = events.filter(event => event.type === 'cost_record');
+  assert.deepEqual(costs[0], {
     type: 'cost_record', provider: 'anthropic', model: 'claude-foreground',
-    tokens_in: 111, tokens_out: 22, cost_usd: 0.2,
-  }]);
+    tokens_in: 111, tokens_out: 22,
+    prompt_tokens: null, cached_tokens: null, cost_usd: 0.2,
+  });
+  assert.deepEqual({ ...costs[1], cost_usd: 0.1 }, {
+    type: 'cost_record', provider: 'anthropic', model: 'claude-continuation',
+    tokens_in: 9, tokens_out: 4,
+    prompt_tokens: null, cached_tokens: null, cost_usd: 0.1,
+  });
+  assert.ok(Math.abs(costs[1].cost_usd - 0.1) < 1e-12);
   const selected = events.filter(event =>
     event.type === 'cost_record' || event.type === 'turn_complete'
       || (event.type === 'assistant_text' && event.text === 'background done'));
   assert.deepEqual(selected.map(event =>
     event.type === 'assistant_text' ? `assistant:${event.text}` : event.type), [
-    'cost_record', 'turn_complete', 'assistant:background done', 'turn_complete',
+    'cost_record', 'turn_complete', 'assistant:background done',
+    'cost_record', 'turn_complete',
   ]);
 }
 
@@ -173,10 +182,18 @@ it.each([
   const records = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'));
   const costEvents = records.filter(record => record.event?.type === 'cost_record')
     .map(record => record.event);
-  assert.deepEqual(costEvents, [{
-    type: 'cost_record', provider: 'anthropic', model: 'claude-reported-accounting',
-    tokens_in: input, tokens_out: tokenOutput, cost_usd: cost,
-  }]);
+  assert.deepEqual(costEvents, [
+    {
+      type: 'cost_record', provider: 'anthropic', model: 'claude-reported-accounting',
+      tokens_in: input, tokens_out: tokenOutput,
+      prompt_tokens: null, cached_tokens: null, cost_usd: cost,
+    },
+    {
+      type: 'cost_record', provider: 'anthropic', model: 'unknown',
+      tokens_in: null, tokens_out: null,
+      prompt_tokens: null, cached_tokens: null, cost_usd: 0,
+    },
+  ]);
   const terminal = terminalRecord(fixture);
   assert.equal(terminal.cost_usd, cost);
   assert.deepEqual(terminal.tokens, { input, output: tokenOutput });
@@ -201,10 +218,18 @@ it('records reported cost when usage is absent', async () => {
   const costEvents = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'))
     .filter(record => record.event?.type === 'cost_record')
     .map(record => record.event);
-  assert.deepEqual(costEvents, [{
-    type: 'cost_record', provider: 'anthropic', model: 'claude-requested-fixture',
-    tokens_in: null, tokens_out: null, cost_usd: 0.625,
-  }]);
+  assert.deepEqual(costEvents, [
+    {
+      type: 'cost_record', provider: 'anthropic', model: 'claude-requested-fixture',
+      tokens_in: null, tokens_out: null,
+      prompt_tokens: null, cached_tokens: null, cost_usd: 0.625,
+    },
+    {
+      type: 'cost_record', provider: 'anthropic', model: 'unknown',
+      tokens_in: null, tokens_out: null,
+      prompt_tokens: null, cached_tokens: null, cost_usd: 0,
+    },
+  ]);
   const terminal = terminalRecord(fixture);
   assert.equal(terminal.cost_usd, 0.625);
   assert.deepEqual(terminal.tokens, { input: null, output: null });

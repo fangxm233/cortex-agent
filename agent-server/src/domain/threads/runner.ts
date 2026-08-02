@@ -1,5 +1,5 @@
 // input:  thread state, scoped runtime policy, throttle, hooks
-// output: isolated/daemon runs, balanced ledgers, transcripts
+// output: isolated runs with exact accounting and transcripts
 // pos:    Runs thread steps, controls, hooks, and resumes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -535,7 +535,8 @@ function resolveStepSpawnPolicy(
     return {
       cwd: opts.benchmark.workspaceCwd, processSpawner: opts.benchmark.spawner,
       mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
-      streamDeltas: false, captureTranscriptLogs: false, recordCost: false,
+      streamDeltas: false, captureTranscriptLogs: false,
+      preserveUnreportedAccounting: true, recordCost: false,
     };
   }
   return {

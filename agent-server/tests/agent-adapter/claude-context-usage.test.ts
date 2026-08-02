@@ -1,6 +1,6 @@
-// input:  Claude stream/result usage fixtures and configured model names
-// output: exact current-context tracker regression tests
-// pos:    Claude print context usage tracker contract
+// input:  Claude stream/result usage and configured models
+// output: exact context and reported-accounting regression tests
+// pos:    Claude print usage telemetry contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { describe, test } from 'vitest';
@@ -345,6 +345,30 @@ function fakeTurn(overrides: Record<string, unknown> = {}): any {
 }
 
 describe('ClaudeSession context usage wiring', () => {
+  test('preserves cache-inclusive prompt and cached token accounting', (t) => {
+    const session: any = _test.makeSessionForTest('claude-sonnet-4-6');
+    t.onTestFinished(() => session.close());
+    session.preserveUnreportedAccounting = true;
+    let resolved: any = null;
+    session.currentTurn = fakeTurn({ resolve: (value: any) => { resolved = value; } });
+
+    session.handleLine(JSON.stringify({
+      type: 'result', subtype: 'success', is_error: false,
+      session_id: 'test-session', total_cost_usd: 0.08, num_turns: 1,
+      usage: {
+        input_tokens: 1_000, output_tokens: 200,
+        cache_creation_input_tokens: 30, cache_read_input_tokens: 40,
+      },
+      modelUsage: { 'claude-sonnet-4-6': {} }, result: 'done',
+    }));
+
+    assert.deepEqual(resolved.reportedAccounting, {
+      usageReported: true, inputTokens: 1_000, outputTokens: 200,
+      promptTokens: 1_000 + 30 + 40, cachedTokens: 30 + 40,
+      model: 'claude-sonnet-4-6',
+    });
+  });
+
   test('forwards stream snapshots and reconciles the result window before resolving', (t) => {
     const session: any = _test.makeSessionForTest('claude-opus-5[1m]');
     t.onTestFinished(() => session.close());
