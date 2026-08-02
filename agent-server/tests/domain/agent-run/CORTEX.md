@@ -30,5 +30,5 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | run-config.test.ts | test | verifies non-empty roles, argv closure, and MCP inputs |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
-| trajectory-merge-fixtures.ts | fixture | writes and nulls accounted fragment fields |
+| trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
 | trajectory-merge.test.ts | test | verifies documented aggregate ATIF conversion |

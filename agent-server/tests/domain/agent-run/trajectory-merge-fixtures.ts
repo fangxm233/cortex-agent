@@ -1,4 +1,4 @@
-// input:  temporary roots and accounted C2/C3 records
+// input:  temporary roots and accounted print-mode C2/C3 records
 // output: journal trees and nullable accounting mutations
 // pos:    Portable fixtures for trajectory merge tests
 // >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -193,8 +193,10 @@ function parentEvents(): EventSpec[] {
   return [
     { ts: '2026-08-01T00:00:01.000Z', step: null, agentSlot: 'parent', event: { type: 'assistant_text', text: 'parent starts' } },
     { ts: '2026-08-01T00:00:04.000Z', step: null, agentSlot: 'parent', event: { type: 'tool_use', toolUseId: 'call-b', name: 'mcp__cortex-benchmark-thread__thread_run', input: { handoff: 'child b' } } },
+    { ts: '2026-08-01T00:00:04.500Z', step: null, agentSlot: 'parent', event: { type: 'turn_progress', numTurns: 1 } },
     { ts: '2026-08-01T00:00:08.000Z', step: null, agentSlot: 'parent', event: { type: 'tool_result', toolUseId: 'call-b', ok: true, content: mcpResult('thread-b') } },
     { ts: '2026-08-01T00:00:05.000Z', step: null, agentSlot: 'parent', event: { type: 'tool_use', toolUseId: 'call-a', name: 'mcp__cortex-benchmark-thread__thread_run', input: { handoff: 'child a' } } },
+    { ts: '2026-08-01T00:00:05.500Z', step: null, agentSlot: 'parent', event: { type: 'turn_progress', numTurns: 2 } },
     { ts: '2026-08-01T00:00:09.000Z', step: null, agentSlot: 'parent', event: { type: 'tool_result', toolUseId: 'call-a', ok: true, content: mcpResult('thread-a') } },
     { ts: '2026-08-01T00:00:10.000Z', step: null, agentSlot: 'parent', event: { type: 'assistant_text', text: 'parent ends' } },
     ...accountingEvents({

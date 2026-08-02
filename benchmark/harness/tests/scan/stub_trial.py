@@ -1,6 +1,6 @@
-# input:  real npm bundle, pinned Debian image, fake Claude fixture
-# output: lifecycle, merged ATIF, network, and scan evidence
-# pos:    Reusable Harbor container integration for the genuine run path
+# input:  real bundle, pinned Debian image, dynamic fake Claude
+# output: parent/child ATIF, mutation, network, and scan evidence
+# pos:    Fresh-container integration for the dynamic run path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
@@ -13,6 +13,7 @@ import shlex
 import shutil
 import socket
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import override
@@ -45,6 +46,9 @@ FINAL_METRIC_KEYS = (
     "total_prompt_tokens", "total_completion_tokens", "total_cached_tokens",
     "total_cost_usd", "total_steps",
 )
+RUN_CONFIG_PATH = "/cortex-home/config/benchmark-agent-run.json"
+POLICY_PATH = "/cortex-home/config/benchmark-thread-policy.json"
+BENCHMARK_MCP_CONFIG_PATH = "/cortex-home/config/mcp-config-benchmark-thread.json"
 
 
 @dataclass(frozen=True)
@@ -82,10 +86,23 @@ class TrialEvidence:
     required_scan_clean: bool
     whole_tree_scan_clean: bool
     outbound_routes: list[str]
+    cortex_cli_version: str
+    mcp_composition: str
+    fake_roles: tuple[str, ...]
+    child_agent_slots: frozenset[str]
+    child_journal_paths: tuple[Path, ...]
+    fragment_events: tuple[tuple[dict[str, object], ...], ...]
+    subagent_count: int
+    fail_closed_reasons: dict[str, str]
 
 
 class RecordingCortexBenchAgent(CortexBenchAgent):
     run_result: ExecResult | None = None
+    run_command: str | None = None
+
+    @override
+    def preview_run_argv(self) -> list[str]:
+        return [*super().preview_run_argv(), "--run-config", RUN_CONFIG_PATH]
 
     @override
     async def exec_as_agent(
@@ -96,6 +113,7 @@ class RecordingCortexBenchAgent(CortexBenchAgent):
         result = await super().exec_as_agent(environment, command, env, cwd, timeout_sec)
         if command.startswith("cortex agent-run "):
             self.run_result = result
+            self.run_command = command
             self.logs_dir.mkdir(parents=True, exist_ok=True)
             (self.logs_dir / "stdout.txt").write_text(result.stdout or "")
             (self.logs_dir / "stderr.txt").write_text(result.stderr or "")
@@ -177,18 +195,60 @@ def build_npm_artifact(root: Path, repo_root: Path) -> Path:
     return artifacts[0]
 
 
-def write_profile(cortex_home: Path) -> None:
-    profile = {
+def profile_document() -> dict[str, object]:
+    return {
         "defaultProfile": "benchmark",
         "profiles": {"benchmark": {
             "model": MODEL_NAME, "backend": "claude", "provider": "anthropic",
             "claudeBackend": "print", "fallback": [],
-            "extraEnv": {"FAKE_CLAUDE_ARTIFACT_DIR": "/logs/artifacts"},
+            "extraEnv": {
+                "FAKE_CLAUDE_ARTIFACT_DIR": "/logs/artifacts",
+                "CORTEX_BENCHMARK_THREAD_POLICY_PATH": POLICY_PATH,
+            },
         }},
     }
+
+
+def run_config_document() -> dict[str, object]:
+    return {
+        "schema_version": "cortex-agent-run-config/1",
+        "model_execution": {"model_alias_policy": None},
+        "role": {
+            "system_prompt": "Use the fixed benchmark thread tool and wait for its result.",
+            "tools": ["mcp__cortex-benchmark-thread__thread_run"],
+            "plugin_dirs": [], "mcp_composition": "benchmark-thread-run",
+            "mcp_config_paths": [BENCHMARK_MCP_CONFIG_PATH], "disable_hooks": True,
+        },
+        "bundle": {
+            "run_config": {"arm": "dynamic-thread"},
+            "limits": {"max_calls": 1, "max_steps": 4, "max_cost_usd": 1},
+            "adapter_hashes": {}, "harness_hashes": {},
+        },
+    }
+
+
+def policy_document() -> dict[str, object]:
+    return {
+        "schema_version": "cortex-benchmark-thread-policy/1",
+        "canonical_instruction": "Complete the synthetic dynamic-thread trial.",
+        "workspace_cwd": "/app", "template": "benchmark-coder-review",
+        "profile_name": "benchmark", "root_run_id": ROOT_RUN_ID,
+        "trajectory_root": "/logs/agent/trajectory",
+        "limits": {
+            "max_calls": 1, "max_steps": 4, "max_cost_usd": 1,
+            "deadline_epoch_ms": int((time.time() + 1_200) * 1_000),
+        },
+    }
+
+
+def write_profile(cortex_home: Path) -> None:
     config = cortex_home / "config"
     config.mkdir(parents=True)
-    (config / "profiles.json").write_text(json.dumps(profile))
+    (config / "profiles.json").write_text(json.dumps(profile_document()))
+    (config / "benchmark-agent-run.json").write_text(json.dumps(run_config_document()))
+    policy = config / "benchmark-thread-policy.json"
+    policy.write_text(json.dumps(policy_document()))
+    policy.chmod(0o444)
     for name in ("projects", "tmp", "xdg-config", "xdg-cache"):
         (cortex_home / name).mkdir()
 
@@ -199,6 +259,7 @@ def install_fake_claude(root: Path) -> Path:
     source = Path(__file__).with_name("fake_claude.sh")
     target = fake_bin / "claude"
     shutil.copy2(source, target)
+    shutil.copy2(Path(__file__).with_name("fake_claude.mjs"), fake_bin / "fake_claude.mjs")
     target.chmod(0o755)
     return fake_bin
 
@@ -213,11 +274,13 @@ def create_layout(root: Path) -> Layout:
     cortex_home = root / "cortex-home"
     environment_dir.mkdir()
     workspace.mkdir()
+    wheel = build_harness_wheel(harness_dir)
+    npm_artifact = build_npm_artifact(root, repo_root)
     write_profile(cortex_home)
     return Layout(
         root, repo_root, harness_dir, trial_paths, environment_dir, workspace,
         cortex_home, install_fake_claude(root), build_node_runtime(root),
-        build_harness_wheel(harness_dir), build_npm_artifact(root, repo_root),
+        wheel, npm_artifact,
     )
 
 
@@ -253,7 +316,7 @@ def agent_environment() -> dict[str, str]:
 def create_agent(layout: Layout, image: dict[str, object]) -> RecordingCortexBenchAgent:
     manifest = {
         "root_run_id": ROOT_RUN_ID, "trial_id": TRIAL_ID,
-        "arm": "cortex-direct-real-agent-run", "wheel_path": str(layout.wheel_path),
+        "arm": "cortex-dynamic-thread-real-agent-run", "wheel_path": str(layout.wheel_path),
         "lockfile_path": str(layout.harness_dir / "uv.lock"),
         "lockfile_manifest_path": "benchmark/harness/uv.lock",
         "npm_artifact_path": str(layout.npm_artifact), **image,
@@ -273,6 +336,40 @@ async def provision_runtime(environment: DockerEnvironment) -> None:
         f" && useradd --uid {uid} --create-home --shell /bin/bash {AGENT_USER}"
     )
     result = await environment.exec(command=command, user="root")
+    assert result.return_code == 0, result.stderr
+
+
+def benchmark_mcp_config_script() -> str:
+    return (
+        "const fs=await import('node:fs');const path=await import('node:path');"
+        "const root=process.argv[1];const entry={command:'node',"
+        "args:[path.join(root,'dist/domain/mcp/benchmark-thread-server.js')],cwd:root};"
+        f"fs.writeFileSync('{BENCHMARK_MCP_CONFIG_PATH}',"
+        "JSON.stringify({mcpServers:{'cortex-benchmark-thread':entry}},null,2));"
+    )
+
+
+async def provision_dynamic_runtime(environment: DockerEnvironment) -> None:
+    target = "/cortex-home/config/thread-templates"
+    package = (
+        'package_root="$(npm ls --global --parseable --depth=0 --prefix '
+        '/installed-agent/npm @cortex-agent/server)"'
+    )
+    copies = [
+        ("agents/benchmark-coder.json", "agents/benchmark-coder.json"),
+        ("agents/benchmark-reviewer.json", "agents/benchmark-reviewer.json"),
+        ("templates/benchmark-coder-review.json", "templates/benchmark-coder-review.json"),
+    ]
+    commands = [package, f"mkdir -p {target}/agents {target}/templates {target}/shells"]
+    for source, destination in copies:
+        commands.append(
+            f'cp "$package_root/defaults/config/thread-templates/{source}" {target}/{destination}'
+        )
+    commands.append('cp "$package_root/defaults/config/mcp-config-empty.json" '
+                    "/cortex-home/config/mcp-config-empty.json")
+    script = shlex.quote(benchmark_mcp_config_script())
+    commands.append(f'node --input-type=module -e {script} "$package_root"')
+    result = await environment.exec(command=" && ".join(commands))
     assert result.return_code == 0, result.stderr
 
 
@@ -302,6 +399,8 @@ def trial_record() -> dict[str, object]:
         "layers": {
             "harbor_agent_run": "real", "installed_cortex_cli": "real",
             "process_supervisor": "real", "claude_adapter": "real",
+            "benchmark_thread_mcp": "real-blocking-stdio",
+            "local_thread_orchestrator": "real",
             "model_backend": "fake-network-free",
             "trajectory_merge": "real-host-cli",
             "container_network": "detached-before-agent-run",
@@ -338,6 +437,7 @@ async def execute_trial(
             with environment.scoped_exec_env(agent.extra_env):
                 assert agent.run.__func__ is CortexBenchAgent.run
                 await agent.setup(environment)
+                await provision_dynamic_runtime(environment)
                 disconnect_container_network()
                 routes = await environment.exec(command="tail -n +2 /proc/net/route")
                 assert routes.return_code == 0 and not (routes.stdout or "").strip()
@@ -349,13 +449,28 @@ async def execute_trial(
     return agent
 
 
+def journal_records(path: Path) -> list[dict[str, object]]:
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
 def parse_journal(layout: Layout) -> tuple[dict[str, object], list[dict[str, object]]]:
     path = layout.trial_paths.agent_dir / "trajectory" / "events.jsonl"
-    records = [json.loads(line) for line in path.read_text().splitlines()]
+    records = journal_records(path)
     header = records[0]
     events = [record["event"] for record in records[1:]]
     assert header["type"] == "run_header" and header["resolved_cwd"] == "/app"
     return header, events
+
+
+def child_journals(layout: Layout) -> tuple[Path, ...]:
+    root = layout.trial_paths.agent_dir / "trajectory"
+    return tuple(sorted(root.glob("thread-*.journal.ndjson")))
+
+
+def fragment_events(layout: Layout) -> tuple[tuple[dict[str, object], ...], ...]:
+    parent = layout.trial_paths.agent_dir / "trajectory" / "events.jsonl"
+    paths = (parent, *child_journals(layout))
+    return tuple(tuple(record["event"] for record in journal_records(path)[1:]) for path in paths)
 
 
 def merge_trajectory(layout: Layout) -> Path:
@@ -369,6 +484,41 @@ def merge_trajectory(layout: Layout) -> Path:
     payload = json.loads(result.stdout)
     assert payload["ok"] is True and Path(payload["output_path"]) == output
     return output
+
+
+def merge_failure_process(layout: Layout, trajectory_root: Path, output: Path):
+    cli = layout.repo_root / "agent-server/dist/domain/agent-run/trajectory-merge-cli.js"
+    return subprocess.run(
+        ["node", str(cli), "--trajectory-root", str(trajectory_root), "--output", str(output)],
+        cwd=layout.repo_root, env=build_environment(), capture_output=True, text=True, timeout=60,
+    )
+
+
+def mutate_child_fragment(root: Path, mutation: str) -> None:
+    journals = tuple(root.glob("thread-*.journal.ndjson"))
+    assert len(journals) == 1
+    journal = journals[0]
+    if mutation == "corrupted_child":
+        journal.write_bytes(journal.read_bytes() + b"{not-json}\n")
+        return
+    stem = journal.name.removesuffix(".journal.ndjson")
+    journal.unlink()
+    (root / f"{stem}.started.json").unlink()
+    (root / f"{stem}.terminal.json").unlink()
+
+
+def assert_merge_failure(layout: Layout, mutation: str) -> str:
+    copied = layout.root / f"{mutation}-trajectory"
+    shutil.copytree(layout.trial_paths.agent_dir / "trajectory", copied)
+    mutate_child_fragment(copied, mutation)
+    output = layout.root / f"{mutation}-output" / "trajectory.json"
+    output.parent.mkdir()
+    result = merge_failure_process(layout, copied, output)
+    assert result.returncode == 1 and not output.exists()
+    assert not tuple(output.parent.glob(f"{output.name}.tmp.*"))
+    payload = json.loads(result.stderr)
+    assert payload["ok"] is False
+    return str(payload["reason"])
 
 
 def validate_atif(trajectory_path: Path) -> dict[str, object]:
@@ -395,6 +545,42 @@ def parse_fake_usage(layout: Layout) -> dict[str, int]:
     assert argv[:5] == ["-p", "--input-format", "stream-json", "--output-format", "stream-json"]
     assert "--strict-mcp-config" in argv and argv[argv.index("--model") + 1] == MODEL_NAME
     return result["usage"]
+
+
+def parse_fake_roles(layout: Layout) -> tuple[str, ...]:
+    path = layout.trial_paths.artifacts_dir / "fake-claude-invocations.jsonl"
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert all(row["cwd"] == "/app" for row in rows)
+    return tuple(str(row["role"]) for row in rows)
+
+
+def parent_mcp_composition(
+    layout: Layout, agent: RecordingCortexBenchAgent,
+) -> str:
+    assert agent.run_command is not None
+    assert f"--run-config {RUN_CONFIG_PATH}" in agent.run_command
+    mcp_config = json.loads(
+        (layout.cortex_home / "config/mcp-config-benchmark-thread.json").read_text()
+    )
+    assert list(mcp_config["mcpServers"]) == ["cortex-benchmark-thread"]
+    run_config = json.loads(
+        (layout.cortex_home / "config/benchmark-agent-run.json").read_text()
+    )
+    return str(run_config["role"]["mcp_composition"])
+
+
+def child_slots(layout: Layout) -> frozenset[str]:
+    slots: set[str] = set()
+    for journal in child_journals(layout):
+        slots.update(str(record["agent_slot"]) for record in journal_records(journal)[1:])
+    return frozenset(slots)
+
+
+def harness_cli_version(layout: Layout) -> str:
+    path = layout.trial_paths.artifacts_dir / "cortex-bench-harness-manifest.json"
+    version = json.loads(path.read_text())["cortex_cli"]["version"]
+    assert isinstance(version, str) and version
+    return version
 
 
 def validate_terminal(layout: Layout, header: dict[str, object]) -> dict[str, object]:
@@ -481,35 +667,44 @@ def whole_tree_scan(layout: Layout, secrets: dict[str, str]) -> bool:
     return not findings
 
 
+def scan_results(layout: Layout) -> tuple[dict[str, object], bool, bool, list[str]]:
+    secrets = host_secret_literals()
+    write_workspace_diff(layout)
+    required_clean = required_scan(layout, secrets)
+    whole_clean = whole_tree_scan(layout, secrets)
+    artifacts = layout.trial_paths.artifacts_dir
+    scope = json.loads((artifacts / "trial-record.json").read_text())["scope"]
+    routes = (artifacts / "outbound-routes.txt").read_text().splitlines()
+    return scope, required_clean, whole_clean, routes
+
+
 def collect_evidence(
     layout: Layout, image: dict[str, object], agent: RecordingCortexBenchAgent,
     merged_path: Path,
 ) -> TrialEvidence:
     header, events = parse_journal(layout)
     terminal = validate_terminal(layout, header)
-    event_types = frozenset(str(event["type"]) for event in events)
     cost = next(event for event in events if event["type"] == "cost_record")
-    validation = json.loads(
-        (layout.trial_paths.artifacts_dir / "trajectory-validation.json").read_text()
-    )
+    validation_path = layout.trial_paths.artifacts_dir / "trajectory-validation.json"
+    validation = json.loads(validation_path.read_text())
     trajectory = json.loads(merged_path.read_text())
     metrics = {key: trajectory["final_metrics"][key] for key in FINAL_METRIC_KEYS}
-    secrets = host_secret_literals()
-    write_workspace_diff(layout)
-    required_clean = required_scan(layout, secrets)
-    whole_clean = whole_tree_scan(layout, secrets)
-    scope = json.loads(
-        (layout.trial_paths.artifacts_dir / "trial-record.json").read_text()
-    )["scope"]
-    routes = (layout.trial_paths.artifacts_dir / "outbound-routes.txt").read_text().splitlines()
+    scope, required_clean, whole_clean, routes = scan_results(layout)
+    failures = {
+        name: assert_merge_failure(layout, name)
+        for name in ("corrupted_child", "missing_child")
+    }
     return TrialEvidence(
         int(image["image_size_bytes"]), True, agent.run_result.return_code,
-        str(header["resolved_cwd"]), parse_fake_usage(layout), event_types,
+        str(header["resolved_cwd"]), parse_fake_usage(layout),
+        frozenset(str(event["type"]) for event in events),
         {key: cost[key] for key in ("tokens_in", "tokens_out", "prompt_tokens",
                                     "cached_tokens", "cost_usd")},
         tuple(events), str(terminal["state"]), str(terminal["journal_path"]), validation,
-        merged_path, metrics, validate_atif(merged_path), scope,
-        required_clean, whole_clean, routes,
+        merged_path, metrics, validate_atif(merged_path), scope, required_clean, whole_clean, routes,
+        harness_cli_version(layout), parent_mcp_composition(layout, agent), parse_fake_roles(layout),
+        child_slots(layout), child_journals(layout), fragment_events(layout),
+        len(trajectory["subagent_trajectories"]), failures,
     )
 
 

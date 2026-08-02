@@ -8,7 +8,7 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | access-probe-policy.ts | policy | streams and classifies file and network traces |
 | access-probe.ts | process | probes through the fail-closed supervisor path |
 | agent-run-cli.ts | cli | parses flags and resolves the supervisor path |
-| atif.ts | format | converts fragments and documented metrics to ATIF |
+| atif.ts | format | converts print-mode fragment batches and metrics to ATIF |
 | benchmark-local-thread-orchestrator.ts | runtime | fails closed or runs one bounded supervised thread |
 | benchmark-thread-identity.ts | identity | projects parent, role and prompt hashes |
 | identity.ts | core | hashes routed model, role and bundle identities |

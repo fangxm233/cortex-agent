@@ -1,11 +1,12 @@
-# input:  trial helpers, pinned image, bundle, fake Claude
-# output: real-run merge, scan, protocol, cleanup assertions
-# pos:    Container integration proof for the genuine Cortex run path
+# input:  dynamic trial helpers, pinned image, bundle, fake Claude
+# output: blocking thread, child merge, mutation, and scan assertions
+# pos:    Container proof for the genuine dynamic Cortex run path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,7 +14,12 @@ from types import SimpleNamespace
 import pytest
 
 import stub_trial
-from stub_trial import result_surface_files, run_real_agent_trial, write_workspace_diff
+from stub_trial import (
+    TrialEvidence,
+    result_surface_files,
+    run_real_agent_trial,
+    write_workspace_diff,
+)
 
 EXPECTED_USAGE = {
     "input_tokens": 11,
@@ -105,7 +111,10 @@ def test_fake_claude_emits_canonical_assistant_role(tmp_path: Path) -> None:
         "PATH": os.environ["PATH"], "FAKE_CLAUDE_ARTIFACT_DIR": str(tmp_path),
     }
     result = subprocess.run(
-        [str(Path(__file__).with_name("fake_claude.sh")), "-p"],
+        [
+            str(Path(__file__).with_name("fake_claude.sh")), "-p",
+            "--system-prompt", "You are a code implementer.",
+        ],
         input=json.dumps(request, separators=(",", ":")) + "\n",
         text=True, capture_output=True, check=True, env=environment,
     )
@@ -115,28 +124,56 @@ def test_fake_claude_emits_canonical_assistant_role(tmp_path: Path) -> None:
     assert assistant["message"]["role"] == "assistant"
 
 
-def test_real_agent_run_uses_fake_claude_and_commits_trajectory(tmp_path: Path) -> None:
-    evidence = run_real_agent_trial(tmp_path)
-
+def assert_dynamic_run_surface(evidence: TrialEvidence) -> None:
     assert evidence.image_size_bytes == 28_242_677
     assert evidence.inherited_real_run is True
     assert evidence.run_exit_code == 0
     assert evidence.resolved_cwd == "/app"
     assert evidence.raw_usage == EXPECTED_USAGE
-    assert {"assistant_text", "cost_record", "turn_complete"} <= evidence.event_types
+    assert {"tool_use", "tool_result", "cost_record", "turn_complete"} <= evidence.event_types
     assert evidence.cost_record == {
         "tokens_in": 11, "tokens_out": 7, "prompt_tokens": 19,
         "cached_tokens": 5, "cost_usd": 0.001,
     }
+    assert evidence.mcp_composition == "benchmark-thread-run"
+    assert evidence.fake_roles == ("parent", "benchmark-coder", "benchmark-reviewer")
     assert evidence.terminal_state == "completed"
     assert evidence.recorded_journal_path == "events.jsonl"
     assert evidence.trajectory_validation == {"ok": True, "problems": []}
-    expected_metrics = journal_metric_arithmetic(evidence.journal_events)
+
+
+def assert_child_aggregation(evidence: TrialEvidence) -> None:
+    assert evidence.child_agent_slots == frozenset({"benchmark-coder", "benchmark-reviewer"})
+    assert len(evidence.child_journal_paths) == 1
+    assert all(path.is_file() for path in evidence.child_journal_paths)
+    all_events = tuple(event for fragment in evidence.fragment_events for event in fragment)
+    expected_metrics = journal_metric_arithmetic(all_events)
+    assert expected_metrics == {
+        "total_prompt_tokens": 62, "total_completion_tokens": 24,
+        "total_cached_tokens": 15, "total_cost_usd": 0.006, "total_steps": 3,
+    }
     assert evidence.final_metrics == expected_metrics
     assert all(value is not None for value in evidence.final_metrics.values())
+    assert evidence.subagent_count == 1
+    assert evidence.fail_closed_reasons == {
+        "corrupted_child": "malformed_fragment",
+        "missing_child": "missing_child_fragment",
+    }
     assert evidence.merged_trajectory_path.is_file()
     assert evidence.atif_validation == EXPECTED_ATIF_VALIDATION
+
+
+def assert_trial_safety(evidence: TrialEvidence) -> None:
+    assert re.fullmatch(r"\d{4}\.\d{1,2}\.\d{1,2}(?:-\d+)?", evidence.cortex_cli_version)
     assert evidence.scope == EXPECTED_SCOPE
     assert evidence.required_scan_clean is True
     assert evidence.whole_tree_scan_clean is True
     assert evidence.outbound_routes == []
+
+
+def test_real_agent_run_blocks_on_thread_and_merges_child_usage(tmp_path: Path) -> None:
+    evidence = run_real_agent_trial(tmp_path)
+
+    assert_dynamic_run_surface(evidence)
+    assert_child_aggregation(evidence)
+    assert_trial_safety(evidence)

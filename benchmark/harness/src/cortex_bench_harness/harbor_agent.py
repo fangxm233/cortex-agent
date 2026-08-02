@@ -1,5 +1,5 @@
-# input:  Harbor lifecycle, manifest seed, and task instruction
-# output: installed Cortex agent execution and H3 manifest
+# input:  Harbor lifecycle, npm bundle, manifest seed, instruction
+# output: verified Cortex execution, CLI version, and H3 manifest
 # pos:    Harbor BaseInstalledAgent wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -25,6 +25,7 @@ PACKAGE_VERSION = "0.1.0"
 PROFILE_NAME = "benchmark"
 NPM_INSTALL_PREFIX = PurePosixPath("/installed-agent/npm")
 SUPERVISOR_PATH = PurePosixPath("native/cortex-supervisor/dist/cortex-supervisor")
+VERSION_COMMAND = "cortex daemon --version"
 
 
 class CortexBenchAgent(BaseInstalledAgent):
@@ -40,6 +41,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._manifest_seed: HarnessManifestSeed = parse_manifest_seed(manifest)
         self._resolved_cwd: ResolvedCwd | None = None
         self._staged_npm_artifact: Path | None = None
+        self._cortex_cli_version: str | None = None
         super().__init__(logs_dir, *args, version=PACKAGE_VERSION, **kwargs)
 
     @staticmethod
@@ -83,13 +85,21 @@ class CortexBenchAgent(BaseInstalledAgent):
         await self.exec_as_root(environment, command=self._install_command(artifact))
         for command in self._verification_commands():
             await self.exec_as_agent(environment, command=command)
+        result = await self.exec_as_agent(environment, command=VERSION_COMMAND)
+        version = (result.stdout or "").strip()
+        if not version:
+            raise RuntimeError("Installed Cortex CLI version probe returned no version")
+        self._cortex_cli_version = version
 
     @override
     async def setup(self, environment: BaseEnvironment) -> None:
         resolved_cwd = await resolve_task_workdir(environment)
         await super().setup(environment)
         assert self._staged_npm_artifact is not None
-        inputs = self._manifest_seed.with_cwd(resolved_cwd, self._staged_npm_artifact)
+        assert self._cortex_cli_version is not None
+        inputs = self._manifest_seed.with_cwd(
+            resolved_cwd, self._staged_npm_artifact, self._cortex_cli_version,
+        )
         write_harness_manifest(self._artifact_dir, build_harness_manifest(inputs))
         self._resolved_cwd = resolved_cwd
 

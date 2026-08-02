@@ -4,7 +4,7 @@ MCP tool tests: registration and handler behaviour of the tool surfaces Cortex e
 
 | filename | role | function |
 |---|---|---|
-| benchmark-thread-server-stdio.test.ts | test | benchmark thread stdio policy and lifecycle |
+| benchmark-thread-server-stdio.test.ts | test | benchmark stdio policy and relative lifecycle paths |
 | cortex-schedule.test.ts | test | schedule target shorthand resolution |
 | feishu-file.test.ts | test | Feishu upload channel id prefix handling |
 | server-stdio.test.ts | test | built MCP surfaces and direct answer calls |

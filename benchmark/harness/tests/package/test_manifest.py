@@ -1,5 +1,5 @@
-# input:  wheel/lock bytes, run metadata, manifest serializer
-# output: exact H3 schema and hash assertions
+# input:  wheel/lock bytes, CLI version, manifest serializer
+# output: exact H3 schema, version, and hash assertions
 # pos:    Contract tests for the harness run manifest
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -44,7 +44,7 @@ EXPECTED_MANIFEST = {
         "image_size_bytes": None,
     },
     "resolved_cwd": {"pwd_raw": "/app", "realpath": "/app", "exists": True},
-    "cortex_cli": {"version": None},
+    "cortex_cli": {"version": "2026.7.31"},
     "cortex_npm_artifact": {
         "filename": "cortex-agent-server-test.tgz",
         "sha256": sha256(b"fixed-npm-artifact"),
@@ -73,6 +73,7 @@ def manifest_input(tmp_path: Path) -> HarnessManifestInput:
         npm_artifact_path=npm_artifact_path,
         container=ContainerImage("debian@sha256:abc", None, None),
         resolved_cwd=ResolvedCwd("/app", "/app", True),
+        cortex_cli_version="2026.7.31",
     )
 
 
