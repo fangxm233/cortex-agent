@@ -8,7 +8,10 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { beforeEach, test, vi } from 'vitest';
-import type { GetAuthStatusOptions } from '../../src/domain/auth/auth-status.js';
+import type {
+  AuthStatusSnapshot,
+  GetAuthStatusOptions,
+} from '../../src/domain/auth/auth-status.js';
 import type {
   PiModelRuntime,
   PiProviderAuthStatus,
@@ -232,6 +235,80 @@ test('PI ambient credential sources return not_manageable without deletion attem
   assertLiveFilesUnchanged(liveBefore);
 });
 
+test('PI runtime failures return structured errors without refresh or credential leakage', async () => {
+  const liveBefore = liveFileStamps();
+  const fixture = createPiFixture('stored');
+  const authBefore = fs.readFileSync(fixture.authPath, 'utf8');
+  const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
+  try {
+    const unavailable = await logoutAccount(
+      { backend: 'pi', provider: 'deepseek', authType: 'api_key' },
+      { piAuthPath: fixture.authPath, getAuthStatusOptions: fixture.statusOptions,
+        loadPiRuntime: async () => unavailablePi(), refreshProviders: fixture.refresh },
+    );
+    assert.equal(unavailable.ok, false);
+    if (!unavailable.ok) assert.equal(unavailable.error.code, 'runtime_unavailable');
+
+    const rejectedLogout = vi.fn(async () => { throw new Error(API_KEY); });
+    fixture.runtime.logout = rejectedLogout;
+    const rejected = await logoutAccount(
+      { backend: 'pi', provider: 'deepseek', authType: 'api_key' },
+      { piAuthPath: fixture.authPath, getAuthStatusOptions: fixture.statusOptions,
+        loadPiRuntime: fixture.loader, refreshProviders: fixture.refresh },
+    );
+    assert.equal(rejected.ok, false);
+    if (!rejected.ok) assert.equal(rejected.error.code, 'logout_failed');
+    assert.equal(rejectedLogout.mock.calls.length, 1);
+    assert.equal(fixture.refresh.mock.calls.length, 0);
+    assert.equal(fs.readFileSync(fixture.authPath, 'utf8'), authBefore);
+    expectSecretFree([unavailable, rejected, consoleCalls], [API_KEY]);
+  } finally {
+    disposePiFixture(fixture);
+    assertLiveFilesUnchanged(liveBefore);
+  }
+});
+
+test('PI logout admission uses the manageable field without a second source policy', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-manageable-'));
+  const authPath = path.join(root, 'auth.json');
+  writeFile(authPath, '{"owner":"pi-runtime"}\n');
+  const logout = vi.fn(async () => {});
+  const runtime = {
+    getProviders: () => [],
+    getProviderAuthStatus: () => ({ configured: true, source: 'stored' as const }),
+    login: async () => ({ type: 'api_key' as const }),
+    logout,
+  } as PiModelRuntime;
+  const snapshot: AuthStatusSnapshot = {
+    generatedAt: new Date(0).toISOString(),
+    accounts: [{
+      backend: 'pi', provider: 'deepseek', label: 'DeepSeek', capabilities: ['api_key'],
+      authType: 'api_key', state: 'logged-in', source: 'delegated', expiresAt: null,
+      refreshExpiresAt: null, inUse: true, credentials: [{
+        authType: 'api_key', state: 'logged-in', source: 'delegated', expiresAt: null,
+        refreshExpiresAt: null, manageable: true,
+      }],
+    }],
+    piRuntime: { available: true, version: 'fixture', entry: '/fixture/pi.js', error: null },
+  };
+  const loader = vi.fn(async (): Promise<PiRuntimeLoadResult> => ({
+    available: true, version: 'fixture', entry: '/fixture/pi.js', error: null,
+    runtime, readStoredCredential: () => undefined,
+  }));
+  const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
+  try {
+    const result = await logoutAccount(
+      { backend: 'pi', provider: 'deepseek', authType: 'api_key' },
+      { piAuthPath: authPath, getAuthStatus: async () => snapshot, loadPiRuntime: loader,
+        refreshProviders: vi.fn() },
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(logout.mock.calls, [['deepseek']]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 async function assertGatewayPlaceholderIgnored(
   logoutAccount: LogoutModule['logoutAccount'],
   options: GetAuthStatusOptions,
@@ -263,6 +340,32 @@ async function assertOAuthLogoutEffects(
   assert.deepEqual(fileStamp(credentialsPath), credentialsStamp);
   expectSecretFree([result, consoleCalls], [OAUTH_TOKEN]);
 }
+
+test('Claude credential removal failures are structured and skip environment reload', async () => {
+  const liveBefore = liveFileStamps();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-cc-failure-'));
+  const config = await resetSavedEnv();
+  await config.saveAnthropicApiKey(API_KEY);
+  const options = claudeStatusOptions(root, 'api');
+  const reload = vi.fn();
+  const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
+  try {
+    const result = await logoutAccount(
+      { backend: 'claude', provider: 'anthropic', authType: 'api_key' },
+      { getAuthStatusOptions: options,
+        removeAnthropicApiKey: async () => { throw new Error(API_KEY); },
+        configureClaudeEnv: reload },
+    );
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error.code, 'logout_failed');
+    assert.equal(reload.mock.calls.length, 0);
+    assert.equal((await accountStatus(options)).state, 'logged-in');
+    expectSecretFree([result, consoleCalls], [API_KEY]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    assertLiveFilesUnchanged(liveBefore);
+  }
+});
 
 test('Claude API-key logout removes only the saved key and ignores the gateway placeholder', async () => {
   const liveBefore = liveFileStamps();
@@ -312,6 +415,42 @@ test('Claude OAuth logout removes only saved env and leaves credentials.json unt
     await assertOAuthLogoutEffects(
       options, credentialsPath, credentialsBefore, credentialsStamp, result,
     );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    assertLiveFilesUnchanged(liveBefore);
+  }
+});
+
+test('Claude OAuth logout reports the remaining external credential after clearing saved env', async () => {
+  const liveBefore = liveFileStamps();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-auth-logout-mixed-oauth-'));
+  const options = claudeStatusOptions(root, 'plan');
+  const credentialsPath = options.claudeCredentialsPath!;
+  writeFile(credentialsPath, JSON.stringify({ claudeAiOauth: {
+    accessToken: EXTERNAL_ACCESS, refreshToken: EXTERNAL_REFRESH,
+  } }));
+  const credentialsBefore = fs.readFileSync(credentialsPath, 'utf8');
+  const credentialsStamp = fileStamp(credentialsPath);
+  const config = await resetSavedEnv();
+  await config.saveClaudeCodeOAuthToken(OAUTH_TOKEN);
+  const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
+  try {
+    const before = await accountStatus(options);
+    assert.equal(before.source, 'env');
+    assert.equal(before.credentials.some(item => item.source === 'credentials.json'), true);
+    const result = await logoutAccount(
+      { backend: 'claude', provider: 'anthropic', authType: 'oauth' },
+      { getAuthStatusOptions: options },
+    );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error.code, 'external_credential');
+    assert.match(result.error.message, /claude \/logout/);
+    assert.doesNotMatch(fs.readFileSync(ENV_FILE, 'utf8'), /CLAUDE_CODE_OAUTH_TOKEN/);
+    assert.equal(fs.readFileSync(credentialsPath, 'utf8'), credentialsBefore);
+    assert.deepEqual(fileStamp(credentialsPath), credentialsStamp);
+    assert.equal((await accountStatus(options)).source, 'credentials.json');
+    expectSecretFree([result, consoleCalls], [OAUTH_TOKEN, EXTERNAL_ACCESS, EXTERNAL_REFRESH]);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     assertLiveFilesUnchanged(liveBefore);
