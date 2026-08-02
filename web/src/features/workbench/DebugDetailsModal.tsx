@@ -1,6 +1,6 @@
-// input:  lossless user/tool DEBUG detail, localized labels, Modal
-// output: inspector control and character-counted dialog; chrome stays internal
-// pos:    desktop DEBUG behavior surface; only pure formatting helpers are exported
+// input:  DEBUG detail, localized labels, layered Modal
+// output: inspector control and character-counted nested dialog
+// pos:    desktop DEBUG behavior surface
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { MouseEvent } from 'react';
@@ -95,7 +95,13 @@ export function DebugDetailsModal({ detail, onClose }: { detail: DebugDetail | n
   const L = useVocab();
   const title = detail?.kind === 'tool' ? `DEBUG · ${detail.toolName}` : `DEBUG · ${L.wbDebugAgentMessage}`;
   return (
-    <Modal title={title} open={detail !== null} size={DEBUG_MODAL_SIZE} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Modal
+      title={title}
+      open={detail !== null}
+      size={DEBUG_MODAL_SIZE}
+      layer="nested"
+      onOpenChange={(open) => { if (!open) onClose(); }}
+    >
       {detail ? <DebugDetailsContent detail={detail} /> : null}
     </Modal>
   );

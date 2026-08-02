@@ -14,7 +14,8 @@ Interactive parts wrap Radix for accessibility; pure modules hold the tested sta
 | ID.tsx | core | Identifier with click-to-copy |
 | Tabs.tsx | core | Tab set as data-driven form and styled parts |
 | Tooltip.tsx | core | Hover tooltip plus its provider export |
-| Modal.tsx | core | Centered accessible dialog with size variants |
+| Modal.tsx | core | Centered accessible dialog with size and layer variants |
+| Modal.test.ts | test | Tests nested dialog stacking order |
 | Drawer.tsx | core | Side sheet dialog anchored left or right |
 | Popover.tsx | core | Anchored popover panel with arrow |
 | Toast.tsx | provider | Toast context, viewport and imperative hook |

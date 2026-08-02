@@ -91,4 +91,4 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | selected-session.test.ts | test | Unit tests for session selection |
 | DaemonStatusModal.tsx | view | Daemon and server processes with restart |
 | DebugDetailsModal.tsx | view | Inspector dialog for raw tool input and result |
-| debug-inspector.test.tsx | test | Unit tests for the inspector value helpers |
+| debug-inspector.test.tsx | test | Tests inspector values and nested dialog layer |
