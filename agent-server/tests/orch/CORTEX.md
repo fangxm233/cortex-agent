@@ -14,13 +14,13 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | cancel-bg-hold.test.ts | test | Covers stop during a background hold |
 | channel-queue.test.ts | test | Covers per-channel queue serialization |
 | edit-handler.test.ts | test | Covers PI restore identity and edit retry routing |
-| first-turn-interrupt-resume.test.ts | test | Covers prompt capture and first-turn interrupt |
+| first-turn-interrupt-resume.test.ts | test | Covers attachment prompt capture and interrupt |
 | hook-bridge-subscribers-web.test.ts | test | Covers hook to Web interaction delivery |
 | interaction-records.test.ts | test | Covers interaction create and resolve lifecycle |
 | lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, grace and wait cap |
 | lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |
 | mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |
-| mid-turn-inject.test.ts | test | Covers injection lifecycle, file paths and wait caps |
+| mid-turn-inject.test.ts | test | Covers resolved files, DEBUG prompts and lifecycle |
 | orchestrator.test.ts | test | Covers thread versus agent routing choice |
 | pending-injection-recovery.test.ts | test | Covers injection idempotency and startup drain |
 | plan-approvals.test.ts | test | Covers plan approval state transitions |

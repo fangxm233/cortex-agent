@@ -11,13 +11,13 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | bg-wait-guard.ts | guard | bounds the background task waiting window |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |
 | conduit-queue.ts | queue | serializes work per conduit |
-| conversation-runner.ts | runner | runs and registers one plain user turn |
+| conversation-runner.ts | runner | runs plain turns and captures backend prompts |
 | delta-coalescer.ts | stream | batches assistant text deltas for web sessions |
 | dispatch-reconciler.ts | timer | cleans up stale dispatch executions |
 | durable-helpers.ts | util | builds durable post and update hooks |
 | lifecycle.ts | core | adopts admission leases and snapshots turns |
 | manager-qa.ts | channel | relays subtask questions to managers and humans |
-| mid-turn-inject.ts | core | injects turns with resolved files and a wait cap |
+| mid-turn-inject.ts | core | injects turns with resolved files and DEBUG prompts |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |

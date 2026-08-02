@@ -1,5 +1,5 @@
-// input:  agent facade, prompt assembly, execution registry
-// output: registered plain-turn execution and callbacks
+// input:  agent facade, prompt serializers, execution registry
+// output: plain turns and backend-ready prompt callbacks
 // pos:    Thread-free user-turn execution
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
@@ -22,6 +22,7 @@ import type { Project } from '@domain/projects/index.js';
 import * as executionRegistry from '@domain/executions/registry.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { runningExecutions } from '../core/running-executions.js';
+import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 
 export interface RunConversationOptions {
   adapter: PlatformAdapter;
@@ -57,7 +58,7 @@ export interface RunConversationOptions {
   onProgress?: ((progress: any) => void) | null;
   onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
   onFallback?: ((...args: any[]) => Promise<void>) | null;
-  /** Receives the exact text passed to runAgent, after all fresh-session context is assembled. */
+  /** Receives the backend-ready prompt after context and attachment paths are assembled. */
   onPromptBuilt?: ((prompt: string) => void) | null;
   onToolUse?: ((name: string, input: any, toolUseId: string) => void) | null;
   onToolResult?: ((toolUseId: string, content: string, isError: boolean) => void) | null;
@@ -80,6 +81,11 @@ export function registerConversationHandle(
 ): void {
   registry.register(registration);
   onRegistered?.();
+}
+
+function buildBackendPrompt(prompt: string, files: DownloadedFile[]): string {
+  const attachments = files.map((file) => ({ mimeType: file.mimetype, path: file.localPath }));
+  return buildAgentPrompt(prompt, attachments);
 }
 
 /**
@@ -130,7 +136,7 @@ export async function runConversation(opts: RunConversationOptions): Promise<Con
     // on the session's first turn (see resolveConversationProject for the exact gating).
     project: resolveConversationProject({ channel: opts.channel, projectId: opts.projectId, isFreshSession }),
   });
-  opts.onPromptBuilt?.(prompt);
+  opts.onPromptBuilt?.(buildBackendPrompt(prompt, opts.files));
   // Attribute cost/execution to the session's bound project (from the registry record), NOT a
   // re-derivation from the message text. A session created under project X stays project X even if
   // no message ever mentions X literally (that mismatch previously dumped everything into 'general').

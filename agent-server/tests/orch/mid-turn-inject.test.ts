@@ -1,5 +1,5 @@
-// input:  mid-turn injection, mutable settings, backend/context seams
-// output: pending, attachment-path, continuation, marker, and wait-cap regressions
+// input:  mid-turn injection, settings, backend/path seams
+// output: resolved-path, DEBUG prompt, and lifecycle regressions
 // pos:    Mid-turn injection lifecycle behavioral tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -59,6 +59,7 @@ interface Recorder {
   delivered: any[];
   status: any[];
   ledger: any[];
+  persisted: any[];
   track: number[];
   streamed: string[];
   marked: string[];
@@ -72,6 +73,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recor
   const delivered: any[] = [];
   const status: any[] = [];
   const ledger: any[] = [];
+  const persisted: any[] = [];
   const track: number[] = [];
   const streamed: string[] = [];
   const marked: string[] = [];
@@ -88,7 +90,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recor
     publishMessage: (ev) => published.push(ev),
     publishDelivered: (ev) => delivered.push(ev),
     publishStatus: (ev) => status.push(ev),
-    persistPending: async () => {},
+    persistPending: async (record) => { persisted.push(record); },
     commitPending: async (record) => {
       const committedTs = now();
       history.push({ kind: 'user', sessionId: record.sessionId, text: record.text, ts: committedTs, attachments: record.attachments });
@@ -103,7 +105,7 @@ function recorder(overrides: Partial<MidTurnInjectDeps> = {}, exec?: any): Recor
     now,
     ...overrides,
   };
-  return { deps, history, published, delivered, status, ledger, track, streamed, marked, unmarked, contexts };
+  return { deps, history, published, delivered, status, ledger, persisted, track, streamed, marked, unmarked, contexts };
 }
 
 const baseCtx = {
@@ -292,6 +294,18 @@ test('attachments ride along to the backend, the pending row, and the committed 
 
   await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });
   assert.deepEqual(r.history[0].attachments, attachments);
+});
+
+test('mid-turn DEBUG prompt includes the image path sent through the adapter', async () => {
+  const proc = fakeProcess();
+  const r = recorder({ captureDebug: true }, { backend: 'claude', agentProcess: proc });
+  const attachments = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, attachments }), true);
+  assert.equal(
+    r.persisted[0].agentMessage,
+    `[User sent 1 image(s). Read these files to view them:\n${path.join(WORKSPACE_DIR, 'attachments', 'a.png')}\n]\n\nskip the rest`,
+  );
 });
 
 // --- Fold-in, seen from orchestration ---

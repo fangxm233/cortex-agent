@@ -1,5 +1,5 @@
-// input:  live execution, runtime settings, pending/context seams
-// output: durable injected turns with resolved attachment paths
+// input:  live execution, prompt serializer, path/pending seams
+// output: injected turns, resolved files, DEBUG prompts
 // pos:    Busy-channel injection branch of AgentRunner.route
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -16,6 +16,7 @@
 import { randomUUID } from 'node:crypto';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../agent-adapter/capabilities.js';
 import type { Backend, ContinuationSink, InjectionAckSink, UserMessage } from '../agent-adapter/types.js';
+import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
@@ -238,6 +239,7 @@ class PendingLifecycle implements PendingInjection {
 function buildPendingRecord(
   deps: MidTurnInjectDeps,
   ctx: MidTurnInjectCtx,
+  message: UserMessage,
   sessionId: string,
   backend: string,
   ts: string,
@@ -252,7 +254,7 @@ function buildPendingRecord(
     profileName: ctx.profileName ?? null,
     text: ctx.text,
     attachments: ctx.attachments,
-    ...(deps.captureDebug ? { agentMessage: ctx.text } : {}),
+    ...(deps.captureDebug ? { agentMessage: buildAgentPrompt(message.text, message.attachments ?? []) } : {}),
     createdAt: ts,
   };
 }
@@ -307,13 +309,14 @@ export async function tryInjectIntoLiveTurn(
   if (!isInjectableMessage(ctx) || !ctx.sessionId) return false;
   const target = selectInjectTarget(deps.getLiveExecutions(ctx.channel));
   if (!target) return false;
-  if (!target.proc.injectUserMessage!({
+  const message = {
     text: ctx.text,
     attachments: attachmentsForBackend(ctx.attachments),
-  })) return false;
+  };
+  if (!target.proc.injectUserMessage!(message)) return false;
 
   const state = stateFor(ctx.channel);
-  const record = buildPendingRecord(deps, ctx, ctx.sessionId, target.backend, deps.now());
+  const record = buildPendingRecord(deps, ctx, message, ctx.sessionId, target.backend, deps.now());
   const entry = new PendingLifecycle(record, deps, state);
   deps.track(+1);
   state.pending.push(entry);

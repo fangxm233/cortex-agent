@@ -1,6 +1,6 @@
-// input:  conversation runner, cancel routing, isolated track/backend session registries
-// output: exact assembled-prompt capture plus first-turn interrupt/resume regression coverage
-// pos:    orchestration contract for prompt identity and stable tracking across cancellation
+// input:  conversation runner, cancellation, session registries
+// output: backend prompt capture and interrupt/resume regressions
+// pos:    Prompt identity and cancellation orchestration tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, expect, vi } from 'vitest';
@@ -96,6 +96,24 @@ test('runConversation exposes the exact assembled prompt passed to the agent', a
 
   assert.equal(capturedPrompt, mockRunAgent.mock.calls.at(-1)?.[0], 'capture sees byte-for-byte adapter input');
   assert.equal(capturedPrompt, 'hello', 'resumed direct turns send the user text without fresh-session context');
+});
+
+test('runConversation DEBUG prompt includes the image path sent through the adapter', async () => {
+  let capturedPrompt: string | null = null;
+  mockRunAgent.mockReturnValueOnce(makeCancelledHandle('B-image-prompt'));
+
+  await expect(runConversation(baseOpts({
+    trackSessionId: 'TRACK-IMAGE-PROMPT',
+    backendSessionId: 'B-existing',
+    sessionName: 'cortex-image-prompt',
+    files: [{ localPath: '/tmp/cortex-image.png', mimetype: 'image/png', name: 'cortex-image.png' }],
+    onPromptBuilt: (prompt: string) => { capturedPrompt = prompt; },
+  }))).rejects.toMatchObject({ cancelled: true });
+
+  assert.equal(
+    capturedPrompt,
+    '[User sent 1 image(s). Read these files to view them:\n/tmp/cortex-image.png\n]\n\nhello',
+  );
 });
 
 test('interrupt on a RESUMED turn leaves the stored backend session id untouched', async () => {
