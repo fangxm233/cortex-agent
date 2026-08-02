@@ -35,7 +35,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cli.test.ts | test | cortex CLI routing, output framing and size limit |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
 | client-manager.test.ts | test | client lifecycle hooks, auth and commands |
-| command-handlers.test.ts | test | bang command routing including authentication |
+| command-handlers.test.ts | test | bang command routing, profiles and authentication |
 | command-interactive.test.ts | test | interactive command router and handlers |
 | composite-adapter-noop-fallback.test.ts | test | unknown conduit operations stay no-op |
 | conversation-runner.test.ts | test | thread-free conversation prompt assembly |
