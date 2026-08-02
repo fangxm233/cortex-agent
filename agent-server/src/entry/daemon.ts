@@ -1,12 +1,7 @@
-// input:  ${CORTEX_REPO}/src/**/*.ts changes (auto rebuild + install + app.js restart),
-//         .restart trigger file (manual restart; in dev mode: rebuild pipeline; in prod: hot-reload app.js),
-//         CONFIG_DIR/.env changes
-// output: process supervisor — fork(app.js) with hot-restart, crash recovery, graceful shutdown;
-//         on src change: npm run build (server→ui-contract→web) → npm pack → npm install -g <tgz> → restart();
-//         on .restart in dev mode (CORTEX_REPO set): same rebuild pipeline
-// pos:    system entry point, top-level process in daemon mode (node dist/entry/daemon.js);
-//         logs/PID persisted to DATA_DIR
-// >>> If I am updated, update my header comment and CORTEX.md <<<
+// input:  filtered runtime env, source changes, restart triggers
+// output: supervised app process and serialized rebuild restarts
+// pos:    Agent-server process supervisor
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 /**
  * Cortex Daemon — Supervisor for app.ts
@@ -47,18 +42,18 @@
  *   rebuild pipeline; in production mode it just respawns app.js.
  */
 
-import * as dotenv from 'dotenv';
 import { fork, spawn } from 'child_process';
 import { watch, existsSync, unlinkSync, statSync, writeFileSync, readdirSync } from 'fs';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
+import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { isMainModule, moduleDir, DATA_DIR, CONFIG_DIR, STORE_DIR } from '@core/utils.js';
 import { tryAcquireSingletonLock, releaseSingletonLock as releaseLock } from '@core/singleton-lock.js';
 
 // Load .env BEFORE reading any CORTEX_* env vars below. Mirrors app.ts §61 — the
 // daemon needs CORTEX_REPO (and potentially other vars) from .env, not just from
 // the OS shell env. Must be sync and before the `CORTEX_REPO` constant below.
-dotenv.config({ path: path.join(CONFIG_DIR, '.env') });
+loadRuntimeDotenv(path.join(CONFIG_DIR, '.env'));
 
 // --- Logger ---
 const log = createLogger('daemon');
