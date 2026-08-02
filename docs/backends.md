@@ -100,7 +100,7 @@ host. The same login flow is exposed through three channels:
 |---|---|---|
 | Slack | Send `!login`, `!login cc`, or `!login pi [provider]` | Selectors and secret fields open in Slack modals; authorization links are posted to the channel. |
 | Feishu | Send `!login`, `!login cc`, or `!login pi [provider]` | Selectors and secret fields use inline card forms; authorization links are posted to the chat. |
-| Web (desktop and mobile) | Open **Settings → Accounts** | The Accounts section shows Claude Code and PI providers and opens the same selector-driven login flow. |
+| Web (desktop and mobile) | Desktop: open **Settings → Accounts**. Mobile: tap **Settings → Accounts** to drill in to `/m/settings/accounts`. | The Accounts section shows Claude Code credentials and every PI provider, with status plus login/logout actions that open the same selector-driven login flow. |
 
 The chat command forms are:
 

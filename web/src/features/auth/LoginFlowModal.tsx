@@ -1,5 +1,5 @@
-// input:  auth tRPC procedures, LoginFlow metadata, modal primitives
-// output: Accessible resumable OAuth/API-key login dialog
+// input:  auth tRPC, LoginFlow metadata, notice/settings target
+// output: Accessible targeted OAuth/API-key login dialog
 // pos:    Shared desktop/mobile Web authentication workflow
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -14,7 +14,6 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AuthAccountStatus,
-  AuthNoticeAction,
   AuthType,
   LoginFlowNotice,
   LoginFlowState,
@@ -29,10 +28,17 @@ const TERMINAL_STEPS = new Set(['done', 'failed', 'cancelled']);
 
 type Setter<T> = Dispatch<SetStateAction<T>>;
 
+export interface LoginFlowTarget {
+  backend: 'claude' | 'pi';
+  provider: string;
+  authType: AuthType;
+  noticeId?: string;
+}
+
 export interface LoginFlowModalProps {
   open: boolean;
   onClose: () => void;
-  target?: AuthNoticeAction | null;
+  target?: LoginFlowTarget | null;
   initialState?: LoginFlowState | null;
   onFlowStateChange?: (state: LoginFlowState) => void;
 }
@@ -295,7 +301,7 @@ function selectedAuthTypes(
 
 function useTargetSelection(
   open: boolean,
-  target: AuthNoticeAction | null | undefined,
+  target: LoginFlowTarget | null | undefined,
   setBackend: Setter<'claude' | 'pi'>,
   setProvider: Setter<string>,
   setAuthType: Setter<AuthType>,
@@ -328,7 +334,7 @@ function useAvailableSelection(
   }, [authType, authTypes, setAuthType]);
 }
 
-function useLoginSelection(open: boolean, target?: AuthNoticeAction | null) {
+function useLoginSelection(open: boolean, target?: LoginFlowTarget | null) {
   const trpc = useTRPC();
   const [backend, setBackend] = useState<'claude' | 'pi'>('claude');
   const [authType, setAuthType] = useState<AuthType>('api_key');
@@ -466,7 +472,7 @@ function useLoginActions(input: LoginActionState) {
 
 function selectionMatchesTarget(
   selection: ReturnType<typeof useLoginSelection>,
-  target: AuthNoticeAction,
+  target: LoginFlowTarget,
 ): boolean {
   return selection.backend === target.backend
     && selection.provider === target.provider
@@ -483,9 +489,13 @@ interface LoginResetState {
   setError: Setter<string | null>;
 }
 
+function targetKey(target: LoginFlowTarget): string {
+  return target.noticeId ?? `settings:${target.backend}:${target.provider}:${target.authType}`;
+}
+
 function useLoginReset(
   open: boolean,
-  target: AuthNoticeAction | null | undefined,
+  target: LoginFlowTarget | null | undefined,
   initialState: LoginFlowState | null | undefined,
   state: LoginResetState,
 ): void {
@@ -494,13 +504,13 @@ function useLoginReset(
     state.setFlowId(open && initialState ? initialState.flowId : null);
     state.setLatest(open ? initialState ?? null : null);
     state.setResponse(''); state.setResponseSent(false); state.setError(null);
-    state.autoStarted.current = initialState ? target?.noticeId ?? null : null;
-  }, [open, target?.noticeId, initialState]);
+    state.autoStarted.current = initialState && target ? targetKey(target) : null;
+  }, [open, target, initialState]);
 }
 
-function useNoticeAutoStart(
+function useTargetAutoStart(
   open: boolean,
-  target: AuthNoticeAction | null | undefined,
+  target: LoginFlowTarget | null | undefined,
   initialState: LoginFlowState | null | undefined,
   controller: Pick<LoginController, 'canStart' | 'start'>,
   matches: boolean,
@@ -508,15 +518,16 @@ function useNoticeAutoStart(
 ): void {
   useEffect(() => {
     if (!open || !target || initialState || !controller.canStart || !matches) return;
-    if (autoStarted.current === target.noticeId) return;
-    autoStarted.current = target.noticeId;
+    const key = targetKey(target);
+    if (autoStarted.current === key) return;
+    autoStarted.current = key;
     void controller.start();
   }, [open, target, initialState, controller.canStart, controller.start, matches, autoStarted]);
 }
 
 function useLoginController(
   open: boolean,
-  target?: AuthNoticeAction | null,
+  target?: LoginFlowTarget | null,
   initialState?: LoginFlowState | null,
   onFlowStateChange?: (state: LoginFlowState) => void,
 ): LoginController {
@@ -537,7 +548,7 @@ function useLoginController(
   const canStart = !!selection.provider && selection.authTypes.includes(selection.authType);
   useLoginReset(open, target, initialState, { generation, autoStarted,
     setFlowId, setLatest, setResponse, setResponseSent, setError });
-  useNoticeAutoStart(open, target, initialState, { canStart, start: actions.start },
+  useTargetAutoStart(open, target, initialState, { canStart, start: actions.start },
     !!target && selectionMatchesTarget(selection, target), autoStarted);
   useEffect(() => { if (latest) onFlowStateChange?.(latest); }, [latest, onFlowStateChange]);
   return { ...selection, latest, response, error, canCancel: !responseSent,

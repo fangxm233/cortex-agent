@@ -1,5 +1,5 @@
-// input:  mobile settings model, LoginFlow entry, and UI primitives
-// output: mobile settings with active login and config drill-ins
+// input:  mobile settings/accounts models and UI primitives
+// output: mobile settings with account and config drill-ins
 // pos:    Presentational mobile settings view
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -7,10 +7,11 @@
 import { type ReactNode } from 'react';
 import { MDrillHeader, MScrollBody, MBottomSheet, MC, MONO } from '@/mobile/ui/kit';
 import { BUILD_STAMP } from '@/lib/build-info';
-import type { Lang } from '@/i18n';
+import { useVocab, type Lang } from '@/i18n';
 import type { Theme } from '@/theme';
 import type { MSettingsVm } from './m-settings-vm';
 import type { ProfileSheetItem } from './m-chat-vm';
+import type { AccountsSummaryVm } from './m-accounts-vm';
 
 export interface MSettingsCopy {
   title: string;
@@ -37,8 +38,6 @@ export interface MSettingsCopy {
   desktopEdit: string; // `桌面编辑`
   templates: string; // `Thread templates`
   hooks: string; // `Hooks`, rendered as `Hooks · N` on the drill-in row
-  backendLogin: string;
-  backendLoginSub: string;
   footerBrand: string; // `cortex mobile`
 }
 
@@ -269,7 +268,8 @@ export function MSettingsView({
   onlineMachines,
   onOpenMachines,
   onOpenHooks,
-  onOpenLogin,
+  accountsSummary,
+  onOpenAccounts,
   profileSheet,
   onOpenProfile,
   onCloseProfile,
@@ -287,12 +287,14 @@ export function MSettingsView({
   onlineMachines: number;
   onOpenMachines: () => void;
   onOpenHooks: () => void;
-  onOpenLogin: () => void;
+  accountsSummary: AccountsSummaryVm;
+  onOpenAccounts: () => void;
   profileSheet: ProfileSheetItem[] | null;
   onOpenProfile: () => void;
   onCloseProfile: () => void;
   onPickProfile: (name: string) => void;
 }) {
+  const L = useVocab();
   const profileSub = [vm.profileName, vm.profileModel, vm.profileThinking].filter(Boolean).join(' · ');
   const platformLabel =
     copy.platform + (vm.platforms.length ? `（${vm.platforms.join(', ')}）` : '');
@@ -431,17 +433,19 @@ export function MSettingsView({
         <Card>
           <button
             type="button"
-            data-auth-login-entry="mobile"
-            aria-label={copy.backendLogin}
-            onClick={onOpenLogin}
+            data-accounts-entry="mobile"
+            aria-label={L.accountsTitle}
+            onClick={onOpenAccounts}
             style={{
               ...rowStyle(false), cursor: 'pointer', width: '100%',
               border: 0, background: 'transparent', textAlign: 'left', font: 'inherit',
             }}
           >
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={TITLE}>{copy.backendLogin}</div>
-              <div style={SUB}>{copy.backendLoginSub}</div>
+              <div style={TITLE}>
+                {L.accountsTitle} · CC {accountsSummary.claudeLoggedIn ? L.accountsConnectedMark : L.accountsDisconnected}
+                {' · '}{L.accountsPiSummary.replace('{count}', String(accountsSummary.piLoggedInCount))}
+              </div>
             </div>
             <span style={CHEV}>›</span>
           </button>

@@ -1,5 +1,5 @@
-// input:  React context/state, auth notice targets, LoginFlowModal
-// output: global login modal provider with notice-flow reuse
+// input:  React state, notice/settings targets, LoginFlowModal
+// output: global targeted login modal with notice-flow reuse
 // pos:    Shares one authentication overlay across desktop and mobile
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -12,16 +12,16 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { AuthNoticeAction, LoginFlowState } from '@cortex-agent/ui-contract';
-import { LoginFlowModal } from './LoginFlowModal';
+import type { LoginFlowState } from '@cortex-agent/ui-contract';
+import { LoginFlowModal, type LoginFlowTarget } from './LoginFlowModal';
 
 interface LoginFlowContextValue {
-  openLogin: (target?: AuthNoticeAction) => void;
+  openLogin: (target?: LoginFlowTarget) => void;
   closeLogin: () => void;
 }
 
 interface LoginRequest {
-  target: AuthNoticeAction | null;
+  target: LoginFlowTarget | null;
   initialState: LoginFlowState | null;
 }
 
@@ -31,16 +31,16 @@ export function LoginFlowProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [request, setRequest] = useState<LoginRequest>({ target: null, initialState: null });
   const noticeStates = useRef(new Map<string, LoginFlowState>());
-  const openLogin = useCallback((target?: AuthNoticeAction) => {
+  const openLogin = useCallback((target?: LoginFlowTarget) => {
     setRequest({
       target: target ?? null,
-      initialState: target ? noticeStates.current.get(target.noticeId) ?? null : null,
+      initialState: target?.noticeId ? noticeStates.current.get(target.noticeId) ?? null : null,
     });
     setOpen(true);
   }, []);
   const closeLogin = useCallback(() => setOpen(false), []);
   const rememberState = useCallback((state: LoginFlowState) => {
-    if (request.target) noticeStates.current.set(request.target.noticeId, state);
+    if (request.target?.noticeId) noticeStates.current.set(request.target.noticeId, state);
   }, [request.target]);
   const value = useMemo(() => ({ openLogin, closeLogin }), [openLogin, closeLogin]);
   return (

@@ -1,5 +1,5 @@
-// input:  mounted LoginFlowModal, fake auth tRPC operations, and status fixtures
-// output: Auth prefill, reuse, prompt, and non-echo regressions
+// input:  mounted LoginFlowModal, auth tRPC fakes, notice/settings targets
+// output: Target prefill, reuse, prompt, and non-echo regressions
 // pos:    Mounted Web backend login flow specification
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -236,6 +236,19 @@ describe('LoginFlowModal', () => {
 
     expect(harness.startCalls).toEqual([{
       backend: 'pi', provider: 'dual-auth', authType: 'oauth', noticeId: 'notice-web',
+    }]);
+  });
+
+  it('auto-starts a settings target without inventing a notice binding', async () => {
+    harness.startState = state('prompt', {
+      backend: 'pi', provider: 'deepseek', authType: 'api_key',
+    });
+    harness.queryState = harness.startState;
+    mount({ target: { backend: 'pi', provider: 'deepseek', authType: 'api_key' } });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(harness.startCalls).toEqual([{
+      backend: 'pi', provider: 'deepseek', authType: 'api_key',
     }]);
   });
 
