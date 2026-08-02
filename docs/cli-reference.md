@@ -75,7 +75,11 @@ The default run is read-only and safe at any time. It inspects four areas:
 - Backend install / login — data directories exist and are writable, `.env`
   is present, the WebSocket/webhook auth tokens are set, `ANTHROPIC_API_KEY`
   status, and that `mode.json`, `profiles.json`, and `mcp-config.json` are
-  present and valid.
+  present and valid. It also smoke-tests the installed PI runtime and its
+  `login` export, then summarizes expired or logged-out in-use providers from
+  the credential-free backend auth snapshot. These two checks warn rather than
+  fail. In API mode, a healthy gateway with no local key is reported as
+  gateway-backed information instead of a false logged-out warning.
 - Messaging platform — resolves `CORTEX_PLATFORM` and validates the
   credentials for each enabled platform (Slack `xoxb-`/signing/`xapp-`,
   Feishu app id/secret).
@@ -94,6 +98,24 @@ Options:
   fixing, diagnostics re-run so the summary reflects the repaired state.
 - `--json` — emit the full report (sections, checks, counts) as JSON for
   scripting.
+
+**`cortex auth status [--json]`**
+
+Read the normalized Claude Code and PI authentication snapshot. The default
+text output shows a concise status overview, while `--json` returns the full
+`AuthStatusSnapshot` for scripting. Both forms omit credential values and
+fragments.
+
+This subcommand is read-only. Remote login starts from `!login` in Slack or
+Feishu, or **Settings → Accounts** in the Web UI; there is no OAuth or API-key
+login flag on `cortex auth`.
+
+Options:
+- `--json` — print the complete credential-free status snapshot as JSON
+- `--help`, `-h` — show auth command help
+
+See [Backends: Remote login](./backends.md#remote-login) for login commands,
+provider capability rules, and expiration handling.
 
 **`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
 
