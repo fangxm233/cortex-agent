@@ -1,5 +1,5 @@
 // input:  session streams, spawn config, reported accounting
-// output: Claude turns with exact cache-read accounting
+// output: Claude turns with cache-inclusive input accounting
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -1353,7 +1353,8 @@ export class ClaudeAdapter implements AgentAdapter {
               provider: 'anthropic',
               model: (preserveReportedness ? accounting?.model : session.lastModelName)
                 || session.modelName || 'unknown',
-              tokens_in: preserveReportedness ? accounting?.inputTokens ?? null : legacyUsage?.input ?? 0,
+              tokens_in: preserveReportedness
+                ? accounting?.promptTokens ?? null : exactPrompt.promptTokens,
               tokens_out: preserveReportedness ? accounting?.outputTokens ?? null : legacyUsage?.output ?? 0,
               prompt_tokens: preserveReportedness
                 ? accounting?.promptTokens ?? null : exactPrompt.promptTokens,

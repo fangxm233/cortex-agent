@@ -180,7 +180,7 @@ function accountingEvents(input: {
     } },
     { ...shared, event: {
       type: 'cost_record', provider: 'anthropic', model: 'claude-sonnet-4-5',
-      tokens_in: input.prompt - input.cached, tokens_out: input.completion,
+      tokens_in: input.prompt, tokens_out: input.completion,
       prompt_tokens: input.prompt, cached_tokens: input.cached, cost_usd: input.cost,
     } },
     { ...shared, event: {

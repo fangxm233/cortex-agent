@@ -132,7 +132,7 @@ def assert_dynamic_run_surface(evidence: TrialEvidence) -> None:
     assert evidence.raw_usage == EXPECTED_USAGE
     assert {"tool_use", "tool_result", "cost_record", "turn_complete"} <= evidence.event_types
     assert evidence.cost_record == {
-        "tokens_in": 11, "tokens_out": 7, "prompt_tokens": 19,
+        "tokens_in": 19, "tokens_out": 7, "prompt_tokens": 19,
         "cached_tokens": 5, "cost_usd": 0.001,
     }
     assert evidence.mcp_composition == "benchmark-thread-run"

@@ -689,7 +689,7 @@ test('runWithAdapter: synchronous continuation replay follows the foreground ter
   ]);
   assert.deepEqual(observed.at(-2), {
     type: 'cost_record', provider: 'anthropic', model: 'continuation',
-    tokens_in: 4, tokens_out: 2, prompt_tokens: 7, cached_tokens: 3, cost_usd: 0.1,
+    tokens_in: 7, tokens_out: 2, prompt_tokens: 7, cached_tokens: 3, cost_usd: 0.1,
   });
 });
 

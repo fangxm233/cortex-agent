@@ -70,6 +70,37 @@ it('preserves raw stdin bytes while hashing the model-visible string', async () 
   assert.equal(header.model_visible_prompt_sha256, sha256(modelVisible));
 });
 
+it('reports cache-inclusive input tokens from Claude print mode', async () => {
+  const fixture = createFixture('cache-inclusive-accounting');
+  const first = fakeClaudeResult('e2e-run', 'reported', {
+    total_cost_usd: 0.08,
+    usage: {
+      input_tokens: 10, output_tokens: 5,
+      cache_creation_input_tokens: 3, cache_read_input_tokens: 7,
+    },
+    modelUsage: { 'claude-sonnet-4-5-20250929': {} },
+  });
+  const continuation = fakeClaudeResult('e2e-run', 'reported continuation', {
+    origin: { kind: 'task-notification' }, total_cost_usd: 0.08,
+  });
+  const child = spawnRun(fixture, {
+    FAKE_CLAUDE_FIRST_RESULT: first,
+    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
+  });
+  await waitForText(fixture.eventsFile, 'turn_complete', child);
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+  const cost = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'))
+    .find(record => record.event?.type === 'cost_record')!.event;
+  assert.deepEqual(cost, {
+    type: 'cost_record', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929',
+    tokens_in: 10 + 3 + 7, tokens_out: 5,
+    prompt_tokens: 10 + 3 + 7, cached_tokens: 7, cost_usd: 0.08,
+  });
+  assert.deepEqual(terminalRecord(fixture).tokens, { input: 10 + 3 + 7, output: 5 });
+});
+
 it('keeps absent turn counts null instead of inventing aggregate steps', async () => {
   const fixture = createFixture('unknown-turn-count');
   const first = fakeClaudeResult('e2e-run', 'unknown', { num_turns: undefined });
@@ -133,12 +164,12 @@ function assertEarlyAccountingOrder(events: any[]): void {
   const costs = events.filter(event => event.type === 'cost_record');
   assert.deepEqual(costs[0], {
     type: 'cost_record', provider: 'anthropic', model: 'claude-foreground',
-    tokens_in: 111, tokens_out: 22,
+    tokens_in: null, tokens_out: 22,
     prompt_tokens: null, cached_tokens: null, cost_usd: 0.2,
   });
   assert.deepEqual({ ...costs[1], cost_usd: 0.1 }, {
     type: 'cost_record', provider: 'anthropic', model: 'claude-continuation',
-    tokens_in: 9, tokens_out: 4,
+    tokens_in: null, tokens_out: 4,
     prompt_tokens: null, cached_tokens: null, cost_usd: 0.1,
   });
   assert.ok(Math.abs(costs[1].cost_usd - 0.1) < 1e-12);
@@ -181,7 +212,7 @@ it('keeps early continuation events after immutable foreground accounting', asyn
 it.each([
   { kind: 'non-zero', fixtureName: 'reported-accounting', cost: 0.375, input: 321, tokenOutput: 54 },
   { kind: 'zero', fixtureName: 'reported-zero-accounting', cost: 0, input: 0, tokenOutput: 0 },
-])('preserves explicitly reported $kind accounting exactly', async ({ fixtureName, cost, input, tokenOutput }) => {
+])('keeps incomplete $kind prompt accounting null', async ({ fixtureName, cost, input, tokenOutput }) => {
   const fixture = createFixture(fixtureName);
   const reported = fakeClaudeResult('e2e-run', 'reported', {
     total_cost_usd: cost,
@@ -205,7 +236,7 @@ it.each([
   assert.deepEqual(costEvents, [
     {
       type: 'cost_record', provider: 'anthropic', model: 'claude-reported-accounting',
-      tokens_in: input, tokens_out: tokenOutput,
+      tokens_in: null, tokens_out: tokenOutput,
       prompt_tokens: null, cached_tokens: null, cost_usd: cost,
     },
     {
@@ -216,7 +247,7 @@ it.each([
   ]);
   const terminal = terminalRecord(fixture);
   assert.equal(terminal.cost_usd, cost);
-  assert.deepEqual(terminal.tokens, { input, output: tokenOutput });
+  assert.deepEqual(terminal.tokens, { input: null, output: tokenOutput });
 });
 
 it('records reported cost when usage is absent', async () => {

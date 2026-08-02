@@ -1,5 +1,5 @@
 // input:  continuation results, exact accounting, wait policy
-// output: merged continuation events and bounded results
+// output: cache-inclusive continuation events and bounded results
 // pos:    Background continuation wait policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 //
@@ -126,7 +126,7 @@ function continuationCostRecord(result: AgentResult): NormalizedEvent | null {
   if (result.costReported !== true && accounting?.usageReported !== true) return null;
   return {
     type: 'cost_record', provider: 'anthropic', model: accounting?.model ?? 'unknown',
-    tokens_in: accounting?.inputTokens ?? null,
+    tokens_in: accounting?.promptTokens ?? null,
     tokens_out: accounting?.outputTokens ?? null,
     prompt_tokens: accounting?.promptTokens ?? null,
     cached_tokens: accounting?.cachedTokens ?? null,
