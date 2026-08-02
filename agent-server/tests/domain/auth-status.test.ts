@@ -325,7 +325,34 @@ test('getAuthStatus exposes both Claude credentials and mirrors the mode-selecte
     const oauthAccount = account(await getAuthStatus({ ...options, getClaudeMode: () => 'plan' }), 'anthropic');
     assert.equal(oauthAccount.authType, 'oauth');
     assert.equal(oauthAccount.state, 'expiring');
-    assert.equal(oauthAccount.refreshExpiresAt, new Date(NOW_MS + DAY_MS).toISOString());
+    assert.equal(oauthAccount.expiresAt, new Date(NOW_MS + DAY_MS).toISOString());
+    assert.equal(oauthAccount.refreshExpiresAt, null);
+  } finally {
+    fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('Claude OAuth lifetime is the refresh token, not the auto-refreshed access token', async () => {
+  const fixture = createPiFixture();
+  const claudePath = path.join(fixture.root, 'claude', '.credentials.json');
+  writeJson(fixture.authPath, {});
+  const writeOAuth = (refreshTokenExpiresAt: number) => writeJson(claudePath, { claudeAiOauth: {
+    accessToken: '', refreshToken: '',
+    expiresAt: NOW_MS + DAY_MS, refreshTokenExpiresAt,
+  } });
+  try {
+    const options = {
+      ...baseStatusOptions(fixture, await loadFixture(fixture), claudePath),
+      getClaudeMode: () => 'plan',
+    };
+    writeOAuth(NOW_MS + 30 * DAY_MS);
+    const healthy = account(await getAuthStatus(options), 'anthropic');
+    assert.equal(healthy.state, 'logged-in');
+    assert.equal(healthy.expiresAt, new Date(NOW_MS + 30 * DAY_MS).toISOString());
+    assert.equal(healthy.refreshExpiresAt, null);
+
+    writeOAuth(NOW_MS - 1);
+    assert.equal(account(await getAuthStatus(options), 'anthropic').state, 'expired');
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }

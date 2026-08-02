@@ -6,7 +6,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AuthType } from '@cortex-agent/ui-contract';
-import { StatusPill, useToast } from '@/design';
+import { useToast } from '@/design';
+import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { useVocab, type Vocab } from '@/i18n';
 import { useTRPC } from '@/lib/trpc';
@@ -14,12 +15,35 @@ import {
   buildAccountsVm,
   type AccountActionTarget,
   type AccountCredentialVm,
+  type AccountStatusTone,
+  type AccountStatusVm,
   type ClaudeAccountVm,
   type PiProviderVm,
 } from '@/mobile/v3/m-accounts-vm';
 import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
+
+const STATE_COLOR: Record<AccountStatusTone, string> = {
+  done: 'var(--proto-success)',
+  waiting: 'var(--proto-amber-fg)',
+  failed: 'var(--proto-danger)',
+  cancelled: 'var(--proto-muted-2)',
+};
+
+/** Compact dot + label state mark — subtler than a full StatusPill at row scale. */
+function StateMark({ value }: { value: AccountStatusVm }) {
+  const L = useVocab();
+  return (
+    <span
+      data-account-state={value.kind}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, font: `600 10px ${MONO}`, color: STATE_COLOR[value.tone] }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', flex: 'none' }} />
+      {L[value.labelKey]}
+    </span>
+  );
+}
 
 export interface AccountsPanelProps {
   onLogin?: (target: AccountActionTarget) => void;
@@ -33,13 +57,12 @@ function authTypeLabel(L: Vocab, authType: AuthType, backend: 'claude' | 'pi'): 
 function StatusMetadata({ value }: { value: AccountCredentialVm }) {
   const L = useVocab();
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <StatusPill tone={value.tone} label={L[value.labelKey]} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <StateMark value={value} />
       <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>
         {L.accountsSource}: {value.source ?? '—'}
       </span>
       {value.expiresAt ? <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>{L.accountsExpires}: {value.expiresAt}</span> : null}
-      {value.refreshExpiresAt ? <span style={{ font: `400 9.5px ${MONO}`, color: 'var(--proto-muted-2)' }}>{L.accountsRefreshExpires}: {value.refreshExpiresAt}</span> : null}
     </div>
   );
 }
@@ -98,7 +121,15 @@ function ClaudeCard({ account, actions }: { account: ClaudeAccountVm; actions: O
   const L = useVocab();
   return (
     <SCard style={{ marginTop: 12, maxWidth: 980 }}>
-      <SCardHeader title="Claude Code" right={account.inUse ? L.accountsInUse : undefined} />
+      <SCardHeader
+        title={(
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+            <ProviderIcon provider="claude-code" label="Claude Code" size={15} />
+            Claude Code
+          </span>
+        )}
+        right={account.inUse ? L.accountsInUse : undefined}
+      />
       <div style={{ padding: '8px 14px' }}>
         {account.slots.map(slot => (
           <SFieldRow key={slot.authType} label={authTypeLabel(L, slot.authType, 'claude')}>
@@ -123,11 +154,11 @@ function ProviderRow({ provider, actions }: { provider: PiProviderVm; actions: O
     ...provider.status,
     source: provider.source,
     expiresAt: provider.expiresAt,
-    refreshExpiresAt: provider.refreshExpiresAt,
   };
   return (
     <div style={{ padding: '11px 14px', borderBottom: '1px solid var(--proto-alt)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+        <ProviderIcon provider={provider.provider} label={provider.label} size={16} />
         <span style={{ fontSize: 12, fontWeight: 650, color: 'var(--proto-ink)' }}>{provider.label}</span>
         <span style={{ font: `400 9px ${MONO}`, color: 'var(--proto-muted-3)' }}>{provider.provider}</span>
         {provider.inUse ? <span style={{ fontSize: 9, fontWeight: 650, color: 'var(--proto-success)', background: 'var(--proto-success-bg)', borderRadius: 999, padding: '2px 7px' }}>{L.accountsInUse}</span> : null}

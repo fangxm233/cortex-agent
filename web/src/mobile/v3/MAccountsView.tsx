@@ -6,6 +6,7 @@
 // @ds-adherence-ignore -- mobile v3 raw px/font by design §8.3
 import type { ReactNode } from 'react';
 import type { AuthType } from '@cortex-agent/ui-contract';
+import { ProviderIcon } from '@/features/auth/ProviderIcon';
 import { useVocab, type Vocab } from '@/i18n';
 import {
   MCard,
@@ -38,7 +39,6 @@ function Metadata({ value }: { value: AccountCredentialVm }) {
         {L.accountsSource}: {value.source ?? '—'}
       </span>
       {value.expiresAt ? <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>{L.accountsExpires}: {value.expiresAt}</span> : null}
-      {value.refreshExpiresAt ? <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted, overflowWrap: 'anywhere' }}>{L.accountsRefreshExpires}: {value.refreshExpiresAt}</span> : null}
     </div>
   );
 }
@@ -113,6 +113,7 @@ function ClaudeCard({ account, actionsDisabled, onLogin, onLogout }: ClaudeCardP
   return (
     <MCard>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+        <ProviderIcon provider="claude-code" label="Claude Code" size={16} />
         <span style={{ fontSize: 14, fontWeight: 700, color: MC.ink }}>Claude Code</span>
         {account.inUse ? <MPill tone="done">{L.accountsInUse}</MPill> : null}
       </div>
@@ -144,12 +145,12 @@ function ProviderCard({ provider, actionsDisabled, onLogin, onLogout }: {
 }) {
   const L = useVocab();
   const metadata: AccountCredentialVm = {
-    ...provider.status, source: provider.source,
-    expiresAt: provider.expiresAt, refreshExpiresAt: provider.refreshExpiresAt,
+    ...provider.status, source: provider.source, expiresAt: provider.expiresAt,
   };
   return (
     <MCard>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <ProviderIcon provider={provider.provider} label={provider.label} size={15} />
         <span style={{ fontSize: 13, fontWeight: 700, color: MC.ink }}>{provider.label}</span>
         <span style={{ font: `400 9px ${MONO}`, color: MC.muted }}>{provider.provider}</span>
         {provider.loginTypes.map(authType => <MPill key={authType} tone="running">{authType === 'api_key' ? L.authLoginApiKey : L.authLoginOAuth}</MPill>)}

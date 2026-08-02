@@ -74,15 +74,17 @@ const snapshot: AuthStatusSnapshot = {
 };
 
 describe('buildAccountsVm', () => {
-  it('builds two Claude credential slots without hiding their independent states', () => {
+  it('builds two Claude credential slots with a single collapsed expiry field', () => {
     const vm = buildAccountsVm(snapshot);
 
     expect(vm.claude?.slots.map(slot => slot.authType)).toEqual(['oauth', 'api_key']);
-    expect(vm.claude?.slots[0]?.credentials[0]).toMatchObject({
-      kind: 'expiring', tone: 'waiting', source: 'credentials.json',
+    expect(vm.claude?.slots[0]?.credentials[0]).toEqual({
+      kind: 'expiring', tone: 'waiting', labelKey: 'accountsStatusExpiring',
+      source: 'credentials.json', expiresAt: '2030-06-01T00:00:00.000Z',
     });
-    expect(vm.claude?.slots[1]?.credentials[0]).toMatchObject({
-      kind: 'logged-in', tone: 'done', source: 'env',
+    expect(vm.claude?.slots[1]?.credentials[0]).toEqual({
+      kind: 'logged-in', tone: 'done', labelKey: 'accountsStatusLoggedIn',
+      source: 'env', expiresAt: null,
     });
   });
 

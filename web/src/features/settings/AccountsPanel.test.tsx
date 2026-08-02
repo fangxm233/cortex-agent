@@ -124,6 +124,26 @@ describe('desktop accounts settings', () => {
     expect(html).not.toContain('sentinel-secret-fragment');
   });
 
+  it('shows one collapsed expiry without a refresh-token line', () => {
+    const html = JSON.stringify(mount().toJSON());
+
+    expect(html).not.toContain('Refresh expires');
+    expect(html).not.toContain('2030-07-01T00:00:00.000Z');
+  });
+
+  it('marks credential state compactly and shows a brand icon per account row', () => {
+    const renderer = mount();
+
+    const states = renderer.root.findAll(node => node.props['data-account-state'] !== undefined)
+      .map(node => node.props['data-account-state']);
+    expect(states).toContain('expiring');
+    expect(states).toContain('logged-in');
+
+    const icons = renderer.root.findAll(node => node.props['data-provider-icon'] !== undefined)
+      .map(node => node.props['data-provider-icon']);
+    expect(icons).toEqual(['claude-code', 'openrouter', 'deepseek']);
+  });
+
   it('never renders an OAuth login action for a provider without OAuth capability', () => {
     const renderer = mount();
 

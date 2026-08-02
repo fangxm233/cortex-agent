@@ -173,12 +173,15 @@ function claudeOAuthCredential(
   oauth: ClaudeOAuthMetadata,
   nowMs: number,
 ): AuthCredentialStatus {
+  // The access token auto-refreshes while the refresh token lives, so the
+  // credential's real lifetime is the refresh-token expiry when present.
+  const lifetime = oauth.refreshExpiresAt ?? oauth.expiresAt;
   return {
     authType: 'oauth',
-    state: stateFromExpiry(nowMs, [oauth.expiresAt, oauth.refreshExpiresAt]),
+    state: stateFromExpiry(nowMs, [lifetime]),
     source: 'credentials.json',
-    expiresAt: toIso(oauth.expiresAt),
-    refreshExpiresAt: toIso(oauth.refreshExpiresAt),
+    expiresAt: toIso(lifetime),
+    refreshExpiresAt: null,
     manageable: true,
   };
 }

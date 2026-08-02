@@ -28,7 +28,6 @@ export interface AccountStatusVm {
 export interface AccountCredentialVm extends AccountStatusVm {
   source: string | null;
   expiresAt: string | null;
-  refreshExpiresAt: string | null;
 }
 
 export interface AccountActionTarget {
@@ -61,7 +60,6 @@ export interface PiProviderVm {
   status: AccountStatusVm;
   source: string | null;
   expiresAt: string | null;
-  refreshExpiresAt: string | null;
 }
 
 export type AccountGroupKey = 'in-use' | 'logged-in' | 'other';
@@ -103,7 +101,6 @@ function credentialVm(credential: AuthCredentialStatus): AccountCredentialVm {
     ...STATUS[credential.state],
     source: credential.source,
     expiresAt: credential.expiresAt,
-    refreshExpiresAt: credential.refreshExpiresAt,
   };
 }
 
@@ -112,7 +109,6 @@ function emptyCredential(): AccountCredentialVm {
     ...STATUS['logged-out'],
     source: null,
     expiresAt: null,
-    refreshExpiresAt: null,
   };
 }
 
@@ -161,7 +157,6 @@ function piProviderVm(account: AuthAccountStatus): PiProviderVm {
     status: STATUS[account.state],
     source: account.source,
     expiresAt: account.expiresAt,
-    refreshExpiresAt: account.refreshExpiresAt,
   };
 }
 

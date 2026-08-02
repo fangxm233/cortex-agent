@@ -83,6 +83,13 @@ describe('MAccountsView', () => {
     expect(html).toContain('Unused');
   });
 
+  it('shows a brand icon on the Claude card and every provider card', () => {
+    const icons = mount().root.findAll(node => node.props['data-provider-icon'] !== undefined)
+      .map(node => node.props['data-provider-icon']);
+
+    expect(icons).toEqual(['claude-code', 'openrouter', 'deepseek', 'unused']);
+  });
+
   it('only offers OAuth where capabilities include OAuth', () => {
     const renderer = mount();
 
