@@ -66,7 +66,7 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 |---|---|---|
 | Slack | 发送 `!login`、`!login cc` 或 `!login pi [provider]` | 选择器和 secret 输入使用 Slack modal；授权链接发送到频道。 |
 | 飞书 | 发送 `!login`、`!login cc` 或 `!login pi [provider]` | 选择器和 secret 输入使用内联卡片表单；授权链接发送到聊天。 |
-| Web（桌面与移动端） | 打开 **设置 → 平台 → Backend 登录** | Backend 登录入口会打开同一套 provider 与认证类型选择器。 |
+| Web（桌面与移动端） | 桌面端打开 **设置 → 账号**；移动端点击 **设置 → 账号**，进入 `/m/settings/accounts`。 | 账号分区展示 Claude Code 凭据与全部 PI provider，并提供状态及登录/登出操作；登录仍打开同一套选择器式流程。 |
 
 聊天命令形式如下：
 

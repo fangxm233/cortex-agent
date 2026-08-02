@@ -1,5 +1,5 @@
 // input:  settings DTOs, localized copy, shared UI primitives
-// output: desktop platform, auth, profile, machine, template and MCP panels
+// output: desktop platform, profile, machine, template and MCP panels
 // pos:    Presentational collection for non-runtime settings panels
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -132,11 +132,9 @@ function PlatformEnvBlock({ index, keys }: { index: ReturnType<typeof indexEnv>;
 export function PlatformPanel({
   snapshot,
   onReconnect,
-  onOpenLogin,
 }: {
   snapshot: ConfigSnapshot;
   onReconnect?: (platform: 'slack' | 'feishu') => void;
-  onOpenLogin?: () => void;
 }) {
   const L = useVocab();
   const idx = indexEnv(snapshot.env);
@@ -209,24 +207,6 @@ export function PlatformPanel({
               );
             })}
           </div>
-          <button
-            type="button"
-            data-auth-login-entry="desktop"
-            disabled={!onOpenLogin}
-            onClick={onOpenLogin}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-              border: 0, borderTop: '1px solid var(--proto-line-2)', padding: '9px 14px',
-              background: 'transparent', textAlign: 'left', font: 'inherit',
-              cursor: onOpenLogin ? 'pointer' : 'default',
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--proto-ink)' }}>{L.authLoginEntry}</div>
-              <div style={{ fontSize: 9.5, color: 'var(--proto-muted-2)', marginTop: 1 }}>{L.authLoginEntrySub}</div>
-            </div>
-            <span style={{ marginLeft: 'auto', color: 'var(--proto-accent)', fontSize: 11 }}>{L.open}</span>
-          </button>
         </SCard>
         <SCard>
           <SCardHeader title={L.stDaemonNetwork} />

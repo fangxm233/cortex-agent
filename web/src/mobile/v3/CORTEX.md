@@ -77,11 +77,16 @@ The view models are framework-free record to slot mappings and each one has a co
 | MDaemonView.test.tsx | test | Tests disconnect action layout |
 | m-daemon-vm.ts | vm | Builds daemon process, summary and event models |
 | m-daemon-vm.test.ts | test | Unit tests for the daemon view model |
-| MSettingsScreen.tsx | screen | Loads settings data and OAuth-capable login entry |
-| MSettingsView.tsx | view | Settings rows with machines and hooks drill-ins |
-| MSettingsView.test.tsx | test | Tests auth, hooks and machines settings rows |
+| MSettingsScreen.tsx | screen | Loads settings and account summary data |
+| MSettingsView.tsx | view | Settings rows with account and config drill-ins |
+| MSettingsView.test.tsx | test | Tests account, hooks and machines settings rows |
 | m-settings-vm.ts | vm | Maps config, costs and mounted hooks |
 | m-settings-vm.test.ts | test | Tests mobile settings data mapping |
+| MAccountsScreen.tsx | screen | Loads account status and binds login/logout |
+| MAccountsView.tsx | view | Groups mobile provider account cards |
+| MAccountsView.test.tsx | test | Tests mobile account groups and actions |
+| m-accounts-vm.ts | vm | Derives shared desktop/mobile account state |
+| m-accounts-vm.test.ts | test | Tests shared account filtering and actions |
 | MHooksScreen.tsx | screen | Loads the hook registry and sheet selection |
 | MHooksView.tsx | view | Grouped read-only hooks with declaration sheet |
 | MHooksView.test.tsx | test | Tests hook grouping, flags and the sheet |

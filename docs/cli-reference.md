@@ -107,8 +107,8 @@ text output shows a concise status overview, while `--json` returns the full
 fragments.
 
 This subcommand is read-only. Remote login starts from `!login` in Slack or
-Feishu, or **Settings → Platform → Backend login** in the Web UI; there is no
-OAuth or API-key login flag on `cortex auth`.
+Feishu, or **Settings → Accounts** in the Web UI; mobile users drill in at
+`/m/settings/accounts`. There is no OAuth or API-key login flag on `cortex auth`.
 
 Options:
 - `--json` — print the complete credential-free status snapshot as JSON

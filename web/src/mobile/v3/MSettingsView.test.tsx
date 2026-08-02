@@ -1,11 +1,12 @@
-// input:  mobile settings view, auth/hooks snapshot, UI copy
-// output: API-key/OAuth entry and mounted-hook drill regressions
-// pos:    Verifies mobile settings auth and hook entries
+// input:  mobile settings view, account/hooks snapshots, UI copy
+// output: accounts and mounted-hook drill-in regressions
+// pos:    Verifies mobile settings account and hook entries
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
+import { LangProvider } from '@/i18n';
 import { buildMSettingsVm } from './m-settings-vm';
 import { MSettingsView, type MSettingsCopy } from './MSettingsView';
 
@@ -18,7 +19,6 @@ const copy: MSettingsCopy = {
   notify: 'Notifications', notifySub: 'notify', autoResume: 'Auto resume',
   autoResumeSub: 'resume', language: 'Language', platform: 'Platform',
   desktopEdit: 'Desktop', templates: 'Templates', hooks: 'Hooks',
-  backendLogin: 'Backend login', backendLoginSub: 'Claude Code and PI API keys and OAuth',
   footerBrand: 'cortex mobile',
 };
 
@@ -38,34 +38,37 @@ const snapshot: ConfigSnapshot = {
 
 function renderHooks(value: ConfigSnapshot, onlineMachines = 0): string {
   return renderToStaticMarkup(
-    <MSettingsView
-      vm={buildMSettingsVm(value, undefined)}
-      copy={copy}
-      lang="en"
-      onSetLang={() => {}}
-      theme="light"
-      onSetTheme={() => {}}
-      onBack={() => {}}
-      onOpenDaemon={() => {}}
-      onlineMachines={onlineMachines}
-      onOpenMachines={() => {}}
-      onOpenHooks={() => {}}
-      onOpenLogin={() => {}}
-      profileSheet={null}
-      onOpenProfile={() => {}}
-      onCloseProfile={() => {}}
-      onPickProfile={() => {}}
-    />,
+    <LangProvider>
+      <MSettingsView
+        vm={buildMSettingsVm(value, undefined)}
+        copy={copy}
+        lang="en"
+        onSetLang={() => {}}
+        theme="light"
+        onSetTheme={() => {}}
+        onBack={() => {}}
+        onOpenDaemon={() => {}}
+        onlineMachines={onlineMachines}
+        onOpenMachines={() => {}}
+        onOpenHooks={() => {}}
+        accountsSummary={{ claudeLoggedIn: true, piLoggedInCount: 2 }}
+        onOpenAccounts={() => {}}
+        profileSheet={null}
+        onOpenProfile={() => {}}
+        onCloseProfile={() => {}}
+        onPickProfile={() => {}}
+      />
+    </LangProvider>,
   );
 }
 
-describe('MSettingsView authentication', () => {
-  it('renders the shared LoginFlow entry on mobile settings', () => {
+describe('MSettingsView accounts', () => {
+  it('renders the account summary drill-in row', () => {
     const html = renderHooks(snapshot);
 
-    expect(html).toContain('data-auth-login-entry="mobile"');
-    expect(html).toContain('aria-label="Backend login"');
-    expect(html).toContain('Claude Code and PI API keys and OAuth');
+    expect(html).toContain('data-accounts-entry="mobile"');
+    expect(html).toContain('aria-label="Accounts"');
+    expect(html).toContain('Accounts · CC ✓ · PI logged in 2');
   });
 });
 

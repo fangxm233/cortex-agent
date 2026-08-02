@@ -10,6 +10,7 @@ import type { Vocab } from '@/i18n';
 export type SettingsSectionKey =
   | 'appearance'
   | 'platform'
+  | 'accounts'
   | 'profiles'
   | 'budget'
   | 'machines'
@@ -37,6 +38,7 @@ export interface SettingsSectionMeta {
 const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   appearance: 'stNavAppearance',
   platform: 'stNavPlatform',
+  accounts: 'stNavAccounts',
   profiles: 'stNavProfiles',
   budget: 'stNavBudget',
   machines: 'stNavMachines',
@@ -51,6 +53,7 @@ const NAV_LABEL_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
 const NAV_SUB_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   appearance: 'stMetaAppearanceSub',
   platform: 'stMetaPlatformSub',
+  accounts: 'stMetaAccountsSub',
   profiles: 'stMetaProfilesSub',
   budget: 'stMetaBudgetSub',
   machines: 'stMetaMachinesSub',
@@ -65,6 +68,7 @@ const NAV_SUB_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
 const NAV_FILES: Record<SettingsSectionKey, string> = {
   appearance: 'this device',
   platform: '.env',
+  accounts: 'auth.status',
   profiles: 'profiles.json',
   budget: 'budget.json',
   machines: 'machines.json',
@@ -79,6 +83,7 @@ const NAV_FILES: Record<SettingsSectionKey, string> = {
 const NAV_ORDER: SettingsSectionKey[] = [
   'appearance',
   'platform',
+  'accounts',
   'profiles',
   'budget',
   'machines',
@@ -89,7 +94,7 @@ const NAV_ORDER: SettingsSectionKey[] = [
   'advanced',
 ];
 
-/** Returns the 9 nav entries with labels resolved from the given vocab. */
+/** Returns ordered nav entries with labels resolved from the given vocab. */
 export function getSettingsNav(L: Vocab): SettingsNavEntry[] {
   return NAV_ORDER.map((key) => ({
     key,

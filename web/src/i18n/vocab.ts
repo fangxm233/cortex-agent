@@ -1,5 +1,5 @@
 // input:  Selected language and shared product copy keys
-// output: Shape-checked English/Chinese copy including OAuth notices
+// output: Shape-checked account, auth, and product copy
 // pos:    Shared source of localized UI copy
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -463,6 +463,7 @@ export const en = {
   // ── Settings nav labels (also used as section meta titles) ──
   stNavAppearance: 'Appearance',
   stNavPlatform: 'Platform',
+  stNavAccounts: 'Accounts',
   stNavProfiles: 'Profiles',
   stNavBudget: 'Budget',
   stNavMachines: 'Machines',
@@ -475,6 +476,7 @@ export const en = {
   // ── Settings section meta subs ──
   stMetaAppearanceSub: 'Language & theme — interface language and light/dark. Applies instantly and is remembered on this device.',
   stMetaPlatformSub: 'config/.env — loaded once at daemon startup; the only restart-required config',
+  stMetaAccountsSub: 'Claude Code credentials and every PI provider reported by auth.status',
   stMetaProfilesSub: 'config/profiles.json — read on every agent spawn, no restart needed',
   stMetaBudgetSub: 'config/budget.json — hot-read, applies immediately; upgrades never overwrite (only --force)',
   stMetaMachinesSub: 'config/machines.json — fs.watch hot-reload; clients auto-launched over SSH at startup',
@@ -663,8 +665,31 @@ export const en = {
   authLoginAlreadyActive: 'A login flow is already active on another surface.',
   authLoginCancelled: 'Login cancelled',
   authLoginCancelledSummary: 'No credential was submitted.',
-  authLoginEntry: 'Backend login',
-  authLoginEntrySub: 'Claude Code and PI API keys and OAuth',
+  accountsTitle: 'Accounts',
+  accountsSource: 'Source',
+  accountsExpires: 'Expires',
+  accountsRefreshExpires: 'Refresh expires',
+  accountsInUse: 'In use',
+  accountsPiProviders: 'PI providers',
+  accountsLogin: 'Log in',
+  accountsLogout: 'Log out',
+  accountsFilter: 'Filter providers',
+  accountsFilterPlaceholder: 'Filter by provider name…',
+  accountsNoProviders: 'No providers match this filter.',
+  accountsStatusLoggedIn: 'Logged in',
+  accountsStatusExpiring: 'Expiring soon',
+  accountsStatusLoggedOut: 'Not logged in',
+  accountsStatusInvalid: 'Invalid',
+  accountsGroupInUse: 'In use',
+  accountsGroupLoggedIn: 'Logged in',
+  accountsGroupOther: 'Other',
+  accountsConnectedMark: '✓',
+  accountsDisconnected: 'not logged in',
+  accountsPiSummary: 'PI logged in {count}',
+  accountsLoading: 'Loading accounts…',
+  accountsLoadFailed: 'Could not load account status.',
+  accountsLogoutDone: 'Logged out',
+  accountsLogoutFailed: 'Logout failed',
 };
 
 export type Vocab = typeof en;
@@ -1129,6 +1154,7 @@ export const zh: Record<keyof Vocab, string> = {
   // ── Settings nav labels (also used as section meta titles) ──
   stNavAppearance: '外观',
   stNavPlatform: '平台',
+  stNavAccounts: '账号',
   stNavProfiles: '配置',
   stNavBudget: '预算',
   stNavMachines: '机器',
@@ -1141,6 +1167,7 @@ export const zh: Record<keyof Vocab, string> = {
   // ── Settings section meta subs ──
   stMetaAppearanceSub: '语言与主题 — 界面语言与浅色/深色。即时生效，并记住在本设备上。',
   stMetaPlatformSub: 'config/.env — 守护进程启动时加载一次；唯一需要重启的配置',
+  stMetaAccountsSub: 'Claude Code 凭据与 auth.status 返回的全部 PI provider',
   stMetaProfilesSub: 'config/profiles.json — 每次 agent 启动时读取，无需重启',
   stMetaBudgetSub: 'config/budget.json — 热读取，即时生效；升级永不覆盖（仅 --force）',
   stMetaMachinesSub: 'config/machines.json — fs.watch 热重载；启动时通过 SSH 自动拉起客户端',
@@ -1329,6 +1356,29 @@ export const zh: Record<keyof Vocab, string> = {
   authLoginAlreadyActive: '另一个界面已有进行中的登录流程。',
   authLoginCancelled: '登录已取消',
   authLoginCancelledSummary: '未提交凭据。',
-  authLoginEntry: 'Backend 登录',
-  authLoginEntrySub: 'Claude Code 与 PI API key 和 OAuth',
+  accountsTitle: '账号',
+  accountsSource: '来源',
+  accountsExpires: '过期时间',
+  accountsRefreshExpires: '刷新凭据过期时间',
+  accountsInUse: '使用中',
+  accountsPiProviders: 'PI Provider',
+  accountsLogin: '登录',
+  accountsLogout: '登出',
+  accountsFilter: '筛选 Provider',
+  accountsFilterPlaceholder: '按 Provider 名称筛选…',
+  accountsNoProviders: '没有符合筛选条件的 Provider。',
+  accountsStatusLoggedIn: '已登录',
+  accountsStatusExpiring: '快过期',
+  accountsStatusLoggedOut: '未登录',
+  accountsStatusInvalid: '失效',
+  accountsGroupInUse: '使用中',
+  accountsGroupLoggedIn: '已登录',
+  accountsGroupOther: '其他',
+  accountsConnectedMark: '✓',
+  accountsDisconnected: '未登录',
+  accountsPiSummary: 'PI 已登录 {count}',
+  accountsLoading: '正在加载账号…',
+  accountsLoadFailed: '无法加载账号状态。',
+  accountsLogoutDone: '已登出',
+  accountsLogoutFailed: '登出失败',
 };

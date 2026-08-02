@@ -1,5 +1,5 @@
-// input:  config queries, settings panels, LoginFlow, Radix Dialog
-// output: settings overlay with non-stacked auth handoff
+// input:  config/auth queries, settings panels, LoginFlow, Radix
+// output: settings overlay with non-stacked account login handoff
 // pos:    Desktop settings overlay shell and data bindings
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -21,11 +21,12 @@ import { AdvancedPanel, NotificationsPanel } from './RuntimeSettingsPanels';
 import { BudgetPanel } from './BudgetPanel';
 import { HooksPanel } from './HooksPanel';
 import { AppearancePanel } from './AppearancePanel';
+import { AccountsPanel } from './AccountsPanel';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
 
 // Settings modal (design 12a–g, prototype.dc.html L721–1088; proto-shot 14-settings.png). Rebuilt
 // 1:1 on Radix Dialog (focus trap / Esc-close / focus-restore + backdrop scrim). Header + 210px left
-// nav + var(--proto-alt) content area; 9 panels switch client-side. Real config.get data feeds every panel;
+// nav + var(--proto-alt) content area; panels switch client-side. Real config/auth data feeds each panel;
 // Budget and runtime-setting toggles drive config.set writes. Raw inline styles/px/hex/font per §8.3.
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -243,6 +244,8 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
           {section === 'appearance' ? (
             // Device-local theme — no config.get dependency, so it renders even if config fails to load.
             <AppearancePanel />
+          ) : section === 'accounts' ? (
+            <AccountsPanel onLogin={(target) => { onClose(); openLogin(target); }} />
           ) : configQuery.isLoading ? (
             <div style={{ marginTop: 16, fontSize: 12, color: 'var(--proto-muted-3)' }}>{L.stLoadingConfig}</div>
           ) : configQuery.isError ? (
@@ -258,10 +261,6 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               onSetDefaultProfile={onSetDefaultProfile}
               onReconnect={onReconnect}
               onAddMachine={onAddMachine}
-              onOpenLogin={() => {
-                onClose();
-                openLogin();
-              }}
             />
           ) : null}
         </div>
@@ -278,7 +277,6 @@ function PanelBody({
   onSetDefaultProfile,
   onReconnect,
   onAddMachine,
-  onOpenLogin,
 }: {
   section: SettingsSectionKey;
   snapshot: import('@cortex-agent/ui-contract').ConfigSnapshot;
@@ -287,11 +285,10 @@ function PanelBody({
   onSetDefaultProfile: (name: string) => void;
   onReconnect: (platform: 'slack' | 'feishu') => void;
   onAddMachine: (machineName: string) => void;
-  onOpenLogin: () => void;
 }) {
   switch (section) {
     case 'platform':
-      return <PlatformPanel snapshot={snapshot} onReconnect={onReconnect} onOpenLogin={onOpenLogin} />;
+      return <PlatformPanel snapshot={snapshot} onReconnect={onReconnect} />;
     case 'profiles':
       return <ProfilesPanel snapshot={snapshot} onSetDefaultProfile={onSetDefaultProfile} />;
     case 'budget':

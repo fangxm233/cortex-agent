@@ -1,12 +1,12 @@
-// input:  desktop Settings/LoginFlow providers and config fixtures
-// output: Reachable non-stacked OAuth/API-key entry regression
-// pos:    Verifies Settings exposes the shared LoginFlow modal
+// input:  desktop Settings/LoginFlow providers and auth fixtures
+// output: Dedicated non-stacked accounts login regression
+// pos:    Verifies Accounts opens the shared LoginFlow modal
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import type { ConfigSnapshot } from '@cortex-agent/ui-contract';
+import type { AuthStatusSnapshot, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
 import { ThemeProvider } from '@/theme';
 import { PlatformPanel } from './SettingsPanels';
@@ -40,13 +40,18 @@ vi.mock('@/lib/trpc', () => {
     cost: { summary: query('cost.summary') },
     threadTemplates: { get: query('threadTemplates.get') },
     approvals: { request: mutation('approvals.request') },
+    auth: { status: query('auth.status'), logout: mutation('auth.logout') },
   }) };
 });
 
 vi.mock('@tanstack/react-query', async importOriginal => ({
   ...await importOriginal<typeof import('@tanstack/react-query')>(),
   useQuery: (options: any) => ({
-    data: options.__kind === 'config.get' ? snapshot : options.__kind === 'threadTemplates.get' ? [] : undefined,
+    data: options.__kind === 'config.get'
+      ? snapshot
+      : options.__kind === 'threadTemplates.get'
+        ? []
+        : options.__kind === 'auth.status' ? authStatus : undefined,
     isLoading: false,
     isError: false,
     error: null,
@@ -68,6 +73,16 @@ const snapshot: ConfigSnapshot = {
   env: [],
 };
 
+const authStatus: AuthStatusSnapshot = {
+  generatedAt: '2030-01-01T00:00:00.000Z',
+  accounts: [{
+    backend: 'claude', provider: 'anthropic', label: 'Anthropic',
+    capabilities: ['api_key', 'oauth'], authType: null, state: 'logged-out', source: null,
+    expiresAt: null, refreshExpiresAt: null, inUse: true, credentials: [],
+  }],
+  piRuntime: { available: true, version: 'test', entry: null, error: null },
+};
+
 function SettingsHarness() {
   const [open, setOpen] = useState(true);
   return (
@@ -82,25 +97,27 @@ function SettingsHarness() {
 }
 
 describe('desktop authentication settings entry', () => {
-  it('renders a reachable control that opens the shared LoginFlow UI', () => {
-    let renderer!: ReactTestRenderer;
+  it('moves authentication controls out of Platform into a dedicated Accounts section', () => {
+    let platform!: ReactTestRenderer;
     act(() => {
-      renderer = create(
-        <LangProvider><PlatformPanel snapshot={snapshot} onOpenLogin={() => {}} /></LangProvider>,
-      );
+      platform = create(<LangProvider><PlatformPanel snapshot={snapshot} /></LangProvider>);
     });
-    const entry = renderer.root.findByProps({ 'data-auth-login-entry': 'desktop' });
+    expect(platform.root.findAllByProps({ 'data-auth-login-entry': 'desktop' })).toHaveLength(0);
 
-    expect(entry.type).toBe('button');
-    const html = JSON.stringify(renderer.toJSON());
-    expect(html).toContain('Backend login');
-    expect(html).toContain('API keys and OAuth');
+    const renderer = create(<SettingsHarness />);
+    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'accounts' }).props.onClick(); });
+    expect(renderer.root.findAll(node => node.props['data-auth-action'] === 'login').length).toBeGreaterThan(0);
   });
 
   it('closes Settings before opening the shared LoginFlow dialog', () => {
     const renderer = create(<SettingsHarness />);
-    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'platform' }).props.onClick(); });
-    act(() => { renderer.root.findByProps({ 'data-auth-login-entry': 'desktop' }).props.onClick(); });
+    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'accounts' }).props.onClick(); });
+    const login = renderer.root.findAll(node => (
+      node.props['data-provider'] === 'anthropic'
+      && node.props['data-auth-action'] === 'login'
+      && node.props['data-auth-type'] === 'oauth'
+    ))[0];
+    act(() => { login?.props.onClick(); });
 
     expect(renderer.root.findAllByProps({ 'data-settings-dialog': true })).toHaveLength(0);
     expect(renderer.root.findAllByProps({ 'data-login-flow-dialog': true })).toHaveLength(1);

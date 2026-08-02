@@ -1,5 +1,5 @@
-// input:  config/cost queries, language/theme/auth state, navigation
-// output: mobile settings with API-key/OAuth and hooks entries
+// input:  config/cost/auth queries, language/theme state, navigation
+// output: mobile settings with accounts and config drill-ins
 // pos:    Mobile settings query and mutation container
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
@@ -16,7 +16,7 @@ import { MSettingsView, type MSettingsCopy } from './MSettingsView';
 import { buildMSettingsVm } from './m-settings-vm';
 import { onlineMachineCount } from './m-project-vm';
 import { buildProfileSheetItems } from './m-chat-vm';
-import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
+import { buildAccountsVm } from './m-accounts-vm';
 
 const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
   en: {
@@ -44,8 +44,6 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     desktopEdit: 'Edit on desktop',
     templates: 'Thread templates',
     hooks: 'Hooks',
-    backendLogin: 'Backend login',
-    backendLoginSub: 'Claude Code and PI API keys and OAuth',
     footerBrand: 'cortex mobile',
   },
   zh: {
@@ -73,8 +71,6 @@ const COPY: { en: MSettingsCopy; zh: MSettingsCopy } = {
     desktopEdit: '桌面编辑',
     templates: 'Thread templates',
     hooks: '钩子',
-    backendLogin: 'Backend 登录',
-    backendLoginSub: 'Claude Code 与 PI API key 和 OAuth',
     footerBrand: 'cortex mobile',
   },
 };
@@ -97,11 +93,11 @@ export function MSettingsScreen() {
   const setLang = useSetLang();
   const theme = useTheme();
   const setTheme = useSetTheme();
-  const { openLogin } = useLoginFlow();
   const copy = pickCopy(lang, COPY);
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const costQuery = useQuery(trpc.cost.summary.queryOptions({}));
+  const authQuery = useQuery(trpc.auth.status.queryOptions({}));
   // Live machines.list (online flags) for the 机器 drill-in row — moved here from the Projects tab.
   const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
   const onlineMachines = onlineMachineCount(machinesQuery.data ?? []);
@@ -109,6 +105,10 @@ export function MSettingsScreen() {
   const vm = useMemo(
     () => buildMSettingsVm(configQuery.data ?? EMPTY_SNAPSHOT, costQuery.data),
     [configQuery.data, costQuery.data],
+  );
+  const accountsSummary = useMemo(
+    () => authQuery.data ? buildAccountsVm(authQuery.data).summary : { claudeLoggedIn: false, piLoggedInCount: 0 },
+    [authQuery.data],
   );
 
   // profile switch: real config.set `profiles` write (re-points defaultProfile in profiles.json).
@@ -144,7 +144,8 @@ export function MSettingsScreen() {
           onlineMachines={onlineMachines}
           onOpenMachines={() => navigate('/m/machines')}
           onOpenHooks={() => navigate('/m/settings/hooks')}
-          onOpenLogin={openLogin}
+          accountsSummary={accountsSummary}
+          onOpenAccounts={() => navigate('/m/settings/accounts')}
           profileSheet={profileSheet}
           onOpenProfile={() => setProfileOpen(true)}
           onCloseProfile={() => setProfileOpen(false)}
