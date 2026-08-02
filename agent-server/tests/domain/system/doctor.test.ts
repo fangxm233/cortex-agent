@@ -38,6 +38,7 @@ function healthyPiRuntime(login: unknown = async () => ({ type: 'api_key' })) {
       getProviders: () => [],
       getProviderAuthStatus: () => ({ configured: false }),
       login,
+      logout: async () => {},
     },
     readStoredCredential: () => undefined,
   } as unknown as PiRuntimeLoadResult;

@@ -25,6 +25,7 @@ function greenPiRuntime() {
       getProviders: () => [],
       getProviderAuthStatus: () => ({ configured: false }),
       login: async () => ({ type: 'api_key' as const }),
+      logout: async () => {},
     },
     readStoredCredential: () => undefined,
   };
