@@ -1,10 +1,10 @@
 // input:  desktop Settings/LoginFlow providers and auth fixtures
-// output: Dedicated non-stacked accounts login regression
-// pos:    Verifies Accounts opens the shared LoginFlow modal
+// output: Settings source-copy and non-stacked login regressions
+// pos:    Verifies Settings shell copy and shared LoginFlow handoff
 // >>> If I am updated, update my header comment and CORTEX.md <<<
 
 import { useState } from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthStatusSnapshot, ConfigSnapshot } from '@cortex-agent/ui-contract';
 import { LangProvider } from '@/i18n';
@@ -96,7 +96,22 @@ function SettingsHarness() {
   );
 }
 
+function renderedText(node: ReactTestInstance): string {
+  return node.children.map(child => typeof child === 'string' ? child : renderedText(child)).join('');
+}
+
 describe('desktop authentication settings entry', () => {
+  it('omits internal config-source copy from the settings shell and profiles panel', () => {
+    const renderer = create(<SettingsHarness />);
+    expect(renderedText(renderer.root)).not.toContain('~/.cortex/config/');
+    for (const row of renderer.root.findAll(node => node.props['data-settings-nav'])) {
+      expect(row.findAllByType('span')).toHaveLength(1);
+    }
+
+    act(() => { renderer.root.findByProps({ 'data-settings-nav': 'profiles' }).props.onClick(); });
+    expect(renderedText(renderer.root)).not.toContain('Per-profile fallback is not in the config.get contract');
+  });
+
   it('moves authentication controls out of Platform into a dedicated Accounts section', () => {
     let platform!: ReactTestRenderer;
     act(() => {

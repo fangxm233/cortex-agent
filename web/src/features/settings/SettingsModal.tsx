@@ -155,7 +155,6 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
         }}
       >
         <span style={{ fontSize: 13, fontWeight: 650, color: 'var(--proto-ink)' }}>{L.settings}</span>
-        <span style={{ font: `400 10px ${MONO}`, color: 'var(--proto-muted-3)', marginLeft: 4 }}>{L.stConfigRoot}</span>
         <span
           onClick={onClose}
           role="button"
@@ -213,16 +212,6 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
                   }}
                 >
                   {n.label}
-                </span>
-                <span
-                  style={{
-                    marginLeft: 'auto',
-                    font: `400 9px ${MONO}`,
-                    color: active ? 'var(--proto-accent)' : 'var(--proto-faint)',
-                    flex: 'none',
-                  }}
-                >
-                  {n.file}
                 </span>
               </div>
             );

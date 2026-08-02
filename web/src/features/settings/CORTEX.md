@@ -10,7 +10,7 @@ Panels read config/auth snapshots; accounts, budget, runtime, and hooks own thei
 | SettingsPanels.tsx | view | Renders non-runtime platform and config sections |
 | AccountsPanel.tsx | view | Filters providers and manages account login/logout |
 | AccountsPanel.test.tsx | test | Tests desktop account state and action visibility |
-| AuthLoginEntry.test.tsx | test | Tests dedicated non-stacked account login |
+| AuthLoginEntry.test.tsx | test | Tests settings shell copy and account login handoff |
 | RuntimeSettingsPanels.tsx | view | Reads and writes runtime settings toggles |
 | RuntimeSettingsPanels.test.tsx | test | Tests toggle rows and production write adapter |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
@@ -23,5 +23,5 @@ Panels read config/auth snapshots; accounts, budget, runtime, and hooks own thei
 | hooks-panel-vm.test.ts | test | Unit tests for the hooks panel view model |
 | platform-env.ts | vm | Defines env indexes and writable runtime flags |
 | platform-env.test.ts | test | Tests env redaction and settings indexing |
-| settings-nav.ts | vm | Lists settings sections and config sources |
+| settings-nav.ts | vm | Lists settings sections and descriptions |
 | settings-ui.tsx | view | Shared card, row, field, button, toggle and radio primitives |

@@ -110,7 +110,7 @@ describe('desktop accounts settings', () => {
     const keys = getSettingsNav(en).map(entry => entry.key);
     expect(keys.indexOf('accounts')).toBe(keys.indexOf('profiles') - 1);
     expect(getSettingsNav(en).find(entry => entry.key === 'accounts')).toEqual({
-      key: 'accounts', label: 'Accounts', file: 'auth.status',
+      key: 'accounts', label: 'Accounts',
     });
   });
 

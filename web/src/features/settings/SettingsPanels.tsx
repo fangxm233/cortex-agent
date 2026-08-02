@@ -379,11 +379,6 @@ export function ProfilesPanel({
           ))
         )}
       </SCard>
-      <SCard style={{ marginTop: 12, padding: '10px 14px' }}>
-        <div style={{ fontSize: 10.5, color: 'var(--proto-muted-2)' }}>
-          {L.stProfFallbackNote}
-        </div>
-      </SCard>
     </>
   );
 }

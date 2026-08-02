@@ -23,8 +23,6 @@ export type SettingsSectionKey =
 export interface SettingsNavEntry {
   key: SettingsSectionKey;
   label: string;
-  /** The mono file tag shown right-aligned in the nav row (prototype `n.file`). */
-  file: string;
 }
 
 export interface SettingsSectionMeta {
@@ -64,21 +62,6 @@ const NAV_SUB_KEYS: Record<SettingsSectionKey, keyof Vocab> = {
   advanced: 'stMetaAdvancedSub',
 };
 
-// File tags (prototype order). These are file paths — not translated.
-const NAV_FILES: Record<SettingsSectionKey, string> = {
-  appearance: 'this device',
-  platform: '.env',
-  accounts: 'auth.status',
-  profiles: 'profiles.json',
-  budget: 'budget.json',
-  machines: 'machines.json',
-  templates: 'thread-templates',
-  mcp: 'mcp-config.json',
-  notifications: '.env',
-  hooks: 'config/hooks',
-  advanced: 'feature flags',
-};
-
 // prototype L2379–2388 — order is authoritative.
 const NAV_ORDER: SettingsSectionKey[] = [
   'appearance',
@@ -99,7 +82,6 @@ export function getSettingsNav(L: Vocab): SettingsNavEntry[] {
   return NAV_ORDER.map((key) => ({
     key,
     label: L[NAV_LABEL_KEYS[key]],
-    file: NAV_FILES[key],
   }));
 }
 

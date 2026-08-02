@@ -309,7 +309,6 @@ export const en = {
   stColMode: 'MODE',
   stColThinking: 'THINKING',
   stNoProfiles: 'No profiles in profiles.json',
-  stProfFallbackNote: 'Per-profile fallback is not in the config.get contract — the FALLBACK column is omitted (no fabricated data). BACKEND / MODE / THINKING come straight from profiles.json.',
   stColCortexPath: 'CORTEX PATH',
   stColSsh: 'SSH',
   stColOs: 'OS',
@@ -503,7 +502,6 @@ export const en = {
   stCostsJsonlLabel: 'costs.jsonl · 90d',
 
   // ── Settings modal chrome ──
-  stConfigRoot: '~/.cortex/config/',
   stEsc: 'esc',
 
   // ── Settings panels misc ──
@@ -999,7 +997,6 @@ export const zh: Record<keyof Vocab, string> = {
   stColMode: '模式',
   stColThinking: '思考',
   stNoProfiles: 'profiles.json 中暂无配置',
-  stProfFallbackNote: '单配置的 fallback 不在 config.get 契约中——省略 FALLBACK 列（不编造数据）。BACKEND / MODE / THINKING 直接来自 profiles.json。',
   stColCortexPath: 'CORTEX 路径',
   stColSsh: 'SSH',
   stColOs: '系统',
@@ -1193,7 +1190,6 @@ export const zh: Record<keyof Vocab, string> = {
   stCostsJsonlLabel: 'costs.jsonl · 90天',
 
   // ── Settings modal chrome ──
-  stConfigRoot: '~/.cortex/config/',
   stEsc: 'esc',
 
   // ── Settings panels misc ──
