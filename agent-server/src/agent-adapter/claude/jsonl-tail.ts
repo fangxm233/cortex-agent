@@ -1,5 +1,5 @@
 // input:  Claude transcript paths and JSONL records
-// output: transcript events with cache-explicit accounting
+// output: transcript events with cache-read accounting
 // pos:    Claude transcript event normalizer
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -43,7 +43,7 @@ function summarizeUsage(entries: PerMessageUsage[]) {
     cachedKnown &&= cacheIsKnown;
     tokensIn += (input ?? 0) + (created ?? 0) + (read ?? 0);
     tokensOut += entry.usage.output_tokens ?? 0;
-    cachedTokens += (created ?? 0) + (read ?? 0);
+    cachedTokens += read ?? 0;
     if (entry.model) model = entry.model;
   }
   return { totalCost, costKnown, tokensIn, tokensOut, cachedTokens, promptKnown, cachedKnown, model };

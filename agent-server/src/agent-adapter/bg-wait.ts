@@ -270,8 +270,10 @@ class BackgroundContinuationWait {
     }
     const costRecord = continuationCostRecord(continuation);
     if (costRecord && !this.emit(costRecord)) return;
+    const preserveReportedness = continuation.reportedAccounting !== undefined;
     if (!this.emit({
-      type: 'turn_complete', numTurns: continuation.num_turns ?? 0,
+      type: 'turn_complete',
+      numTurns: preserveReportedness ? continuation.num_turns : continuation.num_turns ?? 0,
       totalCostUsd: continuation.total_cost_usd ?? null,
     })) return;
     this.acc = mergeContinuation(this.acc, continuation);

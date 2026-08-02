@@ -1,5 +1,5 @@
 // input:  transcript normalizer and temporary files
-// output: transcript events and cache-explicit accounting tests
+// output: transcript events and cache-read accounting tests
 // pos:    Covers Claude transcript normalization
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -257,7 +257,7 @@ test('Normalizer emits cost_record + turn_complete on system/turn_duration', () 
   assert.equal((costRec as any).tokens_in, 10 + 3 + 7);
   assert.equal((costRec as any).tokens_out, 5);
   assert.equal((costRec as any).prompt_tokens, 10 + 3 + 7);
-  assert.equal((costRec as any).cached_tokens, 3 + 7);
+  assert.equal((costRec as any).cached_tokens, 7);
 });
 
 test('Normalizer turn_complete carries null cost when model unknown', () => {

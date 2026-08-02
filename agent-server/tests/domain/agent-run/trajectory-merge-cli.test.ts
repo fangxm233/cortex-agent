@@ -1,5 +1,5 @@
 // input:  merge CLI, accounted fragments, filesystem faults
-// output: typed fail-closed reason and cleanup tests
+// output: additive metrics and typed fail-closed tests
 // pos:    Trajectory merge failure-boundary regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -15,7 +15,9 @@ import {
 import { runTrajectoryMergeCli } from '../../../src/domain/agent-run/trajectory-merge-cli.js';
 import {
   driftModelIdentity,
+  moveLastEventBeforeFirst,
   removeFirstEvent,
+  removeFirstEventField,
   removeFragment,
   removeToolResult,
   setMalformedSupervisor,
@@ -191,6 +193,18 @@ it('fails closed with identity_hash_drift', () => {
 it('fails closed when a child context usage event is missing', () => {
   const fixture = makeFixture();
   removeFirstEvent(fixture.children[0], 'context_usage');
+  assertFailedClosed(invoke(fixture), 'aggregate_metrics_underivable');
+});
+
+it('accepts additive legacy cost records but refuses to aggregate missing fields', () => {
+  const fixture = makeFixture();
+  removeFirstEventField(fixture.children[0], 'cost_record', 'cached_tokens');
+  assertFailedClosed(invoke(fixture), 'aggregate_metrics_underivable');
+});
+
+it('requires context provenance before each cost record', () => {
+  const fixture = makeFixture();
+  moveLastEventBeforeFirst(fixture.children[0], 'context_usage', 'cost_record');
   assertFailedClosed(invoke(fixture), 'aggregate_metrics_underivable');
 });
 

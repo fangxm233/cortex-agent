@@ -1,5 +1,5 @@
 // input:  Claude stream/result usage and configured models
-// output: exact context and reported-accounting regression tests
+// output: exact context and cache-read accounting regressions
 // pos:    Claude print usage telemetry contract
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -364,7 +364,7 @@ describe('ClaudeSession context usage wiring', () => {
 
     assert.deepEqual(resolved.reportedAccounting, {
       usageReported: true, inputTokens: 1_000, outputTokens: 200,
-      promptTokens: 1_000 + 30 + 40, cachedTokens: 30 + 40,
+      promptTokens: 1_000 + 30 + 40, cachedTokens: 40,
       model: 'claude-sonnet-4-6',
     });
   });
