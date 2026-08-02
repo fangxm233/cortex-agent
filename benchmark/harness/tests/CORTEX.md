@@ -6,4 +6,4 @@ Tests for the Python benchmark harness distribution.
 |---|---|---|
 | package/ | tests | Verifies package-level contracts |
 | proxy/ | tests | Proves credential and network containment |
-| scan/ | tests | Proves artifact leak detection and clean trials |
+| scan/ | tests | Proves leak detection and real offline agent runs |

@@ -1,6 +1,6 @@
 # input:  Harbor main service and local pinned base image
 # output: Docker Compose policy that forbids image pulls
-# pos:    Stub-trial no-pull enforcement overlay
+# pos:    Real-trial pinned-image enforcement overlay
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 services:

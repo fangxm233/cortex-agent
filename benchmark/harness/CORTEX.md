@@ -11,4 +11,4 @@ Python distribution for installing and validating the Cortex Harbor adapter.
 | src/ | source | Contains the import package |
 | src/cortex_bench_harness/scan/ | scan | Detects artifact credentials and host paths |
 | tests/ | tests | Verifies package and container behavior |
-| tests/scan/ | tests | Proves five-source scanning and clean trials |
+| tests/scan/ | tests | Proves scans and real offline container runs |
