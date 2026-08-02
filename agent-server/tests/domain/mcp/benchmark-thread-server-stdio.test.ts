@@ -1,5 +1,5 @@
-// input:  generated MCP config, real stdio transport, fake Claude process
-// output: benchmark thread tool policy, lifecycle and cancellation proof
+// input:  MCP config, stdio transport, fake Claude, relative journal
+// output: benchmark thread policy, lifecycle and cancellation proof
 // pos:    End-to-end benchmark-only thread MCP integration test
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -322,7 +322,8 @@ function assertPolicyWins(fixture: Fixture, handoff: string): void {
   for (const invocation of invocations) {
     assert.equal(invocation.args[invocation.args.indexOf('--model') + 1], 'fixture-model');
   }
-  const header = readRows(threadTerminal(fixture).journal_path)[0];
+  const journal = path.join(fixture.trajectoryRoot, threadTerminal(fixture).journal_path);
+  const header = readRows(journal)[0];
   assert.equal(header.resolved_cwd, fixture.workspace);
   assert.equal(header.canonical_instruction_sha256, sha256(fixture.canonicalInstruction));
   assert.equal(header.model_visible_prompt_sha256, sha256(
