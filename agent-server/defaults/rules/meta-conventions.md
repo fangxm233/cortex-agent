@@ -31,7 +31,7 @@ PostToolUse hook automatically records Read/Grep access to atomic files (EXP/K/P
 
 | File | Dedicated rule | Update mode |
 |------|----------------|-------------|
-| `STATUS.md` | status-md.md | Overwrite, hard limit 120 lines |
+| `STATUS.md` | status-md.md | Overwrite snapshot (state register), hard limit 80 lines AND 6KB, each bullet <=2 lines |
 | `ISSUES.md` | issues-md.md | Append, resolved entries deleted directly, hard limit 80 lines |
 | `mission.md` | mission-md.md | Modify after user confirmation |
 | `roadmap.md` | roadmap-md.md | Stable, milestones must contain testable checklist |

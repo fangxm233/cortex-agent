@@ -146,7 +146,7 @@ Scan active project `experiments/index.md` for unresolved questions:
 | Untestable hypothesis | "cannot be tested", "future work" | "Under what conditions does H hold?" |
 | Methodology confound | "asymmetric setup", "confound" | "How to disentangle X from Y?" |
 
-Also check STATUS.md for unresolved "Next" items that imply investigation needs. Generate follow-up tasks in TASKS.yaml if none exist for identified questions.
+Also check STATUS.md's Next Step / Blockers & Pending Decisions sections for unresolved items that imply investigation needs. Generate follow-up tasks in TASKS.yaml if none exist for identified questions.
 
 **Part B: Parameter-tuning pattern detection**
 

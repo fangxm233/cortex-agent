@@ -50,7 +50,7 @@ For each finished child, **acceptance before trust**:
 
 When ALL children are verified:
 6. Integrate: check the combined result against YOUR task's original done_when (the children passing individually is not enough).
-7. Update the project's `STATUS.md`; record durable findings in the project knowledge files.
+7. Record durable findings in the project knowledge files. Update `STATUS.md` only if the delivered work changed the project's situation (unblocked something, introduced a blocker, changed the next step) — one line + pointer, not a completion report (see rules/status-md.md).
 8. `cortex-task complete --project <project> --task-id <your Task ID> --note "<what was delivered + verification evidence>"`.
 9. End normally — WITHOUT calling `thread_wait`.
 

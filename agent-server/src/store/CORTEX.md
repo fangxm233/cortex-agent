@@ -21,7 +21,7 @@ Also runs startup file migrations and keeps deployed hooks and plugins in sync w
 | cost-repo.ts | store | Cost records and budget persistence |
 | profile-repo.ts | store | Agent profiles with hot reload |
 | task-repo.ts | store | TASKS.yaml read, write, lock, and git sync |
-| prompt-migration-replacements.ts | config | Defines coder, reviewer and manager prompt replacements |
+| prompt-migration-replacements.ts | config | Defines coder, reviewer, manager and STATUS-register prompt replacements |
 | version-migrations.ts | startup | Migrates config, stock prompts, and hook collisions |
 | hook-registry.ts | config | Validates event capabilities, loads and classifies mounted hook declarations |
 | hook-writer.ts | config | Creates, edits, removes and toggles hook declarations |

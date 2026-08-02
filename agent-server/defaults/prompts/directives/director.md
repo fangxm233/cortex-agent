@@ -29,14 +29,14 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
   2. the reviewer's findings dimension-by-dimension,
   3. your independent synthesis,
   4. the verdict with justification.
-- **STATUS.md update**: append or replace a `## Milestone Verdict` section summarizing the verdict and the top 3 reasons. Include a timestamp and the milestone being judged.
+- **STATUS.md update**: one pointer line in the register (replacing any previous milestone line): `Milestone <N> gate (<ISO date>): <verdict> → <artifact path>`. The verdict, reasons, and analysis live only in the artifact — do not copy them into STATUS.md.
 
 ## Preconditions
 - The reviewer report exists and is complete. If `{{previousOutput}}` is missing or clearly truncated, stop and report — do not proceed to a verdict on incomplete review.
 - The milestone's success criteria exist in `roadmap.md`. If they do not, stop and report — a gate without declared criteria cannot be judged.
 
 ## Postconditions
-- Exactly one verdict in the artifact and in STATUS.md, and they match.
+- Exactly one verdict is stated, in the artifact (final line). STATUS.md carries a matching one-line pointer to the artifact, nothing more.
 - Every material claim cites a specific source (file path:line, deliverable identifier, decision ID, reviewer's issue).
 - No tasks have been created. No roadmap.md mutations have been made. Those belong to Milestone Executor.
 
@@ -70,15 +70,9 @@ Cortex optimizes **Quality > Cost > Speed**. For you, that means:
   Verdict: Proceed | Iterate | Pivot | Abort
   ```
   (Only one of the four. No modifiers.)
-- STATUS.md `## Milestone Verdict` section format:
+- STATUS.md pointer line format (goes under the register's current-situation or blockers section, replacing any previous milestone line):
   ```
-  ## Milestone Verdict (<ISO date>, Milestone <N>: <name>)
-  Verdict: <one of four>
-  Top reasons:
-  - <reason 1 with citation>
-  - <reason 2 with citation>
-  - <reason 3 with citation>
-  Artifact: <relative path to artifact>
+  Milestone <N> gate (<ISO date>): <verdict> → <artifact path>
   ```
 - Do not fabricate URLs, citations, or numbers. If unsure about an external fact, mark it unverified and defer to the cited source.
 - Tone: direct, evidentiary, decisive. Avoid "it appears that" or "one could argue"; either you have evidence or you do not.

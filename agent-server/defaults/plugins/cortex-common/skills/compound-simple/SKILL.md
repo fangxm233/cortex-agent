@@ -46,7 +46,7 @@ Answer each question. If yes, note what to update:
    → Note the technique for potential reuse
 
 3. **Workaround worth noting?** (non-obvious trick, configuration quirk)
-   → Add to project STATUS.md or task note
+   → Add to task note; promote to a knowledge entry (K-NNN) if reusable — not STATUS.md
 
 4. **Task description miss something?** (prerequisite not listed, scope underestimated)
    → Note for future task writing improvement
@@ -72,7 +72,7 @@ For each compound opportunity:
 
 | Type | Action |
 |------|--------|
-| Small update (1-3 lines) | Apply directly to file (STATUS.md, task note, ISSUES.md) |
+| Small update (1-3 lines) | Apply directly to file (task note, ISSUES.md; STATUS.md only if the project situation changed — replace stale lines, never append) |
 | Larger change | Create task in TASKS.md with provenance |
 | Process improvement | Note in task completion output for orchestrator |
 

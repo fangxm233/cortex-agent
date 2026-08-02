@@ -73,7 +73,7 @@ If the failure mode involves model capability limitations (ungrounded generation
 
 1. As a new knowledge entry (knowledge/K-NNN.md) in the relevant project
 2. In the postmortem itself with evidence and mitigation
-3. In the relevant project's STATUS.md as a known limitation
+3. In the relevant project's STATUS.md under Blockers & Pending Decisions — one line + pointer to the K-entry, and only if it constrains current work
 
 Skip this step only if the root cause is entirely at non-model layers.
 

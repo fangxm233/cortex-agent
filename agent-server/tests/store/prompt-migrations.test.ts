@@ -3,11 +3,20 @@
 // pos:    Verifies stock prompt migrations and coder policy assets
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test, beforeAll, afterAll } from 'vitest';
+import { test, beforeAll, afterAll, vi } from 'vitest';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
+
+// Pin the running version above every registered migration so the suite
+// exercises the full migration chain deterministically (migrations gate on
+// CORTEX_VERSION >= migration.version; entries staged for the next release
+// would otherwise be silently skipped until that release ships).
+vi.mock('@core/version.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/core/version.js')>();
+  return { ...actual, CORTEX_VERSION: '2099.1.1' };
+});
 
 const { runMigrations } = await import('../../src/store/version-migrations.js');
 const { DEFAULTS_DIR } = await import('../../src/core/paths.js');
@@ -335,6 +344,116 @@ test('runMigrations leaves customized coder directives untouched', async () => {
   assert.equal(await readText(target), customized);
 });
 
+// ── STATUS register migrations (M10) ─────────────────────────────
+
+const OLD_WORKER_STATUS_PROMPT = [
+  '# Worker',
+  " - Conversations are temporary; the repo is permanent. Record findings, decisions, and artifacts in files as you go — not in a final summary. Update STATUS.md, the directory's CORTEX.md index, and the role's designated output artifact(s) before exiting.",
+  " - Do not create files unless the role's output contract requires them. Prefer editing the existing project artifacts (STATUS.md, knowledge entries, the role's artifact file) over creating parallel new files.",
+].join('\n') + '\n';
+
+const OLD_MANAGER_STATUS_DIRECTIVE = [
+  '# Identity',
+  "7. Update the project's `STATUS.md`; record durable findings in the project knowledge files.",
+  '8. `cortex-task complete ...`',
+].join('\n') + '\n';
+
+const OLD_DIRECTOR_STATUS_DIRECTIVE = [
+  '# Identity',
+  '- **STATUS.md update**: append or replace a `## Milestone Verdict` section summarizing the verdict and the top 3 reasons. Include a timestamp and the milestone being judged.',
+  '- Exactly one verdict in the artifact and in STATUS.md, and they match.',
+  '- STATUS.md `## Milestone Verdict` section format:',
+  '  ```',
+  '  ## Milestone Verdict (<ISO date>, Milestone <N>: <name>)',
+  '  Verdict: <one of four>',
+  '  Top reasons:',
+  '  - <reason 1 with citation>',
+  '  - <reason 2 with citation>',
+  '  - <reason 3 with citation>',
+  '  Artifact: <relative path to artifact>',
+  '  ```',
+].join('\n') + '\n';
+
+test('runMigrations rewrites stock worker STATUS mandate to conditional register semantics', async () => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const relativePath = 'prompts/systemPrompts/worker.md';
+  const target = path.join(dataDir, relativePath);
+  await writeText(target, OLD_WORKER_STATUS_PROMPT);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const first = await readText(target);
+
+  assert.doesNotMatch(first, /Update STATUS\.md, the directory's/);
+  assert.doesNotMatch(first, /\(STATUS\.md, knowledge entries/);
+  assert.match(first, /Update STATUS\.md only if your work changed the project's situation/);
+  assert.match(first, /state register, not a changelog/);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  assert.equal(await readText(target), first);
+});
+
+test('runMigrations rewrites stock manager STATUS step to conditional register semantics', async () => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const relativePath = 'prompts/directives/manager.md';
+  const target = path.join(dataDir, relativePath);
+  await writeText(target, OLD_MANAGER_STATUS_DIRECTIVE);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const first = await readText(target);
+
+  assert.doesNotMatch(first, /Update the project's `STATUS\.md`; record durable findings/);
+  assert.match(first, /Update `STATUS\.md` only if the delivered work changed the project's situation/);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  assert.equal(await readText(target), first);
+});
+
+test('runMigrations moves stock director verdict off STATUS sections to a pointer line', async () => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const relativePath = 'prompts/directives/director.md';
+  const target = path.join(dataDir, relativePath);
+  await writeText(target, OLD_DIRECTOR_STATUS_DIRECTIVE);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const first = await readText(target);
+
+  assert.doesNotMatch(first, /## Milestone Verdict/);
+  assert.match(first, /one pointer line in the register/);
+  assert.match(first, /Milestone <N> gate \(<ISO date>\): <verdict> → <artifact path>/);
+  assert.match(first, /STATUS\.md carries a matching one-line pointer/);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  assert.equal(await readText(target), first);
+});
+
+test('shipped worker/manager/director prompts already carry register semantics (migration is a no-op on defaults)', async () => {
+  const { STATUS_REGISTER_REPLACEMENTS } = await import('../../src/store/prompt-migration-replacements.js');
+  const { applyReplacements } = await import('../../src/store/version-migrations.js');
+  for (const rel of [
+    ['prompts', 'systemPrompts', 'worker.md'],
+    ['prompts', 'directives', 'manager.md'],
+    ['prompts', 'directives', 'director.md'],
+  ]) {
+    const shipped = await readText(path.join(DEFAULTS_DIR, ...rel));
+    assert.equal(applyReplacements(shipped, STATUS_REGISTER_REPLACEMENTS), shipped, rel.join('/'));
+  }
+});
+
+test('runMigrations leaves customized worker prompts untouched by the STATUS migration', async () => {
+  const { dataDir, storeDir, defaultsDir } = setupDirs();
+  const target = path.join(dataDir, 'prompts', 'systemPrompts', 'worker.md');
+  const customized = '# Worker\nOur workers report status in a wiki, not STATUS.md.\n';
+  await writeText(target, customized);
+
+  await runMigrations({ dataDir, defaultsDir, storeDir });
+  const out = await readText(target);
+
+  // The unrelated docs-block migration (M4) may append its marker block; the
+  // STATUS migration itself must not alter customized text.
+  assert.match(out, /Our workers report status in a wiki, not STATUS\.md\./);
+  assert.doesNotMatch(out, /state register, not a changelog/);
+});
+
 test('runMigrations replaces stock manager shell task creation and is idempotent', async () => {
   const { dataDir, storeDir, defaultsDir } = setupDirs();
   const relativePath = 'prompts/directives/manager.md';
@@ -353,7 +472,7 @@ test('runMigrations replaces stock manager shell task creation and is idempotent
   await runMigrations({ dataDir, defaultsDir, storeDir });
   assert.equal(await readText(target), first);
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(versions[relativePath], '2026.7.31');
+  assert.equal(versions[relativePath], '2026.8.2');
 });
 
 test('runMigrations upgrades the prior generic manager task-file guidance to unique paths', async () => {
@@ -381,5 +500,5 @@ test('runMigrations leaves a customized manager directive byte-identical', async
 
   assert.equal(await readText(target), customized);
   const versions = await readJson(path.join(storeDir, 'versions.json')) as any;
-  assert.equal(versions[relativePath], '2026.7.31');
+  assert.equal(versions[relativePath], '2026.8.2');
 });

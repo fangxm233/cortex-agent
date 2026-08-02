@@ -100,7 +100,7 @@ Placement and cost discipline:
 
 ### Step 5: Document
 
-1. If the change is non-trivial, add a note to the relevant STATUS.md.
+1. If the change altered the project's situation (unblocked something, introduced a blocker, changed the next step), update the relevant STATUS.md register — one line + pointer, not a change note.
 2. If a design decision was made, check whether a Decision Record is warranted.
 3. If you modified a convention or rule that appears in multiple documents, propagate the change.
 

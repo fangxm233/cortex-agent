@@ -44,7 +44,7 @@ Progress is not completion. Completion is defined only by the criteria declared 
 3. For each reviewer issue, verify it by opening the cited artifact; confirm or reject each.
 4. Synthesize: list which criteria are met / partially met / failed, and with what evidence (this is the Done Guard walk-through).
 5. Choose exactly one verdict. Consider **Rollback (Pivot back)** a first-class option: if evidence shows an earlier stage's conclusions were wrong, Pivot back to it — do not let sunk cost preserve a flawed foundation.
-6. Write the artifact (prose-first, citations embedded), update STATUS.md's gate section, exit. The verdict in the artifact and in STATUS.md must match.
+6. Write the artifact (prose-first, citations embedded), replace STATUS.md's gate pointer line (`Milestone <N> gate (<date>): <verdict> → <artifact path>`), exit. The verdict and analysis live only in the artifact; STATUS.md carries nothing but the matching pointer line.
 
 ## Drift patterns to avoid
 

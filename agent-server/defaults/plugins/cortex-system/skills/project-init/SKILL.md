@@ -58,7 +58,7 @@ This is the entry point for future sessions. Must include:
 
 | File | Type | Purpose |
 |------|------|---------|
-| STATUS.md | Overwrite | Current project state snapshot |
+| STATUS.md | Overwrite | Present-tense state register (hard cap 80 lines AND 6KB) |
 | experiments/ | Atomic file | One EXP-NNN.md per experiment (YAML frontmatter + body), index.md auto-generated |
 | knowledge/ | Atomic file | One K-NNN.md per knowledge entry, index.md auto-generated |
 | patterns/ | Atomic file | Cross-experiment patterns, index.md auto-generated |
@@ -87,27 +87,24 @@ This is the entry point for future sessions. Must include:
 
 ### STATUS.md (required) — Current state snapshot
 
+Format is governed by `rules/status-md.md` (overwrite-style state register, hard cap 80 lines AND 6KB, each bullet <=2 lines, facts with a durable home appear as pointers only):
+
 ```markdown
-# [Project Name] — STATUS
+# [Project Name] Status
 
-**Last updated**: [date]
+Updated: YYYY-MM-DD
 
-## Current State
+## Current Situation
+<One paragraph: position on the roadmap + core focus + one-sentence situation call>
 
-**Phase**: [phase]
-**Status**: [status]
+## In Flight & New Variables
+<<=5 items, each <=2 lines + pointer (task-id / EXP-NNN / commit). Write "none" if empty>
 
-- [key facts about current state]
+## Blockers & Pending Decisions
+<External blockers, decisions awaiting the user. Write "none" if empty>
 
-## Key Metrics
-
-[results table if available]
-
-## Machine Status
-
-| Machine | Status | Content |
-|---------|--------|---------|
-| ... | ... | ... |
+## Next Step
+<The concrete next action, pointing to a TASKS.yaml task-id or a plan file>
 ```
 
 ### experiments/ (required) — Experiment records (atomized, DR-0007)

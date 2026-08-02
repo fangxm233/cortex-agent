@@ -26,7 +26,7 @@ context/
         ├── CORTEX.md            # Project-level index
         ├── mission.md           # Goal and success conditions
         ├── roadmap.md           # Milestones with testable checklist conditions
-        ├── STATUS.md            # Current state snapshot (overwriting, max 120 lines)
+        ├── STATUS.md            # Present-tense state register (overwriting, max 80 lines / 6KB)
         ├── ISSUES.md            # Execution friction (append-only, resolved items deleted, max 80 lines)
         ├── TASKS.yaml           # Structured task queue (machine-readable YAML)
         ├── tasks-archive.md     # Auto-archived completed tasks (by the task-archive scheduler job)
@@ -193,7 +193,7 @@ Layered phases, each containing milestones with testable checklist conditions. C
 
 ### STATUS.md — Current Snapshot
 
-An overwriting (not append-only) file capturing the current state, capped at 120 lines. Required sections: current phase, recent progress, open blockers, next steps. This is the first file to read when resuming work on a project after a gap.
+An overwriting (not append-only) state register capturing the project's present tense — the minimal state a fresh session needs to continue correctly. Hard-capped at 80 lines and 6KB, with each bullet at most 2 lines. Required sections: current situation, in-flight work & new variables, blockers & pending decisions, next step. Facts that have a durable home elsewhere (experiments, knowledge entries, decision records, task archive) appear only as pointers; the file grows with state complexity, never with project age. Updated when the situation changes — not on every task completion. This is the first file to read when resuming work on a project after a gap.
 
 ### ISSUES.md — Execution Friction
 

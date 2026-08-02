@@ -117,7 +117,7 @@ Apply the fix. Follow the appropriate workflow for each type:
 2. Move it to Resolved with the user's decision and notes
 3. **Update task tags:** Search for matching tasks in TASKS.md. Change `[approval-needed]` to `[approved: YYYY-MM-DD]`
 4. If approved, execute the approved action
-5. Add log entry to relevant STATUS.md
+5. If the resolution changed the project's situation (e.g., an approval unblocked work), update the STATUS.md register — remove the stale blocker line; no log entries
 6. Commit
 
 ### Resource changes

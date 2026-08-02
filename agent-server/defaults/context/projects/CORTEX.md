@@ -13,7 +13,7 @@ One subdirectory per active project.
 | File | Type | Purpose |
 |------|------|---------|
 | `TASKS.yaml` | Append + in-place edit | Structured task queue, machine-readable. New tasks appended, tags/completion status edited in-place (use `cortex-task` CLI, do not manually edit) |
-| `STATUS.md` | Overwrite | Current state snapshot, updated after each operation |
+| `STATUS.md` | Overwrite | Present-tense state register: overwritten when the project situation changes (hard cap 80 lines AND 6KB; see rules/status-md.md) |
 | `ISSUES.md` | Append | Record issues affecting work efficiency |
 | `experiments/` | Atomic file | One `.md` file per experiment (YAML frontmatter + body), `index.md` auto-generated |
 | `knowledge/` | Atomic file | One `.md` file per knowledge entry, `index.md` auto-generated |

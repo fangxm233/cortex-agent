@@ -371,6 +371,10 @@ test('ProjectStore - scaffolding creates general directory on initialize', async
 
   const statusContent = fs.readFileSync(path.join(generalDir, 'STATUS.md'), 'utf8');
   assert.ok(statusContent.includes('# general'));
+  // Scaffold follows the STATUS register skeleton (rules/status-md.md)
+  for (const section of ['## Current Situation', '## In Flight & New Variables', '## Blockers & Pending Decisions', '## Next Step']) {
+    assert.ok(statusContent.includes(section), `general STATUS.md missing ${section}`);
+  }
 });
 
 test('ProjectStore - scaffolding does not overwrite existing general', async (t) => {
@@ -410,6 +414,10 @@ test('ProjectStore - createProject creates dir + STATUS.md + CORTEX.md and retur
   assert.ok(fs.existsSync(path.join(projectDir, 'CORTEX.md')));
   const status = fs.readFileSync(path.join(projectDir, 'STATUS.md'), 'utf8');
   assert.ok(status.includes('# nimbus'));
+  // Scaffold follows the STATUS register skeleton (rules/status-md.md)
+  for (const section of ['## Current Situation', '## In Flight & New Variables', '## Blockers & Pending Decisions', '## Next Step']) {
+    assert.ok(status.includes(section), `STATUS.md missing ${section}`);
+  }
 
   // New project appears in the cache
   assert.equal(store.exists('nimbus'), true);

@@ -1,5 +1,5 @@
-// input:  Legacy coder, reviewer and manager directive text
-// output: Commit-policy and task-input replacement tables
+// input:  Legacy coder, reviewer, manager, worker and director prompt text
+// output: Commit-policy, task-input and STATUS-register replacement tables
 // pos:    Defines stock-text directive migrations
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -74,6 +74,54 @@ export const MANAGER_TASK_FILE_REPLACEMENTS: ReadonlyArray<readonly [string, str
   [
     '- For a quick sub-call that doesn\'t merit a full decomposition (an independent verifier pass on a child\'s deliverable, a short research probe before deciding a split), use the Write tool to stage one child task JSON, run `cortex-task spawn --task-file <path>` (it hangs under you and joins via `depends_on`, like decompose), and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).',
     '- For a quick sub-call that doesn\'t merit a full decomposition (an independent verifier pass on a child\'s deliverable, a short research probe before deciding a split), use the Write tool to stage one child task JSON at `/tmp/cortex-task-<your Task ID>-<unique-id>.json`, run `cortex-task spawn --task-file /tmp/cortex-task-<your Task ID>-<unique-id>.json` (it hangs under you and joins via `depends_on`, like decompose), and then call `thread_wait`. It flows through the dispatch queue like any child — there is no in-process thread spawn (`thread_start` was removed; tasks are the only delegation primitive).',
+  ],
+];
+
+// STATUS.md register semantics: stock prompts used to mandate unconditional
+// STATUS.md updates and a `## Milestone Verdict` section; the register
+// convention makes STATUS updates conditional on a situation change and moves
+// verdict content into the gate artifact with a one-line pointer in STATUS.
+// One shared table — pairs that don't match a given file are no-ops.
+export const STATUS_REGISTER_REPLACEMENTS: ReadonlyArray<readonly [string, string]> = [
+  [
+    "Record findings, decisions, and artifacts in files as you go — not in a final summary. Update STATUS.md, the directory's CORTEX.md index, and the role's designated output artifact(s) before exiting.",
+    "Record findings, decisions, and artifacts in files as you go — not in a final summary. Update the role's designated output artifact(s) and the directory's CORTEX.md index before exiting. Update STATUS.md only if your work changed the project's situation (unblocked something, introduced a blocker, changed the next step) — STATUS is a state register, not a changelog; one line + pointer per change (see rules/status-md.md).",
+  ],
+  [
+    "Prefer editing the existing project artifacts (STATUS.md, knowledge entries, the role's artifact file) over creating parallel new files.",
+    "Prefer editing the existing project artifacts (the role's artifact file, knowledge entries, existing experiment records) over creating parallel new files.",
+  ],
+  [
+    "7. Update the project's `STATUS.md`; record durable findings in the project knowledge files.",
+    "7. Record durable findings in the project knowledge files. Update `STATUS.md` only if the delivered work changed the project's situation (unblocked something, introduced a blocker, changed the next step) — one line + pointer, not a completion report (see rules/status-md.md).",
+  ],
+  [
+    '- **STATUS.md update**: append or replace a `## Milestone Verdict` section summarizing the verdict and the top 3 reasons. Include a timestamp and the milestone being judged.',
+    '- **STATUS.md update**: one pointer line in the register (replacing any previous milestone line): `Milestone <N> gate (<ISO date>): <verdict> → <artifact path>`. The verdict, reasons, and analysis live only in the artifact — do not copy them into STATUS.md.',
+  ],
+  [
+    '- Exactly one verdict in the artifact and in STATUS.md, and they match.',
+    '- Exactly one verdict is stated, in the artifact (final line). STATUS.md carries a matching one-line pointer to the artifact, nothing more.',
+  ],
+  [
+    [
+      '- STATUS.md `## Milestone Verdict` section format:',
+      '  ```',
+      '  ## Milestone Verdict (<ISO date>, Milestone <N>: <name>)',
+      '  Verdict: <one of four>',
+      '  Top reasons:',
+      '  - <reason 1 with citation>',
+      '  - <reason 2 with citation>',
+      '  - <reason 3 with citation>',
+      '  Artifact: <relative path to artifact>',
+      '  ```',
+    ].join('\n'),
+    [
+      "- STATUS.md pointer line format (goes under the register's current-situation or blockers section, replacing any previous milestone line):",
+      '  ```',
+      '  Milestone <N> gate (<ISO date>): <verdict> → <artifact path>',
+      '  ```',
+    ].join('\n'),
   ],
 ];
 

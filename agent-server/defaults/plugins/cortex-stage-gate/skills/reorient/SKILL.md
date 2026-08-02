@@ -48,7 +48,7 @@ These are the files that directly express the change. Update them first:
 
 | File | What to update |
 |------|---------------|
-| `STATUS.md` | Current Phase/Focus section to reflect new direction |
+| `STATUS.md` | Full register rewrite for the new direction (Current Situation / In Flight / Blockers / Next Step, per rules/status-md.md) |
 | `roadmap.md` | Affected milestone definitions and verification conditions |
 | `experiments/index.md` | Mark affected experiments as `superseded` or `deprecated` in the index table |
 
@@ -123,7 +123,7 @@ Output a complete verification table. This is the deliverable of the reorient sk
 
 | # | File | Status | Change Summary |
 |---|------|--------|---------------|
-| 1 | STATUS.md | updated | Current phase → X |
+| 1 | STATUS.md | updated | Current Situation → X |
 | 2 | roadmap.md | updated | M2 redefined: ... |
 | 3 | mission.md | no change needed | Problem definition unaffected |
 | 4 | CORTEX.md | updated | Experiment index range corrected |

@@ -15,11 +15,33 @@ import type { Project } from './project-types.js';
 const log = createLogger('project-store');
 
 const DEBOUNCE_MS = 1000;
-const GENERAL_SCAFFOLD_STATUS = `# general
+/** STATUS.md scaffold following the state-register skeleton (rules/status-md.md). */
+function scaffoldStatus(id: string, situation: string, nextStep: string): string {
+  return [
+    `# ${id} Status`,
+    '',
+    'Updated: —',
+    '',
+    '## Current Situation',
+    situation,
+    '',
+    '## In Flight & New Variables',
+    'none',
+    '',
+    '## Blockers & Pending Decisions',
+    'none',
+    '',
+    '## Next Step',
+    nextStep,
+    '',
+  ].join('\n');
+}
 
-Status: active
-
-`;
+const GENERAL_SCAFFOLD_STATUS = scaffoldStatus(
+  'general',
+  'Synthetic umbrella project — collects work not scoped to a specific project.',
+  'none',
+);
 const GENERAL_SCAFFOLD_CORTEX = `# general
 
 Synthetic umbrella project — always present. Created automatically by the system.
@@ -155,7 +177,7 @@ export class ProjectStore {
 
     this.scaffoldProject(
       projectDir,
-      `# ${id}\n\nStatus: active\n\n`,
+      scaffoldStatus(id, 'New project — not yet oriented.', 'Define mission.md and roadmap.md.'),
       `# ${id}\n\n${id} project.\n`,
     );
     log.info(`Created project at ${projectDir}`);

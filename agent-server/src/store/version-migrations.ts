@@ -16,6 +16,7 @@ import {
   CODER_COMMIT_POLICY_REPLACEMENTS,
   CODER_REVIEWER_COMMIT_POLICY_REPLACEMENTS,
   MANAGER_TASK_FILE_REPLACEMENTS,
+  STATUS_REGISTER_REPLACEMENTS,
 } from './prompt-migration-replacements.js';
 
 const log = createLogger('version-migrations');
@@ -377,6 +378,22 @@ const migrations: Migration[] = [
     migrate: (data) => typeof data === 'string'
       ? applyReplacements(data, CODER_COMMIT_POLICY_REPLACEMENTS) : data,
   },
+  // M10: STATUS.md register semantics. Stock prompts mandated unconditional
+  // STATUS.md updates (worker exit checklist, manager step 7) and a
+  // `## Milestone Verdict` STATUS section (director); the register convention
+  // makes STATUS updates conditional and keeps verdicts in the gate artifact.
+  // Idempotent via applyReplacements; customized copies don't match → no-op.
+  ...[
+    'prompts/systemPrompts/worker.md',
+    'prompts/directives/manager.md',
+    'prompts/directives/director.md',
+  ].map((filePath): Migration => ({
+    filePath,
+    version: '2026.8.2',
+    format: 'text',
+    migrate: (data) => typeof data === 'string'
+      ? applyReplacements(data, STATUS_REGISTER_REPLACEMENTS) : data,
+  })),
 ];
 
 // ── Versions file I/O ──────────────────────────────────────────
