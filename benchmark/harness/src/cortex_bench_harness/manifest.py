@@ -33,6 +33,7 @@ class HarnessManifestInput:
     wheel_path: Path
     lockfile_path: Path
     lockfile_manifest_path: str
+    npm_artifact_path: Path
     container: ContainerImage
     resolved_cwd: ResolvedCwd
 
@@ -45,9 +46,12 @@ class HarnessManifestSeed:
     wheel_path: Path
     lockfile_path: Path
     lockfile_manifest_path: str
+    npm_artifact_path: Path
     container: ContainerImage
 
-    def with_cwd(self, resolved_cwd: ResolvedCwd) -> HarnessManifestInput:
+    def with_cwd(
+        self, resolved_cwd: ResolvedCwd, npm_artifact_path: Path,
+    ) -> HarnessManifestInput:
         return HarnessManifestInput(
             root_run_id=self.root_run_id,
             trial_id=self.trial_id,
@@ -55,6 +59,7 @@ class HarnessManifestSeed:
             wheel_path=self.wheel_path,
             lockfile_path=self.lockfile_path,
             lockfile_manifest_path=self.lockfile_manifest_path,
+            npm_artifact_path=npm_artifact_path,
             container=self.container,
             resolved_cwd=resolved_cwd,
         )
@@ -85,6 +90,7 @@ def parse_manifest_seed(values: Mapping[str, object]) -> HarnessManifestSeed:
         wheel_path=Path(_required_text(values, "wheel_path")),
         lockfile_path=Path(_required_text(values, "lockfile_path")),
         lockfile_manifest_path=_required_text(values, "lockfile_manifest_path"),
+        npm_artifact_path=Path(_required_text(values, "npm_artifact_path")),
         container=ContainerImage(
             _optional_text(values, "image_ref"),
             _optional_text(values, "image_digest"),
@@ -114,6 +120,10 @@ def _artifact_blocks(inputs: HarnessManifestInput) -> dict[str, object]:
         "lockfile": {
             "path": inputs.lockfile_manifest_path,
             "sha256": _sha256_file(inputs.lockfile_path),
+        },
+        "cortex_npm_artifact": {
+            "filename": inputs.npm_artifact_path.name,
+            "sha256": _sha256_file(inputs.npm_artifact_path),
         },
     }
 

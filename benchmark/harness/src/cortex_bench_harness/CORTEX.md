@@ -6,7 +6,7 @@ Harbor adapter modules resolve container paths and emit reproducibility metadata
 |---|---|---|
 | __init__.py | export | Exposes the Harbor wrapper class |
 | cwd.py | core | Resolves the live container workdir |
-| manifest.py | core | Builds and writes the H3 run manifest |
-| harbor_agent.py | adapter | Runs Cortex through Harbor lifecycle APIs |
+| manifest.py | core | Records harness and Cortex artifact digests |
+| harbor_agent.py | adapter | Installs and runs Cortex through Harbor APIs |
 | proxy/ | network | Injects credentials through a bounded trial route |
 | scan/ | audit | Detects credentials and host identities in artifacts |
