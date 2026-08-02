@@ -241,7 +241,8 @@ function fixtureEnv(base: string, fixture: Fixture): NodeJS.ProcessEnv {
   const binDir = path.join(base, 'bin');
   return {
     PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
-    LANG: 'C', CORTEX_HOME: fixture.home, CORTEX_SUPERVISOR_BINARY: 'cortex-supervisor',
+    LANG: 'C', CORTEX_HOME: fixture.home,
+    CORTEX_SUPERVISOR_BINARY: path.join(binDir, 'cortex-supervisor'),
     CORTEX_PROJECTS_DIR: path.join(base, 'projects'),
     HOME: path.join(base, 'user-home'), XDG_CONFIG_HOME: path.join(base, 'xdg-config'),
     XDG_CACHE_HOME: path.join(base, 'xdg-cache'), CLAUDE_CONFIG_DIR: path.join(base, 'claude-config'),

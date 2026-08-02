@@ -110,6 +110,20 @@ describe('buildAccountsVm', () => {
     expect(oauth?.logoutTypes).toEqual(['oauth']);
   });
 
+  it('gates logout by the credential targeted by auth.logout rather than login capabilities', () => {
+    const accounts = [
+      piAccount('retired-login', 'logged-in', [], [credential('oauth', 'stored', true)]),
+      piAccount('runtime-shadow', 'logged-in', ['api_key'], [
+        credential('api_key', 'runtime', false),
+        credential('api_key', 'stored', true),
+      ]),
+    ];
+    const vm = buildAccountsVm({ ...snapshot, accounts });
+
+    expect(vm.piProviders.find(item => item.provider === 'retired-login')?.logoutTypes).toEqual(['oauth']);
+    expect(vm.piProviders.find(item => item.provider === 'runtime-shadow')?.logoutTypes).toEqual([]);
+  });
+
   it('maps unknown and expired states to the invalid four-state presentation', () => {
     const vm = buildAccountsVm(snapshot);
     expect(vm.piProviders.find(provider => provider.provider === 'broken')?.status).toEqual({

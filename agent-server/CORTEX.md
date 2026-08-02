@@ -13,7 +13,7 @@ Production code lives in src/, regression tests in tests/, and the install scaff
 | vendor/ | subdir | Vendored npm tarball dependencies |
 | README.md | docs | describes the published server package |
 | .dependency-cruiser.cjs | config | Module dependency rules for lint checks |
-| package.json | config | Dependencies, scripts and installed Cortex CLIs |
+| package.json | config | Builds and packs server, CLIs and native supervisor |
 | package-lock.json | config | Locked dependency versions |
 | tsconfig.json | config | TypeScript compiler options |
 | tsconfig.build.json | config | Compiler options for the dist build |

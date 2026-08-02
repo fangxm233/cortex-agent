@@ -1,16 +1,50 @@
-// input:  supervisor, control records, stdio, signals
-// output: strict parser, watchdog session, exit taxonomy
+// input:  filesystem, supervisor records, stdio, signals
+// output: binary resolver, watchdog session, exit taxonomy
 // pos:    Process-supervisor client for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
 import type { Readable } from 'node:stream';
+import { fileURLToPath } from 'node:url';
 
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 // Keep the omitted option aligned with the supervisor CLI default.
 const DEFAULT_GRACE_MS = 1000;
 const BACKSTOP_MARGIN_MS = 5000;
+
+export class SupervisorUnavailableError extends Error {
+  readonly reason = 'supervisor_unavailable' as const;
+
+  constructor(readonly resolvedPath: string, options?: { cause?: unknown }) {
+    super(`Supervisor binary is missing or not executable: ${resolvedPath}`, options);
+    this.name = 'SupervisorUnavailableError';
+  }
+}
+
+function packageSupervisorBinary(): string {
+  return fileURLToPath(
+    new URL('../../../native/cortex-supervisor/dist/cortex-supervisor', import.meta.url),
+  );
+}
+
+export function resolveSupervisorBinary(
+  explicitPath?: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const selected = explicitPath ?? env.CORTEX_SUPERVISOR_BINARY ?? packageSupervisorBinary();
+  let resolvedPath = path.resolve(selected);
+  try {
+    resolvedPath = fs.realpathSync(resolvedPath);
+    fs.accessSync(resolvedPath, fs.constants.X_OK);
+    if (fs.statSync(resolvedPath).isFile()) return resolvedPath;
+  } catch (cause) {
+    throw new SupervisorUnavailableError(resolvedPath, { cause });
+  }
+  throw new SupervisorUnavailableError(resolvedPath);
+}
 
 export type SupervisorLine =
   | { v: 1; type: 'started'; pid: number; pgid: number; ts: string }

@@ -28,7 +28,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
 | role-surface.test.ts | test | verifies directives, default tools and argv alignment |
 | run-config.test.ts | test | verifies non-empty roles, argv closure, and MCP inputs |
-| supervisor.test.ts | test | verifies protocol, stdio, watchdog and taxonomy |
+| supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | trajectory-merge-cli.test.ts | test | verifies reason codes and fail-closed cleanup |
 | trajectory-merge-fixtures.ts | fixture | writes per-role parent and child lifecycle records |
 | trajectory-merge.test.ts | test | verifies exact-once ATIF tree conversion |

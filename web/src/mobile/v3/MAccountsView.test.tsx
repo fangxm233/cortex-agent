@@ -1,5 +1,5 @@
-// input:  shared accounts VM, bilingual provider rows, and action spies
-// output: mobile grouping, OAuth visibility, and logout tests
+// input:  shared accounts VM, provider rows, action spies
+// output: mobile grouping, capability, and pending-action tests
 // pos:    Verifies the mobile accounts drill-in view
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -40,7 +40,11 @@ const status: AuthStatusSnapshot = {
   piRuntime: { available: true, version: 'test', entry: null, error: null },
 };
 
-function mount(onLogin = vi.fn(), onLogout = vi.fn()): ReactTestRenderer {
+function mount(
+  onLogin = vi.fn(),
+  onLogout = vi.fn(),
+  actionsDisabled = false,
+): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
@@ -50,6 +54,7 @@ function mount(onLogin = vi.fn(), onLogout = vi.fn()): ReactTestRenderer {
           onBack={() => {}}
           onLogin={onLogin}
           onLogout={onLogout}
+          actionsDisabled={actionsDisabled}
         />
       </LangProvider>,
     );
@@ -99,6 +104,13 @@ describe('MAccountsView', () => {
     expect(onLogout).toHaveBeenCalledWith({ backend: 'pi', provider: 'openrouter', authType: 'oauth' });
   });
 
+  it('disables account actions while a logout mutation is pending', () => {
+    const renderer = mount(vi.fn(), vi.fn(), true);
+
+    expect(actions(renderer, 'deepseek', 'login')[0]?.props.disabled).toBe(true);
+    expect(actions(renderer, 'openrouter', 'logout')[0]?.props.disabled).toBe(true);
+  });
+
   it('shows only status, source, and expiry metadata, never credential detail', () => {
     const withSensitiveDetail: AuthStatusSnapshot = {
       ...status,
@@ -112,7 +124,10 @@ describe('MAccountsView', () => {
     act(() => {
       renderer = create(
         <LangProvider>
-          <MAccountsView vm={buildAccountsVm(withSensitiveDetail)} onBack={() => {}} onLogin={() => {}} onLogout={() => {}} />
+          <MAccountsView
+            vm={buildAccountsVm(withSensitiveDetail)} onBack={() => {}}
+            onLogin={() => {}} onLogout={() => {}} actionsDisabled={false}
+          />
         </LangProvider>,
       );
     });

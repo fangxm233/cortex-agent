@@ -6,10 +6,10 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 |---|---|---|
 | access-probe-cli.ts | cli | runs a pinned Node syscall probe from flags |
 | access-probe-policy.ts | policy | streams and classifies file and network traces |
-| access-probe.ts | process | supervises strace and emits isolation verdicts |
-| agent-run-cli.ts | cli | parses required file/stdin flags and runs a turn |
+| access-probe.ts | process | probes through the fail-closed supervisor path |
+| agent-run-cli.ts | cli | parses flags and resolves the supervisor path |
 | atif.ts | format | converts journal fragments into ATIF trees |
-| benchmark-local-thread-orchestrator.ts | runtime | finalizes one canonical policy-bound benchmark thread |
+| benchmark-local-thread-orchestrator.ts | runtime | runs one bounded thread through the resolved supervisor |
 | benchmark-thread-identity.ts | identity | projects parent, role and prompt hashes |
 | identity.ts | core | hashes routed model, role and bundle identities |
 | journal.ts | core | appends durable run event journals with role identity |
@@ -19,6 +19,6 @@ Agent-run primitives freeze identity, persist lifecycle truth and gate process c
 | role-surface.ts | identity | hashes exact spawn defaults and directives |
 | run-config.ts | config | loads file/stdin config and validates inputs |
 | runner.ts | core | coordinates lifecycle and reported accounting |
-| supervisor.ts | core | gates lifecycle, stdio modes, watchdog and taxonomy |
+| supervisor.ts | core | resolves the binary and gates process containment |
 | trajectory-merge-cli.ts | cli | publishes one merged trajectory with typed failures |
 | trajectory-merge.ts | core | validates and atomically merges journal trees |

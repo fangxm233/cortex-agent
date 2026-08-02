@@ -1,5 +1,5 @@
-// input:  Radix Dialog, React nodes, optional semantic modal size
-// output: accessible Modal/ModalClose primitives and width mapping
+// input:  Radix Dialog, React nodes, semantic size and layer
+// output: accessible modal primitives with width and stack mapping
 // pos:    token-styled centered dialog primitive
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -13,13 +13,13 @@ import type { ReactNode } from 'react';
 // required so screen readers and Radix's a11y check are satisfied; pass
 // `hideTitle` to keep it visually hidden while still announced.
 
-const OVERLAY_CLASS =
-  'fixed inset-0 z-40 bg-state-ink/40 ' +
+const OVERLAY_BASE_CLASS =
+  'fixed inset-0 bg-state-ink/40 ' +
   'data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out ' +
-  'motion-reduce:animate-none';
+  'motion-reduce:animate-none ';
 
 const CONTENT_BASE_CLASS =
-  'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 ' +
+  'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 ' +
   'flex max-h-[85vh] w-[90vw] flex-col gap-2g ' +
   'rounded-card border border-card bg-surface-card p-3g shadow-overlay ' +
   'focus:outline-none ' +
@@ -27,14 +27,24 @@ const CONTENT_BASE_CLASS =
   'motion-reduce:animate-none ';
 
 export type ModalSize = 'default' | 'wide';
+export type ModalLayer = 'default' | 'nested';
 
 const CONTENT_SIZE_CLASS: Record<ModalSize, string> = {
   default: 'max-w-lg',
   wide: 'max-w-3xl',
 };
 
-export function modalContentClass(size: ModalSize = 'default'): string {
-  return CONTENT_BASE_CLASS + CONTENT_SIZE_CLASS[size];
+const LAYER_CLASS: Record<ModalLayer, { overlay: string; content: string }> = {
+  default: { overlay: 'z-40', content: 'z-50' },
+  nested: { overlay: 'z-[80]', content: 'z-[90]' },
+};
+
+export function modalOverlayClass(layer: ModalLayer = 'default'): string {
+  return OVERLAY_BASE_CLASS + LAYER_CLASS[layer].overlay;
+}
+
+export function modalContentClass(size: ModalSize = 'default', layer: ModalLayer = 'default'): string {
+  return `${CONTENT_BASE_CLASS}${CONTENT_SIZE_CLASS[size]} ${LAYER_CLASS[layer].content}`;
 }
 
 export interface ModalProps {
@@ -47,6 +57,7 @@ export interface ModalProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   size?: ModalSize;
+  layer?: ModalLayer;
 }
 
 function ModalHeader({ title, hideTitle }: Pick<ModalProps, 'title' | 'hideTitle'>): JSX.Element {
@@ -65,9 +76,9 @@ function ModalHeader({ title, hideTitle }: Pick<ModalProps, 'title' | 'hideTitle
   );
 }
 
-function ModalPanel({ title, description, hideTitle, children, footer, size = 'default' }: ModalProps): JSX.Element {
+function ModalPanel({ title, description, hideTitle, children, footer, size = 'default', layer = 'default' }: ModalProps): JSX.Element {
   return (
-    <RadixDialog.Content className={modalContentClass(size)}>
+    <RadixDialog.Content className={modalContentClass(size, layer)}>
       <ModalHeader title={title} hideTitle={hideTitle} />
       {description ? <RadixDialog.Description className="text-ui text-state-ink/70">{description}</RadixDialog.Description> : null}
       {children ? <div className="overflow-y-auto text-ui text-state-ink/80">{children}</div> : null}
@@ -81,7 +92,7 @@ export function Modal({ trigger, open, onOpenChange, ...panel }: ModalProps): JS
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       {trigger ? <RadixDialog.Trigger asChild>{trigger}</RadixDialog.Trigger> : null}
       <RadixDialog.Portal>
-        <RadixDialog.Overlay className={OVERLAY_CLASS} />
+        <RadixDialog.Overlay className={modalOverlayClass(panel.layer)} />
         <ModalPanel {...panel} />
       </RadixDialog.Portal>
     </RadixDialog.Root>

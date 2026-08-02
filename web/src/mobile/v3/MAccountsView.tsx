@@ -1,4 +1,4 @@
-// input:  shared accounts VM, localized vocabulary, account actions
+// input:  shared accounts VM, localized copy, gated actions
 // output: grouped mobile account-management drill-in
 // pos:    Presentational mobile accounts view
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -43,22 +43,24 @@ function Metadata({ value }: { value: AccountCredentialVm }) {
   );
 }
 
-function ActionButton({ children, target, action, onClick }: {
+function ActionButton({ children, target, action, disabled, onClick }: {
   children: ReactNode;
   target: AccountActionTarget;
   action: 'login' | 'logout';
+  disabled: boolean;
   onClick: (target: AccountActionTarget) => void;
 }) {
   return (
     <button
       type="button" data-auth-action={action} data-backend={target.backend}
       data-provider={target.provider} data-auth-type={target.authType}
-      onClick={() => onClick(target)}
+      disabled={disabled} onClick={() => onClick(target)}
       style={{
         border: `1px solid ${action === 'logout' ? 'var(--proto-danger-bg)' : MC.run}`,
         borderRadius: 8, padding: '6px 9px', background: MC.card,
         color: action === 'logout' ? MC.fail : MC.run, fontSize: 10.5,
-        fontWeight: 650, cursor: 'pointer',
+        fontWeight: 650, cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
       }}
     >
       {children}
@@ -66,11 +68,12 @@ function ActionButton({ children, target, action, onClick }: {
   );
 }
 
-function AccountActions({ backend, provider, loginTypes, logoutTypes, onLogin, onLogout }: {
+function AccountActions({ backend, provider, loginTypes, logoutTypes, disabled, onLogin, onLogout }: {
   backend: 'claude' | 'pi';
   provider: string;
   loginTypes: AuthType[];
   logoutTypes: AuthType[];
+  disabled: boolean;
   onLogin: (target: AccountActionTarget) => void;
   onLogout: (target: AccountActionTarget) => void;
 }) {
@@ -79,12 +82,18 @@ function AccountActions({ backend, provider, loginTypes, logoutTypes, onLogin, o
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
       {loginTypes.map(authType => (
-        <ActionButton key={`login:${authType}`} target={target(authType)} action="login" onClick={onLogin}>
+        <ActionButton
+          key={`login:${authType}`} target={target(authType)} action="login"
+          disabled={disabled} onClick={onLogin}
+        >
           {L.accountsLogin} {authTypeLabel(L, authType, backend)}
         </ActionButton>
       ))}
       {logoutTypes.map(authType => (
-        <ActionButton key={`logout:${authType}`} target={target(authType)} action="logout" onClick={onLogout}>
+        <ActionButton
+          key={`logout:${authType}`} target={target(authType)} action="logout"
+          disabled={disabled} onClick={onLogout}
+        >
           {L.accountsLogout} {authTypeLabel(L, authType, backend)}
         </ActionButton>
       ))}
@@ -94,11 +103,12 @@ function AccountActions({ backend, provider, loginTypes, logoutTypes, onLogin, o
 
 interface ClaudeCardProps {
   account: ClaudeAccountVm;
+  actionsDisabled: boolean;
   onLogin: (target: AccountActionTarget) => void;
   onLogout: (target: AccountActionTarget) => void;
 }
 
-function ClaudeCard({ account, onLogin, onLogout }: ClaudeCardProps) {
+function ClaudeCard({ account, actionsDisabled, onLogin, onLogout }: ClaudeCardProps) {
   const L = useVocab();
   return (
     <MCard>
@@ -118,7 +128,7 @@ function ClaudeCard({ account, onLogin, onLogout }: ClaudeCardProps) {
             backend="claude" provider={account.provider}
             loginTypes={slot.canLogin ? [slot.authType] : []}
             logoutTypes={slot.canLogout ? [slot.authType] : []}
-            onLogin={onLogin} onLogout={onLogout}
+            disabled={actionsDisabled} onLogin={onLogin} onLogout={onLogout}
           />
         </div>
       ))}
@@ -126,8 +136,9 @@ function ClaudeCard({ account, onLogin, onLogout }: ClaudeCardProps) {
   );
 }
 
-function ProviderCard({ provider, onLogin, onLogout }: {
+function ProviderCard({ provider, actionsDisabled, onLogin, onLogout }: {
   provider: PiProviderVm;
+  actionsDisabled: boolean;
   onLogin: (target: AccountActionTarget) => void;
   onLogout: (target: AccountActionTarget) => void;
 }) {
@@ -147,17 +158,18 @@ function ProviderCard({ provider, onLogin, onLogout }: {
       <AccountActions
         backend="pi" provider={provider.provider}
         loginTypes={provider.loginTypes} logoutTypes={provider.logoutTypes}
-        onLogin={onLogin} onLogout={onLogout}
+        disabled={actionsDisabled} onLogin={onLogin} onLogout={onLogout}
       />
     </MCard>
   );
 }
 
-export function MAccountsView({ vm, onBack, onLogin, onLogout }: {
+export function MAccountsView({ vm, onBack, onLogin, onLogout, actionsDisabled }: {
   vm: MAccountsVm;
   onBack: () => void;
   onLogin: (target: AccountActionTarget) => void;
   onLogout: (target: AccountActionTarget) => void;
+  actionsDisabled: boolean;
 }) {
   const L = useVocab();
   return (
@@ -166,12 +178,20 @@ export function MAccountsView({ vm, onBack, onLogin, onLogout }: {
         <div style={{ fontSize: 16, fontWeight: 650, color: MC.ink }}>{L.accountsTitle}</div>
       </MDrillHeader>
       <MScrollBody gap={14}>
-        {vm.claude ? <ClaudeCard account={vm.claude} onLogin={onLogin} onLogout={onLogout} /> : null}
+        {vm.claude ? (
+          <ClaudeCard
+            account={vm.claude} actionsDisabled={actionsDisabled}
+            onLogin={onLogin} onLogout={onLogout}
+          />
+        ) : null}
         {vm.groups.map(group => (
           <div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <MGroupLabel>{L[group.labelKey]} · {group.providers.length}</MGroupLabel>
             {group.providers.map(provider => (
-              <ProviderCard key={provider.provider} provider={provider} onLogin={onLogin} onLogout={onLogout} />
+              <ProviderCard
+                key={provider.provider} provider={provider} actionsDisabled={actionsDisabled}
+                onLogin={onLogin} onLogout={onLogout}
+              />
             ))}
           </div>
         ))}

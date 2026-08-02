@@ -1,9 +1,10 @@
 // input:  supervisor client, fake fixture, child processes
-// output: protocol, watchdog, shutdown, and taxonomy evidence
+// output: path resolution, protocol, watchdog, and taxonomy evidence
 // pos:    Agent-run supervisor client regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,10 +17,15 @@ import {
   attachSupervisor,
   exitCodeFor,
   parseSupervisorLine,
+  resolveSupervisorBinary,
   type SupervisorSession,
 } from '../../../src/domain/agent-run/supervisor.js';
 
 const FIXTURE = fileURLToPath(new URL('./fake-supervisor.ts', import.meta.url));
+const SERVER_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const PACKAGE_SUPERVISOR = fileURLToPath(
+  new URL('../../../native/cortex-supervisor/dist/cortex-supervisor', import.meta.url),
+);
 const TSX_IMPORT = createRequire(import.meta.url).resolve('tsx');
 const CHILD = [process.execPath, '-e', 'setInterval(() => {}, 1000)'];
 const sessions: SupervisorSession[] = [];
@@ -149,6 +155,10 @@ function cleanupProcessGroup(pgid: number): void {
 }
 
 beforeAll(() => {
+  const built = spawnSync('flock', [
+    '-x', '/tmp/cortex-supervisor-build.lock', 'npm', 'run', 'build:supervisor',
+  ], { cwd: SERVER_ROOT, encoding: 'utf8' });
+  assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-run-supervisor-'));
   launcher = createLauncher();
 });
@@ -180,6 +190,37 @@ const INVALID_RECORDS = [
   ['invalid timestamp', JSON.stringify({ v: 1, type: 'quiescent', descendants: 0, ts: 'today' })],
   ['unknown field', JSON.stringify({ v: 1, type: 'quiescent', descendants: 0, ts: PARSER_TIMESTAMP, extra: true })],
 ];
+
+describe('resolveSupervisorBinary', () => {
+  it('uses explicit path over environment over the package default', () => {
+    const environment = path.join(root, 'environment-supervisor');
+    const explicit = path.join(root, 'explicit-supervisor');
+    fs.writeFileSync(environment, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    fs.writeFileSync(explicit, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+
+    assert.equal(
+      resolveSupervisorBinary(explicit, { CORTEX_SUPERVISOR_BINARY: environment }),
+      fs.realpathSync(explicit),
+    );
+    assert.equal(
+      resolveSupervisorBinary(undefined, { CORTEX_SUPERVISOR_BINARY: environment }),
+      fs.realpathSync(environment),
+    );
+    assert.equal(resolveSupervisorBinary(undefined, {}), fs.realpathSync(PACKAGE_SUPERVISOR));
+  });
+
+  for (const mode of ['missing', 'non-executable'] as const) {
+    it(`throws supervisor_unavailable for a ${mode} binary`, () => {
+      const candidate = path.join(root, mode);
+      if (mode === 'non-executable') fs.writeFileSync(candidate, 'not executable\n', { mode: 0o644 });
+      assert.throws(() => resolveSupervisorBinary(candidate, {}), (error: Error & { reason?: string }) => {
+        assert.equal(error.reason, 'supervisor_unavailable');
+        assert.ok(error.message.includes(candidate));
+        return true;
+      });
+    });
+  }
+});
 
 describe('valid supervisor lines', () => {
   for (const record of VALID_RECORDS) {
