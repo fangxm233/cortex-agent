@@ -38,8 +38,7 @@ import {
 } from './run-config.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
 import {
-  SupervisorContainmentError, attachSupervisor, exitCodeFor,
-  type ExitReason, type SupervisorSession,
+  attachSupervisor, exitCodeFor, type ExitReason, type SupervisorSession,
 } from './supervisor.js';
 import type { AgentRunCliOptions } from './agent-run-cli.js';
 
@@ -202,28 +201,6 @@ function assertMcpFiles(config: ResolvedAgentRunConfig): void {
   }
 }
 
-function executablePath(candidate: string, env: NodeJS.ProcessEnv): string | null {
-  const candidates = candidate.includes(path.sep)
-    ? [path.resolve(candidate)]
-    : (env.PATH ?? '').split(path.delimiter).filter(Boolean).map(dir => path.join(dir, candidate));
-  for (const file of candidates) {
-    try {
-      const resolved = fs.realpathSync(file);
-      fs.accessSync(resolved, fs.constants.X_OK);
-      if (fs.statSync(resolved).isFile()) return resolved;
-    } catch {}
-  }
-  return null;
-}
-
-function resolveSupervisorBinary(candidate: string): string {
-  const resolved = executablePath(candidate, process.env);
-  if (resolved) return resolved;
-  throw new SupervisorContainmentError('spawn_failed', {
-    cause: new Error(`Supervisor binary is missing or not executable: ${candidate}`),
-  });
-}
-
 function probeClaudeVersion(profile: PreparedRun['profile'], cwd: string): string {
   const result = spawnSync('claude', ['--version'], {
     cwd,
@@ -313,12 +290,8 @@ function resolveRunConfig(
   return observedRunConfig(configured, profile, options.cwd);
 }
 
-function prepareRun(rawOptions: AgentRunCliOptions, rootRunId: string): PreparedRun {
-  assertFreshTrajectory(rawOptions, rootRunId);
-  const options = {
-    ...rawOptions,
-    supervisorBinary: resolveSupervisorBinary(rawOptions.supervisorBinary),
-  };
+function prepareRun(options: AgentRunCliOptions, rootRunId: string): PreparedRun {
+  assertFreshTrajectory(options, rootRunId);
   const prompt = readPrompt(options.promptFile);
   const profile = resolveProfile(options.profile);
   assertClaudeProfile(profile);

@@ -8,7 +8,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { fileURLToPath } from 'node:url';
 import {
   classifyTraceStream,
   type AccessProbeCounts,
@@ -19,7 +18,7 @@ import {
   preparePinnedNodeLaunch,
   type PinnedNodeLaunchOptions,
 } from './pinned-node-process.js';
-import { attachSupervisor } from './supervisor.js';
+import { attachSupervisor, resolveSupervisorBinary } from './supervisor.js';
 
 export type ProbeFailureReason =
   | 'strace_unavailable'
@@ -121,12 +120,6 @@ async function executeTrace(
   };
 }
 
-function packageSupervisorBinary(): string {
-  return fileURLToPath(
-    new URL('../../../native/cortex-supervisor/dist/cortex-supervisor', import.meta.url),
-  );
-}
-
 function resolveExecutable(command: string, env: NodeJS.ProcessEnv): string | null {
   const candidates = command.includes(path.sep)
     ? [command]
@@ -226,10 +219,7 @@ export async function runNodeAccessProbe(
   const launch = preparePinnedNodeLaunch(options);
   const binary = resolveExecutable(options.stracePath ?? 'strace', launch.env);
   if (!binary) return unavailableVerdict('strace_unavailable');
-  const supervisor = resolveExecutable(
-    options.supervisorBinary ?? packageSupervisorBinary(), launch.env,
-  );
-  if (!supervisor) return unavailableVerdict('containment_failed');
+  const supervisor = resolveSupervisorBinary(options.supervisorBinary);
   const evidence = createTraceEvidence(launch.paths.logsDir);
   try {
     const execution = await executeTrace(

@@ -318,11 +318,13 @@ it('rejects profile argv extras before probing or spawning Claude', async () => 
 
 it('fails closed before Claude when the supervisor binary is not executable', async () => {
   const fixture = createFixture();
-  fixture.args.push('--supervisor-binary', path.join(fixtureRoot(), 'missing-supervisor'));
+  const missing = path.join(fixtureRoot(), 'missing-supervisor');
+  fixture.args.push('--supervisor-binary', missing);
   const child = spawnRun(fixture);
   const output = await processOutput(child);
-  assert.equal(child.exitCode, 125, output.stderr);
-  assert.equal(parseNdjson(output.stdout).at(-1).terminal_reason, 'containment_failure');
+  assert.equal(child.exitCode, 1, output.stderr);
+  assert.equal(output.stdout, '');
+  assert.ok(output.stderr.includes(missing));
   assert.equal(fs.existsSync(fixture.claudeMarker), false);
   assert.equal(fs.existsSync(fixture.eventsFile), false);
 });

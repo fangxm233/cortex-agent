@@ -5,10 +5,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { formatError, formatHelp } from '@core/cli-utils.js';
 import type { AgentSlot } from './journal.js';
 import { runOneShotAgent, type AgentRunIo } from './runner.js';
+import { resolveSupervisorBinary } from './supervisor.js';
 
 const AGENT_SLOTS: AgentSlot[] = ['parent', 'benchmark-coder', 'benchmark-reviewer'];
 const OUTPUT_FORMATS = ['jsonl'] as const;
@@ -87,12 +87,6 @@ function resolveCwd(raw: string): string {
   return fail(`Invalid --cwd: '${raw}'`, undefined, 'Provide an existing directory.');
 }
 
-function packageSupervisorBinary(): string {
-  return fileURLToPath(
-    new URL('../../../native/cortex-supervisor/dist/cortex-supervisor', import.meta.url),
-  );
-}
-
 function assertJournalWithinRoot(eventsFile: string, trajectoryRoot: string): void {
   const relative = path.relative(trajectoryRoot, eventsFile);
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
@@ -138,8 +132,7 @@ export function parseAgentRunArgs(
     eventsFile,
     trajectoryRoot,
     runConfigFile,
-    supervisorBinary: values.get('--supervisor-binary')
-      ?? env.CORTEX_SUPERVISOR_BINARY ?? packageSupervisorBinary(),
+    supervisorBinary: resolveSupervisorBinary(values.get('--supervisor-binary'), env),
     deadlineMs: parseMilliseconds(values, '--deadline-ms'),
     graceMs: parseMilliseconds(values, '--grace-ms') ?? 1_000,
     rootRunId: parseRootRunId(values),
