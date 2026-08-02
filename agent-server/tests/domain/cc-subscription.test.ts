@@ -1,5 +1,5 @@
-// input:  subscription consumer, LoginFlow, fake tmux, saved env
-// output: secure tmux, cancellation, expiry, and privacy tests
+// input:  subscription login, fake tmux, saved env
+// output: tmux, cancellation, expiry, privacy regressions
 // pos:    Claude subscription login regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -28,6 +28,7 @@ import {
 import {
   configureEnvForMode,
   getSavedApiEnv,
+  removeClaudeCodeOAuthToken,
   saveClaudeCodeOAuthToken,
 } from '../../src/domain/agents/config.js';
 
@@ -97,14 +98,14 @@ interface CleanupContext {
 
 interface SuccessEvidence {
   tmux: FakeTmux;
-  saved: string[];
+  saved: Array<{ token: string; expiresAt: string }>;
   recovered: Array<{ backend: 'claude'; provider: string }>;
   reloads: number;
   dependencies: ClaudeSubscriptionLoginDependencies;
 }
 
 function successDependencies(tmux = new FakeTmux()): SuccessEvidence {
-  const saved: string[] = [];
+  const saved: Array<{ token: string; expiresAt: string }> = [];
   const recovered: Array<{ backend: 'claude'; provider: string }> = [];
   let reloads = 0;
   return {
@@ -114,7 +115,7 @@ function successDependencies(tmux = new FakeTmux()): SuccessEvidence {
       tmux,
       cwd: process.env.CORTEX_HOME!,
       sessionName: () => 'cortex-claude-auth-fixture',
-      saveToken: async token => { saved.push(token); },
+      saveToken: async (token, expiresAt) => { saved.push({ token, expiresAt }); },
       reloadAuth: () => { reloads += 1; },
       publishRecovered: input => { recovered.push(input); },
       submitDelayMs: 0,
@@ -223,7 +224,7 @@ function assertSuccessfulFlow(
   assert.deepEqual(completed.notice, {
     kind: 'progress', message: 'Completing Claude subscription login.',
   });
-  assert.deepEqual(evidence.saved, [TOKEN]);
+  assert.deepEqual(evidence.saved, [{ token: TOKEN, expiresAt: EXPECTED_EXPIRY }]);
   assert.equal(evidence.reloads, 1);
   assert.deepEqual(evidence.recovered, [{ backend: 'claude', provider: 'anthropic' }]);
   assertTmuxSuccess(evidence.tmux);
@@ -243,6 +244,7 @@ afterEach(() => {
   vi.useRealTimers();
   _testSetHealthy(null);
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
   process.env.HOME = process.env.CORTEX_HOME!;
 });
 
@@ -250,10 +252,9 @@ test('ANSI success pane persists to isolated env, derives expiry, recovers, and 
   const evidence = successDependencies(new FakeTmux(INITIAL_PANE, ANSI_SUCCESS_PANE));
   let now = LOGIN_STARTED_AT;
   evidence.dependencies.now = () => now;
-  evidence.dependencies.saveToken = async (token, signal) => {
-    await saveClaudeCodeOAuthToken(token, signal);
-    evidence.saved.push(token);
-    now = TOKEN_WRITTEN_AT;
+  evidence.dependencies.saveToken = async (token, expiresAt, signal) => {
+    await saveClaudeCodeOAuthToken(token, expiresAt, signal);
+    evidence.saved.push({ token, expiresAt });
   };
   evidence.tmux.exitCliOnSubmit = true;
   const consoleCalls = captureConsole(t);
@@ -268,6 +269,7 @@ test('ANSI success pane persists to isolated env, derives expiry, recovers, and 
   assert.deepEqual(waiting.notice, {
     kind: 'auth_url', url: AUTH_URL, instructions: undefined,
   });
+  now = TOKEN_WRITTEN_AT;
   await respondPrompt(flow.flowId, CODE);
   await waitForStep(flow.flowId, 'done');
   const completed = getFlowState(flow.flowId)!;
@@ -275,7 +277,12 @@ test('ANSI success pane persists to isolated env, derives expiry, recovers, and 
 
   const envFile = path.join(CONFIG_DIR, '.env');
   assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN, TOKEN);
+  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, EXPECTED_EXPIRY);
   assert.match(fs.readFileSync(envFile, 'utf8'), /^CLAUDE_CODE_OAUTH_TOKEN=/m);
+  assert.match(fs.readFileSync(envFile, 'utf8'), new RegExp(
+    `^CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT="${EXPECTED_EXPIRY}"$`, 'm',
+  ));
+  assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
   assert.equal(fs.statSync(envFile).mode & 0o777, 0o600);
   const paneArtifacts = fs.readdirSync(process.env.CORTEX_HOME!, { recursive: true })
     .map(String).filter(name => /(?:pane|scrollback|tmux)/i.test(name));
@@ -336,10 +343,10 @@ test('cancellation during the real env commit prevents credential and recovery w
   const evidence = successDependencies();
   const commit = delayEnvCommit(t);
   const saveFinished = deferred();
-  evidence.dependencies.saveToken = async (token, signal) => {
+  evidence.dependencies.saveToken = async (token, expiresAt, signal) => {
     try {
-      await saveClaudeCodeOAuthToken(token, signal);
-      evidence.saved.push(token);
+      await saveClaudeCodeOAuthToken(token, expiresAt, signal);
+      evidence.saved.push({ token, expiresAt });
     } finally {
       saveFinished.resolve();
     }
@@ -386,11 +393,11 @@ test('LoginFlow TTL during deferred persistence prevents credential and recovery
   const saveStarted = deferred();
   const releaseSave = deferred();
   evidence.dependencies.timeoutMs = LOGIN_FLOW_TTL_MS * 2;
-  evidence.dependencies.saveToken = async (token, signal) => {
+  evidence.dependencies.saveToken = async (token, expiresAt, signal) => {
     saveStarted.resolve();
     await releaseSave.promise;
     if (signal?.aborted) return;
-    evidence.saved.push(token);
+    evidence.saved.push({ token, expiresAt });
   };
   const flow = await startFlow(flowInput(), interaction =>
     loginClaudeSubscription(interaction, evidence.dependencies));
@@ -429,6 +436,75 @@ test('LoginFlow TTL abort kills a subscription tmux session with no pending proc
   assert.deepEqual(evidence.saved, []);
 });
 
+test('saved OAuth token rejects non-ISO expiry without changing the env file', async () => {
+  const envFile = path.join(CONFIG_DIR, '.env');
+  const initial = 'OTHER_SETTING=keep\n';
+  fs.writeFileSync(envFile, initial, { mode: 0o600 });
+
+  await assert.rejects(
+    saveClaudeCodeOAuthToken(TOKEN, 'not-an-iso-time'),
+    /valid Claude OAuth expiry/i,
+  );
+  assert.equal(fs.readFileSync(envFile, 'utf8'), initial);
+});
+
+test('orphaned saved expiry stays hidden when no saved OAuth token exists', async () => {
+  const envFile = path.join(CONFIG_DIR, '.env');
+  await removeClaudeCodeOAuthToken();
+  fs.writeFileSync(envFile, [
+    'OTHER_SETTING=keep',
+    `CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT=${JSON.stringify(EXPECTED_EXPIRY)}`,
+    '',
+  ].join('\n'), { mode: 0o600 });
+  process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = EXPECTED_EXPIRY;
+
+  const saved = getSavedApiEnv();
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
+  assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, EXPECTED_EXPIRY);
+});
+
+test('saved OAuth expiry is never sourced from the process environment', async () => {
+  const envFile = path.join(CONFIG_DIR, '.env');
+  await removeClaudeCodeOAuthToken();
+  fs.writeFileSync(
+    envFile,
+    `CLAUDE_CODE_OAUTH_TOKEN=${JSON.stringify(TOKEN)}\n`,
+    { mode: 0o600 },
+  );
+  process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = EXPECTED_EXPIRY;
+
+  const saved = getSavedApiEnv();
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN, TOKEN);
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
+});
+
+test('saved OAuth expiry never attaches to a process-only token', async () => {
+  const envFile = path.join(CONFIG_DIR, '.env');
+  await removeClaudeCodeOAuthToken();
+  fs.writeFileSync(envFile, [
+    `CLAUDE_CODE_OAUTH_TOKEN=${JSON.stringify(TOKEN)}`,
+    `CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT=${JSON.stringify(EXPECTED_EXPIRY)}`,
+    '',
+  ].join('\n'), { mode: 0o600 });
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'process-only-token';
+
+  const saved = getSavedApiEnv();
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN, 'process-only-token');
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
+});
+
+test('saved OAuth cache clears when the live token disappears', async () => {
+  const envFile = path.join(CONFIG_DIR, '.env');
+  await saveClaudeCodeOAuthToken(TOKEN, EXPECTED_EXPIRY);
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  fs.writeFileSync(envFile, 'OTHER_SETTING=keep\n', { mode: 0o600 });
+
+  const saved = getSavedApiEnv();
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN, undefined);
+  assert.equal(saved.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
+});
+
 test('saved OAuth token preserves a disposable Claude credential sentinel', async () => {
   const envFile = path.join(CONFIG_DIR, '.env');
   const credentials = path.join(process.env.HOME!, '.claude', '.credentials.json');
@@ -439,7 +515,7 @@ test('saved OAuth token preserves a disposable Claude credential sentinel', asyn
   fs.writeFileSync(envFile, 'OTHER_SETTING=keep\nANTHROPIC_API_KEY="fixture-key"\n', { mode: 0o644 });
   _testSetHealthy(false);
 
-  await saveClaudeCodeOAuthToken(TOKEN);
+  await saveClaudeCodeOAuthToken(TOKEN, EXPECTED_EXPIRY);
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
   configureEnvForMode('plan');
 
@@ -447,9 +523,14 @@ test('saved OAuth token preserves a disposable Claude credential sentinel', asyn
   assert.match(persisted, /^OTHER_SETTING=keep$/m);
   assert.match(persisted, /^ANTHROPIC_API_KEY="fixture-key"$/m);
   assert.match(persisted, /^CLAUDE_CODE_OAUTH_TOKEN="sk-ant-oat01-fixture-private-token"$/m);
+  assert.match(persisted, new RegExp(
+    `^CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT="${EXPECTED_EXPIRY}"$`, 'm',
+  ));
   assert.equal(fs.statSync(envFile).mode & 0o777, 0o600);
   assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN, TOKEN);
+  assert.equal(getSavedApiEnv().CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, EXPECTED_EXPIRY);
   assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN, TOKEN);
+  assert.equal(process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT, undefined);
   const after = fs.statSync(credentials);
   assert.equal(fs.readFileSync(credentials, 'utf8'), sentinel);
   assert.deepEqual(

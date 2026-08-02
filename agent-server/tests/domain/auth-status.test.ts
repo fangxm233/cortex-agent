@@ -1,5 +1,5 @@
-// input:  temporary auth files, PI fixtures, locale
-// output: auth state, preferred capability, and summary contracts
+// input:  auth files, saved env, PI fixtures, locale
+// output: auth states, capability, summary contracts
 // pos:    Backend authentication status regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -156,6 +156,27 @@ function account(snapshot: AuthStatusSnapshot, provider: string) {
   const result = snapshot.accounts.find(item => item.provider === provider);
   assert.ok(result, `missing account ${provider}`);
   return result;
+}
+
+async function savedClaudeOAuthAccount(expiresAt?: string) {
+  const snapshot = await getAuthStatus({
+    now: () => new Date(NOW_MS),
+    claudeCredentialsPath: path.join(process.env.CORTEX_HOME!, 'missing-claude.json'),
+    piAuthPath: path.join(process.env.CORTEX_HOME!, 'missing-pi.json'),
+    loadPiRuntime: async (): Promise<PiRuntimeLoadResult> => ({
+      available: false, version: null, entry: null, error: 'fixture unavailable',
+      runtime: null, readStoredCredential: null,
+    }),
+    getSavedApiEnv: () => ({
+      ANTHROPIC_API_KEY: undefined, ANTHROPIC_BASE_URL: undefined,
+      CLAUDE_CODE_OAUTH_TOKEN: '\uE128\uE129',
+      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: expiresAt,
+    }),
+    getClaudeMode: () => 'plan',
+    getActiveBackend: () => 'claude',
+    listProfiles: () => [],
+  });
+  return account(snapshot, 'anthropic');
 }
 
 function assertFreshAccount(snapshot: AuthStatusSnapshot): void {
@@ -332,6 +353,28 @@ test('getAuthStatus never falls back across Claude auth slots', async () => {
     assert.deepEqual(planAccount.credentials.map(item => item.authType), ['api_key']);
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('saved Claude OAuth expiry projects valid metadata and fails open otherwise', async () => {
+  const validExpiry = new Date(NOW_MS + 6 * DAY_MS).toISOString();
+  const cases = [
+    { expiry: undefined, state: 'logged-in', projected: null },
+    { expiry: 'not-an-expiry', state: 'logged-in', projected: null },
+    { expiry: 'January 7, 2030 00:00:00 GMT', state: 'logged-in', projected: null },
+    { expiry: validExpiry, state: 'expiring', projected: validExpiry },
+  ] as const;
+
+  for (const expected of cases) {
+    const result = await savedClaudeOAuthAccount(expected.expiry);
+    assert.deepEqual(
+      { state: result.state, expiresAt: result.expiresAt },
+      { state: expected.state, expiresAt: expected.projected },
+    );
+    assert.deepEqual(
+      { state: result.credentials[0]?.state, expiresAt: result.credentials[0]?.expiresAt },
+      { state: expected.state, expiresAt: expected.projected },
+    );
   }
 });
 

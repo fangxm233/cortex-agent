@@ -1,5 +1,5 @@
-// input:  disposable homes/auth paths, logout adapters, auth status
-// output: logout ownership, state transition, and privacy regressions
+// input:  temp auth files, saved expiry, logout adapters
+// output: logout ownership, state, privacy regressions
 // pos:    Backend account logout regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -17,6 +17,7 @@ import type {
 
 const API_KEY = '\uE401\uE402-api-key';
 const OAUTH_TOKEN = '\uE403\uE404-oauth-token';
+const OAUTH_EXPIRES_AT = '2999-01-01T00:00:00.000Z';
 const EXTERNAL_ACCESS = '\uE405\uE406-access';
 const EXTERNAL_REFRESH = '\uE407\uE408-refresh';
 const TEST_HOME = process.env.CORTEX_HOME!;
@@ -96,6 +97,7 @@ async function resetSavedEnv(): Promise<ConfigModule> {
   writeFile(ENV_FILE, '', 0o600);
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
   return config;
 }
 
@@ -257,7 +259,10 @@ async function assertOAuthLogoutEffects(
 ): Promise<void> {
   assert.equal((result as { ok: boolean }).ok, true);
   assert.equal((await accountStatus(options)).state, 'logged-out');
-  assert.doesNotMatch(fs.readFileSync(ENV_FILE, 'utf8'), /CLAUDE_CODE_OAUTH_TOKEN/);
+  const persisted = fs.readFileSync(ENV_FILE, 'utf8');
+  assert.match(persisted, /^OTHER_SETTING=keep$/m);
+  assert.doesNotMatch(persisted, /^CLAUDE_CODE_OAUTH_TOKEN=/m);
+  assert.doesNotMatch(persisted, /^CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT=/m);
   assert.equal(fs.statSync(ENV_FILE).mode & 0o777, 0o600);
   assert.equal(fs.readFileSync(credentialsPath, 'utf8'), credentialsBefore);
   assert.deepEqual(fileStamp(credentialsPath), credentialsStamp);
@@ -299,8 +304,12 @@ test('Claude OAuth logout removes only saved env and leaves credentials.json unt
   const credentialsBefore = fs.readFileSync(credentialsPath, 'utf8');
   const credentialsStamp = fileStamp(credentialsPath);
   const config = await resetSavedEnv();
-  writeFile(ENV_FILE, 'OTHER_SETTING=keep\n');
-  await config.saveClaudeCodeOAuthToken(OAUTH_TOKEN);
+  writeFile(ENV_FILE, [
+    'OTHER_SETTING=keep',
+    `CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT=${OAUTH_EXPIRES_AT}`,
+    '',
+  ].join('\n'));
+  await config.saveClaudeCodeOAuthToken(OAUTH_TOKEN, OAUTH_EXPIRES_AT);
   const { logoutAccount } = await import('../../src/domain/auth/logout.js') as LogoutModule;
   try {
     const before = await accountStatus(options);

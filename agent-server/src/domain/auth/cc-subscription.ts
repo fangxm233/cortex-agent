@@ -1,5 +1,5 @@
-// input:  AuthInteraction, tmux control, saved env, clock
-// output: abortable Claude subscription consumer and expiry
+// input:  AuthInteraction, tmux, saved env, clock
+// output: abortable Claude login with persisted expiry
 // pos:    Claude Code setup-token login adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -59,7 +59,7 @@ export interface ClaudeSubscriptionLoginDependencies {
   claudeExecutable?: string;
   cwd?: string;
   sessionName?: () => string;
-  saveToken?: (token: string, signal?: AbortSignal) => Promise<void>;
+  saveToken?: (token: string, expiresAt: string, signal?: AbortSignal) => Promise<void>;
   reloadAuth?: () => void;
   publishRecovered?: (input: { backend: 'claude'; provider: string }) => void;
   now?: () => number;
@@ -266,15 +266,15 @@ async function persistToken(
   token: string,
   dependencies: ClaudeSubscriptionLoginDependencies,
   context: DriveContext,
-): Promise<number> {
+): Promise<string> {
   try {
     throwIfInterrupted(context);
+    const expiresAt = oneYearAfter(context.now());
     const save = dependencies.saveToken ?? saveClaudeCodeOAuthToken;
-    await waitWithDeadline(save(token, context.signal), context);
+    await waitWithDeadline(save(token, expiresAt, context.signal), context);
     throwIfInterrupted(context);
-    const persistedAt = context.now();
     (dependencies.reloadAuth ?? (() => configureEnvForMode(getClaudeMode())))();
-    return persistedAt;
+    return expiresAt;
   } catch (error) {
     if (isLoginFlowError(error)) throw error;
     throw loginError('claude_subscription_persist_failed', 'Claude subscription login could not be saved.');
@@ -292,13 +292,13 @@ export async function loginClaudeSubscription(
   dependencies: ClaudeSubscriptionLoginDependencies = {},
 ): Promise<ClaudeSubscriptionLoginOutcome> {
   const { token, context } = await acquireToken(interaction, dependencies);
-  const persistedAt = await persistToken(token, dependencies, context);
+  const expiresAt = await persistToken(token, dependencies, context);
   throwIfInterrupted(context);
   (dependencies.publishRecovered ?? publishAuthRecovered)({
     backend: 'claude', provider: 'anthropic',
   });
   return {
     provider: 'anthropic', authType: 'oauth',
-    expiresAt: oneYearAfter(persistedAt), detail: EXPIRY_DETAIL,
+    expiresAt, detail: EXPIRY_DETAIL,
   };
 }

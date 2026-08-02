@@ -1,5 +1,5 @@
-// input:  mode/profile stores, atomic mutation, auth classifier
-// output: modes, mutable Claude credentials, retry policy
+// input:  mode/profile, atomic env writes, auth errors
+// output: modes, saved Claude auth expiry, retry policy
 // pos:    Agent runtime configuration and failure policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -21,6 +21,8 @@ const MODE_FILE = path.join(STORE_DIR, 'mode.json');
 const ENV_FILE = path.join(CONFIG_DIR, '.env');
 const DEFAULT_CLAUDE_MODE = 'plan';
 const DEFAULT_CLAUDE_MODEL = 'opus';
+const CLAUDE_OAUTH_TOKEN_ENV = 'CLAUDE_CODE_OAUTH_TOKEN';
+const CLAUDE_OAUTH_EXPIRY_ENV = 'CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT';
 
 export interface ModeFileData {
   mode?: string;
@@ -36,6 +38,7 @@ export interface ApiEnv {
   ANTHROPIC_API_KEY: string | undefined;
   ANTHROPIC_BASE_URL: string | undefined;
   CLAUDE_CODE_OAUTH_TOKEN: string | undefined;
+  CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: string | undefined;
 }
 
 // Gateway proxy URL for Claude Code's ANTHROPIC_BASE_URL (DR-0001)
@@ -68,27 +71,38 @@ function normalizeApiKey(value: unknown): string | undefined {
 function readApiEnvFromDotenvFile(): ApiEnv {
   try {
     const parsed = parseDotenv(readFileSync(ENV_FILE, 'utf8'));
+    const oauthToken = normalizeEnvValue(parsed[CLAUDE_OAUTH_TOKEN_ENV]);
     return {
       ANTHROPIC_API_KEY: normalizeApiKey(parsed.ANTHROPIC_API_KEY),
       ANTHROPIC_BASE_URL: normalizeEnvValue(parsed.ANTHROPIC_BASE_URL),
-      CLAUDE_CODE_OAUTH_TOKEN: normalizeEnvValue(parsed.CLAUDE_CODE_OAUTH_TOKEN),
+      CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
+      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: oauthToken
+        ? normalizeEnvValue(parsed[CLAUDE_OAUTH_EXPIRY_ENV])
+        : undefined,
     };
   } catch {
     return {
       ANTHROPIC_API_KEY: undefined,
       ANTHROPIC_BASE_URL: undefined,
       CLAUDE_CODE_OAUTH_TOKEN: undefined,
+      CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: undefined,
     };
   }
 }
 
 function captureApiEnvSnapshot(): ApiEnv {
   const fileEnv = readApiEnvFromDotenvFile();
+  const processOauthToken = normalizeEnvValue(process.env.CLAUDE_CODE_OAUTH_TOKEN);
+  const oauthToken = processOauthToken || fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
+  const expiryMatchesToken = oauthToken !== undefined
+    && oauthToken === fileEnv.CLAUDE_CODE_OAUTH_TOKEN;
   return {
     ANTHROPIC_API_KEY: normalizeApiKey(process.env.ANTHROPIC_API_KEY) || fileEnv.ANTHROPIC_API_KEY,
     ANTHROPIC_BASE_URL: normalizeEnvValue(process.env.ANTHROPIC_BASE_URL) || fileEnv.ANTHROPIC_BASE_URL,
-    CLAUDE_CODE_OAUTH_TOKEN: normalizeEnvValue(process.env.CLAUDE_CODE_OAUTH_TOKEN)
-      || fileEnv.CLAUDE_CODE_OAUTH_TOKEN,
+    CLAUDE_CODE_OAUTH_TOKEN: oauthToken,
+    CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT: expiryMatchesToken
+      ? fileEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT
+      : undefined,
   };
 }
 
@@ -98,9 +112,10 @@ export function getSavedApiEnv(): ApiEnv {
   const liveEnv = captureApiEnvSnapshot();
   if (liveEnv.ANTHROPIC_API_KEY) savedApiEnv.ANTHROPIC_API_KEY = liveEnv.ANTHROPIC_API_KEY;
   if (liveEnv.ANTHROPIC_BASE_URL) savedApiEnv.ANTHROPIC_BASE_URL = liveEnv.ANTHROPIC_BASE_URL;
-  if (liveEnv.CLAUDE_CODE_OAUTH_TOKEN) {
-    savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = liveEnv.CLAUDE_CODE_OAUTH_TOKEN;
-  }
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = liveEnv.CLAUDE_CODE_OAUTH_TOKEN;
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = liveEnv.CLAUDE_CODE_OAUTH_TOKEN
+    ? liveEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT
+    : undefined;
   return { ...savedApiEnv };
 }
 
@@ -114,6 +129,14 @@ function requireClaudeOAuthToken(value: string): string {
   const token = normalizeEnvValue(value);
   if (!token || /[\s"\\]/.test(token)) throw new Error('Enter a valid Claude OAuth token.');
   return token;
+}
+
+function requireClaudeOAuthExpiry(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString() !== value) {
+    throw new Error('Enter a valid Claude OAuth expiry.');
+  }
+  return value;
 }
 
 function savedEnvMatcher(name: string, flags: string): RegExp {
@@ -139,24 +162,40 @@ function throwIfSaveAborted(signal?: AbortSignal): void {
   throw new Error('Credential save aborted.');
 }
 
-async function saveCredential(name: string, value: string, signal?: AbortSignal): Promise<void> {
+interface SavedEnvEntry {
+  name: string;
+  value: string;
+}
+
+async function saveCredentials(entries: SavedEnvEntry[], signal?: AbortSignal): Promise<void> {
   throwIfSaveAborted(signal);
   await mutateFileAtomically(
     ENV_FILE,
     contents => {
       throwIfSaveAborted(signal);
-      return upsertSavedEnv(contents, name, value);
+      return entries.reduce(
+        (updated, entry) => upsertSavedEnv(updated, entry.name, entry.value),
+        contents,
+      );
     },
     { mode: 0o600, signal },
   );
 }
 
-async function removeCredential(name: string): Promise<void> {
+async function saveCredential(name: string, value: string, signal?: AbortSignal): Promise<void> {
+  await saveCredentials([{ name, value }], signal);
+}
+
+async function removeCredentials(names: string[]): Promise<void> {
   await mutateFileAtomically(
     ENV_FILE,
-    contents => removeSavedEnv(contents, name),
+    contents => names.reduce((updated, name) => removeSavedEnv(updated, name), contents),
     { mode: 0o600 },
   );
+}
+
+async function removeCredential(name: string): Promise<void> {
+  await removeCredentials([name]);
 }
 
 export async function saveAnthropicApiKey(value: string): Promise<void> {
@@ -168,11 +207,17 @@ export async function saveAnthropicApiKey(value: string): Promise<void> {
 
 export async function saveClaudeCodeOAuthToken(
   value: string,
+  expiresAt: string,
   signal?: AbortSignal,
 ): Promise<void> {
   const token = requireClaudeOAuthToken(value);
-  await saveCredential('CLAUDE_CODE_OAUTH_TOKEN', token, signal);
+  const expiry = requireClaudeOAuthExpiry(expiresAt);
+  await saveCredentials([
+    { name: CLAUDE_OAUTH_TOKEN_ENV, value: token },
+    { name: CLAUDE_OAUTH_EXPIRY_ENV, value: expiry },
+  ], signal);
   savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = token;
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = expiry;
   process.env.CLAUDE_CODE_OAUTH_TOKEN = token;
 }
 
@@ -183,8 +228,9 @@ export async function removeAnthropicApiKey(): Promise<void> {
 }
 
 export async function removeClaudeCodeOAuthToken(): Promise<void> {
-  await removeCredential('CLAUDE_CODE_OAUTH_TOKEN');
+  await removeCredentials([CLAUDE_OAUTH_TOKEN_ENV, CLAUDE_OAUTH_EXPIRY_ENV]);
   savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN = undefined;
+  savedApiEnv.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = undefined;
   delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
 }
 
