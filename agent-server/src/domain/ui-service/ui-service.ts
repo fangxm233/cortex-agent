@@ -1,5 +1,5 @@
 // input:  UiServiceDeps and query/mutation handlers
-// output: createUiService with authentication flow routing
+// output: createUiService with authentication mutation routing
 // pos:    Transport-neutral UI-service dispatcher
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -60,6 +60,7 @@ import {
 import { handleSystemRestart } from './mutate/system.js';
 import {
   handleAuthCancelFlow,
+  handleAuthLogout,
   handleAuthRespondPrompt,
   handleAuthStartLogin,
 } from './mutate/auth.js';
@@ -135,6 +136,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'auth.startLogin': (deps, args) => handleAuthStartLogin(deps, args),
   'auth.respondPrompt': (deps, args) => handleAuthRespondPrompt(deps, args),
   'auth.cancelFlow': (deps, args) => handleAuthCancelFlow(deps, args),
+  'auth.logout': (deps, args) => handleAuthLogout(deps, args),
   'hooks.create': (deps, args) => handleHooksCreate(deps, args),
   'hooks.update': (deps, args) => handleHooksUpdate(deps, args),
   'hooks.setEnabled': (deps, args) => handleHooksSetEnabled(deps, args),

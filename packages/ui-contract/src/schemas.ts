@@ -1,5 +1,5 @@
 // input:  built agent-server ui-service input schemas
-// output: runtime/type schemas including authentication flows
+// output: runtime/type schemas including auth logout
 // pos:    Shared browser/server input validation boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -49,6 +49,7 @@ export {
   authStartLoginInput,
   authRespondPromptInput,
   authCancelFlowInput,
+  authLogoutInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,

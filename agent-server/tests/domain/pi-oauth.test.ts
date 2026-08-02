@@ -1,4 +1,4 @@
-// input:  PI OAuth adapter, LoginFlow, EventBus, fake runtime
+// input:  PI OAuth adapter, LoginFlow, EventBus, fake login runtime
 // output: OAuth capability, expiry, abort, failure, and privacy tests
 // pos:    PI OAuth login adapter regression tests
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -73,6 +73,7 @@ function runtime(
     getProviders: () => providers,
     getProviderAuthStatus: () => ({ configured: false }),
     login,
+    logout: async () => {},
   };
 }
 

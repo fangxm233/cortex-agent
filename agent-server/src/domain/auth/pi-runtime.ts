@@ -1,5 +1,5 @@
 // input:  installed pi executable, auth path, AuthInteraction
-// output: PI runtime login handle and availability metadata
+// output: PI runtime login/logout handle and availability metadata
 // pos:    Installed PI package loader
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -42,6 +42,7 @@ export interface PiModelRuntime {
     type: 'api_key' | 'oauth',
     interaction: AuthInteraction,
   ): Promise<PiCredential>;
+  logout(providerId: string): Promise<void>;
 }
 
 interface PiRuntimeModule {
