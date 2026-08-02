@@ -1,5 +1,5 @@
-// input:  Node runner, command handlers, and auth fixture
-// output: Bang-command routing including selector-based login usage
+// input:  Node runner, command handlers, auth/profile fixtures
+// output: Bang-command routing including profile and login usage
 // pos:    Command handler regression test
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -16,7 +16,8 @@ import { getActiveBackend, setActiveBackend } from '../src/domain/agents/config.
 import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
 import { costRepo } from '../src/store/cost-repo.js';
 import { MockAdapter } from '../src/platform/testing.js';
-import { PROJECTS_DIR } from '../src/core/paths.js';
+import { CONFIG_DIR, PROJECTS_DIR } from '../src/core/paths.js';
+import { profileRepo } from '../src/store/profile-repo.js';
 import { _testSetRegistry } from '../src/domain/tasks/dispatch-utils.js';
 import { runningExecutions } from '../src/core/running-executions.js';
 import * as executionRegistry from '../src/domain/executions/registry.js';
@@ -27,6 +28,15 @@ import type { AuthStatusSnapshot } from '../src/domain/auth/auth-status.js';
 
 beforeAll(() => {
   _testSetRegistry({ testbox: { cortexPath: '/tmp/test', gpuCount: 2 } });
+  fs.writeFileSync(path.join(CONFIG_DIR, 'profiles.json'), JSON.stringify({
+    defaultProfile: 'plan',
+    profiles: {
+      plan: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+      execute: { model: 'claude-sonnet-4-6', backend: 'pi', provider: 'anthropic', mode: 'plan' },
+      qa: { model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' },
+    },
+  }));
+  profileRepo.invalidate();
 });
 
 const originalSetInterval = global.setInterval;
