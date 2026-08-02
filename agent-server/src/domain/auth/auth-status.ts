@@ -116,6 +116,7 @@ interface InUseAccounts {
 }
 
 const EXPIRING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const ISO_8601_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const PI_API_KEY_SOURCES = new Set<PiProviderAuthStatus['source']>([
   'runtime',
   'environment',
@@ -129,11 +130,10 @@ function validEpoch(value: unknown): number | null {
   return Number.isNaN(new Date(value).getTime()) ? null : value;
 }
 
-function parseCanonicalIso(value: string | null): number | null {
-  if (value === null) return null;
+function parseIsoInstant(value: string | null): number | null {
+  if (value === null || !ISO_8601_INSTANT_PATTERN.test(value)) return null;
   const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) return null;
-  return new Date(timestamp).toISOString() === value ? timestamp : null;
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function readClaudeOAuth(filePath: string): ClaudeCredentialRead {
@@ -187,7 +187,7 @@ function claudeSavedOAuthCredential(
   expiresAtIso: string | null,
   nowMs: number,
 ): AuthCredentialStatus {
-  const expiresAtMs = parseCanonicalIso(expiresAtIso);
+  const expiresAtMs = parseIsoInstant(expiresAtIso);
   const validExpiresAt = expiresAtMs === null ? null : expiresAtIso;
   return {
     authType: 'oauth',

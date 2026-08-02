@@ -358,11 +358,13 @@ test('getAuthStatus never falls back across Claude auth slots', async () => {
 
 test('saved Claude OAuth expiry projects valid metadata and fails open otherwise', async () => {
   const validExpiry = new Date(NOW_MS + 6 * DAY_MS).toISOString();
+  const validIsoVariant = '2030-01-07T00:00:00Z';
   const cases = [
     { expiry: undefined, state: 'logged-in', projected: null },
     { expiry: 'not-an-expiry', state: 'logged-in', projected: null },
     { expiry: 'January 7, 2030 00:00:00 GMT', state: 'logged-in', projected: null },
     { expiry: validExpiry, state: 'expiring', projected: validExpiry },
+    { expiry: validIsoVariant, state: 'expiring', projected: validIsoVariant },
   ] as const;
 
   for (const expected of cases) {
@@ -376,6 +378,39 @@ test('saved Claude OAuth expiry projects valid metadata and fails open otherwise
       { state: expected.state, expiresAt: expected.projected },
     );
   }
+});
+
+test('getAuthStatus ignores ambient saved-expiry metadata missing from the file', async (t) => {
+  const envFile = path.join(process.env.CORTEX_HOME!, 'config', '.env');
+  const beforeFile = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : null;
+  const beforeToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  const beforeExpiry = process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
+  t.onTestFinished(() => {
+    if (beforeFile === null) fs.rmSync(envFile, { force: true });
+    else fs.writeFileSync(envFile, beforeFile);
+    if (beforeToken === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    else process.env.CLAUDE_CODE_OAUTH_TOKEN = beforeToken;
+    if (beforeExpiry === undefined) delete process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT;
+    else process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = beforeExpiry;
+  });
+  fs.mkdirSync(path.dirname(envFile), { recursive: true });
+  fs.writeFileSync(envFile, 'CLAUDE_CODE_OAUTH_TOKEN="ambient-fixture-token"\n');
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = 'ambient-fixture-token';
+  process.env.CLAUDE_CODE_OAUTH_TOKEN_EXPIRES_AT = '2029-01-01T00:00:00.000Z';
+
+  const result = account(await getAuthStatus({
+    now: () => new Date(NOW_MS),
+    claudeCredentialsPath: path.join(process.env.CORTEX_HOME!, 'missing-claude.json'),
+    piAuthPath: path.join(process.env.CORTEX_HOME!, 'missing-pi.json'),
+    loadPiRuntime: async () => ({
+      available: false, version: null, entry: null, error: 'fixture unavailable',
+      runtime: null, readStoredCredential: null,
+    }),
+    getClaudeMode: () => 'plan', getActiveBackend: () => 'claude', listProfiles: () => [],
+  }), 'anthropic');
+  assert.deepEqual({ state: result.state, expiresAt: result.expiresAt }, {
+    state: 'logged-in', expiresAt: null,
+  });
 });
 
 test('getSavedApiEnv returns defensive snapshots', () => {
