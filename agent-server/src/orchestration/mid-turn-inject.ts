@@ -1,5 +1,5 @@
 // input:  live execution, runtime settings, pending/context seams
-// output: durable injected turns, markers, and bounded continuations
+// output: durable injected turns with resolved attachment paths
 // pos:    Busy-channel injection branch of AgentRunner.route
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -20,6 +20,7 @@ import { SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
 import type { PendingInjectionRecord } from '@store/pending-injection-repo.js';
 import { createLogger } from '@core/log.js';
+import { resolveWorkspaceRelPath } from '@core/paths.js';
 import { getSettings } from '@core/settings.js';
 import type { ContextUsage } from '@core/types/agent-types.js';
 
@@ -415,10 +416,14 @@ function registerSinks(
   });
 }
 
-/** Map web attachment metadata onto the backend's UserMessage attachment shape. */
+/** Resolve UI attachment aliases before handing files to the backend. */
 function attachmentsForBackend(attachments?: AttachmentMeta[]): UserMessage['attachments'] {
   if (!attachments?.length) return undefined;
-  return attachments.map((a) => ({ mimeType: a.mimeType, path: a.path }));
+  const resolved = attachments.flatMap((attachment) => {
+    const localPath = resolveWorkspaceRelPath(attachment.path);
+    return localPath ? [{ mimeType: attachment.mimeType, path: localPath }] : [];
+  });
+  return resolved.length > 0 ? resolved : undefined;
 }
 
 /** Test hook: drop all per-channel injection state. */

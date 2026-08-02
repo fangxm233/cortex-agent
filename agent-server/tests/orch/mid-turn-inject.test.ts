@@ -1,10 +1,11 @@
 // input:  mid-turn injection, mutable settings, backend/context seams
-// output: pending, continuation, marker, and wait-cap regressions
+// output: pending, attachment-path, continuation, marker, and wait-cap regressions
 // pos:    Mid-turn injection lifecycle behavioral tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test, beforeEach, vi } from 'vitest';
 import assert from 'node:assert/strict';
+import * as path from 'node:path';
 
 const liveSettings = vi.hoisted(() => ({ injectWaitMaxS: 600 }));
 vi.mock('@core/settings.js', () => ({ getSettings: () => liveSettings }));
@@ -17,6 +18,7 @@ import {
   type MidTurnInjectDeps,
 } from '../../src/orchestration/mid-turn-inject.js';
 import { SYNTHETIC_CALLBACK_SENDER } from '../../src/platform/types.js';
+import { WORKSPACE_DIR } from '../../src/core/paths.js';
 
 // Injection state is per-channel and module-scoped (it outlives a single turn by design), so each
 // test starts from a clean registry rather than inheriting the previous test's pending messages.
@@ -30,16 +32,22 @@ const SESSION = 'track-sess-1';
 
 /** A pooled AgentProcess that accepts injection, capturing the sinks orchestration registers. */
 function fakeProcess(opts: { accepts?: boolean; hasMethod?: boolean } = {}) {
-  const injected: string[] = [];
+  const injectedTexts: string[] = [];
+  const injectedMessages: any[] = [];
   const p: any = {
-    injectedTexts: injected,
+    injectedTexts,
+    injectedMessages,
     ackSink: null as any,
     continuationSink: null as any,
     setInjectionAckSink(sink: any) { p.ackSink = sink; },
     setContinuationSink(sink: any) { p.continuationSink = sink; },
   };
   if (opts.hasMethod !== false) {
-    p.injectUserMessage = (m: any) => { injected.push(m.text); return opts.accepts !== false; };
+    p.injectUserMessage = (m: any) => {
+      injectedTexts.push(m.text);
+      injectedMessages.push(m);
+      return opts.accepts !== false;
+    };
   }
   return p;
 }
@@ -276,6 +284,10 @@ test('attachments ride along to the backend, the pending row, and the committed 
   const attachments = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
 
   assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, attachments }), true);
+  assert.deepEqual(proc.injectedMessages[0].attachments, [{
+    mimeType: 'image/png',
+    path: path.join(WORKSPACE_DIR, 'attachments', 'a.png'),
+  }]);
   assert.deepEqual(r.published[0].attachments, attachments);
 
   await proc.ackSink.onDelivered({ text: 'skip the rest', foldedIntoTurn: true });

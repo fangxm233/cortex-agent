@@ -17,7 +17,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | durable-helpers.ts | util | builds durable post and update hooks |
 | lifecycle.ts | core | adopts admission leases and snapshots turns |
 | manager-qa.ts | channel | relays subtask questions to managers and humans |
-| mid-turn-inject.ts | core | injects turns with a live wait cap |
+| mid-turn-inject.ts | core | injects turns with resolved files and a wait cap |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
