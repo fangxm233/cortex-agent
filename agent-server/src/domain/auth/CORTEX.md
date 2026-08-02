@@ -7,7 +7,7 @@ It routes required/recovered events into debounced user notices.
 |---|---|---|
 | auth-events.ts | events | Classifies failures and publishes auth lifecycle |
 | auth-format.ts | format | Formats secret-free account status summaries |
-| auth-status.ts | core | Projects status and preferred login capability |
+| auth-status.ts | core | Projects credential states, expiry, and capabilities |
 | logout.ts | service | Removes Cortex-managed account credentials |
 | auth-watch.ts | notify | Routes notices and exposes recent reminder state |
 | cc-login.ts | adapter | Persists Claude API keys and reloads auth |

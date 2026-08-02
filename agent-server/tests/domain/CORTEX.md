@@ -8,7 +8,7 @@ Domain-layer tests, one folder per business capability of the agent server.
 | agents/ | subdir | agent profile resolution and switching |
 | auth-logout.test.ts | test | Auth logout ownership, state, and privacy |
 | auth-login-service.test.ts | test | Auth consumer selection and cancellation fencing |
-| auth-status.test.ts | test | Auth state, capability preference and output |
+| auth-status.test.ts | test | Auth state, managed expiry, capabilities and output |
 | cc-login.test.ts | test | Claude API-key persistence, concurrency and recovery |
 | cc-subscription.test.ts | test | Claude subscription security, expiry, and cancellation |
 | login-flow.test.ts | test | Covers login outcomes, safe errors, and abort scopes |
