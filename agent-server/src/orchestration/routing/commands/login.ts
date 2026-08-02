@@ -1,5 +1,5 @@
 // input:  auth status/LoginFlow services, command router, platform forms
-// output: Validated chat auth prompts, actions, and expiry results
+// output: Validated chat auth prompts, notices, and expiry results
 // pos:    Chat authentication entry, notice, and prompt coordinator
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -207,7 +207,7 @@ function buildLoginModal(
 }
 
 function stateIsActionable(state: LoginFlowState): boolean {
-  return state.step === 'prompt' || TERMINAL_STEPS.has(state.step);
+  return state.step === 'prompt' || state.notice !== null || TERMINAL_STEPS.has(state.step);
 }
 
 function expiredFlowState(state: LoginFlowState): LoginFlowState {
@@ -445,6 +445,10 @@ async function presentNotificationFlow(
   if (!adapter) return;
   if (TERMINAL_STEPS.has(state.step)) {
     await postFlowResult(adapter, metadata.channel, state);
+    return;
+  }
+  if (state.step !== 'prompt') {
+    monitorInBackground(state, metadata, dependencies);
     return;
   }
   await adapter.openModal(context.triggerId, buildLoginModal(
