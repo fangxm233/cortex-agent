@@ -1,5 +1,5 @@
 // input:  spawn facade, task context, adapters, MCP configs, goldens
-// output: cwd, composition, generation, pool, and golden proofs
+// output: cwd, accounting, composition, pool, and golden proofs
 // pos:    Verifies the backend process spawn contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -325,8 +325,13 @@ lines.on('line', (line) => {
         cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
     } } }));
   }
+  const usage = process.env.EMIT_TOKEN_USAGE === '1' ? {
+    input_tokens: 10, output_tokens: 5,
+    cache_creation_input_tokens: 3, cache_read_input_tokens: 7,
+  } : undefined;
   console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false,
-    session_id: request.session_id, result: 'ok', total_cost_usd: 0, num_turns: 1 }));
+    session_id: request.session_id, result: 'ok', total_cost_usd: 0, num_turns: 1,
+    usage, modelUsage: usage ? { 'claude-sonnet-4-5-20250929': {} } : undefined }));
 });
 `);
   chmodSync(fakeClaude, 0o755);
@@ -440,6 +445,36 @@ test('Claude print uses an injected process spawner without changing argv or cwd
   assert.equal(calls[0].command, 'claude');
   assert.equal(calls[0].cwd, cwd);
   assert.equal(readFileSync(marker, 'utf8'), cwd);
+});
+
+test('Claude daemon print mode reports cache-inclusive input tokens', async (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), 'cortex-spawn-accounting-'));
+  const binDir = path.join(root, 'bin');
+  installFakeClaude(binDir);
+  const restore = overrideEnvironment({
+    PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
+    EMIT_TOKEN_USAGE: '1',
+  });
+  const adapter = new ClaudeAdapter();
+  t.onTestFinished(async () => {
+    await adapter.close('print-accounting');
+    restore();
+    rmSync(root, { recursive: true, force: true });
+  });
+  const proc = adapter.spawn({ sessionId: null, sessionKey: 'print-accounting', resume: false });
+  const eventsPromise = (async () => {
+    const events = [];
+    for await (const event of proc.events) events.push(event);
+    return events;
+  })();
+  await proc.send({ text: 'accounting probe' });
+  await proc.close();
+  const cost = (await eventsPromise).find((event) => event.type === 'cost_record');
+  assert.deepEqual(cost, {
+    type: 'cost_record', provider: 'anthropic', model: 'claude-sonnet-4-5-20250929',
+    tokens_in: 10 + 3 + 7, tokens_out: 5,
+    prompt_tokens: 10 + 3 + 7, cached_tokens: 7, cost_usd: 0,
+  });
 });
 
 test('Claude print subprocess uses the requested cwd and preserves the default cwd', async (t) => {

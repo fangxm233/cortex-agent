@@ -11,7 +11,7 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | agent-run-cli.test.ts | test | verifies required flags, stdin ownership and help |
 | agent-run-e2e-fixture.ts | fixture | builds and cleans process-level run fixtures |
 | agent-run-e2e.test.ts | e2e | proves containment, cleanup and completion |
-| agent-run-protocol-e2e.test.ts | e2e | proves stdin, nullable accounting and failures |
+| agent-run-protocol-e2e.test.ts | e2e | proves stdin, cache-inclusive accounting and failures |
 | benchmark-local-thread-entry.ts | fixture | runs one orchestrator in a pinned child |
 | benchmark-local-thread-orchestrator.test.ts | test | proves bounds, identity and supervisor gating |
 | benchmark-local-thread-process.test.ts | e2e | proves full-run journal and C8 confinement |
