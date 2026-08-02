@@ -1,5 +1,5 @@
 // input:  npm pack lifecycle, clean package fixture, native builder
-// output: packed executable and manifest digest contract
+// output: packed 0755 executable and manifest digest contract
 // pos:    Verifies the published supervisor artifact from a clean tree
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -40,15 +40,20 @@ function copyCleanPackage(root: string): string {
 }
 
 function pack(server: string, destination: string): string {
-  const result = spawnSync('npm', ['pack', '--pack-destination', destination], {
-    cwd: server,
-    encoding: 'utf8',
-    timeout: 300_000,
-  });
-  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  const tarballs = fs.readdirSync(destination).filter(file => file.endsWith('.tgz'));
-  assert.equal(tarballs.length, 1, `expected one tarball, got ${tarballs.join(', ')}`);
-  return path.join(destination, tarballs[0]);
+  const previousUmask = process.umask(0o077);
+  try {
+    const result = spawnSync('npm', ['pack', '--pack-destination', destination], {
+      cwd: server,
+      encoding: 'utf8',
+      timeout: 300_000,
+    });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const tarballs = fs.readdirSync(destination).filter(file => file.endsWith('.tgz'));
+    assert.equal(tarballs.length, 1, `expected one tarball, got ${tarballs.join(', ')}`);
+    return path.join(destination, tarballs[0]);
+  } finally {
+    process.umask(previousUmask);
+  }
 }
 
 function extract(tarball: string, destination: string): string {
@@ -62,7 +67,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
 });
 
-test('npm pack builds and co-packs the supervisor with a matching digest', () => {
+test('npm pack builds and co-packs a 0755 supervisor under a restrictive umask', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-package-supervisor-'));
   roots.push(root);
   const server = copyCleanPackage(root);

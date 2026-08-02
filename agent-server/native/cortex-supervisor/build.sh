@@ -1,5 +1,5 @@
 # input:  GCC, static glibc, supervisor C sources
-# output: static binary and schema-versioned build manifest
+# output: mode-stable binary and schema-versioned manifest
 # pos:    Reproducible root-free supervisor build entry point
 # >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -41,6 +41,7 @@ if [[ "$ldd_output" != *"not a dynamic executable"* ]]; then
   exit 1
 fi
 mv "$temporary_binary" "$binary"
+chmod 0755 "$binary"
 
 inventory=""
 for file in "${source_files[@]}"; do

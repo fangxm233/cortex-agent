@@ -5,4 +5,4 @@ Static Linux child-subreaper binary and its reproducible local build entry point
 | filename | role | function |
 |---|---|---|
 | src/ | source | Implements protocol and process containment |
-| build.sh | build | Builds static binary and provenance manifest |
+| build.sh | build | Builds a mode-stable binary and provenance manifest |
