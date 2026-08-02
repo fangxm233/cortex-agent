@@ -124,6 +124,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | spawn-seam-thread.golden.json | golden | pins ordinary thread argv and environment |
 | spawn-seam.test.ts | test | Proves task context, cwd, accounting and spawn policy |
 | status-helpers.test.ts | test | status sealing and reset-isolated buttons |
+| status-md-guard.test.ts | test | STATUS.md size-guard allow/deny/warn hook |
 | store/ | subdir | JSON repository and store concurrency tests |
 | task-abort-outcome.test.ts | test | aborted thread escalates to blocked task |
 | task-archiver.test.ts | test | accepts precise task completion timestamps |

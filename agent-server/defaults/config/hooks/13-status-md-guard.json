@@ -1,0 +1,11 @@
+{
+  "id": "status-md-guard",
+  "event": "agent:pre-tool",
+  "matcher": "Edit|Write",
+  "run": {
+    "script": "status-md-guard.mjs",
+    "timeout": 10
+  },
+  "enabled": true,
+  "version": "2026.8.2"
+}

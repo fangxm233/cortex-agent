@@ -14,5 +14,6 @@ Managed hook scripts deployed into the runtime hook directory.
 | rules-loader.mjs | loader | Loads matching rules after file reads |
 | sensitive-file-edit.mjs | guard | Handles protected configuration edits |
 | session-activity-tracker.mjs | tracker | Records session tool activity |
+| status-md-guard.mjs | guard | Enforces STATUS.md register size caps |
 | task-status-check.mjs | thread | Checks dispatched task state at thread end |
 | tasks-yaml-guard.mjs | guard | Protects task queue edits |
