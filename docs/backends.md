@@ -100,7 +100,7 @@ host. The same login flow is exposed through three channels:
 |---|---|---|
 | Slack | Send `!login`, `!login cc`, or `!login pi [provider]` | Selectors and secret fields open in Slack modals; authorization links are posted to the channel. |
 | Feishu | Send `!login`, `!login cc`, or `!login pi [provider]` | Selectors and secret fields use inline card forms; authorization links are posted to the chat. |
-| Web (desktop and mobile) | Open **Settings → Accounts** | The Accounts section shows Claude Code and PI providers and opens the same selector-driven login flow. |
+| Web (desktop and mobile) | Open **Settings → Platform → Backend login** | The Backend login entry opens the same provider and authentication-type selectors. |
 
 The chat command forms are:
 
