@@ -15,10 +15,9 @@ import {
 import { resolveSystemVars, resolveTemplateAgents } from '../threads/index.js';
 import {
   canonicalJsonSha256, computeBundleManifestHash, computeRoleToolSurfaceHash,
-  type FrozenIdentity, type RoleToolSurfaceInput,
+  resolvedRouteHost, type FrozenIdentity, type RoleToolSurfaceInput,
 } from './identity.js';
 import { readStartedJournalIdentity } from './manifest.js';
-import { resolvedRouteHost } from './run-config.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
 
 export interface BenchmarkIdentityRequest {
@@ -40,6 +39,11 @@ export interface BenchmarkRoleIdentity extends FrozenIdentity {
 export interface BenchmarkThreadIdentities {
   entry: BenchmarkRoleIdentity;
   roles: Map<string, BenchmarkRoleIdentity>;
+  modelProtocolProblem: string | null;
+}
+
+export class BenchmarkIdentityProtocolError extends Error {
+  readonly reason = 'protocol_violation' as const;
 }
 
 function sha256(value: string): string {
@@ -139,17 +143,17 @@ function compatibleModelProfiles(
   ));
 }
 
-function assertParentModelObservation(
+function parentModelObservationProblem(
   parent: ReturnType<typeof readStartedJournalIdentity>,
   profile: ResolvedProfileConfig,
-): void {
+): string | null {
   const matches = parent.agentSlot === 'parent' && profile.backend === 'claude'
     && parent.requestedModel === profile.model && parent.provider === profile.provider;
-  if (!matches) throw new Error('Benchmark resolved profile does not match parent model observation');
+  if (!matches) return 'Benchmark resolved profile does not match parent model observation';
   const selected = modelProfileProjection(profile);
-  if (compatibleModelProfiles(parent).some(candidate => modelProfileProjection(candidate) !== selected)) {
-    throw new Error('Benchmark cannot prove parent model identity from ambiguous profiles');
-  }
+  const ambiguous = compatibleModelProfiles(parent)
+    .some(candidate => modelProfileProjection(candidate) !== selected);
+  return ambiguous ? 'Benchmark cannot prove parent model identity from ambiguous profiles' : null;
 }
 
 export function freezeBenchmarkThreadIdentities(
@@ -161,11 +165,11 @@ export function freezeBenchmarkThreadIdentities(
     trajectoryRoot: request.trajectoryRoot, canonicalTrajectoryRoot: true,
     rootRunId: request.rootRunId, threadId: null,
   });
-  assertParentModelObservation(parent, profile);
+  const modelProtocolProblem = parentModelObservationProblem(parent, profile);
   const roles = roleIdentityMap(request, profile, template, parent.modelExecutionIdentityHash);
   const entry = roles.get(template.entryAgent);
   if (!entry) throw new Error(`Missing benchmark entry identity: ${template.entryAgent}`);
-  return { entry, roles };
+  return { entry, roles, modelProtocolProblem };
 }
 
 export function benchmarkInstructionHashes(instruction: string): {

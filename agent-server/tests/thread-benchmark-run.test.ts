@@ -156,6 +156,8 @@ function benchmarkOptions(workspaceCwd: string, spawner?: AgentProcessSpawner) {
   return {
     workspaceCwd,
     resolvedProfileName: 'pinned-claude',
+    expectedBackend: 'claude' as const,
+    expectedModel: 'claude-fixture',
     disableHooks: true,
     disableControlPlane: true,
     failFastOnRateLimit: true,

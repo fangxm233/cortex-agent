@@ -480,6 +480,8 @@ export interface BenchmarkThreadRunOptions {
   workspaceCwd: string;
   /** Frozen trial profile; benchmark templates cannot select a different identity. */
   resolvedProfileName: string;
+  expectedBackend: 'claude';
+  expectedModel: string;
   disableHooks: true;
   disableControlPlane: true;
   failFastOnRateLimit: true;

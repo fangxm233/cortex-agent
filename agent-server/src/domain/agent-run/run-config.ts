@@ -12,6 +12,7 @@ import { readStdinSync } from '../../core/cli-utils.js';
 import { DEFAULTS_DIR } from '../../core/paths.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import type { FrozenIdentityInput, IdentityJsonValue } from './identity.js';
+export { resolvedRouteHost } from './identity.js';
 
 const roleSchema = z.object({
   system_prompt: z.string(),
@@ -157,16 +158,6 @@ export function loadAgentRunConfig(file?: string): ResolvedAgentRunConfig {
   if (file === undefined) return defaultConfig();
   if (file === '-') return resolvedRunConfig(parseJson(readStdinSync(), 'stdin'), process.cwd());
   return resolvedRunConfig(readJson(file), path.dirname(file));
-}
-
-export function resolvedRouteHost(profile: ResolvedProfileConfig): string | null {
-  const value = profile.extraEnv.ANTHROPIC_BASE_URL;
-  if (!value) return null;
-  try {
-    return new URL(value).host;
-  } catch {
-    throw new Error(`Invalid resolved ANTHROPIC_BASE_URL: ${value}`);
-  }
 }
 
 export function validateResolvedExecution(

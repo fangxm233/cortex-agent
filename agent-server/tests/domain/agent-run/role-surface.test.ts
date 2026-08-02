@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, it } from 'vitest';
+import { DEFAULT_TOOLS } from '../../../src/agent-adapter/claude/defaults.js';
 import { buildSpawnArgs } from '../../../src/agent-adapter/claude/spawn-args.js';
 import type { AgentSpawnConfig } from '../../../src/agent-adapter/types.js';
 import {
@@ -64,6 +65,15 @@ it('hashes a caller-supplied thread directive instead of the one-shot empty dire
     directed.directiveSha256,
     '66ef966ddb7cadb3286bb29d17558fff3e1028b6a47659e57247d3464ba0e357',
   );
+});
+
+it('hashes Claude default tools when the spawn omits or blanks raw tools', () => {
+  const expected = DEFAULT_TOOLS.split(',');
+  for (const rawTools of [undefined, '']) {
+    const config = spawnConfig();
+    config.rawTools = rawTools;
+    assert.deepEqual(roleSurfaceFromSpawnConfig(config).tools, expected);
+  }
 });
 
 it('hashes the exact tools, MCP composition, and hook policy used by Claude argv', () => {

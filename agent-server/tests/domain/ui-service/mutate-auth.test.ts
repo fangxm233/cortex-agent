@@ -1,5 +1,5 @@
-// input:  auth UI-service handlers, stub login service, and EventBus audit sink
-// output: auth notice reuse, conflict, and redaction regressions
+// input:  auth UI-service handlers, login/logout services, audit sink
+// output: auth flow, logout routing, conflict, and redaction tests
 // pos:    Tests the transport-neutral Web authentication write surface
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -7,10 +7,12 @@ import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import {
   handleAuthCancelFlow,
+  handleAuthLogout,
   handleAuthRespondPrompt,
   handleAuthStartLogin,
 } from '../../../src/domain/ui-service/mutate/auth.js';
 import { createUiService } from '../../../src/domain/ui-service/ui-service.js';
+import { createAppRouter } from '../../../src/domain/ui-service/app-router.js';
 import type { AuthLoginService } from '../../../src/domain/auth/login-service.js';
 import type { LoginFlowState } from '../../../src/domain/auth/login-flow.js';
 import type { UiServiceDeps } from '../../../src/domain/ui-service/types.js';
@@ -175,4 +177,42 @@ test('auth.respondPrompt audit event strips the submitted value completely', asy
   assert.deepEqual(audit.args, { flowId: 'flow-web' });
   assert.ok(!JSON.stringify(events).includes(secret));
   assert.ok(!JSON.stringify(result).includes(secret));
+});
+
+const LOGOUT_INPUT = {
+  backend: 'pi' as const, provider: 'deepseek', authType: 'api_key' as const,
+};
+
+function logoutDeps(result: unknown, calls: unknown[]): UiServiceDeps {
+  return {
+    logoutAccount: async (input: unknown) => {
+      calls.push(input);
+      return result;
+    },
+    bus: { publish: () => {} },
+  } as unknown as UiServiceDeps;
+}
+
+test('auth.logout tRPC mutation reaches the UI service with the identity tuple', async () => {
+  const calls: unknown[] = [];
+  const success = { ok: true as const, ...LOGOUT_INPUT };
+  const caller = createAppRouter(createUiService(logoutDeps(success, calls))).createCaller({});
+
+  assert.deepEqual(await caller.auth.logout(LOGOUT_INPUT), success);
+  assert.deepEqual(calls, [LOGOUT_INPUT]);
+});
+
+test('auth.logout preserves structured external credential guidance', async () => {
+  const failure = {
+    ok: false as const, ...LOGOUT_INPUT,
+    error: {
+      code: 'external_credential' as const,
+      message: 'Run `claude /logout` in a terminal.',
+    },
+  };
+  const result = await handleAuthLogout(logoutDeps(failure, []), LOGOUT_INPUT);
+
+  assert.deepEqual(result, {
+    ok: false, code: 'external_credential', message: failure.error.message,
+  });
 });

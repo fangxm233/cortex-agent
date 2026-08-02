@@ -58,6 +58,56 @@ PI 会话使用 `--session <path>` 进行恢复，使用 `--system-prompt` 覆�
 
 PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是受支持的 PI provider（包括 `openai-codex-responses` API kind）；使用它的 profile 仍须设置 `"backend": "pi"`。
 
+## 远程登录 {#remote-login}
+
+无需 SSH 登录 Cortex 主机，也可以远程完成 backend 登录。同一登录流程有三个渠道入口：
+
+| 渠道 | 入口 | 交互方式 |
+|---|---|---|
+| Slack | 发送 `!login`、`!login cc` 或 `!login pi [provider]` | 选择器和 secret 输入使用 Slack modal；授权链接发送到频道。 |
+| 飞书 | 发送 `!login`、`!login cc` 或 `!login pi [provider]` | 选择器和 secret 输入使用内联卡片表单；授权链接发送到聊天。 |
+| Web（桌面与移动端） | 打开 **设置 → 账号** | Accounts 分区展示 Claude Code 与 PI provider，并打开同一套选择器式登录流程。 |
+
+聊天命令形式如下：
+
+```text
+!login
+!login status
+!login cc
+!login pi
+!login pi <provider>
+```
+
+无参数的 `!login` 与 `!login status` 都显示认证状态总览。`!login cc` 选择
+Claude Code。`!login pi` 先打开 PI provider 选择器；附带 provider 时跳过该步。
+Provider 支持多种认证类型时，认证类型同样在交互中选择。不要在命令后追加 `oauth`、
+API key、授权码或 provider 专用 OAuth 参数。
+
+只有当已安装 PI provider 的 `provider.auth.oauth.login` 是函数时，界面才提供 OAuth。
+参考安装环境的本机实测结果是 39 个 provider 中 7 个满足该判据；清单由运行时动态发现，
+因此只支持 API key 的 provider 不会显示无法使用的 OAuth 选项。Claude Code 的 API key
+与订阅登录也通过选择器提供。
+
+Claude Code 订阅登录由 Cortex 在受控 tmux 会话中驱动 `claude setup-token`：授权 URL
+发送到发起渠道，用户通过渠道表单提交返回的 code。生成的长效 token 以
+`CLAUDE_CODE_OAUTH_TOKEN` 存入 `~/.cortex/config/.env`；状态输出和 transcript
+都不会打印它。
+
+运行中的 backend 报告认证过期时，Cortex 会发送点名 backend/provider 的通知卡，卡片上的
+一键重登按钮会预填已有选择。每日过期扫描只检查使用中的账号，并对即将过期、已过期或缺失
+的凭据发送同一种可操作提醒。运行时通知与每日扫描共用去重，同一 provider 在一个提醒窗口内
+不会被重复通知。
+
+在主机上做只读状态检查可运行：
+
+```bash
+cortex auth status
+cortex auth status --json
+```
+
+文本形式提供简洁总览；`--json` 返回完整的归一化状态快照。两者都不包含凭据。精确命令契约
+参见 [CLI 参考](./cli-reference.md#cortex)。
+
 ## 选择后端 {#selecting-a-backend}
 
 后端在 `$CORTEX_HOME/config/profiles.json` 中按配置选择（完整配置模式参见 [configuration.md](./configuration.md)）：

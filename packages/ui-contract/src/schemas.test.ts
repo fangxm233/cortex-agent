@@ -1,5 +1,5 @@
 // input:  runtime shared Zod schema maps
-// output: operation coverage including notice-bound auth starts
+// output: operation coverage including authentication mutations
 // pos:    Runtime UI-contract schema guard
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -24,7 +24,7 @@ const MUTATE_OPS = [
   'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',
   'issues.handle', 'issues.delete', 'notes.add', 'notes.update', 'notes.setCompleted', 'notes.delete',
   'notes.clearCompleted', 'config.set', 'hooks.create', 'hooks.update', 'hooks.setEnabled', 'hooks.remove',
-  'hooks.test', 'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'system.restart',
+  'hooks.test', 'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'auth.logout', 'system.restart',
 ] as const;
 
 test('every QueryScope has an input schema', () => {
@@ -77,6 +77,20 @@ test('auth flow schemas accept both auth types and require the prompt response v
   assert.throws(() => mutateInputSchemas['auth.respondPrompt'].parse({ flowId: 'flow-1' }));
   assert.throws(() => mutateInputSchemas['auth.startLogin'].parse({
     backend: 'pi', provider: 'deepseek', authType: 'subscription',
+  }));
+});
+
+test('auth logout schema accepts only the secret-free identity tuple', () => {
+  const logout = {
+    backend: 'claude' as const, provider: 'anthropic', authType: 'oauth' as const,
+  };
+  assert.deepEqual(mutateInputSchemas['auth.logout'].parse(logout), logout);
+  assert.deepEqual(
+    mutateInputSchemas['auth.logout'].parse({ ...logout, credential: 'must-be-stripped' }),
+    logout,
+  );
+  assert.throws(() => mutateInputSchemas['auth.logout'].parse({
+    ...logout, authType: 'subscription',
   }));
 });
 

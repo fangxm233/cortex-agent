@@ -65,6 +65,7 @@ import type {
   AgentSlotConfig,
   ThreadTemplate,
   RunThreadOptions,
+  BenchmarkThreadRunOptions,
 } from '@core/types/thread-types.js';
 import {
   getLocalThreadRuntimeDeps,
@@ -308,6 +309,22 @@ function resolveEffectiveProfileName(
   return configuredProfile === '__active__'
     ? (meta?.profileOverride || getActiveProfile(channel))
     : configuredProfile;
+}
+
+class BenchmarkProfileIdentityError extends Error {
+  readonly reason = 'protocol_violation' as const;
+}
+
+function assertBenchmarkProfile(
+  profile: ReturnType<typeof resolveProfileConfig>,
+  benchmark: BenchmarkThreadRunOptions,
+): void {
+  const matches = profile.backend === benchmark.expectedBackend
+    && profile.model === benchmark.expectedModel;
+  if (matches) return;
+  throw new BenchmarkProfileIdentityError(
+    `Benchmark profile drifted from ${benchmark.expectedBackend}/${benchmark.expectedModel}`,
+  );
 }
 
 function resolveStepProfile(
@@ -574,8 +591,21 @@ function failStepExecution(stepCtx: StepContext, error: any): void {
   });
 }
 
-function launchThreadAgent(stepCtx: StepContext, options: ThreadAgentOptions): ThreadAgentHandle {
+function verifyBenchmarkProfileBeforeLaunch(
+  stepCtx: StepContext,
+  benchmark: BenchmarkThreadRunOptions | undefined,
+): void {
+  if (!benchmark) return;
+  assertBenchmarkProfile(resolveProfileConfig(stepCtx.profileName), benchmark);
+}
+
+function launchThreadAgent(
+  stepCtx: StepContext,
+  options: ThreadAgentOptions,
+  benchmark: BenchmarkThreadRunOptions | undefined,
+): ThreadAgentHandle {
   try {
+    verifyBenchmarkProfileBeforeLaunch(stepCtx, benchmark);
     return runAgent(stepCtx.prompt, options);
   } catch (error) {
     failStepExecution(stepCtx, error);
@@ -616,7 +646,7 @@ async function executeAndAwaitAgent(
   ctx: ThreadContext, opts: RunThreadOptions,
 ): Promise<any> {
   const options = buildThreadAgentOptions(threadId, stepCtx, callbacks, ctx, opts);
-  const handle = launchThreadAgent(stepCtx, options);
+  const handle = launchThreadAgent(stepCtx, options, opts.benchmark);
   registerStepHandle(threadId, stepCtx, handle, opts);
   return awaitStepHandle(stepCtx, handle);
 }

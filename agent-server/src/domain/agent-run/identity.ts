@@ -125,6 +125,16 @@ export function canonicalJsonSha256(value: unknown): string {
   return createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 
+export function resolvedRouteHost(profile: ResolvedProfileConfig): string | null {
+  const value = profile.extraEnv.ANTHROPIC_BASE_URL;
+  if (!value) return null;
+  try {
+    return new URL(value).host;
+  } catch {
+    throw new Error(`Invalid resolved ANTHROPIC_BASE_URL: ${value}`);
+  }
+}
+
 export function computeModelExecutionIdentityHash(input: ModelExecutionIdentityInput): string {
   return canonicalJsonSha256({
     backend: input.backend,

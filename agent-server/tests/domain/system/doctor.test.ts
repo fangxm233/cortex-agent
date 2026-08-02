@@ -1,4 +1,4 @@
-// input:  Injected doctor environment and filesystem probes
+// input:  Injected environment, auth, PI runtime, and gateway probes
 // output: Diagnostic reports and safe-fix assertions
 // pos:    Doctor engine regression tests
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -13,6 +13,11 @@ import {
   type FixActuators,
   type DoctorReport,
 } from '../../../src/domain/system/doctor.js';
+import type {
+  AuthAccountStatus,
+  AuthStatusSnapshot,
+} from '../../../src/domain/auth/auth-status.js';
+import type { PiRuntimeLoadResult } from '../../../src/domain/auth/pi-runtime.js';
 
 // ─── helpers ──────────────────────────────────────────────────────
 
@@ -26,44 +31,67 @@ function parseEnv(text: string): Record<string, string> {
   return out;
 }
 
+function healthyPiRuntime(login: unknown = async () => ({ type: 'api_key' })) {
+  return {
+    available: true, version: '0.82.1', entry: '/pi/index.js', error: null,
+    runtime: {
+      getProviders: () => [],
+      getProviderAuthStatus: () => ({ configured: false }),
+      login,
+      logout: async () => {},
+    },
+    readStoredCredential: () => undefined,
+  } as unknown as PiRuntimeLoadResult;
+}
+
+function authAccount(over: Partial<AuthAccountStatus> = {}): AuthAccountStatus {
+  return {
+    backend: 'claude', provider: 'anthropic', label: 'Anthropic',
+    capabilities: ['api_key', 'oauth'], authType: 'api_key', state: 'logged-in',
+    source: 'env', expiresAt: null, refreshExpiresAt: null, inUse: true,
+    credentials: [], ...over,
+  };
+}
+
+function authSnapshot(accounts: AuthAccountStatus[] = [authAccount()]): AuthStatusSnapshot {
+  return {
+    generatedAt: '2026-08-02T00:00:00.000Z', accounts,
+    piRuntime: { available: true, version: '0.82.1', entry: '/pi/index.js', error: null },
+  };
+}
+
+const BASE_PRESENT = new Set([
+  '/d', '/c', '/s', '/c/.env', '/s/mode.json', '/c/profiles.json',
+  '/c/mcp-config.json', '/h/.aistatus/gateway.yaml',
+]);
+const BASE_TEXTS: Record<string, string> = {
+  '/c/.env': '',
+  '/s/mode.json': '{"backend":"claude","mode":"api"}',
+  '/c/profiles.json': '{"profiles":{"default":{"model":"x"}},"defaultProfile":"default"}',
+  '/c/mcp-config.json': '{}',
+  '/h/.aistatus/gateway.yaml': 'endpoints: {}',
+};
+const BASE_ENV = {
+  CORTEX_CLIENT_TOKEN: 'ctok', CORTEX_WEBHOOK_TOKEN: 'wtok',
+  ANTHROPIC_API_KEY: 'sk-real', CORTEX_PLATFORM: 'slack',
+  SLACK_BOT_TOKEN: 'xoxb-1', SLACK_SIGNING_SECRET: 'sign', SLACK_APP_TOKEN: 'xapp-1',
+};
+
 /** All-green dependency set. Override fields per test. */
 function baseDeps(over: Partial<DoctorDeps> = {}): DoctorDeps {
-  const present = new Set([
-    '/d', '/c', '/s', // data directories
-    '/c/.env',
-    '/s/mode.json',
-    '/c/profiles.json',
-    '/c/mcp-config.json',
-    '/h/.aistatus/gateway.yaml',
-  ]);
-  const texts: Record<string, string> = {
-    '/c/.env': '',
-    '/s/mode.json': '{"backend":"claude","mode":"api"}',
-    '/c/profiles.json': '{"profiles":{"default":{"model":"x"}},"defaultProfile":"default"}',
-    '/c/mcp-config.json': '{}',
-    '/h/.aistatus/gateway.yaml': 'endpoints: {}',
-  };
   return {
-    env: {
-      CORTEX_CLIENT_TOKEN: 'ctok',
-      CORTEX_WEBHOOK_TOKEN: 'wtok',
-      ANTHROPIC_API_KEY: 'sk-real',
-      CORTEX_PLATFORM: 'slack',
-      SLACK_BOT_TOKEN: 'xoxb-1',
-      SLACK_SIGNING_SECRET: 'sign',
-      SLACK_APP_TOKEN: 'xapp-1',
-    },
+    env: { ...BASE_ENV },
     paths: { DATA_DIR: '/d', CONFIG_DIR: '/c', STORE_DIR: '/s' },
-    homeDir: '/h',
-    nodeVersion: 'v20.11.0',
-    requiredNodeMajor: 20,
-    fileExists: (p: string) => present.has(p),
+    homeDir: '/h', nodeVersion: 'v20.11.0', requiredNodeMajor: 20,
+    fileExists: p => BASE_PRESENT.has(p),
     isWritable: () => true,
-    readText: (p: string) => (p in texts ? texts[p] : null),
+    readText: p => (p in BASE_TEXTS ? BASE_TEXTS[p] : null),
     parseDotenv: parseEnv,
     commandExists: () => true,
     pidAlive: () => true,
     probeGateway: async () => true,
+    loadPiRuntime: async () => healthyPiRuntime(),
+    getAuthStatus: async () => authSnapshot(),
     ...over,
   };
 }
@@ -118,7 +146,7 @@ describe('runDiagnostics — auth tokens', () => {
   it('warns (not fail) when ANTHROPIC_API_KEY is absent', async () => {
     const env = { ...baseDeps().env };
     delete env.ANTHROPIC_API_KEY;
-    const checks = byId(await runDiagnostics(baseDeps({ env })));
+    const checks = byId(await runDiagnostics(baseDeps({ env, probeGateway: async () => false })));
     assert.equal(checks['anthropic-key'].status, 'warn');
   });
 
@@ -133,6 +161,107 @@ describe('runDiagnostics — auth tokens', () => {
     const deps = baseDeps({ fileExists: (p: string) => p !== '/c/.env' });
     const checks = byId(await runDiagnostics(deps));
     assert.equal(checks['env-file'].status, 'fail');
+  });
+});
+
+// ─── PI runtime and backend authentication ───────────────────────
+
+describe('runDiagnostics — PI runtime', () => {
+  it('passes only when the installed runtime exposes login', async () => {
+    const checks = byId(await runDiagnostics(baseDeps()));
+    assert.equal(checks['pi-runtime'].status, 'pass');
+  });
+
+  it('skips the runtime smoke test when PI is not installed', async () => {
+    let loadCalls = 0;
+    const deps = baseDeps({
+      commandExists: bin => bin !== 'pi',
+      loadPiRuntime: async () => { loadCalls += 1; return healthyPiRuntime(); },
+    });
+    const checks = byId(await runDiagnostics(deps));
+    assert.equal(checks['pi-runtime'].status, 'skip');
+    assert.equal(loadCalls, 0);
+  });
+
+  it('warns without failing doctor when the PI runtime cannot load', async () => {
+    const result = await runDiagnostics(baseDeps({
+      loadPiRuntime: async () => ({
+        available: false, version: null, entry: null,
+        error: 'secret-shaped import failure', runtime: null, readStoredCredential: null,
+      }),
+    }));
+    const check = byId(result)['pi-runtime'];
+    assert.equal(check.status, 'warn');
+    assert.match(check.hint ?? '', /docs\/backends\.md/);
+    assert.doesNotMatch(check.detail, /secret-shaped/);
+    assert.equal(result.ok, true);
+  });
+
+  it('warns when the installed runtime has no login function', async () => {
+    const result = await runDiagnostics(baseDeps({
+      loadPiRuntime: async () => healthyPiRuntime(null),
+    }));
+    const check = byId(result)['pi-runtime'];
+    assert.equal(check.status, 'warn');
+    assert.match(check.hint ?? '', /docs\/backends\.md/);
+    assert.equal(result.ok, true);
+  });
+});
+
+describe('runDiagnostics — backend authentication', () => {
+  it('passes when all in-use accounts avoid expired and logged-out states', async () => {
+    const checks = byId(await runDiagnostics(baseDeps({
+      getAuthStatus: async () => authSnapshot([
+        authAccount(),
+        authAccount({ backend: 'pi', provider: 'deepseek', label: 'DeepSeek', state: 'expiring' }),
+      ]),
+    })));
+    assert.equal(checks['backend-auth'].status, 'pass');
+  });
+
+  it('warns with only counts and provider names for unhealthy in-use accounts', async () => {
+    const sentinel = 'credential-fragment-must-not-appear';
+    const result = await runDiagnostics(baseDeps({
+      getAuthStatus: async () => authSnapshot([
+        authAccount({ state: 'expired', detail: sentinel }),
+        authAccount({
+          backend: 'pi', provider: 'deepseek', label: sentinel, state: 'logged-out',
+          source: sentinel, credentials: [{
+            authType: 'api_key', state: 'logged-out', source: sentinel,
+            expiresAt: null, refreshExpiresAt: null, manageable: true, detail: sentinel,
+          }],
+        }),
+        authAccount({ backend: 'pi', provider: 'unused', state: 'logged-out', inUse: false }),
+      ]),
+    }));
+    const check = byId(result)['backend-auth'];
+    assert.equal(check.status, 'warn');
+    assert.match(check.detail, /anthropic/);
+    assert.match(check.detail, /deepseek/);
+    assert.doesNotMatch(JSON.stringify(check), new RegExp(sentinel));
+    assert.doesNotMatch(check.detail, /unused/);
+    assert.equal(result.ok, true);
+  });
+
+  it('treats healthy-gateway API mode without a local key as informational', async () => {
+    const deps = baseDeps();
+    const readText = deps.readText;
+    const env = { ...deps.env };
+    delete env.ANTHROPIC_API_KEY;
+    const report = await runDiagnostics(baseDeps({
+      env,
+      readText: p => p === '/s/mode.json'
+        ? '{"backend":"claude","claudeMode":"api"}' : readText(p),
+      probeGateway: async () => true,
+      getAuthStatus: async () => authSnapshot([
+        authAccount({ authType: null, state: 'logged-out', source: null }),
+      ]),
+    }));
+    const checks = byId(report);
+    assert.equal(checks['anthropic-key'].status, 'pass');
+    assert.equal(checks['backend-auth'].status, 'pass');
+    assert.match(checks['backend-auth'].detail, /gateway.*anthropic|anthropic.*gateway/i);
+    assert.equal(report.counts.warn, 0);
   });
 });
 

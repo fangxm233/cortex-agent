@@ -91,6 +91,64 @@ PI provider names are independent of Cortex backend names. In particular,
 `openai-codex-responses` API kind); profiles using it still set
 `"backend": "pi"`.
 
+## Remote login
+
+Backend login can be completed remotely without SSH access to the Cortex
+host. The same login flow is exposed through three channels:
+
+| Channel | Entry | Interaction |
+|---|---|---|
+| Slack | Send `!login`, `!login cc`, or `!login pi [provider]` | Selectors and secret fields open in Slack modals; authorization links are posted to the channel. |
+| Feishu | Send `!login`, `!login cc`, or `!login pi [provider]` | Selectors and secret fields use inline card forms; authorization links are posted to the chat. |
+| Web (desktop and mobile) | Open **Settings → Accounts** | The Accounts section shows Claude Code and PI providers and opens the same selector-driven login flow. |
+
+The chat command forms are:
+
+```text
+!login
+!login status
+!login cc
+!login pi
+!login pi <provider>
+```
+
+`!login` with no arguments and `!login status` both show the authentication
+status overview. `!login cc` selects Claude Code. `!login pi` opens a PI
+provider selector; adding a provider skips that selector. Authentication type
+is also selected interactively when a provider supports more than one type.
+Do not append `oauth`, API keys, authorization codes, or provider-specific
+OAuth flags to the command.
+
+OAuth is offered only when the installed PI provider exposes
+`provider.auth.oauth.login` as a function. On the reference installation this
+criterion was true for 7 of 39 providers; the list is discovered dynamically,
+so API-key-only providers never show a non-functional OAuth option. Claude Code
+similarly offers API-key and subscription choices through the selector.
+
+For a Claude Code subscription, Cortex drives `claude setup-token` in a
+controlled tmux session, sends the authorization URL to the initiating channel,
+and accepts the returned code through the channel form. The resulting long-lived
+token is stored as `CLAUDE_CODE_OAUTH_TOKEN` in
+`~/.cortex/config/.env`; it is never printed in status output or transcripts.
+
+When a running backend reports expired authentication, Cortex posts a card that
+names the backend/provider and offers one-click re-login with the selection
+pre-filled. A daily expiration scan checks in-use accounts and sends the same
+actionable warning for credentials that are expiring, expired, or missing. The
+runtime notification and daily scan share de-duplication, so the same provider
+is not reported twice in one reminder window.
+
+For a read-only status check from the host, use:
+
+```bash
+cortex auth status
+cortex auth status --json
+```
+
+The text form is a concise overview; `--json` returns the complete normalized
+status snapshot. Both are credential-free. See
+[CLI Reference](./cli-reference.md#cortex) for the exact command contract.
+
 ## Selecting a backend
 
 Backends are selected per profile in `$CORTEX_HOME/config/profiles.json`

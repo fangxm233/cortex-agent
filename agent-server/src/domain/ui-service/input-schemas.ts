@@ -1,5 +1,5 @@
 // input:  Zod, settings spec, UI-service operation unions
-// output: input schemas/maps including notice-bound auth starts
+// output: input schemas/maps including authentication mutations
 // pos:    Runtime validation source for the UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -124,6 +124,12 @@ export const authRespondPromptInput = z.object({
 
 export const authCancelFlowInput = z.object({
   flowId: z.string().min(1),
+});
+
+export const authLogoutInput = z.object({
+  backend: z.enum(['claude', 'pi']),
+  provider: z.string().min(1),
+  authType: z.enum(['api_key', 'oauth']),
 });
 
 // Presence/type guard only; deep name validation (traversal / reserved / separators) lives in
@@ -514,6 +520,7 @@ export const mutateInputSchemas = {
   'auth.startLogin': authStartLoginInput,
   'auth.respondPrompt': authRespondPromptInput,
   'auth.cancelFlow': authCancelFlowInput,
+  'auth.logout': authLogoutInput,
   'hooks.create': hooksCreateInput,
   'hooks.update': hooksUpdateInput,
   'hooks.setEnabled': hooksSetEnabledInput,

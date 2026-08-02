@@ -36,8 +36,8 @@ import { executionRepo as daemonExecutionRepo } from '../../store/execution-repo
 import { sessionStore as daemonSessionStore } from '../../store/session-registry-repo.js';
 import { threadStore as daemonThreadStore } from '../../store/thread-repo.js';
 import {
-  benchmarkInstructionHashes, freezeBenchmarkThreadIdentities,
-  type BenchmarkRoleIdentity,
+  benchmarkInstructionHashes, BenchmarkIdentityProtocolError,
+  freezeBenchmarkThreadIdentities, type BenchmarkRoleIdentity,
 } from './benchmark-thread-identity.js';
 import {
   openJournal, TrajectoryWriteFailedError, type AgentSlot, type Journal,
@@ -112,6 +112,7 @@ interface PreparedThreadRun {
   lifecycle: { started: string; terminal: string };
   identity: BenchmarkRoleIdentity;
   roleIdentities: Map<string, BenchmarkRoleIdentity>;
+  modelProtocolProblem: string | null;
   startedAt: string;
 }
 
@@ -318,7 +319,8 @@ async function createRunArtifacts(
   }
   return {
     request, profile, template, thread, journal, lifecycle, identity,
-    roleIdentities: identities.roles, startedAt,
+    roleIdentities: identities.roles, modelProtocolProblem: identities.modelProtocolProblem,
+    startedAt,
   };
 }
 
@@ -442,6 +444,8 @@ function threadRunOptions(prepared: PreparedThreadRun, spawner: AgentProcessSpaw
     benchmark: {
       workspaceCwd: prepared.request.workspaceCwd,
       resolvedProfileName: prepared.request.profileName,
+      expectedBackend: 'claude' as const,
+      expectedModel: prepared.profile.model,
       disableHooks: true as const,
       disableControlPlane: true as const,
       failFastOnRateLimit: true as const,
@@ -460,6 +464,12 @@ async function runLocalThread(
   prepared: PreparedThreadRun,
   control: RunControl,
 ): Promise<{ result: ThreadRunResult | null; error: unknown }> {
+  if (prepared.modelProtocolProblem) {
+    return {
+      result: null,
+      error: new BenchmarkIdentityProtocolError(prepared.modelProtocolProblem),
+    };
+  }
   try {
     const result = await control.deps.runThread(
       prepared.thread.id,
@@ -590,6 +600,9 @@ function errorReason(error: unknown): string | null {
 
 function classifyFailure(error: unknown): ClassifiedRun {
   if (error instanceof BenchmarkRateLimitError) return { state: 'failed', reason: 'rate_limited' };
+  if (errorReason(error) === 'protocol_violation') {
+    return { state: 'failed', reason: 'protocol_violation' };
+  }
   if (errorReason(error) === 'trajectory_write_failed') {
     return { state: 'failed', reason: 'trajectory_write_failed' };
   }
