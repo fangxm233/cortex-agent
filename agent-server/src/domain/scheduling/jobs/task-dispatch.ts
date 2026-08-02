@@ -23,7 +23,6 @@ import { processSplitOutcome, processAbortOutcome, formatWorkerAbortReason } fro
 import { threadStore } from '@store/thread-repo.js';
 import { buildUserProcessingMessage, computeElapsed, buildSessionTag } from '@core/status-format.js';
 import { finalizeThreadSuccess } from './_shared.js';
-import { reconcileFailedDispatchThread } from './failed-dispatch-reconciliation.js';
 import type { PlatformAdapter, MessageRef } from '@platform/index.js';
 import { getOutboundQueue, durableUpdate, durablePost } from '@store/outbound-queue.js';
 
@@ -155,13 +154,6 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
     onAbort: async ({ taskId, reason }) => {
       await taskMutator.block(taskId, formatWorkerAbortReason(reason), { ownership });
     },
-  }).catch(async (error) => {
-    try {
-      await reconcileFailedDispatchThread(thread.id, selectedTask);
-    } catch (reconcileError) {
-      log.error(`Failed dispatch reconciliation: ${(reconcileError as Error).message}`);
-    }
-    throw error;
   });
   const result = threadResult.lastAgentResult as any;
 
