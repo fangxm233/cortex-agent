@@ -1,5 +1,5 @@
 // input:  validated fragments, links, aggregate metrics
-// output: deterministic accounted ATIF-v1.7 trajectory tree
+// output: deterministic ATIF-v1.7 tree with documented metrics
 // pos:    Journal-to-ATIF conversion boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -44,6 +44,10 @@ export interface AtifFinalMetrics {
   total_cached_tokens: number;
   total_cost_usd: number;
   total_steps: number;
+  extra: {
+    prompt_tokens_definition: string;
+    cached_tokens_definition: string;
+  };
 }
 
 export interface AtifTrajectory {

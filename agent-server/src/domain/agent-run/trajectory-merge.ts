@@ -1,5 +1,5 @@
 // input:  accounted C2/C3 files, output path, filesystem
-// output: atomic ATIF tree with typed fail-closed errors
+// output: documented ATIF metrics or typed fail-closed errors
 // pos:    Parent-plus-child journal merge boundary
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -487,14 +487,16 @@ function fragmentSteps(fragment: SourceFragment): number {
 }
 
 function assertContextUsage(fragment: SourceFragment): void {
-  const costCount = fragment.events.filter(record => record.event.type === 'cost_record').length;
-  const available = fragment.events.filter(record => {
+  let hasContext = false;
+  for (const record of fragment.events) {
     const event = record.event;
-    return event.type === 'context_usage'
-      && Number.isSafeInteger(event.usedTokens) && Number(event.usedTokens) >= 0;
-  }).length;
-  if (available < costCount) {
-    underivable('Fragment has fewer derivable context_usage events than cost records');
+    if (event.type === 'context_usage'
+        && Number.isSafeInteger(event.usedTokens) && Number(event.usedTokens) >= 0) {
+      hasContext = true;
+    }
+    if (event.type !== 'cost_record') continue;
+    if (!hasContext) underivable('Cost record has no preceding derivable context_usage event');
+    hasContext = false;
   }
 }
 
@@ -525,6 +527,11 @@ function aggregateFinalMetrics(fragments: SourceFragment[]): AtifFinalMetrics {
     total_cached_tokens: total.cached,
     total_cost_usd: total.cost,
     total_steps: total.steps,
+    extra: {
+      prompt_tokens_definition:
+        'input_tokens + cache_creation_input_tokens + cache_read_input_tokens',
+      cached_tokens_definition: 'cache_read_input_tokens',
+    },
   };
 }
 

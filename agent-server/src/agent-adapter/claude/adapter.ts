@@ -1,5 +1,5 @@
 // input:  session streams, spawn config, reported accounting
-// output: Claude turns with exact cache-explicit accounting
+// output: Claude turns with exact cache-read accounting
 // pos:    Claude backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -116,6 +116,15 @@ function sumKnownTokens(values: unknown[]): number | null {
   if (tokens.some(value => value === null)) return null;
   const total = tokens.reduce((sum, value) => sum + value!, 0);
   return Number.isSafeInteger(total) ? total : null;
+}
+
+function promptAccounting(usage: TurnTokenUsage | null) {
+  return {
+    promptTokens: sumKnownTokens([
+      usage?.input, usage?.cacheCreation, usage?.cacheRead,
+    ]),
+    cachedTokens: sumKnownTokens([usage?.cacheRead]),
+  };
 }
 
 interface ClaudeSessionOptions {
@@ -715,13 +724,17 @@ class ClaudeSession {
 
   private reportedAccounting(data: any): ReportedAccountingSnapshot {
     const usage = data.usage;
-    const cached = [usage?.cache_creation_input_tokens, usage?.cache_read_input_tokens];
+    const turnUsage = usage ? {
+      input: tokenValue(usage.input_tokens),
+      output: tokenValue(usage.output_tokens),
+      cacheCreation: tokenValue(usage.cache_creation_input_tokens),
+      cacheRead: tokenValue(usage.cache_read_input_tokens),
+    } : null;
     return {
       usageReported: usage != null,
-      inputTokens: tokenValue(usage?.input_tokens),
-      outputTokens: tokenValue(usage?.output_tokens),
-      promptTokens: sumKnownTokens([usage?.input_tokens, ...cached]),
-      cachedTokens: sumKnownTokens(cached),
+      inputTokens: turnUsage?.input ?? null,
+      outputTokens: turnUsage?.output ?? null,
+      ...promptAccounting(turnUsage),
       model: data.modelUsage ? Object.keys(data.modelUsage)[0] ?? null : null,
     };
   }
@@ -1334,7 +1347,7 @@ export class ClaudeAdapter implements AgentAdapter {
             : result.total_cost_usd != null || session.lastTokenUsage !== null;
           if (hasReportableAccounting) {
             const legacyUsage = session.lastTokenUsage;
-            const cached = [legacyUsage?.cacheCreation, legacyUsage?.cacheRead];
+            const exactPrompt = promptAccounting(legacyUsage);
             stream.push({
               type: 'cost_record',
               provider: 'anthropic',
@@ -1343,10 +1356,9 @@ export class ClaudeAdapter implements AgentAdapter {
               tokens_in: preserveReportedness ? accounting?.inputTokens ?? null : legacyUsage?.input ?? 0,
               tokens_out: preserveReportedness ? accounting?.outputTokens ?? null : legacyUsage?.output ?? 0,
               prompt_tokens: preserveReportedness
-                ? accounting?.promptTokens ?? null
-                : sumKnownTokens([legacyUsage?.input, ...cached]),
+                ? accounting?.promptTokens ?? null : exactPrompt.promptTokens,
               cached_tokens: preserveReportedness
-                ? accounting?.cachedTokens ?? null : sumKnownTokens(cached),
+                ? accounting?.cachedTokens ?? null : exactPrompt.cachedTokens,
               cost_usd: preserveReportedness && result.costReported !== true
                 ? null
                 : result.total_cost_usd ?? null,
@@ -1354,7 +1366,7 @@ export class ClaudeAdapter implements AgentAdapter {
           }
           stream.push({
             type: 'turn_complete',
-            numTurns: result.num_turns ?? 0,
+            numTurns: preserveReportedness ? result.num_turns : result.num_turns ?? 0,
             totalCostUsd: result.total_cost_usd ?? null,
           });
           stream.close();

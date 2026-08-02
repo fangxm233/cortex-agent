@@ -426,7 +426,7 @@ class LegacyEventDispatcher {
     this.options.onToolResult?.(event.toolUseId, event.content, !event.ok);
   }
 
-  private progress(numTurns: number, totalCostUsd: number | null): void {
+  private progress(numTurns: number | null, totalCostUsd: number | null): void {
     this.options.onProgress?.({ num_turns: numTurns, total_cost_usd: totalCostUsd, duration_ms: null });
   }
 

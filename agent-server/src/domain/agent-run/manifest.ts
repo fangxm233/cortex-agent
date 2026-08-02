@@ -1,5 +1,5 @@
 // input:  canonical trajectory roots, lifecycle metadata, journals
-// output: atomic lifecycle files and exact journal validation
+// output: atomic lifecycle files and additive journal validation
 // pos:    Lifecycle truth and validator for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -169,15 +169,17 @@ const EVENT_SCHEMAS: Record<string, EventSchema> = {
   cost_record: {
     required: {
       provider: isString, model: isString, tokens_in: isNullableNumber,
-      tokens_out: isNullableNumber, prompt_tokens: isNullableNumber,
-      cached_tokens: isNullableNumber, cost_usd: isNullableNumber,
+      tokens_out: isNullableNumber, cost_usd: isNullableNumber,
+    },
+    optional: {
+      prompt_tokens: isNullableNumber, cached_tokens: isNullableNumber,
     },
   },
   turn_progress: {
     required: { numTurns: isNumber },
   },
   turn_complete: {
-    required: { numTurns: isNumber, totalCostUsd: isNullableNumber },
+    required: { numTurns: isNullableNumber, totalCostUsd: isNullableNumber },
     optional: { error: isNullableString },
   },
   error: {

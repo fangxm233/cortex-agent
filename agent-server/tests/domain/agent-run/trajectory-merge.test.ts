@@ -1,5 +1,5 @@
 // input:  accounted C2/C3 fixtures and trajectory merge module
-// output: exact-once tree, aggregate and stable-byte tests
+// output: exact-once tree, documented aggregate and byte tests
 // pos:    Happy-path trajectory merge contract suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -135,6 +135,11 @@ it('sums non-null final metrics across parent and every child fragment', () => {
     total_cached_tokens: 400 + 40 + 60,
     total_cost_usd: 0.12 + 0.04 + 0.04,
     total_steps: 2 + 2 + 2,
+    extra: {
+      prompt_tokens_definition:
+        'input_tokens + cache_creation_input_tokens + cache_read_input_tokens',
+      cached_tokens_definition: 'cache_read_input_tokens',
+    },
   });
   assert.equal(treeStepCount(trajectory), 7 + 8 + 8);
   assert.match(trajectory.notes, /turn_complete\.numTurns/);

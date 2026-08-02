@@ -70,6 +70,26 @@ it('preserves raw stdin bytes while hashing the model-visible string', async () 
   assert.equal(header.model_visible_prompt_sha256, sha256(modelVisible));
 });
 
+it('keeps absent turn counts null instead of inventing aggregate steps', async () => {
+  const fixture = createFixture('unknown-turn-count');
+  const first = fakeClaudeResult('e2e-run', 'unknown', { num_turns: undefined });
+  const continuation = fakeClaudeResult('e2e-run', 'unknown', {
+    origin: { kind: 'task-notification' }, num_turns: undefined,
+  });
+  const child = spawnRun(fixture, {
+    FAKE_CLAUDE_FIRST_RESULT: first,
+    FAKE_CLAUDE_CONTINUATION_RESULT: continuation,
+  });
+  await waitForText(fixture.eventsFile, 'turn_complete', child);
+  fs.writeFileSync(fixture.releaseMarker, 'release');
+  const output = await processOutput(child);
+  assert.equal(child.exitCode, 0, output.stderr);
+  const turns = parseNdjson(fs.readFileSync(fixture.eventsFile, 'utf8'))
+    .filter(record => record.event?.type === 'turn_complete')
+    .map(record => record.event.numTurns);
+  assert.deepEqual(turns, [null, null]);
+});
+
 it('keeps unreported cost and usage null without fabricating cost records', async () => {
   const fixture = createFixture('unknown-accounting');
   const first = fakeClaudeResult('e2e-run', 'unknown');
