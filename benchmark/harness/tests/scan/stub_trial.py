@@ -27,7 +27,7 @@ from harbor.models.trial.paths import TrialPaths
 from harbor.utils.trajectory_validator import TrajectoryValidator
 
 from cortex_bench_harness import CortexBenchAgent
-from cortex_bench_harness.scan import ArtifactSet, ScanPolicy, scan_trial_artifacts
+from cortex_bench_harness.scan import ArtifactInventory, ScanPolicy, scan_trial_artifacts
 
 IMAGE_DIGEST = "sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
 IMAGE_REF = f"debian@{IMAGE_DIGEST}"
@@ -626,16 +626,21 @@ def write_workspace_diff(layout: Layout) -> Path:
 
 
 def required_scan(layout: Layout, secrets: dict[str, str]) -> bool:
-    agent = layout.trial_paths.agent_dir
     artifacts = layout.trial_paths.artifacts_dir
-    artifact_set = ArtifactSet(
-        stdout=agent / "stdout.txt", stderr=agent / "stderr.txt",
-        events=agent / "trajectory" / "events.jsonl",
-        manifest=artifacts / "cortex-bench-harness-manifest.json",
-        workspace_diff=artifacts / "workspace.diff",
+    roots = (
+        layout.trial_paths.agent_dir,
+        layout.trial_paths.verifier_dir,
+        artifacts,
     )
+    source_paths = {
+        path.relative_to(layout.root).as_posix(): path
+        for path in result_surface_files(layout)
+    }
+    manifest = artifacts / "cortex-bench-harness-manifest.json"
+    source_paths["manifest"] = source_paths.pop(manifest.relative_to(layout.root).as_posix())
+    inventory = ArtifactInventory(source_paths, frozenset(source_paths), roots)
     policy = ScanPolicy(secrets, str(layout.repo_root), socket.gethostname())
-    report = scan_trial_artifacts(artifact_set, policy)
+    report = scan_trial_artifacts(inventory, policy)
     (artifacts / "required-scan-report.json").write_text(json.dumps(report.as_dict(), sort_keys=True))
     return report.clean
 

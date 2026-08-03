@@ -1,6 +1,6 @@
-# input:  artifact set, scan policy, and binary text streams
-# output: complete credential and host-identity scan report
-# pos:    Five-source trial artifact scanner
+# input:  named artifact inventory, scan policy, and binary streams
+# output: closed-inventory credential and host-identity scan report
+# pos:    Trial artifact inventory scanner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import re
@@ -9,33 +9,88 @@ from pathlib import Path
 
 from ..manifest import MANIFEST_FILENAME
 from .models import (
+    ArtifactInventory,
     ArtifactReadError,
-    ArtifactSet,
     Finding,
     ScanPolicy,
     ScanReport,
     SourceScan,
+    UnclassifiedFile,
 )
 
 HOME_PATH = re.compile(rb"/home/[^/\x00\s]+")
 Rule = tuple[str, str, bytes]
 
 
-def scan_trial_artifacts(artifacts: ArtifactSet, policy: ScanPolicy) -> ScanReport:
-    _validate_artifacts(artifacts)
+def scan_trial_artifacts(
+    inventory: ArtifactInventory, policy: ScanPolicy,
+) -> ScanReport:
+    _validate_inventory(inventory)
+    missing_sources = _missing_sources(inventory)
+    unclassified_files = _unclassified_files(inventory)
+    findings, sources = _scan_present_sources(inventory, missing_sources, policy)
+    return ScanReport(
+        sources, findings, missing_sources, unclassified_files,
+    )
+
+
+def _validate_inventory(inventory: ArtifactInventory) -> None:
+    manifest = inventory.sources.get("manifest")
+    if manifest is not None and manifest.name != MANIFEST_FILENAME:
+        raise ValueError(f"manifest source must be named {MANIFEST_FILENAME}")
+
+
+def _missing_sources(inventory: ArtifactInventory) -> tuple[str, ...]:
+    return tuple(sorted(
+        source for source in inventory.expected_sources
+        if source not in inventory.sources or not inventory.sources[source].is_file()
+    ))
+
+
+def _unclassified_files(
+    inventory: ArtifactInventory,
+) -> tuple[UnclassifiedFile, ...]:
+    classified = {
+        path.resolve() for source, path in inventory.sources.items()
+        if source in inventory.expected_sources and path.is_file()
+    }
+    discovered: set[Path] = set()
+    unclassified: list[UnclassifiedFile] = []
+    for root_index, root in enumerate(inventory.trial_roots):
+        _append_unclassified(root, root_index, classified, discovered, unclassified)
+    return tuple(unclassified)
+
+
+def _append_unclassified(
+    root: Path,
+    root_index: int,
+    classified: set[Path],
+    discovered: set[Path],
+    unclassified: list[UnclassifiedFile],
+) -> None:
+    for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
+        resolved = path.resolve()
+        if resolved in classified or resolved in discovered:
+            continue
+        discovered.add(resolved)
+        unclassified.append(UnclassifiedFile(root_index, path.relative_to(root).as_posix()))
+
+
+def _scan_present_sources(
+    inventory: ArtifactInventory,
+    missing_sources: tuple[str, ...],
+    policy: ScanPolicy,
+) -> tuple[tuple[Finding, ...], tuple[SourceScan, ...]]:
     rules = _literal_rules(policy)
     findings: list[Finding] = []
     sources: list[SourceScan] = []
-    for source, path in artifacts.items():
+    for source, path in inventory.sources.items():
+        if source not in inventory.expected_sources or source in missing_sources:
+            continue
         source_findings, bytes_scanned = _scan_source(source, path, rules)
         findings.extend(source_findings)
         sources.append(SourceScan(source, bytes_scanned))
-    return ScanReport(tuple(sources), tuple(findings))
-
-
-def _validate_artifacts(artifacts: ArtifactSet) -> None:
-    if artifacts.manifest.name != MANIFEST_FILENAME:
-        raise ValueError(f"manifest source must be named {MANIFEST_FILENAME}")
+    return tuple(findings), tuple(sources)
 
 
 def _literal_rules(policy: ScanPolicy) -> tuple[Rule, ...]:

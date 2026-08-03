@@ -1,15 +1,19 @@
-# input:  five trial artifacts and configured leak rules
-# output: per-source credential and host-path detection assertions
+# input:  named trial artifacts, expected sources, and leak rules
+# output: leak detection and closed-inventory assertions
 # pos:    Negative coverage tests for the artifact scanner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 from collections import Counter
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from cortex_bench_harness.scan import ArtifactSet, ScanPolicy, scan_trial_artifacts
+from cortex_bench_harness.scan import (
+    ArtifactInventory,
+    ScanPolicy,
+    UnclassifiedFile,
+    scan_trial_artifacts,
+)
 
 SOURCES = ("stdout", "stderr", "events", "manifest", "workspace_diff")
 FILENAMES = {
@@ -32,13 +36,17 @@ CONTAMINATION = "\n".join([
 ])
 
 
-def make_artifacts(tmp_path: Path, contaminated: str) -> ArtifactSet:
+def make_artifacts(tmp_path: Path, contaminated: str) -> ArtifactInventory:
     paths: dict[str, Path] = {}
     for source in SOURCES:
         path = tmp_path / FILENAMES[source]
         path.write_text(CONTAMINATION if source == contaminated else "clean\n")
         paths[source] = path
-    return ArtifactSet(**paths)
+    return ArtifactInventory(
+        sources=paths,
+        expected_sources=frozenset(SOURCES),
+        trial_roots=(tmp_path,),
+    )
 
 
 def policy() -> ScanPolicy:
@@ -91,5 +99,34 @@ def test_rejects_noncanonical_harness_manifest_filename(tmp_path: Path) -> None:
     artifacts = make_artifacts(tmp_path, "none")
     wrong_manifest = tmp_path / "manifest.txt"
     wrong_manifest.write_text("clean\n")
+    sources = dict(artifacts.sources)
+    sources["manifest"] = wrong_manifest
     with pytest.raises(ValueError, match="cortex-bench-harness-manifest.json"):
-        scan_trial_artifacts(replace(artifacts, manifest=wrong_manifest), policy())
+        scan_trial_artifacts(
+            ArtifactInventory(sources, artifacts.expected_sources, artifacts.trial_roots),
+            policy(),
+        )
+
+
+def test_reports_unclassified_file_under_trial_root(tmp_path: Path) -> None:
+    artifacts = make_artifacts(tmp_path, "none")
+    (tmp_path / "undeclared.log").write_text("clean\n")
+
+    report = scan_trial_artifacts(artifacts, policy())
+
+    assert report.unclassified_files == (UnclassifiedFile(0, "undeclared.log"),)
+    assert report.missing_sources == ()
+    assert report.clean is False
+    assert report.exit_code == 1
+
+
+def test_reports_declared_source_missing_from_disk(tmp_path: Path) -> None:
+    artifacts = make_artifacts(tmp_path, "none")
+    artifacts.sources["events"].unlink()
+
+    report = scan_trial_artifacts(artifacts, policy())
+
+    assert report.missing_sources == ("events",)
+    assert report.unclassified_files == ()
+    assert report.clean is False
+    assert report.exit_code == 1

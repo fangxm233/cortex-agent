@@ -1,10 +1,10 @@
 Update this file whenever this directory changes
 
-Scanner tests reject leaks and prove a dynamic bundle run in an isolated container.
+Scanner tests reject leaks and inventory gaps and prove an isolated dynamic bundle run.
 
 | filename | role | function |
 |---|---|---|
-| test_scanner.py | test | Proves leaks are found in all five sources |
+| test_scanner.py | test | Proves leaks and closed-inventory failures |
 | test_scan_cli.py | test | Verifies scanner CLI exits and redaction |
 | test_real_agent_run.py | integration | Proves blocking thread merge and fail-closed mutations |
 | docker-compose-never-pull.yaml | config | Forbids image pulls during the real trial |

@@ -26,8 +26,10 @@ FILENAMES = {
 
 def make_inputs(tmp_path: Path, content: str = "clean\n") -> tuple[list[str], Path]:
     arguments: list[str] = []
+    trial_root = tmp_path / "trial"
+    trial_root.mkdir()
     for source in SOURCES:
-        path = tmp_path / FILENAMES[source]
+        path = trial_root / FILENAMES[source]
         path.write_text(content)
         arguments.extend([f"--{source.replace('_', '-')}-file", str(path)])
     config = tmp_path / "policy.json"
@@ -73,7 +75,7 @@ def test_config_file_accepts_stdin(tmp_path: Path, capsys) -> None:
 
 def test_unreadable_required_source_exits_two_without_path(tmp_path: Path, capsys) -> None:
     arguments, config = make_inputs(tmp_path)
-    missing_path = tmp_path / "stdout.txt"
+    missing_path = tmp_path / "trial" / "stdout.txt"
     missing_path.unlink()
     exit_code = main([*arguments, "--config-file", str(config)])
     output = capsys.readouterr().out

@@ -1,5 +1,5 @@
-# input:  five artifact paths and configured leak literals
-# output: immutable scan policy, findings, and report values
+# input:  named artifact paths, expected names, roots, and leak literals
+# output: immutable scan inventory, policy, findings, and report values
 # pos:    Artifact scanner value contracts
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -7,19 +7,18 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Mapping
 
-SOURCE_NAMES = ("stdout", "stderr", "events", "manifest", "workspace_diff")
+
+@dataclass(frozen=True)
+class ArtifactInventory:
+    sources: Mapping[str, Path]
+    expected_sources: frozenset[str]
+    trial_roots: tuple[Path, ...]
 
 
 @dataclass(frozen=True)
-class ArtifactSet:
-    stdout: Path
-    stderr: Path
-    events: Path
-    manifest: Path
-    workspace_diff: Path
-
-    def items(self) -> tuple[tuple[str, Path], ...]:
-        return tuple((name, getattr(self, name)) for name in SOURCE_NAMES)
+class UnclassifiedFile:
+    root_index: int
+    relative_path: str
 
 
 @dataclass(frozen=True)
@@ -53,10 +52,12 @@ class SourceScan:
 class ScanReport:
     sources: tuple[SourceScan, ...]
     findings: tuple[Finding, ...]
+    missing_sources: tuple[str, ...]
+    unclassified_files: tuple[UnclassifiedFile, ...]
 
     @property
     def clean(self) -> bool:
-        return not self.findings
+        return not (self.findings or self.missing_sources or self.unclassified_files)
 
     @property
     def exit_code(self) -> int:
@@ -68,6 +69,10 @@ class ScanReport:
             "clean": self.clean,
             "sources": [asdict(source) for source in self.sources],
             "matches": [asdict(finding) for finding in self.findings],
+            "missing_sources": list(self.missing_sources),
+            "unclassified_files": [
+                asdict(unclassified) for unclassified in self.unclassified_files
+            ],
         }
 
 

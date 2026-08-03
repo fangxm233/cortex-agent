@@ -10,7 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TextIO
 
-from .models import ArtifactReadError, ArtifactSet, ScanPolicy
+from .models import ArtifactInventory, ArtifactReadError, ScanPolicy
 from .scanner import scan_trial_artifacts
 
 EXAMPLES = """Examples:
@@ -50,6 +50,9 @@ def main(
     try:
         policy = _load_policy(arguments.config_file, stdin or sys.stdin)
         report = scan_trial_artifacts(_artifacts(arguments), policy)
+        if report.missing_sources:
+            _write_json(output, _read_error(report.missing_sources[0]))
+            return 2
     except ArtifactReadError as error:
         _write_json(output, _read_error(error.source))
         return 2
@@ -60,13 +63,18 @@ def main(
     return report.exit_code
 
 
-def _artifacts(arguments: argparse.Namespace) -> ArtifactSet:
-    return ArtifactSet(
-        stdout=Path(arguments.stdout_file),
-        stderr=Path(arguments.stderr_file),
-        events=Path(arguments.events_file),
-        manifest=Path(arguments.manifest_file),
-        workspace_diff=Path(arguments.workspace_diff_file),
+def _artifacts(arguments: argparse.Namespace) -> ArtifactInventory:
+    sources = {
+        "stdout": Path(arguments.stdout_file),
+        "stderr": Path(arguments.stderr_file),
+        "events": Path(arguments.events_file),
+        "manifest": Path(arguments.manifest_file),
+        "workspace_diff": Path(arguments.workspace_diff_file),
+    }
+    return ArtifactInventory(
+        sources=sources,
+        expected_sources=frozenset(sources),
+        trial_roots=tuple(dict.fromkeys(path.parent for path in sources.values())),
     )
 
 
