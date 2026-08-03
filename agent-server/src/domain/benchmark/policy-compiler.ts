@@ -129,8 +129,12 @@ const ADAPTER_ASSET_KINDS = new Set<AssetKind>([
   'thread_template', 'thread_agent',
 ]);
 
-function fail(reason: ConstructorParameters<typeof PolicyCompilationError>[0], detail: string): never {
-  throw new PolicyCompilationError(reason, detail);
+function fail(
+  reason: ConstructorParameters<typeof PolicyCompilationError>[0],
+  detail: string,
+  payload?: Readonly<Record<string, string | null>>,
+): never {
+  throw new PolicyCompilationError(reason, detail, payload);
 }
 
 function sha256(value: string | Buffer): string {
@@ -247,18 +251,30 @@ function validatePiCapability(context: CompileContext): void {
   }
 }
 
+function failProfileValueMismatch(
+  field: 'model' | 'backend' | 'provider',
+  armValue: string | null,
+  profileValue: string | null,
+): never {
+  return fail(
+    'arm_profile_value_mismatch',
+    `arm ${field} differs from resolved profile ${field}`,
+    { field, arm_value: armValue, profile_value: profileValue },
+  );
+}
+
 function validateProfileIdentity(
   arm: ArmDefinition,
   profile: ResolvedProfileConfig,
 ): void {
   if (profile.model !== arm.model) {
-    fail('profile_unresolvable', 'resolved model differs from arm model');
+    failProfileValueMismatch('model', arm.model, profile.model);
   }
   if (arm.kind === 'cortex' && profile.backend !== arm.backend) {
-    fail('profile_unresolvable', 'resolved backend differs from arm backend');
+    failProfileValueMismatch('backend', arm.backend, profile.backend);
   }
   if (profile.provider !== arm.provider) {
-    fail('profile_unresolvable', 'resolved provider differs from arm provider');
+    failProfileValueMismatch('provider', arm.provider, profile.provider);
   }
 }
 

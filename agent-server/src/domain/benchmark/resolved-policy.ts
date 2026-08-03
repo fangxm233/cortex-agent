@@ -52,11 +52,12 @@ const FAILURE_ROWS = [
   [40, 'composite_manifest_invalid'],
   [41, 'terminal_predicate_unmet'],
   [42, 'ledger_unreadable'],
+  [43, 'arm_profile_value_mismatch'],
 ] as const;
 
 const CLASS_P_CODES = new Set([
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-  24, 28, 29, 30,
+  24, 28, 29, 30, 43,
 ]);
 
 export type BenchmarkFailureReason = typeof FAILURE_ROWS[number][1];
@@ -102,6 +103,7 @@ export class PolicyCompilationError extends Error {
   constructor(
     readonly reason: BenchmarkFailureReason,
     detail?: string,
+    readonly payload?: Readonly<Record<string, string | null>>,
   ) {
     super(detail ? `${reason}: ${detail}` : reason);
     this.name = 'PolicyCompilationError';
@@ -110,8 +112,13 @@ export class PolicyCompilationError extends Error {
     this.failureClass = failure.failureClass;
   }
 
-  record(): { code: number; failure_class: BenchmarkFailureClass; reason: BenchmarkFailureReason } {
-    return { code: this.code, failure_class: this.failureClass, reason: this.reason };
+  record(): Record<string, string | number | null> {
+    return {
+      code: this.code,
+      failure_class: this.failureClass,
+      reason: this.reason,
+      ...this.payload,
+    };
   }
 }
 
