@@ -1,6 +1,6 @@
 {
   "name": "@cortex-agent/server",
-  "version": "2026.8.3",
+  "version": "2026.8.3-2",
   "type": "module",
   "license": "MIT",
   "description": "Autonomous agent system for long-running projects — mission-driven, multi-agent pipelines, self-evolving skills.",
