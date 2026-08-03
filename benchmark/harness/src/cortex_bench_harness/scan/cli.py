@@ -17,8 +17,8 @@ EXAMPLES = """Examples:
   python -m cortex_bench_harness.scan \\
     --stdout-file stdout.txt --stderr-file stderr.txt \\
     --events-file events.jsonl --manifest-file cortex-bench-harness-manifest.json \\
-    --workspace-diff-file workspace.diff --config-file scan-policy.json
-  cat scan-policy.json | python -m cortex_bench_harness.scan \\
+    --workspace-diff-file workspace.diff --config-file ../scan-policy.json
+  cat ../scan-policy.json | python -m cortex_bench_harness.scan \\
     --stdout-file stdout.txt --stderr-file stderr.txt \\
     --events-file events.jsonl --manifest-file cortex-bench-harness-manifest.json \\
     --workspace-diff-file workspace.diff --config-file -

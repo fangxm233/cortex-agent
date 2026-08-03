@@ -109,3 +109,5 @@ def test_help_has_copyable_example(capsys) -> None:
     assert "usage:" in output
     assert "Examples:" in output
     assert "--workspace-diff-file workspace.diff" in output
+    assert "--config-file ../scan-policy.json" in output
+    assert "cat ../scan-policy.json" in output
