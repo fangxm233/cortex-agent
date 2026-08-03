@@ -27,7 +27,7 @@ def scan_trial_artifacts(
 ) -> ScanReport:
     _validate_inventory(inventory, policy)
     missing_sources = _missing_sources(inventory)
-    unclassified_files = _unclassified_files(inventory, policy)
+    unclassified_files = _unclassified_files(inventory, policy, missing_sources)
     findings, sources = _scan_present_sources(inventory, missing_sources, policy)
     return ScanReport(
         sources, findings, missing_sources, unclassified_files,
@@ -84,6 +84,7 @@ def _missing_sources(inventory: ArtifactInventory) -> tuple[str, ...]:
 def _unclassified_files(
     inventory: ArtifactInventory,
     policy: ScanPolicy,
+    missing_sources: tuple[str, ...],
 ) -> tuple[UnclassifiedFile, ...]:
     classified = {
         path.absolute() for source, path in inventory.sources.items()
@@ -95,10 +96,25 @@ def _unclassified_files(
     discovered: set[Path] = set()
     unclassified: list[UnclassifiedFile] = []
     for root_index, root in enumerate(inventory.trial_roots):
+        missing_source = _missing_source_for_root(inventory, missing_sources, root)
         _append_unclassified(
             root, root_index, classified, discovered, unclassified, redactions,
+            missing_source,
         )
     return tuple(unclassified)
+
+
+def _missing_source_for_root(
+    inventory: ArtifactInventory,
+    missing_sources: tuple[str, ...],
+    root: Path,
+) -> str | None:
+    absolute_root = root.absolute()
+    return next((
+        source for source in missing_sources
+        if source in inventory.sources
+        and inventory.sources[source].absolute().is_relative_to(absolute_root)
+    ), None)
 
 
 def _append_unclassified(
@@ -108,8 +124,9 @@ def _append_unclassified(
     discovered: set[Path],
     unclassified: list[UnclassifiedFile],
     redactions: tuple[str, ...],
+    missing_source: str | None,
 ) -> None:
-    for path in _root_candidates(root, root_index):
+    for path in _root_candidates(root, root_index, missing_source):
         absolute = path.absolute()
         if absolute in classified or absolute in discovered:
             continue
@@ -121,16 +138,19 @@ def _append_unclassified(
         unclassified.append(UnclassifiedFile(root_index, reported_path))
 
 
-def _root_candidates(root: Path, root_index: int) -> tuple[Path, ...]:
+def _root_candidates(
+    root: Path, root_index: int, missing_source: str | None,
+) -> tuple[Path, ...]:
+    error_source = missing_source or f"trial_root:{root_index}"
     if not root.is_dir():
-        raise ArtifactReadError(f"trial_root:{root_index}")
+        raise ArtifactReadError(error_source)
     candidates: list[Path] = []
     try:
         for directory, dirnames, filenames in root.walk(on_error=_raise_walk_error):
             dirnames.sort()
             candidates.extend(directory / name for name in filenames)
     except OSError as error:
-        raise ArtifactReadError(f"trial_root:{root_index}") from error
+        raise ArtifactReadError(error_source) from error
     return tuple(sorted(candidates))
 
 
