@@ -1,10 +1,11 @@
-// input:  CORTEX_VERSION, child_process (execSync, spawn), compareCalVer from server-update-check
+// input:  CORTEX_VERSION, child_process (execSync, spawn), compareCalVer from server-update-check, withNpmPrefix
 // output: cortex install latest CLI
 // pos:    CLI module for cortex install — install latest Cortex version from npm
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { execSync, spawn } from 'node:child_process';
 import { CORTEX_VERSION } from '@core/version.js';
+import { withNpmPrefix } from '@core/utils.js';
 import { compareCalVer } from './server-update-check.js';
 
 // ─── CLI Result type ──────────────────────────────────────────────
@@ -73,9 +74,13 @@ async function installLatest(): Promise<CliResult> {
   process.stdout.write(`Latest version:  ${latest}\n`);
   process.stdout.write(`Installing @cortex-agent/server@${latest}...\n\n`);
 
-  // 4. Run npm install -g (stdio: 'inherit' so user sees npm progress)
+  // 4. Run npm install -g (stdio: 'inherit' so user sees npm progress).
+  //    The prefix is pinned to the root the running `cortex` binary lives in — without it
+  //    npm falls back to its configured/system prefix (root-owned → EACCES) on machines
+  //    that were installed with `--prefix ~/.npm-global` but no .npmrc entry.
   return new Promise((resolve) => {
-    const child = spawn('npm', ['install', '-g', `@cortex-agent/server@${latest}`], {
+    const args = withNpmPrefix(['install', '-g', `@cortex-agent/server@${latest}`], 'cortex');
+    const child = spawn('npm', args, {
       stdio: 'inherit',
       cwd: '/tmp',
     });

@@ -33,7 +33,7 @@ Owns paths, version, logging, auth, i18n, JSON persistence, task parsing, config
 | status-format.ts | util | formats status and progress messages |
 | task-node.ts | util | locates and creates task node artifacts |
 | task-parser.ts | core | Reads task schema, generations, filters and YAML |
-| utils.ts | util | re-exports paths plus time and text helpers |
+| utils.ts | util | re-exports paths plus time, text and npm-prefix helpers |
 | version.ts | config | exposes the Cortex version and docs URL |
 | locales/ | subdir | English and Chinese message tables |
 | types/ | subdir | shared agent and thread type definitions |

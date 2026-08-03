@@ -1,6 +1,7 @@
 // input:  nothing (leaf module)
 // output: INSTALL_ROOT / DEFAULTS_DIR / DATA_DIR / CONFIG_DIR / STORE_DIR / CONTEXT_DIR / PROJECTS_DIR / WORKSPACE_DIR / resolveWorkspaceRelPath / PLUGINS_DIR / PROMPTS_DIR / HOOKS_DIR
 //         (deprecated re-exports: PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT) + moduleDir + utility helpers
+//         + resolveNpmGlobalPrefix / withNpmPrefix (npm global prefix for self-update)
 // pos:    cross-module shared constants and ESM/time/path utilities
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -110,6 +111,45 @@ function listProjectDirs(projectsDir: string = PROJECTS_DIR): string[] {
 }
 
 /**
+ * Resolve the npm global prefix that an installed CLI actually lives under.
+ *
+ * `npm install/update -g` targets npm's *configured* prefix. When Cortex was installed
+ * with an explicit `--prefix ~/.npm-global` but no `prefix=` line was written to .npmrc,
+ * npm falls back to the system prefix (/usr/lib/node_modules), which is root-owned:
+ * self-update then dies with EACCES, and version probes report the package as missing.
+ *
+ * The installed binary is the ground truth — npm places it at `<prefix>/bin/<binName>`
+ * next to `<prefix>/lib/node_modules`. Walk PATH, find the binary, derive the prefix.
+ * `CORTEX_NPM_PREFIX` overrides. Returns null when nothing matches, so callers fall
+ * back to a plain `-g` (npm's own resolution).
+ */
+function resolveNpmGlobalPrefix(binName: string, opts: {
+  pathEnv?: string;
+  override?: string;
+  exists?: (p: string) => boolean;
+} = {}): string | null {
+  const override = (opts.override ?? process.env.CORTEX_NPM_PREFIX)?.trim();
+  if (override) return override;
+
+  const exists = opts.exists ?? fs.existsSync;
+  const pathEnv = opts.pathEnv ?? process.env.PATH ?? '';
+
+  for (const dir of pathEnv.split(path.delimiter)) {
+    if (!dir) continue;
+    if (!exists(path.join(dir, binName))) continue;
+    const prefix = path.dirname(dir); // <prefix>/bin/<binName> → <prefix>
+    if (exists(path.join(prefix, 'lib', 'node_modules'))) return prefix;
+  }
+  return null;
+}
+
+/** Append `--prefix <resolved>` to an npm argv when a prefix could be resolved. */
+function withNpmPrefix(args: string[], binName: string): string[] {
+  const prefix = resolveNpmGlobalPrefix(binName);
+  return prefix ? [...args, '--prefix', prefix] : args;
+}
+
+/**
  * Sentinel ANTHROPIC_API_KEY value set when the gateway is healthy but no real key exists.
  * Its only purpose is to satisfy Claude Code's startup credential check on machines without
  * OAuth login — upstream auth is handled by the gateway's own configured keys. Anything that
@@ -118,4 +158,4 @@ function listProjectDirs(projectsDir: string = PROJECTS_DIR): string[] {
  */
 const GATEWAY_MANAGED_KEY_PLACEHOLDER = 'cortex-gateway-managed';
 
-export { INSTALL_ROOT, DEFAULTS_DIR, PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT, DATA_DIR, CONFIG_DIR, STORE_DIR, CONTEXT_DIR, PROJECTS_DIR, WORKSPACE_DIR, resolveWorkspaceRelPath, PLUGINS_DIR, PROMPTS_DIR, HOOKS_DIR, SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs };
+export { INSTALL_ROOT, DEFAULTS_DIR, PACKAGE_ROOT, SERVER_ROOT, REPO_ROOT, DATA_DIR, CONFIG_DIR, STORE_DIR, CONTEXT_DIR, PROJECTS_DIR, WORKSPACE_DIR, resolveWorkspaceRelPath, PLUGINS_DIR, PROMPTS_DIR, HOOKS_DIR, SKIP_DIRS, GATEWAY_MANAGED_KEY_PLACEHOLDER, moduleDir, isMainModule, readableTimestamp, chunkText, formatDurationCompact, todayISO, listProjectDirs, resolveNpmGlobalPrefix, withNpmPrefix };

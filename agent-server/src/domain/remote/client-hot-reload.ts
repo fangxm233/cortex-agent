@@ -7,10 +7,10 @@
 //                                   (local npm + process.kill + detached respawn).
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync, execFile, spawn } from 'child_process';
+import { execSync, execFile, execFileSync, spawn } from 'child_process';
 import { getMachineRegistry, type MachineEntry } from '../tasks/dispatch-utils.js';
 import { sshExec, clientPids, buildRemoteSpawnCommand, buildRemoteInstallCommand } from './client-manager.js';
-import { STORE_DIR } from '@core/utils.js';
+import { STORE_DIR, withNpmPrefix } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 
@@ -165,6 +165,35 @@ function scpToRemote(host: string, localPath: string, remotePath: string, timeou
   });
 }
 
+// --- Release mode: npm global prefix resolution ---
+
+const CLIENT_PKG = '@cortex-agent/client';
+
+/**
+ * The client is installed as the `cortex-client` binary — resolve the npm global
+ * prefix from it (see resolveNpmGlobalPrefix), so the version probe and the update
+ * both act on the root the client actually lives in rather than npm's default.
+ */
+function clientNpmArgs(args: string[]): string[] {
+  return withNpmPrefix(args, 'cortex-client');
+}
+
+/**
+ * Remote counterpart of resolveNpmGlobalPrefix: same derivation, done in the
+ * remote shell (the prefix is a property of the remote host, not of this one).
+ * Windows hosts keep the plain command — npm there installs into the roaming
+ * prefix owned by the user, so EACCES is not a failure mode.
+ */
+function buildRemoteNpmUpdateCommand(reg: MachineEntry): string {
+  const plain = `npm update -g ${CLIENT_PKG} 2>&1`;
+  if (reg.win) return plain;
+  return [
+    'b="$(command -v cortex-client 2>/dev/null)"; p=""',
+    '[ -n "$b" ] && p="$(dirname "$(dirname "$b")")"',
+    `if [ -n "$p" ] && [ -d "$p/lib/node_modules" ]; then npm update -g --prefix "$p" ${CLIENT_PKG} 2>&1; else ${plain}; fi`,
+  ].join('; ');
+}
+
 // --- Release mode: npm registry helpers ---
 
 function getNpmRegistryVersion(): string | null {
@@ -181,14 +210,21 @@ function getNpmRegistryVersion(): string | null {
 }
 
 function getLocalInstalledVersion(): string | null {
+  // Must use the same prefix as the update below, or the probe reads a different
+  // (empty) global root and reports the client as missing on every check.
+  let out = '';
   try {
-    const result = execSync('npm ls -g @cortex-agent/client --json 2>/dev/null || true', {
+    out = execFileSync('npm', clientNpmArgs(['ls', '-g', CLIENT_PKG, '--json']), {
       encoding: 'utf8',
       timeout: 15000,
       stdio: 'pipe',
     }).trim();
-    const parsed = JSON.parse(result);
-    return parsed?.dependencies?.['@cortex-agent/client']?.version || null;
+  } catch (err) {
+    // `npm ls` exits non-zero when the package is absent, but still prints JSON.
+    out = String((err as { stdout?: unknown })?.stdout ?? '').trim();
+  }
+  try {
+    return JSON.parse(out)?.dependencies?.[CLIENT_PKG]?.version || null;
   } catch {
     return null;
   }
@@ -196,16 +232,24 @@ function getLocalInstalledVersion(): string | null {
 
 function npmUpdateLocal(): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile('npm', ['update', '-g', '@cortex-agent/client'], { timeout: 120000 }, (err, stdout, stderr) => {
+    execFile('npm', clientNpmArgs(['update', '-g', CLIENT_PKG]), { timeout: 120000 }, (err, stdout, stderr) => {
       if (err) reject(new Error(`npm update error: ${err.message}\n${stderr}`));
       else resolve(stdout.trim());
     });
   });
 }
 
-async function getRemoteInstalledVersion(host: string): Promise<string | null> {
+async function getRemoteInstalledVersion(reg: MachineEntry): Promise<string | null> {
+  const host = reg.ssh!;
   try {
-    const cmd = 'npm ls -g @cortex-agent/client --json 2>/dev/null || true';
+    // Same prefix caveat as the local probe: read the root the client is installed in.
+    const cmd = reg.win
+      ? `npm ls -g ${CLIENT_PKG} --json 2>/dev/null || true`
+      : [
+          'b="$(command -v cortex-client 2>/dev/null)"; p=""',
+          '[ -n "$b" ] && p="$(dirname "$(dirname "$b")")"',
+          `if [ -n "$p" ] && [ -d "$p/lib/node_modules" ]; then npm ls -g --prefix "$p" ${CLIENT_PKG} --json 2>/dev/null || true; else npm ls -g ${CLIENT_PKG} --json 2>/dev/null || true; fi`,
+        ].join('; ');
     const result = await sshExec(host, cmd, 15000);
     try {
       const parsed = JSON.parse(result);
@@ -359,6 +403,11 @@ async function updateClientReleaseLocal(
   } catch (err) {
     res.error = (err as Error).message;
     log.warn(`  ${device}: local release update failed — ${res.error}`);
+    // The client was already killed. A failed update must not leave the device
+    // offline — bring it back up on the old binary.
+    try {
+      res.restarted = await deps.restart();
+    } catch {}
   }
 
   return res;
@@ -385,7 +434,7 @@ async function updateClientRelease(
 
   try {
     // 1. Check remote installed version
-    const remoteVer = await getRemoteInstalledVersion(reg.ssh);
+    const remoteVer = await getRemoteInstalledVersion(reg);
     res.oldVersion = remoteVer || '?';
 
     if (remoteVer === latestVersion) {
@@ -396,8 +445,8 @@ async function updateClientRelease(
     // 2. Kill existing client
     await killClientOnDevice(device, reg);
 
-    // 3. npm update
-    const updateOutput = await sshExec(reg.ssh, 'npm update -g @cortex-agent/client 2>&1', 60000);
+    // 3. npm update (prefix resolved in the remote shell — see buildRemoteNpmUpdateCommand)
+    const updateOutput = await sshExec(reg.ssh, buildRemoteNpmUpdateCommand(reg), 60000);
     res.updated = true;
     log.info(`  ${device}: npm update output: ${updateOutput.slice(0, 200)}`);
 
@@ -551,5 +600,10 @@ function formatUpdateSlackMessage(result: ClientUpdateResult): string {
   return lines.join('\n');
 }
 
-export { checkAndUpdateClients, formatUpdateSlackMessage, updateClientReleaseLocal };
+export {
+  checkAndUpdateClients,
+  formatUpdateSlackMessage,
+  updateClientReleaseLocal,
+  buildRemoteNpmUpdateCommand,
+};
 export type { ClientUpdateResult, DeviceResult, LocalUpdateDeps };
