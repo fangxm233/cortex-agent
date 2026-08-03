@@ -1,4 +1,4 @@
-# input:  npm pack output, Harbor DockerEnvironment, pinned Debian image
+# input:  npm pack output, Harbor DockerEnvironment, pinned image, trial seed
 # output: real-bundle install success and corrupt-artifact trial failure
 # pos:    Pytest regression for the real Harbor installation boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -103,6 +103,33 @@ def create_environment(root: Path, node_runtime: Path, suffix: str) -> DockerEnv
     )
 
 
+def trial_seed(image: dict[str, object], suffix: str) -> dict[str, object]:
+    return {
+        "arm": {
+            "schema_version": "cortex-benchmark-arm/2", "kind": "cortex",
+            "name": "cortex-direct", "backend": "claude", "provider": "anthropic",
+            "model": "claude-sonnet", "credential_capability": "claude-api-key",
+            "orchestration": {"mode": "direct", "ask_manager": False},
+            "limits": {
+                "max_thread_starts": 0, "max_parent_questions": 0, "max_task_depth": 0,
+                "max_tasks": 0, "max_provider_requests": 8,
+                "max_resident_agent_processes": 1, "max_cost_usd": "2.50",
+                "deadline_seconds": 90,
+            },
+        },
+        "arm_path": "arm://cortex-direct", "trial_id": f"trial-{suffix}",
+        "root_run_id": f"root-{suffix}",
+        "task": {"task_id": f"task-{suffix}", "image_ref": str(image["image_ref"]),
+                 "image_digest": str(image["image_digest"])},
+        "profile_name": "benchmark", "paid_run": False,
+        "credential": {"upstream_base_url": "https://api.anthropic.com",
+                       "route_identity_host": "api.anthropic.com",
+                       "proxy_base_url": "http://trial-proxy.invalid",
+                       "dummy_token_ref": "offline-token-handle"},
+        "model_alias_policy": None,
+    }
+
+
 def create_agent(
     agent_type: type[CortexBenchAgent], root: Path, artifact: Path,
     image: dict[str, object], suffix: str,
@@ -118,14 +145,19 @@ def create_agent(
             "lockfile_manifest_path": "benchmark/harness/uv.lock",
             "npm_artifact_path": str(artifact), **image,
         },
+        trial_seed=trial_seed(image, suffix),
     )
 
 
 async def provision_agent_user(environment: DockerEnvironment) -> None:
+    # The Debian image ships no backend CLI, so stand one in for the setup-time
+    # path/version probe the production adapter performs before it composes.
     command = (
         "ln -s /opt/node/bin/node /usr/local/bin/node"
         " && ln -s /opt/node/bin/npm /usr/local/bin/npm"
         f" && useradd --create-home --shell /bin/bash {AGENT_USER}"
+        " && printf '#!/bin/sh\\necho \"1.2.3 (Claude Code)\"\\n' > /usr/local/bin/claude"
+        " && chmod +x /usr/local/bin/claude"
     )
     result = await environment.exec(command=command, user="root")
     assert result.return_code == 0, result.stderr

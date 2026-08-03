@@ -1,8 +1,9 @@
-# input:  parsed arm sets, trial pins, Harbor config
-# output: immutable selection, image pin, and kind-routing assertions
+# input:  parsed arm sets, trial pins, trial seed, Harbor config
+# output: immutable selection, image pin, kind routing, composability refusals
 # pos:    Contract tests for launcher arm construction
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import copy
 import inspect
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from harbor.models.trial.config import AgentConfig
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.arms import (
+    ArmCompositionUnsupportedError,
+    BackendUnsupportedForKindError,
     ImageDigestUnpinnedError,
     build_agent_config,
     require_pinned_image,
@@ -89,10 +92,27 @@ def baseline_arm(vendor_agent: str, provider: str | None = None) -> dict[str, ob
     }
 
 
-def test_host_agent_config_takes_phase_a_not_compiled_config() -> None:
+def trial_seed() -> dict[str, object]:
+    digest = f"sha256:{'a' * 64}"
+    return {
+        "arm": cortex_arm(), "arm_path": "arm://cortex-direct",
+        "trial_id": "trial-001", "root_run_id": "trial-001.cortex-direct",
+        "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{digest}",
+                 "image_digest": digest},
+        "profile_name": "benchmark", "paid_run": False,
+        "credential": {"upstream_base_url": "https://api.anthropic.com",
+                       "route_identity_host": "api.anthropic.com",
+                       "proxy_base_url": "http://trial-proxy.invalid",
+                       "dummy_token_ref": "offline-token-handle"},
+        "model_alias_policy": {"kind": "exact"},
+    }
+
+
+def test_host_agent_config_takes_the_seed_not_a_composed_document() -> None:
     parameters = inspect.signature(build_agent_config).parameters
 
-    assert "arm_resolution" in parameters
+    assert "trial_seed" in parameters
+    assert "arm_resolution" not in parameters
     assert "run_config_projection" not in parameters
 
 
@@ -136,31 +156,27 @@ def cortex_config(
     tmp_path: Path,
 ) -> tuple[AgentConfig, dict[str, object], dict[str, object]]:
     manifest_value = manifest(tmp_path)
-    arm_resolution = {
-        "schema_version": "cortex-benchmark-arm-resolution/1",
-        "root_run_id": "trial-001.cortex-direct",
-        "profile_name": "benchmark",
-    }
+    seed = trial_seed()
     config = build_agent_config(
         cortex_arm(), cli_version="2026.8.3",
         artifact_dir=tmp_path / "artifacts", manifest=manifest_value,
-        arm_resolution=arm_resolution,
+        trial_seed=seed,
         env={"ANTHROPIC_BASE_URL": "http://trial-proxy.invalid"},
         override_timeout_sec=90, override_setup_timeout_sec=30,
         max_timeout_sec=120, extra_allowed_hosts=["trial-proxy.invalid"],
     )
-    return config, manifest_value, arm_resolution
+    return config, manifest_value, seed
 
 
 def test_cortex_config_uses_public_import_and_launcher_inputs(tmp_path: Path) -> None:
-    config, manifest_value, arm_resolution = cortex_config(tmp_path)
+    config, manifest_value, seed = cortex_config(tmp_path)
 
     assert config.name is None
     assert config.import_path == "cortex_bench_harness:CortexBenchAgent"
     assert config.model_name == "claude-sonnet"
     assert config.kwargs == {
         "artifact_dir": tmp_path / "artifacts", "manifest": manifest_value,
-        "arm_resolution": arm_resolution, "version": "2026.8.3",
+        "trial_seed": seed, "version": "2026.8.3",
     }
     assert config.env == {"ANTHROPIC_BASE_URL": "http://trial-proxy.invalid"}
     assert config.extra_allowed_hosts == ["trial-proxy.invalid"]
@@ -174,6 +190,51 @@ def test_harbor_factory_constructs_the_public_cortex_agent(tmp_path: Path) -> No
     agent = AgentFactory.create_agent_from_config(config, logs_dir=tmp_path / "logs")
 
     assert isinstance(agent, CortexBenchAgent)
+
+
+def build_unsupported(tmp_path: Path, arm: dict[str, object]) -> AgentConfig:
+    return build_agent_config(
+        arm, cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
+        manifest=manifest(tmp_path), trial_seed=trial_seed(),
+    )
+
+
+@pytest.mark.parametrize(
+    ("mode", "gate"), [("coder-review", "gate 3"), ("manager", "gate 6")],
+)
+def test_unimplemented_modes_refuse_on_the_host(
+    tmp_path: Path, mode: str, gate: str,
+) -> None:
+    arm = copy.deepcopy(cortex_arm())
+    arm["name"] = f"cortex-{mode}"
+    arm["orchestration"] = {"mode": mode, "ask_manager": False}
+
+    with pytest.raises(ArmCompositionUnsupportedError) as error:
+        build_unsupported(tmp_path, arm)
+
+    assert error.value.reason == "arm_composition_unsupported"
+    for expected in (f"cortex-{mode}", "claude", mode, gate):
+        assert expected in str(error.value)
+
+
+def test_unsupported_backends_reuse_the_compiler_reason(tmp_path: Path) -> None:
+    arm = copy.deepcopy(cortex_arm())
+    arm["name"] = "cortex-pi-direct"
+    arm["backend"] = "pi"
+
+    with pytest.raises(BackendUnsupportedForKindError) as error:
+        build_unsupported(tmp_path, arm)
+
+    assert error.value.reason == "backend_unsupported_for_kind"
+    assert "cortex-pi-direct" in str(error.value)
+    assert "gate 2" in str(error.value)
+
+
+def test_vendor_baselines_need_no_seed_and_no_composition(tmp_path: Path) -> None:
+    config = build_agent_config(baseline_arm("claude-code"), cli_version="1.2.3")
+
+    assert config.kwargs == {"version": "1.2.3"}
+    assert config.import_path is None
 
 
 @pytest.mark.parametrize(

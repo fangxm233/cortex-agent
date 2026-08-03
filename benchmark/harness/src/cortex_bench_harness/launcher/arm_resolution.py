@@ -1,6 +1,6 @@
-# input:  selected Cortex arm, per-trial pins, capability projection
-# output: phase-A ArmResolution JSON document and agent-dir file
-# pos:    Host emitter for the benchmark compiler input
+# input:  trial seed, container-observed bundle root and backend CLI facts
+# output: composed phase-A ArmResolution JSON document and agent-dir file
+# pos:    Launcher-owned composer for the benchmark compiler input
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import json
@@ -11,6 +11,7 @@ from pathlib import PurePosixPath
 
 from harbor.models.trial.paths import EnvironmentPaths
 
+from .arms import require_composable_arm
 from .credential_capabilities import project_credential_capabilities
 
 ARM_RESOLUTION_SCHEMA_VERSION = "cortex-benchmark-arm-resolution/1"
@@ -19,6 +20,38 @@ ARM_RESOLUTION_FILENAME = "arm-resolution.json"
 ARM_RESOLUTION_CONTAINER_PATH: PurePosixPath = (
     EnvironmentPaths().agent_dir / ARM_RESOLUTION_FILENAME
 )
+DIRECT_CLAUDE_SYSTEM_PROMPT = "defaults/prompts/systemPrompts/direct.md"
+DIRECT_CLAUDE_DIRECTIVE = "defaults/prompts/directives/executor.md"
+DIRECT_CLAUDE_TOOLS = (
+    "Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "TodoWrite", "Write",
+)
+DIRECT_CLAUDE_PLUGIN_DIRS = ("defaults/plugins/cortex-common", "defaults/plugins/cortex-coder")
+
+
+@dataclass(frozen=True)
+class TrialSeed:
+    """Caller-known trial facts. Every other resolution member is launcher-owned."""
+
+    arm: Mapping[str, object]
+    arm_path: str
+    trial_id: str
+    root_run_id: str
+    task: Mapping[str, object]
+    profile_name: str
+    paid_run: bool
+    credential: Mapping[str, object]
+    model_alias_policy: object
+    expected_asset_hashes: Mapping[str, str] | None = None
+    pi_benchmark_capability_proven: bool | None = None
+
+
+@dataclass(frozen=True)
+class ContainerFacts:
+    """Facts only the running container can answer, captured at install time."""
+
+    bundle_root: str
+    backend_cli_path: str
+    backend_cli_version: str
 
 
 @dataclass(frozen=True)
@@ -39,6 +72,63 @@ class ArmResolutionInputs:
     artifact_inventory_spec: object
     expected_asset_hashes: Mapping[str, str] | None = None
     pi_benchmark_capability_proven: bool | None = None
+
+
+SEED_REQUIRED_FIELDS = frozenset({
+    "arm", "arm_path", "trial_id", "root_run_id", "task", "profile_name", "paid_run",
+    "credential", "model_alias_policy",
+})
+SEED_OPTIONAL_FIELDS = frozenset({
+    "expected_asset_hashes", "pi_benchmark_capability_proven",
+})
+
+
+def _seed_text(values: Mapping[str, object], key: str) -> str:
+    value = values.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"TrialSeed field '{key}' must be a non-empty string")
+    return value
+
+
+def _seed_mapping(values: Mapping[str, object], key: str) -> Mapping[str, object]:
+    value = values.get(key)
+    if not isinstance(value, Mapping):
+        raise ValueError(f"TrialSeed field '{key}' must be a mapping")
+    return value
+
+
+def parse_trial_seed(source: Mapping[str, object]) -> TrialSeed:
+    rejected = sorted(set(source) - SEED_REQUIRED_FIELDS - SEED_OPTIONAL_FIELDS)
+    if rejected:
+        raise ValueError(f"TrialSeed rejects launcher-owned fields {rejected}")
+    missing = sorted(SEED_REQUIRED_FIELDS - set(source))
+    if missing:
+        raise ValueError(f"TrialSeed requires fields {missing}")
+    values = _json_copy(source)
+    if not isinstance(values, Mapping):
+        raise ValueError("TrialSeed must be a mapping")
+    paid_run = values["paid_run"]
+    if not isinstance(paid_run, bool):
+        raise ValueError("TrialSeed field 'paid_run' must be a boolean")
+    hashes = values.get("expected_asset_hashes")
+    if hashes is not None and not isinstance(hashes, Mapping):
+        raise ValueError("TrialSeed field 'expected_asset_hashes' must be a mapping")
+    proven = values.get("pi_benchmark_capability_proven")
+    if proven is not None and not isinstance(proven, bool):
+        raise ValueError("TrialSeed field 'pi_benchmark_capability_proven' must be a boolean")
+    return TrialSeed(
+        arm=_seed_mapping(values, "arm"),
+        arm_path=_seed_text(values, "arm_path"),
+        trial_id=_seed_text(values, "trial_id"),
+        root_run_id=_seed_text(values, "root_run_id"),
+        task=_seed_mapping(values, "task"),
+        profile_name=_seed_text(values, "profile_name"),
+        paid_run=paid_run,
+        credential=_seed_mapping(values, "credential"),
+        model_alias_policy=values["model_alias_policy"],
+        expected_asset_hashes=hashes,
+        pi_benchmark_capability_proven=proven,
+    )
 
 
 def _plain_json(value: object) -> object:
@@ -109,6 +199,41 @@ def build_arm_resolution(inputs: ArmResolutionInputs) -> dict[str, object]:
     copied = _json_copy(document)
     assert isinstance(copied, dict)
     return copied
+
+
+def _direct_claude_parent_role(bundle_root: str) -> dict[str, object]:
+    root = PurePosixPath(bundle_root)
+    return {
+        "system_prompt_path": str(root / DIRECT_CLAUDE_SYSTEM_PROMPT),
+        "directive_path": str(root / DIRECT_CLAUDE_DIRECTIVE),
+        "tools": list(DIRECT_CLAUDE_TOOLS),
+        "plugin_dirs": [str(root / directory) for directory in DIRECT_CLAUDE_PLUGIN_DIRS],
+        "mcp_composition": "none",
+        "mcp_config_paths": [],
+        "disable_hooks": True,
+    }
+
+
+def compose_arm_resolution(seed: TrialSeed, facts: ContainerFacts) -> dict[str, object]:
+    require_composable_arm(seed.arm)
+    return build_arm_resolution(ArmResolutionInputs(
+        arm=seed.arm,
+        arm_path=seed.arm_path,
+        trial_id=seed.trial_id,
+        root_run_id=seed.root_run_id,
+        task=seed.task,
+        profile_name=seed.profile_name,
+        paid_run=seed.paid_run,
+        credential=seed.credential,
+        cli_artifact={"path": facts.backend_cli_path, "version": facts.backend_cli_version},
+        model_alias_policy=seed.model_alias_policy,
+        roles={"parent": _direct_claude_parent_role(facts.bundle_root)},
+        thread_templates={},
+        thread_agents={},
+        artifact_inventory_spec={"expected": [ARM_RESOLUTION_SOURCE]},
+        expected_asset_hashes=seed.expected_asset_hashes,
+        pi_benchmark_capability_proven=seed.pi_benchmark_capability_proven,
+    ))
 
 
 def write_arm_resolution(

@@ -1,6 +1,6 @@
-# input:  selected Cortex arm, per-trial pins, capability registry
-# output: exact ArmResolution emission and artifact declaration proofs
-# pos:    Contract tests for the phase-A launcher document
+# input:  trial seed, container facts, selected Cortex arm, capability registry
+# output: seed parsing, frozen direct composition, and emission proofs
+# pos:    Contract tests for the phase-A launcher composer
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import copy
@@ -14,10 +14,17 @@ from cortex_bench_harness.launcher.arm_resolution import (
     ARM_RESOLUTION_CONTAINER_PATH,
     ARM_RESOLUTION_SOURCE,
     ArmResolutionInputs,
+    ContainerFacts,
     build_arm_resolution,
+    compose_arm_resolution,
+    parse_trial_seed,
     write_arm_resolution,
 )
-from cortex_bench_harness.launcher.arms import select_arm
+from cortex_bench_harness.launcher.arms import (
+    ArmCompositionUnsupportedError,
+    BackendUnsupportedForKindError,
+    select_arm,
+)
 
 DIGEST = f"sha256:{'a' * 64}"
 BASE_ARM: dict[str, object] = {
@@ -195,6 +202,96 @@ def test_rejects_baselines_and_inventory_without_its_own_source() -> None:
     value = replace(inputs(), artifact_inventory_spec={"expected": ["stdout"]})
     with pytest.raises(ValueError, match=ARM_RESOLUTION_SOURCE):
         build_arm_resolution(value)
+
+
+BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
+FACTS = ContainerFacts(BUNDLE_ROOT, "/usr/local/bin/claude", "1.2.3 (Claude Code)")
+FORBIDDEN_TOOLS = frozenset({
+    "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "TaskStop", "WebFetch", "WebSearch",
+})
+
+
+def seed_document(kind: str = "cortex") -> dict[str, object]:
+    return {
+        "arm": arm(kind), "arm_path": "arm://cortex-direct", "trial_id": "trial-001",
+        "root_run_id": "trial-001.cortex-direct", "task": copy.deepcopy(TASK),
+        "profile_name": "benchmark", "paid_run": False,
+        "credential": copy.deepcopy(CREDENTIAL), "model_alias_policy": {"kind": "exact"},
+    }
+
+
+def test_composes_the_frozen_direct_parent_from_container_facts() -> None:
+    document = compose_arm_resolution(parse_trial_seed(seed_document()), FACTS)
+
+    assert document == {
+        **EXPECTED_RESOLUTION,
+        "cli_artifact": {"path": "/usr/local/bin/claude", "version": "1.2.3 (Claude Code)"},
+        "roles": {"parent": {
+            "system_prompt_path": f"{BUNDLE_ROOT}/defaults/prompts/systemPrompts/direct.md",
+            "directive_path": f"{BUNDLE_ROOT}/defaults/prompts/directives/executor.md",
+            "tools": ["Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill",
+                      "TodoWrite", "Write"],
+            "plugin_dirs": [
+                f"{BUNDLE_ROOT}/defaults/plugins/cortex-common",
+                f"{BUNDLE_ROOT}/defaults/plugins/cortex-coder",
+            ],
+            "mcp_composition": "none", "mcp_config_paths": [], "disable_hooks": True,
+        }},
+    }
+    parent = document["roles"]["parent"]  # type: ignore[index]
+    assert not FORBIDDEN_TOOLS & set(parent["tools"])
+    assert "benchmark_policy_guard" not in parent
+
+
+def test_parse_trial_seed_refuses_every_launcher_owned_member() -> None:
+    for member in (
+        "schema_version", "credential_capabilities", "cli_artifact", "roles",
+        "thread_templates", "thread_agents", "artifact_inventory_spec",
+    ):
+        with pytest.raises(ValueError, match=member):
+            parse_trial_seed({**seed_document(), member: {}})
+
+    with pytest.raises(ValueError, match="trial_id"):
+        parse_trial_seed({key: value for key, value in seed_document().items()
+                          if key != "trial_id"})
+
+
+def test_parse_trial_seed_snapshots_the_caller_mapping() -> None:
+    source = seed_document()
+    seed = parse_trial_seed(source)
+
+    source["arm"]["name"] = "mutated-after-construction"  # type: ignore[index]
+    source["task"]["task_id"] = "mutated-after-construction"  # type: ignore[index]
+    document = compose_arm_resolution(seed, FACTS)
+
+    assert document["arm"] == BASE_ARM
+    assert document["task"] == TASK
+
+
+def test_parse_trial_seed_carries_the_optional_host_authorisations() -> None:
+    seed = parse_trial_seed({
+        **seed_document(), "expected_asset_hashes": {"arm:cortex-direct": "a" * 64},
+        "pi_benchmark_capability_proven": False,
+    })
+
+    document = compose_arm_resolution(seed, FACTS)
+
+    assert document["expected_asset_hashes"] == {"arm:cortex-direct": "a" * 64}
+    assert document["pi_benchmark_capability_proven"] is False
+
+
+def test_composition_fails_closed_for_every_other_combination() -> None:
+    coder_review = copy.deepcopy(seed_document())
+    coder_review["arm"] = {**BASE_ARM, "orchestration": {
+        "mode": "coder-review", "coder_review_variant": "audit-retry", "ask_manager": False,
+    }}
+    pi_backend = copy.deepcopy(seed_document())
+    pi_backend["arm"] = {**BASE_ARM, "backend": "pi"}
+
+    with pytest.raises(ArmCompositionUnsupportedError, match="gate 3"):
+        compose_arm_resolution(parse_trial_seed(coder_review), FACTS)
+    with pytest.raises(BackendUnsupportedForKindError, match="gate 2"):
+        compose_arm_resolution(parse_trial_seed(pi_backend), FACTS)
 
 
 def test_rejects_a_credential_value_field_before_writing_projection() -> None:

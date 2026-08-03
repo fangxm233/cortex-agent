@@ -246,7 +246,11 @@ async function runParent(request) {
 async function main() {
   if (args[0] === '--version') {
     process.stdout.write(`${VERSION}\n`);
-    fs.writeFileSync(path.join(requireArtifactDir(), 'fake-claude-version.txt'), `${VERSION}\n`);
+    // The setup-time probe runs before the trial env exists; only the in-trial
+    // probe, which carries the artifact dir, leaves evidence behind.
+    if (artifactDir) {
+      fs.writeFileSync(path.join(artifactDir, 'fake-claude-version.txt'), `${VERSION}\n`);
+    }
     return;
   }
   const requestLine = await firstInputLine();

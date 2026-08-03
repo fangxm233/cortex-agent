@@ -2,6 +2,11 @@
 # output: parent/child ATIF, mutation, network, and scan evidence
 # pos:    Fresh-container integration for the dynamic run path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# This trial exercises a (backend, mode) pair the production composer refuses
+# until its owning gate lands, so its resolution document is supplied by an
+# explicit test-only subclass through the protected composition hook. That makes
+# it a component-integration fixture; it is NOT evidence of production composition.
 
 import asyncio
 import hashlib
@@ -14,9 +19,10 @@ import shutil
 import socket
 import subprocess
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import override
+from typing import Any, override
 
 from harbor.environments.base import ExecResult
 from harbor.environments.docker.docker import DockerEnvironment
@@ -27,10 +33,10 @@ from harbor.models.trial.paths import TrialPaths
 from harbor.utils.trajectory_validator import TrajectoryValidator
 
 from cortex_bench_harness import CortexBenchAgent
-from cortex_bench_harness.launcher import (
-    ARM_RESOLUTION_CONTAINER_PATH,
-    ARM_RESOLUTION_SOURCE,
+from cortex_bench_harness.launcher import ARM_RESOLUTION_CONTAINER_PATH, ARM_RESOLUTION_SOURCE
+from cortex_bench_harness.launcher.arm_resolution import (
     ArmResolutionInputs,
+    ContainerFacts,
     build_arm_resolution,
 )
 from cortex_bench_harness.scan import ArtifactInventory, ScanPolicy, scan_trial_artifacts
@@ -102,8 +108,22 @@ class TrialEvidence:
 
 
 class RecordingCortexBenchAgent(CortexBenchAgent):
+    """Component fixture: supplies its own document through the composition hook."""
+
     run_result: ExecResult | None = None
     run_command: str | None = None
+
+    def __init__(
+        self, *args: object, fixture_arm_resolution: Mapping[str, object], **kwargs: Any,
+    ) -> None:
+        self._fixture_arm_resolution: dict[str, object] = json.loads(
+            json.dumps(fixture_arm_resolution),
+        )
+        super().__init__(*args, **kwargs)
+
+    @override
+    def _compose_arm_resolution(self, facts: ContainerFacts) -> dict[str, object]:
+        return self._fixture_arm_resolution
 
     @override
     async def exec_as_agent(
@@ -346,23 +366,39 @@ def resolution_thread_assets() -> tuple[dict[str, str], dict[str, str]]:
     return templates, agents
 
 
-def arm_resolution_document(image: dict[str, object]) -> dict[str, object]:
-    templates, agents = resolution_thread_assets()
-    task = {
+def trial_task(image: dict[str, object]) -> dict[str, object]:
+    return {
         "task_id": "synthetic-dynamic-thread",
         "image_ref": image["image_ref"],
         "image_digest": image["image_digest"],
     }
+
+
+def trial_credential() -> dict[str, object]:
+    return {
+        "upstream_base_url": "https://api.anthropic.com",
+        "route_identity_host": "api.anthropic.com",
+        "proxy_base_url": "http://trial-proxy.invalid",
+        "dummy_token_ref": "offline-fixture-token-handle",
+    }
+
+
+def trial_seed(image: dict[str, object]) -> dict[str, object]:
+    return {
+        "arm": arm_definition(), "arm_path": "arm://cortex-dynamic-thread-real-agent-run",
+        "trial_id": TRIAL_ID, "root_run_id": ROOT_RUN_ID, "task": trial_task(image),
+        "profile_name": "benchmark", "paid_run": False,
+        "credential": trial_credential(), "model_alias_policy": None,
+    }
+
+
+def arm_resolution_document(image: dict[str, object]) -> dict[str, object]:
+    templates, agents = resolution_thread_assets()
     inputs = ArmResolutionInputs(
         arm=arm_definition(), arm_path="arm://cortex-dynamic-thread-real-agent-run",
-        trial_id=TRIAL_ID, root_run_id=ROOT_RUN_ID, task=task,
+        trial_id=TRIAL_ID, root_run_id=ROOT_RUN_ID, task=trial_task(image),
         profile_name="benchmark", paid_run=False,
-        credential={
-            "upstream_base_url": "https://api.anthropic.com",
-            "route_identity_host": "api.anthropic.com",
-            "proxy_base_url": "http://trial-proxy.invalid",
-            "dummy_token_ref": "offline-fixture-token-handle",
-        },
+        credential=trial_credential(),
         cli_artifact={"path": "/opt/fake-bin/claude", "version": "2.1.999"},
         model_alias_policy=None,
         roles={
@@ -387,7 +423,8 @@ def create_agent(layout: Layout, image: dict[str, object]) -> RecordingCortexBen
     return RecordingCortexBenchAgent(
         logs_dir=layout.trial_paths.agent_dir,
         artifact_dir=layout.trial_paths.artifacts_dir,
-        manifest=manifest, arm_resolution=arm_resolution_document(image),
+        manifest=manifest, trial_seed=trial_seed(image),
+        fixture_arm_resolution=arm_resolution_document(image),
         extra_env=agent_environment(),
     )
 

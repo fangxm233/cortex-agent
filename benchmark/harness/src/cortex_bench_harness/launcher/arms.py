@@ -1,5 +1,5 @@
-# input:  parsed arm set, task selection, phase-A resolution
-# output: immutable arm selection and Harbor AgentConfig
+# input:  parsed arm set, task selection, trial seed
+# output: immutable arm selection, composability refusal, Harbor AgentConfig
 # pos:    Host arm-selection and Harbor construction boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -14,10 +14,22 @@ from harbor.models.trial.config import AgentConfig
 CORTEX_IMPORT_PATH = "cortex_bench_harness:CortexBenchAgent"
 VENDOR_AGENTS = frozenset({"claude-code", "pi", "codex"})
 IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+BACKEND_CLI_BINARIES = {"claude": "claude"}
+BACKEND_LIFTING_GATES = {"pi": "gate 2"}
+MODE_LIFTING_GATES = {"coder-review": "gate 3", "manager": "gate 6"}
+COMPOSABLE_MODE = "direct"
 
 
 class ImageDigestUnpinnedError(ValueError):
     reason = "image_digest_unpinned"
+
+
+class BackendUnsupportedForKindError(ValueError):
+    reason = "backend_unsupported_for_kind"
+
+
+class ArmCompositionUnsupportedError(ValueError):
+    reason = "arm_composition_unsupported"
 
 
 ArmDefinition = Mapping[str, object]
@@ -100,18 +112,51 @@ def _common_config(
     }
 
 
+def _orchestration_mode(arm: ArmDefinition) -> str:
+    orchestration = arm.get("orchestration")
+    if not isinstance(orchestration, Mapping):
+        raise ValueError("cortex arms require orchestration")
+    mode = orchestration.get("mode")
+    if not isinstance(mode, str) or not mode:
+        raise ValueError("cortex arms require orchestration.mode")
+    return mode
+
+
+def backend_cli_binary(arm: ArmDefinition) -> str:
+    backend = _required_text(arm, "backend")
+    binary = BACKEND_CLI_BINARIES.get(backend)
+    if binary is None:
+        gate = BACKEND_LIFTING_GATES.get(backend, "its owning gate")
+        raise BackendUnsupportedForKindError(
+            f"arm {_arm_name(arm)} backend {backend} is unsupported until {gate} lands"
+        )
+    return binary
+
+
+def require_composable_arm(arm: ArmDefinition) -> None:
+    backend = _required_text(arm, "backend")
+    backend_cli_binary(arm)
+    mode = _orchestration_mode(arm)
+    if mode != COMPOSABLE_MODE:
+        gate = MODE_LIFTING_GATES.get(mode, "its owning gate")
+        raise ArmCompositionUnsupportedError(
+            f"arm {_arm_name(arm)} ({backend}, {mode}) composition is unsupported"
+            f" until {gate} lands"
+        )
+
+
 def _cortex_kwargs(
     artifact_dir: Path | str | None,
     manifest: Mapping[str, object] | None,
-    arm_resolution: Mapping[str, object] | None,
+    trial_seed: Mapping[str, object] | None,
     version: str,
 ) -> dict[str, object]:
-    if artifact_dir is None or manifest is None or arm_resolution is None:
-        raise ValueError("cortex arms require artifact_dir, manifest, and ArmResolution")
+    if artifact_dir is None or manifest is None or trial_seed is None:
+        raise ValueError("cortex arms require artifact_dir, manifest, and trial_seed")
     return {
         "artifact_dir": artifact_dir,
         "manifest": dict(manifest),
-        "arm_resolution": dict(arm_resolution),
+        "trial_seed": dict(trial_seed),
         "version": version,
     }
 
@@ -121,10 +166,11 @@ def _cortex_config(
     common: dict[str, Any],
     artifact_dir: Path | str | None,
     manifest: Mapping[str, object] | None,
-    arm_resolution: Mapping[str, object] | None,
+    trial_seed: Mapping[str, object] | None,
     version: str,
 ) -> AgentConfig:
-    kwargs = _cortex_kwargs(artifact_dir, manifest, arm_resolution, version)
+    require_composable_arm(arm)
+    kwargs = _cortex_kwargs(artifact_dir, manifest, trial_seed, version)
     return AgentConfig(import_path=CORTEX_IMPORT_PATH, kwargs=kwargs, **common)
 
 
@@ -154,7 +200,7 @@ def build_agent_config(
     cli_version: str,
     artifact_dir: Path | str | None = None,
     manifest: Mapping[str, object] | None = None,
-    arm_resolution: Mapping[str, object] | None = None,
+    trial_seed: Mapping[str, object] | None = None,
     env: Mapping[str, str] | None = None,
     override_timeout_sec: float | None = None,
     override_setup_timeout_sec: float | None = None,
@@ -169,7 +215,7 @@ def build_agent_config(
     )
     if arm.get("kind") == "cortex":
         return _cortex_config(
-            arm, common, artifact_dir, manifest, arm_resolution, cli_version,
+            arm, common, artifact_dir, manifest, trial_seed, cli_version,
         )
     if arm.get("kind") == "vendor-baseline":
         return _vendor_config(arm, common, cli_version)

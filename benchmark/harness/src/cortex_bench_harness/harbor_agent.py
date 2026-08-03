@@ -1,9 +1,8 @@
-# input:  Harbor lifecycle, npm bundle, manifest, ArmResolution
-# output: verified Cortex execution, CLI version, and H3 manifest
+# input:  Harbor lifecycle, npm bundle, manifest, trial seed
+# output: verified Cortex execution, container facts, and composed phase-A input
 # pos:    Harbor BaseInstalledAgent wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import json
 import shlex
 import shutil
 from pathlib import Path, PurePosixPath
@@ -17,8 +16,13 @@ from harbor.models.trial.paths import EnvironmentPaths
 from .cwd import ResolvedCwd, resolve_task_workdir
 from .launcher.arm_resolution import (
     ARM_RESOLUTION_CONTAINER_PATH,
+    ContainerFacts,
+    TrialSeed,
+    compose_arm_resolution,
+    parse_trial_seed,
     write_arm_resolution,
 )
+from .launcher.arms import backend_cli_binary
 from .manifest import (
     HarnessManifestSeed,
     build_harness_manifest,
@@ -29,6 +33,7 @@ from .manifest import (
 PACKAGE_VERSION = "0.1.0"
 PROFILE_NAME = "benchmark"
 NPM_INSTALL_PREFIX = PurePosixPath("/installed-agent/npm")
+BUNDLE_PACKAGE = "@cortex-agent/server"
 SUPERVISOR_PATH = PurePosixPath("native/cortex-supervisor/dist/cortex-supervisor")
 VERSION_COMMAND = "cortex daemon --version"
 
@@ -39,18 +44,19 @@ class CortexBenchAgent(BaseInstalledAgent):
         logs_dir: Path,
         artifact_dir: Path | str,
         manifest: Mapping[str, object],
-        arm_resolution: Mapping[str, object],
+        trial_seed: Mapping[str, object],
         *args: object,
         version: str = PACKAGE_VERSION,
         **kwargs: Any,
     ) -> None:
         self._artifact_dir = Path(artifact_dir)
         self._manifest_seed: HarnessManifestSeed = parse_manifest_seed(manifest)
-        self._arm_resolution = json.loads(json.dumps(arm_resolution))
-        self._validate_arm_resolution_binding()
+        self._trial_seed: TrialSeed = parse_trial_seed(trial_seed)
+        self._validate_trial_seed_binding()
         self._resolved_cwd: ResolvedCwd | None = None
         self._staged_npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None
+        self._container_facts: ContainerFacts | None = None
         super().__init__(logs_dir, *args, version=version, **kwargs)
 
     @staticmethod
@@ -58,15 +64,14 @@ class CortexBenchAgent(BaseInstalledAgent):
     def name() -> str:
         return "cortex-bench"
 
-    def _validate_arm_resolution_binding(self) -> None:
+    def _validate_trial_seed_binding(self) -> None:
         expected = {
-            "schema_version": "cortex-benchmark-arm-resolution/1",
             "root_run_id": self._manifest_seed.root_run_id,
             "profile_name": PROFILE_NAME,
         }
         for field, value in expected.items():
-            if self._arm_resolution.get(field) != value:
-                raise ValueError(f"ArmResolution {field} must equal {value}")
+            if getattr(self._trial_seed, field) != value:
+                raise ValueError(f"TrialSeed {field} must equal {value}")
 
     def _stage_npm_artifact(self) -> tuple[Path, PurePosixPath]:
         source = self._manifest_seed.npm_artifact_path
@@ -86,16 +91,48 @@ class CortexBenchAgent(BaseInstalledAgent):
             f" && ln -sfn {binary} /usr/local/bin/cortex"
         )
 
-    def _verification_commands(self) -> tuple[str, str, str]:
-        prefix = shlex.quote(str(NPM_INSTALL_PREFIX))
-        supervisor = shlex.quote(str(SUPERVISOR_PATH))
+    def _verification_commands(self) -> tuple[str, str]:
         return (
             "command -v cortex >/dev/null 2>&1",
             "cortex agent-run --help >/dev/null",
-            "package_root=\"$(npm ls --global --parseable --depth=0 "
-            f"--prefix {prefix} @cortex-agent/server)\""
-            f" && test -x \"$package_root/{supervisor}\"",
         )
+
+    def _bundle_root_command(self) -> str:
+        prefix = shlex.quote(str(NPM_INSTALL_PREFIX))
+        return (
+            f"npm ls --global --parseable --depth=0 --prefix {prefix} {BUNDLE_PACKAGE}"
+        )
+
+    async def _probe(
+        self, environment: BaseEnvironment, command: str, failure: str,
+    ) -> str:
+        result = await self.exec_as_agent(environment, command=command)
+        value = (result.stdout or "").strip()
+        if not value:
+            raise RuntimeError(failure)
+        return value
+
+    async def _discover_container_facts(
+        self, environment: BaseEnvironment,
+    ) -> ContainerFacts:
+        bundle_root = await self._probe(
+            environment, self._bundle_root_command(),
+            f"Installed {BUNDLE_PACKAGE} bundle root probe returned no path",
+        )
+        supervisor = PurePosixPath(bundle_root) / SUPERVISOR_PATH
+        await self.exec_as_agent(
+            environment, command=f"test -x {shlex.quote(str(supervisor))}",
+        )
+        binary = backend_cli_binary(self._trial_seed.arm)
+        cli_path = await self._probe(
+            environment, f'realpath -- "$(command -v {shlex.quote(binary)})"',
+            f"Installed {binary} CLI path probe returned no path",
+        )
+        cli_version = await self._probe(
+            environment, f"{shlex.quote(binary)} --version",
+            f"Installed {binary} CLI version probe returned no version",
+        )
+        return ContainerFacts(bundle_root, cli_path, cli_version)
 
     @override
     async def install(self, environment: BaseEnvironment) -> None:
@@ -104,11 +141,14 @@ class CortexBenchAgent(BaseInstalledAgent):
         await self.exec_as_root(environment, command=self._install_command(artifact))
         for command in self._verification_commands():
             await self.exec_as_agent(environment, command=command)
-        result = await self.exec_as_agent(environment, command=VERSION_COMMAND)
-        version = (result.stdout or "").strip()
-        if not version:
-            raise RuntimeError("Installed Cortex CLI version probe returned no version")
-        self._cortex_cli_version = version
+        self._container_facts = await self._discover_container_facts(environment)
+        self._cortex_cli_version = await self._probe(
+            environment, VERSION_COMMAND,
+            "Installed Cortex CLI version probe returned no version",
+        )
+
+    def _compose_arm_resolution(self, facts: ContainerFacts) -> dict[str, object]:
+        return compose_arm_resolution(self._trial_seed, facts)
 
     @override
     async def setup(self, environment: BaseEnvironment) -> None:
@@ -116,11 +156,14 @@ class CortexBenchAgent(BaseInstalledAgent):
         await super().setup(environment)
         assert self._staged_npm_artifact is not None
         assert self._cortex_cli_version is not None
+        assert self._container_facts is not None
         inputs = self._manifest_seed.with_cwd(
             resolved_cwd, self._staged_npm_artifact, self._cortex_cli_version,
         )
         write_harness_manifest(self._artifact_dir, build_harness_manifest(inputs))
-        write_arm_resolution(self.logs_dir, self._arm_resolution)
+        write_arm_resolution(
+            self.logs_dir, self._compose_arm_resolution(self._container_facts),
+        )
         self._resolved_cwd = resolved_cwd
 
     def _agent_paths(

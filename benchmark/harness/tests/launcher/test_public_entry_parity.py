@@ -1,7 +1,11 @@
-# input:  shipped agent/loader, production assets, Harbor factory
-# output: public argv/loader parity and vendor isolation proofs
-# pos:    Direct construction bypasses stub_trial injection
+# input:  shipped agent/loader, trial seed, container facts, Harbor factory
+# output: public seed-only composition, loader parity, vendor isolation
+# pos:    Public entry composes the trial with no caller-supplied assets
 # >>> If I am updated, update my header and folder CORTEX.md <<<
+#
+# This file supplies the launcher NOTHING but caller-known trial facts: no role,
+# no MCP config, no thread template, no prebuilt resolution document. Whatever the
+# shipped loader reports below was therefore composed by the production path itself.
 
 import asyncio
 import json
@@ -11,20 +15,23 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
 from harbor.agents.factory import AgentFactory
 from harbor.environments.base import ExecResult
 from harbor.models.agent.context import AgentContext
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
-from cortex_bench_harness.launcher.arm_resolution import (
-    ARM_RESOLUTION_SOURCE,
-    ArmResolutionInputs,
-    build_arm_resolution,
-)
 from cortex_bench_harness.launcher.arms import build_agent_config
 
 DIGEST = f"sha256:{'a' * 64}"
 ROOT_RUN_ID = "trial-parity.cortex-direct"
+BACKEND_CLI_VERSION = "1.2.3 (Claude Code)"
+FROZEN_TOOLS = [
+    "Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "TodoWrite", "Write",
+]
+FORBIDDEN_TOOLS = [
+    "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "TaskStop", "WebFetch", "WebSearch",
+]
 LOADER_SCRIPT = """
 import { loadAgentRunConfigWithPolicy } from './src/domain/agent-run/run-config.ts';
 const loaded = loadAgentRunConfigWithPolicy({
@@ -39,6 +46,20 @@ console.log(JSON.stringify({
 """
 
 
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]
+
+
+def server_root() -> Path:
+    return repo_root() / "agent-server"
+
+
+def backend_cli_path() -> str:
+    node = shutil.which("node")
+    assert node is not None
+    return node
+
+
 class RecordingEnvironment:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, object]]] = []
@@ -48,18 +69,18 @@ class RecordingEnvironment:
         self.calls.append((command, kwargs))
         if command.endswith("pwd") or "realpath -- /app" in command:
             return ExecResult(stdout="/app\n", return_code=0)
+        if "npm ls --global" in command:
+            return ExecResult(stdout=f"{server_root()}\n", return_code=0)
         if command.endswith("cortex daemon --version"):
             return ExecResult(stdout="2026.8.3-2\n", return_code=0)
+        if "command -v claude" in command:
+            return ExecResult(stdout=f"{backend_cli_path()}\n", return_code=0)
         if command.endswith("claude --version"):
-            return ExecResult(stdout="1.2.3 (Claude Code)\n", return_code=0)
+            return ExecResult(stdout=f"{BACKEND_CLI_VERSION}\n", return_code=0)
         return ExecResult(return_code=0)
 
     async def upload_file(self, source_path: Path | str, target_path: str) -> None:
         self.uploads.append((source_path, target_path))
-
-
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[4]
 
 
 def cortex_arm() -> dict[str, object]:
@@ -78,32 +99,19 @@ def cortex_arm() -> dict[str, object]:
     }
 
 
-def production_arm_resolution() -> dict[str, object]:
-    server = repo_root() / "agent-server"
-    node = shutil.which("node")
-    assert node is not None
-    role = {
-        "system_prompt_path": str(server / "defaults/prompts/systemPrompts/direct.md"),
-        "directive_path": str(server / "defaults/prompts/directives/executor.md"),
-        "tools": ["Read", "Write"], "plugin_dirs": [], "mcp_composition": "none",
-        "mcp_config_paths": [str(server / "defaults/config/mcp-config-empty.json")],
-        "disable_hooks": True,
+def trial_seed() -> dict[str, object]:
+    return {
+        "arm": cortex_arm(), "arm_path": "arm://cortex-direct",
+        "trial_id": "trial-parity", "root_run_id": ROOT_RUN_ID,
+        "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
+                 "image_digest": DIGEST},
+        "profile_name": "benchmark", "paid_run": False,
+        "credential": {"upstream_base_url": "https://api.anthropic.com",
+                       "route_identity_host": "api.anthropic.com",
+                       "proxy_base_url": "http://trial-proxy.invalid",
+                       "dummy_token_ref": "offline-token-handle"},
+        "model_alias_policy": {"kind": "exact"},
     }
-    return build_arm_resolution(ArmResolutionInputs(
-        arm=cortex_arm(), arm_path="arm://cortex-direct",
-        trial_id="trial-parity", root_run_id=ROOT_RUN_ID,
-        task={"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
-              "image_digest": DIGEST},
-        profile_name="benchmark", paid_run=False,
-        credential={"upstream_base_url": "https://api.anthropic.com",
-                    "route_identity_host": "api.anthropic.com",
-                    "proxy_base_url": "http://trial-proxy.invalid",
-                    "dummy_token_ref": "offline-token-handle"},
-        cli_artifact={"path": node, "version": "test-node"},
-        model_alias_policy={"kind": "exact"}, roles={"parent": role},
-        thread_templates={}, thread_agents={},
-        artifact_inventory_spec={"expected": [ARM_RESOLUTION_SOURCE]},
-    ))
 
 
 def manifest(tmp_path: Path) -> dict[str, object]:
@@ -126,7 +134,7 @@ def manifest(tmp_path: Path) -> dict[str, object]:
 def public_agent(tmp_path: Path) -> CortexBenchAgent:
     return CortexBenchAgent(
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest(tmp_path), arm_resolution=production_arm_resolution(),
+        manifest=manifest(tmp_path), trial_seed=trial_seed(),
     )
 
 
@@ -153,8 +161,7 @@ def load_emitted_role(run_config: Path, tmp_path: Path) -> dict[str, object]:
     })
     result = subprocess.run(
         ["node", "--import", "tsx", "--input-type=module", "--eval", LOADER_SCRIPT],
-        cwd=repo_root() / "agent-server", env=env, text=True, capture_output=True,
-        check=False,
+        cwd=server_root(), env=env, text=True, capture_output=True, check=False,
     )
     assert result.returncode == 0, result.stderr
     loaded = json.loads(result.stdout)
@@ -183,22 +190,56 @@ def assert_run_argv(agent: CortexBenchAgent, environment: RecordingEnvironment) 
     return emitted_path
 
 
-def test_public_entry_argv_loads_the_explicit_direct_composition(tmp_path: Path) -> None:
+def test_public_entry_argv_loads_the_frozen_direct_composition(tmp_path: Path) -> None:
     agent = public_agent(tmp_path)
     environment = RecordingEnvironment()
     asyncio.run(agent.setup(environment))
 
     loaded = load_emitted_role(assert_run_argv(agent, environment), tmp_path)
-    server = repo_root() / "agent-server"
+
+    server = server_root()
     assert loaded == {
         "role": {
             "systemPrompt": (server / "defaults/prompts/systemPrompts/direct.md").read_text(),
-            "tools": ["Read", "Write"], "pluginDirs": [], "mcpComposition": "none",
-            "mcpConfigPaths": [str(server / "defaults/config/mcp-config-empty.json")],
-            "disableHooks": True,
+            "tools": FROZEN_TOOLS,
+            "pluginDirs": [
+                str(server / "defaults/plugins/cortex-common"),
+                str(server / "defaults/plugins/cortex-coder"),
+            ],
+            "mcpComposition": "none", "mcpConfigPaths": [], "disableHooks": True,
         },
         "policySchema": "cortex-benchmark-resolved-policy/2", "armName": "cortex-direct",
     }
+    assert not set(FORBIDDEN_TOOLS) & set(FROZEN_TOOLS)
+
+
+def test_public_entry_sources_container_facts_not_the_caller(tmp_path: Path) -> None:
+    agent = public_agent(tmp_path)
+    asyncio.run(agent.setup(RecordingEnvironment()))
+
+    document = json.loads((agent.logs_dir / "arm-resolution.json").read_text())
+
+    assert document["cli_artifact"] == {
+        "path": backend_cli_path(), "version": BACKEND_CLI_VERSION,
+    }
+    assert document["roles"]["parent"]["directive_path"] == str(
+        server_root() / "defaults/prompts/directives/executor.md",
+    )
+    assert document["thread_templates"] == {}
+    assert document["thread_agents"] == {}
+
+
+def test_public_constructor_refuses_a_prebuilt_resolution(tmp_path: Path) -> None:
+    composed = {
+        **trial_seed(), "schema_version": "cortex-benchmark-arm-resolution/1",
+        "roles": {"parent": {"tools": ["Read"]}}, "thread_templates": {},
+    }
+
+    with pytest.raises(ValueError, match="roles"):
+        CortexBenchAgent(
+            logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
+            manifest=manifest(tmp_path), trial_seed=composed,
+        )
 
 
 def test_guard_uses_the_exact_public_class_without_stub_trial(tmp_path: Path) -> None:
@@ -206,6 +247,7 @@ def test_guard_uses_the_exact_public_class_without_stub_trial(tmp_path: Path) ->
 
     assert type(agent) is CortexBenchAgent
     assert agent.run.__func__ is CortexBenchAgent.run
+    assert agent.setup.__func__ is CortexBenchAgent.setup
 
 
 def vendor_arm() -> dict[str, object]:

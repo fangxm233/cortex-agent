@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 import stub_trial
+from cortex_bench_harness.launcher.arm_resolution import ContainerFacts
 from stub_trial import (
     TrialEvidence,
     result_surface_files,
@@ -103,6 +104,35 @@ def test_partial_environment_start_is_cleaned_up(monkeypatch) -> None:
         asyncio.run(stub_trial.execute_trial(object(), {}))
 
     assert environment.stopped is True
+
+
+def test_component_fixture_supplies_its_document_through_the_hook(tmp_path: Path) -> None:
+    image = {"image_ref": stub_trial.IMAGE_REF, "image_digest": stub_trial.IMAGE_DIGEST,
+             "image_size_bytes": 1}
+    layout = SimpleNamespace(
+        trial_paths=SimpleNamespace(
+            agent_dir=tmp_path / "agent", artifacts_dir=tmp_path / "artifacts",
+        ),
+        wheel_path=tmp_path / "harness.whl", harness_dir=tmp_path,
+        npm_artifact=tmp_path / "server.tgz",
+    )
+
+    agent = stub_trial.create_agent(layout, image)
+    facts = ContainerFacts("/bundle", "/opt/fake-bin/claude", "2.1.999")
+
+    assert not {"roles", "thread_templates", "thread_agents", "cli_artifact"} & set(
+        stub_trial.trial_seed(image),
+    )
+    assert agent._compose_arm_resolution(facts) == stub_trial.arm_resolution_document(image)
+
+
+def test_fake_claude_reports_its_version_without_a_trial_artifact_dir() -> None:
+    result = subprocess.run(
+        [str(Path(__file__).with_name("fake_claude.sh")), "--version"],
+        text=True, capture_output=True, check=True, env={"PATH": os.environ["PATH"]},
+    )
+
+    assert result.stdout.strip() == "2.1.999 (Cortex benchmark fake)"
 
 
 def test_fake_claude_emits_canonical_assistant_role(tmp_path: Path) -> None:
