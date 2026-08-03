@@ -1,13 +1,18 @@
-// input:  daemon rebuild planner/notice helpers, daemon-notice handler, MockAdapter
-// output: daemon import-safety, rebuild step order and abort-notice tests
-// pos:    Verify daemon entry side effects, rebuild step order and abort notification
+// input:  daemon watcher/rebuild helpers, daemon-notice handler, MockAdapter
+// output: daemon watcher fallback, rebuild order and abort-notice tests
+// pos:    Verify daemon import safety, watcher recovery, and rebuild behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import { test } from 'vitest';
+import { EventEmitter } from 'node:events';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { afterEach, test, vi } from 'vitest';
 import { AGENT_SERVER_DIR } from './module-loader.js';
-import { planRebuildSteps, buildRebuildAbortNotice } from '../src/entry/daemon.js';
+import {
+  buildRebuildAbortNotice,
+  createResilientWatchMonitor,
+  planRebuildSteps,
+} from '../src/entry/daemon.js';
 import { handleDaemonMessage } from '../src/entry/daemon-notice.js';
 import { MockAdapter } from '../src/platform/testing.js';
 
@@ -53,6 +58,61 @@ test('daemon module import is side-effect free', async () => {
 
   assert.equal(result.code, 0);
   assert.equal(result.signal, null);
+});
+
+afterEach(() => vi.useRealTimers());
+
+class FakeWatcher extends EventEmitter {
+  closeCalls = 0;
+
+  close() {
+    this.closeCalls += 1;
+  }
+}
+
+test('watch monitor falls back to polling every 5 seconds when watch creation exhausts quota', () => {
+  vi.useFakeTimers();
+  const warnings: string[] = [];
+  let polls = 0;
+  const quotaError = Object.assign(new Error('inotify instance limit reached'), { code: 'EMFILE' });
+
+  const monitor = createResilientWatchMonitor({
+    label: 'restart trigger',
+    startWatching: () => { throw quotaError; },
+    poll: () => { polls += 1; },
+    warn: message => warnings.push(message),
+  });
+
+  vi.advanceTimersByTime(4999);
+  assert.equal(polls, 0);
+  vi.advanceTimersByTime(1);
+  assert.equal(polls, 1);
+  assert.match(warnings.join('\n'), /EMFILE.*polling every 5000ms/);
+
+  monitor.close();
+  vi.advanceTimersByTime(5000);
+  assert.equal(polls, 1);
+});
+
+test('watch monitor closes a failed watcher and starts only one polling fallback', () => {
+  vi.useFakeTimers();
+  const watcher = new FakeWatcher();
+  let polls = 0;
+  const monitor = createResilientWatchMonitor({
+    label: 'restart trigger',
+    startWatching: () => [watcher as any],
+    poll: () => { polls += 1; },
+    warn: () => {},
+  });
+
+  const quotaError = Object.assign(new Error('inotify watch limit reached'), { code: 'ENOSPC' });
+  watcher.emit('error', quotaError);
+  watcher.emit('error', quotaError);
+  vi.advanceTimersByTime(5000);
+
+  assert.equal(watcher.closeCalls, 1);
+  assert.equal(polls, 1);
+  monitor.close();
 });
 
 // --- Rebuild step order ---

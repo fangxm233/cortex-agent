@@ -1,5 +1,5 @@
 // input:  runtime env, source changes, restart triggers
-// output: supervised app and serialized rebuild restarts
+// output: supervised app, resilient watchers, serialized restarts
 // pos:    Agent-server process supervisor
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -43,7 +43,15 @@
  */
 
 import { fork, spawn } from 'child_process';
-import { watch, existsSync, unlinkSync, statSync, writeFileSync, readdirSync } from 'fs';
+import {
+  watch,
+  existsSync,
+  unlinkSync,
+  statSync,
+  writeFileSync,
+  readdirSync,
+  type FSWatcher,
+} from 'fs';
 import * as path from 'path';
 import { createLogger } from '@core/log.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
@@ -83,6 +91,7 @@ const BUILD_DEBOUNCE_MS = 2500;   // src/*.ts — slower, build takes seconds an
 const BACKOFF_INITIAL = 1000;
 const BACKOFF_MAX = 30_000;
 const HEALTHY_THRESHOLD = 10_000; // if alive > 10s, reset backoff
+const WATCH_FALLBACK_MS = 5000;
 
 // Src-watch filter: paths under SRC_WATCH_PATH that should NOT trigger a rebuild.
 const SRC_IGNORE_PREFIXES = ['tests/', 'tmp/', 'node_modules/', 'dist/', 'vendor/'];
@@ -102,6 +111,7 @@ let pendingRebuild: string | null = null; // reason string if rebuild is deferre
 let restarting = false;         // true while restart() stop→start cycle is in progress
 let rebuilding = false;         // true while runRebuildPipeline() is running
 let nextRestartReason: string | null = null; // forwarded to next child via CORTEX_RESTART_REASON
+let watchMonitors: WatchMonitor[] = [];
 
 // Daemon logs are written by the centralized logger (src/core/log.ts)
 // — console + daily-rotating file output in DATA_DIR/logs/.
@@ -276,12 +286,85 @@ async function restart(reason) {
 
 // --- File Watching ---
 
-/** Recursively walk a directory tree and return an fs.FSWatcher for each subdirectory.
- *  Used on Windows where fs.watch({recursive:true}) throws EPERM. */
-function watchTree(root: string, callback: (eventType: string, filename: string | null) => void): ReturnType<typeof watch>[] {
-  const watchers: ReturnType<typeof watch>[] = [];
+export interface WatchMonitor {
+  close(): void;
+}
+
+export interface ResilientWatchOptions {
+  label: string;
+  startWatching: () => FSWatcher[];
+  poll?: () => void;
+  warn?: (message: string) => void;
+}
+
+function formatWatchError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const code = (error as NodeJS.ErrnoException).code;
+  return code ? `${code}: ${error.message}` : error.message;
+}
+
+function closeWatchers(watchers: FSWatcher[]): void {
+  for (const watcher of watchers.splice(0)) {
+    try { watcher.close(); } catch {}
+  }
+}
+
+interface WatchMonitorState {
+  watchers: FSWatcher[];
+  pollTimer: ReturnType<typeof setInterval> | null;
+  failed: boolean;
+  closed: boolean;
+}
+
+function pollSafely(options: ResilientWatchOptions, warn: (message: string) => void): void {
+  try { options.poll?.(); } catch (error) {
+    warn(`${options.label} polling failed (${formatWatchError(error)})`);
+  }
+}
+
+function failWatchMonitor(
+  state: WatchMonitorState,
+  options: ResilientWatchOptions,
+  warn: (message: string) => void,
+  error: unknown,
+): void {
+  if (state.failed || state.closed) return;
+  state.failed = true;
+  closeWatchers(state.watchers);
+  const detail = formatWatchError(error);
+  if (!options.poll) {
+    warn(`${options.label} watcher failed (${detail}); watcher disabled`);
+    return;
+  }
+  warn(`${options.label} watcher failed (${detail}); polling every ${WATCH_FALLBACK_MS}ms`);
+  state.pollTimer = setInterval(() => pollSafely(options, warn), WATCH_FALLBACK_MS);
+}
+
+function closeWatchMonitor(state: WatchMonitorState): void {
+  state.closed = true;
+  closeWatchers(state.watchers);
+  if (state.pollTimer) clearInterval(state.pollTimer);
+  state.pollTimer = null;
+}
+
+export function createResilientWatchMonitor(options: ResilientWatchOptions): WatchMonitor {
+  const state: WatchMonitorState = { watchers: [], pollTimer: null, failed: false, closed: false };
+  const warn = options.warn ?? (message => log.warn(message));
+  const fallBack = (error: unknown) => failWatchMonitor(state, options, warn, error);
+  try {
+    state.watchers = options.startWatching();
+    for (const watcher of state.watchers) watcher.on('error', fallBack);
+  } catch (error) {
+    fallBack(error);
+  }
+  return { close: () => closeWatchMonitor(state) };
+}
+
+/** Recursively watch each directory on Windows, closing partial setup on failure. */
+function watchTree(root: string, callback: (eventType: string, filename: string | null) => void): FSWatcher[] {
+  const watchers: FSWatcher[] = [];
   const walk = (dir: string) => {
-    watchers.push(watch(dir, (et, fn) => callback(et, fn)));
+    watchers.push(watch(dir, (eventType, filename) => callback(eventType, filename)));
     let entries;
     try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const entry of entries) {
@@ -290,73 +373,119 @@ function watchTree(root: string, callback: (eventType: string, filename: string 
       walk(path.join(dir, entry.name));
     }
   };
-  walk(root);
+  try { walk(root); } catch (error) {
+    closeWatchers(watchers);
+    throw error;
+  }
   return watchers;
 }
 
-function setupWatchers() {
-  const watchers = [];
+function isDirectory(dir: string): boolean {
+  try { return existsSync(dir) && statSync(dir).isDirectory(); } catch { return false; }
+}
 
-  // Watch ${CORTEX_REPO}/src/**/*.ts — when source files change, rebuild the package,
-  // npm install -g the fresh tgz, then restart() the app.js child from the new dist.
-  // The daemon process itself does NOT reload; edits to daemon.ts require manual restart.
-  // If CORTEX_REPO is unset or src/ is missing, this watcher is skipped — the daemon then
-  // relies purely on the .restart trigger below (manual upgrade flow).
-  if (SRC_WATCH_PATH && existsSync(SRC_WATCH_PATH) && statSync(SRC_WATCH_PATH).isDirectory()) {
-    const onChange = (_eventType: string, filename: string | null) => {
-      if (!filename) return;
-      const changedName = String(filename).replace(/\\/g, '/');
-      if (!changedName.endsWith('.ts')) return;
-      if (SRC_IGNORE_SUFFIXES.some(s => changedName.endsWith(s))) return;
-      if (SRC_IGNORE_PREFIXES.some(p => changedName.startsWith(p) || changedName.includes(`/${p}`))) return;
-      debouncedRebuild(`src change: ${changedName}`);
-    };
-    // Windows: recursive watch throws EPERM — watch each directory individually
-    if (process.platform === 'win32') {
-      const srcWatchers = watchTree(SRC_WATCH_PATH, onChange);
-      watchers.push(...srcWatchers);
-      log.info(`Watching src: ${SRC_WATCH_PATH} (per-directory, *.ts, ${srcWatchers.length} dirs)`);
-    } else {
-      const watcher = watch(SRC_WATCH_PATH, { recursive: true }, onChange);
-      watchers.push(watcher);
-      log.info(`Watching src: ${SRC_WATCH_PATH} (recursive, *.ts)`);
-    }
-  } else if (CORTEX_REPO) {
-    log.warn(`CORTEX_REPO=${CORTEX_REPO} set but ${SRC_WATCH_PATH} not a directory — src watcher disabled`);
-  } else {
-    log.warn('CORTEX_REPO unset — src watcher disabled, only .restart trigger available');
+function handleSourceChange(filename: string | null): void {
+  if (!filename) return;
+  const changedName = String(filename).replace(/\\/g, '/');
+  if (!changedName.endsWith('.ts')) return;
+  if (SRC_IGNORE_SUFFIXES.some(suffix => changedName.endsWith(suffix))) return;
+  if (SRC_IGNORE_PREFIXES.some(prefix => changedName.startsWith(prefix) || changedName.includes(`/${prefix}`))) return;
+  debouncedRebuild(`src change: ${changedName}`);
+}
+
+function setupSourceMonitor(): WatchMonitor | null {
+  if (!SRC_WATCH_PATH || !isDirectory(SRC_WATCH_PATH)) {
+    const detail = CORTEX_REPO
+      ? `CORTEX_REPO=${CORTEX_REPO} set but ${SRC_WATCH_PATH} not a directory`
+      : 'CORTEX_REPO unset';
+    log.warn(`${detail} — src watcher disabled, only .restart trigger available`);
+    return null;
   }
+  return createResilientWatchMonitor({
+    label: `Source ${SRC_WATCH_PATH}`,
+    startWatching: () => {
+      if (process.platform === 'win32') {
+        const watchers = watchTree(SRC_WATCH_PATH, (_event, filename) => handleSourceChange(filename));
+        log.info(`Watching src: ${SRC_WATCH_PATH} (per-directory, *.ts, ${watchers.length} dirs)`);
+        return watchers;
+      }
+      const watcher = watch(SRC_WATCH_PATH, { recursive: true }, (_event, filename) => handleSourceChange(filename));
+      log.info(`Watching src: ${SRC_WATCH_PATH} (recursive, *.ts)`);
+      return [watcher];
+    },
+  });
+}
 
-  // Watch for .restart trigger file
+function consumeRestartTrigger(): void {
+  if (!existsSync(RESTART_TRIGGER)) return;
+  try { unlinkSync(RESTART_TRIGGER); } catch {}
+  if (CORTEX_REPO) {
+    debouncedRebuild('manual trigger (.restart file)');
+  } else {
+    debouncedRestart('manual trigger (.restart file)');
+  }
+}
+
+function setupRestartTriggerMonitor(): WatchMonitor {
   const triggerDir = path.dirname(RESTART_TRIGGER);
   const triggerName = path.basename(RESTART_TRIGGER);
-  const triggerWatcher = watch(triggerDir, (eventType, filename) => {
-    if (filename === triggerName && existsSync(RESTART_TRIGGER)) {
-      try { unlinkSync(RESTART_TRIGGER); } catch {}
-      if (CORTEX_REPO) {
-        debouncedRebuild('manual trigger (.restart file)');
-      } else {
-        debouncedRestart('manual trigger (.restart file)');
-      }
-    }
+  return createResilientWatchMonitor({
+    label: `Restart trigger ${RESTART_TRIGGER}`,
+    startWatching: () => {
+      const watcher = watch(triggerDir, (_event, filename) => {
+        if (filename && String(filename) === triggerName) consumeRestartTrigger();
+      });
+      log.info(`Watching for restart trigger: ${RESTART_TRIGGER}`);
+      return [watcher];
+    },
+    poll: consumeRestartTrigger,
   });
-  watchers.push(triggerWatcher);
-  log.info(`Watching for restart trigger: ${RESTART_TRIGGER}`);
+}
 
-  // Watch .env (parent dir, since editors often replace the file atomically)
-  const envDir = path.dirname(ENV_FILE);
-  const envName = path.basename(ENV_FILE);
-  if (existsSync(envDir)) {
-    const envWatcher = watch(envDir, (eventType, filename) => {
-      if (filename && String(filename) === envName) {
-        debouncedRestart('env change (.env)');
-      }
-    });
-    watchers.push(envWatcher);
-    log.info(`Watching env file: ${ENV_FILE}`);
+function fileStamp(filePath: string): string | null {
+  try {
+    const stat = statSync(filePath);
+    return `${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    return null;
   }
+}
 
-  return watchers;
+function startEnvWatcher(envDir: string, envName: string, onChange: () => void): FSWatcher[] {
+  const watcher = watch(envDir, (_event, filename) => {
+    if (filename && String(filename) === envName) onChange();
+  });
+  log.info(`Watching env file: ${ENV_FILE}`);
+  return [watcher];
+}
+
+function setupEnvMonitor(): WatchMonitor | null {
+  const envDir = path.dirname(ENV_FILE);
+  if (!existsSync(envDir)) return null;
+  const envName = path.basename(ENV_FILE);
+  let observedStamp = fileStamp(ENV_FILE);
+  const handleChange = () => {
+    observedStamp = fileStamp(ENV_FILE);
+    debouncedRestart('env change (.env)');
+  };
+  const poll = () => {
+    const nextStamp = fileStamp(ENV_FILE);
+    if (nextStamp === observedStamp) return;
+    observedStamp = nextStamp;
+    debouncedRestart('env change (.env)');
+  };
+  return createResilientWatchMonitor({
+    label: `Environment file ${ENV_FILE}`,
+    startWatching: () => startEnvWatcher(envDir, envName, handleChange),
+    poll,
+  });
+}
+
+function setupWatchers(): WatchMonitor[] {
+  const monitors = [setupRestartTriggerMonitor(), setupEnvMonitor()];
+  const sourceMonitor = setupSourceMonitor();
+  if (sourceMonitor) monitors.push(sourceMonitor);
+  return monitors.filter((monitor): monitor is WatchMonitor => monitor !== null);
 }
 
 function debouncedRestart(reason) {
@@ -563,12 +692,17 @@ async function runRebuildPipeline(reason: string) {
 }
 
 // --- Graceful Shutdown ---
+function closeWatchMonitors(): void {
+  for (const monitor of watchMonitors.splice(0)) monitor.close();
+}
+
 function setupShutdown() {
   const shutdown = async (signal) => {
     if (shuttingDown) return;
     shuttingDown = true;
     log.info(`Received ${signal}, shutting down...`);
     cancelPendingTimers();
+    closeWatchMonitors();
     await stopChild();
     log.info('Daemon stopped.');
     process.exit(0);
@@ -600,40 +734,32 @@ function releaseSingletonLock() {
   } catch {}
 }
 
-function main() {
-  // Recursion guard: if log.error() itself throws (e.g. EPIPE on a broken stderr),
-  // the uncaughtException handler would be re-entered, causing an infinite loop that
-  // fills the log file and the disk. This flag breaks that cycle.
-  let inExceptionHandler = false;
+function setupProcessErrorHandlers(): void {
+  // Prevent log failures from recursively re-entering the process error handlers.
+  let handlingError = false;
+  const report = (kind: string, detail: unknown) => {
+    if (handlingError) return;
+    handlingError = true;
+    try { log.error(`${kind}: ${String(detail)}`); } catch {
+      // The logger may itself fail on a broken stderr; avoid recursive handling.
+    } finally {
+      handlingError = false;
+    }
+  };
+  process.on('uncaughtException', error => report('uncaughtException', error?.stack ?? error));
+  process.on('unhandledRejection', reason => {
+    report('unhandledRejection', reason instanceof Error ? reason.stack : reason);
+  });
+}
 
-  process.on('uncaughtException', (err) => {
-    if (inExceptionHandler) return; // already handling an exception — avoid re-entrant loop
-    inExceptionHandler = true;
-    try {
-      log.error(`uncaughtException: ${err?.stack ?? err}`);
-    } catch {
-      // log.error() itself threw (shouldn't happen after log.ts EPIPE fix, but guard anyway)
-    } finally {
-      inExceptionHandler = false;
-    }
-  });
-  process.on('unhandledRejection', (reason) => {
-    if (inExceptionHandler) return;
-    inExceptionHandler = true;
-    try {
-      log.error(`unhandledRejection: ${reason instanceof Error ? reason.stack : String(reason)}`);
-    } catch {
-      // log.error() itself threw
-    } finally {
-      inExceptionHandler = false;
-    }
-  });
+function main() {
+  setupProcessErrorHandlers();
   acquireSingletonLock();
   process.on('exit', releaseSingletonLock);
   log.info('Cortex Daemon starting...');
   setupShutdown();
-  setupWatchers();
   startChild();
+  watchMonitors = setupWatchers();
 }
 
 if (isMainModule(import.meta.url)) {

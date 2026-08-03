@@ -10,7 +10,7 @@ Composes the runtime from the other layers and starts the server, daemon, CLI, a
 | auth-cli.ts | cli | handles auth status arguments and rendering |
 | cli-help.ts | cli | builds top-level and subcommand help |
 | cli.ts | entry | dispatches process and modular CLI handlers |
-| daemon.ts | entry | supervises and restarts the app process |
+| daemon.ts | entry | supervises app with watcher polling fallback |
 | daemon-notice.ts | wiring | broadcasts supervisor notices to the operator |
 | draft-attachments.ts | files | promotes draft uploads into session storage |
 | doctor-cli.ts | cli | runs environment diagnostics and safe fixes |
