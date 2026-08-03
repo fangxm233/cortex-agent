@@ -51,7 +51,7 @@ def _unclassified_files(
     inventory: ArtifactInventory,
 ) -> tuple[UnclassifiedFile, ...]:
     classified = {
-        path.resolve() for source, path in inventory.sources.items()
+        path.absolute() for source, path in inventory.sources.items()
         if source in inventory.expected_sources and path.is_file()
     }
     discovered: set[Path] = set()
@@ -69,10 +69,10 @@ def _append_unclassified(
     unclassified: list[UnclassifiedFile],
 ) -> None:
     for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
-        resolved = path.resolve()
-        if resolved in classified or resolved in discovered:
+        absolute = path.absolute()
+        if absolute in classified or absolute in discovered:
             continue
-        discovered.add(resolved)
+        discovered.add(absolute)
         unclassified.append(UnclassifiedFile(root_index, path.relative_to(root).as_posix()))
 
 

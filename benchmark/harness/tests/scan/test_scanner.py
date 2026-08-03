@@ -120,6 +120,17 @@ def test_reports_unclassified_file_under_trial_root(tmp_path: Path) -> None:
     assert report.exit_code == 1
 
 
+def test_reports_unclassified_symlink_to_declared_file(tmp_path: Path) -> None:
+    artifacts = make_artifacts(tmp_path, "none")
+    (tmp_path / "undeclared-link.txt").symlink_to(artifacts.sources["stdout"])
+
+    report = scan_trial_artifacts(artifacts, policy())
+
+    assert report.unclassified_files == (UnclassifiedFile(0, "undeclared-link.txt"),)
+    assert report.clean is False
+    assert report.exit_code == 1
+
+
 def test_reports_declared_source_missing_from_disk(tmp_path: Path) -> None:
     artifacts = make_artifacts(tmp_path, "none")
     artifacts.sources["events"].unlink()
