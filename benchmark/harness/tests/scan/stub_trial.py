@@ -46,7 +46,7 @@ FINAL_METRIC_KEYS = (
     "total_prompt_tokens", "total_completion_tokens", "total_cached_tokens",
     "total_cost_usd", "total_steps",
 )
-RUN_CONFIG_PATH = "/logs/agent/run-config.json"
+RUN_CONFIG_PATH = "/cortex-home/config/benchmark-agent-run.json"
 POLICY_PATH = "/cortex-home/config/benchmark-thread-policy.json"
 BENCHMARK_MCP_CONFIG_PATH = "/cortex-home/config/mcp-config-benchmark-thread.json"
 
@@ -99,6 +99,10 @@ class TrialEvidence:
 class RecordingCortexBenchAgent(CortexBenchAgent):
     run_result: ExecResult | None = None
     run_command: str | None = None
+
+    @override
+    def preview_run_argv(self) -> list[str]:
+        return [*super().preview_run_argv(), "--run-config", RUN_CONFIG_PATH]
 
     @override
     async def exec_as_agent(
@@ -241,6 +245,7 @@ def write_profile(cortex_home: Path) -> None:
     config = cortex_home / "config"
     config.mkdir(parents=True)
     (config / "profiles.json").write_text(json.dumps(profile_document()))
+    (config / "benchmark-agent-run.json").write_text(json.dumps(run_config_document()))
     policy = config / "benchmark-thread-policy.json"
     policy.write_text(json.dumps(policy_document()))
     policy.chmod(0o444)
@@ -319,8 +324,7 @@ def create_agent(layout: Layout, image: dict[str, object]) -> RecordingCortexBen
     return RecordingCortexBenchAgent(
         logs_dir=layout.trial_paths.agent_dir,
         artifact_dir=layout.trial_paths.artifacts_dir,
-        manifest=manifest, run_config=run_config_document(),
-        extra_env=agent_environment(),
+        manifest=manifest, extra_env=agent_environment(),
     )
 
 

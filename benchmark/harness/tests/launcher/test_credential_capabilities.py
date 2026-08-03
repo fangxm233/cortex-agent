@@ -5,7 +5,6 @@
 
 import json
 import re
-from pathlib import Path
 
 from cortex_bench_harness.launcher.credential_capabilities import (
     CAPABILITY_REGISTRY,
@@ -13,8 +12,6 @@ from cortex_bench_harness.launcher.credential_capabilities import (
     project_credential_capabilities,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-GOLDEN_RUN_CONFIG = REPO_ROOT / "agent-server/tests/benchmark-resolved-run-config.golden.json"
 EXPECTED_PROJECTION = [
     {
         "id": "claude-api-key",
@@ -86,10 +83,9 @@ def test_registry_has_the_five_stateful_capability_rows() -> None:
     assert project_credential_capabilities() == EXPECTED_PROJECTION
 
 
-def test_compiled_projection_contains_no_credential_shaped_value() -> None:
+def test_registry_projection_contains_no_credential_shaped_value() -> None:
     projection = project_credential_capabilities()
-    compiled = json.loads(GOLDEN_RUN_CONFIG.read_text())
-    encoded = json.dumps({"capabilities": projection, "run_config": compiled}, sort_keys=True)
+    encoded = json.dumps(projection, sort_keys=True)
 
     assert SECRET_VALUE.search(encoded) is None
     assert all(

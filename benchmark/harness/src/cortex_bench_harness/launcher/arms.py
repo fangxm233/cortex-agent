@@ -1,4 +1,4 @@
-# input:  parsed arm set, compiled run config, trial pins
+# input:  parsed arm set, task selection, trial pins
 # output: immutable arm selection and Harbor AgentConfig
 # pos:    Host arm-selection and Harbor construction boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -102,15 +102,13 @@ def _common_config(
 def _cortex_kwargs(
     artifact_dir: Path | str | None,
     manifest: Mapping[str, object] | None,
-    run_config: Mapping[str, object] | None,
     version: str,
 ) -> dict[str, object]:
-    if artifact_dir is None or manifest is None or run_config is None:
-        raise ValueError("cortex arms require artifact_dir, manifest, and run_config_projection")
+    if artifact_dir is None or manifest is None:
+        raise ValueError("cortex arms require artifact_dir and manifest")
     return {
         "artifact_dir": artifact_dir,
         "manifest": dict(manifest),
-        "run_config": dict(run_config),
         "version": version,
     }
 
@@ -120,10 +118,9 @@ def _cortex_config(
     common: dict[str, Any],
     artifact_dir: Path | str | None,
     manifest: Mapping[str, object] | None,
-    run_config: Mapping[str, object] | None,
     version: str,
 ) -> AgentConfig:
-    kwargs = _cortex_kwargs(artifact_dir, manifest, run_config, version)
+    kwargs = _cortex_kwargs(artifact_dir, manifest, version)
     return AgentConfig(import_path=CORTEX_IMPORT_PATH, kwargs=kwargs, **common)
 
 
@@ -153,7 +150,6 @@ def build_agent_config(
     cli_version: str,
     artifact_dir: Path | str | None = None,
     manifest: Mapping[str, object] | None = None,
-    run_config_projection: Mapping[str, object] | None = None,
     env: Mapping[str, str] | None = None,
     override_timeout_sec: float | None = None,
     override_setup_timeout_sec: float | None = None,
@@ -168,7 +164,7 @@ def build_agent_config(
     )
     if arm.get("kind") == "cortex":
         return _cortex_config(
-            arm, common, artifact_dir, manifest, run_config_projection, cli_version,
+            arm, common, artifact_dir, manifest, cli_version,
         )
     if arm.get("kind") == "vendor-baseline":
         return _vendor_config(arm, common, cli_version)
