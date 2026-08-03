@@ -25,7 +25,7 @@ Rule = tuple[str, str, bytes]
 def scan_trial_artifacts(
     inventory: ArtifactInventory, policy: ScanPolicy,
 ) -> ScanReport:
-    _validate_inventory(inventory)
+    _validate_inventory(inventory, policy)
     missing_sources = _missing_sources(inventory)
     unclassified_files = _unclassified_files(inventory, policy)
     findings, sources = _scan_present_sources(inventory, missing_sources, policy)
@@ -34,9 +34,10 @@ def scan_trial_artifacts(
     )
 
 
-def _validate_inventory(inventory: ArtifactInventory) -> None:
+def _validate_inventory(inventory: ArtifactInventory, policy: ScanPolicy) -> None:
     _validate_inventory_shape(inventory)
     _validate_source_roots(inventory)
+    _validate_source_names(inventory, policy)
     manifest = inventory.sources.get("manifest")
     if manifest is not None and manifest.name != MANIFEST_FILENAME:
         raise ValueError(f"manifest source must be named {MANIFEST_FILENAME}")
@@ -57,6 +58,18 @@ def _validate_source_roots(inventory: ArtifactInventory) -> None:
     )
     if outside_root:
         raise ValueError("artifact sources must be contained by trial roots")
+
+
+def _validate_source_names(inventory: ArtifactInventory, policy: ScanPolicy) -> None:
+    names = set(inventory.sources) | inventory.expected_sources
+    literals = (*policy.secrets.values(), policy.repository_checkout, policy.hostname)
+    sensitive_name = any(
+        any(literal in name for literal in literals)
+        or HOME_PATH.search(name.encode()) is not None
+        for name in names
+    )
+    if sensitive_name:
+        raise ValueError("artifact source names must not contain sensitive literals")
 
 
 def _missing_sources(inventory: ArtifactInventory) -> tuple[str, ...]:

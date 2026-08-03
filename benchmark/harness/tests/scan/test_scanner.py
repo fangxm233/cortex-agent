@@ -136,6 +136,21 @@ def test_rejects_artifact_source_outside_trial_roots(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.parametrize("source_name", [f"log-{CREDENTIAL}", "logs/home/alice/private"])
+def test_rejects_sensitive_source_name(tmp_path: Path, source_name: str) -> None:
+    source = tmp_path / "source.txt"
+    source.write_text("clean\n")
+    inventory = ArtifactInventory(
+        {source_name: source}, frozenset({source_name}), (tmp_path,),
+    )
+
+    with pytest.raises(ValueError) as raised:
+        scan_trial_artifacts(inventory, policy())
+
+    assert CREDENTIAL not in str(raised.value)
+    assert "/home/alice" not in str(raised.value)
+
+
 def test_reports_unclassified_file_under_trial_root(tmp_path: Path) -> None:
     artifacts = make_artifacts(tmp_path, "none")
     (tmp_path / "undeclared.log").write_text("clean\n")
