@@ -109,6 +109,33 @@ def test_rejects_noncanonical_harness_manifest_filename(tmp_path: Path) -> None:
         )
 
 
+def test_rejects_empty_expected_source_set(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="expected source"):
+        scan_trial_artifacts(ArtifactInventory({}, frozenset(), (tmp_path,)), policy())
+
+
+def test_rejects_empty_trial_root_set(tmp_path: Path) -> None:
+    source = tmp_path / "stdout.txt"
+    source.write_text("clean\n")
+    with pytest.raises(ValueError, match="trial root"):
+        scan_trial_artifacts(
+            ArtifactInventory({"stdout": source}, frozenset({"stdout"}), ()),
+            policy(),
+        )
+
+
+def test_rejects_artifact_source_outside_trial_roots(tmp_path: Path) -> None:
+    root = tmp_path / "trial"
+    root.mkdir()
+    source = tmp_path / "outside.txt"
+    source.write_text("clean\n")
+    with pytest.raises(ValueError, match="contained by trial roots"):
+        scan_trial_artifacts(
+            ArtifactInventory({"stdout": source}, frozenset({"stdout"}), (root,)),
+            policy(),
+        )
+
+
 def test_reports_unclassified_file_under_trial_root(tmp_path: Path) -> None:
     artifacts = make_artifacts(tmp_path, "none")
     (tmp_path / "undeclared.log").write_text("clean\n")

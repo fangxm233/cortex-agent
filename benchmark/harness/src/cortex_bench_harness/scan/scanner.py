@@ -35,9 +35,28 @@ def scan_trial_artifacts(
 
 
 def _validate_inventory(inventory: ArtifactInventory) -> None:
+    _validate_inventory_shape(inventory)
+    _validate_source_roots(inventory)
     manifest = inventory.sources.get("manifest")
     if manifest is not None and manifest.name != MANIFEST_FILENAME:
         raise ValueError(f"manifest source must be named {MANIFEST_FILENAME}")
+
+
+def _validate_inventory_shape(inventory: ArtifactInventory) -> None:
+    if not inventory.expected_sources:
+        raise ValueError("artifact inventory requires an expected source")
+    if not inventory.trial_roots:
+        raise ValueError("artifact inventory requires a trial root")
+
+
+def _validate_source_roots(inventory: ArtifactInventory) -> None:
+    roots = tuple(root.absolute() for root in inventory.trial_roots)
+    outside_root = any(
+        not any(path.absolute().is_relative_to(root) for root in roots)
+        for path in inventory.sources.values()
+    )
+    if outside_root:
+        raise ValueError("artifact sources must be contained by trial roots")
 
 
 def _missing_sources(inventory: ArtifactInventory) -> tuple[str, ...]:
