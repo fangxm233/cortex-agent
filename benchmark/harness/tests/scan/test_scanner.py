@@ -131,6 +131,23 @@ def test_reports_unclassified_symlink_to_declared_file(tmp_path: Path) -> None:
     assert report.exit_code == 1
 
 
+def test_reports_unclassified_non_file_symlinks(tmp_path: Path) -> None:
+    artifacts = make_artifacts(tmp_path, "none")
+    target = tmp_path / "target-directory"
+    target.mkdir()
+    (tmp_path / "undeclared-directory-link").symlink_to(target, target_is_directory=True)
+    (tmp_path / "undeclared-missing-link").symlink_to(tmp_path / "missing")
+
+    report = scan_trial_artifacts(artifacts, policy())
+
+    assert report.unclassified_files == (
+        UnclassifiedFile(0, "undeclared-directory-link"),
+        UnclassifiedFile(0, "undeclared-missing-link"),
+    )
+    assert report.clean is False
+    assert report.exit_code == 1
+
+
 def test_redacts_secret_from_unclassified_relative_path(tmp_path: Path) -> None:
     artifacts = make_artifacts(tmp_path, "none")
     (tmp_path / f"undeclared-{CREDENTIAL}.log").write_text("clean\n")

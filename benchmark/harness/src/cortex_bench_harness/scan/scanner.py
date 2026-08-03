@@ -75,7 +75,10 @@ def _append_unclassified(
     unclassified: list[UnclassifiedFile],
     redactions: tuple[str, ...],
 ) -> None:
-    for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
+    for path in sorted(
+        candidate for candidate in root.rglob("*")
+        if candidate.is_file() or candidate.is_symlink()
+    ):
         absolute = path.absolute()
         if absolute in classified or absolute in discovered:
             continue
