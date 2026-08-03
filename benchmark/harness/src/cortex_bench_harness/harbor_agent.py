@@ -1,8 +1,9 @@
-# input:  Harbor lifecycle, npm bundle, manifest seed, instruction
+# input:  Harbor lifecycle, npm bundle, manifest, ArmResolution
 # output: verified Cortex execution, CLI version, and H3 manifest
 # pos:    Harbor BaseInstalledAgent wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import json
 import shlex
 import shutil
 from pathlib import Path, PurePosixPath
@@ -14,6 +15,10 @@ from harbor.models.agent.context import AgentContext
 from harbor.models.trial.paths import EnvironmentPaths
 
 from .cwd import ResolvedCwd, resolve_task_workdir
+from .launcher.arm_resolution import (
+    ARM_RESOLUTION_CONTAINER_PATH,
+    write_arm_resolution,
+)
 from .manifest import (
     HarnessManifestSeed,
     build_harness_manifest,
@@ -34,12 +39,15 @@ class CortexBenchAgent(BaseInstalledAgent):
         logs_dir: Path,
         artifact_dir: Path | str,
         manifest: Mapping[str, object],
+        arm_resolution: Mapping[str, object],
         *args: object,
         version: str = PACKAGE_VERSION,
         **kwargs: Any,
     ) -> None:
         self._artifact_dir = Path(artifact_dir)
         self._manifest_seed: HarnessManifestSeed = parse_manifest_seed(manifest)
+        self._arm_resolution = json.loads(json.dumps(arm_resolution))
+        self._validate_arm_resolution_binding()
         self._resolved_cwd: ResolvedCwd | None = None
         self._staged_npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None
@@ -49,6 +57,16 @@ class CortexBenchAgent(BaseInstalledAgent):
     @override
     def name() -> str:
         return "cortex-bench"
+
+    def _validate_arm_resolution_binding(self) -> None:
+        expected = {
+            "schema_version": "cortex-benchmark-arm-resolution/1",
+            "root_run_id": self._manifest_seed.root_run_id,
+            "profile_name": PROFILE_NAME,
+        }
+        for field, value in expected.items():
+            if self._arm_resolution.get(field) != value:
+                raise ValueError(f"ArmResolution {field} must equal {value}")
 
     def _stage_npm_artifact(self) -> tuple[Path, PurePosixPath]:
         source = self._manifest_seed.npm_artifact_path
@@ -102,25 +120,31 @@ class CortexBenchAgent(BaseInstalledAgent):
             resolved_cwd, self._staged_npm_artifact, self._cortex_cli_version,
         )
         write_harness_manifest(self._artifact_dir, build_harness_manifest(inputs))
+        write_arm_resolution(self.logs_dir, self._arm_resolution)
         self._resolved_cwd = resolved_cwd
 
-    def _agent_paths(self) -> tuple[PurePosixPath, PurePosixPath, PurePosixPath]:
+    def _agent_paths(
+        self,
+    ) -> tuple[PurePosixPath, PurePosixPath, PurePosixPath, PurePosixPath]:
         agent_dir = EnvironmentPaths().agent_dir
         return (
             agent_dir / "instruction.md",
             agent_dir / "trajectory" / "events.jsonl",
             agent_dir / "trajectory",
+            ARM_RESOLUTION_CONTAINER_PATH,
         )
 
     def preview_run_argv(self) -> list[str]:
         if self._resolved_cwd is None:
             raise RuntimeError("CortexBenchAgent.setup() must complete before run")
-        prompt_path, events_path, trajectory_root = self._agent_paths()
-        return self._build_run_argv(prompt_path, events_path, trajectory_root)
+        prompt_path, events_path, trajectory_root, run_config_path = self._agent_paths()
+        return self._build_run_argv(
+            prompt_path, events_path, trajectory_root, run_config_path,
+        )
 
     def _build_run_argv(
         self, prompt_path: PurePosixPath, events_path: PurePosixPath,
-        trajectory_root: PurePosixPath,
+        trajectory_root: PurePosixPath, run_config_path: PurePosixPath,
     ) -> list[str]:
         assert self._resolved_cwd is not None
         return [
@@ -129,6 +153,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             "--cwd", self._resolved_cwd.realpath, "--output-format", "jsonl",
             "--events-file", str(events_path), "--trajectory-root", str(trajectory_root),
             "--root-run-id", self._manifest_seed.root_run_id,
+            "--run-config", str(run_config_path),
         ]
 
     @override
@@ -142,7 +167,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             raise RuntimeError("CortexBenchAgent.setup() must complete before run")
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         (self.logs_dir / "instruction.md").write_text(instruction)
-        _, _, trajectory_root = self._agent_paths()
+        _, _, trajectory_root, _ = self._agent_paths()
         await self.exec_as_agent(environment, f"mkdir -p {shlex.quote(str(trajectory_root))}")
         await self.exec_as_agent(
             environment,

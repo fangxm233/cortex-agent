@@ -89,9 +89,10 @@ def baseline_arm(vendor_agent: str, provider: str | None = None) -> dict[str, ob
     }
 
 
-def test_host_agent_config_has_no_compiled_run_config_input() -> None:
+def test_host_agent_config_takes_phase_a_not_compiled_config() -> None:
     parameters = inspect.signature(build_agent_config).parameters
 
+    assert "arm_resolution" in parameters
     assert "run_config_projection" not in parameters
 
 
@@ -116,38 +117,50 @@ def test_select_task_requires_one_explicit_identifier() -> None:
         select_task(tasks, "missing")
 
 
-def test_image_selection_requires_a_sha256_digest() -> None:
+def test_image_selection_requires_the_reference_to_match_its_digest() -> None:
     digest = f"sha256:{'a' * 64}"
-    assert require_pinned_image("registry.invalid/task:latest", digest) == (
-        "registry.invalid/task:latest", digest,
-    )
+    image_ref = f"registry.invalid/task@{digest}"
+    assert require_pinned_image(image_ref, digest) == (image_ref, digest)
 
-    with pytest.raises(ImageDigestUnpinnedError) as error:
-        require_pinned_image("registry.invalid/task:latest", "")
-    assert error.value.reason == "image_digest_unpinned"
+    for unpinned_ref, recorded_digest in (
+        ("registry.invalid/task:latest", digest),
+        (f"registry.invalid/task@sha256:{'b' * 64}", digest),
+        (image_ref, ""),
+    ):
+        with pytest.raises(ImageDigestUnpinnedError) as error:
+            require_pinned_image(unpinned_ref, recorded_digest)
+        assert error.value.reason == "image_digest_unpinned"
 
 
-def cortex_config(tmp_path: Path) -> tuple[AgentConfig, dict[str, object]]:
+def cortex_config(
+    tmp_path: Path,
+) -> tuple[AgentConfig, dict[str, object], dict[str, object]]:
     manifest_value = manifest(tmp_path)
+    arm_resolution = {
+        "schema_version": "cortex-benchmark-arm-resolution/1",
+        "root_run_id": "trial-001.cortex-direct",
+        "profile_name": "benchmark",
+    }
     config = build_agent_config(
         cortex_arm(), cli_version="2026.8.3",
         artifact_dir=tmp_path / "artifacts", manifest=manifest_value,
+        arm_resolution=arm_resolution,
         env={"ANTHROPIC_BASE_URL": "http://trial-proxy.invalid"},
         override_timeout_sec=90, override_setup_timeout_sec=30,
         max_timeout_sec=120, extra_allowed_hosts=["trial-proxy.invalid"],
     )
-    return config, manifest_value
+    return config, manifest_value, arm_resolution
 
 
 def test_cortex_config_uses_public_import_and_launcher_inputs(tmp_path: Path) -> None:
-    config, manifest_value = cortex_config(tmp_path)
+    config, manifest_value, arm_resolution = cortex_config(tmp_path)
 
     assert config.name is None
     assert config.import_path == "cortex_bench_harness:CortexBenchAgent"
     assert config.model_name == "claude-sonnet"
     assert config.kwargs == {
         "artifact_dir": tmp_path / "artifacts", "manifest": manifest_value,
-        "version": "2026.8.3",
+        "arm_resolution": arm_resolution, "version": "2026.8.3",
     }
     assert config.env == {"ANTHROPIC_BASE_URL": "http://trial-proxy.invalid"}
     assert config.extra_allowed_hosts == ["trial-proxy.invalid"]
@@ -157,7 +170,7 @@ def test_cortex_config_uses_public_import_and_launcher_inputs(tmp_path: Path) ->
 
 
 def test_harbor_factory_constructs_the_public_cortex_agent(tmp_path: Path) -> None:
-    config, _ = cortex_config(tmp_path)
+    config, _, _ = cortex_config(tmp_path)
     agent = AgentFactory.create_agent_from_config(config, logs_dir=tmp_path / "logs")
 
     assert isinstance(agent, CortexBenchAgent)
