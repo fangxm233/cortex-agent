@@ -56,7 +56,7 @@ def setup_results() -> list[ExecResult]:
     ]
 
 
-def make_agent(tmp_path: Path) -> CortexBenchAgent:
+def make_agent(tmp_path: Path, *, version: str = "0.1.0") -> CortexBenchAgent:
     wheel_path = tmp_path / "cortex_bench_harness-0.1.0-py3-none-any.whl"
     lockfile_path = tmp_path / "uv.lock"
     npm_artifact_path = tmp_path / ARTIFACT_NAME
@@ -66,6 +66,7 @@ def make_agent(tmp_path: Path) -> CortexBenchAgent:
     return CortexBenchAgent(
         logs_dir=tmp_path / "agent",
         artifact_dir=tmp_path / "artifacts",
+        version=version,
         manifest={
             "root_run_id": "root-install-only",
             "trial_id": "trial-install-only",
@@ -166,3 +167,9 @@ def test_preview_argv_contains_resolved_cwd(tmp_path: Path) -> None:
         "/logs/agent/trajectory/events.jsonl", "--trajectory-root",
         "/logs/agent/trajectory", "--root-run-id", "root-install-only",
     ]
+
+
+def test_constructor_accepts_one_explicit_version_keyword(tmp_path: Path) -> None:
+    agent = make_agent(tmp_path, version="2026.8.3")
+
+    assert agent.version() == "2026.8.3"

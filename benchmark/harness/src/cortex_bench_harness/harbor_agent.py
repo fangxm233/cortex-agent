@@ -35,6 +35,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         artifact_dir: Path | str,
         manifest: Mapping[str, object],
         *args: object,
+        version: str = PACKAGE_VERSION,
         **kwargs: Any,
     ) -> None:
         self._artifact_dir = Path(artifact_dir)
@@ -42,7 +43,7 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._resolved_cwd: ResolvedCwd | None = None
         self._staged_npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None
-        super().__init__(logs_dir, *args, version=PACKAGE_VERSION, **kwargs)
+        super().__init__(logs_dir, *args, version=version, **kwargs)
 
     @staticmethod
     @override
