@@ -3,6 +3,7 @@
 # pos:    Trial artifact inventory scanner
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import os
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -51,13 +52,17 @@ def _validate_inventory_shape(inventory: ArtifactInventory) -> None:
 
 
 def _validate_source_roots(inventory: ArtifactInventory) -> None:
-    roots = tuple(root.absolute() for root in inventory.trial_roots)
+    roots = tuple(_normalized_path(root) for root in inventory.trial_roots)
     outside_root = any(
-        not any(path.absolute().is_relative_to(root) for root in roots)
+        not any(_normalized_path(path).is_relative_to(root) for root in roots)
         for path in inventory.sources.values()
     )
     if outside_root:
         raise ValueError("artifact sources must be contained by trial roots")
+
+
+def _normalized_path(path: Path) -> Path:
+    return Path(os.path.abspath(path))
 
 
 def _validate_source_names(inventory: ArtifactInventory, policy: ScanPolicy) -> None:
@@ -87,7 +92,7 @@ def _unclassified_files(
     missing_sources: tuple[str, ...],
 ) -> tuple[UnclassifiedFile, ...]:
     classified = {
-        path.absolute() for source, path in inventory.sources.items()
+        _normalized_path(path) for source, path in inventory.sources.items()
         if source in inventory.expected_sources and path.is_file()
     }
     redactions = (
@@ -109,11 +114,11 @@ def _missing_source_for_root(
     missing_sources: tuple[str, ...],
     root: Path,
 ) -> str | None:
-    absolute_root = root.absolute()
+    absolute_root = _normalized_path(root)
     return next((
         source for source in missing_sources
         if source in inventory.sources
-        and inventory.sources[source].absolute().is_relative_to(absolute_root)
+        and _normalized_path(inventory.sources[source]).is_relative_to(absolute_root)
     ), None)
 
 
@@ -127,7 +132,7 @@ def _append_unclassified(
     missing_source: str | None,
 ) -> None:
     for path in _root_candidates(root, root_index, missing_source):
-        absolute = path.absolute()
+        absolute = _normalized_path(path)
         if absolute in classified or absolute in discovered:
             continue
         discovered.add(absolute)

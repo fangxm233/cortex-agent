@@ -151,6 +151,24 @@ def test_rejects_artifact_source_outside_trial_roots(tmp_path: Path) -> None:
         )
 
 
+def test_rejects_artifact_source_that_escapes_root_with_parent_segment(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "trial"
+    root.mkdir()
+    source = tmp_path / "outside.txt"
+    source.write_text("clean\n")
+    escaped_source = root / ".." / source.name
+
+    with pytest.raises(ValueError, match="contained by trial roots"):
+        scan_trial_artifacts(
+            ArtifactInventory(
+                {"stdout": escaped_source}, frozenset({"stdout"}), (root,),
+            ),
+            policy(),
+        )
+
+
 @pytest.mark.parametrize("source_name", [f"log-{CREDENTIAL}", "logs/home/alice/private"])
 def test_rejects_sensitive_source_name(tmp_path: Path, source_name: str) -> None:
     source = tmp_path / "source.txt"
