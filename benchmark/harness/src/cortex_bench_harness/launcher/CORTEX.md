@@ -6,5 +6,5 @@ Host launcher modules select immutable arms and project non-secret trial configu
 |---|---|---|
 | __init__.py | export | Exposes launcher construction, seed and registry values |
 | arm_resolution.py | core | Composes and writes phase-A compiler input from the seed |
-| arms.py | core | Selects arms, refuses uncomposable pairs, builds AgentConfig |
+| arms.py | core | Binds selected arms to seeds and builds AgentConfig |
 | credential_capabilities.py | registry | Projects host-authoritative capability metadata |

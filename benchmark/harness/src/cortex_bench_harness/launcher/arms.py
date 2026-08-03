@@ -1,5 +1,5 @@
 # input:  parsed arm set, task selection, trial seed
-# output: immutable arm selection, composability refusal, Harbor AgentConfig
+# output: bound arm/seed selection, composability refusal, AgentConfig
 # pos:    Host arm-selection and Harbor construction boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -146,6 +146,7 @@ def require_composable_arm(arm: ArmDefinition) -> None:
 
 
 def _cortex_kwargs(
+    arm: ArmDefinition,
     artifact_dir: Path | str | None,
     manifest: Mapping[str, object] | None,
     trial_seed: Mapping[str, object] | None,
@@ -153,6 +154,9 @@ def _cortex_kwargs(
 ) -> dict[str, object]:
     if artifact_dir is None or manifest is None or trial_seed is None:
         raise ValueError("cortex arms require artifact_dir, manifest, and trial_seed")
+    seed_arm = trial_seed.get("arm")
+    if not isinstance(seed_arm, Mapping) or seed_arm != arm:
+        raise ValueError("trial_seed.arm must equal the selected arm")
     return {
         "artifact_dir": artifact_dir,
         "manifest": dict(manifest),
@@ -170,7 +174,7 @@ def _cortex_config(
     version: str,
 ) -> AgentConfig:
     require_composable_arm(arm)
-    kwargs = _cortex_kwargs(artifact_dir, manifest, trial_seed, version)
+    kwargs = _cortex_kwargs(arm, artifact_dir, manifest, trial_seed, version)
     return AgentConfig(import_path=CORTEX_IMPORT_PATH, kwargs=kwargs, **common)
 
 

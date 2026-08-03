@@ -1,5 +1,5 @@
 # input:  Harbor lifecycle, npm bundle, manifest, trial seed
-# output: verified Cortex execution, container facts, and composed phase-A input
+# output: identity-bound execution, container facts, phase-A input
 # pos:    Harbor BaseInstalledAgent wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -65,12 +65,24 @@ class CortexBenchAgent(BaseInstalledAgent):
         return "cortex-bench"
 
     def _validate_trial_seed_binding(self) -> None:
+        actual = {
+            "root_run_id": self._trial_seed.root_run_id,
+            "trial_id": self._trial_seed.trial_id,
+            "profile_name": self._trial_seed.profile_name,
+            "arm": self._trial_seed.arm.get("name"),
+            "image_ref": self._trial_seed.task.get("image_ref"),
+            "image_digest": self._trial_seed.task.get("image_digest"),
+        }
         expected = {
             "root_run_id": self._manifest_seed.root_run_id,
+            "trial_id": self._manifest_seed.trial_id,
             "profile_name": PROFILE_NAME,
+            "arm": self._manifest_seed.arm,
+            "image_ref": self._manifest_seed.container.image_ref,
+            "image_digest": self._manifest_seed.container.image_digest,
         }
         for field, value in expected.items():
-            if getattr(self._trial_seed, field) != value:
+            if actual[field] != value:
                 raise ValueError(f"TrialSeed {field} must equal {value}")
 
     def _stage_npm_artifact(self) -> tuple[Path, PurePosixPath]:

@@ -1,5 +1,5 @@
-# input:  Harbor base class, fake exec results, trial seed
-# output: install, container-fact discovery, and composed run-config proofs
+# input:  Harbor base class, fake exec results, manifest and trial seed
+# output: identity binding, install, discovery, and run-config proofs
 # pos:    Contract tests for the Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -88,7 +88,7 @@ def manifest_seed(tmp_path: Path) -> dict[str, object]:
         "root_run_id": "root-install-only", "trial_id": "trial-install-only",
         "arm": "cortex-direct", **{name: str(file) for name, file in files.items()},
         "lockfile_manifest_path": "benchmark/harness/uv.lock",
-        "image_ref": "debian@sha256:abc", "image_digest": None,
+        "image_ref": f"registry.invalid/task@{DIGEST}", "image_digest": DIGEST,
         "image_size_bytes": None,
     }
 
@@ -292,6 +292,28 @@ def test_constructor_rejects_trial_seed_binding_mismatch(
 ) -> None:
     with pytest.raises(ValueError, match=field):
         make_agent(tmp_path, seed_overrides={field: value})
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("trial_id", "another-trial"),
+        ("arm", "another-arm"),
+        ("image_ref", f"registry.invalid/other@{DIGEST}"),
+        ("image_digest", f"sha256:{'b' * 64}"),
+    ],
+)
+def test_constructor_rejects_manifest_seed_binding_mismatch(
+    tmp_path: Path, field: str, value: str,
+) -> None:
+    manifest = manifest_seed(tmp_path)
+    manifest[field] = value
+
+    with pytest.raises(ValueError, match=field):
+        CortexBenchAgent(
+            logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
+            version="0.1.0", trial_seed=trial_seed(), manifest=manifest,
+        )
 
 
 @pytest.mark.parametrize(

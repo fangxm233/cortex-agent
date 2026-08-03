@@ -1,5 +1,5 @@
-# input:  parsed arm sets, trial pins, trial seed, Harbor config
-# output: immutable selection, image pin, kind routing, composability refusals
+# input:  parsed arms, trial pins, trial seed, Harbor config
+# output: immutable selection, seed binding, routing, refusal proofs
 # pos:    Contract tests for launcher arm construction
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -190,6 +190,18 @@ def test_harbor_factory_constructs_the_public_cortex_agent(tmp_path: Path) -> No
     agent = AgentFactory.create_agent_from_config(config, logs_dir=tmp_path / "logs")
 
     assert isinstance(agent, CortexBenchAgent)
+
+
+def test_cortex_config_rejects_selected_arm_seed_mismatch(tmp_path: Path) -> None:
+    seed = trial_seed()
+    seed["arm"] = {**cortex_arm(), "name": "different-direct-arm"}
+
+    with pytest.raises(ValueError, match="trial_seed.arm"):
+        build_agent_config(
+            cortex_arm(), cli_version="2026.8.3",
+            artifact_dir=tmp_path / "artifacts", manifest=manifest(tmp_path),
+            trial_seed=seed,
+        )
 
 
 def build_unsupported(tmp_path: Path, arm: dict[str, object]) -> AgentConfig:
