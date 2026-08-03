@@ -1,5 +1,5 @@
-// input:  user turns, mutation leases, agent callbacks
-// output: admitted provider runs and visible transcripts
+// input:  user turns, platform files, mutation leases, callbacks
+// output: provider runs with reusable attachment downloads
 // pos:    Plain user-message and injection path
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -53,10 +53,13 @@ const TEMP_DIR = WORKSPACE_DIR;
 
 type Enqueuer = (channel: string, fn: () => Promise<void>) => boolean;
 type Tracker = (delta: number) => void;
-type Executor = (ctx: AgentRunnerCtx, mutationRelease: TurnMutationRelease) => Promise<void>;
+type PlatformFileLoader = () => Promise<DownloadedFile[]>;
+type Executor = (
+  ctx: AgentRunnerCtx, mutationRelease: TurnMutationRelease, loadPlatformFiles: PlatformFileLoader,
+) => Promise<void>;
 /** Attempt mid-turn injection; true ⇒ the message was delivered into the live turn and must NOT
  *  be queued. Injectable so the routing branch is testable without a live backend. */
-type Injector = (ctx: AgentRunnerCtx) => Promise<boolean>;
+type Injector = (ctx: AgentRunnerCtx, loadPlatformFiles: PlatformFileLoader) => Promise<boolean>;
 
 interface AgentConfig {
   effectiveMessage: string;
@@ -115,15 +118,16 @@ export class AgentRunner {
   constructor(opts: { enqueue?: Enqueuer; track?: Tracker; execute?: Executor; tryInject?: Injector } = {}) {
     this._enqueue = opts.enqueue ?? enqueue;
     this._track = opts.track ?? trackPendingTask;
-    this._execute = opts.execute ?? ((ctx, release) => this._executeReal(ctx, release));
-    this._tryInject = opts.tryInject ?? ((ctx) => this._tryInjectReal(ctx));
+    this._execute = opts.execute ?? ((ctx, release, load) => this._executeReal(ctx, release, load));
+    this._tryInject = opts.tryInject ?? ((ctx, load) => this._tryInjectReal(ctx, load));
   }
 
   async route(ctx: AgentRunnerCtx): Promise<void> {
     const mutationRelease = ctx.mutationRelease ?? await acquireTurnMutationLock(ctx.channel);
+    const loadPlatformFiles = createPlatformFileLoader(ctx);
     let queued = false;
     try {
-      queued = await this._routeWithAdmission(ctx, mutationRelease);
+      queued = await this._routeWithAdmission(ctx, mutationRelease, loadPlatformFiles);
     } finally {
       if (!queued) mutationRelease();
     }
@@ -132,6 +136,7 @@ export class AgentRunner {
   private async _routeWithAdmission(
     ctx: AgentRunnerCtx,
     mutationRelease: TurnMutationRelease,
+    loadPlatformFiles: PlatformFileLoader,
   ): Promise<boolean> {
     const { message, channel, adapter } = ctx;
     // DR-0016 top-level fallback: if this channel has a pending human-escalated subtask question,
@@ -151,13 +156,13 @@ export class AgentRunner {
     // bracket — so we return before the queue machinery. Everything it declines (no live turn,
     // incapable backend, !command, synthetic wake, backend refusal) falls through to today's
     // queue behaviour unchanged.
-    if (await this._tryInject(ctx)) return false;
+    if (await this._tryInject(ctx, loadPlatformFiles)) return false;
     const markerRef = conduitQueues.has(channel)
       ? { conduit: channel, messageId: message.ref.messageId }
       : null;
     if (markerRef) await adapter.markQueued(markerRef).catch(() => {});
     this._track(+1);
-    this._enqueue(channel, () => this._runQueued(ctx, markerRef, mutationRelease));
+    this._enqueue(channel, () => this._runQueued(ctx, markerRef, mutationRelease, loadPlatformFiles));
     return true;
   }
 
@@ -165,9 +170,10 @@ export class AgentRunner {
     ctx: AgentRunnerCtx,
     markerRef: MessageRef | null,
     mutationRelease: TurnMutationRelease,
+    loadPlatformFiles: PlatformFileLoader,
   ): Promise<void> {
     try {
-      await this._execute(ctx, mutationRelease);
+      await this._execute(ctx, mutationRelease, loadPlatformFiles);
     } finally {
       mutationRelease();
       if (markerRef) await ctx.adapter.unmarkQueued(markerRef).catch(() => {});
@@ -180,7 +186,7 @@ export class AgentRunner {
    * message to `mid-turn-inject`. Ordered cheapest-gate-first because route() is the hot path for
    * every inbound message — the store lookups only run once a live turn is actually present.
    */
-  private async _tryInjectReal(ctx: AgentRunnerCtx): Promise<boolean> {
+  private async _tryInjectReal(ctx: AgentRunnerCtx, loadPlatformFiles: PlatformFileLoader): Promise<boolean> {
     try {
       if (!isInjectableMessage({ text: ctx.userMessage || '', senderId: ctx.message.senderId })) return false;
       if (!runningExecutions.hasChannel(ctx.channel)) return false;
@@ -196,6 +202,10 @@ export class AgentRunner {
         senderId: ctx.message.senderId,
         messageId: ctx.message.ref.messageId,
         attachments: ctx.message.webAttachments,
+        prepareBackendAttachments: async () => (await loadPlatformFiles()).map((file) => ({
+          mimeType: file.mimetype,
+          path: file.localPath,
+        })),
       });
     } catch (e) {
       // Never let the injection attempt break routing — fall back to the queue.
@@ -207,9 +217,10 @@ export class AgentRunner {
   private async _executeReal(
     ctx: AgentRunnerCtx,
     mutationRelease: TurnMutationRelease,
+    loadPlatformFiles: PlatformFileLoader,
   ): Promise<void> {
-    const { message, channel, adapter, threadAnchorId, hasFiles, userMessage, agentMessage } = ctx;
-    const downloadedFiles = await downloadFiles(message.files, hasFiles, adapter);
+    const { message, channel, adapter, threadAnchorId, userMessage, agentMessage } = ctx;
+    const downloadedFiles = await loadPlatformFiles();
     // Web-uploaded attachments are already on disk — map to DownloadedFile shape.
     // The `path` field from upload is the UI-relative `workspace/attachments/...` alias for
     // WORKSPACE_DIR's contents; resolveWorkspaceRelPath maps it to the real absolute path under
@@ -650,6 +661,14 @@ function buildAgentCallbacks(adapter: PlatformAdapter, destination: Destination,
     }));
   };
   return { onFallback, onAssistantMsg, onProgress, onToolUse };
+}
+
+function createPlatformFileLoader(ctx: AgentRunnerCtx): PlatformFileLoader {
+  let pending: Promise<DownloadedFile[]> | null = null;
+  return () => {
+    pending ??= downloadFiles(ctx.message.files, ctx.hasFiles, ctx.adapter);
+    return pending;
+  };
 }
 
 async function downloadFiles(files: PlatformFileRef[] | undefined, hasFiles: boolean, adapter: PlatformAdapter): Promise<DownloadedFile[]> {

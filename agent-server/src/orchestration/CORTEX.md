@@ -6,7 +6,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | filename | role | function |
 |---|---|---|
 | agent-file-send.ts | chat | stores and delivers agent files with safe display names |
-| agent-runner.ts | core | admits and routes visible user turns |
+| agent-runner.ts | core | routes turns with reusable platform downloads |
 | bg-continuation.ts | helper | forwards background continuation output |
 | bg-wait-guard.ts | guard | bounds the background task waiting window |
 | busy-tracker.ts | tracker | counts active LLM runs and signals busy state |
@@ -17,7 +17,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | durable-helpers.ts | util | builds durable post and update hooks |
 | lifecycle.ts | core | adopts admission leases and snapshots turns |
 | manager-qa.ts | channel | relays subtask questions to managers and humans |
-| mid-turn-inject.ts | core | injects turns with resolved files and DEBUG prompts |
+| mid-turn-inject.ts | core | lazily injects platform and Web files with prompts |
 | orchestrator.ts | router | picks the thread or default routing branch |
 | pending-injection-recovery.ts | recovery | commits and recovers pending injected turns |
 | resume-dispatcher.ts | runner | Resumes paused work under runtime settings |
@@ -28,7 +28,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 | status-helpers.ts | helper | builds settings-aware status messages |
 | superseded-edits.ts | tracker | marks channels superseded by a message edit |
 | thread-callback.ts | callback | Fences child results and resumes current parents |
-| thread-executor.ts | core | routes thread turns and runs threads |
+| thread-executor.ts | core | routes threads and buffers downloaded user files |
 | turn-mutation-lock.ts | guard | grants per-channel mutation leases |
 | turn-notify.ts | notify | applies settings and notifies completed long turns |
 | web-bg-hold.ts | helper | holds web turns until background work seals |

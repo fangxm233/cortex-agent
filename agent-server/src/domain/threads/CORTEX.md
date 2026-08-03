@@ -11,9 +11,10 @@ Consumed by the orchestration and UI layers through the index barrel.
 | template-loader.ts | config | loads and hot-reloads thread template config |
 | template-resolver.ts | config | expands vars and blocks in prompt templates |
 | shell-templates.ts | config | turns a shell binding into a full template |
-| prompt-builder.ts | build | assembles prompts and agent control policy |
+| prompt-builder.ts | build | assembles snapshot-ready prompts and control policy |
+| pending-user-inputs.ts | state | gates asynchronous buffered-input preparation |
 | state-machine.ts | state | Drives lifecycle with scoped events and task artifacts |
-| runner.ts | runtime | Runs scoped steps with frozen identity and accounting |
+| runner.ts | runtime | Runs scoped steps after buffered inputs are ready |
 | local-runtime-deps.ts | runtime | Injects daemon-free stores, operations and ledgers |
 | local-runtime-scope.ts | runtime | Propagates local event policy across async callbacks |
 | hook-runner.ts | hook | Adapts lifecycle hooks to HookBus and hook agents |

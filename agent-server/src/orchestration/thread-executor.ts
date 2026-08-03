@@ -1,9 +1,10 @@
-// input:  domain/threads, thread-runner, orch/channel-queue, orch/busy-tracker
-// output: ThreadExecutor with queue markers plus detached thread runner
+// input:  threads, platform files, channel queue, busy tracker
+// output: ThreadExecutor with file-aware buffering and detached runs
 // pos:    Sole thread-routing execution path
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
+import { randomUUID } from 'node:crypto';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef } from '@platform/index.js';
 import type { RunThreadOptions } from '@core/types/thread-types.js';
 import { createLogger } from '@core/log.js';
@@ -11,12 +12,14 @@ import { Icons } from '../core/icons.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
 import { addAgentToThread, createThread, getTemplate, getAgent } from '@domain/threads/index.js';
+import { evictPendingUserInput, registerPendingUserInput } from '@domain/threads/pending-user-inputs.js';
 import { runThread, continueThread, getActiveHandle } from '@domain/threads/runner.js';
 import { downloadFiles as downloadPlatformFiles } from './routing/file-handler.js';
 import { computeElapsed, buildStatusActionBlocks, buildSealedStatusActionBlocks, initStatusBlocks, sealThreadStatus } from './status-helpers.js';
 import { threadStore } from '@store/thread-repo.js';
 import { WORKSPACE_DIR } from '@core/utils.js';
 import { buildInteractiveCallbacks } from './agent-runner.js';
+import { buildPrompt as buildAgentPrompt } from '../agent-adapter/normalize/prompt-builder.js';
 
 const TEMP_DIR = WORKSPACE_DIR;
 const log = createLogger('thread-executor');
@@ -291,35 +294,40 @@ async function handleThreadStart({ threadStartMatch, messageId, channel, adapter
 
 // --- Message buffering (Phase 6) ---
 
-/** Append a user message to thread.metadata.pendingMessages for inclusion
- *  in the next step's prompt. Used when a step is currently executing
- *  and we can't safely call continueThread + runThread concurrently. */
+/** Reserve user input synchronously so the runner sees it before the current step exits. */
+function reserveUserInput(thread: any, text: string): { inputId: string; evictedInputId: string | null } {
+  const inputId = `buf_${randomUUID()}`;
+  if (!thread.metadata) thread.metadata = {};
+  const inputs = thread.metadata.pendingUserInputs ??= [];
+  const evictedInputId = inputs.length >= 10 ? inputs.shift()?.id ?? null : null;
+  inputs.push({ id: inputId, text });
+  threadStore.set(thread).catch(() => {});
+  return { inputId, evictedInputId };
+}
+
+async function prepareUserInput(ctx: ThreadExecCtx, inputId: string, text: string): Promise<void> {
+  const files = await downloadFiles(ctx.message.files, ctx.hasFiles, ctx.adapter);
+  const thread = threadStore.get(ctx.existingThread.id);
+  const input = thread?.metadata?.pendingUserInputs?.find((entry) => entry.id === inputId);
+  if (!thread || !input) return;
+  input.text = buildAgentPrompt(text, files.map((file) => ({
+    mimeType: file.mimetype,
+    path: file.localPath,
+  })));
+  await threadStore.set(thread);
+}
+
+/** Buffer user text plus downloaded files for the next thread step. */
 async function bufferUserMessage(ctx: ThreadExecCtx): Promise<void> {
   const { adapter, channel, threadAnchorId } = ctx;
-  const interactiveDest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
-  const thread = ctx.existingThread;
   const text = ctx.agentMessage || ctx.message.text || '';
-
-  // Synchronously append to in-memory metadata so the next buildStepPrompt
-  // call (within the same event-loop tick) sees it immediately.
-  // NOTE: Uses threadStore.set() (not mutate()) intentionally — mutate() awaits
-  // _pendingPersist which introduces a microtask delay, breaking the synchronous
-  // visibility guarantee required by the runThread main loop. The in-memory ref is
-  // updated first, then the fire-and-forget set() persists the whole record.
-  if (!thread.metadata) thread.metadata = {};
-  if (!Array.isArray(thread.metadata.pendingMessages)) thread.metadata.pendingMessages = [];
-  // Cap at 10 to prevent unbounded prompt growth
-  if (thread.metadata.pendingMessages.length >= 10) {
-    thread.metadata.pendingMessages.shift();
-  }
-  thread.metadata.pendingMessages.push(text);
-
-  // Fire-and-forget persist — .set() is deliberate (see NOTE above). Errors are
-  // dropped because the in-memory state is authoritative and will be persisted by
-  // the next conventional mutate() call on this thread.
-  threadStore.set(thread).catch(() => {});
-
-  await adapter.postMessage(interactiveDest, {
+  const { inputId, evictedInputId } = reserveUserInput(ctx.existingThread, text);
+  if (evictedInputId) evictPendingUserInput(ctx.existingThread.id, evictedInputId);
+  const preparation = prepareUserInput(ctx, inputId, text);
+  registerPendingUserInput(ctx.existingThread.id, inputId, preparation);
+  await preparation.catch((error) => log.warn(`Failed to prepare buffered input: ${(error as Error).message}`));
+  const dest: Destination = { type: 'interactive-reply', conduit: channel, sessionId: '' };
+  await adapter.postMessage(dest, {
     text: `${Icons.inbox} Message buffered — will be included in the next step’s prompt`,
   }, threadAnchorId ? { threadId: threadAnchorId } : undefined);
 }

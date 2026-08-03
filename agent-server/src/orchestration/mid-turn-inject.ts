@@ -1,4 +1,4 @@
-// input:  live execution, prompt serializer, path/pending seams
+// input:  live execution, lazy platform files, path/pending seams
 // output: injected turns, resolved files, DEBUG prompts
 // pos:    Busy-channel injection branch of AgentRunner.route
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -82,6 +82,8 @@ export interface MidTurnInjectCtx {
   /** The inbound platform message id — the ledger turn's key. */
   messageId: string;
   attachments?: AttachmentMeta[];
+  /** Lazily download platform-native files only after an injectable target is selected. */
+  prepareBackendAttachments?: () => Promise<UserMessage['attachments']>;
 }
 
 /** Only plain human messages may fold into an in-flight turn. Commands and synthetic session
@@ -309,10 +311,10 @@ export async function tryInjectIntoLiveTurn(
   if (!isInjectableMessage(ctx) || !ctx.sessionId) return false;
   const target = selectInjectTarget(deps.getLiveExecutions(ctx.channel));
   if (!target) return false;
-  const message = {
-    text: ctx.text,
-    attachments: attachmentsForBackend(ctx.attachments),
-  };
+  const platformAttachments = ctx.prepareBackendAttachments
+    ? await ctx.prepareBackendAttachments()
+    : undefined;
+  const message = prepareBackendMessage(ctx, platformAttachments);
   if (!target.proc.injectUserMessage!(message)) return false;
 
   const state = stateFor(ctx.channel);
@@ -417,6 +419,16 @@ function registerSinks(
     onContextUsage: (usage) => deps.onContextUsage?.(sessionId, channel, usage),
     onResult: () => handleContinuationResult(deps, state, sessionId, channel),
   });
+}
+
+function prepareBackendMessage(
+  ctx: MidTurnInjectCtx,
+  platformAttachments: UserMessage['attachments'],
+): UserMessage {
+  const platform = platformAttachments ?? [];
+  const web = attachmentsForBackend(ctx.attachments) ?? [];
+  const attachments = [...platform, ...web];
+  return { text: ctx.text, attachments: attachments.length > 0 ? attachments : undefined };
 }
 
 /** Resolve UI attachment aliases before handing files to the backend. */

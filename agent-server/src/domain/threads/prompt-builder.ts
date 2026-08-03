@@ -1,5 +1,5 @@
-// input:  templates, artifacts, thread and control-plane state
-// output: benchmark-aware prompts and resolved runtime configs
+// input:  templates, thread state, buffered-input readiness
+// output: ready step prompts and resolved runtime configs
 // pos:    Thread prompt assembly and agent slot resolution
 // >>> If I am updated, update my header comment and parent CORTEX.md <<<
 
@@ -9,6 +9,7 @@ import { getAgent, getTemplate, resolveFileRef } from './template-loader.js';
 import { getModifiedFilesFromSession } from './artifact-io.js';
 import { getDefaultAgent } from '../agents/index.js';
 import { loadUserContext } from '../memory/user-context.js';
+import { waitForPendingUserInputs } from './pending-user-inputs.js';
 import type {
   AgentDefinition, AgentSlot, AgentSlotConfig, AgentSlotId, AgentStep, TemplateAgentRef, ThreadRecord, ThreadTemplate,
 } from '@core/types/thread-types.js';
@@ -183,11 +184,39 @@ function hasBackendResumeTarget(slot: AgentSlot | undefined): boolean {
   return !!slot.backendSessionId;
 }
 
+interface PendingInputSnapshot {
+  legacyMessages: string[];
+  userInputIds: string[];
+}
+
+interface StepPromptOptions {
+  interruptedResume?: boolean;
+  disableControlPlane?: boolean;
+  pendingSnapshot?: PendingInputSnapshot;
+}
+
+function snapshotPendingInputs(threadId: string): PendingInputSnapshot {
+  const metadata = threadStore.get(threadId)?.metadata;
+  return {
+    legacyMessages: [...(metadata?.pendingMessages ?? [])],
+    userInputIds: metadata?.pendingUserInputs?.map((input) => input.id) ?? [],
+  };
+}
+
+export async function buildReadyStepPrompt(
+  threadId: string, agentConfig: AgentSlotConfig,
+  stage: string | null = null, opts: StepPromptOptions = {},
+): Promise<string> {
+  const pendingSnapshot = snapshotPendingInputs(threadId);
+  await waitForPendingUserInputs(threadId, pendingSnapshot.userInputIds);
+  return buildStepPrompt(threadId, agentConfig, stage, { ...opts, pendingSnapshot });
+}
+
 export function buildStepPrompt(
   threadId: string,
   agentConfig: AgentSlotConfig,
   stage: string | null = null,
-  opts: { interruptedResume?: boolean; disableControlPlane?: boolean } = {},
+  opts: StepPromptOptions = {},
 ): string {
   const thread = threadStore.get(threadId);
   if (!thread) return '';
@@ -197,7 +226,7 @@ export function buildStepPrompt(
   const prompt = opts.interruptedResume
     ? buildResumeReminder()
     : buildRegularStepPrompt(thread, agentConfig, stage, opts.disableControlPlane === true);
-  return appendPendingMessages(thread, prompt).trim();
+  return appendPendingMessages(thread, prompt, opts.pendingSnapshot).trim();
 }
 
 function buildRegularStepPrompt(
@@ -230,20 +259,47 @@ function buildRegularStepPrompt(
   return prompt;
 }
 
-/** Phase 6: append user messages buffered while the previous step was executing (capped at the
- *  last 10) so the agent sees the user's replies; clears the buffer. */
-function appendPendingMessages(thread: ThreadRecord, prompt: string): string {
-  if (!thread.metadata?.pendingMessages?.length) return prompt;
-  const messages = thread.metadata.pendingMessages.slice(-10);
-  const count = thread.metadata.pendingMessages.length;
-  const dropped = count > 10 ? count - 10 : 0;
+function legacyMessagesAfterSnapshot(current: string[], snapshot: string[]): string[] {
+  const maxOverlap = Math.min(current.length, snapshot.length);
+  for (let size = maxOverlap; size > 0; size--) {
+    const snapshotSuffix = snapshot.slice(snapshot.length - size);
+    if (snapshotSuffix.every((message, index) => current[index] === message)) {
+      return current.slice(size);
+    }
+  }
+  return current;
+}
+
+function consumePendingInputs(
+  thread: ThreadRecord, snapshot?: PendingInputSnapshot,
+): { messages: string[]; dropped: number } {
+  if (!thread.metadata) return { messages: [], dropped: 0 };
+  const legacy = thread.metadata.pendingMessages ?? [];
+  const userInputs = thread.metadata.pendingUserInputs ?? [];
+  const selectedLegacy = snapshot ? snapshot.legacyMessages : legacy;
+  const selectedIds = snapshot ? new Set(snapshot.userInputIds) : null;
+  const selectedUsers = selectedIds ? userInputs.filter((input) => selectedIds.has(input.id)) : userInputs;
+  const legacyTail = selectedLegacy.slice(-10);
+  thread.metadata.pendingMessages = snapshot ? legacyMessagesAfterSnapshot(legacy, selectedLegacy) : [];
+  thread.metadata.pendingUserInputs = selectedIds
+    ? userInputs.filter((input) => !selectedIds.has(input.id))
+    : [];
+  return {
+    messages: [...legacyTail, ...selectedUsers.map((input) => input.text)],
+    dropped: selectedLegacy.length - legacyTail.length,
+  };
+}
+
+/** Append a stable snapshot of buffered notices and user inputs. */
+function appendPendingMessages(
+  thread: ThreadRecord, prompt: string, snapshot?: PendingInputSnapshot,
+): string {
+  const { messages, dropped } = consumePendingInputs(thread, snapshot);
+  if (messages.length === 0) return prompt;
   const header = dropped > 0
-    ? `User replies (last ${messages.length}, ${dropped} earlier dropped):`
-    : `User replies (${count} buffered):`;
+    ? `User replies (${messages.length} buffered, ${dropped} earlier notices dropped):`
+    : `User replies (${messages.length} buffered):`;
   const appended = prompt + `\n\n---\n\n${header}\n\n${messages.join('\n\n')}`;
-  // Clear buffer synchronously on in-memory object; fire-and-forget persist — see
-  // thread-executor.ts bufferUserMessage for why set() is used instead of mutate() here.
-  thread.metadata.pendingMessages = [];
   threadStore.set(thread).catch(() => {});
   return appended;
 }

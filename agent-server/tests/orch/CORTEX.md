@@ -6,7 +6,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | filename | role | function |
 |---|---|---|
 | agent-runner-wake-guard.test.ts | test | Covers synthetic wake notice routing guard |
-| agent-runner.test.ts | test | Covers message routing and snapshot supersession |
+| agent-runner.test.ts | test | Covers routing, download reuse and supersession |
 | ask-user-question-pi.test.ts | test | Covers PI ask-user-question resolution |
 | bg-continuation.test.ts | test | Covers reset-isolated continuation dispatch |
 | bg-wait-guard.test.ts | test | Covers background wait bracket, grace and cap |
@@ -20,7 +20,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | lifecycle-bg-hold.test.ts | test | Covers lifecycle hold, grace and wait cap |
 | lifecycle-rate-limit.test.ts | test | Covers provider-attributed error recovery |
 | mid-turn-inject-persistence.test.ts | test | Covers durable ordering of pending injection |
-| mid-turn-inject.test.ts | test | Covers resolved files, DEBUG prompts and lifecycle |
+| mid-turn-inject.test.ts | test | Covers lazy files, DEBUG prompts and lifecycle |
 | orchestrator.test.ts | test | Covers thread versus agent routing choice |
 | pending-injection-recovery.test.ts | test | Covers injection idempotency and startup drain |
 | plan-approvals.test.ts | test | Covers plan approval state transitions |
@@ -34,7 +34,7 @@ queueing, mid-turn injection, background holds and execution lifecycle.
 | superseded-edits.test.ts | test | Covers superseded edit mark, check and clear |
 | teardown-execution.test.ts | test | Covers execution teardown and balanced events |
 | thread-detached.test.ts | test | Covers detached thread busy gate bracket |
-| thread-executor.test.ts | test | Covers thread queue markers and routing |
+| thread-executor.test.ts | test | Covers queueing, file buffering and eviction |
 | turn-notify.test.ts | test | Covers reset-isolated notification gating |
 | turn-tracking.test.ts | test | Covers snapshot barriers and turn mutation locks |
 | web-bg-hold.test.ts | test | Covers Web background hold status and seal |

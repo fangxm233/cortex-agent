@@ -154,7 +154,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | thread-manager.test.ts | test | thread prompt variables and transitions |
 | thread-resume-statusmsg.test.ts | test | Covers persisted thread resume options |
 | thread-resume-task-loop.test.ts | test | Resumed task provenance and live sweep cadence |
-| thread-runner.test.ts | test | thread runner lifecycle and wait control |
+| thread-runner.test.ts | test | thread lifecycle, snapshot buffering and wait control |
 | thread-stages.test.ts | test | stage parsing and step prompt building |
 | thread-statusmsg-seal.test.ts | test | stale suspended status message refresh |
 | thread-task-bridge.test.ts | test | Generation-fenced results wake waiting managers |

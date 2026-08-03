@@ -1,4 +1,4 @@
-// input:  thread state, scoped runtime policy, throttle, hooks
+// input:  thread state, buffered-input readiness, throttle, hooks
 // output: isolated runs with exact accounting and transcripts
 // pos:    Runs thread steps, controls, hooks, and resumes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -7,7 +7,7 @@ import * as path from 'node:path';
 import { threadStore as daemonThreadStore } from '@store/thread-repo.js';
 import {
   resolveNextStep,
-  buildStepPrompt,
+  buildReadyStepPrompt,
   beginStepSession,
   recordStepResult,
   evaluateTransitions,
@@ -367,12 +367,10 @@ async function buildStepConfig(
   // by beginStepSession below) switches the prompt to the continuation reminder.
   const interruptedResume = !!threadStore.get(threadId)?.agents[agentSlotId]?.interruptedBackendSessionId;
 
-  // Build prompt for this step — pass the stage so stage-aware agents send their stage-specific
-  // prompt (and, in incremental mode on session resume, skip directive + preamble + auto previousOutput).
-  // ORDER MATTERS: buildStepPrompt reads slot.sessionId truthiness as "resuming a persistent
-  // session" — it must run BEFORE beginStepSession mints the track id, or a fresh slot's first
-  // step would be misdetected as a resume and skip its directive.
-  const prompt = buildStepPrompt(threadId, agentConfig, stage, {
+  // Build the prompt after files for the current buffered-input snapshot are ready. ORDER MATTERS:
+  // prompt construction reads slot.sessionId truthiness as "resuming a persistent session" — it
+  // must run BEFORE beginStepSession mints the track id, or a fresh slot would skip its directive.
+  const prompt = await buildReadyStepPrompt(threadId, agentConfig, stage, {
     interruptedResume,
     disableControlPlane: opts.benchmark?.disableControlPlane === true,
   });
@@ -1005,7 +1003,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
           break;
         }
         const t = threadStore.get(threadId);
-        if (t?.metadata?.pendingMessages?.length) {
+        if (t?.metadata?.pendingMessages?.length || t?.metadata?.pendingUserInputs?.length) {
           // Ad-hoc parents bypass transition evaluation, so the contract budget breaker
           // must gate the re-entry loop here (template threads get it in checkTemplateLimits).
           if (t && checkContractBudget(t)) {

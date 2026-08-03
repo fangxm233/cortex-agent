@@ -2,7 +2,7 @@
 // output: server runtime, auth scans, settings pushes
 // pos:    Agent-server composition root
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { mkdirSync, promises as fsPromises } from 'fs';
+import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { extractTuiAdapter } from '@platform/index.js';
 import type { PlatformAdapter } from '@platform/index.js';
@@ -11,6 +11,7 @@ import type { PlatformAdapter } from '@platform/index.js';
 // gated on CORTEX_UI_HTTP, so it stays runtime-lazy for Slack/TUI-only installs.
 import { startUiHttpIfEnabled } from '@entry/ui-http-gate.js';
 import { createHotReloadingAdapter } from '@entry/admin-channel-hot-reload.js';
+import { moveDraftAttachments } from '@entry/draft-attachments.js';
 import { WORKSPACE_DIR, CONFIG_DIR, DATA_DIR, STORE_DIR, DEFAULTS_DIR, CONTEXT_DIR } from '@core/utils.js';
 import { loadRuntimeDotenv } from '@core/runtime-env.js';
 import { migrateEnvToSettings } from '@core/settings-migration.js';
@@ -451,31 +452,8 @@ process.on('SIGTERM', async () => {
     // Web profile switch: apply the shared per-channel profile-switch rule (same one the Slack/Feishu
     // `!profile` command uses). Wired here so the ui-service domain never imports domain/agents.
     switchSessionProfile: (opts) => switchChannelProfile(opts),
-    // Draft attachment migration: when a draft session is created with uploaded files, move
-    // them from the temporary draft directory to the real session's attachment directory.
-    moveDraftAttachments: async ({ draftUploadId, sessionId, attachments }) => {
-      if (!draftUploadId) return attachments;
-      const srcDir = path.join(WORKSPACE_DIR, 'attachments', draftUploadId);
-      const dstDir = path.join(WORKSPACE_DIR, 'attachments', sessionId);
-      try {
-        await fsPromises.mkdir(dstDir, { recursive: true });
-        return await Promise.all(attachments.map(async (a) => {
-          const srcPath = path.join(srcDir, a.path.split('/').slice(2).join('/'));
-          const fileName = a.path.split('/').pop() || a.name;
-          const dstPath = path.join(dstDir, fileName);
-          try {
-            await fsPromises.rename(srcPath, dstPath);
-          } catch {
-            // File may already be moved or missing — keep the original path.
-          }
-          return { ...a, path: `attachments/${sessionId}/${fileName}` };
-        }));
-      } catch {
-        // Best-effort — if the move fails, the original paths still work if the draft dir
-        // hasn't been cleaned up yet.
-        return attachments;
-      }
-    },
+    // Draft uploads are promoted into the newly-created session before its first turn is sent.
+    moveDraftAttachments,
     bus,
     adapter,
     // Web UI: pending interactions for a channel (sessions.pendingInteraction query) —

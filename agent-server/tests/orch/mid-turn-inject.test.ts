@@ -141,9 +141,16 @@ test('backendSupportsInject: Claude and PI declare live-turn injection', () => {
 
 // --- Fallback: everything that must keep today's conduit-queue behaviour ---
 
-test('no live execution on the channel → not injected (falls back to the normal queue)', async () => {
+test('no live execution on the channel → not injected without preparing platform files', async () => {
   const r = recorder();
-  assert.equal(await tryInjectIntoLiveTurn(r.deps, baseCtx), false);
+  let preparations = 0;
+  const prepareBackendAttachments = async () => {
+    preparations += 1;
+    return [{ mimeType: 'text/plain', path: '/tmp/platform.txt' }];
+  };
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, { ...baseCtx, prepareBackendAttachments }), false);
+  assert.equal(preparations, 0, 'platform downloads stay lazy until an injectable target exists');
   assert.deepEqual(r.published, [], 'nothing surfaced when the message is going to be queued');
   assert.deepEqual(r.track, []);
 });
@@ -306,6 +313,31 @@ test('mid-turn DEBUG prompt includes the image path sent through the adapter', a
     r.persisted[0].agentMessage,
     `[User sent 1 image(s). Read these files to view them:\n${path.join(WORKSPACE_DIR, 'attachments', 'a.png')}\n]\n\nskip the rest`,
   );
+});
+
+test('lazy platform files join Web attachments for backend injection without changing transcript metadata', async () => {
+  const proc = fakeProcess();
+  const r = recorder({ captureDebug: true }, { backend: 'claude', agentProcess: proc });
+  const webAttachments = [{ name: 'a.png', path: 'workspace/attachments/a.png', size: 3, mimeType: 'image/png', type: 'image' as const }];
+  const platformPath = '/tmp/slack-report.txt';
+  let preparations = 0;
+
+  assert.equal(await tryInjectIntoLiveTurn(r.deps, {
+    ...baseCtx,
+    attachments: webAttachments,
+    prepareBackendAttachments: async () => {
+      preparations += 1;
+      return [{ mimeType: 'text/plain', path: platformPath }];
+    },
+  }), true);
+
+  assert.equal(preparations, 1);
+  assert.deepEqual(proc.injectedMessages[0].attachments, [
+    { mimeType: 'text/plain', path: platformPath },
+    { mimeType: 'image/png', path: path.join(WORKSPACE_DIR, 'attachments', 'a.png') },
+  ]);
+  assert.deepEqual(r.published[0].attachments, webAttachments, 'platform files stay backend-only metadata');
+  assert.match(r.persisted[0].agentMessage, new RegExp(platformPath));
 });
 
 // --- Fold-in, seen from orchestration ---

@@ -1,5 +1,5 @@
 // input:  isolated test home, fake UiService, typed tRPC caller
-// output: AppRouter routing including auth flows and errors
+// output: AppRouter routing, draft ids, auth flows, and errors
 // pos:    Transport-contract regression coverage for UI routes
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -143,6 +143,32 @@ test('every mutation routes to the correct op and unwraps Result.data', async ()
     assert.equal(fake.mutateCalls[0].op, tc.op, `routed op for ${tc.op}`);
     assert.deepEqual(out, { routed: tc.op }, `unwrapped data for ${tc.op}`);
   }
+});
+
+test('sessions.createAndSend preserves a valid draft upload id at the runtime boundary', async () => {
+  const fake = makeFake({ mutateResult: { ok: true, data: { sessionId: 'session-new' } } });
+  const caller = makeCaller(fake);
+  const draftUploadId = '11111111-1111-4111-8111-111111111111';
+
+  await caller.sessions.createAndSend({
+    projectId: 'project-1', text: 'inspect this', draftUploadId,
+  } as any);
+
+  assert.equal(fake.mutateCalls[0].op, 'sessions.createAndSend');
+  assert.equal((fake.mutateCalls[0].args as any).draftUploadId, draftUploadId);
+});
+
+test('sessions.createAndSend rejects a non-UUID draft upload id', async () => {
+  const fake = makeFake();
+  const caller = makeCaller(fake);
+
+  await assert.rejects(
+    () => caller.sessions.createAndSend({
+      projectId: 'project-1', text: 'inspect this', draftUploadId: '../escape',
+    } as any),
+    (error: unknown) => error instanceof TRPCError && error.code === 'BAD_REQUEST',
+  );
+  assert.equal(fake.mutateCalls.length, 0);
 });
 
 

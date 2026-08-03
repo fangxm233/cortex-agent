@@ -1,5 +1,5 @@
 // input:  Zod, settings spec, UI-service operation unions
-// output: input schemas/maps including authentication mutations
+// output: input schemas/maps including auth and draft mutations
 // pos:    Runtime validation source for the UI contract
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -196,6 +196,7 @@ export const sessionsCreateAndSendInput = z.object({
   projectId: z.string(),
   profileName: z.string().optional(),
   text: z.string(),
+  draftUploadId: z.string().uuid().optional(),
   attachments: z.array(z.object({
     name: z.string(),
     path: z.string(),

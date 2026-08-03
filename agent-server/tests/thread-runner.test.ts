@@ -1,5 +1,5 @@
-// input:  thread runner helpers, thread store, mock adapter
-// output: runner lifecycle and wait-control regression tests
+// input:  thread runner, prompt readiness, store, mock adapter
+// output: lifecycle, snapshot buffering, and wait-control regressions
 // pos:    Verifies thread runtime helpers in isolation
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -21,7 +21,8 @@ import {
   type ThreadRunResult,
   type ThreadContext,
 } from '../src/domain/threads/runner.js';
-import { buildStepPrompt } from '../src/domain/threads/prompt-builder.js';
+import { buildReadyStepPrompt, buildStepPrompt } from '../src/domain/threads/prompt-builder.js';
+import { evictPendingUserInput, registerPendingUserInput, waitForPendingUserInputs } from '../src/domain/threads/pending-user-inputs.js';
 import { MockAdapter } from '../src/platform/testing.js';
 import type { ThreadRecord, RunThreadOptions, AgentSlotConfig } from '../src/core/types/thread-types.js';
 
@@ -381,4 +382,108 @@ test('buildStepPrompt unchanged when no pendingMessages', () => {
 
   const prompt = buildStepPrompt(id, agentConfig, null);
   assert.doesNotMatch(prompt, /用户回复|buffered/i);
+});
+
+test('buildStepPrompt consumes structured buffered user input alongside legacy notices', () => {
+  const id = uniqueThreadId('prompt-user-input');
+  registerTestThread(makeThreadRecord({
+    id, channel: 'C-prompt-user-input',
+    metadata: {
+      pendingMessages: ['child result ready'],
+      pendingUserInputs: [{ id: 'buf_1', text: 'inspect /tmp/thread-report.txt' }],
+    },
+    workspacePath: '', artifactPath: '',
+  }));
+  const agentConfig: AgentSlotConfig = {
+    slotId: 'main', profile: '__active__', persistSession: false, promptTemplate: '{{input}}',
+  };
+
+  const prompt = buildStepPrompt(id, agentConfig, null);
+
+  assert.match(prompt, /child result ready/);
+  assert.match(prompt, /\/tmp\/thread-report\.txt/);
+  assert.deepEqual(threadStore.get(id)?.metadata?.pendingMessages, []);
+  assert.deepEqual((threadStore.get(id)?.metadata as any)?.pendingUserInputs, []);
+});
+
+test('buildReadyStepPrompt waits for its snapshot and leaves later arrivals for the next step', async () => {
+  const id = uniqueThreadId('prompt-ready-snapshot');
+  registerTestThread(makeThreadRecord({
+    id, channel: 'C-prompt-ready',
+    metadata: {
+      pendingMessages: ['legacy before'],
+      pendingUserInputs: [{ id: 'buf_a', text: 'first prepared input' }],
+    },
+    workspacePath: '', artifactPath: '',
+  }));
+  let releaseA!: () => void;
+  const pendingA = new Promise<void>((resolve) => { releaseA = resolve; });
+  registerPendingUserInput(id, 'buf_a', pendingA);
+  const agentConfig: AgentSlotConfig = {
+    slotId: 'main', profile: '__active__', persistSession: false, promptTemplate: '{{input}}',
+  };
+
+  const readyPrompt = buildReadyStepPrompt(id, agentConfig, null);
+  const thread = threadStore.get(id)!;
+  thread.metadata!.pendingMessages!.push('legacy after');
+  thread.metadata!.pendingUserInputs!.push({ id: 'buf_b', text: 'second pending input' });
+  await threadStore.set(thread);
+  const neverB = new Promise<void>(() => {});
+  registerPendingUserInput(id, 'buf_b', neverB);
+  releaseA();
+  const prompt = await readyPrompt;
+
+  assert.match(prompt, /legacy before/);
+  assert.match(prompt, /first prepared input/);
+  assert.doesNotMatch(prompt, /legacy after|second pending input/);
+  assert.deepEqual(threadStore.get(id)?.metadata?.pendingMessages, ['legacy after']);
+  assert.deepEqual(threadStore.get(id)?.metadata?.pendingUserInputs, [
+    { id: 'buf_b', text: 'second pending input' },
+  ]);
+  evictPendingUserInput(id, 'buf_b');
+});
+
+test('buildReadyStepPrompt preserves its legacy snapshot across cap shift and push', async () => {
+  const id = uniqueThreadId('prompt-ready-legacy-cap');
+  const originalNotices = Array.from({ length: 10 }, (_, index) => `notice ${index}`);
+  registerTestThread(makeThreadRecord({
+    id, channel: 'C-prompt-ready-cap',
+    metadata: {
+      pendingMessages: [...originalNotices],
+      pendingUserInputs: [{ id: 'buf_gate', text: 'prepared input' }],
+    },
+    workspacePath: '', artifactPath: '',
+  }));
+  let release!: () => void;
+  const preparation = new Promise<void>((resolve) => { release = resolve; });
+  registerPendingUserInput(id, 'buf_gate', preparation);
+  const agentConfig: AgentSlotConfig = {
+    slotId: 'main', profile: '__active__', persistSession: false, promptTemplate: '{{input}}',
+  };
+
+  const readyPrompt = buildReadyStepPrompt(id, agentConfig, null);
+  const thread = threadStore.get(id)!;
+  thread.metadata!.pendingMessages!.shift();
+  thread.metadata!.pendingMessages!.push('late notice');
+  await threadStore.set(thread);
+  release();
+  const prompt = await readyPrompt;
+
+  for (const notice of originalNotices) assert.match(prompt, new RegExp(notice));
+  assert.doesNotMatch(prompt, /late notice/);
+  assert.deepEqual(threadStore.get(id)?.metadata?.pendingMessages, ['late notice']);
+});
+
+test('evictPendingUserInput releases a waiter even if the download never settles', async () => {
+  const id = uniqueThreadId('prompt-ready-evict');
+  registerPendingUserInput(id, 'buf_slow', new Promise<void>(() => {}));
+  let released = false;
+  const waiting = waitForPendingUserInputs(id, ['buf_slow'])
+    .then(() => { released = true; });
+
+  await Promise.resolve();
+  assert.equal(released, false);
+  evictPendingUserInput(id, 'buf_slow');
+  await waiting;
+  assert.equal(released, true);
 });

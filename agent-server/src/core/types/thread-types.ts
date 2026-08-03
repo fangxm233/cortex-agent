@@ -1,5 +1,5 @@
 // input:  thread config, benchmark events, process spawning
-// output: thread state, runtime policy, lifecycle types
+// output: thread state, buffered-input, runtime lifecycle types
 // pos:    Shared type definitions for the thread system
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -343,6 +343,12 @@ export interface ThreadContract {
   budgetUsd?: number | null;         // subtree budget — spawn guard + per-thread circuit breaker
 }
 
+/** User input reserved while a thread step prepares any attached platform files. */
+export interface BufferedThreadUserInput {
+  id: string;
+  text: string;
+}
+
 /** Caller-provided metadata stored on ThreadRecord, used by thread-runner for execution registry etc. */
 export interface ThreadMetadata {
   scheduleTaskId?: string | null;    // schedule task association
@@ -361,8 +367,10 @@ export interface ThreadMetadata {
    *  parent (interactive parent → resume its channel session) or address a notice to it. */
   parentChannel?: string | null;
   parentProfile?: string | null;
-  /** Messages buffered while a step was executing, to be included in the next step's prompt. */
-  pendingMessages?: string[];        // Phase 6: dispatch message buffering
+  /** Control/callback notices buffered for the next step. */
+  pendingMessages?: string[];
+  /** Ordered user inputs buffered while their platform files are prepared. */
+  pendingUserInputs?: BufferedThreadUserInput[];
 
   // --- Recursive thread tree (DR-0014) ---
   /** Root of the thread tree this thread belongs to. Unset on root threads —

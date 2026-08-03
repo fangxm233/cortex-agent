@@ -1,5 +1,5 @@
-// input:  AgentRunner, queue, MockAdapter, agent config
-// output: routing, injection, and snapshot regressions
+// input:  AgentRunner, queue, platform files, MockAdapter
+// output: routing, download reuse, injection, snapshot regressions
 // pos:    Verifies plain user-message orchestration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -218,6 +218,42 @@ test('(a2) route() falls back to the normal queue when there is no live turn to 
   unlockPrior();
   const tail = conduitQueues.get(channel);
   if (tail) await tail;
+});
+
+test('(a2) a refused live injection reuses its platform download in the queued fallback', async () => {
+  const channel = freshChannel();
+  const enqueueFns: Array<() => Promise<void>> = [];
+  const adapter = new MockAdapter() as any;
+  let downloadCalls = 0;
+  adapter.downloadFile = async () => {
+    downloadCalls += 1;
+    return { localPath: '/tmp/slack-F1.txt', mimetype: 'text/plain', name: 'report.txt' };
+  };
+  let injectedFiles: any[] | undefined;
+  let queuedFiles: any[] | undefined;
+  const runner = new AgentRunner({
+    enqueue: (_ch, fn) => { enqueueFns.push(fn); return false; },
+    track: () => {},
+    tryInject: async (_ctx, loadPlatformFiles) => {
+      injectedFiles = await loadPlatformFiles();
+      return false;
+    },
+    execute: async (_ctx, _release, loadPlatformFiles) => {
+      queuedFiles = await loadPlatformFiles();
+    },
+  });
+  const file = { id: 'F1', name: 'report.txt', mimetype: 'text/plain', url: 'https://files.invalid/F1', conduit: channel };
+
+  await runner.route(makeCtx({
+    channel,
+    adapter,
+    hasFiles: true,
+    message: { ref: { conduit: channel, messageId: 'M-file', threadId: null }, text: 'read this', isBot: false, files: [file] },
+  }) as any);
+  await enqueueFns[0]();
+
+  assert.equal(downloadCalls, 1, 'refusal fallback must not fetch the same platform file twice');
+  assert.strictEqual(queuedFiles, injectedFiles, 'both branches consume one route-scoped result');
 });
 
 // ── (b) +1 / -1 trackPendingTask via injectable track ────────────────────────
