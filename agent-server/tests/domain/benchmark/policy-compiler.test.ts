@@ -14,6 +14,7 @@ import { parseArmDefinitionSet } from '../../../src/domain/benchmark/arm-schema.
 import {
   BENCHMARK_FAILURES,
   BENCHMARK_FAILURE_INVARIANTS,
+  remainingDeadlineMs,
   type BenchmarkFailureReason,
 } from '../../../src/domain/benchmark/resolved-policy.js';
 import {
@@ -30,7 +31,7 @@ import {
 } from '../../../src/domain/benchmark/policy-compiler.js';
 
 const FIXED_WALL_MS = 1_900_000_000_000;
-const FIXED_MONOTONIC_NS = 8_765_432_100;
+const FIXED_MONOTONIC_NS = 18_765_432_100_000_000n;
 let root = '';
 
 beforeEach(() => {
@@ -156,6 +157,29 @@ function dependencies(
     resolve_profile: () => profileValue,
     stderr: { write: value => { stderrLines.push(String(value)); return true; } },
   };
+}
+
+function configureCoderReview(input: ArmResolution, includeRoles = true): void {
+  const value = input.arm as ReturnType<typeof arm>;
+  value.orchestration.mode = 'coder-review' as 'direct';
+  Object.assign(value.orchestration, { coder_review_variant: 'audit-retry' });
+  value.limits.max_thread_starts = 1;
+  input.thread_templates = {
+    'benchmark-coder-review': path.resolve(
+      'defaults/config/thread-templates/templates/benchmark-coder-review.json',
+    ),
+  };
+  input.thread_agents = {
+    'benchmark-coder': path.resolve(
+      'defaults/config/thread-templates/agents/benchmark-coder.json',
+    ),
+    'benchmark-reviewer': path.resolve(
+      'defaults/config/thread-templates/agents/benchmark-reviewer.json',
+    ),
+  };
+  if (!includeRoles) return;
+  input.roles['benchmark-coder'] = structuredClone(input.roles.parent);
+  input.roles['benchmark-reviewer'] = structuredClone(input.roles.parent);
 }
 
 function expectFailure(
@@ -305,6 +329,13 @@ it('validates every ordered arm cross-field rule with its assigned failure', () 
   }
 });
 
+it('reports ArmDefinition failures before malformed phase-resolution assets', () => {
+  const input = resolution();
+  (input.arm as ReturnType<typeof arm>).limits.max_provider_requests = 0;
+  input.roles.parent = null as never;
+  expectFailure(input, 'limit_out_of_range', 5);
+});
+
 it('reports credential rule 9 before provider rule 10 when both fail', () => {
   const input = resolution();
   const value = input.arm as Record<string, unknown>;
@@ -325,14 +356,41 @@ it('rejects duplicate arm names in a declared arm set', () => {
   );
 });
 
-it('rejects schema and limit errors before resolving assets', () => {
+it('rejects schema, malformed role assets, and non-object guard inputs as typed JSON', () => {
+  expectFailure(null as never, 'arm_schema_invalid', 1);
+
   const invalidSchema = resolution();
   (invalidSchema.arm as Record<string, unknown>).schema_version = 'cortex-benchmark-arm/1';
   expectFailure(invalidSchema, 'arm_schema_invalid', 1);
 
+  const malformedRole = resolution();
+  malformedRole.roles.parent = null as never;
+  expectFailure(malformedRole, 'arm_schema_invalid', 1);
+
+  const scalarGuard = resolution();
+  scalarGuard.roles.parent.benchmark_policy_guard = '/tmp/guard-v1.json' as never;
+  expectFailure(scalarGuard, 'arm_schema_invalid', 1);
+
+  const invalidNestedGuard = resolution();
+  invalidNestedGuard.roles.parent.benchmark_policy_guard = {
+    thread_active: { Write: (() => 'deny') as never },
+  };
+  expectFailure(invalidNestedGuard, 'arm_schema_invalid', 1);
+
+  const missingAliasPolicy = resolution();
+  delete (missingAliasPolicy as unknown as Record<string, unknown>).model_alias_policy;
+  expectFailure(missingAliasPolicy, 'arm_schema_invalid', 1);
+
   const invalidLimit = resolution();
   (invalidLimit.arm as ReturnType<typeof arm>).limits.max_provider_requests = 0;
   expectFailure(invalidLimit, 'limit_out_of_range', 5);
+});
+
+it('uses lossless monotonic time for the remaining-deadline accessor', () => {
+  const policy = compileResolvedTrialPolicy(resolution(), dependencies());
+  assert.equal(policy.deadline.monotonic_origin_ns, FIXED_MONOTONIC_NS);
+  assert.equal(remainingDeadlineMs(policy, FIXED_MONOTONIC_NS + 5_000_000_000n), 85_000);
+  assert.equal(remainingDeadlineMs(policy, FIXED_MONOTONIC_NS + 95_000_000_000n), 0);
 });
 
 it('enforces credential, profile, image, and asset failure codes', () => {
@@ -427,32 +485,46 @@ it('rejects nonpositive absolute deadlines and unproven PI benchmark support', (
   })));
 });
 
-it('enforces closed template and capability whitelists', () => {
+it('enforces closed template, capability, and required-role whitelists', () => {
+  const missingRoles = resolution();
+  configureCoderReview(missingRoles, false);
+  expectFailure(missingRoles, 'asset_missing', 15);
+
   const input = resolution();
-  const value = input.arm as ReturnType<typeof arm>;
-  value.orchestration.mode = 'coder-review' as 'direct';
-  Object.assign(value.orchestration, { coder_review_variant: 'audit-retry' });
-  value.limits.max_thread_starts = 1;
-  input.thread_templates = {
-    'benchmark-coder-review': path.resolve(
-      'defaults/config/thread-templates/templates/benchmark-coder-review.json',
-    ),
-  };
-  input.thread_agents = {
-    'benchmark-coder': path.resolve(
-      'defaults/config/thread-templates/agents/benchmark-coder.json',
-    ),
-    'benchmark-reviewer': path.resolve(
-      'defaults/config/thread-templates/agents/benchmark-reviewer.json',
-    ),
-  };
+  configureCoderReview(input);
   const policy = compileResolvedTrialPolicy(input, dependencies());
   assert.deepEqual(policy.child_template_whitelist, ['benchmark-coder-review']);
   assert.deepEqual(policy.capability_whitelist, ['artifact.write', 'task.read']);
+  assert.deepEqual(Object.keys(policy.roles).sort(), [
+    'benchmark-coder', 'benchmark-reviewer', 'parent',
+  ]);
 
   const denied = structuredClone(input);
   denied.thread_templates.ambient = input.thread_templates['benchmark-coder-review'];
   expectFailure(denied, 'template_not_whitelisted', 20);
+});
+
+it('feeds every role surface hash into the bundle manifest hash', () => {
+  const firstInput = resolution();
+  configureCoderReview(firstInput);
+  const first = compileResolvedTrialPolicy(firstInput, dependencies());
+
+  const secondInput = structuredClone(firstInput);
+  secondInput.roles['benchmark-reviewer'].benchmark_policy_guard = {
+    parent_writable: ['Read', 'Write'],
+    thread_active: ['Read', 'Write'],
+  };
+  const second = compileResolvedTrialPolicy(secondInput, dependencies());
+
+  assert.equal(
+    first.identity.role_tool_surface_hash.parent,
+    second.identity.role_tool_surface_hash.parent,
+  );
+  assert.notEqual(
+    first.identity.role_tool_surface_hash['benchmark-reviewer'],
+    second.identity.role_tool_surface_hash['benchmark-reviewer'],
+  );
+  assert.notEqual(first.identity.bundle_manifest_hash, second.identity.bundle_manifest_hash);
 });
 
 it('stores the contract whitelist vectors without wildcards', () => {

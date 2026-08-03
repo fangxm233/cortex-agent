@@ -4,4 +4,5 @@ Benchmark policy tests cover compile-time validation, frozen identity, and stabl
 
 | filename | role | function |
 |---|---|---|
+| policy-backed-runtime-deps.test.ts | 测试 | 验证冻结解析与运行时拒绝 |
 | policy-compiler.test.ts | 测试 | 验证 arm 编译、失败分类与投影 |

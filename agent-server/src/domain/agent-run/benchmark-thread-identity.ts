@@ -9,13 +9,11 @@ import type { AgentSlotConfig, ThreadTemplate } from '../../core/types/thread-ty
 import {
   buildAgentSpawnConfig, type AgentConfig, type RunAgentOptions,
 } from '../agents/facade.js';
-import {
-  listProfiles, resolveProfileConfig, type ResolvedProfileConfig,
-} from '../agents/profile-manager.js';
+import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import { resolveSystemVars, resolveTemplateAgents } from '../threads/index.js';
 import {
   canonicalJsonSha256, computeBundleManifestHash, computeRoleToolSurfaceHash,
-  resolvedRouteHost, type FrozenIdentity, type RoleToolSurfaceInput,
+  type FrozenIdentity, type RoleToolSurfaceInput,
 } from './identity.js';
 import { readStartedJournalIdentity } from './manifest.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
@@ -126,34 +124,13 @@ function roleIdentityMap(
   ]));
 }
 
-function modelProfileProjection(profile: ResolvedProfileConfig): string {
-  return canonicalJsonSha256({
-    backend: profile.backend, requested_model: profile.model,
-    provider_protocol: profile.provider, configured_route_base_host: resolvedRouteHost(profile),
-    reasoning_effort: profile.thinking, fallback_empty: profile.fallback.length === 0,
-  });
-}
-
-function compatibleModelProfiles(
-  parent: ReturnType<typeof readStartedJournalIdentity>,
-): ResolvedProfileConfig[] {
-  return listProfiles().map(profile => resolveProfileConfig(profile.name)).filter(profile => (
-    profile.backend === 'claude' && profile.fallback.length === 0
-    && profile.model === parent.requestedModel && profile.provider === parent.provider
-  ));
-}
-
 function parentModelObservationProblem(
   parent: ReturnType<typeof readStartedJournalIdentity>,
   profile: ResolvedProfileConfig,
 ): string | null {
   const matches = parent.agentSlot === 'parent' && profile.backend === 'claude'
     && parent.requestedModel === profile.model && parent.provider === profile.provider;
-  if (!matches) return 'Benchmark resolved profile does not match parent model observation';
-  const selected = modelProfileProjection(profile);
-  const ambiguous = compatibleModelProfiles(parent)
-    .some(candidate => modelProfileProjection(candidate) !== selected);
-  return ambiguous ? 'Benchmark cannot prove parent model identity from ambiguous profiles' : null;
+  return matches ? null : 'Benchmark resolved profile does not match parent model observation';
 }
 
 export function freezeBenchmarkThreadIdentities(

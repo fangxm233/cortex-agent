@@ -21,7 +21,7 @@ import {
 import { directoryContentSha256 } from '../agent-run/role-surface.js';
 import type { ResolvedAgentRunRole } from '../agent-run/run-config.js';
 import {
-  parseArmDefinitionForCompiler, validateArmPostCredential,
+  parseArmDefinitionForCompiler, validateArmPostCredential, validateArmResolutionShape,
   ArmValidationError, type ArmDefinition,
 } from './arm-schema.js';
 import {
@@ -61,7 +61,7 @@ export interface ResolvedRoleAsset {
   mcp_composition: McpComposition;
   mcp_config_paths: string[];
   disable_hooks: true;
-  benchmark_policy_guard?: IdentityJsonValue;
+  benchmark_policy_guard?: Record<string, IdentityJsonValue>;
 }
 
 export interface ArmResolution {
@@ -91,7 +91,7 @@ export interface ArmResolution {
 
 export interface PolicyCompilerDependencies {
   wall_clock_ms(): number;
-  monotonic_ns(): number;
+  monotonic_ns(): bigint;
   resolve_profile(name: string): ResolvedProfileConfig;
   read_file?(file: string): Buffer;
   stderr?: FailureStderr;
@@ -112,6 +112,7 @@ interface WorkingRole {
   directiveSha256: string;
   pluginDirs: PluginDirIdentityInput[];
   skills: SkillIdentityInput[];
+  benchmarkPolicyGuard?: Record<string, IdentityJsonValue>;
 }
 
 interface CompilationAssets {
@@ -200,7 +201,7 @@ function compileDeadline(
   const compiled = deps.wall_clock_ms();
   const monotonic = deps.monotonic_ns();
   const absolute = compiled + arm.limits.deadline_seconds * 1_000;
-  const valid = Number.isSafeInteger(compiled) && Number.isSafeInteger(monotonic)
+  const valid = Number.isSafeInteger(compiled) && monotonic >= 0n
     && Number.isSafeInteger(absolute) && absolute > compiled;
   if (!valid) fail('deadline_nonpositive', 'absolute deadline must be a positive safe integer');
   return {
@@ -324,6 +325,36 @@ function validateRoleSource(slot: string, source: ResolvedRoleAsset): void {
   }
 }
 
+function guardPrimitive(value: unknown): IdentityJsonValue | undefined {
+  if (value === null) return null;
+  if (typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  return undefined;
+}
+
+function canonicalGuardValue(value: unknown): IdentityJsonValue {
+  const primitive = guardPrimitive(value);
+  if (primitive !== undefined) return primitive;
+  if (Array.isArray(value)) return value.map(canonicalGuardValue);
+  if (typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) {
+    fail('arm_schema_invalid', 'benchmark_policy_guard must contain only JSON values');
+  }
+  return Object.fromEntries(Object.keys(value).sort().map(key => (
+    [key, canonicalGuardValue((value as Record<string, unknown>)[key])]
+  )));
+}
+
+function compiledGuard(
+  slot: string,
+  value: IdentityJsonValue | undefined,
+): Record<string, IdentityJsonValue> | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || Array.isArray(value) || typeof value !== 'object') {
+    fail('arm_schema_invalid', `role ${slot} benchmark_policy_guard must be an object`);
+  }
+  return canonicalGuardValue(value) as Record<string, IdentityJsonValue>;
+}
+
 function promptRole(context: CompileContext, slot: string): WorkingRole {
   const source = context.input.roles[slot];
   validateRoleSource(slot, source);
@@ -346,6 +377,7 @@ function promptRole(context: CompileContext, slot: string): WorkingRole {
     directiveSha256: sha256(directive),
     pluginDirs: [],
     skills: [],
+    benchmarkPolicyGuard: compiledGuard(slot, source.benchmark_policy_guard),
   };
 }
 
@@ -474,7 +506,7 @@ function inventoryAgent(
   loaded.add(name);
 }
 
-function inventoryTemplates(context: CompileContext): string[] {
+function inventoryTemplates(context: CompileContext): Set<string> {
   const allowed = childTemplateWhitelistForArm(context.arm);
   denyUnexpectedTemplates(context, allowed);
   const loadedAgents = new Set<string>();
@@ -487,7 +519,13 @@ function inventoryTemplates(context: CompileContext): string[] {
       inventoryAgent(context, agent, loadedAgents);
     }
   }
-  return allowed;
+  return loadedAgents;
+}
+
+function validateRequiredRoles(roles: WorkingRole[], agents: Set<string>): void {
+  const slots = new Set(roles.map(role => role.slot));
+  const missing = [...agents].sort().find(agent => !slots.has(agent));
+  if (missing) fail('asset_missing', `role://${missing}`);
 }
 
 function inventoryLimits(context: CompileContext): void {
@@ -508,7 +546,7 @@ function compileAssets(context: CompileContext): CompilationAssets {
   inventoryTools(context, roles);
   inventoryPlugins(context, roles);
   inventoryMcp(context, roles);
-  inventoryTemplates(context);
+  validateRequiredRoles(roles, inventoryTemplates(context));
   inventoryLimits(context);
   return { credential, profile, roles, deadline };
 }
@@ -552,8 +590,8 @@ function roleSurface(role: WorkingRole): RoleToolSurfaceInput {
     mcpComposition: role.role.mcpComposition,
     hookPolicy: {},
   };
-  if (role.source.benchmark_policy_guard !== undefined) {
-    surface.benchmarkPolicyGuard = role.source.benchmark_policy_guard;
+  if (role.benchmarkPolicyGuard !== undefined) {
+    surface.benchmarkPolicyGuard = role.benchmarkPolicyGuard;
   }
   return surface;
 }
@@ -587,7 +625,7 @@ function bundleHash(
   identities: ReturnType<typeof identityMaps>,
   modelHash: string,
 ): string {
-  const roleHash = identities.role.parent ?? canonicalJsonSha256(identities.role);
+  const roleHash = canonicalJsonSha256(identities.role);
   return computeBundleManifestHash({
     runConfig: context.arm as unknown as IdentityJsonValue,
     limits: context.arm.limits as unknown as IdentityJsonValue,
@@ -671,7 +709,9 @@ function freezePolicy(policy: ResolvedTrialPolicy): ResolvedTrialPolicy {
 }
 
 function compilePolicy(input: ArmResolution, deps: PolicyCompilerDependencies): ResolvedTrialPolicy {
-  const arm = parseArmDefinitionForCompiler(input.arm);
+  const armInput = input !== null && typeof input === 'object' ? input.arm : undefined;
+  const arm = parseArmDefinitionForCompiler(armInput);
+  validateArmResolutionShape(input);
   validateTrialInput(input);
   const context: CompileContext = { input, deps, arm, inventory: [] };
   appendInventory(context, 'arm', arm.name, input.arm_path, canonicalJsonSha256(arm));

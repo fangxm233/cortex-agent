@@ -540,7 +540,7 @@ it('fails with protocol_violation when the child model differs from its parent',
   assert.equal(harness.runAgent.mock.calls.length, 0);
 });
 
-it('rejects ambiguous parent identity when a same-model profile changes thinking', async () => {
+it('does not re-resolve ambient profiles after selecting the benchmark profile', async () => {
   const file = path.join(CONFIG_DIR, 'profiles.json');
   const config = JSON.parse(fs.readFileSync(file, 'utf8'));
   config.profiles['same-model-thinking'] = {
@@ -550,14 +550,11 @@ it('rejects ambiguous parent identity when a same-model profile changes thinking
   writeJson(file, config);
   profileRepo.invalidate();
   try {
-    queueSuccess('must not run');
-    const req = request(path.join(root, 'thinking-mismatch'), new AbortController().signal, {
-      profileName: 'same-model-thinking',
-    });
+    queueSuccess('profile stayed frozen');
+    const req = request(path.join(root, 'thinking-frozen'), new AbortController().signal);
     const value = await (await moduleUnderTest()).runBenchmarkThread(req);
-    assert.equal(value.state, 'failed');
-    assert.equal(value.terminalReason, 'protocol_violation');
-    assert.equal(harness.runAgent.mock.calls.length, 0);
+    assert.equal(value.state, 'completed');
+    assert.equal(harness.runAgent.mock.calls.length, 1);
   } finally {
     seedProfiles();
   }

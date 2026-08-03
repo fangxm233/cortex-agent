@@ -1,5 +1,5 @@
-// input:  parsed benchmark arm documents
-// output: validated cortex-benchmark-arm/2 definitions
+// input:  parsed arm and phase-A resolution documents
+// output: validated v2 arm definitions and resolution shapes
 // pos:    Closed schema and ordered cross-field validation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -92,6 +92,47 @@ const armSchema = z.object({
   credential_capability: z.string().min(1),
   orchestration: orchestrationSchema.optional(),
   limits: limitsSchema,
+}).strict();
+
+const namedStrings = z.record(z.string(), z.string().min(1));
+const credentialProjectionSchema = z.object({
+  id: z.string().min(1),
+  state: z.enum(['unsupported', 'offline-contract-passed', 'live-handshake-passed']),
+  key: z.object({
+    runner_or_backend: z.string().min(1),
+    provider: z.string(),
+    protocol: z.string(),
+    credential_kind: z.string().min(1),
+    proxy_adapter_version: z.string().min(1),
+  }).strict(),
+}).strict();
+const roleAssetSchema = z.object({
+  system_prompt_path: z.string().min(1),
+  directive_path: z.string().min(1),
+  tools: z.array(z.string().min(1)).min(1),
+  plugin_dirs: z.array(z.string().min(1)),
+  mcp_composition: z.enum(['direct', 'thread-control', 'none', 'benchmark-thread-run']),
+  mcp_config_paths: z.array(z.string().min(1)),
+  disable_hooks: z.literal(true),
+  benchmark_policy_guard: z.unknown().optional(),
+}).strict();
+const armResolutionSchema = z.object({
+  arm: z.unknown(), arm_path: z.string().min(1), trial_id: z.string().min(1),
+  root_run_id: z.string().min(1),
+  task: z.object({
+    task_id: z.string().min(1), image_ref: z.string().min(1), image_digest: z.string(),
+  }).strict(),
+  profile_name: z.string().min(1), paid_run: z.boolean(),
+  credential_capabilities: z.array(credentialProjectionSchema),
+  credential: z.object({
+    upstream_base_url: z.string().min(1), route_identity_host: z.string().min(1),
+    proxy_base_url: z.string().min(1), dummy_token_ref: z.string().min(1),
+  }).strict(),
+  cli_artifact: z.object({ path: z.string().min(1), version: z.string().min(1) }).strict(),
+  model_alias_policy: z.unknown(), roles: z.record(z.string(), roleAssetSchema),
+  thread_templates: namedStrings, thread_agents: namedStrings,
+  artifact_inventory_spec: z.unknown(), expected_asset_hashes: namedStrings.optional(),
+  pi_benchmark_capability_proven: z.boolean().optional(),
 }).strict();
 
 function fail(reason: ArmValidationReason, detail: string): never {
@@ -230,6 +271,14 @@ function schemaFailure(error: unknown): ArmValidationError {
 function parsedArm(value: unknown): ArmDefinition {
   try {
     return armSchema.parse(value) as ArmDefinition;
+  } catch (error) {
+    throw schemaFailure(error);
+  }
+}
+
+export function validateArmResolutionShape(value: unknown): void {
+  try {
+    armResolutionSchema.parse(value);
   } catch (error) {
     throw schemaFailure(error);
   }

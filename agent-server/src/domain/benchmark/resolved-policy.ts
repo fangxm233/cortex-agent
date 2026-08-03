@@ -171,7 +171,7 @@ export interface ResolvedTrialPolicy {
   deadline: {
     compiled_at_epoch_ms: number;
     absolute_epoch_ms: number;
-    monotonic_origin_ns: number;
+    monotonic_origin_ns: bigint;
   };
   asset_inventory: PolicyAssetInventoryEntry[];
   asset_inventory_sha256: string;
@@ -245,6 +245,14 @@ export function deepFreezePolicy(policy: ResolvedTrialPolicy): ResolvedTrialPoli
   return clone;
 }
 
-export function remainingDeadlineMs(policy: ResolvedTrialPolicy, nowMs: number): number {
-  return Math.max(0, policy.deadline.absolute_epoch_ms - nowMs);
+export function remainingDeadlineMs(
+  policy: ResolvedTrialPolicy,
+  monotonicNowNs: bigint,
+): number {
+  const elapsedNs = monotonicNowNs > policy.deadline.monotonic_origin_ns
+    ? monotonicNowNs - policy.deadline.monotonic_origin_ns
+    : 0n;
+  const elapsedMs = Number(elapsedNs / 1_000_000n);
+  const budgetMs = policy.deadline.absolute_epoch_ms - policy.deadline.compiled_at_epoch_ms;
+  return Math.max(0, budgetMs - elapsedMs);
 }
