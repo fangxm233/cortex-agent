@@ -775,3 +775,149 @@ test('nullable outage provider uses the legacy all-providers fallback', async (t
   assert.deepEqual(cleared, [['unknown']]);
   assert.equal(mod.isProviderRateLimited(null), false);
 });
+
+// ── clearThrottle: manual early release ──────────────────────────────
+
+async function throttledModule(
+  t: { onTestFinished: (fn: () => unknown) => void },
+  adapter: any = makeAdapterStub(),
+  onResume?: (providers: string[]) => void,
+) {
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any, onResume);
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 600 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'seven_day', utilization: 0.96, resetsAt: Math.floor(Date.now() / 1000) + 3600 },
+    { provider: 'provider-b', displayName: 'Provider B', mode: 'api' },
+  );
+  return mod;
+}
+
+test('clearThrottle removes one provider and resumes only it', async (t) => {
+  const cleared: string[][] = [];
+  const mod = await throttledModule(t, makeAdapterStub(), (providers) => cleared.push(providers));
+  assert.equal(mod.isThrottled(), true);
+
+  const result = await mod.clearThrottle('provider-a');
+
+  assert.deepEqual(result.cleared.map((c: any) => c.provider), ['provider-a']);
+  assert.deepEqual(result.cleared[0].types, ['five_hour']);
+  assert.equal(mod.isProviderRateLimited('provider-a'), false);
+  assert.equal(mod.isProviderRateLimited('provider-b'), true);
+  assert.deepEqual(cleared, [['provider-a']]);
+});
+
+test('clearThrottle without provider clears every provider', async (t) => {
+  const cleared: string[][] = [];
+  const mod = await throttledModule(t, makeAdapterStub(), (providers) => cleared.push(providers));
+
+  const result = await mod.clearThrottle();
+
+  assert.deepEqual(result.cleared.map((c: any) => c.provider).sort(), ['provider-a', 'provider-b']);
+  assert.equal(mod.isThrottled(), false);
+  assert.deepEqual(cleared, [['provider-a', 'provider-b']]);
+});
+
+test('clearThrottle is a no-op when nothing is throttled', async (t) => {
+  const cleared: string[][] = [];
+  const adapter = makeAdapterStub();
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any, (providers) => cleared.push(providers));
+
+  const result = await mod.clearThrottle();
+
+  assert.deepEqual(result.cleared, []);
+  assert.equal(mod.isThrottled(), false);
+  assert.deepEqual(cleared, []);
+  assert.equal(adapter.posted.length, 0);
+});
+
+test('clearThrottle clears an outage window and persists empty state', async (t) => {
+  const persistence = makePersistenceStub();
+  const cleared: string[][] = [];
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), persistence as any, (providers) => cleared.push(providers));
+  await mod.activateOutageWindow('provider-a', 10 * 60_000);
+  assert.equal(mod.isProviderRateLimited('provider-a'), true);
+
+  const result = await mod.clearThrottle('provider-a');
+
+  assert.deepEqual(result.cleared[0].types, ['outage']);
+  assert.equal(mod.isThrottled(), false);
+  assert.deepEqual(cleared, [['provider-a']]);
+  assert.equal(persistence.getSaved(), null);
+});
+
+test('clearThrottle on an unknown provider is a no-op', async (t) => {
+  const adapter = makeAdapterStub();
+  const mod = await throttledModule(t, adapter);
+
+  const result = await mod.clearThrottle('provider-nope');
+
+  assert.deepEqual(result.cleared, []);
+  assert.equal(mod.isThrottled(), true);
+  assert.equal(adapter.posted.length, 2); // only the two activation notices
+});
+
+test('clearThrottle cancels the pending resume timer', async (t) => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'Date'] });
+  vi.setSystemTime(new Date('2026-07-29T11:00:00.000Z'));
+  const cleared: string[][] = [];
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(makeAdapterStub(), makePersistenceStub() as any, (providers) => cleared.push(providers));
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 600 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+
+  await mod.clearThrottle('provider-a');
+  // Advance past the original window reset — the timer must have been cancelled.
+  await vi.advanceTimersByTimeAsync(600_000);
+
+  assert.deepEqual(cleared, [['provider-a']]);
+  assert.equal(mod.isThrottled(), false);
+});
+
+test('clearThrottle sends a manual-clear notice', async (t) => {
+  const adapter = makeAdapterStub();
+  const mod = await throttledModule(t, adapter);
+
+  await mod.clearThrottle('provider-a');
+
+  const manual = adapter.posted.find((post: any) => post.content.text.includes('cleared manually'));
+  assert.ok(manual, 'manual-clear notice posted');
+  assert.equal(manual.destination.type, 'system-notice');
+});
+
+test('activation notice carries a resume-now button with the provider value', async (t) => {
+  const adapter = makeAdapterStub();
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any);
+
+  await mod.handleRateLimitEvent(
+    { rateLimitType: 'five_hour', utilization: 0.95, resetsAt: Math.floor(Date.now() / 1000) + 600 },
+    { provider: 'provider-a', displayName: 'Provider A', mode: 'api' },
+  );
+
+  const notice = adapter.posted.find((post: any) => post.content.text.includes('throttle activated'));
+  assert.ok(notice, 'activation notice posted');
+  assert.deepEqual(notice.actions, [
+    { type: 'button', text: 'Resume now', actionId: 'rate-limit:clear', value: 'provider-a', style: 'primary' },
+  ]);
+});
+
+test('outage notice carries a resume-now button', async (t) => {
+  const adapter = makeAdapterStub();
+  const mod = await freshModuleWithCleanup(t);
+  await mod.initRateLimitThrottle(adapter, makePersistenceStub() as any);
+
+  await mod.activateOutageWindow('provider-a', 5 * 60_000);
+
+  const notice = adapter.posted.find((post: any) => post.content.text.includes('outage detected'));
+  assert.ok(notice, 'outage notice posted');
+  assert.equal(notice.actions[0].actionId, 'rate-limit:clear');
+  assert.equal(notice.actions[0].value, 'provider-a');
+});
