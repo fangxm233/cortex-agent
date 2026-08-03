@@ -154,10 +154,23 @@ def test_redacts_secret_from_unclassified_relative_path(tmp_path: Path) -> None:
 
     report = scan_trial_artifacts(artifacts, policy())
 
-    assert report.unclassified_files == (
-        UnclassifiedFile(0, "undeclared-<redacted>.log"),
-    )
+    assert report.unclassified_files == (UnclassifiedFile(0, None),)
     assert CREDENTIAL not in str(report.as_dict())
+
+
+def test_redaction_marker_cannot_echo_sensitive_literal(tmp_path: Path) -> None:
+    sensitive_literal = "<redacted>"
+    artifacts = make_artifacts(tmp_path, "none")
+    (tmp_path / f"undeclared-{sensitive_literal}.log").write_text("clean\n")
+    scan_policy = ScanPolicy(
+        secrets={"marker_collision": sensitive_literal},
+        repository_checkout=CHECKOUT_PATH,
+        hostname=HOSTNAME,
+    )
+
+    report = scan_trial_artifacts(artifacts, scan_policy)
+
+    assert sensitive_literal not in str(report.as_dict())
 
 
 def test_reports_declared_source_missing_from_disk(tmp_path: Path) -> None:

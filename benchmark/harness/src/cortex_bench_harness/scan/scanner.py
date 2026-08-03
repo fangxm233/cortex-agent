@@ -84,9 +84,10 @@ def _append_unclassified(
             continue
         discovered.add(absolute)
         relative_path = path.relative_to(root).as_posix()
-        for literal in redactions:
-            relative_path = relative_path.replace(literal, "<redacted>")
-        unclassified.append(UnclassifiedFile(root_index, relative_path))
+        reported_path = None if any(
+            literal in relative_path for literal in redactions
+        ) else relative_path
+        unclassified.append(UnclassifiedFile(root_index, reported_path))
 
 
 def _scan_present_sources(

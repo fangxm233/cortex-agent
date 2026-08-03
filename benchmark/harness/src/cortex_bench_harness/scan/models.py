@@ -18,7 +18,7 @@ class ArtifactInventory:
 @dataclass(frozen=True)
 class UnclassifiedFile:
     root_index: int
-    relative_path: str
+    relative_path: str | None
 
 
 @dataclass(frozen=True)
