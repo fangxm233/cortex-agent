@@ -1,8 +1,9 @@
-# input:  Harbor lifecycle, npm bundle, manifest seed, instruction
+# input:  Harbor lifecycle, npm bundle, manifest, compiled run config
 # output: verified Cortex execution, CLI version, and H3 manifest
 # pos:    Harbor BaseInstalledAgent wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
+import json
 import shlex
 import shutil
 from pathlib import Path, PurePosixPath
@@ -34,15 +35,18 @@ class CortexBenchAgent(BaseInstalledAgent):
         logs_dir: Path,
         artifact_dir: Path | str,
         manifest: Mapping[str, object],
+        run_config: Mapping[str, object],
         *args: object,
+        version: str = PACKAGE_VERSION,
         **kwargs: Any,
     ) -> None:
         self._artifact_dir = Path(artifact_dir)
         self._manifest_seed: HarnessManifestSeed = parse_manifest_seed(manifest)
+        self._run_config = json.loads(json.dumps(run_config))
         self._resolved_cwd: ResolvedCwd | None = None
         self._staged_npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None
-        super().__init__(logs_dir, *args, version=PACKAGE_VERSION, **kwargs)
+        super().__init__(logs_dir, *args, version=version, **kwargs)
 
     @staticmethod
     @override
@@ -101,25 +105,33 @@ class CortexBenchAgent(BaseInstalledAgent):
             resolved_cwd, self._staged_npm_artifact, self._cortex_cli_version,
         )
         write_harness_manifest(self._artifact_dir, build_harness_manifest(inputs))
+        self.logs_dir.joinpath("run-config.json").write_text(
+            json.dumps(self._run_config, indent=2) + "\n",
+        )
         self._resolved_cwd = resolved_cwd
 
-    def _agent_paths(self) -> tuple[PurePosixPath, PurePosixPath, PurePosixPath]:
+    def _agent_paths(
+        self,
+    ) -> tuple[PurePosixPath, PurePosixPath, PurePosixPath, PurePosixPath]:
         agent_dir = EnvironmentPaths().agent_dir
         return (
             agent_dir / "instruction.md",
             agent_dir / "trajectory" / "events.jsonl",
             agent_dir / "trajectory",
+            agent_dir / "run-config.json",
         )
 
     def preview_run_argv(self) -> list[str]:
         if self._resolved_cwd is None:
             raise RuntimeError("CortexBenchAgent.setup() must complete before run")
-        prompt_path, events_path, trajectory_root = self._agent_paths()
-        return self._build_run_argv(prompt_path, events_path, trajectory_root)
+        prompt_path, events_path, trajectory_root, run_config_path = self._agent_paths()
+        return self._build_run_argv(
+            prompt_path, events_path, trajectory_root, run_config_path,
+        )
 
     def _build_run_argv(
         self, prompt_path: PurePosixPath, events_path: PurePosixPath,
-        trajectory_root: PurePosixPath,
+        trajectory_root: PurePosixPath, run_config_path: PurePosixPath,
     ) -> list[str]:
         assert self._resolved_cwd is not None
         return [
@@ -128,6 +140,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             "--cwd", self._resolved_cwd.realpath, "--output-format", "jsonl",
             "--events-file", str(events_path), "--trajectory-root", str(trajectory_root),
             "--root-run-id", self._manifest_seed.root_run_id,
+            "--run-config", str(run_config_path),
         ]
 
     @override
@@ -141,7 +154,7 @@ class CortexBenchAgent(BaseInstalledAgent):
             raise RuntimeError("CortexBenchAgent.setup() must complete before run")
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         (self.logs_dir / "instruction.md").write_text(instruction)
-        _, _, trajectory_root = self._agent_paths()
+        _, _, trajectory_root, _ = self._agent_paths()
         await self.exec_as_agent(environment, f"mkdir -p {shlex.quote(str(trajectory_root))}")
         await self.exec_as_agent(
             environment,
