@@ -134,6 +134,8 @@ def backend_cli_binary(arm: ArmDefinition) -> str:
 
 
 def require_composable_arm(arm: ArmDefinition) -> None:
+    if arm.get("kind") != "cortex":
+        raise ValueError("Cortex composition requires a Cortex arm")
     backend = _required_text(arm, "backend")
     backend_cli_binary(arm)
     mode = _orchestration_mode(arm)

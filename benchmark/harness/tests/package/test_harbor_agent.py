@@ -1,5 +1,5 @@
 # input:  Harbor base class, fake exec results, manifest and trial seed
-# output: identity binding, install, discovery, and run-config proofs
+# output: admission, identity, install, discovery, and run-config proofs
 # pos:    Contract tests for the Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -15,6 +15,10 @@ from harbor.environments.base import ExecResult
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 from cortex_bench_harness.launcher.arm_resolution import ContainerFacts
+from cortex_bench_harness.launcher.arms import (
+    ArmCompositionUnsupportedError,
+    BackendUnsupportedForKindError,
+)
 
 ARTIFACT_NAME = "cortex-agent-server-test.tgz"
 BUNDLE_ROOT = "/installed-agent/npm/lib/node_modules/@cortex-agent/server"
@@ -107,6 +111,19 @@ def direct_arm() -> dict[str, object]:
             "deadline_seconds": 90,
         },
     }
+
+
+def coder_review_arm() -> dict[str, object]:
+    value = direct_arm()
+    value["name"] = "cortex-coder-review"
+    value["orchestration"] = {
+        "mode": "coder-review", "coder_review_variant": "audit-retry",
+        "ask_manager": False,
+    }
+    limits = value["limits"]
+    assert isinstance(limits, dict)
+    value["limits"] = {**limits, "max_thread_starts": 1}
+    return value
 
 
 def trial_seed(overrides: dict[str, object] | None = None) -> dict[str, object]:
@@ -327,9 +344,62 @@ def test_constructor_rejects_launcher_owned_seed_fields(
         make_agent(tmp_path, seed_overrides={launcher_owned: {}})
 
 
+@pytest.mark.parametrize(
+    ("variant", "error_type", "reason"),
+    [
+        ("coder-review", ArmCompositionUnsupportedError, "arm_composition_unsupported"),
+        ("manager", ArmCompositionUnsupportedError, "arm_composition_unsupported"),
+        ("pi", BackendUnsupportedForKindError, "backend_unsupported_for_kind"),
+        ("vendor-baseline", ValueError, None),
+    ],
+)
+def test_public_constructor_refuses_uncomposable_seed_before_setup(
+    tmp_path: Path,
+    variant: str,
+    error_type: type[ValueError],
+    reason: str | None,
+) -> None:
+    arm = direct_arm()
+    arm["name"] = f"cortex-{variant}"
+    if variant in {"coder-review", "manager"}:
+        arm["orchestration"] = {"mode": variant, "ask_manager": False}
+    elif variant == "pi":
+        arm["backend"] = "pi"
+    else:
+        arm.update({"kind": "vendor-baseline", "vendor_agent": "claude-code"})
+        arm.pop("backend")
+        arm.pop("orchestration")
+    seed = trial_seed({"arm": arm})
+    manifest = manifest_seed(tmp_path)
+    manifest["arm"] = arm["name"]
+
+    with pytest.raises(error_type) as error:
+        CortexBenchAgent(
+            logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
+            version="0.1.0", trial_seed=seed, manifest=manifest,
+        )
+
+    if reason is not None:
+        assert getattr(error.value, "reason") == reason
+
+
+def test_public_constructor_has_no_unsupported_seed_opt_out(tmp_path: Path) -> None:
+    seed = trial_seed({"arm": coder_review_arm()})
+    manifest = manifest_seed(tmp_path)
+    manifest["arm"] = "cortex-coder-review"
+
+    with pytest.raises(ArmCompositionUnsupportedError):
+        CortexBenchAgent(
+            logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
+            version="0.1.0", trial_seed=seed, manifest=manifest,
+            _allow_unsupported_fixture_seed=True,
+        )
+
+
 class FixtureCompositionAgent(CortexBenchAgent):
     """Component-fixture subclass: supplies its own document through the hook."""
 
+    _allow_unsupported_fixture_seed = True
     fixture_document: dict[str, object] = {"schema_version": "component-fixture/1"}
     observed_facts: ContainerFacts | None = None
 
@@ -342,9 +412,11 @@ class FixtureCompositionAgent(CortexBenchAgent):
 def test_component_fixture_subclass_supplies_its_document_through_the_hook(
     tmp_path: Path,
 ) -> None:
+    manifest = manifest_seed(tmp_path)
+    manifest["arm"] = "cortex-coder-review"
     agent = FixtureCompositionAgent(
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest_seed(tmp_path), trial_seed=trial_seed(),
+        manifest=manifest, trial_seed=trial_seed({"arm": coder_review_arm()}),
     )
 
     asyncio.run(agent.setup(FakeEnvironment(setup_results())))

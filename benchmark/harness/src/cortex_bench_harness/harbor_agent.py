@@ -1,5 +1,5 @@
 # input:  Harbor lifecycle, npm bundle, manifest, trial seed
-# output: identity-bound execution, container facts, phase-A input
+# output: identity-bound admission, container facts, phase-A input
 # pos:    Harbor BaseInstalledAgent wrapper for Cortex
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -22,7 +22,7 @@ from .launcher.arm_resolution import (
     parse_trial_seed,
     write_arm_resolution,
 )
-from .launcher.arms import backend_cli_binary
+from .launcher.arms import backend_cli_binary, require_composable_arm
 from .manifest import (
     HarnessManifestSeed,
     build_harness_manifest,
@@ -39,6 +39,8 @@ VERSION_COMMAND = "cortex daemon --version"
 
 
 class CortexBenchAgent(BaseInstalledAgent):
+    _allow_unsupported_fixture_seed = False
+
     def __init__(
         self,
         logs_dir: Path,
@@ -53,6 +55,8 @@ class CortexBenchAgent(BaseInstalledAgent):
         self._manifest_seed: HarnessManifestSeed = parse_manifest_seed(manifest)
         self._trial_seed: TrialSeed = parse_trial_seed(trial_seed)
         self._validate_trial_seed_binding()
+        if not self._allow_unsupported_fixture_seed:
+            require_composable_arm(self._trial_seed.arm)
         self._resolved_cwd: ResolvedCwd | None = None
         self._staged_npm_artifact: Path | None = None
         self._cortex_cli_version: str | None = None

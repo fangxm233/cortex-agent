@@ -1,4 +1,4 @@
-# input:  real bundle, pinned Debian image, dynamic fake Claude
+# input:  real bundle, pinned image, marked fake-composition subclass
 # output: parent/child ATIF, mutation, network, and scan evidence
 # pos:    Fresh-container integration for the dynamic run path
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -110,6 +110,7 @@ class TrialEvidence:
 class RecordingCortexBenchAgent(CortexBenchAgent):
     """Component fixture: supplies its own document through the composition hook."""
 
+    _allow_unsupported_fixture_seed = True
     run_result: ExecResult | None = None
     run_command: str | None = None
 
