@@ -1,15 +1,20 @@
 // input:  provider state, persistence, timer generations
-// output: committed throttle gates and clear callbacks
+// output: committed throttle gates, clear callbacks, and manual early-release
 // pos:    Provider-scoped limit and outage state machine
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { PlatformAdapter } from '@platform/index.js';
+import type { PlatformAdapter, ActionElement } from '@platform/index.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
 import { createLogger } from '@core/log.js';
 import { AsyncMutex } from '@core/async-mutex.js';
 import { Icons } from '../../core/icons.js';
 
 const log = createLogger('rate-limit-throttle');
+
+/** Interactive action id used on rate-limit notices ("Resume now" button). Handlers are
+ *  registered by the composition root via adapter.onAction; the button value carries the
+ *  provider key (empty = all providers). */
+export const RATE_LIMIT_CLEAR_ACTION_ID = 'rate-limit:clear';
 
 const TYPE_THRESHOLDS: Record<string, number> = {
   five_hour: 0.90,
@@ -64,6 +69,19 @@ export interface ThrottleStateView extends RateLimitThrottleState {
   resetsAt: number | null;
   rateLimitedModes: string[];
   rateLimitedTypes: string[];
+}
+
+export interface ClearedThrottleProvider {
+  provider: string;
+  displayName: string;
+  /** Window types cleared (e.g. five_hour / outage). */
+  types: string[];
+  /** Latest resetsAt among the cleared windows (epoch sec) — how long was remaining. */
+  resetsAt: number;
+}
+
+export interface ClearThrottleResult {
+  cleared: ClearedThrottleProvider[];
 }
 
 interface RateLimitInfo {
@@ -138,9 +156,18 @@ function fireResume(providers: string[]): void {
   }
 }
 
-function sendDM(text: string, title = 'Rate limit'): void {
+function sendDM(text: string, title = 'Rate limit', actions?: ActionElement[]): void {
   if (!_adapter) return;
-  void emitSystemNotice(_adapter, { text, level: 'warning', title });
+  void emitSystemNotice(_adapter, {
+    text,
+    level: 'warning',
+    title,
+    ...(actions && actions.length > 0 ? { actions } : {}),
+  });
+}
+
+function clearAction(provider: string): ActionElement[] {
+  return [{ type: 'button', text: 'Resume now', actionId: RATE_LIMIT_CLEAR_ACTION_ID, value: provider, style: 'primary' }];
 }
 
 function formatResetTime(epochSec: number): string {
@@ -385,7 +412,7 @@ async function activateOutageWindowLocked(provider: string | null, durationMs: n
   const reset = state.windows.find((window) => window.type === OUTAGE_WINDOW_TYPE)!.resetsAt;
   log.info(`Provider outage activated: provider=${source.provider}, durationMs=${durationMs}`);
   sendDM(`${Icons.warning} ${source.displayName} provider outage detected.
-Automated work will retry at ${formatResetTime(reset)} (in ${formatRemaining(reset)}).`, 'Provider outage');
+Automated work will retry at ${formatResetTime(reset)} (in ${formatRemaining(reset)}).`, 'Provider outage', clearAction(source.provider));
 }
 
 async function activateOutageWindow(provider: string | null, durationMs: number): Promise<void> {
@@ -419,12 +446,57 @@ async function handleRateLimitEventLocked(info: RateLimitInfo, rawSource?: strin
   log.info(`Throttle updated: provider=${source.provider}, type=${info.rateLimitType}, utilization=${info.utilization}, mode=${source.mode ?? '(none)'}`);
   if (isNewProvider) {
     sendDM(`${Icons.warning} ${source.displayName} rate limit throttle activated [${info.rateLimitType}] — utilization ${(info.utilization * 100).toFixed(0)}%.
-Auto-resume at ${formatResetTime(info.resetsAt)} (in ${formatRemaining(info.resetsAt)}).`);
+Auto-resume at ${formatResetTime(info.resetsAt)} (in ${formatRemaining(info.resetsAt)}).`, 'Rate limit', clearAction(source.provider));
   }
 }
 
 async function handleRateLimitEvent(info: RateLimitInfo, rawSource?: string | RateLimitSource): Promise<void> {
   await _mutationMutex.run(() => handleRateLimitEventLocked(info, rawSource));
+}
+
+async function clearThrottleLocked(provider?: string | null): Promise<ClearThrottleResult> {
+  if (!_persistence) return { cleared: [] };
+  const candidate = cloneProviders();
+  const targets = provider
+    ? (candidate.has(provider) ? [provider] : [])
+    : [...candidate.keys()];
+  if (targets.length === 0) return { cleared: [] };
+
+  const cleared: ClearedThrottleProvider[] = [];
+  for (const key of targets) {
+    const state = candidate.get(key)!;
+    const resetsAt = state.windows.reduce((max, w) => Math.max(max, w.resetsAt), 0);
+    cleared.push({
+      provider: key,
+      displayName: state.displayName,
+      types: state.windows.map((w) => w.type),
+      resetsAt,
+    });
+    candidate.delete(key);
+  }
+
+  await persist(candidate);
+  publishProviders(candidate);
+  scheduleResumeTimer();
+  fireChange();
+  fireResume(cleared.map((c) => c.provider));
+  for (const item of cleared) {
+    const names = item.types.join(', ');
+    log.info(`Throttle manually cleared: provider=${item.provider}, types=${names}`);
+    sendDM(`${Icons.ok} ${item.displayName} rate limit throttle cleared manually — paused work is resuming now.
+If the provider is still rate-limited, the next request will re-activate the throttle automatically.`);
+  }
+  return { cleared };
+}
+
+/** Manually lift an active rate-limit (or outage) throttle early, for one provider or all.
+ *  Walks the same recovery path as a natural window expiry: persists the cleared state,
+ *  re-schedules the resume timer, notifies the UI, and fires onResume so paused work is
+ *  dispatched immediately. Idempotent — no active window yields an empty result and no notices.
+ *  If the provider is actually still rate-limited, the next API call's rate-limit event
+ *  re-activates the throttle automatically. */
+async function clearThrottle(provider?: string | null): Promise<ClearThrottleResult> {
+  return _mutationMutex.run(() => clearThrottleLocked(provider));
 }
 
 function isThrottled(): boolean {
@@ -478,6 +550,7 @@ export {
   initRateLimitThrottle,
   activateOutageWindow,
   handleRateLimitEvent,
+  clearThrottle,
   isThrottled,
   isProviderRateLimited,
   isProviderUsageRateLimited,

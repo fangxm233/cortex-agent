@@ -16,4 +16,4 @@ Write side of the UI service — one handler module per domain area the UI is al
 | threads.ts | mutate | cancels a running thread |
 | executions.ts | mutate | cancels a running execution |
 | projects.ts | mutate | creates a project |
-| system.ts | mutate | restarts the agent server process |
+| system.ts | mutate | restarts the agent server process and clears rate limits early |

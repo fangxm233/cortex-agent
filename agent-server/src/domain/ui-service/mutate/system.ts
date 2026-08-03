@@ -1,6 +1,6 @@
-// input:  STORE_DIR paths (.restart trigger, daemon-child.pid), SIGTERM/SIGKILL
-// output: handleSystemRestart(args) → SystemRestartReturn
-// pos:    mutate handler for 'system.restart'. Three levels:
+// input:  STORE_DIR paths (.restart trigger, daemon-child.pid), SIGTERM/SIGKILL, active throttle state
+// output: handleSystemRestart(args) → SystemRestartReturn; handleSystemClearRateLimit(args) → SystemClearRateLimitReturn
+// pos:    mutate handlers for 'system.restart' (three levels) and 'system.clearRateLimit' (early throttle lift)
 //           soft  — touch STORE_DIR/.restart (daemon's fs.watch picks it up, drains, respawns)
 //           hard  — SIGTERM the child PID from daemon-child.pid (daemon auto-recovers)
 //           force — SIGKILL the child PID (daemon auto-recovers)
@@ -10,7 +10,8 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import * as path from 'node:path';
 import { STORE_DIR } from '@core/paths.js';
-import type { SystemRestartArgs, SystemRestartReturn, Result } from '../types.js';
+import { clearThrottle } from '@domain/costs/rate-limit-throttle.js';
+import type { SystemRestartArgs, SystemRestartReturn, SystemClearRateLimitArgs, SystemClearRateLimitReturn, Result } from '../types.js';
 
 function readChildPid(): number | null {
   const childPidFile = path.join(STORE_DIR, 'daemon-child.pid');
@@ -31,6 +32,21 @@ function checkLiveness(pid: number): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function handleSystemClearRateLimit(
+  args: SystemClearRateLimitArgs,
+): Promise<Result<SystemClearRateLimitReturn>> {
+  try {
+    const result = await clearThrottle(args.provider ?? null);
+    return { ok: true, data: result };
+  } catch (error) {
+    return {
+      ok: false,
+      code: 'internal',
+      message: `Failed to clear rate limit: ${(error as Error).message || String(error)}`,
+    };
   }
 }
 

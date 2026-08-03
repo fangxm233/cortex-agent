@@ -180,6 +180,8 @@ export type {
   RateLimitWindowInfo,
   SystemRestartArgs,
   SystemRestartReturn,
+  SystemClearRateLimitArgs,
+  SystemClearRateLimitReturn,
   // Mapped contract
   QueryParamMap,
   QueryReturnMap,

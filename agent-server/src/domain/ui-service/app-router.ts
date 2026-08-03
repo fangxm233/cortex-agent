@@ -72,6 +72,7 @@ import {
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
   systemRestartInput,
+  systemClearRateLimitInput,
 } from './input-schemas.js';
 import type {
   UiService,
@@ -292,6 +293,7 @@ function systemRouter(service: UiService) {
     daemonStatus: makeQuery(service, 'system.daemonStatus', systemDaemonStatusInput),
     rateLimitStatus: makeQuery(service, 'system.rateLimitStatus', systemRateLimitStatusInput),
     restart: makeMutation(service, 'system.restart', systemRestartInput),
+    clearRateLimit: makeMutation(service, 'system.clearRateLimit', systemClearRateLimitInput),
   });
 }
 

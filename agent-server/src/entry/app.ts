@@ -73,7 +73,7 @@ import { respondToPlan } from '@orch/interactions/plan-response.js';
 import { CommandActionRouter } from '@orch/interactions/command-action-router.js';
 import { createUpdatePrompt } from '@orch/interactions/update-prompt.js';
 import { registerMessageHandler } from '@orch/routing/message-router.js';
-import { initRateLimitThrottle } from '@domain/costs/rate-limit-throttle.js';
+import { initRateLimitThrottle, clearThrottle, RATE_LIMIT_CLEAR_ACTION_ID } from '@domain/costs/rate-limit-throttle.js';
 import { initResumeRegistry, getResumeCount, recordResume } from '@domain/costs/resume-registry.js';
 import {
   dispatchPendingResumes,
@@ -600,6 +600,23 @@ process.on('SIGTERM', async () => {
     load: () => providerStateRepo.getRateLimitThrottle(),
   }, () => { void dispatchPendingResumes(adapter); },
   () => { bus.publish({ type: 'rate-limit.changed' }); });
+
+  // Rate-limit notices carry a "Resume now" button (Slack/Feishu interactive). Clicking it
+  // clears the throttle early for that provider (or all when the value is empty) and dispatches
+  // paused work immediately — the same recovery path as a natural window expiry.
+  adapter.onAction(RATE_LIMIT_CLEAR_ACTION_ID, async (ctx) => {
+    const result = await clearThrottle(ctx.value || null);
+    const conduit = ctx.messageRef?.conduit ?? '';
+    const names = result.cleared.map((c) => c.displayName).join(', ');
+    const text = result.cleared.length > 0
+      ? `Rate limit cleared for ${names} — paused work is resuming now.`
+      : 'No active rate limit to clear.';
+    await adapter.postMessage(
+      { type: 'interactive-reply', conduit, sessionId: '' },
+      { text },
+      { threadId: ctx.messageRef?.messageId },
+    ).catch((e) => log.error(`rate-limit:clear reply failed: ${(e as Error).message}`));
+  });
   if (getResumeCount() > 0) {
     log.info(`Startup: evaluating ${getResumeCount()} pending provider resume(s)`);
     void dispatchPendingResumes(adapter);

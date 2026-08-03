@@ -1,9 +1,9 @@
 // input:  PlatformAdapter, notice payload, shared job context
-// output: Web publication and rich best-effort admin delivery
+// output: Web publication and rich/actionable best-effort admin delivery
 // pos:    Domain seam for admin and system broadcasts
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import type { PlatformAdapter, RichBlock } from '@platform/index.js';
+import type { PlatformAdapter, RichBlock, ActionElement } from '@platform/index.js';
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 
 export type SystemNoticeLevel = 'info' | 'warning' | 'error';
@@ -17,6 +17,9 @@ export interface SystemNoticeInput {
   title?: string;
   /** Optional platform-native content; Web notices continue to use the secret-free text fields. */
   richBlocks?: RichBlock[];
+  /** Optional action buttons attached to the platform post (Slack/Feishu interactive).
+   *  When present the notice is delivered via postInteractive; absent keeps postMessage. */
+  actions?: ActionElement[];
 }
 
 /** Publish a `system.notice` event on the shared EventBus (the Web notification-toast source).
@@ -40,10 +43,11 @@ export async function emitSystemNotice(
 ): Promise<boolean> {
   publishSystemNotice(p);
   try {
-    const ref = await adapter.postMessage(
-      { type: 'system-notice' },
-      { text: p.text, ...(p.richBlocks ? { richBlocks: p.richBlocks } : {}) },
-    );
+    const destination = { type: 'system-notice' } as const;
+    const content = { text: p.text, ...(p.richBlocks ? { richBlocks: p.richBlocks } : {}) };
+    const ref = p.actions?.length
+      ? await adapter.postInteractive(destination, { ...content, actions: p.actions })
+      : await adapter.postMessage(destination, content);
     return ref.conduit.length > 0;
   } catch {
     return false;

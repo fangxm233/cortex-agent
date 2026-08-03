@@ -438,6 +438,11 @@ export const systemRestartInput = z.object({
   kind: z.enum(['soft', 'hard', 'force']),
 });
 
+export const systemClearRateLimitInput = z.object({
+  /** Provider key to clear; omit to clear every throttled provider. */
+  provider: z.string().optional(),
+});
+
 export const approvalsRequestInput = z
   .object({
     kind: z.enum(['reconnect-platform', 'add-machine']),
@@ -528,4 +533,5 @@ export const mutateInputSchemas = {
   'hooks.remove': hooksRemoveInput,
   'hooks.test': hooksTestInput,
   'system.restart': systemRestartInput,
+  'system.clearRateLimit': systemClearRateLimitInput,
 } satisfies Record<MutateOp, z.ZodType>;

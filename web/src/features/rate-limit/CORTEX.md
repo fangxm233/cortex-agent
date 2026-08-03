@@ -6,7 +6,7 @@ It shows provider windows and waiting session/thread counts from the authoritati
 | filename | role | function |
 |---|---|---|
 | index.ts | barrel | Exports the view model, hook and components |
-| RateLimitStatus.tsx | view | Shows provider windows and waiting counts |
+| RateLimitStatus.tsx | view | Shows provider windows, waiting counts, and early-clear buttons |
 | RateLimitStatus.test.tsx | test | Pins Radix trigger prop forwarding on the desktop pill |
 | rate-limit-vm.ts | vm | Formats reset times and pending-work counts |
 | rate-limit-vm.test.ts | test | Tests countdown and waiting-count view state |

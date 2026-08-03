@@ -139,7 +139,8 @@ export type MutateOp =
   | 'hooks.setEnabled'
   | 'hooks.remove'
   | 'hooks.test'
-  | 'system.restart';
+  | 'system.restart'
+  | 'system.clearRateLimit';
 
 // ── Subscribe ─────────────────────────────────────────────────────
 
@@ -1359,6 +1360,25 @@ export interface SystemRestartReturn {
   message: string;
 }
 
+// ── system.clearRateLimit DTO ────────────────────────────────────
+
+export interface SystemClearRateLimitArgs {
+  /** Provider key to clear; omit to clear every throttled provider. */
+  provider?: string;
+}
+
+export interface SystemClearRateLimitReturn {
+  /** Providers whose throttle was lifted early. */
+  cleared: {
+    provider: string;
+    displayName: string;
+    /** Window types cleared (e.g. five_hour / outage). */
+    types: string[];
+    /** Latest resetsAt among the cleared windows (epoch sec). */
+    resetsAt: number;
+  }[];
+}
+
 // ── Mutate return types ───────────────────────────────────────────
 
 export interface ProjectCreateReturn {
@@ -1548,6 +1568,7 @@ export interface MutateArgsMap {
   'hooks.remove': HooksRemoveArgs;
   'hooks.test': HooksTestArgs;
   'system.restart': SystemRestartArgs;
+  'system.clearRateLimit': SystemClearRateLimitArgs;
 }
 
 export interface MutateReturnMap {
@@ -1594,6 +1615,7 @@ export interface MutateReturnMap {
   'hooks.remove': HooksRemoveReturn;
   'hooks.test': HooksTestReturn;
   'system.restart': SystemRestartReturn;
+  'system.clearRateLimit': SystemClearRateLimitReturn;
 }
 
 export type QueryParams<S extends QueryScope> = S extends keyof QueryParamMap ? QueryParamMap[S] : never;

@@ -57,7 +57,7 @@ import {
   handleNotesSetCompleted,
   handleNotesUpdate,
 } from './mutate/notes.js';
-import { handleSystemRestart } from './mutate/system.js';
+import { handleSystemRestart, handleSystemClearRateLimit } from './mutate/system.js';
 import {
   handleAuthCancelFlow,
   handleAuthLogout,
@@ -143,6 +143,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'hooks.remove': (deps, args) => handleHooksRemove(deps, args),
   'hooks.test': (deps, args) => handleHooksTest(deps, args),
   'system.restart': (_deps, args) => handleSystemRestart(args),
+  'system.clearRateLimit': (_deps, args) => handleSystemClearRateLimit(args),
 };
 
 export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {
