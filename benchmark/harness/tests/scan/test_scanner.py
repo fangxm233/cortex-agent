@@ -216,6 +216,18 @@ def test_redaction_marker_cannot_echo_sensitive_literal(tmp_path: Path) -> None:
     assert sensitive_literal not in str(report.as_dict())
 
 
+def test_redacts_home_path_from_unclassified_relative_path(tmp_path: Path) -> None:
+    artifacts = make_artifacts(tmp_path, "none")
+    directory = tmp_path / "prefix" / "home" / "alice"
+    directory.mkdir(parents=True)
+    (directory / "private.log").write_text("clean\n")
+
+    report = scan_trial_artifacts(artifacts, policy())
+
+    assert report.unclassified_files == (UnclassifiedFile(0, None),)
+    assert "/home/alice" not in str(report.as_dict())
+
+
 def test_reports_declared_source_missing_from_disk(tmp_path: Path) -> None:
     artifacts = make_artifacts(tmp_path, "none")
     artifacts.sources["events"].unlink()

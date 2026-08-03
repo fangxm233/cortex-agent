@@ -63,13 +63,15 @@ def _validate_source_roots(inventory: ArtifactInventory) -> None:
 def _validate_source_names(inventory: ArtifactInventory, policy: ScanPolicy) -> None:
     names = set(inventory.sources) | inventory.expected_sources
     literals = (*policy.secrets.values(), policy.repository_checkout, policy.hostname)
-    sensitive_name = any(
-        any(literal in name for literal in literals)
-        or HOME_PATH.search(name.encode()) is not None
-        for name in names
-    )
-    if sensitive_name:
+    if any(_contains_sensitive(name, literals) for name in names):
         raise ValueError("artifact source names must not contain sensitive literals")
+
+
+def _contains_sensitive(value: str, literals: tuple[str, ...]) -> bool:
+    return (
+        any(literal in value for literal in literals)
+        or HOME_PATH.search(value.encode()) is not None
+    )
 
 
 def _missing_sources(inventory: ArtifactInventory) -> tuple[str, ...]:
@@ -113,9 +115,9 @@ def _append_unclassified(
             continue
         discovered.add(absolute)
         relative_path = path.relative_to(root).as_posix()
-        reported_path = None if any(
-            literal in relative_path for literal in redactions
-        ) else relative_path
+        reported_path = (
+            None if _contains_sensitive(relative_path, redactions) else relative_path
+        )
         unclassified.append(UnclassifiedFile(root_index, reported_path))
 
 
