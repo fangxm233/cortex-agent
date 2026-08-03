@@ -1,9 +1,10 @@
-# input:  Harbor base class, fake exec results, npm artifact
-# output: install, CLI version, manifest, and argv assertions
+# input:  Harbor base class, fake exec results, phase-A document
+# output: install, manifest, and production run-config argv proofs
 # pos:    Contract tests for the Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -56,29 +57,37 @@ def setup_results() -> list[ExecResult]:
     ]
 
 
-def make_agent(tmp_path: Path, *, version: str = "0.1.0") -> CortexBenchAgent:
-    wheel_path = tmp_path / "cortex_bench_harness-0.1.0-py3-none-any.whl"
-    lockfile_path = tmp_path / "uv.lock"
-    npm_artifact_path = tmp_path / ARTIFACT_NAME
-    wheel_path.write_bytes(b"wheel")
-    lockfile_path.write_bytes(b"lock")
-    npm_artifact_path.write_bytes(b"npm artifact")
+def manifest_seed(tmp_path: Path) -> dict[str, object]:
+    files = {
+        "wheel_path": tmp_path / "cortex_bench_harness-0.1.0-py3-none-any.whl",
+        "lockfile_path": tmp_path / "uv.lock",
+        "npm_artifact_path": tmp_path / ARTIFACT_NAME,
+    }
+    for name, file in files.items():
+        file.write_bytes(b"npm artifact" if name == "npm_artifact_path" else b"fixture")
+    return {
+        "root_run_id": "root-install-only", "trial_id": "trial-install-only",
+        "arm": "cortex-direct", **{name: str(file) for name, file in files.items()},
+        "lockfile_manifest_path": "benchmark/harness/uv.lock",
+        "image_ref": "debian@sha256:abc", "image_digest": None,
+        "image_size_bytes": None,
+    }
+
+
+def make_agent(
+    tmp_path: Path,
+    *,
+    version: str = "0.1.0",
+    resolution_overrides: dict[str, object] | None = None,
+) -> CortexBenchAgent:
+    arm_resolution = {
+        "schema_version": "cortex-benchmark-arm-resolution/1",
+        "root_run_id": "root-install-only", "profile_name": "benchmark",
+        **(resolution_overrides or {}),
+    }
     return CortexBenchAgent(
-        logs_dir=tmp_path / "agent",
-        artifact_dir=tmp_path / "artifacts",
-        version=version,
-        manifest={
-            "root_run_id": "root-install-only",
-            "trial_id": "trial-install-only",
-            "arm": "cortex-direct",
-            "wheel_path": str(wheel_path),
-            "lockfile_path": str(lockfile_path),
-            "lockfile_manifest_path": "benchmark/harness/uv.lock",
-            "npm_artifact_path": str(npm_artifact_path),
-            "image_ref": "debian@sha256:abc",
-            "image_digest": None,
-            "image_size_bytes": None,
-        },
+        logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
+        version=version, arm_resolution=arm_resolution, manifest=manifest_seed(tmp_path),
     )
 
 
@@ -156,7 +165,7 @@ def test_empty_version_probe_does_not_publish_manifest(tmp_path: Path) -> None:
     assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
 
 
-def test_preview_argv_contains_resolved_cwd(tmp_path: Path) -> None:
+def test_preview_argv_contains_resolved_cwd_and_arm_resolution(tmp_path: Path) -> None:
     agent = make_agent(tmp_path)
     asyncio.run(agent.setup(FakeEnvironment(setup_results())))
 
@@ -166,10 +175,29 @@ def test_preview_argv_contains_resolved_cwd(tmp_path: Path) -> None:
         "--output-format", "jsonl", "--events-file",
         "/logs/agent/trajectory/events.jsonl", "--trajectory-root",
         "/logs/agent/trajectory", "--root-run-id", "root-install-only",
+        "--run-config", "/logs/agent/arm-resolution.json",
     ]
+    resolution = json.loads((tmp_path / "agent/arm-resolution.json").read_text())
+    assert resolution["schema_version"] == "cortex-benchmark-arm-resolution/1"
+    assert resolution["root_run_id"] == "root-install-only"
 
 
 def test_constructor_accepts_one_explicit_version_keyword(tmp_path: Path) -> None:
     agent = make_agent(tmp_path, version="2026.8.3")
 
     assert agent.version() == "2026.8.3"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("schema_version", "unknown/1"),
+        ("root_run_id", "another-run"),
+        ("profile_name", "another-profile"),
+    ],
+)
+def test_constructor_rejects_run_config_binding_mismatch(
+    tmp_path: Path, field: str, value: str,
+) -> None:
+    with pytest.raises(ValueError, match=field):
+        make_agent(tmp_path, resolution_overrides={field: value})

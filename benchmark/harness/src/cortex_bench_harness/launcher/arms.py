@@ -1,4 +1,4 @@
-# input:  parsed arm set, task selection, trial pins
+# input:  parsed arm set, task selection, phase-A resolution
 # output: immutable arm selection and Harbor AgentConfig
 # pos:    Host arm-selection and Harbor construction boundary
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -69,8 +69,9 @@ def select_task(
 
 
 def require_pinned_image(image_ref: str, image_digest: str) -> tuple[str, str]:
-    if not image_ref or IMAGE_DIGEST.fullmatch(image_digest) is None:
-        raise ImageDigestUnpinnedError("task image requires a sha256 digest")
+    digest_valid = IMAGE_DIGEST.fullmatch(image_digest) is not None
+    if not digest_valid or not image_ref.endswith(f"@{image_digest}"):
+        raise ImageDigestUnpinnedError("task image reference must match its sha256 digest")
     return image_ref, image_digest
 
 
@@ -102,13 +103,15 @@ def _common_config(
 def _cortex_kwargs(
     artifact_dir: Path | str | None,
     manifest: Mapping[str, object] | None,
+    arm_resolution: Mapping[str, object] | None,
     version: str,
 ) -> dict[str, object]:
-    if artifact_dir is None or manifest is None:
-        raise ValueError("cortex arms require artifact_dir and manifest")
+    if artifact_dir is None or manifest is None or arm_resolution is None:
+        raise ValueError("cortex arms require artifact_dir, manifest, and ArmResolution")
     return {
         "artifact_dir": artifact_dir,
         "manifest": dict(manifest),
+        "arm_resolution": dict(arm_resolution),
         "version": version,
     }
 
@@ -118,9 +121,10 @@ def _cortex_config(
     common: dict[str, Any],
     artifact_dir: Path | str | None,
     manifest: Mapping[str, object] | None,
+    arm_resolution: Mapping[str, object] | None,
     version: str,
 ) -> AgentConfig:
-    kwargs = _cortex_kwargs(artifact_dir, manifest, version)
+    kwargs = _cortex_kwargs(artifact_dir, manifest, arm_resolution, version)
     return AgentConfig(import_path=CORTEX_IMPORT_PATH, kwargs=kwargs, **common)
 
 
@@ -150,6 +154,7 @@ def build_agent_config(
     cli_version: str,
     artifact_dir: Path | str | None = None,
     manifest: Mapping[str, object] | None = None,
+    arm_resolution: Mapping[str, object] | None = None,
     env: Mapping[str, str] | None = None,
     override_timeout_sec: float | None = None,
     override_setup_timeout_sec: float | None = None,
@@ -164,7 +169,7 @@ def build_agent_config(
     )
     if arm.get("kind") == "cortex":
         return _cortex_config(
-            arm, common, artifact_dir, manifest, cli_version,
+            arm, common, artifact_dir, manifest, arm_resolution, cli_version,
         )
     if arm.get("kind") == "vendor-baseline":
         return _vendor_config(arm, common, cli_version)

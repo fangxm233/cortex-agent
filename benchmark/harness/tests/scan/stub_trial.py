@@ -27,6 +27,12 @@ from harbor.models.trial.paths import TrialPaths
 from harbor.utils.trajectory_validator import TrajectoryValidator
 
 from cortex_bench_harness import CortexBenchAgent
+from cortex_bench_harness.launcher import (
+    ARM_RESOLUTION_CONTAINER_PATH,
+    ARM_RESOLUTION_SOURCE,
+    ArmResolutionInputs,
+    build_arm_resolution,
+)
 from cortex_bench_harness.scan import ArtifactInventory, ScanPolicy, scan_trial_artifacts
 
 IMAGE_DIGEST = "sha256:7b140f374b289a7c2befc338f42ebe6441b7ea838a042bbd5acbfca6ec875818"
@@ -46,7 +52,6 @@ FINAL_METRIC_KEYS = (
     "total_prompt_tokens", "total_completion_tokens", "total_cached_tokens",
     "total_cost_usd", "total_steps",
 )
-RUN_CONFIG_PATH = "/cortex-home/config/benchmark-agent-run.json"
 POLICY_PATH = "/cortex-home/config/benchmark-thread-policy.json"
 BENCHMARK_MCP_CONFIG_PATH = "/cortex-home/config/mcp-config-benchmark-thread.json"
 
@@ -99,10 +104,6 @@ class TrialEvidence:
 class RecordingCortexBenchAgent(CortexBenchAgent):
     run_result: ExecResult | None = None
     run_command: str | None = None
-
-    @override
-    def preview_run_argv(self) -> list[str]:
-        return [*super().preview_run_argv(), "--run-config", RUN_CONFIG_PATH]
 
     @override
     async def exec_as_agent(
@@ -209,20 +210,21 @@ def profile_document() -> dict[str, object]:
     }
 
 
-def run_config_document() -> dict[str, object]:
+def arm_definition() -> dict[str, object]:
     return {
-        "schema_version": "cortex-agent-run-config/1",
-        "model_execution": {"model_alias_policy": None},
-        "role": {
-            "system_prompt": "Use the fixed benchmark thread tool and wait for its result.",
-            "tools": ["mcp__cortex-benchmark-thread__thread_run"],
-            "plugin_dirs": [], "mcp_composition": "benchmark-thread-run",
-            "mcp_config_paths": [BENCHMARK_MCP_CONFIG_PATH], "disable_hooks": True,
+        "schema_version": "cortex-benchmark-arm/2",
+        "kind": "cortex", "name": "cortex-dynamic-thread-real-agent-run",
+        "backend": "claude", "provider": "anthropic", "model": MODEL_NAME,
+        "credential_capability": "claude-api-key",
+        "orchestration": {
+            "mode": "coder-review", "coder_review_variant": "audit-retry",
+            "ask_manager": False,
         },
-        "bundle": {
-            "run_config": {"arm": "dynamic-thread"},
-            "limits": {"max_calls": 1, "max_steps": 4, "max_cost_usd": 1},
-            "adapter_hashes": {}, "harness_hashes": {},
+        "limits": {
+            "max_thread_starts": 1, "max_parent_questions": 0,
+            "max_task_depth": 0, "max_tasks": 0, "max_provider_requests": 8,
+            "max_resident_agent_processes": 3, "max_cost_usd": "1.00",
+            "deadline_seconds": 1_200,
         },
     }
 
@@ -245,7 +247,9 @@ def write_profile(cortex_home: Path) -> None:
     config = cortex_home / "config"
     config.mkdir(parents=True)
     (config / "profiles.json").write_text(json.dumps(profile_document()))
-    (config / "benchmark-agent-run.json").write_text(json.dumps(run_config_document()))
+    for slot in ("parent", "benchmark-coder", "benchmark-reviewer"):
+        (config / f"{slot}-system.txt").write_text(f"System prompt for {slot}.\n")
+        (config / f"{slot}-directive.txt").write_text(f"Directive for {slot}.\n")
     policy = config / "benchmark-thread-policy.json"
     policy.write_text(json.dumps(policy_document()))
     policy.chmod(0o444)
@@ -313,6 +317,65 @@ def agent_environment() -> dict[str, str]:
     }
 
 
+def role_asset(slot: str, parent: bool = False) -> dict[str, object]:
+    return {
+        "system_prompt_path": f"/cortex-home/config/{slot}-system.txt",
+        "directive_path": f"/cortex-home/config/{slot}-directive.txt",
+        "tools": (["mcp__cortex-benchmark-thread__thread_run"] if parent else ["Read", "Write"]),
+        "plugin_dirs": [],
+        "mcp_composition": "benchmark-thread-run" if parent else "none",
+        "mcp_config_paths": [
+            BENCHMARK_MCP_CONFIG_PATH if parent else "/cortex-home/config/mcp-config-empty.json"
+        ],
+        "disable_hooks": True,
+    }
+
+
+def resolution_thread_assets() -> tuple[dict[str, str], dict[str, str]]:
+    templates = {
+        "benchmark-coder-review": (
+            "/cortex-home/config/thread-templates/templates/benchmark-coder-review.json"
+        ),
+    }
+    agents = {
+        "benchmark-coder": "/cortex-home/config/thread-templates/agents/benchmark-coder.json",
+        "benchmark-reviewer": (
+            "/cortex-home/config/thread-templates/agents/benchmark-reviewer.json"
+        ),
+    }
+    return templates, agents
+
+
+def arm_resolution_document(image: dict[str, object]) -> dict[str, object]:
+    templates, agents = resolution_thread_assets()
+    task = {
+        "task_id": "synthetic-dynamic-thread",
+        "image_ref": image["image_ref"],
+        "image_digest": image["image_digest"],
+    }
+    inputs = ArmResolutionInputs(
+        arm=arm_definition(), arm_path="arm://cortex-dynamic-thread-real-agent-run",
+        trial_id=TRIAL_ID, root_run_id=ROOT_RUN_ID, task=task,
+        profile_name="benchmark", paid_run=False,
+        credential={
+            "upstream_base_url": "https://api.anthropic.com",
+            "route_identity_host": "api.anthropic.com",
+            "proxy_base_url": "http://trial-proxy.invalid",
+            "dummy_token_ref": "offline-fixture-token-handle",
+        },
+        cli_artifact={"path": "/opt/fake-bin/claude", "version": "2.1.999"},
+        model_alias_policy=None,
+        roles={
+            "parent": role_asset("parent", True),
+            "benchmark-coder": role_asset("benchmark-coder"),
+            "benchmark-reviewer": role_asset("benchmark-reviewer"),
+        },
+        thread_templates=templates, thread_agents=agents,
+        artifact_inventory_spec={"expected": [ARM_RESOLUTION_SOURCE]},
+    )
+    return build_arm_resolution(inputs)
+
+
 def create_agent(layout: Layout, image: dict[str, object]) -> RecordingCortexBenchAgent:
     manifest = {
         "root_run_id": ROOT_RUN_ID, "trial_id": TRIAL_ID,
@@ -324,7 +387,8 @@ def create_agent(layout: Layout, image: dict[str, object]) -> RecordingCortexBen
     return RecordingCortexBenchAgent(
         logs_dir=layout.trial_paths.agent_dir,
         artifact_dir=layout.trial_paths.artifacts_dir,
-        manifest=manifest, extra_env=agent_environment(),
+        manifest=manifest, arm_resolution=arm_resolution_document(image),
+        extra_env=agent_environment(),
     )
 
 
@@ -558,15 +622,15 @@ def parent_mcp_composition(
     layout: Layout, agent: RecordingCortexBenchAgent,
 ) -> str:
     assert agent.run_command is not None
-    assert f"--run-config {RUN_CONFIG_PATH}" in agent.run_command
+    assert f"--run-config {ARM_RESOLUTION_CONTAINER_PATH}" in agent.run_command
     mcp_config = json.loads(
         (layout.cortex_home / "config/mcp-config-benchmark-thread.json").read_text()
     )
     assert list(mcp_config["mcpServers"]) == ["cortex-benchmark-thread"]
-    run_config = json.loads(
-        (layout.cortex_home / "config/benchmark-agent-run.json").read_text()
+    arm_resolution = json.loads(
+        (layout.trial_paths.agent_dir / ARM_RESOLUTION_CONTAINER_PATH.name).read_text()
     )
-    return str(run_config["role"]["mcp_composition"])
+    return str(arm_resolution["roles"]["parent"]["mcp_composition"])
 
 
 def child_slots(layout: Layout) -> frozenset[str]:
