@@ -4,6 +4,7 @@ Tests for the Python benchmark harness distribution.
 
 | filename | role | function |
 |---|---|---|
+| launcher/ | tests | Verifies arm routing and credential projections |
 | package/ | tests | Verifies package-level contracts |
 | proxy/ | tests | Proves credential and network containment |
 | scan/ | tests | Proves leak detection and real offline agent runs |

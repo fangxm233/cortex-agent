@@ -10,4 +10,4 @@ Scanner tests reject leaks and prove a dynamic bundle run in an isolated contain
 | docker-compose-never-pull.yaml | config | Forbids image pulls during the real trial |
 | fake_claude.sh | fixture | Launches the deterministic offline model fixture |
 | fake_claude.mjs | fixture | Calls the real thread MCP and emits role usage |
-| stub_trial.py | helper | Builds and audits the dynamic container trial |
+| stub_trial.py | helper | Audits the production adapter container trial |
