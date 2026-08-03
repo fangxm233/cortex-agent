@@ -2,10 +2,14 @@
 // @cortex-hook-version 2026.8.2
 // input:  stdin JSON — Claude Code PreToolUse event payload
 // output: stdout JSON — { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision, permissionDecisionReason }, systemMessage? }
-// pos:    PreToolUse hook — intercepts Edit/Write on context/projects/*/STATUS.md and
-//         enforces the state-register size caps (80 lines AND 6KB, rules/status-md.md):
-//         deny writes whose result exceeds the caps, unless the write shrinks an
-//         already-over-limit file (so cleanup stays possible); warn at 60 lines / 4KB.
+// pos:    PreToolUse hook — intercepts Edit/Write on size-capped context files and
+//         enforces their caps (limit table below; rules/status-md.md, rules/issues-md.md,
+//         rules/cortex-md.md): deny writes whose result exceeds the caps, unless the
+//         write shrinks an already-over-limit file (so cleanup stays possible); warn
+//         when approaching the cap. Guarded files:
+//           context/projects/<p>/STATUS.md — 80 lines / 6KB (state register)
+//           context/projects/<p>/ISSUES.md — 80 lines / 6KB (friction log)
+//           CORTEX.md anywhere under a context/ tree — 120 lines / 8KB (injected index)
 // >>> If I am updated, be sure to update my header comment and the CORTEX.md in the same folder <<<
 
 import { readFileSync, existsSync } from 'fs';
@@ -14,21 +18,67 @@ import { resolve, sep } from 'path';
 // ── Constants ──
 
 const TOOLS = new Set(['Edit', 'Write']);
-const MAX_LINES = 80;
-const MAX_BYTES = 6 * 1024;
-const WARN_LINES = 60;
-const WARN_BYTES = 4 * 1024;
 
-// ── Helpers ──
-
-/** Only guard the project register files: .../context/projects/<name>/STATUS.md */
-function isProjectStatusPath(absPath) {
-  const parts = absPath.split(sep);
-  if (parts[parts.length - 1] !== 'STATUS.md') return false;
+/** .../context/projects/<name>/<file> */
+function isProjectRootFile(parts, fileName) {
+  if (parts[parts.length - 1] !== fileName) return false;
   const projectsIdx = parts.length - 3;
   const contextIdx = parts.length - 4;
   return projectsIdx > 0 && parts[projectsIdx] === 'projects' && parts[contextIdx] === 'context';
 }
+
+const LIMIT_RULES = [
+  {
+    name: 'STATUS.md',
+    ruleFile: 'rules/status-md.md',
+    matches: (parts) => isProjectRootFile(parts, 'STATUS.md'),
+    maxLines: 80,
+    maxBytes: 6 * 1024,
+    warnLines: 60,
+    warnBytes: 4 * 1024,
+    capLabel: '80 lines AND 6KB',
+    trimAdvice: [
+      'STATUS is a state register, not a changelog. Trim before writing:',
+      '- delete entries that no longer affect decisions (their content already lives in tasks-archive / git / EXP records),',
+      '- compress each bullet to one line + pointer (task-id / EXP-NNN / K-NNN / DR-NNNN / commit SHA),',
+      '- move completion reports to the task note, durable facts to knowledge entries, verdict analysis to the gate artifact.',
+    ],
+  },
+  {
+    name: 'ISSUES.md',
+    ruleFile: 'rules/issues-md.md',
+    matches: (parts) => isProjectRootFile(parts, 'ISSUES.md'),
+    maxLines: 80,
+    maxBytes: 6 * 1024,
+    warnLines: 60,
+    warnBytes: 4 * 1024,
+    capLabel: '80 lines AND 6KB',
+    trimAdvice: [
+      'ISSUES.md is a friction log with <=4-line entries. Trim before writing:',
+      '- delete resolved entries outright (no changelog),',
+      '- compress each entry to symptom + one-line root cause + pointer (K-NNN / task artifact / EXP-NNN / file:line),',
+      '- merge same-cause frictions into one entry.',
+    ],
+  },
+  {
+    name: 'CORTEX.md',
+    ruleFile: 'rules/cortex-md.md',
+    matches: (parts) => parts[parts.length - 1] === 'CORTEX.md' && parts.includes('context'),
+    maxLines: 120,
+    maxBytes: 8 * 1024,
+    warnLines: 90,
+    warnBytes: 6656,
+    capLabel: '120 lines AND 8KB',
+    trimAdvice: [
+      'CORTEX.md is an injected index (truncated at 9500 chars): it answers "what is here, where to look", not the content itself. Trim before writing:',
+      '- collapse atomic directories (experiments/ knowledge/ patterns/ decisions/) to one line each pointing at their index.md,',
+      '- entry summaries already live in the atomic files and their auto-generated index.md — never duplicate them here,',
+      '- keep each index line to one sentence + pointer (<=200 chars).',
+    ],
+  },
+];
+
+// ── Helpers ──
 
 function countLines(content) {
   if (content === '') return 0;
@@ -49,14 +99,11 @@ function proposedContent(toolName, toolInput, currentContent) {
     : currentContent.replace(oldString, newString);
 }
 
-function denyReason(lineCount, byteCount) {
+function denyReason(rule, lineCount, byteCount) {
   return [
-    `STATUS.md write rejected: the result would be ${lineCount} lines / ${byteCount} bytes — the hard cap is 80 lines AND 6KB (rules/status-md.md).`,
+    `${rule.name} write rejected: the result would be ${lineCount} lines / ${byteCount} bytes — the hard cap is ${rule.capLabel} (${rule.ruleFile}).`,
     '',
-    'STATUS is a state register, not a changelog. Trim before writing:',
-    '- delete entries that no longer affect decisions (their content already lives in tasks-archive / git / EXP records),',
-    '- compress each bullet to one line + pointer (task-id / EXP-NNN / K-NNN / DR-NNNN / commit SHA),',
-    '- move completion reports to the task note, durable facts to knowledge entries, verdict analysis to the gate artifact.',
+    ...rule.trimAdvice,
     '',
     'Writes that shrink an already-over-limit file are allowed — reduce the size, then write.',
   ].join('\n');
@@ -87,9 +134,11 @@ function main() {
   if (!filePath) return;
 
   const cwd = payload.cwd || process.cwd();
-  const absPath = resolve(cwd, filePath);
-  if (!isProjectStatusPath(absPath)) return;
+  const parts = resolve(cwd, filePath).split(sep);
+  const rule = LIMIT_RULES.find((r) => r.matches(parts));
+  if (!rule) return;
 
+  const absPath = resolve(cwd, filePath);
   let currentContent = null;
   if (existsSync(absPath)) {
     try {
@@ -106,16 +155,16 @@ function main() {
   const byteCount = Buffer.byteLength(proposed, 'utf8');
   const currentBytes = currentContent === null ? null : Buffer.byteLength(currentContent, 'utf8');
 
-  if (lineCount > MAX_LINES || byteCount > MAX_BYTES) {
+  if (lineCount > rule.maxLines || byteCount > rule.maxBytes) {
     // Shrink exception: an over-limit file may be reduced step by step.
     if (currentBytes !== null && byteCount < currentBytes) {
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
           permissionDecision: 'allow',
-          permissionDecisionReason: `Still over the STATUS.md cap (${lineCount} lines / ${byteCount} bytes > 80 lines / 6KB) but shrinking — keep trimming to within the limit.`,
+          permissionDecisionReason: `Still over the ${rule.name} cap (${lineCount} lines / ${byteCount} bytes > ${rule.capLabel}) but shrinking — keep trimming to within the limit.`,
         },
-        systemMessage: `STATUS.md is still over the 80-line/6KB cap (${lineCount} lines / ${byteCount} bytes). This write shrinks it and is allowed — keep trimming.`,
+        systemMessage: `${rule.name} is still over the ${rule.capLabel} cap (${lineCount} lines / ${byteCount} bytes). This write shrinks it and is allowed — keep trimming.`,
       }));
       return;
     }
@@ -123,20 +172,20 @@ function main() {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: denyReason(lineCount, byteCount),
+        permissionDecisionReason: denyReason(rule, lineCount, byteCount),
       },
     }));
     return;
   }
 
-  if (lineCount >= WARN_LINES || byteCount >= WARN_BYTES) {
+  if (lineCount >= rule.warnLines || byteCount >= rule.warnBytes) {
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'allow',
-        permissionDecisionReason: `STATUS.md approaching its cap (${lineCount} lines / ${byteCount} bytes; hard cap 80 lines / 6KB) — trim proactively.`,
+        permissionDecisionReason: `${rule.name} approaching its cap (${lineCount} lines / ${byteCount} bytes; hard cap ${rule.capLabel}) — trim proactively.`,
       },
-      systemMessage: `STATUS.md is approaching its cap (${lineCount} lines / ${byteCount} bytes; hard cap 80 lines AND 6KB). Trim proactively: delete entries that no longer affect decisions (rules/status-md.md).`,
+      systemMessage: `${rule.name} is approaching its cap (${lineCount} lines / ${byteCount} bytes; hard cap ${rule.capLabel}). Trim proactively (${rule.ruleFile}).`,
     }));
   }
 }

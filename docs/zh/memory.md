@@ -28,7 +28,7 @@ context/
         ├── mission.md           # 目标和成功条件
         ├── roadmap.md           # 带可测试清单条件的里程碑
         ├── STATUS.md            # 现在时状态寄存器（覆盖式，最多 80 行 / 6KB）
-        ├── ISSUES.md            # 执行摩擦（仅追加，已解决项删除，最多 80 行）
+        ├── ISSUES.md            # 执行摩擦（仅追加，已解决项删除，最多 80 行 / 6KB）
         ├── TASKS.yaml           # 结构化任务队列（机器可读 YAML）
         ├── tasks-archive.md     # 自动归档的已完成任务（由 task-archive 调度作业处理）
         ├── experiments/
@@ -198,7 +198,7 @@ index.md 中的引用计数（`refs`）由 `memory-index-regen` 基于这些访�
 
 ### ISSUES.md — 执行摩擦 {#issuesmd-execution-friction}
 
-一个仅追加的日志，记录减慢工作的问题，上限 80 行。每个条目有带日期的标题和要点列表：问题、何时发生、调查过程。已解决的问题从文件中删除（不归档）。
+一个仅追加的日志，记录减慢工作的问题，上限 80 行且 6KB，单条 ≤4 行。条目由带日期的标题、一行现象、一行根因与指向详细调查的指针（知识条目、task artifact 或实验记录）组成。已解决的问题从文件中删除（不归档）。
 
 ### decisions/ — 决策记录 {#decisions-decision-records}
 
@@ -208,7 +208,7 @@ index.md 中的引用计数（`refs`）由 `memory-index-regen` 基于这些访�
 
 Dense Context 系统遵循以下运行约定：
 
-1. **每个目录有 CORTEX.md 索引** — 描述目录的用途、文件列表和查找规则
+1. **每个目录有 CORTEX.md 索引** — 描述目录的用途、文件列表和查找规则。索引是指针式的（每行一句话+指针，原子目录整目录一行），硬上限 120 行且 8KB，对齐上下文注入预算
 2. **创建文件 → 更新索引** — 向目录添加新文件时，更新该目录的 CORTEX.md
 3. **覆盖 vs. 追加** — STATUS.md 覆盖（仅当前状态）；ISSUES.md 追加然后删除；experiments/knowledge/patterns 追加并保留
 4. **来源强制** — 每个事实声明必须追溯到特定的 EXP-NNN、K-NNN、file:line 或内联计算

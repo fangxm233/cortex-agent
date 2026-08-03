@@ -9,6 +9,13 @@ paths:
 
 Experiment, knowledge, and pattern entries have been migrated from a single monolithic file to an atomic structure with one file per entry.
 
+## Size Constraints (new writes only; existing entries are immutable provenance records, never rewritten retroactively)
+
+- **`summary` field <=300 characters, single line**. Its only purpose is one row in the index.md table; an oversized summary poisons the auto-generated index. Anything that doesn't fit goes in the body.
+- **EXP body soft limit 400 lines / 24KB**. Raw logs, per-item data, and large tables go to evidence/artifact files with pointers in the body — value traceability already requires naming the producing script + data file; the body carries background/goal/key results/conclusion/reflection.
+- **K / PAT body soft limit 150 lines / 8KB**. A knowledge entry is a conclusion + evidence pointers (`evidence` field), never longer than its source experiments; argumentation detail stays in the source EXPs.
+- Soft limits do not block writes, but review (reviewer/manager acceptance) should treat exceeding them as a signal: raw dumps may have leaked into memory files.
+
 ## Directory Structure
 
 ```
@@ -136,7 +143,7 @@ All entries share a unified `status` state:
 | `id` | ✅ | Unique identifier: EXP-NNN / K-NNN / PAT-NNN |
 | `date` | ✅ | Creation date YYYY-MM-DD |
 | `project` | ✅ | Project name |
-| `summary` | ✅ | One-line summary (for index.md table) |
+| `summary` | ✅ | One-line summary, **<=300 characters** (for index.md table) |
 | `tags` | ✅ | Tags array |
 | `status` | Recommended | See the state machine table above |
 | `executor` | Optional for experiments | Executor |

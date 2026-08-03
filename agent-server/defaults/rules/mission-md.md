@@ -11,7 +11,7 @@ The project's "constitution": defines goals and success conditions. It is the ba
 
 - **Stable file**: Can only be modified after user confirmation. Cortex must not rewrite or expand scope on its own.
 - **Modification trigger condition**: User explicitly directs reorient / pivot / scope change. Do not touch in any other case.
-- **Length suggestion**: 50-100 lines. Too long means content that belongs in roadmap/STATUS has been mixed in.
+- **Limit: 100 lines AND 8KB**. Too long means content that belongs in roadmap/STATUS or a project-pitch document has been mixed in; trimming also requires user confirmation.
 
 ## Required Sections
 
@@ -37,6 +37,7 @@ The project's "constitution": defines goals and success conditions. It is the ba
 
 ## Prohibited Content
 
+- Project pitch / related-work comparison / extended "why this is worth doing" argumentation → belongs in a proposal/outline document; mission keeps only goal, success conditions, scope boundaries, resource constraints
 - Current progress/phase → belongs in `STATUS.md`
 - Roadmap and milestones → belongs in `roadmap.md`
 - Task list → belongs in `TASKS.yaml`

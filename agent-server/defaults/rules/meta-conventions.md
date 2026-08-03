@@ -5,13 +5,13 @@ paths:
 
 # Context Meta-Rules
 
-Cross-file conventions. See the dedicated rule for each file type in the same directory (status-md.md / issues-md.md / mission-md.md / roadmap-md.md / overview-md.md / task-system.md / experiment-format.md / decision-records.md).
+Cross-file conventions. See the dedicated rule for each file type in the same directory (status-md.md / issues-md.md / mission-md.md / roadmap-md.md / overview-md.md / cortex-md.md / task-system.md / experiment-format.md / decision-records.md).
 
 ## General Rules
 
 - **All context updates are auto-committed via git**: Incremental commits, each logical unit (experiment configuration, analysis report, status update) is committed upon completion, do not accumulate until the end of the session.
 - **Value traceability**: Every value appearing in STATUS / EXP / K / reports must be traceable — specify the script + data file that produced it, or write inline arithmetic citing the data. Numbers without sources are invalid.
-- **Update index after creating new files**: After creating a new file in any directory, update that directory's CORTEX.md index.
+- **Update index after creating new files**: After creating a new file in any directory, update that directory's CORTEX.md index (see cortex-md.md).
 - **Decision traceability**: Each DR-NNNN within a project adds an inline reference in the project's CORTEX.md; system-level DRs are referenced in `context/CORTEX.md`.
 
 ## Index Files
@@ -32,7 +32,8 @@ PostToolUse hook automatically records Read/Grep access to atomic files (EXP/K/P
 | File | Dedicated rule | Update mode |
 |------|----------------|-------------|
 | `STATUS.md` | status-md.md | Overwrite snapshot (state register), hard limit 80 lines AND 6KB, each bullet <=2 lines |
-| `ISSUES.md` | issues-md.md | Append, resolved entries deleted directly, hard limit 80 lines |
+| `ISSUES.md` | issues-md.md | Append, resolved entries deleted directly, hard limit 80 lines AND 6KB, each entry <=4 lines |
+| `CORTEX.md` (directory index) | cortex-md.md | Pointer-style index, hard limit 120 lines AND 8KB, one line per atomic directory |
 | `mission.md` | mission-md.md | Modify after user confirmation |
 | `roadmap.md` | roadmap-md.md | Stable, milestones must contain testable checklist |
 | `OVERVIEW.md` | overview-md.md | Synchronous update, hard limit 60 lines |

@@ -1,5 +1,5 @@
 // input:  Node test runner + spawn status-md-guard.mjs subprocess
-// output: STATUS.md size-guard allow/deny/warn regressions
+// output: context-file size-guard allow/deny/warn regressions (STATUS.md / ISSUES.md / CORTEX.md)
 // pos:    Verifies status-md-guard.mjs hook behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -146,6 +146,134 @@ test('status-md-guard ignores non-STATUS files and STATUS.md outside context/pro
       cwd: dir,
     });
     assert.equal(outside, null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function mkProjectFile(name: string, sub?: string): { dir: string; filePath: string } {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'status-guard-'));
+  const projDir = sub
+    ? path.join(dir, 'context', 'projects', 'nimbus', sub)
+    : path.join(dir, 'context', 'projects', 'nimbus');
+  fs.mkdirSync(projDir, { recursive: true });
+  return { dir, filePath: path.join(projDir, name) };
+}
+
+test('guard denies an ISSUES.md write whose result exceeds 80 lines', () => {
+  const { dir, filePath } = mkProjectFile('ISSUES.md');
+  try {
+    const decision = runHook({
+      tool_name: 'Write',
+      tool_input: { file_path: filePath, content: lines(100) },
+      cwd: dir,
+    });
+    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny');
+    assert.match(decision!.hookSpecificOutput!.permissionDecisionReason, /ISSUES\.md/);
+    assert.match(decision!.hookSpecificOutput!.permissionDecisionReason, /issues-md\.md/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('guard denies an ISSUES.md Edit whose result exceeds 6KB', () => {
+  const { dir, filePath } = mkProjectFile('ISSUES.md');
+  try {
+    fs.writeFileSync(filePath, '# Issues\n\nPLACEHOLDER\n', 'utf8');
+    const decision = runHook({
+      tool_name: 'Edit',
+      tool_input: { file_path: filePath, old_string: 'PLACEHOLDER', new_string: 'x'.repeat(7000) },
+      cwd: dir,
+    });
+    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('guard denies a project CORTEX.md write whose result exceeds 120 lines', () => {
+  const { dir, filePath } = mkProjectFile('CORTEX.md');
+  try {
+    const decision = runHook({
+      tool_name: 'Write',
+      tool_input: { file_path: filePath, content: lines(140) },
+      cwd: dir,
+    });
+    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny');
+    assert.match(decision!.hookSpecificOutput!.permissionDecisionReason, /120 lines/);
+    assert.match(decision!.hookSpecificOutput!.permissionDecisionReason, /cortex-md\.md/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('guard denies a CORTEX.md write whose result exceeds 8KB even at few lines', () => {
+  const { dir, filePath } = mkProjectFile('CORTEX.md');
+  try {
+    const decision = runHook({
+      tool_name: 'Write',
+      tool_input: { file_path: filePath, content: `# index\n${'x'.repeat(9000)}\n` },
+      cwd: dir,
+    });
+    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny');
+    assert.match(decision!.hookSpecificOutput!.permissionDecisionReason, /8KB/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('guard allows a 100-line CORTEX.md (over STATUS cap, under CORTEX cap)', () => {
+  const { dir, filePath } = mkProjectFile('CORTEX.md');
+  try {
+    const decision = runHook({
+      tool_name: 'Write',
+      tool_input: { file_path: filePath, content: lines(100) },
+      cwd: dir,
+    });
+    assert.notEqual(decision?.hookSpecificOutput?.permissionDecision, 'deny');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('guard allows a shrinking write on an over-limit CORTEX.md', () => {
+  const { dir, filePath } = mkProjectFile('CORTEX.md');
+  try {
+    fs.writeFileSync(filePath, `# index\n${'x'.repeat(30000)}\n`, 'utf8');
+    const decision = runHook({
+      tool_name: 'Write',
+      tool_input: { file_path: filePath, content: `# index\n${'x'.repeat(12000)}\n` },
+      cwd: dir,
+    });
+    assert.notEqual(decision?.hookSpecificOutput?.permissionDecision, 'deny');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('guard covers nested CORTEX.md under a project subdirectory', () => {
+  const { dir, filePath } = mkProjectFile('CORTEX.md', 'knowledge');
+  try {
+    const decision = runHook({
+      tool_name: 'Write',
+      tool_input: { file_path: filePath, content: lines(140) },
+      cwd: dir,
+    });
+    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('guard ignores CORTEX.md outside a context tree', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'status-guard-'));
+  try {
+    const decision = runHook({
+      tool_name: 'Write',
+      tool_input: { file_path: path.join(dir, 'CORTEX.md'), content: lines(500) },
+      cwd: dir,
+    });
+    assert.equal(decision, null);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

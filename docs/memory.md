@@ -27,7 +27,7 @@ context/
         ├── mission.md           # Goal and success conditions
         ├── roadmap.md           # Milestones with testable checklist conditions
         ├── STATUS.md            # Present-tense state register (overwriting, max 80 lines / 6KB)
-        ├── ISSUES.md            # Execution friction (append-only, resolved items deleted, max 80 lines)
+        ├── ISSUES.md            # Execution friction (append-only, resolved items deleted, max 80 lines / 6KB)
         ├── TASKS.yaml           # Structured task queue (machine-readable YAML)
         ├── tasks-archive.md     # Auto-archived completed tasks (by the task-archive scheduler job)
         ├── experiments/
@@ -197,7 +197,7 @@ An overwriting (not append-only) state register capturing the project's present 
 
 ### ISSUES.md — Execution Friction
 
-An append-only log of problems that slow work, capped at 80 lines. Each entry has a title with date and bullet lists for: the problem, when it occurs, and investigation process. Resolved issues are deleted from the file (not archived).
+An append-only log of problems that slow work, capped at 80 lines and 6KB with each entry at most 4 lines. An entry is a dated title, a one-line symptom, and a one-line root cause with a pointer to the detailed investigation (knowledge entry, task artifact, or experiment record). Resolved issues are deleted from the file (not archived).
 
 ### decisions/ — Decision Records
 
@@ -207,7 +207,7 @@ Each decision is one file named `NNNN-title.md`. Format follows the project deci
 
 The Dense Context system follows these operational conventions:
 
-1. **Every directory has a CORTEX.md index** — describing the directory's purpose, file list, and lookup rules
+1. **Every directory has a CORTEX.md index** — describing the directory's purpose, file list, and lookup rules. Indexes are pointer-style (one sentence + pointer per line, one line per atomic directory) and hard-capped at 120 lines and 8KB, matching the context-injection budget
 2. **Create file → update index** — when adding a new file to a directory, update that directory's CORTEX.md
 3. **Overwrite vs. append** — STATUS.md overwrites (only current state); ISSUES.md appends then deletes; experiments/knowledge/patterns append and stay
 4. **Provenance is mandatory** — every factual claim must trace to a specific EXP-NNN, K-NNN, file:line, or inline calculation
