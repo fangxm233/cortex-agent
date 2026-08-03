@@ -187,6 +187,7 @@ function expectFailure(
   reason: BenchmarkFailureReason,
   code: number,
   deps = dependencies(),
+  expectedPayload: Record<string, unknown> = {},
 ): PolicyCompilationError {
   const lines: string[] = [];
   const compilerDeps = { ...deps, stderr: { write: (value: unknown) => {
@@ -203,7 +204,9 @@ function expectFailure(
   assert.equal(thrown.reason, reason);
   assert.equal(thrown.code, code);
   assert.equal(lines.length, 1);
-  assert.deepEqual(JSON.parse(lines[0]), { code, failure_class: thrown.failureClass, reason });
+  assert.deepEqual(JSON.parse(lines[0]), {
+    code, failure_class: thrown.failureClass, reason, ...expectedPayload,
+  });
   return thrown;
 }
 
@@ -412,6 +415,30 @@ it('enforces credential, profile, image, and asset failure codes', () => {
     resolve_profile: () => { throw new Error('missing'); },
   });
 
+  const mismatchCases: Array<{
+    field: 'model' | 'backend' | 'provider';
+    armValue: string;
+    profileValue: string;
+  }> = [
+    { field: 'model', armValue: 'claude-sonnet', profileValue: 'claude-opus' },
+    { field: 'backend', armValue: 'claude', profileValue: 'pi' },
+    { field: 'provider', armValue: 'anthropic', profileValue: 'other-provider' },
+  ];
+  for (const mismatch of mismatchCases) {
+    const mismatchedProfile = profile({ [mismatch.field]: mismatch.profileValue });
+    expectFailure(
+      resolution(),
+      'arm_profile_value_mismatch',
+      43,
+      dependencies(mismatchedProfile),
+      {
+        field: mismatch.field,
+        arm_value: mismatch.armValue,
+        profile_value: mismatch.profileValue,
+      },
+    );
+  }
+
   const fallback = resolution();
   expectFailure(fallback, 'profile_has_fallbacks', 12, dependencies(profile({
     fallback: [{
@@ -543,12 +570,17 @@ it('stores the contract whitelist vectors without wildcards', () => {
   ]);
 });
 
-it('classifies all 42 failure codes and reports both invariant classes as JSON', () => {
+it('classifies all 43 failure codes and reports both invariant classes as JSON', () => {
   assert.deepEqual(BENCHMARK_FAILURES.map(value => value.code),
-    Array.from({ length: 42 }, (_, index) => index + 1));
-  assert.equal(new Set(BENCHMARK_FAILURES.map(value => value.reason)).size, 42);
-  assert.equal(BENCHMARK_FAILURES.filter(value => value.failureClass === 'P').length, 26);
+    Array.from({ length: 43 }, (_, index) => index + 1));
+  assert.equal(new Set(BENCHMARK_FAILURES.map(value => value.reason)).size, 43);
+  assert.equal(BENCHMARK_FAILURES.filter(value => value.failureClass === 'P').length, 27);
   assert.equal(BENCHMARK_FAILURES.filter(value => value.failureClass === 'R').length, 16);
+  assert.deepEqual(BENCHMARK_FAILURES.find(value => value.code === 43), {
+    code: 43,
+    reason: 'arm_profile_value_mismatch',
+    failureClass: 'P',
+  });
   assert.deepEqual(BENCHMARK_FAILURE_INVARIANTS.P, [
     'nonzero_exit', 'no_partial_policy_or_process_admitted', 'json_reason_stderr',
   ]);
