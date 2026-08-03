@@ -75,10 +75,7 @@ def _append_unclassified(
     unclassified: list[UnclassifiedFile],
     redactions: tuple[str, ...],
 ) -> None:
-    for path in sorted(
-        candidate for candidate in root.rglob("*")
-        if candidate.is_file() or candidate.is_symlink()
-    ):
+    for path in _root_candidates(root, root_index):
         absolute = path.absolute()
         if absolute in classified or absolute in discovered:
             continue
@@ -88,6 +85,23 @@ def _append_unclassified(
             literal in relative_path for literal in redactions
         ) else relative_path
         unclassified.append(UnclassifiedFile(root_index, reported_path))
+
+
+def _root_candidates(root: Path, root_index: int) -> tuple[Path, ...]:
+    if not root.is_dir():
+        raise ArtifactReadError(f"trial_root:{root_index}")
+    candidates: list[Path] = []
+    try:
+        for directory, dirnames, filenames in root.walk(on_error=_raise_walk_error):
+            dirnames.sort()
+            candidates.extend(directory / name for name in filenames)
+    except OSError as error:
+        raise ArtifactReadError(f"trial_root:{root_index}") from error
+    return tuple(sorted(candidates))
+
+
+def _raise_walk_error(error: OSError) -> None:
+    raise error
 
 
 def _scan_present_sources(

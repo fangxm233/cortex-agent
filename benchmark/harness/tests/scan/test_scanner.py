@@ -10,6 +10,7 @@ import pytest
 
 from cortex_bench_harness.scan import (
     ArtifactInventory,
+    ArtifactReadError,
     ScanPolicy,
     UnclassifiedFile,
     scan_trial_artifacts,
@@ -183,3 +184,17 @@ def test_reports_declared_source_missing_from_disk(tmp_path: Path) -> None:
     assert report.unclassified_files == ()
     assert report.clean is False
     assert report.exit_code == 1
+
+
+def test_rejects_unavailable_trial_root(tmp_path: Path) -> None:
+    artifacts = make_artifacts(tmp_path, "none")
+    inventory = ArtifactInventory(
+        artifacts.sources,
+        artifacts.expected_sources,
+        (*artifacts.trial_roots, tmp_path / "missing-root"),
+    )
+
+    with pytest.raises(ArtifactReadError) as raised:
+        scan_trial_artifacts(inventory, policy())
+
+    assert raised.value.source == "trial_root:1"
