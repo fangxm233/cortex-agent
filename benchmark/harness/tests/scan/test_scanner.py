@@ -12,6 +12,7 @@ from cortex_bench_harness.scan import (
     ArtifactInventory,
     ArtifactReadError,
     ScanPolicy,
+    SourceScan,
     UnclassifiedFile,
     scan_trial_artifacts,
 )
@@ -94,6 +95,20 @@ def test_detects_planted_leaks_in_manifest(tmp_path: Path) -> None:
 
 def test_detects_planted_leaks_in_workspace_diff(tmp_path: Path) -> None:
     assert_detected(tmp_path, "workspace_diff")
+
+
+def test_scans_generalized_named_source(tmp_path: Path) -> None:
+    source = tmp_path / "child-journal.jsonl"
+    source.write_text("clean child journal\n")
+    inventory = ArtifactInventory(
+        {"child_journal": source}, frozenset({"child_journal"}), (tmp_path,),
+    )
+
+    report = scan_trial_artifacts(inventory, policy())
+
+    assert report.sources == (SourceScan("child_journal", source.stat().st_size),)
+    assert report.clean is True
+    assert report.exit_code == 0
 
 
 def test_rejects_noncanonical_harness_manifest_filename(tmp_path: Path) -> None:
