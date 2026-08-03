@@ -27,7 +27,7 @@ def scan_trial_artifacts(
 ) -> ScanReport:
     _validate_inventory(inventory)
     missing_sources = _missing_sources(inventory)
-    unclassified_files = _unclassified_files(inventory)
+    unclassified_files = _unclassified_files(inventory, policy)
     findings, sources = _scan_present_sources(inventory, missing_sources, policy)
     return ScanReport(
         sources, findings, missing_sources, unclassified_files,
@@ -49,15 +49,21 @@ def _missing_sources(inventory: ArtifactInventory) -> tuple[str, ...]:
 
 def _unclassified_files(
     inventory: ArtifactInventory,
+    policy: ScanPolicy,
 ) -> tuple[UnclassifiedFile, ...]:
     classified = {
         path.absolute() for source, path in inventory.sources.items()
         if source in inventory.expected_sources and path.is_file()
     }
+    redactions = (
+        *policy.secrets.values(), policy.repository_checkout, policy.hostname,
+    )
     discovered: set[Path] = set()
     unclassified: list[UnclassifiedFile] = []
     for root_index, root in enumerate(inventory.trial_roots):
-        _append_unclassified(root, root_index, classified, discovered, unclassified)
+        _append_unclassified(
+            root, root_index, classified, discovered, unclassified, redactions,
+        )
     return tuple(unclassified)
 
 
@@ -67,13 +73,17 @@ def _append_unclassified(
     classified: set[Path],
     discovered: set[Path],
     unclassified: list[UnclassifiedFile],
+    redactions: tuple[str, ...],
 ) -> None:
     for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
         absolute = path.absolute()
         if absolute in classified or absolute in discovered:
             continue
         discovered.add(absolute)
-        unclassified.append(UnclassifiedFile(root_index, path.relative_to(root).as_posix()))
+        relative_path = path.relative_to(root).as_posix()
+        for literal in redactions:
+            relative_path = relative_path.replace(literal, "<redacted>")
+        unclassified.append(UnclassifiedFile(root_index, relative_path))
 
 
 def _scan_present_sources(
