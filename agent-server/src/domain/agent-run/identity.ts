@@ -1,5 +1,5 @@
 // input:  resolved profiles and caller-supplied manifests
-// output: canonical JSON and three run identity SHA-256 hashes
+// output: canonical JSON and guarded run identity SHA-256 hashes
 // pos:    Pure identity freezer for one-shot agent runs
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -44,6 +44,7 @@ export interface RoleToolSurfaceInput {
   skills: SkillIdentityInput[];
   mcpComposition: McpComposition;
   hookPolicy: IdentityJsonValue;
+  benchmarkPolicyGuard?: IdentityJsonValue;
 }
 
 export interface BundleManifestInput {
@@ -163,6 +164,7 @@ export function computeRoleToolSurfaceHash(input: RoleToolSurfaceInput): string 
     skills: [...input.skills].sort((a, b) => compareText(a.name, b.name)),
     mcp_composition: input.mcpComposition,
     hook_policy: input.hookPolicy,
+    benchmark_policy_guard: input.benchmarkPolicyGuard,
   });
 }
 

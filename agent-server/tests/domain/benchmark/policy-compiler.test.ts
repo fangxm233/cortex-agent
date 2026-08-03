@@ -1,0 +1,531 @@
+// input:  benchmark policy compiler, temp assets, run-config loader
+// output: Gate-1 schema, freeze, failure, and projection proofs
+// pos:    Regression suite for compiled benchmark trial policy
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
+
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, it } from 'vitest';
+import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
+import { loadAgentRunConfig } from '../../../src/domain/agent-run/run-config.js';
+import { parseArmDefinitionSet } from '../../../src/domain/benchmark/arm-schema.js';
+import {
+  BENCHMARK_FAILURES,
+  BENCHMARK_FAILURE_INVARIANTS,
+  type BenchmarkFailureReason,
+} from '../../../src/domain/benchmark/resolved-policy.js';
+import {
+  capabilityWhitelistForArm,
+  childTemplateWhitelistForArm,
+} from '../../../src/domain/benchmark/capabilities.js';
+import {
+  compileResolvedTrialPolicy,
+  PolicyCompilationError,
+  projectAgentRunConfig,
+  rejectPolicyReresolution,
+  type ArmResolution,
+  type PolicyCompilerDependencies,
+} from '../../../src/domain/benchmark/policy-compiler.js';
+
+const FIXED_WALL_MS = 1_900_000_000_000;
+const FIXED_MONOTONIC_NS = 8_765_432_100;
+let root = '';
+
+beforeEach(() => {
+  root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-policy-'));
+});
+
+afterEach(() => {
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+function writeAsset(name: string, content: string): string {
+  const file = path.join(root, name);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, content);
+  return file;
+}
+
+function profile(overrides: Partial<ResolvedProfileConfig> = {}): ResolvedProfileConfig {
+  return {
+    name: 'benchmark-profile',
+    model: 'claude-sonnet',
+    backend: 'claude',
+    mode: 'api',
+    provider: 'anthropic',
+    extraEnv: { ANTHROPIC_BASE_URL: 'http://127.0.0.1:49152' },
+    extraOption: {},
+    claudeBackend: 'print',
+    thinking: 'high',
+    fallback: [],
+    ...overrides,
+  };
+}
+
+function arm() {
+  return {
+    schema_version: 'cortex-benchmark-arm/2' as const,
+    kind: 'cortex' as const,
+    name: 'cortex-direct',
+    backend: 'claude' as const,
+    provider: 'anthropic',
+    model: 'claude-sonnet',
+    credential_capability: 'claude-api-key',
+    orchestration: { mode: 'direct' as const, ask_manager: false },
+    limits: {
+      max_thread_starts: 0,
+      max_parent_questions: 0,
+      max_task_depth: 0,
+      max_tasks: 0,
+      max_provider_requests: 8,
+      max_resident_agent_processes: 3,
+      max_cost_usd: '2.50',
+      deadline_seconds: 90,
+    },
+  };
+}
+
+function resolution(): ArmResolution {
+  const systemPrompt = writeAsset('parent-system.txt', 'You are the benchmark parent.\n');
+  const directive = writeAsset('parent-directive.txt', 'Solve the task.\n');
+  const cli = writeAsset('claude-fixture', '#!/bin/sh\nexit 0\n');
+  const mcp = writeAsset('mcp-empty.json', '{"mcpServers":{}}\n');
+  return {
+    arm: arm(),
+    arm_path: '/harness/arms/cortex-direct.yaml',
+    trial_id: 'trial-001',
+    root_run_id: 'trial-001.cortex-direct',
+    task: {
+      task_id: 'terminal-task',
+      image_ref: 'registry.invalid/task@sha256:fixture',
+      image_digest: `sha256:${'a'.repeat(64)}`,
+    },
+    profile_name: 'benchmark-profile',
+    paid_run: false,
+    credential_capabilities: [{
+      id: 'claude-api-key',
+      state: 'offline-contract-passed',
+      key: {
+        runner_or_backend: 'claude',
+        provider: 'anthropic',
+        protocol: 'anthropic-messages',
+        credential_kind: 'api-key-bearer',
+        proxy_adapter_version: 'cortex-bench-trial-proxy/1',
+      },
+    }],
+    credential: {
+      upstream_base_url: 'https://api.anthropic.com',
+      route_identity_host: 'api.anthropic.com',
+      proxy_base_url: 'http://127.0.0.1:49152',
+      dummy_token_ref: 'trial-token-handle',
+    },
+    cli_artifact: { path: cli, version: 'fixture-1.0.0' },
+    model_alias_policy: { kind: 'exact' },
+    roles: {
+      parent: {
+        system_prompt_path: systemPrompt,
+        directive_path: directive,
+        tools: ['Read', 'Write'],
+        plugin_dirs: [],
+        mcp_composition: 'none',
+        mcp_config_paths: [mcp],
+        disable_hooks: true,
+        benchmark_policy_guard: {
+          parent_writable: ['Read', 'Write'],
+          thread_active: ['Read'],
+        },
+      },
+    },
+    thread_templates: {},
+    thread_agents: {},
+    artifact_inventory_spec: {
+      expected: ['stdout', 'stderr', 'manifest', 'workspace_diff'],
+    },
+  };
+}
+
+function dependencies(
+  profileValue = profile(),
+  stderrLines: string[] = [],
+): PolicyCompilerDependencies {
+  return {
+    wall_clock_ms: () => FIXED_WALL_MS,
+    monotonic_ns: () => FIXED_MONOTONIC_NS,
+    resolve_profile: () => profileValue,
+    stderr: { write: value => { stderrLines.push(String(value)); return true; } },
+  };
+}
+
+function expectFailure(
+  input: ArmResolution,
+  reason: BenchmarkFailureReason,
+  code: number,
+  deps = dependencies(),
+): PolicyCompilationError {
+  const lines: string[] = [];
+  const compilerDeps = { ...deps, stderr: { write: (value: unknown) => {
+    lines.push(String(value));
+    return true;
+  } } } as PolicyCompilerDependencies;
+  let thrown: unknown;
+  try {
+    compileResolvedTrialPolicy(input, compilerDeps);
+  } catch (error) {
+    thrown = error;
+  }
+  assert.ok(thrown instanceof PolicyCompilationError);
+  assert.equal(thrown.reason, reason);
+  assert.equal(thrown.code, code);
+  assert.equal(lines.length, 1);
+  assert.deepEqual(JSON.parse(lines[0]), { code, failure_class: thrown.failureClass, reason });
+  return thrown;
+}
+
+it('compiles an ordered, absolute, closed, deeply frozen cortex policy', () => {
+  const stderr: string[] = [];
+  const input = resolution();
+  const policy = compileResolvedTrialPolicy(input, dependencies(profile(), stderr));
+
+  assert.equal(stderr.length, 0);
+  assert.equal(policy.deadline.compiled_at_epoch_ms, FIXED_WALL_MS);
+  assert.equal(policy.deadline.absolute_epoch_ms, FIXED_WALL_MS + 90_000);
+  assert.equal(policy.deadline.monotonic_origin_ns, FIXED_MONOTONIC_NS);
+  assert.deepEqual(policy.child_template_whitelist, []);
+  assert.deepEqual(policy.capability_whitelist, []);
+  assert.equal(policy.derived.effective_admission_budget, 2);
+  assert.equal('effective_admission_budget' in policy.limits, false);
+  assert.equal(policy.model_execution.configured_route_base_host, 'api.anthropic.com');
+  assert.notEqual(policy.model_execution.configured_route_base_host, '127.0.0.1:49152');
+  assert.deepEqual(policy.asset_inventory.map(entry => entry.kind), [
+    'arm', 'credential_capability', 'profile', 'cli_artifact', 'provider_route',
+    'prompt', 'prompt', 'tool_set', 'mcp_server', 'limits',
+  ]);
+  assert.deepEqual(
+    policy.asset_inventory.map(entry => entry.ordinal),
+    policy.asset_inventory.map((_, index) => index + 1),
+  );
+  assert.match(policy.arm_canonical_sha256, /^[0-9a-f]{64}$/);
+  assert.match(policy.asset_inventory_sha256, /^[0-9a-f]{64}$/);
+  assert.match(policy.identity.model_execution_identity_hash.parent, /^[0-9a-f]{64}$/);
+  assert.match(policy.identity.role_tool_surface_hash.parent, /^[0-9a-f]{64}$/);
+  assert.match(policy.identity.bundle_manifest_hash, /^[0-9a-f]{64}$/);
+  assert.ok(Object.isFrozen(policy));
+  assert.ok(Object.isFrozen(policy.arm));
+  assert.ok(Object.isFrozen(policy.asset_inventory));
+  assert.ok(Object.isFrozen(policy.roles.parent.tools));
+  assert.throws(() => { (policy.limits as { max_tasks: number }).max_tasks = 1; }, TypeError);
+  assert.throws(() => { (policy.child_template_whitelist as string[]).push('other'); }, TypeError);
+});
+
+it('validates every ordered arm cross-field rule with its assigned failure', () => {
+  const cases: Array<{
+    label: string;
+    mutate: (input: ArmResolution) => void;
+    reason: BenchmarkFailureReason;
+    code: number;
+  }> = [
+    {
+      label: 'cortex fields',
+      mutate: input => { delete (input.arm as Record<string, unknown>).backend; },
+      reason: 'arm_field_conflict', code: 2,
+    },
+    {
+      label: 'vendor fields',
+      mutate: input => { Object.assign(input.arm as object, { kind: 'vendor-baseline', vendor_agent: 'codex' }); },
+      reason: 'arm_field_conflict', code: 2,
+    },
+    {
+      label: 'coder variant required',
+      mutate: input => { (input.arm as ReturnType<typeof arm>).orchestration.mode = 'coder-review' as 'direct'; },
+      reason: 'coder_review_variant_invalid', code: 3,
+    },
+    {
+      label: 'coder variant forbidden',
+      mutate: input => {
+        Object.assign((input.arm as ReturnType<typeof arm>).orchestration, {
+          coder_review_variant: 'audit-retry',
+        });
+      },
+      reason: 'coder_review_variant_invalid', code: 3,
+    },
+    {
+      label: 'ask manager mode',
+      mutate: input => { (input.arm as ReturnType<typeof arm>).orchestration.ask_manager = true; },
+      reason: 'ask_manager_unsupported_mode', code: 4,
+    },
+    {
+      label: 'thread start consistency',
+      mutate: input => { (input.arm as ReturnType<typeof arm>).limits.max_thread_starts = 1; },
+      reason: 'arm_field_conflict', code: 2,
+    },
+    {
+      label: 'question consistency',
+      mutate: input => { (input.arm as ReturnType<typeof arm>).limits.max_parent_questions = 1; },
+      reason: 'arm_field_conflict', code: 2,
+    },
+    {
+      label: 'non-manager task limits',
+      mutate: input => { (input.arm as ReturnType<typeof arm>).limits.max_tasks = 1; },
+      reason: 'arm_field_conflict', code: 2,
+    },
+    {
+      label: 'capacity',
+      mutate: input => {
+        const value = input.arm as ReturnType<typeof arm>;
+        Object.assign(value.orchestration, { mode: 'manager' });
+        Object.assign(value.limits, {
+          max_thread_starts: 1, max_task_depth: 3, max_tasks: 4,
+          max_resident_agent_processes: 3,
+        });
+      },
+      reason: 'capacity_rule_violated', code: 7,
+    },
+    {
+      label: 'vendor pi provider',
+      mutate: input => {
+        const value = input.arm as Record<string, unknown>;
+        value.kind = 'vendor-baseline';
+        value.vendor_agent = 'pi';
+        delete value.backend;
+        delete value.orchestration;
+        delete value.provider;
+        (value.limits as Record<string, unknown>).max_thread_starts = 0;
+      },
+      reason: 'arm_field_conflict', code: 2,
+    },
+  ];
+
+  for (const testCase of cases) {
+    const input = resolution();
+    testCase.mutate(input);
+    const error = expectFailure(input, testCase.reason, testCase.code);
+    assert.ok(error.message.includes(testCase.reason), testCase.label);
+  }
+});
+
+it('reports credential rule 9 before provider rule 10 when both fail', () => {
+  const input = resolution();
+  const value = input.arm as Record<string, unknown>;
+  value.kind = 'vendor-baseline';
+  value.vendor_agent = 'pi';
+  delete value.backend;
+  delete value.orchestration;
+  delete value.provider;
+  (value.limits as Record<string, unknown>).max_thread_starts = 0;
+  input.credential_capabilities = [];
+  expectFailure(input, 'credential_capability_unknown', 8);
+});
+
+it('rejects duplicate arm names in a declared arm set', () => {
+  assert.throws(
+    () => parseArmDefinitionSet([arm(), arm()]),
+    error => error instanceof Error && error.message.includes('arm names must be unique'),
+  );
+});
+
+it('rejects schema and limit errors before resolving assets', () => {
+  const invalidSchema = resolution();
+  (invalidSchema.arm as Record<string, unknown>).schema_version = 'cortex-benchmark-arm/1';
+  expectFailure(invalidSchema, 'arm_schema_invalid', 1);
+
+  const invalidLimit = resolution();
+  (invalidLimit.arm as ReturnType<typeof arm>).limits.max_provider_requests = 0;
+  expectFailure(invalidLimit, 'limit_out_of_range', 5);
+});
+
+it('enforces credential, profile, image, and asset failure codes', () => {
+  const unknown = resolution();
+  unknown.credential_capabilities = [];
+  expectFailure(unknown, 'credential_capability_unknown', 8);
+
+  const unsupported = resolution();
+  unsupported.credential_capabilities[0].state = 'unsupported';
+  expectFailure(unsupported, 'credential_capability_unsupported', 9);
+
+  const insufficient = resolution();
+  insufficient.paid_run = true;
+  expectFailure(insufficient, 'credential_capability_state_insufficient', 10);
+
+  const unresolved = resolution();
+  expectFailure(unresolved, 'profile_unresolvable', 11, {
+    ...dependencies(),
+    resolve_profile: () => { throw new Error('missing'); },
+  });
+
+  const fallback = resolution();
+  expectFailure(fallback, 'profile_has_fallbacks', 12, dependencies(profile({
+    fallback: [{
+      model: 'fallback', backend: 'claude', mode: null, provider: null,
+      extraEnv: {}, extraOption: {}, claudeBackend: 'print', thinking: null,
+    }],
+  })));
+
+  const extra = resolution();
+  expectFailure(extra, 'profile_extra_option_unsupported', 13, dependencies(profile({
+    extraOption: { '--permission-mode': 'default' },
+  })));
+
+  const image = resolution();
+  image.task.image_digest = 'latest';
+  expectFailure(image, 'image_digest_unpinned', 21);
+
+  const missing = resolution();
+  missing.cli_artifact.path = path.join(root, 'missing-cli');
+  expectFailure(missing, 'asset_missing', 15);
+
+  const unreadable = resolution();
+  expectFailure(unreadable, 'asset_unreadable', 16, {
+    ...dependencies(),
+    read_file: file => {
+      if (file === unreadable.cli_artifact.path) {
+        throw Object.assign(new Error('denied'), { code: 'EACCES' });
+      }
+      return fs.readFileSync(file);
+    },
+  });
+
+  const mismatch = resolution();
+  mismatch.expected_asset_hashes = { 'cli_artifact:claude': '0'.repeat(64) };
+  expectFailure(mismatch, 'asset_hash_mismatch', 17);
+});
+
+it('rejects duplicate skills, invalid MCP surfaces, and unfreezable policy values', () => {
+  const duplicate = resolution();
+  const first = path.join(root, 'plugin-a', 'skills', 'inspect');
+  const second = path.join(root, 'plugin-b', 'skills', 'inspect');
+  fs.mkdirSync(first, { recursive: true });
+  fs.mkdirSync(second, { recursive: true });
+  fs.writeFileSync(path.join(first, 'SKILL.md'), 'first\n');
+  fs.writeFileSync(path.join(second, 'SKILL.md'), 'second\n');
+  duplicate.roles.parent.plugin_dirs = [path.dirname(path.dirname(first)), path.dirname(path.dirname(second))];
+  expectFailure(duplicate, 'duplicate_skill_name', 18);
+
+  const invalidMcp = resolution();
+  fs.writeFileSync(invalidMcp.roles.parent.mcp_config_paths[0], JSON.stringify({
+    mcpServers: { ambient: { command: 'false' } },
+  }));
+  expectFailure(invalidMcp, 'mcp_composition_invalid', 19);
+
+  const unfreezable = resolution();
+  unfreezable.artifact_inventory_spec = new Map() as never;
+  expectFailure(unfreezable, 'policy_freeze_failed', 22);
+});
+
+it('rejects nonpositive absolute deadlines and unproven PI benchmark support', () => {
+  const deadline = resolution();
+  expectFailure(deadline, 'deadline_nonpositive', 6, {
+    ...dependencies(),
+    wall_clock_ms: () => Number.MAX_SAFE_INTEGER,
+  });
+
+  const pi = resolution();
+  Object.assign(pi.arm as ReturnType<typeof arm>, { backend: 'pi', provider: 'openai-codex' });
+  expectFailure(pi, 'backend_unsupported_for_kind', 14, dependencies(profile({
+    backend: 'pi', provider: 'openai-codex', thinking: 'high',
+  })));
+});
+
+it('enforces closed template and capability whitelists', () => {
+  const input = resolution();
+  const value = input.arm as ReturnType<typeof arm>;
+  value.orchestration.mode = 'coder-review' as 'direct';
+  Object.assign(value.orchestration, { coder_review_variant: 'audit-retry' });
+  value.limits.max_thread_starts = 1;
+  input.thread_templates = {
+    'benchmark-coder-review': path.resolve(
+      'defaults/config/thread-templates/templates/benchmark-coder-review.json',
+    ),
+  };
+  input.thread_agents = {
+    'benchmark-coder': path.resolve(
+      'defaults/config/thread-templates/agents/benchmark-coder.json',
+    ),
+    'benchmark-reviewer': path.resolve(
+      'defaults/config/thread-templates/agents/benchmark-reviewer.json',
+    ),
+  };
+  const policy = compileResolvedTrialPolicy(input, dependencies());
+  assert.deepEqual(policy.child_template_whitelist, ['benchmark-coder-review']);
+  assert.deepEqual(policy.capability_whitelist, ['artifact.write', 'task.read']);
+
+  const denied = structuredClone(input);
+  denied.thread_templates.ambient = input.thread_templates['benchmark-coder-review'];
+  expectFailure(denied, 'template_not_whitelisted', 20);
+});
+
+it('stores the contract whitelist vectors without wildcards', () => {
+  assert.deepEqual(childTemplateWhitelistForArm(arm()), []);
+  assert.deepEqual(capabilityWhitelistForArm(arm()), []);
+
+  const manager = arm();
+  manager.orchestration.mode = 'manager' as 'direct';
+  manager.orchestration.ask_manager = true;
+  assert.deepEqual(childTemplateWhitelistForArm(manager), [
+    'benchmark-coder-review', 'benchmark-manager',
+  ]);
+  assert.deepEqual(capabilityWhitelistForArm(manager), [
+    'artifact.write', 'dependency.declare', 'qa.answer', 'qa.ask', 'task.claim',
+    'task.create', 'task.decompose', 'task.propose_block', 'task.propose_complete', 'task.read',
+  ]);
+});
+
+it('classifies all 42 failure codes and reports both invariant classes as JSON', () => {
+  assert.deepEqual(BENCHMARK_FAILURES.map(value => value.code),
+    Array.from({ length: 42 }, (_, index) => index + 1));
+  assert.equal(new Set(BENCHMARK_FAILURES.map(value => value.reason)).size, 42);
+  assert.equal(BENCHMARK_FAILURES.filter(value => value.failureClass === 'P').length, 26);
+  assert.equal(BENCHMARK_FAILURES.filter(value => value.failureClass === 'R').length, 16);
+  assert.deepEqual(BENCHMARK_FAILURE_INVARIANTS.P, [
+    'nonzero_exit', 'no_partial_policy_or_process_admitted', 'json_reason_stderr',
+  ]);
+  assert.deepEqual(BENCHMARK_FAILURE_INVARIANTS.R, [
+    'nonzero_exit', 'strict_finalization', 'json_reason_stderr',
+  ]);
+
+  const prestart = resolution();
+  (prestart.arm as ReturnType<typeof arm>).limits.max_resident_agent_processes = 0;
+  const pError = expectFailure(prestart, 'limit_out_of_range', 5);
+  assert.equal(pError.failureClass, 'P');
+
+  const lines: string[] = [];
+  assert.throws(
+    () => rejectPolicyReresolution('profile', 'benchmark-profile', {
+      write: value => { lines.push(String(value)); return true; },
+    }),
+    error => error instanceof PolicyCompilationError && error.failureClass === 'R',
+  );
+  assert.deepEqual(JSON.parse(lines[0]), {
+    code: 23, failure_class: 'R', reason: 'policy_reresolution_attempted',
+  });
+});
+
+it('projects disposable run config without changing policy authority', () => {
+  const policy = compileResolvedTrialPolicy(resolution(), dependencies());
+  const projection = projectAgentRunConfig(policy, 'parent');
+  const file = writeAsset('compiled-run-config.json', `${JSON.stringify(projection)}\n`);
+  const loaded = loadAgentRunConfig(file);
+  assert.equal(loaded.role.systemPrompt, policy.roles.parent.systemPrompt);
+  assert.deepEqual(loaded.role.tools, policy.roles.parent.tools);
+  assert.deepEqual(loaded.limits, policy.limits);
+  assert.deepEqual(loaded.runConfig, policy.arm);
+});
+
+it('loads the stable representative compiled projection fixture directly', () => {
+  // Stable cross-language handoff: Python must reproduce this exact path and schema.
+  const fixture = path.resolve('tests/benchmark-resolved-run-config.golden.json');
+  const input = resolution();
+  input.cli_artifact.path = path.resolve('src/domain/agent-run/identity.ts');
+  input.roles.parent.system_prompt_path = path.resolve('tests/benchmark-policy-system-prompt.txt');
+  input.roles.parent.directive_path = path.resolve('tests/benchmark-policy-system-prompt.txt');
+  input.roles.parent.mcp_config_paths = [path.resolve('defaults/config/mcp-config-empty.json')];
+  const policy = compileResolvedTrialPolicy(input, dependencies());
+  const expected = JSON.parse(fs.readFileSync(fixture, 'utf8'));
+  assert.deepEqual(projectAgentRunConfig(policy, 'parent', path.dirname(fixture)), expected);
+
+  const loaded = loadAgentRunConfig(fixture);
+  assert.equal(loaded.role.systemPrompt, 'You are the representative Cortex parent.\n');
+  assert.deepEqual(loaded.role.tools, ['Read', 'Write']);
+  assert.deepEqual(loaded.runConfig, arm());
+});

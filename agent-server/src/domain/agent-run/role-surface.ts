@@ -1,5 +1,5 @@
 // input:  resolved AgentSpawnConfig and plugin directory trees
-// output: content-addressed role/tool identity surface
+// output: content-addressed role, tool, and guard surface
 // pos:    Anti-divergence identity projection for one-shot spawns
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -103,9 +103,10 @@ function hookPolicy(config: AgentSpawnConfig): IdentityJsonValue {
 export function roleSurfaceFromSpawnConfig(
   config: AgentSpawnConfig,
   directive = '',
+  benchmarkPolicyGuard?: IdentityJsonValue,
 ): RoleToolSurfaceInput {
   const pluginDirs = config.pluginDirs ?? [];
-  return {
+  const surface: RoleToolSurfaceInput = {
     systemPromptSha256: sha256(config.systemPrompt ?? ''),
     directiveSha256: sha256(directive),
     tools: spawnedTools(config),
@@ -114,4 +115,8 @@ export function roleSurfaceFromSpawnConfig(
     mcpComposition: config.mcpComposition ?? 'direct',
     hookPolicy: hookPolicy(config),
   };
+  if (benchmarkPolicyGuard !== undefined) {
+    surface.benchmarkPolicyGuard = benchmarkPolicyGuard;
+  }
+  return surface;
 }

@@ -1,5 +1,5 @@
 // input:  identity module, resolved profiles, child processes
-// output: deterministic identity hash contract tests
+// output: deterministic identity and benchmark guard hash proofs
 // pos:    Agent-run identity hashing regression suite
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -167,6 +167,26 @@ it('projects exactly the role tool surface keys', () => {
     system_prompt_sha256: SHA_A,
     tools: ['Read', 'Write'],
   }));
+});
+
+it('keeps the shipped role hash byte-identical when benchmark guard is omitted', () => {
+  assert.equal(
+    computeRoleToolSurfaceHash(frozenInput().roleToolSurface),
+    '5e00de95e1247a8cc7078b385962d02b76439c286607ec44ad0b971642c097f6',
+  );
+});
+
+it('changes the role hash when one compiled benchmark guard rule changes', () => {
+  const baseline = frozenInput().roleToolSurface;
+  const readOnly = computeRoleToolSurfaceHash({
+    ...baseline,
+    benchmarkPolicyGuard: { thread_active: { Write: 'deny' } },
+  });
+  const writable = computeRoleToolSurfaceHash({
+    ...baseline,
+    benchmarkPolicyGuard: { thread_active: { Write: 'allow' } },
+  });
+  assert.notEqual(readOnly, writable);
 });
 
 it('projects exactly the bundle manifest keys', () => {

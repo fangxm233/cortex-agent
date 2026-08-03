@@ -1,5 +1,5 @@
 // input:  prepared spawn configs and temporary plugin trees
-// output: content hashing and argv anti-divergence proofs
+// output: content, guard, and argv anti-divergence proofs
 // pos:    Regression tests for exact one-shot role identity
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
@@ -65,6 +65,14 @@ it('hashes a caller-supplied thread directive instead of the one-shot empty dire
     directed.directiveSha256,
     '66ef966ddb7cadb3286bb29d17558fff3e1028b6a47659e57247d3464ba0e357',
   );
+});
+
+it('projects compiled benchmark guard rules separately from ambient hooks', () => {
+  const guard = { parent_writable: { Write: 'allow' }, thread_active: { Write: 'deny' } };
+  const surface = roleSurfaceFromSpawnConfig(spawnConfig(), '', guard);
+  assert.deepEqual(surface.benchmarkPolicyGuard, guard);
+  assert.deepEqual(surface.hookPolicy, {});
+  assert.equal('benchmarkPolicyGuard' in roleSurfaceFromSpawnConfig(spawnConfig()), false);
 });
 
 it('hashes Claude default tools when the spawn omits or blanks raw tools', () => {

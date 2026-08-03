@@ -1,0 +1,110 @@
+{
+  "schema_version": "cortex-agent-run-config/1",
+  "model_execution": {
+    "model_alias_policy": {
+      "kind": "exact"
+    }
+  },
+  "role": {
+    "system_prompt": "You are the representative Cortex parent.\n",
+    "tools": [
+      "Read",
+      "Write"
+    ],
+    "plugin_dirs": [],
+    "mcp_composition": "none",
+    "mcp_config_paths": [
+      "../defaults/config/mcp-config-empty.json"
+    ],
+    "disable_hooks": true
+  },
+  "bundle": {
+    "run_config": {
+      "schema_version": "cortex-benchmark-arm/2",
+      "kind": "cortex",
+      "name": "cortex-direct",
+      "backend": "claude",
+      "provider": "anthropic",
+      "model": "claude-sonnet",
+      "credential_capability": "claude-api-key",
+      "orchestration": {
+        "mode": "direct",
+        "ask_manager": false
+      },
+      "limits": {
+        "max_thread_starts": 0,
+        "max_parent_questions": 0,
+        "max_task_depth": 0,
+        "max_tasks": 0,
+        "max_provider_requests": 8,
+        "max_resident_agent_processes": 3,
+        "max_cost_usd": "2.50",
+        "deadline_seconds": 90
+      }
+    },
+    "limits": {
+      "max_thread_starts": 0,
+      "max_parent_questions": 0,
+      "max_task_depth": 0,
+      "max_tasks": 0,
+      "max_provider_requests": 8,
+      "max_resident_agent_processes": 3,
+      "max_cost_usd": "2.50",
+      "deadline_seconds": 90
+    },
+    "adapter_hashes": [
+      {
+        "kind": "profile",
+        "logical_name": "benchmark-profile",
+        "content_sha256": "7e77cfbcc4497d25ddba6a3cf706754cce42ab80e774d7c64cf52fb4770e7e4a"
+      },
+      {
+        "kind": "cli_artifact",
+        "logical_name": "claude",
+        "content_sha256": "aee6cfb04dd1dacade6617bb1906951dd3d30416b4a7320f78d19024c2187813"
+      },
+      {
+        "kind": "prompt",
+        "logical_name": "parent:system_prompt",
+        "content_sha256": "a43100ff98f1ae9947d787345457c135260054b8c5809cb1a376beb96ee59d10"
+      },
+      {
+        "kind": "prompt",
+        "logical_name": "parent:directive",
+        "content_sha256": "a43100ff98f1ae9947d787345457c135260054b8c5809cb1a376beb96ee59d10"
+      },
+      {
+        "kind": "tool_set",
+        "logical_name": "parent",
+        "content_sha256": "c48ca06973e2e0d8389cec40bbc3f676771719e6388a7ac53989a782b84b2d97"
+      },
+      {
+        "kind": "mcp_server",
+        "logical_name": "parent:0:mcp-config-empty.json",
+        "content_sha256": "d8e397af03b5b032f21d0aa967086f0c78b33c87b76f2e9898ae0a144df7de02"
+      }
+    ],
+    "harness_hashes": [
+      {
+        "kind": "arm",
+        "logical_name": "cortex-direct",
+        "content_sha256": "28ba52ca67fa9ce1f8e623ba26298701942a2f02332ac1e348f2cce9f20b89a7"
+      },
+      {
+        "kind": "credential_capability",
+        "logical_name": "claude-api-key",
+        "content_sha256": "78a6864ba9ff7486d65a9ee9e733fc657d3d16f91cd1a6f190dde0f2dc70373c"
+      },
+      {
+        "kind": "provider_route",
+        "logical_name": "claude-api-key",
+        "content_sha256": "0c8cd4a3fc2714006de2db4c56f7f04dcf6e4a66741c926f202087fed1a04d12"
+      },
+      {
+        "kind": "limits",
+        "logical_name": "cortex-direct",
+        "content_sha256": "b42770901f1e6cd7ffaeb56c693e1259ee73a34e1c58b27c666b5b6f5068459d"
+      }
+    ]
+  }
+}

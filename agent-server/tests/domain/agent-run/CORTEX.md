@@ -21,12 +21,12 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | fake-supervisor.ts | fixture | emits lifecycle and ownership process edges |
 | fake-thread-probe-entry.mjs | fixture | runs one current-runner step and flushes stores |
 | full-benchmark-thread-probe-entry.mjs | fixture | emits complete fake C4 events for C8 tracing |
-| identity.test.ts | test | verifies deterministic run identity hashes |
+| identity.test.ts | test | verifies deterministic run and guard identity hashes |
 | journal.test.ts | test | verifies durable events and relocatable lifecycle paths |
 | manifest-contract.test.ts | test | verifies lifecycle, linkage and child identity contracts |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
-| role-surface.test.ts | test | verifies directives, default tools and argv alignment |
+| role-surface.test.ts | test | verifies directives, guards, tools and argv alignment |
 | run-config.test.ts | test | verifies non-empty roles, argv closure, and MCP inputs |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
 | trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
