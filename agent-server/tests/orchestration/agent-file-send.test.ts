@@ -1,7 +1,8 @@
 import '../_test-home.js'; // MUST be first — repoints CORTEX_HOME before paths bind
-// input:  src/orchestration/agent-file-send.js
-// output: Unit tests — sendAgentFile dual-write (history + bus), mime/type inference, real copy
-// pos:    Guards the agent-sent file (20a) delivery path
+// input:  agent-file-send module and isolated temporary files
+// output: regressions for delivery, Unicode names, MIME and copying
+// pos:    guards the agent-sent file delivery path
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
@@ -71,18 +72,45 @@ test('sendAgentFile defaults caption to empty string', async () => {
   assert.equal(published[0].attachments![0].type, 'image');
 });
 
-test('copyFileIntoOutputs copies a real file under workspace/outputs and collision-renames', async () => {
+test('copyFileIntoOutputs preserves Unicode display names while collision-renaming only storage', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-file-src-'));
-  const src = path.join(tmp, 'data.csv');
-  await fs.writeFile(src, 'a,b,c\n1,2,3\n');
+  const name = '🌍 周深 《不想睡》 Zhou Shen ♥♫.mp3';
+  const src = path.join(tmp, name);
+  await fs.writeFile(src, 'audio');
 
   const first = await copyFileIntoOutputs({ sessionId: 'copy-sess', filePath: src });
-  assert.equal(first.relPath, 'workspace/outputs/copy-sess/data.csv');
-  assert.equal(first.name, 'data.csv');
+  assert.equal(first.name, name);
+  assert.match(first.relPath, /^workspace\/outputs\/copy-sess\/[A-Za-z0-9._-]+\.mp3$/);
+  assert.ok(!first.relPath.includes('周深'), 'internal storage remains ASCII-only');
   assert.ok(first.size > 0);
 
   const second = await copyFileIntoOutputs({ sessionId: 'copy-sess', filePath: src });
-  assert.equal(second.name, 'data_1.csv', 'collision auto-renames');
+  assert.equal(second.name, name, 'storage collisions do not rewrite the visible name');
+  assert.notEqual(second.relPath, first.relPath, 'storage collision receives a unique path');
+});
+
+test('copyFileIntoOutputs keeps an all-Unicode stem visible and uses a safe storage fallback', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-file-unicode-'));
+  const src = path.join(tmp, '周深.mp3');
+  await fs.writeFile(src, 'audio');
+
+  const copied = await copyFileIntoOutputs({ sessionId: 'unicode-sess', filePath: src });
+  assert.equal(copied.name, '周深.mp3');
+  assert.equal(copied.relPath, 'workspace/outputs/unicode-sess/file.mp3');
+});
+
+test('copyFileIntoOutputs removes path components and controls from a display-name override', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-file-override-'));
+  const src = path.join(tmp, 'source.csv');
+  await fs.writeFile(src, 'data');
+
+  const copied = await copyFileIntoOutputs({
+    sessionId: 'override-sess',
+    filePath: src,
+    fileName: '../目录\\报告\u0000\r\n.csv',
+  });
+  assert.equal(copied.name, '报告___.csv');
+  assert.equal(copied.relPath, 'workspace/outputs/override-sess/file.csv');
 });
 
 test('copyFileIntoOutputs throws on a missing source', async () => {

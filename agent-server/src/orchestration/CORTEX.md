@@ -5,7 +5,7 @@ Coordinates queues, session state, background continuations, and cross-thread ca
 
 | filename | role | function |
 |---|---|---|
-| agent-file-send.ts | chat | delivers an agent-produced file into a session |
+| agent-file-send.ts | chat | stores and delivers agent files with safe display names |
 | agent-runner.ts | core | admits and routes visible user turns |
 | bg-continuation.ts | helper | forwards background continuation output |
 | bg-wait-guard.ts | guard | bounds the background task waiting window |
