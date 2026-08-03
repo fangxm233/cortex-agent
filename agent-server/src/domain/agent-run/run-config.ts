@@ -1,7 +1,7 @@
-// input:  file/stdin run-config JSON, resolved profile, defaults
-// output: argv-closed frozen inputs and one non-empty spawn role
+// input:  file/stdin run config, profile resolver, policy compiler
+// output: resolved config with optional frozen benchmark policy
 // pos:    Configuration boundary for daemon-free one-shot runs
-// >>> If I am updated, update my header and folder CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,7 +10,16 @@ import { DEFAULT_TOOLS } from '../../agent-adapter/claude/defaults.js';
 import type { McpComposition } from '../../agent-adapter/types.js';
 import { readStdinSync } from '../../core/cli-utils.js';
 import { DEFAULTS_DIR } from '../../core/paths.js';
-import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
+import {
+  resolveProfileConfig, type ResolvedProfileConfig,
+} from '../agents/profile-manager.js';
+import {
+  compileResolvedTrialPolicy, projectAgentRunConfig,
+  type ArmResolution, type PolicyCompilerDependencies,
+} from '../benchmark/policy-compiler.js';
+import {
+  PolicyCompilationError, reportBenchmarkFailure, type ResolvedTrialPolicy,
+} from '../benchmark/resolved-policy.js';
 import type { FrozenIdentityInput, IdentityJsonValue } from './identity.js';
 export { resolvedRouteHost } from './identity.js';
 
@@ -57,6 +66,17 @@ export interface ResolvedAgentRunConfig {
   harnessHashes: IdentityJsonValue;
 }
 
+export interface LoadedAgentRunConfig {
+  config: ResolvedAgentRunConfig;
+  policy?: ResolvedTrialPolicy;
+}
+
+interface RunConfigDocument {
+  value: unknown;
+  base: string;
+  source: 'file' | 'stdin';
+}
+
 function parseJson(text: string, label: string): unknown {
   try {
     return JSON.parse(text);
@@ -72,6 +92,15 @@ function readJson(file: string): unknown {
     if ((error as Error).message.startsWith('Failed to parse')) throw error;
     throw new Error(`Failed to read JSON file '${file}': ${(error as Error).message}`);
   }
+}
+
+function readRunConfigDocument(file: string): RunConfigDocument {
+  if (file === '-') {
+    return {
+      value: parseJson(readStdinSync(), 'stdin'), base: process.cwd(), source: 'stdin',
+    };
+  }
+  return { value: readJson(file), base: path.dirname(file), source: 'file' };
 }
 
 function resolveConfigPaths(base: string, values: string[]): string[] {
@@ -154,10 +183,58 @@ function resolvedRunConfig(value: unknown, base: string): ResolvedAgentRunConfig
   };
 }
 
+function topLevelSchemaVersion(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') return undefined;
+  return (value as Record<string, unknown>).schema_version;
+}
+
+function policyCompilerDependencies(): PolicyCompilerDependencies {
+  return {
+    wall_clock_ms: Date.now,
+    monotonic_ns: () => process.hrtime.bigint(),
+    resolve_profile: resolveProfileConfig,
+  };
+}
+
+function unknownRunConfigSchema(): never {
+  const error = new PolicyCompilationError('run_config_schema_unknown');
+  reportBenchmarkFailure(error);
+  throw error;
+}
+
+function dispatchRunConfig(
+  document: RunConfigDocument,
+  agentSlot: string,
+): LoadedAgentRunConfig {
+  const schemaVersion = topLevelSchemaVersion(document.value);
+  if (schemaVersion === 'cortex-agent-run-config/1') {
+    return { config: resolvedRunConfig(document.value, document.base) };
+  }
+  if (schemaVersion === 'cortex-benchmark-arm-resolution/1') {
+    if (document.source === 'stdin') {
+      throw new Error('Benchmark arm resolution requires --run-config to be a file path');
+    }
+    const policy = compileResolvedTrialPolicy(
+      document.value as ArmResolution, policyCompilerDependencies(),
+    );
+    const projection = projectAgentRunConfig(policy, agentSlot);
+    return { config: resolvedRunConfig(projection, process.cwd()), policy };
+  }
+  return unknownRunConfigSchema();
+}
+
 export function loadAgentRunConfig(file?: string): ResolvedAgentRunConfig {
   if (file === undefined) return defaultConfig();
-  if (file === '-') return resolvedRunConfig(parseJson(readStdinSync(), 'stdin'), process.cwd());
-  return resolvedRunConfig(readJson(file), path.dirname(file));
+  const document = readRunConfigDocument(file);
+  return resolvedRunConfig(document.value, document.base);
+}
+
+export function loadAgentRunConfigWithPolicy(options: {
+  runConfigFile?: string;
+  agentSlot: string;
+}): LoadedAgentRunConfig {
+  if (options.runConfigFile === undefined) return { config: defaultConfig() };
+  return dispatchRunConfig(readRunConfigDocument(options.runConfigFile), options.agentSlot);
 }
 
 export function validateResolvedExecution(

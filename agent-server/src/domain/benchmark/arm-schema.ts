@@ -1,11 +1,12 @@
 // input:  parsed arm and phase-A resolution documents
-// output: validated v2 arm definitions and resolution shapes
+// output: validated v2 arms and versioned resolution shapes
 // pos:    Closed schema and ordered cross-field validation
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { z } from 'zod';
 
 export const ARM_SCHEMA_VERSION = 'cortex-benchmark-arm/2' as const;
+export const ARM_RESOLUTION_SCHEMA_VERSION = 'cortex-benchmark-arm-resolution/1' as const;
 
 export type ArmKind = 'cortex' | 'vendor-baseline';
 export type OrchestrationMode = 'direct' | 'coder-review' | 'manager';
@@ -117,6 +118,7 @@ const roleAssetSchema = z.object({
   benchmark_policy_guard: z.unknown().optional(),
 }).strict();
 const armResolutionSchema = z.object({
+  schema_version: z.literal(ARM_RESOLUTION_SCHEMA_VERSION),
   arm: z.unknown(), arm_path: z.string().min(1), trial_id: z.string().min(1),
   root_run_id: z.string().min(1),
   task: z.object({

@@ -1,4 +1,4 @@
-// input:  validated arms, resolved assets, benchmark failures
+// input:  validated arms, resolved assets, benchmark failures 1-44
 // output: frozen policy types, failure classes, deadline accessor
 // pos:    Authoritative in-memory benchmark policy value object
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
@@ -53,11 +53,12 @@ const FAILURE_ROWS = [
   [41, 'terminal_predicate_unmet'],
   [42, 'ledger_unreadable'],
   [43, 'arm_profile_value_mismatch'],
+  [44, 'run_config_schema_unknown'],
 ] as const;
 
 const CLASS_P_CODES = new Set([
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-  24, 28, 29, 30, 43,
+  24, 28, 29, 30, 43, 44,
 ]);
 
 export type BenchmarkFailureReason = typeof FAILURE_ROWS[number][1];

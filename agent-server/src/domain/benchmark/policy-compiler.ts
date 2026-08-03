@@ -21,6 +21,7 @@ import {
 import { directoryContentSha256 } from '../agent-run/role-surface.js';
 import type { ResolvedAgentRunRole } from '../agent-run/run-config.js';
 import {
+  ARM_RESOLUTION_SCHEMA_VERSION,
   parseArmDefinitionForCompiler, validateArmPostCredential, validateArmResolutionShape,
   ArmValidationError, type ArmDefinition,
 } from './arm-schema.js';
@@ -65,6 +66,7 @@ export interface ResolvedRoleAsset {
 }
 
 export interface ArmResolution {
+  schema_version: typeof ARM_RESOLUTION_SCHEMA_VERSION;
   arm: unknown;
   arm_path: string;
   trial_id: string;

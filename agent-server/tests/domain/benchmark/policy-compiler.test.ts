@@ -1,5 +1,5 @@
-// input:  benchmark policy compiler, temp assets, run-config loader
-// output: Gate-1 schema, freeze, failure, and projection proofs
+// input:  policy compiler, runner invocation, two-schema loader
+// output: Gate-1 schema, identity, freeze, failure, and projection proofs
 // pos:    Regression suite for compiled benchmark trial policy
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -9,7 +9,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, it } from 'vitest';
 import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
-import { loadAgentRunConfig } from '../../../src/domain/agent-run/run-config.js';
+import type { AgentRunCliOptions } from '../../../src/domain/agent-run/agent-run-cli.js';
+import {
+  loadAgentRunConfig, loadAgentRunConfigWithPolicy,
+} from '../../../src/domain/agent-run/run-config.js';
+import { runOneShotAgent } from '../../../src/domain/agent-run/runner.js';
 import { parseArmDefinitionSet } from '../../../src/domain/benchmark/arm-schema.js';
 import {
   BENCHMARK_FAILURES,
@@ -29,6 +33,7 @@ import {
   type ArmResolution,
   type PolicyCompilerDependencies,
 } from '../../../src/domain/benchmark/policy-compiler.js';
+import { profileRepo } from '../../../src/store/profile-repo.js';
 
 const FIXED_WALL_MS = 1_900_000_000_000;
 const FIXED_MONOTONIC_NS = 18_765_432_100_000_000n;
@@ -94,6 +99,7 @@ function resolution(): ArmResolution {
   const cli = writeAsset('claude-fixture', '#!/bin/sh\nexit 0\n');
   const mcp = writeAsset('mcp-empty.json', '{"mcpServers":{}}\n');
   return {
+    schema_version: 'cortex-benchmark-arm-resolution/1',
     arm: arm(),
     arm_path: '/harness/arms/cortex-direct.yaml',
     trial_id: 'trial-001',
@@ -157,6 +163,80 @@ function dependencies(
     resolve_profile: () => profileValue,
     stderr: { write: value => { stderrLines.push(String(value)); return true; } },
   };
+}
+
+function writeLoaderProfile(): void {
+  const configDir = path.join(process.env.CORTEX_HOME as string, 'config');
+  const value = {
+    model: 'claude-sonnet', backend: 'claude', mode: 'api', provider: 'anthropic',
+    extraEnv: { ANTHROPIC_BASE_URL: 'http://127.0.0.1:49152' },
+    extraOption: {}, claudeBackend: 'print', thinking: 'high', fallback: [],
+  };
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(path.join(configDir, 'profiles.json'), JSON.stringify({
+    defaultProfile: 'benchmark-profile',
+    profiles: { 'benchmark-profile': value, 'alternate-profile': value },
+  }));
+  profileRepo.invalidate();
+}
+
+function runnerOptions(
+  runConfigFile: string,
+  profileName: string,
+  rootRunId: string,
+  label: string,
+): AgentRunCliOptions {
+  const trajectoryRoot = path.join(root, `trajectory-${label}`);
+  return {
+    promptFile: writeAsset(`prompt-${label}.txt`, 'Solve the task.\n'),
+    agentSlot: 'parent', profile: profileName, cwd: root, outputFormat: 'jsonl',
+    eventsFile: path.join(trajectoryRoot, 'events.jsonl'), trajectoryRoot,
+    runConfigFile, supervisorBinary: path.join(root, 'unused-supervisor'),
+    graceMs: 1_000, rootRunId,
+  };
+}
+
+function installFailingVersionProbe(marker: string): () => void {
+  const bin = path.join(root, 'bin');
+  const probe = writeAsset('bin/claude', '#!/bin/sh\ntouch "$VERSION_PROBE_MARKER"\nexit 1\n');
+  fs.chmodSync(probe, 0o755);
+  const previousPath = process.env.PATH;
+  const previousMarker = process.env.VERSION_PROBE_MARKER;
+  process.env.PATH = bin;
+  process.env.VERSION_PROBE_MARKER = marker;
+  return () => {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    if (previousMarker === undefined) delete process.env.VERSION_PROBE_MARKER;
+    else process.env.VERSION_PROBE_MARKER = previousMarker;
+  };
+}
+
+async function expectInvocationMismatch(
+  profileName: string,
+  rootRunId: string,
+  label: string,
+  expected: RegExp,
+): Promise<void> {
+  writeLoaderProfile();
+  const file = writeAsset(`arm-resolution-${label}.json`, JSON.stringify(resolution()));
+  const options = runnerOptions(file, profileName, rootRunId, label);
+  const marker = path.join(root, `version-probe-${label}`);
+  const restoreEnv = installFailingVersionProbe(marker);
+  let stderr = '';
+  let exitCode: number;
+  try {
+    exitCode = await runOneShotAgent(options, {
+      stdout: { write: () => true },
+      stderr: { write: value => { stderr += String(value); return true; } },
+    });
+  } finally {
+    restoreEnv();
+  }
+  assert.equal(exitCode, 1);
+  assert.match(stderr, expected);
+  assert.equal(fs.existsSync(marker), false);
+  assert.equal(fs.existsSync(options.trajectoryRoot), false);
 }
 
 function configureCoderReview(input: ArmResolution, includeRoles = true): void {
@@ -570,15 +650,15 @@ it('stores the contract whitelist vectors without wildcards', () => {
   ]);
 });
 
-it('classifies all 43 failure codes and reports both invariant classes as JSON', () => {
+it('classifies all 44 failure codes and reports both invariant classes as JSON', () => {
   assert.deepEqual(BENCHMARK_FAILURES.map(value => value.code),
-    Array.from({ length: 43 }, (_, index) => index + 1));
-  assert.equal(new Set(BENCHMARK_FAILURES.map(value => value.reason)).size, 43);
-  assert.equal(BENCHMARK_FAILURES.filter(value => value.failureClass === 'P').length, 27);
+    Array.from({ length: 44 }, (_, index) => index + 1));
+  assert.equal(new Set(BENCHMARK_FAILURES.map(value => value.reason)).size, 44);
+  assert.equal(BENCHMARK_FAILURES.filter(value => value.failureClass === 'P').length, 28);
   assert.equal(BENCHMARK_FAILURES.filter(value => value.failureClass === 'R').length, 16);
-  assert.deepEqual(BENCHMARK_FAILURES.find(value => value.code === 43), {
-    code: 43,
-    reason: 'arm_profile_value_mismatch',
+  assert.deepEqual(BENCHMARK_FAILURES.find(value => value.code === 44), {
+    code: 44,
+    reason: 'run_config_schema_unknown',
     failureClass: 'P',
   });
   assert.deepEqual(BENCHMARK_FAILURE_INVARIANTS.P, [
@@ -614,6 +694,56 @@ it('projects disposable run config without changing policy authority', () => {
   assert.deepEqual(loaded.role.tools, policy.roles.parent.tools);
   assert.deepEqual(loaded.limits, policy.limits);
   assert.deepEqual(loaded.runConfig, policy.arm);
+});
+
+it('compiles an emitted arm-resolution document at the loader boundary', () => {
+  writeLoaderProfile();
+  const input = resolution();
+  const file = writeAsset('arm-resolution.json', `${JSON.stringify(input)}\n`);
+  const loaded = loadAgentRunConfigWithPolicy({
+    runConfigFile: file,
+    agentSlot: 'parent',
+  });
+
+  assert.ok(loaded.policy);
+  assert.ok(Object.isFrozen(loaded.policy));
+  assert.equal(loaded.policy.schema_version, 'cortex-benchmark-resolved-policy/2');
+  assert.equal(loaded.policy.trial_id, input.trial_id);
+  assert.equal(loaded.config.role.systemPrompt, 'You are the benchmark parent.\n');
+  assert.deepEqual(loaded.config.role.tools, ['Read', 'Write']);
+  assert.deepEqual(loaded.config.runConfig, arm());
+});
+
+it('keeps malformed recognized arm-resolution bodies on code 1', () => {
+  const file = writeAsset('malformed-arm-resolution.json', JSON.stringify({
+    schema_version: 'cortex-benchmark-arm-resolution/1',
+    arm: null,
+  }));
+  assert.throws(
+    () => loadAgentRunConfigWithPolicy({ runConfigFile: file, agentSlot: 'parent' }),
+    error => error instanceof PolicyCompilationError
+      && error.code === 1
+      && error.reason === 'arm_schema_invalid'
+      && error.failureClass === 'P',
+  );
+});
+
+it('rejects a benchmark profile-name mismatch before probing or admission', async () => {
+  await expectInvocationMismatch(
+    'alternate-profile',
+    'trial-001.cortex-direct',
+    'profile',
+    /profile_name mismatch.*expected 'alternate-profile'.*received 'benchmark-profile'/i,
+  );
+});
+
+it('rejects a benchmark root-run-id mismatch before probing or admission', async () => {
+  await expectInvocationMismatch(
+    'benchmark-profile',
+    'different-root-run',
+    'root',
+    /root_run_id mismatch.*expected 'different-root-run'.*received 'trial-001.cortex-direct'/i,
+  );
 });
 
 it('loads the stable representative compiled projection fixture directly', () => {

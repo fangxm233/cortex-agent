@@ -1,16 +1,20 @@
-// input:  optional run-config files, resolved profiles, MCP declarations
-// output: closed-schema, non-empty-role, argv, and restricted-surface proofs
+// input:  legacy/benchmark configs, profiles, MCP declarations
+// output: schema dispatch, role, argv, and restricted-surface proofs
 // pos:    One-shot configuration boundary regression suite
-// >>> If I am updated, update my header and folder CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, it } from 'vitest';
+import { pathToFileURL } from 'node:url';
+import { afterEach, beforeEach, it, vi } from 'vitest';
 import {
-  loadAgentRunConfig, resolvedRouteHost, validateResolvedExecution,
+  loadAgentRunConfig, loadAgentRunConfigWithPolicy,
+  resolvedRouteHost, validateResolvedExecution,
 } from '../../../src/domain/agent-run/run-config.js';
+import { PolicyCompilationError } from '../../../src/domain/benchmark/resolved-policy.js';
 
 let root = '';
 
@@ -60,6 +64,38 @@ function fixtureProfile() {
   };
 }
 
+function expectedLegacyConfig(file: string) {
+  const document = JSON.parse(fs.readFileSync(file, 'utf8'));
+  return {
+    modelExecution: {
+      modelAliasPolicy: document.model_execution.model_alias_policy,
+      configuredRouteBaseHost: null,
+      claudeCliVersion: null,
+    },
+    role: {
+      systemPrompt: document.role.system_prompt,
+      tools: document.role.tools,
+      pluginDirs: [],
+      mcpComposition: document.role.mcp_composition,
+      mcpConfigPaths: document.role.mcp_config_paths.map(
+        (value: string) => path.resolve(path.dirname(file), value),
+      ),
+      disableHooks: true,
+    },
+    runConfig: document.bundle.run_config,
+    limits: document.bundle.limits,
+    adapterHashes: document.bundle.adapter_hashes,
+    harnessHashes: document.bundle.harness_hashes,
+  };
+}
+
+function isUnknownSchemaFailure(error: unknown): boolean {
+  return error instanceof PolicyCompilationError
+    && error.code === 44
+    && error.reason === 'run_config_schema_unknown'
+    && error.failureClass === 'P';
+}
+
 it('uses one neutral role when no run config is supplied', () => {
   const config = loadAgentRunConfig();
   assert.equal(config.modelExecution.modelAliasPolicy, null);
@@ -81,6 +117,65 @@ it('resolves one role independently of the agent-slot label', () => {
   assert.deepEqual(config.role.tools, ['Bash']);
   assert.deepEqual(config.role.mcpConfigPaths, [mcpFile]);
   assert.deepEqual(config.adapterHashes, { adapter: 'fixture' });
+});
+
+it('loads the pre-existing legacy golden config unchanged through the dispatch boundary', () => {
+  const file = path.resolve('tests/benchmark-resolved-run-config.golden.json');
+  const expected = expectedLegacyConfig(file);
+  assert.deepEqual(loadAgentRunConfig(file), expected);
+  assert.deepEqual(loadAgentRunConfigWithPolicy({
+    runConfigFile: file,
+    agentSlot: 'parent',
+  }), { config: expected });
+});
+
+it('reports absent, non-string, and unknown schema versions as Class-P code 44', () => {
+  const stderrLines: string[] = [];
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(((chunk: unknown) => {
+    stderrLines.push(String(chunk));
+    return true;
+  }) as typeof process.stderr.write);
+
+  try {
+    const cases = [{}, { schema_version: 1 }, {
+      schema_version: 'cortex-agent-run-config/2',
+    }];
+    for (const [index, value] of cases.entries()) {
+      const file = path.join(root, `unknown-${index}.json`);
+      fs.writeFileSync(file, JSON.stringify(value));
+      assert.throws(
+        () => loadAgentRunConfigWithPolicy({ runConfigFile: file, agentSlot: 'parent' }),
+        isUnknownSchemaFailure,
+      );
+    }
+  } finally {
+    stderr.mockRestore();
+  }
+
+  assert.deepEqual(stderrLines.map(line => JSON.parse(line)), Array.from({ length: 3 }, () => ({
+    code: 44,
+    failure_class: 'P',
+    reason: 'run_config_schema_unknown',
+  })));
+});
+
+it('rejects a recognized benchmark resolution transported through stdin', () => {
+  const moduleUrl = pathToFileURL(path.resolve(
+    'src/domain/agent-run/run-config.ts',
+  )).href;
+  const script = `import { loadAgentRunConfigWithPolicy } from '${moduleUrl}';\n`
+    + "loadAgentRunConfigWithPolicy({ runConfigFile: '-', agentSlot: 'parent' });";
+  const result = spawnSync(process.execPath, [
+    '--import', 'tsx', '--input-type=module', '--eval', script,
+  ], {
+    cwd: path.resolve('.'),
+    encoding: 'utf8',
+    input: JSON.stringify({ schema_version: 'cortex-benchmark-arm-resolution/1' }),
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /benchmark arm resolution.*file path/i);
+  assert.doesNotMatch(result.stderr, /run_config_schema_unknown|arm_schema_invalid/);
 });
 
 it('derives the route host and rejects every profile argv extra', () => {

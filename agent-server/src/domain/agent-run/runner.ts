@@ -1,7 +1,7 @@
-// input:  parsed options, frozen config, reported-cost metadata
+// input:  parsed options, resolved config/policy, cost metadata
 // output: supervised turn, journal, nullable accounting, manifest
 // pos:    Agent-run lifecycle coordinator
-// >>> If I am updated, update my header and folder CORTEX.md <<<
+// >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -33,8 +33,8 @@ import {
 } from './manifest.js';
 import { buildTerminalManifest } from './manifest-contract.js';
 import {
-  loadAgentRunConfig, resolvedRouteHost, validateResolvedExecution,
-  type ResolvedAgentRunConfig,
+  loadAgentRunConfigWithPolicy, resolvedRouteHost, validateResolvedExecution,
+  type LoadedAgentRunConfig, type ResolvedAgentRunConfig,
 } from './run-config.js';
 import { roleSurfaceFromSpawnConfig } from './role-surface.js';
 import {
@@ -58,6 +58,7 @@ interface PreparedRun {
   modelPrompt: string;
   profile: ReturnType<typeof resolveProfileConfig>;
   config: ResolvedAgentRunConfig;
+  policy?: LoadedAgentRunConfig['policy'];
   identity: FrozenIdentity;
   spawnConfig: AgentSpawnConfig;
   baseOptions: RunAgentOptions;
@@ -280,14 +281,40 @@ function baseRunOptions(
   };
 }
 
-function resolveRunConfig(
+function assertBenchmarkInvocation(
+  loaded: LoadedAgentRunConfig,
+  options: AgentRunCliOptions,
+  rootRunId: string,
+): void {
+  if (!loaded.policy) return;
+  if (loaded.policy.root_run_id !== rootRunId) {
+    throw new Error(
+      `Benchmark root_run_id mismatch: expected '${rootRunId}', `
+      + `received '${loaded.policy.root_run_id}'`,
+    );
+  }
+  const profileName = loaded.policy.asset_inventory
+    .find(asset => asset.kind === 'profile')!.logical_name;
+  if (profileName !== options.profile) {
+    throw new Error(
+      `Benchmark profile_name mismatch: expected '${options.profile}', received '${profileName}'`,
+    );
+  }
+}
+
+function resolveRunInputs(
   options: AgentRunCliOptions,
   profile: PreparedRun['profile'],
-): ResolvedAgentRunConfig {
-  const configured = loadAgentRunConfig(options.runConfigFile);
-  validateResolvedExecution(profile, configured);
-  assertMcpFiles(configured);
-  return observedRunConfig(configured, profile, options.cwd);
+  rootRunId: string,
+): LoadedAgentRunConfig {
+  const loaded = loadAgentRunConfigWithPolicy({
+    runConfigFile: options.runConfigFile,
+    agentSlot: options.agentSlot,
+  });
+  assertBenchmarkInvocation(loaded, options, rootRunId);
+  validateResolvedExecution(profile, loaded.config);
+  assertMcpFiles(loaded.config);
+  return { ...loaded, config: observedRunConfig(loaded.config, profile, options.cwd) };
 }
 
 function prepareRun(options: AgentRunCliOptions, rootRunId: string): PreparedRun {
@@ -295,13 +322,14 @@ function prepareRun(options: AgentRunCliOptions, rootRunId: string): PreparedRun
   const prompt = readPrompt(options.promptFile);
   const profile = resolveProfile(options.profile);
   assertClaudeProfile(profile);
-  const config = resolveRunConfig(options, profile);
+  const loaded = resolveRunInputs(options, profile, rootRunId);
+  const config = loaded.config;
   const baseOptions = baseRunOptions(options, profile, config, `agent-run:${rootRunId}`);
   const spawnConfig = buildAgentSpawnConfig(baseOptions, agentConfig(profile), undefined);
   spawnConfig.preserveUnreportedAccounting = true;
   const roleSurface = roleSurfaceFromSpawnConfig(spawnConfig);
   return {
-    options, rootRunId, profile, config, spawnConfig, baseOptions,
+    options, rootRunId, profile, config, policy: loaded.policy, spawnConfig, baseOptions,
     modelPrompt: prompt.modelVisible,
     identity: freezeRunIdentity(options, profile, config, roleSurface),
     hashes: promptHashes(prompt, roleSurface),
