@@ -1,9 +1,9 @@
-# input:  parsed arm sets, compiled run-config projection, Harbor config
+# input:  parsed arm sets, trial pins, Harbor config
 # output: immutable selection, image pin, and kind-routing assertions
 # pos:    Contract tests for launcher arm construction
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
-import json
+import inspect
 from pathlib import Path
 
 import pytest
@@ -19,16 +19,27 @@ from cortex_bench_harness.launcher.arms import (
     select_task,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-GOLDEN_RUN_CONFIG = REPO_ROOT / "agent-server/tests/benchmark-resolved-run-config.golden.json"
-
-
-def golden_projection() -> dict[str, object]:
-    return json.loads(GOLDEN_RUN_CONFIG.read_text())
-
-
 def cortex_arm() -> dict[str, object]:
-    return golden_projection()["bundle"]["run_config"]  # type: ignore[index,return-value]
+    return {
+        "schema_version": "cortex-benchmark-arm/2",
+        "kind": "cortex",
+        "name": "cortex-direct",
+        "backend": "claude",
+        "provider": "anthropic",
+        "model": "claude-sonnet",
+        "credential_capability": "claude-api-key",
+        "orchestration": {"mode": "direct", "ask_manager": False},
+        "limits": {
+            "max_thread_starts": 0,
+            "max_parent_questions": 0,
+            "max_task_depth": 0,
+            "max_tasks": 0,
+            "max_provider_requests": 8,
+            "max_resident_agent_processes": 3,
+            "max_cost_usd": "2.50",
+            "deadline_seconds": 90,
+        },
+    }
 
 
 def manifest(tmp_path: Path) -> dict[str, object]:
@@ -78,6 +89,12 @@ def baseline_arm(vendor_agent: str, provider: str | None = None) -> dict[str, ob
     }
 
 
+def test_host_agent_config_has_no_compiled_run_config_input() -> None:
+    parameters = inspect.signature(build_agent_config).parameters
+
+    assert "run_config_projection" not in parameters
+
+
 def test_select_arm_is_explicit_unique_and_immutable() -> None:
     selected = select_arm([cortex_arm(), baseline_arm("codex")], "cortex-direct")
 
@@ -110,29 +127,27 @@ def test_image_selection_requires_a_sha256_digest() -> None:
     assert error.value.reason == "image_digest_unpinned"
 
 
-def cortex_config(tmp_path: Path) -> tuple[AgentConfig, dict[str, object], dict[str, object]]:
-    projection = golden_projection()
+def cortex_config(tmp_path: Path) -> tuple[AgentConfig, dict[str, object]]:
     manifest_value = manifest(tmp_path)
     config = build_agent_config(
         cortex_arm(), cli_version="2026.8.3",
         artifact_dir=tmp_path / "artifacts", manifest=manifest_value,
-        run_config_projection=projection,
         env={"ANTHROPIC_BASE_URL": "http://trial-proxy.invalid"},
         override_timeout_sec=90, override_setup_timeout_sec=30,
         max_timeout_sec=120, extra_allowed_hosts=["trial-proxy.invalid"],
     )
-    return config, projection, manifest_value
+    return config, manifest_value
 
 
-def test_cortex_config_uses_public_import_and_compiled_projection(tmp_path: Path) -> None:
-    config, projection, manifest_value = cortex_config(tmp_path)
+def test_cortex_config_uses_public_import_and_launcher_inputs(tmp_path: Path) -> None:
+    config, manifest_value = cortex_config(tmp_path)
 
     assert config.name is None
     assert config.import_path == "cortex_bench_harness:CortexBenchAgent"
     assert config.model_name == "claude-sonnet"
     assert config.kwargs == {
         "artifact_dir": tmp_path / "artifacts", "manifest": manifest_value,
-        "run_config": projection, "version": "2026.8.3",
+        "version": "2026.8.3",
     }
     assert config.env == {"ANTHROPIC_BASE_URL": "http://trial-proxy.invalid"}
     assert config.extra_allowed_hosts == ["trial-proxy.invalid"]
@@ -142,7 +157,7 @@ def test_cortex_config_uses_public_import_and_compiled_projection(tmp_path: Path
 
 
 def test_harbor_factory_constructs_the_public_cortex_agent(tmp_path: Path) -> None:
-    config, _, _ = cortex_config(tmp_path)
+    config, _ = cortex_config(tmp_path)
     agent = AgentFactory.create_agent_from_config(config, logs_dir=tmp_path / "logs")
 
     assert isinstance(agent, CortexBenchAgent)

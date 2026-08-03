@@ -1,10 +1,9 @@
-# input:  Harbor base class, fake exec results, compiled fixture
-# output: install, CLI version, manifest, and run-config argv proofs
+# input:  Harbor base class, fake exec results, npm artifact
+# output: install, CLI version, manifest, and argv assertions
 # pos:    Contract tests for the Harbor agent wrapper
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import asyncio
-import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -15,8 +14,6 @@ from harbor.environments.base import ExecResult
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
 
 ARTIFACT_NAME = "cortex-agent-server-test.tgz"
-REPO_ROOT = Path(__file__).resolve().parents[4]
-RUN_CONFIG_FIXTURE = REPO_ROOT / "agent-server/tests/benchmark-resolved-run-config.golden.json"
 INSTALL_COMMAND = (
     "set -o pipefail; npm install --global --prefix /installed-agent/npm "
     f"--no-audit --no-fund /installed-agent/{ARTIFACT_NAME}"
@@ -69,7 +66,6 @@ def make_agent(tmp_path: Path, *, version: str = "0.1.0") -> CortexBenchAgent:
     return CortexBenchAgent(
         logs_dir=tmp_path / "agent",
         artifact_dir=tmp_path / "artifacts",
-        run_config=json.loads(RUN_CONFIG_FIXTURE.read_text()),
         version=version,
         manifest={
             "root_run_id": "root-install-only",
@@ -160,7 +156,7 @@ def test_empty_version_probe_does_not_publish_manifest(tmp_path: Path) -> None:
     assert not (tmp_path / "artifacts/cortex-bench-harness-manifest.json").exists()
 
 
-def test_preview_argv_contains_resolved_cwd_and_run_config(tmp_path: Path) -> None:
+def test_preview_argv_contains_resolved_cwd(tmp_path: Path) -> None:
     agent = make_agent(tmp_path)
     asyncio.run(agent.setup(FakeEnvironment(setup_results())))
 
@@ -170,9 +166,7 @@ def test_preview_argv_contains_resolved_cwd_and_run_config(tmp_path: Path) -> No
         "--output-format", "jsonl", "--events-file",
         "/logs/agent/trajectory/events.jsonl", "--trajectory-root",
         "/logs/agent/trajectory", "--root-run-id", "root-install-only",
-        "--run-config", "/logs/agent/run-config.json",
     ]
-    assert (tmp_path / "agent/run-config.json").read_bytes() == RUN_CONFIG_FIXTURE.read_bytes()
 
 
 def test_constructor_accepts_one_explicit_version_keyword(tmp_path: Path) -> None:
