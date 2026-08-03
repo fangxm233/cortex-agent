@@ -95,6 +95,24 @@ console.log(JSON.stringify({
 }));
 """
 
+# The other half of the shipped boundary: the command line the entry builds must
+# also survive the shipped agent-run argument parser, not only the loader.
+PARSER_SCRIPT = """
+import { parseAgentRunArgs } from './src/domain/agent-run/agent-run-cli.ts';
+const argv = JSON.parse(process.env.PARITY_ARGV);
+const options = parseAgentRunArgs(argv.slice(2));
+console.log(JSON.stringify({
+  command: argv.slice(0, 2),
+  runConfigFile: options.runConfigFile,
+  agentSlot: options.agentSlot,
+  profile: options.profile,
+  rootRunId: options.rootRunId,
+  eventsFile: options.eventsFile,
+  trajectoryRoot: options.trajectoryRoot,
+  outputFormat: options.outputFormat,
+}));
+"""
+
 
 def repository_root() -> Path:
     return Path(__file__).resolve().parents[4]
@@ -108,8 +126,9 @@ def bundle_root() -> Path:
 class FakeContainer:
     """Answers container probes and records every command, and nothing else."""
 
-    def __init__(self, backend_cli: Path) -> None:
+    def __init__(self, backend_cli: Path, workdir: str = CONTAINER_CWD) -> None:
         self.backend_cli = backend_cli
+        self.workdir = workdir
         self.commands: list[str] = []
         self.exec_kwargs: list[dict[str, object]] = []
         self.uploads: list[tuple[str, str]] = []
@@ -118,8 +137,8 @@ class FakeContainer:
         self.commands.append(command)
         self.exec_kwargs.append(dict(kwargs))
         payload = command.removeprefix("set -o pipefail; ")
-        if payload == "pwd" or payload == f"realpath -- {CONTAINER_CWD}":
-            return ExecResult(stdout=f"{CONTAINER_CWD}\n", return_code=0)
+        if payload == "pwd" or payload == f"realpath -- {self.workdir}":
+            return ExecResult(stdout=f"{self.workdir}\n", return_code=0)
         if "npm ls --global" in payload:
             return ExecResult(stdout=f"{bundle_root()}\n", return_code=0)
         if "command -v claude" in payload:
@@ -343,6 +362,57 @@ def test_shipped_loader_binds_the_document_to_the_rest_of_the_shipped_argv(
     assert assets[("prompt", f"{slot}:system_prompt")] == str(root / SYSTEM_PROMPT_RELPATH)
     assert assets[("prompt", f"{slot}:directive")] == str(root / DIRECTIVE_RELPATH)
     assert assets[("cli_artifact", "claude")] == str(fake_backend_cli(tmp_path))
+
+
+def stub_supervisor(tmp_path: Path) -> Path:
+    """The parser resolves a supervisor binary the argv never names.
+
+    `install()` already proves the real one is present and executable inside the
+    container, so pointing the documented override at a stand-in here changes
+    nothing this test asserts about the emitted argv.
+    """
+    binary = tmp_path / "supervisor" / "cortex-supervisor"
+    binary.parent.mkdir(parents=True, exist_ok=True)
+    binary.write_bytes(b"#!/bin/sh\nexit 0\n")
+    binary.chmod(0o755)
+    return binary
+
+
+def parse_through_shipped_cli(argv: list[str], tmp_path: Path) -> dict[str, object]:
+    node = shutil.which("node")
+    assert node is not None, "node is required to run the shipped agent-run parser"
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env.update({
+        "CORTEX_HOME": str(tmp_path / "cortex-home"),
+        "CORTEX_SUPERVISOR_BINARY": str(stub_supervisor(tmp_path)),
+        "PARITY_ARGV": json.dumps(argv),
+    })
+    result = subprocess.run(
+        [node, "--import", "tsx", "--input-type=module", "--eval", PARSER_SCRIPT],
+        cwd=bundle_root(), env=env, text=True, capture_output=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
+def test_shipped_cli_parser_accepts_the_argv_the_entry_builds(tmp_path: Path) -> None:
+    workdir = tmp_path / "workspace"
+    workdir.mkdir()
+    agent = public_agent(tmp_path)
+    asyncio.run(agent.setup(FakeContainer(fake_backend_cli(tmp_path), str(workdir))))
+
+    preview = agent.preview_run_argv()
+    parsed = parse_through_shipped_cli(preview, tmp_path)
+
+    assert parsed["command"] == ["cortex", "agent-run"]
+    assert parsed["runConfigFile"] == flag_value(preview, "--run-config")
+    assert parsed["agentSlot"] == flag_value(preview, "--agent-slot")
+    assert parsed["profile"] == flag_value(preview, "--profile")
+    assert parsed["rootRunId"] == flag_value(preview, "--root-run-id")
+    assert parsed["eventsFile"] == flag_value(preview, "--events-file")
+    assert parsed["trajectoryRoot"] == flag_value(preview, "--trajectory-root")
+    assert parsed["outputFormat"] == flag_value(preview, "--output-format")
 
 
 def test_composition_owes_nothing_to_the_stub_trial_helper(tmp_path: Path) -> None:
