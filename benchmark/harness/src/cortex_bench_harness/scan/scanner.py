@@ -82,8 +82,13 @@ def _contains_sensitive(value: str, literals: tuple[str, ...]) -> bool:
 def _missing_sources(inventory: ArtifactInventory) -> tuple[str, ...]:
     return tuple(sorted(
         source for source in inventory.expected_sources
-        if source not in inventory.sources or not inventory.sources[source].is_file()
+        if source not in inventory.sources
+        or not _source_is_present(inventory.sources[source])
     ))
+
+
+def _source_is_present(path: Path) -> bool:
+    return path.is_file() and not path.is_symlink()
 
 
 def _unclassified_files(
@@ -93,7 +98,7 @@ def _unclassified_files(
 ) -> tuple[UnclassifiedFile, ...]:
     classified = {
         _normalized_path(path) for source, path in inventory.sources.items()
-        if source in inventory.expected_sources and path.is_file()
+        if source in inventory.expected_sources and _source_is_present(path)
     }
     redactions = (
         *policy.secrets.values(), policy.repository_checkout, policy.hostname,

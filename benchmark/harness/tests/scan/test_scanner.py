@@ -207,6 +207,25 @@ def test_reports_unclassified_symlink_to_declared_file(tmp_path: Path) -> None:
     assert report.exit_code == 1
 
 
+def test_rejects_declared_source_symlink(tmp_path: Path) -> None:
+    root = tmp_path / "trial"
+    root.mkdir()
+    target = tmp_path / "outside.txt"
+    target.write_text("clean\n")
+    source = root / "stdout.txt"
+    source.symlink_to(target)
+    inventory = ArtifactInventory(
+        {"stdout": source}, frozenset({"stdout"}), (root,),
+    )
+
+    report = scan_trial_artifacts(inventory, policy())
+
+    assert report.missing_sources == ("stdout",)
+    assert report.unclassified_files == (UnclassifiedFile(0, "stdout.txt"),)
+    assert report.clean is False
+    assert report.exit_code == 1
+
+
 def test_reports_unclassified_non_file_symlinks(tmp_path: Path) -> None:
     artifacts = make_artifacts(tmp_path, "none")
     target = tmp_path / "target-directory"
