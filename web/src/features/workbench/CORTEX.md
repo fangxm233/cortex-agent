@@ -6,7 +6,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | filename | role | function |
 |---|---|---|
 | WorkbenchPage.tsx | entry | Lays out rail, chat, preview and right panel |
-| LeftRail.tsx | view | Project, session and schedule-run navigation rail |
+| LeftRail.tsx | view | Project, session and SCHEDULED-section navigation rail |
 | left-rail-projects.ts | vm | Builds ordered project rows with badges |
 | left-rail-projects.test.ts | test | Unit tests for project row ordering |
 | project-menu.ts | vm | Counts per-project running and attention badges |
@@ -14,13 +14,15 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | NewProjectModal.tsx | view | Creates a project from a validated name |
 | new-project.ts | vm | Validates project names and maps create errors |
 | new-project.test.ts | test | Unit tests for project name validation |
-| session-groups.ts | vm | Day-groups sessions and collapses schedule runs |
-| session-groups.test.ts | test | Unit tests for session and run grouping |
+| session-groups.ts | vm | Day-groups sessions with meta and stamp helpers |
+| session-groups.test.ts | test | Unit tests for session day grouping |
+| schedule-rail.ts | vm | Builds SCHEDULED rows, run ordinals and click routing |
+| schedule-rail.test.ts | test | Unit tests for the SCHEDULED section view model |
+| RunListModal.tsx | view | Run-list modal opening a run in the chat pane |
 | ProfileMenu.tsx | view | Lists selectable profiles with disabled reasons |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | CenterChat.tsx | view | Reconciles transcript, live and optimistic chat rows |
-| ScheduleContextBar.tsx | view | Schedule bar with pause and edit controls |
 | scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
 | scheduled-chat.test.ts | test | Unit tests for scheduled-chat helpers |
 | ChatHeader.tsx | view | Session title, profile, status and notes entry |
@@ -30,7 +32,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatNotice.test.tsx | test | Tests notice semantics and auth activation |
 | MessageEdit.tsx | view | Message hover actions, edit box and rewind |
 | chat-content.ts | types | Tool call, attachment and slash command types |
-| transcript-vm.ts | vm | Builds chat rows incl trigger card and auth actions |
+| transcript-vm.ts | vm | Builds chat rows and strips the schedule prefix |
 | transcript-vm.test.ts | test | Tests transcript rows and auth action retention |
 | ToolCallsRow.tsx | view | Collapsed tool chips that expand on click |
 | tool-call-overflow.ts | util | Computes visible tool chips and hidden count |

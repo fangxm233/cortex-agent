@@ -217,15 +217,16 @@ export const en = {
   wbSessionEarlier: 'EARLIER',
   wbFromSchedule: 'from schedule',
 
-  // ── 27a/27b scheduled sessions ──
+  // ── 30a/30b/30c scheduled sessions ──
   wbAllRuns: 'all {n} runs',
-  wbScheduleLink: 'schedule ↗',
-  wbSchedNextRun: 'next run in {d}',
+  wbSchedSection: 'SCHEDULED',
+  wbSchedManage: 'manage ↗',
+  wbSchedUnread: '{n} unread',
+  wbSchedOnce: 'once',
+  wbSchedNextRun: 'next in {d}',
   wbSchedPausedPill: 'paused',
-  wbEditSchedule: 'Edit schedule ↗',
-  wbSchedTriggerTitle: 'Scheduled run',
-  wbSchedFired: 'fired {t}',
-  wbSchedReplyHint: 'Replying converts this run into a normal session — it leaves the schedule group; later runs start fresh sessions',
+  wbSchedRunListHint: 'click a run → opens that session in the chat pane',
+  wbSchedReplyHint: 'Replying converts this run into a normal session — it moves into the timeline; the schedule\'s next run is unaffected',
 
   // ── 22a dual-zone left rail ──
   wbProjects: 'PROJECTS',
@@ -1086,15 +1087,16 @@ export const zh: Record<keyof Vocab, string> = {
   wbSessionEarlier: '更早',
   wbFromSchedule: '来自调度',
 
-  // ── 27a/27b scheduled sessions ──
+  // ── 30a/30b/30c scheduled sessions ──
   wbAllRuns: '全部 {n} runs',
-  wbScheduleLink: 'schedule ↗',
+  wbSchedSection: 'SCHEDULED',
+  wbSchedManage: 'manage ↗',
+  wbSchedUnread: '{n} 未读',
+  wbSchedOnce: '单次',
   wbSchedNextRun: '{d} 后运行',
   wbSchedPausedPill: '已暂停',
-  wbEditSchedule: '编辑调度 ↗',
-  wbSchedTriggerTitle: '定时运行',
-  wbSchedFired: '{t} 触发',
-  wbSchedReplyHint: '回复后此 run 转为普通会话：脱离归组，后续 run 另起新 session',
+  wbSchedRunListHint: '点击任意 run → chat 栏打开该次 session',
+  wbSchedReplyHint: '发送后提取为普通 session：移入时间线；schedule 的下次 run 不受影响',
 
   // ── 22a dual-zone left rail ──
   wbProjects: '项目',

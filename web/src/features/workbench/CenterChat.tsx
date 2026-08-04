@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
-import { ScheduleContextBar } from './ScheduleContextBar';
 import { MessageStream, type MessageEditCtx } from './MessageStream';
 import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { Composer } from './Composer';
@@ -20,6 +19,7 @@ import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, for
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useOptimisticUserMessages } from './useOptimisticUserMessages';
+import { runOrdinals } from './schedule-rail';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -64,8 +64,9 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
     return list.find((s) => s.sessionId === selectedSessionId) ?? null;
   }, [sessionsQuery.data, scheduledSessionsQuery.data, selectedSessionId]);
 
-  // Schedule context (design 27b): a session born from a schedule fire keeps its scheduleId even
-  // after adoption; the bar + trigger card render whenever the schedule record still exists.
+  // Schedule context (design 30c): the chat is identical to a normal conversation — the only
+  // scheduled affordances left are the title annotation「schedule 名 · run #n」on an un-adopted
+  // run and the reply-adopts hint under the composer. Management lives in the rail/modal.
   const schedulesQuery = useQuery({
     ...trpc.schedules.list.queryOptions({}),
     enabled: !!active?.scheduleId,
@@ -74,11 +75,24 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
     () => (active?.scheduleId ? (schedulesQuery.data ?? []).find((s) => s.id === active.scheduleId) ?? null : null),
     [schedulesQuery.data, active?.scheduleId],
   );
-  // Un-adopted scheduled run: the composer carries the "replying converts this run" hint (27b).
+  // Un-adopted scheduled run: the composer carries the "replying converts this run" hint (30c).
   const isScheduledRun = active?.origin === 'scheduled';
+  // Run ordinal among the schedule's surviving runs (#1 = oldest) — drives the 30c title. Null for
+  // adopted sessions (they are plain timeline rows) and when the schedule record is gone.
+  const runNo = useMemo(() => {
+    if (!isScheduledRun || !active?.scheduleId) return null;
+    const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
+    return runOrdinals(runs).get(active.sessionId) ?? null;
+  }, [isScheduledRun, active?.scheduleId, active?.sessionId, scheduledSessionsQuery.data]);
 
   const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
-  const title = isDraft ? L.wbNewConversation : active ? (active.label ?? active.name) : 'No session';
+  const title = isDraft
+    ? L.wbNewConversation
+    : active
+      ? isScheduledRun && activeSchedule && runNo != null
+        ? `${activeSchedule.message} · run #${runNo}`
+        : (active.label ?? active.name)
+      : 'No session';
 
   const transcriptQuery = useQuery({
     ...trpc.sessions.transcript.queryOptions({ sessionId }),
@@ -117,7 +131,7 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   const rows = useMemo(
     () => buildTranscriptRows(transcript, liveTail, {
       streaming, streamingText, pendingUser: optimistic.pendingUser, formatDivider: formatDividerFromVocab(L),
-      triggerCard: !!active?.scheduleId || isScheduledRun,
+      stripScheduledPrefix: !!active?.scheduleId || isScheduledRun,
     }),
     [transcript, liveTail, streaming, streamingText, optimistic.pendingUser, L, active?.scheduleId, isScheduledRun],
   );
@@ -187,7 +201,6 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         hasHistory={hasHistory}
         isDraft={isDraft}
       />
-      {activeSchedule && <ScheduleContextBar schedule={activeSchedule} />}
       <MessageStream
         rows={rows}
         loading={!!sessionId && transcriptQuery.isPending}
