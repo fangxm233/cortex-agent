@@ -115,7 +115,9 @@ const roleAssetSchema = z.object({
   mcp_composition: z.enum(['direct', 'thread-control', 'none', 'benchmark-thread-run']),
   mcp_config_paths: z.array(z.string().min(1)),
   disable_hooks: z.literal(true),
-  benchmark_policy_guard: z.unknown().optional(),
+  // No `benchmark_policy_guard` member: the compiler derives the guard from the role (design §13.10
+  // GE2/GE5), so `.strict()` below refuses a phase-A document that authors one — a guard the model
+  // could read out of its own agent dir is the objection route RT1 was rejected for.
 }).strict();
 const armResolutionSchema = z.object({
   schema_version: z.literal(ARM_RESOLUTION_SCHEMA_VERSION),

@@ -68,7 +68,7 @@ it('hashes a caller-supplied thread directive instead of the one-shot empty dire
 });
 
 it('projects compiled benchmark guard rules separately from ambient hooks', () => {
-  const guard = { parent_writable: { Write: 'allow' }, thread_active: { Write: 'deny' } };
+  const guard = { 'parent-writable': ['Read', 'Write'] };
   const surface = roleSurfaceFromSpawnConfig(spawnConfig(), '', guard);
   assert.deepEqual(surface.benchmarkPolicyGuard, guard);
   assert.deepEqual(surface.hookPolicy, {});

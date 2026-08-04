@@ -64,6 +64,50 @@ test('P7 the benchmark tool emits progress heartbeats only while its call is run
   }
 });
 
+// The two predicates the heartbeat's own callers depend on and nothing exercised: a call with no
+// progress token installs no timer at all, and a call that has one keeps beating with a strictly
+// increasing `progress` for as long as it runs. Both run the PRODUCTION function — a duplicate that
+// "mirrors the shape of" it proves nothing about it.
+test('P7 a call with no progress token installs no heartbeat and still returns a disposer', async () => {
+  vi.useFakeTimers();
+  try {
+    const notifications: unknown[] = [];
+    const stop = startMcpProgressHeartbeat({
+      sendNotification: async notification => { notifications.push(notification); },
+    });
+    await vi.advanceTimersByTimeAsync(MCP_PROGRESS_HEARTBEAT_MS * 4);
+    assert.deepEqual(notifications, []);
+    assert.equal(vi.getTimerCount(), 0);
+    stop();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('P7 the heartbeat beats once per interval with a strictly increasing progress', async () => {
+  vi.useFakeTimers();
+  try {
+    const beats: number[] = [];
+    const stop = startMcpProgressHeartbeat({
+      _meta: { progressToken: 7 },
+      sendNotification: async notification => { beats.push(notification.params.progress); },
+    });
+    for (let interval = 0; interval < 5; interval += 1) {
+      await vi.advanceTimersByTimeAsync(MCP_PROGRESS_HEARTBEAT_MS);
+    }
+    assert.deepEqual(beats, [1, 2, 3, 4, 5]);
+    // Four beats land inside one SDK 60 s window, which is the property P7 exists to give.
+    assert.ok(beats.length > 60_000 / MCP_PROGRESS_HEARTBEAT_MS);
+
+    stop();
+    await vi.advanceTimersByTimeAsync(MCP_PROGRESS_HEARTBEAT_MS * 3);
+    assert.deepEqual(beats, [1, 2, 3, 4, 5]);
+    assert.equal(vi.getTimerCount(), 0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 // ─── P5: remaining time derived at the moment of use ────────────────
 
 test('P5 remaining time is recomputed from the absolute deadline on every read', () => {

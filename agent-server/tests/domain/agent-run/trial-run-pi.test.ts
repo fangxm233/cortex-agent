@@ -146,7 +146,6 @@ function armResolution(cli: string): Record<string, unknown> {
         tools: ['Read', 'Write'], plugin_dirs: [], mcp_composition: 'none',
         mcp_config_paths: [write(path.join(root, 'mcp-empty.json'), '{"mcpServers":{}}\n')],
         disable_hooks: true,
-        benchmark_policy_guard: { 'parent-writable': ['read', 'grep'] },
       },
     },
     thread_templates: {}, thread_agents: {},
@@ -399,10 +398,11 @@ function piRunResolution(cli: string, label: string): Record<string, unknown> {
       parent: {
         system_prompt_path: write(path.join(root, `${label}-parent-system.txt`), 'You are the benchmark parent.\n'),
         directive_path: write(path.join(root, `${label}-parent-directive.txt`), 'Solve the task.\n'),
-        tools: ['Read', 'Write'], plugin_dirs: [], mcp_composition: 'none',
+        // PI-native labels: a PI arm's role surface, and therefore the allow-list the compiler
+        // derives its guard from, is spelled in the names PI's own dispatch boundary answers to.
+        tools: ['read', 'write'], plugin_dirs: [], mcp_composition: 'none',
         mcp_config_paths: [write(path.join(root, `${label}-mcp-empty.json`), '{"mcpServers":{}}\n')],
         disable_hooks: true,
-        benchmark_policy_guard: { parent_writable: ['Read', 'Write'], thread_active: ['Read'] },
       },
     },
     thread_templates: {}, thread_agents: {},

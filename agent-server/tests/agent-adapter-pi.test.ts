@@ -714,7 +714,7 @@ test('injects the quota probe only into gateway-routed runs', () => {
       sessionKey: 'pi-quota-trial',
       resume: false,
       piGatewayBaseUrl: 'http://127.0.0.1:9880',
-      benchmarkPolicyGuard: { roles: {} } as never,
+      benchmarkPolicyGuard: { 'parent-writable': ['read'] },
       processSpawner: trial.spawn,
       cliPath: '/bin/pi',
       cwd: '/tmp',

@@ -214,7 +214,6 @@ function armResolution(
         mcp_composition: 'benchmark-thread-run',
         mcp_config_paths: [mcpConfig],
         disable_hooks: true,
-        benchmark_policy_guard: { parent_writable: ['Read', 'Write'], thread_active: ['Read'] },
       },
     },
     thread_templates: {},

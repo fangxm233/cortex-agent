@@ -76,6 +76,18 @@ function buildReverse(forward: NativeMap): Map<string, CanonicalToolName> {
   return m;
 }
 
+/** PI answers to these natively without owning a `NativeMap` entry, because the extension shim —
+ *  not the name map — registers them (`pi/tool-shims.ts:227`, gated by `decide('agent', 'Agent')`). */
+const PI_SHIM_ONLY_TOOLS = ['agent'];
+
+/** Every tool label a backend's own dispatch boundary answers to. Design §13.10 GS4 draws a
+ *  benchmark policy guard's allow-list from exactly this namespace, so it is derived from the table
+ *  the adapters already translate through rather than restated somewhere it can drift. */
+export function nativeToolNames(backend: Backend): string[] {
+  const mapped = Object.values(FORWARD_BY_BACKEND[backend]).filter((name): name is string => !!name);
+  return backend === 'pi' ? [...mapped, ...PI_SHIM_ONLY_TOOLS] : mapped;
+}
+
 /** Translate a backend-native tool name to canonical. MCP tools (mcp__ prefix) pass through unchanged. */
 export function toCanonical(backend: Backend, nativeName: string): CanonicalToolName | string | null {
   if (nativeName.startsWith('mcp__')) return nativeName;

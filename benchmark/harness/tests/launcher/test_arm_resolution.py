@@ -301,6 +301,19 @@ def test_composition_admits_a_pi_backed_direct_arm() -> None:
     document = compose_arm_resolution(parse_trial_seed(pi_backend), FACTS)
 
     assert document["arm"]["backend"] == "pi"
+    # The direct-PI parent surface is the frozen Claude table with exactly one member changed: the
+    # same nine capabilities under PI-native labels. Sharing one label set across backends would be
+    # wrong on one of them, and the compiler derives the guard's allow-list from these very names.
+    claude = compose_arm_resolution(parse_trial_seed(seed_document()), FACTS)
+    parent = document["roles"]["parent"]  # type: ignore[index]
+    claude_parent = claude["roles"]["parent"]  # type: ignore[index]
+    assert parent["tools"] == [
+        "agent", "bash", "edit", "glob", "grep", "read", "skill", "todo_write", "write",
+    ]
+    assert {key: value for key, value in parent.items() if key != "tools"} == {
+        key: value for key, value in claude_parent.items() if key != "tools"
+    }
+    assert "benchmark_policy_guard" not in parent
 
 
 def test_rejects_a_credential_value_field_before_writing_projection() -> None:
