@@ -341,7 +341,10 @@ function resolveRunInputs(
     agentSlot: options.agentSlot,
   });
   assertBenchmarkInvocation(loaded, options, rootRunId);
-  if (!loaded.policy) validateResolvedExecution(profile, loaded.config);
+  if (!loaded.policy) {
+    assertClaudeProfile(profile);
+    validateResolvedExecution(profile, loaded.config);
+  }
   assertMcpFiles(loaded.config);
   return { ...loaded, config: observedRunConfig(loaded.config, profile, options.cwd, loaded.policy) };
 }
@@ -392,8 +395,6 @@ function prepareRun(options: AgentRunCliOptions, rootRunId: string): PreparedRun
   const profile = resolveProfile(options.profile);
   const loaded = resolveRunInputs(options, profile, rootRunId);
   const config = loaded.config;
-  // S8: with a policy the backend is dispatched from the arm; the legacy path keeps its own check.
-  if (!loaded.policy) assertClaudeProfile(profile);
   const spec = loaded.policy ? trialAdapterSpec(options, loaded.policy, config) : null;
   const trial = spec ? createTrialAdapter(spec) : null;
   const baseOptions = spec
