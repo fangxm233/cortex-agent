@@ -16,6 +16,7 @@ Each file covers one command family, from sessions and threads to devices, costs
 | lang.ts | command | shows and switches the interface language |
 | login-notice.ts | helper | Starts and reuses login flows from auth notices |
 | login.ts | command | Drives channel-bound prompts and notice flows |
+| login-custom.ts | command | lists, defines and deletes custom PI providers |
 | mode.ts | command | switches Claude/PI backend, model, profile and agent |
 | nvtop.ts | command | reports GPU usage on registered machines |
 | orient.ts | command | replies that the feature is not implemented |

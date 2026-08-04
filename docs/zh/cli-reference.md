@@ -80,6 +80,36 @@ API 模式下，如果 gateway 健康但本地没有 key，会显示 gateway 托
 
 登录命令、provider 能力判据和过期处理参见[后端：远程登录](./backends.md#remote-login)。
 
+**`cortex auth provider <list|add|remove> [选项]`**
+
+管理自定义 PI provider——自建或代理的推理端点，它们没有自己的登录流程。`add` 即 upsert：
+用改过的地址或模型列表重跑一次，就是原地编辑这条定义。
+
+选项：
+- `--name <名称>` — provider 名称，仅限字母、数字、`-` 和 `_`
+- `--api <协议>` — 请求协议：`anthropic-messages`、`openai-completions`、`openai-responses` 或 `google-generative-ai`
+- `--url <地址>` — 上游端点地址，保存在网关路由里
+- `--key <密钥|->` — 上游 API key；填 `-` 表示从标准输入读取，这样密钥不会进入 shell 历史
+- `--model <id>` — 端点提供的模型 id，可重复
+- `--dry-run` — 用于 `remove`：只显示会删掉什么，不真的删
+- `--json` — 以 JSON 输出结果
+- `--help`、`-h` — 显示 provider 命令帮助
+
+```bash
+# 定义一个使用 Anthropic 协议的本地端点
+cortex auth provider add --name my-vllm --api anthropic-messages \
+  --url http://127.0.0.1:8100 --model Model-27B
+
+# 从密钥库取 key，不出现在命令行里
+pass show my-endpoint | cortex auth provider add --name my-proxy \
+  --api openai-completions --url https://proxy.example.com/v1 --model small --key -
+
+cortex auth provider list --json
+cortex auth provider remove --name my-vllm --dry-run
+```
+
+两份写入的内容以及一条定义如何抵达 agent，参见[后端：自定义 provider](./backends.md#自定义-provider)。
+
 **`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
 
 从本地配置文件自动检测 Claude Code 和 PI 配置，生成 `~/.aistatus/gateway.yaml`（备份已有文件），并写入 `$CORTEX_HOME/config/profiles.json`。在添加新的 API 密钥或更改模型时运行此命令。

@@ -57,6 +57,17 @@ export type {
   LoginPendingPrompt,
   LoginPromptOption,
 } from '@domain/auth/index.js';
+import type {
+  CustomProviderApi,
+  CustomProviderModelSpec,
+  CustomProviderStores,
+  CustomProviderView,
+} from '@domain/pi-providers/index.js';
+export type {
+  CustomProviderApi,
+  CustomProviderModelSpec,
+  CustomProviderView,
+} from '@domain/pi-providers/index.js';
 
 // ── Result ────────────────────────────────────────────────────────
 
@@ -87,6 +98,7 @@ export type QueryScope =
   | 'config.get'
   | 'auth.status'
   | 'auth.flowState'
+  | 'auth.customProviders'
   | 'hooks.list'
   | 'machines.list'
   | 'skills.list'
@@ -134,6 +146,8 @@ export type MutateOp =
   | 'auth.respondPrompt'
   | 'auth.cancelFlow'
   | 'auth.logout'
+  | 'auth.upsertCustomProvider'
+  | 'auth.removeCustomProvider'
   | 'hooks.create'
   | 'hooks.update'
   | 'hooks.setEnabled'
@@ -269,6 +283,8 @@ export interface AuthFlowStateParams {
   flowId: string;
 }
 
+export type AuthCustomProvidersParams = Record<string, never>;
+
 export type MachinesListParams = Record<string, never>;
 
 export type SkillsListParams = Record<string, never>;
@@ -303,6 +319,27 @@ export interface AuthCancelFlowArgs {
 
 export type AuthLogoutArgs = LogoutAccountInput;
 export type AuthLogoutReturn = AuthLogoutSuccess;
+
+// auth.upsertCustomProvider / auth.removeCustomProvider — the definitions of self-hosted or proxied
+// endpoints. The upstream URL and key live in the gateway route, the protocol and models in PI's
+// catalog; both files are written from this one draft. `apiKey` omitted keeps the stored key.
+export interface AuthUpsertCustomProviderArgs {
+  name: string;
+  api: CustomProviderApi;
+  upstreamUrl: string;
+  apiKey?: string;
+  models: CustomProviderModelSpec[];
+  headers?: Record<string, string>;
+  compat?: Record<string, unknown>;
+}
+
+export interface AuthRemoveCustomProviderArgs {
+  name: string;
+}
+
+export interface AuthRemoveCustomProviderReturn {
+  removed: boolean;
+}
 
 export interface SessionsCreateArgs {
   /** Project the new session belongs to. Omitted → the default project (handler fallback). */
@@ -1551,6 +1588,7 @@ export interface QueryParamMap {
   'config.get': ConfigGetParams;
   'auth.status': AuthStatusParams;
   'auth.flowState': AuthFlowStateParams;
+  'auth.customProviders': AuthCustomProvidersParams;
   'hooks.list': HooksListParams;
   'machines.list': MachinesListParams;
   'skills.list': SkillsListParams;
@@ -1580,6 +1618,7 @@ export interface QueryReturnMap {
   'config.get': ConfigSnapshot;
   'auth.status': AuthStatusSnapshot;
   'auth.flowState': LoginFlowState | null;
+  'auth.customProviders': CustomProviderView[];
   'hooks.list': HooksOverview;
   'machines.list': MachineInfo[];
   'skills.list': SkillGroup[];
@@ -1626,6 +1665,8 @@ export interface MutateArgsMap {
   'auth.respondPrompt': AuthRespondPromptArgs;
   'auth.cancelFlow': AuthCancelFlowArgs;
   'auth.logout': AuthLogoutArgs;
+  'auth.upsertCustomProvider': AuthUpsertCustomProviderArgs;
+  'auth.removeCustomProvider': AuthRemoveCustomProviderArgs;
   'hooks.create': HooksCreateArgs;
   'hooks.update': HooksUpdateArgs;
   'hooks.setEnabled': HooksSetEnabledArgs;
@@ -1676,6 +1717,8 @@ export interface MutateReturnMap {
   'auth.respondPrompt': LoginFlowState;
   'auth.cancelFlow': LoginFlowState;
   'auth.logout': AuthLogoutReturn;
+  'auth.upsertCustomProvider': CustomProviderView;
+  'auth.removeCustomProvider': AuthRemoveCustomProviderReturn;
   'hooks.create': HooksCreateReturn;
   'hooks.update': HooksUpdateReturn;
   'hooks.setEnabled': HooksSetEnabledReturn;
@@ -1714,6 +1757,8 @@ export interface UiServiceDeps {
   getAuthStatus?: () => Promise<AuthStatusSnapshot>;
   authLogin?: AuthLoginService;
   logoutAccount?: (input: LogoutAccountInput) => Promise<AuthLogoutResult>;
+  /** Files custom providers are read from and written to; defaults to the host's own two files. */
+  customProviderStores?: CustomProviderStores;
   projectStore: {
     list(): Project[];
     get(id: string): Project | undefined;

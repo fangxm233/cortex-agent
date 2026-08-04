@@ -83,6 +83,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | interaction-handlers.test.ts | test | modal submit publishes answered event |
 | lang-command.test.ts | test | language switch command and persistence |
 | login-command-interactions.test.ts | test | chat notice actions, device codes and reuse |
+| login-custom-command.test.ts | test | custom provider chat listing, writes and usage |
 | machines-query.test.ts | test | machines list online/offline projection |
 | manager-qa.test.ts | test | manager ask/answer channel resolution |
 | manager-rotation.test.ts | test | live settings and task-artifact rehydration |

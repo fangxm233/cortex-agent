@@ -86,6 +86,8 @@ The view models are framework-free record to slot mappings and each one has a co
 | MAccountsScreen.tsx | screen | Loads account status and serializes logout actions |
 | MAccountsView.tsx | view | Groups provider cards with gated account actions |
 | MAccountsView.test.tsx | test | Tests mobile account groups and pending actions |
+| MAccountsView.custom.test.tsx | test | Tests the custom provider section and delete guard |
+| MCustomProviderSheet.tsx | view | Bottom-sheet editor for one custom PI provider |
 | m-accounts-vm.ts | vm | Derives shared account state and actionable credentials |
 | m-accounts-vm.test.ts | test | Tests shared account filtering and action gates |
 | MHooksScreen.tsx | screen | Loads the hook registry and sheet selection |

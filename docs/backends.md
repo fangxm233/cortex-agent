@@ -110,7 +110,11 @@ The chat command forms are:
 !login cc
 !login pi
 !login pi <provider>
+!login custom
 ```
+
+`!login custom` manages self-hosted endpoints that have no login flow; see
+[Custom providers](#custom-providers) below.
 
 `!login` with no arguments and `!login status` both show the authentication
 status overview. `!login cc` selects Claude Code. `!login pi` opens a PI
@@ -151,6 +155,44 @@ cortex auth status --json
 The text form is a concise overview; `--json` returns the complete normalized
 status snapshot. Both are credential-free. See
 [CLI Reference](./cli-reference.md#cortex) for the exact command contract.
+
+## Custom providers
+
+A custom provider is an endpoint PI does not ship a definition for: a local
+inference server, a lab GPU box, or a company proxy. It has no login flow —
+there is no vendor to authenticate against — so it is defined rather than
+logged into, and it is managed from the same three surfaces as everything else:
+
+| Surface | Entry |
+|---|---|
+| CLI | `cortex auth provider list \| add \| remove` |
+| Web (desktop and mobile) | **Settings → Accounts → Custom providers** |
+| Slack / Feishu | `!login custom [list \| add <name> <api> <url> <model…> \| remove <name>]` |
+
+A definition needs four things: a name, the request protocol the endpoint
+speaks (`anthropic-messages`, `openai-completions`, `openai-responses`, or
+`google-generative-ai`), the upstream URL, and at least one model id. An
+upstream key is optional; without one the gateway passes the caller's own key
+through.
+
+Saving writes two files. `~/.pi/agent/models.json` gets a `providers.<name>`
+entry whose `baseUrl` points at the gateway, so the terminal `pi` and Cortex
+share one definition. `~/.aistatus/gateway.yaml` gets the route that forwards to
+the real endpoint, carrying the upstream key. **The key lives only in the
+gateway config** — the PI catalog holds a placeholder, so copying the catalog
+around never copies a secret. Every call therefore goes through the gateway and
+is accounted and throttled like any other route. The gateway reloads its config
+by itself, so no restart is needed.
+
+The chat command deliberately has no key argument: a channel transcript is a
+poor place for a secret. Add the key from the CLI with `--key -` (read from
+stdin) or from the Web form, both of which keep it off any transcript.
+
+To use a custom provider, add a profile that names it — for example
+`{"backend": "pi", "provider": "my-vllm", "mode": "my-vllm", "model": "Model-27B"}`
+(see [configuration.md](./configuration.md) for the profiles schema). Deleting
+a provider removes both the catalog entry and the gateway route; profiles that
+still point at it will fail to resolve, so re-point them first.
 
 ## Selecting a backend
 

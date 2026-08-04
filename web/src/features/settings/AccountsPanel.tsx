@@ -20,6 +20,7 @@ import {
   type ClaudeAccountVm,
   type PiProviderVm,
 } from '@/mobile/v3/m-accounts-vm';
+import { CustomProvidersCard } from './CustomProvidersCard';
 import { SButton, SCard, SCardHeader, SFieldRow, S_CONTROL_STYLE } from './settings-ui';
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -228,6 +229,7 @@ export function AccountsPanel({ onLogin }: AccountsPanelProps) {
     <>
       {vm.claude ? <ClaudeCard account={vm.claude} actions={actions} /> : null}
       <PiProviderList providers={vm.piProviders} filter={filter} onFilter={setFilter} actions={actions} />
+      <CustomProvidersCard />
     </>
   );
 }

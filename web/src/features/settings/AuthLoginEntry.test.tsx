@@ -45,7 +45,13 @@ vi.mock('@/lib/trpc', () => {
       update: mutation('profiles.update'),
       remove: mutation('profiles.remove'),
     },
-    auth: { status: query('auth.status'), logout: mutation('auth.logout') },
+    auth: {
+      status: query('auth.status'),
+      logout: mutation('auth.logout'),
+      customProviders: query('auth.customProviders'),
+      upsertCustomProvider: mutation('auth.upsertCustomProvider'),
+      removeCustomProvider: mutation('auth.removeCustomProvider'),
+    },
   }) };
 });
 
@@ -56,7 +62,9 @@ vi.mock('@tanstack/react-query', async importOriginal => ({
       ? snapshot
       : options.__kind === 'threadTemplates.get'
         ? []
-        : options.__kind === 'auth.status' ? authStatus : undefined,
+        : options.__kind === 'auth.status'
+          ? authStatus
+          : options.__kind === 'auth.customProviders' ? [] : undefined,
     isLoading: false,
     isError: false,
     error: null,

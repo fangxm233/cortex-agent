@@ -29,7 +29,9 @@ import type {
   PlatformAdapter,
   RichBlock,
 } from '@platform/index.js';
+import type { CustomProviderStores } from '@domain/pi-providers/index.js';
 import type { CommandResult } from './command-context.js';
+import { handleCustomProviderCommand } from './login-custom.js';
 import {
   openAuthRequiredLoginAction,
   type AuthRequiredLoginMetadata,
@@ -46,6 +48,8 @@ export interface LoginCommandDependencies {
   readStatus?: AuthStatusReader;
   authLogin?: AuthLoginService;
   router?: CommandActionRouter;
+  /** Files `!login custom` reads and writes; defaults to the host's own catalog and gateway. */
+  customProviderStores?: CustomProviderStores;
 }
 
 interface ResolvedLoginDependencies {
@@ -73,6 +77,7 @@ interface LoginOpenMetadata {
 type LoginRequest =
   | { kind: 'status' }
   | { kind: 'login'; backend: 'claude' | 'pi'; provider?: string }
+  | { kind: 'custom'; args: string[] }
   | { kind: 'usage' };
 
 interface NoticeTracker {
@@ -95,6 +100,8 @@ function parseRequest(message: string): LoginRequest {
   if (args.length === 0 || (args.length === 1 && args[0] === 'status')) return { kind: 'status' };
   if (args[0] === 'cc') return parseClaudeRequest(args.slice(1));
   if (args[0] === 'pi') return parsePiRequest(args.slice(1));
+  // Custom providers have no login flow — they are defined, listed and deleted instead.
+  if (args[0] === 'custom') return { kind: 'custom', args: args.slice(1) };
   return { kind: 'usage' };
 }
 
@@ -791,6 +798,9 @@ export function createLoginHandler(input: LoginCommandDependencies = {}) {
     const request = parseRequest(message);
     if (request.kind === 'status') {
       return { text: formatAuthStatusSummary(await dependencies.readStatus()) };
+    }
+    if (request.kind === 'custom') {
+      return handleCustomProviderCommand(request.args, input.customProviderStores);
     }
     if (request.kind === 'usage') return { text: t('cmd.auth.usage') };
     if (request.backend === 'claude') return handleClaudeLoginRequest(channel, dependencies);

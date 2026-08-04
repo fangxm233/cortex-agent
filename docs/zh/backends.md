@@ -76,7 +76,10 @@ PI provider 名称与 Cortex backend 名称相互独立。`openai-codex` 仍是�
 !login cc
 !login pi
 !login pi <provider>
+!login custom
 ```
+
+`!login custom` 管理没有登录流程的自建端点，见下文[自定义 provider](#custom-providers)。
 
 无参数的 `!login` 与 `!login status` 都显示认证状态总览。`!login cc` 选择
 Claude Code。`!login pi` 先打开 PI provider 选择器；附带 provider 时跳过该步。
@@ -108,6 +111,36 @@ cortex auth status --json
 
 文本形式提供简洁总览；`--json` 返回完整的归一化状态快照。两者都不包含凭据。精确命令契约
 参见 [CLI 参考](./cli-reference.md#cortex)。
+
+## 自定义 provider {#custom-providers}
+
+自定义 provider 指 PI 没有内置定义的端点：本地推理服务、实验室的 GPU 机器，或公司内的代理。
+它没有登录流程——没有厂商可供认证——所以它是"定义出来"的而不是"登录进去"的，管理入口与其他
+功能一致，共三处：
+
+| 入口 | 用法 |
+|---|---|
+| CLI | `cortex auth provider list \| add \| remove` |
+| Web（桌面与移动） | **设置 → 账号 → 自定义 Provider** |
+| Slack / 飞书 | `!login custom [list \| add <名称> <协议> <地址> <模型…> \| remove <名称>]` |
+
+一条定义需要四样东西：名称、端点使用的请求协议（`anthropic-messages`、`openai-completions`、
+`openai-responses` 或 `google-generative-ai`）、上游地址，以及至少一个模型 id。上游密钥是可选
+的；不填时网关会直接透传调用方自己的 key。
+
+保存会写两份文件。`~/.pi/agent/models.json` 里新增 `providers.<名称>`，其 `baseUrl` 指向网关，
+因此终端的 `pi` 和 Cortex 共用同一份定义；`~/.aistatus/gateway.yaml` 里新增指向真实端点的路由，
+上游密钥保存在这里。**密钥只存在于网关配置中**——PI 目录里放的是占位符，所以把那份 catalog
+复制到别处也不会把密钥带走。于是每次调用都经过网关，与其他路由一样计入用量与限流。网关会自己
+热重载配置，无需重启。
+
+聊天命令刻意不接受密钥参数：聊天记录不是放密钥的地方。要配密钥，请用 CLI 的 `--key -`
+（从标准输入读取）或 Web 表单，两者都不会把它留在任何聊天记录里。
+
+要用上自定义 provider，再建一条指向它的 profile，例如
+`{"backend": "pi", "provider": "my-vllm", "mode": "my-vllm", "model": "Model-27B"}`
+（profile 结构参见 [configuration.md](./configuration.md)）。删除 provider 会同时移除 catalog
+条目与网关路由，仍指向它的 profile 将无法解析，请先改掉那些 profile。
 
 ## 选择后端 {#selecting-a-backend}
 

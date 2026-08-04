@@ -64,13 +64,21 @@ vi.mock('@/lib/trpc', () => {
     mutationOptions: (options: object) => ({ __kind: kind, ...options }),
   });
   return { useTRPC: () => ({
-    auth: { status: query('auth.status'), logout: mutation('auth.logout') },
+    auth: {
+      status: query('auth.status'),
+      logout: mutation('auth.logout'),
+      customProviders: query('auth.customProviders'),
+      upsertCustomProvider: mutation('auth.upsertCustomProvider'),
+      removeCustomProvider: mutation('auth.removeCustomProvider'),
+    },
   }) };
 });
 
 vi.mock('@tanstack/react-query', async importOriginal => ({
   ...await importOriginal<typeof import('@tanstack/react-query')>(),
-  useQuery: () => ({ data: status, isLoading: false, isError: false, error: null }),
+  useQuery: (options: any) => (options?.__kind === 'auth.customProviders'
+    ? { data: [], isLoading: false, isError: false, error: null }
+    : { data: status, isLoading: false, isError: false, error: null }),
   useMutation: (options: any) => ({
     mutate: (variables: unknown) => {
       harness.logoutCalls.push(variables);

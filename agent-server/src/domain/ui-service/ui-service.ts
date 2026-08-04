@@ -18,6 +18,7 @@ import { handleNotesList } from './query/notes.js';
 import { handleCostSummary } from './query/cost.js';
 import { handleConfigGet } from './query/config.js';
 import { handleAuthFlowState, handleAuthStatus } from './query/auth.js';
+import { handleCustomProvidersList } from './query/custom-providers.js';
 import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleSkillsList } from './query/skills.js';
@@ -69,6 +70,10 @@ import {
   handleAuthRespondPrompt,
   handleAuthStartLogin,
 } from './mutate/auth.js';
+import {
+  handleCustomProviderRemove,
+  handleCustomProviderUpsert,
+} from './mutate/custom-providers.js';
 import { createSubscription } from './subscribe.js';
 import { resolveExecutionLogLocation } from '@domain/executions/log-tailer.js';
 
@@ -96,6 +101,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'config.get': (deps, params) => handleConfigGet(deps, params),
   'auth.status': (deps, params) => handleAuthStatus(params, deps.getAuthStatus),
   'auth.flowState': (deps, params) => handleAuthFlowState(params, deps.authLogin?.getState),
+  'auth.customProviders': (deps, params) => handleCustomProvidersList(deps, params),
   'hooks.list': (deps, params) => handleHooksList(deps, params),
   'machines.list': (deps, params) => handleMachinesList(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),
@@ -142,6 +148,8 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'auth.respondPrompt': (deps, args) => handleAuthRespondPrompt(deps, args),
   'auth.cancelFlow': (deps, args) => handleAuthCancelFlow(deps, args),
   'auth.logout': (deps, args) => handleAuthLogout(deps, args),
+  'auth.upsertCustomProvider': (deps, args) => handleCustomProviderUpsert(deps, args),
+  'auth.removeCustomProvider': (deps, args) => handleCustomProviderRemove(deps, args),
   'hooks.create': (deps, args) => handleHooksCreate(deps, args),
   'hooks.update': (deps, args) => handleHooksUpdate(deps, args),
   'hooks.setEnabled': (deps, args) => handleHooksSetEnabled(deps, args),
@@ -159,6 +167,10 @@ export function redactMutationAuditArgs(op: MutateOp, args: unknown): unknown {
   if (op === 'auth.respondPrompt') {
     const { flowId } = args as { flowId?: unknown };
     return { flowId };
+  }
+  if (op === 'auth.upsertCustomProvider') {
+    const { apiKey: _upstreamKey, ...safe } = args as Record<string, unknown>;
+    return safe;
   }
   if (!op.startsWith('notes.')) return args;
   const { text: _privateText, ...safe } = args as Record<string, unknown>;

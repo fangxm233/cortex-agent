@@ -10,6 +10,10 @@ Panels read config/auth snapshots; accounts, budget, runtime, profiles and hooks
 | SettingsPanels.tsx | view | Renders non-runtime platform and config sections |
 | AccountsPanel.tsx | view | Filters providers and manages account login/logout |
 | AccountsPanel.test.tsx | test | Tests desktop account state and action visibility |
+| CustomProvidersCard.tsx | view | Lists, edits and deletes user-defined PI providers |
+| CustomProvidersCard.test.tsx | test | Tests custom provider rows, save payload and delete guard |
+| custom-provider-vm.ts | vm | Validates custom provider drafts and builds mutation args |
+| custom-provider-vm.test.ts | test | Unit tests for the custom provider view model |
 | AuthLoginEntry.test.tsx | test | Tests settings shell copy and account login handoff |
 | RuntimeSettingsPanels.tsx | view | Reads and writes runtime settings toggles |
 | RuntimeSettingsPanels.test.tsx | test | Tests toggle rows and production write adapter |
