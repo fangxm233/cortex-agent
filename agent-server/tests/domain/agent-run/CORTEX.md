@@ -28,12 +28,13 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | long-mcp-trial-fixture.ts | fixture | compiles a trial whose declared MCP server holds |
 | journal.test.ts | test | verifies durable events and relocatable lifecycle paths |
 | manifest-contract.test.ts | test | verifies lifecycle, linkage and child identity contracts |
+| pi-rpc-cli.mjs | fixture | answers one PI rpc turn and records its env |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
 | pinned-paths-child.ts | fixture | reports child-derived paths and env keys |
 | role-surface.test.ts | test | verifies directives, guards, tools and argv alignment |
 | run-config.test.ts | test | proves schema dispatch, roles, argv and MCP inputs |
 | supervisor.test.ts | test | verifies path resolution, protocol and watchdog |
-| trial-run-pi.test.ts | test | proves PI supervision, quiescence, cancel and deadline |
+| trial-run-pi.test.ts | test | proves PI supervision, cancel, deadline and run identity |
 | trial-run.test.ts | test | proves supervised, isolated and normalized trial runs |
 | trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
 | transport-teardown-e2e.test.ts | e2e | proves finalization survives sidecar teardown |
