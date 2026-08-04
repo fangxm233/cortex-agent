@@ -929,6 +929,7 @@ export class PIAdapter implements AgentAdapter {
       try {
         this.prepareAgentDir?.(agentDir);
       } catch (err) {
+        if (guard !== undefined) throw err;
         log.warn(`Failed to prepare the PI agent dir: ${(err as Error).message}`);
       }
       try {
@@ -951,6 +952,7 @@ export class PIAdapter implements AgentAdapter {
           log.warn('No PI providers to route (empty discovery and no profile provider); PI subprocess may fail to authenticate');
         }
       } catch (err) {
+        if (guard !== undefined) throw err;
         log.warn(`Failed to write PI models.json: ${(err as Error).message}`);
       }
     }

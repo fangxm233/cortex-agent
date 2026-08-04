@@ -325,6 +325,18 @@ it('writes the trial auth from the policy dummy token, never a host symlink (P6,
   assert.equal(auth.anthropic.key, built.policy.credential.dummy_token_ref);
 });
 
+it('refuses to spawn when the trial credential cannot be prepared (P6)', () => {
+  const built = spec();
+  const trial = createTrialAdapter(built);
+  const agentDir = path.join(built.paths.root, 'pi-agent');
+  fs.rmSync(agentDir, { recursive: true });
+  fs.writeFileSync(agentDir, 'not-a-directory');
+  const record: SpawnRecord = {};
+  trial.spawnConfig.processSpawner = capturingSpawner(record);
+  assert.throws(() => trial.adapter.spawn(trial.spawnConfig));
+  assert.equal(record.command, undefined);
+});
+
 // --- P8 / P12: one provider, routed at the policy proxy ---
 
 it('writes exactly the arm provider routed at the policy proxy (P8, P12, A7, A8)', () => {
@@ -343,6 +355,16 @@ it('writes exactly the arm provider routed at the policy proxy (P8, P12, A7, A8)
 it('never routes a PI trial at the host gateway (P12)', () => {
   const trial = createTrialAdapter(spec());
   assert.equal(trial.spawnConfig.piGatewayBaseUrl, 'http://127.0.0.1:49152');
+});
+
+it('refuses to spawn when the trial provider catalog cannot be written (P7, P8, P12)', () => {
+  const built = spec();
+  const trial = createTrialAdapter(built);
+  fs.mkdirSync(path.join(built.paths.root, 'pi-agent', 'models.json'));
+  const record: SpawnRecord = {};
+  trial.spawnConfig.processSpawner = capturingSpawner(record);
+  assert.throws(() => trial.adapter.spawn(trial.spawnConfig));
+  assert.equal(record.command, undefined);
 });
 
 // --- P9: the extension set is derived from the role ---
