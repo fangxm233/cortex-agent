@@ -262,6 +262,23 @@ function configureCoderReview(input: ArmResolution, includeRoles = true): void {
   input.roles['benchmark-reviewer'] = structuredClone(input.roles.parent);
 }
 
+function configureBenchmarkMcp(input: ArmResolution): void {
+  const mcp = writeAsset('mcp-benchmark-thread.json', JSON.stringify({
+    mcpServers: { 'cortex-benchmark-thread': { command: 'cortex', args: ['mcp'] } },
+  }));
+  input.roles.parent.mcp_composition = 'benchmark-thread-run';
+  input.roles.parent.mcp_config_paths = [mcp];
+}
+
+function configureVendorBaseline(input: ArmResolution): void {
+  const value = input.arm as Record<string, unknown>;
+  value.kind = 'vendor-baseline';
+  value.vendor_agent = 'claude-code';
+  delete value.backend;
+  delete value.orchestration;
+  delete input.roles.parent.benchmark_policy_guard;
+}
+
 function expectFailure(
   input: ArmResolution,
   reason: BenchmarkFailureReason,
@@ -590,6 +607,83 @@ it('rejects nonpositive absolute deadlines and unproven PI benchmark support', (
   expectFailure(pi, 'backend_unsupported_for_kind', 14, dependencies(profile({
     backend: 'pi', provider: 'openai-codex', thinking: 'high',
   })));
+});
+
+it('refuses a cortex arm whose backend does not declare the long MCP call', () => {
+  const input = resolution();
+  Object.assign(input.arm as ReturnType<typeof arm>, { backend: 'pi', provider: 'openai-codex' });
+  input.pi_benchmark_capability_proven = true;
+  expectFailure(input, 'backend_lacks_long_mcp_call', 28, dependencies(profile({
+    backend: 'pi', provider: 'openai-codex',
+  })));
+});
+
+it('refuses an unverified CLI version only where a benchmark MCP surface exists', () => {
+  const unorderable = resolution();
+  configureBenchmarkMcp(unorderable);
+  expectFailure(unorderable, 'cli_version_unsupported_for_long_mcp_call', 29);
+
+  const unverifiedRelease = resolution();
+  configureBenchmarkMcp(unverifiedRelease);
+  unverifiedRelease.cli_artifact.version = '2.1.219 (Claude Code)';
+  expectFailure(unverifiedRelease, 'cli_version_unsupported_for_long_mcp_call', 29);
+
+  // An empty or absent version never reaches the membership test: the resolution shape rejects it.
+  const empty = resolution();
+  configureBenchmarkMcp(empty);
+  empty.cli_artifact.version = '';
+  expectFailure(empty, 'arm_schema_invalid', 1);
+
+  const verified = resolution();
+  configureBenchmarkMcp(verified);
+  verified.cli_artifact.version = '2.1.220 (Claude Code)';
+  const supported = compileResolvedTrialPolicy(verified, dependencies());
+  assert.equal(supported.model_execution.claude_cli_version, '2.1.220 (Claude Code)');
+
+  // Scope boundary: an arm with no MCP client has no long call to orphan.
+  const noSurface = compileResolvedTrialPolicy(resolution(), dependencies());
+  assert.equal(noSurface.model_execution.claude_cli_version, 'fixture-1.0.0');
+});
+
+it('refuses a compiled cortex role that carries no policy guard', () => {
+  const parentless = resolution();
+  delete parentless.roles.parent.benchmark_policy_guard;
+  expectFailure(parentless, 'policy_guard_absent', 30);
+
+  const reviewerless = resolution();
+  configureCoderReview(reviewerless);
+  delete reviewerless.roles['benchmark-reviewer'].benchmark_policy_guard;
+  expectFailure(reviewerless, 'policy_guard_absent', 30);
+});
+
+it('carries every compiled role guard on the frozen policy, keyed by slot', () => {
+  const input = resolution();
+  configureCoderReview(input);
+  const policy = compileResolvedTrialPolicy(input, dependencies());
+
+  assert.deepEqual(Object.keys(policy.role_policy_guard).sort(), [
+    'benchmark-coder', 'benchmark-reviewer', 'parent',
+  ]);
+  assert.deepEqual(policy.role_policy_guard.parent, {
+    parent_writable: ['Read', 'Write'],
+    thread_active: ['Read'],
+  });
+  assert.ok(Object.isFrozen(policy.role_policy_guard));
+  assert.ok(Object.isFrozen(policy.role_policy_guard.parent));
+  assert.throws(
+    () => { (policy.role_policy_guard as Record<string, unknown>).parent = {}; },
+    TypeError,
+  );
+});
+
+it('omits the slot key entirely when a compiled role carries no guard', () => {
+  const input = resolution();
+  configureVendorBaseline(input);
+  const policy = compileResolvedTrialPolicy(input, dependencies());
+
+  assert.equal('parent' in policy.role_policy_guard, false);
+  assert.deepEqual(Object.keys(policy.role_policy_guard), []);
+  assert.match(policy.identity.role_tool_surface_hash.parent, /^[0-9a-f]{64}$/);
 });
 
 it('enforces closed template, capability, and required-role whitelists', () => {

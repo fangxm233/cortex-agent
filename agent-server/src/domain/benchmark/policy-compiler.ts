@@ -6,6 +6,9 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS, CAPABILITIES_BY_BACKEND, Capability,
+} from '../../agent-adapter/capabilities.js';
 import type { McpComposition } from '../../agent-adapter/types.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import {
@@ -253,6 +256,34 @@ function validatePiCapability(context: CompileContext): void {
   }
 }
 
+// The two long-MCP-call checks ask different questions and therefore have different scopes.
+// The capability asks whether this backend type implements a configurable per-call budget at all —
+// a static property of the backend, meaningful before any composition exists — so it is required of
+// every cortex arm. The version asks whether this concrete CLI can sustain a real long call, which
+// is only meaningful where such a call can occur: an arm exposing no benchmark MCP server has no
+// call to orphan. No shipped arm exposes one yet, so the version check first bites on the arms that
+// introduce the benchmark thread-run surface.
+function validateLongMcpCallCapability(context: CompileContext): void {
+  if (context.arm.kind !== 'cortex') return;
+  const backend = context.arm.backend!;
+  if (!CAPABILITIES_BY_BACKEND[backend].has(Capability.BenchmarkLongMcpCall)) {
+    fail('backend_lacks_long_mcp_call', backend);
+  }
+}
+
+function exposesBenchmarkMcp(context: CompileContext): boolean {
+  return Object.values(context.input.roles)
+    .some(role => role.mcp_composition === 'benchmark-thread-run');
+}
+
+function validateLongMcpCallCliVersion(context: CompileContext): void {
+  if (context.arm.kind !== 'cortex' || !exposesBenchmarkMcp(context)) return;
+  const version = context.input.cli_artifact.version;
+  if (!BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS[context.arm.backend!].includes(version)) {
+    fail('cli_version_unsupported_for_long_mcp_call', version);
+  }
+}
+
 function failProfileValueMismatch(
   field: 'model' | 'backend' | 'provider',
   armValue: string | null,
@@ -283,6 +314,7 @@ function validateProfileIdentity(
 function validateProfile(context: CompileContext, profile: ResolvedProfileConfig): void {
   validateProfileShape(profile);
   validatePiCapability(context);
+  validateLongMcpCallCapability(context);
   validateProfileIdentity(context.arm, profile);
 }
 
@@ -373,6 +405,21 @@ function compiledGuard(
   return canonicalGuardValue(value) as Record<string, IdentityJsonValue>;
 }
 
+// A benchmark role governs a model process, so it may not run unguarded: the guard is what makes
+// the role's tool surface enforceable, and a missing one is a compile failure rather than an
+// unguarded spawn. Vendor baselines run no Cortex role and carry no guard.
+function roleGuard(
+  context: CompileContext,
+  slot: string,
+  source: ResolvedRoleAsset,
+): Record<string, IdentityJsonValue> | undefined {
+  const guard = compiledGuard(slot, source.benchmark_policy_guard);
+  if (guard === undefined && context.arm.kind === 'cortex') {
+    fail('policy_guard_absent', `role://${slot}`);
+  }
+  return guard;
+}
+
 function promptRole(context: CompileContext, slot: string): WorkingRole {
   const source = context.input.roles[slot];
   validateRoleSource(slot, source);
@@ -395,7 +442,7 @@ function promptRole(context: CompileContext, slot: string): WorkingRole {
     directiveSha256: sha256(directive),
     pluginDirs: [],
     skills: [],
-    benchmarkPolicyGuard: compiledGuard(slot, source.benchmark_policy_guard),
+    benchmarkPolicyGuard: roleGuard(context, slot, source),
   };
 }
 
@@ -559,6 +606,7 @@ function compileAssets(context: CompileContext): CompilationAssets {
   validateArmPostCredential(context.arm);
   const profile = inventoryProfile(context);
   inventoryCli(context);
+  validateLongMcpCallCliVersion(context);
   inventoryRoute(context);
   const roles = inventoryPrompts(context);
   inventoryTools(context, roles);
@@ -663,6 +711,14 @@ function resolvedRoles(roles: WorkingRole[]): Record<string, ResolvedAgentRunRol
   return Object.fromEntries(roles.map(role => [role.slot, role.role]));
 }
 
+// The guard travels on the in-process policy only; a slot without one has no key, never an empty
+// object, so the identity input stays omitted and the guard-less role hash stays byte-identical.
+function rolePolicyGuards(roles: WorkingRole[]): Record<string, IdentityJsonValue> {
+  return Object.fromEntries(roles
+    .filter(role => role.benchmarkPolicyGuard !== undefined)
+    .map(role => [role.slot, role.benchmarkPolicyGuard as IdentityJsonValue]));
+}
+
 function policyIdentity(
   context: CompileContext,
   assets: CompilationAssets,
@@ -707,6 +763,7 @@ function policyValue(
     asset_inventory_sha256: canonicalJsonSha256(context.inventory),
     ...policyIdentity(context, assets),
     roles: resolvedRoles(assets.roles),
+    role_policy_guard: rolePolicyGuards(assets.roles),
     child_template_whitelist: childTemplateWhitelistForArm(context.arm),
     capability_whitelist: capabilityWhitelistForArm(context.arm),
     credential: resolvedCredential(context, assets.credential),

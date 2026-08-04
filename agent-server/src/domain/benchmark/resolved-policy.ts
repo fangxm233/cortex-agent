@@ -185,6 +185,8 @@ export interface ResolvedTrialPolicy {
   asset_inventory_sha256: string;
   model_execution: ResolvedPolicyModelExecution;
   roles: Record<string, ResolvedAgentRunRole>;
+  /** Compiled benchmark policy guard per slot. A slot without a guard has no key. */
+  role_policy_guard: Record<string, IdentityJsonValue>;
   identity: {
     model_execution_identity_hash: Record<string, string>;
     role_tool_surface_hash: Record<string, string>;

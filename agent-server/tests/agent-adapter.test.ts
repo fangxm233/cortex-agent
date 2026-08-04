@@ -62,14 +62,22 @@ test('Capability enum string values are stable (DR-0008 §3.2 contract)', () => 
   assert.equal(Capability.ToolAllowlist, 'tool-allowlist');
   assert.equal(Capability.StreamingDeltas, 'streaming-deltas');
   assert.equal(Capability.MidTurnInject, 'mid-turn-inject');
+  assert.equal(Capability.BenchmarkLongMcpCall, 'benchmark-long-mcp-call');
 });
 
-test('both live backends declare all ten shared capabilities', () => {
-  const allCapabilities = new Set(Object.values(Capability));
+test('both live backends declare the ten shared capabilities', () => {
+  const shared = new Set(Object.values(Capability).filter(
+    value => value !== Capability.BenchmarkLongMcpCall,
+  ));
 
-  assert.equal(allCapabilities.size, 10);
-  assert.deepEqual(CAPABILITIES_BY_BACKEND.claude, allCapabilities);
-  assert.deepEqual(CAPABILITIES_BY_BACKEND.pi, allCapabilities);
+  assert.equal(shared.size, 10);
+  assert.deepEqual(CAPABILITIES_BY_BACKEND.claude, new Set(Object.values(Capability)));
+  assert.deepEqual(CAPABILITIES_BY_BACKEND.pi, shared);
+});
+
+test('only Claude declares the benchmark long MCP call capability', () => {
+  assert.equal(CAPABILITIES_BY_BACKEND.claude.has(Capability.BenchmarkLongMcpCall), true);
+  assert.equal(CAPABILITIES_BY_BACKEND.pi.has(Capability.BenchmarkLongMcpCall), false);
 });
 
 test('CAPABILITIES_BY_BACKEND encodes the Claude and PI capability matrix', () => {
