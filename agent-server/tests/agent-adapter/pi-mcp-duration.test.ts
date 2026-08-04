@@ -9,7 +9,7 @@
 // progress-bounded reset, remaining time derived at the moment of use, and signal forwarding.
 
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
 
 import {
   MCP_CLEANUP_GRACE_MS,
@@ -27,6 +27,7 @@ import {
 } from '../../src/agent-adapter/pi/mcp-bridge.js';
 import { PI_MCP_COMPOSITION_ENV } from '../../src/agent-adapter/pi/policy-guard.js';
 import type { ExtensionAPI, ToolDefinition } from '../../src/agent-adapter/pi/pi-ext-types.js';
+import { startMcpProgressHeartbeat } from '../../src/domain/mcp/tools/benchmark-thread-run.js';
 
 // ─── P3 / P7: the two fixed constants ───────────────────────────────
 
@@ -38,6 +39,29 @@ test('P7 heartbeat is strictly below the SDK 60s reference window with beats to 
   assert.equal(MCP_PROGRESS_HEARTBEAT_MS, 15_000);
   assert.ok(MCP_PROGRESS_HEARTBEAT_MS < 60_000);
   assert.equal(60_000 / MCP_PROGRESS_HEARTBEAT_MS, 4);
+});
+
+test('P7 the benchmark tool emits progress heartbeats only while its call is running', async () => {
+  vi.useFakeTimers();
+  try {
+    const notifications: unknown[] = [];
+    const stop = startMcpProgressHeartbeat({
+      _meta: { progressToken: 'trial-progress' },
+      sendNotification: async notification => { notifications.push(notification); },
+    });
+    await vi.advanceTimersByTimeAsync(MCP_PROGRESS_HEARTBEAT_MS);
+    assert.deepEqual(notifications, [{
+      method: 'notifications/progress',
+      params: {
+        progressToken: 'trial-progress', progress: 1, message: 'thread_run in progress',
+      },
+    }]);
+    stop();
+    await vi.advanceTimersByTimeAsync(MCP_PROGRESS_HEARTBEAT_MS);
+    assert.equal(notifications.length, 1);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 // ─── P5: remaining time derived at the moment of use ────────────────

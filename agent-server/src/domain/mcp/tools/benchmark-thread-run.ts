@@ -1,5 +1,5 @@
-// input:  immutable benchmark policy, MCP request signal, local orchestrator
-// output: one bounded blocking thread_run tool registration
+// input:  immutable benchmark policy, MCP request signal/progress, local orchestrator
+// output: one bounded blocking thread_run tool with progress heartbeats
 // pos:    Benchmark-only thread admission and result boundary
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -10,6 +10,7 @@ import { z } from 'zod';
 import {
   runBenchmarkThread, type BenchmarkThreadResult,
 } from '../../agent-run/benchmark-local-thread-orchestrator.js';
+import { MCP_PROGRESS_HEARTBEAT_MS } from '../../../agent-adapter/pi/mcp-duration.js';
 
 export const BENCHMARK_THREAD_POLICY_ENV = 'CORTEX_BENCHMARK_THREAD_POLICY_PATH';
 export const MAX_BENCHMARK_HANDOFF_LENGTH = 2_000;
@@ -143,6 +144,59 @@ function callLimitResult() {
   }, true);
 }
 
+interface ProgressHeartbeatExtra {
+  _meta?: { progressToken?: string | number };
+  sendNotification(notification: {
+    method: 'notifications/progress';
+    params: { progressToken: string | number; progress: number; message: string };
+  }): Promise<void>;
+}
+
+/** §5.6 P7: keep the client-side timeout reset alive while the blocking call is running. */
+export function startMcpProgressHeartbeat(
+  extra: ProgressHeartbeatExtra,
+  intervalMs = MCP_PROGRESS_HEARTBEAT_MS,
+): () => void {
+  const progressToken = extra._meta?.progressToken;
+  if (progressToken === undefined) return () => {};
+  let progress = 0;
+  const timer = setInterval(() => {
+    progress += 1;
+    void extra.sendNotification({
+      method: 'notifications/progress',
+      params: { progressToken, progress, message: 'thread_run in progress' },
+    }).catch(() => {});
+  }, intervalMs);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
+interface BenchmarkToolExtra extends ProgressHeartbeatExtra {
+  signal: AbortSignal;
+}
+
+async function executeAdmittedRun(
+  policy: BenchmarkThreadPolicy,
+  input: ThreadRunInput,
+  shutdownSignal: AbortSignal,
+  extra: BenchmarkToolExtra,
+) {
+  const stopHeartbeat = startMcpProgressHeartbeat(extra);
+  try {
+    const signal = linkedSignal(extra.signal, shutdownSignal);
+    const result = await runBenchmarkThread(orchestratorRequest(policy, input, signal));
+    if (result.state !== 'completed' || !result.manifestCommitted) return failedRunResult(result);
+    const payload = successPayload(result);
+    return { ...textResult(payload), structuredContent: payload };
+  } catch (error) {
+    return textResult({
+      code: 'benchmark_thread_run_failed', message: (error as Error).message,
+    }, true);
+  } finally {
+    stopHeartbeat();
+  }
+}
+
 export function registerBenchmarkThreadRunTool(
   server: McpServer,
   policy: BenchmarkThreadPolicy,
@@ -156,18 +210,6 @@ export function registerBenchmarkThreadRunTool(
   }, async (input, extra) => {
     if (admitted) return callLimitResult();
     admitted = true;
-    try {
-      const signal = linkedSignal(extra.signal, shutdownSignal);
-      const result = await runBenchmarkThread(orchestratorRequest(policy, input, signal));
-      if (result.state !== 'completed' || !result.manifestCommitted) {
-        return failedRunResult(result);
-      }
-      const payload = successPayload(result);
-      return { ...textResult(payload), structuredContent: payload };
-    } catch (error) {
-      return textResult({
-        code: 'benchmark_thread_run_failed', message: (error as Error).message,
-      }, true);
-    }
+    return executeAdmittedRun(policy, input, shutdownSignal, extra);
   });
 }
