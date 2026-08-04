@@ -13,6 +13,7 @@ Consumed by the orchestration and UI layers through the index barrel.
 | shell-templates.ts | config | turns a shell binding into a full template |
 | template-validate.ts | config | reports what is broken in a template, agent or shell |
 | template-validate.parity.ts | guard | pins the validator schemas to the thread types |
+| template-writer.ts | config | creates, replaces and deletes template config files |
 | prompt-builder.ts | build | assembles snapshot-ready prompts and control policy |
 | pending-user-inputs.ts | state | gates asynchronous buffered-input preparation |
 | state-machine.ts | state | Drives lifecycle with scoped events and task artifacts |

@@ -21,8 +21,8 @@ import type { AgentDefinition, ThreadTemplate, ThreadConfigFile, ShellDefinition
 const log = createLogger('thread-manager');
 /** Legacy single-file config (pre-Phase-2.5). Auto-migrated to CONFIG_TEMPLATES_DIR on startup. */
 const CONFIG_FILE = path.join(CONFIG_DIR, 'thread-templates.json');
-/** Directory-based config root (preferred). */
-const CONFIG_TEMPLATES_DIR = path.join(CONFIG_DIR, 'thread-templates');
+/** Directory-based config root (preferred). Exported for the write path. */
+export const CONFIG_TEMPLATES_DIR = path.join(CONFIG_DIR, 'thread-templates');
 const ENTITY_SUBDIRS = ['agents', 'templates', 'shells'] as const;
 export const FILE_REF_PREFIX = 'file:';
 const FIELD_DIRS: Record<string, string> = {
