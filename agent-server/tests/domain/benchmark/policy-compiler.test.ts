@@ -26,6 +26,9 @@ import {
   childTemplateWhitelistForArm,
 } from '../../../src/domain/benchmark/capabilities.js';
 import {
+  CAPABILITIES_BY_BACKEND, Capability,
+} from '../../../src/agent-adapter/capabilities.js';
+import {
   compileResolvedTrialPolicy,
   PolicyCompilationError,
   projectAgentRunConfig,
@@ -635,13 +638,35 @@ it('rejects nonpositive absolute deadlines and unproven PI benchmark support', (
   })));
 });
 
-it('refuses a cortex arm whose backend does not declare the long MCP call', () => {
+function piResolution(): ArmResolution {
   const input = resolution();
   Object.assign(input.arm as ReturnType<typeof arm>, { backend: 'pi', provider: 'openai-codex' });
   input.pi_benchmark_capability_proven = true;
-  expectFailure(input, 'backend_lacks_long_mcp_call', 28, dependencies(profile({
-    backend: 'pi', provider: 'openai-codex',
-  })));
+  return input;
+}
+
+const piDependencies = (): PolicyCompilerDependencies => dependencies(profile({
+  backend: 'pi', provider: 'openai-codex',
+}));
+
+it('admits a PI arm to the long MCP call and keeps code 28 live for a backend without it', () => {
+  // The capability was admitted on measured evidence: a real PI MCP call held 63324 ms through the
+  // production bridge while a no-options control client on a second server was cut at 60 s.
+  const compiled = compileResolvedTrialPolicy(piResolution(), piDependencies());
+  assert.equal(compiled.model_execution.backend, 'pi');
+
+  // The raiser must not die with the flip. The arm schema's `backend` enum is closed
+  // (`arm-schema.ts:89`), so a capability-less backend cannot be synthesised by name; it is
+  // synthesised by declaration instead — PI's shipped set is swapped for one without the entry.
+  const shipped = CAPABILITIES_BY_BACKEND.pi;
+  CAPABILITIES_BY_BACKEND.pi = new Set(
+    [...shipped].filter(entry => entry !== Capability.BenchmarkLongMcpCall),
+  );
+  try {
+    expectFailure(piResolution(), 'backend_lacks_long_mcp_call', 28, piDependencies());
+  } finally {
+    CAPABILITIES_BY_BACKEND.pi = shipped;
+  }
 });
 
 it('refuses an unverified CLI version only where a benchmark MCP surface exists', () => {

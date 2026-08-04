@@ -54,10 +54,6 @@ const CLAUDE_CAPS: Capability[] = [
 // SessionResume: S2 spike confirmed --session <path> resume works (DR-0008 §8 gate ticked, task 7ca9).
 // MidTurnInject: RPC prompt streamingBehavior=steer queues a message at the next agent-loop boundary.
 // Hooks via PI extension bridge per §3.5 — capability declared true because the extension is part of the default PI adapter package.
-// BenchmarkLongMcpCall is absent: PI's MCP calls are issued by the Cortex bridge, which calls
-// client.callTool() with no RequestOptions, so the SDK's 60 s default is a hard ceiling and no
-// per-call budget can be configured at all. The entry belongs here once the bridge passes explicit
-// timeout / maxTotalTimeout / resetTimeoutOnProgress options and a long call is proven.
 const PI_CAPS: Capability[] = [
   Capability.Hooks,
   Capability.Plugins,
@@ -69,6 +65,16 @@ const PI_CAPS: Capability[] = [
   Capability.SessionResume,
   Capability.StreamingDeltas,
   Capability.MidTurnInject,
+  // Admitted on measured evidence, not on the option shapes alone. PI's MCP calls are issued by the
+  // Cortex bridge, which now supplies explicit timeout / maxTotalTimeout / resetTimeoutOnProgress
+  // RequestOptions (`benchmarkCallOptions`, pi/mcp-duration.ts). An independently written suite held
+  // one real call through that bridge for 63324 ms of wall clock while a no-options control client
+  // on a second server was cut at the SDK's 60 s default; a second row ended a 90 s hold at ~9.6 s =
+  // remaining budget + the 6000 ms cleanup grace despite progress notifications resetting the
+  // per-call timeout, so the raised budget is still bounded by the trial deadline; a third proved
+  // cancellation reaching the server rather than orphaning the request. The governing proof is
+  // tests/domain/agent-run/long-mcp-call-e2e.test.ts — real wall clock, no fake timers.
+  Capability.BenchmarkLongMcpCall,
 ];
 
 export const CAPABILITIES_BY_BACKEND: Record<Backend, Set<Capability>> = {
