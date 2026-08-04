@@ -13,13 +13,19 @@ import { setProcessLogPolicy } from '@core/log.js';
 import type { AgentHandle, AgentResult } from '@core/types/agent-types.js';
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
 import type {
-  AgentProcessSpawner, AgentProcessSupervision, AgentSpawnConfig, NormalizedEvent,
+  AgentAdapter, AgentProcessSpawner, AgentProcessSupervision, AgentSpawnConfig, Backend,
+  NormalizedEvent,
 } from '../../agent-adapter/index.js';
 import {
   buildAgentSpawnConfig, runWithAdapter,
   type AgentConfig, type RunAgentOptions, type RunObserver,
 } from '../agents/facade.js';
 import { listProfiles, resolveProfileConfig } from '../agents/profile-manager.js';
+import {
+  createTrialAdapter, trialRunOptions, type TrialAdapter, type TrialAdapterSpec,
+} from '../benchmark/trial-adapter-factory.js';
+import { PolicyCompilationError, reportBenchmarkFailure } from '../benchmark/resolved-policy.js';
+import { preparePinnedTrialPaths } from './pinned-node-process.js';
 import {
   canonicalJsonSha256, freezeIdentity, IdentityProfileFallbackError,
   type BundleManifestInput, type FrozenIdentity, type RoleToolSurfaceInput,
@@ -59,6 +65,9 @@ interface PreparedRun {
   profile: ReturnType<typeof resolveProfileConfig>;
   config: ResolvedAgentRunConfig;
   policy?: LoadedAgentRunConfig['policy'];
+  /** Present exactly on the benchmark path; owns the adapter instance and its close (S5). */
+  trial: TrialAdapter | null;
+  backend: Backend;
   identity: FrozenIdentity;
   spawnConfig: AgentSpawnConfig;
   baseOptions: RunAgentOptions;
@@ -216,19 +225,28 @@ function probeClaudeVersion(profile: PreparedRun['profile'], cwd: string): strin
   return version;
 }
 
+// C3/C6: with a policy in hand the CLI version and the identity route host are frozen values, so
+// re-probing the CLI or reading the host profile's route would be the runtime re-resolution §2.7
+// forbids. §1.7 keeps the identity host distinct from the per-trial proxy authority the child is
+// actually routed at, which is why the proxy URL is not read back here.
 function observedRunConfig(
   config: ResolvedAgentRunConfig,
   profile: PreparedRun['profile'],
   cwd: string,
+  policy: LoadedAgentRunConfig['policy'],
 ): ResolvedAgentRunConfig {
-  return {
-    ...config,
-    modelExecution: {
-      ...config.modelExecution,
+  const execution = policy
+    ? {
+      configuredRouteBaseHost: policy.model_execution.configured_route_base_host,
+      claudeCliVersion: policy.model_execution.claude_cli_version,
+      cliName: policy.model_execution.cli_name,
+      cliVersion: policy.model_execution.cli_version,
+    }
+    : {
       configuredRouteBaseHost: resolvedRouteHost(profile),
       claudeCliVersion: probeClaudeVersion(profile, cwd),
-    },
-  };
+    };
+  return { ...config, modelExecution: { ...config.modelExecution, ...execution } };
 }
 
 function assertFreshTrajectory(options: AgentRunCliOptions, rootRunId: string): void {
@@ -314,27 +332,78 @@ function resolveRunInputs(
   assertBenchmarkInvocation(loaded, options, rootRunId);
   validateResolvedExecution(profile, loaded.config);
   assertMcpFiles(loaded.config);
-  return { ...loaded, config: observedRunConfig(loaded.config, profile, options.cwd) };
+  return { ...loaded, config: observedRunConfig(loaded.config, profile, options.cwd, loaded.policy) };
+}
+
+// No CLI flag names the trial root, and adding a required one would break the shipped harness
+// invocation. The harness places the trajectory inside the per-trial agent directory, so the trial
+// root is a sibling of the trajectory root rather than the trajectory root itself.
+function trialAdapterSpec(
+  options: AgentRunCliOptions,
+  policy: NonNullable<LoadedAgentRunConfig['policy']>,
+  config: ResolvedAgentRunConfig,
+): TrialAdapterSpec {
+  const trialRoot = path.join(path.dirname(path.resolve(options.trajectoryRoot)), 'trial-home');
+  return {
+    policy,
+    slot: options.agentSlot,
+    config,
+    paths: preparePinnedTrialPaths(trialRoot),
+    supervisor: {
+      binary: options.supervisorBinary,
+      graceMs: options.graceMs,
+      deadlineMs: options.deadlineMs,
+    },
+    cwd: options.cwd,
+  };
+}
+
+// R4: the surface the process is actually spawned with must be the surface phase B hashed. A
+// divergence means the run would be attributed to a role it is not running.
+function assertPolicyRoleSurface(run: {
+  policy?: LoadedAgentRunConfig['policy'];
+  options: AgentRunCliOptions;
+  identity: FrozenIdentity;
+}): void {
+  if (!run.policy) return;
+  const expected = run.policy.identity.role_tool_surface_hash[run.options.agentSlot];
+  if (expected !== run.identity.roleToolSurfaceHash) {
+    throw new Error(
+      `Role surface hash mismatch for slot '${run.options.agentSlot}': `
+      + `policy ${expected}, spawned ${run.identity.roleToolSurfaceHash}`,
+    );
+  }
 }
 
 function prepareRun(options: AgentRunCliOptions, rootRunId: string): PreparedRun {
   assertFreshTrajectory(options, rootRunId);
   const prompt = readPrompt(options.promptFile);
   const profile = resolveProfile(options.profile);
-  assertClaudeProfile(profile);
   const loaded = resolveRunInputs(options, profile, rootRunId);
   const config = loaded.config;
-  const baseOptions = baseRunOptions(options, profile, config, `agent-run:${rootRunId}`);
-  const spawnConfig = buildAgentSpawnConfig(baseOptions, agentConfig(profile), undefined);
+  // S8: with a policy the backend is dispatched from the arm; the legacy path keeps its own check.
+  if (!loaded.policy) assertClaudeProfile(profile);
+  const spec = loaded.policy ? trialAdapterSpec(options, loaded.policy, config) : null;
+  const trial = spec ? createTrialAdapter(spec) : null;
+  const baseOptions = spec
+    ? trialRunOptions(spec)
+    : baseRunOptions(options, profile, config, `agent-run:${rootRunId}`);
+  const spawnConfig = trial?.spawnConfig
+    ?? buildAgentSpawnConfig(baseOptions, agentConfig(profile), undefined);
   spawnConfig.preserveUnreportedAccounting = true;
-  const roleSurface = roleSurfaceFromSpawnConfig(spawnConfig);
-  return {
+  // S7: the benchmark surface carries the directive and the guard; the legacy path carries neither.
+  const roleSurface = trial?.roleSurface ?? roleSurfaceFromSpawnConfig(spawnConfig);
+  const run: PreparedRun = {
     options, rootRunId, profile, config, policy: loaded.policy, spawnConfig, baseOptions,
+    trial,
+    backend: trial?.backend ?? profile.backend,
     modelPrompt: prompt.modelVisible,
     identity: freezeRunIdentity(options, profile, config, roleSurface),
     hashes: promptHashes(prompt, roleSurface),
     startedAt: new Date().toISOString(),
   };
+  assertPolicyRoleSurface(run);
+  return run;
 }
 
 const protectedWriters = new WeakSet<object>();
@@ -383,7 +452,7 @@ function trajectorySink(
         threadId: null,
         step: null,
         agentSlot: run.options.agentSlot,
-        backend: 'claude',
+        backend: run.backend,
         provider: run.profile.provider,
         requestedModel: run.profile.model,
         reportedModel: reportedModel(event),
@@ -492,14 +561,16 @@ function executionError(runError: unknown, supervisorError: unknown): unknown {
 }
 
 async function settledOutcome(
-  adapter: ClaudeAdapter,
+  adapter: AgentAdapter,
   run: PreparedRun,
   handle: AgentHandle,
   supervision: SupervisorSession | null,
   cancelled: () => boolean,
 ): Promise<ExecutionOutcome> {
   const handleOutcome = await settleHandle(handle);
-  await adapter.close(`agent-run:${run.rootRunId}`);
+  // S5: the trial owns its adapter instance and closes it exactly once.
+  if (run.trial) await run.trial.close();
+  else await adapter.close(`agent-run:${run.rootRunId}`);
   const settled = await settleSupervisor(supervision);
   return {
     ...handleOutcome,
@@ -514,7 +585,7 @@ async function settledOutcome(
 async function executeTurn(
   run: PreparedRun, journal: Journal, io: AgentRunIo, stats: RunStats,
 ): Promise<ExecutionOutcome> {
-  const adapter = new ClaudeAdapter();
+  const adapter = run.trial?.adapter ?? new ClaudeAdapter();
   let supervision: SupervisorSession | null = null;
   let handle: AgentHandle | null = null;
   let cancelled = false;
@@ -697,6 +768,8 @@ export async function runOneShotAgent(
   } catch (error) {
     await journal?.close().catch(() => {});
     const classified = classifyStartupFailure(error);
+    // §2.6 P-class invariant: a refused policy leaves its coded reason on stderr as JSON.
+    if (error instanceof PolicyCompilationError) reportBenchmarkFailure(error, io.stderr);
     io.stderr.write(`${(error as Error)?.message ?? String(error)}\n`);
     writeTerminalOutput(io, rootRunId, null, classified);
     return classified.exitCode;

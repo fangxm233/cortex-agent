@@ -30,6 +30,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | auth-expiry-scan.test.ts | test | daily in-use auth warning filtering and privacy |
 | auth-watch.test.ts | test | auth capability actions, retry and recovery |
 | auto-compound.test.ts | test | compound trigger gating and output merge |
+| benchmark-cli-artifact-stub | fixture | Frozen CLI stand-in bytes for the golden projection |
 | benchmark-policy-system-prompt.txt | fixture | Pins representative compiled policy prompt bytes |
 | benchmark-resolved-run-config.golden.json | golden | Pins the cross-language run-config projection |
 | claim-recovery.test.ts | test | Generation-fenced orphan claim recovery |

@@ -10,3 +10,4 @@ Agent runtime domain — selects Claude/PI profiles and runs provider-attributed
 | index.ts | entry | Re-exports the agents domain API |
 | profile-manager.ts | core | Resolves profiles and provider identities |
 | profile-switch.ts | core | Decides and applies channel profile switches |
+| spawn-config.ts | core | Builds the spawn config without the adapter registry |

@@ -4,6 +4,7 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import type { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from 'node:child_process';
+import type { IdentityJsonValue } from '../domain/agent-run/identity.js';
 import type { Capability } from './capabilities.js';
 import type { NormalizedEvent } from './normalize/event-types.js';
 import type { NormalizedHookSpec } from './normalize/hooks.js';
@@ -87,6 +88,12 @@ export interface AgentSpawnConfig {
   preserveUnreportedAccounting?: boolean;
   /** Optional process boundary used by daemon-free runs. Ordinary callers spawn directly. */
   processSpawner?: AgentProcessSpawner;
+  /** Absolute backend CLI path frozen by a trial policy. Absent resolves the CLI from PATH. */
+  cliPath?: string;
+  /** Compiled benchmark policy guard for this role. Present replaces the ambient hook surface. */
+  benchmarkPolicyGuard?: IdentityJsonValue;
+  /** Exact allowlisted child environment for an isolated trial; replaces host inheritance. */
+  pinnedEnv?: NodeJS.ProcessEnv;
 
   // --- Claude-specific passthroughs (task f7cf); other backends ignore these ---
   /** Channel identifier used for Claude session-pool key fallback. */

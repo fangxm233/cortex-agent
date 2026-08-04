@@ -309,11 +309,16 @@ it('derives thread marker and terminal paths from the selected thread id', async
   }
 });
 
-it('reports the exact code for a non-claude event backend', async () => {
+// Design §13 R1: the envelope's backend is the `Backend` union, so `pi` is a valid record and only
+// a value outside the union is malformed.
+it('accepts every declared backend and reports the exact code for any other', async () => {
   const root = makeRoot();
   try {
     const trajectory = await createTrajectory(root);
     rewriteJournal(trajectory.journalPath, records => { records[1].backend = 'pi'; });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.deepEqual(validateTrajectoryRoot(root).problems, []);
+    rewriteJournal(trajectory.journalPath, records => { records[1].backend = 'gemini'; });
     syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
     assert.deepEqual(validateTrajectoryRoot(root).problems, [
       `malformed_record:${trajectory.journalPath}:2:invalid_envelope`,

@@ -469,6 +469,10 @@ function isAgentSlot(value: unknown): boolean {
   return value === 'parent' || value === 'benchmark-coder' || value === 'benchmark-reviewer';
 }
 
+function isBackend(value: unknown): boolean {
+  return value === 'claude' || value === 'pi';
+}
+
 function isTimestamp(value: unknown): boolean {
   if (typeof value !== 'string' || !TIMESTAMP_PATTERN.test(value)) return false;
   try {
@@ -557,7 +561,7 @@ function validEventRecord(
     isNullableInteger(value.step),
     isAgentSlot(value.agent_slot),
     isTimestamp(value.ts),
-    value.backend === 'claude',
+    isBackend(value.backend),
     isNullableString(value.provider),
     isNonEmptyString(value.requested_model),
     isNullableString(value.reported_model),

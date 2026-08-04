@@ -12,6 +12,7 @@ import * as crypto from 'crypto';
 import { DATA_DIR, readableTimestamp } from '@core/utils.js';
 import { createLogger } from '@core/log.js';
 import { handleRateLimitEvent } from '@domain/costs/rate-limit-throttle.js';
+import type { IdentityJsonValue } from '@domain/agent-run/identity.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
@@ -61,9 +62,13 @@ function spawnClaudeProcess(
   spawner: AgentProcessSpawner | undefined,
   args: string[],
   options: { cwd: string; env: NodeJS.ProcessEnv },
+  cliPath?: string,
 ): SpawnedAgentProcess {
-  if (spawner) return spawner('claude', args, options);
-  return { process: spawn('claude', args, { ...options, stdio: ['pipe', 'pipe', 'pipe'] }) };
+  // One resolved command for both branches: a supervised trial and a direct spawn cannot run
+  // different binaries (design §13 C2).
+  const command = cliPath ?? 'claude';
+  if (spawner) return spawner(command, args, options);
+  return { process: spawn(command, args, { ...options, stdio: ['pipe', 'pipe', 'pipe'] }) };
 }
 
 // --- Persistent session ---
@@ -150,6 +155,12 @@ interface ClaudeSessionOptions {
   captureTranscriptLogs?: boolean;
   preserveUnreportedAccounting?: boolean;
   processSpawner?: AgentProcessSpawner;
+  /** Absolute CLI path frozen by a trial policy; absent resolves `claude` from PATH. */
+  cliPath?: string;
+  /** Compiled benchmark policy guard; present replaces the ambient hook surface entirely. */
+  benchmarkPolicyGuard?: IdentityJsonValue;
+  /** Exact allowlisted child environment for a pinned trial. */
+  pinnedEnv?: NodeJS.ProcessEnv;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string>;
   /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
@@ -176,6 +187,7 @@ function deriveClaudeSpawnOptions(fields: {
   mcpComposition: McpComposition;
   mcpConfigPaths?: string[];
   disableHooks?: boolean;
+  benchmarkPolicyGuard?: IdentityJsonValue;
   streamDeltas?: boolean;
 }): ClaudeSpawnOptions {
   return {
@@ -193,6 +205,7 @@ function deriveClaudeSpawnOptions(fields: {
     mcpComposition: fields.mcpComposition,
     mcpConfigPaths: fields.mcpConfigPaths,
     disableHooks: fields.disableHooks,
+    benchmarkPolicyGuard: fields.benchmarkPolicyGuard,
     streamDeltas: fields.streamDeltas,
   };
 }
@@ -239,6 +252,9 @@ class ClaudeSession {
   private captureTranscriptLogs: boolean;
   private preserveUnreportedAccounting: boolean;
   private processSpawner: AgentProcessSpawner | undefined;
+  private cliPath: string | undefined;
+  private benchmarkPolicyGuard: IdentityJsonValue | undefined;
+  private pinnedEnv: NodeJS.ProcessEnv | undefined;
   private supervision: AgentProcessSupervision | undefined;
   private extraOption: Record<string, string> | undefined;
   private thinking: string | null;
@@ -307,6 +323,9 @@ class ClaudeSession {
     this.captureTranscriptLogs = options.captureTranscriptLogs !== false;
     this.preserveUnreportedAccounting = options.preserveUnreportedAccounting === true;
     this.processSpawner = options.processSpawner;
+    this.cliPath = options.cliPath;
+    this.benchmarkPolicyGuard = options.benchmarkPolicyGuard;
+    this.pinnedEnv = options.pinnedEnv;
     this.extraOption = options.extraOption;
     this.thinking = options.thinking ?? null;
     this.context = options.context;
@@ -329,6 +348,7 @@ class ClaudeSession {
       mcpComposition: this.mcpComposition,
       mcpConfigPaths: this.mcpConfigPaths,
       disableHooks: this.disableHooks,
+      benchmarkPolicyGuard: this.benchmarkPolicyGuard,
       streamDeltas: this.streamDeltas,
     });
   }
@@ -399,7 +419,7 @@ class ClaudeSession {
   }
 
   private spawnProcess(): void {
-    const env = buildClaudeEnv(this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId, this.anthropicBaseUrl, this.extraEnv, this.context);
+    const env = buildClaudeEnv(this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId, this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv);
     const spawnOptions = this.toSpawnOptions();
     // Sessions that originate from Slack (channel carries the SlackAdapter `slack:` prefix) load the
     // cortex-slack MCP server so the agent can send files to Slack. Non-direct compositions suppress it.
@@ -416,7 +436,7 @@ class ClaudeSession {
     const args = buildSpawnArgs(spawnOptions);
     log.info(`Spawning persistent process: ${this.sessionId.substring(0, 8)} ${this.needsResume ? '(resume)' : '(new)'}`);
 
-    const spawned = spawnClaudeProcess(this.processSpawner, args, { cwd: this.cwd, env });
+    const spawned = spawnClaudeProcess(this.processSpawner, args, { cwd: this.cwd, env }, this.cliPath);
     this.proc = spawned.process;
     this.supervision = spawned.supervision;
     this.stderr = '';
@@ -1228,6 +1248,9 @@ function sessionOptionsFromSpawnConfig(config: AgentSpawnConfig): ClaudeSessionO
     captureTranscriptLogs: config.captureTranscriptLogs,
     preserveUnreportedAccounting: config.preserveUnreportedAccounting,
     processSpawner: config.processSpawner,
+    cliPath: config.cliPath,
+    benchmarkPolicyGuard: config.benchmarkPolicyGuard,
+    pinnedEnv: config.pinnedEnv,
     extraOption: config.extraOption,
     thinking: config.thinking ?? null,
     context: config.cortexContext,
@@ -1255,6 +1278,7 @@ function computeSpawnArgsForConfig(config: AgentSpawnConfig): string[] {
     mcpComposition: opts.mcpComposition ?? 'direct',
     mcpConfigPaths: opts.mcpConfigPaths,
     disableHooks: opts.disableHooks,
+    benchmarkPolicyGuard: opts.benchmarkPolicyGuard,
     streamDeltas: opts.streamDeltas,
   });
   spawnOptions.isUserInitiated = config.isUserInitiated;

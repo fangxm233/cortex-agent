@@ -224,6 +224,8 @@ test('benchmark agents share model identity but have distinct role surfaces', ()
     providerProtocol: 'anthropic',
     configuredRouteBaseHost: 'gateway.invalid',
     claudeCliVersion: 'fixture-version',
+    cliName: 'claude',
+    cliVersion: 'fixture-version',
     reasoningEffort: 'high',
     fallbackEmpty: true,
   }));

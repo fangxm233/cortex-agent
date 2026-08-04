@@ -160,6 +160,8 @@ export interface ResolvedPolicyModelExecution {
   provider_protocol: string | null;
   configured_route_base_host: string | null;
   claude_cli_version: string | null;
+  cli_name: Backend | null;
+  cli_version: string | null;
   reasoning_effort: string | null;
   fallback_empty: true;
 }
@@ -187,6 +189,8 @@ export interface ResolvedTrialPolicy {
   roles: Record<string, ResolvedAgentRunRole>;
   /** Compiled benchmark policy guard per slot. A slot without a guard has no key. */
   role_policy_guard: Record<string, IdentityJsonValue>;
+  /** Gate condition for constructing a PI trial adapter; false refuses the arm at construction. */
+  pi_benchmark_capability_proven: boolean;
   identity: {
     model_execution_identity_hash: Record<string, string>;
     role_tool_surface_hash: Record<string, string>;

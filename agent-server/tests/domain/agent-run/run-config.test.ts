@@ -71,6 +71,8 @@ function expectedLegacyConfig(file: string) {
       modelAliasPolicy: document.model_execution.model_alias_policy,
       configuredRouteBaseHost: null,
       claudeCliVersion: null,
+      cliName: null,
+      cliVersion: null,
     },
     role: {
       systemPrompt: document.role.system_prompt,

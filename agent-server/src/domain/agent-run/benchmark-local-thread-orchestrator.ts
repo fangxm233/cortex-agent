@@ -503,7 +503,7 @@ function writeNormalizedEvent(prepared: PreparedThreadRun, input: BenchmarkThrea
   if (!identity) throw new Error(`Missing benchmark role identity: ${input.agentSlotId}`);
   prepared.journal.writeEvent({
     threadId: prepared.thread.id, step: input.step,
-    agentSlot: asAgentSlot(input.agentSlotId), backend: 'claude',
+    agentSlot: asAgentSlot(input.agentSlotId), backend: prepared.profile.backend,
     provider: prepared.profile.provider, requestedModel: prepared.profile.model,
     reportedModel: reportedModel(input.event), event: input.event, identity,
   });

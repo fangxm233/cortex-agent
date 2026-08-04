@@ -838,10 +838,14 @@ it('rejects a benchmark root-run-id mismatch before probing or admission', async
 });
 
 it('loads the stable representative compiled projection fixture directly', () => {
-  // Stable cross-language handoff: Python must reproduce this exact path and schema.
+  // Stable cross-language handoff: a second implementation must reproduce this exact path and
+  // schema. The CLI stand-in is a fixed test asset with contents frozen forever, precisely so the
+  // golden's `cli_artifact` hash does not track production source churn — it previously pointed at
+  // `src/domain/agent-run/identity.ts`, so every edit to that file moved the fixture. No Python
+  // consumer of this golden exists yet; when one lands it hashes the stub, not a TypeScript source.
   const fixture = path.resolve('tests/benchmark-resolved-run-config.golden.json');
   const input = resolution();
-  input.cli_artifact.path = path.resolve('src/domain/agent-run/identity.ts');
+  input.cli_artifact.path = path.resolve('tests/benchmark-cli-artifact-stub');
   input.roles.parent.system_prompt_path = path.resolve('tests/benchmark-policy-system-prompt.txt');
   input.roles.parent.directive_path = path.resolve('tests/benchmark-policy-system-prompt.txt');
   input.roles.parent.mcp_config_paths = [path.resolve('defaults/config/mcp-config-empty.json')];

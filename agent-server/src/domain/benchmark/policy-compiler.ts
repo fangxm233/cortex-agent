@@ -624,6 +624,8 @@ function modelExecution(
     provider_protocol: profile.provider,
     configured_route_base_host: context.input.credential.route_identity_host,
     claude_cli_version: context.input.cli_artifact.version,
+    cli_name: profile.backend,
+    cli_version: context.input.cli_artifact.version,
     reasoning_effort: profile.thinking,
     fallback_empty: true,
   };
@@ -637,6 +639,8 @@ function modelExecutionHash(value: ResolvedPolicyModelExecution): string {
     providerProtocol: value.provider_protocol,
     configuredRouteBaseHost: value.configured_route_base_host,
     claudeCliVersion: value.claude_cli_version,
+    cliName: value.cli_name,
+    cliVersion: value.cli_version,
     reasoningEffort: value.reasoning_effort,
     fallbackEmpty: true,
   });
@@ -760,6 +764,7 @@ function policyValue(
     ...policyIdentity(context, assets),
     roles: resolvedRoles(assets.roles),
     role_policy_guard: rolePolicyGuards(assets.roles),
+    pi_benchmark_capability_proven: context.input.pi_benchmark_capability_proven === true,
     child_template_whitelist: childTemplateWhitelistForArm(context.arm),
     capability_whitelist: capabilityWhitelistForArm(context.arm),
     credential: resolvedCredential(context, assets.credential),

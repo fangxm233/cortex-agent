@@ -61,7 +61,7 @@
       {
         "kind": "cli_artifact",
         "logical_name": "claude",
-        "content_sha256": "aee6cfb04dd1dacade6617bb1906951dd3d30416b4a7320f78d19024c2187813"
+        "content_sha256": "ea93530d4596c21886d9c4729d6cd4bd9953005eb1bc0b5c16d80920cc3555a5"
       },
       {
         "kind": "prompt",

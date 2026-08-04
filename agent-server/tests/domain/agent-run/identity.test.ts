@@ -22,7 +22,7 @@ import {
   type ModelExecutionIdentityInput,
 } from '../../../src/domain/agent-run/identity.js';
 
-const DOCUMENTED_MODEL_BYTES = '{"backend":"claude","claude_cli_version":"1.2.3","configured_route_base_host":"gateway.invalid","fallback_empty":true,"model_alias_policy":{"aliases":{"stable":"claude-sonnet"},"policy":"exact"},"provider_protocol":"anthropic","reasoning_effort":"high","requested_model":"claude-sonnet"}';
+const DOCUMENTED_MODEL_BYTES = '{"backend":"claude","claude_cli_version":"1.2.3","cli_name":"claude","cli_version":"1.2.3","configured_route_base_host":"gateway.invalid","fallback_empty":true,"model_alias_policy":{"aliases":{"stable":"claude-sonnet"},"policy":"exact"},"provider_protocol":"anthropic","reasoning_effort":"high","requested_model":"claude-sonnet"}';
 const SHA_A = 'a'.repeat(64);
 const SHA_B = 'b'.repeat(64);
 const SHA_C = 'c'.repeat(64);
@@ -78,6 +78,8 @@ function frozenInput(): FrozenIdentityInput {
       modelAliasPolicy: { aliases: { stable: 'claude-sonnet' }, policy: 'exact' },
       configuredRouteBaseHost: 'gateway.invalid',
       claudeCliVersion: '1.2.3',
+      cliName: 'claude',
+      cliVersion: '1.2.3',
     },
     roleToolSurface: roleToolSurface(),
     bundleManifest: bundleManifest(),
@@ -133,6 +135,8 @@ function modelIdentityInput(input = frozenInput()): ModelExecutionIdentityInput 
     providerProtocol: input.resolvedProfile.provider,
     configuredRouteBaseHost: input.modelExecution.configuredRouteBaseHost,
     claudeCliVersion: input.modelExecution.claudeCliVersion,
+    cliName: input.modelExecution.cliName,
+    cliVersion: input.modelExecution.cliVersion,
     reasoningEffort: input.resolvedProfile.thinking,
     fallbackEmpty: true,
   };
@@ -142,6 +146,8 @@ it('projects exactly the model identity keys', () => {
   assert.equal(computeModelExecutionIdentityHash(modelIdentityInput()), canonicalJsonSha256({
     backend: 'claude',
     claude_cli_version: '1.2.3',
+    cli_name: 'claude',
+    cli_version: '1.2.3',
     configured_route_base_host: 'gateway.invalid',
     fallback_empty: true,
     model_alias_policy: { aliases: { stable: 'claude-sonnet' }, policy: 'exact' },
@@ -222,6 +228,8 @@ function identityChangeCases(): IdentityChangeCase[] {
     { label: 'provider protocol', mutate: i => { i.resolvedProfile.provider = 'openai-responses'; }, expected: ['modelExecutionIdentityHash', 'bundleManifestHash'] },
     { label: 'route host', mutate: i => { i.modelExecution.configuredRouteBaseHost = 'other.invalid'; }, expected: ['modelExecutionIdentityHash', 'bundleManifestHash'] },
     { label: 'CLI version', mutate: i => { i.modelExecution.claudeCliVersion = '1.2.4'; }, expected: ['modelExecutionIdentityHash', 'bundleManifestHash'] },
+    { label: 'neutral CLI name', mutate: i => { i.modelExecution.cliName = 'pi'; }, expected: ['modelExecutionIdentityHash', 'bundleManifestHash'] },
+    { label: 'neutral CLI version', mutate: i => { i.modelExecution.cliVersion = '9.9.9'; }, expected: ['modelExecutionIdentityHash', 'bundleManifestHash'] },
     { label: 'reasoning effort', mutate: i => { i.resolvedProfile.thinking = 'medium'; }, expected: ['modelExecutionIdentityHash', 'bundleManifestHash'] },
     { label: 'system prompt', mutate: i => { i.roleToolSurface.systemPromptSha256 = SHA_B; }, expected: ['roleToolSurfaceHash', 'bundleManifestHash'] },
     { label: 'directive', mutate: i => { i.roleToolSurface.directiveSha256 = SHA_C; }, expected: ['roleToolSurfaceHash', 'bundleManifestHash'] },
@@ -330,6 +338,8 @@ it('matches sha256sum over documented model-identity canonical bytes', () => {
     providerProtocol: input.resolvedProfile.provider,
     configuredRouteBaseHost: input.modelExecution.configuredRouteBaseHost,
     claudeCliVersion: input.modelExecution.claudeCliVersion,
+    cliName: input.modelExecution.cliName,
+    cliVersion: input.modelExecution.cliVersion,
     reasoningEffort: input.resolvedProfile.thinking,
     fallbackEmpty: true,
   }), externalDigest);

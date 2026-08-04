@@ -113,7 +113,8 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-local-thread-'));
 const PARENT_MODEL_HASH = computeModelExecutionIdentityHash({
   backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: { fixture: true },
   providerProtocol: 'anthropic', configuredRouteBaseHost: 'proxy.fixture',
-  claudeCliVersion: 'fixture-cli/1', reasoningEffort: null, fallbackEmpty: true,
+  claudeCliVersion: 'fixture-cli/1', cliName: 'claude', cliVersion: 'fixture-cli/1',
+  reasoningEffort: null, fallbackEmpty: true,
 });
 const FORBIDDEN_SUBSYSTEMS = [
   'profile watcher', 'template watcher', 'settings runtime', 'memory watcher',

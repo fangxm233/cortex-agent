@@ -176,7 +176,8 @@ async function createFixture(
     parentModelHash: computeModelExecutionIdentityHash({
       backend: 'claude', requestedModel: 'fixture-model', modelAliasPolicy: null,
       providerProtocol: 'anthropic', configuredRouteBaseHost: null,
-      claudeCliVersion: 'fixture-claude 1.0.0', reasoningEffort: null, fallbackEmpty: true,
+      claudeCliVersion: 'fixture-claude 1.0.0', cliName: 'claude',
+      cliVersion: 'fixture-claude 1.0.0', reasoningEffort: null, fallbackEmpty: true,
     }),
     invocations: path.join(root, 'invocations.ndjson'),
     prompts: path.join(root, 'prompts.ndjson'), events: path.join(root, 'events.ndjson'),

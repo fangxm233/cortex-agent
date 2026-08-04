@@ -21,6 +21,7 @@ import {
   WEB_MCP_CONFIG,
 } from './defaults.js';
 import { getSettings } from '@core/settings.js';
+import type { IdentityJsonValue } from '../../domain/agent-run/identity.js';
 import type { McpComposition } from '../types.js';
 import { buildHooksSettings } from './hooks-builder.js';
 
@@ -44,8 +45,10 @@ export interface ClaudeSpawnOptions {
   mcpComposition?: McpComposition;
   /** Concrete MCP files supplied by a frozen one-shot run configuration. */
   mcpConfigPaths?: string[] | null;
-  /** Omit all configured hooks for isolated one-shot execution. */
+  /** Omit all configured **ambient** hooks for isolated one-shot execution. */
   disableHooks?: boolean;
+  /** Compiled benchmark policy guard. Present makes the guard the entire hooks surface. */
+  benchmarkPolicyGuard?: IdentityJsonValue;
   /** Explicit partial-message policy; absent reads the daemon setting. */
   streamDeltas?: boolean;
   /** Layer the cortex-slack MCP server on top of the base config. Set by the adapter for sessions
@@ -168,8 +171,12 @@ export function buildSpawnArgs(options: ClaudeSpawnOptions): string[] {
   if (options.extraOption) {
     for (const [k, v] of Object.entries(options.extraOption)) args.push(k, v);
   }
+  // A compiled benchmark guard is the whole hook surface: the ambient registry is never consulted,
+  // and `disableHooks` keeps its shipped meaning of "no AMBIENT hooks" (design §13 GT5, §6.5).
   const settings: Record<string, any> = {
-    hooks: options.disableHooks ? {} : buildHooksSettings(options.tools),
+    hooks: options.benchmarkPolicyGuard !== undefined
+      ? options.benchmarkPolicyGuard
+      : (options.disableHooks ? {} : buildHooksSettings(options.tools)),
   };
   if (options.outputStyle) settings.outputStyle = options.outputStyle;
   args.push('--settings', JSON.stringify(settings));
@@ -212,8 +219,12 @@ export function buildClaudeEnv(
   anthropicBaseUrl?: string,
   extraEnv?: Record<string, string>,
   context?: CortexAgentContext,
+  pinnedEnv?: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  // Allowlist-first for a pinned trial: the child starts from the exact trial environment and
+  // inherits nothing from the host, so no denylist can leak a host credential or platform
+  // surface into the trial (design §13 C5/C7).
+  const env: NodeJS.ProcessEnv = pinnedEnv ? { ...pinnedEnv } : { ...process.env };
   delete env.CLAUDECODE;
   for (const key of Object.keys(env)) {
     if (key.startsWith('CLAUDE_CODE')) delete env[key];
@@ -230,9 +241,11 @@ export function buildClaudeEnv(
   env.CLAUDE_CODE_AUTO_CONNECT_IDE = 'false';                     // no IDE auto-connect probe
   env.CLAUDE_CODE_DISABLE_POLICY_SKILLS = '1';                    // skip system managed-skills dir (Cortex uses pluginDirs)
   env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';                   // no title updates; also skips the title-gen Haiku call in -p
-  env.SLACK_CHANNEL = channel;
-  env.FEISHU_CHANNEL = channel;
-  env.SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+  if (!pinnedEnv) {
+    env.SLACK_CHANNEL = channel;
+    env.FEISHU_CHANNEL = channel;
+    env.SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+  }
   // CORTEX_SESSION_ID is the stable Cortex tracking id (session-activity log routing + MCP context),
   // NOT the backend CLI's self-assigned session id. Falls back to the backend id when unset (threads).
   env.CORTEX_SESSION_ID = context?.trackSessionId ?? sessionId;

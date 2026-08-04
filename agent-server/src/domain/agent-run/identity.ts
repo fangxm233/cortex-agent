@@ -22,6 +22,10 @@ export interface ModelExecutionIdentityInput {
   providerProtocol: string | null;
   configuredRouteBaseHost: string | null;
   claudeCliVersion: string | null;
+  /** Backend-neutral CLI identity; `claudeCliVersion` keeps its Claude-only meaning so every
+   *  hash frozen before the neutral pair existed stays reproducible from its own inputs. */
+  cliName: ResolvedProfileConfig['backend'] | null;
+  cliVersion: string | null;
   reasoningEffort: string | null;
   fallbackEmpty: true;
 }
@@ -144,6 +148,8 @@ export function computeModelExecutionIdentityHash(input: ModelExecutionIdentityI
     provider_protocol: input.providerProtocol,
     configured_route_base_host: input.configuredRouteBaseHost,
     claude_cli_version: input.claudeCliVersion,
+    cli_name: input.cliName,
+    cli_version: input.cliVersion,
     reasoning_effort: input.reasoningEffort,
     fallback_empty: input.fallbackEmpty,
   });

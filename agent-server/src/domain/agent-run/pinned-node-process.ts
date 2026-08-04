@@ -187,6 +187,19 @@ function pinnedEnvironment(paths: PinnedTrialPaths): NodeJS.ProcessEnv {
   };
 }
 
+/** Exact child environment for a trial process: the allowlisted runtime keys plus the pinned
+ *  trial paths, with nothing else inherited from the host. Callers add only the keys the
+ *  backend genuinely needs on top. */
+export function pinnedTrialEnvironment(
+  paths: PinnedTrialPaths,
+  parentEnv: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return {
+    ...inheritedEnvironment(parentEnv, paths, [], paths.root),
+    ...pinnedEnvironment(paths),
+  };
+}
+
 function assertEmptyProjectsDir(projectsDir: string): void {
   if (fs.existsSync(projectsDir) && fs.readdirSync(projectsDir).length > 0) {
     throw new Error(`CORTEX_PROJECTS_DIR must be empty: ${projectsDir}`);
