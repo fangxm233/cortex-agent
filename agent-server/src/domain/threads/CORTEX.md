@@ -11,6 +11,8 @@ Consumed by the orchestration and UI layers through the index barrel.
 | template-loader.ts | config | loads and hot-reloads thread template config |
 | template-resolver.ts | config | expands vars and blocks in prompt templates |
 | shell-templates.ts | config | turns a shell binding into a full template |
+| template-validate.ts | config | reports what is broken in a template, agent or shell |
+| template-validate.parity.ts | guard | pins the validator schemas to the thread types |
 | prompt-builder.ts | build | assembles snapshot-ready prompts and control policy |
 | pending-user-inputs.ts | state | gates asynchronous buffered-input preparation |
 | state-machine.ts | state | Drives lifecycle with scoped events and task artifacts |

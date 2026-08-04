@@ -15,6 +15,7 @@ import { createLogger } from '@core/log.js';
 import { Icons } from '../../core/icons.js';
 import { resolveTemplate } from './template-resolver.js';
 import { isShellBinding, expandShell } from './shell-templates.js';
+import { validateRegistry, type RawRegistry, type RefResolver } from './template-validate.js';
 import type { AgentDefinition, ThreadTemplate, ThreadConfigFile, ShellDefinition } from '@core/types/thread-types.js';
 
 const log = createLogger('thread-manager');
@@ -195,7 +196,13 @@ export function migrateThreadTemplatesToDir(): boolean {
 
 // --- Config loading ---
 
-interface LoadedConfig { agents: Record<string, AgentDefinition>; templates: Record<string, ThreadTemplate>; }
+interface LoadedConfig {
+  agents: Record<string, AgentDefinition>;
+  templates: Record<string, ThreadTemplate>;
+  /** Bodies exactly as they sit on disk — captured before processAgent resolves `file:` refs in
+   *  place, and including files the loader skipped, so validation reports what the user wrote. */
+  raw?: RawRegistry;
+}
 
 /** Read every `<name>.json` in a subdir as { name, data }, fail-soft skipping unparseable files. */
 function readEntityDir(dir: string): Array<{ name: string; data: any }> {
@@ -215,8 +222,10 @@ function readEntityDir(dir: string): Array<{ name: string; data: any }> {
 
 /** Load config from the directory form (one file per entity; merged across files). */
 function loadConfigFromDir(dir: string): LoadedConfig {
+  const raw: RawRegistry = { agents: {}, templates: {}, shells: {} };
   const a: Record<string, AgentDefinition> = {};
   for (const { name, data } of readEntityDir(path.join(dir, 'agents'))) {
+    raw.agents[name] = structuredClone(data);
     if (!data.name || data.name !== name) {
       log.warn(`Skipping agent file agents/${name}.json: name field "${data.name}" ≠ filename`);
       continue;
@@ -226,10 +235,14 @@ function loadConfigFromDir(dir: string): LoadedConfig {
   }
 
   const shells: Record<string, ShellDefinition> = {};
-  for (const { name, data } of readEntityDir(path.join(dir, 'shells'))) shells[name] = data;
+  for (const { name, data } of readEntityDir(path.join(dir, 'shells'))) {
+    raw.shells[name] = structuredClone(data);
+    shells[name] = data;
+  }
 
   const t: Record<string, ThreadTemplate> = {};
   for (const { name, data } of readEntityDir(path.join(dir, 'templates'))) {
+    raw.templates[name] = structuredClone(data);
     if (data.name !== undefined && data.name !== name) {
       log.warn(`Skipping template file templates/${name}.json: name field "${data.name}" ≠ filename`);
       continue;
@@ -237,7 +250,41 @@ function loadConfigFromDir(dir: string): LoadedConfig {
     const expanded = expandTemplateEntry(name, data, shells, a);
     if (expanded) t[name] = expanded;
   }
-  return { agents: a, templates: t };
+  return { agents: a, templates: t, raw };
+}
+
+/** Filesystem probes for the validator's `file:` ref and pluginDirs existence checks. */
+export function loaderRefResolver(): RefResolver {
+  return {
+    promptsDir: PROMPTS_DIR,
+    pluginBaseDir: DATA_DIR,
+    join: path.join,
+    exists: existsSync,
+    isAbsolute: path.isAbsolute,
+  };
+}
+
+/**
+ * Report what is wrong with the config as loaded. Diagnostic only — the loader's own fail-soft skip
+ * logic still decides what actually loads, so a validator that disagrees with a file that works
+ * today can never take it away. The write path is where errors are enforced.
+ */
+function logValidation(raw: RawRegistry): void {
+  let errors = 0;
+  let warnings = 0;
+  for (const [key, result] of validateRegistry(raw, loaderRefResolver())) {
+    for (const issue of result.errors) {
+      log.error(`thread-template ${key} — ${issue.path}: ${issue.message}`);
+      errors++;
+    }
+    for (const issue of result.warnings) {
+      log.warn(`thread-template ${key} — ${issue.path}: ${issue.message}`);
+      warnings++;
+    }
+  }
+  if (errors > 0 || warnings > 0) {
+    log.warn(`Thread-template validation: ${errors} error(s), ${warnings} warning(s)`);
+  }
 }
 
 /** Load config from the legacy single file. Shell bindings here have no shell defs to resolve
@@ -263,6 +310,7 @@ export function loadConfig(): { agents: Record<string, AgentDefinition>; templat
     agents = loaded.agents;
     templates = loaded.templates;
     log.info(`Loaded ${Object.keys(agents).length} agents, ${Object.keys(templates).length} templates`);
+    if (loaded.raw) logValidation(loaded.raw);
   } catch (e: any) {
     log.error(`Failed to load config: ${e.message}`);
     agents = {};
