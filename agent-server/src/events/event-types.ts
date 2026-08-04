@@ -6,6 +6,7 @@
 import type {
   AuthNoticeAction,
   ChatNoticeLevel,
+  NoticeAction,
   SessionContextUsage,
 } from '@core/types/agent-types.js';
 
@@ -21,7 +22,7 @@ export type CortexEvent =
   // `pending` marks a user message written into a live turn's backend stdin but not yet read by the
   // model. It is NOT in conversation history yet — clients show it as a provisional row pinned below
   // everything the agent is currently emitting, and `session.message.delivered` later commits it.
-  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string; noticeLevel?: ChatNoticeLevel; authAction?: AuthNoticeAction; pending?: boolean; pendingId?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }
+  | { type: 'session.message';        ts: string; sessionId: string; channel: string; role: 'user' | 'assistant' | 'tool'; text: string; toolName?: string; toolInput?: string; blockId?: string; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction; authAction?: AuthNoticeAction; pending?: boolean; pendingId?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[] }
   // Token-level preview of an assistant text block still being generated. `text` is the INCREMENT
   // since the previous event of that `blockId`, never the accumulated total; `seq` starts at 0 per
   // block. Superseded by the `session.message` carrying the same `blockId`, which is authoritative.

@@ -3,7 +3,7 @@
 // pos:    Shared semantic notice renderer for desktop and mobile chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { CSSProperties } from 'react';
-import type { AuthNoticeAction, ChatNoticeLevel } from '@cortex-agent/ui-contract';
+import type { AuthNoticeAction, ChatNoticeLevel, NoticeAction } from '@cortex-agent/ui-contract';
 import { useOptionalLoginFlow } from '@/features/auth/LoginFlowProvider';
 import { useVocab } from '@/i18n';
 
@@ -46,6 +46,41 @@ export interface ChatNoticeProps {
   authAction?: AuthNoticeAction;
   authActionLabel?: string;
   onAuthAction?: (action: AuthNoticeAction) => void;
+  /** A control the notice itself offers, persisted with the message. */
+  noticeAction?: NoticeAction;
+  onNoticeAction?: (action: NoticeAction) => void;
+  /** Set once the action has been taken — the control stays visible but inert. */
+  noticeActionDone?: boolean;
+}
+
+function actionButtonStyle(color: string, disabled: boolean): CSSProperties {
+  return {
+    border: `1px solid ${color}`, borderRadius: 7, background: 'transparent',
+    color, padding: '5px 9px', fontSize: 12, fontWeight: 650,
+    cursor: disabled ? 'default' : 'pointer', flex: 'none', alignSelf: 'center',
+    opacity: disabled ? 0.5 : 1,
+  };
+}
+
+function NoticeActionButton({
+  action, tone, done, onAction,
+}: {
+  action: NoticeAction;
+  tone: NoticeTone;
+  done: boolean;
+  onAction?: (action: NoticeAction) => void;
+}) {
+  const L = useVocab();
+  if (!onAction) return null;
+  return (
+    <button
+      type="button" data-notice-action={action.kind} disabled={done}
+      onClick={() => onAction(action)}
+      style={actionButtonStyle(tone.fg, done)}
+    >
+      {done ? L.noticeCancelResumeDone : L.noticeCancelResume}
+    </button>
+  );
 }
 
 function AuthActionButton({
@@ -62,11 +97,7 @@ function AuthActionButton({
   return (
     <button
       type="button" data-auth-notice-action onClick={() => activate(action)}
-      style={{
-        border: `1px solid ${TONES.error.fg}`, borderRadius: 7, background: 'transparent',
-        color: TONES.error.fg, padding: '5px 9px', fontSize: 12, fontWeight: 650,
-        cursor: 'pointer', flex: 'none', alignSelf: 'center',
-      }}
+      style={actionButtonStyle(TONES.error.fg, false)}
     >
       {label ?? L.authLoginAgain}
     </button>
@@ -75,6 +106,7 @@ function AuthActionButton({
 
 export function ChatNotice({
   level, text, authAction, authActionLabel, onAuthAction,
+  noticeAction, onNoticeAction, noticeActionDone = false,
 }: ChatNoticeProps): JSX.Element {
   const tone = TONES[level];
   const style: CSSProperties = {
@@ -98,6 +130,11 @@ export function ChatNotice({
       <span style={{ flex: 1 }}>{text}</span>
       {authAction ? (
         <AuthActionButton action={authAction} label={authActionLabel} onAction={onAuthAction} />
+      ) : null}
+      {noticeAction ? (
+        <NoticeActionButton
+          action={noticeAction} tone={tone} done={noticeActionDone} onAction={onNoticeAction}
+        />
       ) : null}
     </div>
   );

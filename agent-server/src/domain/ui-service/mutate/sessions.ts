@@ -28,7 +28,10 @@ import type {
   SessionsInteractionMutateReturn,
   SessionsRewindArgs,
   SessionsRewindReturn,
+  SessionsCancelResumeArgs,
+  SessionsCancelResumeReturn,
 } from '../types.js';
+import { removeDirectResume } from '@domain/costs/resume-registry.js';
 
 // Create a fresh, live direct session for the workbench "+ New session" control. Resolves the target
 // project (falling back to the default project when omitted), delegates the real creation to the
@@ -256,6 +259,19 @@ export async function handleAnswerQuestion(
     return { ok: false, code: 'not-found', message: `No pending question for requestId: ${args.requestId}` };
   }
   return { ok: true, data: { outcome } };
+}
+
+// Web UI: decline the auto-resume promised when a rate limit interrupted this session's turn.
+// The queue is keyed by conduit, and a web session's conduit is `web:<sessionId>`. Idempotent:
+// once the window resets the entry is drained by the dispatcher, so a late click reports
+// `cancelled: false` rather than failing.
+export async function handleCancelResume(
+  args: SessionsCancelResumeArgs,
+): Promise<Result<SessionsCancelResumeReturn>> {
+  if (!args.sessionId) {
+    return { ok: false, code: 'invalid-args', message: 'sessionId required' };
+  }
+  return { ok: true, data: { cancelled: removeDirectResume(`web:${args.sessionId}`) } };
 }
 
 // Web UI: resolve a pending plan-approval interaction. Same three-way outcome as

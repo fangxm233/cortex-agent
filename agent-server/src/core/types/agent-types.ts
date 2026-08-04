@@ -13,6 +13,13 @@ export interface AuthNoticeAction {
   authType: 'oauth' | 'api_key';
 }
 
+/** A control the user can act on from a chat notice. Unlike AuthNoticeAction (an ephemeral
+ *  live-tail hint) this is persisted with the message: the window it refers to can outlive a
+ *  page reload by hours. */
+export interface NoticeAction {
+  kind: 'cancel-resume';
+}
+
 /** Backend-neutral snapshot of the tokens currently occupying an agent's context window. */
 export interface ContextUsage {
   usedTokens: number | null;

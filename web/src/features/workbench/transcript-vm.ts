@@ -5,6 +5,7 @@
 import type {
   AuthNoticeAction,
   ChatNoticeLevel,
+  NoticeAction,
   SessionTranscript,
   TranscriptInteractionDetail,
   TranscriptMessage,
@@ -26,6 +27,7 @@ export interface LiveSessionMessage {
   toolName?: string;
   toolInput?: string;
   noticeLevel?: ChatNoticeLevel;
+  noticeAction?: NoticeAction;
   authAction?: AuthNoticeAction;
   ts: string;
   /** Optional file attachments on user messages (15a). */
@@ -243,7 +245,7 @@ export type ChatRow =
   // after the final event. Only a preview row is paced by the smooth reveal — pacing a settled
   // message would re-type text the reader has already seen and leave it animating past turn end.
   | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[]; preview?: true }
-  | { kind: 'notice'; level: ChatNoticeLevel; text: string; authAction?: AuthNoticeAction }
+  | { kind: 'notice'; level: ChatNoticeLevel; text: string; noticeAction?: NoticeAction; authAction?: AuthNoticeAction }
   // Scheduled-run trigger card (design 27b): the run's opening `[Scheduled Task]` message rendered
   // as provenance, not as a user bubble. `message` has the prefix stripped; `firedTs` is fire time.
   | { kind: 'trigger'; message: string; firedTs: string | null }
@@ -299,6 +301,7 @@ export function liveToMessage(m: LiveSessionMessage): TranscriptMessage {
     elapsedMs: null,
     attachments: m.attachments,
     ...(m.noticeLevel ? { noticeLevel: m.noticeLevel } : {}),
+    ...(m.noticeAction ? { noticeAction: m.noticeAction } : {}),
     ...(m.authAction ? { authAction: m.authAction } : {}),
   };
 }
@@ -558,6 +561,7 @@ export function buildTranscriptRows(
     } else if (m.type === 'assistant' && m.noticeLevel) {
       rows.push({
         kind: 'notice', level: m.noticeLevel, text: m.text ?? '',
+        ...(m.noticeAction ? { noticeAction: m.noticeAction } : {}),
         ...(m.authAction ? { authAction: m.authAction } : {}),
       });
     } else {

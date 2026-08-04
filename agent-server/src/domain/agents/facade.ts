@@ -17,7 +17,7 @@ import { buildAgentSpawnConfig, filterChannelScopedPlugins } from './spawn-confi
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
-import type { AgentHandle, AgentResult, ChatNoticeLevel } from '@core/types/agent-types.js';
+import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import { recordCost } from '../costs/cost-tracker.js';
 import { configureEnvForMode, isApiRateLimitError, isRetryableResult, isRetryableError } from './config.js';
 import { isProviderRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
@@ -48,27 +48,53 @@ function terminalErrorText(message: string): string {
 /** Track error notices within one provider attempt so terminal handling is durable but not noisy.
  *  runWithAdapter drains its event loop before rejecting, so any API Error from that attempt has
  *  already reached this tracker. A fallback starts a new dedupe window because its terminal
- *  failure must not be hidden by the previous provider's notice. */
+ *  failure must not be hidden by the previous provider's notice.
+ *
+ *  Rate-limit API errors are HELD rather than forwarded on arrival: the backend surfaces a 429 as
+ *  an assistant message before the turn settles, and only the settle tells us whether it was a
+ *  failure (card) or a pause the resume registry already owns (auto-resume warning instead). */
 class AttemptNoticeTracker {
   readonly options: RunAgentOptions;
   private readonly forward: RunAgentOptions['onAssistantMessage'];
   private readonly generateNotices: boolean;
   private attemptHasErrorNotice = false;
+  private heldError: { text: string; blockId?: string } | null = null;
 
   constructor(private readonly original: RunAgentOptions) {
     this.forward = original.onAssistantMessage ?? null;
     this.generateNotices = original.channel?.startsWith('web:') === true;
     this.options = this.forward
-      ? { ...original, onAssistantMessage: (text, blockId, level) => this.observe(text, blockId, level) }
+      ? { ...original, onAssistantMessage: (text, blockId, level, action) => this.observe(text, blockId, level, action) }
       : original;
   }
 
-  private observe(text: string, blockId?: string, level?: ChatNoticeLevel): void {
+  private observe(text: string, blockId?: string, level?: ChatNoticeLevel, action?: NoticeAction): void {
+    if (level === 'error' && this.generateNotices && isApiRateLimitError(text)) {
+      this.heldError = { text, ...(blockId ? { blockId } : {}) };
+      return;
+    }
     if (level === 'error') this.attemptHasErrorNotice = true;
-    this.forward?.(text, blockId, level);
+    this.forward?.(text, blockId, level, action);
+  }
+
+  /** Release a held rate-limit card. Every settle path calls this except the resumable one,
+   *  which drops the card in favour of the auto-resume warning. */
+  private flushHeldError(): void {
+    const held = this.heldError;
+    this.heldError = null;
+    if (!held || !this.forward) return;
+    this.attemptHasErrorNotice = true;
+    this.forward(held.text, held.blockId, 'error');
+  }
+
+  /** The attempt produced a result: a turn that recovered from a mid-flight API error still
+   *  reports it, just once the outcome is known. */
+  settleSuccess(): void {
+    this.flushHeldError();
   }
 
   private emitTerminal(message: string, displayText = terminalErrorText(message)): void {
+    this.flushHeldError();
     if (!this.generateNotices || !this.forward || this.attemptHasErrorNotice) return;
     this.attemptHasErrorNotice = true;
     this.forward(displayText, undefined, 'error');
@@ -76,9 +102,11 @@ class AttemptNoticeTracker {
 
   private emitAutoResume(provider: string | undefined): boolean {
     if (!this.original.isUserInitiated || !isProviderRateLimited(provider)) return false;
+    // Paused, not failed — the held card would misreport the outcome.
+    this.heldError = null;
     if (this.generateNotices && this.forward && !this.attemptHasErrorNotice) {
       this.attemptHasErrorNotice = true;
-      this.forward(t('notify.rateLimitAutoResume'), undefined, 'warning');
+      this.forward(t('notify.rateLimitAutoResume'), undefined, 'warning', { kind: 'cancel-resume' });
     }
     return true;
   }
@@ -90,6 +118,8 @@ class AttemptNoticeTracker {
     error?: Error,
   ): Promise<void> {
     await this.original.onFallback?.(current, next, result, error);
+    // This attempt is over: its held card is now terminal for that provider.
+    this.flushHeldError();
     if (this.generateNotices) {
       this.observe(t('notify.agentFallback', {
         from: configLabel(current), to: configLabel(next),
@@ -128,6 +158,7 @@ function withTerminalNotices(handle: AgentHandle, notices: AttemptNoticeTracker)
     promise: handle.promise.then(
       (result) => {
         if (result.rateLimited) notices.emitTerminalRateLimit(result);
+        else notices.settleSuccess();
         return result;
       },
       (error) => {
@@ -530,6 +561,7 @@ export function runAgent(message: string, options: RunAgentOptions = {}): AgentH
         const result: AgentResult = await currentHandle.promise;
         if (!isRetryableResult(result) || isLast) {
           if (result.rateLimited) notices.emitTerminalRateLimit(result);
+          else notices.settleSuccess();
           return result;
         }
         const modeLabel = config.mode || 'api';
@@ -578,6 +610,8 @@ export function allConfigsRateLimited(profileName: string | null): boolean {
 // Exposed for tests/run-with-adapter.test.ts; not intended as a public API.
 export const _test = {
   runWithAdapter,
+  AttemptNoticeTracker,
+  withTerminalNotices,
   resolveRateLimitProvider,
   withRateLimitProvider,
   buildSpawnConfig: buildAgentSpawnConfig,

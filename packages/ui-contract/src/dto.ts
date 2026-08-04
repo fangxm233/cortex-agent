@@ -74,6 +74,8 @@ export type {
   NotesClearCompletedArgs,
   SessionsAnswerQuestionArgs,
   SessionsRespondPlanArgs,
+  SessionsCancelResumeArgs,
+  SessionsCancelResumeReturn,
   SessionsPendingInteractionParams,
   SessionsPendingInteraction,
   SessionsInteractionMutateReturn,
@@ -85,6 +87,7 @@ export type {
   TranscriptDebugDetails,
   AuthNoticeAction,
   ChatNoticeLevel,
+  NoticeAction,
   SessionContextUsage,
   // Output DTOs
   ProjectConduitInfo,
