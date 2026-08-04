@@ -270,11 +270,15 @@ it('ignores ambient host state when constructing (S3)', () => {
     process.env.ANTHROPIC_BASE_URL = 'http://ambient.invalid';
     process.env.SLACK_BOT_TOKEN = 'xoxb-ambient';
     process.env.CORTEX_PROJECT = 'ambient-project';
+    process.env.LANG = 'ambient_LOCALE.UTF-8';
+    process.env.TZ = 'Pacific/Honolulu';
     const after = createTrialAdapter(built);
     assert.deepEqual(after.spawnConfig, before.spawnConfig);
     assert.deepEqual(after.roleSurface, before.roleSurface);
   } finally {
-    for (const key of ['HOME', 'ANTHROPIC_BASE_URL', 'SLACK_BOT_TOKEN', 'CORTEX_PROJECT']) {
+    for (const key of [
+      'HOME', 'ANTHROPIC_BASE_URL', 'SLACK_BOT_TOKEN', 'CORTEX_PROJECT', 'LANG', 'TZ',
+    ]) {
       if (saved[key] === undefined) delete process.env[key];
       else process.env[key] = saved[key];
     }

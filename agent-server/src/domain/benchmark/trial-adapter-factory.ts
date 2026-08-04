@@ -119,8 +119,8 @@ export function trialRunOptions(spec: TrialAdapterSpec): RunAgentOptions {
     cliPath: inventoryPath(spec.policy, 'cli_artifact'),
     // GT4 — the compiled guard travels on the spawn config, never through the projection.
     benchmarkPolicyGuard: trialGuard(spec.policy, spec.slot),
-    // C5/C7 — the child environment is the pinned trial environment, allowlist-first.
-    pinnedEnv: pinnedTrialEnvironment(spec.paths),
+    // C5/C7 — the child environment is pinned and factory-pure; no ambient parent values enter.
+    pinnedEnv: pinnedTrialEnvironment(spec.paths, {}),
   };
 }
 
