@@ -7,7 +7,7 @@ Defines the shared adapter contract, the capability matrix, and the normalized e
 |---|---|---|
 | index.ts | entry | selects adapters and pins PI transcript paths |
 | types.ts | types | Adapter, process, task context, supervision and accounting contracts |
-| capabilities.ts | core | declares per-backend capabilities and verified long-MCP-call CLI versions |
+| capabilities.ts | core | declares capabilities and long-call CLI versions |
 | bg-wait.ts | core | emits cache-inclusive continuation input totals |
 | event-tee.ts | core | fans out run events and enforces required sinks |
 | claude/ | subdir | Claude Code backend adapter |
