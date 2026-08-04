@@ -65,6 +65,8 @@ export interface RunAgentOptions {
   benchmarkPolicyGuard?: AgentSpawnConfig['benchmarkPolicyGuard'];
   /** Exact allowlisted child environment for an isolated trial; replaces host inheritance. */
   pinnedEnv?: NodeJS.ProcessEnv;
+  /** Absolute trial deadline a backend derives its in-process call budget from (§5.6 P5). */
+  benchmarkDeadlineEpochMs?: number;
   /** Concrete MCP config paths frozen by a one-shot run config. */
   mcpConfigPaths?: string[];
   /** Suppress hooks for an isolated one-shot role. */
@@ -217,6 +219,7 @@ export function buildAgentSpawnConfig(
     cliPath: typeof options.cliPath === 'string' ? options.cliPath : undefined,
     benchmarkPolicyGuard: options.benchmarkPolicyGuard,
     pinnedEnv: options.pinnedEnv,
+    benchmarkDeadlineEpochMs: options.benchmarkDeadlineEpochMs,
     pluginDirs: filterChannelScopedPlugins(
       Array.isArray(options.pluginDirs) ? options.pluginDirs : undefined,
       options.channel,
@@ -240,7 +243,9 @@ export function buildAgentSpawnConfig(
     // `mode` (gateway.yaml owns the route).
     piProvider: config.backend === 'pi' && config.provider ? config.provider : undefined,
     piGatewayPath: config.backend === 'pi' && config.provider ? buildPiGatewaySubPath(config.mode, config.provider) : undefined,
-    piGatewayBaseUrl: config.backend === 'pi' ? GATEWAY_URL : undefined,
+    // P12: a trial is routed at its own proxy authority, which arrives as the route argument. The
+    // host gateway is the daemon's default and must not be the value a trial takes.
+    piGatewayBaseUrl: config.backend === 'pi' ? (anthropicBaseUrl ?? GATEWAY_URL) : undefined,
     cortexContext: hasContext ? ctx : undefined,
     appendSystemPrompt,
   };

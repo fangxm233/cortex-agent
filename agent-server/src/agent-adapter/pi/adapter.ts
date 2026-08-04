@@ -969,7 +969,9 @@ export class PIAdapter implements AgentAdapter {
           : undefined);
     const env = buildPiEnv({
       sessionId: config.sessionId,
-      channel: config.channel,
+      // C7/A13: `channel` is what emits SLACK_CHANNEL / FEISHU_CHANNEL — a platform surface a trial
+      // has no business naming, and the switch that layers the Slack and Feishu MCP servers.
+      channel: guard === undefined ? config.channel : undefined,
       callbackSource: config.callbackSource,
       scheduleTaskId: config.scheduleTaskId,
       extraEnv: config.env,

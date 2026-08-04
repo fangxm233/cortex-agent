@@ -246,13 +246,19 @@ it('refuses an unproven PI arm with backend_unsupported_for_kind (S8)', () => {
   );
 });
 
-it('refuses a proven PI arm until a PI constructor is registered (S8 fail-closed)', () => {
+// The PI construction path landed (design §13 (13.3)); `trial-adapter-pi.test.ts` owns its rows.
+// What stays asserted here is that the dispatch table is still closed and still keyed on proof.
+it('constructs a proven PI arm and refuses an unlisted backend (S8)', () => {
   const loaded = loadPolicy();
   const piPolicy = structuredClone(loaded.policy) as any;
   piPolicy.arm.backend = 'pi';
   piPolicy.pi_benchmark_capability_proven = true;
+  assert.equal(createTrialAdapter(spec({ policy: piPolicy, config: loaded.config })).backend, 'pi');
+
+  const unlisted = structuredClone(loaded.policy) as any;
+  unlisted.arm.backend = 'codex';
   assert.throws(
-    () => createTrialAdapter(spec({ policy: piPolicy, config: loaded.config })),
+    () => createTrialAdapter(spec({ policy: unlisted, config: loaded.config }, 'unlisted')),
     (error: unknown) => {
       assert.ok(error instanceof PolicyCompilationError);
       assert.equal(error.code, 14);

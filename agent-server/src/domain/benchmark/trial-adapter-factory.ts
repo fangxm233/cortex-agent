@@ -4,7 +4,10 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { ClaudeAdapter } from '../../agent-adapter/claude/adapter.js';
+import { PIAdapter } from '../../agent-adapter/pi/adapter.js';
+import type { PIProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import type { AgentAdapter, AgentSpawnConfig, Backend } from '../../agent-adapter/types.js';
 import type { IdentityJsonValue, RoleToolSurfaceInput } from '../agent-run/identity.js';
 import type { AgentSlot } from '../agent-run/journal.js';
@@ -36,11 +39,50 @@ export interface TrialAdapter {
   close(): Promise<void>;
 }
 
-/** S8: backend dispatch is a closed table, so an unlisted backend refuses rather than falling back.
- *  PI is absent until its own construction path lands, so a *proven* PI arm still refuses with the
- *  same code rather than silently constructing an adapter over ambient PI state. */
-const ADAPTER_CONSTRUCTORS: Partial<Record<Backend, () => AgentAdapter>> = {
+/** P8/A7: the trial's provider catalog is the arm's one provider, fixed. `refresh()` is a no-op —
+ *  a rescan is both a host reach (A8) and a cross-trial cache leak. */
+function fixedProviderDiscovery(provider: string | null): PIProviderDiscovery {
+  const providers = provider === null ? [] : [provider];
+  return { getProviders: () => [...providers], refresh: () => {} };
+}
+
+/**
+ * P6/A5/A6: the trial's PI credential is the policy's dummy token, written as a real file into the
+ * trial-local agent dir. The shipped daemon path symlinks the host's `~/.pi/agent/auth.json` here,
+ * which would make a "trial-local" directory a window onto the host — §3.3's invariant is that a
+ * real credential never enters a trial.
+ */
+function writeTrialAuth(agentDir: string, policy: ResolvedTrialPolicy): void {
+  const provider = policy.arm.provider;
+  if (provider === null || provider === undefined) return;
+  fs.mkdirSync(agentDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(agentDir, 'auth.json'),
+    `${JSON.stringify({ [provider]: { type: 'api', key: policy.credential.dummy_token_ref } }, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+}
+
+/** P4/P5: every PI state directory the trial needs, under `spec.paths.root` and nowhere else. */
+function piTrialAdapter(spec: TrialAdapterSpec): AgentAdapter {
+  const agentDir = path.join(spec.paths.root, 'pi-agent');
+  const sessionDir = path.join(spec.paths.root, 'pi-sessions');
+  fs.mkdirSync(agentDir, { recursive: true });
+  fs.mkdirSync(sessionDir, { recursive: true });
+  return new PIAdapter(
+    // S6.1: no spawner here. The supervisor is injected onto the spawn config after the factory
+    // returns, and `assertBenchmarkSpawn` refuses the spawn if it never arrives.
+    undefined,
+    sessionDir,
+    fixedProviderDiscovery(spec.policy.arm.provider ?? null),
+    { agentDir, prepareAgentDir: dir => writeTrialAuth(dir, spec.policy) },
+  );
+}
+
+/** S8: backend dispatch is a closed table, so an unlisted backend refuses rather than falling back. */
+const ADAPTER_CONSTRUCTORS: Partial<Record<Backend, (spec: TrialAdapterSpec) => AgentAdapter>> = {
   claude: () => new ClaudeAdapter(),
+  pi: piTrialAdapter,
 };
 
 export function trialSessionKey(policy: ResolvedTrialPolicy): string {
@@ -119,8 +161,10 @@ export function trialRunOptions(spec: TrialAdapterSpec): RunAgentOptions {
     cliPath: inventoryPath(spec.policy, 'cli_artifact'),
     // GT4 — the compiled guard travels on the spawn config, never through the projection.
     benchmarkPolicyGuard: trialGuard(spec.policy, spec.slot),
-    // C5/C7 — the child environment is pinned and factory-pure; no ambient parent values enter.
+    // C5/C7 and A13 — the child environment is pinned and factory-pure; no ambient parent values enter.
     pinnedEnv: pinnedTrialEnvironment(spec.paths, {}),
+    // §5.6 P5 — the instant, not a duration: the child derives its remaining budget when it calls.
+    benchmarkDeadlineEpochMs: spec.policy.deadline.absolute_epoch_ms,
   };
 }
 
@@ -143,7 +187,7 @@ export function createTrialAdapter(spec: TrialAdapterSpec): TrialAdapter {
   const backend = trialBackend(spec.policy);
   const runOptions = trialRunOptions(spec);
   const directive = trialDirective(spec.policy, spec.slot);
-  const adapter = ADAPTER_CONSTRUCTORS[backend]!();
+  const adapter = ADAPTER_CONSTRUCTORS[backend]!(spec);
   const spawnConfig = buildAgentSpawnConfig(
     runOptions,
     trialAgentConfig(spec.policy, backend),
