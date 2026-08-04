@@ -15,8 +15,8 @@ An AppShell provider opens details with dependencies, evidence, dispatch history
 | TaskModalProvider.test.ts | test | Tests modal selection state transitions |
 | task-modal-vm.ts | vm | Builds approval and claim-aware detail state |
 | task-modal-vm.test.ts | test | Guards approval, claim, fields and actions |
-| group-tasks.ts | vm | Groups tasks into six lifecycle sections |
-| group-tasks.test.ts | test | Tests lifecycle grouping and open counts |
+| group-tasks.ts | vm | Groups tasks into six sections, done newest-first |
+| group-tasks.test.ts | test | Tests grouping, done order and open counts |
 | task-claim.ts | util | Selects the safe UI claim identifier |
 | task-dependencies.ts | util | Resolves unmet dependency ids for task views |
 | task-time.ts | util | Formats completion timestamps in local time |

@@ -618,7 +618,14 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
     case 'assistant':
       return <AssistantBlock text={row.text} attachments={row.attachments} editCopy={editCopy} regen={regen} preview={row.preview} streamKey={streamKey} />;
     case 'notice':
-      return <ChatNotice level={row.level} text={row.text} authAction={row.authAction} />;
+      return (
+        <ChatNotice
+          level={row.level} text={row.text} authAction={row.authAction}
+          noticeAction={row.noticeAction}
+          onNoticeAction={interactionActions?.cancelResume}
+          noticeActionDone={interactionActions?.resumeCancelled}
+        />
+      );
     case 'trigger':
       return <TriggerCard message={row.message} firedTs={row.firedTs} />;
     case 'interaction':

@@ -6,7 +6,7 @@
 import * as path from 'path';
 import type { Destination, PlatformAdapter, MessageRef, DownloadedFile, IncomingMessage, PlatformFileRef, OutputStream } from '@platform/index.js';
 import { resolveDestinationConduit, SYNTHETIC_CALLBACK_SENDER } from '@platform/types.js';
-import type { AgentResult, ChatNoticeLevel, ContextUsage, SessionContextUsage } from '@core/types/agent-types.js';
+import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction, SessionContextUsage } from '@core/types/agent-types.js';
 import { conduitQueues, enqueue } from './conduit-queue.js';
 import { trackPendingTask } from './busy-tracker.js';
 import * as crypto from 'node:crypto';
@@ -361,7 +361,7 @@ export class AgentRunner {
         },
         onExecutionRegistered: () => finishTurnTracking(channel, turnTrackingToken),
         onAssistantDelta: deltaStream ? (text: string, blockId: string) => deltaStream.onDelta(text, blockId) : null,
-        onAssistantMessage: (text: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => {
+        onAssistantMessage: (text: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction) => {
           // Drain this block's preview FIRST: the authoritative message must never be overtaken by
           // a delta still sitting in the coalescer, or the UI would replace the row and then append
           // a stale fragment to it.
@@ -369,11 +369,12 @@ export class AgentRunner {
           callbacks.onAssistantMsg(text);
           if (sessionId && text) {
             const ts = new Date().toISOString();
-            recordHistory(conversationHistory.appendAssistant(sessionId, { text, ts, noticeLevel }));
+            recordHistory(conversationHistory.appendAssistant(sessionId, { text, ts, noticeLevel, noticeAction }));
             publishSessionMessage({
               sessionId, channel, role: 'assistant', text, ts,
               ...(blockId ? { blockId } : {}),
               ...(noticeLevel ? { noticeLevel } : {}),
+              ...(noticeAction ? { noticeAction } : {}),
             });
           }
         },

@@ -147,3 +147,30 @@ test('recordResume works in-memory before init (no persistence)', async (t) => {
   mod.recordResume({ kind: 'direct', channel: 'C1', userMessage: 'd', recordedAt: 1 });
   assert.equal(mod.getResumeCount(), 1);
 });
+
+test('removeDirectResume cancels one channel and leaves other entries queued', async (t) => {
+  const mod = await freshModuleWithCleanup(t);
+  const persistence = makePersistenceStub();
+  let changes = 0;
+  await mod.initResumeRegistry(persistence as any, () => { changes += 1; });
+
+  mod.recordResume({ kind: 'direct', channel: 'C1', userMessage: 'cancel me', recordedAt: 1 });
+  mod.recordResume({ kind: 'direct', channel: 'C2', userMessage: 'keep me', recordedAt: 2 });
+  mod.recordResume({ kind: 'thread', threadId: 'thr_a', channel: 'C1', userMessage: 't', recordedAt: 3 });
+  const changesBefore = changes;
+
+  assert.equal(mod.removeDirectResume('C1'), true);
+  assert.equal(mod.getResumeCount(), 2, 'only the cancelled channel is dropped');
+  assert.ok(changes > changesBefore, 'cancellation publishes a waiting-count change');
+  assert.deepEqual(
+    (persistence.getSaved() as any[]).map((e) => e.channel).sort(),
+    ['C1', 'C2'],
+    'the surviving thread entry keeps its channel; only the direct C1 entry is gone',
+  );
+
+  assert.equal(mod.removeDirectResume('C1'), false, 'cancelling twice is a no-op');
+  assert.deepEqual(
+    mod.takeAllResumes().map((e: any) => e.userMessage).sort(),
+    ['keep me', 't'],
+  );
+});

@@ -8,7 +8,7 @@ import type {
   AgentProcessSpawner, AgentSpawnConfig, Backend, McpComposition,
 } from '../../agent-adapter/types.js';
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
-import type { AgentResult, ChatNoticeLevel, ContextUsage } from '@core/types/agent-types.js';
+import type { AgentResult, ChatNoticeLevel, ContextUsage, NoticeAction } from '@core/types/agent-types.js';
 import { GATEWAY_URL } from '../costs/gateway-manager.js';
 import { loadCortexRules } from '../memory/rules-loader.js';
 
@@ -110,7 +110,7 @@ export interface RunAgentOptions {
   onContextUsage?: ((usage: ContextUsage) => void | Promise<void>) | null;
   /** A complete assistant text block. `blockId` ties it to prior deltas; `noticeLevel` turns
    *  system-authored text into semantic chat chrome without changing plain platform output. */
-  onAssistantMessage?: ((msg: string, blockId?: string, noticeLevel?: ChatNoticeLevel) => void) | null;
+  onAssistantMessage?: ((msg: string, blockId?: string, noticeLevel?: ChatNoticeLevel, noticeAction?: NoticeAction) => void) | null;
   /** An incremental text chunk of a block still being generated (never the accumulated total).
    *  Opt-in: callers that leave it unset receive complete messages only, exactly as before. */
   onAssistantDelta?: ((text: string, blockId: string) => void) | null;

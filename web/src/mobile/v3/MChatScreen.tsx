@@ -689,6 +689,8 @@ export function MChatScreen(): JSX.Element {
     onApprove: (m) => interactionActions.approvePlan(m.requestId),
     onRejectStart: (m) => setRejectingId(m.requestId),
     onOpenRead,
+    onCancelResume: interactionActions.cancelResume,
+    resumeCancelled: interactionActions.resumeCancelled,
   };
   const rejectBar: MRejectBar | undefined = rejectArmed && pendingPlanModel
     ? {

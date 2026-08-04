@@ -15,8 +15,8 @@ This level holds the shell frame, the tab and route model, and the pure cross-sc
 | mobile-navigation.test.ts | test | Tests mobile back and tab-switch policy |
 | mobile-tabs.ts | core | Maps paths to active tab and badge counts |
 | mobile-tabs.test.ts | test | Unit tests for path to tab mapping |
-| mobile-tasks.ts | core | Groups tasks into six lifecycle sections |
-| mobile-tasks.test.ts | test | Tests mobile lifecycle classification |
+| mobile-tasks.ts | core | Groups tasks into six sections, done newest-first |
+| mobile-tasks.test.ts | test | Tests mobile classification and done order |
 | current-project.tsx | provider | Shares the mobile-wide project selection |
 | use-back-dismiss.ts | hook | Makes hardware back close overlays not routes |
 | use-back-dismiss.test.ts | test | Unit tests for the back dismiss guard |

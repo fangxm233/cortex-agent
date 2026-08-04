@@ -6,7 +6,7 @@
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import { STORE_DIR } from '@core/paths.js';
-import type { ChatNoticeLevel } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 
 const HISTORY_DIR = path.join(STORE_DIR, 'conversation-history');
 
@@ -59,6 +59,8 @@ export interface HistoryEvent {
   text?: string;
   /** Semantic chat notice styling for system-authored assistant messages. */
   noticeLevel?: ChatNoticeLevel;
+  /** Control offered by that notice; persisted so it survives a transcript reload. */
+  noticeAction?: NoticeAction;
   /** tool name (tool events only). */
   toolName?: string;
   /** compact tool input summary (tool events only). */
@@ -97,6 +99,7 @@ interface RawEvent {
   originalTs?: string;
   text?: string;
   noticeLevel?: ChatNoticeLevel;
+  noticeAction?: NoticeAction;
   toolName?: string;
   toolInput?: string;
   /** DEBUG-only correlation and lossless payload fields. */
@@ -204,10 +207,10 @@ export class ConversationHistoryRepo {
    *  An optional `ts` override lets the caller share a single timestamp with the EventBus event.
    *  Optional `attachments` carry agent-sent files (20a) — the assistant-side mirror of the user
    *  composer's uploads. Present only for the file-send path; ordinary assistant text omits it. */
-  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[]; noticeLevel?: ChatNoticeLevel }): Promise<void> {
+  appendAssistant(sessionId: string, opts: { text: string; ts?: string; attachments?: { name: string; path: string; size: number; mimeType: string; type: 'image' | 'video' | 'file' }[]; noticeLevel?: ChatNoticeLevel; noticeAction?: NoticeAction }): Promise<void> {
     return this.append(sessionId, {
       type: 'assistant', text: opts.text, ts: opts.ts ?? nowIso(),
-      attachments: opts.attachments, noticeLevel: opts.noticeLevel,
+      attachments: opts.attachments, noticeLevel: opts.noticeLevel, noticeAction: opts.noticeAction,
     });
   }
 
@@ -383,6 +386,7 @@ export class ConversationHistoryRepo {
             type: 'assistant', text, ts: ev.ts, turnIndex: tIdx,
             ...(hasAttachments ? { attachments: ev.attachments } : {}),
             ...(ev.noticeLevel ? { noticeLevel: ev.noticeLevel } : {}),
+            ...(ev.noticeAction ? { noticeAction: ev.noticeAction } : {}),
           });
         }
       } else if (ev.type === 'tool') {

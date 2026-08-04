@@ -250,6 +250,7 @@ export async function handleSessionsTranscript(
       // uploads (15a) and agent-sent files (20a, assistant events) carry attachments.
       ...((ev.type === 'user' || ev.type === 'assistant') && ev.attachments !== undefined ? { attachments: ev.attachments } : {}),
       ...(ev.type === 'assistant' && ev.noticeLevel !== undefined ? { noticeLevel: ev.noticeLevel } : {}),
+      ...(ev.type === 'assistant' && ev.noticeAction !== undefined ? { noticeAction: ev.noticeAction } : {}),
       // Edit+rewind marker (sessions.rewind): backs the「已编辑」badge + original-message card.
       ...(ev.type === 'user' && ev.edited !== undefined ? { edited: ev.edited } : {}),
       // Defense in depth: persisted debug records stay hidden when DEBUG is off. Large-tool

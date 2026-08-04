@@ -122,6 +122,24 @@ describe('groupTasks — design 4a lifecycle grouping', () => {
     expect(g[0].tasks.map((x) => x.id)).toEqual(['first', 'second', 'third']);
   });
 
+  it('orders the done group newest-completed-first', () => {
+    const g = groupTasks([
+      t({ id: 'oldest', status: 'done', completedAt: '2026-08-01T10:00:00.000Z' }),
+      t({ id: 'newest', status: 'done', completedAt: '2026-08-03T10:00:00.000Z' }),
+      t({ id: 'middle', status: 'done', completedAt: '2026-08-02T10:00:00.000Z' }),
+    ]);
+    expect(g[0].tasks.map((x) => x.id)).toEqual(['newest', 'middle', 'oldest']);
+  });
+
+  it('sinks done tasks without a completion timestamp below timestamped ones, in input order', () => {
+    const g = groupTasks([
+      t({ id: 'no-time-first', status: 'done' }),
+      t({ id: 'timed', status: 'done', completedAt: '2026-08-01T10:00:00.000Z' }),
+      t({ id: 'no-time-second', status: 'done', completedAt: null }),
+    ]);
+    expect(g[0].tasks.map((x) => x.id)).toEqual(['timed', 'no-time-first', 'no-time-second']);
+  });
+
   it('places in-progress before actionable (consistent order)', () => {
     const g = groupTasks([
       t({ id: 'b', actionable: true }),

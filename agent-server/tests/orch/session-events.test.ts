@@ -100,6 +100,27 @@ test('publishSessionMessage carries an optional notice level', () => {
   assert.equal(seen[0].noticeLevel, 'info');
 });
 
+test('publishSessionMessage forwards a notice action to the live stream', () => {
+  const seen: any[] = [];
+  const bus = { publish: (e: any) => seen.push(e) } as any;
+  const prev = jobCtx.bus;
+  jobCtx.bus = bus;
+  try {
+    publishSessionMessage({
+      sessionId: 'sess-action',
+      channel: 'web:notice',
+      role: 'assistant',
+      text: 'Rate limited',
+      noticeLevel: 'warning',
+      noticeAction: { kind: 'cancel-resume' },
+    });
+  } finally {
+    jobCtx.bus = prev;
+  }
+
+  assert.deepEqual(seen[0].noticeAction, { kind: 'cancel-resume' });
+});
+
 test('publishSessionMessage is a no-op when no bus is wired', () => {
   const prev = jobCtx.bus;
   jobCtx.bus = null;

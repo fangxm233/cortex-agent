@@ -99,6 +99,15 @@ function recordResume(entry: ResumeEntry): void {
   fireChange();
 }
 
+/** Cancel a queued direct resume — the user declining the auto-continue for that channel. */
+function removeDirectResume(channel: string): boolean {
+  const removed = _direct.delete(channel);
+  if (!removed) return false;
+  persist();
+  fireChange();
+  return true;
+}
+
 function removeThreadResume(threadId: string): boolean {
   const removed = _threads.delete(threadId);
   if (!removed) return false;
@@ -156,6 +165,7 @@ function _testReset(): void {
 export {
   initResumeRegistry,
   recordResume,
+  removeDirectResume,
   removeThreadResume,
   takeAllResumes,
   takeReadyResumes,

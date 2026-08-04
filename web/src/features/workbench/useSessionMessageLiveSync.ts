@@ -294,7 +294,7 @@ export function useSessionMessageLiveSync(
         return;
       }
       const p = raw.payload as
-        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; attachments?: LiveSessionMessage['attachments'] }
+        | { sessionId?: string; role?: string; text?: string; toolName?: string; toolInput?: string; noticeLevel?: LiveSessionMessage['noticeLevel']; noticeAction?: LiveSessionMessage['noticeAction']; authAction?: LiveSessionMessage['authAction']; ts?: string; blockId?: string; pending?: boolean; pendingId?: string; attachments?: LiveSessionMessage['attachments'] }
         | undefined;
       if (!p || (p.role !== 'user' && p.role !== 'assistant' && p.role !== 'tool')) return;
       // A message written into a running turn's backend, which the model has not read yet. It holds
@@ -326,6 +326,7 @@ export function useSessionMessageLiveSync(
         toolName: p.toolName,
         toolInput: p.toolInput,
         noticeLevel: p.noticeLevel,
+        noticeAction: p.noticeAction,
         authAction: p.authAction,
         ts: p.ts ?? new Date().toISOString(),
         blockId: p.blockId,

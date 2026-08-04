@@ -241,3 +241,123 @@ test('runAgent fallback loop calls onFallback for each skipped config', async (t
   assert.equal(fallbackCalls[0].result, null); // no real result — synthetic skip
   assert.equal(fallbackCalls[1].result, null);
 });
+
+/// --- Attempt notice ordering (deferred API-error card) ---
+//
+// The Claude CLI surfaces a 429 as a synthetic assistant message ("API Error: ...") that
+// arrives BEFORE the turn settles. Whether that text is a failure or merely a pause is only
+// knowable at settle time, so the card is held until then.
+
+const RATE_LIMIT_TEXT = "API Error: Server is temporarily limiting requests (not your usage limit) · This request would exceed your account's rate limit. Please try again later.";
+
+function rateLimitError(): Error {
+  return Object.assign(new Error(RATE_LIMIT_TEXT), { rateLimitProvider: 'anthropic' });
+}
+
+function makeTracker(facade: any, notices: Array<{ text: string; level?: string }>, extra: Record<string, unknown> = {}) {
+  return new facade._test.AttemptNoticeTracker({
+    channel: 'web:rate-limit',
+    isUserInitiated: true,
+    onAssistantMessage: (text: string, _blockId: string | undefined, level?: string) => notices.push({ text, level }),
+    ...extra,
+  });
+}
+
+test('a held rate-limit card is replaced by the auto-resume warning when the provider is throttled', async (t) => {
+  const rl = await initThrottle(['plan']);
+  t.onTestFinished(() => rl._testReset());
+  const facade = await getFacade();
+
+  const notices: Array<{ text: string; level?: string }> = [];
+  const tracker = makeTracker(facade, notices);
+
+  tracker.options.onAssistantMessage(RATE_LIMIT_TEXT, undefined, 'error');
+  assert.deepEqual(notices, [], 'the card is held until the attempt settles');
+
+  tracker.emitTerminalError(rateLimitError());
+
+  assert.deepEqual(notices, [{
+    text: 'Rate limited — this chat will resume automatically when the limit resets.',
+    level: 'warning',
+  }], 'a paused turn reports the resume promise, not the API error');
+});
+
+test('the auto-resume warning carries the cancel-resume action', async (t) => {
+  const rl = await initThrottle(['plan']);
+  t.onTestFinished(() => rl._testReset());
+  const facade = await getFacade();
+
+  const emitted: Array<{ text: string; level?: string; action?: unknown }> = [];
+  const tracker = new facade._test.AttemptNoticeTracker({
+    channel: 'web:rate-limit',
+    isUserInitiated: true,
+    onAssistantMessage: (text: string, _blockId: string | undefined, level?: string, action?: unknown) =>
+      emitted.push({ text, level, action }),
+  });
+
+  tracker.emitTerminalError(rateLimitError());
+
+  assert.equal(emitted.length, 1);
+  assert.equal(emitted[0].level, 'warning');
+  assert.deepEqual(emitted[0].action, { kind: 'cancel-resume' }, 'the promise is opt-out-able');
+});
+
+test('a held rate-limit card is emitted exactly once when the attempt fails terminally', async (t) => {
+  const rl = await getRl();
+  rl._testReset(); // no active throttle — nothing can promise a resume
+  t.onTestFinished(() => rl._testReset());
+  const facade = await getFacade();
+
+  const notices: Array<{ text: string; level?: string }> = [];
+  const tracker = makeTracker(facade, notices);
+
+  tracker.options.onAssistantMessage(RATE_LIMIT_TEXT, undefined, 'error');
+  tracker.emitTerminalError(rateLimitError());
+
+  assert.deepEqual(notices, [{ text: RATE_LIMIT_TEXT, level: 'error' }]);
+});
+
+test('a fallback transition flushes the held card before the fallback warning', async (t) => {
+  const rl = await getRl();
+  rl._testReset();
+  t.onTestFinished(() => rl._testReset());
+  const facade = await getFacade();
+
+  const notices: Array<{ text: string; level?: string }> = [];
+  const tracker = makeTracker(facade, notices);
+
+  tracker.options.onAssistantMessage(RATE_LIMIT_TEXT, undefined, 'error');
+  await tracker.transitionToFallback(
+    { model: 'm1', backend: 'claude', mode: 'plan' },
+    { model: 'm2', backend: 'claude', mode: 'api' },
+    null,
+  );
+
+  assert.deepEqual(notices, [
+    { text: RATE_LIMIT_TEXT, level: 'error' },
+    { text: 'Model fallback: m1/plan → m2/api.', level: 'warning' },
+  ]);
+});
+
+test('withTerminalNotices flushes a held card when the turn recovers and succeeds', async (t) => {
+  const rl = await getRl();
+  rl._testReset();
+  t.onTestFinished(() => rl._testReset());
+  const facade = await getFacade();
+
+  const notices: Array<{ text: string; level?: string }> = [];
+  const tracker = makeTracker(facade, notices);
+  tracker.options.onAssistantMessage(RATE_LIMIT_TEXT, undefined, 'error');
+
+  const result = {
+    sessionId: 's', total_cost_usd: 0, num_turns: 1, rateLimited: false, rateLimitMessage: null,
+    planFilePath: null, enteredPlanMode: false, exitedPlanMode: false, finalOutput: 'done',
+  };
+  const handle = facade._test.withTerminalNotices(
+    { promise: Promise.resolve(result), kill: () => false, sessionId: 's' } as any,
+    tracker,
+  );
+  await handle.promise;
+
+  assert.deepEqual(notices, [{ text: RATE_LIMIT_TEXT, level: 'error' }]);
+});

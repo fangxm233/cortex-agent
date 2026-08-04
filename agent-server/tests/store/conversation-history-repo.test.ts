@@ -79,6 +79,21 @@ test('assistant notice level round-trips and prevents prefix collapse with prose
   assert.equal(assistants[1].text, 'Context auto-compacted.');
 });
 
+test('a notice action round-trips so the button survives a transcript reload', async () => {
+  const repo = new ConversationHistoryRepo();
+  const sid = 'sess-notice-action';
+  await repo.appendUser(sid, { text: 'q' });
+  await repo.appendAssistant(sid, {
+    text: 'Rate limited — this chat will resume automatically when the limit resets.',
+    noticeLevel: 'warning',
+    noticeAction: { kind: 'cancel-resume' },
+  });
+
+  const h = await repo.getHistory(sid);
+  const assistant = h!.events.find((event) => event.type === 'assistant')!;
+  assert.deepEqual(assistant.noticeAction, { kind: 'cancel-resume' });
+});
+
 test('assistant messages without attachments have undefined attachments (no empty-array pollution)', async () => {
   const repo = new ConversationHistoryRepo();
   const sid = 'sess-noatt';

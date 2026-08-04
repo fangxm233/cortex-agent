@@ -224,6 +224,10 @@ export const sessionsRespondPlanInput = z.object({
   feedback: z.string().optional(),
 });
 
+export const sessionsCancelResumeInput = z.object({
+  sessionId: z.string(),
+});
+
 export const sessionsRewindInput = z.object({
   sessionId: z.string(),
   turnIndex: z.number().int().min(0),
@@ -633,6 +637,7 @@ export const mutateInputSchemas = {
   'sessions.markRead': sessionsMarkReadInput,
   'sessions.answerQuestion': sessionsAnswerQuestionInput,
   'sessions.respondPlan': sessionsRespondPlanInput,
+  'sessions.cancelResume': sessionsCancelResumeInput,
   'sessions.rewind': sessionsRewindInput,
   'threads.cancel': threadsCancelInput,
   'executions.cancel': executionsCancelInput,
