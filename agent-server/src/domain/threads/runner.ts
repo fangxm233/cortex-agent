@@ -160,6 +160,9 @@ interface StepContext {
   multiAgent: boolean;
   /** Stage this step runs. Null for single-stage agents (no `stages` map declared). */
   stage: string | null;
+  /** Index this step occupies in the thread's step list, captured before the step runs (the
+   *  record advances it once the step's result is recorded). */
+  stepIndex: number;
   prompt: string;
   /** True when this step re-enters an interrupted attempt's backend session: the prompt is the
    *  continuation reminder, and first-step files are not re-attached. */
@@ -432,6 +435,7 @@ async function buildStepConfig(
 
   return {
     agentSlotId, agentConfig, isFirstStep, multiAgent, stage,
+    stepIndex: threadStore.get(threadId)?.currentStepIndex ?? 0,
     prompt, interruptedResume, sawActivity: false, resumeSessionId, trackSessionId, sessionKey,
     sessionName: await sessionStore.generateSessionName(),
     profileName, profileBackend, rateLimitProvider, execution,
@@ -531,7 +535,10 @@ function resolveStepSpawnPolicy(
 ): Partial<ThreadAgentOptions> {
   if (opts.benchmark) {
     return {
-      cwd: opts.benchmark.workspaceCwd, processSpawner: opts.benchmark.spawner,
+      cwd: opts.benchmark.resolveStepWorkspace?.({
+        agentSlotId: stepCtx.agentSlotId, stepIndex: stepCtx.stepIndex,
+      }) ?? opts.benchmark.workspaceCwd,
+      processSpawner: opts.benchmark.spawner,
       mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
       streamDeltas: false, captureTranscriptLogs: false,
       preserveUnreportedAccounting: true, recordCost: false,
@@ -742,6 +749,19 @@ async function recordStepOutcome(
   }
 }
 
+/** Settle the workspace this step was placed in — the benchmark run appends a snapshot-placed
+ *  step's terminal message to the thread artifact and discards the snapshot here. Runs at the step
+ *  boundary: after the step's process exited, before the next transition is evaluated, and on the
+ *  error path too. */
+function settleStepWorkspace(stepCtx: StepContext, result: any, opts: RunThreadOptions): void {
+  opts.benchmark?.settleStepWorkspace?.({
+    agentSlotId: stepCtx.agentSlotId,
+    stepIndex: stepCtx.stepIndex,
+    stage: stepCtx.stage,
+    terminalText: typeof result?.finalOutput === 'string' ? result.finalOutput : null,
+  });
+}
+
 /** Identity of the attempt a provider interruption cut short, captured at the interruption
  *  point so the rerun can resume its backend session. */
 interface InterruptedStepInfo {
@@ -942,8 +962,13 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
 
       const stepCtx = await buildStepConfig(threadId, stepInfo, ctx, opts);
       const callbacks = setupStepCallbacks(threadId, stepCtx, ctx, opts);
-      const result = await executeAndAwaitAgent(threadId, stepCtx, callbacks, ctx, opts);
-      await recordStepOutcome(threadId, stepCtx, result, ctx, opts);
+      let result: any;
+      try {
+        result = await executeAndAwaitAgent(threadId, stepCtx, callbacks, ctx, opts);
+        await recordStepOutcome(threadId, stepCtx, result, ctx, opts);
+      } finally {
+        settleStepWorkspace(stepCtx, result, opts);
+      }
 
       // Rate-limit pause (graceful path): recordStepOutcome paused the thread. Break out so the
       // thread is NOT completed; resume-dispatcher re-enters it when its provider resets.

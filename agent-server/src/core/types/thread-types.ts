@@ -482,7 +482,9 @@ export interface BenchmarkThreadEvent {
 }
 
 export interface BenchmarkThreadRunOptions {
-  /** Absolute grader workspace used by every benchmark step's backend process. */
+  /** Absolute shared writable grader workspace. It is the default cwd of a benchmark step's
+   *  backend process, and the cwd of every step unless `resolveStepWorkspace` places that step
+   *  somewhere else. */
   workspaceCwd: string;
   /** Frozen trial profile; benchmark templates cannot select a different identity. */
   resolvedProfileName: string;
@@ -493,6 +495,17 @@ export interface BenchmarkThreadRunOptions {
   failFastOnRateLimit: true;
   /** Optional containment-aware process boundary forwarded to every step. */
   spawner?: AgentProcessSpawner;
+  /** Per-step workspace placement: returns the cwd this step's backend process must run in.
+   *  Absent → every step runs in `workspaceCwd`. */
+  resolveStepWorkspace?: (input: { agentSlotId: AgentSlotId; stepIndex: number }) => string;
+  /** Step-boundary settlement of whatever `resolveStepWorkspace` placed: invoked once per step
+   *  after its process exited and before the next transition is evaluated, on the error path too. */
+  settleStepWorkspace?: (input: {
+    agentSlotId: AgentSlotId;
+    stepIndex: number;
+    stage: string | null;
+    terminalText: string | null;
+  }) => void;
   /** Required trajectory sink invoked synchronously for every normalized event. */
   requiredEventSink?: (input: BenchmarkThreadEvent) => void;
   limits?: {

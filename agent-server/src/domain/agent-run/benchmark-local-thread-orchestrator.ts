@@ -14,6 +14,11 @@ import type {
 } from '../../core/types/thread-types.js';
 import { resolveProfileConfig as daemonResolveProfile } from '../agents/profile-manager.js';
 import {
+  createWorkspaceLease, createWorkspaceStepBoundary, resolveWorkspacePlacement,
+  type CoderReviewVariant, type TrialSnapshotPaths, type WorkspaceLease,
+  type WorkspacePlacement, type WorkspaceStepBoundary,
+} from '../benchmark/workspace-lease.js';
+import {
   createThread as daemonCreateThread,
   getTemplate as daemonGetTemplate,
   loadConfig as daemonLoadConfig,
@@ -60,6 +65,10 @@ interface BenchmarkThreadRequest {
   profileName: string;
   rootRunId: string;
   trajectoryRoot: string;
+  /** Absolute trial root. Required for a variant that places a role in a disposable snapshot. */
+  trialRoot?: string;
+  /** Fixes each role's workspace placement. Absent → every step runs in the shared workspace. */
+  coderReviewVariant?: CoderReviewVariant;
   limits: { maxSteps: number; maxCostUsd: number; deadlineEpochMs: number };
   signal: AbortSignal;
 }
@@ -129,6 +138,7 @@ interface RunControl {
   abortHandler: () => void;
   deps: LocalThreadRuntimeDeps;
   cancellation: Promise<unknown> | null;
+  lease: WorkspaceLease;
 }
 
 interface RunOutcome {
@@ -216,6 +226,36 @@ function validateLimits(request: BenchmarkThreadRequest): void {
   }
 }
 
+/** The one placement decision of the run: a function of (variant, slot) and of nothing else.
+ *  A run that declares no variant has a single workspace — the shared writable root. */
+function stepPlacement(request: BenchmarkThreadRequest): (slot: AgentSlotId) => WorkspacePlacement {
+  const variant = request.coderReviewVariant;
+  if (!variant) return () => 'shared-writable';
+  return slot => resolveWorkspacePlacement(variant, slot);
+}
+
+/** The pinned trial paths put the trial temp directory at `<trial root>/tmp`. */
+function trialSnapshotPaths(request: BenchmarkThreadRequest): TrialSnapshotPaths | null {
+  if (!request.trialRoot) return null;
+  const root = path.resolve(request.trialRoot);
+  return { root, tempDir: path.join(root, 'tmp') };
+}
+
+function validateWorkspacePlacement(request: BenchmarkThreadRequest): void {
+  if (!request.coderReviewVariant || request.trialRoot) return;
+  const placement = stepPlacement(request);
+  const snapshotRoles = ['parent', 'benchmark-coder', 'benchmark-reviewer', 'benchmark-fixer']
+    .filter((slot) => {
+      try { return placement(slot) === 'disposable-snapshot'; }
+      catch { return false; }
+    });
+  if (snapshotRoles.length > 0) {
+    throw new Error(
+      `Benchmark trialRoot is required: ${snapshotRoles.join(', ')} runs in a disposable snapshot`,
+    );
+  }
+}
+
 function validateRequest(request: BenchmarkThreadRequest): void {
   if (!path.isAbsolute(request.workspaceCwd) || !isDirectory(request.workspaceCwd)) {
     throw new Error('Benchmark workspaceCwd must be an existing absolute directory');
@@ -223,6 +263,10 @@ function validateRequest(request: BenchmarkThreadRequest): void {
   if (!path.isAbsolute(request.trajectoryRoot)) {
     throw new Error('Benchmark trajectoryRoot must be absolute');
   }
+  if (request.trialRoot !== undefined && !path.isAbsolute(request.trialRoot)) {
+    throw new Error('Benchmark trialRoot must be absolute');
+  }
+  validateWorkspacePlacement(request);
   if (!request.template || !request.profileName || !request.rootRunId) {
     throw new Error('Benchmark template, profileName, and rootRunId are required');
   }
@@ -305,6 +349,18 @@ function writeRunStarted(
   });
 }
 
+/** The thread artifact carries the trial's own evidence and is scanned by the transition engine:
+ *  it must resolve inside the trial root. Asserted here, before anything spawns; the launch that
+ *  makes it true is the trial's own. */
+function assertArtifactInsideTrial(request: BenchmarkThreadRequest, thread: ThreadRecord): void {
+  if (!request.trialRoot) return;
+  const artifact = path.resolve(thread.artifactPath);
+  const root = path.resolve(request.trialRoot);
+  if (artifact !== root && !artifact.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`Benchmark thread artifact must resolve inside the trial root: ${artifact}`);
+  }
+}
+
 async function createRunArtifacts(
   request: BenchmarkThreadRequest,
   profile: ResolvedProfile,
@@ -314,6 +370,7 @@ async function createRunArtifacts(
   const identities = freezeBenchmarkThreadIdentities(request, profile, template);
   const identity = identities.entry;
   const thread = createBenchmarkRecord(request);
+  assertArtifactInsideTrial(request, thread);
   const lifecycle = resolveLifecyclePaths({
     trajectoryRoot: request.trajectoryRoot, rootRunId: request.rootRunId, threadId: thread.id,
   });
@@ -379,6 +436,12 @@ function installControl(prepared: PreparedThreadRun): RunControl {
     admissionOpen: true, admitted: 0, reason: null, sessions: [],
     threadId: prepared.thread.id, request: prepared.request,
     timer: null, abortHandler: () => {}, deps, cancellation: null,
+    lease: createWorkspaceLease({
+      sharedRoot: prepared.request.workspaceCwd,
+      threadId: prepared.thread.id,
+      trialPaths: trialSnapshotPaths(prepared.request),
+      admission: () => ({ admitted: control.admitted, sessions: control.sessions.length }),
+    }),
   } as RunControl;
   control.abortHandler = () => closeAdmission(control, 'cancel');
   prepared.request.signal.addEventListener('abort', control.abortHandler, { once: true });
@@ -427,6 +490,9 @@ function createSpawner(control: RunControl, supervisorBinary: string): AgentProc
       stopForAdmissionProblem(control, problem);
       throw problem;
     }
+    // After admission so a step-limit or deadline keeps its own stop reason, and before the
+    // supervisor attaches so no model process exists when the single-writer invariant is broken.
+    control.lease.assertAdmissible(options.cwd?.toString() ?? '');
     const session = attachSupervisor({
       binary: supervisorBinary,
       args: [command, ...args],
@@ -442,7 +508,11 @@ function createSpawner(control: RunControl, supervisorBinary: string): AgentProc
   };
 }
 
-function threadRunOptions(prepared: PreparedThreadRun, spawner: AgentProcessSpawner) {
+function threadRunOptions(
+  prepared: PreparedThreadRun,
+  spawner: AgentProcessSpawner,
+  boundary: WorkspaceStepBoundary,
+) {
   const channel = prepared.thread.channel;
   return {
     adapter: createNoopAdapter(), channel,
@@ -450,6 +520,8 @@ function threadRunOptions(prepared: PreparedThreadRun, spawner: AgentProcessSpaw
     threadAnchorId: null, statusMsg: null, startTime: Date.now(), onProgress: null,
     benchmark: {
       workspaceCwd: prepared.request.workspaceCwd,
+      resolveStepWorkspace: boundary.resolveStepWorkspace,
+      settleStepWorkspace: boundary.settleStepWorkspace,
       resolvedProfileName: prepared.request.profileName,
       expectedBackend: 'claude' as const,
       expectedModel: prepared.profile.model,
@@ -467,6 +539,18 @@ function threadRunOptions(prepared: PreparedThreadRun, spawner: AgentProcessSpaw
   };
 }
 
+/** The parent stops writing, then the thread takes the workspace. The precondition is asserted at
+ *  the instant of the call, never waited for: this entry path builds the spawner and enters the
+ *  thread with nothing admitted, and a run that has admitted anything fails closed instead. */
+function takeThreadWorkspace(lease: WorkspaceLease): void {
+  lease.beginDrain();
+  try {
+    lease.completeDrain();
+  } catch (error) {
+    lease.abortDrain(error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function runLocalThread(
   prepared: PreparedThreadRun,
   control: RunControl,
@@ -479,13 +563,21 @@ async function runLocalThread(
     };
   }
   try {
+    takeThreadWorkspace(control.lease);
+    const boundary = createWorkspaceStepBoundary({
+      lease: control.lease,
+      placement: stepPlacement(prepared.request),
+      artifactPath: prepared.thread.artifactPath,
+    });
     const result = await control.deps.runThread(
       prepared.thread.id,
-      threadRunOptions(prepared, createSpawner(control, supervisorBinary)),
+      threadRunOptions(prepared, createSpawner(control, supervisorBinary), boundary),
     );
     return { result, error: null };
   } catch (error) {
     return { result: null, error };
+  } finally {
+    control.lease.release();
   }
 }
 
