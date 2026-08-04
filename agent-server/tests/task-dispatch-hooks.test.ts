@@ -308,6 +308,47 @@ test('third consecutive dispatch failure auto-blocks and clears the counter', as
   assert.equal(deps.block.mock.calls.length, 1);
 });
 
+/** Generation-fenced task double. Mirrors the three rules the real mutator enforces:
+ *  a mismatched generation is refused (task-state.ts staleOwnership), unclaim clears
+ *  dispatch_generation, and block keeps the owning generation while releasing the claim. */
+function installFencedTask(id: string) {
+  const state = { generation: null as string | null, blockedBy: null as string | null };
+  const refuseStale = (ownership?: { generation: string | null }) =>
+    ownership && state.generation !== ownership.generation
+      ? { success: false, stale: true, message: 'Stale task dispatch generation; mutation ignored' }
+      : null;
+  deps.selectAndClaimTask.mockImplementation(async () => {
+    state.generation = selected.dispatchGeneration;
+    return { ...selected, task: { ...selected.task, id } };
+  });
+  deps.unclaim.mockImplementation(async (_id: string, options: any = {}) => {
+    const stale = refuseStale(options.ownership);
+    if (stale) return stale;
+    state.generation = null;
+    return { success: true };
+  });
+  deps.block.mockImplementation(async (_id: string, reason: string, options: any = {}) => {
+    const stale = refuseStale(options.ownership);
+    if (stale) return stale;
+    state.blockedBy = reason;
+    state.generation = options.ownership?.generation ?? null;
+    return { success: true };
+  });
+  return state;
+}
+
+test('quarantine still blocks the task after the same failure released its claim', async () => {
+  const state = installFencedTask('fenced-target');
+  deps.runThread.mockRejectedValue(new Error('provider unavailable'));
+
+  await runDispatchCycle();
+  await runDispatchCycle();
+  assert.equal(state.blockedBy, null, 'the first two failures only requeue the task');
+
+  await runDispatchCycle();
+  assert.equal(state.blockedBy, 'dispatch-failed-3x: provider unavailable');
+});
+
 test('successful dispatch resets consecutive failure count', async () => {
   selectFixture('reset-target');
   deps.runThread.mockRejectedValue(new Error('provider unavailable'));

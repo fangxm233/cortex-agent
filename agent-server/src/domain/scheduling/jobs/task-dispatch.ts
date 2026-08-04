@@ -277,54 +277,56 @@ async function executeDispatchTask({ selected, selectedTask, channel, scheduleTa
   return { success: true, skipped: false, note: `Completed [${selectedTask.project}] ${selectedTask.text.substring(0, 60)}` };
 }
 
-async function handleDispatchError(error: Error, selectedTask: Record<string, any> | null, channel: string): Promise<{ success: boolean; skipped: boolean; note: string }> {
+/** Counts this failure and, at the threshold, blocks the task. Runs BEFORE the claim is
+ *  released: block() clears claimed_by itself, and its ownership check only passes while
+ *  this dispatch's generation is still the task's own — unclaim() nulls that generation,
+ *  so quarantining afterwards is refused as stale and the task loops forever. */
+async function quarantineAfterFailure(taskId: string, ownership: { generation: string | null }, error: Error): Promise<boolean> {
+  const prev = dispatchFailureCounts.get(taskId) || { count: 0, lastError: '' };
+  const next = { count: prev.count + 1, lastError: error.message };
+  dispatchFailureCounts.set(taskId, next);
+  if (next.count < DISPATCH_FAILURE_QUARANTINE_THRESHOLD) return false;
+  const blockReason = sanitizeBlockReason(`dispatch-failed-${next.count}x: ${error.message}`);
+  try {
+    const blockResult = await taskMutator.block(taskId, blockReason, { ownership });
+    if (blockResult.success) {
+      dispatchFailureCounts.delete(taskId);
+      return true;
+    }
+    log.error(`Failed to auto-block task ${taskId}: ${blockResult.message}`);
+  } catch (e) {
+    log.error(`Failed to auto-block task ${taskId}: ${(e as Error).message}`);
+  }
+  return false;
+}
+
+async function postDispatchErrorNotice(selectedTask: Record<string, any> | null, channel: string, error: Error, blocked: boolean): Promise<void> {
   const adapter = ctx.adapter!;
+  const text = blocked && selectedTask
+    ? `${Icons.blocked} Auto-blocked after ${DISPATCH_FAILURE_QUARANTINE_THRESHOLD} consecutive dispatch failures. Reason recorded in TASKS.yaml. Task: [${selectedTask.project}] ${String(selectedTask.text).substring(0, 80)}. Last error: ${error.message}. Unblock with \`cortex-task unblock --task-id ${selectedTask.id}\`.`
+    : `${Icons.error} Task dispatch error: ${error.message}`;
+  const projDest = { type: 'project-report' as const, projectId: selectedTask?.project || channel, trigger: 'task-dispatch', sessionId: '' };
+  try {
+    const queue = getOutboundQueue();
+    if (queue) { await durablePost(queue, adapter, projDest, { text }); }
+    else { await adapter.postMessage(projDest, { text }); }
+  } catch {}
+}
+
+async function handleDispatchError(error: Error, selectedTask: Record<string, any> | null, channel: string): Promise<{ success: boolean; skipped: boolean; note: string }> {
   log.error(`Error: ${error.message}`);
-  if (selectedTask) {
-    const ownership = { generation: selectedTask.dispatch_generation ?? null };
+  const ownership = { generation: selectedTask?.dispatch_generation ?? null };
+  const blocked = selectedTask?.id
+    ? await quarantineAfterFailure(selectedTask.id, ownership, error)
+    : false;
+  // A blocked task is already released by block(); only a task going back to the queue
+  // needs its claim dropped.
+  if (selectedTask && !blocked) {
     try { await taskMutator.unclaim(selectedTask.id, { ownership }); }
     catch (e) { log.error(`Failed to unclaim task: ${(e as Error).message}`); }
   }
-  const errChannel = channel;
-  let blocked = false;
-  let blockReason: string | null = null;
-  if (selectedTask?.id) {
-    const taskId: string = selectedTask.id;
-    const prev = dispatchFailureCounts.get(taskId) || { count: 0, lastError: '' };
-    const next = { count: prev.count + 1, lastError: error.message };
-    dispatchFailureCounts.set(taskId, next);
-    if (next.count >= DISPATCH_FAILURE_QUARANTINE_THRESHOLD) {
-      blockReason = sanitizeBlockReason(`dispatch-failed-${next.count}x: ${error.message}`);
-      try {
-        const ownership = { generation: selectedTask.dispatch_generation ?? null };
-        const blockResult = await taskMutator.block(taskId, blockReason, { ownership });
-        if (blockResult.success) {
-          blocked = true;
-          dispatchFailureCounts.delete(taskId);
-        } else {
-          log.error(`Failed to auto-block task ${taskId}: ${blockResult.message}`);
-        }
-      } catch (e) {
-        log.error(`Failed to auto-block task ${taskId}: ${(e as Error).message}`);
-      }
-    }
-  }
-  try {
-    const queue = getOutboundQueue();
-    if (blocked && selectedTask) {
-      const text = `${Icons.blocked} Auto-blocked after ${DISPATCH_FAILURE_QUARANTINE_THRESHOLD} consecutive dispatch failures. Reason recorded in TASKS.yaml. Task: [${selectedTask.project}] ${String(selectedTask.text).substring(0, 80)}. Last error: ${error.message}. Unblock with \`cortex-task unblock --task-id ${selectedTask.id}\`.`;
-      const projDest = { type: 'project-report' as const, projectId: selectedTask.project || errChannel, trigger: 'task-dispatch', sessionId: '' };
-      if (queue) { await durablePost(queue, adapter, projDest, { text }); }
-      else { await adapter.postMessage(projDest, { text }); }
-    } else {
-      const text = `${Icons.error} Task dispatch error: ${error.message}`;
-      const projDest = { type: 'project-report' as const, projectId: selectedTask?.project || errChannel, trigger: 'task-dispatch', sessionId: '' };
-      if (queue) { await durablePost(queue, adapter, projDest, { text }); }
-      else { await adapter.postMessage(projDest, { text }); }
-    }
-  } catch {}
-  const noteSuffix = blocked ? ' (blocked)' : '';
-  return { success: false, skipped: false, note: `Error: ${error.message}${noteSuffix}` };
+  await postDispatchErrorNotice(selectedTask, channel, error, blocked);
+  return { success: false, skipped: false, note: `Error: ${error.message}${blocked ? ' (blocked)' : ''}` };
 }
 
 // --- Cancel dispatched task ---
