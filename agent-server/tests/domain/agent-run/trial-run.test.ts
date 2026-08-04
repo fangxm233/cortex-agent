@@ -276,6 +276,32 @@ it('runs the policy CLI under the real supervisor (T1)', async () => {
   assert.equal(new ClaudeAdapter().listSessions().includes(`agent-run:${ROOT_RUN_ID}`), false);
 }, 60_000);
 
+it('does not probe a PATH-resolved Claude version when the policy pins one (C3)', async () => {
+  const built = fixture();
+  const marker = path.join(root, 'unexpected-version-probe');
+  const probeDir = path.join(root, 'probe-bin');
+  write(
+    path.join(probeDir, 'claude'),
+    `#!/bin/sh\nprintf probed > ${JSON.stringify(marker)}\nexit 1\n`,
+    0o755,
+  );
+  const savedPath = process.env.PATH;
+  let outcome: RunOutcome;
+  try {
+    process.env.PATH = probeDir;
+    outcome = await runTrial(built);
+  } finally {
+    if (savedPath === undefined) delete process.env.PATH;
+    else process.env.PATH = savedPath;
+  }
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+  assert.equal(fs.existsSync(marker), false);
+  assert.equal(
+    outcome.stdout[0].model_execution_identity_hash,
+    built.policy.identity.model_execution_identity_hash.parent,
+  );
+}, 60_000);
+
 // --- T3: quiescence covers descendants the backend leaves behind ---
 
 function processAlive(pid: number): boolean {
