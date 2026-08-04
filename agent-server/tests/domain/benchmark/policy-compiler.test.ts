@@ -143,10 +143,6 @@ function resolution(): ArmResolution {
         mcp_composition: 'none',
         mcp_config_paths: [mcp],
         disable_hooks: true,
-        benchmark_policy_guard: {
-          parent_writable: ['Read', 'Write'],
-          thread_active: ['Read'],
-        },
       },
     },
     thread_templates: {},
@@ -280,7 +276,6 @@ function configureVendorBaseline(input: ArmResolution): void {
   value.vendor_agent = 'claude-code';
   delete value.backend;
   delete value.orchestration;
-  delete input.roles.parent.benchmark_policy_guard;
 }
 
 function expectFailure(
@@ -497,15 +492,18 @@ it('rejects schema, malformed role assets, and non-object guard inputs as typed 
   malformedRole.roles.parent = null as never;
   expectFailure(malformedRole, 'arm_schema_invalid', 1);
 
+  // GE5: the compiler derives the guard, so a document that AUTHORS one is refused as an unknown
+  // key by `roleAssetSchema.strict()` — whatever it carries. Both shapes below were legal input
+  // before Gate 2 wired the derivation; neither reaches the compiler now.
   const scalarGuard = resolution();
-  scalarGuard.roles.parent.benchmark_policy_guard = '/tmp/guard-v1.json' as never;
+  (scalarGuard.roles.parent as unknown as Record<string, unknown>).benchmark_policy_guard = '/tmp/guard-v1.json';
   expectFailure(scalarGuard, 'arm_schema_invalid', 1);
 
-  const invalidNestedGuard = resolution();
-  invalidNestedGuard.roles.parent.benchmark_policy_guard = {
-    thread_active: { Write: (() => 'deny') as never },
+  const authoredGuard = resolution();
+  (authoredGuard.roles.parent as unknown as Record<string, unknown>).benchmark_policy_guard = {
+    'parent-writable': ['Read'],
   };
-  expectFailure(invalidNestedGuard, 'arm_schema_invalid', 1);
+  expectFailure(authoredGuard, 'arm_schema_invalid', 1);
 
   const missingAliasPolicy = resolution();
   delete (missingAliasPolicy as unknown as Record<string, unknown>).model_alias_policy;
@@ -639,9 +637,12 @@ it('rejects nonpositive absolute deadlines and unproven PI benchmark support', (
   })));
 });
 
+// A PI arm carries PI-native tool labels, because §6.6 forbids one label set shared across
+// backends and the compiler derives the guard's allow-list from exactly these names (GS4).
 function piResolution(): ArmResolution {
   const input = resolution();
   Object.assign(input.arm as ReturnType<typeof arm>, { backend: 'pi', provider: 'openai-codex' });
+  input.roles.parent.tools = ['read', 'write'];
   input.pi_benchmark_capability_proven = true;
   return input;
 }
@@ -745,18 +746,23 @@ it('exempts a bridge-governed backend by declaration and refuses every undeclare
   }
 });
 
-it('refuses any compiled cortex role that carries no policy guard', () => {
-  const parentless = resolution();
-  delete parentless.roles.parent.benchmark_policy_guard;
-  expectFailure(parentless, 'policy_guard_absent', 30);
+// GE2 moved the guard's provenance from the document to the compiler, so §6.8 G1's refusal is now
+// aimed at a derivation that cannot produce a rule set (GE4) rather than at an absent member. Code
+// 30 keeps both its number and its meaning, and it is still reachable in both directions.
+it('refuses any compiled cortex role whose guard cannot be derived', () => {
+  const mcpLabel = resolution();
+  mcpLabel.roles.parent.tools = ['Read', 'mcp__cortex-benchmark-thread__thread_run'];
+  expectFailure(mcpLabel, 'policy_guard_absent', 30);
 
-  const reviewerless = resolution();
-  configureCoderReview(reviewerless);
-  delete reviewerless.roles['benchmark-reviewer'].benchmark_policy_guard;
-  expectFailure(reviewerless, 'policy_guard_absent', 30);
+  // A PI-native label on a Claude arm is the same defect wearing the other backend's namespace:
+  // the compiler must not hand a role an allow-list its own dispatch boundary cannot match (GS4).
+  const crossNamespace = resolution();
+  configureCoderReview(crossNamespace);
+  crossNamespace.roles['benchmark-reviewer'].tools = ['read', 'write'];
+  expectFailure(crossNamespace, 'policy_guard_absent', 30);
 });
 
-it('fails a vendor baseline before it can emit an absent guard slot', () => {
+it('fails a vendor baseline, which declares no backend to derive a guard from', () => {
   const input = resolution();
   configureVendorBaseline(input);
 
@@ -771,10 +777,9 @@ it('carries every compiled role guard on the frozen policy, keyed by slot', () =
   assert.deepEqual(Object.keys(policy.role_policy_guard).sort(), [
     'benchmark-coder', 'benchmark-reviewer', 'parent',
   ]);
-  assert.deepEqual(policy.role_policy_guard.parent, {
-    parent_writable: ['Read', 'Write'],
-    thread_active: ['Read'],
-  });
+  // GC1-GC4: one key, the single lease state Gate 2 can enter; the role's frozen `tools` verbatim
+  // and in frozen order as the allow-list; nothing enumerated as denied.
+  assert.deepEqual(policy.role_policy_guard.parent, { 'parent-writable': ['Read', 'Write'] });
   assert.ok(Object.isFrozen(policy.role_policy_guard));
   assert.ok(Object.isFrozen(policy.role_policy_guard.parent));
   assert.throws(
@@ -808,10 +813,7 @@ it('feeds every role surface hash into the bundle manifest hash', () => {
   const first = compileResolvedTrialPolicy(firstInput, dependencies());
 
   const secondInput = structuredClone(firstInput);
-  secondInput.roles['benchmark-reviewer'].benchmark_policy_guard = {
-    parent_writable: ['Read', 'Write'],
-    thread_active: ['Read', 'Write'],
-  };
+  secondInput.roles['benchmark-reviewer'].tools = ['Read'];
   const second = compileResolvedTrialPolicy(secondInput, dependencies());
 
   assert.equal(

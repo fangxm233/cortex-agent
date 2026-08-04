@@ -125,8 +125,13 @@ def _orchestration_mode(arm: ArmDefinition) -> str:
     return mode
 
 
+def arm_backend(arm: ArmDefinition) -> str:
+    """The backend that selects the arm's parent role surface and its guard tool namespace."""
+    return _required_text(arm, "backend")
+
+
 def backend_cli_binary(arm: ArmDefinition) -> str:
-    backend = _required_text(arm, "backend")
+    backend = arm_backend(arm)
     binary = BACKEND_CLI_BINARIES.get(backend)
     if binary is None:
         gate = BACKEND_LIFTING_GATES.get(backend, "its owning gate")

@@ -1,5 +1,5 @@
 # input:  shipped agent/loader, trial seed, container facts, Harbor factory
-# output: public seed-only composition, loader parity, vendor isolation
+# output: seed-only composition compiled by the real compiler, for every lifted backend
 # pos:    Public entry composes the trial with no caller-supplied assets
 # >>> If I am updated, update my header and folder CORTEX.md <<<
 #
@@ -21,17 +21,33 @@ from harbor.environments.base import ExecResult
 from harbor.models.agent.context import AgentContext
 
 from cortex_bench_harness.harbor_agent import CortexBenchAgent
-from cortex_bench_harness.launcher.arms import build_agent_config
+from cortex_bench_harness.launcher.arms import BACKEND_CLI_BINARIES, build_agent_config
 
 DIGEST = f"sha256:{'a' * 64}"
 ROOT_RUN_ID = "trial-parity.cortex-direct"
 BACKEND_CLI_VERSION = "1.2.3 (Claude Code)"
+PI_CLI_VERSION = "2026.8.3 (pi)"
 FROZEN_TOOLS = [
     "Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "TodoWrite", "Write",
+]
+# The direct-PI parent surface is the frozen table with exactly one member changed: the same nine
+# capabilities under PI-native labels, because one label set shared across backends is wrong on one
+# of them. Design section 13.10.3.
+FROZEN_PI_TOOLS = [
+    "agent", "bash", "edit", "glob", "grep", "read", "skill", "todo_write", "write",
 ]
 FORBIDDEN_TOOLS = [
     "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "TaskStop", "WebFetch", "WebSearch",
 ]
+# Computed by running the shipped computeRoleToolSurfaceHash over the production composition, never
+# by hand. Recomputing it: run this file and read the value the assertion reports.
+PARENT_ROLE_TOOL_SURFACE_HASH = "fdf6b4a3a558f61d41eaaa1d5e77a2a1aac718afe8f2b7dbf8ad9e911a42b4f3"
+ARM_NAMES = {"claude": "cortex-direct", "pi": "cortex-pi-direct"}
+CLI_VERSIONS = {"claude": BACKEND_CLI_VERSION, "pi": PI_CLI_VERSION}
+FROZEN_PARENT_TOOLS = {"claude": FROZEN_TOOLS, "pi": FROZEN_PI_TOOLS}
+# The compiled guard and the parent role hash are read from the RESOLVED policy, which only exists
+# once the real TypeScript compiler has accepted the composed document. Reporting them here is what
+# makes this a seam test rather than a check that the producer returned a dict.
 LOADER_SCRIPT = """
 import { loadAgentRunConfigWithPolicy } from './src/domain/agent-run/run-config.ts';
 const loaded = loadAgentRunConfigWithPolicy({
@@ -42,6 +58,8 @@ console.log(JSON.stringify({
   role: loaded.config.role,
   policySchema: loaded.policy?.schema_version,
   armName: loaded.policy?.arm.name,
+  policyGuard: loaded.policy?.role_policy_guard?.parent,
+  roleToolSurfaceHash: loaded.policy?.identity?.role_tool_surface_hash?.parent,
 }));
 """
 
@@ -61,9 +79,14 @@ def backend_cli_path() -> str:
 
 
 class RecordingEnvironment:
-    def __init__(self) -> None:
+    """The container the agent probes. It answers for whichever backend CLI the arm names, so the
+    PI row exercises the same production probe path as the Claude row rather than a stub."""
+
+    def __init__(self, backend: str = "claude") -> None:
         self.calls: list[tuple[str, dict[str, object]]] = []
         self.uploads: list[tuple[Path | str, str]] = []
+        self.binary = BACKEND_CLI_BINARIES[backend]
+        self.cli_version = CLI_VERSIONS[backend]
 
     async def exec(self, command: str, **kwargs: object) -> ExecResult:
         self.calls.append((command, kwargs))
@@ -73,21 +96,21 @@ class RecordingEnvironment:
             return ExecResult(stdout=f"{server_root()}\n", return_code=0)
         if command.endswith("cortex daemon --version"):
             return ExecResult(stdout="2026.8.3-2\n", return_code=0)
-        if "command -v claude" in command:
+        if f"command -v {self.binary}" in command:
             return ExecResult(stdout=f"{backend_cli_path()}\n", return_code=0)
-        if command.endswith("claude --version"):
-            return ExecResult(stdout=f"{BACKEND_CLI_VERSION}\n", return_code=0)
+        if command.endswith(f"{self.binary} --version"):
+            return ExecResult(stdout=f"{self.cli_version}\n", return_code=0)
         return ExecResult(return_code=0)
 
     async def upload_file(self, source_path: Path | str, target_path: str) -> None:
         self.uploads.append((source_path, target_path))
 
 
-def cortex_arm() -> dict[str, object]:
+def cortex_arm(backend: str = "claude") -> dict[str, object]:
     return {
         "schema_version": "cortex-benchmark-arm/2",
-        "kind": "cortex", "name": "cortex-direct",
-        "backend": "claude", "provider": "anthropic", "model": "claude-sonnet",
+        "kind": "cortex", "name": ARM_NAMES[backend],
+        "backend": backend, "provider": "anthropic", "model": "claude-sonnet",
         "credential_capability": "claude-api-key",
         "orchestration": {"mode": "direct", "ask_manager": False},
         "limits": {
@@ -99,9 +122,9 @@ def cortex_arm() -> dict[str, object]:
     }
 
 
-def trial_seed() -> dict[str, object]:
-    return {
-        "arm": cortex_arm(), "arm_path": "arm://cortex-direct",
+def trial_seed(backend: str = "claude") -> dict[str, object]:
+    seed: dict[str, object] = {
+        "arm": cortex_arm(backend), "arm_path": f"arm://{ARM_NAMES[backend]}",
         "trial_id": "trial-parity", "root_run_id": ROOT_RUN_ID,
         "task": {"task_id": "terminal-task", "image_ref": f"registry.invalid/task@{DIGEST}",
                  "image_digest": DIGEST},
@@ -112,9 +135,14 @@ def trial_seed() -> dict[str, object]:
                        "dummy_token_ref": "offline-token-handle"},
         "model_alias_policy": {"kind": "exact"},
     }
+    if backend == "pi":
+        # Section 3.1(h.5) row 4 lifts the PI refusal only behind this proof, and the compiler
+        # gates on it independently with code 14.
+        seed["pi_benchmark_capability_proven"] = True
+    return seed
 
 
-def manifest(tmp_path: Path) -> dict[str, object]:
+def manifest(tmp_path: Path, backend: str = "claude") -> dict[str, object]:
     files = {
         "wheel_path": tmp_path / "harness.whl",
         "lockfile_path": tmp_path / "uv.lock",
@@ -123,7 +151,7 @@ def manifest(tmp_path: Path) -> dict[str, object]:
     for file in files.values():
         file.write_bytes(b"parity fixture")
     return {
-        "root_run_id": ROOT_RUN_ID, "trial_id": "trial-parity", "arm": "cortex-direct",
+        "root_run_id": ROOT_RUN_ID, "trial_id": "trial-parity", "arm": ARM_NAMES[backend],
         **{name: str(file) for name, file in files.items()},
         "lockfile_manifest_path": "benchmark/harness/uv.lock",
         "image_ref": f"registry.invalid/task@{DIGEST}", "image_digest": DIGEST,
@@ -131,28 +159,30 @@ def manifest(tmp_path: Path) -> dict[str, object]:
     }
 
 
-def public_agent(tmp_path: Path) -> CortexBenchAgent:
+def public_agent(tmp_path: Path, backend: str = "claude") -> CortexBenchAgent:
     return CortexBenchAgent(
         logs_dir=tmp_path / "agent", artifact_dir=tmp_path / "artifacts",
-        manifest=manifest(tmp_path), trial_seed=trial_seed(),
+        manifest=manifest(tmp_path, backend), trial_seed=trial_seed(backend),
     )
 
 
-def write_profile(home: Path) -> None:
+def write_profile(home: Path, backend: str = "claude") -> None:
     config = home / "config"
     config.mkdir(parents=True)
     (config / "profiles.json").write_text(json.dumps({
         "defaultProfile": "benchmark",
         "profiles": {"benchmark": {
-            "model": "claude-sonnet", "backend": "claude", "provider": "anthropic",
+            "model": "claude-sonnet", "backend": backend, "provider": "anthropic",
             "claudeBackend": "print", "fallback": [],
         }},
     }))
 
 
-def load_emitted_role(run_config: Path, tmp_path: Path) -> dict[str, object]:
+def load_emitted_role(
+    run_config: Path, tmp_path: Path, backend: str = "claude",
+) -> dict[str, object]:
     home = tmp_path / "cortex-home"
-    write_profile(home)
+    write_profile(home, backend)
     env = os.environ.copy()
     env.update({
         "CORTEX_HOME": str(home),
@@ -167,6 +197,15 @@ def load_emitted_role(run_config: Path, tmp_path: Path) -> dict[str, object]:
     loaded = json.loads(result.stdout)
     assert isinstance(loaded, dict)
     return loaded
+
+
+def compose_through_public_entry(
+    tmp_path: Path, backend: str,
+) -> tuple[CortexBenchAgent, RecordingEnvironment]:
+    agent = public_agent(tmp_path, backend)
+    environment = RecordingEnvironment(backend)
+    asyncio.run(agent.setup(environment))
+    return agent, environment
 
 
 def assert_run_argv(agent: CortexBenchAgent, environment: RecordingEnvironment) -> Path:
@@ -191,9 +230,7 @@ def assert_run_argv(agent: CortexBenchAgent, environment: RecordingEnvironment) 
 
 
 def test_public_entry_argv_loads_the_frozen_direct_composition(tmp_path: Path) -> None:
-    agent = public_agent(tmp_path)
-    environment = RecordingEnvironment()
-    asyncio.run(agent.setup(environment))
+    agent, environment = compose_through_public_entry(tmp_path, "claude")
 
     loaded = load_emitted_role(assert_run_argv(agent, environment), tmp_path)
 
@@ -209,8 +246,35 @@ def test_public_entry_argv_loads_the_frozen_direct_composition(tmp_path: Path) -
             "mcpComposition": "none", "mcpConfigPaths": [], "disableHooks": True,
         },
         "policySchema": "cortex-benchmark-resolved-policy/2", "armName": "cortex-direct",
+        # The guard is derived by the compiler from this very role: one key for the only lease state
+        # a direct arm can be in, the frozen tool list verbatim as its allow-list, nothing enumerated
+        # as denied. The six tools of section 3.1(h.4) are denied by being absent from it.
+        "policyGuard": {"parent-writable": FROZEN_TOOLS},
+        # The parent-surface RTSH literal (D-RTSH half 2, GH2). It is a RE-FREEZE target, not a
+        # regression guard: it moves whenever the frozen allow-list moves, which is what the (h.3)
+        # sequencing note predicts. Do not confuse it with the G5.1 literal in identity.test.ts,
+        # whose fixture is guard-less by construction and which must never move.
+        "roleToolSurfaceHash": PARENT_ROLE_TOOL_SURFACE_HASH,
     }
     assert not set(FORBIDDEN_TOOLS) & set(FROZEN_TOOLS)
+
+
+@pytest.mark.parametrize("backend", ["claude", "pi"])
+def test_public_entry_composition_compiles_for_every_lifted_backend(
+    tmp_path: Path, backend: str,
+) -> None:
+    """The seam, executed on both sides: nothing but caller-known trial facts goes in, and the real
+    TypeScript compiler — not a fixture standing in for it — is what accepts what comes out."""
+    agent, environment = compose_through_public_entry(tmp_path, backend)
+
+    loaded = load_emitted_role(assert_run_argv(agent, environment), tmp_path, backend)
+
+    tools = FROZEN_PARENT_TOOLS[backend]
+    assert loaded["policySchema"] == "cortex-benchmark-resolved-policy/2"
+    assert loaded["armName"] == ARM_NAMES[backend]
+    assert loaded["role"]["tools"] == tools
+    assert loaded["policyGuard"] == {"parent-writable": tools}
+    assert len(loaded["roleToolSurfaceHash"]) == 64
 
 
 def test_public_entry_sources_container_facts_not_the_caller(tmp_path: Path) -> None:

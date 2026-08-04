@@ -67,7 +67,7 @@ function writeProfile(): void {
     defaultProfile: 'benchmark-profile',
     profiles: {
       'benchmark-profile': {
-        model: 'claude-sonnet', backend: 'claude', mode: 'api', provider: 'anthropic',
+        model: 'claude-sonnet', backend: 'pi', mode: 'api', provider: 'anthropic',
         extraEnv: { ANTHROPIC_BASE_URL: 'http://host-profile.invalid:1234' },
         extraOption: {}, claudeBackend: 'print', thinking: 'high', fallback: [],
       },
@@ -76,17 +76,12 @@ function writeProfile(): void {
   profileRepo.invalidate();
 }
 
-const PI_GUARD = {
-  'parent-writable': ['read', 'grep', 'glob', 'thread_run'],
-  'answer-frozen': ['read'],
-};
-
 function armResolution(): Record<string, unknown> {
   return {
     schema_version: 'cortex-benchmark-arm-resolution/1',
     arm: {
       schema_version: 'cortex-benchmark-arm/2',
-      kind: 'cortex', name: 'cortex-direct', backend: 'claude', provider: 'anthropic',
+      kind: 'cortex', name: 'cortex-direct', backend: 'pi', provider: 'anthropic',
       model: 'claude-sonnet', credential_capability: 'claude-api-key',
       orchestration: { mode: 'direct', ask_manager: false },
       limits: {
@@ -123,21 +118,21 @@ function armResolution(): Record<string, unknown> {
       parent: {
         system_prompt_path: writeAsset('parent-system.txt', 'You are the benchmark parent.\n'),
         directive_path: writeAsset('parent-directive.txt', 'Solve the task.\n'),
-        tools: ['Read', 'Write'],
+        tools: ['read', 'write'],
         plugin_dirs: [],
         mcp_composition: 'none',
         mcp_config_paths: [writeAsset('mcp-empty.json', '{"mcpServers":{}}\n')],
         disable_hooks: true,
-        benchmark_policy_guard: PI_GUARD,
       },
     },
     thread_templates: {},
     thread_agents: {},
+    pi_benchmark_capability_proven: true,
     artifact_inventory_spec: { expected: ['stdout', 'stderr', 'manifest'] },
   };
 }
 
-/** Compile a Claude arm, then re-label the frozen policy PI. See the header note (F8 N2). */
+/** Compile a real PI arm. See the header note (F8 N2) for why this used to be a re-label. */
 function piPolicy(mutate: (input: any) => void = () => {}, label = 'pi'): {
   policy: ResolvedTrialPolicy;
   config: ResolvedAgentRunConfig;
@@ -147,12 +142,7 @@ function piPolicy(mutate: (input: any) => void = () => {}, label = 'pi'): {
   mutate(input);
   const file = writeAsset(`${label}-resolution.json`, JSON.stringify(input));
   const loaded = loadAgentRunConfigWithPolicy({ runConfigFile: file, agentSlot: 'parent' });
-  const policy = structuredClone(loaded.policy!) as any;
-  policy.arm.backend = 'pi';
-  policy.pi_benchmark_capability_proven = true;
-  policy.model_execution.backend = 'pi';
-  policy.model_execution.cli_name = 'pi';
-  return { policy: policy as ResolvedTrialPolicy, config: loaded.config };
+  return { policy: loaded.policy!, config: loaded.config };
 }
 
 function spec(overrides: Partial<TrialAdapterSpec> = {}, label = 'pi'): TrialAdapterSpec {
@@ -382,8 +372,9 @@ it('keeps the hook bridge for a role that does declare one (P9)', () => {
   // §6.8 G2 makes `disable_hooks: true` mandatory in the arm schema, so the declaring case is
   // constructed on the frozen policy the adapter actually reads.
   const loaded = piPolicy(() => {}, 'hooks');
-  (loaded.policy as any).roles.parent.disableHooks = false;
-  const { record } = spawnPi(spec({ policy: loaded.policy, config: loaded.config }, 'hooks'));
+  const declaring = structuredClone(loaded.policy) as any;
+  declaring.roles.parent.disableHooks = false;
+  const { record } = spawnPi(spec({ policy: declaring, config: loaded.config }, 'hooks'));
   const extensions = record.args!.filter((value, index) => record.args![index - 1] === '--extension');
   assert.equal(extensions.length, 3);
   assert.equal(extensions.some(value => value.includes('hook-bridge')), true);
@@ -394,7 +385,11 @@ it('keeps the hook bridge for a role that does declare one (P9)', () => {
 it('exports the guard and its lease state, and not the fail-open allowlist (P11, GT6, T7)', () => {
   const built = spec();
   const { record } = spawnPi(built);
-  assert.deepEqual(JSON.parse(record.env![PI_POLICY_GUARD_ENV]!), PI_GUARD);
+  // The compiler derives the guard, so what must round-trip is the frozen policy's own value —
+  // a literal here would be a second copy of the rule set that can disagree with the compiled one.
+  assert.deepEqual(
+    JSON.parse(record.env![PI_POLICY_GUARD_ENV]!), built.policy.role_policy_guard.parent,
+  );
   assert.equal(record.env![PI_LEASE_STATE_ENV], GATE2_LEASE_STATE);
   assert.equal(record.env!.CORTEX_PI_ALLOWED_TOOLS, undefined);
 });
@@ -406,7 +401,7 @@ it('the exported guard drives a guarded, fail-closed gate on the far side (GT6, 
   assert.equal(gate.decide('read').allow, true);
   // PI-native names, not Claude labels: the Claude label must not be what opens the tool.
   assert.equal(gate.decide('bash').allow, false);
-  assert.equal(gate.decide('write', 'Write').allow, false);
+  assert.equal(gate.decide('grep', 'Grep').allow, false);
   assert.equal(gate.decide('Read').allow, false);
 });
 

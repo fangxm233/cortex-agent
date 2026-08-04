@@ -10,7 +10,10 @@ import {
   CAPABILITIES_BY_BACKEND, Capability, LONG_MCP_CALL_VERSION_GOVERNANCE,
   type LongMcpCallVersionGovernance,
 } from '../../agent-adapter/capabilities.js';
-import type { McpComposition } from '../../agent-adapter/types.js';
+import { DEFAULT_TOOLS } from '../../agent-adapter/claude/defaults.js';
+import { nativeToolNames } from '../../agent-adapter/normalize/tool-names.js';
+import { GATE2_LEASE_STATE } from '../../agent-adapter/pi/policy-guard.js';
+import type { Backend, McpComposition } from '../../agent-adapter/types.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
 import {
   canonicalJsonSha256,
@@ -66,7 +69,6 @@ export interface ResolvedRoleAsset {
   mcp_composition: McpComposition;
   mcp_config_paths: string[];
   disable_hooks: true;
-  benchmark_policy_guard?: Record<string, IdentityJsonValue>;
 }
 
 export interface ArmResolution {
@@ -383,45 +385,73 @@ function validateRoleSource(slot: string, source: ResolvedRoleAsset): void {
   }
 }
 
-function guardPrimitive(value: unknown): IdentityJsonValue | undefined {
-  if (value === null) return null;
-  if (typeof value === 'string' || typeof value === 'boolean') return value;
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  return undefined;
+// The closed lease-state vocabulary of §6.1, spelled as §6.1 spells it (design §13.10 GS1). A key
+// outside this set names no state, so no allow-list can be authored for it.
+const LEASE_STATES: ReadonlySet<string> = new Set([
+  'parent-writable', 'draining', 'thread-owned', 'answer-frozen', 'released',
+]);
+
+// GS4: one document carries exactly one tool-label namespace, the arm's own backend's. Claude's set
+// is the shipped DEFAULT_TOOLS; PI's is its native map plus the shim-registered `agent`. Both are
+// read from the tables their adapters dispatch through, never restated here.
+const GUARD_TOOL_LABELS: Record<Backend, ReadonlySet<string>> = {
+  claude: new Set(DEFAULT_TOOLS.split(',')),
+  pi: new Set(nativeToolNames('pi')),
+};
+
+// GE3: the canonicaliser of the derived rule set. G5.2 hashes the canonicalised rule set itself and
+// never a name for it (design:2040), so the key-sorted object is what reaches both the RTSH input
+// and `role_policy_guard`. It no longer walks arbitrary JSON: under GE2 the compiler constructs the
+// only value it ever canonicalises, so a general walk would be branches nothing can reach.
+function compiledGuard(rules: Record<string, readonly string[]>): Record<string, IdentityJsonValue> {
+  return Object.fromEntries(Object.keys(rules).sort().map(state => [state, [...rules[state]]]));
 }
 
-function canonicalGuardValue(value: unknown): IdentityJsonValue {
-  const primitive = guardPrimitive(value);
-  if (primitive !== undefined) return primitive;
-  if (Array.isArray(value)) return value.map(canonicalGuardValue);
-  if (typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) {
-    fail('arm_schema_invalid', 'benchmark_policy_guard must contain only JSON values');
-  }
-  return Object.fromEntries(Object.keys(value).sort().map(key => (
-    [key, canonicalGuardValue((value as Record<string, unknown>)[key])]
-  )));
-}
-
-function compiledGuard(
-  slot: string,
-  value: IdentityJsonValue | undefined,
-): Record<string, IdentityJsonValue> | undefined {
-  if (value === undefined) return undefined;
-  if (value === null || Array.isArray(value) || typeof value !== 'object') {
-    fail('arm_schema_invalid', `role ${slot} benchmark_policy_guard must be an object`);
-  }
-  return canonicalGuardValue(value) as Record<string, IdentityJsonValue>;
-}
-
-// Every compiled benchmark role governs a model process, so it may not run unguarded: a missing
-// guard is a compile failure rather than an unguarded spawn, including for vendor baselines.
+/**
+ * §7.2 P19's `compile(role, leaseState)` — the sole producer of the mandatory benchmark policy
+ * guard (design §13.10 GE2). It reads exactly the two frozen values GC6 allows, the role's `tools`
+ * and the arm's `backend`, and performs no filesystem lookup and no name resolution (GT7). The
+ * allow-list is `tools` verbatim and in frozen order (GC2) under the one lease state Gate 2 can
+ * enter (GC1/GS2); nothing is enumerated as denied, because everything outside the list denies by
+ * the evaluator's default (GC3), which is what makes §3.1(h.4)'s six forbidden tools forbidden here
+ * (GC4). The lease state is a parameter so Gates 3/6/7 vary it without reopening the guard's shape
+ * (GC7, D-GUARD-STATIC).
+ *
+ * Every compiled benchmark role governs a model process, so it may not run unguarded: a derivation
+ * that cannot produce a rule set fails the compile rather than yielding an unguarded spawn — §6.8
+ * G1, code 30 `policy_guard_absent`, GE4. No new failure code is allocated.
+ */
 function roleGuard(
   slot: string,
   source: ResolvedRoleAsset,
+  backend: Backend | undefined,
+  leaseState: string,
 ): Record<string, IdentityJsonValue> {
-  const guard = compiledGuard(slot, source.benchmark_policy_guard);
-  if (guard === undefined) fail('policy_guard_absent', `role://${slot}`);
-  return guard;
+  // Reached by every vendor baseline: it declares no backend, so there is no namespace to draw an
+  // allow-list from and no guard can be derived.
+  const labels = backend === undefined ? undefined : GUARD_TOOL_LABELS[backend];
+  if (labels === undefined) {
+    fail('policy_guard_absent', `role://${slot} declares no backend to draw tool labels from`);
+  }
+  // Unreachable at Gate 2 and deliberately kept: `promptRole` is the single caller and passes the
+  // GATE2_LEASE_STATE constant, which is a member. It guards the parameter GC7 exists to let Gates
+  // 3/6/7 vary, and it is the branch that refuses a state they have not yet designed an allow-list
+  // for. Not a fallback — reaching it is a defect in the caller, and it fails closed.
+  if (!LEASE_STATES.has(leaseState)) {
+    fail('policy_guard_absent', `role://${slot} lease state '${leaseState}' names no lease state`);
+  }
+  // GS6 is enforced on the compiler's output: a label the backend's dispatch boundary cannot answer
+  // to would put a rule in the guard that governs nothing, which is how a Claude surface silently
+  // reaching a PI arm would otherwise survive. An empty or comma-bearing `tools` never arrives here
+  // — `arm-schema.ts` and `validateRoleSource` refuse it earlier as `arm_schema_invalid`.
+  const foreign = source.tools.filter(tool => !labels.has(tool));
+  if (foreign.length > 0) {
+    fail('policy_guard_absent', `role://${slot} tools outside the ${backend} namespace: ${foreign.join(',')}`);
+  }
+  if (new Set(source.tools).size !== source.tools.length) {
+    fail('policy_guard_absent', `role://${slot} repeats a tool in its allow-list`);
+  }
+  return compiledGuard({ [leaseState]: source.tools });
 }
 
 function promptRole(context: CompileContext, slot: string): WorkingRole {
@@ -446,7 +476,7 @@ function promptRole(context: CompileContext, slot: string): WorkingRole {
     directiveSha256: sha256(directive),
     pluginDirs: [],
     skills: [],
-    benchmarkPolicyGuard: roleGuard(slot, source),
+    benchmarkPolicyGuard: roleGuard(slot, source, context.arm.backend, GATE2_LEASE_STATE),
   };
 }
 

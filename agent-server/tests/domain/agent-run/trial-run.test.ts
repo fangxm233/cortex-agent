@@ -174,7 +174,6 @@ function armResolution(cli: string): Record<string, unknown> {
         mcp_composition: 'none',
         mcp_config_paths: [write(path.join(root, 'mcp-empty.json'), '{"mcpServers":{}}\n')],
         disable_hooks: true,
-        benchmark_policy_guard: { parent_writable: ['Read', 'Write'], thread_active: ['Read'] },
       },
     },
     thread_templates: {},

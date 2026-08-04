@@ -186,11 +186,11 @@ it('changes the role hash when one compiled benchmark guard rule changes', () =>
   const baseline = frozenInput().roleToolSurface;
   const readOnly = computeRoleToolSurfaceHash({
     ...baseline,
-    benchmarkPolicyGuard: { thread_active: { Write: 'deny' } },
+    benchmarkPolicyGuard: { 'parent-writable': ['Read'] },
   });
   const writable = computeRoleToolSurfaceHash({
     ...baseline,
-    benchmarkPolicyGuard: { thread_active: { Write: 'allow' } },
+    benchmarkPolicyGuard: { 'parent-writable': ['Read', 'Write'] },
   });
   assert.notEqual(readOnly, writable);
 });

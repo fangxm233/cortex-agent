@@ -11,7 +11,7 @@ from pathlib import PurePosixPath
 
 from harbor.models.trial.paths import EnvironmentPaths
 
-from .arms import require_composable_arm
+from .arms import arm_backend, require_composable_arm
 from .credential_capabilities import project_credential_capabilities
 
 ARM_RESOLUTION_SCHEMA_VERSION = "cortex-benchmark-arm-resolution/1"
@@ -25,6 +25,14 @@ DIRECT_CLAUDE_DIRECTIVE = "defaults/prompts/directives/executor.md"
 DIRECT_CLAUDE_TOOLS = (
     "Agent", "Bash", "Edit", "Glob", "Grep", "Read", "Skill", "TodoWrite", "Write",
 )
+# Design section 3.1(h.3) is frozen for the direct-CLAUDE parent, and (h.5)'s closing sentence lets
+# the lifting gate extend the composer with its own role set rather than widen (h.3). So the direct
+# PI parent is (h.3) with exactly ONE member changed: the same nine capabilities under PI-native
+# labels, because a single label set shared across backends is wrong on one of them (section 6.6).
+DIRECT_PI_TOOLS = (
+    "agent", "bash", "edit", "glob", "grep", "read", "skill", "todo_write", "write",
+)
+DIRECT_PARENT_TOOLS = {"claude": DIRECT_CLAUDE_TOOLS, "pi": DIRECT_PI_TOOLS}
 DIRECT_CLAUDE_PLUGIN_DIRS = ("defaults/plugins/cortex-common", "defaults/plugins/cortex-coder")
 
 
@@ -201,12 +209,21 @@ def build_arm_resolution(inputs: ArmResolutionInputs) -> dict[str, object]:
     return copied
 
 
-def _direct_claude_parent_role(bundle_root: str) -> dict[str, object]:
+def _direct_parent_role(bundle_root: str, backend: str) -> dict[str, object]:
+    """The frozen direct parent surface. Every member but `tools` is backend-neutral by inspection:
+    prompt and directive name prompt files, plugin dirs name skill directories, and the MCP and hook
+    members are policy literals. `benchmark_policy_guard` stays absent by design (h.3) — the phase-B
+    compiler derives it from this role, so a document that authored one would be a guard the model
+    can read out of its own agent dir.
+    """
     root = PurePosixPath(bundle_root)
     return {
         "system_prompt_path": str(root / DIRECT_CLAUDE_SYSTEM_PROMPT),
         "directive_path": str(root / DIRECT_CLAUDE_DIRECTIVE),
-        "tools": list(DIRECT_CLAUDE_TOOLS),
+        # require_composable_arm has already refused every backend outside this map, so a KeyError
+        # here means a backend was admitted without declaring its parent surface — fail, never
+        # fall back to another backend's labels.
+        "tools": list(DIRECT_PARENT_TOOLS[backend]),
         "plugin_dirs": [str(root / directory) for directory in DIRECT_CLAUDE_PLUGIN_DIRS],
         "mcp_composition": "none",
         "mcp_config_paths": [],
@@ -227,7 +244,7 @@ def compose_arm_resolution(seed: TrialSeed, facts: ContainerFacts) -> dict[str, 
         credential=seed.credential,
         cli_artifact={"path": facts.backend_cli_path, "version": facts.backend_cli_version},
         model_alias_policy=seed.model_alias_policy,
-        roles={"parent": _direct_claude_parent_role(facts.bundle_root)},
+        roles={"parent": _direct_parent_role(facts.bundle_root, arm_backend(seed.arm))},
         thread_templates={},
         thread_agents={},
         artifact_inventory_spec={"expected": [ARM_RESOLUTION_SOURCE]},

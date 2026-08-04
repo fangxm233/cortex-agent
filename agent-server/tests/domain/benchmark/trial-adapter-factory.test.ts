@@ -118,7 +118,6 @@ function armResolution(): Record<string, unknown> {
         mcp_composition: 'none',
         mcp_config_paths: [writeAsset('mcp-empty.json', '{"mcpServers":{}}\n')],
         disable_hooks: true,
-        benchmark_policy_guard: { parent_writable: ['Read', 'Write'], thread_active: ['Read'] },
       },
     },
     thread_templates: {},
@@ -493,7 +492,18 @@ function mountAmbientHook(): () => void {
   return () => fs.rmSync(file, { force: true });
 }
 
-it('emits exactly the compiled guard as the Claude hooks object (T6)', () => {
+// This pins SHIPPED behaviour, and shipped behaviour is a verbatim transport: the rule set is
+// assigned to the `--settings` `hooks` key unchanged. Design §13.10 GS5's rendering into Claude's
+// hooks vocabulary is UNLANDED, so the payload below is not known to be honoured by the Claude CLI
+// — §13.10 marks that fact `??` and forbids asserting it from memory (design:4482-4492), and the
+// only decision-envelope literal Cortex ships is a PermissionRequest allow, evidence for the
+// envelope and not for this event or direction. It is not load-bearing at Gate 2: GC2 fixes the
+// allow-list to the role's frozen `tools` verbatim and GC3 enumerates no deny, so the guard permits
+// exactly what the frozen surface already permits and §3.1(h.4)'s six tools are absent from the
+// `--tools` argument itself. The deny first governs at the first gate that can enter a lease state
+// other than `parent-writable` — Gates 3/6 (`thread-owned`, `draining`) and Gate 7
+// (`answer-frozen`) — which owns landing GS5 and establishing the CLI contract against a stand-in.
+it('emits exactly the compiled guard as the Claude hooks object, unrendered (T6)', () => {
   const built = spec();
   const trial = createTrialAdapter(built);
   const guard = built.policy.role_policy_guard.parent;
@@ -508,7 +518,7 @@ it('emits exactly the compiled guard as the Claude hooks object (T6)', () => {
 });
 
 it('never consults the ambient hook registry when a guard is present (T6)', () => {
-  const guard = { thread_active: { Write: 'deny' } };
+  const guard = { 'parent-writable': ['Read', 'Write'] };
   const unmount = mountAmbientHook();
   try {
     const base = {
