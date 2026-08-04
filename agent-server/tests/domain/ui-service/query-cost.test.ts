@@ -60,7 +60,7 @@ test('cost.summary passes projectId filter', async () => {
     runningExecutions: { getAll: () => [] } as any,
     costSummary: async (projectId?: string | null) => {
       capturedProjectId = projectId;
-      return { today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, forecastToday: 0, dailyCost: [], byTriggerScoped: {} };
+      return { today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} };
     },
     bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
     createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),

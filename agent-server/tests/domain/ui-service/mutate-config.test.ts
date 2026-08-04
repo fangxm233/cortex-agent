@@ -28,7 +28,7 @@ function makeMinimalDeps(): UiServiceDeps {
     executionLogTailer: { startTail: () => {}, stopTail: () => {}, refCount: () => 0 },
     approvalsPath: '/tmp/PENDING_APPROVALS.md',
     runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
+    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
     bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
     createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
     cancelSessionRun: async () => 0,
@@ -43,7 +43,7 @@ test('writeBudget persists a valid budget atomically (re-read equals input)', as
   const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-write-'));
   await writeBudget(configDir, { daily_usd: 42, monthly_usd: 900 });
   const raw = await fs.readFile(path.join(configDir, 'budget.json'), 'utf8');
-  assert.deepEqual(JSON.parse(raw), { daily_usd: 42, monthly_usd: 900 });
+  assert.deepEqual(JSON.parse(raw), { daily_usd: 42, monthly_usd: 900, projects: {} });
   // no tmp file left behind
   const leftovers = (await fs.readdir(configDir)).filter((f) => f.includes('.tmp.'));
   assert.deepEqual(leftovers, []);
@@ -135,7 +135,88 @@ test('config.set via facade writes to the isolated CONFIG_DIR and returns writte
   // read it back through config.get (same isolated CONFIG_DIR)
   const got = await ui.query('config.get', {});
   assert.ok(got.ok);
-  assert.deepEqual(got.data.budget, { daily_usd: 55, monthly_usd: 1234 });
+  assert.deepEqual(got.data.budget, { daily_usd: 55, monthly_usd: 1234, projects: {} });
+});
+
+// ── per-project budget overrides ────────────────────────────────────
+test('writeBudget with a project stores an override and preserves the globals', async () => {
+  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-proj-'));
+  await writeBudget(configDir, { daily_usd: 300, monthly_usd: 8000 });
+  await writeBudget(configDir, { daily_usd: 5, monthly_usd: 100 }, 'alpha');
+  const raw = JSON.parse(await fs.readFile(path.join(configDir, 'budget.json'), 'utf8'));
+  assert.deepEqual(raw, {
+    daily_usd: 300, monthly_usd: 8000,
+    projects: { alpha: { daily_usd: 5, monthly_usd: 100 } },
+  });
+});
+
+test('writeBudget global edit preserves every per-project override', async () => {
+  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-proj-keep-'));
+  await writeBudget(configDir, { daily_usd: 5, monthly_usd: 100 }, 'alpha');
+  await writeBudget(configDir, { daily_usd: 9, monthly_usd: 90 }, 'beta');
+  await writeBudget(configDir, { daily_usd: 250, monthly_usd: 7000 });
+  const raw = JSON.parse(await fs.readFile(path.join(configDir, 'budget.json'), 'utf8'));
+  assert.equal(raw.daily_usd, 250);
+  assert.deepEqual(raw.projects, {
+    alpha: { daily_usd: 5, monthly_usd: 100 },
+    beta: { daily_usd: 9, monthly_usd: 90 },
+  });
+});
+
+test('writeBudget with a null value clears only that project override', async () => {
+  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-proj-clear-'));
+  await writeBudget(configDir, { daily_usd: 300, monthly_usd: 8000 });
+  await writeBudget(configDir, { daily_usd: 5, monthly_usd: 100 }, 'alpha');
+  await writeBudget(configDir, { daily_usd: 9, monthly_usd: 90 }, 'beta');
+  await writeBudget(configDir, null, 'alpha');
+  const raw = JSON.parse(await fs.readFile(path.join(configDir, 'budget.json'), 'utf8'));
+  assert.deepEqual(raw.projects, { beta: { daily_usd: 9, monthly_usd: 90 } });
+  assert.equal(raw.daily_usd, 300, 'globals untouched');
+});
+
+test('writeBudget emits one consistent shape regardless of which write path ran last', async () => {
+  const configDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cfg-proj-empty-'));
+  await writeBudget(configDir, { daily_usd: 300, monthly_usd: 8000 });
+  await writeBudget(configDir, { daily_usd: 5, monthly_usd: 100 }, 'alpha');
+  await writeBudget(configDir, null, 'alpha');
+  const raw = JSON.parse(await fs.readFile(path.join(configDir, 'budget.json'), 'utf8'));
+  // The domain path (costRepo, behind !budget) serialises the whole BudgetConfig including an
+  // empty map; this path matches it rather than producing a shape that depends on the surface.
+  assert.deepEqual(raw, { daily_usd: 300, monthly_usd: 8000, projects: {} });
+});
+
+test('configSetInput accepts the project forms and rejects a projectless clear', () => {
+  const set = configSetInput.parse({ section: 'budget', project: 'alpha', value: { daily_usd: 5, monthly_usd: 100 } });
+  assert.equal(set.section, 'budget');
+  const clear = configSetInput.parse({ section: 'budget', project: 'alpha', value: null });
+  assert.equal((clear as any).value, null);
+  // A null value means "clear an override" — meaningless, and destructive-looking, without one.
+  assert.throws(() => configSetInput.parse({ section: 'budget', value: null }));
+  assert.throws(() => configSetInput.parse({ section: 'budget', project: '', value: { daily_usd: 5, monthly_usd: 100 } }));
+  // Overrides stay pair-only: a half-pair is rejected the same way for projects as for globals.
+  assert.throws(() => configSetInput.parse({ section: 'budget', project: 'alpha', value: { daily_usd: 5 } }));
+});
+
+test('config.set via facade round-trips a per-project override through config.get', async () => {
+  const ui = createUiService(makeMinimalDeps());
+  await ui.mutate('config.set', { section: 'budget', value: { daily_usd: 300, monthly_usd: 8000 } });
+  const written = await ui.mutate('config.set', {
+    section: 'budget', project: 'alpha', value: { daily_usd: 5, monthly_usd: 100 },
+  });
+  assert.ok(written.ok);
+
+  const got = await ui.query('config.get', {});
+  assert.ok(got.ok);
+  assert.deepEqual(got.data.budget, {
+    daily_usd: 300, monthly_usd: 8000,
+    projects: { alpha: { daily_usd: 5, monthly_usd: 100 } },
+  });
+
+  const cleared = await ui.mutate('config.set', { section: 'budget', project: 'alpha', value: null });
+  assert.ok(cleared.ok);
+  const after = await ui.query('config.get', {});
+  assert.ok(after.ok);
+  assert.deepEqual(after.data.budget?.projects, {});
 });
 
 test('config.set settings atomically persists a partial object and config.get reports file source', async () => {

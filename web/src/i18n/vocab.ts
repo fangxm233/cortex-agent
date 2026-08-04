@@ -504,11 +504,21 @@ export const en = {
   stPolicyStopDesc: 'no new dispatches today; running work unaffected',
   stLimits: 'Limits',
   stDaily: 'DAILY',
+  stMonthly: 'MONTHLY',
+  stApply: 'Apply',
+  stBudgetScope: 'SCOPE',
+  stBudgetScopeGlobal: 'Global',
+  stBudgetScopeNote: 'global default, or one project’s own limits',
+  stBudgetInherited: 'No limits of its own — showing the global defaults it currently inherits. Setting either limit creates a per-project override with both.',
+  stBudgetClear: 'Clear override',
+  stBudgetClearHint: 'Remove this project’s own limits and let it inherit the global defaults again.',
+  stBudgetCustomPlaceholder: 'custom',
+  stBudgetAmountInvalid: 'Enter a positive amount, e.g. 12.50',
   stWarnAt: 'WARN AT',
   stOverBudgetBehavior: 'Over-budget behavior',
   stCurrentSpend: 'Current spend',
   stObNote: 'Over-estimate → approval card in chat & approval center',
-  stBudgetFootNote: 'today / month are real (cost.summary); the daily/monthly denominators are real (budget.json). Forecast is not in the contract — omitted.',
+  stBudgetFootNote: 'today / month are real (cost.summary, scoped to the selected scope); the daily/monthly denominators are real (budget.json, per-project override when one exists). Budget is advisory — nothing in the server stops work on it.',
 
   // ── Settings nav labels (also used as section meta titles) ──
   stNavAppearance: 'Appearance',
@@ -549,7 +559,7 @@ export const en = {
   stLangChinese: '中文',
 
   // ── Budget panel extras ──
-  stBudgetWriteError: 'Cannot write budget — monthly_usd must be set (positive) in budget.json first',
+  stBudgetWriteError: 'Cannot write budget — both the daily and the monthly limit must be positive (overrides are pair-only)',
   stCostsJsonlLabel: 'costs.jsonl · 90d',
 
   // ── Settings modal chrome ──
@@ -566,6 +576,7 @@ export const en = {
   stToastWriteFailed: 'Write failed',
   stToastCouldNotQueue: 'Could not queue request',
   stToastBudgetWritten: 'budget.json written',
+  stToastBudgetCleared: 'override removed — inheriting the global limits',
   stToastDefaultProfile: 'profiles.json written',
   stReconnectApprovalTitle: 'Queues a reconnect request for approval — never runs directly from the browser',
   stReconnectInertTitle: 'No reconnect backend op — inert',
@@ -1243,11 +1254,21 @@ export const zh: Record<keyof Vocab, string> = {
   stPolicyStopDesc: '今日不再派发新任务；运行中的工作不受影响',
   stLimits: '限额',
   stDaily: '每日',
+  stMonthly: '每月',
+  stApply: '应用',
+  stBudgetScope: '范围',
+  stBudgetScopeGlobal: '全局',
+  stBudgetScopeNote: '全局默认，或单个项目的独立限额',
+  stBudgetInherited: '该项目没有独立限额，显示的是它当前继承的全局默认值。设置任一限额都会创建包含日额和月额的项目级覆盖。',
+  stBudgetClear: '清除覆盖',
+  stBudgetClearHint: '移除该项目的独立限额，恢复继承全局默认值。',
+  stBudgetCustomPlaceholder: '自定义',
+  stBudgetAmountInvalid: '请输入正数金额，例如 12.50',
   stWarnAt: '警告阈值',
   stOverBudgetBehavior: '超预算行为',
   stCurrentSpend: '当前支出',
   stObNote: '预估超限 → chat 审批卡 + 审批中心',
-  stBudgetFootNote: '今日 / 本月为真实值（cost.summary）；每日/每月的分母为真实值（budget.json）。预测不在契约中——已省略。',
+  stBudgetFootNote: '今日 / 本月为真实值（cost.summary，按所选范围过滤）；每日/每月分母为真实值（budget.json，存在项目覆盖时用覆盖值）。预算仅供参考——服务端不会据此中止任何工作。',
 
   // ── Settings nav labels (also used as section meta titles) ──
   stNavAppearance: '外观',
@@ -1288,7 +1309,7 @@ export const zh: Record<keyof Vocab, string> = {
   stLangChinese: '中文',
 
   // ── Budget panel extras ──
-  stBudgetWriteError: '无法写入预算 — 必须先在 budget.json 中设置 monthly_usd（正数）',
+  stBudgetWriteError: '无法写入预算 — 日额和月额都必须为正数（项目覆盖必须成对设置）',
   stCostsJsonlLabel: 'costs.jsonl · 90天',
 
   // ── Settings modal chrome ──
@@ -1305,6 +1326,7 @@ export const zh: Record<keyof Vocab, string> = {
   stToastWriteFailed: '写入失败',
   stToastCouldNotQueue: '无法排队请求',
   stToastBudgetWritten: 'budget.json 已写入',
+  stToastBudgetCleared: '覆盖已移除 — 恢复继承全局限额',
   stToastDefaultProfile: 'profiles.json 已写入',
   stReconnectApprovalTitle: '将重连请求排队等待审批 — 绝不直接从浏览器执行',
   stReconnectInertTitle: '无重连后端操作 — 占位',

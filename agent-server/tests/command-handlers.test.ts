@@ -12,6 +12,8 @@ import * as os from 'os';
 
 import { registerCommands as createCommandDispatcher } from '../src/orchestration/routing/commands/index.js';
 import { handleBackendCmd } from '../src/orchestration/routing/commands/mode.js';
+import { handleBudgetCmd } from '../src/orchestration/routing/commands/cost.js';
+import { projectStore } from '../src/domain/projects/index.js';
 import { getActiveBackend, setActiveBackend } from '../src/domain/agents/config.js';
 import { getDefaultProfileName } from '../src/domain/agents/profile-manager.js';
 import { costRepo } from '../src/store/cost-repo.js';
@@ -123,6 +125,124 @@ test('!cost <project> filters report to the requested project scope', async (t) 
   assert.match(adapter.posted[0].content.text, /Cost Report \(project: proj-a\)/);
   assert.match(adapter.posted[0].content.text, /Today: \$1\.50/);
   assert.doesNotMatch(adapter.posted[0].content.text, /proj-b/);
+});
+
+// ── !budget: global + per-project forms ────────────────────────────
+// Overrides are pair-only and project ids are validated against the real project registry,
+// so a typo can never create an orphan entry in budget.json.
+
+function withProjects(t, ids: string[]) {
+  for (const id of ids) fs.mkdirSync(path.join(PROJECTS_DIR, id), { recursive: true });
+  projectStore.refresh();
+  t.onTestFinished(() => {
+    for (const id of ids) fs.rmSync(path.join(PROJECTS_DIR, id), { recursive: true, force: true });
+    projectStore.refresh();
+  });
+}
+
+async function budget(adapter: MockAdapter, message: string): Promise<string> {
+  await handleBudgetCmd('C-budget', adapter, message);
+  return adapter.posted[adapter.posted.length - 1].content.text;
+}
+
+test('!budget with no args reports the global limits', async (t) => {
+  withTempCostData(t, [{ timestamp: new Date().toISOString(), project: 'proj-a', trigger: 'user', cost_usd: 1.5, mode: 'api' }]);
+  const text = await budget(new MockAdapter(), '!budget');
+  assert.match(text, /Daily: \$10/);
+  assert.match(text, /Monthly: \$100/);
+});
+
+test('!budget <project> reports inherited globals until an override exists', async (t) => {
+  withTempCostData(t, [{ timestamp: new Date().toISOString(), project: 'proj-a', trigger: 'user', cost_usd: 1.5, mode: 'api' }]);
+  withProjects(t, ['proj-a']);
+  const text = await budget(new MockAdapter(), '!budget proj-a');
+  assert.match(text, /Budget — proj-a/);
+  assert.match(text, /inherited from global/);
+  assert.match(text, /Daily: \$10/);
+  assert.match(text, /spent: \$1\.50/);
+});
+
+test('!budget <project> $X/d $Y/m writes a pair-only override and reports it back', async (t) => {
+  withTempCostData(t, [{ timestamp: new Date().toISOString(), project: 'proj-a', trigger: 'user', cost_usd: 1.5, mode: 'api' }]);
+  withProjects(t, ['proj-a']);
+  const adapter = new MockAdapter();
+
+  assert.match(await budget(adapter, '!budget proj-a $5/d $80/m'), /proj-a.*updated.*\$5\/day.*\$80\/month/);
+
+  const persisted = await costRepo.readBudget();
+  assert.deepEqual(persisted.projects['proj-a'], { daily_usd: 5, monthly_usd: 80 });
+  assert.equal(persisted.daily_usd, 10, 'globals untouched');
+
+  const status = await budget(adapter, '!budget proj-a');
+  assert.match(status, /per-project override/);
+  assert.match(status, /Daily: \$5/);
+});
+
+test('!budget <project> rejects a single limit without writing anything', async (t) => {
+  withTempCostData(t, []);
+  withProjects(t, ['proj-a']);
+  const text = await budget(new MockAdapter(), '!budget proj-a $5/d');
+  assert.match(text, /both limits/);
+  assert.deepEqual((await costRepo.readBudget()).projects, {});
+});
+
+test('!budget rejects an unknown project and names the known ones', async (t) => {
+  withTempCostData(t, []);
+  withProjects(t, ['proj-a']);
+  const text = await budget(new MockAdapter(), '!budget proj-typo $5/d $80/m');
+  assert.match(text, /Unknown project/);
+  assert.match(text, /proj-a/);
+  assert.deepEqual((await costRepo.readBudget()).projects, {});
+});
+
+test('!budget <project> clear removes the override so it inherits again', async (t) => {
+  withTempCostData(t, []);
+  withProjects(t, ['proj-a']);
+  const adapter = new MockAdapter();
+  await budget(adapter, '!budget proj-a $5/d $80/m');
+
+  assert.match(await budget(adapter, '!budget proj-a clear'), /removed/);
+  assert.deepEqual((await costRepo.readBudget()).projects, {});
+  assert.match(await budget(adapter, '!budget proj-a clear'), /no per-project budget/i);
+});
+
+test('!budget list shows the globals plus every override', async (t) => {
+  withTempCostData(t, []);
+  withProjects(t, ['proj-a', 'proj-b']);
+  const adapter = new MockAdapter();
+  await budget(adapter, '!budget proj-b $9/d $90/m');
+  await budget(adapter, '!budget proj-a $5/d $80/m');
+
+  const text = await budget(adapter, '!budget list');
+  assert.match(text, /global: \$10\/day, \$100\/month/);
+  // sorted by project id, not insertion order
+  assert.ok(text.indexOf('proj-a') < text.indexOf('proj-b'), `expected sorted listing, got:\n${text}`);
+});
+
+test('!budget $X/d $Y/m still edits the globals and preserves overrides', async (t) => {
+  withTempCostData(t, []);
+  withProjects(t, ['proj-a']);
+  const adapter = new MockAdapter();
+  await budget(adapter, '!budget proj-a $5/d $80/m');
+
+  assert.match(await budget(adapter, '!budget $50/d $1000/m'), /\$50\/day, \$1000\/month/);
+  const persisted = await costRepo.readBudget();
+  assert.equal(persisted.daily_usd, 50);
+  assert.equal(persisted.monthly_usd, 1000);
+  assert.deepEqual(persisted.projects['proj-a'], { daily_usd: 5, monthly_usd: 80 });
+});
+
+test('!budget routes through the command dispatcher', async (t) => {
+  withTempCostData(t, []);
+  const adapter = new MockAdapter();
+  const dispatchCommand = createCommandDispatcher({ scheduler: null });
+
+  assert.equal(dispatchCommand('!budget', 'C123', adapter), true);
+  const deadline = Date.now() + 5_000;
+  while (adapter.posted.length === 0 && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.match(adapter.posted[0].content.text, /Daily: \$10/);
 });
 
 test('!status reports running executions from injected registry summary', async () => {

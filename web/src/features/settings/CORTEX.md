@@ -14,8 +14,8 @@ Panels read config/auth snapshots; accounts, budget, runtime, profiles and hooks
 | RuntimeSettingsPanels.tsx | view | Reads and writes runtime settings toggles |
 | RuntimeSettingsPanels.test.tsx | test | Tests toggle rows and production write adapter |
 | AppearancePanel.tsx | view | Language and theme toggles kept device-local |
-| BudgetPanel.tsx | view | Budget panel that writes the daily spend limit |
-| budget-vm.ts | vm | Derives budget chips, payload and spend bar |
+| BudgetPanel.tsx | view | Writes global and per-project daily/monthly spend limits |
+| budget-vm.ts | vm | Resolves budget scope and builds chips, payload and spend bar |
 | budget-vm.test.ts | test | Unit tests for the budget view model |
 | ProfilesPanel.tsx | view | Profile table with create, edit and delete |
 | ProfilesPanel.test.tsx | test | Tests profile rows, editor gating and delete guard |

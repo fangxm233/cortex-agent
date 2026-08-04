@@ -452,8 +452,19 @@ export interface ProfilesValue {
 
 export type SettingsValue = Partial<Settings>;
 
+/**
+ * `project` absent/null targets the global limits; a project id targets that project's override.
+ * An absent/null `value` clears an override (legal only together with a `project`) — per-project
+ * overrides are pair-only, so a project either declares both limits or inherits both globals.
+ */
+export interface ConfigSetBudgetArgs {
+  section: 'budget';
+  project?: string | null;
+  value?: BudgetValue | null;
+}
+
 export type ConfigSetArgs =
-  | { section: 'budget'; value: BudgetValue }
+  | ConfigSetBudgetArgs
   | { section: 'profiles'; value: ProfilesValue }
   | { section: 'settings'; value: SettingsValue };
 
@@ -974,6 +985,10 @@ export interface ExecutionDetailInfo {
 export interface ConfigBudget {
   daily_usd: number | null;
   monthly_usd: number | null;
+  /** Per-project overrides keyed by project id. Empty when every project inherits the globals.
+   *  Entries are pair-only by construction — a malformed half-pair on disk is dropped, not
+   *  surfaced as a partially-null override. */
+  projects: Record<string, BudgetValue>;
 }
 
 export interface ConfigProfileEntry {

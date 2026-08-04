@@ -44,16 +44,38 @@ async function listJsonBasenames(dir: string): Promise<string[]> {
   }
 }
 
+// Per-project overrides are pair-only: an entry missing either limit is dropped rather than
+// surfaced half-null, so the panel can never render an override that does not fully exist.
+function parseProjectBudgets(raw: unknown): Record<string, { daily_usd: number; monthly_usd: number }> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, { daily_usd: number; monthly_usd: number }> = {};
+  for (const [id, value] of Object.entries(raw as Record<string, any>)) {
+    if (!id || !value || typeof value !== 'object') continue;
+    if (typeof value.daily_usd !== 'number' || typeof value.monthly_usd !== 'number') continue;
+    out[id] = { daily_usd: value.daily_usd, monthly_usd: value.monthly_usd };
+  }
+  return out;
+}
+
 function parseBudget(raw: any): ConfigBudget | null {
   if (!raw || typeof raw !== 'object') return null;
   return {
     daily_usd: typeof raw.daily_usd === 'number' ? raw.daily_usd : null,
     monthly_usd: typeof raw.monthly_usd === 'number' ? raw.monthly_usd : null,
+    projects: parseProjectBudgets(raw.projects),
   };
 }
 
 function isLiveBackend(value: unknown): value is Backend {
   return value === 'claude' || value === 'pi';
+}
+
+// extraOption is CLI flags and is returned whole — the settings editor has to round-trip it.
+function parseStringMap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).filter((pair): pair is [string, string] => typeof pair[1] === 'string'),
+  );
 }
 
 function parseProfiles(raw: any): ConfigProfiles | null {
@@ -66,18 +88,18 @@ function parseProfiles(raw: any): ConfigProfiles | null {
       backend: isLiveBackend(p?.backend) ? p.backend : null,
       mode: typeof p?.mode === 'string' ? p.mode : null,
       thinking: typeof p?.thinking === 'string' ? p.thinking : null,
+      provider: typeof p?.provider === 'string' ? p.provider : null,
+      claudeBackend: p?.claudeBackend === 'print' || p?.claudeBackend === 'tui' ? p.claudeBackend : null,
+      extraOption: parseStringMap(p?.extraOption),
+      // KEYS ONLY — an extraEnv value is injected into the agent environment and may be a token.
+      extraEnvKeys: p?.extraEnv && typeof p.extraEnv === 'object' && !Array.isArray(p.extraEnv)
+        ? Object.keys(p.extraEnv).sort()
+        : [],
+      fallbackCount: Array.isArray(p?.fallback) ? p.fallback.length : 0,
     }];
   });
   const requestedDefault = typeof raw.defaultProfile === 'string' ? raw.defaultProfile : null;
   return {
-// extraOption is CLI flags and is returned whole — the settings editor has to round-trip it.
-function parseStringMap(raw: unknown): Record<string, string> {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  return Object.fromEntries(
-    Object.entries(raw as Record<string, unknown>).filter((pair): pair is [string, string] => typeof pair[1] === 'string'),
-  );
-}
-
     defaultProfile: requestedDefault && profiles.some((profile) => profile.name === requestedDefault)
       ? requestedDefault
       : null,
@@ -88,14 +110,6 @@ function parseStringMap(raw: unknown): Record<string, string> {
 function parseMachines(raw: any): ConfigMachine[] {
   if (!raw || typeof raw !== 'object') return [];
   return Object.entries(raw).map(([name, m]: [string, any]) => ({
-      provider: typeof p?.provider === 'string' ? p.provider : null,
-      claudeBackend: p?.claudeBackend === 'print' || p?.claudeBackend === 'tui' ? p.claudeBackend : null,
-      extraOption: parseStringMap(p?.extraOption),
-      // KEYS ONLY — an extraEnv value is injected into the agent environment and may be a token.
-      extraEnvKeys: p?.extraEnv && typeof p.extraEnv === 'object' && !Array.isArray(p.extraEnv)
-        ? Object.keys(p.extraEnv).sort()
-        : [],
-      fallbackCount: Array.isArray(p?.fallback) ? p.fallback.length : 0,
     name,
     cortexPath: typeof m?.cortexPath === 'string' ? m.cortexPath : null,
     gpuCount: typeof m?.gpuCount === 'number' ? m.gpuCount : null,

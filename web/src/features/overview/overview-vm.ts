@@ -29,8 +29,9 @@ const WHERE_IT_GOES_MAX_ROWS = 5;
 /**
  * Today's scoped spend as a percent of the daily budget, clamped to [0, 100]. Returns `null` when
  * the budget is absent or non-positive (no denominator → the bar renders empty, honest placeholder).
- * NOTE: `dailyBudget` is the global `budget.json` daily cap (not per-project) while `today` is
- * project-scoped — the ratio mixes a system-wide denominator with scoped spend, by contract.
+ * NOTE: `dailyBudget` is resolved server-side against the same scope as `today` — a project's own
+ * `budget.json` override when it has one, the global cap when it inherits. Numerator and
+ * denominator therefore describe the same scope.
  */
 export function budgetPercent(
   today: number | null | undefined,

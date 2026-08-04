@@ -9,7 +9,7 @@ Each file covers one command family, from sessions and threads to devices, costs
 | channel.ts | command | manages project registration for channels |
 | command-context.ts | types | shapes of command input and output |
 | compact.ts | command | compacts the current session context |
-| cost.ts | command | reports spending and sets budgets |
+| cost.ts | command | reports spending and edits global and per-project budgets |
 | device.ts | command | lists known and online client devices |
 | dispatch.ts | command | overrides the profile of a dispatch thread |
 | index.ts | entry | matches command text and dispatches handlers |

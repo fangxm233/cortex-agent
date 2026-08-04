@@ -44,7 +44,7 @@ import {
 //     Where it goes = real project-scoped byTriggerScoped breakdown. Honest guards remain: absent/0
 //     dailyBudget → empty bar + `—`; empty byTriggerScoped → no-spend line (never fabricated numbers).
 //   - Project memory — real memory viewer link (memory.tree/memory.file fs scope).
-//   - Adjust-budget + ⋯ are inert (no budget-mutate scope).
+//   - Adjust-budget + ⋯ are inert here; budgets (global and per-project) are edited in Settings ▸ Budget.
 
 const CARD: CSSProperties = {
   background: 'var(--proto-card)',
@@ -245,7 +245,8 @@ export function OverviewView(): JSX.Element {
         </div>
         <div>
           <div style={{ fontSize: 10, color: 'var(--proto-muted-3)', marginBottom: 3 }}>{L.budgetPerDay}</div>
-          {/* REAL: dailyBudget from budget.json (global daily cap). `—` when unset (honest). */}
+          {/* REAL: dailyBudget from budget.json, scope-resolved (this project's override when it
+              has one, else the global cap). `—` when unset (honest). */}
           <div style={{ font: "600 15px 'IBM Plex Mono',monospace", color: 'var(--proto-ink-2)' }}>
             {formatPerDay(cost?.dailyBudget)}
             <span style={{ fontSize: 10, color: 'var(--proto-muted-3)', fontWeight: 400 }}> {L.perDay}</span>
