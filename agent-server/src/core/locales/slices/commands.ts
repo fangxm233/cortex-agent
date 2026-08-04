@@ -251,7 +251,7 @@ export const commandsEn = {
   'cmd.help.monitoring.cost': '`!cost [project]` — show cost summary (global or per-project)',
   'cmd.help.monitoring.status': '`!status` — show running execution summary',
   'cmd.help.monitoring.login': '`!login [status|cc|pi [provider]]` — inspect status or start backend login',
-  'cmd.help.monitoring.budget': '`!budget $X/d $Y/m` — set daily/monthly budget',
+  'cmd.help.monitoring.budget': '`!budget [list|<project>] [$X/d $Y/m|clear]` — show or set global and per-project budgets',
   'cmd.help.monitoring.schedule': '`!schedule` — list, add, pause, resume, or remove scheduled tasks',
   'cmd.help.tasks.tasks': '`!tasks <project>` — list all tasks with details for a project',
   'cmd.help.tasks.projects': '`!projects` — list projects and their registered channels',
@@ -332,7 +332,18 @@ export const commandsEn = {
 
   // --- cost / budget ---
   'cmd.cost.budgetHeader': '*Budget*\n• Daily: $${dailyBudget} (spent: $${dailySpent}, remaining: $${dailyRemaining})\n• Monthly: $${monthlyBudget} (spent: $${monthlySpent}, remaining: $${monthlyRemaining})',
+  'cmd.cost.budgetHeaderProject': '*Budget — ${project}* (${scope})\n• Daily: $${dailyBudget} (spent: $${dailySpent}, remaining: $${dailyRemaining})\n• Monthly: $${monthlyBudget} (spent: $${monthlySpent}, remaining: $${monthlyRemaining})',
+  'cmd.cost.budgetScopeProject': 'per-project override',
+  'cmd.cost.budgetScopeGlobal': 'inherited from global',
   'cmd.cost.budgetUpdated': 'Budget updated: $${daily}/day, $${monthly}/month',
+  'cmd.cost.budgetUpdatedProject': 'Budget for `${project}` updated: $${daily}/day, $${monthly}/month',
+  'cmd.cost.budgetCleared': 'Per-project budget for `${project}` removed — it now inherits the global limits.',
+  'cmd.cost.budgetNoOverride': '`${project}` has no per-project budget — nothing to clear.',
+  'cmd.cost.budgetListHeader': '*Budgets*\n• global: $${daily}/day, $${monthly}/month',
+  'cmd.cost.budgetListEmpty': 'No per-project overrides. Every project inherits the global limits.',
+  'cmd.cost.budgetListItem': '• ${project}: $${daily}/day, $${monthly}/month',
+  'cmd.cost.budgetPairRequired': 'A per-project budget needs both limits. Usage: `!budget ${project} $50/d $1000/m`',
+  'cmd.cost.budgetUnknownProject': 'Unknown project: `${project}`. Known projects: ${known}',
 
   // --- index (dispatcher) ---
   'cmd.unknown': 'Unknown command: `${cmd}`. Run `!help` for available commands.',
@@ -588,7 +599,7 @@ export const commandsZh: Record<keyof typeof commandsEn, string> = {
   'cmd.help.monitoring.cost': '`!cost [project]` — 显示成本汇总（全局或按项目）',
   'cmd.help.monitoring.status': '`!status` — 显示运行中的执行汇总',
   'cmd.help.monitoring.login': '`!login [status|cc|pi [provider]]` — 查看状态或启动 backend 登录',
-  'cmd.help.monitoring.budget': '`!budget $X/d $Y/m` — 设置每日/每月预算',
+  'cmd.help.monitoring.budget': '`!budget [list|<项目>] [$X/d $Y/m|clear]` — 查看或设置全局与项目预算',
   'cmd.help.monitoring.schedule': '`!schedule` — 列出、添加、暂停、恢复或移除定时任务',
   'cmd.help.tasks.tasks': '`!tasks <project>` — 列出项目的所有任务及详情',
   'cmd.help.tasks.projects': '`!projects` — 列出项目及其注册的频道',
@@ -669,7 +680,18 @@ export const commandsZh: Record<keyof typeof commandsEn, string> = {
 
   // --- cost / budget ---
   'cmd.cost.budgetHeader': '*预算*\n• 每日：$${dailyBudget}（已用：$${dailySpent}，剩余：$${dailyRemaining}）\n• 每月：$${monthlyBudget}（已用：$${monthlySpent}，剩余：$${monthlyRemaining}）',
+  'cmd.cost.budgetHeaderProject': '*预算 — ${project}*（${scope}）\n• 每日：$${dailyBudget}（已用：$${dailySpent}，剩余：$${dailyRemaining}）\n• 每月：$${monthlyBudget}（已用：$${monthlySpent}，剩余：$${monthlyRemaining}）',
+  'cmd.cost.budgetScopeProject': '项目独立预算',
+  'cmd.cost.budgetScopeGlobal': '继承全局预算',
   'cmd.cost.budgetUpdated': '预算已更新：$${daily}/天，$${monthly}/月',
+  'cmd.cost.budgetUpdatedProject': '`${project}` 的预算已更新：$${daily}/天，$${monthly}/月',
+  'cmd.cost.budgetCleared': '已移除 `${project}` 的项目预算 — 现在继承全局限额。',
+  'cmd.cost.budgetNoOverride': '`${project}` 没有设置项目预算 — 无需清除。',
+  'cmd.cost.budgetListHeader': '*预算*\n• 全局：$${daily}/天，$${monthly}/月',
+  'cmd.cost.budgetListEmpty': '没有项目级覆盖，所有项目都继承全局限额。',
+  'cmd.cost.budgetListItem': '• ${project}：$${daily}/天，$${monthly}/月',
+  'cmd.cost.budgetPairRequired': '项目预算必须同时设置日额和月额。用法：`!budget ${project} $50/d $1000/m`',
+  'cmd.cost.budgetUnknownProject': '未知项目：`${project}`。已知项目：${known}',
 
   // --- index ---
   'cmd.unknown': '未知命令：`${cmd}`。运行 `!help` 查看可用命令。',

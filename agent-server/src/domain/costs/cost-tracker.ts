@@ -1,10 +1,12 @@
 // input:  costs.json, budget.json, env overrides
-// output: recordCost / checkBudget / formatCostReport / ...
-// pos:    budget check and cost record aggregation
+// output: recordCost / pickBudget / checkBudget / setBudget / clearProjectBudget /
+//         listProjectBudgets / formatCostReport / ...
+// pos:    budget resolution (global + per-project overrides) and cost record aggregation.
+//         Budget is advisory — nothing gates on it.
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
-import { costRepo } from '@store/cost-repo.js';
+import { costRepo, type BudgetConfig } from '@store/cost-repo.js';
 import { projectStore } from '@domain/projects/index.js';
-export type { CostsData, BudgetConfig } from '@store/cost-repo.js';
+export type { CostsData, BudgetConfig, ProjectBudget } from '@store/cost-repo.js';
 
 // ── Dynamic project name discovery (from context/projects/) ──
 
@@ -75,8 +77,13 @@ export interface CostSummary {
   tokens: { today: TokenBucket; month: TokenBucket; total: TokenBucket };
   entryCount: number;
   // ── Additive real-data fields (task c489; ignored by Slack/TUI/MCP consumers) ──
-  /** Daily budget denominator from budget.json `daily_usd` (global, not per-project). */
+  /** Daily budget denominator. Resolves to the project's own limit when the summary is
+   *  project-scoped and that project has an override; otherwise the global `daily_usd`. */
   dailyBudget: number;
+  /** Monthly budget denominator, resolved on the same rule as `dailyBudget`. */
+  monthlyBudget: number;
+  /** Which budget the two denominators above came from. */
+  budgetScope: BudgetScope;
   /** Today's scoped spend extrapolated linearly by the elapsed fraction of the local day.
    *  0 when nothing was spent today; noisy early in the day (small fraction) by construction. */
   forecastToday: number;
@@ -88,6 +95,15 @@ export interface CostSummary {
   byTriggerScoped: Record<string, PeriodBucket>;
 }
 
+/** 'project' — the numbers come from budget.json `projects[<id>]`; 'global' — from the top level. */
+export type BudgetScope = 'project' | 'global';
+
+export interface ResolvedBudget {
+  daily_usd: number;
+  monthly_usd: number;
+  scope: BudgetScope;
+}
+
 export interface BudgetStatus {
   withinBudget: boolean;
   dailyBudget: number;
@@ -97,6 +113,22 @@ export interface BudgetStatus {
   monthlySpent: number;
   monthlyRemaining: number;
   byMode: Record<string, ModeBuckets>;
+  /** The project this status was scoped to; null for the global view. */
+  project: string | null;
+  /** Whether the limits above are the project's own override or the inherited globals. */
+  scope: BudgetScope;
+}
+
+/**
+ * Resolve which budget applies to a project. Pure — takes the already-read config.
+ * A project with no override inherits the global pair in full (overrides are pair-only).
+ */
+export function pickBudget(config: BudgetConfig, projectId?: string | null): ResolvedBudget {
+  const override = projectId ? config.projects?.[projectId] : undefined;
+  if (override) {
+    return { daily_usd: override.daily_usd, monthly_usd: override.monthly_usd, scope: 'project' };
+  }
+  return { daily_usd: config.daily_usd, monthly_usd: config.monthly_usd, scope: 'global' };
 }
 
 const COST_CATEGORIES = ['total', 'api', 'plan'];
@@ -294,6 +326,7 @@ async function getCostSummary(project?: string | null, opts?: { now?: number }):
   const todayScoped = periods.today.total;
   const fractionElapsed = (now - dayStart.getTime()) / DAY_MS;
   const forecastToday = fractionElapsed > 0 ? todayScoped / fractionElapsed : todayScoped;
+  const resolved = pickBudget(budget, project);
 
   return {
     today: periods.today.total,
@@ -307,7 +340,9 @@ async function getCostSummary(project?: string | null, opts?: { now?: number }):
     byBackend,
     tokens,
     entryCount: matchCount,
-    dailyBudget: budget.daily_usd,
+    dailyBudget: resolved.daily_usd,
+    monthlyBudget: resolved.monthly_usd,
+    budgetScope: resolved.scope,
     forecastToday,
     dailyCost: dailyKeys.map(date => ({ date, cost: dailyMap.get(date)! })),
     byTriggerScoped,
@@ -315,34 +350,79 @@ async function getCostSummary(project?: string | null, opts?: { now?: number }):
 }
 
 /**
- * Check global budget (not per-project).
- * Returns budget status and whether we're within limits.
+ * Check budget status. Without `project` this is the global view (all spend vs the global limits);
+ * with one, both the spend and the limits are scoped to that project — the limits being its own
+ * override when it has one, the inherited globals otherwise.
+ *
+ * Advisory only: `withinBudget` is reported, never enforced. No caller gates on it.
  */
-async function checkBudget(): Promise<BudgetStatus> {
-  const summary = await getCostSummary();
+async function checkBudget(project?: string | null): Promise<BudgetStatus> {
+  const scoped = project ?? null;
+  const summary = await getCostSummary(scoped);
   const budget = await costRepo.readBudget();
+  const resolved = pickBudget(budget, scoped);
 
   return {
-    withinBudget: summary.today < budget.daily_usd && summary.month < budget.monthly_usd,
-    dailyBudget: budget.daily_usd,
+    withinBudget: summary.today < resolved.daily_usd && summary.month < resolved.monthly_usd,
+    dailyBudget: resolved.daily_usd,
     dailySpent: summary.today,
-    dailyRemaining: Math.max(0, budget.daily_usd - summary.today),
-    monthlyBudget: budget.monthly_usd,
+    dailyRemaining: Math.max(0, resolved.daily_usd - summary.today),
+    monthlyBudget: resolved.monthly_usd,
     monthlySpent: summary.month,
-    monthlyRemaining: Math.max(0, budget.monthly_usd - summary.month),
+    monthlyRemaining: Math.max(0, resolved.monthly_usd - summary.month),
     byMode: summary.byMode,
+    project: scoped,
+    scope: resolved.scope,
   };
 }
 
 /**
- * Update global budget limits.
+ * Update budget limits. Without `project` the global pair is updated field-by-field and every
+ * per-project override is preserved. With `project`, BOTH limits are required (overrides are
+ * pair-only) and only that project's entry is written — globals and sibling overrides untouched.
  */
-async function setBudget({ daily_usd, monthly_usd }: { daily_usd?: number; monthly_usd?: number }): Promise<{ daily_usd: number; monthly_usd: number }> {
+async function setBudget(
+  { daily_usd, monthly_usd, project }: { daily_usd?: number; monthly_usd?: number; project?: string | null },
+): Promise<{ daily_usd: number; monthly_usd: number; scope: BudgetScope }> {
   const budget = await costRepo.readBudget();
+
+  if (project) {
+    if (daily_usd == null || monthly_usd == null) {
+      throw Object.assign(
+        new Error('A per-project budget must set both daily and monthly limits'),
+        { code: 'invalid-args' },
+      );
+    }
+    budget.projects = { ...budget.projects, [project]: { daily_usd, monthly_usd } };
+    await costRepo.writeBudget(budget);
+    return { daily_usd, monthly_usd, scope: 'project' };
+  }
+
   if (daily_usd != null) budget.daily_usd = daily_usd;
   if (monthly_usd != null) budget.monthly_usd = monthly_usd;
   await costRepo.writeBudget(budget);
-  return budget;
+  return { daily_usd: budget.daily_usd, monthly_usd: budget.monthly_usd, scope: 'global' };
+}
+
+/**
+ * Remove one project's override so it inherits the globals again.
+ * Returns false when the project had no override (nothing written).
+ */
+async function clearProjectBudget(project: string): Promise<boolean> {
+  const budget = await costRepo.readBudget();
+  if (!budget.projects?.[project]) return false;
+  const { [project]: _removed, ...rest } = budget.projects;
+  budget.projects = rest;
+  await costRepo.writeBudget(budget);
+  return true;
+}
+
+/** Every project that currently overrides the globals, sorted by id. */
+async function listProjectBudgets(): Promise<{ project: string; daily_usd: number; monthly_usd: number }[]> {
+  const budget = await costRepo.readBudget();
+  return Object.entries(budget.projects ?? {})
+    .map(([project, limits]) => ({ project, ...limits }))
+    .sort((a, b) => a.project.localeCompare(b.project));
 }
 
 function buildModeBucket(periods: Record<string, ModeBuckets>, mode: string): PeriodBucket {
@@ -369,10 +449,13 @@ function formatTokens(count: number): string {
  */
 async function formatCostReport(project: string | null = null): Promise<string> {
   const summary = await getCostSummary(project);
-  const budget = await checkBudget();
+  const budget = await checkBudget(project);
+  const scopeNote = project
+    ? budget.scope === 'project' ? ' _(per-project limits)_' : ' _(inherited global limits)_'
+    : '';
 
   const lines = [];
-  lines.push(project ? `*Cost Report (project: ${project})*` : '*Cost Report*');
+  lines.push(project ? `*Cost Report (project: ${project})*${scopeNote}` : '*Cost Report*');
   lines.push(`• Today: $${summary.today.toFixed(2)} / $${budget.dailyBudget} (remaining: $${budget.dailyRemaining.toFixed(2)})`);
   lines.push(`• This month: $${summary.month.toFixed(2)} / $${budget.monthlyBudget} (remaining: $${budget.monthlyRemaining.toFixed(2)})`);
   lines.push(`• This week: $${summary.week.toFixed(2)}`);
@@ -434,4 +517,7 @@ function _resetProjectCache(names?: string[] | null): void {
   _projectNames = names ?? null;
 }
 
-export { costRepo, recordCost, detectProject, getCostSummary, checkBudget, setBudget, formatCostReport, _resetProjectCache };
+export {
+  costRepo, recordCost, detectProject, getCostSummary, checkBudget, setBudget,
+  clearProjectBudget, listProjectBudgets, formatCostReport, _resetProjectCache,
+};

@@ -1,7 +1,9 @@
 // input:  costs.jsonl + budget.json
-// output: CostRepo (recordEntry / recordEntryBatch / readCosts / readBudget / writeBudget / flush)
+// output: CostRepo (recordEntry / recordEntryBatch / readCosts / readBudget / writeBudget /
+//         invalidateBudget / flush) + migrateBudget
 // pos:    Cost + Budget persistence layer. Costs use JSONL + append-only (avoiding repeated full-file reads/writes),
-//         Budget still uses the JsonRepository abstraction.
+//         Budget still uses the JsonRepository abstraction. Budget carries global limits plus an
+//         optional per-project override map (pair-only overrides).
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import * as path from 'path';
@@ -18,12 +20,52 @@ export interface CostsData {
   entries: CostEntry[];
 }
 
-export interface BudgetConfig {
+/** A per-project override. Pair-only by design: a project either overrides BOTH limits or
+ *  inherits BOTH globals — no per-field inheritance (see plan/per-project-budget.md). */
+export interface ProjectBudget {
   daily_usd: number;
   monthly_usd: number;
 }
 
-const DEFAULT_BUDGET: BudgetConfig = { daily_usd: 300, monthly_usd: 8000 };
+export interface BudgetConfig {
+  daily_usd: number;
+  monthly_usd: number;
+  /** Per-project overrides keyed by project id. Empty when no project overrides the globals. */
+  projects: Record<string, ProjectBudget>;
+}
+
+const DEFAULT_BUDGET: BudgetConfig = { daily_usd: 300, monthly_usd: 8000, projects: {} };
+
+function isPositiveNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0;
+}
+
+/**
+ * Normalise the `projects` map from disk. Entries that are not a complete, positive
+ * {daily_usd, monthly_usd} pair are dropped rather than partially trusted — a half-written
+ * override would otherwise silently resolve against a field that does not exist.
+ */
+function normalizeProjects(raw: unknown): Record<string, ProjectBudget> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, ProjectBudget> = {};
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!id || !value || typeof value !== 'object') continue;
+    const { daily_usd, monthly_usd } = value as Partial<ProjectBudget>;
+    if (!isPositiveNumber(daily_usd) || !isPositiveNumber(monthly_usd)) continue;
+    out[id] = { daily_usd, monthly_usd };
+  }
+  return out;
+}
+
+/** Fill missing/invalid top-level fields from defaults and normalise the per-project map. */
+export function migrateBudget(raw: unknown): BudgetConfig {
+  const partial = (raw && typeof raw === 'object' ? raw : {}) as Partial<BudgetConfig>;
+  return {
+    daily_usd: isPositiveNumber(partial.daily_usd) ? partial.daily_usd : DEFAULT_BUDGET.daily_usd,
+    monthly_usd: isPositiveNumber(partial.monthly_usd) ? partial.monthly_usd : DEFAULT_BUDGET.monthly_usd,
+    projects: normalizeProjects(partial.projects),
+  };
+}
 
 function resolveCostsPath(): string {
   return process.env.CORTEX_COSTS_FILE || path.join(STORE_DIR, 'costs.jsonl');
@@ -57,8 +99,8 @@ export class CostRepo {
     if (!this._budgetRepo) {
       this._budgetRepo = new JsonRepository<BudgetConfig>({
         filePath: this._budgetPath ?? resolveBudgetPath(),
-        defaultValue: () => ({ ...DEFAULT_BUDGET }),
-        migrate: (raw) => ({ ...DEFAULT_BUDGET, ...(raw as Partial<BudgetConfig>) }),
+        defaultValue: () => ({ ...DEFAULT_BUDGET, projects: {} }),
+        migrate: migrateBudget,
       });
     }
     return this._budgetRepo;
@@ -136,6 +178,16 @@ export class CostRepo {
 
   async writeBudget(budget: BudgetConfig): Promise<void> {
     await this.budgetRepo.write(budget);
+  }
+
+  /**
+   * Drop the cached budget so the next readBudget() re-reads from disk.
+   * budget.json is also written out-of-band by the UI service (mutate/config.ts writes the file
+   * directly to stay hermetic over its configDir argument); without this the in-process view
+   * would stay stale until restart.
+   */
+  invalidateBudget(): void {
+    this._budgetRepo?.invalidate();
   }
 
   /**

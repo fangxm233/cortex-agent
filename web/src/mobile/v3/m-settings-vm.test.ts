@@ -14,7 +14,7 @@ function env(present: string[]): ConfigEnvEntry[] {
 
 function snap(over: Partial<ConfigSnapshot> = {}): ConfigSnapshot {
   return {
-    budget: { daily_usd: 10, monthly_usd: 200 },
+    budget: { daily_usd: 10, monthly_usd: 200, projects: {} },
     profiles: {
       defaultProfile: 'default',
       // The settings-editor fields play no part in the mobile summary; they carry their empty shape.

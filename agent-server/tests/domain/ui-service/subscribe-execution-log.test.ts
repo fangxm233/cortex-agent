@@ -28,7 +28,7 @@ function makeDeps(bus: EventBus, tailer: ExecutionLogTailer, records: Record<str
     executionLogTailer: tailer,
     approvalsPath: '/tmp/nonexistent-approvals.md',
     runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
+    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
     conversationHistory: { getHistory: async () => null },
     sendSessionMessage: () => {},
     bus,

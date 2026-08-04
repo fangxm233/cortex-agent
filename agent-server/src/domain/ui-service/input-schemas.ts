@@ -307,13 +307,29 @@ const settingsValueInput = z.object(settingsShape).partial().strict()
 // config.set: a discriminated union of the safely-writable sections. `budget` numbers must be
 // finite and positive; `profiles` selects an existing default; `settings` accepts only finite,
 // spec-typed partial overrides. Any section or settings key outside this union is rejected.
+//
+// `budget` targets the global limits by default, or one project's override when `project` is given.
+// Overrides are pair-only (both limits or neither), so `value` is never partial. An ABSENT (or
+// null) `value` means "clear this project's override" — meaningless, and destructive-looking,
+// without a `project`, so that combination is rejected. Both `project` and `value` accept null as
+// well as undefined because the generated tRPC client types collapse nullable optionals to
+// `undefined`, while direct in-process callers naturally pass null.
 export const configSetInput = z.discriminatedUnion('section', [
   z.object({
     section: z.literal('budget'),
+    project: z.string().min(1).nullish(),
     value: z.object({
       daily_usd: z.number().finite().positive(),
       monthly_usd: z.number().finite().positive(),
-    }),
+    }).nullish(),
+  }).superRefine((v, ctx) => {
+    if (v.value == null && !v.project) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['value'],
+        message: 'a budget write without a value clears a per-project override and requires `project`',
+      });
+    }
   }),
   z.object({
     section: z.literal('profiles'),

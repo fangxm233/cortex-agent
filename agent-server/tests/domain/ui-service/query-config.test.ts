@@ -67,7 +67,21 @@ async function makeFixture(): Promise<{ configDir: string; hooksDir: string }> {
 test('readConfigSnapshot parses budget', async () => {
   const { configDir } = await makeFixture();
   const snap = await readConfigSnapshot(configDir);
-  assert.deepEqual(snap.budget, { daily_usd: 100, monthly_usd: 2000 });
+  assert.deepEqual(snap.budget, { daily_usd: 100, monthly_usd: 2000, projects: {} });
+});
+
+test('readConfigSnapshot surfaces per-project budgets and drops half-pair entries', async () => {
+  const { configDir } = await makeFixture();
+  await fs.writeFile(path.join(configDir, 'budget.json'), JSON.stringify({
+    daily_usd: 100, monthly_usd: 2000,
+    projects: {
+      alpha: { daily_usd: 5, monthly_usd: 100 },
+      halfPair: { daily_usd: 5 },
+      notAnObject: 3,
+    },
+  }));
+  const snap = await readConfigSnapshot(configDir);
+  assert.deepEqual(snap.budget?.projects, { alpha: { daily_usd: 5, monthly_usd: 100 } });
 });
 
 test('readConfigSnapshot reports file, env, and default setting sources with plaintext values', async () => {
@@ -271,7 +285,7 @@ function makeMinimalDeps(): UiServiceDeps {
     executionLogTailer: { startTail: () => {}, stopTail: () => {}, refCount: () => 0 },
     approvalsPath: '/tmp/PENDING_APPROVALS.md',
     runningExecutions: { getAll: () => [] } as any,
-    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
+    costSummary: async () => ({ today: 0, week: 0, month: 0, total: 0, byMode: {} as any, byProject: {}, byTrigger: {}, bySource: {}, byBackend: {}, tokens: {} as any, entryCount: 0, dailyBudget: 0, monthlyBudget: 0, budgetScope: 'global' as const, forecastToday: 0, dailyCost: [], byTriggerScoped: {} }),
     bus: { subscribe: () => ({ unsubscribe: () => {} }), publish: () => {} } as any,
     createDirectSession: async () => ({ sessionId: '', sessionName: '', channel: '' }),
     cancelSessionRun: async () => 0,

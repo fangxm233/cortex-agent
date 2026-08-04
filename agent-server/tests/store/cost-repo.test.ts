@@ -173,7 +173,7 @@ test('CostRepo - readBudget returns defaults when file is missing', async () => 
 
 test('CostRepo - writeBudget persists and readBudget returns the value', async () => {
   const { repo } = createRepo();
-  await repo.writeBudget({ daily_usd: 42, monthly_usd: 999 });
+  await repo.writeBudget({ daily_usd: 42, monthly_usd: 999, projects: {} });
   const budget = await repo.readBudget();
   assert.equal(budget.daily_usd, 42);
   assert.equal(budget.monthly_usd, 999);
@@ -187,6 +187,68 @@ test('CostRepo - readBudget fills missing fields from DEFAULT_BUDGET', async () 
   const budget = await repo.readBudget();
   assert.equal(budget.daily_usd, 7);
   assert.equal(budget.monthly_usd, 8000, 'missing monthly_usd filled from DEFAULT_BUDGET');
+});
+
+// ── Budget: per-project overrides ─────────────────────────────
+
+test('CostRepo - a legacy two-field budget.json migrates to an empty projects map', async () => {
+  const { costsPath, budgetPath } = createRepo();
+  await fs.writeFile(budgetPath, JSON.stringify({ daily_usd: 300, monthly_usd: 8000 }));
+  const repo = new CostRepo({ costsPath, budgetPath });
+  const budget = await repo.readBudget();
+  assert.deepEqual(budget.projects, {}, 'legacy file reads as "no overrides", never undefined');
+});
+
+test('CostRepo - per-project overrides round-trip', async () => {
+  const { repo } = createRepo();
+  await repo.writeBudget({
+    daily_usd: 300, monthly_usd: 8000,
+    projects: { alpha: { daily_usd: 5, monthly_usd: 100 }, beta: { daily_usd: 12.5, monthly_usd: 250 } },
+  });
+  const budget = await repo.readBudget();
+  assert.deepEqual(budget.projects.alpha, { daily_usd: 5, monthly_usd: 100 });
+  assert.deepEqual(budget.projects.beta, { daily_usd: 12.5, monthly_usd: 250 });
+});
+
+test('CostRepo - malformed project entries are dropped, valid siblings survive', async () => {
+  const { costsPath, budgetPath } = createRepo();
+  await fs.writeFile(budgetPath, JSON.stringify({
+    daily_usd: 300, monthly_usd: 8000,
+    projects: {
+      good: { daily_usd: 5, monthly_usd: 100 },
+      halfPair: { daily_usd: 5 },              // overrides are pair-only
+      negative: { daily_usd: -1, monthly_usd: 100 },
+      wrongType: { daily_usd: '5', monthly_usd: 100 },
+      notAnObject: 42,
+    },
+  }));
+  const repo = new CostRepo({ costsPath, budgetPath });
+  const budget = await repo.readBudget();
+  assert.deepEqual(Object.keys(budget.projects), ['good'], 'only the complete positive pair survives');
+});
+
+test('CostRepo - a non-object projects field degrades to an empty map', async () => {
+  const { costsPath, budgetPath } = createRepo();
+  await fs.writeFile(budgetPath, JSON.stringify({ daily_usd: 300, monthly_usd: 8000, projects: 'nope' }));
+  const repo = new CostRepo({ costsPath, budgetPath });
+  assert.deepEqual((await repo.readBudget()).projects, {});
+});
+
+test('CostRepo - invalidateBudget picks up an out-of-band file write', async () => {
+  const { repo, budgetPath } = createRepo();
+  await repo.writeBudget({ daily_usd: 10, monthly_usd: 200, projects: {} });
+  assert.equal((await repo.readBudget()).daily_usd, 10);
+
+  // Simulate the UI service writing budget.json directly (mutate/config.ts atomicWrite path).
+  await fs.writeFile(budgetPath, JSON.stringify({
+    daily_usd: 77, monthly_usd: 200, projects: { alpha: { daily_usd: 3, monthly_usd: 60 } },
+  }));
+  assert.equal((await repo.readBudget()).daily_usd, 10, 'cache still serves the stale value');
+
+  repo.invalidateBudget();
+  const fresh = await repo.readBudget();
+  assert.equal(fresh.daily_usd, 77, 'invalidateBudget re-reads from disk');
+  assert.deepEqual(fresh.projects.alpha, { daily_usd: 3, monthly_usd: 60 });
 });
 
 // ── On-disk schema: JSONL format ──────────────────────────────

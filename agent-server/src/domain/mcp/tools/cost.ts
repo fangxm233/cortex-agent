@@ -1,22 +1,27 @@
 // input:  McpServer, cost-repo, cost-tracker
-// output: cost_query tool registration
-// pos:    MCP tool for querying current cost and budget status
+// output: cost_query tool registration (optional projectId scope)
+// pos:    MCP tool for querying current cost and budget status, global or per-project
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
+import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getCostSummary } from '../../costs/cost-tracker.js';
+import { getCostSummary, pickBudget } from '../../costs/cost-tracker.js';
 import { costRepo } from '@store/cost-repo.js';
 
 export function registerCostTools(server: McpServer): void {
   server.tool(
     'cost_query',
-    'Query current cost and budget status. Returns today/month spending, budget limits, remaining budget, api/plan cost split, source breakdown (gateway vs estimate), and token usage.',
-    {},
+    'Query current cost and budget status. Returns today/month spending, budget limits, remaining budget, api/plan cost split, source breakdown (gateway vs estimate), and token usage. Pass projectId to scope both the spend and the budget limits to one project.',
+    {
+      projectId: z.string().optional().describe('Scope the report to one project. Omit for the global view.'),
+    },
     { readOnlyHint: true },
-    async () => {
+    async ({ projectId }: { projectId?: string }) => {
       try {
-        const budget = await costRepo.readBudget();
-        const summaryData = await getCostSummary();
+        const scope = projectId ?? null;
+        const budgetConfig = await costRepo.readBudget();
+        const budget = pickBudget(budgetConfig, scope);
+        const summaryData = await getCostSummary(scope);
 
         const now = new Date();
         const pad = (n: number) => String(n).padStart(2, '0');
@@ -33,7 +38,11 @@ export function registerCostTools(server: McpServer): void {
         const dailyPct = ((todayTotal / budget.daily_usd) * 100).toFixed(1);
         const monthlyPct = ((monthTotal / budget.monthly_usd) * 100).toFixed(1);
 
+        const scopeLabel = budget.scope === 'project' ? 'per-project budget' : 'global budget';
         const lines = [
+          scope
+            ? `Project: ${scope} (${scopeLabel})`
+            : 'Scope: all projects (global budget)',
           `Today (${todayStr}): $${todayTotal.toFixed(2)} / $${budget.daily_usd} (${dailyPct}%, ${summaryData.entryCount} sessions in window)`,
           `  API: $${todayApi.toFixed(2)} | Plan: $${todayPlan.toFixed(2)}`,
           `Month (${monthStr}): $${monthTotal.toFixed(2)} / $${budget.monthly_usd} (${monthlyPct}%)`,

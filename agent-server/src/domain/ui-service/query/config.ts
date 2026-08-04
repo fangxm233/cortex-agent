@@ -44,11 +44,25 @@ async function listJsonBasenames(dir: string): Promise<string[]> {
   }
 }
 
+// Per-project overrides are pair-only: an entry missing either limit is dropped rather than
+// surfaced half-null, so the panel can never render an override that does not fully exist.
+function parseProjectBudgets(raw: unknown): Record<string, { daily_usd: number; monthly_usd: number }> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, { daily_usd: number; monthly_usd: number }> = {};
+  for (const [id, value] of Object.entries(raw as Record<string, any>)) {
+    if (!id || !value || typeof value !== 'object') continue;
+    if (typeof value.daily_usd !== 'number' || typeof value.monthly_usd !== 'number') continue;
+    out[id] = { daily_usd: value.daily_usd, monthly_usd: value.monthly_usd };
+  }
+  return out;
+}
+
 function parseBudget(raw: any): ConfigBudget | null {
   if (!raw || typeof raw !== 'object') return null;
   return {
     daily_usd: typeof raw.daily_usd === 'number' ? raw.daily_usd : null,
     monthly_usd: typeof raw.monthly_usd === 'number' ? raw.monthly_usd : null,
+    projects: parseProjectBudgets(raw.projects),
   };
 }
 

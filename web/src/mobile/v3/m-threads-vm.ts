@@ -7,8 +7,9 @@ import { fmtMoney } from '@/mobile/ui/format';
 import { formatAge, formatCost } from '@/features/workbench/right-panel-vm';
 
 // ── 今日 budget band (scheme L188–192) ────────────────────────────────────────
-// numerator = real scoped `cost.summary.today`; denominator = real `dailyBudget` (global; `—` when the
-// daemon reports no budget — honest, never the scheme's mocked $10.00). pct = today ÷ dailyBudget (0 when
+// numerator = real scoped `cost.summary.today`; denominator = real `dailyBudget`, resolved against
+// the same scope (a project's own budget.json override, else the global cap; `—` when the daemon
+// reports no budget — honest, never the scheme's mocked $10.00). pct = today ÷ dailyBudget (0 when
 // no denominator so the bar reads empty rather than fabricating a fill).
 export interface MBudgetBand {
   numerator: string;
