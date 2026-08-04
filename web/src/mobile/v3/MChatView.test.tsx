@@ -4,10 +4,11 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { renderToStaticMarkup } from 'react-dom/server';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { ComposerFullscreen } from '@/mobile/ui/kit';
 import type { ChatRow } from '@/features/workbench/transcript-vm';
-import { MChatStream, MChatView, type MChatCopy } from './MChatView';
+import { MChatStream, MChatView, type MChatCopy, type MChatEditCopy } from './MChatView';
 
 const copy: MChatCopy = {
   composerPh: 'composer',
@@ -141,5 +142,45 @@ describe('ComposerFullscreen send controls', () => {
 
   it('disables Send while running when the draft is empty', () => {
     expect(button(render(false), 'Send')).toContain('disabled');
+  });
+});
+
+// The 7a action overlay used to be told only WHICH row was held, so it rendered at a fixed offset
+// from the top of the screen and the floated copy of the bubble appeared far from the finger. The
+// press now reports where the bubble is; this pins that half of the contract (the placement maths
+// itself lives in m-chat-vm `msgMenuGroupTop`).
+describe('MChatStream long-press anchor', () => {
+  const editCopy: MChatEditCopy = {
+    menuCopy: '复制',
+    menuEdit: '编辑消息',
+    editingBadge: '编辑中',
+    willRewind: () => 'rewind',
+    editBarTitle: 'edit',
+    edited: '已编辑',
+    original: '原消息',
+    regenNote: 'regen',
+  };
+
+  it('reports the held bubble position alongside the row index', () => {
+    const held: Array<[number, number | null]> = [];
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <MChatStream
+          rows={[{ kind: 'user', text: 'mobile端也要' } as ChatRow]}
+          toolCallsUnit="tools"
+          editCopy={editCopy}
+          onLongPress={(rowIndex, anchorTop) => held.push([rowIndex, anchorTop])}
+        />,
+      );
+    });
+    const bubble = renderer.root.findAll((n) => n.props['data-msg-bubble'] === 0)[0];
+    act(() => {
+      bubble.props.onContextMenu({
+        preventDefault: () => {},
+        currentTarget: { getBoundingClientRect: () => ({ top: 512 }) },
+      });
+    });
+    expect(held).toEqual([[0, 512]]);
   });
 });

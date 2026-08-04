@@ -12,6 +12,9 @@ import {
   profileSub,
   buildProfileSheetItems,
   buildMobileChatRows,
+  msgMenuGroupTop,
+  MSG_MENU_SAFE_TOP,
+  MSG_MENU_SAFE_BOTTOM,
 } from './m-chat-vm';
 
 // The settings-editor fields (provider / claudeBackend / extraOption / extraEnvKeys / fallbackCount)
@@ -179,5 +182,35 @@ describe('buildMobileChatRows', () => {
   it('marks no row pending when nothing is waiting to be read', () => {
     const rows = buildMobileChatRows(transcriptOf('hello'), [], { now: new Date(TS) });
     expect(rows.some((r) => r.kind === 'user' && r.pending)).toBe(false);
+  });
+});
+
+// The 7a long-press overlay used to render at a fixed 120px from the top of the screen, so the
+// floated copy of the held bubble appeared nowhere near the bubble the finger was actually on.
+// These pin the anchored placement: the copy sits where the bubble sits, lifted only as far as it
+// must be to keep the whole group (copy + timestamp + menu) inside the screen.
+describe('msgMenuGroupTop', () => {
+  const overlay = { overlayTop: 100, overlayHeight: 700 };
+
+  it('places the floated group at the held bubble when the menu fits below it', () => {
+    expect(msgMenuGroupTop({ ...overlay, anchorTop: 300, groupHeight: 250 })).toBe(200);
+  });
+
+  it('lifts the group so the menu clears the bottom edge when the bubble is held low', () => {
+    const top = msgMenuGroupTop({ ...overlay, anchorTop: 640, groupHeight: 250 });
+    expect(top).toBe(700 - MSG_MENU_SAFE_BOTTOM - 250);
+    expect(top + 250).toBeLessThanOrEqual(700 - MSG_MENU_SAFE_BOTTOM);
+  });
+
+  it('keeps the group below the header when the bubble is held at the very top', () => {
+    expect(msgMenuGroupTop({ ...overlay, anchorTop: 110, groupHeight: 250 })).toBe(MSG_MENU_SAFE_TOP);
+  });
+
+  it('falls back to the top of the safe band when the press reported no anchor', () => {
+    expect(msgMenuGroupTop({ ...overlay, anchorTop: null, groupHeight: 250 })).toBe(MSG_MENU_SAFE_TOP);
+  });
+
+  it('never pushes the group above the safe band when it is taller than the screen', () => {
+    expect(msgMenuGroupTop({ ...overlay, anchorTop: 400, groupHeight: 900 })).toBe(MSG_MENU_SAFE_TOP);
   });
 });

@@ -1,5 +1,5 @@
 // input:  Session DTOs and shared transcript/interaction view models
-// output: Mobile chat rows, status, profile, and attachment view models
+// output: Chat rows, status, profile, attachment, action-menu placement
 // pos:    Pure presentation logic for the mobile session chat
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { ConfigProfileEntry, SessionTranscript } from '@cortex-agent/ui-contract';
@@ -150,6 +150,40 @@ export interface ProfileSheetItem {
 /** 1p Profile sheet rows (scheme L824-843): every configured profile, `当前` on the active one. */
 export function buildProfileSheetItems(profiles: ConfigProfileEntry[], current: string): ProfileSheetItem[] {
   return profiles.map((p) => ({ name: p.name, sub: profileSub(p), current: p.name === current }));
+}
+
+// ── 7a long-press action overlay placement ──
+// The overlay covers the chat BODY frame (transcript + composer), not the header — the same region
+// the 2b full-screen editor takes, which is why the band below needs no header/safe-area arithmetic.
+/** Inset from the top of that frame the floated group may not cross. */
+export const MSG_MENU_SAFE_TOP = 12;
+/** Inset from the bottom of that frame — keeps the menu off the screen edge. */
+export const MSG_MENU_SAFE_BOTTOM = 16;
+
+export interface MsgMenuLayout {
+  /** Viewport y of the held bubble's top edge; null when the press reported no anchor. */
+  anchorTop: number | null;
+  /** Viewport y of the overlay box (the chat screen root). */
+  overlayTop: number;
+  /** Height of that overlay box. */
+  overlayHeight: number;
+  /** Measured height of the floated group: bubble copy + timestamp + menu. */
+  groupHeight: number;
+}
+
+/**
+ * Where the floated group sits inside the overlay, in overlay-local px.
+ *
+ * The copy of the held bubble stays ON the bubble the finger is holding, the way the iOS context
+ * menu lifts a row in place. It is pushed down only to clear the header, and lifted only as far as
+ * the menu hanging under it needs to clear the bottom edge — so the message you are acting on never
+ * appears somewhere other than where you pressed. A group too tall for the band at all pins to the
+ * top instead of escaping upward off-screen (the copy carries its own height cap for that case).
+ */
+export function msgMenuGroupTop(l: MsgMenuLayout): number {
+  const lowest = l.overlayHeight - MSG_MENU_SAFE_BOTTOM - l.groupHeight;
+  if (l.anchorTop == null || lowest <= MSG_MENU_SAFE_TOP) return MSG_MENU_SAFE_TOP;
+  return Math.max(MSG_MENU_SAFE_TOP, Math.min(l.anchorTop - l.overlayTop, lowest));
 }
 
 // ── 1o attachment chip model (real upload state machine, ported from desktop Composer) ──

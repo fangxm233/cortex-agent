@@ -402,6 +402,8 @@ export function MChatScreen(): JSX.Element {
   const [sessionIdOpen, setSessionIdOpen] = useState(false);
   // sec-7: long-press action menu (held row) · 7b edit mode (edited row) · 原消息 sheet.
   const [msgMenuIdx, setMsgMenuIdx] = useState<number | null>(null);
+  // Where the held bubble was when the press fired — the 7a overlay floats its copy there.
+  const [msgMenuAnchorTop, setMsgMenuAnchorTop] = useState<number | null>(null);
   const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
   const [originalSheet, setOriginalSheet] = useState<{ text: string } | null>(null);
   // Composer text before the edit hijacked it — restored on × cancel (原样退出).
@@ -529,6 +531,7 @@ export function MChatScreen(): JSX.Element {
     heldRow && (heldRow.kind === 'user' || heldRow.kind === 'assistant')
       ? {
           rowIndex: msgMenuIdx!,
+          anchorTop: msgMenuAnchorTop,
           onCopy: () => { void navigator.clipboard?.writeText(heldRow.text).catch(() => {}); },
           ...(heldRow.kind === 'user' && heldRow.turnIndex !== undefined
             ? { onEdit: () => startEdit(msgMenuIdx!), editDisabled: running || rewindMut.isPending }
@@ -751,7 +754,7 @@ export function MChatScreen(): JSX.Element {
         rejectBar={rejectBar}
         editCopy={pickCopy(lang, EDIT_COPY)}
         msgMenu={msgMenu}
-        onLongPress={(rowIndex) => setMsgMenuIdx(rowIndex)}
+        onLongPress={(rowIndex, anchorTop) => { setMsgMenuAnchorTop(anchorTop); setMsgMenuIdx(rowIndex); }}
         editing={editing}
         onShowOriginal={(edited) => setOriginalSheet({ text: edited.originalText })}
         originalSheet={originalSheet ? { text: originalSheet.text, onClose: () => setOriginalSheet(null) } : null}
