@@ -125,7 +125,9 @@ function RightWorkPanel(): JSX.Element {
   // included. The former badge counted only strictly-claimable tasks and read as a second, smaller
   // truth beside the chip.
   const tasksQuery = useQuery(trpc.tasks.list.queryOptions({ ...(projectId ? { projectId } : {}) }));
-  const machinesQuery = useQuery(trpc.machines.list.queryOptions({}));
+  // Polled: client connect/disconnect is not pushed to the UI, so the online badge would otherwise
+  // stay stale until the panel remounts or the window regains focus.
+  const machinesQuery = useQuery({ ...trpc.machines.list.queryOptions({}), refetchInterval: 10_000 });
   const activeThreadCount = threadGroups.find((group) => group.kind === 'active')?.threads.length ?? 0;
   const openTaskCount = tasksQuery.data ? actionableOpenCount(tasksQuery.data) : 0;
   // Machines tab badge = ONLINE machines, not the total in the registry (task: show online count).

@@ -63,6 +63,7 @@ export {
   profilesUpdateInput,
   profilesRemoveInput,
   machinesListInput,
+  machineDetailInput,
   skillsListInput,
   threadTemplatesGetInput,
   threadTemplatesDetailInput,

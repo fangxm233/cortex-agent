@@ -85,6 +85,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | login-command-interactions.test.ts | test | chat notice actions, device codes and reuse |
 | login-custom-command.test.ts | test | custom provider chat listing, writes and usage |
 | machines-query.test.ts | test | machines list online/offline projection |
+| machines-detail-query.test.ts | test | machine probe parsing and live-run join |
 | manager-qa.test.ts | test | manager ask/answer channel resolution |
 | manager-rotation.test.ts | test | live settings and task-artifact rehydration |
 | manager-task-artifact.test.ts | test | task-keyed manager artifact placement |

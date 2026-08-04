@@ -21,6 +21,7 @@ import { handleAuthFlowState, handleAuthStatus } from './query/auth.js';
 import { handleCustomProvidersList } from './query/custom-providers.js';
 import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
+import { handleMachineDetail } from './query/machine-detail.js';
 import { handleSkillsList } from './query/skills.js';
 import { handleThreadTemplatesGet } from './query/thread-templates.js';
 import { handleThreadTemplatesDetail } from './query/thread-template-detail.js';
@@ -110,6 +111,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'auth.customProviders': (deps, params) => handleCustomProvidersList(deps, params),
   'hooks.list': (deps, params) => handleHooksList(deps, params),
   'machines.list': (deps, params) => handleMachinesList(deps, params),
+  'machines.detail': (deps, params) => handleMachineDetail(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),
   'threadTemplates.get': (deps, params) => handleThreadTemplatesGet(deps, params),
   'threadTemplates.detail': (deps, params) => handleThreadTemplatesDetail(deps, params),

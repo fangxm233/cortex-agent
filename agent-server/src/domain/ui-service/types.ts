@@ -101,6 +101,7 @@ export type QueryScope =
   | 'auth.customProviders'
   | 'hooks.list'
   | 'machines.list'
+  | 'machines.detail'
   | 'skills.list'
   | 'threadTemplates.get'
   | 'threadTemplates.detail'
@@ -290,6 +291,11 @@ export interface AuthFlowStateParams {
 export type AuthCustomProvidersParams = Record<string, never>;
 
 export type MachinesListParams = Record<string, never>;
+
+export interface MachineDetailParams {
+  /** Machine name as registered in machines.json. */
+  machine: string;
+}
 
 export type SkillsListParams = Record<string, never>;
 
@@ -1250,6 +1256,69 @@ export interface MachineInfo {
   liveRuns: number;
 }
 
+// ── machines.detail DTO ──────────────────────────────────────────────────────
+// Live per-machine probe, fetched lazily when a machine card is expanded. One bash round trip to
+// the device (nvidia-smi + nproc/loadavg/free/df/uptime) joined with the running dispatch records.
+// Never folded into machines.list: probing is an RPC to a possibly-slow device, so it stays behind
+// an explicit expand. A failed or unavailable probe is reported via probeError, never as empty data.
+
+/** A compute process holding memory on a GPU (from `nvidia-smi --query-compute-apps`). */
+export interface MachineGpuProcess {
+  pid: string;
+  /** Process name as reported by nvidia-smi (may be a bare name or a full path). */
+  name: string;
+  memoryMb: number;
+}
+
+export interface MachineGpu {
+  /** CUDA device ordinal — the same index MachineLiveRun.gpuIndices refers to. */
+  index: number;
+  name: string;
+  utilPercent: number;
+  memUsedMb: number;
+  memTotalMb: number;
+  tempC: number;
+  powerW: number;
+  processes: MachineGpuProcess[];
+}
+
+/** Host vitals in absolute units; every field is null when the host did not report it. */
+export interface MachineVitals {
+  cpuCores: number | null;
+  loadAvg1: number | null;
+  memUsedMb: number | null;
+  memTotalMb: number | null;
+  /** Free/total space on the filesystem holding the machine's cortexPath. */
+  diskFreeGb: number | null;
+  diskTotalGb: number | null;
+  uptimeSec: number | null;
+}
+
+/** A dispatch execution currently running on this machine (from executionRegistry). */
+export interface MachineLiveRun {
+  executionId: string;
+  taskId: string | null;
+  runName: string | null;
+  project: string | null;
+  /** GPU ordinals the run actually acquired (recorded by the client watcher); [] when unknown. */
+  gpuIndices: number[];
+  startedAt: string | null;
+}
+
+export interface MachineDetail {
+  name: string;
+  online: boolean;
+  /** null when the machine is offline or the probe failed. */
+  vitals: MachineVitals | null;
+  /** Empty when the machine is offline, has no nvidia-smi, or the probe failed. */
+  gpus: MachineGpu[];
+  liveRuns: MachineLiveRun[];
+  /** ISO timestamp of the successful probe; null when no probe ran or it failed. */
+  probedAt: string | null;
+  /** Human-readable probe failure reason; null when the probe succeeded or was skipped. */
+  probeError: string | null;
+}
+
 // ── threadTemplates.get DTO (plan §12 A item 3 / 9c) ────────────────────────
 // Full body of every thread-template JSON file under
 // config/thread-templates/{templates,agents,shells}/*.json.
@@ -1677,6 +1746,7 @@ export interface QueryParamMap {
   'auth.customProviders': AuthCustomProvidersParams;
   'hooks.list': HooksListParams;
   'machines.list': MachinesListParams;
+  'machines.detail': MachineDetailParams;
   'skills.list': SkillsListParams;
   'threadTemplates.get': ThreadTemplatesGetParams;
   'threadTemplates.detail': ThreadTemplateDetailParams;
@@ -1708,6 +1778,7 @@ export interface QueryReturnMap {
   'auth.customProviders': CustomProviderView[];
   'hooks.list': HooksOverview;
   'machines.list': MachineInfo[];
+  'machines.detail': MachineDetail;
   'skills.list': SkillGroup[];
   'threadTemplates.get': ThreadTemplateEntry[];
   'threadTemplates.detail': ThreadTemplateDetail;
@@ -2011,6 +2082,13 @@ export interface UiServiceDeps {
       ssh?: string;
       win?: boolean;
     }>;
+    /**
+     * Run a read-only shell probe on a connected device and return its stdout (machines.detail).
+     * Optional so servers/tests without the remote transport degrade to a reported probeError
+     * rather than fabricating empty telemetry. The command is built server-side — callers never
+     * forward user input into it.
+     */
+    probeMachine?(device: string, command: string, timeoutMs: number): Promise<string>;
   };
   bus: EventBus;
   adapter: PlatformAdapter;

@@ -37,7 +37,7 @@ import { projectStore } from '@domain/projects/index.js';
 import { sendStartupDmIfConfigured } from './startup-notify.js';
 import { subscribeDaemonNotices } from './daemon-notice.js';
 import { startGateway, stopGateway } from '@domain/costs/gateway-manager.js';
-import { startClientManager, stopClientManager, startAllRemoteClients, getOnlineDevices, isDeviceOnline } from '@domain/remote/client-manager.js';
+import { startClientManager, stopClientManager, startAllRemoteClients, getOnlineDevices, isDeviceOnline, sendCommand } from '@domain/remote/client-manager.js';
 import { checkAndUpdateClients, formatUpdateSlackMessage } from '@domain/remote/client-hot-reload.js';
 import { checkServerUpdate } from '@domain/system/server-update-check.js';
 import { emitSystemNotice } from '@domain/system/system-notice.js';
@@ -428,6 +428,11 @@ process.on('SIGTERM', async () => {
       getOnlineDevices,
       isDeviceOnline,
       getMachineRegistry,
+      // machines.detail expand: run the read-only telemetry probe over the existing client WebSocket.
+      probeMachine: async (device, command, timeout) => {
+        const result = await sendCommand(device, { action: 'bash', params: { command }, timeout });
+        return typeof result?.stdout === 'string' ? result.stdout : '';
+      },
     },
     // S4 chat Stop: cancel the agent(s) running on the session's channel via the orchestration
     // channel-cancel path (same code the no-arg/`--all` !cancel command uses). Injected here so the

@@ -77,7 +77,9 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | RightThreadCard.tsx | view | Opens run, task and thread details from activity rows |
 | RightThreadCard.test.tsx | test | Tests waiting-task click delegation |
 | RightThreadCard.layout.test.tsx | test | Browser-checks long subtask row containment |
-| RightMachinesTab.tsx | view | Lists machines with status, GPUs and live runs |
+| RightMachinesTab.tsx | view | Expandable machine cards with live probe telemetry |
+| machine-detail-vm.ts | vm | Maps the machine probe to meters, GPU and run rows |
+| machine-detail-vm.test.ts | test | Tests machine meters, GPU owners and formatters |
 | scope.ts | util | Groups active and historical threads |
 | scope.test.ts | test | Tests fixed thread lifecycle groups |
 | useRecentNow.ts | hook | Ticks recent lists once per minute |

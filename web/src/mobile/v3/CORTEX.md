@@ -69,8 +69,9 @@ The view models are framework-free record to slot mappings and each one has a co
 | MMemoryFileView.tsx | view | Read-only markdown file with header metaline |
 | m-memory-file-vm.ts | vm | Derives basename, byte size and metaline |
 | m-memory-file-vm.test.ts | test | Unit tests for the memory file view model |
-| MMachinesScreen.tsx | screen | Binds the machine registry list and back nav |
-| MMachinesView.tsx | view | Machine cards with online and heartbeat state |
+| MMachinesScreen.tsx | screen | Binds the machine list, expand state and probe |
+| MMachinesView.tsx | view | Expandable machine cards with probe telemetry |
+| MMachinesView.test.tsx | test | Tests collapsed and expanded panel gating |
 | m-machines-vm.ts | vm | Maps machine records to cards and online counts |
 | m-machines-vm.test.ts | test | Unit tests for the machines view model |
 | MDaemonScreen.tsx | screen | Binds daemon status, counts and restart |

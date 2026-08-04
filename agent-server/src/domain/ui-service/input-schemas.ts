@@ -100,6 +100,10 @@ export const authCustomProvidersInput = z.object({});
 
 export const machinesListInput = z.object({});
 
+export const machineDetailInput = z.object({
+  machine: z.string().min(1),
+});
+
 export const skillsListInput = z.object({});
 
 export const threadTemplatesGetInput = z.object({});
@@ -598,6 +602,7 @@ export const queryInputSchemas = {
   'auth.customProviders': authCustomProvidersInput,
   'hooks.list': hooksListInput,
   'machines.list': machinesListInput,
+  'machines.detail': machineDetailInput,
   'skills.list': skillsListInput,
   'threadTemplates.get': threadTemplatesGetInput,
   'threadTemplates.detail': threadTemplatesDetailInput,
