@@ -1,6 +1,6 @@
-// input:  Codex response headers, a clock reading
-// output: parseCodexQuotaHeaders and the quota reading types
-// pos:    Turns x-codex-* quota headers into throttle windows
+// input:  Codex response headers, a clock reading, notice strings
+// output: quota header parsing, reading types and the notice codec
+// pos:    Codex quota vocabulary shared by the PI child and the server
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 /** Provider slug this reading is attributed to; matches the gateway route and profile provider. */
@@ -88,4 +88,41 @@ export function parseCodexQuotaHeaders(
   }
   if (windows.length === 0) return null;
   return { provider: CODEX_PROVIDER, planType: map.get('x-codex-plan-type') ?? null, windows };
+}
+
+// ─── Child → server wire form ─────────────────────────────────────
+// The reading is observed inside the PI child, which reaches the server only over PI's RPC stream.
+// `ctx.ui.notify` is the one fire-and-forget message on that stream, so a reading rides it as a
+// prefixed JSON string; the prefix is what lets the parser tell it apart from real user notices.
+
+const QUOTA_NOTICE_PREFIX = 'cortex:provider-quota:';
+
+export function encodeQuotaNotice(reading: CodexQuotaReading): string {
+  return QUOTA_NOTICE_PREFIX + JSON.stringify(reading);
+}
+
+/** Returns null for anything that is not a well-formed quota notice — an ordinary notification,
+ *  a truncated payload, or a reading with no window. Callers treat null as "not for us". */
+export function decodeQuotaNotice(message: unknown): CodexQuotaReading | null {
+  if (typeof message !== 'string' || !message.startsWith(QUOTA_NOTICE_PREFIX)) return null;
+  const parsed = safeParse(message.slice(QUOTA_NOTICE_PREFIX.length));
+  if (!parsed || !Array.isArray(parsed.windows) || parsed.windows.length === 0) return null;
+  const windows = parsed.windows.filter(isQuotaWindow);
+  if (windows.length !== parsed.windows.length) return null;
+  return { provider: CODEX_PROVIDER, planType: typeof parsed.planType === 'string' ? parsed.planType : null, windows };
+}
+
+function safeParse(raw: string): { windows?: unknown; planType?: unknown } | null {
+  try {
+    const value = JSON.parse(raw);
+    return value && typeof value === 'object' ? value as { windows?: unknown } : null;
+  } catch {
+    return null;
+  }
+}
+
+function isQuotaWindow(value: unknown): value is QuotaWindow {
+  const w = value as QuotaWindow | null;
+  return !!w && typeof w.type === 'string' && w.type.length > 0
+    && Number.isFinite(w.utilization) && Number.isFinite(w.resetsAt);
 }

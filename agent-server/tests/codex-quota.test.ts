@@ -1,11 +1,15 @@
 // input:  Vitest, codex quota header fixtures
-// output: window-extraction and disabled-window assertions
-// pos:    Covers Codex rate-limit header parsing into throttle windows
+// output: window-extraction, disabled-window and notice-codec assertions
+// pos:    Covers Codex quota header parsing and its child-to-server wire form
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { parseCodexQuotaHeaders } from '../src/domain/costs/codex-quota-headers.js';
+import {
+  parseCodexQuotaHeaders,
+  encodeQuotaNotice,
+  decodeQuotaNotice,
+} from '../src/domain/costs/codex-quota.js';
 
 /** Real capture from chatgpt.com/backend-api via the Cortex gateway (2026-08-04, pro plan). */
 const LIVE_HEADERS: Record<string, string> = {
@@ -93,6 +97,27 @@ test('returns null when every window is disabled so a dead bucket never throttle
     { nowMs: 1785822470_000 },
   );
   assert.equal(reading, null);
+});
+
+test('carries a reading across the notice codec unchanged', () => {
+  const reading = parseCodexQuotaHeaders(LIVE_HEADERS, { nowMs: 1785822470_000 })!;
+  assert.deepEqual(decodeQuotaNotice(encodeQuotaNotice(reading)), reading);
+});
+
+test('decodes only prefixed notices so ordinary notify text stays inert', () => {
+  assert.equal(decodeQuotaNotice('Build finished'), null);
+  assert.equal(decodeQuotaNotice(''), null);
+  assert.equal(decodeQuotaNotice(undefined), null);
+  assert.equal(decodeQuotaNotice(42), null);
+});
+
+test('rejects a prefixed notice whose payload is not a usable reading', () => {
+  const prefix = encodeQuotaNotice(
+    parseCodexQuotaHeaders(LIVE_HEADERS, { nowMs: 1785822470_000 })!,
+  ).split('{')[0];
+  assert.equal(decodeQuotaNotice(`${prefix}not json`), null);
+  assert.equal(decodeQuotaNotice(`${prefix}{"provider":"openai-codex"}`), null);
+  assert.equal(decodeQuotaNotice(`${prefix}{"provider":"openai-codex","windows":[]}`), null);
 });
 
 test('ignores a malformed used-percent rather than reporting a bogus utilization', () => {

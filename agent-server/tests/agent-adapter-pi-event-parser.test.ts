@@ -395,6 +395,25 @@ test('extension_ui_request fire-and-forget methods → []', () => {
   }
 });
 
+test('extension_ui_request notify carrying a provider-quota notice → rate_limit', () => {
+  const state = freshState();
+  const reading = {
+    provider: 'openai-codex',
+    planType: 'pro',
+    windows: [{ type: 'seven_day', utilization: 0.93, resetsAt: 1786160107 }],
+  };
+  const events = piRpcLineToNormalized(
+    line({
+      type: 'extension_ui_request',
+      id: 'u6',
+      method: 'notify',
+      message: `cortex:provider-quota:${JSON.stringify(reading)}`,
+    }),
+    state,
+  );
+  assert.deepEqual(events, [{ type: 'rate_limit', raw: reading }]);
+});
+
 test('extension_ui_request: missing id or method → []', () => {
   const state = freshState();
   assert.deepEqual(piRpcLineToNormalized(line({ type: 'extension_ui_request', method: 'select', title: 'T' }), state), []);
