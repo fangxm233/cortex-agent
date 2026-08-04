@@ -13,6 +13,7 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 | discovery.ts | core | refreshes the host provider cache |
 | session-files.ts | core | resolves a PI transcript path without ambient reach |
 | providers-config.ts | config | writes the PI provider catalog at an explicit path |
+| custom-catalog.ts | config | reads user-defined provider blocks from a catalog file |
 | policy-guard.ts | core | decides PI tool dispatch fail-closed from the compiled guard |
 | mcp-duration.ts | core | bounds an MCP call by the trial deadline plus cleanup grace |
 | event-parser.ts | parser | translates PI events with nullable accounting |

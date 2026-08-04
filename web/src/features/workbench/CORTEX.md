@@ -51,6 +51,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | composer-draft.ts | util | Persists, restores and prefills drafts |
 | composer-draft.test.ts | test | Tests draft keys, parsing and send restoration |
 | optimistic-message.ts | vm | Reconciles local sends with source-aware message evidence |
+| useOptimisticUserMessages.ts | hook | Holds the shared optimistic-send lifecycle for both chats |
 | optimistic-message.test.ts | test | Tests stale rows, de-duplication and failure |
 | optimistic-message.integration.test.tsx | test | Tests pending sends and authority races |
 | composer-slash.ts | util | Resolves a slash-menu pick into a command |

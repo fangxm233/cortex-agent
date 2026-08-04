@@ -13,6 +13,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter/ | subdir | backend adapter and event normalizer tests |
 | agent-adapter-claude.test.ts | test | Claude CLI, hooks, compact and settings |
 | agent-adapter-pi-agent-dir.test.ts | test | PI provider config and auth dir setup |
+| agent-adapter-pi-custom-catalog.test.ts | test | user-defined providers reaching the spawn catalog |
 | agent-adapter-pi-event-parser.test.ts | test | PI events with nullable exact accounting |
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |

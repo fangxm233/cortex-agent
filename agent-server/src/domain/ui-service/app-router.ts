@@ -66,6 +66,9 @@ import {
   hooksSetEnabledInput,
   hooksRemoveInput,
   hooksTestInput,
+  profilesCreateInput,
+  profilesUpdateInput,
+  profilesRemoveInput,
   machinesListInput,
   skillsListInput,
   threadTemplatesGetInput,
@@ -277,6 +280,15 @@ function hooksRouter(service: UiService) {
   });
 }
 
+// The profiles map of profiles.json. `config.set {section:'profiles'}` keeps owning defaultProfile.
+function profilesRouter(service: UiService) {
+  return router({
+    create: makeMutation(service, 'profiles.create', profilesCreateInput),
+    update: makeMutation(service, 'profiles.update', profilesUpdateInput),
+    remove: makeMutation(service, 'profiles.remove', profilesRemoveInput),
+  });
+}
+
 function authRouter(service: UiService) {
   return router({
     status: makeQuery(service, 'auth.status', authStatusInput),
@@ -326,6 +338,7 @@ export function createAppRouter(service: UiService) {
       get: makeQuery(service, 'config.get', configGetInput),
       set: makeMutation(service, 'config.set', configSetInput),
     }),
+    profiles: profilesRouter(service),
     auth: authRouter(service),
     hooks: hooksRouter(service),
     machines: router({ list: makeQuery(service, 'machines.list', machinesListInput) }),

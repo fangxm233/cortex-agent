@@ -27,6 +27,13 @@ export interface ProviderOverride {
    * the static table covers the known cases.
    */
   compat?: Record<string, unknown>;
+  /**
+   * Complete provider block for a user-defined provider, written verbatim. PI knows nothing about
+   * such a provider, so a `baseUrl`-only override would strip the protocol (`api`) and the model
+   * list and leave PI unable to call it. When set, `basePath`/`compat` are ignored — the definition
+   * already carries its own gateway `baseUrl`.
+   */
+  entry?: Record<string, unknown>;
 }
 
 /**
@@ -62,8 +69,12 @@ export function writeProvidersConfig(
 ): void {
   const targetPath = opts.modelsPath;
 
-  const providersBlock: Record<string, { baseUrl: string; compat?: Record<string, unknown> }> = {};
+  const providersBlock: Record<string, Record<string, unknown>> = {};
   for (const p of providers) {
+    if (p.entry) {
+      providersBlock[p.name] = p.entry;
+      continue;
+    }
     const basePath = p.basePath ?? `/${p.name}`;
     const entry: { baseUrl: string; compat?: Record<string, unknown> } = {
       baseUrl: `${gatewayUrl}${basePath}`,
@@ -122,4 +133,18 @@ export function buildProviderOverrides(
     });
   }
   return Array.from(byName.values());
+}
+
+/**
+ * Attach user-defined provider definitions to the overrides that name them, so the catalog carries
+ * a complete block for each one. Overrides without a definition (PI built-ins) are untouched.
+ */
+export function withCustomEntries(
+  overrides: ProviderOverride[],
+  definitions: Record<string, Record<string, unknown>>,
+): ProviderOverride[] {
+  return overrides.map((override) => {
+    const entry = definitions[override.name];
+    return entry ? { ...override, entry } : override;
+  });
 }

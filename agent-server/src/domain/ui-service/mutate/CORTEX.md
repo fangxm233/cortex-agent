@@ -9,7 +9,8 @@ Write side of the UI service — one handler module per domain area the UI is al
 | auth.ts | mutate | Controls Web login flows and account logout |
 | issues.ts | mutate | handles or deletes project issue entries |
 | notes.ts | mutate | edits and completes private project notes |
-| config.ts | mutate | writes budget, profile and runtime settings |
+| config.ts | mutate | writes budget, default profile and runtime settings |
+| profiles.ts | mutate | creates, edits and removes profiles.json entries |
 | hooks.ts | mutate | creates, edits, toggles, removes and tests hooks |
 | schedules.ts | mutate | adds, pauses, resumes, and removes schedules |
 | tasks.ts | mutate | claims, completes, and blocks tasks |

@@ -16,6 +16,8 @@ import {
   rewindStats,
 } from '@/features/workbench/transcript-vm';
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
+import { useOptimisticUserMessages } from '@/features/workbench/useOptimisticUserMessages';
+import { runOptimisticMutation } from '@/features/workbench/optimistic-message';
 import { useInteractionActions } from '@/features/workbench/useInteractionActions';
 import { useMarkSessionRead } from '@/features/workbench/useMarkSessionRead';
 import { useSessionCompact } from '@/features/workbench/useSessionCompact';
@@ -29,7 +31,14 @@ import { buildMobileStepper } from '@/mobile/screens/mobile-session-vm';
 import { MobileThreadStepper } from '@/mobile/screens/MobileThreadStepper';
 import type { AttachmentMeta } from '@/features/workbench/chat-content';
 import { fetchFileObjectUrl } from '@/lib/files';
-import { draftStorageKey, loadDraft, saveDraft, clearDraft } from '@/features/workbench/composer-draft';
+import {
+  draftStorageKey,
+  loadDraft,
+  saveDraft,
+  clearDraft,
+  mergeRestoredDraft,
+  type ComposerDraft,
+} from '@/features/workbench/composer-draft';
 import { apiBase, authHeaders } from '@/lib/desktop-config';
 import {
   askCardModel,
@@ -241,12 +250,23 @@ export function MChatScreen(): JSX.Element {
   // seconds later. The opt-in costs one SSE connection, so no other consumer of this hook asks for
   // it — notably the plan reading page (MPlanReadScreen), which renders no chat. `transcript` is
   // passed back in only so a pending row self-heals if its delivered event is lost to a dropped frame.
-  const { liveTail, streaming, running, liveTurns, contextUsage, streamingText, pendingUser } =
+  const { liveTail, getMessageSnapshot, streaming, running, liveTurns, contextUsage, streamingText, pendingUser } =
     useSessionMessageLiveSync(sessionId, active?.running, active?.backgroundRunning, {
       deltas: true,
       transcript: transcriptQuery.data ?? null,
       contextUsage: active?.contextUsage ?? null,
     });
+  // A sent message shows in the stream on the frame it is sent (same reconciliation the desktop
+  // chat uses), instead of vanishing until the server echoes it back.
+  const optimistic = useOptimisticUserMessages({
+    sessionId,
+    isDraft,
+    projectId: currentProjectId ?? 'general',
+    transcript: transcriptQuery.data ?? null,
+    liveTail,
+    pendingUser,
+    getMessageSnapshot,
+  });
   const compactAction = useSessionCompact(sessionId, {
     running,
     hasBackendHistory: !!active?.backendSessionId,
@@ -260,8 +280,10 @@ export function MChatScreen(): JSX.Element {
   useMarkSessionRead(sessionId, `${liveTail.length}:${running}`);
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
-    () => buildMobileChatRows(transcript, liveTail, { streaming, streamingText, pendingUser }),
-    [transcript, liveTail, streaming, streamingText, pendingUser],
+    () => buildMobileChatRows(transcript, liveTail, {
+      streaming, streamingText, pendingUser: optimistic.pendingUser,
+    }),
+    [transcript, liveTail, streaming, streamingText, optimistic.pendingUser],
   );
   const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
   const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
@@ -347,15 +369,10 @@ export function MChatScreen(): JSX.Element {
 
   // ── mutations ──
   const sendMut = useMutation(trpc.sessions.send.mutationOptions());
-  const createAndSendMut = useMutation(
-    trpc.sessions.createAndSend.mutationOptions({
-      onSuccess: (data) => {
-        setPendingCreatedSession({ sessionId: data.sessionId, profileName: draftProfile });
-        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
-        navigate(`/m/session/${data.sessionId}`, { replace: true });
-      },
-    }),
-  );
+  // The created session is adopted in the send's onAccepted, not here: promoting the optimistic row
+  // onto the new session id and navigating to it must land in one render, or the row blinks out
+  // while the draft scope is already gone.
+  const createAndSendMut = useMutation(trpc.sessions.createAndSend.mutationOptions());
   const setProfileMut = useMutation(
     trpc.sessions.setProfile.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries(trpc.sessions.list.queryFilter()),
@@ -529,6 +546,28 @@ export function MChatScreen(): JSX.Element {
       ? hasText && !interactionActions.busy
       : (hasText || doneMetas.length > 0) && (!!sessionId || isDraft) && !uploading && !sendMut.isPending && !createAndSendMut.isPending;
 
+  // A rejected send clears the composer optimistically too, so its content has to come back rather
+  // than disappear with the row. Still on the same scope → merge it into the live composer (text
+  // typed while the send was in flight is kept, below the restored text); moved on → merge it into
+  // that scope's stored draft so it is there when the user returns.
+  const restoreRejectedSend = (sent: ComposerDraft, sentKey: string | null, error: Error): void => {
+    if (draftKeyRef.current !== sentKey) {
+      saveDraft(sentKey, mergeRestoredDraft(loadDraft(sentKey) ?? { text: '', attachments: [] }, sent));
+      return;
+    }
+    if (sent.draftUploadId) draftUploadId.current = sent.draftUploadId;
+    setText((current) => [sent.text, current].filter((v) => v.length > 0).join('\n'));
+    setUploads((prev) => [
+      ...sent.attachments
+        .filter((m) => !prev.some((u) => u.meta?.path === m.path))
+        .map((m) => ({ id: nextId(), status: 'done' as const, progress: 100, meta: m, type: m.type })),
+      ...prev,
+    ]);
+    setSystemLines((prev) => [...prev, lang === 'zh'
+      ? `发送失败 · ${error.message} · 内容已退回输入框`
+      : `send failed · ${error.message} · text restored to the composer`]);
+  };
+
   const onSend = (): void => {
     const t = text.trim();
     if (!sendEnabled) return;
@@ -556,17 +595,38 @@ export function MChatScreen(): JSX.Element {
       setText('');
       return;
     }
-    if (isDraft) {
-      createAndSendMut.mutate({
-        projectId: currentProjectId ?? 'general',
-        profileName: draftProfile ?? undefined,
-        text: t,
-        draftUploadId: draftUploadId.current ?? undefined,
-        ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}),
-      } as never);
-    } else {
-      sendMut.mutate({ sessionId, text: t, ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}) } as never);
-    }
+    // The row is enqueued before the mutation is awaited, so the message is on screen on the same
+    // frame the composer clears — the send no longer looks dropped while the server round-trips.
+    const sent: ComposerDraft = {
+      text: t,
+      attachments: doneMetas,
+      ...(isDraft && draftUploadId.current ? { draftUploadId: draftUploadId.current } : {}),
+    };
+    const sentKey = draftKey;
+    const mutation = runOptimisticMutation<{ sessionId: string } | { accepted: boolean }>({
+      message: optimistic.prepare(t, doneMetas),
+      mutate: () => isDraft
+        ? createAndSendMut.mutateAsync({
+            projectId: currentProjectId ?? 'general',
+            profileName: draftProfile ?? undefined,
+            text: t,
+            draftUploadId: sent.draftUploadId,
+            ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}),
+          } as never)
+        : sendMut.mutateAsync({ sessionId, text: t, ...(doneMetas.length > 0 ? { attachments: doneMetas } : {}) } as never),
+      onEnqueue: optimistic.enqueue,
+      onAccepted: (entry, data) => {
+        if (!('sessionId' in data)) {
+          optimistic.accept(entry.clientId);
+          return;
+        }
+        optimistic.accept(entry.clientId, data.sessionId);
+        setPendingCreatedSession({ sessionId: data.sessionId, profileName: draftProfile });
+        queryClient.invalidateQueries(trpc.sessions.list.queryFilter());
+        navigate(`/m/session/${data.sessionId}`, { replace: true });
+      },
+      onRejected: (entry) => optimistic.reject(entry.clientId),
+    });
     // Draft consumed — drop the persisted copy and reset the draft upload dir for the next draft.
     clearDraft(draftKey);
     if (isDraft) draftUploadId.current = null;
@@ -574,6 +634,9 @@ export function MChatScreen(): JSX.Element {
     setUploads((prev) => {
       prev.forEach((u) => { if (u.previewUrl) URL.revokeObjectURL(u.previewUrl); });
       return [];
+    });
+    void mutation.then((result) => {
+      if (!result.ok && result.restore) restoreRejectedSend(sent, sentKey, result.error);
     });
   };
 

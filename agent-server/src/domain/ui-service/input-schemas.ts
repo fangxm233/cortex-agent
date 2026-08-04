@@ -402,6 +402,41 @@ export const issueActionInput = z.object({
 const noteTextInput = z.string().trim().min(1).max(1000).refine((text) => !/[\r\n]/.test(text), {
   message: 'Note text must be one line',
 });
+// ── profiles.* ────────────────────────────────────────────────────
+// CRUD over the `profiles` map of profiles.json. This schema is the SHAPE gate only (types, name
+// charset, flag prefix); the SEMANTIC rules — pi requires a provider, thinking levels are
+// backend-specific, defaultProfile must exist — stay with validateProfilesFile(), which the mutate
+// handlers run over the assembled file so the server has exactly one profile validator.
+// `extraEnv` and `fallback[]` are absent by construction: extraEnv values are secret-bearing (the
+// read DTO returns keys only) and fallback is a nested chain with no editor. Both round-trip
+// untouched through an update.
+
+const profileSafeName = z.string().regex(/^[a-zA-Z0-9_-]+$/, 'may contain only letters, digits, - and _');
+
+const profileDraftShape = {
+  model: z.string().min(1),
+  backend: z.enum(['claude', 'pi']).optional(),
+  mode: profileSafeName.optional(),
+  provider: profileSafeName.optional(),
+  thinking: z.string().min(1).optional(),
+  claudeBackend: z.enum(['print', 'tui']).optional(),
+  extraOption: z.record(z.string().startsWith('--'), z.string()).optional(),
+};
+
+export const profilesCreateInput = z.object({
+  name: profileSafeName.min(1),
+  ...profileDraftShape,
+});
+
+export const profilesUpdateInput = z.object({
+  name: profileSafeName.min(1),
+  ...profileDraftShape,
+});
+
+export const profilesRemoveInput = z.object({
+  name: profileSafeName.min(1),
+});
+
 
 export const noteAddInput = z.object({
   projectId: z.string(),
@@ -535,3 +570,6 @@ export const mutateInputSchemas = {
   'system.restart': systemRestartInput,
   'system.clearRateLimit': systemClearRateLimitInput,
 } satisfies Record<MutateOp, z.ZodType>;
+  'profiles.create': profilesCreateInput,
+  'profiles.update': profilesUpdateInput,
+  'profiles.remove': profilesRemoveInput,

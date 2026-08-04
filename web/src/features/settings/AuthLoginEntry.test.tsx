@@ -40,6 +40,11 @@ vi.mock('@/lib/trpc', () => {
     cost: { summary: query('cost.summary') },
     threadTemplates: { get: query('threadTemplates.get') },
     approvals: { request: mutation('approvals.request') },
+    profiles: {
+      create: mutation('profiles.create'),
+      update: mutation('profiles.update'),
+      remove: mutation('profiles.remove'),
+    },
     auth: { status: query('auth.status'), logout: mutation('auth.logout') },
   }) };
 });

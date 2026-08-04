@@ -36,6 +36,10 @@ const BUILTIN_PI_AGENT_NAMES = ['explore', 'general-purpose', 'plan'] as const;
 /** Default location of the user's PI OAuth/API-key credentials. */
 const USER_PI_AUTH_PATH = path.join(os.homedir(), '.pi', 'agent', 'auth.json');
 
+/** The user's own PI provider catalog: where user-defined providers are declared, shared with the
+ *  terminal `pi` CLI. Daemon-only — a trial never reads the host PI home (design §13 A1). */
+export const USER_PI_MODELS_PATH = path.join(os.homedir(), '.pi', 'agent', 'models.json');
+
 // ─── auth.json visibility (symlink / copy from user PI dir) ──────
 
 export interface EnsureAuthVisibleOpts {

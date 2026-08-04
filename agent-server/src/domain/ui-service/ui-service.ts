@@ -31,6 +31,11 @@ import {
   handleHooksRemove,
   handleHooksTest,
 } from './mutate/hooks.js';
+import {
+  handleProfilesCreate,
+  handleProfilesUpdate,
+  handleProfilesRemove,
+} from './mutate/profiles.js';
 import { handleCreateProject } from './mutate/projects.js';
 import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
@@ -142,6 +147,9 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'hooks.setEnabled': (deps, args) => handleHooksSetEnabled(deps, args),
   'hooks.remove': (deps, args) => handleHooksRemove(deps, args),
   'hooks.test': (deps, args) => handleHooksTest(deps, args),
+  'profiles.create': (deps, args) => handleProfilesCreate(deps, args),
+  'profiles.update': (deps, args) => handleProfilesUpdate(deps, args),
+  'profiles.remove': (deps, args) => handleProfilesRemove(deps, args),
   'system.restart': (_deps, args) => handleSystemRestart(args),
   'system.clearRateLimit': (_deps, args) => handleSystemClearRateLimit(args),
 };

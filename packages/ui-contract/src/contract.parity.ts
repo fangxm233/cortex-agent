@@ -58,6 +58,9 @@ import type {
   hooksSetEnabledInput,
   hooksRemoveInput,
   hooksTestInput,
+  profilesCreateInput,
+  profilesUpdateInput,
+  profilesRemoveInput,
   machinesListInput,
   skillsListInput,
   threadTemplatesGetInput,
@@ -127,6 +130,9 @@ const _hooksUpdate: MutateParity<'hooks.update', typeof hooksUpdateInput> = true
 const _hooksSetEnabled: MutateParity<'hooks.setEnabled', typeof hooksSetEnabledInput> = true;
 const _hooksRemove: MutateParity<'hooks.remove', typeof hooksRemoveInput> = true;
 const _hooksTest: MutateParity<'hooks.test', typeof hooksTestInput> = true;
+const _profilesCreate: MutateParity<'profiles.create', typeof profilesCreateInput> = true;
+const _profilesUpdate: MutateParity<'profiles.update', typeof profilesUpdateInput> = true;
+const _profilesRemove: MutateParity<'profiles.remove', typeof profilesRemoveInput> = true;
 const _approvalsApprove: MutateParity<'approvals.approve', typeof approvalsApproveInput> = true;
 const _approvalsReject: MutateParity<'approvals.reject', typeof approvalsRejectInput> = true;
 const _approvalsRequest: MutateParity<'approvals.request', typeof approvalsRequestInput> = true;
@@ -161,5 +167,6 @@ export const _contractParityChecked = [
   _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,
   _configSet, _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _executionsLog,
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
+  _profilesCreate, _profilesUpdate, _profilesRemove,
   _systemDaemonStatus, _systemRateLimitStatus, _systemRestart,
 ] as const;
