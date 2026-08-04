@@ -23,6 +23,9 @@ import {
 import { getSettings } from '@core/settings.js';
 import type { IdentityJsonValue } from '../../domain/agent-run/identity.js';
 import type { McpComposition } from '../types.js';
+// The cleanup grace is one backend-neutral quantity: design §5.7 C3 defines the Claude budget as
+// "the same quantity as P2", so a second copy of `1000 + 5000` here could only ever drift from it.
+import { MCP_CLEANUP_GRACE_MS } from '../pi/mcp-duration.js';
 import { buildHooksSettings } from './hooks-builder.js';
 
 /**
@@ -220,6 +223,7 @@ export function buildClaudeEnv(
   extraEnv?: Record<string, string>,
   context?: CortexAgentContext,
   pinnedEnv?: NodeJS.ProcessEnv,
+  benchmarkDeadlineEpochMs?: number,
 ): NodeJS.ProcessEnv {
   // Allowlist-first for a pinned trial: the child starts from the exact trial environment and
   // inherits nothing from the host, so no denylist can leak a host credential or platform
@@ -254,6 +258,17 @@ export function buildClaudeEnv(
   if (anthropicBaseUrl) env.ANTHROPIC_BASE_URL = anthropicBaseUrl;
   if (extraEnv) {
     for (const [key, value] of Object.entries(extraEnv)) env[key] = value;
+  }
+  // The CLI owns the MCP client on this backend, so the only budget Cortex can supply is the pair it
+  // reads from its environment: `MCP_TOOL_TIMEOUT` per tool call and `MCP_TIMEOUT` for server
+  // startup. Both carry the remaining trial time plus the cleanup grace, so a benchmark call
+  // outlives the CLI's native default yet is still cut off with the trial rather than after it.
+  // Derived here, at the instant the child environment is built, and never carried as a stored
+  // duration; written after the `extraEnv` merge so an inherited value cannot raise the bound.
+  if (benchmarkDeadlineEpochMs !== undefined) {
+    const budgetMs = Math.max(0, benchmarkDeadlineEpochMs - Date.now()) + MCP_CLEANUP_GRACE_MS;
+    env.MCP_TOOL_TIMEOUT = String(budgetMs);
+    env.MCP_TIMEOUT = String(budgetMs);
   }
   delete env.CORTEX_THREAD_ID;
   delete env.CORTEX_PROFILE;

@@ -161,6 +161,8 @@ interface ClaudeSessionOptions {
   benchmarkPolicyGuard?: IdentityJsonValue;
   /** Exact allowlisted child environment for a pinned trial. */
   pinnedEnv?: NodeJS.ProcessEnv;
+  /** Absolute trial deadline the child's MCP call budget is derived from at each spawn. */
+  benchmarkDeadlineEpochMs?: number;
   /** Extra CLI options from profile (e.g. {"--thinking": "xhigh"}). */
   extraOption?: Record<string, string>;
   /** Thinking level from the profile's `thinking` field → `--effort <level>`. Absent → no flag. */
@@ -255,6 +257,9 @@ class ClaudeSession {
   private cliPath: string | undefined;
   private benchmarkPolicyGuard: IdentityJsonValue | undefined;
   private pinnedEnv: NodeJS.ProcessEnv | undefined;
+  /** The trial deadline as an instant. The MCP budget derived from it is not stored: every spawn
+   *  recomputes it, so a resumed or restarted process never inherits a stale budget. */
+  private benchmarkDeadlineEpochMs: number | undefined;
   private supervision: AgentProcessSupervision | undefined;
   private extraOption: Record<string, string> | undefined;
   private thinking: string | null;
@@ -328,6 +333,7 @@ class ClaudeSession {
     this.cliPath = options.cliPath;
     this.benchmarkPolicyGuard = options.benchmarkPolicyGuard;
     this.pinnedEnv = options.pinnedEnv;
+    this.benchmarkDeadlineEpochMs = options.benchmarkDeadlineEpochMs;
     this.extraOption = options.extraOption;
     this.thinking = options.thinking ?? null;
     this.context = options.context;
@@ -421,7 +427,7 @@ class ClaudeSession {
   }
 
   private spawnProcess(): void {
-    const env = buildClaudeEnv(this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId, this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv);
+    const env = buildClaudeEnv(this.channel, this.sessionId, this.callbackSource, this.scheduleTaskId, this.anthropicBaseUrl, this.extraEnv, this.context, this.pinnedEnv, this.benchmarkDeadlineEpochMs);
     const spawnOptions = this.toSpawnOptions();
     // Sessions that originate from Slack (channel carries the SlackAdapter `slack:` prefix) load the
     // cortex-slack MCP server so the agent can send files to Slack. Non-direct compositions suppress it.
@@ -1253,6 +1259,7 @@ function sessionOptionsFromSpawnConfig(config: AgentSpawnConfig): ClaudeSessionO
     cliPath: config.cliPath,
     benchmarkPolicyGuard: config.benchmarkPolicyGuard,
     pinnedEnv: config.pinnedEnv,
+    benchmarkDeadlineEpochMs: config.benchmarkDeadlineEpochMs,
     extraOption: config.extraOption,
     thinking: config.thinking ?? null,
     context: config.cortexContext,
