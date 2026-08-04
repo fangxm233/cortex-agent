@@ -430,6 +430,35 @@ it('attributes the run to the policy identities it was compiled with (T13, R1, R
   assert.deepEqual([...new Set(events.map(record => record.requested_model))], ['claude-sonnet']);
 }, 60_000);
 
+it('uses policy identity and event metadata when the pre-compile profile disagrees (S2)', async () => {
+  const built = fixture();
+  const compiledProfiles = structuredClone(profileRepo.readSync()) as any;
+  const ambientProfiles = structuredClone(compiledProfiles);
+  Object.assign(ambientProfiles.profiles['benchmark-profile'], {
+    model: 'claude-opus',
+    provider: 'ambient-provider',
+    thinking: 'low',
+    extraOption: { '--ambient-only': 'true' },
+  });
+  const readProfiles = vi.spyOn(profileRepo, 'readSync')
+    .mockImplementationOnce(() => ambientProfiles)
+    .mockImplementation(() => compiledProfiles);
+  let outcome: RunOutcome;
+  try {
+    outcome = await runTrial(built);
+  } finally {
+    readProfiles.mockRestore();
+  }
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+  assert.equal(
+    outcome.stdout[0].model_execution_identity_hash,
+    built.policy.identity.model_execution_identity_hash.parent,
+  );
+  const events = journalRecords(built).slice(1);
+  assert.deepEqual([...new Set(events.map(record => record.provider))], ['anthropic']);
+  assert.deepEqual([...new Set(events.map(record => record.requested_model))], ['claude-sonnet']);
+}, 60_000);
+
 // With correct code the compiled role and the spawned role cannot disagree — that is what R4 is
 // for. The branch is therefore proven by injecting the defect class it guards against: the bytes
 // the compiler hashed and the bytes the spawn surface is built from stop agreeing.

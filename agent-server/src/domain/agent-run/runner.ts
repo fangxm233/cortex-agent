@@ -22,7 +22,8 @@ import {
 } from '../agents/facade.js';
 import { listProfiles, resolveProfileConfig } from '../agents/profile-manager.js';
 import {
-  createTrialAdapter, trialRunOptions, type TrialAdapter, type TrialAdapterSpec,
+  createTrialAdapter, trialAgentConfig, trialRunOptions,
+  type TrialAdapter, type TrialAdapterSpec,
 } from '../benchmark/trial-adapter-factory.js';
 import { PolicyCompilationError, reportBenchmarkFailure } from '../benchmark/resolved-policy.js';
 import { preparePinnedTrialPaths } from './pinned-node-process.js';
@@ -169,9 +170,19 @@ function freezeRunIdentity(
   profile: PreparedRun['profile'],
   config: ResolvedAgentRunConfig,
   roleSurface: RoleToolSurfaceInput,
+  policy: LoadedAgentRunConfig['policy'],
 ): FrozenIdentity {
+  const execution = policy?.model_execution;
+  const resolvedProfile = execution ? {
+    ...profile,
+    model: execution.requested_model,
+    backend: execution.backend,
+    provider: execution.provider_protocol,
+    thinking: execution.reasoning_effort,
+    fallback: [],
+  } : profile;
   return freezeIdentity({
-    resolvedProfile: profile,
+    resolvedProfile,
     modelExecution: config.modelExecution,
     roleToolSurface: roleSurface,
     bundleManifest: bundleIdentity(options, config),
@@ -330,7 +341,7 @@ function resolveRunInputs(
     agentSlot: options.agentSlot,
   });
   assertBenchmarkInvocation(loaded, options, rootRunId);
-  validateResolvedExecution(profile, loaded.config);
+  if (!loaded.policy) validateResolvedExecution(profile, loaded.config);
   assertMcpFiles(loaded.config);
   return { ...loaded, config: observedRunConfig(loaded.config, profile, options.cwd, loaded.policy) };
 }
@@ -398,7 +409,7 @@ function prepareRun(options: AgentRunCliOptions, rootRunId: string): PreparedRun
     trial,
     backend: trial?.backend ?? profile.backend,
     modelPrompt: prompt.modelVisible,
-    identity: freezeRunIdentity(options, profile, config, roleSurface),
+    identity: freezeRunIdentity(options, profile, config, roleSurface, loaded.policy),
     hashes: promptHashes(prompt, roleSurface),
     startedAt: new Date().toISOString(),
   };
@@ -440,6 +451,14 @@ function collectStats(stats: RunStats, event: NormalizedEvent): void {
   }
 }
 
+function runProvider(run: PreparedRun): string | null {
+  return run.policy?.model_execution.provider_protocol ?? run.profile.provider;
+}
+
+function runRequestedModel(run: PreparedRun): string {
+  return run.policy?.model_execution.requested_model ?? run.profile.model;
+}
+
 function trajectorySink(
   run: PreparedRun,
   journal: Journal,
@@ -453,8 +472,8 @@ function trajectorySink(
         step: null,
         agentSlot: run.options.agentSlot,
         backend: run.backend,
-        provider: run.profile.provider,
-        requestedModel: run.profile.model,
+        provider: runProvider(run),
+        requestedModel: runRequestedModel(run),
         reportedModel: reportedModel(event),
         event,
       };
@@ -598,7 +617,8 @@ async function executeTurn(
   const spawner = supervisedSpawner(run, value => { supervision = value; }, () => cancelled);
   try {
     const options = oneShotOptions(run, trajectorySink(run, journal, stats, io), spawner);
-    handle = runWithAdapter(adapter, run.modelPrompt, options, agentConfig(run.profile), undefined);
+    const config = run.policy ? trialAgentConfig(run.policy, run.backend) : agentConfig(run.profile);
+    handle = runWithAdapter(adapter, run.modelPrompt, options, config, undefined);
     if (cancelled) handle.kill();
     return await settledOutcome(adapter, run, handle, supervision, () => cancelled);
   } finally {

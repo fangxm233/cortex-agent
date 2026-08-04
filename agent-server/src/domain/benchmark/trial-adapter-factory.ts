@@ -127,7 +127,7 @@ export function trialRunOptions(spec: TrialAdapterSpec): RunAgentOptions {
 // C6 with §1.7: the child is routed at the per-trial proxy authority, while the identity host stays
 // `model_execution.configured_route_base_host` — the proxy authority feeds no identity hash. No
 // member is taken from the host profile, so the profile's own ANTHROPIC_BASE_URL cannot reach here.
-function trialAgentConfig(policy: ResolvedTrialPolicy, backend: Backend): AgentConfig {
+export function trialAgentConfig(policy: ResolvedTrialPolicy, backend: Backend): AgentConfig {
   return {
     model: policy.model_execution.requested_model,
     backend,
