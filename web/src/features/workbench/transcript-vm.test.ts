@@ -88,6 +88,30 @@ describe('buildTranscriptRows', () => {
     expect(fetched.some((row) => row.kind === 'assistant')).toBe(false);
   });
 
+  it('carries a notice action onto the row from both the snapshot and the live tail', () => {
+    const noticeAction = { kind: 'cancel-resume' as const };
+    const fetched = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [{
+        type: 'assistant',
+        text: 'Rate limited',
+        toolName: null,
+        toolInput: null,
+        noticeLevel: 'warning',
+        noticeAction,
+        ts: T,
+        elapsedMs: null,
+      }] }]),
+      [],
+    );
+    const live = buildTranscriptRows(
+      tx([]),
+      [{ sessionId: 's1', role: 'assistant', text: 'Rate limited', noticeLevel: 'warning', noticeAction, ts: T }],
+    );
+
+    expect(fetched[1]).toEqual({ kind: 'notice', level: 'warning', text: 'Rate limited', noticeAction });
+    expect(live[1]).toEqual({ kind: 'notice', level: 'warning', text: 'Rate limited', noticeAction });
+  });
+
   it('consecutive tool messages collapse into one tools row with each call', () => {
     const rows = buildTranscriptRows(
       tx([

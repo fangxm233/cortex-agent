@@ -87,6 +87,7 @@ export type {
   TranscriptDebugDetails,
   AuthNoticeAction,
   ChatNoticeLevel,
+  NoticeAction,
   SessionContextUsage,
   // Output DTOs
   ProjectConduitInfo,

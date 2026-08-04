@@ -282,6 +282,26 @@ test('a held rate-limit card is replaced by the auto-resume warning when the pro
   }], 'a paused turn reports the resume promise, not the API error');
 });
 
+test('the auto-resume warning carries the cancel-resume action', async (t) => {
+  const rl = await initThrottle(['plan']);
+  t.onTestFinished(() => rl._testReset());
+  const facade = await getFacade();
+
+  const emitted: Array<{ text: string; level?: string; action?: unknown }> = [];
+  const tracker = new facade._test.AttemptNoticeTracker({
+    channel: 'web:rate-limit',
+    isUserInitiated: true,
+    onAssistantMessage: (text: string, _blockId: string | undefined, level?: string, action?: unknown) =>
+      emitted.push({ text, level, action }),
+  });
+
+  tracker.emitTerminalError(rateLimitError());
+
+  assert.equal(emitted.length, 1);
+  assert.equal(emitted[0].level, 'warning');
+  assert.deepEqual(emitted[0].action, { kind: 'cancel-resume' }, 'the promise is opt-out-able');
+});
+
 test('a held rate-limit card is emitted exactly once when the attempt fails terminally', async (t) => {
   const rl = await getRl();
   rl._testReset(); // no active throttle — nothing can promise a resume

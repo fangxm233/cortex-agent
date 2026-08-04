@@ -5,7 +5,7 @@
 
 import { ctx as jobCtx } from '@domain/scheduling/job-registry.js';
 import type { AttachmentMeta } from '@domain/ui-service/types.js';
-import type { ChatNoticeLevel, SessionContextUsage } from '@core/types/agent-types.js';
+import type { ChatNoticeLevel, NoticeAction, SessionContextUsage } from '@core/types/agent-types.js';
 
 export interface SessionMessagePayload {
   sessionId: string;
@@ -25,6 +25,7 @@ export interface SessionMessagePayload {
   blockId?: string;
   /** Semantic presentation for system-authored assistant messages in chat clients. */
   noticeLevel?: ChatNoticeLevel;
+  noticeAction?: NoticeAction;
   /** Set on a user message injected into a live turn and not yet read by the model. It carries no
    *  history entry yet — the client shows it as a provisional row until the matching
    *  `session.message.delivered` commits it. Absent on every ordinary message. */
@@ -68,6 +69,7 @@ export function publishSessionMessage(p: SessionMessagePayload): void {
     ...(p.ts !== undefined ? { ts: p.ts } : {}),
     ...(p.blockId !== undefined ? { blockId: p.blockId } : {}),
     ...(p.noticeLevel !== undefined ? { noticeLevel: p.noticeLevel } : {}),
+    ...(p.noticeAction !== undefined ? { noticeAction: p.noticeAction } : {}),
     ...(p.pending !== undefined ? { pending: p.pending } : {}),
     ...(p.pendingId !== undefined ? { pendingId: p.pendingId } : {}),
   });

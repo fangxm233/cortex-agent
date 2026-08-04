@@ -17,7 +17,7 @@ import { buildAgentSpawnConfig, filterChannelScopedPlugins } from './spawn-confi
 import type { AgentConfig, RunAgentOptions, RunObserver } from './spawn-config.js';
 import { resolveProfileConfig } from './profile-manager.js';
 import type { ResolvedProfileConfig } from './profile-manager.js';
-import type { AgentHandle, AgentResult, ChatNoticeLevel } from '@core/types/agent-types.js';
+import type { AgentHandle, AgentResult, ChatNoticeLevel, NoticeAction } from '@core/types/agent-types.js';
 import { recordCost } from '../costs/cost-tracker.js';
 import { configureEnvForMode, isApiRateLimitError, isRetryableResult, isRetryableError } from './config.js';
 import { isProviderRateLimited, isThrottled } from '../costs/rate-limit-throttle.js';
@@ -64,17 +64,17 @@ class AttemptNoticeTracker {
     this.forward = original.onAssistantMessage ?? null;
     this.generateNotices = original.channel?.startsWith('web:') === true;
     this.options = this.forward
-      ? { ...original, onAssistantMessage: (text, blockId, level) => this.observe(text, blockId, level) }
+      ? { ...original, onAssistantMessage: (text, blockId, level, action) => this.observe(text, blockId, level, action) }
       : original;
   }
 
-  private observe(text: string, blockId?: string, level?: ChatNoticeLevel): void {
+  private observe(text: string, blockId?: string, level?: ChatNoticeLevel, action?: NoticeAction): void {
     if (level === 'error' && this.generateNotices && isApiRateLimitError(text)) {
       this.heldError = { text, ...(blockId ? { blockId } : {}) };
       return;
     }
     if (level === 'error') this.attemptHasErrorNotice = true;
-    this.forward?.(text, blockId, level);
+    this.forward?.(text, blockId, level, action);
   }
 
   /** Release a held rate-limit card. Every settle path calls this except the resumable one,
@@ -106,7 +106,7 @@ class AttemptNoticeTracker {
     this.heldError = null;
     if (this.generateNotices && this.forward && !this.attemptHasErrorNotice) {
       this.attemptHasErrorNotice = true;
-      this.forward(t('notify.rateLimitAutoResume'), undefined, 'warning');
+      this.forward(t('notify.rateLimitAutoResume'), undefined, 'warning', { kind: 'cancel-resume' });
     }
     return true;
   }

@@ -95,6 +95,9 @@ export interface MChatInteractions {
   onApprove: (model: PlanCardModel) => void;
   onRejectStart: (model: PlanCardModel) => void;
   onOpenRead: (model: PlanCardModel) => void;
+  /** Decline the auto-resume a rate-limit notice promised; absent when the action is unavailable. */
+  onCancelResume?: () => void;
+  resumeCancelled?: boolean;
 }
 
 /** 5a reject composer chrome — amber context bar + reason chips above the composer. */
@@ -821,7 +824,12 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
           )}
           {row.kind === 'notice' && (
             <div style={dimmed ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
-              <ChatNotice level={row.level} text={row.text} authAction={row.authAction} />
+              <ChatNotice
+                level={row.level} text={row.text} authAction={row.authAction}
+                noticeAction={row.noticeAction}
+                onNoticeAction={interactions?.onCancelResume}
+                noticeActionDone={interactions?.resumeCancelled}
+              />
             </div>
           )}
           {row.kind === 'assistant' && (

@@ -11,11 +11,13 @@ import type { Settings, SettingSnapshotEntry } from '@core/settings-spec.js';
 import type {
   AuthNoticeAction,
   ChatNoticeLevel,
+  NoticeAction,
   SessionContextUsage,
 } from '@core/types/agent-types.js';
 export type {
   AuthNoticeAction,
   ChatNoticeLevel,
+  NoticeAction,
   SessionContextUsage,
 } from '@core/types/agent-types.js';
 import type { PlatformAdapter } from '@platform/adapter.js';
@@ -769,6 +771,8 @@ export interface TranscriptMessage {
   debug?: TranscriptDebugDetails;
   /** Semantic chat-notice styling for system-authored assistant messages. */
   noticeLevel?: ChatNoticeLevel;
+  /** Control the notice offers (e.g. declining a promised auto-resume). */
+  noticeAction?: NoticeAction;
   /** Secret-free one-click target carried only by authentication notices. */
   authAction?: AuthNoticeAction;
   /** interaction subtype: 'ask-user-answered' | 'plan-approved' | 'plan-rejected' (legacy rows)
