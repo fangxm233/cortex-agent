@@ -936,9 +936,11 @@ async function runBenchmarkThreadScoped(
 
 /** The lifecycle hook runner reaches an agent through the unscoped module import, so an override
  *  that supplies one puts a second, unscoped model process on the thread path — outside the trial
- *  adapter, the pinned environment and the admission boundary. The benchmark path keeps the no-op. */
+ *  adapter, the pinned environment and the admission boundary. The benchmark path keeps the no-op.
+ *  Keyed on the key's presence, not its value: an override carrying the key with an undefined value
+ *  is spread over the no-op default, and the step path then falls back to the daemon runner. */
 function refuseLifecycleHookOverride(overrides: Partial<LocalThreadRuntimeDeps>): void {
-  if (overrides.emitLifecycleHooks !== undefined) {
+  if ('emitLifecycleHooks' in overrides) {
     throw new Error('A benchmark thread may not supply a lifecycle hook runner');
   }
 }

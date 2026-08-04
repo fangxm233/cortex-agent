@@ -394,3 +394,17 @@ it('refuses a benchmark run that would re-arm the unscoped lifecycle hook runner
   );
   assert.equal(harness.attachOptions.length, 0);
 });
+
+it('refuses a lifecycle hook override that is present but undefined', async () => {
+  const run = prepareTrial('hooks-undefined', 'claude', [{ text: 'coder done' }, { text: null }]);
+
+  // A key that is present with an undefined value is worse than a supplied runner, not better: the
+  // runtime deps spread it over the no-op default, and the step path then falls back to the daemon
+  // hook runner, which reaches an agent through the unscoped module import. Refusal must key on the
+  // key's presence, not on its value.
+  await assert.rejects(
+    runBenchmarkThread(run.request, { ...run.overrides, emitLifecycleHooks: undefined }),
+    /lifecycle hook/i,
+  );
+  assert.equal(harness.attachOptions.length, 0);
+});
