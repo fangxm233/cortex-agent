@@ -2,7 +2,7 @@ import '../../_test-home.js';
 import * as assert from 'node:assert';
 import { describe, it } from 'vitest';
 
-import { registerNamedSession, attachExistingSession, resetChannelSession, createDirectSession, SESSION_BACKENDS } from '@domain/sessions/session-lifecycle.js';
+import { registerNamedSession, attachExistingSession, resetChannelSession, createDirectSession, adoptScheduledSession, SESSION_BACKENDS } from '@domain/sessions/session-lifecycle.js';
 import type { SessionRegistryWriter } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync, getSessionAsync } from '@domain/sessions/session.js';
 import { conversationLedger } from '@store/conversation-ledger-repo.js';
@@ -154,6 +154,63 @@ describe('attachExistingSession', () => {
     assert.strictEqual(getActiveProfile(channel), 'qa', 'active profile restored to the session profile');
     const conv = await conversationLedger.getConversation(channel);
     assert.strictEqual(conv!.profileName, 'qa', 'ledger carries the restored profile');
+  });
+});
+
+// ── adoptScheduledSession ───────────────────────────────────────
+
+describe('adoptScheduledSession', () => {
+  const scheduledRecord = {
+    name: 'cortex-sched', sessionId: 'sid-sched-1', channel: 'cortex-self', backend: 'claude',
+    origin: 'scheduled' as const, profileName: null,
+  };
+
+  type AdoptRecord = Omit<typeof scheduledRecord, 'origin'> & { origin: 'scheduled' | 'direct' };
+  function makeStore(record: AdoptRecord | null) {
+    const converted: Array<{ sessionId: string; channel: string }> = [];
+    return {
+      converted,
+      store: {
+        getById: async () => record,
+        convertToDirect: async (sessionId: string, opts: { channel: string }) => {
+          converted.push({ sessionId, channel: opts.channel });
+          return record;
+        },
+      },
+    };
+  }
+
+  it('attaches a web:<sid> channel to the run and re-points the registry record', async () => {
+    const { store, converted } = makeStore(scheduledRecord);
+
+    const result = await adoptScheduledSession(store, 'sid-sched-1');
+
+    assert.deepStrictEqual(result, { channel: 'web:sid-sched-1' });
+    const storedId = await getSessionAsync('web:sid-sched-1', 'claude');
+    assert.strictEqual(storedId, 'sid-sched-1', 'sessions.json binds the new channel to the track id');
+    const conv = await conversationLedger.getConversation('web:sid-sched-1');
+    assert.ok(conv, 'conversation ledger switched to the session');
+    assert.strictEqual(conv!.sessionId, 'sid-sched-1');
+    assert.strictEqual(conv!.sessionName, 'cortex-sched');
+    assert.deepStrictEqual(converted, [{ sessionId: 'sid-sched-1', channel: 'web:sid-sched-1' }],
+      'registry record re-pointed at the new channel');
+  });
+
+  it('returns null for an unknown session without touching any store', async () => {
+    const { store, converted } = makeStore(null);
+    const result = await adoptScheduledSession(store, 'sid-ghost');
+    assert.strictEqual(result, null);
+    assert.strictEqual(converted.length, 0);
+    const storedId = await getSessionAsync('web:sid-ghost', 'claude');
+    assert.strictEqual(storedId, undefined, 'no channel binding created');
+  });
+
+  it('is idempotent: an already-direct record returns its current channel unconverted', async () => {
+    const direct = { ...scheduledRecord, sessionId: 'sid-direct-1', channel: 'web:sid-direct-1', origin: 'direct' as const };
+    const { store, converted } = makeStore(direct);
+    const result = await adoptScheduledSession(store, 'sid-direct-1');
+    assert.deepStrictEqual(result, { channel: 'web:sid-direct-1' });
+    assert.strictEqual(converted.length, 0, 'no re-conversion');
   });
 });
 

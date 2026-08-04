@@ -91,7 +91,7 @@ import { costRepo } from '@store/cost-repo.js';
 import { PROFILES_FILE, profileRepo, startProfileWatcher, setAdminNotifier as setProfileNotifier } from '@store/profile-repo.js';
 import { sessionStore } from '@store/session-registry-repo.js';
 import { cleanupAllBackups } from '@domain/sessions/session-backup.js';
-import { createDirectSession } from '@domain/sessions/session-lifecycle.js';
+import { createDirectSession, adoptScheduledSession } from '@domain/sessions/session-lifecycle.js';
 import { setSessionAsync } from '@domain/sessions/session.js';
 import { isSessionCompactionSupported, resolveBackendForChannel, switchChannelProfile } from '@domain/agents/index.js';
 import { initDiskMonitor, stopDiskMonitor } from '@domain/monitor/disk-monitor.js';
@@ -450,6 +450,9 @@ process.on('SIGTERM', async () => {
       initConversation: async (channel, a) => { await conversationLedger.initConversation(channel, a); },
       resolveBackend: resolveBackendForChannel,
     }, opts),
+    // Replying to a scheduled run (design 27b): adopt it as a normal direct session on its own
+    // web:<sid> conduit before the send. Wired here so ui-service never imports the lifecycle.
+    adoptScheduledSession: ({ sessionId }) => adoptScheduledSession(sessionStore, sessionId),
     // Web profile switch: apply the shared per-channel profile-switch rule (same one the Slack/Feishu
     // `!profile` command uses). Wired here so the ui-service domain never imports domain/agents.
     switchSessionProfile: (opts) => switchChannelProfile(opts),

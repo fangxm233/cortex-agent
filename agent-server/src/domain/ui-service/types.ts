@@ -1796,6 +1796,14 @@ export interface UiServiceDeps {
    */
   createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
   /**
+   * Convert a scheduled run's session into a normal direct web session before a reply is sent
+   * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal
+   * conversation; the next fire starts a fresh session). Injected in the entry layer (app.ts) to
+   * the domain `adoptScheduledSession` primitive. Returns the adopted channel, or null when the
+   * session is unknown. Optional — the send handler returns not-available when absent.
+   */
+  adoptScheduledSession?: (opts: { sessionId: string }) => Promise<{ channel: string } | null>;
+  /**
    * Move files uploaded under a draft upload id to the real session's attachment directory
    * and return updated AttachmentMeta with corrected paths. No-op when draftUploadId is null.
    * Optional — only needed by sessions.createAndSend; absent in test fixtures.

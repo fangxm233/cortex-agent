@@ -1,5 +1,5 @@
 // input:  Session stores, conversation ledger, profile state
-// output: Session register, attach, create, and reset primitives
+// output: Session register/attach/create/adopt/reset primitives
 // pos:    Central session lifecycle shared by chat and TUI
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -116,6 +116,35 @@ export async function attachExistingSession(channel: string, opts: AttachExistin
   await conversationLedger.switchSession(channel, {
     sessionId: opts.sessionId, sessionName: opts.sessionName, backend: opts.backend, profileName: opts.profileName,
   });
+}
+
+export interface AdoptScheduledSessionStore {
+  getById(sessionId: string): Promise<{
+    name: string; channel: string; backend: string; origin: SessionOrigin; profileName: string | null;
+  } | null>;
+  /** Re-point the registry record: channel → the adopted channel, kind → local, origin → direct. */
+  convertToDirect(sessionId: string, opts: { channel: string }): Promise<unknown | null>;
+}
+
+/** Convert a scheduled run's session into a normal direct web session (design 27b: replying adopts
+ *  the run). Attaches a dedicated `web:<sessionId>` conduit to the existing session — the same
+ *  switch sequence as !resume, so a later send resumes the run's transcript — then re-points the
+ *  registry record. `scheduleId` is intentionally KEPT on the record (provenance for the trigger
+ *  card / schedule grouping). Idempotent: a non-scheduled record just returns its current channel;
+ *  an unknown id returns null. */
+export async function adoptScheduledSession(
+  store: AdoptScheduledSessionStore,
+  sessionId: string,
+): Promise<{ channel: string } | null> {
+  const record = await store.getById(sessionId);
+  if (!record) return null;
+  if (record.origin !== 'scheduled') return { channel: record.channel };
+  const channel = `web:${sessionId}`;
+  await attachExistingSession(channel, {
+    sessionId, sessionName: record.name, backend: record.backend, profileName: record.profileName,
+  });
+  await store.convertToDirect(sessionId, { channel });
+  return { channel };
 }
 
 /** Clear a channel's session state: drop sessions.json keys for every backend, clean session
