@@ -23,6 +23,12 @@ import { discoverEndpoints, writeMergedGatewayYaml, validateProfilesAgainstGatew
 import { generateProfiles, writeProfilesJson } from '@core/profile-generator.js';
 import { CORTEX_VERSION } from '@core/version.js';
 import { getAuthStatus } from '@domain/auth/auth-status.js';
+import { GATEWAY_URL } from '@domain/costs/gateway-manager.js';
+import {
+  GATEWAY_CONFIG_PATH,
+  USER_PI_MODELS_PATH,
+  type CustomProviderStores,
+} from '@domain/pi-providers/index.js';
 import { runAuthCli, type AuthCliDeps } from './auth-cli.js';
 import {
   getCliHelp,
@@ -582,10 +588,23 @@ async function runDaemonCli(args: string[]): Promise<CliResult> {
   return { exitCode: 0, stdout: '', stderr: `'daemon' must be run from the main entry point, not imported.\nUse: node dist/entry/cli.js daemon` };
 }
 
+/** The host files a custom provider lives in: PI's own catalog and the gateway config it routes to. */
+function defaultCustomProviderStores(): CustomProviderStores {
+  return {
+    modelsPath: USER_PI_MODELS_PATH,
+    gatewayPath: GATEWAY_CONFIG_PATH,
+    gatewayUrl: GATEWAY_URL,
+  };
+}
+
 const CLI_HANDLERS: Record<string, CliHandler> = {
   init: (args) => runInitCli(args),
   config: () => ({ exitCode: 0, stdout: getConfigOutput(), stderr: '' }),
-  auth: (args, deps) => runAuthCli(args, deps.getAuthStatus ?? getAuthStatus),
+  auth: (args, deps) => runAuthCli(
+    args,
+    deps.getAuthStatus ?? getAuthStatus,
+    deps.customProviderStores ?? defaultCustomProviderStores(),
+  ),
   doctor: (args) => runDoctorCli(args),
   feishu: (args) => cmdFeishu(args),
   restart: () => runRestartCli(),

@@ -14,6 +14,7 @@ import {
   GATEWAY_PLACEHOLDER_KEY,
   customProviderBaseUrl,
   gatewayAuthStyle,
+  gatewayEndpoint,
   validateCustomProvider,
 } from '../../src/domain/pi-providers/custom-provider-model.js';
 import {
@@ -100,8 +101,22 @@ test('gatewayAuthStyle: maps every supported PI api onto a gateway auth style', 
 });
 
 test('customProviderBaseUrl: points PI at the gateway mode route, not the upstream', () => {
-  assert.equal(customProviderBaseUrl('http://127.0.0.1:9880', 'my-vllm'), 'http://127.0.0.1:9880/m/my-vllm/my-vllm');
-  assert.equal(customProviderBaseUrl('http://127.0.0.1:9880/', 'my-vllm'), 'http://127.0.0.1:9880/m/my-vllm/my-vllm');
+  const anthropic = customProviderBaseUrl('http://127.0.0.1:9880', 'my-vllm', 'anthropic-messages');
+  assert.equal(anthropic, 'http://127.0.0.1:9880/m/my-vllm/anthropic');
+  assert.equal(
+    customProviderBaseUrl('http://127.0.0.1:9880/', 'my-vllm', 'anthropic-messages'),
+    'http://127.0.0.1:9880/m/my-vllm/anthropic',
+  );
+  assert.equal(
+    customProviderBaseUrl('http://127.0.0.1:9880', 'my-proxy', 'openai-completions'),
+    'http://127.0.0.1:9880/m/my-proxy/my-proxy',
+  );
+});
+
+test('gatewayEndpoint: anthropic-protocol providers share the endpoint the Claude backend calls', () => {
+  assert.equal(gatewayEndpoint('anthropic-messages', 'my-vllm'), 'anthropic');
+  assert.equal(gatewayEndpoint('openai-completions', 'my-proxy'), 'my-proxy');
+  assert.equal(gatewayEndpoint('google-generative-ai', 'my-gemini'), 'my-gemini');
 });
 
 // ─── models.json store ───────────────────────────────────────────
@@ -338,12 +353,12 @@ test('upsertCustomProvider: writes the PI catalog entry and the gateway route to
     assert.equal(result.ok, true);
 
     const entry = readJson(stores.modelsPath).providers['my-vllm'];
-    assert.equal(entry.baseUrl, 'http://127.0.0.1:9880/m/my-vllm/my-vllm');
+    assert.equal(entry.baseUrl, 'http://127.0.0.1:9880/m/my-vllm/anthropic');
     assert.equal(entry.api, 'anthropic-messages');
     assert.equal(entry.apiKey, GATEWAY_PLACEHOLDER_KEY);
     assert.deepEqual(entry.models, [{ id: 'Model-27B' }]);
 
-    const route = readYaml(stores.gatewayPath)['my-vllm']['my-vllm'];
+    const route = readYaml(stores.gatewayPath).anthropic['my-vllm'];
     assert.equal(route.base_url, 'http://127.0.0.1:8100');
     assert.deepEqual(route.keys, ['secret-upstream-key']);
   } finally {
@@ -382,7 +397,7 @@ test('upsertCustomProvider: an omitted apiKey on edit keeps the stored key', () 
       models: [{ id: 'Model-27B' }],
     });
     assert.equal(result.ok, true);
-    const route = readYaml(stores.gatewayPath)['my-vllm']['my-vllm'];
+    const route = readYaml(stores.gatewayPath).anthropic['my-vllm'];
     assert.equal(route.base_url, 'http://127.0.0.1:8200');
     assert.deepEqual(route.keys, ['secret-upstream-key'], 'the key survives an edit that omits it');
   } finally {
@@ -395,7 +410,7 @@ test('upsertCustomProvider: an empty apiKey clears the stored key and opens pass
   try {
     upsertCustomProvider(stores, VALID);
     upsertCustomProvider(stores, { ...VALID, apiKey: '' });
-    const route = readYaml(stores.gatewayPath)['my-vllm']['my-vllm'];
+    const route = readYaml(stores.gatewayPath).anthropic['my-vllm'];
     assert.equal(route.keys, undefined);
     assert.equal(route.passthrough, true);
   } finally {
@@ -424,7 +439,7 @@ test('upsertCustomProvider: a failed catalog write rolls the gateway route back'
     const result = upsertCustomProvider(stores, VALID);
     assert.equal(result.ok, false);
     assert.deepEqual(result.ok === false ? result.errors : [], ['write-failed']);
-    assert.equal(readGatewayRoute(stores.gatewayPath, 'my-vllm', 'my-vllm'), null);
+    assert.equal(readGatewayRoute(stores.gatewayPath, 'anthropic', 'my-vllm'), null);
   } finally {
     fs.rmSync(stores.dir, { recursive: true, force: true });
   }
@@ -464,7 +479,7 @@ test('listCustomProviders: reports a definition whose gateway route went missing
   const stores = tmpStores();
   try {
     upsertCustomProvider(stores, VALID);
-    removeGatewayRoute(stores.gatewayPath, 'my-vllm', 'my-vllm');
+    removeGatewayRoute(stores.gatewayPath, 'anthropic', 'my-vllm');
     const [provider] = listCustomProviders(stores);
     assert.equal(provider.routed, false, 'a definition without a gateway route is surfaced, not hidden');
     assert.equal(provider.upstreamUrl, null);
@@ -482,7 +497,7 @@ test('removeCustomProvider: clears both files and reports an unknown name', () =
     const result = removeCustomProvider({ ...stores, onChanged: () => { changed += 1; } }, 'my-vllm');
     assert.equal(result.ok, true);
     assert.deepEqual(Object.keys(readJson(stores.modelsPath).providers), ['other']);
-    assert.equal(readGatewayRoute(stores.gatewayPath, 'my-vllm', 'my-vllm'), null);
+    assert.equal(readGatewayRoute(stores.gatewayPath, 'anthropic', 'my-vllm'), null);
     assert.equal(changed, 1);
 
     const missing = removeCustomProvider(stores, 'never-existed');

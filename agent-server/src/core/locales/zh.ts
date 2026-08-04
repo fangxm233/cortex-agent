@@ -11,6 +11,7 @@ import { schedulingZh } from './slices/scheduling.js';
 import { interactionsZh } from './slices/interactions.js';
 import { startupZh } from './slices/startup.js';
 import { initZh } from './slices/init.js';
+import { providersZh } from './slices/providers.js';
 
 /** Simplified-Chinese translations, aggregated from per-cluster slices. Must provide every
  *  MessageKey (compiler-enforced via Record<MessageKey,string>) and add none. ${param}
@@ -23,4 +24,5 @@ export const zh: Record<MessageKey, string> = {
   ...interactionsZh,
   ...startupZh,
   ...initZh,
+  ...providersZh,
 };

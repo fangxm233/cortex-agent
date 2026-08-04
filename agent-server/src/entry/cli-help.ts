@@ -118,8 +118,11 @@ export function getAuthHelp(): string {
   return formatHelp({
     name: 'cortex auth',
     description: t('cmd.auth.cli.description'),
-    usage: 'cortex auth status [--json]',
-    commands: [{ name: 'status', description: t('cmd.auth.cli.statusDescription') }],
+    usage: 'cortex auth <status|provider> [options]',
+    commands: [
+      { name: 'status', description: t('cmd.auth.cli.statusDescription') },
+      { name: 'provider', description: t('provider.cli.description') },
+    ],
     options: [
       { flag: '--json', description: t('cmd.auth.cli.jsonDescription') },
       { flag: '--help, -h', description: t('cmd.auth.cli.helpDescription') },
@@ -127,6 +130,7 @@ export function getAuthHelp(): string {
     examples: [
       { description: t('cmd.auth.cli.exampleSummary'), command: 'cortex auth status' },
       { description: t('cmd.auth.cli.exampleJson'), command: 'cortex auth status --json' },
+      { description: t('provider.cli.exampleList'), command: 'cortex auth provider list' },
     ],
     labels: {
       usage: t('cmd.auth.cli.helpUsage'),

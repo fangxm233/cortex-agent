@@ -105,7 +105,7 @@ test('runCli auth help and invalid arguments provide a localized correction path
 
   const authHelp = await runCli(['auth', '--help']);
   assert.equal(authHelp.exitCode, 0);
-  assert.match(authHelp.stdout, /用法：.*cortex auth status/);
+  assert.match(authHelp.stdout, /用法：.*cortex auth /);
   assert.match(authHelp.stdout, /命令：|选项：|示例：/);
   assert.doesNotMatch(authHelp.stdout, /Usage:|Commands:|Options:|Examples:/);
 

@@ -7,6 +7,7 @@ import { createLogger } from '@core/log.js';
 import {
   buildModelsJsonEntry,
   gatewayAuthStyle,
+  gatewayEndpoint,
   normalizeCustomProvider,
   readEntryModels,
   validateCustomProvider,
@@ -93,10 +94,20 @@ function viewOf(
   return view;
 }
 
+/** The route an entry's protocol places it on: mode is always the name, endpoint follows the api. */
+function routeOf(
+  stores: CustomProviderStores,
+  name: string,
+  entry: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const endpoint = gatewayEndpoint(entry.api as CustomProviderApi, name);
+  return readGatewayRoute(stores.gatewayPath, endpoint, name);
+}
+
 export function listCustomProviders(stores: CustomProviderStores): CustomProviderView[] {
   const entries = readCustomProviderEntries(stores.modelsPath);
   return Object.entries(entries).map(([name, entry]) => (
-    viewOf(name, entry, readGatewayRoute(stores.gatewayPath, name, name))
+    viewOf(name, entry, routeOf(stores, name, entry))
   ));
 }
 
@@ -106,7 +117,7 @@ export function getCustomProvider(
 ): CustomProviderView | null {
   const entry = readCustomProviderEntries(stores.modelsPath)[name];
   if (!entry) return null;
-  return viewOf(name, entry, readGatewayRoute(stores.gatewayPath, name, name));
+  return viewOf(name, entry, routeOf(stores, name, entry));
 }
 
 /**
@@ -126,12 +137,13 @@ export function upsertCustomProvider(
   if (issues.length > 0) return { ok: false, errors: issues };
 
   const { name } = provider;
-  const previousRoute = readGatewayRoute(stores.gatewayPath, name, name);
+  const endpoint = gatewayEndpoint(provider.api, name);
+  const previousRoute = readGatewayRoute(stores.gatewayPath, endpoint, name);
   const keys = input.apiKey === undefined ? routeKeys(previousRoute) : [input.apiKey].filter(Boolean);
 
   try {
     upsertGatewayRoute(stores.gatewayPath, {
-      endpoint: name,
+      endpoint,
       mode: name,
       base_url: provider.upstreamUrl,
       auth_style: gatewayAuthStyle(provider.api),
@@ -148,26 +160,30 @@ export function upsertCustomProvider(
     upsertModelsJsonProvider(stores.modelsPath, name, entry);
   } catch (err) {
     log.warn(`Failed to write the PI catalog entry for '${name}': ${(err as Error).message}`);
-    restoreRoute(stores, name, previousRoute);
+    restoreRoute(stores, endpoint, name, previousRoute);
     return { ok: false, errors: ['write-failed'] };
   }
 
   stores.onChanged?.();
-  return { ok: true, provider: viewOf(name, entry, readGatewayRoute(stores.gatewayPath, name, name)) };
+  return {
+    ok: true,
+    provider: viewOf(name, entry, readGatewayRoute(stores.gatewayPath, endpoint, name)),
+  };
 }
 
 function restoreRoute(
   stores: CustomProviderStores,
+  endpoint: string,
   name: string,
   previousRoute: Record<string, unknown> | null,
 ): void {
   try {
     if (!previousRoute) {
-      removeGatewayRoute(stores.gatewayPath, name, name);
+      removeGatewayRoute(stores.gatewayPath, endpoint, name);
       return;
     }
     upsertGatewayRoute(stores.gatewayPath, {
-      endpoint: name,
+      endpoint,
       mode: name,
       base_url: String(previousRoute.base_url ?? ''),
       auth_style: String(previousRoute.auth_style ?? 'bearer'),
@@ -184,11 +200,12 @@ export function removeCustomProvider(
   stores: CustomProviderStores,
   name: string,
 ): CustomProviderRemoval {
-  if (!readCustomProviderEntries(stores.modelsPath)[name]) return { ok: false, errors: ['not-found'] };
+  const entry = readCustomProviderEntries(stores.modelsPath)[name];
+  if (!entry) return { ok: false, errors: ['not-found'] };
 
   try {
     removeModelsJsonProvider(stores.modelsPath, name);
-    removeGatewayRoute(stores.gatewayPath, name, name);
+    removeGatewayRoute(stores.gatewayPath, gatewayEndpoint(entry.api as CustomProviderApi, name), name);
   } catch (err) {
     log.warn(`Failed to remove custom provider '${name}': ${(err as Error).message}`);
     return { ok: false, errors: ['write-failed'] };

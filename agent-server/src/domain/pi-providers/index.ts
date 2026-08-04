@@ -9,6 +9,7 @@ export {
   GATEWAY_PLACEHOLDER_KEY,
   customProviderBaseUrl,
   gatewayAuthStyle,
+  gatewayEndpoint,
   validateCustomProvider,
   type CustomProviderApi,
   type CustomProviderInput,

@@ -67,12 +67,25 @@ export function gatewayAuthStyle(api: CustomProviderApi): GatewayAuthStyle {
 }
 
 /**
- * PI's baseUrl for a custom provider: the gateway's mode route, so every call is accounted and
- * throttled like any other route. Endpoint segment and mode both carry the provider name, matching
- * `buildPiGatewaySubPath(mode, provider)` for a profile whose mode equals its provider.
+ * Gateway endpoint section a custom provider's route belongs to. The mode is always the provider
+ * name; the endpoint follows the protocol, because an Anthropic-protocol endpoint can also serve
+ * the Claude backend, whose mode URL is fixed at `/m/<mode>/anthropic`. Other protocols have no
+ * such caller, so their route sits in a section named after the provider.
  */
-export function customProviderBaseUrl(gatewayUrl: string, name: string): string {
-  return `${gatewayUrl.replace(/\/+$/, '')}/m/${name}/${name}`;
+export function gatewayEndpoint(api: CustomProviderApi, name: string): string {
+  return api === 'anthropic-messages' ? 'anthropic' : name;
+}
+
+/**
+ * PI's baseUrl for a custom provider: the gateway's mode route, so every call is accounted and
+ * throttled like any other route.
+ */
+export function customProviderBaseUrl(
+  gatewayUrl: string,
+  name: string,
+  api: CustomProviderApi,
+): string {
+  return `${gatewayUrl.replace(/\/+$/, '')}/m/${name}/${gatewayEndpoint(api, name)}`;
 }
 
 export interface ValidateCustomProviderOpts {
@@ -128,7 +141,7 @@ export function buildModelsJsonEntry(
   gatewayUrl: string,
 ): Record<string, unknown> {
   const entry: Record<string, unknown> = {
-    baseUrl: customProviderBaseUrl(gatewayUrl, input.name),
+    baseUrl: customProviderBaseUrl(gatewayUrl, input.name, input.api),
     api: input.api,
     apiKey: GATEWAY_PLACEHOLDER_KEY,
     models: input.models.map((model) => {
