@@ -4,6 +4,8 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import { createLogger } from '@core/log.js';
+import { GATEWAY_URL } from '@domain/costs/gateway-manager.js';
+import { piProviderDiscovery } from '../../agent-adapter/pi/discovery.js';
 import {
   buildModelsJsonEntry,
   gatewayAuthStyle,
@@ -17,11 +19,13 @@ import {
   type CustomProviderModelSpec,
 } from './custom-provider-model.js';
 import {
+  USER_PI_MODELS_PATH,
   readCustomProviderEntries,
   removeModelsJsonProvider,
   upsertModelsJsonProvider,
 } from './models-json-store.js';
 import {
+  GATEWAY_CONFIG_PATH,
   readGatewayRoute,
   removeGatewayRoute,
   upsertGatewayRoute,
@@ -40,6 +44,20 @@ export interface CustomProviderStores {
   reservedNames?: string[];
   /** Called after a successful change so provider discovery and account status can refresh. */
   onChanged?: () => void;
+}
+
+/**
+ * The host files a custom provider lives in: PI's own catalog and the gateway config it routes to.
+ * A change invalidates the provider discovery cache the same way a login does, so a provider defined
+ * from any surface reaches the next spawn without waiting out the cache TTL.
+ */
+export function defaultCustomProviderStores(): CustomProviderStores {
+  return {
+    modelsPath: USER_PI_MODELS_PATH,
+    gatewayPath: GATEWAY_CONFIG_PATH,
+    gatewayUrl: GATEWAY_URL,
+    onChanged: () => piProviderDiscovery.refresh(),
+  };
 }
 
 /** Secret-free view of a stored custom provider. */

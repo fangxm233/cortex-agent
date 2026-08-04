@@ -52,6 +52,9 @@ import type {
   authRespondPromptInput,
   authCancelFlowInput,
   authLogoutInput,
+  authCustomProvidersInput,
+  authUpsertCustomProviderInput,
+  authRemoveCustomProviderInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,
@@ -100,6 +103,7 @@ const _costSummary: QueryParity<'cost.summary', typeof costSummaryInput> = true;
 const _configGet: QueryParity<'config.get', typeof configGetInput> = true;
 const _authStatus: QueryParity<'auth.status', typeof authStatusInput> = true;
 const _authFlowState: QueryParity<'auth.flowState', typeof authFlowStateInput> = true;
+const _authCustomProviders: QueryParity<'auth.customProviders', typeof authCustomProvidersInput> = true;
 const _hooksList: QueryParity<'hooks.list', typeof hooksListInput> = true;
 const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = true;
 const _skillsList: QueryParity<'skills.list', typeof skillsListInput> = true;
@@ -147,6 +151,8 @@ const _authStartLogin: MutateParity<'auth.startLogin', typeof authStartLoginInpu
 const _authRespondPrompt: MutateParity<'auth.respondPrompt', typeof authRespondPromptInput> = true;
 const _authCancelFlow: MutateParity<'auth.cancelFlow', typeof authCancelFlowInput> = true;
 const _authLogout: MutateParity<'auth.logout', typeof authLogoutInput> = true;
+const _authUpsertCustomProvider: MutateParity<'auth.upsertCustomProvider', typeof authUpsertCustomProviderInput> = true;
+const _authRemoveCustomProvider: MutateParity<'auth.removeCustomProvider', typeof authRemoveCustomProviderInput> = true;
 const _systemRestart: MutateParity<'system.restart', typeof systemRestartInput> = true;
 
 // ── Subscriptions ─────────────────────────────────────────────────
@@ -166,6 +172,7 @@ export const _contractParityChecked = [
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
   _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,
   _configSet, _authStartLogin, _authRespondPrompt, _authCancelFlow, _authLogout, _executionsLog,
+  _authCustomProviders, _authUpsertCustomProvider, _authRemoveCustomProvider,
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
   _profilesCreate, _profilesUpdate, _profilesRemove,
   _systemDaemonStatus, _systemRateLimitStatus, _systemRestart,

@@ -35,6 +35,10 @@ export const providersEn = {
   'provider.cli.added': 'Saved provider `${name}` — routed through the gateway to ${upstream}.',
   'provider.cli.removed': 'Removed provider `${name}`.',
 
+  // --- chat command (!login custom) ---
+  'provider.chat.usage': 'Usage: `!login custom [list | add <name> <api> <url> <model…> | remove <name>]`',
+  'provider.chat.keyNotice': 'An upstream key is never typed into a channel — add one with `cortex auth provider add --key -` or in Web settings.',
+
   // --- validation issues, shared by every surface ---
   'provider.issue.name-required': 'A provider name is required.',
   'provider.issue.name-charset': 'A provider name may use letters, digits, dash and underscore only.',
@@ -79,6 +83,9 @@ export const providersZh: Record<keyof typeof providersEn, string> = {
   'provider.cli.listItemUnrouted': '${name}  ${api}  （没有网关路由）',
   'provider.cli.added': '已保存 provider `${name}`——经网关路由到 ${upstream}。',
   'provider.cli.removed': '已删除 provider `${name}`。',
+
+  'provider.chat.usage': '用法：`!login custom [list | add <名称> <协议> <地址> <模型…> | remove <名称>]`',
+  'provider.chat.keyNotice': '上游密钥不要打进聊天——请用 `cortex auth provider add --key -` 或 Web 设置页添加。',
 
   'provider.issue.name-required': '必须填写 provider 名称。',
   'provider.issue.name-charset': 'provider 名称只能使用字母、数字、连字符和下划线。',

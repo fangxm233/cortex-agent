@@ -117,6 +117,38 @@ Options:
 See [Backends: Remote login](./backends.md#remote-login) for login commands,
 provider capability rules, and expiration handling.
 
+**`cortex auth provider <list|add|remove> [options]`**
+
+Manage custom PI providers — self-hosted or proxied endpoints that have no
+login flow of their own. `add` is an upsert, so re-running it with a changed
+URL or model list edits the stored definition in place.
+
+Options:
+- `--name <name>` — provider name; letters, digits, `-` and `_` only
+- `--api <api>` — request protocol: `anthropic-messages`, `openai-completions`, `openai-responses`, or `google-generative-ai`
+- `--url <url>` — upstream endpoint, stored in the gateway route
+- `--key <key|->` — upstream API key; `-` reads it from stdin so it never appears in shell history
+- `--model <id>` — a model id the endpoint serves; repeat for several
+- `--dry-run` — on `remove`, report what would be deleted without deleting it
+- `--json` — print the result as JSON
+- `--help`, `-h` — show provider command help
+
+```bash
+# define a local endpoint that speaks the Anthropic protocol
+cortex auth provider add --name my-vllm --api anthropic-messages \
+  --url http://127.0.0.1:8100 --model Model-27B
+
+# take the key from a secret store instead of the command line
+pass show my-endpoint | cortex auth provider add --name my-proxy \
+  --api openai-completions --url https://proxy.example.com/v1 --model small --key -
+
+cortex auth provider list --json
+cortex auth provider remove --name my-vllm --dry-run
+```
+
+See [Backends: Custom providers](./backends.md#custom-providers) for what the
+two writes contain and how a definition reaches an agent.
+
 **`cortex setup-gateway [--dry-run] [--output-dir <path>]`**
 
 Auto-detect Claude Code and PI configurations from their local config

@@ -5,6 +5,12 @@
 
 import { z } from 'zod';
 import { SETTINGS_SPEC } from '@core/settings-spec.js';
+// Import the leaf model module, not the pi-providers barrel: this file is bundled for the browser
+// through @cortex-agent/ui-contract, and that module is pure data with no imports of its own.
+import {
+  CUSTOM_PROVIDER_APIS,
+  CUSTOM_PROVIDER_NAME_RE,
+} from '@domain/pi-providers/custom-provider-model.js';
 import type { QueryScope, MutateOp } from './types.js';
 
 // ── Query input schemas ───────────────────────────────────────────
@@ -90,6 +96,8 @@ export const authFlowStateInput = z.object({
   flowId: z.string().min(1),
 });
 
+export const authCustomProvidersInput = z.object({});
+
 export const machinesListInput = z.object({});
 
 export const skillsListInput = z.object({});
@@ -130,6 +138,32 @@ export const authLogoutInput = z.object({
   backend: z.enum(['claude', 'pi']),
   provider: z.string().min(1),
   authType: z.enum(['api_key', 'oauth']),
+});
+
+// ── auth.upsertCustomProvider / auth.removeCustomProvider ─────────
+// Shape gate only. The SEMANTIC rules — reserved provider names, upstream scheme, duplicate model
+// ids — stay with validateCustomProvider(), which every surface (Web, chat, CLI) runs, so the rule
+// set has one home and one message table.
+const customProviderName = z.string().min(1).regex(CUSTOM_PROVIDER_NAME_RE);
+
+export const authUpsertCustomProviderInput = z.object({
+  name: customProviderName,
+  api: z.enum(CUSTOM_PROVIDER_APIS),
+  upstreamUrl: z.string().min(1),
+  /** Omitted keeps the stored upstream key; an empty string clears it. */
+  apiKey: z.string().optional(),
+  models: z.array(z.object({
+    id: z.string().min(1),
+    contextWindow: z.number().int().positive().optional(),
+    maxTokens: z.number().int().positive().optional(),
+    reasoning: z.boolean().optional(),
+  })).min(1),
+  headers: z.record(z.string(), z.string()).optional(),
+  compat: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const authRemoveCustomProviderInput = z.object({
+  name: customProviderName,
 });
 
 // Presence/type guard only; deep name validation (traversal / reserved / separators) lives in
@@ -532,6 +566,7 @@ export const queryInputSchemas = {
   'config.get': configGetInput,
   'auth.status': authStatusInput,
   'auth.flowState': authFlowStateInput,
+  'auth.customProviders': authCustomProvidersInput,
   'hooks.list': hooksListInput,
   'machines.list': machinesListInput,
   'skills.list': skillsListInput,
@@ -578,6 +613,8 @@ export const mutateInputSchemas = {
   'auth.respondPrompt': authRespondPromptInput,
   'auth.cancelFlow': authCancelFlowInput,
   'auth.logout': authLogoutInput,
+  'auth.upsertCustomProvider': authUpsertCustomProviderInput,
+  'auth.removeCustomProvider': authRemoveCustomProviderInput,
   'hooks.create': hooksCreateInput,
   'hooks.update': hooksUpdateInput,
   'hooks.setEnabled': hooksSetEnabledInput,

@@ -27,6 +27,7 @@ export {
 export { GATEWAY_CONFIG_PATH, type GatewayRouteSpec } from './gateway-route-store.js';
 
 export {
+  defaultCustomProviderStores,
   getCustomProvider,
   listCustomProviders,
   removeCustomProvider,

@@ -60,6 +60,9 @@ import {
   authRespondPromptInput,
   authCancelFlowInput,
   authLogoutInput,
+  authCustomProvidersInput,
+  authUpsertCustomProviderInput,
+  authRemoveCustomProviderInput,
   hooksListInput,
   hooksCreateInput,
   hooksUpdateInput,
@@ -297,6 +300,11 @@ function authRouter(service: UiService) {
     respondPrompt: makeMutation(service, 'auth.respondPrompt', authRespondPromptInput),
     cancelFlow: makeMutation(service, 'auth.cancelFlow', authCancelFlowInput),
     logout: makeMutation(service, 'auth.logout', authLogoutInput),
+    // Self-hosted and proxied endpoints, which have no login flow: they are defined, edited and
+    // deleted rather than logged in and out of.
+    customProviders: makeQuery(service, 'auth.customProviders', authCustomProvidersInput),
+    upsertCustomProvider: makeMutation(service, 'auth.upsertCustomProvider', authUpsertCustomProviderInput),
+    removeCustomProvider: makeMutation(service, 'auth.removeCustomProvider', authRemoveCustomProviderInput),
   });
 }
 
