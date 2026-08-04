@@ -1,11 +1,13 @@
 // input:  DEFAULTS_DIR, host PI auth file, PI path defaults
-// output: host-side PI auth mirroring and built-in role setup
+// output: PI auth mirroring, built-in roles and transport pinning
 // pos:    Managed PI agent directory configuration
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import {
   mkdirSync,
   existsSync,
+  readFileSync,
+  writeFileSync,
   lstatSync,
   readlinkSync,
   unlinkSync,
@@ -138,4 +140,45 @@ export function ensurePIAgentDirs(): void {
   mkdirSync(PI_AGENT_DIR, { recursive: true });
   mkdirSync(PI_SESSIONS_DIR, { recursive: true });
   ensurePIAgentRoles();
+  ensureQuotaVisibleTransport();
+}
+
+// ─── Transport pinning (provider quota visibility) ────────────────
+
+export interface EnsureTransportOpts {
+  agentDir?: string;
+}
+
+/**
+ * Pin PI's transport to SSE inside the Cortex-private agent dir.
+ *
+ * PI surfaces provider response headers to extensions only on its SSE path — the WebSocket
+ * transport never fires `after_provider_response` — and the quota probe reads the throttle's
+ * input from exactly those headers. PI's default (`auto`) tries WebSocket first, so leaving it
+ * unset makes quota telemetry contingent on that attempt failing. Pinning turns an observed
+ * fallback into a guarantee, and drops one dead handshake per session.
+ *
+ * Only this private dir is touched; the user's own `~/.pi` keeps whatever they chose.
+ */
+export function ensureQuotaVisibleTransport(opts?: EnsureTransportOpts): void {
+  const settingsPath = path.join(opts?.agentDir ?? PI_AGENT_DIR, 'settings.json');
+  const current = readSettings(settingsPath);
+  if (current['transport'] === 'sse') return;
+  try {
+    writeFileSync(settingsPath, `${JSON.stringify({ ...current, transport: 'sse' }, null, 2)}\n`);
+  } catch (err) {
+    log.warn(`Failed to pin PI transport in ${settingsPath}: ${(err as Error).message}`);
+  }
+}
+
+/** A settings file PI has not written yet, or has written unreadably, is treated as empty. */
+function readSettings(settingsPath: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
 }
