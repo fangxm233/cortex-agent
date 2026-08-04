@@ -50,7 +50,7 @@ const DesktopTrigger = forwardRef<
 export function DesktopRateLimitStatus({ status }: StatusProps): JSX.Element | null {
   if (!status) return null;
   return (
-    <Popover trigger={<DesktopTrigger label={status.label} />} side="bottom" align="end">
+    <Popover trigger={<DesktopTrigger label={status.label} />} side="bottom" align="center">
       <RateLimitDetails status={status} />
     </Popover>
   );
