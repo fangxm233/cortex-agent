@@ -752,14 +752,24 @@ async function recordStepOutcome(
 /** Settle the workspace this step was placed in — the benchmark run appends a snapshot-placed
  *  step's terminal message to the thread artifact and discards the snapshot here. Runs at the step
  *  boundary: after the step's process exited, before the next transition is evaluated, and on the
- *  error path too. */
-function settleStepWorkspace(stepCtx: StepContext, result: any, opts: RunThreadOptions): void {
-  opts.benchmark?.settleStepWorkspace?.({
-    agentSlotId: stepCtx.agentSlotId,
-    stepIndex: stepCtx.stepIndex,
-    stage: stepCtx.stage,
-    terminalText: typeof result?.finalOutput === 'string' ? result.finalOutput : null,
-  });
+ *  error path too. A settlement failure is fatal when the step itself succeeded — the appended text
+ *  is an input to the transition engine, so losing it silently would convert approvals into
+ *  retries. When the step is already propagating an error, the settlement failure is logged
+ *  instead: it must not replace the typed failure the caller classifies the run by. */
+function settleStepWorkspace(
+  stepCtx: StepContext, result: any, opts: RunThreadOptions, stepError: unknown,
+): void {
+  try {
+    opts.benchmark?.settleStepWorkspace?.({
+      agentSlotId: stepCtx.agentSlotId,
+      stepIndex: stepCtx.stepIndex,
+      stage: stepCtx.stage,
+      terminalText: typeof result?.finalOutput === 'string' ? result.finalOutput : null,
+    });
+  } catch (error: any) {
+    if (!stepError) throw error;
+    log.error(`Step workspace settlement failed after a step error: ${error?.message || error}`);
+  }
 }
 
 /** Identity of the attempt a provider interruption cut short, captured at the interruption
@@ -963,11 +973,15 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
       const stepCtx = await buildStepConfig(threadId, stepInfo, ctx, opts);
       const callbacks = setupStepCallbacks(threadId, stepCtx, ctx, opts);
       let result: any;
+      let stepError: unknown = null;
       try {
         result = await executeAndAwaitAgent(threadId, stepCtx, callbacks, ctx, opts);
         await recordStepOutcome(threadId, stepCtx, result, ctx, opts);
+      } catch (error) {
+        stepError = error;
+        throw error;
       } finally {
-        settleStepWorkspace(stepCtx, result, opts);
+        settleStepWorkspace(stepCtx, result, opts, stepError);
       }
 
       // Rate-limit pause (graceful path): recordStepOutcome paused the thread. Break out so the
