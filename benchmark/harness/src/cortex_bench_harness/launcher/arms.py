@@ -14,8 +14,11 @@ from harbor.models.trial.config import AgentConfig
 CORTEX_IMPORT_PATH = "cortex_bench_harness:CortexBenchAgent"
 VENDOR_AGENTS = frozenset({"claude-code", "pi", "codex"})
 IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
-BACKEND_CLI_BINARIES = {"claude": "claude"}
-BACKEND_LIFTING_GATES = {"pi": "gate 2"}
+BACKEND_CLI_BINARIES = {"claude": "claude", "pi": "pi"}
+# A backend composes only once its per-trial adapter is proven; until then it names the gate that
+# owns the proof. Empty is not "everything is allowed": an undeclared backend has no CLI binary
+# either, so it still refuses, with the generic wording below.
+BACKEND_LIFTING_GATES: dict[str, str] = {}
 MODE_LIFTING_GATES = {"coder-review": "gate 3", "manager": "gate 6"}
 COMPOSABLE_MODE = "direct"
 

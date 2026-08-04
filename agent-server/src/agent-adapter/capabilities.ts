@@ -1,5 +1,5 @@
 // input:  Backend type from types.ts
-// output: Capability enum, Claude/PI capability matrix, verified long-MCP-call CLI versions
+// output: Capability enum, Claude/PI capability matrix, long-MCP-call version governance
 // pos:    Capability declaration matrix per backend
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -44,7 +44,7 @@ const CLAUDE_CAPS: Capability[] = [
   // Print mode accepts a user message written to stdin while a turn is in flight.
   Capability.MidTurnInject,
   // The CLI itself owns the MCP client, and it reads MCP_TOOL_TIMEOUT from the environment as the
-  // per-call budget. See BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS for the read evidence.
+  // per-call budget. See LONG_MCP_CALL_VERSION_GOVERNANCE for the read evidence.
   Capability.BenchmarkLongMcpCall,
 ];
 
@@ -54,10 +54,6 @@ const CLAUDE_CAPS: Capability[] = [
 // SessionResume: S2 spike confirmed --session <path> resume works (DR-0008 §8 gate ticked, task 7ca9).
 // MidTurnInject: RPC prompt streamingBehavior=steer queues a message at the next agent-loop boundary.
 // Hooks via PI extension bridge per §3.5 — capability declared true because the extension is part of the default PI adapter package.
-// BenchmarkLongMcpCall is absent: PI's MCP calls are issued by the Cortex bridge, which calls
-// client.callTool() with no RequestOptions, so the SDK's 60 s default is a hard ceiling and no
-// per-call budget can be configured at all. The entry belongs here once the bridge passes explicit
-// timeout / maxTotalTimeout / resetTimeoutOnProgress options and a long call is proven.
 const PI_CAPS: Capability[] = [
   Capability.Hooks,
   Capability.Plugins,
@@ -69,6 +65,16 @@ const PI_CAPS: Capability[] = [
   Capability.SessionResume,
   Capability.StreamingDeltas,
   Capability.MidTurnInject,
+  // Admitted on measured evidence, not on the option shapes alone. PI's MCP calls are issued by the
+  // Cortex bridge, which now supplies explicit timeout / maxTotalTimeout / resetTimeoutOnProgress
+  // RequestOptions (`benchmarkCallOptions`, pi/mcp-duration.ts). An independently written suite held
+  // one real call through that bridge for 63324 ms of wall clock while a no-options control client
+  // on a second server was cut at the SDK's 60 s default; a second row ended a 90 s hold at ~9.6 s =
+  // remaining budget + the 6000 ms cleanup grace despite progress notifications resetting the
+  // per-call timeout, so the raised budget is still bounded by the trial deadline; a third proved
+  // cancellation reaching the server rather than orphaning the request. The governing proof is
+  // tests/domain/agent-run/long-mcp-call-e2e.test.ts — real wall clock, no fake timers.
+  Capability.BenchmarkLongMcpCall,
 ];
 
 export const CAPABILITIES_BY_BACKEND: Record<Backend, Set<Capability>> = {
@@ -76,18 +82,36 @@ export const CAPABILITIES_BY_BACKEND: Record<Backend, Set<Capability>> = {
   pi: new Set(PI_CAPS),
 };
 
-// Closed allowlist of backend CLI versions proven to sustain a long MCP call, keyed by the exact
-// `<cli> --version` output the trial compiles as its identity input. Membership is evidence-bearing
-// and is never an ordering: an unknown, unorderable or malformed version is simply not a member.
+/** Who governs how long one MCP tool call may run, per backend. Which process owns the MCP client
+ *  decides this, so it is declared per backend and never inferred: an empty allowlist would say
+ *  "nothing verified yet" and "version is not the governing fact" in the same bytes. */
+export type LongMcpCallVersionGovernance =
+  /** The backend's own CLI owns the MCP client and reads the per-call budget itself, so the exact
+   *  version is evidence. Closed allowlist, never an ordering: an unknown, unorderable or malformed
+   *  version is simply not a member. */
+  | { readonly governed_by: 'cli-version'; readonly verified_versions: readonly string[] }
+  /** Cortex's own bridge is the MCP client, over an SDK pinned by our lockfile, so the backend
+   *  binary's version governs nothing here and the cited proof governs instead. */
+  | { readonly governed_by: 'cortex-bridge'; readonly proof: string };
+
+// Every backend declares its governance. Nothing here is a default: the compiler refuses a backend
+// that is absent from this table, so a backend added later lands on the refusing branch until
+// someone writes down which of the two facts is true of it and why.
 //
 // claude 2.1.220, admitted by reading the installed bundle: MCP_TOOL_TIMEOUT is read from
 // process.env and becomes the per-call hard timeout when > 0 (unset default 1e8 ms), clamped to
 // 2147483647 ms, so no ceiling lands below a trial deadline; the stdio idle timeout defaults to
 // 1800000 ms and is itself clamped by that hard timeout.
 //
-// pi is empty, and not because PI is unverified: PI's MCP client is the Cortex bridge over a pinned
-// SDK, so PI's call duration is governed by our code rather than by the `pi` binary's version.
-export const BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS: Record<Backend, readonly string[]> = {
-  claude: ['2.1.220 (Claude Code)'],
-  pi: [],
-};
+// pi is exempt on measured evidence rather than on absence of evidence: with the bridge supplying
+// explicit call options, one real call was held 63324 ms while a no-options control client on a
+// second server was cut at the SDK's 60 s default, and a 90 s hold was still bounded by the trial
+// deadline. Upgrading the `pi` binary cannot change that; changing the bridge or its pinned SDK can,
+// which is why the proof names a suite rather than a release string.
+export const LONG_MCP_CALL_VERSION_GOVERNANCE = {
+  claude: { governed_by: 'cli-version', verified_versions: ['2.1.220 (Claude Code)'] },
+  pi: {
+    governed_by: 'cortex-bridge',
+    proof: 'tests/domain/agent-run/long-mcp-call-e2e.test.ts',
+  },
+} as const satisfies Record<Backend, LongMcpCallVersionGovernance>;

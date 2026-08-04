@@ -11,7 +11,7 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import { afterEach, beforeEach, it } from 'vitest';
-import { BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS } from '../../../src/agent-adapter/capabilities.js';
+import { LONG_MCP_CALL_VERSION_GOVERNANCE } from '../../../src/agent-adapter/capabilities.js';
 import { getAdapter } from '../../../src/agent-adapter/index.js';
 import { _test as claudeTest } from '../../../src/agent-adapter/claude/adapter.js';
 import { buildHooksSettings } from '../../../src/agent-adapter/claude/hooks-builder.js';
@@ -576,7 +576,7 @@ it('exposes exactly cortex-benchmark-thread for the thread-run composition (T9)'
     input.roles.parent.mcp_composition = 'benchmark-thread-run';
     input.roles.parent.mcp_config_paths = [mcp];
     // The benchmark thread-run surface admits only CLI versions proven to sustain a long MCP call.
-    input.cli_artifact.version = BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS.claude[0];
+    input.cli_artifact.version = LONG_MCP_CALL_VERSION_GOVERNANCE.claude.verified_versions[0];
   }, 'thread-run');
   const trial = createTrialAdapter(spec(
     { policy: loaded.policy, config: loaded.config }, 'thread-run',

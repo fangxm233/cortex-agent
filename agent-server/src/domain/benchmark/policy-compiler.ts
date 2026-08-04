@@ -7,7 +7,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS, CAPABILITIES_BY_BACKEND, Capability,
+  CAPABILITIES_BY_BACKEND, Capability, LONG_MCP_CALL_VERSION_GOVERNANCE,
+  type LongMcpCallVersionGovernance,
 } from '../../agent-adapter/capabilities.js';
 import type { McpComposition } from '../../agent-adapter/types.js';
 import type { ResolvedProfileConfig } from '../agents/profile-manager.js';
@@ -276,12 +277,19 @@ function exposesBenchmarkMcp(context: CompileContext): boolean {
     .some(role => role.mcp_composition === 'benchmark-thread-run');
 }
 
+// Only an explicit declaration can pass this check, in exactly two shapes: a backend whose CLI owns
+// the MCP client must present a verified version, and a backend whose calls our own bridge issues is
+// exempt from the version because the version is not the governing fact. Everything else — an
+// unlisted version, an undeclared backend — refuses.
 function validateLongMcpCallCliVersion(context: CompileContext): void {
   if (context.arm.kind !== 'cortex' || !exposesBenchmarkMcp(context)) return;
   const version = context.input.cli_artifact.version;
-  if (!BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS[context.arm.backend!].includes(version)) {
-    fail('cli_version_unsupported_for_long_mcp_call', version);
-  }
+  const governance: LongMcpCallVersionGovernance | undefined =
+    LONG_MCP_CALL_VERSION_GOVERNANCE[context.arm.backend!];
+  if (governance?.governed_by === 'cortex-bridge') return;
+  if (governance?.governed_by === 'cli-version'
+    && governance.verified_versions.includes(version)) return;
+  fail('cli_version_unsupported_for_long_mcp_call', version);
 }
 
 function failProfileValueMismatch(

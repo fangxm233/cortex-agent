@@ -16,6 +16,7 @@ from cortex_bench_harness.launcher.arms import (
     ArmCompositionUnsupportedError,
     BackendUnsupportedForKindError,
     ImageDigestUnpinnedError,
+    backend_cli_binary,
     build_agent_config,
     require_pinned_image,
     select_arm,
@@ -229,17 +230,35 @@ def test_unimplemented_modes_refuse_on_the_host(
         assert expected in str(error.value)
 
 
-def test_unsupported_backends_reuse_the_compiler_reason(tmp_path: Path) -> None:
+def test_pi_backed_direct_arms_compose_on_the_host(tmp_path: Path) -> None:
     arm = copy.deepcopy(cortex_arm())
     arm["name"] = "cortex-pi-direct"
     arm["backend"] = "pi"
+    seed = {**trial_seed(), "arm": copy.deepcopy(arm)}
+
+    config = build_agent_config(
+        arm, cli_version="2026.8.3", artifact_dir=tmp_path / "artifacts",
+        manifest=manifest(tmp_path), trial_seed=seed,
+    )
+
+    assert config.import_path == "cortex_bench_harness:CortexBenchAgent"
+    assert config.kwargs["trial_seed"]["arm"]["backend"] == "pi"
+    assert backend_cli_binary(arm) == "pi"
+
+
+def test_undeclared_backends_still_refuse_on_the_host(tmp_path: Path) -> None:
+    # The refusal must outlive the backends it was written for: a backend with no CLI binary
+    # declaration falls through to the generic gate wording rather than composing.
+    arm = copy.deepcopy(cortex_arm())
+    arm["name"] = "cortex-unknown-direct"
+    arm["backend"] = "unknown-backend"
 
     with pytest.raises(BackendUnsupportedForKindError) as error:
         build_unsupported(tmp_path, arm)
 
     assert error.value.reason == "backend_unsupported_for_kind"
-    assert "cortex-pi-direct" in str(error.value)
-    assert "gate 2" in str(error.value)
+    assert "cortex-unknown-direct" in str(error.value)
+    assert "its owning gate" in str(error.value)
 
 
 def test_vendor_baselines_need_no_seed_and_no_composition(tmp_path: Path) -> None:
