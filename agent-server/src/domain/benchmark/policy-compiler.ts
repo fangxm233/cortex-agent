@@ -405,18 +405,14 @@ function compiledGuard(
   return canonicalGuardValue(value) as Record<string, IdentityJsonValue>;
 }
 
-// A benchmark role governs a model process, so it may not run unguarded: the guard is what makes
-// the role's tool surface enforceable, and a missing one is a compile failure rather than an
-// unguarded spawn. Vendor baselines run no Cortex role and carry no guard.
+// Every compiled benchmark role governs a model process, so it may not run unguarded: a missing
+// guard is a compile failure rather than an unguarded spawn, including for vendor baselines.
 function roleGuard(
-  context: CompileContext,
   slot: string,
   source: ResolvedRoleAsset,
-): Record<string, IdentityJsonValue> | undefined {
+): Record<string, IdentityJsonValue> {
   const guard = compiledGuard(slot, source.benchmark_policy_guard);
-  if (guard === undefined && context.arm.kind === 'cortex') {
-    fail('policy_guard_absent', `role://${slot}`);
-  }
+  if (guard === undefined) fail('policy_guard_absent', `role://${slot}`);
   return guard;
 }
 
@@ -442,7 +438,7 @@ function promptRole(context: CompileContext, slot: string): WorkingRole {
     directiveSha256: sha256(directive),
     pluginDirs: [],
     skills: [],
-    benchmarkPolicyGuard: roleGuard(context, slot, source),
+    benchmarkPolicyGuard: roleGuard(slot, source),
   };
 }
 

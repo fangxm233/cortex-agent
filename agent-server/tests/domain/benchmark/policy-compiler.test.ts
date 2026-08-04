@@ -645,7 +645,7 @@ it('refuses an unverified CLI version only where a benchmark MCP surface exists'
   assert.equal(noSurface.model_execution.claude_cli_version, 'fixture-1.0.0');
 });
 
-it('refuses a compiled cortex role that carries no policy guard', () => {
+it('refuses any compiled cortex role that carries no policy guard', () => {
   const parentless = resolution();
   delete parentless.roles.parent.benchmark_policy_guard;
   expectFailure(parentless, 'policy_guard_absent', 30);
@@ -654,6 +654,13 @@ it('refuses a compiled cortex role that carries no policy guard', () => {
   configureCoderReview(reviewerless);
   delete reviewerless.roles['benchmark-reviewer'].benchmark_policy_guard;
   expectFailure(reviewerless, 'policy_guard_absent', 30);
+});
+
+it('fails a vendor baseline before it can emit an absent guard slot', () => {
+  const input = resolution();
+  configureVendorBaseline(input);
+
+  expectFailure(input, 'policy_guard_absent', 30);
 });
 
 it('carries every compiled role guard on the frozen policy, keyed by slot', () => {
@@ -674,16 +681,6 @@ it('carries every compiled role guard on the frozen policy, keyed by slot', () =
     () => { (policy.role_policy_guard as Record<string, unknown>).parent = {}; },
     TypeError,
   );
-});
-
-it('omits the slot key entirely when a compiled role carries no guard', () => {
-  const input = resolution();
-  configureVendorBaseline(input);
-  const policy = compileResolvedTrialPolicy(input, dependencies());
-
-  assert.equal('parent' in policy.role_policy_guard, false);
-  assert.deepEqual(Object.keys(policy.role_policy_guard), []);
-  assert.match(policy.identity.role_tool_surface_hash.parent, /^[0-9a-f]{64}$/);
 });
 
 it('enforces closed template, capability, and required-role whitelists', () => {
