@@ -76,14 +76,32 @@ describe('groupSessions', () => {
 });
 
 describe('sessionMeta', () => {
-  it('renders HH:MM of the effective timestamp (local)', () => {
-    expect(sessionMeta(en, mk({ sessionId: 'a', lastUsedAt: todayMorning.toISOString() }))).toBe('07:05');
-    expect(sessionMeta(en, mk({ sessionId: 'b', lastUsedAt: yesterday.toISOString() }))).toBe('21:38');
+  it('renders HH:MM of the effective timestamp (local) for TODAY / YESTERDAY rows', () => {
+    expect(sessionMeta(en, mk({ sessionId: 'a', lastUsedAt: todayMorning.toISOString() }), now)).toBe('07:05');
+    expect(sessionMeta(en, mk({ sessionId: 'b', lastUsedAt: yesterday.toISOString() }), now)).toBe('21:38');
+  });
+
+  it('prefixes MM-DD for EARLIER rows, whose group header carries no date', () => {
+    expect(sessionMeta(en, mk({ sessionId: 'c', lastUsedAt: older.toISOString() }), now)).toBe('07-01 12:00');
+  });
+
+  it('widens to YYYY-MM-DD once the year differs from the current one', () => {
+    const lastYear = new Date(2025, 11, 24, 9, 7, 0);
+    expect(sessionMeta(en, mk({ sessionId: 'd', lastUsedAt: lastYear.toISOString() }), now)).toBe('2025-12-24 09:07');
   });
 
   it('appends "· from schedule" for scheduled sessions', () => {
     const s = mk({ sessionId: 's', kind: 'scheduled', lastUsedAt: new Date(2026, 6, 6, 7, 31).toISOString() });
-    expect(sessionMeta(en, s)).toBe('07:31 · from schedule');
+    expect(sessionMeta(en, s, now)).toBe('07:31 · from schedule');
+    const old = mk({ sessionId: 't', kind: 'scheduled', lastUsedAt: older.toISOString() });
+    expect(sessionMeta(en, old, now)).toBe('07-01 12:00 · from schedule');
+  });
+
+  it('defaults now to the current clock', () => {
+    const justNow = new Date();
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    expect(sessionMeta(en, mk({ sessionId: 'n', lastUsedAt: justNow.toISOString() })))
+      .toBe(`${pad(justNow.getHours())}:${pad(justNow.getMinutes())}`);
   });
 });
 

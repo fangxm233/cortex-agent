@@ -26,7 +26,7 @@ import {
 import { useRevealedText } from '@/features/workbench/useRevealedText';
 import { useToolCallOverflow } from '@/features/workbench/useToolCallOverflow';
 import { ChatNotice } from '@/features/workbench/ChatNotice';
-import { regenNoteIndexes, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
+import { regenNoteIndexes, messageTimeLabel, type ChatRow, type Attachment } from '@/features/workbench/transcript-vm';
 import { buildSessionIdRows } from '@/features/workbench/session-id';
 import {
   interactionView,
@@ -157,6 +157,9 @@ function longPressHandlers(fire: () => void): {
 export function MsgActionMenu({ row, menu, copy }: { row: ChatRow; menu: MMsgMenu; copy: MChatEditCopy }): JSX.Element {
   const isUser = row.kind === 'user';
   const text = row.kind === 'user' || row.kind === 'assistant' ? row.text : '';
+  // Send time — the long press is the mobile counterpart of the desktop hover, so the stamp shows
+  // up here rather than in the stream, where a per-bubble line would eat the narrow column.
+  const timeLabel = messageTimeLabel(row.kind === 'user' ? row.ts : undefined);
   const item = (label: string, onTap: (() => void) | undefined, disabled?: boolean, last?: boolean): JSX.Element => (
     <div
       role="button"
@@ -197,6 +200,13 @@ export function MsgActionMenu({ row, menu, copy }: { row: ChatRow; menu: MMsgMen
       ) : (
         <div style={{ maxWidth: '88%', background: 'var(--proto-card)', color: MC.body, borderRadius: 14, padding: '9px 13px', fontSize: 13.5, lineHeight: 1.6, boxShadow: '0 14px 40px rgba(0,0,0,.4)', maxHeight: '38%', overflow: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
           {text}
+        </div>
+      )}
+      {/* Send time, under the floated bubble — carries its own scrim so it stays legible over
+          whatever the blurred conversation happens to be behind it. */}
+      {timeLabel && (
+        <div style={{ font: `500 10.5px ${MONO}`, color: 'rgba(255,255,255,.92)', background: 'rgba(0,0,0,.42)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>
+          {timeLabel}
         </div>
       )}
       {/* Menu — 复制 / 编辑消息 (46px rows, scheme 7a) */}

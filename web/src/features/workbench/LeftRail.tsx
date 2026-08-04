@@ -200,7 +200,12 @@ export function LeftRail(): JSX.Element {
     window.addEventListener('mouseup', onUp);
   };
 
-  const groups = useMemo(() => groupSessions(sessions, Date.now()), [sessions]);
+  // One `now` feeds both the bucketing and the per-row meta, so a row can never sit under EARLIER
+  // while its meta is computed against a later clock (or the reverse).
+  const { groups, now } = useMemo(() => {
+    const now = Date.now();
+    return { groups: groupSessions(sessions, now), now };
+  }, [sessions]);
 
   // Selection is the shared cross-pane state: clicking a row re-points the center chat.
   const { selectedSessionId: effectiveSelected, setSelectedSession } = useSelectedSession();
@@ -682,7 +687,7 @@ export function LeftRail(): JSX.Element {
                         paddingLeft: running ? 14 : 0,
                       }}
                     >
-                      {sessionMeta(L, s)}
+                      {sessionMeta(L, s, now)}
                     </div>
                   </div>
                 );

@@ -443,6 +443,26 @@ export function formatDividerFromVocab(L: Vocab): (ts: string, now: Date) => str
   };
 }
 
+/**
+ * Send-time stamp for a single message, as revealed on desktop hover / mobile long-press. `HH:MM`
+ * while the message is from today; `MM-DD HH:MM` on any other day; `YYYY-MM-DD HH:MM` once the year
+ * differs. The day dividers already date each run of messages, so the common case stays a bare
+ * clock — the date only appears where a reader scrolled back far enough to have lost the divider.
+ * Returns null for a missing or unparseable ts so the caller can skip the affordance entirely.
+ */
+export function messageTimeLabel(ts: string | undefined, now: Date = new Date()): string | null {
+  if (!ts) return null;
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return null;
+  const p2 = (n: number): string => String(n).padStart(2, '0');
+  const time = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const sameDay =
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  if (sameDay) return time;
+  const date = `${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+  return `${d.getFullYear() === now.getFullYear() ? date : `${d.getFullYear()}-${date}`} ${time}`;
+}
+
 function dayStamp(ts: string): string {
   const d = new Date(ts);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;

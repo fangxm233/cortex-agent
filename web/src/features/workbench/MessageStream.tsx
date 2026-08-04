@@ -20,7 +20,7 @@ import { interactionView, emptyDeskAsk, type DeskAskState } from './interaction-
 import type { InteractionActions } from './useInteractionActions';
 import { DeskAskCard, DeskPlanCard, D_INT_COPY } from './InteractionCards';
 import { PlanReadOverlay } from './PlanReadOverlay';
-import { rewindStats, regenNoteIndexes } from './transcript-vm';
+import { rewindStats, regenNoteIndexes, messageTimeLabel } from './transcript-vm';
 import { useRevealedText } from './useRevealedText';
 import { DebugDetailsModal, DebugInspectButton, type DebugDetail } from './DebugDetailsModal';
 import { M_EDIT_COPY, HoverActionPill, EditBox, RewindNote, RewindTail, EditedBadge, RegenNote, type MEditCopy } from './MessageEdit';
@@ -384,6 +384,10 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
 }): JSX.Element {
   const hasAttachments = attachments && attachments.length > 0;
   const [debugDetail, setDebugDetail] = useState<DebugDetail | null>(null);
+  // Send time rides the same hover reveal as the action pill rather than sitting in the flow: a
+  // permanent stamp under every bubble would cost a line of height on a surface that is mostly
+  // reading, and the time is a lookup, not something a reader tracks turn by turn.
+  const timeLabel = messageTimeLabel(ts);
   return (
     <div
       className="group"
@@ -398,26 +402,34 @@ function UserBubble({ text, attachments, ts, edited, editCopy, onStartEdit, edit
         animation: 'cxmsg .34s cubic-bezier(.22,1,.36,1) both',
       }}
     >
-      {/* One message-level pill owns copy, edit, and DEBUG inspect. It sits to the left so the
-          right-aligned row never extends the transcript's scroll width. */}
-      {editCopy && (text || debug) && (
+      {/* Send time + the one message-level pill that owns copy, edit, and DEBUG inspect. Both sit
+          to the left, absolutely placed, so the right-aligned row never extends the transcript's
+          scroll width and the reveal costs no layout. */}
+      {(timeLabel || (editCopy && (text || debug))) && (
         <div
           className="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100"
-          style={{ position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)', paddingRight: 8, display: 'flex' }}
+          style={{ position: 'absolute', right: '100%', top: '50%', transform: 'translateY(-50%)', paddingRight: 8, display: 'flex', alignItems: 'center', gap: 8 }}
         >
-          <HoverActionPill
-            text={text}
-            copy={editCopy}
-            showCopy={!!text}
-            onEdit={text ? onStartEdit : undefined}
-            editDisabled={editDisabled}
-            extraAction={debug ? (
-              <DebugInspectButton
-                className="!h-[26px] !min-w-[26px] !border-0 !bg-transparent !px-0 !shadow-none"
-                onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }}
-              />
-            ) : undefined}
-          />
+          {timeLabel && (
+            <span style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', whiteSpace: 'nowrap', flex: 'none' }}>
+              {timeLabel}
+            </span>
+          )}
+          {editCopy && (text || debug) && (
+            <HoverActionPill
+              text={text}
+              copy={editCopy}
+              showCopy={!!text}
+              onEdit={text ? onStartEdit : undefined}
+              editDisabled={editDisabled}
+              extraAction={debug ? (
+                <DebugInspectButton
+                  className="!h-[26px] !min-w-[26px] !border-0 !bg-transparent !px-0 !shadow-none"
+                  onClick={(event) => { event.stopPropagation(); setDebugDetail({ kind: 'user', agentMessage: debug.agentMessage }); }}
+                />
+              ) : undefined}
+            />
+          )}
         </div>
       )}
       {/* Attachments above the bubble */}

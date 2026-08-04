@@ -66,10 +66,22 @@ function pad2(n: number): string {
 
 // Meta line: local HH:MM of the effective timestamp, plus a "from schedule" marker for scheduled
 // sessions. SessionInfo carries no turns/cost/running fields (GAP-2) so the meta is time + kind only.
-export function sessionMeta(L: Vocab, s: SessionInfo): string {
-  const d = new Date(effectiveMs(s));
+// A bare clock is only unambiguous while the group header still dates the row: TODAY and YESTERDAY
+// say which day it was, EARLIER does not. So rows that fall into the EARLIER bucket — anything
+// before yesterday, by the same local-calendar-day test `groupSessions` uses — carry the date too,
+// as `MM-DD HH:MM`, widening to `YYYY-MM-DD HH:MM` once the year no longer matches the current one.
+export function sessionMeta(L: Vocab, s: SessionInfo, now: Date | number = Date.now()): string {
+  const nowMs = typeof now === 'number' ? now : now.getTime();
+  const ms = effectiveMs(s);
+  const d = new Date(ms);
   const clock = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
-  return s.kind === 'scheduled' ? clock + ' · ' + L.wbFromSchedule : clock;
+  const earlier = localDayIndex(ms) < localDayIndex(nowMs) - 1;
+  const date = earlier
+    ? (d.getFullYear() === new Date(nowMs).getFullYear() ? '' : d.getFullYear() + '-') +
+      pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' '
+    : '';
+  const stamp = date + clock;
+  return s.kind === 'scheduled' ? stamp + ' · ' + L.wbFromSchedule : stamp;
 }
 
 // Avatar initials from a project id: first letter of the first two `-`/`_`-split segments, else the
