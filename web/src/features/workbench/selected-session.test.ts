@@ -15,7 +15,7 @@ import {
 function sess(id: string, lastUsedAt: string, projectId = 'p1'): SessionInfo {
   return {
     sessionId: id, backendSessionId: null, name: id, projectId, backend: 'claude', kind: 'local', origin: 'direct',
-    createdAt: lastUsedAt, lastUsedAt, resumable: true, label: null, profileName: null, running: false, backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: null, unread: false,
+    createdAt: lastUsedAt, lastUsedAt, resumable: true, label: null, profileName: null, running: false, backgroundRunning: false, awaitingInput: false, numTurns: null, costUsd: null, unread: false, scheduleId: null,
   };
 }
 

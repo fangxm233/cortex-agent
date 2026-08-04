@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { en } from '@/i18n';
-import { groupSessions, sessionMeta, projectInitials } from './session-groups';
+import { groupSessions, groupRailItems, sessionMeta, projectInitials } from './session-groups';
 
 function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
   const created = p.createdAt ?? '2026-07-06T00:00:00.000Z';
@@ -24,7 +24,12 @@ function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
     numTurns: p.numTurns ?? null,
     costUsd: p.costUsd ?? null,
     unread: p.unread ?? false,
+    scheduleId: p.scheduleId ?? null,
   };
+}
+
+function run(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
+  return mk({ kind: 'scheduled', origin: 'scheduled', scheduleId: 'sch1', ...p });
 }
 
 // Local wall-clock anchors (constructed from components so the test is timezone-agnostic —
@@ -150,5 +155,97 @@ describe('groupSessions unread ordering', () => {
     expect(groups.map((g) => g.label)).toEqual(['TODAY', 'YESTERDAY']);
     expect(groups[0].items[0].sessionId).toBe('today-read');
     expect(groups[1].items[0].sessionId).toBe('yesterday-unread');
+  });
+});
+
+// ── groupRailItems (design 27a-B: schedule runs share the manual timeline) ──
+
+describe('groupRailItems', () => {
+  it('collapses ≥2 runs of one schedule into a group row in the shared timeline, latest run first', () => {
+    const groups = groupRailItems(
+      [
+        mk({ sessionId: 'manual', lastUsedAt: todayLate.toISOString() }),
+        run({ sessionId: 'r1', lastUsedAt: todayMorning.toISOString() }),
+        run({ sessionId: 'r2', lastUsedAt: new Date(2026, 6, 6, 12, 30).toISOString() }),
+      ],
+      now,
+    );
+    expect(groups.map((g) => g.label)).toEqual(['TODAY']);
+    expect(groups[0].items.map((i) => i.kind)).toEqual(['schedule-group', 'session']);
+    const grp = groups[0].items[0];
+    if (grp.kind !== 'schedule-group') throw new Error('expected schedule-group');
+    expect(grp.scheduleId).toBe('sch1');
+    expect(grp.runs.map((r) => r.sessionId)).toEqual(['r2', 'r1']);
+    expect(grp.latest.sessionId).toBe('r2');
+  });
+
+  it('keeps a single run as a plain session row (no group of one)', () => {
+    const groups = groupRailItems([run({ sessionId: 'solo', lastUsedAt: todayMorning.toISOString() })], now);
+    expect(groups[0].items).toEqual([expect.objectContaining({ kind: 'session' })]);
+  });
+
+  it('never groups legacy runs without a scheduleId', () => {
+    const groups = groupRailItems(
+      [
+        run({ sessionId: 'l1', scheduleId: null, lastUsedAt: todayMorning.toISOString() }),
+        run({ sessionId: 'l2', scheduleId: null, lastUsedAt: todayLate.toISOString() }),
+      ],
+      now,
+    );
+    expect(groups[0].items.map((i) => i.kind)).toEqual(['session', 'session']);
+  });
+
+  it('does not group an adopted run (origin direct) — it left the schedule grouping', () => {
+    const groups = groupRailItems(
+      [
+        run({ sessionId: 'r1', lastUsedAt: todayMorning.toISOString() }),
+        run({ sessionId: 'adopted', kind: 'local', origin: 'direct', lastUsedAt: todayLate.toISOString() }),
+      ],
+      now,
+    );
+    expect(groups[0].items.map((i) => i.kind)).toEqual(['session', 'session']);
+  });
+
+  it('buckets and sorts the group by its LATEST run; older runs do not echo into other days', () => {
+    const groups = groupRailItems(
+      [
+        mk({ sessionId: 'y-manual', lastUsedAt: yesterday.toISOString() }),
+        run({ sessionId: 'r-old', lastUsedAt: older.toISOString() }),
+        run({ sessionId: 'r-new', lastUsedAt: todayMorning.toISOString() }),
+      ],
+      now,
+    );
+    expect(groups.map((g) => g.label)).toEqual(['TODAY', 'YESTERDAY']);
+    expect(groups[0].items[0].kind).toBe('schedule-group');
+    expect(groups[1].items.map((i) => i.kind)).toEqual(['session']);
+  });
+
+  it('aggregates unread across runs and floats the group like an unread session', () => {
+    const groups = groupRailItems(
+      [
+        mk({ sessionId: 'manual', lastUsedAt: todayLate.toISOString() }),
+        run({ sessionId: 'r1', lastUsedAt: todayMorning.toISOString(), unread: true }),
+        run({ sessionId: 'r2', lastUsedAt: new Date(2026, 6, 6, 8, 0).toISOString() }),
+      ],
+      now,
+    );
+    const grp = groups[0].items[0];
+    if (grp.kind !== 'schedule-group') throw new Error('expected the unread group to float first');
+    expect(grp.unread).toBe(true);
+  });
+
+  it('groups different schedules separately', () => {
+    const groups = groupRailItems(
+      [
+        run({ sessionId: 'a1', lastUsedAt: todayMorning.toISOString() }),
+        run({ sessionId: 'a2', lastUsedAt: todayLate.toISOString() }),
+        run({ sessionId: 'b1', scheduleId: 'sch2', lastUsedAt: yesterday.toISOString() }),
+        run({ sessionId: 'b2', scheduleId: 'sch2', lastUsedAt: older.toISOString() }),
+      ],
+      now,
+    );
+    const kinds = groups.flatMap((g) => g.items.map((i) => (i.kind === 'schedule-group' ? i.scheduleId : 'session')));
+    expect(kinds).toEqual(['sch1', 'sch2']);
+    expect(groups.map((g) => g.label)).toEqual(['TODAY', 'YESTERDAY']);
   });
 });

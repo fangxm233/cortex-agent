@@ -20,7 +20,7 @@ const session = (projectId: string, lastUsedAt: string): SessionInfo => ({
   awaitingInput: false,
   numTurns: null,
   costUsd: null,
-  unread: false,
+  unread: false, scheduleId: null,
 });
 
 const project = (id: string): ProjectConduitInfo => ({
