@@ -19,6 +19,7 @@ import {
   MONO,
 } from '@/mobile/ui/kit';
 import { relTimeZh } from '@/mobile/ui/format';
+import { formatTaskTime } from '@/features/tasks/task-time';
 import type {
   MTaskDetailVm,
   MTaskStatusKind,
@@ -37,6 +38,7 @@ export interface MTaskDetailCopy {
   statusLabel: string;
   approvalNeededLabel: string;
   approvedAtLabel: string;
+  completedAtLabel: string;
   templateLabel: string;
   depsLabel: string;
   depsEmpty: string;
@@ -61,6 +63,7 @@ export const ZH_COPY: MTaskDetailCopy = {
   statusLabel: '状态',
   approvalNeededLabel: '需要审批',
   approvedAtLabel: '批准时间',
+  completedAtLabel: '完成时间',
   templateLabel: '模板',
   depsLabel: '依赖',
   depsEmpty: '无依赖',
@@ -85,6 +88,7 @@ export const EN_COPY: MTaskDetailCopy = {
   statusLabel: 'Status',
   approvalNeededLabel: 'Approval needed',
   approvedAtLabel: 'Approved at',
+  completedAtLabel: 'Completed at',
   templateLabel: 'Template',
   depsLabel: 'Depends',
   depsEmpty: 'No dependencies',
@@ -215,6 +219,17 @@ export function MTaskDetailView({
         <>
           <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.approvedAtLabel}</span>
           <span style={{ font: `500 11px ${MONO}`, color: MC.body }}>{vm.approvedAt ?? '—'}</span>
+        </>
+      ),
+    },
+    {
+      key: 'completed-at',
+      node: (
+        <>
+          <span style={{ fontSize: 12, color: MC.muted, width: 62, flex: 'none' }}>{copy.completedAtLabel}</span>
+          <span style={{ font: `500 11px ${MONO}`, color: vm.completedAt ? MC.done : MC.body }}>
+            {formatTaskTime(vm.completedAt) ?? '—'}
+          </span>
         </>
       ),
     },

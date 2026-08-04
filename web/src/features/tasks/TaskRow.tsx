@@ -8,6 +8,7 @@ import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { useVocab, type Vocab } from '@/i18n';
 import { displayClaimId } from './task-claim';
 import { unresolvedDependencyIds } from './task-dependencies';
+import { formatTaskTime } from './task-time';
 import type { TaskGroupKind } from './group-tasks';
 
 export interface TaskRowProps {
@@ -16,7 +17,7 @@ export interface TaskRowProps {
   onOpen: (task: TaskInfo) => void;
 }
 
-type TaskMetaKind = 'claim' | 'approval' | 'blocked' | 'waiting';
+type TaskMetaKind = 'claim' | 'approval' | 'blocked' | 'waiting' | 'done';
 
 type TaskMeta = {
   kind: TaskMetaKind;
@@ -46,6 +47,7 @@ const META_STYLE: Record<TaskMetaKind, CSSProperties> = {
   approval: { color: 'var(--proto-amber-text)', background: 'var(--proto-amber-bg)' },
   blocked: { color: 'var(--proto-danger)', background: 'var(--proto-danger-bg)' },
   waiting: { color: 'var(--proto-muted-2)', background: 'var(--proto-gray)' },
+  done: { color: 'var(--proto-success)', background: 'var(--proto-success-bg)' },
 };
 
 const BLOCKED_META_STYLE: CSSProperties = {
@@ -60,7 +62,11 @@ const BLOCKED_META_STYLE: CSSProperties = {
 function taskMeta(task: TaskInfo, kind: TaskGroupKind, vocab: Vocab): TaskMeta | null {
   const claimId = displayClaimId(task);
   const dependencies = unresolvedDependencyIds(task);
+  const completedAt = formatTaskTime(task.completedAt);
   const candidates: Array<TaskMeta | null> = [
+    kind === 'done' && completedAt
+      ? { kind: 'done', text: `${vocab.tkCompletedAt} · ${completedAt}` }
+      : null,
     kind === 'blocked' && task.blockedBy
       ? { kind: 'blocked', text: `${vocab.mBlockedPill} · ${task.blockedBy}` }
       : null,

@@ -56,6 +56,12 @@ describe('buildTaskModalVm persisted fields', () => {
     expect(fieldValue(approved, 'approved-at')).toBe('2026-07-30');
   });
 
+  it('shows the recorded completion time in local wall clock', () => {
+    const completedAt = new Date(2026, 7, 3, 14, 22, 33).toISOString();
+    expect(fieldValue(task({ status: 'done', completedAt }), 'completed-at')).toBe('2026-08-03 14:22');
+    expect(fieldValue(task({ status: 'open' }), 'completed-at')).toBe('—');
+  });
+
   it('uses approval-needed as the pending task pill before actionable', () => {
     const vm = buildTaskModalVm(task({ approvalNeeded: true, actionable: true }), []);
     expect(vm.pill.text).toBe('approval-needed');

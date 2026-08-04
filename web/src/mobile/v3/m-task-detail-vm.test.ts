@@ -113,6 +113,26 @@ describe('buildTaskDetailVm', () => {
     expect(buildTaskDetailVm('001', [task({})], null, NOW).approvalNeeded).toBeNull();
   });
 
+  it('maps the recorded completion time, falling back to verification evidence', () => {
+    const completedAt = '2026-08-03T20:22:33.000Z';
+    const done = task({ status: 'done', completedAt });
+    expect(buildTaskDetailVm('001', [done], null, NOW).completedAt).toBe(completedAt);
+
+    const evidence = verification({
+      evidence: {
+        doneWhen: null,
+        completed: true,
+        completedAt,
+        completedNote: null,
+        completingExecutionId: null,
+        completingOutput: null,
+      },
+    });
+    expect(buildTaskDetailVm('001', [task({ status: 'done' })], evidence, NOW).completedAt).toBe(completedAt);
+
+    expect(buildTaskDetailVm('001', [task({})], null, NOW).completedAt).toBeNull();
+  });
+
   it('passes through done-when and blocker details honestly', () => {
     const vm = buildTaskDetailVm(
       '001',

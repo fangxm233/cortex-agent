@@ -59,6 +59,17 @@ describe('MTaskDetailView fields', () => {
     expect(approved).toContain('2026-07-30');
   });
 
+  it('renders the completion time in local wall clock, em dash when unrecorded', () => {
+    const completedAt = new Date(2026, 7, 3, 14, 22, 33).toISOString();
+    const done = render([task({ status: 'done', completedAt })]);
+    const open = render([task()]);
+
+    expect(done).toContain('完成时间');
+    expect(done).toContain('2026-08-03 14:22');
+    expect(open).toContain('完成时间');
+    expect(open).not.toContain('2026-08-03');
+  });
+
   it('renders real dependencies instead of the empty-state copy', () => {
     const html = render([
       task({ dependsOn: ['b222'] }),
