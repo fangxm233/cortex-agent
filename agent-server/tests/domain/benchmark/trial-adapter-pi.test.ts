@@ -19,7 +19,7 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, it } from 'vitest';
 
-import { BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS } from '../../../src/agent-adapter/capabilities.js';
+import { LONG_MCP_CALL_VERSION_GOVERNANCE } from '../../../src/agent-adapter/capabilities.js';
 import { getAdapter } from '../../../src/agent-adapter/index.js';
 import { PIAdapter } from '../../../src/agent-adapter/pi/adapter.js';
 import { PI_AGENT_DIR, PI_MODELS_PATH, PI_SESSIONS_DIR } from '../../../src/agent-adapter/pi/defaults.js';
@@ -427,7 +427,7 @@ it('lands exactly cortex-benchmark-thread for the thread-run composition (P13, T
     input.roles.parent.mcp_config_paths = [mcp];
     // Code 29 gates the thread-run surface on a CLI version proven to sustain a long MCP call.
     // The arm compiles as Claude here (see the header note), so it is Claude's verified set.
-    input.cli_artifact.version = BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS.claude[0];
+    input.cli_artifact.version = LONG_MCP_CALL_VERSION_GOVERNANCE.claude.verified_versions[0];
   }, 'thread-run');
   const { record } = spawnPi(spec({ policy: loaded.policy, config: loaded.config }, 'thread-run'));
   assert.equal(record.env![PI_MCP_COMPOSITION_ENV], 'benchmark-thread-run');

@@ -23,7 +23,7 @@ export const supervisorBinary = path.join(
 export const HOLD_SERVER = fileURLToPath(new URL('./long-mcp-hold-server.mjs', import.meta.url));
 export const CLAUDE_CLI = fileURLToPath(new URL('./long-mcp-claude-cli.mjs', import.meta.url));
 
-/** The only version `BENCHMARK_LONG_MCP_CALL_CLI_VERSIONS` admits; any other refuses to compile
+/** The only Claude version `LONG_MCP_CALL_VERSION_GOVERNANCE` admits; any other refuses to compile
  *  with §2.6 code 29 the moment a role exposes the benchmark MCP surface (§5.7 C6). */
 export const CLI_VERSION = '2.1.220 (Claude Code)';
 export const SDK_DEFAULT_TIMEOUT_MS = 60_000;

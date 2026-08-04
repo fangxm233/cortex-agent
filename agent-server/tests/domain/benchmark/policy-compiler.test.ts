@@ -26,7 +26,7 @@ import {
   childTemplateWhitelistForArm,
 } from '../../../src/domain/benchmark/capabilities.js';
 import {
-  CAPABILITIES_BY_BACKEND, Capability,
+  CAPABILITIES_BY_BACKEND, Capability, LONG_MCP_CALL_VERSION_GOVERNANCE,
 } from '../../../src/agent-adapter/capabilities.js';
 import {
   compileResolvedTrialPolicy,
@@ -703,6 +703,35 @@ it('refuses an unverified CLI version only where a benchmark MCP surface exists'
   // Scope boundary: an arm with no MCP client has no long call to orphan.
   const noSurface = compileResolvedTrialPolicy(resolution(), dependencies());
   assert.equal(noSurface.model_execution.claude_cli_version, 'fixture-1.0.0');
+});
+
+it('exempts a bridge-governed backend by declaration and refuses every undeclared one', () => {
+  // Which process owns the MCP client decides who governs the call. Claude's CLI owns it and reads
+  // its own per-call budget, so the concrete version is evidence and the allowlist binds. PI's calls
+  // are issued by the Cortex bridge over a pinned SDK, so no `pi` binary version is evidence either
+  // way. Both facts are declared; neither is inferred from an empty list.
+  assert.equal(LONG_MCP_CALL_VERSION_GOVERNANCE.claude.governed_by, 'cli-version');
+  assert.equal(LONG_MCP_CALL_VERSION_GOVERNANCE.pi.governed_by, 'cortex-bridge');
+
+  const bridged = piResolution();
+  configureBenchmarkMcp(bridged);
+  bridged.cli_artifact.version = 'pi-0.0.0-never-listed';
+  const compiled = compileResolvedTrialPolicy(bridged, piDependencies());
+  assert.equal(compiled.model_execution.cli_version, 'pi-0.0.0-never-listed');
+
+  // Silence must stay refusal. A backend nobody declared takes the refusing branch even when its arm
+  // is otherwise the one that just compiled — being unlisted is never an exemption.
+  const registry = LONG_MCP_CALL_VERSION_GOVERNANCE as Record<string, unknown>;
+  const declared = registry.pi;
+  delete registry.pi;
+  try {
+    const undeclared = piResolution();
+    configureBenchmarkMcp(undeclared);
+    undeclared.cli_artifact.version = 'pi-0.0.0-never-listed';
+    expectFailure(undeclared, 'cli_version_unsupported_for_long_mcp_call', 29, piDependencies());
+  } finally {
+    registry.pi = declared;
+  }
 });
 
 it('refuses any compiled cortex role that carries no policy guard', () => {
