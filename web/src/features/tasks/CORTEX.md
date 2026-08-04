@@ -19,6 +19,8 @@ An AppShell provider opens details with dependencies, evidence, dispatch history
 | group-tasks.test.ts | test | Tests lifecycle grouping and open counts |
 | task-claim.ts | util | Selects the safe UI claim identifier |
 | task-dependencies.ts | util | Resolves unmet dependency ids for task views |
+| task-time.ts | util | Formats completion timestamps in local time |
+| task-time.test.ts | test | Tests timestamp formatting and null safety |
 | task-verification-vm.ts | vm | Builds completion evidence and dispatch rows |
 | task-verification-vm.test.ts | test | Unit tests for the verification view model |
 | useTasksLiveSync.ts | hook | Refetches tasks on lifecycle and thread links |

@@ -81,6 +81,8 @@ export interface MTaskDetailVm {
   approvalNeeded: boolean | null;
   /** Recorded approval date; null when absent or omitted. */
   approvedAt: string | null;
+  /** Raw `completed-at` ISO instant (the View formats it); null when never completed / omitted. */
+  completedAt: string | null;
   /** Real TaskInfo.doneWhen; null → honest gap in the View. */
   doneWhen: string | null;
   /** Full blocker reason; null when the task is not blocked. */
@@ -103,6 +105,7 @@ const NOT_FOUND: MTaskDetailVm = {
   priority: 'medium',
   approvalNeeded: null,
   approvedAt: null,
+  completedAt: null,
   doneWhen: null,
   blockedBy: null,
   claim: null,
@@ -167,6 +170,9 @@ export function buildTaskDetailVm(
     priority: task.priority,
     approvalNeeded: task.approvalNeeded ?? null,
     approvedAt: task.approvedAt ?? null,
+    // tasks.list is the primary source; the already-loaded evidence covers an older server that
+    // omits `completedAt` from the list DTO.
+    completedAt: task.completedAt ?? verification?.evidence.completedAt ?? null,
     doneWhen: task.doneWhen,
     blockedBy: task.blockedBy ?? null,
     claim: buildClaim(task, dispatches),

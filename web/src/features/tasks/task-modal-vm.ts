@@ -15,10 +15,11 @@
 //   • dispatch history card       — no per-task execution join → placeholder card
 //   • gpu field                   — not on TaskInfo → "—" (matches the T-046 proto-shot)
 // Real: id · title · status/approval pill · priority · template · claimed-by · approval fields ·
-// why · doneWhen · dependencies join.
+// completed-at · why · doneWhen · dependencies join.
 
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { displayClaimId } from './task-claim';
+import { formatTaskTime } from './task-time';
 
 export interface TaskModalPill {
   bg: string;
@@ -119,10 +120,13 @@ function approvalFields(task: TaskInfo): TaskModalField[] {
 
 function taskFields(task: TaskInfo): TaskModalField[] {
   const claimId = displayClaimId(task);
+  // Real `completed-at` from the task store, in the viewer's local wall clock; '—' when never done.
+  const completedAt = formatTaskTime(task.completedAt);
   return [
     { k: 'priority', v: task.priority, vColor: task.priority === 'high' ? '#C03D33' : '#191C22' },
     { k: 'status', v: task.status, vColor: 'var(--proto-ink)' },
     ...approvalFields(task),
+    { k: 'completed-at', v: completedAt ?? '—', vColor: completedAt ? '#23854F' : '#B6BDC9' },
     { k: 'template', v: task.template, vColor: 'var(--proto-ink)' },
     { k: 'gpu', v: '—', vColor: '#B6BDC9' },
     { k: 'claimed-by', v: claimId ?? '—', vColor: claimId ? '#4655D4' : '#B6BDC9' },

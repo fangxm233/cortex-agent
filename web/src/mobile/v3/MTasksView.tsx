@@ -8,6 +8,7 @@ import type { ComponentType, CSSProperties, MouseEvent } from 'react';
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { displayClaimId } from '@/features/tasks/task-claim';
 import { unresolvedDependencyIds } from '@/features/tasks/task-dependencies';
+import { formatTaskTime } from '@/features/tasks/task-time';
 import { MScreen, MTabHeader, MScrollBody, MCard, MGroupLabel, MC, MONO } from '@/mobile/ui/kit';
 import type { MTaskGroupKey, MTaskGroupView } from './m-tasks-vm';
 
@@ -153,11 +154,16 @@ function BlockedCard({ task, copy, onOpenTask }: CardProps) {
 }
 
 function DoneCard({ task, onOpenTask }: CardProps) {
+  // Real `completed-at` in local wall clock; the line is dropped when the task never recorded one.
+  const completedAt = formatTaskTime(task.completedAt);
   return (
     <MCard radius={11} padding="10px 13px" onClick={() => onOpenTask(task.id)} style={{ opacity: 0.7 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
         <span style={{ width: 5, height: 5, borderRadius: '50%', background: MC.done, flex: 'none' }} />
         <IdText task={task} textColor={MC.sub} />
+        {completedAt && (
+          <span style={{ font: `400 9.5px ${MONO}`, color: MC.muted, flex: 'none' }}>{completedAt}</span>
+        )}
       </div>
     </MCard>
   );

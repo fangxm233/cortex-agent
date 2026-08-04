@@ -97,6 +97,15 @@ describe('MTasksView', () => {
     expect(done).not.toContain('needs');
   });
 
+  it('shows the completion time on done cards only', () => {
+    const completedAt = new Date(2026, 7, 3, 14, 22, 33).toISOString();
+    const done = renderGroups([{ key: 'done', tasks: [task({ status: 'done', completedAt })] }]);
+    const unrecorded = renderGroups([{ key: 'done', tasks: [task({ status: 'done' })] }]);
+
+    expect(done).toContain('2026-08-03 14:22');
+    expect(unrecorded).not.toContain('2026-08-03');
+  });
+
   it('keeps approval-needed and generic blocked metadata distinct', () => {
     const approval = renderGroups([{ key: 'approval-needed', tasks: [task({ approvalNeeded: true })] }]);
     const blocked = renderGroups([{ key: 'blocked', tasks: [task({ blockedBy: 'robot offline' })] }]);

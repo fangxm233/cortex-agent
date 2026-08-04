@@ -71,6 +71,17 @@ describe('TaskRow lifecycle metadata', () => {
     expect(done).not.toContain('needs');
   });
 
+  it('shows the completion time on done cards only', () => {
+    const completedAt = new Date(2026, 7, 3, 14, 22, 33).toISOString();
+    const done = renderTask({ status: 'done', completedAt }, 'done');
+    const unrecorded = renderTask({ status: 'done' }, 'done');
+    const running = renderTask({ claimedBy: 'agent1', completedAt }, 'in-progress');
+
+    expect(done).toContain('completed · 2026-08-03 14:22');
+    expect(unrecorded).not.toContain('completed ·');
+    expect(running).not.toContain('2026-08-03 14:22');
+  });
+
   it('truncates blocked details to one line', () => {
     const html = renderTask({ blockedBy: 'A long external blocker description' }, 'blocked');
     const blockerStyle = html.match(/data-task-blocker="true" style="([^"]+)"/)?.[1];
