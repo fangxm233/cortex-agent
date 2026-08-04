@@ -67,6 +67,10 @@ import type {
   machinesListInput,
   skillsListInput,
   threadTemplatesGetInput,
+  threadTemplatesDetailInput,
+  threadTemplatesValidateInput,
+  threadTemplatesSaveInput,
+  threadTemplatesRemoveInput,
   systemDaemonStatusInput,
   systemRateLimitStatusInput,
   systemRestartInput,
@@ -108,6 +112,7 @@ const _hooksList: QueryParity<'hooks.list', typeof hooksListInput> = true;
 const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = true;
 const _skillsList: QueryParity<'skills.list', typeof skillsListInput> = true;
 const _threadTemplatesGet: QueryParity<'threadTemplates.get', typeof threadTemplatesGetInput> = true;
+const _threadTemplatesDetail: QueryParity<'threadTemplates.detail', typeof threadTemplatesDetailInput> = true;
 const _systemDaemonStatus: QueryParity<'system.daemonStatus', typeof systemDaemonStatusInput> = true;
 const _systemRateLimitStatus: QueryParity<'system.rateLimitStatus', typeof systemRateLimitStatusInput> = true;
 
@@ -137,6 +142,9 @@ const _hooksTest: MutateParity<'hooks.test', typeof hooksTestInput> = true;
 const _profilesCreate: MutateParity<'profiles.create', typeof profilesCreateInput> = true;
 const _profilesUpdate: MutateParity<'profiles.update', typeof profilesUpdateInput> = true;
 const _profilesRemove: MutateParity<'profiles.remove', typeof profilesRemoveInput> = true;
+const _threadTemplatesValidate: MutateParity<'threadTemplates.validate', typeof threadTemplatesValidateInput> = true;
+const _threadTemplatesSave: MutateParity<'threadTemplates.save', typeof threadTemplatesSaveInput> = true;
+const _threadTemplatesRemove: MutateParity<'threadTemplates.remove', typeof threadTemplatesRemoveInput> = true;
 const _approvalsApprove: MutateParity<'approvals.approve', typeof approvalsApproveInput> = true;
 const _approvalsReject: MutateParity<'approvals.reject', typeof approvalsRejectInput> = true;
 const _approvalsRequest: MutateParity<'approvals.request', typeof approvalsRequestInput> = true;
@@ -175,5 +183,6 @@ export const _contractParityChecked = [
   _authCustomProviders, _authUpsertCustomProvider, _authRemoveCustomProvider,
   _hooksList, _hooksCreate, _hooksUpdate, _hooksSetEnabled, _hooksRemove, _hooksTest,
   _profilesCreate, _profilesUpdate, _profilesRemove,
+  _threadTemplatesDetail, _threadTemplatesValidate, _threadTemplatesSave, _threadTemplatesRemove,
   _systemDaemonStatus, _systemRateLimitStatus, _systemRestart,
 ] as const;

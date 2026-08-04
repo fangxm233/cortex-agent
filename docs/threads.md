@@ -29,6 +29,20 @@ Each file holds a single entity, and **the filename (without `.json`) is the ent
 
 **Hot-reload.** Each entity subdirectory (`agents/`, `templates/`, `shells/`) is watched, along with any prompt files in the `prompts/` directory. Changes are detected via `fs.watch`, debounced (300ms), and the whole config is reloaded without restarting the server. Reload is fail-soft: a single malformed JSON file is skipped with a warning rather than clearing the whole table. A notification is sent to the admin Slack channel on reload.
 
+### Editing Templates
+
+These files can be edited by hand, and hot-reload will pick the change up. They can also be edited from the desktop app under **Settings → Thread templates**, which is the safer route because it validates before it writes.
+
+The panel is a master-detail editor: the list on the left carries every agent, template and shell with a badge marking anything that currently fails validation, and the pane on the right holds the entity's raw JSON alongside two read-only tabs. **Validation** lists errors and warnings with the field each one came from; **References** shows the file path on disk, which templates depend on this entity, how many live threads are running on it and how many open tasks name it.
+
+Validation runs on save and on demand, and it judges the candidate against the world the save would produce rather than the one it replaces — so a template may name an agent that is being created in the same edit. Errors block the write; warnings (an unrecognized field, most often) are reported and let it through. The check that matters most is the impact pass: saving an agent re-validates every template that uses it, which is what catches the class of edit that would otherwise leave a running thread with nowhere to step. Because the executor re-reads transitions and prompts on *every* step, a bad edit does not fail loudly at launch — it stalls a thread mid-flight.
+
+Three guards sit on the write path. A save to an entity with live threads on it asks for a second click, since those threads will pick the change up on their next step. Deleting is refused outright while another template still references the entity. And a save carries the hash of the body the editor loaded, so an edit made against a stale view — someone else's save, or your own hand-edit landing through hot-reload — is rejected as a conflict rather than silently overwriting it.
+
+Renaming is not offered: the filename *is* the identity, and a rename would orphan every reference to the old name. Duplicate to the new name and delete the old one, which forces the dependent templates to be updated in between.
+
+Entities are labelled by origin. **stock** is byte-identical to the file Cortex ships, **modified** is a shipped file you have since changed, and **custom** is entirely your own. Editing a stock entity forks it permanently — the defaults merge is copy-if-missing, so your version will never be overwritten by an upgrade, and equally will never pick up improvements to the shipped one. The config directory is plain JSON and worth keeping under git; that, not a backup file, is the undo.
+
 ### Agent Definitions
 
 Each file under `agents/` defines one agent — an independent entity with its own identity, tools, and prompt. The file holds the agent object itself, and its `name` must match the filename.

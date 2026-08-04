@@ -103,6 +103,7 @@ export type QueryScope =
   | 'machines.list'
   | 'skills.list'
   | 'threadTemplates.get'
+  | 'threadTemplates.detail'
   | 'system.daemonStatus'
   | 'system.rateLimitStatus';
 
@@ -156,6 +157,9 @@ export type MutateOp =
   | 'profiles.create'
   | 'profiles.update'
   | 'profiles.remove'
+  | 'threadTemplates.validate'
+  | 'threadTemplates.save'
+  | 'threadTemplates.remove'
   | 'system.restart'
   | 'system.clearRateLimit';
 
@@ -1261,6 +1265,88 @@ export interface ThreadTemplateEntry {
   description: string | null;
   /** Full parsed JSON body; null when the file cannot be parsed. */
   body: Record<string, unknown> | null;
+  /** False when the validator reports blocking errors — the row is flagged in the list. */
+  valid: boolean;
+  /** Count of blocking errors; 0 when valid. */
+  errorCount: number;
+  /** Relationship to the shipped defaults. `mergeThreadTemplates` is copy-if-missing and never
+   *  overwrites, so editing a `stock` entity forks it from upstream permanently. */
+  origin: ThreadTemplateOrigin;
+}
+
+/** 'stock' = byte-identical to the shipped default, 'modified' = a shipped name that differs,
+ *  'custom' = no shipped default of that name. */
+export type ThreadTemplateOrigin = 'stock' | 'modified' | 'custom';
+
+// ── threadTemplates.detail / validate / save / remove ───────────────────────
+// The editing surface. `body` is the raw file content (readThreadTemplates reads files directly
+// rather than the resolved registry), so `file:` prompt refs survive an edit round-trip.
+
+export interface ThreadTemplateIssue {
+  /** Field anchor, e.g. `transitions[2].from`, or `template:<name>` for a knock-on breakage. */
+  path: string;
+  message: string;
+}
+
+export interface ThreadTemplateDetailParams {
+  kind: 'template' | 'agent' | 'shell';
+  name: string;
+}
+
+export interface ThreadTemplateDetail {
+  kind: 'template' | 'agent' | 'shell';
+  name: string;
+  description: string | null;
+  body: Record<string, unknown> | null;
+  /** Absolute path of the backing file. */
+  filePath: string;
+  origin: ThreadTemplateOrigin;
+  /** Hash of the bytes on disk — pass back as `baseHash` on save to detect a concurrent edit. */
+  sha256: string;
+  errors: ThreadTemplateIssue[];
+  warnings: ThreadTemplateIssue[];
+  /** Templates that declare this agent or bind this shell; empty for a template. */
+  usedByTemplates: string[];
+  /** Non-terminal threads currently running on this template. Transitions are re-read every step,
+   *  so editing while these are alive can reroute or stall them. */
+  runningThreads: number;
+  /** Open TASKS.yaml entries dispatching this template — they break if it is deleted. */
+  referencingTasks: number;
+  /** For a shell-binding template: the transition graph it expands to. Null otherwise. */
+  expanded: Record<string, unknown> | null;
+}
+
+export interface ThreadTemplatesValidateArgs {
+  kind: 'template' | 'agent' | 'shell';
+  name: string;
+  body: Record<string, unknown>;
+}
+
+export interface ThreadTemplatesValidateReturn {
+  ok: boolean;
+  errors: ThreadTemplateIssue[];
+  warnings: ThreadTemplateIssue[];
+}
+
+export interface ThreadTemplatesSaveArgs extends ThreadTemplatesValidateArgs {
+  /** Absent creates (the file must not exist); present is the hash the editor loaded, which the
+   *  writer compares against disk to reject a save made under a stale editor. */
+  baseHash?: string;
+}
+
+export interface ThreadTemplatesSaveReturn {
+  changed: boolean;
+  sha256: string;
+  warnings: ThreadTemplateIssue[];
+}
+
+export interface ThreadTemplatesRemoveArgs {
+  kind: 'template' | 'agent' | 'shell';
+  name: string;
+}
+
+export interface ThreadTemplatesRemoveReturn {
+  removed: boolean;
 }
 
 // ── skills.list DTO (plan §12 A item 2 / 8a) ────────────────────────────────
@@ -1593,6 +1679,7 @@ export interface QueryParamMap {
   'machines.list': MachinesListParams;
   'skills.list': SkillsListParams;
   'threadTemplates.get': ThreadTemplatesGetParams;
+  'threadTemplates.detail': ThreadTemplateDetailParams;
   'system.daemonStatus': SystemDaemonStatusParams;
   'system.rateLimitStatus': SystemRateLimitStatusParams;
 }
@@ -1623,6 +1710,7 @@ export interface QueryReturnMap {
   'machines.list': MachineInfo[];
   'skills.list': SkillGroup[];
   'threadTemplates.get': ThreadTemplateEntry[];
+  'threadTemplates.detail': ThreadTemplateDetail;
   'system.daemonStatus': SystemDaemonStatus;
   'system.rateLimitStatus': SystemRateLimitStatus;
 }
@@ -1675,6 +1763,9 @@ export interface MutateArgsMap {
   'profiles.create': ProfilesCreateArgs;
   'profiles.update': ProfilesUpdateArgs;
   'profiles.remove': ProfilesRemoveArgs;
+  'threadTemplates.validate': ThreadTemplatesValidateArgs;
+  'threadTemplates.save': ThreadTemplatesSaveArgs;
+  'threadTemplates.remove': ThreadTemplatesRemoveArgs;
   'system.restart': SystemRestartArgs;
   'system.clearRateLimit': SystemClearRateLimitArgs;
 }
@@ -1727,6 +1818,9 @@ export interface MutateReturnMap {
   'profiles.create': ProfilesCreateReturn;
   'profiles.update': ProfilesUpdateReturn;
   'profiles.remove': ProfilesRemoveReturn;
+  'threadTemplates.validate': ThreadTemplatesValidateReturn;
+  'threadTemplates.save': ThreadTemplatesSaveReturn;
+  'threadTemplates.remove': ThreadTemplatesRemoveReturn;
   'system.restart': SystemRestartReturn;
   'system.clearRateLimit': SystemClearRateLimitReturn;
 }

@@ -474,6 +474,35 @@ export const profilesRemoveInput = z.object({
   name: profileSafeName.min(1),
 });
 
+// threadTemplates.detail / validate / save / remove — the thread-template editing surface.
+// The name pattern mirrors template-writer's: the filename IS the entity identity, so anything
+// that could escape the config directory is rejected before it reaches the writer.
+const threadTemplateKind = z.enum(['template', 'agent', 'shell']);
+const threadTemplateName = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
+
+export const threadTemplatesDetailInput = z.object({
+  kind: threadTemplateKind,
+  name: threadTemplateName,
+});
+
+export const threadTemplatesValidateInput = z.object({
+  kind: threadTemplateKind,
+  name: threadTemplateName,
+  body: z.record(z.string(), z.unknown()),
+});
+
+export const threadTemplatesSaveInput = z.object({
+  kind: threadTemplateKind,
+  name: threadTemplateName,
+  body: z.record(z.string(), z.unknown()),
+  baseHash: z.string().optional(),
+});
+
+export const threadTemplatesRemoveInput = z.object({
+  kind: threadTemplateKind,
+  name: threadTemplateName,
+});
+
 export const approvalsApproveInput = z.object({
   id: z.string(),
 });
@@ -571,6 +600,7 @@ export const queryInputSchemas = {
   'machines.list': machinesListInput,
   'skills.list': skillsListInput,
   'threadTemplates.get': threadTemplatesGetInput,
+  'threadTemplates.detail': threadTemplatesDetailInput,
   'system.daemonStatus': systemDaemonStatusInput,
   'system.rateLimitStatus': systemRateLimitStatusInput,
 } satisfies Record<QueryScope, z.ZodType>;
@@ -623,6 +653,9 @@ export const mutateInputSchemas = {
   'profiles.create': profilesCreateInput,
   'profiles.update': profilesUpdateInput,
   'profiles.remove': profilesRemoveInput,
+  'threadTemplates.validate': threadTemplatesValidateInput,
+  'threadTemplates.save': threadTemplatesSaveInput,
+  'threadTemplates.remove': threadTemplatesRemoveInput,
   'system.restart': systemRestartInput,
   'system.clearRateLimit': systemClearRateLimitInput,
 } satisfies Record<MutateOp, z.ZodType>;

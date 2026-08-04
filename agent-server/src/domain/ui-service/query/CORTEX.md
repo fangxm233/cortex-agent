@@ -23,5 +23,6 @@ Handlers return DTOs only and never change state.
 | hooks.ts | query | Builds the hook registry read model |
 | machines.ts | query | lists machines with live connection state |
 | skills.ts | query | lists available skill groups |
-| thread-templates.ts | query | returns every thread template definition |
+| thread-templates.ts | query | lists thread template definitions with validity and origin |
+| thread-template-detail.ts | query | returns one entity's raw body, hash, issues and references |
 | system.ts | query | Reports throttle windows and waiting counts |

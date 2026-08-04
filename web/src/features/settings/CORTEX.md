@@ -1,7 +1,8 @@
 Please update me when files in this folder change
 
 Desktop settings overlay: one modal with left nav and eleven sections, mounted globally by its provider.
-Panels read config/auth snapshots; accounts, budget, runtime, profiles and hooks own their mutations.
+Panels read config/auth snapshots; accounts, budget, runtime, profiles, hooks and thread templates
+own their mutations.
 
 | filename | role | function |
 |---|---|---|
@@ -29,6 +30,10 @@ Panels read config/auth snapshots; accounts, budget, runtime, profiles and hooks
 | HooksPanel.test.tsx | test | Tests hook layout, gating and the test runner |
 | hooks-panel-vm.ts | vm | Filters, groups, validates and builds hook mutation args |
 | hooks-panel-vm.test.ts | test | Unit tests for the hooks panel view model |
+| TemplatesPanel.tsx | view | Thread-template editor with validation, references and write guards |
+| TemplatesPanel.test.tsx | test | Tests detail-pane tabs, guards and save gating |
+| templates-panel-vm.ts | vm | Filters, parses editor JSON and builds template mutation args |
+| templates-panel-vm.test.ts | test | Unit tests for the templates panel view model |
 | platform-env.ts | vm | Defines env indexes and writable runtime flags |
 | platform-env.test.ts | test | Tests env redaction and settings indexing |
 | settings-nav.ts | vm | Lists settings sections and descriptions |

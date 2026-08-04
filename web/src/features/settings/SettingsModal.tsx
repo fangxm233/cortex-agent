@@ -13,13 +13,13 @@ import { getSettingsNav, getSectionMeta, type SettingsSectionKey } from './setti
 import {
   PlatformPanel,
   MachinesPanel,
-  TemplatesPanel,
   McpPanel,
 } from './SettingsPanels';
 import { ProfilesPanel } from './ProfilesPanel';
 import { AdvancedPanel, NotificationsPanel } from './RuntimeSettingsPanels';
 import { BudgetPanel } from './BudgetPanel';
 import { HooksPanel } from './HooksPanel';
+import { TemplatesPanel } from './TemplatesPanel';
 import { AppearancePanel } from './AppearancePanel';
 import { AccountsPanel } from './AccountsPanel';
 import { useLoginFlow } from '@/features/auth/LoginFlowProvider';
@@ -107,7 +107,6 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
 
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const costQuery = useQuery(trpc.cost.summary.queryOptions({}));
-  const templateEntriesQuery = useQuery(trpc.threadTemplates.get.queryOptions({}));
   const snapshot = configQuery.data;
   const meta = getSectionMeta(L, section);
 
@@ -246,7 +245,6 @@ function SettingsBody({ onClose }: { onClose: () => void }) {
               section={section}
               snapshot={snapshot}
               cost={costQuery.data}
-              templateEntries={templateEntriesQuery.data}
               onSetDefaultProfile={onSetDefaultProfile}
               onReconnect={onReconnect}
               onAddMachine={onAddMachine}
@@ -262,7 +260,6 @@ function PanelBody({
   section,
   snapshot,
   cost,
-  templateEntries,
   onSetDefaultProfile,
   onReconnect,
   onAddMachine,
@@ -270,7 +267,6 @@ function PanelBody({
   section: SettingsSectionKey;
   snapshot: import('@cortex-agent/ui-contract').ConfigSnapshot;
   cost: import('@cortex-agent/ui-contract').CostSummary | undefined;
-  templateEntries: import('@cortex-agent/ui-contract').ThreadTemplateEntry[] | undefined;
   onSetDefaultProfile: (name: string) => void;
   onReconnect: (platform: 'slack' | 'feishu') => void;
   onAddMachine: (machineName: string) => void;
@@ -285,7 +281,7 @@ function PanelBody({
     case 'machines':
       return <MachinesPanel snapshot={snapshot} onAddMachine={onAddMachine} />;
     case 'templates':
-      return <TemplatesPanel snapshot={snapshot} entries={templateEntries} />;
+      return <TemplatesPanel />;
     case 'mcp':
       return <McpPanel snapshot={snapshot} />;
     case 'notifications':
