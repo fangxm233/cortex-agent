@@ -207,13 +207,27 @@ it('closes exactly the sessions its own trial opened (T2)', async () => {
   const trial = createTrialAdapter(spec());
   const record: { command?: string } = {};
   trial.spawnConfig.processSpawner = capturingSpawner(record);
-  const session = trial.adapter.spawn(trial.spawnConfig) as AgentProcess;
-  assert.deepEqual(trial.adapter.listSessions(), [trial.spawnConfig.sessionKey]);
-  await session.close();
-  await trial.close();
-  assert.deepEqual(trial.adapter.listSessions(), []);
-  await trial.close();
-  assert.deepEqual(trial.adapter.listSessions(), []);
+  trial.adapter.spawn(trial.spawnConfig) as AgentProcess;
+
+  const unrelatedKey = 'unrelated-claude-session';
+  const sharedAdapter = getAdapter('claude');
+  sharedAdapter.spawn({
+    ...trial.spawnConfig,
+    sessionKey: unrelatedKey,
+    channel: unrelatedKey,
+    processSpawner: capturingSpawner({}),
+  });
+  try {
+    assert.equal(trial.adapter.listSessions().includes(trial.spawnConfig.sessionKey), true);
+    assert.equal(sharedAdapter.listSessions().includes(unrelatedKey), true);
+    await trial.close();
+    assert.equal(trial.adapter.listSessions().includes(trial.spawnConfig.sessionKey), false);
+    assert.equal(sharedAdapter.listSessions().includes(unrelatedKey), true);
+    await trial.close();
+    assert.equal(sharedAdapter.listSessions().includes(unrelatedKey), true);
+  } finally {
+    await sharedAdapter.close(unrelatedKey);
+  }
 });
 
 it('refuses an unproven PI arm with backend_unsupported_for_kind (S8)', () => {

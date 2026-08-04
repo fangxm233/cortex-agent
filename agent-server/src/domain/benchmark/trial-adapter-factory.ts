@@ -150,6 +150,7 @@ export function createTrialAdapter(spec: TrialAdapterSpec): TrialAdapter {
     spec.policy.credential.proxy_base_url,
   );
   spawnConfig.preserveUnreportedAccounting = true;
+  const sessionKey = spawnConfig.sessionKey;
   let closed = false;
   return {
     adapter,
@@ -162,7 +163,7 @@ export function createTrialAdapter(spec: TrialAdapterSpec): TrialAdapter {
     close: async (): Promise<void> => {
       if (closed) return;
       closed = true;
-      for (const key of adapter.listSessions()) await adapter.close(key);
+      await adapter.close(sessionKey);
     },
   };
 }
