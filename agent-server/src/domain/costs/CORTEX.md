@@ -4,6 +4,7 @@ Cost domain — tracks spend and pauses automated work during provider limits an
 
 | filename | role | function |
 |---|---|---|
+| codex-quota-headers.ts | parser | Turns Codex quota headers into throttle windows |
 | cost-tracker.ts | core | Records spend and checks budgets |
 | gateway-manager.ts | core | Manages the local usage gateway process |
 | rate-limit-throttle.ts | core | Publishes provider windows, auto-resume, and manual early release |
