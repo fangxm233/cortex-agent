@@ -70,6 +70,8 @@ let previousSupervisorBinary: string | undefined;
 interface StepScript {
   /** Terminal assistant text this step ends with; null → the step emits none at all. */
   assistantText: string | null;
+  /** Ends the step the way an exhausted API window does, so the fail-fast path throws. */
+  rateLimited?: boolean;
   /** Runs before the step spawns, with the options the real step loop built. */
   before?: (options: RunAgentOptions) => void;
   /** Overrides the cwd the step hands to the real spawner. */
@@ -211,7 +213,7 @@ function queueStep(script: StepScript): void {
       sessionId: 'fixture-session', agentProcess: null, kill: () => true,
       promise: Promise.resolve({
         finalOutput: script.assistantText, sessionId: 'fixture-session',
-        total_cost_usd: 0, num_turns: 1, rateLimited: false,
+        total_cost_usd: 0, num_turns: 1, rateLimited: script.rateLimited === true,
       }),
     };
   });
@@ -406,8 +408,13 @@ it('makes a snapshot step verdict converge the real transition engine through th
   const header = headerLines(artifact)[0];
   assert.ok(header.includes('benchmark-reviewer'));
   assert.ok(header.includes('1'));
+  assert.equal(header.includes(MARKER), false);
   assert.equal(header.includes('['), false);
-  assert.equal(MARKER.startsWith(header.slice(-1)), false);
+  // No suffix of the header is a prefix of the marker, so nothing that follows can complete one.
+  for (let length = 1; length <= MARKER.length; length += 1) {
+    const prefix = MARKER.slice(0, length);
+    assert.equal(header.endsWith(prefix), false, `the header ends with the marker prefix ${prefix}`);
+  }
 });
 
 it('leaves the artifact marker-free, header included, when the verdict withholds it', async () => {
@@ -451,6 +458,36 @@ it('appends nothing for a snapshot step that emits no assistant message', async 
   assert.equal(result.steps, 2);
   const artifact = artifactOf(result);
   assert.equal(headerLines(artifact).length, 0);
+  assert.equal(fs.existsSync(snapshotParent), false);
+});
+
+it('keeps the step failure ahead of a step-boundary settlement that also fails', async () => {
+  queueStep({ assistantText: 'coder done' });
+  queueStep({
+    assistantText: 'audit done',
+    rateLimited: true,
+    before: (options) => {
+      // The artifact the boundary appends to is unwritable, so the settlement fails too.
+      const artifact = path.join(DATA_DIR, 'tmp', 'threads', String(options.threadId), 'artifact.md');
+      fs.chmodSync(artifact, 0o444);
+      harness.observations.readOnlyArtifact = artifact;
+    },
+  });
+  const value = request('settlement-failure', {
+    template: 'fixture-two-step', coderReviewVariant: 'audit-retry',
+  });
+
+  let result: any;
+  try {
+    result = await runBenchmarkThread(value);
+  } finally {
+    fs.chmodSync(String(harness.observations.readOnlyArtifact), 0o644);
+  }
+
+  // The step's own typed failure classifies the run; the settlement's error never replaces it.
+  assert.equal(result.state, 'failed');
+  assert.equal(result.terminalReason, 'rate_limited');
+  // The snapshot is discarded on that path all the same.
   assert.equal(fs.existsSync(snapshotParent), false);
 });
 
