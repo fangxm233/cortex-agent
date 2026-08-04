@@ -10,6 +10,7 @@
 import asyncio
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -39,9 +40,7 @@ FROZEN_PI_TOOLS = [
 FORBIDDEN_TOOLS = [
     "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "TaskStop", "WebFetch", "WebSearch",
 ]
-# Computed by running the shipped computeRoleToolSurfaceHash over the production composition, never
-# by hand. Recomputing it: run this file and read the value the assertion reports.
-PARENT_ROLE_TOOL_SURFACE_HASH = "fdf6b4a3a558f61d41eaaa1d5e77a2a1aac718afe8f2b7dbf8ad9e911a42b4f3"
+ROLE_TOOL_SURFACE_HASH = re.compile(r"[0-9a-f]{64}\Z")
 ARM_NAMES = {"claude": "cortex-direct", "pi": "cortex-pi-direct"}
 CLI_VERSIONS = {"claude": BACKEND_CLI_VERSION, "pi": PI_CLI_VERSION}
 FROZEN_PARENT_TOOLS = {"claude": FROZEN_TOOLS, "pi": FROZEN_PI_TOOLS}
@@ -234,6 +233,19 @@ def test_public_entry_argv_loads_the_frozen_direct_composition(tmp_path: Path) -
 
     loaded = load_emitted_role(assert_run_argv(agent, environment), tmp_path)
 
+    # The parent role-tool-surface hash is deliberately NOT pinned to a literal here. It is not
+    # freezable over a LIVE bundle: role-surface.ts:64 projects the plugin directory's ABSOLUTE path
+    # next to directoryContentSha256's live content, and identity.ts:169 folds both into the hash. So
+    # the value moves with the checkout directory (a worktree yields a different one than the primary
+    # checkout at the same commit) and with any edit to a skill under defaults/plugins. Here the
+    # stubbed `npm ls --global` probe answers with the host checkout; in production it answers with
+    # the fixed container install path, which is why production is stable and this test is not. The
+    # frozen parent-surface literals live over fully controlled inputs, in
+    # agent-server/tests/domain/agent-run/identity.test.ts — "freezes the guarded direct-Claude
+    # parent surface hash" and its PI twin. Do not pin a literal here; that is the red row this
+    # comment exists to prevent.
+    assert ROLE_TOOL_SURFACE_HASH.match(loaded.pop("roleToolSurfaceHash"))
+
     server = server_root()
     assert loaded == {
         "role": {
@@ -250,11 +262,6 @@ def test_public_entry_argv_loads_the_frozen_direct_composition(tmp_path: Path) -
         # a direct arm can be in, the frozen tool list verbatim as its allow-list, nothing enumerated
         # as denied. The six tools of section 3.1(h.4) are denied by being absent from it.
         "policyGuard": {"parent-writable": FROZEN_TOOLS},
-        # The parent-surface RTSH literal (D-RTSH half 2, GH2). It is a RE-FREEZE target, not a
-        # regression guard: it moves whenever the frozen allow-list moves, which is what the (h.3)
-        # sequencing note predicts. Do not confuse it with the G5.1 literal in identity.test.ts,
-        # whose fixture is guard-less by construction and which must never move.
-        "roleToolSurfaceHash": PARENT_ROLE_TOOL_SURFACE_HASH,
     }
     assert not set(FORBIDDEN_TOOLS) & set(FROZEN_TOOLS)
 
@@ -274,7 +281,8 @@ def test_public_entry_composition_compiles_for_every_lifted_backend(
     assert loaded["armName"] == ARM_NAMES[backend]
     assert loaded["role"]["tools"] == tools
     assert loaded["policyGuard"] == {"parent-writable": tools}
-    assert len(loaded["roleToolSurfaceHash"]) == 64
+    # Shape, not a literal — see the comment in the frozen-composition test above.
+    assert ROLE_TOOL_SURFACE_HASH.match(loaded["roleToolSurfaceHash"])
 
 
 def test_public_entry_sources_container_facts_not_the_caller(tmp_path: Path) -> None:

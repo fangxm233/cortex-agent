@@ -20,6 +20,7 @@ import {
   type FrozenIdentity,
   type FrozenIdentityInput,
   type ModelExecutionIdentityInput,
+  type RoleToolSurfaceInput,
 } from '../../../src/domain/agent-run/identity.js';
 
 const DOCUMENTED_MODEL_BYTES = '{"backend":"claude","claude_cli_version":"1.2.3","cli_name":"claude","cli_version":"1.2.3","configured_route_base_host":"gateway.invalid","fallback_empty":true,"model_alias_policy":{"aliases":{"stable":"claude-sonnet"},"policy":"exact"},"provider_protocol":"anthropic","reasoning_effort":"high","requested_model":"claude-sonnet"}';
@@ -179,6 +180,57 @@ it('keeps the shipped role hash byte-identical when benchmark guard is omitted',
   assert.equal(
     computeRoleToolSurfaceHash(frozenInput().roleToolSurface),
     '5e00de95e1247a8cc7078b385962d02b76439c286607ec44ad0b971642c097f6',
+  );
+});
+
+// §13.10 GH2 — the frozen §3.1(h.3) parent-surface literals. They live HERE, and not
+// over the live composition in `benchmark/harness/tests/launcher/test_public_entry_parity.py`,
+// because a surface built from the real bundle is not freezable: `role-surface.ts:64` projects the
+// plugin directory's ABSOLUTE `path` alongside `directoryContentSha256`'s live content, and
+// `identity.ts:169` folds both into the hash. Such a value moves with the checkout directory and
+// with any edit to a skill under `defaults/plugins`. Every input below is therefore a literal, so
+// what these pin is exactly what GH2 freezes: the frozen tool list, the two plugin-dir names,
+// `mcp_composition`, the disabled hook lifecycle, and the compiled guard derived from that list.
+// GH4: unlike the G5.1 literal above, these are RE-FREEZE targets — they move when GC2's allow-list
+// moves, and that is correct.
+const PARENT_BUNDLE_ROOT = '/installed-agent/npm/lib/node_modules/@cortex-agent/server';
+const PARENT_CLAUDE_TOOLS = [
+  'Agent', 'Bash', 'Edit', 'Glob', 'Grep', 'Read', 'Skill', 'TodoWrite', 'Write',
+];
+// §13.10.3: the same nine capabilities under PI-native labels — one member of (h.3) changed.
+const PARENT_PI_TOOLS = [
+  'agent', 'bash', 'edit', 'glob', 'grep', 'read', 'skill', 'todo_write', 'write',
+];
+
+function parentSurface(tools: string[]): RoleToolSurfaceInput {
+  return {
+    systemPromptSha256: SHA_A,
+    directiveSha256: SHA_B,
+    tools,
+    pluginDirs: [
+      { content_sha256: SHA_C, path: `${PARENT_BUNDLE_ROOT}/defaults/plugins/cortex-common` },
+      { content_sha256: SHA_D, path: `${PARENT_BUNDLE_ROOT}/defaults/plugins/cortex-coder` },
+    ],
+    skills: [],
+    mcpComposition: 'none',
+    hookPolicy: { lifecycle: 'disabled' },
+    // GC1-GC3: one key for the only lease state a direct arm enters, the frozen tools verbatim as
+    // its allow-list, nothing enumerated as denied.
+    benchmarkPolicyGuard: { 'parent-writable': tools },
+  };
+}
+
+it('freezes the guarded direct-Claude parent surface hash (GH2)', () => {
+  assert.equal(
+    computeRoleToolSurfaceHash(parentSurface(PARENT_CLAUDE_TOOLS)),
+    '77cd1ec5e19c5b8d9b72f6796779aae9fee6b6eaf714c959666d409e904bdd1e',
+  );
+});
+
+it('freezes the guarded direct-PI parent surface hash (GH2)', () => {
+  assert.equal(
+    computeRoleToolSurfaceHash(parentSurface(PARENT_PI_TOOLS)),
+    'f6623c9bbf0df3dcd0057cac7f438a4ee9d186a1ba663b1923a1bd8080369f23',
   );
 });
 
