@@ -40,6 +40,7 @@ import type {
   executionsCancelInput,
   scheduleActionInput,
   scheduleAddInput,
+  scheduleUpdateInput,
   taskActionInput,
   taskCompleteInput,
   taskBlockInput,
@@ -119,6 +120,7 @@ const _schedulesPause: MutateParity<'schedules.pause', typeof scheduleActionInpu
 const _schedulesResume: MutateParity<'schedules.resume', typeof scheduleActionInput> = true;
 const _schedulesRemove: MutateParity<'schedules.remove', typeof scheduleActionInput> = true;
 const _schedulesAdd: MutateParity<'schedules.add', typeof scheduleAddInput> = true;
+const _schedulesUpdate: MutateParity<'schedules.update', typeof scheduleUpdateInput> = true;
 const _tasksClaim: MutateParity<'tasks.claim', typeof taskActionInput> = true;
 const _tasksUnclaim: MutateParity<'tasks.unclaim', typeof taskActionInput> = true;
 const _tasksComplete: MutateParity<'tasks.complete', typeof taskCompleteInput> = true;
@@ -161,7 +163,7 @@ export const _contractParityChecked = [
   _executionsList, _executionsGet, _memoryTree, _memoryFile, _approvalsList, _notesList, _costSummary, _configGet,
   _authStatus, _authFlowState, _machinesList, _skillsList, _threadTemplatesGet,
   _projectsCreate, _sessionsCreate, _sessionsSend, _sessionsCompact, _sessionsSetProfile, _threadsCancel, _executionsCancel,
-  _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _tasksClaim,
+  _schedulesPause, _schedulesResume, _schedulesRemove, _schedulesAdd, _schedulesUpdate, _tasksClaim,
   _tasksUnclaim, _tasksComplete, _tasksBlock, _tasksUnblock,
   _approvalsApprove, _approvalsReject, _approvalsRequest, _issuesList, _issuesHandle, _issuesDelete,
   _notesAdd, _notesUpdate, _notesSetCompleted, _notesDelete, _notesClearCompleted,
