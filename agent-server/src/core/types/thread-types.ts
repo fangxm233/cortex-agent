@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { NormalizedEvent } from '../../agent-adapter/normalize/event-types.js';
-import type { AgentProcessSpawner, McpComposition } from '../../agent-adapter/types.js';
+import type { AgentProcessSpawner, Backend, McpComposition } from '../../agent-adapter/types.js';
 
 // --- Thread Identity ---
 
@@ -488,7 +488,9 @@ export interface BenchmarkThreadRunOptions {
   workspaceCwd: string;
   /** Frozen trial profile; benchmark templates cannot select a different identity. */
   resolvedProfileName: string;
-  expectedBackend: 'claude';
+  /** The backend the trial's compiled arm declares. A step whose profile disagrees is a protocol
+   *  violation, not a fallback. */
+  expectedBackend: Backend;
   expectedModel: string;
   disableHooks: true;
   disableControlPlane: true;

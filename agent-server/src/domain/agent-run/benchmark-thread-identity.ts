@@ -4,7 +4,7 @@
 // >>> If I am updated, update my header and folder CORTEX.md <<<
 
 import { createHash } from 'node:crypto';
-import type { AgentSpawnConfig } from '../../agent-adapter/types.js';
+import type { AgentSpawnConfig, Backend } from '../../agent-adapter/types.js';
 import type { AgentSlotConfig, ThreadTemplate } from '../../core/types/thread-types.js';
 import {
   buildAgentSpawnConfig, type AgentConfig, type RunAgentOptions,
@@ -127,8 +127,9 @@ function roleIdentityMap(
 function parentModelObservationProblem(
   parent: ReturnType<typeof readStartedJournalIdentity>,
   profile: ResolvedProfileConfig,
+  backend: Backend,
 ): string | null {
-  const matches = parent.agentSlot === 'parent' && profile.backend === 'claude'
+  const matches = parent.agentSlot === 'parent' && profile.backend === backend
     && parent.requestedModel === profile.model && parent.provider === profile.provider;
   return matches ? null : 'Benchmark resolved profile does not match parent model observation';
 }
@@ -137,12 +138,13 @@ export function freezeBenchmarkThreadIdentities(
   request: BenchmarkIdentityRequest,
   profile: ResolvedProfileConfig,
   template: ThreadTemplate,
+  backend: Backend,
 ): BenchmarkThreadIdentities {
   const parent = readStartedJournalIdentity({
     trajectoryRoot: request.trajectoryRoot, canonicalTrajectoryRoot: true,
     rootRunId: request.rootRunId, threadId: null,
   });
-  const modelProtocolProblem = parentModelObservationProblem(parent, profile);
+  const modelProtocolProblem = parentModelObservationProblem(parent, profile, backend);
   const roles = roleIdentityMap(request, profile, template, parent.modelExecutionIdentityHash);
   const entry = roles.get(template.entryAgent);
   if (!entry) throw new Error(`Missing benchmark entry identity: ${template.entryAgent}`);

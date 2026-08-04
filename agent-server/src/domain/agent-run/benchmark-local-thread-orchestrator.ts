@@ -7,12 +7,13 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type {
-  AgentProcessSpawner, AgentProcessSupervision,
+  AgentProcessSpawner, AgentProcessSupervision, Backend,
 } from '../../agent-adapter/types.js';
 import type {
   AgentSlotId, BenchmarkThreadEvent, ThreadRecord,
 } from '../../core/types/thread-types.js';
 import { resolveProfileConfig as daemonResolveProfile } from '../agents/profile-manager.js';
+import type { ResolvedTrialPolicy } from '../benchmark/resolved-policy.js';
 import {
   createWorkspaceLease, createWorkspaceStepBoundary, resolveWorkspacePlacement,
   type CoderReviewVariant, type TrialSnapshotPaths, type WorkspaceLease,
@@ -69,6 +70,8 @@ interface BenchmarkThreadRequest {
   trialRoot?: string;
   /** Fixes each role's workspace placement. Absent → every step runs in the shared workspace. */
   coderReviewVariant?: CoderReviewVariant;
+  /** The frozen trial policy this thread runs under. Absent → the shipped single-backend path. */
+  trialPolicy?: ResolvedTrialPolicy;
   limits: { maxSteps: number; maxCostUsd: number; deadlineEpochMs: number };
   signal: AbortSignal;
 }
@@ -279,9 +282,25 @@ function initializeRuntime(): void {
   loadConfig();
 }
 
-function resolveProfile(name: string): ResolvedProfile {
+/** The compiled arm is the single authority on which backend a trial runs. A request that carries
+ *  no compiled policy is the shipped one-backend path and keeps its behaviour. */
+function expectedBackend(request: BenchmarkThreadRequest): Backend {
+  const policy = request.trialPolicy;
+  if (policy === undefined) return 'claude';
+  const backend = policy.arm.backend;
+  if (!backend) {
+    throw new Error(`Benchmark arm '${policy.arm.name}' declares no backend`);
+  }
+  return backend;
+}
+
+function resolveProfile(name: string, backend: Backend): ResolvedProfile {
   const profile = resolveProfileConfig(name);
-  if (profile.backend !== 'claude' || profile.claudeBackend !== 'print') {
+  if (profile.backend !== backend) {
+    throw new Error(`Benchmark profile must use backend ${backend}`);
+  }
+  // Meaningless outside Claude, and mandatory inside it: TUI mode has no trial surface.
+  if (backend === 'claude' && profile.claudeBackend !== 'print') {
     throw new Error('Benchmark profile must use Claude print mode');
   }
   if (profile.fallback.length > 0) {
@@ -365,9 +384,10 @@ async function createRunArtifacts(
   request: BenchmarkThreadRequest,
   profile: ResolvedProfile,
   template: ResolvedTemplate,
+  backend: Backend,
 ): Promise<PreparedThreadRun> {
   fs.mkdirSync(request.trajectoryRoot, { recursive: true });
-  const identities = freezeBenchmarkThreadIdentities(request, profile, template);
+  const identities = freezeBenchmarkThreadIdentities(request, profile, template, backend);
   const identity = identities.entry;
   const thread = createBenchmarkRecord(request);
   assertArtifactInsideTrial(request, thread);
@@ -391,9 +411,10 @@ async function createRunArtifacts(
 async function prepareRun(request: BenchmarkThreadRequest): Promise<PreparedThreadRun> {
   validateRequest(request);
   initializeRuntime();
-  const profile = resolveProfile(request.profileName);
+  const backend = expectedBackend(request);
+  const profile = resolveProfile(request.profileName, backend);
   const template = resolveTemplate(request.template);
-  return createRunArtifacts(request, profile, template);
+  return createRunArtifacts(request, profile, template, backend);
 }
 
 function supervisorCancelReason(reason: StopReason | null): 'cancel' | 'deadline' {
@@ -523,7 +544,7 @@ function threadRunOptions(
       resolveStepWorkspace: boundary.resolveStepWorkspace,
       settleStepWorkspace: boundary.settleStepWorkspace,
       resolvedProfileName: prepared.request.profileName,
-      expectedBackend: 'claude' as const,
+      expectedBackend: expectedBackend(prepared.request),
       expectedModel: prepared.profile.model,
       disableHooks: true as const,
       disableControlPlane: true as const,
@@ -913,10 +934,20 @@ async function runBenchmarkThreadScoped(
   }
 }
 
+/** The lifecycle hook runner reaches an agent through the unscoped module import, so an override
+ *  that supplies one puts a second, unscoped model process on the thread path — outside the trial
+ *  adapter, the pinned environment and the admission boundary. The benchmark path keeps the no-op. */
+function refuseLifecycleHookOverride(overrides: Partial<LocalThreadRuntimeDeps>): void {
+  if (overrides.emitLifecycleHooks !== undefined) {
+    throw new Error('A benchmark thread may not supply a lifecycle hook runner');
+  }
+}
+
 export async function runBenchmarkThread(
   request: BenchmarkThreadRequest,
   overrides: Partial<LocalThreadRuntimeDeps> = {},
 ): Promise<BenchmarkThreadResult> {
+  refuseLifecycleHookOverride(overrides);
   const deps = createLocalThreadRuntimeDeps(daemonRunThread, overrides);
   return withLocalThreadRuntimeDeps(deps, () => runBenchmarkThreadScoped(request));
 }

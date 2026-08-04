@@ -539,6 +539,8 @@ function resolveStepSpawnPolicy(
         agentSlotId: stepCtx.agentSlotId, stepIndex: stepCtx.stepIndex,
       }) ?? opts.benchmark.workspaceCwd,
       processSpawner: opts.benchmark.spawner,
+      // Names the trial role this step runs as, so a per-step adapter can select it.
+      benchmarkAgentSlot: stepCtx.agentSlotId,
       mcpComposition: 'none', disableHooks: true, loadCortexRules: false,
       streamDeltas: false, captureTranscriptLogs: false,
       preserveUnreportedAccounting: true, recordCost: false,

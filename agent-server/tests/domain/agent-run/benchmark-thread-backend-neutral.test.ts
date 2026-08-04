@@ -70,7 +70,7 @@ import {
 import { ctx as jobCtx } from '../../../src/domain/scheduling/job-registry.js';
 import { profileRepo } from '../../../src/store/profile-repo.js';
 import {
-  compileTrialPolicy, FIXTURE_MODEL, FIXTURE_PROFILE, writeFixtureAsset,
+  compileTrialPolicy, FIXTURE_MODEL, FIXTURE_PROFILE, writeFixtureAsset, writeTrialProfile,
   type TrialPolicyFixture,
 } from '../benchmark/trial-thread-policy-fixture.js';
 
@@ -306,8 +306,10 @@ it('leaves the summary empty on a backend that reports no terminal output', asyn
   const claude = prepareTrial('summary-claude', 'claude', [{ text: 'coder done' }, { text: 'reviewer verdict' }]);
   const pi = prepareTrial('summary-pi', 'pi', [{ text: 'coder done' }, { text: 'reviewer verdict' }]);
 
+  writeTrialProfile('claude');
   const claudeResult = await runBenchmarkThread(claude.request, claude.overrides);
   harness.attachOptions.length = 0;
+  writeTrialProfile('pi');
   const piResult = await runBenchmarkThread(pi.request, pi.overrides);
 
   assert.equal(claudeResult.state, 'completed');
