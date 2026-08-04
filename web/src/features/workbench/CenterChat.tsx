@@ -2,7 +2,7 @@
 // output: reconciled desktop chat with context controls and composer
 // pos:    Workbench conversation pane orchestration
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
@@ -18,17 +18,7 @@ import { useMarkSessionRead } from './useMarkSessionRead';
 import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, formatElapsed, formatDividerFromVocab } from './transcript-vm';
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
-import {
-  acceptOptimisticUserMessage,
-  createOptimisticUserMessage,
-  promoteOptimisticUserMessage,
-  reconcileOptimisticUserMessages,
-  resolveOptimisticRejection,
-  shouldSelectCreatedSession,
-  type OptimisticUserMessage,
-  type UserMessageAuthority,
-} from './optimistic-message';
-import type { Attachment } from './transcript-vm';
+import { useOptimisticUserMessages } from './useOptimisticUserMessages';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -89,72 +79,15 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
       transcript: transcriptQuery.data ?? null,
       contextUsage: active?.contextUsage ?? null,
     });
-  const [optimisticUser, setOptimisticUser] = useState<OptimisticUserMessage[]>([]);
-  const optimisticRef = useRef<OptimisticUserMessage[]>([]);
-  const currentProjectRef = useRef(currentProjectId ?? 'general');
-  const draftActiveRef = useRef(isDraft);
-  currentProjectRef.current = currentProjectId ?? 'general';
-  draftActiveRef.current = isDraft;
-  const authorityRef = useRef<UserMessageAuthority>({
-    transcript: { sessionId, turns: [], pendingUserMessages: [] }, liveTail: [], pendingUser: [],
-  });
-  const authority = useMemo<UserMessageAuthority>(() => ({
-    transcript: transcriptQuery.data ?? { sessionId, turns: [], pendingUserMessages: [] },
+  const optimistic = useOptimisticUserMessages({
+    sessionId,
+    isDraft,
+    projectId: currentProjectId ?? 'general',
+    transcript: transcriptQuery.data ?? null,
     liveTail,
     pendingUser,
-  }), [transcriptQuery.data, sessionId, liveTail, pendingUser]);
-  authorityRef.current = authority;
-  const currentAuthority = useCallback((): UserMessageAuthority => {
-    const snapshot = getMessageSnapshot();
-    return { ...authorityRef.current, ...snapshot };
-  }, [getMessageSnapshot]);
-
-  const updateOptimistic = useCallback((update: (current: OptimisticUserMessage[]) => OptimisticUserMessage[]) => {
-    setOptimisticUser((current) => {
-      const next = update(current);
-      optimisticRef.current = next;
-      return next;
-    });
-  }, []);
-  const scopedOptimistic = useMemo(() => optimisticUser.filter((message) => isDraft
-    ? message.target.kind === 'draft' && message.target.projectId === (currentProjectId ?? 'general')
-    : message.target.kind === 'session' && message.target.sessionId === sessionId),
-  [optimisticUser, isDraft, currentProjectId, sessionId]);
-  const optimisticRows = useMemo(
-    () => reconcileOptimisticUserMessages(scopedOptimistic, authority),
-    [scopedOptimistic, authority],
-  );
-  useEffect(() => {
-    if (optimisticRows.settledClientIds.length === 0) return;
-    const settled = new Set(optimisticRows.settledClientIds);
-    updateOptimistic((current) => current.filter((message) => !settled.has(message.clientId)));
-  }, [optimisticRows.settledClientIds, updateOptimistic]);
-
-  const prepareOptimistic = useCallback((text: string, attachments?: Attachment[]) => {
-    const target = isDraft
-      ? { kind: 'draft' as const, projectId: currentProjectId ?? 'general' }
-      : { kind: 'session' as const, sessionId };
-    return createOptimisticUserMessage({
-      clientId: crypto.randomUUID(), target, text, attachments, ts: new Date().toISOString(),
-    }, optimisticRef.current, currentAuthority());
-  }, [isDraft, currentProjectId, sessionId, currentAuthority]);
-  const enqueueOptimistic = useCallback((message: OptimisticUserMessage) => {
-    updateOptimistic((current) => [...current, message]);
-  }, [updateOptimistic]);
-  const acceptOptimistic = useCallback((clientId: string, createdSessionId?: string) => {
-    const message = optimisticRef.current.find((item) => item.clientId === clientId);
-    const selectCreated = !!createdSessionId && !!message
-      && shouldSelectCreatedSession(message, currentProjectRef.current, draftActiveRef.current);
-    updateOptimistic((current) => createdSessionId
-      ? promoteOptimisticUserMessage(current, clientId, createdSessionId)
-      : acceptOptimisticUserMessage(current, clientId));
-    return createdSessionId ? selectCreated : true;
-  }, [updateOptimistic]);
-  const rejectOptimistic = useCallback((clientId: string) => {
-    const resolution = resolveOptimisticRejection(optimisticRef.current, clientId, currentAuthority());
-    updateOptimistic(() => resolution.messages);
-    return resolution.restore;
-  }, [currentAuthority, updateOptimistic]);
+    getMessageSnapshot,
+  });
   // Interaction cards are transcript rows now (web-interactions-redesign) — this hook only
   // provides the answer/approve/reject actions; state lives in the transcript.
   const interactionActions = useInteractionActions(sessionId);
@@ -165,9 +98,9 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   const transcript = transcriptQuery.data ?? EMPTY_TRANSCRIPT;
   const rows = useMemo(
     () => buildTranscriptRows(transcript, liveTail, {
-      streaming, streamingText, pendingUser: optimisticRows.pendingUser, formatDivider: formatDividerFromVocab(L),
+      streaming, streamingText, pendingUser: optimistic.pendingUser, formatDivider: formatDividerFromVocab(L),
     }),
-    [transcript, liveTail, streaming, streamingText, optimisticRows.pendingUser, L],
+    [transcript, liveTail, streaming, streamingText, optimistic.pendingUser, L],
   );
   const turns = turnCount(transcriptQuery.data);
   // The composer status line shows the REAL agent-turn count (the number that grows as the agent
@@ -254,10 +187,10 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         draftProfile={draftProfile}
         draftReloadToken={draftReloadToken}
         projectId={currentProjectId ?? 'general'}
-        prepareOptimistic={prepareOptimistic}
-        enqueueOptimistic={enqueueOptimistic}
-        acceptOptimistic={acceptOptimistic}
-        rejectOptimistic={rejectOptimistic}
+        prepareOptimistic={optimistic.prepare}
+        enqueueOptimistic={optimistic.enqueue}
+        acceptOptimistic={optimistic.accept}
+        rejectOptimistic={optimistic.reject}
         statusAccessory={(active?.contextCompactionSupported || contextUsage !== null) ? (
           <ContextUsageControl
             usage={contextUsage}
