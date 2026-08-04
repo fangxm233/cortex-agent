@@ -23,6 +23,7 @@ import { handleHooksList } from './query/hooks.js';
 import { handleMachinesList } from './query/machines.js';
 import { handleSkillsList } from './query/skills.js';
 import { handleThreadTemplatesGet } from './query/thread-templates.js';
+import { handleThreadTemplatesDetail } from './query/thread-template-detail.js';
 import { handleSystemDaemonStatus, handleSystemRateLimitStatus } from './query/system.js';
 import { handleConfigSet } from './mutate/config.js';
 import {
@@ -37,6 +38,11 @@ import {
   handleProfilesUpdate,
   handleProfilesRemove,
 } from './mutate/profiles.js';
+import {
+  handleThreadTemplatesValidate,
+  handleThreadTemplatesSave,
+  handleThreadTemplatesRemove,
+} from './mutate/thread-templates.js';
 import { handleCreateProject } from './mutate/projects.js';
 import { handleCreateSession, handleSendSession, handleCancelSession, handleCompactSession, handleSetProfile, handleCreateAndSend, handleMarkReadSession, handleAnswerQuestion, handleRespondPlan, handleRewindSession } from './mutate/sessions.js';
 import { handleCancelThread } from './mutate/threads.js';
@@ -106,6 +112,7 @@ const queryHandlers: Record<string, QueryHandler> = {
   'machines.list': (deps, params) => handleMachinesList(deps, params),
   'skills.list': (deps, params) => handleSkillsList(deps, params),
   'threadTemplates.get': (deps, params) => handleThreadTemplatesGet(deps, params),
+  'threadTemplates.detail': (deps, params) => handleThreadTemplatesDetail(deps, params),
   'system.daemonStatus': (_deps, params) => handleSystemDaemonStatus(params),
   'system.rateLimitStatus': (_deps, params) => handleSystemRateLimitStatus(params),
 };
@@ -158,6 +165,9 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'profiles.create': (deps, args) => handleProfilesCreate(deps, args),
   'profiles.update': (deps, args) => handleProfilesUpdate(deps, args),
   'profiles.remove': (deps, args) => handleProfilesRemove(deps, args),
+  'threadTemplates.validate': (deps, args) => handleThreadTemplatesValidate(deps, args),
+  'threadTemplates.save': (deps, args) => handleThreadTemplatesSave(deps, args),
+  'threadTemplates.remove': (deps, args) => handleThreadTemplatesRemove(deps, args),
   'system.restart': (_deps, args) => handleSystemRestart(args),
   'system.clearRateLimit': (_deps, args) => handleSystemClearRateLimit(args),
 };

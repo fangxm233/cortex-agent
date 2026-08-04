@@ -11,7 +11,7 @@ const QUERY_SCOPES = [
   'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
   'threads.get', 'tasks.list', 'tasks.verification', 'schedules.list', 'executions.list', 'executions.get',
   'memory.tree', 'memory.file', 'approvals.list', 'issues.list', 'notes.list', 'cost.summary', 'config.get',
-  'auth.status', 'auth.flowState', 'auth.customProviders', 'hooks.list', 'machines.list', 'skills.list', 'threadTemplates.get', 'system.daemonStatus',
+  'auth.status', 'auth.flowState', 'auth.customProviders', 'hooks.list', 'machines.list', 'skills.list', 'threadTemplates.get', 'threadTemplates.detail', 'system.daemonStatus',
   'system.rateLimitStatus',
 ] as const;
 
@@ -25,6 +25,7 @@ const MUTATE_OPS = [
   'issues.handle', 'issues.delete', 'notes.add', 'notes.update', 'notes.setCompleted', 'notes.delete',
   'notes.clearCompleted', 'config.set', 'hooks.create', 'hooks.update', 'hooks.setEnabled', 'hooks.remove',
   'hooks.test', 'profiles.create', 'profiles.update', 'profiles.remove',
+  'threadTemplates.validate', 'threadTemplates.save', 'threadTemplates.remove',
   'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'auth.logout',
   'auth.upsertCustomProvider', 'auth.removeCustomProvider',
   'system.restart', 'system.clearRateLimit',
