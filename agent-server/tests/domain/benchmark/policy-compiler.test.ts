@@ -343,6 +343,32 @@ it('compiles an ordered, absolute, closed, deeply frozen cortex policy', () => {
   assert.throws(() => { (policy.child_template_whitelist as string[]).push('other'); }, TypeError);
 });
 
+it('keeps MEIH stable when only the ephemeral proxy authority changes (D-ROUTE a)', () => {
+  const first = resolution();
+  const second = resolution();
+  second.credential.proxy_base_url = 'http://127.0.0.1:59153';
+  const firstHash = compileResolvedTrialPolicy(
+    first, dependencies(),
+  ).identity.model_execution_identity_hash.parent;
+  const secondHash = compileResolvedTrialPolicy(
+    second, dependencies(),
+  ).identity.model_execution_identity_hash.parent;
+  assert.equal(secondHash, firstHash);
+});
+
+it('moves MEIH when the logical route identity host changes (D-ROUTE b)', () => {
+  const first = resolution();
+  const second = resolution();
+  second.credential.route_identity_host = 'alternate.anthropic.invalid';
+  const firstHash = compileResolvedTrialPolicy(
+    first, dependencies(),
+  ).identity.model_execution_identity_hash.parent;
+  const secondHash = compileResolvedTrialPolicy(
+    second, dependencies(),
+  ).identity.model_execution_identity_hash.parent;
+  assert.notEqual(secondHash, firstHash);
+});
+
 it('validates every ordered arm cross-field rule with its assigned failure', () => {
   const cases: Array<{
     label: string;
