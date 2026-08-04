@@ -103,11 +103,20 @@ describe('groupMobileTasks', () => {
     expect(grouped.waitingDeps).toEqual([]);
   });
 
-  it('preserves input order within a group', () => {
+  it('preserves input order within an open group', () => {
     const grouped = groupMobileTasks([
       task({ id: 'first', actionable: true }),
       task({ id: 'second', actionable: true }),
     ]);
     expect(grouped.actionable.map((item) => item.id)).toEqual(['first', 'second']);
+  });
+
+  it('orders done newest-completed-first, untimed entries last', () => {
+    const grouped = groupMobileTasks([
+      task({ id: 'oldest', status: 'done', completedAt: '2026-08-01T10:00:00.000Z' }),
+      task({ id: 'untimed', status: 'done' }),
+      task({ id: 'newest', status: 'done', completedAt: '2026-08-03T10:00:00.000Z' }),
+    ]);
+    expect(grouped.done.map((item) => item.id)).toEqual(['newest', 'oldest', 'untimed']);
   });
 });

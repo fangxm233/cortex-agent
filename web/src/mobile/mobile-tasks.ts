@@ -1,10 +1,11 @@
 // input:  Task DTOs and dependency status joins
-// output: Complete six-group mobile task lifecycle model
+// output: Complete six-group mobile task lifecycle model, done newest-first
 // pos:    Shared pure model for the mobile task screen
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import type { TaskInfo } from '@cortex-agent/ui-contract';
 import { unresolvedDependencyIds } from '@/features/tasks/task-dependencies';
+import { sortDoneTasks } from '@/features/tasks/group-tasks';
 
 export type MobileTaskGroup =
   | 'in-progress'
@@ -71,5 +72,6 @@ export function groupMobileTasks(tasks: TaskInfo[]): MobileTasksGrouped {
     const kind = classifyMobileTask(task, hasUnmetDependencies(task, statusById));
     grouped[GROUP_KEYS[kind]].push(task);
   }
+  grouped.done = sortDoneTasks(grouped.done);
   return grouped;
 }
