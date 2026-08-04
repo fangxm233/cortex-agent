@@ -10,3 +10,4 @@ Benchmark policy boundary validates declared arms and freezes all resolved trial
 | policy-compiler.ts | 核心 | 有序解析资产并编译冻结策略 |
 | resolved-policy.ts | 类型 | 定义策略值与 1–44 失败分类 |
 | trial-adapter-factory.ts | 核心 | 仅从冻结策略构造每次试验的适配器 |
+| workspace-lease.ts | 核心 | 单写者工作区租约、每步放置与步边界结算 |
