@@ -31,6 +31,14 @@ function record(file, payload) {
   if (file) fs.writeFileSync(file, JSON.stringify(payload));
 }
 
+/** `/proc/<pid>/stat` field 5 (`pgrp`). The comm field may contain spaces and parentheses, so the
+ *  numeric fields are read from after its closing paren. Design §4.6 asks whether this sidecar sits
+ *  in the backend's process group; only the sidecar itself can answer for its own group. */
+function processGroup() {
+  const stat = fs.readFileSync('/proc/self/stat', 'utf8');
+  return Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[2]);
+}
+
 /** Mirrors the shape of the production heartbeat: progress only when the client asked for it. */
 function startProgress(extra) {
   const progressToken = extra._meta?.progressToken;
@@ -74,5 +82,5 @@ server.registerTool('thread_run', {
   }
 });
 
-record(pidFile, { pid: process.pid });
+record(pidFile, { pid: process.pid, ppid: process.ppid, pgid: processGroup() });
 await server.connect(new StdioServerTransport());

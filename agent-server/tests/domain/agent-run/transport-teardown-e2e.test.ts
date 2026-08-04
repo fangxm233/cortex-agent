@@ -1,5 +1,5 @@
 // input:  a supervised trial whose declared MCP sidecar dies, or outlives, its call
-// output: proof that no transport teardown shortens agent-run's ordered finalization
+// output: proof that no transport teardown shortens finalization, success or fail-closed
 // pos:    Independent Gate-2 proving suite for design §13 (13.6) T16
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -17,8 +17,8 @@ import path from 'node:path';
 import { afterEach, beforeAll, beforeEach, it } from 'vitest';
 import { validateTrajectoryLifecycle } from '../../../src/domain/agent-run/manifest.js';
 import {
-  buildSupervisor, claudeTrial, journalRecords, processAlive, readJson, runTrial,
-  terminalManifestFile, waitForExit, waitForFile,
+  buildSupervisor, claudeTrial, groupAlive, installFakeSupervisor, journalRecords, processAlive,
+  readJson, runTrial, terminalManifestFile, waitForExit, waitForFile,
   type ClaudeTrial, type TrialOutcome,
 } from './long-mcp-trial-fixture.js';
 
@@ -108,16 +108,55 @@ it('reaps a sidecar still holding its call when the turn ends (T16, §4.6)', asy
   });
   const run = runTrial(trial);
   await waitForFile(trial.server.startedFile);
-  const sidecarPid = readJson(trial.server.pidFile).pid as number;
+  const sidecar = readJson(trial.server.pidFile) as { pid: number; ppid: number; pgid: number };
 
   const outcome = await run;
   assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
   assert.equal(outcome.terminal.state, 'completed');
   assertFinalized(trial, outcome);
+
+  // §4.6's `[UA → Gate 2]` (UA-9), settled by observation rather than assumed: the backend CLI
+  // spawned its declared stdio MCP server as its OWN child and in its OWN process group, which is
+  // what puts the sidecar inside the group `forceStopGroup` kills (`supervisor.ts:354-361`).
+  const backend = readJson(trial.observation) as { pid: number; pgid: number };
+  assert.equal(sidecar.ppid, backend.pid, 'the sidecar is not a child of the backend CLI');
+  assert.equal(sidecar.pgid, backend.pgid, 'the sidecar is outside the backend process group');
+
   // The hold had 90 s to run and the run returned long before that, so a live pid here is an
-  // escaped descendant rather than a slow one.
+  // escaped descendant rather than a slow one. Asked of the whole group, not only of the one pid
+  // this test happens to know: ruling R2(c).
   assert.equal(
-    processAlive(sidecarPid), false,
-    `sidecar ${sidecarPid} outlived the trial that declared it`,
+    processAlive(sidecar.pid), false,
+    `sidecar ${sidecar.pid} outlived the trial that declared it`,
   );
+  assert.equal(
+    groupAlive(sidecar.pgid), false,
+    `process group ${sidecar.pgid} outlived the trial that declared it`,
+  );
+}, 115_000);
+
+it('fails closed when the control stream ends without a quiescent record (T16, §4.5)', async () => {
+  // Ruling R2(b). "Reaches strict finalization" includes reaching the FAILURE terminal correctly:
+  // a teardown whose supervisor never proves quiescence must publish no manifest at all rather than
+  // a success over an unproven tree (`supervisor.ts:273-277` → `runner.ts:714`). Everything else in
+  // this file proves the success terminal, which on its own would leave the fail-closed branch of
+  // teardown untested.
+  const trial = claudeTrial(root, {
+    hold: { holdMs: 60_000, name: 'no-quiescent' }, deadlineSeconds: 600,
+  });
+  trial.options.supervisorBinary = installFakeSupervisor(root, 'no-quiescent');
+  const run = runTrial(trial);
+  await waitForFile(trial.server.startedFile);
+  const sidecar = readJson(trial.server.pidFile) as { pid: number; pgid: number };
+  process.kill(sidecar.pid, 'SIGKILL');
+
+  const outcome = await run;
+  assert.equal(outcome.terminal.state, 'failed');
+  assert.equal(outcome.terminal.terminal_reason, 'containment_failure');
+  assert.equal(outcome.terminal.manifest, null, 'a manifest was published without proven quiescence');
+  assert.notEqual(outcome.exitCode, 0);
+  // F6 is withheld too: no terminal manifest reaches disk, so no downstream reader can mistake this
+  // run for a finalized one.
+  assert.equal(fs.existsSync(terminalManifestFile(trial)), false);
+  assert.equal(processAlive(sidecar.pid), false);
 }, 115_000);
