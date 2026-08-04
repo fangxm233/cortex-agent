@@ -24,6 +24,12 @@ function argValue(argv, name) {
   return index === -1 ? undefined : argv[index + 1];
 }
 
+/** `/proc/<pid>/stat` field 5 (`pgrp`), read from after the comm field's closing paren. */
+function processGroup() {
+  const stat = fs.readFileSync('/proc/self/stat', 'utf8');
+  return Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[2]);
+}
+
 const argv = process.argv.slice(2);
 const observationFile = argValue(argv, '--cortex-observation');
 const resultFile = argValue(argv, '--cortex-mcp-result');
@@ -32,7 +38,8 @@ const resultFile = argValue(argv, '--cortex-mcp-result');
 const detach = argv.includes('--cortex-detach-mcp');
 
 fs.writeFileSync(observationFile, JSON.stringify({
-  env: process.env, argv, pid: process.pid, ppid: process.ppid, cwd: process.cwd(),
+  env: process.env, argv, pid: process.pid, ppid: process.ppid, pgid: processGroup(),
+  cwd: process.cwd(),
 }));
 
 const configuredTimeout = Number(process.env.MCP_TOOL_TIMEOUT);

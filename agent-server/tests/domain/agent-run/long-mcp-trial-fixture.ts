@@ -1,4 +1,4 @@
-// input:  a temp trial root, a hold-server budget and an arm deadline
+// input:  a temp trial root, a hold-server budget, an arm deadline and a supervisor mode
 // output: a compiled Claude trial whose declared MCP server is the holding fixture
 // pos:    Shared fixture for the Gate-2 long-call and transport-teardown suites
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import type { AgentRunCliOptions } from '../../../src/domain/agent-run/agent-run-cli.js';
 import { loadAgentRunConfigWithPolicy } from '../../../src/domain/agent-run/run-config.js';
 import { runOneShotAgent, type AgentRunIo } from '../../../src/domain/agent-run/runner.js';
@@ -51,6 +52,31 @@ export function processAlive(pid: number): boolean {
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
+}
+
+/** Design §4.6 / ruling R2(c): the containment unit is the process *group*, so "nothing survived"
+ *  is asked of the group and not only of the pids the test happens to know about. */
+export function groupAlive(pgid: number): boolean {
+  return processAlive(-pgid);
+}
+
+/**
+ * The shipped `fake-supervisor.ts` fixture behind a `cortex-supervisor`-shaped shim, so a trial can
+ * be given a supervisor that ends its control stream without a `quiescent` record. Transpiled the
+ * same way `trial-run.test.ts` does it, because the supervisor path takes a binary, not a module.
+ */
+export function installFakeSupervisor(root: string, mode: string): string {
+  const compiled = path.join(root, 'bin', 'fake-supervisor.mjs');
+  write(compiled, ts.transpileModule(
+    fs.readFileSync(fileURLToPath(new URL('./fake-supervisor.ts', import.meta.url)), 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } },
+  ).outputText);
+  return write(
+    path.join(root, 'bin', 'cortex-supervisor'),
+    `#!/bin/sh\nFAKE_SUPERVISOR_MODE=${mode} exec ${JSON.stringify(process.execPath)} `
+    + `${JSON.stringify(compiled)} "$@"\n`,
+    0o755,
+  );
 }
 
 export async function waitForExit(pid: number, timeoutMs = 10_000): Promise<void> {
