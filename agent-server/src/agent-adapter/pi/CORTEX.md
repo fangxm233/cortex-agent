@@ -5,12 +5,16 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 
 | filename | role | function |
 |---|---|---|
-| adapter.ts | adapter | runs PI sessions with authoritative resume paths |
+| adapter.ts | adapter | runs supervised PI sessions from injected collaborators |
 | session-support.ts | core | PI session timers, queues, and probes |
 | spawn-args.ts | core | Builds PI arguments and isolated task-aware environment |
-| defaults.ts | config | PI session and extension path defaults |
+| defaults.ts | config | PI agent, session and extension path defaults |
 | agent-dir.ts | config | manages the private PI agent directory |
-| discovery.ts | core | refreshes provider cache and finds filename sessions |
+| discovery.ts | core | refreshes the host provider cache |
+| session-files.ts | core | resolves a PI transcript path without ambient reach |
+| providers-config.ts | config | writes the PI provider catalog at an explicit path |
+| policy-guard.ts | core | decides PI tool dispatch fail-closed from the compiled guard |
+| mcp-duration.ts | core | bounds an MCP call by the trial deadline plus cleanup grace |
 | event-parser.ts | parser | translates PI events with nullable accounting |
 | framing.ts | codec | encodes and splits PI newline JSON records |
 | mcp-bridge.ts | bridge | composes shared and privilege-scoped MCP tools |
