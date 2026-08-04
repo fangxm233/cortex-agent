@@ -22,6 +22,10 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | fake-thread-probe-entry.mjs | fixture | runs one current-runner step and flushes stores |
 | full-benchmark-thread-probe-entry.mjs | fixture | emits complete fake C4 events for C8 tracing |
 | identity.test.ts | test | verifies deterministic run and guard identity hashes |
+| long-mcp-call-e2e.test.ts | e2e | holds a real MCP call past 60s on both backends |
+| long-mcp-claude-cli.mjs | fixture | answers one turn behind a real MCP client call |
+| long-mcp-hold-server.mjs | fixture | holds one stdio MCP call for a chosen duration |
+| long-mcp-trial-fixture.ts | fixture | compiles a trial whose declared MCP server holds |
 | journal.test.ts | test | verifies durable events and relocatable lifecycle paths |
 | manifest-contract.test.ts | test | verifies lifecycle, linkage and child identity contracts |
 | pinned-node-process.test.ts | test | proves module-load paths and env isolation |
@@ -32,5 +36,6 @@ Agent-run domain tests cover identity hashes, durable journals, lifecycle manife
 | trial-run-pi.test.ts | test | proves PI supervision, quiescence, cancel and deadline |
 | trial-run.test.ts | test | proves supervised, isolated and normalized trial runs |
 | trajectory-merge-cli.test.ts | test | verifies context-free accounting and typed failures |
+| transport-teardown-e2e.test.ts | e2e | proves finalization survives sidecar teardown |
 | trajectory-merge-fixtures.ts | fixture | writes print-mode accounted fragment events |
 | trajectory-merge.test.ts | test | verifies documented aggregate ATIF conversion |
