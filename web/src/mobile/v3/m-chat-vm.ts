@@ -19,6 +19,8 @@ export interface MobileChatRowOpts {
   streamingText?: string | null;
   /** Messages written into the running turn's backend that the model has not read yet. */
   pendingUser?: PendingUserMessage[];
+  /** Scheduled run (8d): strip the `[Scheduled Task]` prefix off the opening prompt bubble. */
+  stripScheduledPrefix?: boolean;
   /** Injected clock for deterministic day-relative dividers. */
   now?: Date;
 }
@@ -44,6 +46,7 @@ export function buildMobileChatRows(
     streaming: opts.streaming,
     streamingText: opts.streamingText,
     pendingUser: opts.pendingUser,
+    stripScheduledPrefix: opts.stripScheduledPrefix,
     formatDivider: zhDivider,
     ...(opts.now ? { now: opts.now } : {}),
   });

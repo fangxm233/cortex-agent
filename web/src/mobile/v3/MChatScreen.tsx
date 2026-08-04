@@ -15,6 +15,7 @@ import {
   formatElapsed,
   rewindStats,
 } from '@/features/workbench/transcript-vm';
+import { scheduledRunTitle } from '@/features/workbench/schedule-rail';
 import { useSessionMessageLiveSync } from '@/features/workbench/useSessionMessageLiveSync';
 import { useOptimisticUserMessages } from '@/features/workbench/useOptimisticUserMessages';
 import { runOptimisticMutation } from '@/features/workbench/optimistic-message';
@@ -235,11 +236,29 @@ export function MChatScreen(): JSX.Element {
   const sessionsQuery = useQuery(
     trpc.sessions.list.queryOptions({ origin: 'direct', projectId: currentProjectId ?? undefined }),
   );
-  const active = useMemo(
-    () => (sessionsQuery.data ?? []).find((s) => s.sessionId === routeParam) ?? null,
-    [sessionsQuery.data, routeParam],
+  // Scheduled runs open on the same page (scheme-mobile 8d) — the Scheduled sheet navigates here,
+  // so the active-session membership must include them.
+  const scheduledSessionsQuery = useQuery(
+    trpc.sessions.list.queryOptions({ origin: 'scheduled', projectId: currentProjectId ?? undefined }),
   );
+  const active = useMemo(() => {
+    const list = [...(sessionsQuery.data ?? []), ...(scheduledSessionsQuery.data ?? [])];
+    return list.find((s) => s.sessionId === routeParam) ?? null;
+  }, [sessionsQuery.data, scheduledSessionsQuery.data, routeParam]);
   const sessionId = isDraft ? '' : (active?.sessionId ?? routeParam ?? '');
+  // Un-adopted scheduled run (8d): title「schedule 名 · run #n」+ reply-adopts hint; replying
+  // converts it to a normal session server-side (nothing special to send).
+  const isScheduledRun = active?.origin === 'scheduled';
+  const schedulesQuery = useQuery({
+    ...trpc.schedules.list.queryOptions({ projectId: currentProjectId ?? undefined }),
+    enabled: !!active?.scheduleId,
+  });
+  const runTitle = useMemo(() => {
+    if (!isScheduledRun || !active?.scheduleId) return null;
+    const sched = (schedulesQuery.data ?? []).find((s) => s.id === active.scheduleId) ?? null;
+    const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
+    return scheduledRunTitle(sched, runs, active.sessionId);
+  }, [isScheduledRun, active?.scheduleId, active?.sessionId, schedulesQuery.data, scheduledSessionsQuery.data]);
 
   const transcriptQuery = useQuery({
     ...trpc.sessions.transcript.queryOptions({ sessionId }),
@@ -282,8 +301,9 @@ export function MChatScreen(): JSX.Element {
   const rows = useMemo(
     () => buildMobileChatRows(transcript, liveTail, {
       streaming, streamingText, pendingUser: optimistic.pendingUser,
+      stripScheduledPrefix: !!active?.scheduleId || isScheduledRun,
     }),
-    [transcript, liveTail, streaming, streamingText, optimistic.pendingUser],
+    [transcript, liveTail, streaming, streamingText, optimistic.pendingUser, active?.scheduleId, isScheduledRun],
   );
   const turns = resolveTurns(liveTurns, active?.numTurns ?? null);
   const elapsed = useMemo(() => formatElapsed(currentTurnElapsedMs(transcriptQuery.data)), [transcriptQuery.data]);
@@ -713,7 +733,13 @@ export function MChatScreen(): JSX.Element {
       : undefined;
   const title = isDraft
     ? (lang === 'zh' ? '新会话' : 'New session')
-    : (active?.label ?? active?.name ?? routeParam ?? '');
+    : (runTitle ?? active?.label ?? active?.name ?? routeParam ?? '');
+  // 8d hint above the composer: replying extracts the run into a normal session.
+  const schedHint = isScheduledRun
+    ? (lang === 'zh'
+        ? '发送消息后提取为普通会话 · schedule 下次 run 不受影响'
+        : 'Replying converts this run into a normal session · the schedule\'s next run is unaffected')
+    : null;
   const attachmentsVM: PendingAttachmentVM[] = uploads.map((u) => ({ id: u.id, name: u.file?.name ?? u.meta?.name ?? 'file', progress: u.progress, status: u.status, type: u.type, previewUrl: u.previewUrl }));
 
   return (
@@ -751,7 +777,7 @@ export function MChatScreen(): JSX.Element {
             />
           ) : undefined
         }
-        systemLines={systemLines}
+        systemLines={schedHint ? [...systemLines, schedHint] : systemLines}
         interactions={interactions}
         rejectBar={rejectBar}
         editCopy={pickCopy(lang, EDIT_COPY)}

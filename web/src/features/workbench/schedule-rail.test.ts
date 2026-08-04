@@ -3,6 +3,7 @@ import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import {
   buildScheduleRows,
   runOrdinals,
+  scheduledRunTitle,
   scheduleRowAction,
   scheduleSubline,
   unreadScheduleCount,
@@ -238,6 +239,24 @@ describe('scheduleSubline', () => {
       now,
     );
     expect(scheduleSubline(row, now)).toEqual({ kind: 'paused', cadence: 'daily 07:30' });
+  });
+});
+
+describe('scheduledRunTitle', () => {
+  const sched = mkSched({ id: 'sch1', message: 'scan arXiv' });
+  const runs = [
+    mkRun({ sessionId: 'r1', createdAt: '2026-07-04T07:30:00.000Z' }),
+    mkRun({ sessionId: 'r2', createdAt: '2026-07-05T07:30:00.000Z' }),
+  ];
+
+  it('annotates an un-adopted run as "message · run #n"', () => {
+    expect(scheduledRunTitle(sched, runs, 'r2')).toBe('scan arXiv · run #2');
+    expect(scheduledRunTitle(sched, runs, 'r1')).toBe('scan arXiv · run #1');
+  });
+
+  it('returns null when the schedule record is gone or the session is not among the runs', () => {
+    expect(scheduledRunTitle(null, runs, 'r2')).toBeNull();
+    expect(scheduledRunTitle(sched, runs, 'other')).toBeNull();
   });
 });
 

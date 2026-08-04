@@ -46,6 +46,55 @@ function NewButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+// The Scheduled entry (scheme-mobile 8a): a 34px clock circle left of ＋; unread schedules ride
+// as a badge (blue — failed runs have no data source, so the badge never turns red here).
+function ScheduledButton({ unread, onClick }: { unread: number; onClick: () => void }) {
+  return (
+    <div style={{ position: 'relative', flex: 'none' }}>
+      <button
+        type="button"
+        aria-label="Scheduled"
+        onClick={onClick}
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: '50%',
+          background: MC.card,
+          border: `1px solid ${MC.hairline}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          padding: 0,
+        }}
+      >
+        <svg width={16} height={16} viewBox="0 0 14 14" fill="none" stroke={MC.sub} strokeWidth={1.5}>
+          <circle cx="7" cy="7" r="5.6" />
+          <path d="M7 4v3.2l2.2 1.3" />
+        </svg>
+      </button>
+      {unread > 0 && (
+        <span
+          aria-label={`${unread} unread scheduled`}
+          style={{
+            position: 'absolute',
+            top: -3,
+            right: -4,
+            background: MC.run,
+            color: 'var(--ink-solid-fg)',
+            font: `600 8.5px ${MONO}`,
+            padding: '1px 4.5px',
+            borderRadius: 999,
+            border: `1.5px solid ${MC.canvas}`,
+          }}
+        >
+          {unread}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function Row({ row, byId, onOpen }: { row: MSessionGroup['rows'][number]; byId: Map<string, SessionInfo>; onOpen: (id: string) => void }) {
   const s = byId.get(row.id);
   const status = s ? sessionStatusLine(s) : { kind: 'idle' as const, text: '空闲' };
@@ -94,6 +143,7 @@ export function MSessionListView({
   sessions,
   scope,
   copy,
+  scheduled,
   onOpen,
   onNew,
 }: {
@@ -101,6 +151,8 @@ export function MSessionListView({
   sessions: SessionInfo[];
   scope?: string;
   copy: MSessionListCopy;
+  /** Scheduled entry (8a): hidden while the project has no schedules and no runs. */
+  scheduled?: { unread: number; onOpen: () => void };
   onOpen: (id: string) => void;
   onNew: () => void;
 }) {
@@ -108,7 +160,18 @@ export function MSessionListView({
   return (
     <MScreen
       label="1a 会话列表"
-      header={<MTabHeader title={copy.title} qn={scope} trailing={<NewButton onClick={onNew} />} />}
+      header={
+        <MTabHeader
+          title={copy.title}
+          qn={scope}
+          trailing={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {scheduled && <ScheduledButton unread={scheduled.unread} onClick={scheduled.onOpen} />}
+              <NewButton onClick={onNew} />
+            </div>
+          }
+        />
+      }
     >
       <MScrollBody gap={6}>
         {groups.length === 0 && (

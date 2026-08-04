@@ -19,7 +19,7 @@ import { buildTranscriptRows, turnCount, resolveTurns, currentTurnElapsedMs, for
 import { useCurrentProject } from './CurrentProjectProvider';
 import { useSelectedSession } from './SelectedSessionProvider';
 import { useOptimisticUserMessages } from './useOptimisticUserMessages';
-import { runOrdinals } from './schedule-rail';
+import { scheduledRunTitle } from './schedule-rail';
 
 // CENTER CHAT pane — 1:1 rebuild from prototype.dc.html L103–395 (workspace-chat view). Task aba0
 // (S4 chat) makes the transcript body + composer send REAL, replacing 89e7's GAP-A (static transcript)
@@ -77,21 +77,19 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   );
   // Un-adopted scheduled run: the composer carries the "replying converts this run" hint (30c).
   const isScheduledRun = active?.origin === 'scheduled';
-  // Run ordinal among the schedule's surviving runs (#1 = oldest) — drives the 30c title. Null for
-  // adopted sessions (they are plain timeline rows) and when the schedule record is gone.
-  const runNo = useMemo(() => {
+  // 30c title:「schedule 名 · run #n」for an un-adopted run (falls back to the plain label when
+  // the schedule record is gone; adopted sessions are plain timeline rows).
+  const runTitle = useMemo(() => {
     if (!isScheduledRun || !active?.scheduleId) return null;
     const runs = (scheduledSessionsQuery.data ?? []).filter((s) => s.scheduleId === active.scheduleId);
-    return runOrdinals(runs).get(active.sessionId) ?? null;
-  }, [isScheduledRun, active?.scheduleId, active?.sessionId, scheduledSessionsQuery.data]);
+    return scheduledRunTitle(activeSchedule, runs, active.sessionId);
+  }, [isScheduledRun, active?.scheduleId, active?.sessionId, activeSchedule, scheduledSessionsQuery.data]);
 
   const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
   const title = isDraft
     ? L.wbNewConversation
     : active
-      ? isScheduledRun && activeSchedule && runNo != null
-        ? `${activeSchedule.message} · run #${runNo}`
-        : (active.label ?? active.name)
+      ? runTitle ?? active.label ?? active.name
       : 'No session';
 
   const transcriptQuery = useQuery({

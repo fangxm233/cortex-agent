@@ -134,6 +134,18 @@ export function scheduleSubline(row: ScheduleRow, now: number): ScheduleSubline 
   };
 }
 
+/** 30c/8d chat title for an UN-ADOPTED run:「message · run #n」. Null when the schedule record is
+ *  gone (fired-once / deleted — the plain session label stands) or the session is not a run. */
+export function scheduledRunTitle(
+  schedule: ScheduleInfo | null | undefined,
+  runs: SessionInfo[],
+  sessionId: string,
+): string | null {
+  if (!schedule) return null;
+  const n = runOrdinals(runs).get(sessionId);
+  return n == null ? null : `${schedule.message} · run #${n}`;
+}
+
 /** Collapsed-header「m 未读」/ mobile clock badge: unread ROWS (schedules), not unread runs. */
 export function unreadScheduleCount(rows: ScheduleRow[]): number {
   return rows.filter((r) => r.unread).length;
