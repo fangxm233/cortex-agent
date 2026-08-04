@@ -200,22 +200,19 @@ it('holds a real Claude-side MCP call past 60 s and leaves no server behind (T15
   await waitForExit(readJson(trial.server.pidFile).pid as number);
 }, 115_000);
 
-// ─── OPEN BLOCKER — §5.7 C3 is unimplemented on the Claude path ───────────────────────────────
+// ─── §5.7 C3 has landed on the Claude path — the row below is a live predicate ─────────────────
 //
-// `it.fails` is a declaration, not a skip: the body below runs on every suite run and the row is
-// green only while it FAILS. The moment C3 lands, this row starts failing and whoever landed it must
-// flip `it.fails` back to `it`. That is deliberate — this suite's author wrote neither adapter and
-// was instructed to block rather than repair, so the predicate is committed as evidence rather than
-// silently dropped or fixed here.
+// This row was committed as `it.fails`: the blocker was that nothing in `agent-server/src` wrote
+// `MCP_TOOL_TIMEOUT` or `MCP_TIMEOUT`, so `benchmarkDeadlineEpochMs` (set at
+// `trial-adapter-factory.ts:167`) reached PI and was dropped by the Claude path, leaving the child
+// on the CLI's unset default (1e8 ms) — past 60 s, as the row above proves, but unbounded by the
+// trial deadline, which is the other half of what `benchmark-long-mcp-call` asserts.
 //
-// What is missing: nothing in `agent-server/src` ever writes `MCP_TOOL_TIMEOUT` or `MCP_TIMEOUT`
-// (`capabilities.ts:46-48,83-86` are prose), and `benchmarkDeadlineEpochMs` — set on the run options
-// at `trial-adapter-factory.ts:167` — is consumed only by PI (`pi/adapter.ts` → `pi/spawn-args.ts`).
-// The Claude child therefore runs on the CLI's unset default (1e8 ms): past 60 s, as the row above
-// proves, but unbounded by the trial deadline, which is the other half of what the declared
-// `benchmark-long-mcp-call` capability asserts. §13.2's Claude construction table has no row for
-// this environment pair, which is why the adapter child never wired it.
-it.fails('KNOWN BLOCKER: supplies the Claude child a per-call MCP budget bounded by the trial deadline (T15, §5.7 C3)', async () => {
+// `d319135a` closed it: `buildClaudeEnv` takes the absolute deadline and derives both variables at
+// the moment the child environment is built, valued at remaining trial time plus the same cleanup
+// grace PI uses. The assertions below are unchanged from the blocking version — they are the
+// oracle that fixed the shape of the fix, not a description written after it.
+it('supplies the Claude child a per-call MCP budget bounded by the trial deadline (T15, §5.7 C3)', async () => {
   const trial = claudeTrial(root, {
     hold: { holdMs: 200, name: 'claude-budget' }, deadlineSeconds: 600,
   });

@@ -1,5 +1,5 @@
 // input:  compiled trial policies, pinned trial paths, fake spawners
-// output: per-trial Claude construction, guard transport and reach proofs
+// output: per-trial Claude construction, guard transport, MCP budget and reach proofs
 // pos:    Regression suite for the Gate-2 trial adapter seam
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
@@ -16,6 +16,7 @@ import { getAdapter } from '../../../src/agent-adapter/index.js';
 import { _test as claudeTest } from '../../../src/agent-adapter/claude/adapter.js';
 import { buildHooksSettings } from '../../../src/agent-adapter/claude/hooks-builder.js';
 import { buildClaudeEnv, buildSpawnArgs } from '../../../src/agent-adapter/claude/spawn-args.js';
+import { MCP_CLEANUP_GRACE_MS } from '../../../src/agent-adapter/pi/mcp-duration.js';
 import type { AgentProcess, SpawnedAgentProcess } from '../../../src/agent-adapter/types.js';
 import {
   PINNED_RUNTIME_PATH, preparePinnedTrialPaths, pinnedTrialEnvironment,
@@ -404,6 +405,63 @@ it('builds the pinned trial environment allowlist-first', () => {
   ]);
   assert.equal(env.HOME, paths.home);
   assert.equal(env.PATH, PINNED_RUNTIME_PATH);
+});
+
+// --- C3: the per-call MCP budget the trial child is spawned with ---
+
+it('spawns the Claude child with an MCP budget bounded by the trial deadline (C3)', () => {
+  const built = spec();
+  const trial = createTrialAdapter(built);
+  const record: { env?: NodeJS.ProcessEnv } = {};
+  trial.spawnConfig.processSpawner = capturingSpawner(record);
+  trial.adapter.spawn(trial.spawnConfig);
+
+  const budgetMs = Number(record.env!.MCP_TOOL_TIMEOUT);
+  const remainingMs = built.policy.deadline.absolute_epoch_ms - Date.now();
+  // C3 names both variables; the startup budget carries the same bounded quantity as the per-call
+  // one, since a startup budget that outlives the trial is the unbounded case C3 exists to remove.
+  assert.equal(record.env!.MCP_TIMEOUT, record.env!.MCP_TOOL_TIMEOUT);
+  // 60 000 ms is the native reference window a benchmark call must be able to outlive (§5.7 C1).
+  assert.ok(budgetMs > 60_000, `the supplied budget ${budgetMs}ms does not clear the native default`);
+  // The env was built before this line read the clock, so the budget is remaining + grace measured a
+  // moment earlier — never more than that plus the time this test took to get here.
+  assert.ok(
+    budgetMs >= remainingMs + MCP_CLEANUP_GRACE_MS
+    && budgetMs <= remainingMs + MCP_CLEANUP_GRACE_MS + 1_000,
+    `the supplied budget ${budgetMs}ms is not ${remainingMs}ms remaining plus the cleanup grace`,
+  );
+});
+
+it('leaves an ordinary spawn without an MCP budget when no trial deadline is present (C3)', () => {
+  const env = buildClaudeEnv('C1', 'sid-1');
+  assert.equal(env.MCP_TOOL_TIMEOUT, undefined);
+  assert.equal(env.MCP_TIMEOUT, undefined);
+});
+
+it('derives the MCP budget at the moment of use rather than storing it (C3, §5.6 P5)', async () => {
+  const deadlineEpochMs = Date.now() + 120_000;
+  const budgetAt = (): number => Number(buildClaudeEnv(
+    'C1', 'sid-1', undefined, undefined, undefined, undefined, undefined, undefined, deadlineEpochMs,
+  ).MCP_TOOL_TIMEOUT);
+
+  const first = budgetAt();
+  await delay(50);
+  const second = budgetAt();
+  assert.ok(
+    second < first && first - second >= 40 && first - second < 5_000,
+    `the budget did not track the elapsing deadline (${first}ms then ${second}ms)`,
+  );
+});
+
+it('bounds the MCP budget even when the inherited environment already carries one (C3)', () => {
+  const deadlineEpochMs = Date.now() + 120_000;
+  const env = buildClaudeEnv(
+    'C1', 'sid-1', undefined, undefined, undefined,
+    { MCP_TOOL_TIMEOUT: '100000000', MCP_TIMEOUT: '100000000' },
+    undefined, undefined, deadlineEpochMs,
+  );
+  assert.ok(Number(env.MCP_TOOL_TIMEOUT) <= 120_000 + MCP_CLEANUP_GRACE_MS);
+  assert.ok(Number(env.MCP_TIMEOUT) <= 120_000 + MCP_CLEANUP_GRACE_MS);
 });
 
 // --- GT4 / GT5 / T6: the guard is the whole hooks object ---
