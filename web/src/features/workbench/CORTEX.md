@@ -6,7 +6,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | filename | role | function |
 |---|---|---|
 | WorkbenchPage.tsx | entry | Lays out rail, chat, preview and right panel |
-| LeftRail.tsx | view | Project and session navigation rail |
+| LeftRail.tsx | view | Project, session and schedule-run navigation rail |
 | left-rail-projects.ts | vm | Builds ordered project rows with badges |
 | left-rail-projects.test.ts | test | Unit tests for project row ordering |
 | project-menu.ts | vm | Counts per-project running and attention badges |
@@ -14,12 +14,15 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | NewProjectModal.tsx | view | Creates a project from a validated name |
 | new-project.ts | vm | Validates project names and maps create errors |
 | new-project.test.ts | test | Unit tests for project name validation |
-| session-groups.ts | vm | Groups sessions by day with unread first |
-| session-groups.test.ts | test | Unit tests for session grouping |
+| session-groups.ts | vm | Day-groups sessions and collapses schedule runs |
+| session-groups.test.ts | test | Unit tests for session and run grouping |
 | ProfileMenu.tsx | view | Lists selectable profiles with disabled reasons |
 | profile-menu.ts | vm | Filters live profile options and switch gates |
 | profile-menu.test.ts | test | Tests live profile filtering and switch gates |
 | CenterChat.tsx | view | Reconciles transcript, live and optimistic chat rows |
+| ScheduleContextBar.tsx | view | Schedule bar with pause and edit controls |
+| scheduled-chat.ts | vm | Cadence label and next-run delta helpers |
+| scheduled-chat.test.ts | test | Unit tests for scheduled-chat helpers |
 | ChatHeader.tsx | view | Session title, profile, status and notes entry |
 | MessageStream.tsx | view | Scroll-stable transcript with actionable notices |
 | ChatMarkdown.tsx | view | Renders assistant markdown with chat typography |
@@ -27,7 +30,7 @@ Views stay presentational, pure view models derive every row, and hooks bind liv
 | ChatNotice.test.tsx | test | Tests notice semantics and auth activation |
 | MessageEdit.tsx | view | Message hover actions, edit box and rewind |
 | chat-content.ts | types | Tool call, attachment and slash command types |
-| transcript-vm.ts | vm | Builds chat rows including safe auth actions |
+| transcript-vm.ts | vm | Builds chat rows incl trigger card and auth actions |
 | transcript-vm.test.ts | test | Tests transcript rows and auth action retention |
 | ToolCallsRow.tsx | view | Collapsed tool chips that expand on click |
 | tool-call-overflow.ts | util | Computes visible tool chips and hidden count |

@@ -689,7 +689,7 @@ test('!schedule list with router registers action handlers for pause/resume/remo
   const adapter = new MockAdapter();
   const router = new CommandActionRouter();
   createCommandDispatcher({
-    scheduler: { list: async () => [], add: async () => ({}), remove: async () => false, pause: async () => null, resume: async () => null },
+    scheduler: { update: async () => null, list: async () => [], add: async () => ({}), remove: async () => false, pause: async () => null, resume: async () => null },
     commandRouter: router,
   });
   router.bindToAdapter(adapter);

@@ -27,7 +27,14 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   return {
     ...actual,
     useQuery: (options: any) => {
-      if (options.__kind === 'sessions.list') return { data: harness.sessions, isPending: false };
+      // Direct list carries the harness sessions; the 27a scheduled list and schedule records are
+      // empty here (no scheduled runs in these scenarios).
+      if (options.__kind === 'sessions.list') {
+        return options.input?.origin === 'scheduled'
+          ? { data: [], isPending: false }
+          : { data: harness.sessions, isPending: false };
+      }
+      if (options.__kind === 'schedules.list') return { data: [], isPending: false };
       if (options.__kind === 'sessions.transcript') {
         const sessionId = options.input.sessionId as string;
         if (sessionId && !harness.transcripts[sessionId]) {
@@ -68,6 +75,9 @@ vi.mock('@/lib/trpc', () => ({
         createAndSend: mutation('sessions.createAndSend'),
         cancel: mutation('sessions.cancel'),
         rewind: mutation('sessions.rewind'),
+      },
+      schedules: {
+        list: query('schedules.list'),
       },
     };
   },

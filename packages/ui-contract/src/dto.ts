@@ -47,6 +47,7 @@ export type {
   ExecutionsCancelArgs,
   ScheduleActionArgs,
   ScheduleAddArgs,
+  ScheduleUpdateArgs,
   TaskActionArgs,
   TaskCompleteArgs,
   TaskBlockArgs,

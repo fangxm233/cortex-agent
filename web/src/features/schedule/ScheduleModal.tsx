@@ -55,6 +55,8 @@ function bareSelectStyle(font: string): CSSProperties {
 
 export interface ScheduleModalProps {
   form: ScheduleForm;
+  /** 'edit' (design 27b) locks the immutable/not-patchable fields: type, target, fallback. */
+  mode?: 'create' | 'edit';
   onChange: (patch: Partial<ScheduleForm>) => void;
   onCancel: () => void;
   onCreate: () => void;
@@ -65,7 +67,7 @@ export interface ScheduleModalProps {
   now?: Date;
 }
 
-export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
+export function ScheduleModal({ form, mode = 'create', onChange, onCancel, onCreate, valid, pending, profileOptions, now }: ScheduleModalProps) {
   const L = useVocab();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -96,6 +98,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
   const vis = visibleFields(form.type);
   const { clock, delta } = nextRunParts(form, now ?? new Date());
   const canCreate = valid && !pending;
+  const editing = mode === 'edit';
 
   // Left 130px cell: TIME (daily/weekly) · EVERY (interval) · IN (once). PROFILE always on the right;
   // weekly inserts a DAY cell between them (grid widens to 130/130/1fr — daily stays 130/1fr, 1:1).
@@ -128,7 +131,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
       >
         {/* header (prototype L1434) */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px 0' }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{L.scNewSchedule}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>{editing ? L.scEditSchedule : L.scNewSchedule}</span>
           <span
             onClick={onCancel}
             style={{
@@ -157,7 +160,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
                   key={t}
                   data-sched-type-opt={t}
                   aria-pressed={selected}
-                  onClick={() => onChange({ type: t })}
+                  onClick={editing ? undefined : () => onChange({ type: t })}
                   style={{
                     flex: 1,
                     textAlign: 'center',
@@ -167,7 +170,8 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
                     color: selected ? 'var(--proto-accent)' : 'var(--proto-muted-2)',
                     background: selected ? 'var(--proto-accent-bg)' : undefined,
                     borderRight: i < SCHED_TYPES.length - 1 ? '1px solid var(--proto-line)' : undefined,
-                    cursor: 'pointer',
+                    cursor: editing ? 'default' : 'pointer',
+                    opacity: editing && !selected ? 0.45 : 1,
                   }}
                 >
                   {TYPE_LABELS[t]}
@@ -325,13 +329,15 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
             />
           </div>
 
-          {/* TARGET + FALLBACK (prototype L1449-1452) */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+          {/* TARGET + FALLBACK (prototype L1449-1452) — not patchable via schedules.update, so
+              edit mode shows them read-only (prefill from the persisted record). */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12, opacity: editing ? 0.55 : 1 }}>
             <div>
               <div style={{ ...LABEL, marginBottom: 5 }}>{L.scTarget}</div>
               <div style={CELL_BOX}>
                 <select
                   value={form.target}
+                  disabled={editing}
                   onChange={(e) => onChange({ target: e.target.value as ScheduleForm['target'] })}
                   style={bareSelectStyle('11.5px system-ui, sans-serif')}
                 >
@@ -347,6 +353,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
               <div style={CELL_BOX}>
                 <select
                   value={form.fallback}
+                  disabled={editing}
                   onChange={(e) => onChange({ fallback: e.target.value as ScheduleForm['fallback'] })}
                   style={bareSelectStyle('11.5px system-ui, sans-serif')}
                 >
@@ -394,7 +401,7 @@ export function ScheduleModal({ form, onChange, onCancel, onCreate, valid, pendi
               opacity: canCreate ? 1 : 0.55,
             }}
           >
-            {L.scCreateSchedule}
+            {editing ? L.scSaveSchedule : L.scCreateSchedule}
           </span>
         </div>
       </div>

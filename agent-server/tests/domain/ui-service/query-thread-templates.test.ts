@@ -168,6 +168,7 @@ function makeMinimalDeps(): UiServiceDeps {
       resume: async () => null,
       remove: async () => false,
       add: async () => ({ id: 'sch_new' } as any),
+      update: async () => null,
     },
     executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
     executionLogTailer: { startTail: () => {}, stopTail: () => {}, refCount: () => 0 },

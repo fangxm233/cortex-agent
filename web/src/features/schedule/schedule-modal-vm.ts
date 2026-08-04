@@ -4,7 +4,7 @@
 // derives: which fields a TYPE shows, the real `ScheduleAddArgs` payload, validation, and the footer
 // next-run label. intervalMs / delay are raw ms ints per the backend zod contract (scheduleAddInput).
 
-import type { ScheduleAddArgs } from '@cortex-agent/ui-contract';
+import type { ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '@cortex-agent/ui-contract';
 
 export type SchedType = 'interval' | 'daily' | 'weekly' | 'once';
 export type IntervalUnit = 'min' | 'hr';
@@ -124,6 +124,42 @@ export function buildScheduleAddArgs(form: ScheduleForm): ScheduleAddArgs {
   return args;
 }
 
+// ── Edit mode (design 27b「Edit schedule ↗」) ────────────────────────────────
+// The schedule's type is immutable and `schedules.update` patches only message/projectId/profile +
+// the type's own timing fields — target/fallback and a once-schedule's runAt are not patchable, so
+// the form's target/fallback are prefill-only in edit mode (the modal renders them disabled).
+
+/** Prefill the form from a persisted schedule. Missing fields fall back to the create defaults so
+ *  every control stays controlled; the profile falls back to '' (never a fabricated name). */
+export function formFromSchedule(s: ScheduleInfo): ScheduleForm {
+  const base = defaultScheduleForm(s.projectId || null);
+  const ms = s.intervalMs ?? 0;
+  const wholeHours = ms > 0 && ms % 3_600_000 === 0;
+  return {
+    ...base,
+    type: s.type,
+    message: s.message,
+    profile: s.profile ?? '',
+    time: s.time ?? base.time,
+    dayOfWeek: s.dayOfWeek ?? base.dayOfWeek,
+    intervalValue: ms > 0 ? (wholeHours ? ms / 3_600_000 : Math.round(ms / 60_000)) : base.intervalValue,
+    intervalUnit: wholeHours ? 'hr' : 'min',
+    target: s.target?.kind === 'fresh' ? 'fresh' : s.target?.kind === 'project' ? 'project' : 'current-channel',
+    fallback: s.fallback ?? 'fresh',
+  };
+}
+
+/** The real `schedules.update` payload: only patchable fields, timing scoped to the form's type. */
+export function buildScheduleUpdateArgs(scheduleId: string, form: ScheduleForm): ScheduleUpdateArgs {
+  const args: ScheduleUpdateArgs = { scheduleId, message: form.message.trim() };
+  if (form.profile) args.profile = form.profile;
+  if (form.projectId) args.projectId = form.projectId;
+  if (form.type === 'interval') args.intervalMs = unitToMs(form.intervalValue, form.intervalUnit);
+  if (form.type === 'daily' || form.type === 'weekly') args.time = form.time;
+  if (form.type === 'weekly') args.dayOfWeek = form.dayOfWeek;
+  return args;
+}
+
 export interface Validation {
   ok: boolean;
   errors: string[];
@@ -164,7 +200,7 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-function humanizeDelta(ms: number): string {
+export function humanizeDelta(ms: number): string {
   const totalMin = Math.max(0, Math.round(ms / 60_000));
   if (totalMin < 60) return `${totalMin}m`;
   const h = Math.floor(totalMin / 60);

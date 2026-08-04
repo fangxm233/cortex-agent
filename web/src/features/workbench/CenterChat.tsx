@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTRPC } from '@/lib/trpc';
 import { useLang, useVocab } from '@/i18n';
 import { ChatHeader } from './ChatHeader';
+import { ScheduleContextBar } from './ScheduleContextBar';
 import { MessageStream, type MessageEditCtx } from './MessageStream';
 import { InlineThreadCardProto } from './InlineThreadCardProto';
 import { Composer } from './Composer';
@@ -47,17 +48,34 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   const { currentProjectId } = useCurrentProject();
   const { selectedSessionId, isDraft, draftProfile, draftReloadToken } = useSelectedSession();
   // Scoped to the current project (dedupes with the LeftRail / provider query) so the active session
-  // is resolved from the same list the rail shows.
+  // is resolved from the same lists the rail shows — direct conversations AND scheduled runs
+  // (design 27a-B puts both in the rail, so both must open here).
   const sessionsQuery = useQuery(
     trpc.sessions.list.queryOptions({ origin: 'direct', projectId: currentProjectId ?? undefined }),
   );
+  const scheduledSessionsQuery = useQuery(
+    trpc.sessions.list.queryOptions({ origin: 'scheduled', projectId: currentProjectId ?? undefined }),
+  );
 
   // The active session is the shared cross-pane selection (a LeftRail click), resolved against the
-  // scoped list. No local most-recent computation — selection is the single source of truth.
+  // scoped lists. No local most-recent computation — selection is the single source of truth.
   const active = useMemo(() => {
-    const list = sessionsQuery.data ?? [];
+    const list = [...(sessionsQuery.data ?? []), ...(scheduledSessionsQuery.data ?? [])];
     return list.find((s) => s.sessionId === selectedSessionId) ?? null;
-  }, [sessionsQuery.data, selectedSessionId]);
+  }, [sessionsQuery.data, scheduledSessionsQuery.data, selectedSessionId]);
+
+  // Schedule context (design 27b): a session born from a schedule fire keeps its scheduleId even
+  // after adoption; the bar + trigger card render whenever the schedule record still exists.
+  const schedulesQuery = useQuery({
+    ...trpc.schedules.list.queryOptions({}),
+    enabled: !!active?.scheduleId,
+  });
+  const activeSchedule = useMemo(
+    () => (active?.scheduleId ? (schedulesQuery.data ?? []).find((s) => s.id === active.scheduleId) ?? null : null),
+    [schedulesQuery.data, active?.scheduleId],
+  );
+  // Un-adopted scheduled run: the composer carries the "replying converts this run" hint (27b).
+  const isScheduledRun = active?.origin === 'scheduled';
 
   const sessionId = active?.sessionId ?? (isDraft ? '' : selectedSessionId ?? '');
   const title = isDraft ? L.wbNewConversation : active ? (active.label ?? active.name) : 'No session';
@@ -99,8 +117,9 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
   const rows = useMemo(
     () => buildTranscriptRows(transcript, liveTail, {
       streaming, streamingText, pendingUser: optimistic.pendingUser, formatDivider: formatDividerFromVocab(L),
+      triggerCard: !!active?.scheduleId || isScheduledRun,
     }),
-    [transcript, liveTail, streaming, streamingText, optimistic.pendingUser, L],
+    [transcript, liveTail, streaming, streamingText, optimistic.pendingUser, L, active?.scheduleId, isScheduledRun],
   );
   const turns = turnCount(transcriptQuery.data);
   // The composer status line shows the REAL agent-turn count (the number that grows as the agent
@@ -168,6 +187,7 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
         hasHistory={hasHistory}
         isDraft={isDraft}
       />
+      {activeSchedule && <ScheduleContextBar schedule={activeSchedule} />}
       <MessageStream
         rows={rows}
         loading={!!sessionId && transcriptQuery.isPending}
@@ -201,6 +221,22 @@ export function CenterChat({ grow = 1 }: { grow?: number } = {}): JSX.Element {
           />
         ) : undefined}
       />
+      {isScheduledRun && (
+        <div
+          style={{
+            font: "400 9.5px 'IBM Plex Mono',monospace",
+            color: 'var(--proto-faint)',
+            maxWidth: 760,
+            margin: '0 auto',
+            width: '100%',
+            boxSizing: 'border-box',
+            padding: '0 24px 10px',
+            flex: 'none',
+          }}
+        >
+          {L.wbSchedReplyHint}
+        </div>
+      )}
     </div>
   );
 }

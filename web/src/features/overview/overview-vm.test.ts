@@ -30,6 +30,11 @@ const sched = (p: Partial<ScheduleInfo>): ScheduleInfo => ({
   lastRun: null,
   paused: false,
   pausedBy: null,
+  intervalMs: null,
+  time: null,
+  dayOfWeek: null,
+  target: null,
+  fallback: null,
   ...p,
 });
 
@@ -87,6 +92,7 @@ describe('deriveActiveProjectId', () => {
     numTurns: null,
     costUsd: null,
     unread: false,
+    scheduleId: null,
   });
   it('picks the most-recently-used session project', () => {
     const sessions = [

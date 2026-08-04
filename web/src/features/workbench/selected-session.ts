@@ -47,16 +47,21 @@ export function deriveMostRecentSessionId(sessions: SessionInfo[]): string | nul
  *  refetching) `sessions.list`. Without it, the freshly created id — set as the override on
  *  createAndSend success — would fail the list-membership check and briefly fall back to the
  *  PREVIOUS most-recent session, flipping the chat to the old session and then back to the new one
- *  once the refetch lands. Passing it through keeps the chat on the new session across that gap. */
+ *  once the refetch lands. Passing it through keeps the chat on the new session across that gap.
+ *
+ *  `defaultPool` (design 27a-B): the membership list may include scheduled runs — they are valid
+ *  CLICK targets — but the no/stale-override fallback derives from this pool (direct sessions
+ *  only), so the workbench never auto-opens a run the user did not pick. Defaults to `sessions`. */
 export function resolveSelectedSessionId(
   override: string | null,
   sessions: SessionInfo[],
   pendingCreatedId: string | null = null,
+  defaultPool: SessionInfo[] = sessions,
 ): string | null {
   if (override === DRAFT_SENTINEL) return DRAFT_SENTINEL;
   if (pendingCreatedId && override === pendingCreatedId) return pendingCreatedId;
   if (override && sessions.some((s) => s.sessionId === override)) return override;
-  return deriveMostRecentSessionId(sessions);
+  return deriveMostRecentSessionId(defaultPool);
 }
 
 /** Keep draft profile metadata only for its just-created session until the list snapshot arrives. */

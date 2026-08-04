@@ -128,6 +128,7 @@ export type MutateOp =
   | 'schedules.resume'
   | 'schedules.remove'
   | 'schedules.add'
+  | 'schedules.update'
   | 'tasks.claim'
   | 'tasks.unclaim'
   | 'tasks.complete'
@@ -471,6 +472,19 @@ export interface ScheduleAddArgs {
   fallback?: 'fresh' | 'skip' | 'wait';
 }
 
+// Args for `schedules.update` — a partial patch of an existing schedule. The schedule's type is
+// immutable; only fields valid for that type are accepted (checked against the persisted task in
+// the handler, mirroring scheduler.validateTaskPatch). target/fallback are not patchable in v1.
+export interface ScheduleUpdateArgs {
+  scheduleId: string;
+  message?: string;
+  projectId?: string;
+  profile?: string;
+  intervalMs?: number;
+  time?: string;
+  dayOfWeek?: number;
+}
+
 export interface TaskActionArgs {
   projectId: string;
   taskId: string;
@@ -630,6 +644,10 @@ export interface SessionInfo {
   /** How the session was initiated: 'direct' (user chat), 'thread' (pipeline/dispatch
    *  step), or 'scheduled' (scheduled job). The workbench session list shows only 'direct'. */
   origin: 'direct' | 'thread' | 'scheduled';
+  /** The schedule (ScheduleInfo.id) whose fire produced this session — drives the left rail's
+   *  per-schedule run grouping and the chat trigger card. Survives a reply converting the run to
+   *  a direct session (provenance). Null for sessions with no schedule origin / legacy records. */
+  scheduleId: string | null;
   createdAt: string;
   lastUsedAt: string;
   resumable: boolean;
@@ -978,6 +996,14 @@ export interface ScheduleInfo {
   lastRun: string | null;
   paused: boolean;
   pausedBy: string | null;
+  /** Timing spec — only the field(s) matching `type` are set; the rest are null.
+   *  Drives cadence labels ("daily 07:30") and edit-form prefill. */
+  intervalMs: number | null;
+  time: string | null;
+  dayOfWeek: number | null;
+  /** Persisted dispatch target / fallback; null when the record predates them (never fabricated). */
+  target: ScheduleTarget | null;
+  fallback: 'fresh' | 'skip' | 'wait' | null;
 }
 
 export interface ExecutionInfo {
@@ -1804,6 +1830,7 @@ export interface MutateArgsMap {
   'schedules.resume': ScheduleActionArgs;
   'schedules.remove': ScheduleActionArgs;
   'schedules.add': ScheduleAddArgs;
+  'schedules.update': ScheduleUpdateArgs;
   'tasks.claim': TaskActionArgs;
   'tasks.unclaim': TaskActionArgs;
   'tasks.complete': TaskCompleteArgs;
@@ -1859,6 +1886,7 @@ export interface MutateReturnMap {
   'schedules.resume': void;
   'schedules.remove': void;
   'schedules.add': ScheduleInfo;
+  'schedules.update': ScheduleInfo;
   'tasks.claim': void;
   'tasks.unclaim': void;
   'tasks.complete': void;
@@ -1993,6 +2021,14 @@ export interface UiServiceDeps {
    */
   createDirectSession: (opts: { projectId: string; sessionId?: string; profileName?: string | null }) => Promise<{ sessionId: string; sessionName: string; channel: string }>;
   /**
+   * Convert a scheduled run's session into a normal direct web session before a reply is sent
+   * (design 27b: replying adopts the run — it leaves the schedule grouping and becomes a normal
+   * conversation; the next fire starts a fresh session). Injected in the entry layer (app.ts) to
+   * the domain `adoptScheduledSession` primitive. Returns the adopted channel, or null when the
+   * session is unknown. Optional — the send handler returns not-available when absent.
+   */
+  adoptScheduledSession?: (opts: { sessionId: string }) => Promise<{ channel: string } | null>;
+  /**
    * Move files uploaded under a draft upload id to the real session's attachment directory
    * and return updated AttachmentMeta with corrected paths. No-op when draftUploadId is null.
    * Optional — only needed by sessions.createAndSend; absent in test fixtures.
@@ -2045,6 +2081,9 @@ export interface UiServiceDeps {
         fallback?: 'fresh' | 'skip' | 'wait';
       },
     ): Promise<ScheduleTask>;
+    /** Patch an existing schedule (schedules.update). Maps to the real scheduler.update
+     *  (validateTaskPatch + retiming + reschedule). Returns null when the id is unknown. */
+    update(id: string, patch: Record<string, unknown>): Promise<ScheduleTask | null>;
   };
   executionRegistry: {
     getExecution(id: string): any | null;

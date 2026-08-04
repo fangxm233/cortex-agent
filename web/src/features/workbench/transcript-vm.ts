@@ -244,6 +244,9 @@ export type ChatRow =
   // message would re-type text the reader has already seen and leave it animating past turn end.
   | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[]; preview?: true }
   | { kind: 'notice'; level: ChatNoticeLevel; text: string; authAction?: AuthNoticeAction }
+  // Scheduled-run trigger card (design 27b): the run's opening `[Scheduled Task]` message rendered
+  // as provenance, not as a user bubble. `message` has the prefix stripped; `firedTs` is fire time.
+  | { kind: 'trigger'; message: string; firedTs: string | null }
   // `detail` carries the structured interaction entity (pending cards render actionable);
   // absent on legacy rows, which render the old subtype-driven summary.
   | { kind: 'interaction'; subtype: string; text: string; detail?: TranscriptInteractionDetail; ts?: string | null };
@@ -272,7 +275,15 @@ export interface BuildOpts {
    * why they are not merged into the ordered tail until the delivered event moves them there.
    */
   pendingUser?: PendingUserMessage[];
+  /**
+   * Scheduled sessions (origin 'scheduled' / adopted runs): render the FIRST user row as the
+   * 27b trigger card when it carries the `[Scheduled Task]` payload prefix. Replies and manual
+   * sessions are untouched.
+   */
+  triggerCard?: boolean;
 }
+
+const SCHEDULED_PREFIX = '[Scheduled Task]';
 
 /** Map a live `session.message` event into a `TranscriptMessage` (same shape the fetched DTO uses).
  *  `elapsedMs` is null for live-tail messages — the backend derives real per-message elapsed at read
@@ -495,6 +506,7 @@ export function buildTranscriptRows(
 
   const rows: ChatRow[] = [];
   let curDay: string | null = null;
+  let firstUserSeen = false;
   let toolBuf: { kind: string; input: string; debug?: DebugToolDetail }[] = [];
 
   const flushTools = (): void => {
@@ -530,6 +542,12 @@ export function buildTranscriptRows(
     if (m.type === 'interaction') {
       rows.push({ kind: 'interaction', subtype: (m as any).subtype ?? '', text: m.text ?? '', detail: m.interaction, ts: m.ts ?? null });
     } else if (m.type === 'user') {
+      const isFirstUser = !firstUserSeen;
+      firstUserSeen = true;
+      if (isFirstUser && opts.triggerCard && (m.text ?? '').startsWith(SCHEDULED_PREFIX)) {
+        rows.push({ kind: 'trigger', message: (m.text ?? '').slice(SCHEDULED_PREFIX.length).trim(), firedTs: m.ts ?? null });
+        continue;
+      }
       rows.push({
         kind: 'user', text: m.text ?? '', attachments: (m as any).attachments,
         ...(m.turnIndex !== undefined ? { turnIndex: m.turnIndex } : {}),

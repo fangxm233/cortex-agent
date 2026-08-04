@@ -38,6 +38,7 @@ export {
   executionsCancelInput,
   scheduleActionInput,
   scheduleAddInput,
+  scheduleUpdateInput,
   taskActionInput,
   taskCompleteInput,
   taskBlockInput,

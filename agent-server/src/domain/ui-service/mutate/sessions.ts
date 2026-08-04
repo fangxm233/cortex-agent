@@ -54,9 +54,22 @@ export async function handleSendSession(
   if (!args.text.trim() && (!args.attachments || args.attachments.length === 0)) {
     return { ok: false, code: 'invalid-args', message: 'Either text or attachments required' };
   }
+  // Scheduled run (design 27b): a reply adopts the run as a normal direct session FIRST — its
+  // registry channel is the shared project channel, which a web send must never target.
+  let channel = session.channel;
+  if (session.kind === 'scheduled') {
+    if (!deps.adoptScheduledSession) {
+      return { ok: false, code: 'not-available', message: 'Replying to scheduled runs is not available' };
+    }
+    const adopted = await deps.adoptScheduledSession({ sessionId: args.sessionId });
+    if (!adopted) {
+      return { ok: false, code: 'not-found', message: `Session not found: ${args.sessionId}` };
+    }
+    channel = adopted.channel;
+  }
   deps.sendSessionMessage({
     sessionId: args.sessionId,
-    channel: session.channel,
+    channel,
     text: args.text,
     attachments: args.attachments,
   });

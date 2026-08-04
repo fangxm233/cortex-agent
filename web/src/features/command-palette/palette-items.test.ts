@@ -26,6 +26,7 @@ function session(over: Partial<SessionInfo> = {}): SessionInfo {
     numTurns: null,
     costUsd: null,
     unread: false,
+    scheduleId: null,
     ...over,
   };
 }

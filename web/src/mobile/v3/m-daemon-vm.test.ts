@@ -36,6 +36,11 @@ function sched(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
     lastRun: null,
     paused: false,
     pausedBy: null,
+    intervalMs: null,
+    time: null,
+    dayOfWeek: null,
+    target: null,
+    fallback: null,
     ...p,
   };
 }

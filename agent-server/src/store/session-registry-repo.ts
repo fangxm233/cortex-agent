@@ -79,6 +79,10 @@ export interface Session {
   /** When the user last VIEWED this session in a client (web workbench sessions.markRead).
    *  Unread = lastUsedAt > lastReadAt. Absent on legacy records → treated as read. */
   lastReadAt?: string | null;
+  /** The schedule (ScheduleTask.id) whose fire produced this session. Set for scheduled runs and
+   *  KEPT after a reply converts the run to a direct session (provenance for the trigger card /
+   *  schedule grouping). Null/absent for sessions with no schedule origin. */
+  scheduleId?: string | null;
   /** Latest backend-reported context occupancy. Optional for legacy/unsupported sessions. */
   contextUsage?: SessionContextUsage;
 }
@@ -202,7 +206,7 @@ export class SessionRegistryRepo {
     return `cortex-${crypto.randomBytes(4).toString('hex')}`;
   }
 
-  async registerSession(name: string, opts: { sessionId: string; channel: string; backend: string; kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId?: string; label?: string | null; profileName?: string | null; backendSessionId?: string | null }): Promise<void> {
+  async registerSession(name: string, opts: { sessionId: string; channel: string; backend: string; kind: 'local' | 'scheduled'; origin?: SessionOrigin; projectId?: string; label?: string | null; profileName?: string | null; backendSessionId?: string | null; scheduleId?: string | null }): Promise<void> {
     const now = new Date().toISOString();
     const label = opts.label?.substring(0, 60) || null;
     await this._repo.mutate((registry) => {
@@ -221,9 +225,26 @@ export class SessionRegistryRepo {
         // Explicit null on a new record = "backend id not yet assigned" (self-generate on the next
         // turn). Distinct from `undefined` on legacy records, which fall back to sessionId.
         backendSessionId: opts.backendSessionId ?? null,
+        scheduleId: opts.scheduleId ?? null,
       };
       this._nameIndex.set(name, opts.sessionId);
       return { next: registry, result: undefined };
+    });
+  }
+
+  /** Convert a scheduled run into a live direct session (a web reply "adopts" the run): re-point
+   *  its conduit channel, flip kind→local (resumable) and origin→direct (shows in the direct
+   *  list). scheduleId/backendSessionId are untouched — provenance and the resume target survive.
+   *  Returns the updated record, or null when the sessionId is unknown. */
+  async convertToDirect(sessionId: string, opts: { channel: string }): Promise<Session | null> {
+    return this._repo.mutate((registry) => {
+      const record = registry[sessionId] ?? null;
+      if (record) {
+        record.channel = opts.channel;
+        record.kind = 'local';
+        record.origin = 'direct';
+      }
+      return { next: registry, result: record };
     });
   }
 

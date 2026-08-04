@@ -53,6 +53,7 @@ import {
   handleResumeSchedule,
   handleRemoveSchedule,
   handleAddSchedule,
+  handleUpdateSchedule,
 } from './mutate/schedules.js';
 import {
   handleClaimTask,
@@ -137,6 +138,7 @@ const mutateHandlers: Record<string, MutateHandler> = {
   'schedules.resume': (deps, args) => handleResumeSchedule(deps, args),
   'schedules.remove': (deps, args) => handleRemoveSchedule(deps, args),
   'schedules.add': (deps, args) => handleAddSchedule(deps, args),
+  'schedules.update': (deps, args) => handleUpdateSchedule(deps, args),
   'tasks.claim': (deps, args) => handleClaimTask(deps, args),
   'tasks.unclaim': (deps, args) => handleUnclaimTask(deps, args),
   'tasks.complete': (deps, args) => handleCompleteTask(deps, args),

@@ -1,5 +1,5 @@
 // input:  job registry dispatch callbacks
-// output: missing-runner and failure-isolation tests
+// output: missing-runner, failure-isolation and finalize-registration tests
 // pos:    Verifies scheduled job dispatch behavior
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
@@ -7,6 +7,10 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { register, dispatch } from '../src/domain/scheduling/job-registry.js';
+import { finalizeThreadSuccess } from '../src/domain/scheduling/jobs/_shared.js';
+import { sessionStore } from '../src/store/session-registry-repo.js';
+
+const stubAdapter = { updateMessage: async () => ({}) } as any;
 
 test('unknown key dispatch logs a warning and returns false', () => {
   const result = dispatch('nonexistent-key', {});
@@ -40,4 +44,62 @@ test('one job failure does not break dispatch table', async () => {
   assert.equal(successResult, true, 'dispatch succeeds after previous failure');
   await new Promise(r => setTimeout(r, 50));
   assert.equal(successCalled, true, 'succeeding runner was called');
+});
+
+// ── finalizeThreadSuccess: session registration identity ────────
+// The conversation transcript is recorded under the thread step's TRACK sessionId
+// (threads/runner.ts). Registering the scheduled session under the backend id instead
+// produced ghost records with no transcript — these tests pin the track-id contract.
+
+test('finalizeThreadSuccess registers under the LAST step track id with backend resume target + scheduleId', async () => {
+  await finalizeThreadSuccess(stubAdapter, 'proj-a', null, {
+    startTime: Date.now(),
+    sessionName: 'cortex-fin-01',
+    result: { sessionId: 'backend-uuid-1' } as any,
+    threadResult: {
+      thread: { steps: [{ sessionId: 'track-step-1' }, { sessionId: 'track-step-2' }] },
+      totalCostUsd: 0.1, totalNumTurns: 3,
+    },
+    project: 'proj-a', trigger: 'scheduled', label: 'scan arxiv',
+    sessionKind: 'scheduled', sessionOrigin: 'scheduled', statusPrefix: 'Done',
+    scheduleId: 'sched-42',
+  });
+
+  const rec = await sessionStore.getById('track-step-2');
+  assert.ok(rec, 'session registered under the last step track id');
+  assert.equal(rec!.name, 'cortex-fin-01');
+  assert.equal(rec!.kind, 'scheduled');
+  assert.equal(rec!.origin, 'scheduled');
+  assert.equal(rec!.scheduleId, 'sched-42');
+  assert.equal(rec!.backendSessionId, 'backend-uuid-1', 'backend id kept as the resume target');
+  assert.equal(rec!.label, 'scan arxiv');
+  assert.equal(await sessionStore.getById('backend-uuid-1'), null, 'no ghost record under the backend id');
+});
+
+test('finalizeThreadSuccess falls back to result.sessionId when the thread has no steps', async () => {
+  await finalizeThreadSuccess(stubAdapter, 'proj-b', null, {
+    startTime: Date.now(),
+    sessionName: 'cortex-fin-02',
+    result: { sessionId: 'backend-uuid-2' } as any,
+    threadResult: { totalCostUsd: 0, totalNumTurns: 1 },
+    project: 'proj-b', trigger: 'scheduled', label: null,
+    sessionKind: 'scheduled', sessionOrigin: 'scheduled', statusPrefix: 'Done',
+  });
+
+  const rec = await sessionStore.getById('backend-uuid-2');
+  assert.ok(rec, 'stepless run registers under the agent result id (legacy conflated id)');
+  assert.equal(rec!.scheduleId, null, 'no scheduleId when the caller passes none');
+});
+
+test('finalizeThreadSuccess registers nothing without a result session id', async () => {
+  await finalizeThreadSuccess(stubAdapter, 'proj-c', null, {
+    startTime: Date.now(),
+    sessionName: 'cortex-fin-03',
+    result: null,
+    threadResult: { thread: { steps: [{ sessionId: 'track-orphan' }] } },
+    project: 'proj-c', trigger: 'scheduled', label: null,
+    sessionKind: 'scheduled', sessionOrigin: 'scheduled', statusPrefix: 'Done',
+  });
+
+  assert.equal(await sessionStore.getById('track-orphan'), null, 'no registration without an agent result');
 });

@@ -110,6 +110,7 @@ export async function handleSessionsList(
       backend: s.backend,
       kind: s.kind,
       origin: s.origin ?? 'direct',
+      scheduleId: s.scheduleId ?? null,
       createdAt: s.createdAt,
       lastUsedAt: s.lastUsedAt,
       resumable: s.kind !== 'scheduled',
@@ -123,8 +124,12 @@ export async function handleSessionsList(
       numTurns: resolveNumTurns(s.channel, inTurn),
       costUsd: resolveCost(s.channel, inTurn),
       // Unread = activity (lastUsedAt, bumped at turn end) after the user's last view
-      // (sessions.markRead → lastReadAt). Legacy records without lastReadAt → read.
-      unread: !!s.lastReadAt && s.lastUsedAt > s.lastReadAt,
+      // (sessions.markRead → lastReadAt). Legacy DIRECT records without lastReadAt → read
+      // (no unread flood on first deploy). SCHEDULED runs invert the default: a run the user
+      // never opened IS the unread state (27c result → blue dot until opened).
+      unread: s.origin === 'scheduled'
+        ? (!s.lastReadAt || s.lastUsedAt > s.lastReadAt)
+        : (!!s.lastReadAt && s.lastUsedAt > s.lastReadAt),
     };
   });
 

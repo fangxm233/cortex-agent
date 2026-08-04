@@ -294,6 +294,18 @@ export const scheduleAddInput = z
     }
   });
 
+// schedules.update — a partial patch; per-type field-allowedness needs the persisted task, so it
+// lives in the handler (handleUpdateSchedule), not here. Value shapes mirror scheduleAddInput.
+export const scheduleUpdateInput = z.object({
+  scheduleId: z.string(),
+  message: z.string().min(1).optional(),
+  projectId: z.string().optional(),
+  profile: z.string().optional(),
+  intervalMs: z.number().int().positive().optional(),
+  time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  dayOfWeek: z.number().int().min(0).max(6).optional(),
+});
+
 export const taskActionInput = z.object({
   projectId: z.string(),
   taskId: z.string(),
@@ -628,6 +640,7 @@ export const mutateInputSchemas = {
   'schedules.resume': scheduleActionInput,
   'schedules.remove': scheduleActionInput,
   'schedules.add': scheduleAddInput,
+  'schedules.update': scheduleUpdateInput,
   'tasks.claim': taskActionInput,
   'tasks.unclaim': taskActionInput,
   'tasks.complete': taskCompleteInput,
