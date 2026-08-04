@@ -25,4 +25,6 @@ Extends PI with Cortex MCP tools, hooks, subagents, interaction shims, WebFetch,
 | web-search.ts | tool | decodes search responses from the active model API |
 | subagent.ts | tool | describes role names and runs scoped PI children |
 | tool-shims.ts | bridge | gates Agent, interaction, todo, and web tools |
+| quota-probe.ts | bridge | reports provider quota read off response headers |
+| quota-sink.ts | core | files quota readings into the rate-limit throttle |
 | pi-ext-types.ts | types | types PI extension events, models, and tools |

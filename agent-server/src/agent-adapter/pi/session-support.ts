@@ -7,6 +7,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 
 import { createLogger } from '@core/log.js';
 import type { AgentResult, AskUserQuestionInfo } from '@core/types/agent-types.js';
+import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
 import type {
   AgentProcess, AgentProcessSpawner, InjectionAckSink, UserMessage,
 } from '../types.js';
@@ -56,6 +57,8 @@ export interface PISessionOptions {
   registry: Map<string, string>;
   registrySessionDir: string;
   onClose?: (sessionKey: string) => void;
+  /** Called with each provider quota reading the child reports; set only for gateway-routed runs. */
+  onProviderQuota?: (reading: CodexQuotaReading) => void;
 }
 
 export interface PendingPiTurn {

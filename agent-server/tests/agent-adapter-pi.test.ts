@@ -676,6 +676,58 @@ test('buildSpawnArgs emits --extension for each extensionPaths entry in order', 
   ]);
 });
 
+test('injects the quota probe only into gateway-routed runs', () => {
+  const extensionsOf = (args: string[]) =>
+    args.filter((value, index) => args[index - 1] === '--extension');
+
+  const routed = makeStubSpawner();
+  new PIAdapter(routed.spawn).spawn({
+    sessionId: null,
+    sessionKey: 'pi-quota-routed',
+    resume: false,
+    piGatewayBaseUrl: 'http://127.0.0.1:9880',
+  });
+  assert.equal(
+    extensionsOf(routed.calls[0].args).some((path) => path.includes('quota-probe')),
+    true,
+    'a gateway-routed run must report provider quota',
+  );
+
+  const unrouted = makeStubSpawner();
+  new PIAdapter(unrouted.spawn).spawn({
+    sessionId: null,
+    sessionKey: 'pi-quota-unrouted',
+    resume: false,
+  });
+  assert.equal(
+    extensionsOf(unrouted.calls[0].args).some((path) => path.includes('quota-probe')),
+    false,
+    'a run Cortex does not route must not report into the daemon throttle',
+  );
+
+  // A benchmark trial is gateway-routed too, so the guard — the trial marker — is what keeps an
+  // experiment's usage from throttling production work.
+  const trial = makeStubSpawner();
+  new PIAdapter(trial.spawn, undefined, undefined, { agentDir: '/tmp/pi-agent', prepareAgentDir: () => {} })
+    .spawn({
+      sessionId: null,
+      sessionKey: 'pi-quota-trial',
+      resume: false,
+      piGatewayBaseUrl: 'http://127.0.0.1:9880',
+      benchmarkPolicyGuard: { roles: {} } as never,
+      processSpawner: trial.spawn,
+      cliPath: '/bin/pi',
+      cwd: '/tmp',
+      pinnedEnv: {},
+      streamDeltas: false,
+    } as never);
+  assert.equal(
+    extensionsOf(trial.calls[0].args).some((path) => path.includes('quota-probe')),
+    false,
+    'a benchmark trial must not report into the daemon throttle',
+  );
+});
+
 test('buildSpawnArgs emits no --extension when extensionPaths is empty or undefined', () => {
   const a = buildSpawnArgs({ sessionDir: '/s', extensionPaths: [] });
   assert.ok(!a.includes('--extension'));
