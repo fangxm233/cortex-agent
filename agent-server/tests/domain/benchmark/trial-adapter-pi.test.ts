@@ -334,9 +334,8 @@ it('writes exactly the arm provider routed at the policy proxy (P8, P12, A7, A8)
   );
   assert.deepEqual(Object.keys(catalog.providers), ['anthropic']);
   assert.equal(
-    catalog.providers.anthropic.baseUrl.startsWith(built.policy.credential.proxy_base_url),
-    true,
     catalog.providers.anthropic.baseUrl,
+    built.policy.credential.proxy_base_url,
   );
 });
 

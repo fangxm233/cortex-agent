@@ -17,7 +17,7 @@ export interface ProviderOverride {
   name: string;
   /**
    * Path segment appended to the gateway URL. Defaults to `/${name}`.
-   * Set explicitly when a provider needs to land on a non-standard gateway path
+   * An explicit empty string keeps the gateway URL exact; other values select a non-standard path
    * (e.g. deepseek's anthropic-compat endpoint: `/deepseek/anthropic`).
    */
   basePath?: string;
@@ -118,7 +118,7 @@ export function buildProviderOverrides(
   if (currentProvider) {
     byName.set(currentProvider, {
       name: currentProvider,
-      ...(gatewayPath ? { basePath: gatewayPath } : {}),
+      ...(gatewayPath !== undefined && gatewayPath !== null ? { basePath: gatewayPath } : {}),
     });
   }
   return Array.from(byName.values());

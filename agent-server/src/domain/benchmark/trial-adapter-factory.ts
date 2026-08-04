@@ -193,6 +193,7 @@ export function createTrialAdapter(spec: TrialAdapterSpec): TrialAdapter {
     trialAgentConfig(spec.policy, backend),
     spec.policy.credential.proxy_base_url,
   );
+  if (backend === 'pi') spawnConfig.piGatewayPath = '';
   spawnConfig.preserveUnreportedAccounting = true;
   const sessionKey = spawnConfig.sessionKey;
   let closed = false;
