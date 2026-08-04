@@ -5,10 +5,12 @@
 
 import { afterAll, beforeAll, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
+import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -21,10 +23,9 @@ import {
   buildClaudeEnv,
   buildSpawnArgs,
 } from '../src/agent-adapter/claude/spawn-args.js';
-import {
-  UnsupportedMcpCompositionError,
-  PIAdapter,
-} from '../src/agent-adapter/pi/adapter.js';
+import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
+import { BENCHMARK_THREAD_SERVER_NAME, buildServerStates } from '../src/agent-adapter/pi/mcp-bridge.js';
+import { PI_MCP_COMPOSITION_ENV } from '../src/agent-adapter/pi/policy-guard.js';
 import { buildPiEnv } from '../src/agent-adapter/pi/spawn-args.js';
 import { generateMcpConfig } from '../src/core/config-generator.js';
 import { CONFIG_DIR, DATA_DIR } from '../src/core/paths.js';
@@ -287,26 +288,43 @@ test('initialization writes both restricted MCP composition files', () => {
   }
 });
 
-test('PI rejects restricted MCP compositions with a typed error before spawning', () => {
-  let spawnCalls = 0;
-  const adapter = new PIAdapter((() => {
-    spawnCalls += 1;
-    throw new Error('spawner must not run');
-  }) as any);
+function stubPiChild(): ChildProcessWithoutNullStreams {
+  const child = new EventEmitter() as unknown as ChildProcessWithoutNullStreams;
+  Object.assign(child, {
+    stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
+    kill: () => true,
+  });
+  return child;
+}
+
+// Design §13 P13 lifted the outright refusal this test used to pin. What replaced it is not "PI no
+// longer throws" but the strict composition itself: the restricted value reaches the child, and the
+// bridge on the far side of that variable yields exactly the composition's servers (§5.6 P1).
+test('PI accepts the restricted MCP compositions and carries them strictly', () => {
+  const spawned: NodeJS.ProcessEnv[] = [];
+  const adapter = new PIAdapter((_cmd, _args, opts) => {
+    spawned.push(opts.env ?? {});
+    return { process: stubPiChild() };
+  }, mkdtempSync(path.join(tmpdir(), 'pi-strict-')));
 
   for (const composition of ['none', 'benchmark-thread-run'] as const) {
-    assert.throws(
-      () => adapter.spawn({
-        sessionId: null,
-        sessionKey: `pi-${composition}`,
-        resume: false,
-        mcpComposition: composition,
-      }),
-      (error) => error instanceof UnsupportedMcpCompositionError
-        && error.composition === composition,
-    );
+    adapter.spawn({
+      sessionId: null,
+      sessionKey: `pi-${composition}`,
+      resume: false,
+      mcpComposition: composition,
+    });
   }
-  assert.equal(spawnCalls, 0);
+  assert.equal(spawned.length, 2);
+  assert.equal(spawned[0][PI_MCP_COMPOSITION_ENV], 'none');
+  assert.equal(spawned[1][PI_MCP_COMPOSITION_ENV], 'benchmark-thread-run');
+
+  // The far side of the env seam: the same values decide the bridge's server set.
+  assert.deepEqual(buildServerStates(spawned[0]), []);
+  assert.deepEqual(
+    buildServerStates(spawned[1]).map(state => state.name),
+    [BENCHMARK_THREAD_SERVER_NAME],
+  );
 });
 
 function installFakeClaude(binDir: string): void {

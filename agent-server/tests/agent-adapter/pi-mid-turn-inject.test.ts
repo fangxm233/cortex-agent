@@ -10,7 +10,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import type { ChildProcess, SpawnOptions } from 'node:child_process';
+import type {
+  ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
+} from 'node:child_process';
+import type { AgentProcessSpawner } from '../../src/agent-adapter/types.js';
 
 import { PIAdapter } from '../../src/agent-adapter/pi/adapter.js';
 import type { AgentProcess } from '../../src/agent-adapter/types.js';
@@ -57,9 +60,9 @@ function makeStubChild(): StubChild {
 
 function spawnProcess(): { proc: AgentProcess; child: StubChild } {
   let child: StubChild | null = null;
-  const spawn = (_cmd: string, _args: string[], _opts: SpawnOptions): ChildProcess => {
+  const spawn: AgentProcessSpawner = (_cmd, _args, _opts) => {
     child = makeStubChild();
-    return child as unknown as ChildProcess;
+    return { process: child as unknown as ChildProcessWithoutNullStreams };
   };
   const proc = new PIAdapter(spawn).spawn({
     sessionId: null,
@@ -119,10 +122,10 @@ function spawnSwitchingFixture(): SwitchingFixture {
   const secondPath = join(sessionDir, 'session-b.jsonl');
   writeFileSync(firstPath, '{}\n');
   writeFileSync(secondPath, '{}\n');
-  const spawn = (_cmd: string, _args: string[], _opts: SpawnOptions): ChildProcess => {
+  const spawn: AgentProcessSpawner = (_cmd, _args, _opts) => {
     const child = makeStubChild();
     children.push(child);
-    return child as unknown as ChildProcess;
+    return { process: child as unknown as ChildProcessWithoutNullStreams };
   };
   const adapter = new PIAdapter(spawn, sessionDir);
   const first = adapter.spawn({ sessionId: null, sessionKey: 'pi-switch-first', resume: false });

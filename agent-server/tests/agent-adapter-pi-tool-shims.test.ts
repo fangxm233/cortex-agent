@@ -49,7 +49,10 @@ function makeStubChild(): any {
 
 function makeStubSpawner() {
   const children: any[] = [];
-  return { children, spawn: () => { const c = makeStubChild(); children.push(c); return c; } };
+  return {
+    children,
+    spawn: () => { const c = makeStubChild(); children.push(c); return { process: c }; },
+  };
 }
 
 function pushLine(child: any, obj: any) { child.stdout.write(JSON.stringify(obj) + '\n'); }
@@ -265,7 +268,7 @@ function makeCapturingSpawner() {
       calls.push({ bin, args, opts });
       const c = makeStubChild();
       children.push(c);
-      return c;
+      return { process: c };
     },
   };
 }

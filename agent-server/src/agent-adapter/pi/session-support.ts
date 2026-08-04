@@ -3,11 +3,13 @@
 // pos:    Small state primitives shared by PI session lifecycle code
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { ChildProcess, SpawnOptions } from 'child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 
 import { createLogger } from '@core/log.js';
 import type { AgentResult, AskUserQuestionInfo } from '@core/types/agent-types.js';
-import type { AgentProcess, InjectionAckSink, UserMessage } from '../types.js';
+import type {
+  AgentProcess, AgentProcessSpawner, InjectionAckSink, UserMessage,
+} from '../types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPrompt } from '../normalize/prompt-builder.js';
 
@@ -23,7 +25,18 @@ export const PI_CONTEXT_USAGE_SAMPLE_MS = 2000;
 const log = createLogger('pi-adapter');
 
 export type SwitchResult = { ok: boolean; cancelled: boolean };
-export type SpawnFn = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
+
+/** P1 (ii): PI's spawner is the same `AgentProcessSpawner` Claude takes, so the containment
+ *  supervision handle survives the call instead of being discarded with the `ChildProcess`. */
+export type SpawnFn = AgentProcessSpawner;
+
+/** Test seam default. A benchmark spawn never reaches it — `assertBenchmarkSpawn` requires
+ *  `spawnConfig.processSpawner`, so an unsupervised trial refuses rather than falling back here. */
+export const defaultPiSpawn: SpawnFn = (command, args, options) => ({
+  process: spawn(command, args, {
+    ...options, stdio: ['pipe', 'pipe', 'pipe'],
+  }) as ChildProcessWithoutNullStreams,
+});
 
 export interface PIAgentProcess extends AgentProcess {
   sendExtensionUiResponse(id: string, payload: Record<string, unknown>): void;
@@ -32,10 +45,14 @@ export interface PIAgentProcess extends AgentProcess {
 export interface PISessionOptions {
   sessionKey: string;
   sessionDir: string;
+  /** Absolute CLI path frozen by a trial policy, or the bare `pi` name for daemon sessions. */
+  command: string;
   cliArgs: string[];
   cwd: string;
   env: NodeJS.ProcessEnv;
   spawner: SpawnFn;
+  /** Explicit delta policy; a trial passes the frozen value rather than reading watched settings. */
+  streamDeltas: boolean;
   registry: Map<string, string>;
   registrySessionDir: string;
   onClose?: (sessionKey: string) => void;

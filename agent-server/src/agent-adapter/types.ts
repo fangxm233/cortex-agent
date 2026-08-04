@@ -94,6 +94,9 @@ export interface AgentSpawnConfig {
   benchmarkPolicyGuard?: IdentityJsonValue;
   /** Exact allowlisted child environment for an isolated trial; replaces host inheritance. */
   pinnedEnv?: NodeJS.ProcessEnv;
+  /** Absolute trial deadline. A backend that bounds an in-process call derives its remaining budget
+   *  from this at the moment of use — the value itself is never a stored duration (§5.6 P5). */
+  benchmarkDeadlineEpochMs?: number;
 
   // --- Claude-specific passthroughs (task f7cf); other backends ignore these ---
   /** Channel identifier used for Claude session-pool key fallback. */

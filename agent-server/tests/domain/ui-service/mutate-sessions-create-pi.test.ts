@@ -4,7 +4,10 @@
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
 import assert from 'node:assert/strict';
-import type { ChildProcess, SpawnOptions } from 'node:child_process';
+import type {
+  ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
+} from 'node:child_process';
+import type { AgentProcessSpawner } from '../../../src/agent-adapter/types.js';
 import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { PassThrough } from 'node:stream';
@@ -50,9 +53,9 @@ test('fresh PI createAndSend responds and exposes the user event before slow dis
   });
   const timeline: string[] = [];
   const child = makeStubChild();
-  const spawner = (_cmd: string, _args: string[], _opts: SpawnOptions): ChildProcess => {
+  const spawner: AgentProcessSpawner = (_cmd, _args, _opts) => {
     timeline.push('pi-spawn');
-    return child as unknown as ChildProcess;
+    return { process: child as unknown as ChildProcessWithoutNullStreams };
   };
   const adapter = new PIAdapter(spawner, PI_SESSIONS_DIR, discovery);
   let agentProcess: PIAgentProcess | null = null;

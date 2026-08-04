@@ -6,6 +6,7 @@
 import type { ExtensionAPI } from './pi-ext-types.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Type } from '@sinclair/typebox';
 import { createLogger } from '@core/log.js';
@@ -18,6 +19,8 @@ import {
   shouldLoadThreadControl,
   shouldLoadWeb,
 } from './mcp-bridge-logic.js';
+import { benchmarkCallOptions, remainingTrialMs } from './mcp-duration.js';
+import { PI_MCP_COMPOSITION_ENV } from './policy-guard.js';
 
 // __dirname is provided by PI's jiti CJS compat layer when loading .ts extension files.
 // In ESM contexts (agent-server tests via tsx), derive it from import.meta.url instead.
@@ -32,6 +35,10 @@ const EXT_SERVER_PATH = resolve(_dirname, '../../domain/mcp/server.js');
 const SLACK_SERVER_PATH = resolve(_dirname, '../../domain/mcp/slack-server.js');
 const FEISHU_SERVER_PATH = resolve(_dirname, '../../domain/mcp/feishu-server.js');
 const WEB_SERVER_PATH = resolve(_dirname, '../../domain/mcp/web-server.js');
+const BENCHMARK_THREAD_SERVER_PATH = resolve(_dirname, '../../domain/mcp/benchmark-thread-server.js');
+
+/** The one server `benchmark-thread-run` exposes, named as the Claude-side config names it. */
+export const BENCHMARK_THREAD_SERVER_NAME = 'cortex-benchmark-thread';
 
 const log = createLogger('pi-mcp-bridge');
 
@@ -49,7 +56,7 @@ export interface McpBridgeDeps {
   reportFailure(error: unknown): void;
 }
 
-interface ServerState {
+export interface ServerState {
   name: string;
   path: string;
   handle: McpClientHandle | null;
@@ -82,7 +89,17 @@ async function spawnMcpClient(serverPath: string, serverName: string): Promise<M
   }
 }
 
-function buildServerStates(env: NodeJS.ProcessEnv): ServerState[] {
+/**
+ * §5.6 P1: under a restricted composition the server set is the composition's and nothing else —
+ * decided before any ambient switch is consulted, so a stray `CORTEX_THREAD_ID` or `SLACK_CHANNEL`
+ * in the child environment cannot layer a server onto a benchmark trial.
+ */
+export function buildServerStates(env: NodeJS.ProcessEnv): ServerState[] {
+  const composition = env[PI_MCP_COMPOSITION_ENV];
+  if (composition === 'none') return [];
+  if (composition === 'benchmark-thread-run') {
+    return [{ name: BENCHMARK_THREAD_SERVER_NAME, path: BENCHMARK_THREAD_SERVER_PATH, handle: null }];
+  }
   const core: ServerState = { name: 'core', path: CORE_SERVER_PATH, handle: null };
   if (env.CORTEX_PI_SUBAGENT === '1') return [core];
   const channel = env.SLACK_CHANNEL;
@@ -184,18 +201,31 @@ class McpBridgeSession {
     }
   }
 
+  /**
+   * §5.6 P2/P5/P6: the options for one call, derived now. A trial deadline yields the explicit
+   * bounded window; its absence yields signal forwarding alone, because this bridge has no mandate
+   * to invent a ceiling for a daemon session.
+   */
+  private callOptions(signal: AbortSignal | undefined): RequestOptions {
+    const remainingMs = remainingTrialMs(this.deps.env);
+    if (remainingMs === null) return signal ? { signal } : {};
+    return benchmarkCallOptions(remainingMs, signal, () => {});
+  }
+
   private registerTool(handle: McpClientHandle, tool: McpTool): void {
     const parameters = Type.Unsafe(tool.inputSchema as Record<string, unknown>);
+    const callOptions = (signal: AbortSignal | undefined): RequestOptions => this.callOptions(signal);
     this.pi.registerTool({
       name: tool.name,
       label: tool.name,
       description: tool.description ?? '',
       parameters,
-      async execute(_id, params) {
-        const result = await handle.client.callTool({
-          name: tool.name,
-          arguments: params as Record<string, unknown>,
-        });
+      async execute(_id, params, signal) {
+        const result = await handle.client.callTool(
+          { name: tool.name, arguments: params as Record<string, unknown> },
+          undefined,
+          callOptions(signal),
+        );
         const content = (result.content as any[]).map(mapMcpContent);
         return { content, details: { isError: result.isError ?? false } };
       },

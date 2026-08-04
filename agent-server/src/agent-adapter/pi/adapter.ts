@@ -3,7 +3,7 @@
 // pos:    PI backend adapter
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
-import { spawn as defaultSpawn, type ChildProcess } from 'child_process';
+import { type ChildProcess } from 'child_process';
 import { existsSync, mkdirSync } from 'fs';
 import * as path from 'path';
 import { DATA_DIR } from '@core/utils.js';
@@ -11,25 +11,20 @@ import { createLogger } from '@core/log.js';
 import { getSettings } from '@core/settings.js';
 import { Capability, CAPABILITIES_BY_BACKEND } from '../capabilities.js';
 import { resolveMcpComposition } from '../types.js';
-import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentSpawnConfig, Backend, InjectionAckSink, McpComposition, UserMessage } from '../types.js';
+import type { AgentAdapter, AgentCompactResult, AgentCompactUsage, AgentProcessSupervision, AgentSpawnConfig, Backend, InjectionAckSink, McpComposition, UserMessage } from '../types.js';
 import type { AgentResult } from '@core/types/agent-types.js';
 import type { NormalizedEvent } from '../normalize/event-types.js';
 import { buildPiEnv, buildSpawnArgs } from './spawn-args.js';
 import { createLineSplitter, encodeCommand } from './framing.js';
 import { piRpcLineToNormalized, createPIEventParserState, piContextUsageFromStats, type PIEventParserState } from './event-parser.js';
 import {
-  PI_AGENT_DIR,
   writeProvidersConfig,
   buildProviderOverrides,
-  ensureAuthVisible,
   type ProviderOverride,
-} from './agent-dir.js';
+} from './providers-config.js';
 import { fromCanonical } from '../normalize/tool-names.js';
-import {
-  piProviderDiscovery,
-  findPISessionFilePath,
-  type PIProviderDiscovery,
-} from './discovery.js';
+import { findPISessionFilePath } from './session-files.js';
+import type { PIProviderDiscovery } from './discovery.js';
 import {
   CLOSE_EXIT_WAIT_MS,
   DEFAULT_PI_BINARY,
@@ -42,6 +37,7 @@ import {
   PISteeringQueue,
   SWITCH_SESSION_TIMEOUT_MS,
   buildPromptText,
+  defaultPiSpawn,
   isPIContextSampleBoundary,
   parseRpcObject,
   type PendingPiTurn,
@@ -50,24 +46,38 @@ import {
   type SpawnFn,
   type SwitchResult,
 } from './session-support.js';
-import { DEFAULT_SESSION_DIR, HOOK_BRIDGE_PATH, MCP_BRIDGE_PATH, TOOL_SHIMS_PATH } from './defaults.js';
+import {
+  DEFAULT_SESSION_DIR, HOOK_BRIDGE_PATH, MCP_BRIDGE_PATH, PI_AGENT_DIR, TOOL_SHIMS_PATH,
+  piModelsPath,
+} from './defaults.js';
 export type { PIAgentProcess } from './session-support.js';
 const log = createLogger('pi-adapter');
 
-type UnsupportedPiMcpComposition = Extract<McpComposition, 'none' | 'benchmark-thread-run'>;
+/** Discovery that reports nothing. The daemon injects the cached host scanner; a trial injects its
+ *  single-provider catalog. Neither is a module default here (§13 A7/A8). */
+const NO_PROVIDER_DISCOVERY: PIProviderDiscovery = {
+  getProviders: () => [],
+  refresh: () => {},
+};
 
-export class UnsupportedMcpCompositionError extends Error {
-  readonly name = 'UnsupportedMcpCompositionError';
-
-  constructor(readonly composition: UnsupportedPiMcpComposition) {
-    super(`PI backend does not support MCP composition: ${composition}`);
-  }
-}
-
-function assertSupportedMcpComposition(config: AgentSpawnConfig): void {
-  const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
-  if (composition === 'none' || composition === 'benchmark-thread-run') {
-    throw new UnsupportedMcpCompositionError(composition);
+/**
+ * A benchmark spawn is one carrying a compiled policy guard: §6.8 G1 makes the guard mandatory for
+ * every benchmark role, so its presence is the marker. Everything a trial must not fall back to is
+ * required here, which is what makes each ambient default unreachable rather than merely unused
+ * (§13 S6.1, A12, A13).
+ */
+function assertBenchmarkSpawn(config: AgentSpawnConfig, agentDir: string | undefined): void {
+  const missing = [
+    ['processSpawner', config.processSpawner],
+    ['cliPath', config.cliPath],
+    ['cwd', config.cwd],
+    ['pinnedEnv', config.pinnedEnv],
+    ['agentDir', agentDir],
+    ['piGatewayBaseUrl', config.piGatewayBaseUrl],
+    ['streamDeltas', config.streamDeltas],
+  ].filter(([, value]) => value === undefined).map(([name]) => name);
+  if (missing.length > 0) {
+    throw new Error(`PI benchmark spawn is missing required inputs: ${missing.join(', ')}`);
   }
 }
 type PiTurnComplete = Extract<NormalizedEvent, { type: 'turn_complete' }>;
@@ -147,6 +157,8 @@ class PISession {
    */
   currentSessionId: string | null = null;
   private readonly proc: ChildProcess;
+  /** Present when the process was launched through a containment supervisor (§13 P1). */
+  readonly supervision: AgentProcessSupervision | undefined;
   private readonly events = new EventQueue();
   private readonly splitter = createLineSplitter();
   private readonly parserState: PIEventParserState = createPIEventParserState();
@@ -193,13 +205,15 @@ class PISession {
     this.registry = opts.registry;
     this.registrySessionDir = opts.registrySessionDir;
     this.onClose = opts.onClose;
-    this.streamDeltas = getSettings().streamDeltas;
+    this.streamDeltas = opts.streamDeltas;
 
-    this.proc = opts.spawner(DEFAULT_PI_BINARY, opts.cliArgs, {
+    const spawned = opts.spawner(opts.command, opts.cliArgs, {
       cwd: opts.cwd,
       env: opts.env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    this.proc = spawned.process;
+    this.supervision = spawned.supervision;
     this.contextUsageProbe = new PIContextUsageProbe(
       (command) => {
         const stdin = this.proc.stdin;
@@ -811,6 +825,16 @@ class PISession {
   }
 }
 
+/** Collaborators the daemon owns and a trial replaces. Both are injected rather than defaulted so
+ *  the host PI home and its auth mirroring are not reachable from this module (§13 A1, A6). */
+export interface PIAdapterHooks {
+  /** `PI_CODING_AGENT_DIR` for every session this instance spawns (§13 P4). */
+  agentDir?: string;
+  /** Run before spawn with the resolved agent dir: the daemon mirrors the host credential here, a
+   *  trial writes its dummy token. Never a module default (§13 A5/A6). */
+  prepareAgentDir?: (agentDir: string) => void;
+}
+
 export class PIAdapter implements AgentAdapter {
   readonly backend: Backend = 'pi';
   readonly capabilities: Set<Capability> = CAPABILITIES_BY_BACKEND.pi;
@@ -819,17 +843,23 @@ export class PIAdapter implements AgentAdapter {
   private readonly providerDiscovery: PIProviderDiscovery;
   private readonly configuredProviderOverrides = new Map<string, ProviderOverride>();
   private readonly sessionPathRegistry = new Map<string, string>();
+  /** Injected PI home, or undefined when the caller left it to the daemon default. */
+  private readonly configuredAgentDir: string | undefined;
+  private readonly prepareAgentDir: ((agentDir: string) => void) | undefined;
   /** sessionDir for the <sessionId>.jsonl path convention. Exposed for tests. */
   readonly sessionDir: string;
 
   constructor(
-    spawner: SpawnFn = defaultSpawn,
+    spawner: SpawnFn = defaultPiSpawn,
     sessionDir: string = DEFAULT_SESSION_DIR,
-    providerDiscovery: PIProviderDiscovery = piProviderDiscovery,
+    providerDiscovery: PIProviderDiscovery = NO_PROVIDER_DISCOVERY,
+    hooks: PIAdapterHooks = {},
   ) {
     this.spawner = spawner;
     this.sessionDir = sessionDir;
     this.providerDiscovery = providerDiscovery;
+    this.configuredAgentDir = hooks.agentDir;
+    this.prepareAgentDir = hooks.prepareAgentDir;
   }
 
   private gatewayOverrides(
@@ -849,7 +879,13 @@ export class PIAdapter implements AgentAdapter {
   }
 
   spawn(config: AgentSpawnConfig): PIAgentProcess {
-    assertSupportedMcpComposition(config);
+    const guard = config.benchmarkPolicyGuard;
+    if (guard !== undefined) assertBenchmarkSpawn(config, this.configuredAgentDir);
+    // P13: the two benchmark compositions are supported now. Strictness is not a promise made in a
+    // comment — the bridge derives its server set from this value, so `none` yields zero servers and
+    // `benchmark-thread-run` yields exactly `cortex-benchmark-thread` (§5.6 P1).
+    const composition = resolveMcpComposition(config.mcpComposition, config.cortexContext?.useCoreMcp);
+    const agentDir = this.configuredAgentDir ?? PI_AGENT_DIR;
     const sessionDir = this.sessionDir;
     mkdirSync(sessionDir, { recursive: true });
 
@@ -874,8 +910,11 @@ export class PIAdapter implements AgentAdapter {
       systemPrompt: config.systemPrompt ?? null,
       appendSystemPrompt: config.appendSystemPrompt ?? null,
       pluginDirs: config.pluginDirs ?? null,
-      // All three extensions always injected: MCP bridge (task 5754) + tool shims (task 5b5c) + hook bridge (task d3ae).
-      extensionPaths: [MCP_BRIDGE_PATH, TOOL_SHIMS_PATH, HOOK_BRIDGE_PATH],
+      // P9: the MCP bridge and the guard's host (tool shims) are always injected; the hook bridge is
+      // derived from the role, so a role that declares no hook surface never loads it.
+      extensionPaths: config.disableHooks === true
+        ? [MCP_BRIDGE_PATH, TOOL_SHIMS_PATH]
+        : [MCP_BRIDGE_PATH, TOOL_SHIMS_PATH, HOOK_BRIDGE_PATH],
       thinking: config.thinking ?? null,
       extraOption: config.extraOption ?? null,
     });
@@ -888,9 +927,9 @@ export class PIAdapter implements AgentAdapter {
     //     resolved from auth.json as usual.
     if (config.piGatewayBaseUrl) {
       try {
-        ensureAuthVisible();
+        this.prepareAgentDir?.(agentDir);
       } catch (err) {
-        log.warn(`Failed to mirror PI auth.json: ${(err as Error).message}`);
+        log.warn(`Failed to prepare the PI agent dir: ${(err as Error).message}`);
       }
       try {
         // Override set = providers PI reports creds for (discovered) ∪ the provider THIS spawn
@@ -904,7 +943,10 @@ export class PIAdapter implements AgentAdapter {
           config.piGatewayPath ?? null,
         );
         if (overrides.length > 0) {
-          writeProvidersConfig(overrides, config.piGatewayBaseUrl);
+          // A3: the catalog lands where the agent dir says, never at an implicit host default.
+          writeProvidersConfig(overrides, config.piGatewayBaseUrl, {
+            modelsPath: piModelsPath(agentDir),
+          });
         } else {
           log.warn('No PI providers to route (empty discovery and no profile provider); PI subprocess may fail to authenticate');
         }
@@ -917,10 +959,14 @@ export class PIAdapter implements AgentAdapter {
     // pseudo-tools it registers — mirroring the Claude backend's `--tools` allowlist. Without this,
     // thread-dispatched agents (whose config excludes AskUserQuestion/EnterPlanMode/ExitPlanMode)
     // would still be handed those interaction tools and deadlock on an approval no human can answer.
-    const allowedTools = config.rawTools
-      ?? (config.tools && config.tools.length > 0
-        ? config.tools.map((t) => fromCanonical('claude', t)).filter((n): n is string => !!n).join(',')
-        : undefined);
+    // P11: with a guard present the allow-list no longer decides anything — GT6's dispatch guard
+    // does — so the fail-open variable is not even exported into the child.
+    const allowedTools = guard !== undefined
+      ? undefined
+      : config.rawTools
+        ?? (config.tools && config.tools.length > 0
+          ? config.tools.map((t) => fromCanonical('claude', t)).filter((n): n is string => !!n).join(',')
+          : undefined);
     const env = buildPiEnv({
       sessionId: config.sessionId,
       channel: config.channel,
@@ -928,18 +974,28 @@ export class PIAdapter implements AgentAdapter {
       scheduleTaskId: config.scheduleTaskId,
       extraEnv: config.env,
       context: config.cortexContext,
-      piAgentDir: PI_AGENT_DIR,
+      piAgentDir: agentDir,
       allowedTools,
-    });
+      policyGuard: guard,
+      mcpComposition: composition,
+      deadlineEpochMs: config.benchmarkDeadlineEpochMs,
+      // A13: the trial's exact allowlisted environment replaces host inheritance wholesale.
+    }, config.pinnedEnv);
     const cwd = config.cwd ?? DATA_DIR;
 
     const session = new PISession({
       sessionKey: config.sessionKey,
       sessionDir,
+      // P2: one resolved binary for the whole session; PATH resolution is the daemon's fallback.
+      command: config.cliPath ?? DEFAULT_PI_BINARY,
       cliArgs,
       cwd,
       env,
-      spawner: this.spawner,
+      // S6.1: the spawn config is the single supervisor injection point for both backends. The
+      // constructor argument survives only as a test seam.
+      spawner: config.processSpawner ?? this.spawner,
+      // A15: an explicit per-spawn value, never a watched daemon setting, on the benchmark path.
+      streamDeltas: config.streamDeltas ?? getSettings().streamDeltas,
       registry: this.sessionPathRegistry,
       registrySessionDir: sessionDir,
       onClose: (key) => this.sessions.delete(key),
@@ -947,6 +1003,7 @@ export class PIAdapter implements AgentAdapter {
     this.sessions.set(config.sessionKey, session);
 
     return {
+      supervision: session.supervision,
       sessionKey: config.sessionKey,
       get sessionId(): string | null {
         return session.sessionId;

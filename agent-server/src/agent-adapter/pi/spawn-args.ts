@@ -3,7 +3,12 @@
 // pos:    Pure PI argument and environment construction
 // >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 
-import type { AgentSpawnConfig } from '../types.js';
+import type { IdentityJsonValue } from '../../domain/agent-run/identity.js';
+import type { AgentSpawnConfig, McpComposition } from '../types.js';
+import {
+  PI_LEASE_STATE_ENV, PI_MCP_COMPOSITION_ENV, PI_POLICY_GUARD_ENV, GATE2_LEASE_STATE,
+} from './policy-guard.js';
+import { PI_BENCHMARK_DEADLINE_ENV } from './mcp-duration.js';
 
 export interface PISpawnOptions {
   sessionDir: string;
@@ -44,6 +49,12 @@ export interface PIEnvOptions {
   context?: AgentSpawnConfig['cortexContext'];
   piAgentDir: string;
   allowedTools?: string | null;
+  /** Compiled benchmark policy guard. Present puts the child in guarded mode (§13 GT6). */
+  policyGuard?: IdentityJsonValue;
+  /** Resolved MCP composition; the bridge derives its server set from it (§5.6 P1). */
+  mcpComposition?: McpComposition;
+  /** Absolute trial deadline the MCP bridge bounds its calls against (§5.6 P2/P5). */
+  deadlineEpochMs?: number;
 }
 
 const RESET_CONTEXT_KEYS = [
@@ -53,6 +64,7 @@ const RESET_CONTEXT_KEYS = [
   'CORTEX_TASK_GENERATION',
   'CORTEX_CALLBACK_SOURCE', 'CORTEX_SCHEDULE_TASK_ID',
   'CORTEX_PI_ALLOWED_TOOLS',
+  PI_POLICY_GUARD_ENV, PI_LEASE_STATE_ENV, PI_MCP_COMPOSITION_ENV, PI_BENCHMARK_DEADLINE_ENV,
 ] as const;
 
 function setOptional(env: NodeJS.ProcessEnv, key: string, value: unknown): void {
@@ -88,6 +100,14 @@ export function buildPiEnv(
     env.FEISHU_CHANNEL = options.channel;
   }
   setOptional(env, 'CORTEX_PI_ALLOWED_TOOLS', options.allowedTools);
+  // GT6: the guard travels as its own variable and carries its lease-state input with it. Presence
+  // alone puts the child in guarded mode, so an empty or malformed value denies rather than allows.
+  if (options.policyGuard !== undefined) {
+    env[PI_POLICY_GUARD_ENV] = JSON.stringify(options.policyGuard);
+    env[PI_LEASE_STATE_ENV] = GATE2_LEASE_STATE;
+  }
+  setOptional(env, PI_MCP_COMPOSITION_ENV, options.mcpComposition);
+  setOptional(env, PI_BENCHMARK_DEADLINE_ENV, options.deadlineEpochMs);
   applyContext(env, options);
   return env;
 }

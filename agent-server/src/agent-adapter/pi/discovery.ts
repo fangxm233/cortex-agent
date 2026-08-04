@@ -4,12 +4,13 @@
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 
 import { execFile } from 'child_process';
-import { readdirSync } from 'fs';
-import * as path from 'path';
 
 import { parsePiListModelsOutput } from '@core/gateway-generator.js';
-import { selectPISessionFilename } from '@core/pi-session-filename.js';
 import { createLogger } from '@core/log.js';
+
+// Filename lookup moved out so a trial adapter can resolve a transcript path without importing
+// this module's host-scanning provider singleton (design §13 A7/A8, T12).
+export { findPISessionFilePath } from './session-files.js';
 
 const log = createLogger('pi-adapter');
 
@@ -116,14 +117,3 @@ export function createPIProviderDiscovery(
 }
 
 export const piProviderDiscovery = createPIProviderDiscovery();
-
-/** Resolve PI's exact id-bearing filename without opening transcript bodies. */
-export function findPISessionFilePath(sessionDir: string, sessionId: string): string | null {
-  if (!sessionId) return null;
-  try {
-    const filename = selectPISessionFilename(readdirSync(sessionDir), sessionId);
-    return filename ? path.join(sessionDir, filename) : null;
-  } catch {
-    return null;
-  }
-}

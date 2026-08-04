@@ -10,7 +10,10 @@ import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join as pathJoin } from 'node:path';
 import { mkdirSync, existsSync, readFileSync, unlinkSync } from 'node:fs';
-import type { ChildProcess, SpawnOptions } from 'node:child_process';
+import type {
+  ChildProcess, ChildProcessWithoutNullStreams, SpawnOptions,
+} from 'node:child_process';
+import type { AgentProcessSpawner } from '../src/agent-adapter/types.js';
 
 import { PIAdapter } from '../src/agent-adapter/pi/adapter.js';
 import { _test as modeManagerTest } from '../src/domain/agents/index.js';
@@ -63,7 +66,7 @@ function makeStubChild(): StubChild {
 }
 
 function makeStubSpawner(): {
-  spawn: (cmd: string, args: string[], opts: SpawnOptions) => ChildProcess;
+  spawn: AgentProcessSpawner;
   children: StubChild[];
 } {
   const children: StubChild[] = [];
@@ -72,7 +75,7 @@ function makeStubSpawner(): {
     spawn: (_cmd, _args, _opts) => {
       const child = makeStubChild();
       children.push(child);
-      return child as unknown as ChildProcess;
+      return { process: child as unknown as ChildProcessWithoutNullStreams };
     },
   };
 }

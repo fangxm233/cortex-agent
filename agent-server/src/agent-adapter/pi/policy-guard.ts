@@ -8,6 +8,8 @@
 export const PI_POLICY_GUARD_ENV = 'CORTEX_PI_POLICY_GUARD';
 /** The guard's lease-state input (§6.8 G4). */
 export const PI_LEASE_STATE_ENV = 'CORTEX_PI_LEASE_STATE';
+/** Resolved MCP composition for this spawn; the bridge derives its server set from it (§5.6 P1). */
+export const PI_MCP_COMPOSITION_ENV = 'CORTEX_PI_MCP_COMPOSITION';
 
 /** D-GUARD-STATIC: Gate 2 lands the guard mechanism, not the lease transition, so the state is a
  *  constant the factory supplies. Gates 3/6/7 vary this same parameter without reshaping the guard. */
