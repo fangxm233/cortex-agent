@@ -18,6 +18,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | agent-adapter-pi-hook-bridge.test.ts | test | PI hook lifecycle and CORTEX injection |
 | agent-adapter-pi-hook-registry.test.ts | test | PI hook contracts, interaction and task guards |
 | agent-adapter-pi-mcp-bridge.test.ts | test | PI MCP surfaces, isolation and retry policy |
+| agent-adapter-pi-quota-probe.test.ts | test | PI provider quota from child probe to throttle |
 | agent-adapter-pi-streaming.test.ts | test | PI delta streaming with settings reset |
 | agent-adapter-pi-subagent.test.ts | test | PI prompt roles, schema, isolation and usage |
 | agent-adapter-pi-tool-shims.test.ts | test | PI shims, web tools and data-image stripping |
@@ -39,6 +40,7 @@ Files here cover cross-cutting server behaviour; subdirectories group tests by t
 | cli.test.ts | test | cortex CLI routing, output framing and size limit |
 | client-hot-reload.test.ts | test | local cortex-client release update flow |
 | client-manager.test.ts | test | client lifecycle hooks, auth and commands |
+| codex-quota.test.ts | test | Codex quota headers and the notice wire form |
 | command-handlers.test.ts | test | bang command routing, profiles and authentication |
 | command-interactive.test.ts | test | interactive command router and handlers |
 | composite-adapter-noop-fallback.test.ts | test | unknown conduit operations stay no-op |

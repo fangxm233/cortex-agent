@@ -13,6 +13,7 @@ import {
   writeProvidersConfig,
   ensureAuthVisible,
   ensurePIAgentRoles,
+  ensureQuotaVisibleTransport,
   buildProviderOverrides,
 } from '../src/agent-adapter/pi/agent-dir.js';
 
@@ -314,5 +315,56 @@ test('ensurePIAgentRoles installs all roles once without clobbering user edits',
     assert.equal(fs.statSync(explorePath).ino, inode);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// ─── ensureQuotaVisibleTransport: keep the quota probe reachable ──
+
+test('ensureQuotaVisibleTransport: pins SSE so the provider-response hook fires', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-settings-'));
+  try {
+    ensureQuotaVisibleTransport({ agentDir: dir });
+    const settings = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf-8'));
+    assert.equal(settings.transport, 'sse');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('ensureQuotaVisibleTransport: preserves settings PI wrote for itself', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-settings-'));
+  try {
+    const file = path.join(dir, 'settings.json');
+    fs.writeFileSync(file, JSON.stringify({ defaultThinkingLevel: 'high', transport: 'auto' }));
+    ensureQuotaVisibleTransport({ agentDir: dir });
+    const settings = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    assert.deepEqual(settings, { defaultThinkingLevel: 'high', transport: 'sse' });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('ensureQuotaVisibleTransport: leaves an already-pinned file untouched', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-settings-'));
+  try {
+    const file = path.join(dir, 'settings.json');
+    fs.writeFileSync(file, JSON.stringify({ transport: 'sse' }));
+    const before = fs.statSync(file).mtimeMs;
+    ensureQuotaVisibleTransport({ agentDir: dir });
+    assert.equal(fs.statSync(file).mtimeMs, before);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('ensureQuotaVisibleTransport: recovers from an unreadable settings file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cortex-pi-settings-'));
+  try {
+    const file = path.join(dir, 'settings.json');
+    fs.writeFileSync(file, '{ not json');
+    ensureQuotaVisibleTransport({ agentDir: dir });
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf-8')), { transport: 'sse' });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

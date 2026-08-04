@@ -26,6 +26,8 @@ import {
 import { readCustomProviderEntries } from './custom-catalog.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { findPISessionFilePath } from './session-files.js';
+import { reportCodexQuota, resolveQuotaSource } from './quota-sink.js';
+import type { CodexQuotaReading } from '@domain/costs/codex-quota.js';
 import type { PIProviderDiscovery } from './discovery.js';
 import {
   CLOSE_EXIT_WAIT_MS,
@@ -49,7 +51,8 @@ import {
   type SwitchResult,
 } from './session-support.js';
 import {
-  DEFAULT_SESSION_DIR, HOOK_BRIDGE_PATH, MCP_BRIDGE_PATH, PI_AGENT_DIR, TOOL_SHIMS_PATH,
+  DEFAULT_SESSION_DIR, HOOK_BRIDGE_PATH, MCP_BRIDGE_PATH, PI_AGENT_DIR, QUOTA_PROBE_PATH,
+  TOOL_SHIMS_PATH,
   piModelsPath,
 } from './defaults.js';
 export type { PIAgentProcess } from './session-support.js';
@@ -167,6 +170,7 @@ class PISession {
   private readonly registry: Map<string, string>;
   private readonly registrySessionDir: string;
   private readonly onClose: ((sessionKey: string) => void) | undefined;
+  private readonly onProviderQuota: ((reading: CodexQuotaReading) => void) | undefined;
   private stderrTail = '';
   private alive = true;
   private exitPromise: Promise<void>;
@@ -207,6 +211,7 @@ class PISession {
     this.registry = opts.registry;
     this.registrySessionDir = opts.registrySessionDir;
     this.onClose = opts.onClose;
+    this.onProviderQuota = opts.onProviderQuota;
     this.streamDeltas = opts.streamDeltas;
 
     const spawned = opts.spawner(opts.command, opts.cliArgs, {
@@ -477,6 +482,7 @@ class PISession {
 
     for (const evt of piRpcLineToNormalized(line, this.parserState)) {
       this.captureSessionStarted(evt);
+      this.captureProviderQuota(evt);
       const output = this.processPendingTurnEvent(evt);
       if (output !== null) this.emitOrProbeContext(output);
     }
@@ -547,6 +553,13 @@ class PISession {
     } else {
       this.registry.set(evt.sessionId, path.join(this.registrySessionDir, `${evt.sessionId}.jsonl`));
     }
+  }
+
+  /** Forward a provider quota reading, which arrives independently of any pending turn. */
+  private captureProviderQuota(evt: NormalizedEvent): void {
+    if (evt.type !== 'rate_limit') return;
+    const reading = evt.raw as CodexQuotaReading | null;
+    if (reading?.windows?.length) this.onProviderQuota?.(reading);
   }
 
   /** Update the outer send() promise and optionally replace/suppress a terminal event. */
@@ -827,6 +840,24 @@ class PISession {
   }
 }
 
+type QuotaReportingConfig = Pick<AgentSpawnConfig, 'piGatewayBaseUrl' | 'benchmarkPolicyGuard'>;
+
+/**
+ * A spawn reports provider quota when Cortex routes its traffic (`piGatewayBaseUrl`) and it is not
+ * a benchmark trial. The compiled guard is the trial marker (§6.8 G1), and a trial must stay out of
+ * daemon-wide state: its readings would throttle production work on behalf of an experiment.
+ */
+function reportsProviderQuota(config: QuotaReportingConfig): boolean {
+  return !!config.piGatewayBaseUrl && config.benchmarkPolicyGuard === undefined;
+}
+
+function buildExtensionPaths(config: Pick<AgentSpawnConfig, 'disableHooks'> & QuotaReportingConfig): string[] {
+  const paths = [MCP_BRIDGE_PATH, TOOL_SHIMS_PATH];
+  if (config.disableHooks !== true) paths.push(HOOK_BRIDGE_PATH);
+  if (reportsProviderQuota(config)) paths.push(QUOTA_PROBE_PATH);
+  return paths;
+}
+
 /** Collaborators the daemon owns and a trial replaces. Both are injected rather than defaulted so
  *  the host PI home and its auth mirroring are not reachable from this module (§13 A1, A6). */
 export interface PIAdapterHooks {
@@ -921,9 +952,7 @@ export class PIAdapter implements AgentAdapter {
       pluginDirs: config.pluginDirs ?? null,
       // P9: the MCP bridge and the guard's host (tool shims) are always injected; the hook bridge is
       // derived from the role, so a role that declares no hook surface never loads it.
-      extensionPaths: config.disableHooks === true
-        ? [MCP_BRIDGE_PATH, TOOL_SHIMS_PATH]
-        : [MCP_BRIDGE_PATH, TOOL_SHIMS_PATH, HOOK_BRIDGE_PATH],
+      extensionPaths: buildExtensionPaths(config),
       thinking: config.thinking ?? null,
       extraOption: config.extraOption ?? null,
     });
@@ -1017,6 +1046,14 @@ export class PIAdapter implements AgentAdapter {
       registry: this.sessionPathRegistry,
       registrySessionDir: sessionDir,
       onClose: (key) => this.sessions.delete(key),
+      // Only gateway-routed runs carry the probe, so only they can report; the closure freezes the
+      // provider/mode this session was routed under rather than re-deriving it later.
+      onProviderQuota: reportsProviderQuota(config)
+        ? (reading) => {
+          void reportCodexQuota(reading, resolveQuotaSource(config))
+            .catch((err) => log.error('reportCodexQuota error:', err));
+        }
+        : undefined,
     });
     this.sessions.set(config.sessionKey, session);
 

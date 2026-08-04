@@ -7,6 +7,7 @@ import type { ContextUsage } from '@core/types/agent-types.js';
 import type { NormalizedEvent, QuestionSpec } from '../normalize/event-types.js';
 import { toCanonical } from '../normalize/tool-names.js';
 import { isPlanFilePath } from '../claude/event-parser.js';
+import { decodeQuotaNotice } from '@domain/costs/codex-quota.js';
 
 interface PIPendingCompletion {
   numTurns: number;
@@ -426,6 +427,14 @@ function handleExtensionUiRequest(ev: Record<string, unknown>): NormalizedEvent[
   const id = ev['id'];
   const method = ev['method'];
   if (typeof id !== 'string' || typeof method !== 'string') return [];
+
+  // `notify` is PI's only fire-and-forget message to the host, so the quota probe extension rides
+  // it to report what it read off the provider response headers. Anything without the quota prefix
+  // is a real user notification and keeps falling through to the drop below.
+  if (method === 'notify') {
+    const reading = decodeQuotaNotice(ev['message']);
+    return reading ? [{ type: 'rate_limit', raw: reading }] : [];
+  }
 
   // Only dialog methods produce ask_user_question; fire-and-forget methods → [].
   if (method !== 'select' && method !== 'confirm' && method !== 'input' && method !== 'editor') {

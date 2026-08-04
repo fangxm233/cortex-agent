@@ -16,6 +16,7 @@ export const DEFAULT_SESSION_DIR = PI_SESSIONS_DIR;
 export const MCP_BRIDGE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/mcp-bridge.js');
 export const TOOL_SHIMS_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/tool-shims.js');
 export const HOOK_BRIDGE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/hook-bridge.js');
+export const QUOTA_PROBE_PATH = path.join(INSTALL_ROOT, 'dist/agent-adapter/pi/quota-probe.js');
 
 /** PI's models.json always lives beside auth.json inside the agent dir, so one parameter fixes
  *  both (design §13 P7 / A3): a trial agent dir implies a trial provider catalog. */
