@@ -471,6 +471,45 @@ test('SessionRegistryRepo - name index survives invalidate', async () => {
   assert.equal(r!.sessionId, 'sess-persist');
 });
 
+// ── scheduleId provenance + scheduled→direct conversion ────────
+
+test('SessionRegistryRepo - registerSession persists scheduleId, null when omitted', async () => {
+  const { repo } = createRepoWithPath();
+  await repo.registerSession('cortex-sch-1', makeOpts('sess-sch-1', { kind: 'scheduled', scheduleId: 'sched01' }));
+  await repo.registerSession('cortex-sch-2', makeOpts('sess-sch-2'));
+
+  assert.equal((await repo.getById('sess-sch-1'))!.scheduleId, 'sched01');
+  assert.equal((await repo.getById('sess-sch-2'))!.scheduleId, null);
+});
+
+test('SessionRegistryRepo - convertToDirect flips a scheduled run to a live direct session', async () => {
+  const { repo } = createRepoWithPath();
+  await repo.registerSession('cortex-adopt', makeOpts('sess-adopt', {
+    kind: 'scheduled', scheduleId: 'sched02', backendSessionId: 'backend-uuid', profileName: 'fast',
+  }));
+
+  const converted = await repo.convertToDirect('sess-adopt', { channel: 'web:sess-adopt' });
+  assert.ok(converted, 'conversion returns the updated record');
+  assert.equal(converted!.kind, 'local', 'resumable semantics: kind leaves scheduled');
+  assert.equal(converted!.origin, 'direct', 'the session now lives in the direct list');
+  assert.equal(converted!.channel, 'web:sess-adopt', 'sends route through the web conduit');
+  assert.equal(converted!.scheduleId, 'sched02', 'provenance survives conversion');
+  assert.equal(converted!.backendSessionId, 'backend-uuid', 'resume target survives conversion');
+  assert.equal(converted!.profileName, 'fast');
+
+  // Persisted, not just returned.
+  repo.invalidate();
+  const rec = await repo.getById('sess-adopt');
+  assert.equal(rec!.kind, 'local');
+  assert.equal(rec!.origin, 'direct');
+  assert.equal(rec!.channel, 'web:sess-adopt');
+});
+
+test('SessionRegistryRepo - convertToDirect returns null for an unknown sessionId', async () => {
+  const { repo } = createRepoWithPath();
+  assert.equal(await repo.convertToDirect('sess-missing', { channel: 'web:x' }), null);
+});
+
 // ── markRead (unread tracking) ─────────────────────────────────
 
 test('SessionRegistryRepo - markRead stamps lastReadAt on the target session only', async () => {

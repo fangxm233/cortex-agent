@@ -151,6 +151,7 @@ async function runScheduledTaskAsync({ normalizedMessage, message, projectId, sc
       await finalizeThreadSuccess(adapter, projectId, statusMsg, {
         startTime, sessionName, result, threadResult, project: projectId, trigger: 'scheduled',
         label: message?.substring(0, 60) || null, sessionKind: 'scheduled', sessionOrigin: 'scheduled', statusPrefix: 'Done',
+        scheduleId: scheduleTaskId || null,
       });
     }
   } catch (error) {

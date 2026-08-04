@@ -33,7 +33,7 @@ function makeDeps(overrides: Partial<UiServiceDeps> = {}): UiServiceDeps {
     },
     threadStore: { getAll: () => [], get: () => null },
     taskStore: { getAll: () => [], getById: () => null, load: () => {}, refresh: () => {} },
-    scheduler: { list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
+    scheduler: { update: async () => null, list: async () => [], get: async () => null, pause: async () => null, resume: async () => null, remove: async () => false, add: async () => ({ id: 'sch_new' } as any) },
     executionRegistry: { getExecution: () => null, getAll: () => [], cancelExecution: () => null },
     executionLogTailer: { startTail: () => {}, stopTail: () => {}, refCount: () => 0 },
     conversationHistory: { getHistory: async () => null },
@@ -368,6 +368,49 @@ test('sessions.list unread: activity after lastReadAt → unread; read/never-tra
   assert.equal(byId['s1'], false, 'read after activity');
   assert.equal(byId['s2'], true, 'activity after read');
   assert.equal(byId['s3'], false, 'no lastReadAt → grandfathered read');
+});
+
+test('sessions.list carries scheduleId provenance, null when the record has none', async () => {
+  const withSchedule = [
+    { ...mockSessions[1], scheduleId: 'sched-7' },
+    { ...mockSessions[0] },
+  ];
+  const deps = makeDeps({
+    sessionStore: {
+      listByProject: async () => withSchedule,
+      listByOrigin: async () => withSchedule,
+      listResumable: async () => withSchedule,
+      getById: async () => null,
+    } as any,
+  });
+  const result = await handleSessionsList(deps, {});
+  const byId = Object.fromEntries(result.map(s => [s.sessionId, s.scheduleId]));
+  assert.equal(byId['s2'], 'sched-7');
+  assert.equal(byId['s1'], null);
+});
+
+test('sessions.list unread: a never-viewed SCHEDULED session is unread (result attention dot)', async () => {
+  const rows = [
+    // scheduled, never viewed → unread (the 27c "result → blue dot until opened" rule)
+    { ...mockSessions[1] },
+    // scheduled, viewed after its run → read
+    { ...mockSessions[1], sessionId: 's2b', name: 'cortex-s2b', lastReadAt: '2026-04-02T00:00:00Z' },
+    // direct, never viewed → stays grandfathered as read (no unread flood on deploy)
+    { ...mockSessions[0] },
+  ];
+  const deps = makeDeps({
+    sessionStore: {
+      listByProject: async () => rows,
+      listByOrigin: async () => rows,
+      listResumable: async () => rows,
+      getById: async () => null,
+    } as any,
+  });
+  const result = await handleSessionsList(deps, {});
+  const byId = Object.fromEntries(result.map(s => [s.sessionId, s.unread]));
+  assert.equal(byId['s2'], true, 'never-viewed scheduled run is unread');
+  assert.equal(byId['s2b'], false, 'viewed scheduled run is read');
+  assert.equal(byId['s1'], false, 'direct sessions keep the grandfather rule');
 });
 
 test('sessions.list exposes backendSessionId (resume target) distinct from the track sessionId', async () => {

@@ -1,8 +1,8 @@
-// input:  UiServiceDeps + { scheduleId } | ScheduleAddArgs
-// output: pause/resume/remove/add schedule handlers → Ok<void|ScheduleInfo> | Err
-// pos:    mutate handlers for 'schedules.{pause,resume,remove,add}'
+// input:  UiServiceDeps + { scheduleId } | ScheduleAddArgs | ScheduleUpdateArgs
+// output: pause/resume/remove/add/update schedule handlers → Ok<void|ScheduleInfo> | Err
+// pos:    mutate handlers for 'schedules.{pause,resume,remove,add,update}'
 
-import type { UiServiceDeps, Result, ScheduleAddArgs, ScheduleInfo } from '../types.js';
+import type { UiServiceDeps, Result, ScheduleAddArgs, ScheduleUpdateArgs, ScheduleInfo } from '../types.js';
 import type { ScheduleTask } from '@store/schedule-repo.js';
 
 /** Map a persisted ScheduleTask → ScheduleInfo DTO (mirrors query/schedules.ts). */
@@ -17,6 +17,11 @@ function toScheduleInfo(s: ScheduleTask): ScheduleInfo {
     lastRun: s.lastRun != null ? new Date(s.lastRun).toISOString() : null,
     paused: s.isPaused ?? false,
     pausedBy: s.pausedBy ?? null,
+    intervalMs: s.intervalMs ?? null,
+    time: s.time ?? null,
+    dayOfWeek: s.dayOfWeek ?? null,
+    target: s.target ?? null,
+    fallback: s.fallback ?? null,
   };
 }
 
@@ -104,6 +109,55 @@ export async function handleAddSchedule(
       fallback: args.fallback,
     });
     return { ok: true, data: toScheduleInfo(task) };
+  } catch (err: any) {
+    return { ok: false, code: 'internal', message: err?.message || String(err) };
+  }
+}
+
+/** Fields patchable per schedule type — mirrors scheduler.validateTaskPatch minus dispatchType/
+ *  preCheck (not UI-editable). The type itself is immutable. */
+const UPDATE_TIMING_FIELDS: Record<ScheduleTask['type'], string[]> = {
+  interval: ['intervalMs'],
+  daily: ['time'],
+  weekly: ['dayOfWeek', 'time'],
+  once: [],
+};
+
+function buildUpdatePatch(args: ScheduleUpdateArgs): Record<string, unknown> {
+  const { scheduleId: _id, ...rest } = args;
+  const patch: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rest)) {
+    if (value !== undefined) patch[key] = value;
+  }
+  return patch;
+}
+
+// Patch an existing schedule. Field-allowedness is re-checked against the persisted task's type
+// BEFORE calling update, so a foreign timing field is an Err with nothing written (the real
+// scheduler.update would also throw — this keeps the error a typed Result instead).
+export async function handleUpdateSchedule(
+  deps: UiServiceDeps,
+  args: ScheduleUpdateArgs,
+): Promise<Result<ScheduleInfo>> {
+  const task = await deps.scheduler.get(args.scheduleId);
+  if (!task) {
+    return { ok: false, code: 'not-found', message: `Schedule not found: ${args.scheduleId}` };
+  }
+  const patch = buildUpdatePatch(args);
+  if (Object.keys(patch).length === 0) {
+    return { ok: false, code: 'invalid-args', message: 'empty patch — provide at least one field' };
+  }
+  const allowed = new Set(['message', 'projectId', 'profile', ...UPDATE_TIMING_FIELDS[task.type]]);
+  const invalid = Object.keys(patch).filter((key) => !allowed.has(key));
+  if (invalid.length > 0) {
+    return { ok: false, code: 'invalid-args', message: `invalid fields for ${task.type}: ${invalid.join(', ')}` };
+  }
+  try {
+    const updated = await deps.scheduler.update(args.scheduleId, patch);
+    if (!updated) {
+      return { ok: false, code: 'not-found', message: `Schedule not found: ${args.scheduleId}` };
+    }
+    return { ok: true, data: toScheduleInfo(updated) };
   } catch (err: any) {
     return { ok: false, code: 'internal', message: err?.message || String(err) };
   }

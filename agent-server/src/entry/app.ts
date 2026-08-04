@@ -411,6 +411,7 @@ process.on('SIGTERM', async () => {
         }
         return task;
       },
+      update: (id, patch) => scheduler.update(id, patch),
     },
     executionRegistry,
     executionLogTailer,

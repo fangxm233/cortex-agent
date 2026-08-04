@@ -48,6 +48,7 @@ import {
   executionsCancelInput,
   scheduleActionInput,
   scheduleAddInput,
+  scheduleUpdateInput,
   taskActionInput,
   taskCompleteInput,
   taskBlockInput,
@@ -210,6 +211,7 @@ function schedulesRouter(service: UiService) {
     resume: makeMutation(service, 'schedules.resume', scheduleActionInput),
     remove: makeMutation(service, 'schedules.remove', scheduleActionInput),
     add: makeMutation(service, 'schedules.add', scheduleAddInput),
+    update: makeMutation(service, 'schedules.update', scheduleUpdateInput),
   });
 }
 

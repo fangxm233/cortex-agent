@@ -29,5 +29,10 @@ export async function handleSchedulesList(
     lastRun: s.lastRun != null ? new Date(s.lastRun).toISOString() : null,
     paused: s.isPaused ?? false,
     pausedBy: (s as any).pausedBy ?? null,
+    intervalMs: s.intervalMs ?? null,
+    time: s.time ?? null,
+    dayOfWeek: s.dayOfWeek ?? null,
+    target: s.target ?? null,
+    fallback: s.fallback ?? null,
   }));
 }
