@@ -870,9 +870,9 @@ describe('messageTimeLabel', () => {
   });
 });
 
-// ── scheduled-run trigger card (design 27b: first row is not a user bubble) ──
+// ── scheduled-run opening prompt (design 30c: the task prompt is a PLAIN user bubble) ──
 
-describe('buildTranscriptRows triggerCard', () => {
+describe('buildTranscriptRows stripScheduledPrefix', () => {
   const schedTx = () => tx([
     {
       turnIndex: 0,
@@ -889,23 +889,37 @@ describe('buildTranscriptRows triggerCard', () => {
     },
   ]);
 
-  it('turns the first [Scheduled Task] user row into a trigger row with the prefix stripped', () => {
-    const rows = buildTranscriptRows(schedTx(), [], { triggerCard: true });
-    expect(rows[1]).toEqual({ kind: 'trigger', message: 'Scan arXiv for new papers', firedTs: T });
-    expect(rows.filter((r) => r.kind === 'user').map((r) => (r as any).text)).toEqual(['follow up please']);
+  it('strips the [Scheduled Task] prefix off the first user row but keeps it a user bubble', () => {
+    const rows = buildTranscriptRows(schedTx(), [], { stripScheduledPrefix: true });
+    expect(rows[1]).toEqual({ kind: 'user', text: 'Scan arXiv for new papers', turnIndex: 0, ts: T });
+    expect(rows.filter((r) => r.kind === 'user').map((r) => (r as any).text))
+      .toEqual(['Scan arXiv for new papers', 'follow up please']);
   });
 
-  it('does nothing without the option (manual sessions never see trigger rows)', () => {
+  it('does nothing without the option (manual sessions keep the raw text)', () => {
     const rows = buildTranscriptRows(schedTx(), []);
-    expect(rows[1].kind).toBe('user');
+    expect(rows[1]).toEqual(expect.objectContaining({ kind: 'user', text: '[Scheduled Task] Scan arXiv for new papers' }));
   });
 
-  it('leaves a first user row without the prefix as a plain bubble', () => {
+  it('leaves a first user row without the prefix untouched', () => {
     const rows = buildTranscriptRows(
       tx([{ turnIndex: 0, messages: [{ type: 'user', text: 'plain start', toolName: null, toolInput: null, ts: T, elapsedMs: null }] }]),
       [],
-      { triggerCard: true },
+      { stripScheduledPrefix: true },
     );
     expect(rows[1]).toEqual({ kind: 'user', text: 'plain start', turnIndex: 0, ts: T });
+  });
+
+  it('never strips the prefix off a later user row (only the opening prompt is the fire payload)', () => {
+    const rows = buildTranscriptRows(
+      tx([
+        { turnIndex: 0, messages: [{ type: 'user', text: 'plain start', toolName: null, toolInput: null, ts: T, elapsedMs: null }] },
+        { turnIndex: 1, messages: [{ type: 'user', text: '[Scheduled Task] quoted later', toolName: null, toolInput: null, ts: T, elapsedMs: null }] },
+      ]),
+      [],
+      { stripScheduledPrefix: true },
+    );
+    expect(rows.filter((r) => r.kind === 'user').map((r) => (r as any).text))
+      .toEqual(['plain start', '[Scheduled Task] quoted later']);
   });
 });

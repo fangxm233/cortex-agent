@@ -626,51 +626,11 @@ function Row({ row, interactionActions, editCopy, onStartEdit, editDisabled, reg
           noticeActionDone={interactionActions?.resumeCancelled}
         />
       );
-    case 'trigger':
-      return <TriggerCard message={row.message} firedTs={row.firedTs} />;
     case 'interaction':
       return <InteractionRowCard row={row} actions={interactionActions} />;
     default:
       return null;
   }
-}
-
-/** Scheduled-run trigger card (design 27b): the run's provenance — NOT a user bubble. Header shows
- *  the clock + "Scheduled run" + fire time; the body echoes the `[Scheduled Task]` payload. */
-function TriggerCard({ message, firedTs }: { message: string; firedTs: string | null }): JSX.Element {
-  const L = useVocab();
-  const fired = messageTimeLabel(firedTs ?? undefined);
-  return (
-    <div style={{ border: '1px solid var(--proto-line-2)', background: 'var(--proto-rail)', borderRadius: 10, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 13px', borderBottom: '1px solid var(--proto-line)' }}>
-        <svg width={12} height={12} viewBox="0 0 14 14" fill="none" stroke="var(--proto-accent)" strokeWidth={1.6}>
-          <circle cx="7" cy="7" r="5.6" />
-          <path d="M7 4v3.2l2.2 1.3" />
-        </svg>
-        <span style={{ font: "600 11px 'IBM Plex Mono',monospace", color: 'var(--proto-ink)' }}>{L.wbSchedTriggerTitle}</span>
-        {fired && (
-          <span style={{ font: "400 10px 'IBM Plex Mono',monospace", color: 'var(--proto-muted-3)' }}>
-            {L.wbSchedFired.replace('{t}', fired)}
-          </span>
-        )}
-      </div>
-      <div style={{ padding: '9px 13px', fontSize: 12.5, lineHeight: 1.6, color: 'var(--proto-muted)' }}>
-        <span
-          style={{
-            font: "500 9.5px 'IBM Plex Mono',monospace",
-            color: 'var(--proto-muted-3)',
-            background: 'var(--proto-line)',
-            padding: '1px 6px',
-            borderRadius: 4,
-            marginRight: 7,
-          }}
-        >
-          [Scheduled Task]
-        </span>
-        {message}
-      </div>
-    </div>
-  );
 }
 
 /** Presentational transcript column — the ordered chat rows (divider / user / tools / assistant) laid

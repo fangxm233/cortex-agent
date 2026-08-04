@@ -65,6 +65,7 @@ vi.mock('@/lib/trpc', () => ({
       },
       config: { get: query('config.get') },
       threads: { list: query('threads.list'), get: query('threads.get') },
+      schedules: { list: query('schedules.list') },
     };
   },
 }));

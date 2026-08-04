@@ -149,6 +149,14 @@ describe('buildMobileChatRows', () => {
     expect((rows[0] as { text: string }).text).toContain('今天');
   });
 
+  it('forwards stripScheduledPrefix so a scheduled run opens on a plain prompt bubble (8d)', () => {
+    const rows = buildMobileChatRows(transcriptOf('[Scheduled Task] Scan arXiv'), [], {
+      stripScheduledPrefix: true,
+      now: new Date(TS),
+    });
+    expect(rows[1]).toMatchObject({ kind: 'user', text: 'Scan arXiv' });
+  });
+
   it('renders the block being written as the last assistant row, flagged as the live preview', () => {
     const rows = buildMobileChatRows(transcriptOf('hello'), [], {
       streamingText: 'Tea begins as a',

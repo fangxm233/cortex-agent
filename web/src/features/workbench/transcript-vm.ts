@@ -246,9 +246,6 @@ export type ChatRow =
   // message would re-type text the reader has already seen and leave it animating past turn end.
   | { kind: 'assistant'; text: string; streaming: boolean; attachments?: Attachment[]; preview?: true }
   | { kind: 'notice'; level: ChatNoticeLevel; text: string; noticeAction?: NoticeAction; authAction?: AuthNoticeAction }
-  // Scheduled-run trigger card (design 27b): the run's opening `[Scheduled Task]` message rendered
-  // as provenance, not as a user bubble. `message` has the prefix stripped; `firedTs` is fire time.
-  | { kind: 'trigger'; message: string; firedTs: string | null }
   // `detail` carries the structured interaction entity (pending cards render actionable);
   // absent on legacy rows, which render the old subtype-driven summary.
   | { kind: 'interaction'; subtype: string; text: string; detail?: TranscriptInteractionDetail; ts?: string | null };
@@ -278,11 +275,11 @@ export interface BuildOpts {
    */
   pendingUser?: PendingUserMessage[];
   /**
-   * Scheduled sessions (origin 'scheduled' / adopted runs): render the FIRST user row as the
-   * 27b trigger card when it carries the `[Scheduled Task]` payload prefix. Replies and manual
-   * sessions are untouched.
+   * Scheduled sessions (origin 'scheduled' / adopted runs): strip the `[Scheduled Task]` payload
+   * prefix off the FIRST user row — design 30c renders the fire prompt as a PLAIN user bubble
+   * (the 27b trigger card is retired). Replies and manual sessions are untouched.
    */
-  triggerCard?: boolean;
+  stripScheduledPrefix?: boolean;
 }
 
 const SCHEDULED_PREFIX = '[Scheduled Task]';
@@ -547,12 +544,12 @@ export function buildTranscriptRows(
     } else if (m.type === 'user') {
       const isFirstUser = !firstUserSeen;
       firstUserSeen = true;
-      if (isFirstUser && opts.triggerCard && (m.text ?? '').startsWith(SCHEDULED_PREFIX)) {
-        rows.push({ kind: 'trigger', message: (m.text ?? '').slice(SCHEDULED_PREFIX.length).trim(), firedTs: m.ts ?? null });
-        continue;
-      }
+      const raw = m.text ?? '';
+      const text = isFirstUser && opts.stripScheduledPrefix && raw.startsWith(SCHEDULED_PREFIX)
+        ? raw.slice(SCHEDULED_PREFIX.length).trim()
+        : raw;
       rows.push({
-        kind: 'user', text: m.text ?? '', attachments: (m as any).attachments,
+        kind: 'user', text, attachments: (m as any).attachments,
         ...(m.turnIndex !== undefined ? { turnIndex: m.turnIndex } : {}),
         ...(m.ts ? { ts: m.ts } : {}),
         ...((m as any).edited !== undefined ? { edited: (m as any).edited } : {}),

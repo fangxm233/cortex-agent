@@ -5,15 +5,16 @@ The view models are framework-free record to slot mappings and each one has a co
 
 | filename | role | function |
 |---|---|---|
-| MChatScreen.tsx | screen | Owns chat data, live sync and optimistic sending |
+| MChatScreen.tsx | screen | Owns chat data, live sync, scheduled-run title |
 | MChatScreen.optimistic.test.tsx | test | Tests mobile optimistic sends, promotion and restore |
 | MChatView.tsx | view | Chat stream with auth notices, composer and sheets |
 | MChatView.test.tsx | test | Tests chat controls and interaction layout |
 | m-chat-vm.ts | vm | Chat rows, status, attachments, menu placement |
 | m-chat-vm.test.ts | test | Unit tests for the chat view model |
 | MInteractionCards.tsx | view | Ask-user and plan-approval cards for chat |
-| MSessionListScreen.tsx | screen | Fetches project direct sessions for the tab |
-| MSessionListView.tsx | view | Day-grouped session rows with status dots |
+| MSessionListScreen.tsx | screen | Binds sessions, schedules and the Scheduled sheet |
+| MSessionListView.tsx | view | Day-grouped session rows with clock entry |
+| MScheduleSheet.tsx | view | Scheduled bottom sheet with run drill-down |
 | m-session-list-vm.ts | vm | Groups sessions by day and derives status lines |
 | m-session-list-vm.test.ts | test | Unit tests for the session list view model |
 | MThreadsScreen.tsx | screen | Loads active and historical thread sections |
