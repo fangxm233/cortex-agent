@@ -207,6 +207,16 @@ export const en = {
   wbSessionEarlier: 'EARLIER',
   wbFromSchedule: 'from schedule',
 
+  // ── 27a/27b scheduled sessions ──
+  wbAllRuns: 'all {n} runs',
+  wbScheduleLink: 'schedule ↗',
+  wbSchedNextRun: 'next run in {d}',
+  wbSchedPausedPill: 'paused',
+  wbEditSchedule: 'Edit schedule ↗',
+  wbSchedTriggerTitle: 'Scheduled run',
+  wbSchedFired: 'fired {t}',
+  wbSchedReplyHint: 'Replying converts this run into a normal session — it leaves the schedule group; later runs start fresh sessions',
+
   // ── 22a dual-zone left rail ──
   wbProjects: 'PROJECTS',
   wbSessions: 'SESSIONS',
@@ -646,6 +656,10 @@ export const en = {
   scDaySat: 'Sat',
   scToastCreated: 'Schedule created',
   scToastCreateFailed: 'Could not create schedule',
+  scEditSchedule: 'Edit schedule',
+  scSaveSchedule: 'Save changes',
+  scToastUpdated: 'Schedule updated',
+  scToastUpdateFailed: 'Could not update schedule',
   memMemory: 'Memory',
   memLoading: 'Loading…',
   memNoFiles: 'No memory files.',
@@ -945,6 +959,16 @@ export const zh: Record<keyof Vocab, string> = {
   wbSessionYesterday: '昨天',
   wbSessionEarlier: '更早',
   wbFromSchedule: '来自调度',
+
+  // ── 27a/27b scheduled sessions ──
+  wbAllRuns: '全部 {n} runs',
+  wbScheduleLink: 'schedule ↗',
+  wbSchedNextRun: '{d} 后运行',
+  wbSchedPausedPill: '已暂停',
+  wbEditSchedule: '编辑调度 ↗',
+  wbSchedTriggerTitle: '定时运行',
+  wbSchedFired: '{t} 触发',
+  wbSchedReplyHint: '回复后此 run 转为普通会话：脱离归组，后续 run 另起新 session',
 
   // ── 22a dual-zone left rail ──
   wbProjects: '项目',
@@ -1385,6 +1409,10 @@ export const zh: Record<keyof Vocab, string> = {
   scDaySat: '周六',
   scToastCreated: '调度已创建',
   scToastCreateFailed: '无法创建调度',
+  scEditSchedule: '编辑调度',
+  scSaveSchedule: '保存修改',
+  scToastUpdated: '调度已更新',
+  scToastUpdateFailed: '无法更新调度',
   memMemory: '记忆',
   memLoading: '加载中…',
   memNoFiles: '暂无记忆文件。',

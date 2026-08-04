@@ -197,3 +197,76 @@ describe('computeNextRun / nextRunLabel', () => {
     expect(nextRunParts(form({ type: 'daily', time: '09:00' }), now)).toEqual({ clock: '09:00', delta: '52m' });
   });
 });
+
+// ── edit mode (design 27b「Edit schedule ↗」/ rail「schedule ↗」) ──
+
+import { formFromSchedule, buildScheduleUpdateArgs } from './schedule-modal-vm';
+import type { ScheduleInfo } from '@cortex-agent/ui-contract';
+
+function sched(p: Partial<ScheduleInfo> = {}): ScheduleInfo {
+  return {
+    id: 'sch1', type: 'daily', message: 'scan arXiv', projectId: 'nimbus', profile: 'claude-haiku',
+    nextRun: null, lastRun: null, paused: false, pausedBy: null,
+    intervalMs: null, time: '07:30', dayOfWeek: null, target: null, fallback: null,
+    ...p,
+  };
+}
+
+describe('formFromSchedule', () => {
+  it('prefills a daily schedule (null target → current-channel, null fallback → fresh)', () => {
+    const f = formFromSchedule(sched());
+    expect(f.type).toBe('daily');
+    expect(f.message).toBe('scan arXiv');
+    expect(f.profile).toBe('claude-haiku');
+    expect(f.time).toBe('07:30');
+    expect(f.projectId).toBe('nimbus');
+    expect(f.target).toBe('current-channel');
+    expect(f.fallback).toBe('fresh');
+  });
+
+  it('decomposes intervalMs into value+unit (whole hours prefer hr)', () => {
+    expect(formFromSchedule(sched({ type: 'interval', intervalMs: 1_800_000, time: null }))).toMatchObject({
+      intervalValue: 30, intervalUnit: 'min',
+    });
+    expect(formFromSchedule(sched({ type: 'interval', intervalMs: 7_200_000, time: null }))).toMatchObject({
+      intervalValue: 2, intervalUnit: 'hr',
+    });
+  });
+
+  it('prefills weekly dayOfWeek and maps persisted target/fallback', () => {
+    const f = formFromSchedule(sched({
+      type: 'weekly', dayOfWeek: 3, target: { kind: 'project', projectId: 'nimbus' }, fallback: 'skip',
+    }));
+    expect(f.dayOfWeek).toBe(3);
+    expect(f.target).toBe('project');
+    expect(f.fallback).toBe('skip');
+  });
+
+  it('maps a null profile to an empty form value (never fabricates one)', () => {
+    expect(formFromSchedule(sched({ profile: null })).profile).toBe('');
+  });
+});
+
+describe('buildScheduleUpdateArgs', () => {
+  it('daily → scheduleId + message/profile/projectId/time only', () => {
+    const args = buildScheduleUpdateArgs('sch1', formFromSchedule(sched()));
+    expect(args).toEqual({
+      scheduleId: 'sch1', message: 'scan arXiv', profile: 'claude-haiku', projectId: 'nimbus', time: '07:30',
+    });
+  });
+
+  it('interval → intervalMs from value+unit', () => {
+    const f = form({ type: 'interval', intervalValue: 45, intervalUnit: 'min', profile: '', projectId: null, message: 'm' });
+    expect(buildScheduleUpdateArgs('sch2', f)).toEqual({ scheduleId: 'sch2', message: 'm', intervalMs: 2_700_000 });
+  });
+
+  it('weekly → time + dayOfWeek', () => {
+    const f = form({ type: 'weekly', time: '10:00', dayOfWeek: 5, profile: '', projectId: null, message: 'm' });
+    expect(buildScheduleUpdateArgs('sch3', f)).toEqual({ scheduleId: 'sch3', message: 'm', time: '10:00', dayOfWeek: 5 });
+  });
+
+  it('once → no timing patch (runAt is not editable from the web)', () => {
+    const f = form({ type: 'once', profile: '', projectId: null, message: 'm' });
+    expect(buildScheduleUpdateArgs('sch4', f)).toEqual({ scheduleId: 'sch4', message: 'm' });
+  });
+});
