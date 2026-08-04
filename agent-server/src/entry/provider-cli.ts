@@ -176,7 +176,9 @@ function runAdd(
     models: flags.models.map((id) => ({ id })),
   });
 
-  if (!result.ok) {
+  // `=== false` rather than `!result.ok`: this project typechecks with `strict: false`, where
+  // truthiness alone does not narrow a boolean-literal discriminant.
+  if (result.ok === false) {
     return fail(result.errors.map(issueText).join('\n'), { hint: 'cortex auth provider add --help' });
   }
   const stdout = flags.json
@@ -203,7 +205,7 @@ function runRemove(flags: ParsedFlags, stores: CustomProviderStores): ProviderCl
   }
 
   const result = removeCustomProvider(stores, name);
-  if (!result.ok) {
+  if (result.ok === false) {
     return fail(result.errors.map(issueText).join('\n'), { hint: 'cortex auth provider list' });
   }
   const stdout = flags.json

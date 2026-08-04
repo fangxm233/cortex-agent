@@ -174,6 +174,15 @@ test('readConfigSnapshot omits persisted profiles with unsupported backends', as
         pi: { model: 'm-pi', backend: 'pi', mode: 'deepseek' },
       },
     }),
+  );
+
+  const snap = await readConfigSnapshot(configDir);
+
+  assert.equal(snap.profiles!.defaultProfile, null);
+  assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.name), ['implicit', 'claude', 'pi']);
+  assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.backend), [null, 'claude', 'pi']);
+});
+
 test('readConfigSnapshot carries the editable profile fields but never an extraEnv VALUE', async () => {
   const { configDir } = await makeFixture();
   await fs.writeFile(
@@ -205,15 +214,6 @@ test('readConfigSnapshot carries the editable profile fields but never an extraE
   const serialized = JSON.stringify(snap);
   assert.ok(!serialized.includes('super-secret'), 'extraEnv value leaked into the snapshot');
   assert.ok(!serialized.includes('also-secret'), 'extraEnv value leaked into the snapshot');
-});
-
-  );
-
-  const snap = await readConfigSnapshot(configDir);
-
-  assert.equal(snap.profiles!.defaultProfile, null);
-  assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.name), ['implicit', 'claude', 'pi']);
-  assert.deepEqual(snap.profiles!.profiles.map((profile) => profile.backend), [null, 'claude', 'pi']);
 });
 
 test('readConfigSnapshot returns null / empty when files are absent', async () => {

@@ -983,6 +983,17 @@ export interface ConfigProfileEntry {
   mode: string | null;
   /** Thinking level (backend-native value: claude --effort / pi --thinking). */
   thinking: string | null;
+  /** Rate-limit provider identity; required by profiles whose effective backend is 'pi'. */
+  provider: string | null;
+  /** DR-0012 claude adapter mode. null when the entry does not declare one (resolves to 'print'). */
+  claudeBackend: 'print' | 'tui' | null;
+  /** Extra CLI flags (keys start with '--'). Returned in full — the editor must round-trip them. */
+  extraOption: Record<string, string>;
+  /** KEYS ONLY of `extraEnv`. Values are environment injection and may hold a token, so they are
+   *  never returned; an edit preserves the stored values untouched. */
+  extraEnvKeys: string[];
+  /** Number of declared fallback entries. The fallback chain itself is not editable from the UI. */
+  fallbackCount: number;
 }
 
 export interface ConfigProfiles {
@@ -998,17 +1009,6 @@ export interface ConfigMachine {
   win: boolean;
 }
 
-  /** Rate-limit provider identity; required by profiles whose effective backend is 'pi'. */
-  provider: string | null;
-  /** DR-0012 claude adapter mode. null when the entry does not declare one (resolves to 'print'). */
-  claudeBackend: 'print' | 'tui' | null;
-  /** Extra CLI flags (keys start with '--'). Returned in full — the editor must round-trip them. */
-  extraOption: Record<string, string>;
-  /** KEYS ONLY of `extraEnv`. Values are environment injection and may hold a token, so they are
-   *  never returned; an edit preserves the stored values untouched. */
-  extraEnvKeys: string[];
-  /** Number of declared fallback entries. The fallback chain itself is not editable from the UI. */
-  fallbackCount: number;
 export interface ConfigMcp {
   servers: string[];
 }
@@ -1616,6 +1616,9 @@ export interface MutateArgsMap {
   'hooks.setEnabled': HooksSetEnabledArgs;
   'hooks.remove': HooksRemoveArgs;
   'hooks.test': HooksTestArgs;
+  'profiles.create': ProfilesCreateArgs;
+  'profiles.update': ProfilesUpdateArgs;
+  'profiles.remove': ProfilesRemoveArgs;
   'system.restart': SystemRestartArgs;
   'system.clearRateLimit': SystemClearRateLimitArgs;
 }
@@ -1631,9 +1634,6 @@ export interface MutateReturnMap {
   'sessions.markRead': void;
   'sessions.answerQuestion': SessionsInteractionMutateReturn;
   'sessions.respondPlan': SessionsInteractionMutateReturn;
-  'profiles.create': ProfilesCreateArgs;
-  'profiles.update': ProfilesUpdateArgs;
-  'profiles.remove': ProfilesRemoveArgs;
   'sessions.rewind': SessionsRewindReturn;
   'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
@@ -1666,6 +1666,9 @@ export interface MutateReturnMap {
   'hooks.setEnabled': HooksSetEnabledReturn;
   'hooks.remove': HooksRemoveReturn;
   'hooks.test': HooksTestReturn;
+  'profiles.create': ProfilesCreateReturn;
+  'profiles.update': ProfilesUpdateReturn;
+  'profiles.remove': ProfilesRemoveReturn;
   'system.restart': SystemRestartReturn;
   'system.clearRateLimit': SystemClearRateLimitReturn;
 }
@@ -1681,9 +1684,6 @@ export interface UiService {
   query<S extends QueryScope>(scope: S, params: QueryParams<S>): Promise<Result<QueryReturn<S>>>;
   mutate<O extends MutateOp>(op: O, args: MutateArgs<O>): Promise<Result<MutateReturn<O>>>;
   subscribe(filter: SubscribeFilter): AsyncIterable<UiEvent> & { close(): void };
-  'profiles.create': ProfilesCreateReturn;
-  'profiles.update': ProfilesUpdateReturn;
-  'profiles.remove': ProfilesRemoveReturn;
   /**
    * Live `execution.log` stream for one running execution (B2-C). Resolves the log location from
    * the executionId, ref-counts the shared tailer (first subscriber starts it, last stops it), and

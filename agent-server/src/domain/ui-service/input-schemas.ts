@@ -567,9 +567,9 @@ export const mutateInputSchemas = {
   'hooks.setEnabled': hooksSetEnabledInput,
   'hooks.remove': hooksRemoveInput,
   'hooks.test': hooksTestInput,
-  'system.restart': systemRestartInput,
-  'system.clearRateLimit': systemClearRateLimitInput,
-} satisfies Record<MutateOp, z.ZodType>;
   'profiles.create': profilesCreateInput,
   'profiles.update': profilesUpdateInput,
   'profiles.remove': profilesRemoveInput,
+  'system.restart': systemRestartInput,
+  'system.clearRateLimit': systemClearRateLimitInput,
+} satisfies Record<MutateOp, z.ZodType>;
