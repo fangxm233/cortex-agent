@@ -11,6 +11,7 @@
 // still asserted below, so the clone cannot hide a regression in it.
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -500,7 +501,7 @@ function hostPiState(): Record<string, string> {
         const stat = fs.lstatSync(full);
         snapshot[full] = stat.isSymbolicLink()
           ? `link:${fs.readlinkSync(full)}`
-          : `file:${stat.size}:${stat.mtimeMs}`;
+          : `file:${createHash('sha256').update(fs.readFileSync(full)).digest('hex')}`;
       }
     };
     snapshot[`exists:${target}`] = String(fs.existsSync(target));
