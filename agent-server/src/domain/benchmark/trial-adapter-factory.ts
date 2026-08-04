@@ -193,7 +193,11 @@ export function createTrialAdapter(spec: TrialAdapterSpec): TrialAdapter {
     trialAgentConfig(spec.policy, backend),
     spec.policy.credential.proxy_base_url,
   );
-  if (backend === 'pi') spawnConfig.piGatewayPath = '';
+  // P12: the trial is routed at the policy proxy authority with no sub-path, never at the host gateway.
+  if (backend === 'pi') {
+    spawnConfig.piGatewayPath = '';
+    spawnConfig.piGatewayBaseUrl = spec.policy.credential.proxy_base_url;
+  }
   spawnConfig.preserveUnreportedAccounting = true;
   const sessionKey = spawnConfig.sessionKey;
   let closed = false;

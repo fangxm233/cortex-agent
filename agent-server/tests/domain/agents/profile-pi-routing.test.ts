@@ -8,7 +8,8 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 
 import { validateProfilesFile } from '../../../src/domain/agents/profile-manager.js';
-import { buildPiGatewaySubPath } from '../../../src/domain/agents/facade.js';
+import { buildAgentSpawnConfig, buildPiGatewaySubPath } from '../../../src/domain/agents/facade.js';
+import { GATEWAY_URL } from '../../../src/domain/costs/gateway-manager.js';
 
 // --- provider is REQUIRED for pi backend (explicit, no default, no fallback) ---
 
@@ -69,4 +70,21 @@ test('buildPiGatewaySubPath: distinct mode and provider compose independently', 
 
 test('buildPiGatewaySubPath: returns undefined when mode is absent (fallback to default /<provider>)', () => {
   assert.equal(buildPiGatewaySubPath(null, 'anthropic'), undefined);
+});
+
+// --- the PI base URL is the gateway authority, never the Claude route the same run resolved ---
+
+test('buildAgentSpawnConfig: a pi spawn keeps the gateway origin when a Claude mode URL is resolved', () => {
+  const spawn = buildAgentSpawnConfig(
+    { loadCortexRules: false },
+    { model: 'gpt-x', backend: 'pi', mode: 'openai-codex', provider: 'openai-codex' },
+    `${GATEWAY_URL}/m/openai-codex/project=nimbus,trigger=user/anthropic`,
+  );
+  assert.equal(spawn.piGatewayBaseUrl, GATEWAY_URL);
+  assert.equal(spawn.piGatewayPath, '/m/openai-codex/openai-codex');
+  // The catalog entry PI receives is base + path: one mode segment, one endpoint segment.
+  assert.equal(
+    `${spawn.piGatewayBaseUrl}${spawn.piGatewayPath}`,
+    `${GATEWAY_URL}/m/openai-codex/openai-codex`,
+  );
 });

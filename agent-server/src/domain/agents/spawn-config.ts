@@ -243,9 +243,10 @@ export function buildAgentSpawnConfig(
     // `mode` (gateway.yaml owns the route).
     piProvider: config.backend === 'pi' && config.provider ? config.provider : undefined,
     piGatewayPath: config.backend === 'pi' && config.provider ? buildPiGatewaySubPath(config.mode, config.provider) : undefined,
-    // P12: a trial is routed at its own proxy authority, which arrives as the route argument. The
-    // host gateway is the daemon's default and must not be the value a trial takes.
-    piGatewayBaseUrl: config.backend === 'pi' ? (anthropicBaseUrl ?? GATEWAY_URL) : undefined,
+    // The host gateway authority, never the resolved Claude route: that URL already carries a
+    // `/m/<mode>/…/anthropic` path, and PI appends `piGatewayPath` to whatever it is given.
+    // P12: a trial is routed at its own proxy authority, which its factory writes over this default.
+    piGatewayBaseUrl: config.backend === 'pi' ? GATEWAY_URL : undefined,
     cortexContext: hasContext ? ctx : undefined,
     appendSystemPrompt,
   };
