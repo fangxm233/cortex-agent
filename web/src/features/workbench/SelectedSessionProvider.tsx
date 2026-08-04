@@ -48,6 +48,11 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const sessionsQuery = useQuery(
     trpc.sessions.list.queryOptions({ origin: 'direct', projectId: currentProjectId ?? undefined }),
   );
+  // Scheduled runs are selectable rail rows too (design 27a-B) — without them in the membership
+  // list, clicking a run would bounce the selection back to the most recent direct session.
+  const scheduledSessionsQuery = useQuery(
+    trpc.sessions.list.queryOptions({ origin: 'scheduled', projectId: currentProjectId ?? undefined }),
+  );
   const configQuery = useQuery(trpc.config.get.queryOptions({}));
   const [override, setOverride] = useState<string | null>(null);
   const [draftProfile, setDraftProfile] = useState<string | null>(null);
@@ -56,8 +61,12 @@ export function SelectedSessionProvider({ children }: { children: ReactNode }) {
   const [pendingCreatedSession, setPendingCreatedSession] = useState<PendingCreatedSession | null>(null);
 
   const sessions = sessionsQuery.data ?? [];
+  const selectableSessions = useMemo(
+    () => [...sessions, ...(scheduledSessionsQuery.data ?? [])],
+    [sessions, scheduledSessionsQuery.data],
+  );
   const pendingCreatedId = pendingCreatedSession?.sessionId ?? null;
-  const selectedSessionId = resolveSelectedSessionId(override, sessions, pendingCreatedId);
+  const selectedSessionId = resolveSelectedSessionId(override, selectableSessions, pendingCreatedId, sessions);
   const isDraft = selectedSessionId === DRAFT_SENTINEL;
 
   // Once the freshly created session appears in the list, drop the pending marker — the plain

@@ -78,3 +78,21 @@ describe('resolveTransitionProfile', () => {
     expect(resolveTransitionProfile(null, pending, 'other')).toBeNull();
   });
 });
+
+describe('resolveSelectedSessionId with scheduled runs in the membership list (27a-B)', () => {
+  const run = (id: string, lastUsedAt: string): SessionInfo => ({
+    ...sess(id, lastUsedAt),
+    kind: 'scheduled', origin: 'scheduled', scheduleId: 'sch1',
+  });
+
+  it('honors an override pointing at a scheduled run (clicking a run row keeps it selected)', () => {
+    const merged = [...sessions, run('r1', '2026-05-20T00:00:00Z')];
+    expect(resolveSelectedSessionId('r1', merged)).toBe('r1');
+  });
+
+  it('default selection comes from the defaultPool, never auto-opening the newest run', () => {
+    const merged = [...sessions, run('r1', '2026-05-20T00:00:00Z')];
+    expect(resolveSelectedSessionId(null, merged, null, sessions)).toBe('b');
+    expect(resolveSelectedSessionId('gone', merged, null, sessions)).toBe('b');
+  });
+});
