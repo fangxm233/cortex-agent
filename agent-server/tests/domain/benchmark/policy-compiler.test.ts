@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, it } from 'vitest';
 import type { ResolvedProfileConfig } from '../../../src/domain/agents/profile-manager.js';
 import type { AgentRunCliOptions } from '../../../src/domain/agent-run/agent-run-cli.js';
@@ -649,6 +650,10 @@ const piDependencies = (): PolicyCompilerDependencies => dependencies(profile({
   backend: 'pi', provider: 'openai-codex',
 }));
 
+/** Governance declarations cite suites by their package-relative path, so resolving one needs the
+ *  package root rather than the temp trial root every other path here is built from. */
+const agentServerRoot = fileURLToPath(new URL('../../../', import.meta.url));
+
 it('admits a PI arm to the long MCP call and keeps code 28 live for a backend without it', () => {
   // The capability was admitted on measured evidence: a real PI MCP call held 63324 ms through the
   // production bridge while a no-options control client on a second server was cut at 60 s.
@@ -712,6 +717,12 @@ it('exempts a bridge-governed backend by declaration and refuses every undeclare
   // way. Both facts are declared; neither is inferred from an empty list.
   assert.equal(LONG_MCP_CALL_VERSION_GOVERNANCE.claude.governed_by, 'cli-version');
   assert.equal(LONG_MCP_CALL_VERSION_GOVERNANCE.pi.governed_by, 'cortex-bridge');
+
+  // The bridge-governed branch replaces a version allowlist with a named suite, so the citation is
+  // the whole of the evidence: a version string refuses on mismatch, a path that no longer resolves
+  // refuses nothing and the exemption silently becomes the bypass it is declared not to be.
+  const proof = path.join(agentServerRoot, LONG_MCP_CALL_VERSION_GOVERNANCE.pi.proof);
+  assert.equal(fs.existsSync(proof), true, `governance proof does not resolve: ${proof}`);
 
   const bridged = piResolution();
   configureBenchmarkMcp(bridged);
