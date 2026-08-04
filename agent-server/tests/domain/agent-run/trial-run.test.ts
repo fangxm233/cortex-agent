@@ -46,6 +46,8 @@ interface BackendBehaviour {
   hang?: boolean;
   /** Fork a long-lived grandchild that records its own pid before sleeping. */
   grandchildPidFile?: string;
+  /** Report provider usage, so the session's resolved context window becomes observable. */
+  reportUsage?: boolean;
 }
 
 interface Fixture {
@@ -83,6 +85,9 @@ ${behaviour.hang
     : `const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
 lines.once('line', (line) => {
   const request = JSON.parse(line);
+${behaviour.reportUsage
+    ? `  console.log(JSON.stringify({ type: 'stream_event', event: { type: 'message_start', message: { model: 'claude-reported-trial', usage: { input_tokens: 1000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } }));`
+    : ''}
   console.log(JSON.stringify({ type: 'assistant', message: { id: 'a1', model: 'claude-reported-trial', content: [{ type: 'text', text: 'trial reply' }] } }));
   console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, session_id: request.session_id, result: 'trial reply', num_turns: 1 }));
   lines.close();
@@ -373,6 +378,33 @@ it('confines the backend to the trial root and drops host leaks (T11, C5, C7)', 
   assert.equal(env.ANTHROPIC_BASE_URL, 'http://127.0.0.1:49152');
   // The write the backend really performed landed inside the trial root.
   assert.equal(fs.existsSync(path.join(built.trialRoot, 'home', 'backend-wrote-here')), true);
+}, 60_000);
+
+// --- A15: settings the session reads come from the trial config dir, not the host ---
+
+it('resolves the context window from the trial config dir, not the host (A15)', async () => {
+  const built = fixture({ reportUsage: true });
+  // Both values are in the CLI's accepted range and below the model window, so whichever file the
+  // session read is legible in the window it reports.
+  write(path.join(built.trialRoot, 'claude-config', 'settings.json'),
+    JSON.stringify({ autoCompactWindow: 150_000 }));
+  const hostConfig = path.join(root, 'host-claude-config');
+  write(path.join(hostConfig, 'settings.json'), JSON.stringify({ autoCompactWindow: 100_000 }));
+  const saved = process.env.CLAUDE_CONFIG_DIR;
+  let outcome: RunOutcome;
+  try {
+    process.env.CLAUDE_CONFIG_DIR = hostConfig;
+    outcome = await runTrial(built);
+  } finally {
+    if (saved === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = saved;
+  }
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+  const usage = journalRecords(built)
+    .map(record => record.event).filter(event => event?.type === 'context_usage');
+  assert.equal(usage.length > 0, true, 'no context_usage event was journalled');
+  // 100_000 here would mean the session fell through to the ambient CLAUDE_CONFIG_DIR.
+  assert.deepEqual([...new Set(usage.map(record => record.contextWindow))], [150_000]);
 }, 60_000);
 
 // --- T13: normalized identity ---

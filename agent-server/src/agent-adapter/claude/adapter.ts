@@ -300,10 +300,12 @@ class ClaudeSession {
     this.needsResume = options.needsResume;
     this.modelName = options.model || null;
     this.cwd = options.cwd ?? DATA_DIR;
-    // Settings are read per session because the CLI reads project settings from its spawn cwd.
+    // Settings are read per session because the CLI reads project settings from its spawn cwd. A
+    // pinned trial supplies its own config dir, so the session never falls through to the host's
+    // ambient CLAUDE_CONFIG_DIR / ~/.claude (design §13 A15).
     this.contextUsageTracker = new ClaudeContextUsageTracker(
       this.modelName,
-      resolveAutoCompactWindow(this.cwd),
+      resolveAutoCompactWindow(this.cwd, options.pinnedEnv?.CLAUDE_CONFIG_DIR),
     );
     this.isUserInitiated = options.isUserInitiated || false;
     this.callbackSource = options.callbackSource || null;
