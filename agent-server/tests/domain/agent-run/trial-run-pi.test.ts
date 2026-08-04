@@ -152,6 +152,7 @@ interface Fixture {
   trial: TrialAdapter;
   observation: string;
   workspace: string;
+  kill(): boolean;
   session(): SupervisorSession;
   supervision(): AgentProcessSupervision;
 }
@@ -206,6 +207,7 @@ function piTrial(behaviour: PiBehaviour = {}, deadlineMs?: number): Fixture {
     trial,
     observation,
     workspace,
+    kill: () => proc.kill(),
     session: () => captured!,
     supervision: () => proc.supervision!,
   };
@@ -287,7 +289,7 @@ it('cancels a hanging PI process through the supervisor (T4)', async () => {
   const built = piTrial({ hang: true });
   await built.supervision().started;
   await waitForFile(built.observation);
-  built.supervision().cancel('cancel');
+  assert.equal(built.kill(), true);
   const closed = await built.supervision().closed;
   // The same handle members `classifySupervisor` reads for exit 130 / state 'cancelled'.
   assert.equal(closed.code, 130, JSON.stringify(closed));
