@@ -669,6 +669,15 @@ it('admits a PI arm to the long MCP call and keeps code 28 live for a backend wi
   }
 });
 
+it('gates a PI arm on its proven benchmark capability in both directions', () => {
+  const unproven = piResolution();
+  unproven.pi_benchmark_capability_proven = false;
+  expectFailure(unproven, 'backend_unsupported_for_kind', 14, piDependencies());
+
+  const compiled = compileResolvedTrialPolicy(piResolution(), piDependencies());
+  assert.equal(compiled.pi_benchmark_capability_proven, true);
+});
+
 it('refuses an unverified CLI version only where a benchmark MCP surface exists', () => {
   const unorderable = resolution();
   configureBenchmarkMcp(unorderable);

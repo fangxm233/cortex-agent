@@ -349,7 +349,7 @@ def test_constructor_rejects_launcher_owned_seed_fields(
     [
         ("coder-review", ArmCompositionUnsupportedError, "arm_composition_unsupported"),
         ("manager", ArmCompositionUnsupportedError, "arm_composition_unsupported"),
-        ("pi", BackendUnsupportedForKindError, "backend_unsupported_for_kind"),
+        ("unknown-backend", BackendUnsupportedForKindError, "backend_unsupported_for_kind"),
         ("vendor-baseline", ValueError, None),
     ],
 )
@@ -363,8 +363,8 @@ def test_public_constructor_refuses_uncomposable_seed_before_setup(
     arm["name"] = f"cortex-{variant}"
     if variant in {"coder-review", "manager"}:
         arm["orchestration"] = {"mode": variant, "ask_manager": False}
-    elif variant == "pi":
-        arm["backend"] = "pi"
+    elif variant == "unknown-backend":
+        arm["backend"] = variant
     else:
         arm.update({"kind": "vendor-baseline", "vendor_agent": "claude-code"})
         arm.pop("backend")

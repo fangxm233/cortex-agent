@@ -285,13 +285,22 @@ def test_composition_fails_closed_for_every_other_combination() -> None:
     coder_review["arm"] = {**BASE_ARM, "orchestration": {
         "mode": "coder-review", "coder_review_variant": "audit-retry", "ask_manager": False,
     }}
-    pi_backend = copy.deepcopy(seed_document())
-    pi_backend["arm"] = {**BASE_ARM, "backend": "pi"}
+    undeclared_backend = copy.deepcopy(seed_document())
+    undeclared_backend["arm"] = {**BASE_ARM, "backend": "unknown-backend"}
 
     with pytest.raises(ArmCompositionUnsupportedError, match="gate 3"):
         compose_arm_resolution(parse_trial_seed(coder_review), FACTS)
-    with pytest.raises(BackendUnsupportedForKindError, match="gate 2"):
-        compose_arm_resolution(parse_trial_seed(pi_backend), FACTS)
+    with pytest.raises(BackendUnsupportedForKindError, match="its owning gate"):
+        compose_arm_resolution(parse_trial_seed(undeclared_backend), FACTS)
+
+
+def test_composition_admits_a_pi_backed_direct_arm() -> None:
+    pi_backend = copy.deepcopy(seed_document())
+    pi_backend["arm"] = {**BASE_ARM, "backend": "pi"}
+
+    document = compose_arm_resolution(parse_trial_seed(pi_backend), FACTS)
+
+    assert document["arm"]["backend"] == "pi"
 
 
 def test_rejects_a_credential_value_field_before_writing_projection() -> None:
