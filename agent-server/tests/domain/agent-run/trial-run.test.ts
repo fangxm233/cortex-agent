@@ -12,6 +12,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { afterEach, beforeAll, beforeEach, it, vi } from 'vitest';
+import { ClaudeAdapter } from '../../../src/agent-adapter/claude/adapter.js';
 import { PINNED_RUNTIME_PATH } from '../../../src/domain/agent-run/pinned-node-process.js';
 import { loadAgentRunConfigWithPolicy } from '../../../src/domain/agent-run/run-config.js';
 import { runOneShotAgent, type AgentRunIo } from '../../../src/domain/agent-run/runner.js';
@@ -270,6 +271,9 @@ it('runs the policy CLI under the real supervisor (T1)', async () => {
   // C2 far side: the process that actually ran is the policy's CLI, not a PATH lookup of `claude`.
   assert.ok(record.argv.includes('--strict-mcp-config'));
   assert.equal(outcome.terminal.manifest.supervisor.quiescent, true);
+  // T2 far side: the trial closed the session it really opened. Claude sessions are registered in
+  // a module-level map, so a session the trial leaked would still be visible from here.
+  assert.equal(new ClaudeAdapter().listSessions().includes(`agent-run:${ROOT_RUN_ID}`), false);
 }, 60_000);
 
 // --- T3: quiescence covers descendants the backend leaves behind ---
