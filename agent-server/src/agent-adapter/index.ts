@@ -6,7 +6,7 @@
 import type { AgentAdapter, Backend } from './types.js';
 import { ClaudeAdapter } from './claude/adapter.js';
 import { PIAdapter } from './pi/adapter.js';
-import { ensureAuthVisible } from './pi/agent-dir.js';
+import { ensureAuthVisible, USER_PI_MODELS_PATH } from './pi/agent-dir.js';
 import { DEFAULT_SESSION_DIR, PI_AGENT_DIR } from './pi/defaults.js';
 import { piProviderDiscovery } from './pi/discovery.js';
 
@@ -22,6 +22,7 @@ export * from './normalize/tool-names.js';
 const PI_ADAPTER = new PIAdapter(undefined, DEFAULT_SESSION_DIR, piProviderDiscovery, {
   agentDir: PI_AGENT_DIR,
   prepareAgentDir: (agentDir) => ensureAuthVisible({ agentDir }),
+  userModelsPath: USER_PI_MODELS_PATH,
 });
 
 const ADAPTERS: Record<Backend, AgentAdapter> = {

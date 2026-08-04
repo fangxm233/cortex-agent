@@ -20,8 +20,10 @@ import { piRpcLineToNormalized, createPIEventParserState, piContextUsageFromStat
 import {
   writeProvidersConfig,
   buildProviderOverrides,
+  withCustomEntries,
   type ProviderOverride,
 } from './providers-config.js';
+import { readCustomProviderEntries } from './custom-catalog.js';
 import { fromCanonical } from '../normalize/tool-names.js';
 import { findPISessionFilePath } from './session-files.js';
 import type { PIProviderDiscovery } from './discovery.js';
@@ -833,6 +835,10 @@ export interface PIAdapterHooks {
   /** Run before spawn with the resolved agent dir: the daemon mirrors the host credential here, a
    *  trial writes its dummy token. Never a module default (§13 A5/A6). */
   prepareAgentDir?: (agentDir: string) => void;
+  /** The user's PI catalog (`~/.pi/agent/models.json`), source of user-defined provider
+   *  definitions. Injected, never defaulted: reading the host PI home is exactly the ambient reach
+   *  a trial must not have (§13 A1). Left unset, no custom provider is mirrored. */
+  userModelsPath?: string;
 }
 
 export class PIAdapter implements AgentAdapter {
@@ -846,6 +852,8 @@ export class PIAdapter implements AgentAdapter {
   /** Injected PI home, or undefined when the caller left it to the daemon default. */
   private readonly configuredAgentDir: string | undefined;
   private readonly prepareAgentDir: ((agentDir: string) => void) | undefined;
+  /** Injected user catalog path, or undefined when this instance mirrors no custom provider. */
+  private readonly userModelsPath: string | undefined;
   /** sessionDir for the <sessionId>.jsonl path convention. Exposed for tests. */
   readonly sessionDir: string;
 
@@ -860,6 +868,7 @@ export class PIAdapter implements AgentAdapter {
     this.providerDiscovery = providerDiscovery;
     this.configuredAgentDir = hooks.agentDir;
     this.prepareAgentDir = hooks.prepareAgentDir;
+    this.userModelsPath = hooks.userModelsPath;
   }
 
   private gatewayOverrides(
@@ -937,10 +946,15 @@ export class PIAdapter implements AgentAdapter {
         // when discovery doesn't list it (e.g. an anthropic-protocol relay whose key the gateway
         // injects). config.piGatewayPath, when set, decouples the gateway route from the provider name.
         const discovered = this.providerDiscovery.getProviders();
-        const overrides = this.gatewayOverrides(
-          discovered,
-          config.piProvider ?? null,
-          config.piGatewayPath ?? null,
+        // A user-defined provider is unknown to PI, so a baseUrl-only override would hand the
+        // subprocess a provider with no protocol and no models. Its full definition rides along.
+        const overrides = withCustomEntries(
+          this.gatewayOverrides(
+            discovered,
+            config.piProvider ?? null,
+            config.piGatewayPath ?? null,
+          ),
+          this.userModelsPath ? readCustomProviderEntries(this.userModelsPath) : {},
         );
         if (overrides.length > 0) {
           // A3: the catalog lands where the agent dir says, never at an implicit host default.
