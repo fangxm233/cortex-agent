@@ -7,6 +7,7 @@ import { mkdirSync } from 'fs';
 import * as path from 'path';
 import { Type } from '@sinclair/typebox';
 import type { ExtensionAPI, ExtensionContext } from './pi-ext-types.js';
+import { resolvePiToolGate, type PiToolGate } from './policy-guard.js';
 import { createSubagentTool, type SubagentModelOption } from './subagent.js';
 import { webFetchTool } from './web-fetch.js';
 import { webSearchTool } from './web-search.js';
@@ -94,15 +95,6 @@ const TodoWriteParameters = Type.Object({
     }),
   ),
 });
-
-/** Match Claude-native labels against the active agent's comma-separated allowlist. */
-export function makeToolGate(allowedToolsEnv: string | undefined): (label: string) => boolean {
-  if (!allowedToolsEnv || allowedToolsEnv.trim() === '') return () => true;
-  const allowed = new Set(
-    allowedToolsEnv.split(',').map((tool) => tool.trim()).filter(Boolean),
-  );
-  return (label: string): boolean => allowed.has(label);
-}
 
 function registerAskUserQuestion(pi: ExtensionAPI): void {
   pi.registerTool({
@@ -203,18 +195,41 @@ function registerRuntimeAgent(pi: ExtensionAPI): void {
   });
 }
 
-export default function toolShims(pi: ExtensionAPI): void {
-  const allowed = makeToolGate(process.env.CORTEX_PI_ALLOWED_TOOLS);
-  if (allowed('Agent') && process.env.CORTEX_PI_SUBAGENT !== '1') registerRuntimeAgent(pi);
-  const registrations: Array<[string, () => void]> = [
-    ['WebFetch', () => pi.registerTool(webFetchTool)],
-    ['WebSearch', () => pi.registerTool(webSearchTool)],
-    ['AskUserQuestion', () => registerAskUserQuestion(pi)],
-    ['EnterPlanMode', () => registerEnterPlanMode(pi)],
-    ['ExitPlanMode', () => registerExitPlanMode(pi)],
-    ['TodoWrite', () => registerTodoWrite(pi)],
-  ];
-  for (const [label, register] of registrations) {
-    if (allowed(label)) register();
+/** Every shim this extension can register, by PI-native name and its Claude-native label.
+ *  The guard reads the native name (§6.6); the legacy allowlist reads the label. */
+const SHIM_REGISTRATIONS: Array<[native: string, label: string, register: (pi: ExtensionAPI) => void]> = [
+  ['web_fetch', 'WebFetch', pi => pi.registerTool(webFetchTool)],
+  ['web_search', 'WebSearch', pi => pi.registerTool(webSearchTool)],
+  ['ask_user_question', 'AskUserQuestion', registerAskUserQuestion],
+  ['enter_plan_mode', 'EnterPlanMode', registerEnterPlanMode],
+  ['exit_plan_mode', 'ExitPlanMode', registerExitPlanMode],
+  ['todo_write', 'TodoWrite', registerTodoWrite],
+];
+
+/**
+ * GT6 — the benchmark policy guard's PI application point. PI fires `tool_call` before a built-in
+ * *or* a registered tool runs, so this is the one boundary that also covers `bash`/`write`/`edit`,
+ * which §6.6 defect 3 records as ungated today. Registration gating alone cannot reach them.
+ */
+function installDispatchGuard(pi: ExtensionAPI, gate: PiToolGate): void {
+  pi.on('tool_call', (event) => {
+    const decision = gate.decide(event.toolName);
+    return decision.allow ? undefined : { block: true, reason: decision.reason };
+  });
+}
+
+export function installToolShims(
+  pi: ExtensionAPI,
+  env: NodeJS.ProcessEnv,
+  gate: PiToolGate = resolvePiToolGate(env),
+): void {
+  if (gate.guarded) installDispatchGuard(pi, gate);
+  if (gate.decide('agent', 'Agent').allow && env.CORTEX_PI_SUBAGENT !== '1') registerRuntimeAgent(pi);
+  for (const [native, label, register] of SHIM_REGISTRATIONS) {
+    if (gate.decide(native, label).allow) register(pi);
   }
+}
+
+export default function toolShims(pi: ExtensionAPI): void {
+  installToolShims(pi, process.env);
 }
