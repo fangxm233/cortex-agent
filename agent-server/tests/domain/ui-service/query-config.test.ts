@@ -160,20 +160,6 @@ test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hoo
   assert.ok(!JSON.stringify(snap.hooks).includes('my-hook.mjs'));
 });
 
-test('readConfigSnapshot omits persisted profiles with unsupported backends', async () => {
-  const { configDir } = await makeFixture();
-  await fs.writeFile(
-    path.join(configDir, 'profiles.json'),
-    JSON.stringify({
-      defaultProfile: 'legacy-codex',
-      profiles: {
-        'legacy-codex': { model: 'gpt-old', backend: 'codex', mode: 'plan' },
-        unknown: { model: 'm-unknown', backend: 'other', mode: 'plan' },
-        implicit: { model: 'm-default', mode: 'plan' },
-        claude: { model: 'm-claude', backend: 'claude', mode: 'plan' },
-        pi: { model: 'm-pi', backend: 'pi', mode: 'deepseek' },
-      },
-    }),
 test('readConfigSnapshot carries the editable profile fields but never an extraEnv VALUE', async () => {
   const { configDir } = await makeFixture();
   await fs.writeFile(
@@ -207,6 +193,20 @@ test('readConfigSnapshot carries the editable profile fields but never an extraE
   assert.ok(!serialized.includes('also-secret'), 'extraEnv value leaked into the snapshot');
 });
 
+test('readConfigSnapshot omits persisted profiles with unsupported backends', async () => {
+  const { configDir } = await makeFixture();
+  await fs.writeFile(
+    path.join(configDir, 'profiles.json'),
+    JSON.stringify({
+      defaultProfile: 'legacy-codex',
+      profiles: {
+        'legacy-codex': { model: 'gpt-old', backend: 'codex', mode: 'plan' },
+        unknown: { model: 'm-unknown', backend: 'other', mode: 'plan' },
+        implicit: { model: 'm-default', mode: 'plan' },
+        claude: { model: 'm-claude', backend: 'claude', mode: 'plan' },
+        pi: { model: 'm-pi', backend: 'pi', mode: 'deepseek' },
+      },
+    }),
   );
 
   const snap = await readConfigSnapshot(configDir);

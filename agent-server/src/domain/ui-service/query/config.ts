@@ -56,6 +56,14 @@ function isLiveBackend(value: unknown): value is Backend {
   return value === 'claude' || value === 'pi';
 }
 
+// extraOption is CLI flags and is returned whole — the settings editor has to round-trip it.
+function parseStringMap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).filter((pair): pair is [string, string] => typeof pair[1] === 'string'),
+  );
+}
+
 function parseProfiles(raw: any): ConfigProfiles | null {
   if (!raw || typeof raw !== 'object' || !raw.profiles || typeof raw.profiles !== 'object') return null;
   const profiles = Object.entries(raw.profiles).flatMap(([name, p]: [string, any]): ConfigProfileEntry[] => {
@@ -66,18 +74,18 @@ function parseProfiles(raw: any): ConfigProfiles | null {
       backend: isLiveBackend(p?.backend) ? p.backend : null,
       mode: typeof p?.mode === 'string' ? p.mode : null,
       thinking: typeof p?.thinking === 'string' ? p.thinking : null,
+      provider: typeof p?.provider === 'string' ? p.provider : null,
+      claudeBackend: p?.claudeBackend === 'print' || p?.claudeBackend === 'tui' ? p.claudeBackend : null,
+      extraOption: parseStringMap(p?.extraOption),
+      // KEYS ONLY — an extraEnv value is injected into the agent environment and may be a token.
+      extraEnvKeys: p?.extraEnv && typeof p.extraEnv === 'object' && !Array.isArray(p.extraEnv)
+        ? Object.keys(p.extraEnv).sort()
+        : [],
+      fallbackCount: Array.isArray(p?.fallback) ? p.fallback.length : 0,
     }];
   });
   const requestedDefault = typeof raw.defaultProfile === 'string' ? raw.defaultProfile : null;
   return {
-// extraOption is CLI flags and is returned whole — the settings editor has to round-trip it.
-function parseStringMap(raw: unknown): Record<string, string> {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  return Object.fromEntries(
-    Object.entries(raw as Record<string, unknown>).filter((pair): pair is [string, string] => typeof pair[1] === 'string'),
-  );
-}
-
     defaultProfile: requestedDefault && profiles.some((profile) => profile.name === requestedDefault)
       ? requestedDefault
       : null,
@@ -88,14 +96,6 @@ function parseStringMap(raw: unknown): Record<string, string> {
 function parseMachines(raw: any): ConfigMachine[] {
   if (!raw || typeof raw !== 'object') return [];
   return Object.entries(raw).map(([name, m]: [string, any]) => ({
-      provider: typeof p?.provider === 'string' ? p.provider : null,
-      claudeBackend: p?.claudeBackend === 'print' || p?.claudeBackend === 'tui' ? p.claudeBackend : null,
-      extraOption: parseStringMap(p?.extraOption),
-      // KEYS ONLY — an extraEnv value is injected into the agent environment and may be a token.
-      extraEnvKeys: p?.extraEnv && typeof p.extraEnv === 'object' && !Array.isArray(p.extraEnv)
-        ? Object.keys(p.extraEnv).sort()
-        : [],
-      fallbackCount: Array.isArray(p?.fallback) ? p.fallback.length : 0,
     name,
     cortexPath: typeof m?.cortexPath === 'string' ? m.cortexPath : null,
     gpuCount: typeof m?.gpuCount === 'number' ? m.gpuCount : null,

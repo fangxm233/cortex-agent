@@ -389,19 +389,6 @@ export const hooksTestInput = z.object({
   payload: z.string(),
 });
 
-export const approvalsApproveInput = z.object({
-  id: z.string(),
-});
-
-// issues.handle / issues.delete — take the target issue off the project's ISSUES.md list.
-export const issueActionInput = z.object({
-  projectId: z.string(),
-  id: z.string(),
-});
-
-const noteTextInput = z.string().trim().min(1).max(1000).refine((text) => !/[\r\n]/.test(text), {
-  message: 'Note text must be one line',
-});
 // ── profiles.* ────────────────────────────────────────────────────
 // CRUD over the `profiles` map of profiles.json. This schema is the SHAPE gate only (types, name
 // charset, flag prefix); the SEMANTIC rules — pi requires a provider, thinking levels are
@@ -437,6 +424,19 @@ export const profilesRemoveInput = z.object({
   name: profileSafeName.min(1),
 });
 
+export const approvalsApproveInput = z.object({
+  id: z.string(),
+});
+
+// issues.handle / issues.delete — take the target issue off the project's ISSUES.md list.
+export const issueActionInput = z.object({
+  projectId: z.string(),
+  id: z.string(),
+});
+
+const noteTextInput = z.string().trim().min(1).max(1000).refine((text) => !/[\r\n]/.test(text), {
+  message: 'Note text must be one line',
+});
 
 export const noteAddInput = z.object({
   projectId: z.string(),
@@ -567,9 +567,9 @@ export const mutateInputSchemas = {
   'hooks.setEnabled': hooksSetEnabledInput,
   'hooks.remove': hooksRemoveInput,
   'hooks.test': hooksTestInput,
-  'system.restart': systemRestartInput,
-  'system.clearRateLimit': systemClearRateLimitInput,
-} satisfies Record<MutateOp, z.ZodType>;
   'profiles.create': profilesCreateInput,
   'profiles.update': profilesUpdateInput,
   'profiles.remove': profilesRemoveInput,
+  'system.restart': systemRestartInput,
+  'system.clearRateLimit': systemClearRateLimitInput,
+} satisfies Record<MutateOp, z.ZodType>;
