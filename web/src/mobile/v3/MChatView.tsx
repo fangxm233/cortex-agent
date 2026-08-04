@@ -13,7 +13,7 @@
 // reveal-pacing + useRevealedText) — see MAssistantBlock. A message written into a running turn that
 // the model has not read yet (`pending`) is pinned below everything, the preview included, and says
 // so with dimmed text alone: the same ink bubble, full opacity, no icon, badge or spinner.
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { SessionContextUsage } from '@cortex-agent/ui-contract';
 import { ChatMarkdown } from '@/features/workbench/ChatMarkdown';
 import {
@@ -45,7 +45,14 @@ import { mediaKindOf } from '@/features/media/media-kind';
 import { VideoThumb } from '@/features/media/VideoThumb';
 import { docKindOf } from '@/features/media/doc-kind';
 import { MAskCard, MPlanCard, M_INT_COPY, type MIntCopy } from './MInteractionCards';
-import type { ChatHeaderStatus, ProfileSheetItem, PendingAttachmentVM } from './m-chat-vm';
+import {
+  msgMenuGroupTop,
+  MSG_MENU_SAFE_TOP,
+  MSG_MENU_SAFE_BOTTOM,
+  type ChatHeaderStatus,
+  type ProfileSheetItem,
+  type PendingAttachmentVM,
+} from './m-chat-vm';
 
 export interface MChatCopy {
   composerPh: string;
@@ -120,6 +127,8 @@ export interface MChatEditCopy {
 /** 7a long-press menu state: which row is held + what actions apply. */
 export interface MMsgMenu {
   rowIndex: number;
+  /** Viewport top of the held bubble — the overlay floats its copy there (msgMenuGroupTop). */
+  anchorTop?: number | null;
   onCopy: () => void;
   /** The long-press menu is user-messages-only; onEdit is always present in practice. */
   onEdit?: () => void;
@@ -136,83 +145,140 @@ export interface MEditMode {
   onCancel: () => void;
 }
 
-/** Long-press (~450ms) handlers for a stream bubble; also fires on contextmenu (desktop testing). */
-function longPressHandlers(fire: () => void): {
-  onTouchStart: () => void;
+/** Long-press (~450ms) handlers for a stream bubble; also fires on contextmenu (desktop testing).
+ *  `fire` receives the bubble's viewport top: the 7a overlay floats its copy of the bubble there,
+ *  so the press has to report where the bubble was. Reading the box at fire time rather than at
+ *  touch start costs nothing — a scroll under the finger cancels the timer before it fires. */
+function longPressHandlers(fire: (anchorTop: number) => void): {
+  onTouchStart: (e: React.TouchEvent<HTMLDivElement>) => void;
   onTouchEnd: () => void;
   onTouchMove: () => void;
-  onContextMenu: (e: React.MouseEvent) => void;
+  onContextMenu: (e: React.MouseEvent<HTMLDivElement>) => void;
 } {
   let timer: ReturnType<typeof setTimeout> | null = null;
+  const topOf = (el: { getBoundingClientRect: () => { top: number } }): number => el.getBoundingClientRect().top;
   return {
-    onTouchStart: () => { timer = setTimeout(fire, 450); },
+    onTouchStart: (e) => { const el = e.currentTarget; timer = setTimeout(() => fire(topOf(el)), 450); },
     onTouchEnd: () => { if (timer) clearTimeout(timer); },
     onTouchMove: () => { if (timer) clearTimeout(timer); },
-    onContextMenu: (e) => { e.preventDefault(); fire(); },
+    onContextMenu: (e) => { e.preventDefault(); fire(topOf(e.currentTarget)); },
   };
 }
 
-/** 7a — the long-press action overlay: conversation dims + blurs, the held bubble floats, the
- *  复制 / 编辑消息 menu hangs under it (user messages only; running: edit greyed). */
+/** Trailing glyph on a 7a menu row. */
+function MsgMenuIcon({ kind }: { kind: 'copy' | 'edit' }): JSX.Element {
+  return (
+    <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.4" style={{ marginLeft: 'auto' }}>
+      {kind === 'copy' ? (
+        <><rect x="4.5" y="4.5" width="8" height="8" rx="1.5" /><path d="M2.5 9.5V3.5a1 1 0 0 1 1-1h6" /></>
+      ) : (
+        <><path d="M2.5 11.5l.6-2.6 6.4-6.4a1.3 1.3 0 0 1 1.8 0l.2.2a1.3 1.3 0 0 1 0 1.8L5.1 10.9z" /><path d="M8.6 3.4l2 2" /></>
+      )}
+    </svg>
+  );
+}
+
+/** One 7a menu row (46px), dimmed and inert while disabled; tapping it also closes the overlay. */
+function MsgMenuItem({ label, icon, onTap, onClose, disabled, divided }: {
+  label: string; icon: 'copy' | 'edit'; onTap?: () => void; onClose: () => void;
+  disabled?: boolean; divided?: boolean;
+}): JSX.Element {
+  return (
+    <div
+      role="button"
+      onClick={disabled ? undefined : () => { onTap?.(); onClose(); }}
+      style={{
+        display: 'flex', alignItems: 'center', height: 46, padding: '0 15px', fontSize: 14.5,
+        color: MC.ink, opacity: disabled ? 0.35 : 1, cursor: disabled ? 'default' : 'pointer',
+        borderTop: divided ? '1px solid rgba(0,0,0,.07)' : undefined,
+      }}
+    >
+      {label}
+      <MsgMenuIcon kind={icon} />
+    </div>
+  );
+}
+
+/** The floated copy of the held bubble: the stream bubble's styling plus a lift shadow. It shrinks
+ *  inside the group's height cap (flex 0 1 auto) so a long message never pushes the menu off. */
+function HeldBubbleCopy({ isUser, text }: { isUser: boolean; text: string }): JSX.Element {
+  const shared = { flex: '0 1 auto', minHeight: 0, overflow: 'hidden', padding: '9px 13px', fontSize: 13.5, boxShadow: '0 14px 40px rgba(0,0,0,.4)', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' } as const;
+  return isUser ? (
+    <div style={{ ...shared, maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: '16px 16px 4px 16px', lineHeight: 1.55 }}>{text}</div>
+  ) : (
+    <div style={{ ...shared, maxWidth: '88%', background: 'var(--proto-card)', color: MC.body, borderRadius: 14, lineHeight: 1.6 }}>{text}</div>
+  );
+}
+
+/** Measures the overlay and the floated group, then places the group on the held bubble
+ *  (`msgMenuGroupTop`). Layout effect, so the anchored position is the first one painted. */
+function useMsgMenuTop(anchorTop: number | null | undefined): {
+  overlayRef: React.RefObject<HTMLDivElement>;
+  groupRef: React.RefObject<HTMLDivElement>;
+  top: number | null;
+} {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const groupRef = useRef<HTMLDivElement>(null);
+  const [top, setTop] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const overlay = overlayRef.current;
+    const group = groupRef.current;
+    if (!overlay || !group) return;
+    const box = overlay.getBoundingClientRect();
+    setTop(msgMenuGroupTop({
+      anchorTop: anchorTop ?? null,
+      overlayTop: box.top,
+      overlayHeight: box.height,
+      groupHeight: group.getBoundingClientRect().height,
+    }));
+  }, [anchorTop]);
+  return { overlayRef, groupRef, top };
+}
+
+/** 7a — the long-press action overlay: conversation dims + blurs, the held bubble floats where it
+ *  already sits, the 复制 / 编辑消息 menu hangs under it (user messages only; running: edit greyed). */
 export function MsgActionMenu({ row, menu, copy }: { row: ChatRow; menu: MMsgMenu; copy: MChatEditCopy }): JSX.Element {
   const isUser = row.kind === 'user';
   const text = row.kind === 'user' || row.kind === 'assistant' ? row.text : '';
   // Send time — the long press is the mobile counterpart of the desktop hover, so the stamp shows
   // up here rather than in the stream, where a per-bubble line would eat the narrow column.
   const timeLabel = messageTimeLabel(row.kind === 'user' ? row.ts : undefined);
-  const item = (label: string, onTap: (() => void) | undefined, disabled?: boolean, last?: boolean): JSX.Element => (
-    <div
-      role="button"
-      onClick={disabled ? undefined : () => { onTap?.(); menu.onClose(); }}
-      style={{
-        display: 'flex', alignItems: 'center', height: 46, padding: '0 15px', fontSize: 14.5,
-        color: MC.ink, opacity: disabled ? 0.35 : 1, cursor: disabled ? 'default' : 'pointer',
-        borderTop: last ? '1px solid rgba(0,0,0,.07)' : undefined,
-      }}
-    >
-      {label}
-      {label === copy.menuCopy ? (
-        <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.4" style={{ marginLeft: 'auto' }}>
-          <rect x="4.5" y="4.5" width="8" height="8" rx="1.5" /><path d="M2.5 9.5V3.5a1 1 0 0 1 1-1h6" />
-        </svg>
-      ) : (
-        <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke={MC.muted} strokeWidth="1.4" style={{ marginLeft: 'auto' }}>
-          <path d="M2.5 11.5l.6-2.6 6.4-6.4a1.3 1.3 0 0 1 1.8 0l.2.2a1.3 1.3 0 0 1 0 1.8L5.1 10.9z" /><path d="M8.6 3.4l2 2" />
-        </svg>
-      )}
-    </div>
-  );
+  const { overlayRef, groupRef, top } = useMsgMenuTop(menu.anchorTop);
   return (
     <div
+      ref={overlayRef}
       onClick={menu.onClose}
-      style={{
-        position: 'absolute', inset: 0, zIndex: 8, background: 'rgba(25,28,34,.38)',
-        backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)',
-        padding: '120px 14px 0', boxSizing: 'border-box',
-        display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 9,
-      }}
+      style={{ position: 'absolute', inset: 0, zIndex: 8, background: 'rgba(25,28,34,.38)', backdropFilter: 'blur(1.5px)', WebkitBackdropFilter: 'blur(1.5px)', overflow: 'hidden' }}
     >
-      {/* Floated copy of the held bubble */}
-      {isUser ? (
-        <div style={{ maxWidth: '82%', background: MC.ink, color: 'var(--ink-solid-fg)', borderRadius: '16px 16px 4px 16px', padding: '9px 13px', fontSize: 13.5, lineHeight: 1.55, boxShadow: '0 14px 40px rgba(0,0,0,.4)', maxHeight: '38%', overflow: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
-          {text}
+      {/* The floated group is anchored to the held bubble, not to a fixed offset — the copy under
+          your finger has to be the message you are acting on. Hidden for the one commit before the
+          layout effect measures it, so the anchored position is the only one ever painted. The
+          whole group opts out of text selection: the press that opened it must not run on into
+          selecting the menu's own labels. */}
+      <div
+        ref={groupRef}
+        data-msg-menu-group="true"
+        style={{
+          position: 'absolute', left: 14, right: 14, top: top ?? MSG_MENU_SAFE_TOP,
+          maxHeight: `calc(100% - ${MSG_MENU_SAFE_TOP + MSG_MENU_SAFE_BOTTOM}px)`,
+          visibility: top == null ? 'hidden' : 'visible',
+          display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-end' : 'flex-start', gap: 9,
+          WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none',
+        } as React.CSSProperties}
+      >
+        <HeldBubbleCopy isUser={isUser} text={text} />
+        {/* Send time, under the floated bubble — carries its own scrim so it stays legible over
+            whatever the blurred conversation happens to be behind it. */}
+        {timeLabel && (
+          <div style={{ flex: 'none', font: `500 10.5px ${MONO}`, color: 'rgba(255,255,255,.92)', background: 'rgba(0,0,0,.42)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>
+            {timeLabel}
+          </div>
+        )}
+        {/* Menu — 复制 / 编辑消息 (46px rows, scheme 7a) */}
+        <div onClick={(e) => e.stopPropagation()} style={{ flex: 'none', width: 196, background: 'rgba(250,250,252,.98)', border: '1px solid rgba(0,0,0,.06)', borderRadius: 13, boxShadow: '0 14px 40px rgba(16,24,40,.25)', overflow: 'hidden' }}>
+          <MsgMenuItem label={copy.menuCopy} icon="copy" onTap={menu.onCopy} onClose={menu.onClose} />
+          {menu.onEdit && <MsgMenuItem label={copy.menuEdit} icon="edit" onTap={menu.onEdit} onClose={menu.onClose} disabled={menu.editDisabled} divided />}
         </div>
-      ) : (
-        <div style={{ maxWidth: '88%', background: 'var(--proto-card)', color: MC.body, borderRadius: 14, padding: '9px 13px', fontSize: 13.5, lineHeight: 1.6, boxShadow: '0 14px 40px rgba(0,0,0,.4)', maxHeight: '38%', overflow: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}>
-          {text}
-        </div>
-      )}
-      {/* Send time, under the floated bubble — carries its own scrim so it stays legible over
-          whatever the blurred conversation happens to be behind it. */}
-      {timeLabel && (
-        <div style={{ font: `500 10.5px ${MONO}`, color: 'rgba(255,255,255,.92)', background: 'rgba(0,0,0,.42)', padding: '3px 8px', borderRadius: 6, letterSpacing: '.02em' }}>
-          {timeLabel}
-        </div>
-      )}
-      {/* Menu — 复制 / 编辑消息 (46px rows, scheme 7a) */}
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 196, background: 'rgba(250,250,252,.98)', border: '1px solid rgba(0,0,0,.06)', borderRadius: 13, boxShadow: '0 14px 40px rgba(16,24,40,.25)', overflow: 'hidden' }}>
-        {item(copy.menuCopy, menu.onCopy)}
-        {menu.onEdit && item(copy.menuEdit, menu.onEdit, menu.editDisabled, true)}
       </div>
     </div>
   );
@@ -670,8 +736,8 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
   editCopy?: MChatEditCopy;
   /** 7b edit mode: the held row rings 编辑中, later rows dim under the 将被回退 badge. */
   editing?: MEditMode | null;
-  /** Long-press on a user/assistant bubble (opens the 7a action menu). */
-  onLongPress?: (rowIndex: number) => void;
+  /** Long-press on a user/assistant bubble (opens the 7a action menu), with the bubble's viewport top. */
+  onLongPress?: (rowIndex: number, anchorTop: number) => void;
   /** Tap on the 已编辑 note (opens the original-message sheet). */
   onShowOriginal?: (edited: { originalText: string; originalTs: string }) => void;
 }): JSX.Element {
@@ -684,7 +750,7 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
         const isEditingRow = editingIdx === i;
         // Long-press affordance (复制 / 编辑消息) is user-messages-only — agent messages carry no copy.
         const canHold = !!editCopy && !!onLongPress && editingIdx == null && row.kind === 'user';
-        const hold = canHold ? longPressHandlers(() => onLongPress!(i)) : null;
+        const hold = canHold ? longPressHandlers((anchorTop) => onLongPress!(i, anchorTop)) : null;
         return (
         <Fragment key={row.kind === 'interaction' && row.detail ? `int-${row.detail.id}` : i}>
           {row.kind === 'divider' && (
@@ -704,6 +770,7 @@ export function MChatStream({ rows, toolCallsUnit, interactions, editCopy, editi
                 )}
                 <div
                   {...(hold ?? {})}
+                  data-msg-bubble={canHold ? i : undefined}
                   style={{
                     background: MC.ink,
                     // A message written into the running turn's backend that the model has not read
@@ -1023,7 +1090,7 @@ export interface MChatViewProps {
   editCopy?: MChatEditCopy;
   /** 7a long-press action menu (held row + actions). */
   msgMenu?: MMsgMenu | null;
-  onLongPress?: (rowIndex: number) => void;
+  onLongPress?: (rowIndex: number, anchorTop: number) => void;
   /** 7b edit mode — marks the stream + swaps the composer chrome to the accent edit bar. */
   editing?: MEditMode | null;
   /** 已编辑 tap → original-message sheet. */
@@ -1217,6 +1284,13 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           charUnit={copy.charUnit}
           tone={props.editing ? 'accent' : props.rejectBar ? 'amber' : 'default'}
         />
+        {/* 7a long-press overlay — an absolute overlay of the BODY region, like the 2b editor above.
+            Anchoring the floated bubble to the held one only works against a box whose top is the
+            top of the transcript; hanging it off the screen root would put the header (and its
+            safe-area inset) inside the coordinate space for no gain. */}
+        {props.msgMenu && props.editCopy && props.rows[props.msgMenu.rowIndex] && (
+          <MsgActionMenu row={props.rows[props.msgMenu.rowIndex]} menu={props.msgMenu} copy={props.editCopy} />
+        )}
       </div>
       {props.moreOpen && (
         <MoreMenu
@@ -1235,9 +1309,6 @@ export function MChatView(props: MChatViewProps): JSX.Element {
           backendUuid={props.backendUuid}
           onClose={props.onSessionIdClose}
         />
-      )}
-      {props.msgMenu && props.editCopy && props.rows[props.msgMenu.rowIndex] && (
-        <MsgActionMenu row={props.rows[props.msgMenu.rowIndex]} menu={props.msgMenu} copy={props.editCopy} />
       )}
       {props.originalSheet && props.editCopy && (
         <MBottomSheet onClose={props.originalSheet.onClose}>
