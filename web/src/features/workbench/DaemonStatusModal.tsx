@@ -101,19 +101,34 @@ export function DaemonStatusModal({ open, onClose }: DaemonStatusModalProps) {
           }}
         >
           <div
+            aria-label="Cortex"
             style={{
               width: 28,
               height: 28,
               borderRadius: 8,
-              background: 'var(--proto-ink)',
-              color: 'var(--ink-solid-fg)',
+              background: 'var(--brand-badge-bg)',
+              border: '1px solid var(--brand-badge-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              font: "600 12px 'IBM Plex Mono',monospace",
             }}
           >
-            cx
+            {/* 25c 皮层弧 C — 两弧一核成 C / 由核向外的信号 (scheme.dc.html §25c) */}
+            <svg width={20} height={20} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <circle cx={33} cy={32} r={6} fill="var(--brand-badge-core)" />
+              <path
+                d="M42.29 23.64A12.5 12.5 0 1 0 42.29 40.36"
+                stroke="var(--brand-badge-arc)"
+                strokeWidth={6}
+                strokeLinecap="round"
+              />
+              <path
+                d="M48.6 17.95A21 21 0 1 0 48.6 46.05"
+                stroke="var(--brand-badge-arc)"
+                strokeWidth={6}
+                strokeLinecap="round"
+              />
+            </svg>
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--proto-ink)' }}>
