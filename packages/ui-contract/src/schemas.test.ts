@@ -11,7 +11,7 @@ const QUERY_SCOPES = [
   'projects.list', 'sessions.list', 'sessions.transcript', 'sessions.pendingInteraction', 'threads.list',
   'threads.get', 'tasks.list', 'tasks.verification', 'schedules.list', 'executions.list', 'executions.get',
   'memory.tree', 'memory.file', 'approvals.list', 'issues.list', 'notes.list', 'cost.summary', 'config.get',
-  'auth.status', 'auth.flowState', 'auth.customProviders', 'hooks.list', 'machines.list', 'skills.list', 'threadTemplates.get', 'threadTemplates.detail', 'system.daemonStatus',
+  'auth.status', 'auth.flowState', 'auth.customProviders', 'hooks.list', 'machines.list', 'machines.detail', 'skills.list', 'threadTemplates.get', 'threadTemplates.detail', 'system.daemonStatus',
   'system.rateLimitStatus',
 ] as const;
 

@@ -4,13 +4,13 @@
 // prior 12c impl (machineCardVm / fmtConnectedZh) so mobile stays single-sourced.
 //
 // 守则11 no-fabrication — every rendered field has a real DTO source or is explicitly omitted:
-//   • per-GPU util / VRAM bars (scheme `GPU0 · 4090 82% · 18.2G`) → NO DTO source → rendered as the
-//     honest `gpuCount` count only (see MMachinesView GAP comment).
+//   • per-GPU util / VRAM bars and the running-run NAME live in the machines.detail probe, which the
+//     container fetches only for the expanded card — they are NOT part of this collapsed-card vm.
 //   • client version (scheme `client v0.4.2`) → NO DTO source → omitted.
-//   • running-execution NAME (scheme `cortex-run exp-024…`) → only `liveRuns` count exists → `N 运行中`.
 //   • heartbeat → fmtConnectedZh(lastHeartbeat); '—' when offline (DTO gives null timestamps offline).
 import type { MachineInfo } from '@cortex-agent/ui-contract';
 import { machineCardVm, fmtConnectedZh } from '@/mobile/screens/mobile-machines-vm';
+import { formatSince } from '@/features/workbench/machine-detail-vm';
 
 export interface MMachineCard {
   name: string;
@@ -23,6 +23,12 @@ export interface MMachineCard {
   liveRuns: number;
   /** Relative heartbeat label ("3s 前" / "5m 前" …); '—' when offline (null lastHeartbeat). */
   heartbeat: string;
+  /** Connection age ("3h 0m"); '' when the machine has never connected. Expand panel only. */
+  connectedFor: string;
+  /** Capabilities advertised on connect; [] when offline. Expand panel only. */
+  capabilities: string[];
+  cortexPath: string | null;
+  sshConfigured: boolean;
 }
 
 export interface MMachinesVm {
@@ -43,6 +49,10 @@ export function buildMMachinesVm(machines: MachineInfo[], now: number = Date.now
       gpuCount: base.gpuCount,
       liveRuns: base.liveRuns,
       heartbeat: fmtConnectedZh(m.lastHeartbeat, now),
+      connectedFor: formatSince(m.connectedAt, now),
+      capabilities: m.capabilities,
+      cortexPath: m.cortexPath,
+      sshConfigured: m.sshConfigured,
     };
   });
   return {

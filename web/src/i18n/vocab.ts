@@ -150,6 +150,16 @@ export const en = {
   mLiveRuns: 'live',
   mGpu: 'GPU',
 
+  // ── Machine card expand: live probe (machines.detail) ──
+  mProbing: 'Probing…',
+  mProbeFailed: 'Probe failed',
+  mNoGpuReported: 'No GPU reported',
+  mOfflineNoTelemetry: 'Offline — no live telemetry',
+  mConnectedFor: 'up',
+  mPath: 'path',
+  mSsh: 'ssh',
+  mUptime: 'uptime',
+
   // ── Group J: desktop i18n migration (workbench / tasks / overview / settings) ──
   wbToday: 'today',
   wbDaemon: 'daemon',
@@ -991,6 +1001,16 @@ export const zh: Record<keyof Vocab, string> = {
   mNoMachines: '暂无机器',
   mLiveRuns: '运行',
   mGpu: 'GPU',
+
+  // ── Machine card expand: live probe (machines.detail) ──
+  mProbing: '探测中…',
+  mProbeFailed: '探测失败',
+  mNoGpuReported: '未检测到 GPU',
+  mOfflineNoTelemetry: '离线 — 无实时数据',
+  mConnectedFor: '已连接',
+  mPath: '路径',
+  mSsh: 'ssh',
+  mUptime: '运行时长',
 
   // ── Group J: desktop i18n migration ──
   wbToday: '今日',

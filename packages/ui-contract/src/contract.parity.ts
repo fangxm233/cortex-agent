@@ -65,6 +65,7 @@ import type {
   profilesUpdateInput,
   profilesRemoveInput,
   machinesListInput,
+  machineDetailInput,
   skillsListInput,
   threadTemplatesGetInput,
   threadTemplatesDetailInput,
@@ -110,6 +111,7 @@ const _authFlowState: QueryParity<'auth.flowState', typeof authFlowStateInput> =
 const _authCustomProviders: QueryParity<'auth.customProviders', typeof authCustomProvidersInput> = true;
 const _hooksList: QueryParity<'hooks.list', typeof hooksListInput> = true;
 const _machinesList: QueryParity<'machines.list', typeof machinesListInput> = true;
+const _machineDetail: QueryParity<'machines.detail', typeof machineDetailInput> = true;
 const _skillsList: QueryParity<'skills.list', typeof skillsListInput> = true;
 const _threadTemplatesGet: QueryParity<'threadTemplates.get', typeof threadTemplatesGetInput> = true;
 const _threadTemplatesDetail: QueryParity<'threadTemplates.detail', typeof threadTemplatesDetailInput> = true;

@@ -73,6 +73,7 @@ import {
   profilesUpdateInput,
   profilesRemoveInput,
   machinesListInput,
+  machineDetailInput,
   skillsListInput,
   threadTemplatesGetInput,
   threadTemplatesDetailInput,
@@ -353,7 +354,10 @@ export function createAppRouter(service: UiService) {
     profiles: profilesRouter(service),
     auth: authRouter(service),
     hooks: hooksRouter(service),
-    machines: router({ list: makeQuery(service, 'machines.list', machinesListInput) }),
+    machines: router({
+      list: makeQuery(service, 'machines.list', machinesListInput),
+      detail: makeQuery(service, 'machines.detail', machineDetailInput),
+    }),
     skills: router({ list: makeQuery(service, 'skills.list', skillsListInput) }),
     threadTemplates: router({
       get: makeQuery(service, 'threadTemplates.get', threadTemplatesGetInput),

@@ -59,4 +59,23 @@ describe('buildMMachinesVm', () => {
     const vm = buildMMachinesVm([mk({ name: 'nimbus', online: false })], NOW);
     expect(vm.cards[0].heartbeat).toBe('—');
   });
+
+  it('carries the expand-panel statics that machines.list already provides', () => {
+    const connectedAt = new Date(NOW - 3 * 3600_000).toISOString();
+    const vm = buildMMachinesVm(
+      [mk({ name: 'atlas', online: true, connectedAt, capabilities: ['rg'], cortexPath: '/srv/.cortex' })],
+      NOW,
+    );
+    expect(vm.cards[0]).toMatchObject({
+      connectedFor: '3h 0m',
+      capabilities: ['rg'],
+      cortexPath: '/srv/.cortex',
+      sshConfigured: true,
+    });
+  });
+
+  it('leaves connectedFor blank when the machine never connected', () => {
+    const vm = buildMMachinesVm([mk({ name: 'nimbus', online: false })], NOW);
+    expect(vm.cards[0].connectedFor).toBe('');
+  });
 });
