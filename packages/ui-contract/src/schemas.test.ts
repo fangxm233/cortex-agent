@@ -24,7 +24,9 @@ const MUTATE_OPS = [
   'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',
   'issues.handle', 'issues.delete', 'notes.add', 'notes.update', 'notes.setCompleted', 'notes.delete',
   'notes.clearCompleted', 'config.set', 'hooks.create', 'hooks.update', 'hooks.setEnabled', 'hooks.remove',
-  'hooks.test', 'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'auth.logout', 'system.restart',
+  'hooks.test', 'profiles.create', 'profiles.update', 'profiles.remove',
+  'auth.startLogin', 'auth.respondPrompt', 'auth.cancelFlow', 'auth.logout',
+  'system.restart', 'system.clearRateLimit',
 ] as const;
 
 test('every QueryScope has an input schema', () => {

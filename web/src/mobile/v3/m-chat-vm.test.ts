@@ -14,10 +14,20 @@ import {
   buildMobileChatRows,
 } from './m-chat-vm';
 
+// The settings-editor fields (provider / claudeBackend / extraOption / extraEnvKeys / fallbackCount)
+// play no part in the chat chip, so the factory supplies their empty shape.
+function profile(over: Partial<ConfigProfileEntry> & Pick<ConfigProfileEntry, 'name'>): ConfigProfileEntry {
+  return {
+    model: null, backend: null, mode: null, thinking: null,
+    provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+    ...over,
+  };
+}
+
 const profiles: ConfigProfileEntry[] = [
-  { name: 'default', model: 'sonnet-4.5', backend: 'claude', mode: null, thinking: 'high' },
-  { name: 'cheap', model: 'haiku-4', backend: 'claude', mode: null, thinking: null },
-  { name: 'deep', model: 'opus-4.5', backend: 'pi', mode: null, thinking: null },
+  profile({ name: 'default', model: 'sonnet-4.5', backend: 'claude', thinking: 'high' }),
+  profile({ name: 'cheap', model: 'haiku-4', backend: 'claude' }),
+  profile({ name: 'deep', model: 'opus-4.5', backend: 'pi' }),
 ];
 
 describe('chatHeaderStatus', () => {
@@ -81,8 +91,8 @@ describe('profileChipLabel', () => {
     expect(profileChipLabel('default', profiles)).toBe('default · sonnet-4.5');
   });
   it('falls back to backend when model is null, then to bare name', () => {
-    expect(profileChipLabel('x', [{ name: 'x', model: null, backend: 'claude', mode: null, thinking: null }])).toBe('x · claude');
-    expect(profileChipLabel('x', [{ name: 'x', model: null, backend: null, mode: null, thinking: null }])).toBe('x');
+    expect(profileChipLabel('x', [profile({ name: 'x', backend: 'claude' })])).toBe('x · claude');
+    expect(profileChipLabel('x', [profile({ name: 'x' })])).toBe('x');
     expect(profileChipLabel('missing', profiles)).toBe('missing');
   });
 });
@@ -92,8 +102,8 @@ describe('profileSub / buildProfileSheetItems', () => {
     expect(profileSub(profiles[0])).toBe('sonnet-4.5 · high · claude');
     // no thinking → just model · backend
     expect(profileSub(profiles[1])).toBe('haiku-4 · claude');
-    expect(profileSub({ name: 'x', model: null, backend: 'claude', mode: null, thinking: null })).toBe('claude');
-    expect(profileSub({ name: 'x', model: 'm', backend: null, mode: null, thinking: 'medium' })).toBe('m · medium');
+    expect(profileSub(profile({ name: 'x', backend: 'claude' }))).toBe('claude');
+    expect(profileSub(profile({ name: 'x', model: 'm', thinking: 'medium' }))).toBe('m · medium');
   });
   it('marks the current profile', () => {
     const items = buildProfileSheetItems(profiles, 'cheap');

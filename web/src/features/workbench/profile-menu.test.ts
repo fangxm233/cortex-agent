@@ -7,11 +7,21 @@ import { describe, it, expect } from 'vitest';
 import type { ConfigProfileEntry } from '@cortex-agent/ui-contract';
 import { buildProfileOptions, currentBackendOf } from './profile-menu';
 
+// The settings-editor fields (provider / claudeBackend / extraOption / extraEnvKeys / fallbackCount)
+// play no part in the menu, so the factory supplies their empty shape and the fixtures stay readable.
+function profile(over: Partial<ConfigProfileEntry> & Pick<ConfigProfileEntry, 'name'>): ConfigProfileEntry {
+  return {
+    model: null, backend: null, mode: null, thinking: null,
+    provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+    ...over,
+  };
+}
+
 const profiles: ConfigProfileEntry[] = [
-  { name: 'plan', model: 'claude-opus-4-8', backend: 'claude', mode: 'plan', thinking: 'high' },
-  { name: 'execute', model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan', thinking: null },
-  { name: 'gpt-execute', model: 'gpt-5.4', backend: 'pi', mode: 'openai-codex', thinking: null },
-  { name: 'deepseek-pro', model: 'deepseek-v4-pro', backend: 'pi', mode: 'deepseek', thinking: 'medium' },
+  profile({ name: 'plan', model: 'claude-opus-4-8', backend: 'claude', mode: 'plan', thinking: 'high' }),
+  profile({ name: 'execute', model: 'claude-sonnet-4-6', backend: 'claude', mode: 'plan' }),
+  profile({ name: 'gpt-execute', model: 'gpt-5.4', backend: 'pi', mode: 'openai-codex' }),
+  profile({ name: 'deepseek-pro', model: 'deepseek-v4-pro', backend: 'pi', mode: 'deepseek', thinking: 'medium' }),
 ];
 
 describe('buildProfileOptions', () => {

@@ -130,8 +130,14 @@ test('readConfigSnapshot maps profiles / machines / mcp / thread-templates / hoo
 
   assert.equal(snap.profiles!.defaultProfile, 'plan');
   assert.deepEqual(snap.profiles!.profiles, [
-    { name: 'plan', model: 'm1', backend: 'claude', mode: 'plan', thinking: 'high' },
-    { name: 'fast', model: 'm2', backend: 'pi', mode: 'plan', thinking: null },
+    {
+      name: 'plan', model: 'm1', backend: 'claude', mode: 'plan', thinking: 'high',
+      provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+    },
+    {
+      name: 'fast', model: 'm2', backend: 'pi', mode: 'plan', thinking: null,
+      provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+    },
   ]);
 
   const lab2 = snap.machines.find((m) => m.name === 'lab2');
@@ -168,6 +174,39 @@ test('readConfigSnapshot omits persisted profiles with unsupported backends', as
         pi: { model: 'm-pi', backend: 'pi', mode: 'deepseek' },
       },
     }),
+test('readConfigSnapshot carries the editable profile fields but never an extraEnv VALUE', async () => {
+  const { configDir } = await makeFixture();
+  await fs.writeFile(
+    path.join(configDir, 'profiles.json'),
+    JSON.stringify({
+      defaultProfile: 'rich',
+      profiles: {
+        rich: {
+          model: 'm-rich',
+          backend: 'pi',
+          mode: 'deepseek',
+          provider: 'deepseek',
+          claudeBackend: 'tui',
+          extraOption: { '--thinking': 'xhigh', '--bad': 7 },
+          extraEnv: { PI_TOKEN: 'super-secret', OTHER: 'also-secret' },
+          fallback: [{ model: 'a', provider: 'deepseek' }, { model: 'b', provider: 'deepseek' }],
+        },
+      },
+    }),
+  );
+
+  const snap = await readConfigSnapshot(configDir);
+  const rich = snap.profiles!.profiles[0];
+  assert.equal(rich.provider, 'deepseek');
+  assert.equal(rich.claudeBackend, 'tui');
+  assert.deepEqual(rich.extraOption, { '--thinking': 'xhigh' }, 'non-string option values are dropped');
+  assert.deepEqual(rich.extraEnvKeys, ['OTHER', 'PI_TOKEN']);
+  assert.equal(rich.fallbackCount, 2);
+  const serialized = JSON.stringify(snap);
+  assert.ok(!serialized.includes('super-secret'), 'extraEnv value leaked into the snapshot');
+  assert.ok(!serialized.includes('also-secret'), 'extraEnv value leaked into the snapshot');
+});
+
   );
 
   const snap = await readConfigSnapshot(configDir);

@@ -12,11 +12,11 @@ import { useVocab } from '@/i18n';
 import { getSettingsNav, getSectionMeta, type SettingsSectionKey } from './settings-nav';
 import {
   PlatformPanel,
-  ProfilesPanel,
   MachinesPanel,
   TemplatesPanel,
   McpPanel,
 } from './SettingsPanels';
+import { ProfilesPanel } from './ProfilesPanel';
 import { AdvancedPanel, NotificationsPanel } from './RuntimeSettingsPanels';
 import { BudgetPanel } from './BudgetPanel';
 import { HooksPanel } from './HooksPanel';

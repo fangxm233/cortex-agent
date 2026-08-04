@@ -17,9 +17,16 @@ function snap(over: Partial<ConfigSnapshot> = {}): ConfigSnapshot {
     budget: { daily_usd: 10, monthly_usd: 200 },
     profiles: {
       defaultProfile: 'default',
+      // The settings-editor fields play no part in the mobile summary; they carry their empty shape.
       profiles: [
-        { name: 'default', model: 'sonnet-4.5', backend: 'claude', mode: null, thinking: 'high' },
-        { name: 'fast', model: 'haiku', backend: 'claude', mode: null, thinking: null },
+        {
+          name: 'default', model: 'sonnet-4.5', backend: 'claude', mode: null, thinking: 'high',
+          provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+        },
+        {
+          name: 'fast', model: 'haiku', backend: 'claude', mode: null, thinking: null,
+          provider: null, claudeBackend: null, extraOption: {}, extraEnvKeys: [], fallbackCount: 0,
+        },
       ],
     },
     machines: [],

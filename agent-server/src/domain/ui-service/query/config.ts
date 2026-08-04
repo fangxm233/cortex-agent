@@ -70,6 +70,14 @@ function parseProfiles(raw: any): ConfigProfiles | null {
   });
   const requestedDefault = typeof raw.defaultProfile === 'string' ? raw.defaultProfile : null;
   return {
+// extraOption is CLI flags and is returned whole — the settings editor has to round-trip it.
+function parseStringMap(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>).filter((pair): pair is [string, string] => typeof pair[1] === 'string'),
+  );
+}
+
     defaultProfile: requestedDefault && profiles.some((profile) => profile.name === requestedDefault)
       ? requestedDefault
       : null,
@@ -80,6 +88,14 @@ function parseProfiles(raw: any): ConfigProfiles | null {
 function parseMachines(raw: any): ConfigMachine[] {
   if (!raw || typeof raw !== 'object') return [];
   return Object.entries(raw).map(([name, m]: [string, any]) => ({
+      provider: typeof p?.provider === 'string' ? p.provider : null,
+      claudeBackend: p?.claudeBackend === 'print' || p?.claudeBackend === 'tui' ? p.claudeBackend : null,
+      extraOption: parseStringMap(p?.extraOption),
+      // KEYS ONLY — an extraEnv value is injected into the agent environment and may be a token.
+      extraEnvKeys: p?.extraEnv && typeof p.extraEnv === 'object' && !Array.isArray(p.extraEnv)
+        ? Object.keys(p.extraEnv).sort()
+        : [],
+      fallbackCount: Array.isArray(p?.fallback) ? p.fallback.length : 0,
     name,
     cortexPath: typeof m?.cortexPath === 'string' ? m.cortexPath : null,
     gpuCount: typeof m?.gpuCount === 'number' ? m.gpuCount : null,
