@@ -63,6 +63,9 @@ export interface RunAgentOptions {
   cliPath?: string;
   /** Compiled benchmark policy guard for this role; present replaces the ambient hook surface. */
   benchmarkPolicyGuard?: AgentSpawnConfig['benchmarkPolicyGuard'];
+  /** Benchmark thread slot this step runs as. Selects the trial's compiled role before the spawn
+   *  config is built, and is never written into it. */
+  benchmarkAgentSlot?: string;
   /** Exact allowlisted child environment for an isolated trial; replaces host inheritance. */
   pinnedEnv?: NodeJS.ProcessEnv;
   /** Absolute trial deadline a backend derives its in-process call budget from (§5.6 P5). */
