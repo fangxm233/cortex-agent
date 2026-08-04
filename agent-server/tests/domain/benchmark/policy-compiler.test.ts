@@ -760,6 +760,13 @@ it('refuses any compiled cortex role whose guard cannot be derived', () => {
   configureCoderReview(crossNamespace);
   crossNamespace.roles['benchmark-reviewer'].tools = ['read', 'write'];
   expectFailure(crossNamespace, 'policy_guard_absent', 30);
+
+  // GS6 requires the derived allow-list's elements to be UNIQUE, and the arm schema does not:
+  // `tools: z.array(z.string().min(1)).min(1)` admits a repeat, so this branch is reachable from a
+  // phase-A document and must be shown to fire rather than asserted to.
+  const repeated = resolution();
+  repeated.roles.parent.tools = ['Read', 'Write', 'Read'];
+  expectFailure(repeated, 'policy_guard_absent', 30);
 });
 
 it('fails a vendor baseline, which declares no backend to derive a guard from', () => {
