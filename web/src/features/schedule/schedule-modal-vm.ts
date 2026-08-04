@@ -200,7 +200,7 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-function humanizeDelta(ms: number): string {
+export function humanizeDelta(ms: number): string {
   const totalMin = Math.max(0, Math.round(ms / 60_000));
   if (totalMin < 60) return `${totalMin}m`;
   const h = Math.floor(totalMin / 60);

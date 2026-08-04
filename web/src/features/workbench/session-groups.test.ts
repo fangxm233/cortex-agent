@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import { en } from '@/i18n';
-import { groupSessions, groupRailItems, sessionMeta, projectInitials } from './session-groups';
+import { groupSessions, groupRailItems, sessionMeta, sessionStamp, scheduleTitle, projectInitials } from './session-groups';
 
 function mk(p: Partial<SessionInfo> & { sessionId: string }): SessionInfo {
   const created = p.createdAt ?? '2026-07-06T00:00:00.000Z';
@@ -247,5 +247,19 @@ describe('groupRailItems', () => {
     const kinds = groups.flatMap((g) => g.items.map((i) => (i.kind === 'schedule-group' ? i.scheduleId : 'session')));
     expect(kinds).toEqual(['sch1', 'sch2']);
     expect(groups.map((g) => g.label)).toEqual(['TODAY', 'YESTERDAY']);
+  });
+});
+
+describe('sessionStamp / scheduleTitle', () => {
+  it('sessionStamp is the raw time stamp — no "from schedule" suffix even for runs', () => {
+    expect(sessionStamp(run({ sessionId: 's', lastUsedAt: new Date(2026, 6, 6, 7, 31).toISOString() }), now)).toBe('07:31');
+    expect(sessionStamp(run({ sessionId: 't', lastUsedAt: older.toISOString() }), now)).toBe('07-01 12:00');
+  });
+
+  it('scheduleTitle prefers the schedule message, then run label, then session name', () => {
+    const latest = run({ sessionId: 'r', label: 'run label', name: 'cortex-9' });
+    expect(scheduleTitle('scan arXiv', latest)).toBe('scan arXiv');
+    expect(scheduleTitle(undefined, latest)).toBe('run label');
+    expect(scheduleTitle('  ', run({ sessionId: 'r2', label: null, name: 'cortex-9' }))).toBe('cortex-9');
   });
 });

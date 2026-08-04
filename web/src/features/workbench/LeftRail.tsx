@@ -1,13 +1,21 @@
 // input:  tRPC data, shared project/session/modal contexts
-// output: desktop rail with session and reserved notes shortcuts
+// output: desktop rail with sessions, schedule groups, notes
 // pos:    Owns workbench navigation and global-overlay triggers
 // >>> 一旦我被更新，务必更新我的开头注释与所属文件夹 CORTEX.md <<<
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { SessionInfo } from '@cortex-agent/ui-contract';
+import type { ScheduleInfo, SessionInfo } from '@cortex-agent/ui-contract';
 import { useTRPC } from '@/lib/trpc';
-import { groupSessions, sessionMeta, groupLabel } from './session-groups';
+import {
+  groupRailItems,
+  groupLabel,
+  scheduleTitle,
+  sessionMeta,
+  sessionStamp,
+  type RailItem,
+} from './session-groups';
+import { useScheduleModal } from '@/features/schedule/ScheduleModalProvider';
 import {
   awaitingInputCountByProject,
   runningCountByProject,
@@ -50,6 +58,16 @@ function initialZoneH(): number {
   }
 }
 
+// Clock glyph marking scheduled runs / schedule groups (design 27a: 时钟 = scheduled).
+function ClockIcon({ size, color }: { size: number; color: string }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke={color} strokeWidth={1.6} style={{ flex: 'none' }}>
+      <circle cx="7" cy="7" r="5.6" />
+      <path d="M7 4v3.2l2.2 1.3" />
+    </svg>
+  );
+}
+
 export function LeftRail(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
@@ -70,11 +88,23 @@ export function LeftRail(): JSX.Element {
   // else the derived default (most-recent session's project, else first listed project).
   const { currentProjectId: activeProjectId, setCurrentProject } = useCurrentProject();
 
-  // Only user-initiated conversations belong in the left rail, scoped to the current project so
-  // switching project switches the session list (backend filters by projectId).
+  // User-initiated conversations + scheduled runs share the rail timeline (design 27a-B); both are
+  // scoped to the current project so switching project switches the session list (backend filters
+  // by projectId). Runs of one schedule collapse into a group row via groupRailItems.
   const sessionsQuery = useQuery(
     trpc.sessions.list.queryOptions({ origin: 'direct', projectId: activeProjectId ?? undefined }),
   );
+  const scheduledSessionsQuery = useQuery(
+    trpc.sessions.list.queryOptions({ origin: 'scheduled', projectId: activeProjectId ?? undefined }),
+  );
+  // Schedule records give group rows their real name (message) + the edit-modal prefill.
+  const schedulesQuery = useQuery(trpc.schedules.list.queryOptions({}));
+  const schedulesById = useMemo(() => {
+    const m = new Map<string, ScheduleInfo>();
+    for (const s of schedulesQuery.data ?? []) m.set(s.id, s);
+    return m;
+  }, [schedulesQuery.data]);
+  const scheduleModal = useScheduleModal();
   // Keep every row's running dot live: one unscoped session.status subscription → refetch the list.
   useSessionsLiveSync();
 
@@ -202,10 +232,29 @@ export function LeftRail(): JSX.Element {
 
   // One `now` feeds both the bucketing and the per-row meta, so a row can never sit under EARLIER
   // while its meta is computed against a later clock (or the reverse).
+  const scheduledSessions = scheduledSessionsQuery.data ?? [];
   const { groups, now } = useMemo(() => {
     const now = Date.now();
-    return { groups: groupSessions(sessions, now), now };
-  }, [sessions]);
+    return { groups: groupRailItems([...sessions, ...scheduledSessions], now), now };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, scheduledSessionsQuery.data]);
+
+  // Per-schedule expand state for group rows: expanded shows the 3 most recent runs; the
+  // "all N runs" footer widens it to the full list. Collapses again on re-click of the head.
+  const [expandedSchedules, setExpandedSchedules] = useState<Set<string>>(new Set());
+  const [showAllSchedules, setShowAllSchedules] = useState<Set<string>>(new Set());
+  const toggleSchedule = (id: string) => {
+    setExpandedSchedules((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        setShowAllSchedules((all) => { const n = new Set(all); n.delete(id); return n; });
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   // Selection is the shared cross-pane state: clicking a row re-points the center chat.
   const { selectedSessionId: effectiveSelected, setSelectedSession } = useSelectedSession();
@@ -253,6 +302,194 @@ export function LeftRail(): JSX.Element {
     onMouseLeave: () => setHover((h) => (h === key ? null : h)),
   });
   const isHover = (key: string) => hover === key;
+
+  // Plain session row — manual conversations AND single scheduled runs (a lone / legacy / adopted
+  // run stays a session row; scheduled origin adds the clock glyph, design 27a).
+  const renderSessionRow = (s: SessionInfo) => {
+    const active = s.sessionId === effectiveSelected;
+    const running = s.running;
+    const awaitingInput = s.awaitingInput;
+    const scheduled = s.origin === 'scheduled';
+    const rowKey = 'sess:' + s.sessionId;
+    const bg = active ? 'var(--proto-line-2)' : isHover(rowKey) ? 'var(--proto-gray)' : 'transparent';
+    return (
+      <div
+        key={s.sessionId}
+        {...hp(rowKey)}
+        className="sess-row"
+        data-session-id={s.sessionId}
+        onClick={() => onSelectSession(s.sessionId)}
+        style={{ borderRadius: 8, padding: '8px 10px', cursor: 'pointer', background: bg, position: 'relative' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          {(running || awaitingInput) && (
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                background: awaitingInput ? 'var(--proto-amber)' : 'var(--proto-accent)',
+                flex: 'none',
+                animation: 'cxpulse 1.6s ease-in-out infinite',
+              }}
+            />
+          )}
+          {scheduled && <ClockIcon size={11} color={s.unread ? 'var(--proto-accent)' : 'var(--proto-muted-3)'} />}
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: 12.5,
+              // Unread emphasis (honest addition): unread rows keep the full ink +
+              // semibold; read rows soften so unread reads darker at a glance.
+              fontWeight: active || s.unread ? 600 : 400,
+              color: s.unread || active ? 'var(--proto-ink)' : 'var(--proto-muted)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {s.label ?? s.name}
+          </span>
+          {scheduled && s.unread && (
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />
+          )}
+          <span
+            className="sess-more"
+            style={{
+              flex: 'none',
+              color: 'var(--proto-muted-3)',
+              fontSize: 13,
+              letterSpacing: 1,
+              padding: '0 4px',
+              borderRadius: 5,
+              lineHeight: 1.2,
+            }}
+          >
+            ⋯
+          </span>
+        </div>
+        <div
+          style={{
+            font: `400 10px ${mono}`,
+            color: active ? 'var(--proto-muted-2)' : 'var(--proto-faint)',
+            marginTop: 3,
+            paddingLeft: running ? 14 : scheduled ? 18 : 0,
+          }}
+        >
+          {sessionMeta(L, s, now)}
+        </div>
+      </div>
+    );
+  };
+
+  // Collapsed schedule-group row (design 27a-B): clock + schedule name + ×N + caret; expanding
+  // reveals the 3 most recent runs (each opens its session), an "all N runs" widener, and a
+  // "schedule ↗" link into the edit modal.
+  const renderScheduleGroup = (item: Extract<RailItem, { kind: 'schedule-group' }>) => {
+    const sched = schedulesById.get(item.scheduleId);
+    const title = scheduleTitle(sched?.message, item.latest);
+    const expanded = expandedSchedules.has(item.scheduleId);
+    const showAll = showAllSchedules.has(item.scheduleId);
+    const visibleRuns = showAll ? item.runs : item.runs.slice(0, 3);
+    const activeInside = item.runs.some((r) => r.sessionId === effectiveSelected);
+    const rowKey = 'schedgrp:' + item.scheduleId;
+    return (
+      <div
+        key={'schedgrp:' + item.scheduleId}
+        data-schedule-group={item.scheduleId}
+        style={
+          expanded
+            ? { border: '1px solid var(--proto-line-2)', background: 'var(--proto-card)', borderRadius: 9, margin: '2px 0', padding: '8px 10px 6px' }
+            : { borderRadius: 8, padding: '8px 10px', background: activeInside ? 'var(--proto-line-2)' : isHover(rowKey) ? 'var(--proto-gray)' : 'transparent' }
+        }
+      >
+        <div
+          {...hp(rowKey)}
+          onClick={() => toggleSchedule(item.scheduleId)}
+          style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer' }}
+        >
+          <ClockIcon size={11} color={item.unread ? 'var(--proto-accent)' : 'var(--proto-muted-3)'} />
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: 12.5,
+              fontWeight: item.unread ? 600 : 400,
+              color: item.unread ? 'var(--proto-ink)' : 'var(--proto-muted)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {title}
+          </span>
+          {!expanded && item.unread && (
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />
+          )}
+          <span style={{ font: `500 9px ${mono}`, color: 'var(--proto-muted-3)', flex: 'none' }}>×{item.runs.length}</span>
+          <span style={{ fontSize: 8.5, color: 'var(--proto-muted-3)', flex: 'none' }}>{expanded ? '▾' : '▸'}</span>
+        </div>
+        {!expanded && (
+          <div style={{ font: `400 10px ${mono}`, color: 'var(--proto-faint)', marginTop: 3, paddingLeft: 18 }}>
+            {sessionStamp(item.latest, now)}
+          </div>
+        )}
+        {expanded && (
+          <div style={{ marginTop: 5, paddingLeft: 18, display: 'flex', flexDirection: 'column' }}>
+            {visibleRuns.map((r) => {
+              const runActive = r.sessionId === effectiveSelected;
+              return (
+                <div
+                  key={r.sessionId}
+                  data-session-id={r.sessionId}
+                  onClick={() => onSelectSession(r.sessionId)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3.5px 0', cursor: 'pointer' }}
+                >
+                  <span style={{ font: `400 10px ${mono}`, color: r.unread || runActive ? 'var(--proto-muted)' : 'var(--proto-faint)' }}>
+                    {sessionStamp(r, now)}
+                  </span>
+                  {r.unread && (
+                    <span style={{ marginLeft: 'auto', width: 6, height: 6, borderRadius: '50%', background: 'var(--proto-accent)', flex: 'none' }} />
+                  )}
+                </div>
+              );
+            })}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '4px 0 2px',
+                borderTop: '1px solid var(--proto-line)',
+                marginTop: 2,
+              }}
+            >
+              {item.runs.length > 3 && !showAll ? (
+                <span
+                  onClick={() => setShowAllSchedules((prev) => new Set(prev).add(item.scheduleId))}
+                  style={{ fontSize: 10, fontWeight: 600, color: 'var(--proto-muted-2)', cursor: 'pointer' }}
+                >
+                  {L.wbAllRuns.replace('{n}', String(item.runs.length))}
+                </span>
+              ) : (
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--proto-faint)' }}>
+                  {L.wbAllRuns.replace('{n}', String(item.runs.length))}
+                </span>
+              )}
+              {sched && (
+                <span
+                  onClick={() => scheduleModal.openEdit(sched)}
+                  style={{ marginLeft: 'auto', font: `400 9px ${mono}`, color: 'var(--proto-muted-3)', cursor: 'pointer' }}
+                >
+                  {L.wbScheduleLink}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -616,82 +853,9 @@ export function LeftRail(): JSX.Element {
               >
                 {groupLabel(L, g.label)}
               </div>
-              {g.items.map((s: SessionInfo) => {
-                const active = s.sessionId === effectiveSelected;
-                // Real running snapshot (SessionInfo.running), kept fresh by useSessionsLiveSync.
-                // Covers both a live turn and the web bg-hold — both render blue.
-                const running = s.running;
-                // Needs-user-action snapshot: a pending ask-user question / plan approval. This is
-                // the ONLY state that turns the dot amber; running + background stay blue.
-                const awaitingInput = s.awaitingInput;
-                const rowKey = 'sess:' + s.sessionId;
-                const bg = active ? 'var(--proto-line-2)' : isHover(rowKey) ? 'var(--proto-gray)' : 'transparent';
-                return (
-                  <div
-                    key={s.sessionId}
-                    {...hp(rowKey)}
-                    className="sess-row"
-                    data-session-id={s.sessionId}
-                    onClick={() => onSelectSession(s.sessionId)}
-                    style={{ borderRadius: 8, padding: '8px 10px', cursor: 'pointer', background: bg, position: 'relative' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                      {(running || awaitingInput) && (
-                        <span
-                          style={{
-                            width: 7,
-                            height: 7,
-                            borderRadius: '50%',
-                            background: awaitingInput ? 'var(--proto-amber)' : 'var(--proto-accent)',
-                            flex: 'none',
-                            animation: 'cxpulse 1.6s ease-in-out infinite',
-                          }}
-                        />
-                      )}
-                      <span
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          fontSize: 12.5,
-                          // Unread emphasis (honest addition): unread rows keep the full ink +
-                          // semibold; read rows soften so unread reads darker at a glance.
-                          fontWeight: active || s.unread ? 600 : 400,
-                          color: s.unread || active ? 'var(--proto-ink)' : 'var(--proto-muted)',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {s.label ?? s.name}
-                      </span>
-                      <span
-                        className="sess-more"
-                        style={{
-                          flex: 'none',
-                          color: 'var(--proto-muted-3)',
-                          fontSize: 13,
-                          letterSpacing: 1,
-                          padding: '0 4px',
-                          borderRadius: 5,
-                          lineHeight: 1.2,
-                        }}
-                      >
-                        ⋯
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        font: `400 10px ${mono}`,
-                        color: active ? 'var(--proto-muted-2)' : 'var(--proto-faint)',
-                        marginTop: 3,
-                        paddingLeft: running ? 14 : 0,
-                      }}
-                    >
-                      {sessionMeta(L, s, now)}
-                    </div>
-                  </div>
-                );
-              })}
+              {g.items.map((item: RailItem) =>
+                item.kind === 'session' ? renderSessionRow(item.session) : renderScheduleGroup(item),
+              )}
             </div>
           ))}
         </div>

@@ -1,3 +1,7 @@
+// input:  SessionInfo DTO, i18n Vocab
+// output: groupSessions/groupRailItems + row meta helpers
+// pos:    Left-rail session-list view model (desktop + mobile)
+// >>> If I am updated, update my header comment and the parent folder's CORTEX.md <<<
 import type { SessionInfo } from '@cortex-agent/ui-contract';
 import type { Vocab } from '@/i18n';
 
@@ -141,6 +145,12 @@ function pad2(n: number): string {
 // before yesterday, by the same local-calendar-day test `groupSessions` uses — carry the date too,
 // as `MM-DD HH:MM`, widening to `YYYY-MM-DD HH:MM` once the year no longer matches the current one.
 export function sessionMeta(L: Vocab, s: SessionInfo, now: Date | number = Date.now()): string {
+  const stamp = sessionStamp(s, now);
+  return s.kind === 'scheduled' ? stamp + ' · ' + L.wbFromSchedule : stamp;
+}
+
+/** Raw time stamp of a session (no kind marker) — schedule-group run sub-rows use this directly. */
+export function sessionStamp(s: SessionInfo, now: Date | number = Date.now()): string {
   const nowMs = typeof now === 'number' ? now : now.getTime();
   const ms = effectiveMs(s);
   const d = new Date(ms);
@@ -150,8 +160,13 @@ export function sessionMeta(L: Vocab, s: SessionInfo, now: Date | number = Date.
     ? (d.getFullYear() === new Date(nowMs).getFullYear() ? '' : d.getFullYear() + '-') +
       pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' '
     : '';
-  const stamp = date + clock;
-  return s.kind === 'scheduled' ? stamp + ' · ' + L.wbFromSchedule : stamp;
+  return date + clock;
+}
+
+/** Group-row title: the schedule's message (its identity), else the run's label/session name
+ *  (covers a deleted schedule whose runs remain). */
+export function scheduleTitle(scheduleMessage: string | undefined, latest: SessionInfo): string {
+  return scheduleMessage?.trim() || latest.label || latest.name;
 }
 
 // Avatar initials from a project id: first letter of the first two `-`/`_`-split segments, else the

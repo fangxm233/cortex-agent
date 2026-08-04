@@ -9,4 +9,4 @@ Distinct from the terminal UI session layer that lives in tui-session.
 | session-registry.ts | adapter | maps short session names to session ids |
 | session-backup.ts | util | snapshots and restores recorded transcript paths |
 | session-hooks.ts | core | dispatches session hooks, diagnostics and injection |
-| session-lifecycle.ts | core | registers, attaches and resets sessions |
+| session-lifecycle.ts | core | registers, attaches, adopts and resets sessions |

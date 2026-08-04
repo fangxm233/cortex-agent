@@ -12,7 +12,7 @@ Write side of the UI service — one handler module per domain area the UI is al
 | config.ts | mutate | writes budget, default profile and runtime settings |
 | profiles.ts | mutate | creates, edits and removes profiles.json entries |
 | hooks.ts | mutate | creates, edits, toggles, removes and tests hooks |
-| schedules.ts | mutate | adds, pauses, resumes, and removes schedules |
+| schedules.ts | mutate | adds, updates, pauses, resumes, removes schedules |
 | tasks.ts | mutate | claims, completes, and blocks tasks |
 | threads.ts | mutate | cancels a running thread |
 | executions.ts | mutate | cancels a running execution |

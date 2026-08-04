@@ -845,3 +845,43 @@ describe('messageTimeLabel', () => {
     expect(messageTimeLabel('not-a-date', now)).toBeNull();
   });
 });
+
+// ── scheduled-run trigger card (design 27b: first row is not a user bubble) ──
+
+describe('buildTranscriptRows triggerCard', () => {
+  const schedTx = () => tx([
+    {
+      turnIndex: 0,
+      messages: [
+        { type: 'user', text: '[Scheduled Task] Scan arXiv for new papers', toolName: null, toolInput: null, ts: T, elapsedMs: null },
+        { type: 'assistant', text: 'found 3', toolName: null, toolInput: null, ts: T, elapsedMs: 1000 },
+      ],
+    },
+    {
+      turnIndex: 1,
+      messages: [
+        { type: 'user', text: 'follow up please', toolName: null, toolInput: null, ts: T, elapsedMs: null },
+      ],
+    },
+  ]);
+
+  it('turns the first [Scheduled Task] user row into a trigger row with the prefix stripped', () => {
+    const rows = buildTranscriptRows(schedTx(), [], { triggerCard: true });
+    expect(rows[1]).toEqual({ kind: 'trigger', message: 'Scan arXiv for new papers', firedTs: T });
+    expect(rows.filter((r) => r.kind === 'user').map((r) => (r as any).text)).toEqual(['follow up please']);
+  });
+
+  it('does nothing without the option (manual sessions never see trigger rows)', () => {
+    const rows = buildTranscriptRows(schedTx(), []);
+    expect(rows[1].kind).toBe('user');
+  });
+
+  it('leaves a first user row without the prefix as a plain bubble', () => {
+    const rows = buildTranscriptRows(
+      tx([{ turnIndex: 0, messages: [{ type: 'user', text: 'plain start', toolName: null, toolInput: null, ts: T, elapsedMs: null }] }]),
+      [],
+      { triggerCard: true },
+    );
+    expect(rows[1]).toEqual({ kind: 'user', text: 'plain start', turnIndex: 0, ts: T });
+  });
+});
