@@ -74,6 +74,8 @@ export type {
   NotesClearCompletedArgs,
   SessionsAnswerQuestionArgs,
   SessionsRespondPlanArgs,
+  SessionsCancelResumeArgs,
+  SessionsCancelResumeReturn,
   SessionsPendingInteractionParams,
   SessionsPendingInteraction,
   SessionsInteractionMutateReturn,

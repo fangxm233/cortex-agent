@@ -18,9 +18,10 @@ const QUERY_SCOPES = [
 const MUTATE_OPS = [
   'projects.create', 'sessions.create', 'sessions.send', 'sessions.cancel', 'sessions.compact', 'sessions.setProfile',
   'sessions.createAndSend', 'sessions.markRead', 'sessions.answerQuestion', 'sessions.respondPlan',
+  'sessions.cancelResume',
   'sessions.rewind',
   'threads.cancel', 'executions.cancel', 'schedules.pause', 'schedules.resume',
-  'schedules.remove', 'schedules.add', 'tasks.claim', 'tasks.unclaim', 'tasks.complete',
+  'schedules.remove', 'schedules.add', 'schedules.update', 'tasks.claim', 'tasks.unclaim', 'tasks.complete',
   'tasks.block', 'tasks.unblock', 'approvals.approve', 'approvals.reject', 'approvals.request',
   'issues.handle', 'issues.delete', 'notes.add', 'notes.update', 'notes.setCompleted', 'notes.delete',
   'notes.clearCompleted', 'config.set', 'hooks.create', 'hooks.update', 'hooks.setEnabled', 'hooks.remove',

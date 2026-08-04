@@ -121,6 +121,7 @@ export type MutateOp =
   | 'sessions.markRead'
   | 'sessions.answerQuestion'
   | 'sessions.respondPlan'
+  | 'sessions.cancelResume'
   | 'sessions.rewind'
   | 'threads.cancel'
   | 'executions.cancel'
@@ -411,6 +412,18 @@ export interface SessionsRespondPlanArgs {
  *  refetches the transcript to show the final state. */
 export interface SessionsInteractionMutateReturn {
   outcome: 'resolved' | 'already-resolved';
+}
+
+/** Args for `sessions.cancelResume`: decline the auto-resume promised when a rate limit
+ *  interrupted this session's turn. */
+export interface SessionsCancelResumeArgs {
+  sessionId: string;
+}
+
+/** `cancelled: false` means nothing was queued any more — the window reset and the turn
+ *  already resumed. A late click is a no-op, not an error. */
+export interface SessionsCancelResumeReturn {
+  cancelled: boolean;
 }
 
 /** Args for `sessions.rewind` (message edit + rewind, desktop design 23 / mobile 7): replace the
@@ -1823,6 +1836,7 @@ export interface MutateArgsMap {
   'sessions.markRead': SessionsMarkReadArgs;
   'sessions.answerQuestion': SessionsAnswerQuestionArgs;
   'sessions.respondPlan': SessionsRespondPlanArgs;
+  'sessions.cancelResume': SessionsCancelResumeArgs;
   'sessions.rewind': SessionsRewindArgs;
   'threads.cancel': ThreadsCancelArgs;
   'executions.cancel': ExecutionsCancelArgs;
@@ -1879,6 +1893,7 @@ export interface MutateReturnMap {
   'sessions.markRead': void;
   'sessions.answerQuestion': SessionsInteractionMutateReturn;
   'sessions.respondPlan': SessionsInteractionMutateReturn;
+  'sessions.cancelResume': SessionsCancelResumeReturn;
   'sessions.rewind': SessionsRewindReturn;
   'threads.cancel': ThreadsCancelReturn;
   'executions.cancel': ExecutionsCancelReturn;
