@@ -1015,3 +1015,87 @@ it('loads the stable representative compiled projection fixture directly', () =>
   assert.deepEqual(loaded.role.tools, ['Read', 'Write']);
   assert.deepEqual(loaded.runConfig, arm());
 });
+
+// ------------------------------------------------------- RB-CODE29, on this gate's own arm shape
+//
+// Failure code 29 has been INERT for every arm that has ever existed, because it fires only where
+// some role exposes the benchmark thread-run surface and no shipped arm did. The coder-review
+// parent role is the change that first makes it fire, so the four directions are proved against
+// that arm — three roles, a whitelisted template, a real variant — and not against a direct arm
+// carrying a synthetic MCP file.
+
+const VERIFIED_CLAUDE_CLI = '2.1.220 (Claude Code)';
+
+/** The arm shape this gate composes: a coder-review arm whose parent exposes the benchmark MCP
+ *  surface, for one variant. Nothing else about the resolution changes. */
+function coderReviewWithBenchmarkMcp(
+  variant: 'audit-retry' | 'reviewer-fix',
+  input: ArmResolution = resolution(),
+): ArmResolution {
+  if (variant === 'audit-retry') configureCoderReview(input);
+  else configureReviewerFix(input);
+  configureBenchmarkMcp(input);
+  return input;
+}
+
+it('RB-CODE29 (1): the verified Claude CLI compiles a coder-review arm on either variant', () => {
+  assert.deepEqual(LONG_MCP_CALL_VERSION_GOVERNANCE.claude.verified_versions, [VERIFIED_CLAUDE_CLI]);
+  for (const variant of ['audit-retry', 'reviewer-fix'] as const) {
+    const input = coderReviewWithBenchmarkMcp(variant);
+    input.cli_artifact.version = VERIFIED_CLAUDE_CLI;
+
+    const policy = compileResolvedTrialPolicy(input, dependencies());
+
+    assert.equal(policy.model_execution.claude_cli_version, VERIFIED_CLAUDE_CLI);
+    assert.equal(policy.roles.parent.mcpComposition, 'benchmark-thread-run');
+    // Every child stays at `none`: it is the parent alone that carries the thread-run surface.
+    for (const [slot, role] of Object.entries(policy.roles)) {
+      if (slot !== 'parent') assert.equal(role.mcpComposition, 'none', slot);
+    }
+  }
+});
+
+it('RB-CODE29 (2): any other Claude version fails the same arm with code 29', () => {
+  for (const variant of ['audit-retry', 'reviewer-fix'] as const) {
+    for (const version of ['2.1.219 (Claude Code)', '2.1.221 (Claude Code)', 'fixture-1.0.0']) {
+      const input = coderReviewWithBenchmarkMcp(variant);
+      input.cli_artifact.version = version;
+      expectFailure(input, 'cli_version_unsupported_for_long_mcp_call', 29);
+    }
+  }
+});
+
+it('RB-CODE29 (3): a PI coder-review arm compiles at any version, by declaration', () => {
+  // PI's calls are issued by the Cortex bridge, so the binary's version is not the governing fact
+  // and the check returns before the allowlist is consulted.
+  assert.equal(LONG_MCP_CALL_VERSION_GOVERNANCE.pi.governed_by, 'cortex-bridge');
+  for (const variant of ['audit-retry', 'reviewer-fix'] as const) {
+    for (const version of ['pi-0.0.0-never-listed', VERIFIED_CLAUDE_CLI]) {
+      const input = coderReviewWithBenchmarkMcp(variant, piResolution());
+      for (const slot of Object.keys(input.roles)) input.roles[slot].tools = ['read', 'write'];
+      input.cli_artifact.version = version;
+
+      const policy = compileResolvedTrialPolicy(input, piDependencies());
+
+      assert.equal(policy.model_execution.cli_version, version);
+    }
+  }
+});
+
+it('RB-CODE29 (4): the same arm with every role at composition none reaches none of them', () => {
+  // The negative control, and the reason code 29 stayed inert: the check is scoped to arms that
+  // expose a benchmark MCP surface, so a coder-review arm without one is never asked its version.
+  for (const variant of ['audit-retry', 'reviewer-fix'] as const) {
+    const input = resolution();
+    if (variant === 'audit-retry') configureCoderReview(input);
+    else configureReviewerFix(input);
+    for (const slot of Object.keys(input.roles)) {
+      assert.equal(input.roles[slot].mcp_composition, 'none');
+    }
+    input.cli_artifact.version = 'never-verified-anywhere';
+
+    const policy = compileResolvedTrialPolicy(input, dependencies());
+
+    assert.equal(policy.model_execution.claude_cli_version, 'never-verified-anywhere');
+  }
+});
