@@ -100,6 +100,29 @@ def test_h7_property_6_route_is_dead_after_stop_offline(tmp_path: Path) -> None:
     assert len(upstream.requests) == 1
 
 
+def test_h7_property_6_stop_revokes_the_route_in_band_not_only_by_closing_the_socket(
+    tmp_path: Path,
+) -> None:
+    # `stop()` also closes the listener, so an OSError on the next connection holds even
+    # if the route was never revoked. This reads the admission state machine instead: the
+    # answer a live listener would render is 410 route_revoked, and the deadline is far
+    # enough out that it cannot be the deadline branch answering.
+    with SyntheticUpstream() as upstream:
+        handle = start_proxy(
+            tmp_path, upstream.base_url,
+            deadline=datetime.now(UTC) + timedelta(hours=1))
+        state = handle._server.state
+        alive, _ = proxy_request(handle.base_url, handle.dummy_token, "alive")
+        assert state.lifecycle_error() is None
+        handle.stop()
+    assert alive == 200
+    assert state.deadline_expired() is False
+    assert state.lifecycle_error() == (410, "route_revoked")
+    assert state.admission_error(
+        "127.0.0.1", f"Bearer {handle.dummy_token}") == (410, "route_revoked")
+    assert len(upstream.requests) == 1
+
+
 def test_r7_upstream_host_set_is_one_frozen_member(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         adapter = row_one_adapter(upstream.base_url, REAL_CREDENTIAL)
