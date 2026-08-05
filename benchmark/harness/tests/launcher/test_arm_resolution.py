@@ -73,7 +73,8 @@ ROLES = {
 EXPECTED_CAPABILITIES = [
     {
         "id": "claude-api-key",
-        "state": "offline-contract-passed",
+        # Lowered from `offline-contract-passed`; the registry module carries the reasoning.
+        "state": "unsupported",
         "key": {
             "runner_or_backend": "claude",
             "provider": "anthropic",
