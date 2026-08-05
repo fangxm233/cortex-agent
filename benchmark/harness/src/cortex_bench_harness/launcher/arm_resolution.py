@@ -59,7 +59,7 @@ BENCHMARK_THREAD_MCP_CONTAINER_PATH: PurePosixPath = (
 # trial runs with a split brain. EV-ENV therefore makes the emitted config carry the coordinator's
 # CORTEX_HOME. The coordinator pins it as <trialRoot>/cortex-home
 # (`pinned-node-process.ts:179,217`) where trialRoot is dirname(trajectoryRoot)/trial-home
-# (`agent-run-cli.ts:361`) and the shipped launcher always passes
+# (`runner.ts:361`) and the shipped launcher always passes
 # trajectoryRoot = <agent_dir>/trajectory (`harbor_agent.py:_agent_paths`), so the value is a
 # deterministic function of the agent dir this module already writes the resolution into.
 CODER_REVIEW_CORTEX_HOME: PurePosixPath = (
