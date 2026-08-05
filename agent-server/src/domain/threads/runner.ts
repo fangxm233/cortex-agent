@@ -170,6 +170,9 @@ interface StepContext {
   /** Flipped by the step callbacks on the first streamed assistant/tool event. Gates capturing
    *  the interrupted backend session — an attempt with no activity has nothing worth resuming. */
   sawActivity: boolean;
+  /** The last non-empty assistant message this step emitted, captured off the normalized event
+   *  channel every backend populates. Stays null when the step emitted none. */
+  terminalAssistantText: string | null;
   /** Backend `--resume` target (slot.backendSessionId via beginStepSession); null → fresh. */
   resumeSessionId: string | null;
   /** Stable Cortex track id (slot.sessionId, minted at step start) — the conversation-history /
@@ -436,7 +439,8 @@ async function buildStepConfig(
   return {
     agentSlotId, agentConfig, isFirstStep, multiAgent, stage,
     stepIndex: threadStore.get(threadId)?.currentStepIndex ?? 0,
-    prompt, interruptedResume, sawActivity: false, resumeSessionId, trackSessionId, sessionKey,
+    prompt, interruptedResume, sawActivity: false, terminalAssistantText: null,
+    resumeSessionId, trackSessionId, sessionKey,
     sessionName: await sessionStore.generateSessionName(),
     profileName, profileBackend, rateLimitProvider, execution,
     stepStartTime: new Date().toISOString(),
@@ -485,7 +489,10 @@ function setupStepCallbacks(
   // streaming/tool-trace behaviour is unchanged.
   const recorder = stepCtx.recorder;
   const onAssistantMessage = (text: string) => {
-    if (text) stepCtx.sawActivity = true;
+    if (text) {
+      stepCtx.sawActivity = true;
+      stepCtx.terminalAssistantText = text;
+    }
     streamAssistantMessage(text);
     if (text) recorder.recordAssistant(text);
   };
@@ -757,16 +764,21 @@ async function recordStepOutcome(
  *  error path too. A settlement failure is fatal when the step itself succeeded — the appended text
  *  is an input to the transition engine, so losing it silently would convert approvals into
  *  retries. When the step is already propagating an error, the settlement failure is logged
- *  instead: it must not replace the typed failure the caller classifies the run by. */
+ *  instead: it must not replace the typed failure the caller classifies the run by.
+ *
+ *  The appended text is taken from the step's last normalized assistant message, not from the
+ *  step result's `finalOutput`: only the message channel is populated on every backend — the PI
+ *  adapter reports `finalOutput: null` for every turn — and an append that never fires converts
+ *  each approval into a retry instead of failing loudly. */
 function settleStepWorkspace(
-  stepCtx: StepContext, result: any, opts: RunThreadOptions, stepError: unknown,
+  stepCtx: StepContext, opts: RunThreadOptions, stepError: unknown,
 ): void {
   try {
     opts.benchmark?.settleStepWorkspace?.({
       agentSlotId: stepCtx.agentSlotId,
       stepIndex: stepCtx.stepIndex,
       stage: stepCtx.stage,
-      terminalText: typeof result?.finalOutput === 'string' ? result.finalOutput : null,
+      terminalText: stepCtx.terminalAssistantText,
     });
   } catch (error: any) {
     if (!stepError) throw error;
@@ -983,7 +995,7 @@ async function runThread(threadId: string, opts: RunThreadOptions): Promise<Thre
         stepError = error;
         throw error;
       } finally {
-        settleStepWorkspace(stepCtx, result, opts, stepError);
+        settleStepWorkspace(stepCtx, opts, stepError);
       }
 
       // Rate-limit pause (graceful path): recordStepOutcome paused the thread. Break out so the

@@ -346,6 +346,25 @@ for (const backend of ['claude', 'pi'] as const) {
   }, 60_000);
 }
 
+for (const backend of ['claude', 'pi'] as const) {
+  it(`appends nothing for a silent snapshot step on backend=${backend}`, async () => {
+    // The reviewer emits no assistant message at all. Sourcing the append from the message channel
+    // must leave the artifact untouched rather than write a header with an empty body under it.
+    const run = prepareTrial(`silent-${backend}`, backend, [
+      { text: 'coder done' },
+      { text: null },
+    ]);
+
+    const result = await runBenchmarkThread(run.request, run.overrides);
+
+    assert.equal(result.state, 'completed');
+    assert.equal(result.steps, 2);
+    const artifact = fs.readFileSync(result.artifactPath, 'utf8');
+    assert.equal(artifact.includes('--- snapshot step '), false);
+    assert.equal(fs.existsSync(snapshotParent), false);
+  }, 60_000);
+}
+
 it('leaves the summary empty on a backend that reports no terminal output', async () => {
   const claude = prepareTrial('summary-claude', 'claude', [{ text: 'coder done' }, { text: 'reviewer verdict' }]);
   const pi = prepareTrial('summary-pi', 'pi', [{ text: 'coder done' }, { text: 'reviewer verdict' }]);
