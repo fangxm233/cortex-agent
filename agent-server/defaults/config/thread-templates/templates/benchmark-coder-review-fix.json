@@ -16,6 +16,6 @@
   ],
   "entryAgent": "benchmark-coder",
   "entryStage": "implement",
-  "maxTotalSteps": 2,
+  "maxTotalSteps": 3,
   "disableHooks": true
 }

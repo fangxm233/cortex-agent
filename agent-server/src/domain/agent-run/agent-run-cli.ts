@@ -10,7 +10,9 @@ import type { AgentSlot } from './journal.js';
 import { runOneShotAgent, type AgentRunIo } from './runner.js';
 import { resolveSupervisorBinary } from './supervisor.js';
 
-const AGENT_SLOTS: AgentSlot[] = ['parent', 'benchmark-coder', 'benchmark-reviewer'];
+const AGENT_SLOTS: AgentSlot[] = [
+  'parent', 'benchmark-coder', 'benchmark-reviewer', 'benchmark-fixer',
+];
 const OUTPUT_FORMATS = ['jsonl'] as const;
 const ROOT_RUN_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 const VALUE_FLAGS = new Set([

@@ -165,7 +165,9 @@ type NonQuiescentReason = 'containment_failed' | 'missing_quiescent';
 type ManifestClassifiedRun = { state: TerminalState; reason: TerminalReason };
 type ClassifiedRun = ManifestClassifiedRun | { state: 'failed'; reason: NonQuiescentReason };
 
-const BENCHMARK_SLOTS = new Set<AgentSlotId>(['benchmark-coder', 'benchmark-reviewer']);
+const BENCHMARK_SLOTS = new Set<AgentSlotId>([
+  'benchmark-coder', 'benchmark-reviewer', 'benchmark-fixer',
+]);
 const SUMMARY_LIMIT = 2000;
 const MAX_TIMER_MS = 2_147_483_647;
 const SUPERVISOR_GRACE_MS = 1_000;

@@ -115,9 +115,12 @@ it('TA3: the template document carries exactly the eight frozen fields', () => {
   }]);
   assert.equal(template.entryAgent, 'benchmark-coder');
   assert.equal(template.entryStage, 'implement');
-  // Two stages made structural: a budget above the stage count admits a stage set C4 forbids, and
-  // the stock template's slack of 4 is exactly what is not inherited.
-  assert.equal(template.maxTotalSteps, 2);
+  // Strictly greater than the stage count, and that is load-bearing: the budget check fires at
+  // `currentStepIndex >= maxTotalSteps` BEFORE any transition rule is consulted, so a budget of 2
+  // would end every successful run on `max_iterations` and make `complete` unreachable. C4's
+  // "exactly 2" is enforced by the transition graph instead, and is pinned by the step-count
+  // assertions in benchmark-reviewer-fix.test.ts — do not "tidy" this back to 2.
+  assert.equal(template.maxTotalSteps, 3);
   assert.equal(documentOf('templates', 'coder-review').maxTotalSteps, 4);
   assert.equal(template.disableHooks, true);
 });

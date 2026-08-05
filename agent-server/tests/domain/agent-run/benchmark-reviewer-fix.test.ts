@@ -211,6 +211,9 @@ for (const backend of ['claude', 'pi'] as const) {
     const result = await runBenchmarkThread(run);
 
     assert.equal(result.state, 'completed');
+    // C4's "exactly 2" lives HERE, not in the step budget: the budget is 3 so that the loop can
+    // end on a missing outgoing edge rather than on exhaustion, and what actually bounds the
+    // stage set is the transition graph — one rule, and nothing leaves `benchmark-fixer:auditFix`.
     // Two stages, not four: this variant has no retry edge and no final audit.
     assert.equal(result.steps, 2);
     assert.equal(ranStep(run, 0), true);
