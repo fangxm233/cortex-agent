@@ -475,7 +475,7 @@ def start_trial_proxy(
 ) -> TrialProxyHandle:
     _validate_inputs(trial_id, upstream_base_url, adapter, absolute_deadline)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    dummy_token = f"dummy-{secrets.token_urlsafe(24)}"
+    dummy_token = _dummy_token(adapter)
     state = ProxyState(bound_source_ip, dummy_token, absolute_deadline, budget, log_path)
     upstream = FixedUpstream(upstream_base_url, adapter)
     server = TrialHttpServer((listen_host, 0), state, upstream, adapter)
@@ -496,6 +496,15 @@ def start_trial_proxy(
         f"http://{host}:{port}", dummy_token, metadata, server, thread,
         deadline_timer,
     )
+
+
+def _dummy_token(adapter: ProviderAdapter) -> str:
+    # Some clients decode the credential locally before building a request, so an
+    # opaque dummy makes them fail without emitting anything — a silence a proxy
+    # cannot tell apart from containment. Such an adapter mints the dummy in the
+    # shape its own client requires.
+    mint = getattr(adapter, "mint_dummy_credential", None)
+    return mint() if callable(mint) else f"dummy-{secrets.token_urlsafe(24)}"
 
 
 def _validate_inputs(

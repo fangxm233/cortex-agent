@@ -17,6 +17,7 @@ from .base import (
     ProviderAdapter,
     RouteDecision,
 )
+from .openai_codex_responses import OpenAICodexResponsesOAuthAdapter
 
 if TYPE_CHECKING:
     from ..launcher.credential_capabilities import CredentialCapabilityKey
@@ -28,6 +29,8 @@ AdapterFactory = Callable[[str | None, str | None, str | None], ProviderAdapter]
 ADAPTER_REGISTRY: Mapping[tuple[str, ...], AdapterFactory] = MappingProxyType({
     ("claude", "anthropic", "anthropic-messages", "api-key-bearer", PROXY_SCHEMA_VERSION):
         AnthropicMessagesApiKeyAdapter,
+    ("pi", "openai-codex", "openai-codex-responses", "oauth", PROXY_SCHEMA_VERSION):
+        OpenAICodexResponsesOAuthAdapter,
 })
 
 __all__ = [
@@ -38,6 +41,7 @@ __all__ = [
     "AuthInjectionUnavailable",
     "Billable",
     "BodyDecision",
+    "OpenAICodexResponsesOAuthAdapter",
     "ProviderAdapter",
     "RouteDecision",
     "select_adapter",
