@@ -307,11 +307,18 @@ function taggedCount(slot: unknown, path: string): Tagged<number> {
 }
 
 function taggedDecimal(slot: unknown, path: string): Tagged<string> {
-  return tagged(slot, path, isDecimalText);
+  return tagged(slot, path, value => isDecimalText(value) && !value.startsWith('-'));
 }
 
 function taggedObject(slot: unknown, path: string): Tagged<Record<string, unknown>> {
-  return tagged(slot, path, value => typeof value === 'object' && value !== null);
+  const entry = tagged<Record<string, unknown>>(
+    slot, path, value => typeof value === 'object' && value !== null,
+  );
+  // The record is frozen on the way out. An opaque block carried through by reference would be
+  // frozen inside the caller's own document too, which is a mutation of an input however equal its
+  // values still compare afterwards.
+  if (entry.status !== 'available') return entry;
+  return { status: 'available', value: structuredClone(entry.value) };
 }
 
 function assertTolerance(tolerance: AccountingTolerance): void {

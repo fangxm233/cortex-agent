@@ -132,7 +132,9 @@ def _durable_totals(
     """The totals the log itself carries, as a check on the live registers.
 
     Each request line records the running totals as of that request, so the last one carries the
-    durable figures. Lease lines carry no counters and are skipped.
+    durable figures. Lease lines carry no counters and are skipped. A readable log with no request
+    line means the trial really made none — every request writes its line before it is answered —
+    so the zero below is a figure that was read, not a figure that defaulted.
     """
     metered = [entry for entry in entries if "request_count" in entry]
     tail = metered[-1] if metered else None

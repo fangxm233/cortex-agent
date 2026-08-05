@@ -16,6 +16,7 @@ import {
   type AccountingCheck,
   type AccountingRecord,
   type AccountingTolerance,
+  type Available,
   type JournalTotals,
   type ProxyExport,
 } from '../../../src/domain/benchmark/accounting-reconciliation.js';
@@ -127,6 +128,17 @@ describe('the record shape', () => {
       .toThrow(AccountingInputError);
   });
 
+  it('refuses a negative cost, which neither side can honestly have observed', () => {
+    const golden = proxyGolden('proxy-export-echoed.json');
+    // The type system cannot tell a negative decimal string from a positive one, so the boundary
+    // check is the thing that refuses it.
+    const smuggled: ProxyExport = {
+      ...golden, cost_usd: { status: 'available' as const, value: '-0.5' },
+    };
+
+    expect(() => reconcileAccounting(smuggled, journal())).toThrow(AccountingInputError);
+  });
+
   it('rejects a bare number at the type level', () => {
     const golden = proxyGolden('proxy-export-echoed.json');
 
@@ -163,6 +175,12 @@ describe('purity', () => {
     expect(record.reconciled).toEqual({ status: 'available', value: true });
     expect(proxyInput).toEqual(proxySnapshot);
     expect(journalInput).toEqual(journalSnapshot);
+    // Freezing the record must not reach back into the caller's own document through a shared
+    // reference: an input that came out sealed was mutated, however equal its values still compare.
+    for (const slot of [proxyInput.audit_log, proxyInput.lease_echo]) {
+      expect(slot.status).toBe('available');
+      expect(Object.isFrozen((slot as Available<Record<string, unknown>>).value)).toBe(false);
+    }
     vi.doUnmock('node:fs');
     vi.doUnmock('node:fs/promises');
   });

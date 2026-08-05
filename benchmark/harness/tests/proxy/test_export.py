@@ -226,6 +226,21 @@ def test_a_trial_that_made_no_calls_reports_a_read_zero(tmp_path: Path) -> None:
     assert export["audit_log"] == {"status": "unavailable", "reason": "audit_log_unreadable"}
 
 
+def test_a_log_holding_only_lease_lines_reports_a_read_zero(tmp_path: Path) -> None:
+    """A readable log with no request line is evidence the trial made none, not an absent figure."""
+    with SyntheticUpstream() as upstream:
+        handle = echoed_trial(tmp_path, upstream, requests=0)
+        try:
+            export = handle.accounting_export
+        finally:
+            handle.stop()
+
+    assert export["audit_log"]["value"] == {
+        "entries": 1, "durable_requests": 0, "durable_cost_usd": "0",
+        "agrees_with_counters": True,
+    }
+
+
 def test_a_trial_with_no_echo_carries_the_lease_record_as_unavailable(tmp_path: Path) -> None:
     with SyntheticUpstream() as upstream:
         handle = silent_trial(tmp_path, upstream, requests=1)
