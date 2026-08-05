@@ -1,4 +1,4 @@
-# input:  trial policy, HTTP requests, and one fixed upstream
+# input:  trial policy, HTTP requests, one provider adapter, one fixed upstream
 # output: per-trial proxy handle with revocable route
 # pos:    Proxy admission and lifecycle core
 # >>> If I am updated, update my header and folder CORTEX.md <<<
@@ -16,8 +16,15 @@ from pathlib import Path
 from typing import Mapping, cast
 from urllib.parse import urlsplit
 
+from .adapters.base import AuthInjectionUnavailable, Billable, ProviderAdapter
 from .models import ProxyBudget, ProxyMetadata, ProxyUsage, decimal_text, utc_text
-from .upstream import HOP_HEADERS, FixedUpstream, UpstreamAttemptError, UpstreamResult
+from .upstream import (
+    HOP_HEADERS,
+    FixedUpstream,
+    UpstreamAttemptError,
+    UpstreamResult,
+    validate_upstream,
+)
 
 
 class ProxyState:
@@ -82,13 +89,13 @@ class ProxyState:
             return 401, "dummy_token_rejected"
         return None
 
-    def record(self, usage: ProxyUsage) -> str | None:
-        if not usage.accounted:
+    def record(self, usage: ProxyUsage, billable: Billable | None) -> str | None:
+        if not usage.accounted or billable is None:
             error = self.record_attempt(
                 "budget_accounting_unavailable", True, usage.upstream_model)
             self.active = False
             return error or "budget_accounting_unavailable"
-        request_cost = self.budget.cost(usage.input_tokens, usage.output_tokens)
+        request_cost = self.budget.cost(billable.input_tokens, billable.output_tokens)
         outcome = self._usage_outcome(request_cost)
         record = self._usage_record(usage, request_cost, outcome)
         if not self._persist(record):
@@ -102,12 +109,24 @@ class ProxyState:
         self, outcome: str, retain_reservation: bool,
         upstream_model: str | None = None,
     ) -> str | None:
+        error = self._record_outcome(outcome, upstream_model)
+        if error is not None:
+            return error
+        if not retain_reservation:
+            self.budget_consumed_usd -= self.budget.max_request_cost_usd
+        return None
+
+    def record_rejection(self, outcome: str) -> str | None:
+        # A route or body refusal never reserved, so it must not touch budget
+        # arithmetic: releasing an absent reservation would drive the consumed
+        # total negative.
+        return self._record_outcome(outcome, None)
+
+    def _record_outcome(self, outcome: str, upstream_model: str | None) -> str | None:
         record = self._attempt_record(outcome, upstream_model)
         if not self._persist(record):
             return "audit_log_unavailable"
         self.request_count += 1
-        if not retain_reservation:
-            self.budget_consumed_usd -= self.budget.max_request_cost_usd
         return None
 
     def _usage_outcome(self, request_cost: Decimal) -> str | None:
@@ -169,9 +188,11 @@ class TrialHttpServer(ThreadingHTTPServer):
 
     def __init__(
         self, address: tuple[str, int], state: ProxyState, upstream: FixedUpstream,
+        adapter: ProviderAdapter,
     ) -> None:
         self.state = state
         self.upstream = upstream
+        self.adapter = adapter
         self._client_condition = threading.Condition()
         self._clients: set[socket.socket] = set()
         self._body_clients: set[socket.socket] = set()
@@ -252,11 +273,34 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
         if not _valid_request_target(self.path):
             self._send_error(400, "invalid_request_target")
             return
+        route = server.adapter.validate_route("POST", self.path)
+        if not route.allow or route.route_id is None:
+            self._refuse(server.state, 403, "route_not_allowed",
+                         route.reason or "route_not_allowed")
+            return
         body = self._read_body(server)
-        if body is not None:
-            self._forward_reserved(server, body)
+        if body is None:
+            return
+        decision = server.adapter.validate_body(route.route_id, body)
+        if not decision.allow:
+            self._refuse(server.state, 400, "request_model_rejected",
+                         decision.reason or "request_model_rejected")
+            return
+        self._forward_reserved(server, body, route.route_id)
 
-    def _forward_reserved(self, server: TrialHttpServer, body: bytes) -> None:
+    def _refuse(
+        self, state: ProxyState, status: int, wire_reason: str, audit_outcome: str,
+    ) -> None:
+        with state.request_lock:
+            audit_error = state.record_rejection(audit_outcome)
+        if audit_error is not None:
+            self._send_error(500, audit_error)
+            return
+        self._send_error(status, wire_reason)
+
+    def _forward_reserved(
+        self, server: TrialHttpServer, body: bytes, route_id: str,
+    ) -> None:
         with server.state.request_lock:
             error = server.state.admission_error(
                 self.client_address[0], self.headers.get("authorization"))
@@ -264,26 +308,36 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
                 self._send_error(*error)
                 return
             server.state.reserve()
-            self._forward(server, body)
+            self._forward(server, body, route_id)
 
     def _admission_error(self, state: ProxyState):
         with state.request_lock:
             return state.admission_error(
                 self.client_address[0], self.headers.get("authorization"))
 
-    def _forward(self, server: TrialHttpServer, body: bytes) -> None:
+    def _forward(self, server: TrialHttpServer, body: bytes, route_id: str) -> None:
         try:
             response = server.upstream.request(
                 self.path, dict(self.headers.items()), body,
-                server.state.remaining_seconds(),
+                server.state.remaining_seconds(), route_id,
             )
+        except AuthInjectionUnavailable:
+            self._handle_auth_failure(server.state)
+            return
         except UpstreamAttemptError as error:
             self._handle_upstream_failure(server.state, error)
             return
         except ValueError:
             self._handle_upstream_failure(server.state, UpstreamAttemptError(False))
             return
-        self._finish_response(server.state, response)
+        self._finish_response(server, response)
+
+    def _handle_auth_failure(self, state: ProxyState) -> None:
+        audit_error = state.record_attempt("auth_injection_unavailable", False)
+        if audit_error is not None:
+            self._send_error(500, audit_error)
+            return
+        self._send_error(502, "auth_injection_unavailable")
 
     def _handle_upstream_failure(
         self, state: ProxyState, failure: UpstreamAttemptError,
@@ -297,8 +351,14 @@ class TrialProxyHandler(BaseHTTPRequestHandler):
             return
         self._send_error(*(lifecycle_error or (502, "upstream_unavailable")))
 
-    def _finish_response(self, state: ProxyState, response: UpstreamResult) -> None:
-        accounting_error = state.record(response.usage)
+    def _finish_response(
+        self, server: TrialHttpServer, response: UpstreamResult,
+    ) -> None:
+        state = server.state
+        billable = (
+            server.adapter.billable(response.usage) if response.usage.accounted else None
+        )
+        accounting_error = state.record(response.usage, billable)
         if accounting_error is not None:
             status = 500 if accounting_error == "audit_log_unavailable" else 502
             self._send_error(status, accounting_error)
@@ -408,22 +468,22 @@ class TrialProxyHandle:
 
 
 def start_trial_proxy(
-    *, trial_id: str, upstream_base_url: str, real_credential: str,
+    *, trial_id: str, upstream_base_url: str, adapter: ProviderAdapter,
     bound_source_ip: str, absolute_deadline: datetime, budget: ProxyBudget,
     log_path: Path, listen_host: str = "127.0.0.1",
     advertised_host: str | None = None,
 ) -> TrialProxyHandle:
-    _validate_inputs(trial_id, real_credential, absolute_deadline)
+    _validate_inputs(trial_id, upstream_base_url, adapter, absolute_deadline)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     dummy_token = f"dummy-{secrets.token_urlsafe(24)}"
     state = ProxyState(bound_source_ip, dummy_token, absolute_deadline, budget, log_path)
-    upstream = FixedUpstream(upstream_base_url, real_credential)
-    server = TrialHttpServer((listen_host, 0), state, upstream)
+    upstream = FixedUpstream(upstream_base_url, adapter)
+    server = TrialHttpServer((listen_host, 0), state, upstream, adapter)
     host = advertised_host or cast(tuple[str, int], server.server_address)[0]
     port = cast(tuple[str, int], server.server_address)[1]
     metadata = ProxyMetadata(
         trial_id, upstream_base_url, bound_source_ip, absolute_deadline,
-        budget, log_path.name,
+        budget, log_path.name, adapter.adapter_id,
     )
     deadline_timer = threading.Timer(
         _deadline_delay(absolute_deadline), server.expire_route,
@@ -438,11 +498,17 @@ def start_trial_proxy(
     )
 
 
-def _validate_inputs(trial_id: str, credential: str, deadline: datetime) -> None:
+def _validate_inputs(
+    trial_id: str, upstream_base_url: str, adapter: ProviderAdapter,
+    deadline: datetime,
+) -> None:
     if not trial_id:
         raise ValueError("trial_id must be a non-empty string")
-    if not credential or "\r" in credential or "\n" in credential:
-        raise ValueError("real_credential must be a non-empty single line")
+    host = validate_upstream(upstream_base_url).hostname
+    if host not in adapter.upstream_hosts:
+        raise ValueError(
+            f"upstream host {host!r} is not declared by adapter {adapter.adapter_id}; "
+            f"declared hosts: {list(adapter.upstream_hosts)}")
     utc_text(deadline)
 
 

@@ -123,7 +123,7 @@ function resolution(): ArmResolution {
         provider: 'anthropic',
         protocol: 'anthropic-messages',
         credential_kind: 'api-key-bearer',
-        proxy_adapter_version: 'cortex-bench-trial-proxy/1',
+        proxy_adapter_version: 'cortex-bench-trial-proxy/2',
       },
     }],
     credential: {

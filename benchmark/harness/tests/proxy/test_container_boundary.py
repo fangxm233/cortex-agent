@@ -11,17 +11,20 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
+from docker_gate import docker_opt_in
 from docker_tools import external_network, internal_network, raw_proxy_request, run_container
-from synthetic import SyntheticUpstream
+from synthetic import SyntheticUpstream, row_one_adapter
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-PROXY-CONTAINER"
+
+pytestmark = docker_opt_in
 
 
 def start_network_proxy(tmp_path: Path, upstream: SyntheticUpstream, network):
     return start_trial_proxy(
         trial_id="trial-container",
         upstream_base_url=upstream.base_url,
-        real_credential=REAL_CREDENTIAL,
+        adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
         bound_source_ip=network.trial_ip,
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
         budget=ProxyBudget(

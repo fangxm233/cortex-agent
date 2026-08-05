@@ -16,8 +16,12 @@ import pytest
 
 import cortex_bench_harness.proxy.server as proxy_server
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
-from cortex_bench_harness.proxy.upstream import parse_usage
-from synthetic import SyntheticUpstream, proxy_request
+from synthetic import (
+    MESSAGES_TARGET,
+    SyntheticUpstream,
+    proxy_request,
+    row_one_adapter,
+)
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-PROXY-UNIQUE"
 PLANTED_PROMPT = "PROMPT-PLANT-2e47d8b8"
@@ -39,7 +43,7 @@ def start_proxy(
     return start_trial_proxy(
         trial_id="trial-synthetic",
         upstream_base_url=upstream.base_url,
-        real_credential=REAL_CREDENTIAL,
+        adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
         bound_source_ip="127.0.0.1",
         absolute_deadline=deadline or datetime.now(UTC) + timedelta(minutes=5),
         budget=budget(max_cost),
@@ -56,7 +60,8 @@ def test_injects_host_credential_without_forwarding_dummy(tmp_path: Path) -> Non
             handle.stop()
     headers = {key.lower(): value for key, value in upstream.requests[0].headers.items()}
     assert status == 200
-    assert headers["authorization"] == f"Bearer {REAL_CREDENTIAL}"
+    assert headers["x-api-key"] == REAL_CREDENTIAL
+    assert "authorization" not in headers
     assert handle.dummy_token not in json.dumps(headers)
     assert REAL_CREDENTIAL not in repr(handle)
 
@@ -65,7 +70,8 @@ def test_rejects_request_without_enough_budget_for_maximum_call(tmp_path: Path) 
     with SyntheticUpstream() as upstream:
         handle = start_trial_proxy(
             trial_id="trial-reservation", upstream_base_url=upstream.base_url,
-            real_credential=REAL_CREDENTIAL, bound_source_ip="127.0.0.1",
+            adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
+            bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
             budget=budget("4", "5"), log_path=tmp_path / "reservation.jsonl",
         )
@@ -97,7 +103,8 @@ def test_connect_failure_releases_reservation_and_writes_audit(tmp_path: Path) -
     log_path = tmp_path / "attempts.jsonl"
     handle = start_trial_proxy(
         trial_id="trial-attempt", upstream_base_url=f"http://127.0.0.1:{port}",
-        real_credential=REAL_CREDENTIAL, bound_source_ip="127.0.0.1",
+        adapter=row_one_adapter(f"http://127.0.0.1:{port}", REAL_CREDENTIAL),
+        bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
         budget=budget(), log_path=log_path,
     )
@@ -146,7 +153,7 @@ def test_sse_usage_allows_fields_split_across_events() -> None:
                      "usage": {"input_tokens": 2}}},
         {"usage": {"output_tokens": 3}},
     ])
-    usage = parse_usage(body, "text/event-stream")
+    usage = _adapter().extract_usage(body, "text/event-stream")
     assert usage.accounted is True
     assert (usage.input_tokens, usage.output_tokens) == (2, 3)
 
@@ -157,7 +164,11 @@ def test_sse_usage_rejects_later_malformed_token_field() -> None:
                      "usage": {"input_tokens": 2, "output_tokens": 3}}},
         {"usage": {"output_tokens": -1}},
     ])
-    assert parse_usage(body, "text/event-stream").accounted is False
+    assert _adapter().extract_usage(body, "text/event-stream").accounted is False
+
+
+def _adapter():
+    return row_one_adapter("http://127.0.0.1:9000", REAL_CREDENTIAL)
 
 
 def _sse_body(documents: list[dict[str, object]]) -> bytes:
@@ -231,7 +242,7 @@ def _slow_body_request(base_url: str, token: str, deadline: datetime) -> tuple[i
     target = urlsplit(base_url)
     connection = HTTPConnection(target.hostname, target.port, timeout=3)
     body = b'{"prompt":"slow-body"}'
-    connection.putrequest("POST", "/v1/messages")
+    connection.putrequest("POST", MESSAGES_TARGET)
     connection.putheader("authorization", f"Bearer {token}")
     connection.putheader("content-length", str(len(body)))
     connection.endheaders(body[:1])
@@ -310,7 +321,7 @@ def _stalled_body_socket(base_url: str, token: str) -> socket.socket:
     target = urlsplit(base_url)
     client = socket.create_connection((target.hostname or "", target.port or 80), timeout=3)
     headers = (
-        "POST /v1/messages HTTP/1.1\r\nHost: proxy\r\n"
+        f"POST {MESSAGES_TARGET} HTTP/1.1\r\nHost: proxy\r\n"
         f"Authorization: Bearer {token}\r\nContent-Length: 100\r\n\r\nX"
     )
     client.sendall(headers.encode())
@@ -357,7 +368,8 @@ def test_log_persistence_failure_revokes_route(
     with SyntheticUpstream() as upstream:
         handle = start_trial_proxy(
             trial_id="trial-log-failure", upstream_base_url=upstream.base_url,
-            real_credential=REAL_CREDENTIAL, bound_source_ip="127.0.0.1",
+            adapter=row_one_adapter(upstream.base_url, REAL_CREDENTIAL),
+            bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
             budget=budget("20", "5"), log_path=log_path,
         )

@@ -79,7 +79,7 @@ EXPECTED_CAPABILITIES = [
             "provider": "anthropic",
             "protocol": "anthropic-messages",
             "credential_kind": "api-key-bearer",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/1",
+            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
     },
     {
@@ -90,7 +90,7 @@ EXPECTED_CAPABILITIES = [
             "provider": "anthropic",
             "protocol": "anthropic-messages",
             "credential_kind": "subscription-oauth",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/1",
+            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
     },
     {
@@ -101,7 +101,7 @@ EXPECTED_CAPABILITIES = [
             "provider": "openai",
             "protocol": "??",
             "credential_kind": "subscription",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/1",
+            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
     },
     {
@@ -112,7 +112,7 @@ EXPECTED_CAPABILITIES = [
             "provider": "??",
             "protocol": "??",
             "credential_kind": "api-key",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/1",
+            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
     },
     {
@@ -123,7 +123,7 @@ EXPECTED_CAPABILITIES = [
             "provider": "openai-codex",
             "protocol": "??",
             "credential_kind": "oauth",
-            "proxy_adapter_version": "cortex-bench-trial-proxy/1",
+            "proxy_adapter_version": "cortex-bench-trial-proxy/2",
         },
     },
 ]

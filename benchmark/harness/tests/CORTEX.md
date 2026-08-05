@@ -4,6 +4,7 @@ Tests for the Python benchmark harness distribution.
 
 | filename | role | function |
 |---|---|---|
+| docker_gate.py | fixture | Gates container tests behind an opt-in variable |
 | launcher/ | tests | Verifies arm routing and credential projections |
 | package/ | tests | Verifies package-level contracts |
 | proxy/ | tests | Proves credential and network containment |

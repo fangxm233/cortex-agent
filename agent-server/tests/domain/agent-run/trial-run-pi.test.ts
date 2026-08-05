@@ -130,7 +130,7 @@ function armResolution(cli: string): Record<string, unknown> {
       id: 'claude-api-key', state: 'offline-contract-passed',
       key: {
         runner_or_backend: 'claude', provider: 'anthropic', protocol: 'anthropic-messages',
-        credential_kind: 'api-key-bearer', proxy_adapter_version: 'cortex-bench-trial-proxy/1',
+        credential_kind: 'api-key-bearer', proxy_adapter_version: 'cortex-bench-trial-proxy/2',
       },
     }],
     credential: {
@@ -385,7 +385,7 @@ function piRunResolution(cli: string, label: string): Record<string, unknown> {
       id: 'pi-api-key', state: 'offline-contract-passed',
       key: {
         runner_or_backend: 'pi', provider: 'anthropic', protocol: 'anthropic-messages',
-        credential_kind: 'api-key-bearer', proxy_adapter_version: 'cortex-bench-trial-proxy/1',
+        credential_kind: 'api-key-bearer', proxy_adapter_version: 'cortex-bench-trial-proxy/2',
       },
     }],
     credential: {

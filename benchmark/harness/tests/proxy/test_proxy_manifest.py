@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from cortex_bench_harness.proxy import ProxyBudget, fill_proxy_manifest, start_trial_proxy
-from synthetic import SyntheticUpstream
+from synthetic import SyntheticUpstream, row_one_adapter
 
 REAL_CREDENTIAL = "sk-ant-SYNTHETIC-MANIFEST-UNIQUE"
 
@@ -86,7 +86,8 @@ def _start_proxy(tmp_path: Path, upstream_url: str, deadline: datetime):
     )
     return start_trial_proxy(
         trial_id="trial-manifest", upstream_base_url=upstream_url,
-        real_credential=REAL_CREDENTIAL, bound_source_ip="127.0.0.1",
+        adapter=row_one_adapter(upstream_url, REAL_CREDENTIAL),
+        bound_source_ip="127.0.0.1",
         absolute_deadline=deadline, budget=budget,
         log_path=tmp_path / "proxy.jsonl",
     )
@@ -94,7 +95,8 @@ def _start_proxy(tmp_path: Path, upstream_url: str, deadline: datetime):
 
 def _expected_block(handle, upstream_url: str) -> dict[str, object]:
     return {
-        "schema_version": "cortex-bench-trial-proxy/1",
+        "schema_version": "cortex-bench-trial-proxy/2",
+        "adapter_id": "anthropic-messages/api-key-bearer",
         "base_url": handle.base_url,
         "upstream_base_url": upstream_url,
         "source_binding": {"kind": "ip", "value": "127.0.0.1"},
