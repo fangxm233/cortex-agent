@@ -305,7 +305,10 @@ class CortexBenchAgent(BaseInstalledAgent):
         self,
         instruction: str,
         environment: BaseEnvironment,
-        _context: AgentContext,
+        # Harbor calls this by keyword — `run(instruction=…, environment=…, context=…)` at
+        # harbor/trial/trial.py:451-455 — so the parameter names are part of the contract. A
+        # renamed one is a TypeError raised before the body runs, taking the revoke with it.
+        context: AgentContext,
     ) -> None:
         try:
             if self._resolved_cwd is None:

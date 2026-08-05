@@ -309,15 +309,12 @@ def test_double_fill_guard_still_raises_after_the_production_fill(
 class RecordingHandle:
     """A handle stand-in that records the order in which the revoke reads it."""
 
-    def __init__(
-        self, calls: list[str], *, stop_error: bool = False, export_error: bool = False,
-    ) -> None:
+    def __init__(self, calls: list[str], *, stop_error: bool = False) -> None:
         self.calls = calls
         self.base_url = "http://127.0.0.1:1"
         self.dummy_token = "dummy-recording"
         self.trial_id = TRIAL_ID
         self._stop_error = stop_error
-        self._export_error = export_error
 
     @property
     def lease_echo_record(self) -> dict[str, object]:
@@ -326,8 +323,6 @@ class RecordingHandle:
     @property
     def accounting_export(self) -> dict[str, object]:
         self.calls.append("export")
-        if self._export_error:
-            raise OSError("no space left on device")
         return {"schema_version": "cortex-bench-proxy-export/1", "trial_id": TRIAL_ID}
 
     def stop(self) -> None:
@@ -336,13 +331,11 @@ class RecordingHandle:
             raise RuntimeError("proxy client handlers did not stop")
 
 
-def recording_session(
-    tmp_path: Path, calls: list[str], *, stop_error: bool = False, export_error: bool = False,
-):
+def recording_session(tmp_path: Path, calls: list[str], *, stop_error: bool = False):
     proxy_dir = tmp_path / "artifacts" / "proxy"
     proxy_dir.mkdir(parents=True, exist_ok=True)
     return TrialProxySession(
-        handle=RecordingHandle(calls, stop_error=stop_error, export_error=export_error),
+        handle=RecordingHandle(calls, stop_error=stop_error),
         upstream_base_url="http://127.0.0.1:1",
         absolute_deadline=epoch_datetime(H0_EPOCH_MS),
         provisional_bound_ms=H0_EPOCH_MS,
@@ -377,12 +370,14 @@ def test_stop_failure_propagates_after_the_export_is_written(tmp_path: Path) -> 
 
 def test_an_accounting_failure_still_takes_the_route_down(tmp_path: Path) -> None:
     """The mandated order says the export is written before the stop, not instead of it. A route
-    left live because a disk filled is the worse of the two failures, so the stop still runs and
-    the accounting error is the one that reaches the trial."""
+    left live because the artifact dir would not take the write is the worse of the two failures,
+    so the stop still runs and the accounting error is the one that reaches the trial."""
     calls: list[str] = []
-    session = recording_session(tmp_path, calls, export_error=True)
+    session = recording_session(tmp_path, calls)
+    # The export write fails the way a full or read-only artifact dir fails it.
+    session.export_path.mkdir()
 
-    with pytest.raises(OSError, match="no space left"):
+    with pytest.raises(OSError):
         revoke_trial_proxy(session, capture_inventory=lambda: calls.append("inventory"))
 
     assert calls == ["inventory", "export", "stop"]
@@ -429,6 +424,27 @@ def test_public_entry_run_does_not_swallow_a_stop_failure(
     assert calls[-1] == "stop"
 
 
+def test_run_takes_the_keyword_call_harbor_actually_makes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Harbor never calls the agent positionally: `run(instruction=…, environment=…, context=…)`
+    at harbor/trial/trial.py:451-455, against the parameter names `BaseAgent.run` declares
+    (harbor/agents/base.py:137-142). A renamed parameter is a TypeError raised before the body
+    runs, which would leave the revoke in its `finally` unreachable in production while every
+    positional test still passed."""
+    monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
+    agent = public_agent(tmp_path, closed_upstream())
+    environment = ContainerEnvironment()
+    asyncio.run(agent.setup(environment))
+    session = agent.proxy_session
+
+    asyncio.run(agent.run(
+        instruction="Complete the task.", environment=environment, context=AgentContext(),
+    ))
+
+    assert route_is_dead(session)
+
+
 class BrokenContainerEnvironment(ContainerEnvironment):
     """A container whose bundle-root probe answers nothing, which is how a mis-installed image
     fails: inside `setup()`, after the route has been armed."""
@@ -465,6 +481,32 @@ def test_public_entry_revokes_the_route_when_setup_fails(
     assert route_is_dead(session)
     assert session.export_path.is_file()
     assert set(agent.captured_inventory.expected_sources) >= set(PROXY_ARTIFACT_SOURCES)
+
+
+class CancelledContainerEnvironment(ContainerEnvironment):
+    """The container as it behaves under Harbor's setup timeout: the awaited call is cancelled."""
+
+    async def exec(self, command: str, **kwargs: object) -> ExecResult:
+        if "npm ls --global" in command:
+            raise asyncio.CancelledError
+        return await super().exec(command, **kwargs)
+
+
+def test_a_cancelled_setup_still_revokes_the_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Harbor bounds setup with `asyncio.wait_for` (harbor/trial/trial.py:1180-1183), so a slow
+    setup ends in a `CancelledError` — a BaseException, not an Exception. Catching only Exception
+    would leak the route on every timed-out trial."""
+    monkeypatch.setenv(CREDENTIAL_ENV, REAL_CREDENTIAL)
+    agent = public_agent(tmp_path, closed_upstream())
+    session = agent.proxy_session
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(agent.setup(CancelledContainerEnvironment()))
+
+    assert route_is_dead(session)
+    assert session.export_path.is_file()
 
 
 def test_a_route_already_revoked_is_not_revoked_a_second_time(
