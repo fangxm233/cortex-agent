@@ -6,6 +6,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -26,6 +28,8 @@ const CLI_VERSION = 'fixture-claude/9.9.9';
 const ROOT_RUN_ID = 'trial-001.cortex-direct';
 
 let root = '';
+/** Overridden only by the lease-echo test, which needs a listener that answers the control route. */
+let proxyBaseUrl = 'http://127.0.0.1:49152';
 
 beforeAll(() => {
   const built = spawnSync('flock', [
@@ -36,6 +40,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'trial-run-'));
+  proxyBaseUrl = 'http://127.0.0.1:49152';
 });
 
 afterEach(() => {
@@ -160,7 +165,7 @@ function armResolution(cli: string): Record<string, unknown> {
     credential: {
       upstream_base_url: 'https://api.anthropic.com',
       route_identity_host: 'api.anthropic.com',
-      proxy_base_url: 'http://127.0.0.1:49152',
+      proxy_base_url: proxyBaseUrl,
       dummy_token_ref: 'trial-token-handle',
     },
     cli_artifact: { path: cli, version: CLI_VERSION },
@@ -525,4 +530,73 @@ it('reports unavailable accounting as null rather than zero (T14, R5)', async ()
   assert.equal(manifest.cost_usd, null);
   assert.deepEqual(manifest.tokens, { input: null, output: null });
   assert.equal(manifest.steps, 1);
+}, 60_000);
+
+// --- T15: the credential lease is echoed before the model process is admitted ---
+
+interface EchoCapture {
+  method: string;
+  target: string;
+  authorization: string | undefined;
+  body: string;
+  modelWasAdmitted: boolean;
+}
+
+async function leaseEchoListener(
+  captures: EchoCapture[], observation: string,
+): Promise<http.Server> {
+  const server = http.createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+    request.on('end', () => {
+      captures.push({
+        method: request.method ?? '', target: request.url ?? '',
+        authorization: request.headers.authorization, body,
+        // The backend fixture writes this file the instant it starts, so its absence here is the
+        // ordering proof rather than a timing guess.
+        modelWasAdmitted: fs.existsSync(observation),
+      });
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({
+        ok: true, lease_state: 'reconciled', armed_remaining_ms: 60_000,
+      }));
+    });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  return server;
+}
+
+it('echoes the trial lease to the proxy before any model process is admitted (T15)', async () => {
+  const captures: EchoCapture[] = [];
+  const observation = path.join(root, 'backend-observation.json');
+  const listener = await leaseEchoListener(captures, observation);
+  proxyBaseUrl = `http://127.0.0.1:${(listener.address() as AddressInfo).port}`;
+  let outcome: RunOutcome;
+  const built = fixture();
+  try {
+    outcome = await runTrial(built);
+  } finally {
+    await new Promise<void>(resolve => { listener.close(() => resolve()); });
+  }
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+  assert.equal(captures.length, 1);
+  assert.equal(captures[0].method, 'POST');
+  assert.equal(captures[0].target, '/_cortex/lease-echo');
+  assert.equal(captures[0].authorization, 'Bearer trial-token-handle');
+  assert.equal(captures[0].modelWasAdmitted, false);
+  assert.equal(fs.existsSync(built.observation), true);
+  const document = JSON.parse(captures[0].body);
+  assert.equal(document.trial_id, 'trial-001');
+  // The two instants are the container's own compile reads; only their difference — the arm's
+  // declared budget — and `remaining_ms` cross to the host.
+  assert.equal(document.absolute_epoch_ms - document.compiled_at_epoch_ms, 90_000);
+  assert.ok(document.remaining_ms > 0 && document.remaining_ms <= 90_000);
+}, 60_000);
+
+it('runs the trial to completion when the lease echo cannot be delivered (T15)', async () => {
+  const built = fixture();
+  const outcome = await runTrial(built);
+  assert.equal(outcome.exitCode, 0, `${outcome.stderr}\n${JSON.stringify(outcome.terminal)}`);
+  assert.equal(outcome.terminal.state, 'completed');
+  assert.match(outcome.stderr, /lease echo unavailable/);
 }, 60_000);

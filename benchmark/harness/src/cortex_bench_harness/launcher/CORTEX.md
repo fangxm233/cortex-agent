@@ -8,3 +8,4 @@ Host launcher modules select immutable arms and project non-secret trial configu
 | arm_resolution.py | core | Composes and writes phase-A compiler input from the seed |
 | arms.py | core | Binds selected arms to seeds and builds AgentConfig |
 | credential_capabilities.py | registry | Projects host-authoritative capability metadata |
+| lease_bound.py | policy | Computes the provisional credential-lease bound |

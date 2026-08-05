@@ -15,6 +15,7 @@ import pytest
 
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
 from synthetic import (
+    LEASE_TERMS,
     MESSAGES_TARGET,
     SYNTHETIC_MODEL,
     SyntheticUpstream,
@@ -51,6 +52,7 @@ def start_proxy(
         bound_source_ip="127.0.0.1",
         absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
         budget=budget(max_cost), log_path=tmp_path / "seam.jsonl",
+        lease_terms=LEASE_TERMS,
     )
 
 
@@ -260,6 +262,7 @@ def test_proxy_refuses_to_start_for_an_upstream_the_adapter_does_not_declare(
             bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
             budget=budget(), log_path=tmp_path / "unstarted.jsonl",
+            lease_terms=LEASE_TERMS,
         )
 
 
@@ -271,6 +274,7 @@ def test_manifest_records_the_adapter_that_carried_the_trial(tmp_path: Path) -> 
             bound_source_ip="127.0.0.1",
             absolute_deadline=datetime.now(UTC) + timedelta(minutes=5),
             budget=budget("20"), log_path=tmp_path / "seam.jsonl",
+            lease_terms=LEASE_TERMS,
         )
         try:
             proxy_request(handle.base_url, handle.dummy_token, "one")

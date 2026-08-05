@@ -14,7 +14,9 @@ from pathlib import Path
 from typing import Sequence
 
 from ..launcher.credential_capabilities import CredentialCapabilityKey
+from ..launcher.lease_bound import TEARDOWN_GRACE_MS
 from .adapters import AdapterUnavailable, select_adapter
+from .lease import LeaseTerms
 from .models import ProxyBudget
 from .server import TrialProxyHandle, start_trial_proxy
 
@@ -43,7 +45,8 @@ EPILOG = """Examples:
     --capability-protocol anthropic-messages \\
     --capability-credential-kind api-key-bearer \\
     --frozen-model claude-synthetic-1 \\
-    --absolute-deadline 2099-01-02T03:04:05Z --budget-usd 5 \\
+    --absolute-deadline 2099-01-02T03:04:05Z --trial-deadline-seconds 1800 \\
+    --budget-usd 5 \\
     --max-request-cost-usd 1 --input-cost-per-million-usd 3 \\
     --output-cost-per-million-usd 15 \\
     --log-path ./proxy.jsonl
@@ -62,6 +65,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--advertised-host", help="Container-visible listener address",
+    )
+    parser.add_argument(
+        "--teardown-grace-ms", type=int, default=TEARDOWN_GRACE_MS,
+        help="Milliseconds the lease outlives the trial deadline by",
     )
     return parser
 
@@ -82,7 +89,10 @@ def _add_required_arguments(parser: argparse.ArgumentParser) -> None:
                         help="Capability key credential_kind member")
     parser.add_argument("--frozen-model", required=True,
                         help="The arm's frozen model; every other model is refused")
-    parser.add_argument("--absolute-deadline", required=True, type=_datetime)
+    parser.add_argument("--absolute-deadline", required=True, type=_datetime,
+                        help="The provisional lease bound; an echo may only shorten it")
+    parser.add_argument("--trial-deadline-seconds", required=True, type=int,
+                        help="The arm's deadline_seconds; an echo declaring another is refused")
     parser.add_argument("--budget-usd", required=True, type=_decimal)
     parser.add_argument("--max-request-cost-usd", required=True, type=_decimal)
     parser.add_argument("--input-cost-per-million-usd", required=True, type=_decimal)
@@ -141,6 +151,10 @@ def run(arguments: argparse.Namespace) -> int:
         bound_source_ip=arguments.bound_source_ip,
         absolute_deadline=arguments.absolute_deadline,
         budget=budget, log_path=arguments.log_path,
+        lease_terms=LeaseTerms(
+            budget_ms=arguments.trial_deadline_seconds * 1000,
+            teardown_grace_ms=arguments.teardown_grace_ms,
+        ),
         listen_host=arguments.listen_host,
         advertised_host=arguments.advertised_host,
     )

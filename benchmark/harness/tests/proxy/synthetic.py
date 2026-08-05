@@ -13,10 +13,13 @@ from typing import Mapping
 from urllib.parse import urlsplit
 
 from cortex_bench_harness.launcher.credential_capabilities import CredentialCapabilityKey
+from cortex_bench_harness.launcher.lease_bound import TEARDOWN_GRACE_MS
 from cortex_bench_harness.proxy.adapters import ProviderAdapter, select_adapter
+from cortex_bench_harness.proxy.lease import LeaseTerms
 
 SYNTHETIC_MODEL = "claude-synthetic-1"
 MESSAGES_TARGET = "/v1/messages?beta=true"
+LEASE_TERMS = LeaseTerms(budget_ms=1_800_000, teardown_grace_ms=TEARDOWN_GRACE_MS)
 ROW_ONE_KEY = CredentialCapabilityKey(
     "claude", "anthropic", "anthropic-messages", "api-key-bearer",
 )

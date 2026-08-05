@@ -17,6 +17,7 @@ import pytest
 
 from cortex_bench_harness.proxy import ProxyBudget, start_trial_proxy
 from synthetic import (
+    LEASE_TERMS,
     MESSAGES_TARGET,
     SYNTHETIC_MODEL,
     SyntheticUpstream,
@@ -41,6 +42,7 @@ def start_proxy(
             Decimal(max_cost), Decimal("5"), Decimal("1000000"), Decimal("1000000"),
         ),
         log_path=tmp_path / "containment.jsonl",
+        lease_terms=LEASE_TERMS,
     )
 
 

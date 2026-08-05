@@ -25,6 +25,7 @@ import {
   createTrialAdapter, trialAgentConfig, trialRunOptions,
   type TrialAdapter, type TrialAdapterSpec,
 } from '../benchmark/trial-adapter-factory.js';
+import { publishLeaseEcho } from '../benchmark/lease-echo.js';
 import { PolicyCompilationError, reportBenchmarkFailure } from '../benchmark/resolved-policy.js';
 import { preparePinnedTrialPaths } from './pinned-node-process.js';
 import {
@@ -760,6 +761,26 @@ function writeTerminalOutput(
   });
 }
 
+/**
+ * The trial proxy's credential lease was armed from the host clock before this container existed,
+ * so it is a provisional bound rather than the trial's own deadline. Hand the proxy the remaining
+ * budget — a duration, derived from the frozen policy and the container's monotonic clock — so it
+ * can shorten that bound to the trial the container actually compiled.
+ *
+ * An undelivered echo is deliberately not fatal. The lease then simply stays at its bound, which is
+ * finite by construction, and the absence is recorded on the host and fails the trial's terminal
+ * predicate there. Killing the run here would kill a live trial for a plumbing fault — the exact
+ * failure mode the echo exists to remove.
+ */
+async function echoTrialLease(run: PreparedRun, io: AgentRunIo): Promise<void> {
+  if (!run.policy) return;
+  try {
+    await publishLeaseEcho(run.policy, { monotonic_ns: () => process.hrtime.bigint() });
+  } catch (error) {
+    io.stderr.write(`lease echo unavailable: ${(error as Error)?.message ?? String(error)}\n`);
+  }
+}
+
 function classifyStartupFailure(error: unknown): ClassifiedOutcome {
   const reason = errorReason(error);
   if (reason === 'trajectory_write_failed') return failedOutcome(reason, reason);
@@ -780,6 +801,8 @@ export async function runOneShotAgent(
     journal = openRunJournal(run);
     writeJsonLine(io, journal.header);
     writeStart(run);
+    // Before any model process is admitted.
+    await echoTrialLease(run, io);
     const stats: RunStats = { input: 0, output: 0, sawInput: false, sawOutput: false };
     const outcome = await executeTurn(run, journal, io, stats);
     const classified = classify(outcome);
