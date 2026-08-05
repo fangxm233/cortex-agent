@@ -1,0 +1,21 @@
+{
+  "name": "benchmark-coder-review-fix",
+  "description": "Hook-free benchmark loop: coder implement, then an independent reviewer that audits and directly fixes blockers in the shared writable workspace",
+  "agents": [
+    "benchmark-coder",
+    "benchmark-fixer"
+  ],
+  "transitions": [
+    {
+      "from": "benchmark-coder:implement",
+      "to": "benchmark-fixer:auditFix",
+      "condition": {
+        "type": "always"
+      }
+    }
+  ],
+  "entryAgent": "benchmark-coder",
+  "entryStage": "implement",
+  "maxTotalSteps": 2,
+  "disableHooks": true
+}

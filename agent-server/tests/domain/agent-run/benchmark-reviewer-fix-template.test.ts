@@ -276,8 +276,12 @@ it('NI8: the fixer holds the benchmark coder surface and not the stock one', () 
     assert.equal(String(fixer.tools).split(',').includes(name), false, name);
   }
   // Write and Edit are what make it a fixer, and are exactly what the audit-retry reviewer lost.
-  assert.ok(String(fixer.tools).includes('Write') && String(fixer.tools).includes('Edit'));
-  assert.equal(String(documentOf('agents', 'benchmark-reviewer').tools).includes('Write'), false);
+  // Split rather than substring-matched, because `TodoWrite` contains `Write`.
+  const fixerNames = String(fixer.tools).split(',');
+  assert.ok(fixerNames.includes('Write') && fixerNames.includes('Edit'));
+  const reviewerNames = String(documentOf('agents', 'benchmark-reviewer').tools).split(',');
+  assert.equal(reviewerNames.includes('Write'), false);
+  assert.equal(reviewerNames.includes('Edit'), false);
   // Discriminating: the stock reviewer carries all four removed names.
   const stock = String(documentOf('agents', 'coder-reviewer').tools).split(',');
   for (const name of ['Agent', 'TaskStop', 'WebFetch', 'WebSearch']) assert.ok(stock.includes(name));
