@@ -14,9 +14,8 @@ from cortex_bench_harness.launcher.credential_capabilities import (
 
 EXPECTED_PROJECTION = [
     {
-        # Lowered from `offline-contract-passed`; the registry module carries the reasoning.
         "id": "claude-api-key",
-        "state": "unsupported",
+        "state": "offline-contract-passed",
         "key": {
             "runner_or_backend": "claude",
             "provider": "anthropic",

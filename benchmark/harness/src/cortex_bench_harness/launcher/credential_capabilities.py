@@ -42,27 +42,28 @@ def _key(
 
 
 CAPABILITY_REGISTRY: Mapping[CredentialCapabilityKey, CredentialCapability] = MappingProxyType({
-    # Every row is `unsupported` under proxy schema /2. That is a determination, not a
-    # placeholder. The claude/api-key row was LOWERED from `offline-contract-passed`, for two
-    # reasons that are worth keeping next to the value: evidence gathered under a different
-    # proxy schema version does not carry across the bump, which re-keyed all five rows; and
-    # the adapter-seam paths (selection, the route/body/auth/usage/limit failure branches, the
-    # offline containment properties and the upstream-host rules) have no evidence that their
-    # tests fail when the behaviour is removed. The one test there that was checked that way
-    # turned out to pass vacuously. Raising a row is reserved to the gate that owns the raise
-    # checklist, and is an all-or-nothing act — a row is never raised on all-but-one.
+    # The only row proven under proxy schema /2. It was lowered to `unsupported` when the schema
+    # bump re-keyed every row, because evidence gathered under the previous version does not carry
+    # across it, and restored only after each of the adapter-seam paths it rests on — selection,
+    # the route/body/auth/usage/limit failure branches, the offline containment properties and the
+    # upstream-host rules — was shown to have a test that FAILS when the behaviour is removed.
+    # That is the bar: 24 mutations, 24 killed. Five of them survived on the first pass and were
+    # real gaps, so this state is not a formality and must not be carried across the next bump.
+    # `offline-contract-passed` means the boundary holds against a synthetic upstream. It does NOT
+    # authorise a paid run — see the arming-point note in trial_proxy.py.
     _key("claude", "anthropic", "anthropic-messages", "api-key-bearer"):
-        CredentialCapability("claude-api-key", "unsupported"),
+        CredentialCapability("claude-api-key", "offline-contract-passed"),
     _key("claude", "anthropic", "anthropic-messages", "subscription-oauth"):
         CredentialCapability("claude-subscription", "unsupported"),
     _key("pi", "??", "??", "api-key"):
         CredentialCapability("pi-api-key", "unsupported"),
-    # DO NOT FILL THIS `??` YET, even though its value is now established from the installed
-    # package's own registry. An adapter IS registered for the filled form of this key, and
-    # nothing on the arming path consults `state` — so filling it would make a row declared
-    # `unsupported` arm a live credential route. The `??` is currently the only thing holding
-    # that shut, by accident rather than by design. Land a state check at the arming point
-    # first; then fill this, and the interlock is a mechanism instead of a typo.
+    # This `??` is no longer the interlock it once was: the arming point now refuses an
+    # unadmitted row outright, before it reads a credential, so this row fails closed by
+    # mechanism rather than by an unfilled member. The protocol's value IS established from the
+    # installed package's own registry and filling it is a fact-recording act, not a raise —
+    # the row stays `unsupported` on grounds no member can fix: nothing writes the transport
+    # pin the client needs, the second-host egress proof is Gate 10's, and revocation does not
+    # reach the token-host leg.
     _key("pi", "openai-codex", "??", "oauth"):
         CredentialCapability("pi-openai-codex-oauth", "unsupported"),
     _key("codex-cli", "openai", "??", "subscription"):
