@@ -33,7 +33,7 @@ from cortex_bench_harness.manifest import MANIFEST_FILENAME
 from cortex_bench_harness.proxy.adapters import AdapterUnavailable
 from cortex_bench_harness.proxy.manifest import fill_proxy_manifest
 from cortex_bench_harness.proxy.models import PROXY_SCHEMA_VERSION, utc_text
-from trial_fixtures import admit_every_capability
+from capability_admission import admit_every_capability
 
 DIGEST = f"sha256:{'a' * 64}"
 ROOT_RUN_ID = "trial-wiring.cortex-direct"

@@ -20,9 +20,9 @@ from cortex_bench_harness.launcher.trial_proxy import (
     arm_trial_proxy,
     parse_trial_proxy_spec,
 )
+from capability_admission import admit_capability
 from trial_fixtures import (
     CREDENTIAL_ENV,
-    admit_capability,
     closed_upstream,
     cortex_arm,
     manifest_seed,
