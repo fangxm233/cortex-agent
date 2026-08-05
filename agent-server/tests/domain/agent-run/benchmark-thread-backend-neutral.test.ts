@@ -76,6 +76,7 @@ import {
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'benchmark-neutral-'));
 const snapshotParent = path.join(DATA_DIR, 'tmp', 'review-snapshot');
+const APPROVAL_MARKER = '[IMPL-APPROVED]';
 let previousSupervisorBinary: string | undefined;
 
 interface StepScript {
@@ -109,6 +110,18 @@ function seedTemplates(): void {
     agents: ['benchmark-coder', 'benchmark-reviewer'],
     transitions: [{ from: 'benchmark-coder', to: 'benchmark-reviewer', condition: { type: 'always' } }],
     entryAgent: 'benchmark-coder', maxTotalSteps: 2, disableHooks: true,
+  });
+  writeJson(path.join(base, 'templates', 'fixture-audit-retry.json'), {
+    name: 'fixture-audit-retry', description: 'fixture',
+    agents: ['benchmark-coder', 'benchmark-reviewer'],
+    transitions: [
+      { from: 'benchmark-coder', to: 'benchmark-reviewer', condition: { type: 'always' } },
+      {
+        from: 'benchmark-reviewer', to: 'benchmark-coder',
+        condition: { type: 'convergence', marker: APPROVAL_MARKER, maxIterations: 2 },
+      },
+    ],
+    entryAgent: 'benchmark-coder', maxTotalSteps: 4, disableHooks: true,
   });
   fs.mkdirSync(path.join(base, 'shells'), { recursive: true });
 }
@@ -210,7 +223,9 @@ function seedParentLifecycle(
   writeStartedMarker({ trajectoryRoot, rootRunId, threadId: null, journalPath: journal.path });
 }
 
-function prepareTrial(label: string, backend: Backend, steps: StepScript[]): TrialRun {
+function prepareTrial(
+  label: string, backend: Backend, steps: StepScript[], template = 'fixture-two-step',
+): TrialRun {
   const queue = writeFixtureAsset(root, `${label}/queue.json`, JSON.stringify(steps));
   const observations = path.join(root, label, 'observations');
   const cli = writeFakeCli(label, backend, queue, observations);
@@ -226,7 +241,7 @@ function prepareTrial(label: string, backend: Backend, steps: StepScript[]): Tri
   const trialHome = path.join(root, label, 'trial-home');
   return {
     request: {
-      workspaceCwd, template: 'fixture-two-step', instruction: 'fix the fixture',
+      workspaceCwd, template, instruction: 'fix the fixture',
       profileName: FIXTURE_PROFILE, rootRunId, trajectoryRoot, trialRoot: DATA_DIR,
       coderReviewVariant: 'audit-retry', trialPolicy: fixture.policy,
       limits: { maxSteps: 4, maxCostUsd: 1, deadlineEpochMs: Date.now() + 60_000 },
@@ -299,6 +314,35 @@ for (const backend of ['claude', 'pi'] as const) {
     }
     // The snapshot was discarded at its own step boundary.
     assert.equal(fs.existsSync(snapshotParent), false);
+  }, 60_000);
+}
+
+for (const backend of ['claude', 'pi'] as const) {
+  it(`converges the real audit-retry transition on backend=${backend}`, async () => {
+    // Four verdicts are queued so a run that never converges has texts to consume and ends at the
+    // step limit rather than crashing the fixture — the failure then reads as 4 steps, not an error.
+    const run = prepareTrial(`converge-${backend}`, backend, [
+      { text: 'coder done' },
+      { text: `audit passed ${APPROVAL_MARKER}` },
+      { text: 'retry done' },
+      { text: 'final audit passed' },
+    ], 'fixture-audit-retry');
+
+    const result = await runBenchmarkThread(run.request, run.overrides);
+
+    assert.equal(result.state, 'completed');
+    // Convergence, not the step limit. The reviewer's approval is only ever looked for in the
+    // artifact file, and on PI the step result carries no finalOutput at all.
+    assert.equal(result.steps, 2);
+    assert.equal(harness.attachOptions.length, 2);
+    // The third step never reached a process, so the transition engine did read the approval.
+    assert.equal(fs.existsSync(path.join(run.observations, 'step-2.json')), false);
+
+    const artifact = fs.readFileSync(result.artifactPath, 'utf8');
+    assert.ok(artifact.includes(`audit passed ${APPROVAL_MARKER}`));
+    const headers = artifact.split('\n').filter(line => line.startsWith('--- snapshot step '));
+    assert.equal(headers.length, 1);
+    assert.equal(headers[0].includes(APPROVAL_MARKER), false);
   }, 60_000);
 }
 
