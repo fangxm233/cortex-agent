@@ -14,6 +14,9 @@ export interface FakeStepScript {
   text: string | null;
   /** An earlier, separate assistant message the same step emits before its terminal one. */
   lead?: string;
+  /** Files the step's own process writes, relative to the cwd the lease armed for it. This is
+   *  how a step mutates a workspace: through the real child, in the real placement. */
+  writes?: Record<string, string>;
 }
 
 /** Takes the next unclaimed step from the queue, records what the process actually saw, then
@@ -34,6 +37,11 @@ fs.mkdirSync(${JSON.stringify(observations)}, { recursive: true });
 fs.writeFileSync(path.join(${JSON.stringify(observations)}, \`step-\${index}.json\`), JSON.stringify({
   argv: process.argv.slice(2), cwd: process.cwd(), env: process.env,
 }));
+for (const [name, content] of Object.entries(step.writes ?? {})) {
+  const target = path.resolve(process.cwd(), name);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, content);
+}
 function say(record) { process.stdout.write(\`\${JSON.stringify(record)}\\n\`); }
 const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
 `;

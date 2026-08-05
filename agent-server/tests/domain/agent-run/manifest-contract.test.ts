@@ -360,6 +360,32 @@ it('accepts per-role event identities while keeping the header model identity', 
   }
 });
 
+it('reads back the fixer slot and still refuses a slot nothing declares', async () => {
+  // The readback validator is the site that fails LATE: widening only the orchestrator's admission
+  // set lets the whole run spawn, journal and finish, and then loses the terminal manifest here.
+  const root = makeRoot();
+  try {
+    const trajectory = await createTrajectory(root);
+    rewriteJournal(trajectory.journalPath, records => {
+      records[1].agent_slot = 'benchmark-fixer';
+      records[1].role_tool_surface_hash = '8'.repeat(64);
+      records[1].bundle_manifest_hash = '9'.repeat(64);
+    });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.deepEqual(validateTrajectoryRoot(root), { ok: true, problems: [] });
+
+    rewriteJournal(trajectory.journalPath, records => {
+      records[1].agent_slot = 'benchmark-manager';
+    });
+    syncTerminalJournal(trajectory.terminalPath, trajectory.journalPath);
+    assert.deepEqual(validateTrajectoryRoot(root).problems, [
+      `malformed_record:${trajectory.journalPath}:2:invalid_envelope`,
+    ]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 it('rejects a second role that reuses the header role identity', async () => {
   const root = makeRoot();
   try {

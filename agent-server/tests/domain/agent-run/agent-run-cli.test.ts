@@ -66,12 +66,17 @@ describe('parseAgentRunArgs', () => {
   });
 
   it('accepts stdin and every supported agent slot as labels', () => {
-    for (const slot of ['parent', 'benchmark-coder', 'benchmark-reviewer'] as const) {
+    const slots = ['parent', 'benchmark-coder', 'benchmark-reviewer', 'benchmark-fixer'] as const;
+    for (const slot of slots) {
       const args = validArgs();
       args[1] = '-';
       args[3] = slot;
       assert.equal(parseAgentRunArgs(args).agentSlot, slot);
     }
+    // The vocabulary is still closed: a slot no benchmark template names is refused.
+    const unknown = validArgs();
+    unknown[3] = 'benchmark-manager';
+    assert.throws(() => parseAgentRunArgs(unknown), /--agent-slot/);
   });
 
   it('accepts approved optional configuration and lifecycle flags', () => {
